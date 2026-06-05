@@ -19,11 +19,22 @@ Update this file after every meaningful implementation change.
   live Supabase project.
 - Context system written: `project-overview.md`, `architecture.md`,
   `code-standards.md`, `ai-workflow-rules.md`.
+- `ui-context.md` complete — signed off by co-founder (2026-06-05).
+  Theme, colour tokens, typography, radius, layout, component
+  library, and icons all locked.
+- Design-system foundation wired (`npm run build` passes): all
+  colour tokens defined in `app/globals.css` (`:root` + `@theme
+  inline`); Geist + Geist Mono + Playfair Display (serif) wired via
+  `next/font` in `app/layout.tsx`; shadcn/ui installed
+  (`components.json`, `lib/utils.ts`, first `button` component) with
+  its semantic tokens mapped onto the Trackd palette; Lucide
+  installed. Deps added: class-variance-authority, clsx,
+  tailwind-merge, lucide-react, tw-animate-css, radix-ui.
 
 ## In Progress
 
-- `ui-context.md` — owned by co-founder; testing colour/styling options.
-  **Do not edit.**
+- Nothing actively in progress. Next workstream is the Supabase
+  setup (Phases A–C below) — back-end/deploy, no UI needed.
 
 ## Next Up
 
@@ -128,6 +139,9 @@ Update this file after every meaningful implementation change.
 
 - Today: 2026-06-05. Week 1 exit target: 11 Jun. Beta to 10–15 testers by
   28 Jun.
-- Context system is the active workstream. No application code written yet
-  beyond the starter scaffold. Supabase intentionally not set up.
-- `ui-context.md` is the co-founder's; leave it untouched.
+- Context system is the active workstream. Beyond the starter scaffold,
+  the only application code so far is the design-system wiring (fonts,
+  tokens, shadcn). Supabase intentionally not set up.
+- `ui-context.md` complete and signed off (2026-06-05): theme,
+  tokens, typography, layout, shadcn/ui + Lucide all locked and
+  wired. Design system ready for the Week 1 (Phase E) auth screens.
