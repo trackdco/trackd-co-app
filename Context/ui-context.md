@@ -8,7 +8,7 @@ surfaces, generous spacing, and restrained colour. **White is the
 primary accent** (primary text, primary actions, emphasis); a warm
 **amber** is the secondary signature accent, reserved for
 active/interactive state (due doses, current selection, key
-metrics). High-contrast serif display type
+metrics, etc.). High-contrast serif display type
 pairs with a quiet sans-serif for UI labels, giving a premium
 "clinical journal" feel rather than a neon technical one.
 
@@ -60,29 +60,24 @@ is not permitted.
 
 ## Typography
 
-All three faces are wired in `app/layout.tsx` via `next/font` and
-exposed as CSS variables, and mapped to Tailwind utilities
-(`font-display`, `font-sans`, `font-mono`) in `app/globals.css`.
+Three faces, exposed as CSS variables and mapped to Tailwind
+utilities (`font-display`, `font-sans`, `font-mono`) in
+`app/globals.css`.
 
-| Role          | Font             | Variable            | Status   |
-| ------------- | ---------------- | ------------------- | -------- |
-| Display/serif | Playfair Display | `--font-display`    | ✅ wired |
-| UI text       | Geist            | `--font-geist-sans` | ✅ wired |
-| Code/mono     | Geist Mono       | `--font-geist-mono` | ✅ wired |
+| Role          | Font             | Variable            |
+| ------------- | ---------------- | ------------------- |
+| Display/serif | Playfair Display | `--font-display`    |
+| UI text       | Geist            | `--font-geist-sans` |
+| Code/mono     | Geist Mono       | `--font-geist-mono` |
 
 **Notes**
 
-- The large headings ("Good morning, Angus.") and the `trackd`
-  wordmark use a high-contrast Didone-style serif. **Playfair
-  Display** is the closest visual match to the screenshot and is now
-  installed; swap it later if the exact intended face is known.
-  Apply it with the `font-display` utility.
+- The large headings and the `trackd` wordmark use a high-contrast
+  Didone-style serif (**Playfair Display**).
 - UI text, labels, metadata, and buttons use the sans (Geist),
   which is also the default body font.
 
 ## Border Radius
-
-Read from the screenshot's rounded cards, pills, and date chips.
 
 | Context           | Class                                |
 | ----------------- | ------------------------------------ |
@@ -92,38 +87,33 @@ Read from the screenshot's rounded cards, pills, and date chips.
 
 ## Component Library
 
-**shadcn/ui on Tailwind v4** — installed. Components are copied into
-`components/ui/` and owned in-repo, so they theme freely to this
-custom dark look. Setup in place: `components.json` (new-york style,
-neutral base, `lib/utils.ts` `cn()` helper), and `button` added as
-the first component. Add more with `npx shadcn@latest add <name>`
-rather than hand-writing them. `components/ui/**` is protected (see
-`ai-workflow-rules.md`).
-
-shadcn's semantic tokens are **mapped onto the Trackd palette** in
+UI primitives come from **shadcn/ui on Tailwind v4**, owned in-repo
+under `components/ui/`. They render on-theme because shadcn's
+semantic tokens are **mapped onto the Trackd palette** in
 `app/globals.css` (e.g. `--primary` → `--accent-primary` white,
 `--accent` → `--accent-amber`, `--card` → `--bg-surface`,
 `--destructive` → `--state-error`). So shadcn utilities like
-`bg-primary` / `bg-card` / `bg-accent` render on-theme out of the
-box. The `--state-*` mapping is UI-only — the colour rule above
-still applies to health data.
+`bg-primary` / `bg-card` / `bg-accent` are on-theme out of the box.
+The `--state-*` mapping is UI-only — the colour rule above still
+applies to health data.
+
+**Conventions**
+
+- Theme components **only** through the token map in `globals.css` —
+  never by restyling the generated files. `components/ui/**` is
+  protected (see `ai-workflow-rules.md`).
+- Add components **incrementally, as a feature needs them** (`npx
+  shadcn@latest add <name>`) rather than hand-writing them or
+  bulk-installing the whole set.
+- Installation, config, and the full token map live in the design
+  system build spec (`Context/Feature Specs/01-design-system.md`).
 
 ## Layout Patterns
 
 - Mobile-first single column: vertically stacked sections on a
-  near-black canvas with generous vertical rhythm (this is a PWA;
-  the screenshot is the today-dashboard / protocol clock).
-- Top app bar: wordmark left, icon actions (calendar, bell) right,
-  no bottom border — separation comes from spacing.
-- Horizontal date strip: 7-day row of circular day chips; the
-  active day is outlined in the amber accent, others filled neutral.
+  near-black canvas with generous vertical rhythm (this is a PWA).
 - Metric cards: 2-up grid of surface cards (e.g. Compliance,
   Next Dose) with a muted uppercase label and a large value.
-- List sections: a "TODAY'S PROTOCOL" header with a "View all"
-  link, then stacked rows (item name + meta + status pill).
-- Status pills: amber filled = actionable ("Due now"); outlined
-  muted = resolved ("Logged"). These are UI-state colours, not
-  health-data semantics.
 
 ## Styling Notes
 
@@ -140,6 +130,5 @@ still applies to health data.
 
 ## Icons
 
-**Lucide React** — installed (shadcn's default icon set).
-Stroke-based icons only. Sizes: `h-4 w-4` inline, `h-5 w-5` in
-buttons.
+**Lucide React** (shadcn's default icon set). Stroke-based icons
+only. Sizes: `h-4 w-4` inline, `h-5 w-5` in buttons.

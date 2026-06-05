@@ -36,10 +36,15 @@
 - Tailwind CSS v4. Use the CSS-variable design tokens from `ui-context.md` —
   **no hardcoded hex values** outside `app/globals.css`.
 - Follow the border-radius and spacing scale defined in `ui-context.md`.
-- Health data is presented categorically and neutrally. Do **not** use red/green
-  or warning styling to signal that a biomarker or side-effect is "bad" — that
-  violates an architecture invariant. State colours are for UI/system feedback
-  (e.g. a failed login), never for health-data semantics.
+- **Health data is categorical and neutral — never evaluative (architecture
+  invariant).** Never apply `--state-error` / `--state-success` /
+  `--state-warning`, `--accent-green`, or any red/green/amber colour to a
+  biomarker, lab result, or side-effect value to imply it is "bad," "good," or a
+  "warning." Present results categorically — below / within / above — using
+  neutral surface/text tokens and the neutral-blue chart tokens
+  (`--chart-line` / `--chart-fill`). State colours and `--accent-green` are for
+  UI/system feedback only (e.g. a failed login, a successful save), never for
+  health-data semantics.
 
 ## Data Access (Supabase)
 

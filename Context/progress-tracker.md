@@ -36,6 +36,18 @@ Update this file after every meaningful implementation change.
 - Nothing actively in progress. Next workstream is the Supabase
   setup (Phases A–C below) — back-end/deploy, no UI needed.
 
+### Feature Specs
+
+- **`Context/Feature Specs/01-design-system.md` — ✅ Complete (verified
+  2026-06-06).** Implementation audited against the spec and
+  `ui-context.md`: tokens in `app/globals.css` (`:root` + `@theme
+  inline`) match `ui-context.md` exactly; fonts wired in
+  `app/layout.tsx`; `components.json` config + `lib/utils.ts` `cn()`
+  correct; shadcn semantic token map present and on-theme; deps and
+  Lucide installed; `button` is the only primitive (further added
+  incrementally per spec). All "Check When Done" items pass — no
+  hardcoded hex outside `globals.css`, and `npm run build` passes.
+
 ## Next Up
 
 1. Stand up the Supabase project; apply `trackd_schema_v0_4_2.sql` and
