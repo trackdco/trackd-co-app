@@ -41,7 +41,7 @@ hex values.]
 
 ## Component Library
 
-[e.g. shadcn/ui on top of Tailwind. Components live
+[e.g. shadcn/ui on top of Tailwind. Components 
 in components/ui/. Use the CLI to add new components
 rather than writing from scratch.]
 
