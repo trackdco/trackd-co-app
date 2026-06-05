@@ -70,7 +70,7 @@ Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormo
 4. 28 June: RLS verified with two real accounts (no cross-user reads), PWA install confirmed on Android and iOS, beta live with 10–15 seed testers and a private feedback channel.
 
 ## Reference Documents
-- Canonical data model: `supabase/trackd_schema_v0_4_1.sql` (security/integrity-hardened; supersedes v0.3). Apply in the same migration session as its companion `supabase/trackd_storage_policies.sql` (private bloodwork bucket + owner-scoped storage policies; Supabase-only).
+- Canonical data model: `supabase/trackd_schema_v0_4_2.sql` (security/integrity-hardened; supersedes v0.3). Apply in the same migration session as its companion `supabase/trackd_storage_policies.sql` (private bloodwork bucket + owner-scoped storage policies; Supabase-only).
 - Schema invariants and house patterns: Architecture + Code Standards files.
 - Screen specs: UI Context (designs generated just-in-time, evening before build).
 - Session rules: AI Workflow Rules / AGENTS.md.

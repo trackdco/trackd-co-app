@@ -1,5 +1,5 @@
 -- ============================================================
---  TRACKD CO — CONSOLIDATED DATABASE SCHEMA (v0.4.1)  [CANONICAL]
+--  TRACKD CO — CONSOLIDATED DATABASE SCHEMA (v0.4.2)  [CANONICAL]
 -- ============================================================
 --
 --  Derived from the Milligram competitor teardown (flows 1-10) and
@@ -11,6 +11,19 @@
 --  bucket + owner-scoped storage.objects policies. Apply it in the SAME
 --  migration session as this file (it depends on the Supabase storage
 --  schema and cannot run on vanilla Postgres).
+--
+--  -- WHAT CHANGED FROM v0.4.1 (2026-06-05) ------------------------
+--  (Pre-deploy hardening pass — no v0.4.1 had ever been applied to a DB.
+--  No data-model changes; three small integrity/robustness refinements.)
+--  ADJ 1 - UNIQUE on the seed-catalogue name columns (compounds, biomarkers,
+--    markers) — prevents accidental duplicate catalogue rows at seed time.
+--  ADJ 2 - handle_new_user() profile insert is now ON CONFLICT (id) DO NOTHING
+--    so a retry/race can't throw and break signup (a failing trigger here
+--    blocks the whole auth.users insert). Mirrors handle_new_profile_prefs.
+--  ADJ 3 - CYCLES documented as ARCHIVE-never-hard-delete. The delete cascade
+--    to dose/injection history is kept ONLY so account deletion still fully
+--    erases a user; the app must archive cycles via is_active, not DELETE.
+--    Switching the cascade to RESTRICT would break account deletion.
 --
 --  -- WHAT CHANGED FROM v0.4 ---------------------------------------
 --  FIX F - schedule_shape: specific_days now requires >= 1 day.
@@ -304,7 +317,11 @@ CREATE TRIGGER profiles_set_updated_at
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-    INSERT INTO public.profiles (id) VALUES (NEW.id);
+    -- ON CONFLICT makes this idempotent: a retry or race can't raise and
+    -- thereby break the auth.users insert (a throwing trigger here blocks
+    -- ALL signups). NB a successful no-op still leaves a profile row in place.
+    INSERT INTO public.profiles (id) VALUES (NEW.id)
+    ON CONFLICT (id) DO NOTHING;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
@@ -357,7 +374,7 @@ CREATE TYPE schedule_type AS ENUM ('every_day', 'specific_days', 'every_n_days')
 -- (custom-compound path is v1.5).
 CREATE TABLE compounds (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name            text NOT NULL,                 -- "Retatrutide", "Testosterone Enanthate"
+    name            text NOT NULL UNIQUE,          -- "Retatrutide", "Testosterone Enanthate"
     category        compound_category NOT NULL,
     -- defaults to pre-fill the add form (all optional/nullable):
     default_unit    dose_unit,
@@ -381,6 +398,14 @@ CREATE POLICY "compounds readable by all authed users"
 -- Beta scope = NO cycle cap of any kind (see header NOTE + the decision
 -- stub below). Whether free tier enforces 1 active cycle is decided
 -- post-beta; nothing is enforced here yet.
+--
+-- ARCHIVE, NEVER HARD-DELETE: deleting a cycle row CASCADES through
+-- protocol_compounds -> inventory_items -> dose_logs, destroying every dose
+-- and injection-site record inside it (the moat). The app MUST archive a
+-- cycle by setting is_active = false and must never expose a hard delete.
+-- The cascade is kept deliberately so that ACCOUNT deletion
+-- (auth.users -> profiles -> cascade) still fully erases a user's data on
+-- request — switching it to RESTRICT would break that path.
 CREATE TABLE cycles (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -895,7 +920,7 @@ CREATE TYPE biomarker_category AS ENUM (
 -- alt-unit conversion factor lives here (per-analyte) for v1.5 trends.
 CREATE TABLE biomarkers (
     id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name              text NOT NULL,             -- "Total Testosterone"
+    name              text NOT NULL UNIQUE,      -- "Total Testosterone"
     category          biomarker_category NOT NULL,
     canonical_unit    text NOT NULL,             -- SI unit, e.g. "nmol/L"
     alt_unit          text,                      -- e.g. "ng/dL"
@@ -1051,7 +1076,7 @@ CREATE TYPE marker_polarity AS ENUM ('positive', 'negative', 'neutral');
 
 CREATE TABLE markers (
     id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name         text NOT NULL,            -- "Energy", "Pumps", "Libido"
+    name         text NOT NULL UNIQUE,     -- "Energy", "Pumps", "Libido"
     polarity     marker_polarity NOT NULL DEFAULT 'neutral',
     -- ordered tier labels low->high. Display the WORD, store the INDEX.
     -- e.g. {'Drained','Flat','Coasting','Charged','Wired'} (index 1..5)
@@ -1209,5 +1234,5 @@ CREATE POLICY "own push_subscriptions - all" ON push_subscriptions FOR ALL
 CREATE INDEX idx_push_subscriptions_user ON push_subscriptions(user_id);
 
 -- ============================================================
---  END v0.4.1
+--  END v0.4.2
 -- ============================================================

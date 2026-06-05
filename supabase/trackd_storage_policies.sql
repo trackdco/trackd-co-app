@@ -1,12 +1,12 @@
 -- ============================================================
---  TRACKD CO — STORAGE POLICIES  (companion to schema v0.4.1)
+--  TRACKD CO — STORAGE POLICIES  (companion to schema v0.4.2)
 -- ============================================================
 --
 --  RUN ON SUPABASE ONLY. This file depends on the storage schema
 --  (storage.buckets, storage.objects, storage.foldername) which only
 --  exists on Supabase — it CANNOT be validated against vanilla Postgres
 --  and is deliberately kept out of the main schema file. Apply it in
---  the same migration session as trackd_schema_v0_4_1.sql.
+--  the same migration session as trackd_schema_v0_4_2.sql.
 --
 --  WHY THIS FILE EXISTS: table RLS on lab_panels protects the ROW (the
 --  path string). It does nothing for the PDF BYTES in storage.objects.
