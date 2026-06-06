@@ -111,18 +111,33 @@ export function FirstRun() {
     });
   }, [update]);
 
-  const scrollToIndex = useCallback((i: number) => {
+  // Drive the scroll frame-by-frame (direct scrollLeft writes). Reliable on iOS
+  // Safari, where programmatic scrollTo({behavior:"smooth"}) fights scroll-snap.
+  const animateTo = useCallback((i: number) => {
     const el = trackRef.current;
-    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+    if (!el) return;
+    const startLeft = el.scrollLeft;
+    const dist = i * el.clientWidth - startLeft;
+    if (Math.abs(dist) < 1) return;
+    const duration = 600;
+    let startTs = 0;
+    const step = (ts: number) => {
+      if (!startTs) startTs = ts;
+      const t = Math.min(1, (ts - startTs) / duration);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      el.scrollLeft = startLeft + dist * eased;
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }, []);
 
   // User tapping a segment takes control → stop the auto tour.
   const goTo = useCallback(
     (i: number) => {
       autoplayOff.current = true;
-      scrollToIndex(i);
+      animateTo(i);
     },
-    [scrollToIndex],
+    [animateTo],
   );
 
   useEffect(() => {
@@ -147,8 +162,6 @@ export function FirstRun() {
         clearInterval(id);
         return;
       }
-      const node = trackRef.current;
-      if (!node) return;
       let next = activeRef.current + dir;
       if (next >= SLIDES.length) {
         dir = -1;
@@ -157,13 +170,13 @@ export function FirstRun() {
         dir = 1;
         next = activeRef.current + dir;
       }
-      node.scrollTo({ left: next * node.clientWidth, behavior: "smooth" });
+      animateTo(next);
     }, AUTOPLAY_MS);
     return () => {
       clearInterval(id);
       el?.removeEventListener("pointerdown", stop);
     };
-  }, []);
+  }, [animateTo]);
 
   return (
     <div
@@ -193,7 +206,7 @@ export function FirstRun() {
         ref={trackRef}
         onScroll={onScroll}
         aria-roledescription="carousel"
-        className="flex flex-1 snap-x snap-mandatory touch-pan-x overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex flex-1 snap-x snap-mandatory touch-pan-x overflow-x-auto overflow-y-hidden overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {SLIDES.map((slide, i) => (
           <section
