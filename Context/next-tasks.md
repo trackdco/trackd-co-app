@@ -111,40 +111,28 @@ bundled MCP/CLI will need Vercel auth when we first use the deploy commands
 
 ## 📋 Parallel track — Adrian (no code, no dependency on the build)
 
-### ▶ Compile the seed catalogues
+### ✅ DONE — Seed catalogues compiled + loaded (2026-06-06)
 
-The schema creates empty reference tables; we have to supply their contents.
-Build these as Google Sheets now so they drop straight into seeding later. This
-is on the critical path — add-compound (Week 2) and bloodwork (Week 3) need them.
+Adrian built the Compounds, Biomarkers, and IGF-1 reference-range CSVs; Claude
+applied them to the live DB (149 compounds, 41 biomarkers, 4 IGF-1 ranges) as two
+tracked migrations, with Adrian-approved schema deltas (enum extensions for
+`sarm`/`thyroid`/`stimulant`/`g`; new `reference_ranges` table). CSVs + generator
+live in `supabase/seed/`. Full record in `progress-tracker.md`.
 
-**Sheet 1 — Compounds** (every substance in the v1 library). Columns:
+### ⏭ Markers seed sheet — non-priority, but needed before journal/markers UI
 
-| column | values / notes |
-|--------|----------------|
-| name | e.g. "Testosterone Enanthate" |
-| category | one of: `anabolic`, `oral`, `peptide`, `ancillary`, `supplement` |
-| default_unit | one of: `mg`, `mcg`, `iu`, `ml`, `tab`, `capsule` |
-| default_route | one of: `po`, `subq`, `im`, `nasal`, `topical` |
-| default_inventory_type | one of: `preconcentrated` (oils), `oral_solid` (tabs/caps), `reconstituted` (powders) |
-| aliases | comma-separated, e.g. "Test E, TestE" |
-| half_life_hours | number (optional; leave blank if unknown) |
-
-**Sheet 2 — Biomarkers** (blood markers a user can log). Columns:
+The **third** catalogue (`markers` — subjective daily tracking: energy, libido,
+sleep, pumps, mood… plus side-effects as negative-polarity markers) is **not yet
+built**. Not urgent — the seed pass above shipped without it, and it's only needed
+when the journal + markers UI lands. When ready, build it the same way (CSV →
+`supabase/seed/` → re-run the generator). Exact columns (read from the schema):
 
 | column | values / notes |
 |--------|----------------|
-| name | e.g. "Total Testosterone" |
-| category | one of: `hormones`, `lipids`, `liver`, `kidney`, `blood_count`, `metabolic`, `thyroid`, `other` |
-| canonical_unit | SI unit, e.g. "nmol/L" |
-| alt_unit | e.g. "ng/dL" (optional) |
-| alt_unit_factor | number: canonical × factor = alt (optional) |
-| ref_low_male / ref_high_male | standard male reference range |
-| ref_low_female / ref_high_female | standard female reference range |
-| aliases | comma-separated, e.g. "Test, TT" |
-
-*(The third catalogue, `markers` — subjective progress tracking: mood, libido,
-sleep, pumps, etc. — will get its own sheet spec once Claude has read that
-section of the schema, so the columns are exact rather than guessed.)*
+| name | e.g. "Energy", "Libido", "Sleep Quality", "Pumps" |
+| polarity | one of `positive` (up = good thing), `negative` (up = bad thing, e.g. acne/soreness), `neutral`. **Axis orientation only — never a judgement colour.** |
+| tier_labels | ordered low→high words, **pipe-separated** (commas break the CSV), e.g. `Drained\|Flat\|Coasting\|Charged\|Wired`. Store the index, show the word. A 2-tier `None\|Present` makes a side-effect behave as a daily checkbox. |
+| is_default | TRUE = shown to everyone by default; FALSE = optional catalogue item |
 
 ### ⏭ Or — Legal / disclaimer copy
 
@@ -156,7 +144,8 @@ disclaimer** — important for a harm-reduction app, and fully non-technical.
 
 ## 🗂️ Backlog (not yet scheduled — pull up here when the above is done)
 
-- **Seed the catalogues into the DB** — load the finished Compounds/Biomarkers/
-  Markers sheets via the SQL Editor or a service-role script (these tables are
-  service-role-write-only by design). Needs the sheets done + schema applied.
+- **Seed the `markers` catalogue into the DB** — Compounds + Biomarkers + IGF-1
+  ranges are already seeded (2026-06-06). Only `markers` remains: once the sheet
+  exists, drop the CSV into `supabase/seed/`, re-run `build-seed-sql.mjs`, and apply
+  (service-role-write-only by design). Spec is in the parallel track above.
 - **Beta prep:** line up 10–15 testers (target 28 Jun).

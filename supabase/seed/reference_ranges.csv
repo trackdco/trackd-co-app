@@ -1,0 +1,5 @@
+marker,sex,age_min,age_max,unit,ref_low,ref_high,source
+IGF-1,any,18,24,nmol/L,24,102,"Indicative; published clinical IGF-1 age bands (Immulite-type assay), converted from ng/mL. Assay-dependent — replace with the cited lab/assay values before this drives interpretation."
+IGF-1,any,25,39,nmol/L,15,52,"Indicative; published clinical IGF-1 age bands (Immulite-type assay), converted from ng/mL. Assay-dependent — replace with the cited lab/assay values before this drives interpretation."
+IGF-1,any,40,54,nmol/L,12,47,"Indicative; published clinical IGF-1 age bands (Immulite-type assay), converted from ng/mL. Assay-dependent — replace with the cited lab/assay values before this drives interpretation."
+IGF-1,any,55,120,nmol/L,9,38,"Indicative; published clinical IGF-1 age bands (Immulite-type assay), converted from ng/mL. Assay-dependent — replace with the cited lab/assay values before this drives interpretation."
