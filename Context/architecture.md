@@ -15,7 +15,7 @@
 | Auth      | Supabase Auth                       | Signup, login, session; identity for RLS (`auth.uid()`)          |
 | Database  | Supabase Postgres + RLS             | All app data; ownership and access enforced at the row level      |
 | Storage   | Supabase Storage                    | Bloodwork file uploads (private, owner-scoped bucket)             |
-| Hosting   | Vercel                             | Deploy + edge; serves the installable PWA at `app.trackdco.app`   |
+| Hosting   | Vercel                             | Deploy + edge; serves the installable PWA at the root `trackdco.app` |
 
 **Deferred (post-trip, not built during the sprint):** Stripe (payments),
 Web Push/VAPID + Supabase Edge Functions (notification delivery), Resend +

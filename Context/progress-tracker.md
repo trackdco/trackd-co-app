@@ -10,13 +10,12 @@ Last updated: 2026-06-06
 
 ## Current Phase
 
-- **Supabase backend integration.** The product/context system and the
-  design-system foundation are complete; we are now standing up the live back
-  end. The data model is applied and verified, the **Supabase client layer
-  is wired** (browser/server/proxy clients + env, `npm run build` passing), and
-  the app is **deployed to Vercel and verified serving** (HTTP 200 at
-  `https://trackd-co-app.vercel.app/`). Active workstream: **point
-  `app.trackdco.app`** at the deploy. Steps in `next-tasks.md`.
+- **Backend + deploy complete → starting the app UI.** The product/context
+  system, design-system foundation, data model, Supabase client layer, Vercel
+  deploy, and the live custom domain are all done. The app is **live at
+  https://trackdco.app** (HTTP 200, valid SSL). Next phase: **Week 1 exit — auth
+  screens** (signup → 18+ gate → login → empty dashboard). Steps in
+  `next-tasks.md`.
 
 ## Completed
 
@@ -40,6 +39,13 @@ Last updated: 2026-06-06
   committed. `npm run build` passes and shows `ƒ Proxy (Middleware)` with no
   deprecation warning. Pattern research-verified against installed versions +
   Supabase docs and adversarially checked for the auth-session footguns.
+- **Deployed to Vercel + live on the custom domain (2026-06-06).** App imported to
+  Vercel (project `trackd-co-app`), Production env vars set
+  (`NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+  non-sensitive) and serving. Custom domain **https://trackdco.app** live and
+  verified externally (DNS A `216.198.79.1`, HTTPS 200, valid SSL). First deploy
+  500'd on missing build-time env vars — fixed by setting them and redeploying
+  with build cache OFF (`NEXT_PUBLIC_` vars inline at build time).
 - Context system written: `project-overview.md`, `architecture.md`,
   `code-standards.md`, `ai-workflow-rules.md`, `ui-context.md`.
 - `ui-context.md` signed off by Adrian (co-founder) (2026-06-05): theme, colour tokens,
@@ -63,14 +69,11 @@ Last updated: 2026-06-06
 
 ## In Progress
 
-- **Pointing the domain** — Vercel deploy verified serving (HTTP 200 at
-  `https://trackd-co-app.vercel.app/`, renders the page, proxy session-refresh
-  runs clean). Remaining: point `app.trackdco.app` at it (Settings → Domains →
-  CNAME → SSL). See `next-tasks.md`.
-  - Deploy debug: first deploy 500'd — `NEXT_PUBLIC_SUPABASE_*` env vars weren't
-    set at build time. Fixed by adding both (non-sensitive, Production scope) and
-    redeploying with **build cache OFF**. `NEXT_PUBLIC_` vars inline at build
-    time, so an env-var change needs a no-cache redeploy to take.
+- **Week 1 exit — auth screens (not started).** Build signup → 18+ gate → login →
+  empty dashboard on https://trackdco.app, wired to Supabase Auth; test signup
+  hard with a fresh account (the `handle_new_user()` auto-profile trigger is the
+  one place a failure blocks all signups); confirm RLS isolation with a second
+  account. Checkpoint target 11 Jun. See `next-tasks.md`.
 
 ## Tooling
 
@@ -104,6 +107,12 @@ Last updated: 2026-06-06
 
 ## Architecture Decisions
 
+- **App is served at the root `trackdco.app`, not a subdomain (2026-06-06).**
+  Angus's call — the app *is* the domain for now (no separate marketing site at
+  the root). Reverses the earlier `app.trackdco.app` assumption. Apex domains
+  can't use a CNAME, so DNS at Porkbun uses an A record (Vercel's IP) or an ALIAS
+  → `cname.vercel-dns.com`; the Vercel "redirect apex to www" option is left OFF
+  so the bare root serves the app directly.
 - **Stack is Next.js 16, not 14** — repo has `next@16.2.7`. APIs differ from
   older training data; read `node_modules/next/dist/docs/` before using a Next
   API you're unsure about (per `AGENTS.md`).
@@ -141,6 +150,12 @@ Last updated: 2026-06-06
 
 ## Session Notes
 
+- 2026-06-06: **App live on the custom domain.** Pointed `trackdco.app` (root) at
+  the Vercel deploy — added an A record at Porkbun (host blank → `216.198.79.1`),
+  deleted Porkbun's two parking records, left the Google Workspace MX + TXT
+  intact. Verified externally: DNS resolves, HTTPS 200, valid SSL, page renders.
+  Decision locked: app served on the bare root (not a subdomain). 7 Jun checkpoint
+  hit a day early — Supabase live, schema applied, deploy proven, domain live.
 - 2026-06-06: **Deployed to Vercel + installed the Vercel plugin.** Angus created
   the Vercel account (GitHub signup; both founders are abroad on travel data
   eSIMs, so SMS phone verification needed a workaround) and deployed — app is live

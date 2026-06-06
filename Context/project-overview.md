@@ -4,7 +4,7 @@
 Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormone-optimisation protocols in one unified system. It is built for serious bodybuilders running real protocols (especially competition prep), with adjacent users in TRT patients, peptide users, biohackers, and coaches. Every competitor tracks one silo; Trackd unifies the full stack — anabolics, peptides, supplements, ancillaries — and adds decision-support intelligence: the right information at the right moment, not a dumb log. It is an information and tracking SaaS for informed adults. It is NOT a medical device, telehealth provider, or pharmacy.
 
 ## Goals
-1. Beta MVP live at app.trackdco.app, installed as a PWA on Android and iOS, in the hands of 10–15 seed testers by 28 June 2026.
+1. Beta MVP live at trackdco.app, installed as a PWA on Android and iOS, in the hands of 10–15 seed testers by 28 June 2026.
 2. The core loop works end-to-end with zero stored derived values: create cycle → add compounds (all three inventory types) → log doses → edit/undo/skip a dose and watch inventory, calendar, and dashboard reflow automatically.
 3. Zero cross-user data exposure: RLS verified with two real accounts before any tester touches the app.
 

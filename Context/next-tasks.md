@@ -15,9 +15,11 @@ Last updated: 2026-06-06
 
 ## 🎯 Current focus
 
-Data model is **built and verified** on the live Supabase project ✅. Now wire
-the Next.js app to Supabase (clients, env, Vercel deploy). Adrian works the
-**parallel track** below in the meantime — no dependency on the build.
+Backend + deploy **done**: Supabase live, schema applied, app deployed and serving
+on the real domain **https://trackdco.app** (SSL valid). Next build-track job is
+the **Week 1 exit — auth screens** (signup → 18+ gate → login → empty dashboard).
+Adrian works the **parallel track** below in the meantime — no dependency on the
+build.
 
 ---
 
@@ -68,12 +70,32 @@ output where the vars were still undefined.
 > ⚠️ **Gotcha banked:** `NEXT_PUBLIC_` vars are inlined at **build time**.
 > Changing one means redeploy **without build cache**, or it won't take.
 
-### ▶ NOW — Point the domain
+### ✅ DONE — Domain live (2026-06-06)
 
-Point **`app.trackdco.app`** at the deploy: Vercel project → Settings → Domains →
-add `app.trackdco.app`, then add the CNAME it gives you at the `trackdco.app` DNS
-host. Wait for SSL to provision.
-- ✅ Checkpoint (target 7 Jun): Supabase live, schema applied, deploy proven.
+**App is live at https://trackdco.app** — verified from outside Vercel: DNS
+resolves (`trackdco.app` → A `216.198.79.1`), HTTPS returns 200 with valid SSL,
+and the page renders. Vercel shows "Valid Configuration".
+
+Decision: the app is served on the **bare root `trackdco.app`**, not a subdomain
+(Angus's call — the app *is* the domain; no separate marketing site for now). In
+the Vercel Add-Domain dialog the "Redirect apex domains to www" option was left
+OFF. Apex can't use a CNAME, so DNS at **Porkbun** is an **A record** (host blank
+→ `216.198.79.1`, the IP Vercel displayed). Porkbun's two parking records (ALIAS +
+wildcard CNAME → `pixie.porkbun.com`) were deleted; the Google Workspace **MX +
+TXT** records were left untouched. End state: 3 records (A + MX + TXT).
+- ✅ Checkpoint HIT (target 7 Jun, done 6 Jun): Supabase live, schema applied,
+  deploy proven, custom domain live with SSL.
+
+### ▶ NOW — Week 1 exit: auth screens
+
+Build the first real user flow, live on https://trackdco.app:
+1. **Signup → 18+ gate → login → empty dashboard**, wired to Supabase Auth.
+2. Test signup **HARD** with a brand-new account — the `handle_new_user()`
+   auto-profile trigger is the one place a failure silently blocks *all* signups.
+   It's idempotent (`ON CONFLICT (id) DO NOTHING`), but verify a fresh row really
+   lands in `profiles` on first signup.
+3. Confirm RLS: a second account sees none of the first account's data.
+   - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones.
 
 ### Tooling — Vercel plugin installed (2026-06-06)
 
@@ -137,8 +159,4 @@ disclaimer** — important for a harm-reduction app, and fully non-technical.
 - **Seed the catalogues into the DB** — load the finished Compounds/Biomarkers/
   Markers sheets via the SQL Editor or a service-role script (these tables are
   service-role-write-only by design). Needs the sheets done + schema applied.
-- **Week 1 exit — auth screens:** build signup → 18+ gate → login → empty
-  dashboard on the live URL. Test signup HARD with a brand-new account (the
-  auto-profile trigger is the one place a failure blocks all signups).
-  ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones.
 - **Beta prep:** line up 10–15 testers (target 28 Jun).
