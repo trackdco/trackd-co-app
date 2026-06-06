@@ -156,6 +156,17 @@ Last updated: 2026-06-06
   can't use a CNAME, so DNS at Porkbun uses an A record (Vercel's IP) or an ALIAS
   → `cname.vercel-dns.com`; the Vercel "redirect apex to www" option is left OFF
   so the bare root serves the app directly.
+- **Landing is a mobile-only, app-style onboarding (2026-06-06).** The public entry
+  at trackdco.app is a swipeable "First Run" carousel built to feel like a native
+  app, not a marketing page (founder direction). Desktop gets an "open on your
+  phone" gate. Two `ui-context` nuances were relaxed *for the onboarding surface
+  only*: (a) amber is used as a restrained recurring accent (progress fill,
+  eyebrows, the "due" elements) rather than strictly once-per-screen — the in-app
+  **health-data categorical / never-evaluative** invariant is untouched; (b) the
+  feature cards are honest **placeholder mocks**, to be swapped for the real app
+  screens once built. Also: `updateSession` now **fails open** when the Supabase
+  env is unset, so a missing/mis-scoped var can't 500 the whole site (the real auth
+  gate is `getUser()` in protected pages, so this is safe).
 - **Stack is Next.js 16, not 14** — repo has `next@16.2.7`. APIs differ from
   older training data; read `node_modules/next/dist/docs/` before using a Next
   API you're unsure about (per `AGENTS.md`).
@@ -193,6 +204,18 @@ Last updated: 2026-06-06
 
 ## Session Notes
 
+- 2026-06-06: **Landing built + shipped live.** Explored 3 app-style entry concepts
+  (Cold Open / First Run / Locked Shell) on a `feat/landing` preview branch; Angus
+  chose the **First Run** swipeable onboarding. Iterated from a multi-lens design
+  critique (motion, product-true visuals, brand craft, anti-"AI-slop") into a
+  polished carousel — product mini-mocks, gold accents, a 2s auto-advance tour
+  (rAF + scroll-snap toggle so it actually works on iOS), scroll parallax, native
+  viewport wiring, a mobile-only desktop gate, and `/login`+`/terms`+`/privacy`
+  placeholders. Authenticated the **Vercel MCP** to read deploys/logs and verify
+  protected previews directly. Pulled Adrian's seed work into the branch (clean
+  merge), then merged `feat/landing` → `main`: **live + verified on
+  https://trackdco.app**. CodeRabbit's 3 findings (metadata, /login + /terms +
+  /privacy 404s) all addressed. Next: real Google sign-in + the 18+/ToS gate.
 - 2026-06-06: **Seed catalogues loaded.** Adrian supplied the Compounds,
   Biomarkers, and IGF-1 reference-range CSVs. Committed them (corrected) under
   `supabase/seed/` with a CSV→SQL generator, then applied two tracked migrations:
