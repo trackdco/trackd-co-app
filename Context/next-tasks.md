@@ -16,10 +16,27 @@ Last updated: 2026-06-06
 ## 🎯 Current focus
 
 Backend, deploy, domain **and the public landing are all live** on
-**https://trackdco.app** (app-style First Run onboarding). Next build-track job is
-**auth** — wire the real **Google sign-in** behind the landing's CTA, the 18+/ToS
-gate, and an empty dashboard. Adrian works the **parallel track** below in the
-meantime — no dependency on the build.
+**https://trackdco.app**. Now **two parallel lanes**:
+- **Angus + Claude — auth + app shell:** real Google sign-in → 18+/ToS gate →
+  dashboard + the logged-in layout. Angus also owns **beta outreach**.
+- **Adrian — app UI:** after the legal copy, design then build the real feature
+  screens (the landing's feature cards are placeholders waiting on these).
+
+---
+
+## 🔀 Working in parallel (two builders, one repo)
+
+Conflicts come from editing the **same files**, not from working at the same time:
+- **One branch per person** — `feat/auth` (Angus), `feat/app-ui` (Adrian). Never
+  commit straight to `main`.
+- **`git pull` before you start and before you push;** merge one lane at a time,
+  the other pulls right after.
+- **Stay in your folders.** Shared foundations (`app/globals.css`, `app/layout.tsx`,
+  `components/ui/**`, the Context docs) change only by agreement — route them
+  through one person.
+- **Auth + the app shell land first** — they build the logged-in layout every
+  feature screen sits in, so Adrian's screens branch off cleanly once it exists.
+- Build everything against the **locked design system** (`ui-context.md`).
 
 ---
 
@@ -100,9 +117,10 @@ never-evaluative invariant still stands); the proxy now **fails open** if Supaba
 env is unset (a missing var can't 500 the whole site). **Feature mini-mocks are
 placeholders** — swap to the real screens once the app UI is designed.
 
-### ▶ NOW — Auth: real Google sign-in + 18+/ToS gate
+### ▶ NOW — Auth + app shell  (Angus · branch `feat/auth`)
 
-Wire the landing's CTA to a working account flow:
+Wire the landing's CTA to a working account flow **and lay the logged-in shell
+every feature screen will sit in**:
 1. **Google OAuth setup (Angus, one-time):** Supabase → Auth → Providers → Google
    (enable, copy callback URL) → Google Cloud OAuth client (consent screen + web
    client using the Supabase callback) → paste client id/secret back → set Site URL
@@ -113,13 +131,21 @@ Wire the landing's CTA to a working account flow:
    email, not DOB/consent): collect `date_of_birth` (reject <18 → set `is_18_plus`),
    accept ToS → set `tos_accepted_at` + `tos_version`, via an authed `profiles`
    UPDATE. Gate app access on `is_18_plus AND tos_accepted_at`.
-4. **Empty dashboard** + route guard (`getUser()`); root redirects a logged-in user
-   to `/dashboard`. Sessions persist (cookie + proxy refresh) so they stay logged in.
+4. **Empty dashboard + the logged-in layout/route group** + route guard
+   (`getUser()`); root redirects a logged-in user to `/dashboard`. Sessions persist
+   (cookie + proxy refresh) so they stay logged in. *This shell is the foundation
+   Adrian's feature screens build on — land it first.*
 5. **Post-signup "Add to Home Screen" prompt** (PWA install) — Angus's flow ask.
 6. Test signup **HARD** with a brand-new Google account — the `handle_new_user()`
    trigger is the one place a failure silently blocks *all* signups. Confirm RLS:
    a second account sees none of the first's data.
    - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones.
+
+### Also (Angus) — beta outreach (alongside the build)
+
+Angus owns tester recruitment — his audience (100k social following + a 700-member
+peptide Discord), prioritising **influencers** for reach + credibility. Targeted at
+the **last few days** before 28 Jun; full strategy in a dedicated session.
 
 ### Tooling — Vercel plugin installed (2026-06-06)
 
@@ -133,7 +159,7 @@ bundled MCP/CLI will need Vercel auth when we first use the deploy commands
 
 ---
 
-## 📋 Parallel track — Adrian (no code, no dependency on the build)
+## 🎨 Adrian's lane — legal, then app UI (design → build)
 
 ### ✅ DONE — Seed catalogues compiled + loaded (2026-06-06)
 
@@ -143,33 +169,46 @@ tracked migrations, with Adrian-approved schema deltas (enum extensions for
 `sarm`/`thyroid`/`stimulant`/`g`; new `reference_ranges` table). CSVs + generator
 live in `supabase/seed/`. Full record in `progress-tracker.md`.
 
-### ⏭ Markers seed sheet — non-priority, but needed before journal/markers UI
+### ◑ In progress — Legal / disclaimer copy (finishing 6 Jun)
 
-The **third** catalogue (`markers` — subjective daily tracking: energy, libido,
-sleep, pumps, mood… plus side-effects as negative-polarity markers) is **not yet
-built**. Not urgent — the seed pass above shipped without it, and it's only needed
-when the journal + markers UI lands. When ready, build it the same way (CSV →
-`supabase/seed/` → re-run the generator). Exact columns (read from the schema):
+Drafting the **Terms of Service, privacy policy, and medical disclaimer** (fully
+non-technical; important for a harm-reduction app). **Handoff:** when done, give
+Claude the final text + a `tos_version` string → it drops into the `/terms` and
+`/privacy` pages (currently placeholders) and wires into the **18+/ToS gate** in
+the auth build.
 
-| column | values / notes |
-|--------|----------------|
-| name | e.g. "Energy", "Libido", "Sleep Quality", "Pumps" |
-| polarity | one of `positive` (up = good thing), `negative` (up = bad thing, e.g. acne/soreness), `neutral`. **Axis orientation only — never a judgement colour.** |
-| tier_labels | ordered low→high words, **pipe-separated** (commas break the CSV), e.g. `Drained\|Flat\|Coasting\|Charged\|Wired`. Store the index, show the word. A 2-tier `None\|Present` makes a side-effect behave as a daily checkbox. |
-| is_default | TRUE = shown to everyone by default; FALSE = optional catalogue item |
+### ▶ NEXT — App UI: design, then build  (branch `feat/app-ui`)
 
-### ⏭ Or — Legal / disclaimer copy
+Adrian's main lane after legal. **Design first** (zero file conflicts) — the real
+screens for the core loop, all against the locked design system (`ui-context.md`):
+- cycle create → add-compound + inventory (all three inventory types)
+- the today / dose-logging view (log, edit, undo, skip)
+- journal + markers; bloodwork upload
+Then **build** them once Angus's app shell exists, on `feat/app-ui`, in feature
+folders that don't overlap auth. These designs become the real screens the
+landing's placeholder mocks get swapped for. `git pull main` before
+starting/pushing; stay in feature folders.
 
-The schema stores `tos_version` + `tos_accepted_at` but the actual text doesn't
-exist yet. Draft the **Terms of Service, privacy policy, and medical
-disclaimer** — important for a harm-reduction app, and fully non-technical.
+### ✅ DONE — Markers seed sheet (built; commit pending)
+
+Adrian built the third catalogue (`markers` — subjective daily tracking + side
+effects as negative-polarity markers). **Not yet committed/applied** — he'll commit
+it alongside the legal copy. When it lands: drop the CSV into `supabase/seed/`,
+re-run `build-seed-sql.mjs`, apply (service-role). Columns (from the schema): `name`;
+`polarity` (`positive`/`negative`/`neutral` — axis orientation only, never a
+judgement colour); `tier_labels` (low→high, **pipe**-separated); `is_default`.
+
+### ⏭ Catalogue data QA (if time)
+
+Sanity-check the seeded **149 compounds / 41 biomarkers** (half-lives, aliases,
+default doses/units, categories, common missing compounds) — add-compound and
+bloodwork lean on it. Fixes flow back through the CSV → re-seed path.
 
 ---
 
 ## 🗂️ Backlog (not yet scheduled — pull up here when the above is done)
 
-- **Seed the `markers` catalogue into the DB** — Compounds + Biomarkers + IGF-1
-  ranges are already seeded (2026-06-06). Only `markers` remains: once the sheet
-  exists, drop the CSV into `supabase/seed/`, re-run `build-seed-sql.mjs`, and apply
-  (service-role-write-only by design). Spec is in the parallel track above.
-- **Beta prep:** line up 10–15 testers (target 28 Jun).
+- **Apply the `markers` seed** once Adrian commits the sheet (see his lane above).
+- **Week 2+ build:** add-compound + inventory → dose logging → the daily-use loop
+  (core-loop order in `ai-workflow-rules.md`) — Adrian's `feat/app-ui` lane once
+  the shell's up.
