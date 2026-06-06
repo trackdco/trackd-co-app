@@ -48,22 +48,42 @@ Env var names locked: `NEXT_PUBLIC_SUPABASE_URL`,
 `SUPABASE_SECRET_KEY`. The `sb_secret_` key isn't provisioned yet — only needed
 for admin/seeding work, added when we get there.
 
-### ▶ NOW — Deploy to Vercel
+### ✅ DONE — Deployed to Vercel (2026-06-06)
 
-1. **Commit + push** the client layer to GitHub (Angus to approve the commit).
-2. Go to **vercel.com** → sign in with GitHub → **Add New… → Project** → import
-   `trackdco/trackd-co-app`. Vercel auto-detects Next.js 16.
-3. Before the first deploy, add **Environment Variables** (in the import screen,
-   or Settings → Environment Variables):
-   - `NEXT_PUBLIC_SUPABASE_URL` = `https://boqqracwdpuisgvwbqlc.supabase.co`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` = the `sb_publishable_…` key
-   ⚠️ `NEXT_PUBLIC_` vars are inlined at **build time** — changing them later
-   needs a redeploy.
-4. **Deploy** → confirm the app loads on the `*.vercel.app` URL.
-5. Point **`app.trackdco.app`** at it: Vercel project → Settings → Domains → add
-   `app.trackdco.app`, then add the CNAME it gives you at the `trackdco.app` DNS
-   host. Wait for SSL to provision.
-   - ✅ Checkpoint (target 7 Jun): Supabase live, schema applied, deploy proven.
+Committed + pushed to `main`; Vercel account created (GitHub signup — both
+founders on travel data eSIMs, so phone SMS verification needed a workaround);
+project imported with `NEXT_PUBLIC_SUPABASE_URL` +
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` set; deploy succeeded on the
+`*.vercel.app` URL (per Angus).
+
+### ✅ DONE — Deploy confirmed serving (2026-06-06)
+
+Live and verified at **https://trackd-co-app.vercel.app/** (HTTP 200, renders the
+"Trackd co" page; proxy session-refresh runs clean). First deploy 500'd because
+the `NEXT_PUBLIC_SUPABASE_*` env vars weren't set at build time; fixed by adding
+both to the **Production** env var scope (non-sensitive) **and redeploying with
+"Use existing Build Cache" UN-ticked** — a plain redeploy reused stale compiled
+output where the vars were still undefined.
+
+> ⚠️ **Gotcha banked:** `NEXT_PUBLIC_` vars are inlined at **build time**.
+> Changing one means redeploy **without build cache**, or it won't take.
+
+### ▶ NOW — Point the domain
+
+Point **`app.trackdco.app`** at the deploy: Vercel project → Settings → Domains →
+add `app.trackdco.app`, then add the CNAME it gives you at the `trackdco.app` DNS
+host. Wait for SSL to provision.
+- ✅ Checkpoint (target 7 Jun): Supabase live, schema applied, deploy proven.
+
+### Tooling — Vercel plugin installed (2026-06-06)
+
+Official Vercel plugin for coding agents installed at user scope
+(`npx plugins add vercel/vercel-plugin --target claude-code`; Bun installed to
+`~/.bun` as its prerequisite). `vercel-plugin@vercel` v0.43.0 — 26 skills, 3
+specialist agents (incl. `deployment-expert`), `/vercel-plugin:*` commands, an
+MCP server, and hooks. **Loads on next Claude Code session restart.** The
+bundled MCP/CLI will need Vercel auth when we first use the deploy commands
+(`/vercel-plugin:bootstrap` handles linking + auth).
 
 ---
 

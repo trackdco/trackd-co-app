@@ -12,10 +12,11 @@ Last updated: 2026-06-06
 
 - **Supabase backend integration.** The product/context system and the
   design-system foundation are complete; we are now standing up the live back
-  end. The data model is applied and verified, and the **Supabase client layer
-  is wired** (browser/server/proxy clients + env, `npm run build` passing).
-  Active workstream: **deploying to Vercel** (push → import → env → domain).
-  Steps in `next-tasks.md`.
+  end. The data model is applied and verified, the **Supabase client layer
+  is wired** (browser/server/proxy clients + env, `npm run build` passing), and
+  the app is **deployed to Vercel and verified serving** (HTTP 200 at
+  `https://trackd-co-app.vercel.app/`). Active workstream: **point
+  `app.trackdco.app`** at the deploy. Steps in `next-tasks.md`.
 
 ## Completed
 
@@ -62,10 +63,28 @@ Last updated: 2026-06-06
 
 ## In Progress
 
-- **Deploying to Vercel** — push to GitHub, import the repo into Vercel, set the
-  same `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` env
-  vars, deploy, confirm the app loads on the `*.vercel.app` URL, then point
-  `app.trackdco.app` at it. See `next-tasks.md`.
+- **Pointing the domain** — Vercel deploy verified serving (HTTP 200 at
+  `https://trackd-co-app.vercel.app/`, renders the page, proxy session-refresh
+  runs clean). Remaining: point `app.trackdco.app` at it (Settings → Domains →
+  CNAME → SSL). See `next-tasks.md`.
+  - Deploy debug: first deploy 500'd — `NEXT_PUBLIC_SUPABASE_*` env vars weren't
+    set at build time. Fixed by adding both (non-sensitive, Production scope) and
+    redeploying with **build cache OFF**. `NEXT_PUBLIC_` vars inline at build
+    time, so an env-var change needs a no-cache redeploy to take.
+
+## Tooling
+
+- **Vercel plugin for coding agents installed (2026-06-06).** `vercel-plugin@vercel`
+  v0.43.0 installed at **user scope** via `npx plugins add vercel/vercel-plugin
+  --target claude-code` (Bun installed to `~/.bun` as its prerequisite — global
+  `npm i -g` was blocked by `/usr/local` perms, so used the official `bun.sh`
+  installer). Provides 26 Vercel skills, 3 specialist agents (`deployment-expert`,
+  `performance-optimizer`, `ai-architect`), `/vercel-plugin:*` slash commands, an
+  MCP server, and session-start hooks. Registered in `~/.claude/plugins/`. Loads
+  on the next Claude Code session restart; the bundled MCP/CLI needs Vercel auth
+  on first use of the deploy commands. NB: the no-`plugins`-tool conclusion from
+  an earlier check was wrong — this is an official June-2026 Vercel release
+  (docs: vercel.com/docs/agent-resources/vercel-plugin).
 
 ### Feature Specs
 
@@ -122,6 +141,15 @@ Last updated: 2026-06-06
 
 ## Session Notes
 
+- 2026-06-06: **Deployed to Vercel + installed the Vercel plugin.** Angus created
+  the Vercel account (GitHub signup; both founders are abroad on travel data
+  eSIMs, so SMS phone verification needed a workaround) and deployed — app is live
+  on `*.vercel.app`. Then installed the official Vercel coding-agents plugin
+  (`vercel-plugin@vercel` v0.43.0, user scope) after verifying `npx plugins add
+  vercel/vercel-plugin` against Vercel's own docs — it's a real June-2026 release;
+  an earlier in-session check had wrongly called the command fake. Bun installed
+  as a prerequisite. Plugin loads on the next session restart. Next: confirm the
+  deploy renders + point `app.trackdco.app`.
 - 2026-06-06: **Supabase client layer wired.** Installed `@supabase/ssr` +
   `@supabase/supabase-js`; created browser/server/proxy clients + `updateSession`
   helper, `.env.local` (publishable key) + committed `.env.example`. Used a
