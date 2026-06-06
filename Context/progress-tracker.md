@@ -132,7 +132,7 @@ Last updated: 2026-06-06
   IGF-1 falls with age, which the flat male/female columns on `biomarkers` can't
   express. New service-role-write-only catalogue, same RLS as `biomarkers`. `sex`
   is nullable (NULL = any) rather than extending `sex_type`. Unique constraint uses
-  `NULLS NOT DISTINCT` (PG17) so NULL-sex rows still de-dupe on re-seed. Stored for
+  `NULLS NOT DISTINCT` (PG15+) so NULL-sex rows still de-dupe on re-seed. Stored for
   reference only — **not** wired into interpretation (invariants 3 & 4); the IGF-1
   source data is explicitly flagged indicative/assay-dependent.
 - **App is served at the root `trackdco.app`, not a subdomain (2026-06-06).**

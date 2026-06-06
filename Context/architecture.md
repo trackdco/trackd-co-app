@@ -111,8 +111,10 @@ in the schema — storage only, no behaviour, until post-trip.
 6. **Seed catalogues are read-only to users.** `compounds`, `biomarkers`,
    `markers`, and `reference_ranges` are written only by the service role. The app
    reads them; it never lets a user write them. Catalogue contents are seeded from
-   the CSVs in `supabase/seed/` via idempotent `ON CONFLICT (name) DO UPDATE`
-   inserts, so a re-seed never duplicates (each catalogue has UNIQUE on its name).
+   the CSVs in `supabase/seed/` via idempotent inserts. `compounds`, `biomarkers`,
+   and `markers` use `ON CONFLICT (name) DO UPDATE`, while `reference_ranges`
+   uses `ON CONFLICT ON CONSTRAINT reference_ranges_band_unique DO UPDATE`
+   because it is keyed by `(biomarker_id, sex, age_min, age_max)`.
 7. **Entitlement gates read `profiles.tier` only.** No other signal gates
    features. Changing pricing or tiers must not touch gating logic.
 8. **Archive, never hard-delete user history.** Deleting a cycle cascades
