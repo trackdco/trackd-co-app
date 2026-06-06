@@ -14,10 +14,11 @@ import { Button } from "@/components/ui/button";
  *    autoplay stops the moment the user takes control)
  *  - restrained gold accents on every slide for a premium feel
  *
- * PLACEHOLDER NOTE: the mini-mocks below are stand-ins. When the real in-app UI
- * is designed, swap these to match the actual screens so onboarding mirrors the
- * product 1:1. Copy stays in the founders' plain voice; the whole flow funnels
- * to one action — create an account.
+ * Sized to the SMALL viewport (svh) so it never clips when the mobile browser's
+ * address bar is showing (the installed PWA has more room and just centres more).
+ *
+ * PLACEHOLDER NOTE: the mini-mocks are stand-ins — swap to the real in-app UI
+ * once it's designed so onboarding mirrors the product 1:1.
  */
 type Slide = {
   eyebrow: string;
@@ -70,6 +71,7 @@ export function FirstRun() {
   const ticking = useRef(false);
   const reduced = useRef(false);
   const autoplayOff = useRef(false);
+  const rafRef = useRef(0);
   const activeRef = useRef(0);
   const [active, setActive] = useState(0);
 
@@ -111,14 +113,16 @@ export function FirstRun() {
     });
   }, [update]);
 
-  // Drive the scroll frame-by-frame (direct scrollLeft writes). Reliable on iOS
-  // Safari, where programmatic scrollTo({behavior:"smooth"}) fights scroll-snap.
+  // Glide to a slide frame-by-frame. Snap is disabled DURING the glide —
+  // otherwise iOS's mandatory snap yanks scrollLeft back every frame and the
+  // auto-advance never moves — then restored so it stays put on landing.
   const animateTo = useCallback((i: number) => {
     const el = trackRef.current;
     if (!el) return;
     const startLeft = el.scrollLeft;
     const dist = i * el.clientWidth - startLeft;
     if (Math.abs(dist) < 1) return;
+    el.style.scrollSnapType = "none";
     const duration = 600;
     let startTs = 0;
     const step = (ts: number) => {
@@ -126,9 +130,14 @@ export function FirstRun() {
       const t = Math.min(1, (ts - startTs) / duration);
       const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
       el.scrollLeft = startLeft + dist * eased;
-      if (t < 1) requestAnimationFrame(step);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(step);
+      } else {
+        el.style.scrollSnapType = "";
+      }
     };
-    requestAnimationFrame(step);
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(step);
   }, []);
 
   // User tapping a segment takes control → stop the auto tour.
@@ -154,6 +163,8 @@ export function FirstRun() {
     const el = trackRef.current;
     const stop = () => {
       autoplayOff.current = true;
+      cancelAnimationFrame(rafRef.current);
+      if (trackRef.current) trackRef.current.style.scrollSnapType = "";
     };
     el?.addEventListener("pointerdown", stop);
     let dir = 1;
@@ -180,10 +191,10 @@ export function FirstRun() {
 
   return (
     <div
-      className="relative isolate flex h-dvh flex-col overflow-hidden bg-background duration-500 animate-in fade-in"
+      className="relative isolate flex h-[100svh] flex-col overflow-hidden bg-background duration-500 animate-in fade-in"
       style={{
-        paddingTop: "max(1.25rem, env(safe-area-inset-top))",
-        paddingBottom: "max(1.25rem, calc(0.5rem + env(safe-area-inset-bottom)))",
+        paddingTop: "max(1rem, env(safe-area-inset-top))",
+        paddingBottom: "max(1rem, calc(0.5rem + env(safe-area-inset-bottom)))",
       }}
     >
       <h1 className="sr-only">Trackd Co — Track the whole protocol</h1>
@@ -222,7 +233,7 @@ export function FirstRun() {
               }}
               className="flex flex-col items-center will-change-transform"
             >
-              {slide.visual ? <div className="mb-9">{slide.visual}</div> : null}
+              {slide.visual ? <div className="mb-6">{slide.visual}</div> : null}
               <p className="mb-3 inline-flex items-center gap-1.5 text-[0.7rem] uppercase tracking-[0.22em] text-text-muted">
                 <span className="size-1 rounded-full bg-accent-amber" aria-hidden="true" />
                 {slide.eyebrow}
@@ -239,7 +250,7 @@ export function FirstRun() {
       </div>
 
       {/* Segmented progress (fills gold) */}
-      <div className="flex justify-center gap-1.5 px-10 pt-7">
+      <div className="flex justify-center gap-1.5 px-10 pt-5">
         {SLIDES.map((slide, i) => (
           <button
             key={slide.title}
@@ -266,7 +277,7 @@ export function FirstRun() {
       </div>
 
       {/* Sign in */}
-      <div className="mt-7 border-t border-border/60 px-6 pt-6 text-center">
+      <div className="mt-4 border-t border-border/60 px-6 pt-5 text-center">
         <p className="mb-4 text-xs text-text-subtle">Built by people who run real protocols.</p>
         <Button
           asChild
@@ -305,14 +316,13 @@ function StackMock() {
     { name: "Testosterone E", dose: "250mg · 2×/wk", tag: "Gear", due: true },
     { name: "Retatrutide", dose: "4mg · 1×/wk", tag: "Peptide", due: false },
     { name: "Aromasin", dose: "12.5mg · EOD", tag: "Ancillary", due: false },
-    { name: "Vitamin D3", dose: "5000iu · daily", tag: "Supp", due: false },
   ];
   return (
-    <div className="w-[17rem] rounded-2xl border border-border bg-card p-2.5 text-left">
+    <div className="w-[17rem] rounded-2xl border border-border bg-card p-2 text-left">
       {rows.map((row, i) => (
         <div
           key={row.name}
-          className={`flex items-center gap-3 rounded-xl bg-bg-surface-raised px-3 py-2.5 ${
+          className={`flex items-center gap-3 rounded-xl bg-bg-surface-raised px-3 py-2 ${
             i < rows.length - 1 ? "mb-1.5" : ""
           }`}
         >
@@ -321,8 +331,8 @@ function StackMock() {
             aria-hidden="true"
           />
           <div className="min-w-0 flex-1">
-            <p className="font-display text-[15px] leading-none text-foreground">{row.name}</p>
-            <p className="mt-1.5 text-[11px] text-text-muted">{row.dose}</p>
+            <p className="font-display text-[14px] leading-none text-foreground">{row.name}</p>
+            <p className="mt-1 text-[11px] text-text-muted">{row.dose}</p>
           </div>
           <span className="rounded-full border border-border-strong px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-muted">
             {row.tag}
@@ -370,7 +380,7 @@ function SiteMapMock() {
         {sites.map((site) => (
           <div
             key={site.label}
-            className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 ${
+            className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-2 ${
               site.due ? "border-accent-amber/40 bg-accent-amber/5" : "border-border-strong/60"
             }`}
           >
