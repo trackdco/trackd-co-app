@@ -9,6 +9,7 @@ Read the following files in order before implementing or making any architectura
 3. Context/ui-context.md – theme, colors, typography, canvas design, and component conventions
 4. Context/code-standards.md – implementation rules and conventions
 5. Context/ai-workflow-rules.md – development workflow, scoping rules, and delivery approach
-6. Context/progress-tracker.md – current phase, completed work, open questions, and next steps
-Update Context/progress-tracker.md after each meaningful implementation change.
+6. Context/progress-tracker.md – current phase, completed work, decisions, and open questions (state only; no next steps)
+7. Context/next-tasks.md – detailed current + upcoming task steps (the build track + Adrian's parallel track); read this to know what to work on next
+Update Context/progress-tracker.md (state) and Context/next-tasks.md (steps) after each meaningful implementation change.
 If implementation changes the architecture, scope, or standards documented in the context files, update the relevant file before continuing.
