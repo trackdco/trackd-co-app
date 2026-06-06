@@ -169,40 +169,44 @@ tracked migrations, with Adrian-approved schema deltas (enum extensions for
 `sarm`/`thyroid`/`stimulant`/`g`; new `reference_ranges` table). CSVs + generator
 live in `supabase/seed/`. Full record in `progress-tracker.md`.
 
-### ◑ In progress — Legal / disclaimer copy (finishing 6 Jun)
+### ⏭ Markers seed sheet — non-priority, but needed before journal/markers UI
 
-Drafting the **Terms of Service, privacy policy, and medical disclaimer** (fully
-non-technical; important for a harm-reduction app). **Handoff:** when done, give
-Claude the final text + a `tos_version` string → it drops into the `/terms` and
-`/privacy` pages (currently placeholders) and wires into the **18+/ToS gate** in
-the auth build.
+The **third** catalogue (`markers` — subjective daily tracking: energy, libido,
+sleep, pumps, mood… plus side-effects as negative-polarity markers) is **not yet
+built**. Not urgent — the seed pass above shipped without it, and it's only needed
+when the journal + markers UI lands. When ready, build it the same way (CSV →
+`supabase/seed/` → re-run the generator). Exact columns (read from the schema):
 
-### ▶ NEXT — App UI: design, then build  (branch `feat/app-ui`)
+| column | values / notes |
+|--------|----------------|
+| name | e.g. "Energy", "Libido", "Sleep Quality", "Pumps" |
+| polarity | one of `positive` (up = good thing), `negative` (up = bad thing, e.g. acne/soreness), `neutral`. **Axis orientation only — never a judgement colour.** |
+| tier_labels | ordered low→high words, **pipe-separated** (commas break the CSV), e.g. `Drained\|Flat\|Coasting\|Charged\|Wired`. Store the index, show the word. A 2-tier `None\|Present` makes a side-effect behave as a daily checkbox. |
+| is_default | TRUE = shown to everyone by default; FALSE = optional catalogue item |
 
-Adrian's main lane after legal. **Design first** (zero file conflicts) — the real
-screens for the core loop, all against the locked design system (`ui-context.md`):
-- cycle create → add-compound + inventory (all three inventory types)
-- the today / dose-logging view (log, edit, undo, skip)
-- journal + markers; bloodwork upload
-Then **build** them once Angus's app shell exists, on `feat/app-ui`, in feature
-folders that don't overlap auth. These designs become the real screens the
-landing's placeholder mocks get swapped for. `git pull main` before
-starting/pushing; stay in feature folders.
+### ✅ DONE — Legal / disclaimer copy drafted + stored (2026-06-06)
 
-### ✅ DONE — Markers seed sheet (built; commit pending)
+Terms of Service (v0.2), Privacy Policy (v0.1), and Medical Disclaimer (v0.2)
+drafted and **stored in the DB** in the new `legal_documents` table (SQL in
+`supabase/legal/`; verbatim, encoding cleaned, Privacy Policy NOTE blocks kept).
+Store-only — NOT wired into signup. Full record in `progress-tracker.md`; the
+versioning/dating rule is in `architecture.md` → "Legal Documents".
 
-Adrian built the third catalogue (`markers` — subjective daily tracking + side
-effects as negative-polarity markers). **Not yet committed/applied** — he'll commit
-it alongside the legal copy. When it lands: drop the CSV into `supabase/seed/`,
-re-run `build-seed-sql.mjs`, apply (service-role). Columns (from the schema): `name`;
-`polarity` (`positive`/`negative`/`neutral` — axis orientation only, never a
-judgement colour); `tier_labels` (low→high, **pipe**-separated); `is_default`.
+**Still open (parked until Adrian directs — see `progress-tracker.md` Open
+Questions):** (1) §7 backup-retention window to confirm + the two retention facts
+to state in-body; (2) §9 "comply with the user's regional law" clause; (3) §5/§10
+name the Supabase + Vercel regions.
 
-### ⏭ Catalogue data QA (if time)
+### ⏭ AT LAUNCH — Legal docs: bump to v1.0 + freeze the effective date
 
-Sanity-check the seeded **149 compounds / 41 biomarkers** (half-lives, aliases,
-default doses/units, categories, common missing compounds) — add-compound and
-bloodwork lean on it. Fixes flow back through the CSV → re-seed path.
+Do this **on launch day**, before/with going live (rule in `architecture.md`):
+1. Set each document's `version` to **`1.0`** and `is_beta = false`.
+2. Set `effective_date` **and** the in-body header line to the **actual launch
+   date** (replace "DD Month 2026 — set on launch"). This date is then frozen.
+3. Rename the source files in `supabase/legal/` to `…-v1.0` and drop "beta".
+4. Thereafter: any change to a doc → bump a **whole** version (2.0, 3.0…),
+   re-date it, flip the old row `is_current = false`, delete the superseded
+   source file. Wire the signup acceptance UI only when separately directed.
 
 ---
 

@@ -43,6 +43,21 @@ Last updated: 2026-06-06
   categories, all 4 ranges FK-linked to IGF-1, `reference_ranges` RLS on with a
   single read-only-to-authed policy. Live DB now **17 tables**. **Still TODO:** the
   `markers` seed catalogue (sheet not built yet — spec is in `next-tasks.md`).
+- **Legal documents stored in the DB (2026-06-06).** New `legal_documents` table
+  (18th table) + `legal_doc_type` enum, added via two tracked migrations
+  (`legal_documents_table`, `seed_legal_documents`; SQL in `supabase/legal/`).
+  Holds the **Terms of Service (v0.2)**, **Privacy Policy (v0.1)**, and **Medical
+  Disclaimer (v0.2)** text — stored verbatim, encoding mojibake repaired, Privacy
+  Policy's inline "⚠ NOTE" drafting blocks retained (Adrian's instruction). All
+  `is_beta = true`, `is_current = true`, `effective_date = NULL` ("set on launch").
+  RLS on; **public read** (`anon` + `authenticated`, since signup shows them
+  pre-auth), service-role-only writes. Verified: 3 rows, one current per type, no
+  mojibake. **Store-only — NOT wired into signup.** Versioning/dating rule + the
+  launch-day bump-to-1.0 procedure recorded in `architecture.md` → "Legal
+  Documents"; launch checklist in `next-tasks.md`.
+  **Reviewed + approved by both co-founders (2026-06-06)** — text signed off as-is;
+  versions stay 0.2 / 0.1 / 0.2 (beta), with the bump to 1.0 + effective date still
+  to happen at launch.
 - **Supabase client layer wired (2026-06-06).** `@supabase/ssr` +
   `@supabase/supabase-js` installed; `lib/supabase/client.ts` (browser),
   `lib/supabase/server.ts` (server, async `cookies()` + try/catch write guard),
@@ -133,9 +148,28 @@ Last updated: 2026-06-06
 
 - DB-enforced cycle limits: left as an app-layer decision; tester behaviour
   decides post-beta. (Single-active-cycle index stays commented in the schema.)
+- **Legal copy — parked edits inside the Privacy Policy (stored verbatim, not yet
+  actioned per "store only").** Three items Adrian flagged in the source need a
+  decision before launch: (1) §7 Data retention — Adrian asked Claude to state, in
+  the section body, the two confirmed facts (deletion is requested via an in-app
+  button; deletion completes within 30 days); the **backup retention window is
+  still unconfirmed** and must be nailed down. (2) §9 Your rights — Adrian wants a
+  clause that we comply with whatever data-protection law applies in the user's
+  region (needs legal sign-off that this is sound). (3) §5/§10 — Supabase + Vercel
+  **regions** must be named to complete the storage + international-transfers
+  sections. These are intentionally untouched until Adrian directs the edits.
 
 ## Architecture Decisions
 
+- **`legal_documents` is a new (18th) table for versioned legal text (2026-06-06).**
+  ToS / Privacy / Medical Disclaimer text now lives in the DB, one row per
+  `(doc_type, version)` with `is_current` (partial unique index = one current per
+  type). Same service-role-write model as the seed catalogues, but **read is public
+  (`anon` + `authenticated`)** — a deliberate deviation from the authed-only
+  catalogues, because signup must show the documents before an account exists
+  (Adrian-approved). Stored only; not wired into signup. Versioning rule (whole
+  numbers; bump all to 1.0 + freeze the date at launch; bump+re-date per change)
+  lives in `architecture.md` → "Legal Documents".
 - **Catalogue taxonomy extended to fit the seed, not the reverse (2026-06-06).**
   Adrian's compounds seed used 3 categories (`sarm`, `thyroid`, `stimulant`) and a
   unit (`g`) beyond the original v0.4.2 enums. Decision (Adrian): extend the enums
@@ -204,18 +238,19 @@ Last updated: 2026-06-06
 
 ## Session Notes
 
-- 2026-06-06: **Landing built + shipped live.** Explored 3 app-style entry concepts
-  (Cold Open / First Run / Locked Shell) on a `feat/landing` preview branch; Angus
-  chose the **First Run** swipeable onboarding. Iterated from a multi-lens design
-  critique (motion, product-true visuals, brand craft, anti-"AI-slop") into a
-  polished carousel — product mini-mocks, gold accents, a 2s auto-advance tour
-  (rAF + scroll-snap toggle so it actually works on iOS), scroll parallax, native
-  viewport wiring, a mobile-only desktop gate, and `/login`+`/terms`+`/privacy`
-  placeholders. Authenticated the **Vercel MCP** to read deploys/logs and verify
-  protected previews directly. Pulled Adrian's seed work into the branch (clean
-  merge), then merged `feat/landing` → `main`: **live + verified on
-  https://trackdco.app**. CodeRabbit's 3 findings (metadata, /login + /terms +
-  /privacy 404s) all addressed. Next: real Google sign-in + the 18+/ToS gate.
+- 2026-06-06: **Legal documents stored.** Adrian supplied the Terms of Service
+  (v0.2), Privacy Policy (v0.1), and Medical Disclaimer (v0.2). Confirmed the
+  approach with him first (public read; create + apply now), then added the
+  `legal_documents` table + enum and seeded the three docs as two tracked
+  migrations (SQL in `supabase/legal/`). Text stored verbatim with encoding
+  mojibake repaired; Privacy Policy's inline "⚠ NOTE" blocks kept per his
+  instruction. Store-only — not wired into signup. Recorded the versioning/dating
+  rule (bump all to 1.0 + freeze date at launch; whole-number bumps + re-date per
+  change; drop "beta" from filenames at release) in `architecture.md` and the
+  launch checklist in `next-tasks.md`. Three Privacy-Policy edits Adrian flagged in
+  the copy are parked as open questions until he directs them.
+  Later same day: both co-founders reviewed the full text and **approved it as-is**
+  — signed off at v0.2 / v0.1 / v0.2 (beta), pending the launch-day bump to 1.0.
 - 2026-06-06: **Seed catalogues loaded.** Adrian supplied the Compounds,
   Biomarkers, and IGF-1 reference-range CSVs. Committed them (corrected) under
   `supabase/seed/` with a CSV→SQL generator, then applied two tracked migrations:

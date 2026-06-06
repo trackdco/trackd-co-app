@@ -37,8 +37,10 @@ in the schema — storage only, no behaviour, until post-trip.
   owner-scoped storage policies. Apply both in the **same** migration session.
   `supabase/seed/` holds the catalogue extension applied on top of v0.4.2 (the
   `catalogue_enums_and_reference_ranges` migration — enum additions + the
-  `reference_ranges` table, bringing the live DB to **17 tables**) and the seed
-  CSVs + generator (`build-seed-sql.mjs`) that load the read-only catalogues.
+  `reference_ranges` table) and the seed CSVs + generator (`build-seed-sql.mjs`)
+  that load the read-only catalogues. `supabase/legal/` holds the
+  `legal_documents` table + seed (the `legal_documents_table` +
+  `seed_legal_documents` migrations), bringing the live DB to **18 tables**.
 - `Context/` — The spec. Defines what to build (`project-overview.md`), how
   (`code-standards.md`, this file), the UI language (`ui-context.md`), the
   session rules (`ai-workflow-rules.md`), and current state (`progress-tracker.md`).
@@ -50,9 +52,11 @@ in the schema — storage only, no behaviour, until post-trip.
 - **Postgres (Supabase)** — All structured data: profiles, the read-only
   `compounds`, `biomarkers`, `markers`, and `reference_ranges` seed catalogues,
   cycles, protocol compounds, inventory items, dose logs, lab panels and
-  biomarker results, body metrics, markers and journal entries, and
-  notification/push preferences. Ownership and relationships live here; access is
-  enforced by RLS, not by application code. `reference_ranges` holds age/sex-banded
+  biomarker results, body metrics, markers and journal entries,
+  notification/push preferences, and the `legal_documents` text (ToS / privacy /
+  medical disclaimer; see **Legal Documents** below). Ownership and relationships
+  live here; access is enforced by RLS, not by application code. `reference_ranges`
+  holds age/sex-banded
   ranges (NULL `sex` = any) where the flat male/female columns on `biomarkers`
   are insufficient — e.g. IGF-1, which falls with age. Stored for reference only;
   not wired into interpretation (see Invariants 3 & 4).
@@ -62,6 +66,42 @@ in the schema — storage only, no behaviour, until post-trip.
 - **Supabase Storage (private)** — Bloodwork file uploads only, in the private
   `bloodwork` bucket. Path convention: `<auth.uid()>/<panel_id>/<file>`. Files
   are referenced from Postgres; the bytes never live in the database.
+
+## Legal Documents
+
+The Terms of Service, Privacy Policy, and Medical Disclaimer **text** lives in the
+`legal_documents` table (the 18th table; added post-v0.4.2 via the
+`legal_documents_table` + `seed_legal_documents` migrations, SQL in
+`supabase/legal/`). One row per `(doc_type, version)`; `is_current` flags the live
+version of each type, with a partial unique index enforcing exactly one current
+per type. Write model matches the seed catalogues — **service-role writes only** —
+but, unlike them, **read is public (`anon` + `authenticated`)** because signup
+shows the documents before a user has an account.
+
+**Stored only — NOT wired into signup yet.** `profiles` already carries
+`tos_version` + `tos_accepted_at` to record acceptance; the acceptance UI is a
+later, explicitly-directed task. Do nothing with these documents until directed.
+
+### Versioning & dating rule — follow this every time we touch a legal document
+
+- **Pre-launch (current state):** documents sit at their draft versions — ToS
+  `0.2`, Medical Disclaimer `0.2`, **Privacy Policy `0.1`** — with `is_beta = true`,
+  `effective_date = NULL`, and the in-body header reading
+  "DD Month 2026 — set on launch".
+- **At first launch:** bump **all three to `1.0`**, set `effective_date` *and* the
+  in-body header date to the **launch day**, set `is_beta = false`, and rename the
+  current source files to `…-v1.0` (drop "beta" — it isn't beta once released).
+  The launch date is then **frozen**; it does **not** auto-advance afterwards.
+- **Each later change to a document:** bump that document by a **whole version**
+  (`1.0 → 2.0 → 3.0 …` — never `1.1`/`2.3`), set its `effective_date`/header date
+  to that change's date, and mark the previous row `is_current = false` (DB keeps
+  full version history). Keep only the current version's **source file** in
+  `supabase/legal/` exports — delete superseded legal source files so we "start
+  fresh" each release. (Tracked SQL migrations are immutable history and are never
+  rewritten or deleted.)
+- Text is stored **verbatim** with only encoding mojibake repaired. The Privacy
+  Policy's inline "⚠ NOTE" drafting blocks are intentionally retained at Adrian's
+  instruction until he finalises them.
 
 ## Auth and Access Model
 
