@@ -32,22 +32,37 @@ Verified: 16 tables + 2 views (`security_invoker`), RLS on every table, private
 signup/prefs/updated_at/unit-family triggers all present. No errors. Full record
 in `progress-tracker.md`.
 
-### ▶ NOW — Wire the app to Supabase
+### ✅ DONE — Supabase client layer (2026-06-06)
 
-1. Grab keys from **Supabase → Project Settings → API**: Project URL,
-   anon/publishable key, and the service_role/secret key.
-2. `npm install @supabase/supabase-js @supabase/ssr`.
-3. Create `.env.local` (git-ignored) with `NEXT_PUBLIC_SUPABASE_URL`,
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (safe to expose), and
-   `SUPABASE_SERVICE_ROLE_KEY` (server-only — never `NEXT_PUBLIC`, never used in
-   browser code).
-4. Create the Supabase clients under `lib/supabase/` (server client, browser
-   client, session-refresh middleware). ⚠️ This is **Next.js 16** — the
-   cookies/middleware API differs from older tutorials. Read
-   `node_modules/next/dist/docs/` for the current pattern first (per `AGENTS.md`).
-5. Push to GitHub → import into **Vercel** → add the same env vars there →
-   deploy → confirm the bare app loads on the Vercel URL → point
-   `app.trackdco.app` at it.
+Keys captured, deps installed (`@supabase/ssr` + `@supabase/supabase-js`),
+`.env.local` (git-ignored) created with the real URL + **publishable key**, and
+`.env.example` committed. Client files written and `npm run build` verified:
+- `lib/supabase/client.ts` — browser client
+- `lib/supabase/server.ts` — server client (async `cookies()` + write guard)
+- `lib/supabase/middleware.ts` — `updateSession` (refresh-only, `getClaims()`)
+- `proxy.ts` — Next 16's renamed-from-middleware root hook (build shows
+  `ƒ Proxy (Middleware)`, no deprecation warning)
+
+Env var names locked: `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and (later, server-only)
+`SUPABASE_SECRET_KEY`. The `sb_secret_` key isn't provisioned yet — only needed
+for admin/seeding work, added when we get there.
+
+### ▶ NOW — Deploy to Vercel
+
+1. **Commit + push** the client layer to GitHub (Angus to approve the commit).
+2. Go to **vercel.com** → sign in with GitHub → **Add New… → Project** → import
+   `trackdco/trackd-co-app`. Vercel auto-detects Next.js 16.
+3. Before the first deploy, add **Environment Variables** (in the import screen,
+   or Settings → Environment Variables):
+   - `NEXT_PUBLIC_SUPABASE_URL` = `https://boqqracwdpuisgvwbqlc.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` = the `sb_publishable_…` key
+   ⚠️ `NEXT_PUBLIC_` vars are inlined at **build time** — changing them later
+   needs a redeploy.
+4. **Deploy** → confirm the app loads on the `*.vercel.app` URL.
+5. Point **`app.trackdco.app`** at it: Vercel project → Settings → Domains → add
+   `app.trackdco.app`, then add the CNAME it gives you at the `trackdco.app` DNS
+   host. Wait for SSL to provision.
    - ✅ Checkpoint (target 7 Jun): Supabase live, schema applied, deploy proven.
 
 ---

@@ -12,8 +12,9 @@ Last updated: 2026-06-06
 
 - **Supabase backend integration.** The product/context system and the
   design-system foundation are complete; we are now standing up the live back
-  end. The data model is **applied and verified** on the live project; active
-  workstream: **wiring the Next.js app to Supabase** (clients, env, deploy).
+  end. The data model is applied and verified, and the **Supabase client layer
+  is wired** (browser/server/proxy clients + env, `npm run build` passing).
+  Active workstream: **deploying to Vercel** (push → import → env → domain).
   Steps in `next-tasks.md`.
 
 ## Completed
@@ -29,6 +30,15 @@ Last updated: 2026-06-06
   11 public triggers + the `on_auth_user_created` trigger on `auth.users`; the
   private `bloodwork` storage bucket (public=false, 10MB, PDF/image mimes) + its
   4 owner-scoped `storage.objects` policies. No errors.
+- **Supabase client layer wired (2026-06-06).** `@supabase/ssr` +
+  `@supabase/supabase-js` installed; `lib/supabase/client.ts` (browser),
+  `lib/supabase/server.ts` (server, async `cookies()` + try/catch write guard),
+  `lib/supabase/middleware.ts` (`updateSession` — refresh-only, `getClaims()`),
+  and root `proxy.ts` (Next 16's renamed-from-middleware hook) created.
+  `.env.local` (git-ignored) holds the real URL + publishable key; `.env.example`
+  committed. `npm run build` passes and shows `ƒ Proxy (Middleware)` with no
+  deprecation warning. Pattern research-verified against installed versions +
+  Supabase docs and adversarially checked for the auth-session footguns.
 - Context system written: `project-overview.md`, `architecture.md`,
   `code-standards.md`, `ai-workflow-rules.md`, `ui-context.md`.
 - `ui-context.md` signed off by Adrian (co-founder) (2026-06-05): theme, colour tokens,
@@ -52,10 +62,10 @@ Last updated: 2026-06-06
 
 ## In Progress
 
-- **Wiring the Next.js app to Supabase** — grab API keys, install
-  `@supabase/supabase-js` + `@supabase/ssr`, create `.env.local`, build the
-  server/browser/middleware clients under `lib/supabase/` (Next.js 16 cookie
-  API), then push → Vercel → deploy. See `next-tasks.md` for the exact steps.
+- **Deploying to Vercel** — push to GitHub, import the repo into Vercel, set the
+  same `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` env
+  vars, deploy, confirm the app loads on the `*.vercel.app` URL, then point
+  `app.trackdco.app` at it. See `next-tasks.md`.
 
 ### Feature Specs
 
@@ -78,6 +88,21 @@ Last updated: 2026-06-06
 - **Stack is Next.js 16, not 14** — repo has `next@16.2.7`. APIs differ from
   older training data; read `node_modules/next/dist/docs/` before using a Next
   API you're unsure about (per `AGENTS.md`).
+- **Next 16 renamed `middleware` → `proxy` (2026-06-06).** The root request hook
+  is `proxy.ts` exporting `export async function proxy(request)`; a legacy
+  `middleware.ts` still works but emits a build deprecation warning. The
+  `runtime` option is not allowed in proxy files (proxy defaults to Node, fine
+  for `@supabase/ssr`). Verified in the installed Next docs + build output.
+- **Publishable key is the client key (2026-06-06).** App uses the new
+  `sb_publishable_…` key via `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, not the
+  legacy `anon` JWT / `NEXT_PUBLIC_SUPABASE_ANON_KEY` (deprecates end-2026). The
+  server secret key (successor to `service_role`) will be `SUPABASE_SECRET_KEY`
+  (server-only, no `NEXT_PUBLIC_`) — not yet provisioned. RLS gates all access,
+  so the publishable key is browser-safe.
+- **Auth-session refresh uses `getClaims()`, refresh-only for now.** `proxy.ts`
+  delegates to `updateSession()`; no redirect guard until auth screens exist.
+  Open item: confirm the project uses asymmetric JWT signing keys so
+  `getClaims()` can verify locally — else fall back to `getUser()`.
 - **Cycles are archived, never hard-deleted.** Confirmed 2026-06-05. The
   delete cascade (cycle → protocol compounds → inventory → dose logs) is kept
   for account deletion only; the app must archive via `is_active = false` and
@@ -97,6 +122,13 @@ Last updated: 2026-06-06
 
 ## Session Notes
 
+- 2026-06-06: **Supabase client layer wired.** Installed `@supabase/ssr` +
+  `@supabase/supabase-js`; created browser/server/proxy clients + `updateSession`
+  helper, `.env.local` (publishable key) + committed `.env.example`. Used a
+  research → synthesise → adversarial-verify workflow because Next 16 broke the
+  middleware API — it caught the `middleware` → `proxy` rename and confirmed the
+  `getClaims()`/response-object pattern against installed types. `npm run build`
+  passes (`ƒ Proxy (Middleware)`, no deprecation warning). Next: Vercel deploy.
 - 2026-06-06: **Data model built.** Applied `trackd_schema_v0_4_2.sql` then
   `trackd_storage_policies.sql` to the live project as two tracked migrations via
   the MCP (`apply_migration`); full verification checklist passed (16 tables, 2
