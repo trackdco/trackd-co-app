@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { LockedShell } from "./_components/locked-shell";
+import { FirstRun } from "./_components/first-run";
 
 export const metadata: Metadata = {
   title: "Trackd Co — Track the whole protocol",
@@ -16,10 +16,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * Public entry screen — "Locked Shell": opens onto a blurred, locked glimpse of
- * the real app behind a bottom sign-in sheet, so curiosity drives the signup.
+ * Public entry screen — "First Run": an app-style swipeable onboarding (mobile),
+ * built to move a visitor from curiosity → account.
  *
- * Mobile-only by intent: phones get the app; anything desktop-width gets a
+ * Mobile-only by intent: phones get the carousel; anything desktop-width gets a
  * minimal "open on your phone" gate (Trackd is a mobile PWA, and the founder
  * doesn't want the desktop experience).
  *
@@ -32,7 +32,7 @@ export default function Home() {
     <>
       {/* Mobile: the app */}
       <div className="md:hidden">
-        <LockedShell />
+        <FirstRun />
       </div>
 
       {/* Desktop: this is a phone app — go to your phone */}
