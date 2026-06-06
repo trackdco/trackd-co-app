@@ -12,15 +12,23 @@ Last updated: 2026-06-06
 
 - **Supabase backend integration.** The product/context system and the
   design-system foundation are complete; we are now standing up the live back
-  end. Active workstream: **building the data model** (applying the canonical
-  schema to the live Supabase project). Steps in `next-tasks.md`.
+  end. The data model is **applied and verified** on the live project; active
+  workstream: **wiring the Next.js app to Supabase** (clients, env, deploy).
+  Steps in `next-tasks.md`.
 
 ## Completed
 
 - Next.js 16 (App Router) + React 19 + Tailwind v4 starter scaffolded.
 - Canonical schema authored: `supabase/trackd_schema_v0_4_2.sql` (16 tables,
-  2 views) + `supabase/trackd_storage_policies.sql`. **Authored only — not yet
-  applied to the live database** (confirmed empty via MCP, 2026-06-06).
+  2 views) + `supabase/trackd_storage_policies.sql`.
+- **Data model APPLIED + VERIFIED on the live project (2026-06-06).** Two tracked
+  migrations via the Supabase MCP: `20260606042525_schema_v0_4_2` then
+  `20260606042547_storage_policies_v0_4_2`. Post-apply verification passed:
+  16 tables + 2 views (both `security_invoker=true`); RLS enabled on every table
+  with policies present (profiles 3, rest `FOR ALL`); 16 enums; 7 functions;
+  11 public triggers + the `on_auth_user_created` trigger on `auth.users`; the
+  private `bloodwork` storage bucket (public=false, 10MB, PDF/image mimes) + its
+  4 owner-scoped `storage.objects` policies. No errors.
 - Context system written: `project-overview.md`, `architecture.md`,
   `code-standards.md`, `ai-workflow-rules.md`, `ui-context.md`.
 - `ui-context.md` signed off by Adrian (co-founder) (2026-06-05): theme, colour tokens,
@@ -44,9 +52,10 @@ Last updated: 2026-06-06
 
 ## In Progress
 
-- **Building the data model** — applying `trackd_schema_v0_4_2.sql` then
-  `trackd_storage_policies.sql` to the live Supabase project as a tracked
-  migration. See `next-tasks.md` for the exact steps and verification checklist.
+- **Wiring the Next.js app to Supabase** — grab API keys, install
+  `@supabase/supabase-js` + `@supabase/ssr`, create `.env.local`, build the
+  server/browser/middleware clients under `lib/supabase/` (Next.js 16 cookie
+  API), then push → Vercel → deploy. See `next-tasks.md` for the exact steps.
 
 ### Feature Specs
 
@@ -88,6 +97,11 @@ Last updated: 2026-06-06
 
 ## Session Notes
 
+- 2026-06-06: **Data model built.** Applied `trackd_schema_v0_4_2.sql` then
+  `trackd_storage_policies.sql` to the live project as two tracked migrations via
+  the MCP (`apply_migration`); full verification checklist passed (16 tables, 2
+  views, RLS everywhere, private `bloodwork` bucket + 4 policies). The back end is
+  now standing — next is wiring the app (clients + env + Vercel deploy).
 - 2026-06-06: Supabase MCP wired up and authenticated; Supabase agent skills
   installed and pushed (commit `47bb76b`). Confirmed the live DB is still empty —
   the data model has not been applied yet. Split the tracking system: this file

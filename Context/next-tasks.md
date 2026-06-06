@@ -15,36 +15,24 @@ Last updated: 2026-06-06
 
 ## 🎯 Current focus
 
-Build the data model (apply the schema to the live Supabase project), then wire
-the Next.js app to Supabase. Adrian works the **parallel track** below in the
-meantime — no dependency on the build.
+Data model is **built and verified** on the live Supabase project ✅. Now wire
+the Next.js app to Supabase (clients, env, Vercel deploy). Adrian works the
+**parallel track** below in the meantime — no dependency on the build.
 
 ---
 
 ## 🛠️ Build track — Angus + Claude
 
-### ▶ NOW — Apply the schema (build the data model)
+### ✅ DONE — Apply the schema (build the data model)
 
-This is a one-way step against the live database, so we do it carefully.
+Applied 2026-06-06 as two tracked migrations via the Supabase MCP:
+`20260606042525_schema_v0_4_2` then `20260606042547_storage_policies_v0_4_2`.
+Verified: 16 tables + 2 views (`security_invoker`), RLS on every table, private
+`bloodwork` bucket + 4 owner-scoped storage policies, 16 enums, 7 functions,
+signup/prefs/updated_at/unit-family triggers all present. No errors. Full record
+in `progress-tracker.md`.
 
-1. Apply `supabase/trackd_schema_v0_4_2.sql` as a **tracked migration** via the
-   Supabase MCP (`apply_migration`, named e.g. `schema_v0_4_2`). It should
-   complete with no errors.
-2. In the same session, apply `supabase/trackd_storage_policies.sql` (the private
-   `bloodwork` bucket + owner-scoped storage policies). **Order matters: schema
-   first, storage second** — the storage file depends on the schema.
-3. Verify:
-   - 16 tables exist (profiles, compounds, cycles, protocol_compounds,
-     inventory_items, dose_logs, biomarkers, lab_panels, biomarker_results,
-     body_metrics, markers, user_markers, journal_entries, marker_readings,
-     notification_preferences, push_subscriptions) + 2 views (v_inventory_math,
-     v_biomarker_position).
-   - RLS is enabled on every user-owned table.
-   - The `bloodwork` storage bucket exists and is **Private** (never public).
-4. If anything errors: nothing is deployed yet, so fix the SQL and re-run. If we
-   change the canonical file, bump the version (→ v0.4.3) and note it.
-
-### ⏭ NEXT — Wire the app to Supabase
+### ▶ NOW — Wire the app to Supabase
 
 1. Grab keys from **Supabase → Project Settings → API**: Project URL,
    anon/publishable key, and the service_role/secret key.
