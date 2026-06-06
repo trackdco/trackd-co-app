@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-06
+Last updated: 2026-06-07
 
 ## Current Phase
 
@@ -85,6 +85,20 @@ Last updated: 2026-06-06
   a11y, no-404s). `app/layout.tsx` gained native wiring (`themeColor`, `colorScheme`
   dark, `viewport-fit: cover`); `updateSession` now **fails open** when Supabase env
   is unset (a missing/mis-scoped var can't 500 the whole site).
+- **Brand icons wired into the app (2026-06-07).** Adrian's TrackdCo logo (1563×1563
+  PNG, kept as the master at `app/logo-source.png`) set as the site's icons via
+  Next.js 16's `app/` file conventions: **`favicon.ico`** (48×48, replaces the old
+  default Next.js favicon — browser tab), **`icon.png`** (512×512 — modern favicon +
+  Android/PWA), **`apple-icon.png`** (180×180 — the iOS home-screen Apple Touch icon).
+  Resized from the source with macOS `sips` (no ImageMagick/Pillow on the machine;
+  `sips -s format ico` produces a valid single-size `.ico`). Verified on a local dev
+  server: the rendered `<head>` carries all three tags (`rel="icon"` ×2 +
+  `rel="apple-touch-icon"`) with correct `sizes`/`type`, each icon URL returns HTTP
+  200, and the served `apple-icon.png` is a byte-for-byte (SHA-256) match to the file
+  on disk. Committed to `main`, **not yet pushed/deployed** — live trackdco.app keeps
+  the old favicon until pushed. Caveat banked: the full "TrackdCo" wordmark is faithful
+  but small at 16px tab size; a simplified monogram is an option later if tab
+  legibility matters (the 180px Apple icon reads cleanly).
 - Context system written: `project-overview.md`, `architecture.md`,
   `code-standards.md`, `ai-workflow-rules.md`, `ui-context.md`.
 - `ui-context.md` signed off by Adrian (co-founder) (2026-06-05): theme, colour tokens,
@@ -238,6 +252,14 @@ Last updated: 2026-06-06
 
 ## Session Notes
 
+- 2026-06-07: **Brand icons set.** Adrian supplied the TrackdCo logo PNG; saved it
+  as `app/logo-source.png` (the version-controlled master) and generated the three
+  Next.js `app/` icon files from it with `sips` — `favicon.ico` (48×48, replacing the
+  default), `icon.png` (512×512), `apple-icon.png` (180×180, the Apple Touch / home-
+  screen icon). Verified end-to-end against a local dev server (head tags present,
+  all three URLs 200, served bytes SHA-256-match disk). Committed to `main` at
+  Adrian's instruction; **left unpushed** — needs an explicit go-ahead to push, which
+  triggers the Vercel production deploy that puts the new icons on trackdco.app.
 - 2026-06-06: **Legal documents stored.** Adrian supplied the Terms of Service
   (v0.2), Privacy Policy (v0.1), and Medical Disclaimer (v0.2). Confirmed the
   approach with him first (public read; create + apply now), then added the
