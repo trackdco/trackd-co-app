@@ -1,0 +1,150 @@
+name,category,default_unit,default_route,default_inventory_type,aliases,half_life_hours
+Testosterone Enanthate,anabolic,mg,im,preconcentrated,"Test E, TestE, Test Enan",108
+Testosterone Cypionate,anabolic,mg,im,preconcentrated,"Test C, Test Cyp",120
+Testosterone Propionate,anabolic,mg,im,preconcentrated,"Test P, Prop, Test Prop",20
+Testosterone Phenylpropionate,anabolic,mg,im,preconcentrated,TPP,36
+Testosterone Undecanoate (injectable),anabolic,mg,im,preconcentrated,"Test U inj, Nebido, Aveed",816
+Testosterone Undecanoate (oral),anabolic,mg,po,oral_solid,"Andriol, Jatenzo, Test U oral",4
+Testosterone Suspension,anabolic,mg,im,preconcentrated,"Test Susp, Aqueous Test",24
+Sustanon 250,anabolic,mg,im,preconcentrated,"Sust, Sust 250, Test Blend",432
+Nandrolone Decanoate,anabolic,mg,im,preconcentrated,"Deca, Deca-Durabolin",144
+Nandrolone Phenylpropionate,anabolic,mg,im,preconcentrated,NPP,65
+Trenbolone Acetate,anabolic,mg,im,preconcentrated,"Tren A, Tren Ace, Finaplix",24
+Trenbolone Enanthate,anabolic,mg,im,preconcentrated,Tren E,120
+Trenbolone Hexahydrobenzylcarbonate,anabolic,mg,im,preconcentrated,"Parabolan, Tren Hex",240
+Boldenone Undecylenate,anabolic,mg,im,preconcentrated,"EQ, Equipoise, Bold",336
+Drostanolone Propionate,anabolic,mg,im,preconcentrated,"Masteron P, Mast P, Drost P",48
+Drostanolone Enanthate,anabolic,mg,im,preconcentrated,"Masteron E, Mast E",120
+Methenolone Enanthate,anabolic,mg,im,preconcentrated,"Primobolan, Primo, Primo E",120
+Stanozolol (injectable),anabolic,mg,im,preconcentrated,"Winstrol Depot, Winny inj, Stano inj",24
+Dihydroboldenone,anabolic,mg,im,preconcentrated,"DHB, 1-Testosterone, 1-Test Cyp",96
+Trestolone Acetate,anabolic,mg,im,preconcentrated,"MENT, Trest",24
+Oxandrolone,oral,mg,po,oral_solid,"Anavar, Var, Oxan",9
+Stanozolol (oral),oral,mg,po,oral_solid,"Winstrol, Winny, Stano",9
+Methandrostenolone,oral,mg,po,oral_solid,"Dianabol, Dbol, D-bol, Methandienone",5
+Oxymetholone,oral,mg,po,oral_solid,"Anadrol, Drol, A-bombs",9
+Methasterone,oral,mg,po,oral_solid,"Superdrol, Sdrol, SD",8
+Methenolone Acetate,oral,mg,po,oral_solid,"Primo (oral), Primobolan oral",3
+Fluoxymesterone,oral,mg,po,oral_solid,"Halotestin, Halo",9
+Mesterolone,oral,mg,po,oral_solid,"Proviron, Mesto",12
+Turinabol,oral,mg,po,oral_solid,"Tbol, T-bol, OT, Oral Turinabol",16
+Methyltestosterone,oral,mg,po,oral_solid,Methyltest,3
+Ostarine,sarm,mg,po,oral_solid,"MK-2866, Enobosarm, Osta",24
+Ligandrol,sarm,mg,po,oral_solid,"LGD-4033, LGD",30
+Testolone,sarm,mg,po,oral_solid,"RAD-140, RAD",48
+Andarine,sarm,mg,po,oral_solid,S4,5
+S-23,sarm,mg,po,oral_solid,S23,12
+YK-11,sarm,mg,po,oral_solid,YK,10
+Cardarine,sarm,mg,po,oral_solid,"GW-501516, GW",24
+Stenabolic,sarm,mg,po,oral_solid,"SR-9009, SR9009",4
+Somatropin (HGH),peptide,iu,subq,reconstituted,"HGH, GH, Growth Hormone",3
+CJC-1295 DAC,peptide,mcg,subq,reconstituted,"CJC DAC, CJC-1295 with DAC",168
+CJC-1295 (no DAC),peptide,mcg,subq,reconstituted,"Mod GRF 1-29, CJC no DAC",0.5
+Ipamorelin,peptide,mcg,subq,reconstituted,"Ipam, Ipa",2
+Sermorelin,peptide,mcg,subq,reconstituted,Serm,0.2
+Tesamorelin,peptide,mg,subq,reconstituted,"Tesa, Egrifta",0.5
+GHRP-2,peptide,mcg,subq,reconstituted,GHRP2,0.5
+GHRP-6,peptide,mcg,subq,reconstituted,GHRP6,0.3
+Hexarelin,peptide,mcg,subq,reconstituted,Hex,1
+BPC-157 (injectable),peptide,mcg,subq,reconstituted,"BPC inj, Body Protection Compound",4
+BPC-157 (oral),peptide,mcg,po,oral_solid,"BPC oral, BPC caps",4
+TB-500,peptide,mg,subq,reconstituted,"Thymosin Beta-4, TB4",2
+IGF-1 LR3,peptide,mcg,subq,reconstituted,"IGF, IGF1, LR3",24
+Melanotan II (injectable),peptide,mg,subq,reconstituted,"MT-2 inj, MT2, Melanotan inj",2
+Melanotan II (nasal),peptide,mg,nasal,reconstituted,"MT-2 nasal, Melanotan spray",2
+PT-141 (injectable),peptide,mg,subq,reconstituted,Bremelanotide inj,2.7
+PT-141 (nasal),peptide,mg,nasal,reconstituted,"Bremelanotide nasal, PT-141 spray",2.7
+Semaglutide (injectable),peptide,mg,subq,reconstituted,"Sema inj, Ozempic, Wegovy",168
+Semaglutide (oral),peptide,mg,po,oral_solid,"Sema oral, Rybelsus",168
+Tirzepatide,peptide,mg,subq,reconstituted,"Tirz, Mounjaro, Zepbound",120
+Retatrutide,peptide,mg,subq,reconstituted,"Reta, Triple-G",144
+AOD-9604,peptide,mcg,subq,reconstituted,AOD,1
+Epitalon,peptide,mg,subq,reconstituted,Epithalon,0.5
+5-Amino-1MQ,peptide,mg,po,oral_solid,"5-Amino, 1MQ",4
+MK-677,peptide,mg,po,oral_solid,"Ibutamoren, MK677, Nutrobal",24
+Follistatin-344,peptide,mcg,subq,reconstituted,"Follistatin, FST",4
+Anastrozole,ancillary,mg,po,oral_solid,"Arimidex, Adex, Anas",48
+Exemestane,ancillary,mg,po,oral_solid,"Aromasin, Aro",24
+Letrozole,ancillary,mg,po,oral_solid,"Femara, Letro",48
+Tamoxifen,ancillary,mg,po,oral_solid,"Nolvadex, Nolva, Tamox",144
+Clomiphene,ancillary,mg,po,oral_solid,"Clomid, Clom",120
+Enclomiphene,ancillary,mg,po,oral_solid,Enclo,10
+Toremifene,ancillary,mg,po,oral_solid,"Toremi, Fareston",120
+Raloxifene,ancillary,mg,po,oral_solid,"Ralox, Evista",28
+Cabergoline,ancillary,mg,po,oral_solid,"Caber, Dostinex",65
+Pramipexole,ancillary,mg,po,oral_solid,"Prami, Mirapex",8
+HCG,ancillary,iu,subq,reconstituted,"Human Chorionic Gonadotropin, Pregnyl",33
+Gonadorelin,ancillary,mcg,subq,reconstituted,GnRH,0.1
+Finasteride,ancillary,mg,po,oral_solid,"Fin, Propecia, Proscar",6
+Dutasteride,ancillary,mg,po,oral_solid,"Dut, Avodart",840
+Liothyronine (T3),thyroid,mcg,po,oral_solid,"T3, Cytomel, Lio",24
+Levothyroxine (T4),thyroid,mcg,po,oral_solid,"T4, Synthroid, Levo",168
+Clenbuterol,stimulant,mcg,po,oral_solid,Clen,36
+Ephedrine,stimulant,mg,po,oral_solid,"Eph, ECA",5
+Yohimbine,stimulant,mg,po,oral_solid,"Yohimbine HCl, Yo",1.5
+Salbutamol,stimulant,mcg,po,oral_solid,"Albuterol, Salb",5
+DNP,stimulant,mg,po,oral_solid,"2,4-Dinitrophenol, Dinitrophenol",36
+Vitamin A,supplement,iu,po,oral_solid,Retinol,
+Vitamin C,supplement,mg,po,oral_solid,Ascorbic Acid,
+Vitamin D3,supplement,iu,po,oral_solid,"Vit D, Cholecalciferol",
+Vitamin E,supplement,iu,po,oral_solid,Tocopherol,
+Vitamin K2,supplement,mcg,po,oral_solid,"Vit K2, MK-7",
+Vitamin B1,supplement,mg,po,oral_solid,Thiamine,
+Vitamin B2,supplement,mg,po,oral_solid,Riboflavin,
+Vitamin B3,supplement,mg,po,oral_solid,"Niacin, Niacinamide",
+Vitamin B5,supplement,mg,po,oral_solid,Pantothenic Acid,
+Vitamin B6,supplement,mg,po,oral_solid,"Pyridoxine, P5P",
+Vitamin B7,supplement,mcg,po,oral_solid,Biotin,
+Vitamin B9,supplement,mcg,po,oral_solid,"Folate, Folic Acid",
+Vitamin B12,supplement,mcg,po,oral_solid,"B12, Cobalamin, Methylcobalamin",
+Vitamin B Complex,supplement,capsule,po,oral_solid,B Complex,
+Magnesium,supplement,mg,po,oral_solid,"Mag, Mag Glycinate",
+Zinc,supplement,mg,po,oral_solid,,
+Calcium,supplement,mg,po,oral_solid,,
+Potassium,supplement,mg,po,oral_solid,,
+Iron,supplement,mg,po,oral_solid,,
+Selenium,supplement,mcg,po,oral_solid,,
+Iodine,supplement,mcg,po,oral_solid,,
+Chromium,supplement,mcg,po,oral_solid,Chromium Picolinate,
+Boron,supplement,mg,po,oral_solid,,
+Copper,supplement,mg,po,oral_solid,,
+Whey Protein,supplement,g,po,oral_solid,"Protein, Whey",
+Collagen Peptides,supplement,g,po,oral_solid,Collagen,
+L-Glutamine,supplement,g,po,oral_solid,Glutamine,
+EAA,supplement,g,po,oral_solid,Essential Amino Acids,
+BCAA,supplement,g,po,oral_solid,Branched Chain Amino Acids,
+Creatine Monohydrate,supplement,g,po,oral_solid,"Creatine, Mono",
+Fish Oil (Omega-3),supplement,mg,po,oral_solid,"Omega 3, EPA/DHA",
+TUDCA,supplement,mg,po,oral_solid,Tauroursodeoxycholic Acid,
+NAC,supplement,mg,po,oral_solid,N-Acetylcysteine,
+Citrus Bergamot,supplement,mg,po,oral_solid,Bergamot,
+CoQ10,supplement,mg,po,oral_solid,"Coenzyme Q10, Ubiquinol",
+Berberine,supplement,mg,po,oral_solid,,
+Taurine,supplement,g,po,oral_solid,,
+L-Carnitine,supplement,mg,po,oral_solid,"Carnitine, ALCAR",
+Glutathione,supplement,mg,po,oral_solid,GSH,
+Ashwagandha,supplement,mg,po,oral_solid,KSM-66,
+Tongkat Ali,supplement,mg,po,oral_solid,"Longjack, Eurycoma",
+Fadogia Agrestis,supplement,mg,po,oral_solid,Fadogia,
+L-Citrulline,supplement,g,po,oral_solid,"Citrulline, Citrulline Malate",
+Beta-Alanine,supplement,g,po,oral_solid,Beta Ala,
+Curcumin,supplement,mg,po,oral_solid,Turmeric,
+Glucosamine,supplement,mg,po,oral_solid,Glucosamine Chondroitin,
+Psyllium Husk,supplement,mg,po,oral_solid,"Psyllium, Metamucil",
+Melatonin,supplement,mg,po,oral_solid,,
+Betaine Anhydrous,supplement,mg,po,oral_solid,"TMG, Trimethylglycine",
+Alpha-GPC,supplement,mg,po,oral_solid,Alpha GPC,
+Caffeine,supplement,mg,po,oral_solid,,
+L-Theanine,supplement,mg,po,oral_solid,Theanine,
+L-Tyrosine,supplement,mg,po,oral_solid,Tyrosine,
+Rhodiola Rosea,supplement,mg,po,oral_solid,Rhodiola,
+Saw Palmetto,supplement,mg,po,oral_solid,,
+Milk Thistle,supplement,mg,po,oral_solid,Silymarin,
+Astaxanthin,supplement,mg,po,oral_solid,,
+Resveratrol,supplement,mg,po,oral_solid,,
+Quercetin,supplement,mg,po,oral_solid,,
+Inositol,supplement,mg,po,oral_solid,Myo-Inositol,
+Choline,supplement,mg,po,oral_solid,Choline Bitartrate,
+Glycine,supplement,g,po,oral_solid,,
+Garlic Extract,supplement,mg,po,oral_solid,Allicin,
+Probiotics,supplement,capsule,po,oral_solid,Probiotic,

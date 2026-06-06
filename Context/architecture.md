@@ -35,6 +35,10 @@ in the schema — storage only, no behaviour, until post-trip.
   (16 tables, 2 views) is the source of truth for tables, views, triggers, and
   RLS. `trackd_storage_policies.sql` defines the private `bloodwork` bucket and
   owner-scoped storage policies. Apply both in the **same** migration session.
+  `supabase/seed/` holds the catalogue extension applied on top of v0.4.2 (the
+  `catalogue_enums_and_reference_ranges` migration — enum additions + the
+  `reference_ranges` table, bringing the live DB to **17 tables**) and the seed
+  CSVs + generator (`build-seed-sql.mjs`) that load the read-only catalogues.
 - `Context/` — The spec. Defines what to build (`project-overview.md`), how
   (`code-standards.md`, this file), the UI language (`ui-context.md`), the
   session rules (`ai-workflow-rules.md`), and current state (`progress-tracker.md`).
@@ -44,10 +48,14 @@ in the schema — storage only, no behaviour, until post-trip.
 ## Storage Model
 
 - **Postgres (Supabase)** — All structured data: profiles, the read-only
-  `compounds` and `biomarkers` seed catalogues, cycles, protocol compounds,
-  inventory items, dose logs, lab panels and biomarker results, body metrics,
-  markers and journal entries, and notification/push preferences. Ownership and
-  relationships live here; access is enforced by RLS, not by application code.
+  `compounds`, `biomarkers`, `markers`, and `reference_ranges` seed catalogues,
+  cycles, protocol compounds, inventory items, dose logs, lab panels and
+  biomarker results, body metrics, markers and journal entries, and
+  notification/push preferences. Ownership and relationships live here; access is
+  enforced by RLS, not by application code. `reference_ranges` holds age/sex-banded
+  ranges (NULL `sex` = any) where the flat male/female columns on `biomarkers`
+  are insufficient — e.g. IGF-1, which falls with age. Stored for reference only;
+  not wired into interpretation (see Invariants 3 & 4).
 - **Postgres views (computed, never stored)** — `v_inventory_math` (remaining,
   concentration, mL/units per dose, doses-remaining, projected-empty) and
   `v_biomarker_position` (below / within / above). These are derived on read.
@@ -69,8 +77,9 @@ in the schema — storage only, no behaviour, until post-trip.
   user's RLS (a plain view runs as its owner and would leak every user's rows).
   **RLS verification must query the views and the storage bucket, not just the
   base tables.**
-- `compounds` and `biomarkers` are read-only seed catalogues: readable by all
-  authenticated users, writable only by the service role.
+- `compounds`, `biomarkers`, `markers`, and `reference_ranges` are read-only seed
+  catalogues: readable by all authenticated users, writable only by the service
+  role (no write policy ⇒ RLS denies all user writes).
 - Feature entitlements read `profiles.tier` and nothing else. Beta defaults
   everyone to `'paid'`; post-trip, the Stripe webhook becomes the column's only
   writer and the default flips to `'free'`. Gating logic never changes.
@@ -99,9 +108,11 @@ in the schema — storage only, no behaviour, until post-trip.
    `preconcentrated` / `oral_solid`, CHECK-enforced) and unit-family integrity
    (mg/mcg vs iu) are enforced in `trackd_schema_v0_4_2.sql`. The app must not
    re-implement or work around these rules in TypeScript.
-6. **Seed catalogues are read-only to users.** `compounds` and `biomarkers` are
-   written only by the service role. The app reads them; it never lets a user
-   write them.
+6. **Seed catalogues are read-only to users.** `compounds`, `biomarkers`,
+   `markers`, and `reference_ranges` are written only by the service role. The app
+   reads them; it never lets a user write them. Catalogue contents are seeded from
+   the CSVs in `supabase/seed/` via idempotent `ON CONFLICT (name) DO UPDATE`
+   inserts, so a re-seed never duplicates (each catalogue has UNIQUE on its name).
 7. **Entitlement gates read `profiles.tier` only.** No other signal gates
    features. Changing pricing or tiers must not touch gating logic.
 8. **Archive, never hard-delete user history.** Deleting a cycle cascades

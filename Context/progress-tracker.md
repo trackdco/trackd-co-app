@@ -30,6 +30,20 @@ Last updated: 2026-06-06
   11 public triggers + the `on_auth_user_created` trigger on `auth.users`; the
   private `bloodwork` storage bucket (public=false, 10MB, PDF/image mimes) + its
   4 owner-scoped `storage.objects` policies. No errors.
+- **Seed catalogues loaded + VERIFIED on the live project (2026-06-06).** Two
+  tracked migrations via the MCP: `catalogue_enums_and_reference_ranges` then
+  `seed_catalogues`. From Adrian's CSVs (now in `supabase/seed/`): **149 compounds,
+  41 biomarkers, 4 IGF-1 reference ranges**. Adrian-approved schema deltas:
+  `compound_category` extended with `sarm`/`thyroid`/`stimulant`, `dose_unit`
+  extended with `g`, and a new **`reference_ranges`** table (age/sex-banded; NULL
+  sex = any) for IGF-1's age-dependent ranges — stored only, not wired into
+  interpretation. Biomarker unit mojibake (`Âµg/dL` → `µg/dL`, `10â¹/L` → `10⁹/L`,
+  etc.) repaired on the way in. Seed is reproducible: edit the CSV → run
+  `node supabase/seed/build-seed-sql.mjs` → idempotent `ON CONFLICT` inserts.
+  Post-seed verification passed: counts exact, 0 rows with bad encoding, 0 null
+  categories, all 4 ranges FK-linked to IGF-1, `reference_ranges` RLS on with a
+  single read-only-to-authed policy. Live DB now **17 tables**. **Still TODO:** the
+  `markers` seed catalogue (sheet not built yet — spec is in `next-tasks.md`).
 - **Supabase client layer wired (2026-06-06).** `@supabase/ssr` +
   `@supabase/supabase-js` installed; `lib/supabase/client.ts` (browser),
   `lib/supabase/server.ts` (server, async `cookies()` + try/catch write guard),
@@ -107,6 +121,20 @@ Last updated: 2026-06-06
 
 ## Architecture Decisions
 
+- **Catalogue taxonomy extended to fit the seed, not the reverse (2026-06-06).**
+  Adrian's compounds seed used 3 categories (`sarm`, `thyroid`, `stimulant`) and a
+  unit (`g`) beyond the original v0.4.2 enums. Decision (Adrian): extend the enums
+  via `ALTER TYPE ... ADD VALUE` rather than remap the data, preserving the seed's
+  intended granularity. `g` is a catalogue *default_unit* pre-fill only and does
+  not affect the inventory unit-family trigger (which still governs mg↔mcg vs iu on
+  real inventory items; `v_inventory_math` does not convert grams).
+- **`reference_ranges` is a new (17th) table for age-banded ranges (2026-06-06).**
+  IGF-1 falls with age, which the flat male/female columns on `biomarkers` can't
+  express. New service-role-write-only catalogue, same RLS as `biomarkers`. `sex`
+  is nullable (NULL = any) rather than extending `sex_type`. Unique constraint uses
+  `NULLS NOT DISTINCT` (PG17) so NULL-sex rows still de-dupe on re-seed. Stored for
+  reference only — **not** wired into interpretation (invariants 3 & 4); the IGF-1
+  source data is explicitly flagged indicative/assay-dependent.
 - **App is served at the root `trackdco.app`, not a subdomain (2026-06-06).**
   Angus's call — the app *is* the domain for now (no separate marketing site at
   the root). Reverses the earlier `app.trackdco.app` assumption. Apex domains
@@ -150,6 +178,15 @@ Last updated: 2026-06-06
 
 ## Session Notes
 
+- 2026-06-06: **Seed catalogues loaded.** Adrian supplied the Compounds,
+  Biomarkers, and IGF-1 reference-range CSVs. Committed them (corrected) under
+  `supabase/seed/` with a CSV→SQL generator, then applied two tracked migrations:
+  enum extensions + the new `reference_ranges` table, then the seed data (149
+  compounds / 41 biomarkers / 4 ranges). Confirmed before acting with Adrian and
+  got explicit sign-off on the two schema deltas (extend enums; create
+  `reference_ranges`). Fixed biomarker-unit mojibake in flight. Verified counts,
+  encoding, RLS, and FK links. `markers` catalogue still to be built — spec handed
+  to Adrian and parked in `next-tasks.md`.
 - 2026-06-06: **App live on the custom domain.** Pointed `trackdco.app` (root) at
   the Vercel deploy — added an A record at Porkbun (host blank → `216.198.79.1`),
   deleted Porkbun's two parking records, left the Google Workspace MX + TXT
