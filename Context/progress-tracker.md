@@ -85,20 +85,23 @@ Last updated: 2026-06-07
   a11y, no-404s). `app/layout.tsx` gained native wiring (`themeColor`, `colorScheme`
   dark, `viewport-fit: cover`); `updateSession` now **fails open** when Supabase env
   is unset (a missing/mis-scoped var can't 500 the whole site).
-- **Brand icons wired into the app (2026-06-07).** Adrian's TrackdCo logo (1563×1563
-  PNG, kept as the master at `app/logo-source.png`) set as the site's icons via
-  Next.js 16's `app/` file conventions: **`favicon.ico`** (48×48, replaces the old
-  default Next.js favicon — browser tab), **`icon.png`** (512×512 — modern favicon +
-  Android/PWA), **`apple-icon.png`** (180×180 — the iOS home-screen Apple Touch icon).
-  Resized from the source with macOS `sips` (no ImageMagick/Pillow on the machine;
-  `sips -s format ico` produces a valid single-size `.ico`). Verified on a local dev
-  server: the rendered `<head>` carries all three tags (`rel="icon"` ×2 +
+- **Brand icons wired into the app (2026-06-07).** Adrian's logo (1563×1563 PNG,
+  master at `app/logo-source.png`) set as the site's icons via Next.js 16's `app/`
+  file conventions: **`favicon.ico`** (48×48, replaces the old default Next.js favicon
+  — browser tab), **`icon.png`** (512×512 — modern favicon + Android/PWA),
+  **`apple-icon.png`** (180×180 — the iOS home-screen Apple Touch icon). All resized
+  from the source with macOS `sips` (no ImageMagick/Pillow on the machine;
+  `sips -s format ico` makes a valid single-size `.ico`). Verification each time: local
+  dev server shows the rendered `<head>` carrying all three tags (`rel="icon"` ×2 +
   `rel="apple-touch-icon"`) with correct `sizes`/`type`, each icon URL returns HTTP
-  200, and the served `apple-icon.png` is a byte-for-byte (SHA-256) match to the file
-  on disk. Committed to `main`, **not yet pushed/deployed** — live trackdco.app keeps
-  the old favicon until pushed. Caveat banked: the full "TrackdCo" wordmark is faithful
-  but small at 16px tab size; a simplified monogram is an option later if tab
-  legibility matters (the 180px Apple icon reads cleanly).
+  200, and the served `apple-icon.png` is a byte-for-byte (SHA-256) match to disk.
+  **Logo revised same day:** v1 was the "TrackdCo" wordmark (committed, pushed, and
+  confirmed live on trackdco.app — prod URLs 200 + SHA-match); Adrian then swapped in
+  the shorter **"Trackd"** wordmark (gold "d"), icons regenerated from the new master
+  and re-verified locally. The "Trackd" mark fills the frame more, so it reads better
+  at 16px tab size than the wordmark did. Pushing `main` is what deploys icons to
+  trackdco.app; favicons cache hard, so seeing a change needs a private window (tab)
+  or delete-and-re-add to Home Screen (Apple Touch icon).
 - Context system written: `project-overview.md`, `architecture.md`,
   `code-standards.md`, `ai-workflow-rules.md`, `ui-context.md`.
 - `ui-context.md` signed off by Adrian (co-founder) (2026-06-05): theme, colour tokens,
@@ -252,14 +255,16 @@ Last updated: 2026-06-07
 
 ## Session Notes
 
-- 2026-06-07: **Brand icons set.** Adrian supplied the TrackdCo logo PNG; saved it
-  as `app/logo-source.png` (the version-controlled master) and generated the three
-  Next.js `app/` icon files from it with `sips` — `favicon.ico` (48×48, replacing the
-  default), `icon.png` (512×512), `apple-icon.png` (180×180, the Apple Touch / home-
-  screen icon). Verified end-to-end against a local dev server (head tags present,
-  all three URLs 200, served bytes SHA-256-match disk). Committed to `main` at
-  Adrian's instruction; **left unpushed** — needs an explicit go-ahead to push, which
-  triggers the Vercel production deploy that puts the new icons on trackdco.app.
+- 2026-06-07: **Brand icons set, then logo swapped.** Adrian first supplied the
+  "TrackdCo" logo; saved it as `app/logo-source.png` (master) and generated the three
+  Next.js `app/` icons with `sips` (`favicon.ico` 48×48, `icon.png` 512×512,
+  `apple-icon.png` 180×180). Committed → Adrian pushed → verified **live on
+  trackdco.app** (prod head tags present, all icon URLs 200, served `apple-icon.png`
+  SHA-256-matches disk). The "not showing" question afterward was just favicon caching,
+  not a deploy fault. Adrian then **replaced the logo with the shorter "Trackd"
+  wordmark (gold "d")**, overwriting `logo-source.png`; regenerated all three icons and
+  re-verified locally the same way (new asset hashes, URLs 200, SHA-match). Committed to
+  `main`; left unpushed pending Adrian's go-ahead (push = Vercel prod deploy).
 - 2026-06-06: **Legal documents stored.** Adrian supplied the Terms of Service
   (v0.2), Privacy Policy (v0.1), and Medical Disclaimer (v0.2). Confirmed the
   approach with him first (public read; create + apply now), then added the
