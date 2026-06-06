@@ -10,12 +10,11 @@ Last updated: 2026-06-06
 
 ## Current Phase
 
-- **Backend + deploy complete → starting the app UI.** The product/context
-  system, design-system foundation, data model, Supabase client layer, Vercel
-  deploy, and the live custom domain are all done. The app is **live at
-  https://trackdco.app** (HTTP 200, valid SSL). Next phase: **Week 1 exit — auth
-  screens** (signup → 18+ gate → login → empty dashboard). Steps in
-  `next-tasks.md`.
+- **Public landing live → building auth.** Backend, data model, seed catalogues,
+  Vercel deploy, custom domain, and now the **public app-style landing** are all
+  live on **https://trackdco.app** (HTTP 200, valid SSL). Next phase: **auth** —
+  real Google sign-in behind the landing CTA, the 18+/ToS gate, and an empty
+  dashboard. Steps in `next-tasks.md`.
 
 ## Completed
 
@@ -60,6 +59,17 @@ Last updated: 2026-06-06
   verified externally (DNS A `216.198.79.1`, HTTPS 200, valid SSL). First deploy
   500'd on missing build-time env vars — fixed by setting them and redeploying
   with build cache OFF (`NEXT_PUBLIC_` vars inline at build time).
+- **Public landing shipped + live (2026-06-06).** App-style **First Run** onboarding
+  merged `feat/landing` → `main` and verified live on https://trackdco.app (HTTP 200).
+  Mobile-first swipeable carousel (hero → stack → site rotation → inventory) with
+  product mini-mocks (placeholders for the real app UI), restrained gold accents, a
+  2s auto-advance tour (snap-toggle for iOS), scroll-coupled parallax, and a
+  "Continue with Google" CTA → `/login`. Desktop = "open on your phone" gate
+  (mobile-only by intent). On-brand `/login` + `/terms` + `/privacy` placeholders.
+  Built from a multi-lens design critique; CodeRabbit review applied (metadata/OG,
+  a11y, no-404s). `app/layout.tsx` gained native wiring (`themeColor`, `colorScheme`
+  dark, `viewport-fit: cover`); `updateSession` now **fails open** when Supabase env
+  is unset (a missing/mis-scoped var can't 500 the whole site).
 - Context system written: `project-overview.md`, `architecture.md`,
   `code-standards.md`, `ai-workflow-rules.md`, `ui-context.md`.
 - `ui-context.md` signed off by Adrian (co-founder) (2026-06-05): theme, colour tokens,
@@ -83,11 +93,16 @@ Last updated: 2026-06-06
 
 ## In Progress
 
-- **Week 1 exit — auth screens (not started).** Build signup → 18+ gate → login →
-  empty dashboard on https://trackdco.app, wired to Supabase Auth; test signup
-  hard with a fresh account (the `handle_new_user()` auto-profile trigger is the
-  one place a failure blocks all signups); confirm RLS isolation with a second
-  account. Checkpoint target 11 Jun. See `next-tasks.md`.
+- **Auth — real Google sign-in + 18+/ToS gate (next).** Method = **Google OAuth**
+  (Angus's call; needs a one-time Google Cloud + Supabase provider setup). Build
+  `signInWithOAuth` + the callback route (replacing the `/login` placeholder), a
+  one-time post-sign-in **18+/ToS interstitial** (collect `date_of_birth` → set
+  `is_18_plus`; accept ToS → `tos_accepted_at`/`tos_version`; gate access on both),
+  an empty dashboard + `getUser()` guard with the root redirecting logged-in users
+  to `/dashboard`, and a post-signup "Add to Home Screen" prompt. Test signup hard
+  with a fresh account (the `handle_new_user()` trigger is the one place a failure
+  blocks all signups); confirm RLS isolation. Checkpoint target 11 Jun. See
+  `next-tasks.md`.
 
 ## Tooling
 

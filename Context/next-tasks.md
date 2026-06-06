@@ -15,11 +15,11 @@ Last updated: 2026-06-06
 
 ## 🎯 Current focus
 
-Backend + deploy **done**: Supabase live, schema applied, app deployed and serving
-on the real domain **https://trackdco.app** (SSL valid). Next build-track job is
-the **Week 1 exit — auth screens** (signup → 18+ gate → login → empty dashboard).
-Adrian works the **parallel track** below in the meantime — no dependency on the
-build.
+Backend, deploy, domain **and the public landing are all live** on
+**https://trackdco.app** (app-style First Run onboarding). Next build-track job is
+**auth** — wire the real **Google sign-in** behind the landing's CTA, the 18+/ToS
+gate, and an empty dashboard. Adrian works the **parallel track** below in the
+meantime — no dependency on the build.
 
 ---
 
@@ -86,15 +86,39 @@ TXT** records were left untouched. End state: 3 records (A + MX + TXT).
 - ✅ Checkpoint HIT (target 7 Jun, done 6 Jun): Supabase live, schema applied,
   deploy proven, custom domain live with SSL.
 
-### ▶ NOW — Week 1 exit: auth screens
+### ✅ DONE — Public landing live (2026-06-06)
 
-Build the first real user flow, live on https://trackdco.app:
-1. **Signup → 18+ gate → login → empty dashboard**, wired to Supabase Auth.
-2. Test signup **HARD** with a brand-new account — the `handle_new_user()`
-   auto-profile trigger is the one place a failure silently blocks *all* signups.
-   It's idempotent (`ON CONFLICT (id) DO NOTHING`), but verify a fresh row really
-   lands in `profiles` on first signup.
-3. Confirm RLS: a second account sees none of the first account's data.
+App-style **First Run** onboarding shipped to https://trackdco.app (merged
+`feat/landing` → `main`; verified HTTP 200 on the live domain). Mobile-first
+swipeable carousel (hero → stack → site rotation → inventory) with product
+mini-mocks, gold accents, a 2s auto-advance tour (snap-toggle so it works on iOS),
+scroll parallax, and a "Continue with Google" CTA. Desktop shows an "open on your
+phone" gate (mobile-only by intent). On-brand `/login` + `/terms` + `/privacy`
+placeholders so nothing 404s. Decisions: amber used as a restrained accent across
+the onboarding surface (founder call — the in-app health-data categorical/
+never-evaluative invariant still stands); the proxy now **fails open** if Supabase
+env is unset (a missing var can't 500 the whole site). **Feature mini-mocks are
+placeholders** — swap to the real screens once the app UI is designed.
+
+### ▶ NOW — Auth: real Google sign-in + 18+/ToS gate
+
+Wire the landing's CTA to a working account flow:
+1. **Google OAuth setup (Angus, one-time):** Supabase → Auth → Providers → Google
+   (enable, copy callback URL) → Google Cloud OAuth client (consent screen + web
+   client using the Supabase callback) → paste client id/secret back → set Site URL
+   + redirect URLs (`https://trackdco.app/**`, `http://localhost:3000/**`).
+2. Build **Continue with Google** (`signInWithOAuth`) + the OAuth callback route
+   (code exchange); replace the `/login` placeholder.
+3. **18+ / ToS gate** as a one-time post-sign-in interstitial (Google gives name +
+   email, not DOB/consent): collect `date_of_birth` (reject <18 → set `is_18_plus`),
+   accept ToS → set `tos_accepted_at` + `tos_version`, via an authed `profiles`
+   UPDATE. Gate app access on `is_18_plus AND tos_accepted_at`.
+4. **Empty dashboard** + route guard (`getUser()`); root redirects a logged-in user
+   to `/dashboard`. Sessions persist (cookie + proxy refresh) so they stay logged in.
+5. **Post-signup "Add to Home Screen" prompt** (PWA install) — Angus's flow ask.
+6. Test signup **HARD** with a brand-new Google account — the `handle_new_user()`
+   trigger is the one place a failure silently blocks *all* signups. Confirm RLS:
+   a second account sees none of the first's data.
    - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones.
 
 ### Tooling — Vercel plugin installed (2026-06-06)
