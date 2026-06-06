@@ -1,6 +1,6 @@
 # 01 — Design System & UI Primitives
 
-> Read `AGENTS.md` and `context/ui-context.md` before starting.
+> Read `AGENTS.md` and `Context/ui-context.md` before starting.
 > `ui-context.md` is the locked design truth (theme, tokens, type,
 > radius, rules). This spec is the **build task** that stands that
 > system up and keeps it extensible. Where this spec and a token
@@ -34,7 +34,7 @@ extend it — not a greenfield checklist.
 ### 1. Colour tokens (`app/globals.css`)
 
 All tokens live **once** in `:root` (the only place raw hex may
-appear — see `context/code-standards.md`). Trackd is dark-only, so
+appear — see `Context/code-standards.md`). Trackd is dark-only, so
 there is no light theme. Token names match `ui-context.md` exactly.
 Expose them to Tailwind v4 utilities via an `@theme inline` block so
 each token is usable both as `var(--token)` and as a utility (e.g.
