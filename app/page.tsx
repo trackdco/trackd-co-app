@@ -1,6 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+
+export const metadata: Metadata = {
+  title: "Trackd Co — Track the whole protocol",
+  description:
+    "Log your whole stack in one place: anabolics, peptides, supplements and ancillaries. A private, founder-led app built by people who run real protocols.",
+  openGraph: {
+    title: "Trackd Co — Track the whole protocol",
+    description:
+      "Log your whole stack in one place: anabolics, peptides, supplements and ancillaries.",
+    type: "website",
+    url: "https://trackdco.app",
+    siteName: "Trackd Co",
+  },
+};
 
 /**
  * Public landing / home page — served at the root (trackdco.app), the bio-link
@@ -15,6 +30,13 @@ import { Button } from "@/components/ui/button";
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-foreground focus:px-4 focus:py-2 focus:text-background"
+      >
+        Skip to content
+      </a>
+
       {/* Header */}
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6">
         <span className="font-display text-3xl tracking-tight text-foreground">trackd co</span>
@@ -27,7 +49,10 @@ export default function Home() {
       </header>
 
       {/* Hero */}
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center px-6 pt-14 pb-24 text-center sm:pt-24">
+      <main
+        id="main"
+        className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center px-6 pt-14 pb-24 text-center sm:pt-24"
+      >
         <p className="mb-5 text-xs font-medium uppercase tracking-[0.2em] text-accent-amber">
           Now in private beta
         </p>
