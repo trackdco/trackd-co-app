@@ -7,15 +7,17 @@ import { CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
- * First Run — app-style onboarding. Built to read as professionally crafted:
+ * First Run — app-style onboarding (mobile). Reads as professionally crafted:
  *  - each feature slide shows a true product mini-mock, not a stock icon
- *  - a segmented progress bar (white) that fills with the swipe — amber is freed
- *    for the single signature moment (the "due" injection site on the last slide)
- *  - scroll-coupled parallax so content reacts to the finger (respects reduced motion)
- *  - tactile press states, a monogram lockup, tightened display type, safe areas
+ *  - a segmented progress bar that fills (gold) with the swipe
+ *  - scroll-coupled parallax + auto-advance tour (both respect reduced motion,
+ *    autoplay stops the moment the user takes control)
+ *  - restrained gold accents on every slide for a premium feel
  *
- * Copy keeps the founders' plain voice while pulling a few persuasion levers
- * toward one goal — curiosity → create an account.
+ * PLACEHOLDER NOTE: the mini-mocks below are stand-ins. When the real in-app UI
+ * is designed, swap these to match the actual screens so onboarding mirrors the
+ * product 1:1. Copy stays in the founders' plain voice; the whole flow funnels
+ * to one action — create an account.
  */
 type Slide = {
   eyebrow: string;
@@ -34,7 +36,7 @@ const SLIDES: Slide[] = [
         Track the whole <em className="font-medium italic">protocol</em>
       </>
     ),
-    body: "Everything you're running — in one place you'll actually open.",
+    body: "Everything you're running, in one place.",
   },
   {
     eyebrow: "Your stack",
@@ -44,20 +46,22 @@ const SLIDES: Slide[] = [
     visual: <StackMock />,
   },
   {
-    eyebrow: "Inventory",
-    title: "Never guess what's left",
-    heading: <>Never guess what&apos;s left</>,
-    body: "Log a dose and it works out what's left and when you'll run dry.",
-    visual: <InventoryMock />,
-  },
-  {
     eyebrow: "Site rotation",
     title: "Rotate every site right",
     heading: <>Rotate every site right</>,
     body: "See where your last shots landed and what's due, so each site recovers.",
     visual: <SiteMapMock />,
   },
+  {
+    eyebrow: "Inventory",
+    title: "Never guess what's left",
+    heading: <>Never guess what&apos;s left</>,
+    body: "Log a dose and it works out what's left and when you'll run dry.",
+    visual: <InventoryMock />,
+  },
 ];
+
+const AUTOPLAY_MS = 3500;
 
 export function FirstRun() {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -65,6 +69,7 @@ export function FirstRun() {
   const segRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const ticking = useRef(false);
   const reduced = useRef(false);
+  const autoplayOff = useRef(false);
   const activeRef = useRef(0);
   const [active, setActive] = useState(0);
 
@@ -80,13 +85,11 @@ export function FirstRun() {
       setActive(idx);
     }
 
-    // Segmented progress: each segment fills as the swipe passes through it.
     for (let i = 0; i < segRefs.current.length; i++) {
       const seg = segRefs.current[i];
       if (seg) seg.style.transform = `scaleX(${Math.max(0, Math.min(1, p - i + 1))})`;
     }
 
-    // Scroll-coupled parallax on slide content (skipped under reduced motion).
     if (!reduced.current) {
       for (let i = 0; i < contentRefs.current.length; i++) {
         const node = contentRefs.current[i];
@@ -108,10 +111,19 @@ export function FirstRun() {
     });
   }, [update]);
 
-  const goTo = useCallback((i: number) => {
+  const scrollToIndex = useCallback((i: number) => {
     const el = trackRef.current;
     if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
   }, []);
+
+  // User tapping a segment takes control → stop the auto tour.
+  const goTo = useCallback(
+    (i: number) => {
+      autoplayOff.current = true;
+      scrollToIndex(i);
+    },
+    [scrollToIndex],
+  );
 
   useEffect(() => {
     reduced.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -120,6 +132,38 @@ export function FirstRun() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [update]);
+
+  // Auto-advance tour: ping-pong through the slides, stop on first interaction.
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const el = trackRef.current;
+    const stop = () => {
+      autoplayOff.current = true;
+    };
+    el?.addEventListener("pointerdown", stop);
+    let dir = 1;
+    const id = setInterval(() => {
+      if (autoplayOff.current) {
+        clearInterval(id);
+        return;
+      }
+      const node = trackRef.current;
+      if (!node) return;
+      let next = activeRef.current + dir;
+      if (next >= SLIDES.length) {
+        dir = -1;
+        next = activeRef.current + dir;
+      } else if (next < 0) {
+        dir = 1;
+        next = activeRef.current + dir;
+      }
+      node.scrollTo({ left: next * node.clientWidth, behavior: "smooth" });
+    }, AUTOPLAY_MS);
+    return () => {
+      clearInterval(id);
+      el?.removeEventListener("pointerdown", stop);
+    };
+  }, []);
 
   return (
     <div
@@ -133,12 +177,9 @@ export function FirstRun() {
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-6">
-        <div className="flex items-center gap-2">
-          <Monogram className="size-5" />
-          <span className="font-display text-lg font-medium tracking-[-0.01em] text-foreground">
-            trackd<span className="text-text-muted"> co</span>
-          </span>
-        </div>
+        <span className="font-display text-lg font-medium tracking-[-0.01em] text-foreground">
+          trackd<span className="text-text-muted"> co</span>
+        </span>
         <Link
           href="/login"
           className="-mr-2 px-2 py-2 text-sm text-text-muted transition-transform duration-100 hover:text-foreground active:scale-95"
@@ -169,7 +210,8 @@ export function FirstRun() {
               className="flex flex-col items-center will-change-transform"
             >
               {slide.visual ? <div className="mb-9">{slide.visual}</div> : null}
-              <p className="mb-3 text-[0.7rem] uppercase tracking-[0.22em] text-text-muted">
+              <p className="mb-3 inline-flex items-center gap-1.5 text-[0.7rem] uppercase tracking-[0.22em] text-text-muted">
+                <span className="size-1 rounded-full bg-accent-amber" aria-hidden="true" />
                 {slide.eyebrow}
               </p>
               <h2 className="text-balance font-display text-[2.25rem] font-medium leading-[1.03] tracking-[-0.02em] text-foreground">
@@ -183,7 +225,7 @@ export function FirstRun() {
         ))}
       </div>
 
-      {/* Segmented progress */}
+      {/* Segmented progress (fills gold) */}
       <div className="flex justify-center gap-1.5 px-10 pt-7">
         {SLIDES.map((slide, i) => (
           <button
@@ -198,7 +240,7 @@ export function FirstRun() {
                 ref={(node) => {
                   segRefs.current[i] = node;
                 }}
-                className="block h-full w-full origin-left rounded-full bg-foreground"
+                className="block h-full w-full origin-left rounded-full bg-accent-amber"
                 style={{ transform: "scaleX(0)" }}
               />
             </span>
@@ -243,25 +285,29 @@ export function FirstRun() {
   );
 }
 
-/* ---------- product mini-mocks (faux but honest, categorical, on-brand) ---------- */
+/* ---------- product mini-mocks (placeholders — match to real app UI later) ---------- */
 
 function StackMock() {
   const rows = [
-    { name: "Testosterone E", dose: "250mg · 2×/wk", tag: "Gear" },
-    { name: "Retatrutide", dose: "4mg · 1×/wk", tag: "Peptide" },
-    { name: "Aromasin", dose: "12.5mg · EOD", tag: "Ancillary" },
-    { name: "Vitamin D3", dose: "5000iu · daily", tag: "Supp" },
+    { name: "Testosterone E", dose: "250mg · 2×/wk", tag: "Gear", due: true },
+    { name: "Retatrutide", dose: "4mg · 1×/wk", tag: "Peptide", due: false },
+    { name: "Aromasin", dose: "12.5mg · EOD", tag: "Ancillary", due: false },
+    { name: "Vitamin D3", dose: "5000iu · daily", tag: "Supp", due: false },
   ];
   return (
     <div className="w-[17rem] rounded-2xl border border-border bg-card p-2.5 text-left">
       {rows.map((row, i) => (
         <div
           key={row.name}
-          className={`flex items-center justify-between rounded-xl bg-bg-surface-raised px-3 py-2.5 ${
+          className={`flex items-center gap-3 rounded-xl bg-bg-surface-raised px-3 py-2.5 ${
             i < rows.length - 1 ? "mb-1.5" : ""
           }`}
         >
-          <div>
+          <span
+            className={`size-1.5 shrink-0 rounded-full ${row.due ? "bg-accent-amber" : "bg-text-subtle/40"}`}
+            aria-hidden="true"
+          />
+          <div className="min-w-0 flex-1">
             <p className="font-display text-[15px] leading-none text-foreground">{row.name}</p>
             <p className="mt-1.5 text-[11px] text-text-muted">{row.dose}</p>
           </div>
@@ -285,7 +331,7 @@ function InventoryMock() {
         <div className="h-full rounded-full bg-text-muted" style={{ width: "64%" }} />
       </div>
       <div className="mt-3 flex items-center gap-1.5 text-[12px] text-text-muted">
-        <CalendarDays className="size-3.5" strokeWidth={1.5} />
+        <CalendarDays className="size-3.5 text-accent-amber" strokeWidth={1.5} />
         Runs dry ~ 18 Jul
       </div>
     </div>
@@ -333,24 +379,6 @@ function SiteMapMock() {
       </div>
       <p className="mt-3 text-[11px] text-accent-amber">Due now · L delt · 9 days rested</p>
     </div>
-  );
-}
-
-/* ---------- marks ---------- */
-
-/** Monochrome "tracking ring" monogram — kept colourless so amber stays unique. */
-function Monogram({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <circle cx="12" cy="12" r="9" className="stroke-border-strong" strokeWidth="1.5" />
-      <path
-        d="M12 3 A 9 9 0 0 1 21 12"
-        className="stroke-foreground"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <circle cx="12" cy="12" r="1.75" className="fill-foreground" />
-    </svg>
   );
 }
 
