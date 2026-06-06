@@ -19,9 +19,21 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
+  // Fail open: if Supabase isn't configured for this environment (e.g. the
+  // NEXT_PUBLIC_ keys aren't set on a given Vercel env, or a build cached an
+  // earlier compile), skip the optimistic session refresh instead of throwing
+  // and 500-ing every route — including public pages. This is refresh-only and
+  // optimistic; the authoritative auth check is getUser() inside protected
+  // pages, so passing through here is safe.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  if (!supabaseUrl || !supabaseKey) {
+    return supabaseResponse
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {
