@@ -62,7 +62,7 @@ const SLIDES: Slide[] = [
   },
 ];
 
-const AUTOPLAY_MS = 3500;
+const AUTOPLAY_MS = 2000;
 
 export function FirstRun() {
   const trackRef = useRef<HTMLDivElement>(null);
