@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
@@ -13,15 +13,27 @@ const geistMono = Geist_Mono({
 });
 
 // Serif display face for headings and the wordmark (see Context/ui-context.md).
+// Load real display weights so the high-contrast Didone actually shows (default
+// 400 renders flat). Italic enabled for editorial emphasis on key heading words.
 const playfairDisplay = Playfair_Display({
   variable: "--font-display",
   subsets: ["latin"],
+  weight: ["500", "700", "900"],
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
   title: "Trackd Co",
   description:
     "Track peptide, anabolic, supplement, and hormone-optimisation protocols in one place.",
+};
+
+// Native-app wiring: match the status bar to the near-black canvas and enable
+// the safe-area insets the entry screen relies on (viewport-fit=cover).
+export const viewport: Viewport = {
+  themeColor: "#111110",
+  colorScheme: "dark",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
