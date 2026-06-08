@@ -22,17 +22,17 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#111110",
     theme_color: "#111110",
     icons: [
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      // Dedicated maskable icon (mark inside the safe zone on #111110) so adaptive-
+      // icon devices show an edge-to-edge icon, not the mark inside a white plate.
       {
-        src: "/icon.png",
+        src: "/icon-maskable.png",
         sizes: "512x512",
         type: "image/png",
-        purpose: "any",
+        purpose: "maskable",
       },
-      {
-        src: "/apple-icon.png",
-        sizes: "180x180",
-        type: "image/png",
-      },
+      { src: "/apple-icon.png", sizes: "180x180", type: "image/png" },
     ],
   };
 }
