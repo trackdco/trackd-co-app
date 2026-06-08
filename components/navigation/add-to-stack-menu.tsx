@@ -162,6 +162,11 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
   const [nameError, setNameError] = useState<string | null>(null)
   const [saveFailed, setSaveFailed] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // Row-level (browse list) delete confirmation — which custom compound is
+  // mid-confirm. Separate from the edit form's own `confirmingDelete`.
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+    null
+  )
 
   // Every open starts clean (resting position, browse mode, empty search) and
   // reloads this user's saved compounds. Runs before paint → no flash.
@@ -225,6 +230,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
     setNameError(null)
     setSaveFailed(false)
     setConfirmingDelete(false)
+    setConfirmingDeleteId(null)
   }
 
   function openCreate() {
@@ -327,6 +333,27 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
     }
   }
 
+  // ---- Row-level delete (browse list). Same confirm + persistence as the edit
+  // menu's delete, but triggered from a custom compound's row instead.
+  function askDeleteCustom(id: string) {
+    setSaveFailed(false)
+    setConfirmingDeleteId(id)
+  }
+
+  function cancelDeleteCustom() {
+    setConfirmingDeleteId(null)
+  }
+
+  function confirmDeleteCustom(id: string) {
+    const next = customs.filter((c) => c.id !== id)
+    if (saveCustoms(userId, next)) {
+      setCustoms(next)
+      setConfirmingDeleteId(null)
+    } else {
+      setSaveFailed(true)
+    }
+  }
+
   const nameValid = form.name.trim().length > 0
 
   return (
@@ -421,6 +448,11 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
               customs={customs}
               onEditCustom={openEdit}
               onMakeYourOwn={openCreate}
+              confirmingDeleteId={confirmingDeleteId}
+              onAskDeleteCustom={askDeleteCustom}
+              onCancelDeleteCustom={cancelDeleteCustom}
+              onConfirmDeleteCustom={confirmDeleteCustom}
+              deleteFailed={saveFailed}
             />
           )}
         </div>
@@ -439,6 +471,11 @@ function BrowseBody({
   customs,
   onEditCustom,
   onMakeYourOwn,
+  confirmingDeleteId,
+  onAskDeleteCustom,
+  onCancelDeleteCustom,
+  onConfirmDeleteCustom,
+  deleteFailed,
 }: {
   query: string
   setQuery: (v: string) => void
@@ -447,7 +484,23 @@ function BrowseBody({
   customs: CustomCompound[]
   onEditCustom: (c: CustomCompound) => void
   onMakeYourOwn: () => void
+  confirmingDeleteId: string | null
+  onAskDeleteCustom: (id: string) => void
+  onCancelDeleteCustom: () => void
+  onConfirmDeleteCustom: (id: string) => void
+  deleteFailed: boolean
 }) {
+  // Props shared by every CompoundList instance (custom rows can appear both in
+  // search results and under "Your compounds").
+  const listProps = {
+    onEditCustom,
+    confirmingDeleteId,
+    onAskDeleteCustom,
+    onCancelDeleteCustom,
+    onConfirmDeleteCustom,
+    deleteFailed,
+  }
+
   return (
     <>
       {/* Search bar */}
@@ -472,7 +525,7 @@ function BrowseBody({
       <div className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         {q ? (
           results.length > 0 ? (
-            <CompoundList items={results} onEditCustom={onEditCustom} />
+            <CompoundList items={results} {...listProps} />
           ) : (
             <p className="px-1 py-6 text-center text-sm text-text-muted">
               <span className="text-foreground">“{query.trim()}”</span> not found
@@ -483,12 +536,12 @@ function BrowseBody({
             {customs.length > 0 && (
               <>
                 <SectionLabel>Your compounds</SectionLabel>
-                <CompoundList items={customs} onEditCustom={onEditCustom} />
+                <CompoundList items={customs} {...listProps} />
                 <div className="h-4" />
               </>
             )}
             <SectionLabel>Popular in comp prep</SectionLabel>
-            <CompoundList items={POPULAR} onEditCustom={onEditCustom} />
+            <CompoundList items={POPULAR} {...listProps} />
           </>
         )}
 
@@ -520,33 +573,99 @@ function RowMain({ compound }: { compound: Compound }) {
 function CompoundList({
   items,
   onEditCustom,
+  confirmingDeleteId,
+  onAskDeleteCustom,
+  onCancelDeleteCustom,
+  onConfirmDeleteCustom,
+  deleteFailed,
 }: {
   items: Compound[]
   onEditCustom: (c: CustomCompound) => void
+  confirmingDeleteId: string | null
+  onAskDeleteCustom: (id: string) => void
+  onCancelDeleteCustom: () => void
+  onConfirmDeleteCustom: (id: string) => void
+  deleteFailed: boolean
 }) {
   return (
     <ul className="overflow-hidden rounded-2xl bg-bg-surface-raised">
       {items.map((compound, i) => {
         const divider = i > 0 ? "border-t border-border-default" : ""
         if (isCustom(compound)) {
-          // Your own compound — tap the row to edit / delete it.
+          // Your own compound, mid-delete-confirm — same red confirm as the edit
+          // menu's delete, shown inline in place of the row.
+          if (confirmingDeleteId === compound.id) {
+            return (
+              <li key={compound.id}>
+                <div className={cn("px-4 py-3", divider)}>
+                  <div className="rounded-xl border border-state-error/40 bg-state-error/10 p-3">
+                    <p className="text-sm text-foreground">
+                      Delete “{compound.name}”? This can&apos;t be undone.
+                    </p>
+                    {deleteFailed && (
+                      <p className="mt-2 text-sm text-state-warning">
+                        Couldn&apos;t save to this device (storage may be full or
+                        off). Try again, or check your browser&apos;s storage
+                        settings.
+                      </p>
+                    )}
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={onCancelDeleteCustom}
+                        className="flex-1 rounded-lg border border-border-strong py-2 text-sm text-text-muted transition-colors hover:text-text-primary"
+                      >
+                        Keep
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onConfirmDeleteCustom(compound.id)}
+                        className="flex-1 rounded-lg bg-state-error py-2 text-sm font-medium text-text-primary transition-opacity hover:opacity-90"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            )
+          }
+          // Your own compound — three controls on the right: add-to-stack (+),
+          // then a smaller edit and delete.
           return (
             <li key={compound.id}>
-              <button
-                type="button"
-                onClick={() => onEditCustom(compound)}
-                aria-label={`Edit ${compound.name}`}
-                className={cn(
-                  "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-bg-input",
-                  divider
-                )}
-              >
+              <div className={cn("flex items-center gap-3 px-4 py-3.5", divider)}>
                 <RowMain compound={compound} />
-                <Pencil
-                  aria-hidden
-                  className="h-4 w-4 shrink-0 text-text-muted"
-                />
-              </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  {/* Add to stack — same visual as the catalogue rows' "+"
+                      (wires into the real stack when the cycle feature lands). */}
+                  <button
+                    type="button"
+                    aria-label={`Add ${compound.name} to stack`}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden />
+                  </button>
+                  {/* Edit — opens the (unchanged) edit menu. */}
+                  <button
+                    type="button"
+                    onClick={() => onEditCustom(compound)}
+                    aria-label={`Edit ${compound.name}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-input hover:text-text-primary"
+                  >
+                    <Pencil className="h-4 w-4" aria-hidden />
+                  </button>
+                  {/* Delete — same confirm + delete as the edit menu. */}
+                  <button
+                    type="button"
+                    onClick={() => onAskDeleteCustom(compound.id)}
+                    aria-label={`Delete ${compound.name}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-state-error transition-colors hover:bg-state-error/10"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
+              </div>
             </li>
           )
         }
