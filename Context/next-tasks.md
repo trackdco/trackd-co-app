@@ -31,6 +31,11 @@ Backend, deploy, domain **and the public landing are all live** on
 Conflicts come from editing the **same files**, not from working at the same time:
 - **One branch per person** — `feat/auth` (Angus), `feat/app-ui` (Adrian). Never
   commit straight to `main`.
+- **Code lands via PR, not direct push (decided 2026-06-08).** Branch → push →
+  **open a PR to `main`** → **CodeRabbit auto-reviews** → address findings →
+  merge. CodeRabbit only reviews PRs, so anything pushed straight to `main` gets
+  no review. Merging a PR to `main` = a Vercel **prod** deploy. (Trivial
+  `Context/*.md` doc-only edits may still go direct for speed.)
 - **`git pull` before you start and before you push;** merge one lane at a time,
   the other pulls right after.
 - **Stay in your folders.** Shared foundations (`app/globals.css`, `app/layout.tsx`,
