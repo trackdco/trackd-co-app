@@ -58,6 +58,19 @@ is not permitted.
 > "good." Chart colours (`--chart-line` / `--chart-fill`) are a
 > neutral blue precisely so trend visuals stay non-evaluative.
 
+### Category legend dots
+
+Compound **categories** (anabolic / oral / sarm / peptide /
+ancillary / thyroid / supplement / stimulant) get one muted dot
+colour each, defined as `--cat-*` tokens in `globals.css` and
+exposed as `bg-cat-*` utilities. These are an **organisational
+legend** — they label a compound's *type*, not a health value — so
+they sit outside the "categorical, never evaluative" rule above
+(which governs biomarker/marker **readings**). The hues are
+deliberately restrained and non-alarming (no pure red). Source of
+truth for the label + dot per category is
+`lib/compound-categories.ts` (`CATEGORY_META`).
+
 ## Typography
 
 Three faces, exposed as CSS variables and mapped to Tailwind

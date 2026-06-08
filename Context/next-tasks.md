@@ -19,8 +19,10 @@ Auth + the logged-in shell are **✅ live on https://trackdco.app** (Google sign
 → 18+/ToS gate → dashboard, branded PWA splash, RLS verified with two accounts —
 Week-1 checkpoint met). Now **two parallel app-UI lanes**, both via the PR flow
 (branch → PR → CodeRabbit → merge):
-- **Adrian — core loop** (`feat/app-ui`): cycles → compounds → inventory → dose
-  logging → reflow. The week-2 spine.
+- **Adrian — app UI** (`feat/app-ui`): **bottom nav + Add-to-Stack — catalogue
+  search + "Make your own" custom compounds, each row with add / edit / delete
+  controls — is in the open PR to `main`.** Next after it merges: the core loop
+  (cycles → compounds → inventory → dose logging → reflow), the week-2 spine.
 - **Angus + Claude — Profile & Settings** (`feat/settings`): `/settings` v1 built,
   **PR #2 in CodeRabbit review**. Self-contained (own folders, own profile row).
   Angus also owns **beta outreach** + the business setup (Airwallex → Pro + custom
@@ -190,6 +192,57 @@ bundled MCP/CLI will need Vercel auth when we first use the deploy commands
 ---
 
 ## 🎨 Adrian's lane — legal, then app UI (design → build)
+
+### ✅ DONE — Bottom nav + Add-to-Stack (2026-06-08, `feat/app-ui` → open PR to `main`)
+
+Persistent **bottom navigation** built and **integrated into the merged auth shell**
+(rendered from `app/(app)/layout.tsx`; Protocol/Progress/Profile placeholders added
+under `app/(app)/`; Home → Angus's `/dashboard`). The branch was **reconciled onto
+current `main`** — the earlier parallel `app/(main)/` shell (built pre-auth) was
+dropped to resolve the `/dashboard` collision. The centre plus slides up the
+**Add to Stack** sheet (near-full-height, drag-to-dismiss). **Search wired to real
+data:** filters the bundled 149-compound catalogue by **name + aliases**; empty →
+"Popular in comp prep" + the user's saved compounds; no match → "'[query]' not
+found". A **"Make your own"** form (name/category/unit/route/inventory type) saves
+custom compounds to **per-user `localStorage`** (persists on-device). Customs are
+**editable + deletable** (delete behind a confirm), **duplicates blocked**, name
+capped at 80. Form pickers are **dark pill selectors**; **8 distinct category dot
+hues** (`--cat-*` tokens). Catalogue is bundled from `compounds.csv` via
+`build-compounds-data.mjs` → `lib/compounds-catalogue.ts` (validated + auto-regen via
+a **`prebuild`** hook; taxonomy in `lib/compound-categories.ts`). A post-build audit
+(28 verified findings) was applied (crypto-id fallback for on-phone http, render
+guard for bad categories, keyboard-hide focus gate, focus-into-form, magnifier icon,
+bigger drag target). Dev-only **`/preview`** route (404s in prod) shows it all without
+auth. `npm run build` + `npm run lint` clean. Full record in `progress-tracker.md`.
+
+**Round-3 (in this PR):** each **custom** compound's row now carries three
+right-aligned controls — a primary add-to-stack **+** (matches the catalogue rows;
+visual until the cycle feature lands), a smaller **edit** (opens the unchanged edit
+menu), and **delete** (same inline red confirm + persistence as the edit menu). Also
+fixed a **Radix import regression** the earlier CodeRabbit commit introduced: it had
+swapped the unified `radix-ui` package for the individual `@radix-ui/react-*` packages
+but left the `Dialog.Root` / `Slot.Root` namespace usage, so `sheet` / `dialog` /
+`tabs` / `scroll-area` / `button` all crashed with "Element type is invalid" — fixed
+by switching the four wrappers to `import * as` and Button to use `Slot` directly.
+tsc + lint + build clean.
+
+### ▶ NEXT (Adrian) — after this PR merges, build the core loop
+
+The bottom-nav + Add-to-Stack PR is open (CodeRabbit reviewing). Once it merges to
+`main` (= a Vercel **prod** deploy), build the **core loop** — the week-2 spine:
+1. **Cycles** — the create / active-cycle model + UI (archive-not-delete invariant).
+2. **Add compound → stack** — wire the now-visual **+** (on both catalogue and custom
+   rows) to actually add a compound to the active cycle. This is the first real use of
+   the **+**; until cycles exist it is intentionally inert on every row.
+3. **Inventory → dose logging → the daily-use loop** (order in `ai-workflow-rules.md`).
+
+Testing notes (banked this session): the dev-only `/preview` route is the no-auth
+harness for building these screens (keep it — 404s in prod). The *real* signed-in app
+needs `.env.local` locally (`NEXT_PUBLIC_SUPABASE_URL` +
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`). To test the full app **on a phone**, use the
+PR's Vercel **preview** URL and add it to **Supabase → Auth → URL Configuration →
+Redirect URLs** (+ make sure the `NEXT_PUBLIC_*` vars are enabled for the **Preview**
+env in Vercel) — a LAN-IP localhost won't pass Google's redirect allowlist.
 
 ### ✅ DONE — Seed catalogues compiled + loaded (2026-06-06)
 
