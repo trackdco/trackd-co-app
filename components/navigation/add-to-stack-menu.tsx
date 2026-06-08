@@ -309,12 +309,22 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
     }
   }
 
-  function performDelete() {
+  async function performDelete() {
     if (!editingId) return
     const next = customs.filter((c) => c.id !== editingId)
-    setCustoms(next)
-    saveCustoms(userId, next)
-    backToBrowse()
+
+    try {
+      const saved = await saveCustoms(userId, next)
+      if (saved) {
+        setCustoms(next)
+        backToBrowse()
+      } else {
+        setSaveFailed(true)
+      }
+    } catch (error) {
+      console.error("Failed to delete custom compound", error)
+      setSaveFailed(true)
+    }
   }
 
   const nameValid = form.name.trim().length > 0
