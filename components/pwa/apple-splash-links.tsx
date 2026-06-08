@@ -25,6 +25,10 @@ const SPLASHES = [
 export function AppleSplashLinks() {
   return (
     <>
+      {/* iOS needs the LEGACY capable meta to run standalone + honour the launch
+          images below. Next 16's appleWebApp.capable only emits the modern
+          `mobile-web-app-capable`, so add the apple- one explicitly. */}
+      <meta name="apple-mobile-web-app-capable" content="yes" />
       {SPLASHES.map(({ w, h, dpr, file }) => (
         <link
           key={file}

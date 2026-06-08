@@ -15,7 +15,11 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Trackd",
     description:
       "Track peptide, anabolic, supplement, and hormone-optimisation protocols in one place.",
-    start_url: "/",
+    // Installed app opens straight to /dashboard (the guard sends a logged-out
+    // or un-gated user on to /login or /welcome). Skips the /->/dashboard
+    // redirect on launch — one fewer round-trip, and iOS keeps the launch image
+    // up through a single navigation instead of dropping it on the redirect.
+    start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
