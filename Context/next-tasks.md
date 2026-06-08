@@ -21,8 +21,9 @@ Backend, deploy, domain **and the public landing are all live** on
   sign-in → 18+/ToS gate → dashboard + logged-in shell). Finishing the checkpoint:
   on-phone test, two-account RLS check, publish the Google app. Angus also owns
   **beta outreach**.
-- **Adrian — app UI:** after the legal copy, design then build the real feature
-  screens (the landing's feature cards are placeholders waiting on these).
+- **Adrian — app UI:** **bottom nav + Add-to-Stack search are built** (`feat/app-ui`,
+  integrated into the auth `(app)` shell, local only). Next: run locally (needs
+  `.env.local`), preview, coordinate the merge, then keep building feature screens.
 
 ---
 
@@ -180,6 +181,44 @@ bundled MCP/CLI will need Vercel auth when we first use the deploy commands
 ---
 
 ## 🎨 Adrian's lane — legal, then app UI (design → build)
+
+### ✅ DONE (local) — Bottom nav + Add-to-Stack search (2026-06-08, `feat/app-ui`)
+
+Persistent **bottom navigation** built and **integrated into the merged auth shell**
+(rendered from `app/(app)/layout.tsx`; Protocol/Progress/Profile placeholders added
+under `app/(app)/`; Home → Angus's `/dashboard`). The branch was **reconciled onto
+current `main`** — the earlier parallel `app/(main)/` shell (built pre-auth) was
+dropped to resolve the `/dashboard` collision. The centre plus slides up the
+**Add to Stack** sheet (near-full-height, drag-to-dismiss). **Search wired to real
+data:** filters the bundled 149-compound catalogue by **name + aliases**; empty →
+"Popular in comp prep" + the user's saved compounds; no match → "'[query]' not
+found". A **"Make your own"** form (name/category/unit/route/inventory type) saves
+custom compounds to **per-user `localStorage`** (persists on-device). Customs are
+**editable + deletable** (delete behind a confirm), **duplicates blocked**, name
+capped at 80. Form pickers are **dark pill selectors**; **8 distinct category dot
+hues** (`--cat-*` tokens). Catalogue is bundled from `compounds.csv` via
+`build-compounds-data.mjs` → `lib/compounds-catalogue.ts` (validated + auto-regen via
+a **`prebuild`** hook; taxonomy in `lib/compound-categories.ts`). A post-build audit
+(28 verified findings) was applied (crypto-id fallback for on-phone http, render
+guard for bad categories, keyboard-hide focus gate, focus-into-form, magnifier icon,
+bigger drag target). Dev-only **`/preview`** route (404s in prod) shows it all without
+auth. `npm run build` + `npm run lint` clean. Full record in `progress-tracker.md`.
+
+### ▶ NEXT (Adrian) — pull Angus's push, then preview + merge this lane
+
+> Sequencing: Angus is pushing; once he does, **pull `main`**, then rebase this lane
+> on top of it (it edits Angus's `app/(app)/layout.tsx`, so expect to reconcile).
+
+1. **Review now, no keys needed:** `npm run dev` → http://localhost:3000/preview
+   (search "deca"/"aromasin"/"npp"; try Make your own; edit/delete a custom; drag to
+   dismiss). For the *real* signed-in flow, add `.env.local` (from `.env.example`,
+   real `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from
+   Vercel), then sign in and open the dashboard → tap **+**.
+2. **Before push:** decide whether to keep the dev-only `/preview` route (harmless —
+   404s in prod) or delete it.
+3. **Commit + push:** after pulling Angus's `main`, `git add -A && git commit` on
+   `feat/app-ui`, push, and merge one lane at a time (Angus pulls right after).
+4. **Deploy a preview** (the push triggers a Vercel preview) to test on-phone.
 
 ### ✅ DONE — Seed catalogues compiled + loaded (2026-06-06)
 

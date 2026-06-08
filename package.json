@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "seed:compounds": "node supabase/seed/build-compounds-data.mjs",
+    "prebuild": "node supabase/seed/build-compounds-data.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

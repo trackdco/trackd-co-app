@@ -33,6 +33,18 @@
   --chart-fill: rgba(107, 127, 212, 0.15);
   --overlay-backdrop: rgba(0, 0, 0, 0.7);
 
+  /* Compound-category legend dots — an organisational legend only (one muted hue
+     per category), NOT a health-data value (see ui-context.md → "Category dots").
+     Restrained, dark-theme-appropriate, deliberately non-alarming. */
+  --cat-anabolic: #c8861a;
+  --cat-oral: #b5895c;
+  --cat-sarm: #9b7fd4;
+  --cat-peptide: #6b7fd4;
+  --cat-ancillary: #4fa8a0;
+  --cat-thyroid: #c77da0;
+  --cat-supplement: #6fae6f;
+  --cat-stimulant: #cb7a5c;
+
   /* System/UI state — NEVER for health-data semantics (see ui-context.md) */
   --state-error: #ef4444;
   --state-success: #4ade80;
@@ -100,6 +112,16 @@
   --color-state-error: var(--state-error);
   --color-state-success: var(--state-success);
   --color-state-warning: var(--state-warning);
+
+  /* Category legend dots → utilities (bg-cat-anabolic, …) */
+  --color-cat-anabolic: var(--cat-anabolic);
+  --color-cat-oral: var(--cat-oral);
+  --color-cat-sarm: var(--cat-sarm);
+  --color-cat-peptide: var(--cat-peptide);
+  --color-cat-ancillary: var(--cat-ancillary);
+  --color-cat-thyroid: var(--cat-thyroid);
+  --color-cat-supplement: var(--cat-supplement);
+  --color-cat-stimulant: var(--cat-stimulant);
 
   /* shadcn semantic colours → utilities (bg-background, bg-card, …) */
   --color-background: var(--background);

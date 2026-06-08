@@ -28,6 +28,51 @@ Last updated: 2026-06-08
 
 ## Completed
 
+- **Bottom nav + Add-to-Stack search (Adrian's lane, `feat/app-ui`, 2026-06-08).**
+  Built the persistent **bottom navigation** (Home · Protocol · white **Plus** ·
+  Progress · My Profile; route-driven amber/gray active state with a gray→amber
+  fade; keyboard-aware hide; safe-area insets) and **integrated it into the merged
+  auth shell** — rendered from `app/(app)/layout.tsx` with `userId` threaded in;
+  Protocol/Progress/Profile placeholder pages added under `app/(app)/`; the Home tab
+  points at Angus's real `/dashboard`. (Originally built under a parallel
+  `app/(main)/` group on a pre-auth base; **reconciled onto current `main`** —
+  dropped the duplicate `(main)` shell + placeholder dashboard to resolve the
+  `/dashboard` collision with the auth lane.) The centre plus slides up the
+  **Add to Stack** sheet (near-full-height card, drag-to-dismiss handle, Cancel +
+  centred sans title). **Search is now wired to real data:** it filters the bundled
+  **149-compound catalogue by name *and* aliases** (e.g. "deca"→Nandrolone
+  Decanoate, "aromasin"→Exemestane, "npp"→Nandrolone Phenylpropionate); empty query
+  shows a curated "Popular in comp prep" list + the user's saved compounds; no match
+  shows "'[query]' not found". A **"Make your own"** option sits at the bottom of the
+  list always → a form that saves a custom compound to **`localStorage` keyed per
+  user** (`trackd.customCompounds.<uid>`), persisting on that device for that user.
+  Custom compounds are **editable + deletable** (tap your compound → edit; delete is
+  behind a confirm warning); **duplicate names are blocked** (vs catalogue + your
+  own), name is capped at 80 chars, and a failed localStorage write surfaces a
+  non-fatal notice. Form pickers are **on-brand dark "pill" selectors** (not native
+  `<select>`, which can't be forced dark on mobile). The per-row "+" is visual for
+  now (real "add to stack" needs the cycle feature).
+- **Round-2 hardening of the Add-to-Stack sheet (2026-06-08, post-audit).** A
+  6-dimension multi-agent audit (36 raw → 28 verified findings) drove: **8 distinct
+  category dot hues** (`--cat-*` tokens in `globals.css`, documented in
+  `ui-context.md`); **search icon = magnifier** (was a grid glyph); **generator now
+  validates** category/unit/route/inventory and a **`prebuild` npm hook** regenerates
+  `lib/compounds-catalogue.ts` on every build (CSV can't ship stale); `crypto.randomUUID`
+  **fallback** (it throws over a plain-http LAN IP — i.e. on-phone QA — so "Make your
+  own" would have broken); a **render guard** so a corrupt/unknown category can't crash
+  the sheet; keyboard-hide now **gated on a focused editable element** (pinch-zoom can't
+  hide the nav); **focus moves into the form** on open; bigger (~44px) drag target.
+  `npm run build` + `npm run lint` clean; a dev-only **`/preview`** route (404s in prod)
+  renders the nav + sheet without auth for review. **Not pushed/deployed.** NB: local
+  run of the *real* signed-in app needs a `.env.local` (see below) — without it every
+  Supabase-backed page 500s; `/preview` works without it.
+- **Compounds catalogue bundled into the app (2026-06-08).** `lib/compounds-catalogue.ts`
+  (generated, 149 compounds) is produced from `supabase/seed/compounds.csv` by
+  `supabase/seed/build-compounds-data.mjs` — the CSV stays the single source of truth
+  (same file that seeds the DB). Taxonomy/labels/option-lists live in the
+  hand-authored `lib/compound-categories.ts`. The app reads this static module so the
+  Add-to-Stack search works offline (PWA) with no auth/network dependency; swap to a
+  live Supabase read later if the catalogue needs to update without a redeploy.
 - Next.js 16 (App Router) + React 19 + Tailwind v4 starter scaffolded.
 - Canonical schema authored: `supabase/trackd_schema_v0_4_2.sql` (16 tables,
   2 views) + `supabase/trackd_storage_policies.sql`.

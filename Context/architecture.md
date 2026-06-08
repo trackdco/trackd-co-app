@@ -69,6 +69,19 @@ in the schema — storage only, no behaviour, until post-trip.
 - **Supabase Storage (private)** — Bloodwork file uploads only, in the private
   `bloodwork` bucket. Path convention: `<auth.uid()>/<panel_id>/<file>`. Files
   are referenced from Postgres; the bytes never live in the database.
+- **Bundled compounds catalogue (app, read-only)** — The `compounds` catalogue is
+  also shipped to the app as a generated static module (`lib/compounds-catalogue.ts`,
+  built from `supabase/seed/compounds.csv` via `build-compounds-data.mjs` — the CSV
+  stays the single source of truth, same file that seeds the DB). The Add-to-Stack
+  search reads this module so it works offline (PWA) without an auth/network
+  round-trip. This applies **only** to the read-only `compounds` reference data; all
+  user data and derived values still come from Postgres/views. Swap to a live
+  Supabase read if the catalogue ever needs to update without a redeploy.
+- **Browser `localStorage` (per-user, device-local)** — User-created "Make your own"
+  compounds are stored in `localStorage` keyed `trackd.customCompounds.<auth.uid()>`
+  (custom compounds are a later/v1.5 DB feature; this is an interim device-local
+  store at Adrian's direction). Per-user, persists on that device; not synced. To be
+  migrated to Postgres when the custom-compounds table lands.
 
 ## Legal Documents
 
