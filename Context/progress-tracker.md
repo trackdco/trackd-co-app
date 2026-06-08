@@ -202,9 +202,10 @@ Last updated: 2026-06-08
   **core loop** (cycles → compounds → inventory → dose logging) on `feat/app-ui`.
   Angus + Claude → **Profile & Settings** (`/settings`) on `feat/settings` — v1
   built (read-only account block + editable sex/height/goal/units, server-validated
-  + RLS-scoped to the user's own row), **PR #2 open and in CodeRabbit review**;
-  merge once findings are addressed. NB the nav link to `/settings` is a deferred
-  shared-layout (`app/(app)/layout.tsx`) change to coordinate with Adrian.
+  + RLS-scoped to the user's own row), **PR #2 open — CodeRabbit review came back
+  clean (no actionable comments); ready to merge** (build + lint + guard verified).
+  NB the nav link to `/settings` is a deferred shared-layout (`app/(app)/layout.tsx`)
+  change to coordinate with Adrian.
 - **Auth — effectively done; one tester-gating task left:** **publish the Google
   OAuth app** (Audience → Publish App) before any non-Test-user can sign in. Sign-in,
   the 18+/ToS gate, RLS isolation, and the branded PWA launch splash are all live +
