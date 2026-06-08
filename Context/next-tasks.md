@@ -233,3 +233,12 @@ Do this **on launch day**, before/with going live (rule in `architecture.md`):
 - **Week 2+ build:** add-compound + inventory → dose logging → the daily-use loop
   (core-loop order in `ai-workflow-rules.md`) — Adrian's `feat/app-ui` lane once
   the shell's up.
+- **Pre-public-beta — brand the OAuth domain + check region (after Airwallex/Pro).**
+  The Google sign-in screen shows the raw `…supabase.co` host — fix with a Supabase
+  **Custom Domain** (e.g. `auth.trackdco.app`) so it reads as Trackd. Needs Supabase
+  **Pro ($25/mo) + Custom Domain add-on ($10/mo)**. Angus does the subscription after
+  setting up the Airwallex business account, then Claude drives the domain setup
+  (CNAME + TXT verify, add the new callback to Google, activate via CLI). Same pass:
+  **check the project region** (Settings → Infrastructure) and relocate if it's far
+  from the AU audience (do it while user data is minimal). Details in memory
+  `launch-custom-domain-and-region`.
