@@ -10,11 +10,17 @@ Last updated: 2026-06-08
 
 ## Current Phase
 
-- **Public landing live → building auth.** Backend, data model, seed catalogues,
-  Vercel deploy, custom domain, and now the **public app-style landing** are all
-  live on **https://trackdco.app** (HTTP 200, valid SSL). Next phase: **auth** —
-  real Google sign-in behind the landing CTA, the 18+/ToS gate, and an empty
-  dashboard. Steps in `next-tasks.md`.
+- **Auth + app shell built (code complete) — pending Google provider config +
+  live test.** The full auth flow is implemented and verified locally (build +
+  lint clean, route guards redirect correctly, the Data API now works, legal docs
+  render from the DB): Continue-with-Google → `/auth/callback` code exchange →
+  18+/ToS gate at `/welcome` → guarded `(app)` shell + empty `/dashboard`, with
+  sign-out, the root redirect, and a PWA install prompt. **The one remaining
+  blocker is the one-time Google OAuth dashboard setup (Angus)** — Google Cloud
+  OAuth client + Supabase Google provider + redirect URLs — after which the live
+  sign-in → gate → dashboard flow and RLS isolation can be hard-tested. Backend,
+  data model, seed catalogues, Vercel deploy, custom domain, and the public
+  landing remain live on **https://trackdco.app**.
 
 ## Completed
 
@@ -115,6 +121,44 @@ Last updated: 2026-06-08
   at 16px tab size than the wordmark did. Pushing `main` is what deploys icons to
   trackdco.app; favicons cache hard, so seeing a change needs a private window (tab)
   or delete-and-re-add to Home Screen (Apple Touch icon).
+- **Auth + app shell built — code complete, locally verified (2026-06-08).**
+  Method = Google OAuth (`@supabase/ssr`, PKCE — verified against current Supabase
+  docs). Shipped: `components/auth/google-sign-in-button.tsx` (`signInWithOAuth`),
+  `app/auth/callback/route.ts` (`exchangeCodeForSession` + open-redirect guard on
+  `next`), a real `/login` screen (replaced the placeholder), the one-time
+  **18+/ToS gate** at `/welcome` (`gate-form.tsx` + `actions.ts` — server-side age
+  validation ≥18, single acceptance covering all three docs, writes
+  `date_of_birth`/`is_18_plus`/`tos_accepted_at`/`tos_version` to the user's own
+  profile, ToS version read live from `legal_documents`), the guarded `(app)`
+  route group (`layout.tsx` runs `getUser()` + the gate check) with an empty
+  `/dashboard` and sign-out, the root redirect for logged-in users, and a PWA
+  install prompt (`components/pwa/install-prompt.tsx`) + web manifest
+  (`app/manifest.ts`) + Apple web-app meta. `lib/auth.ts` (`getSessionContext`) is
+  the single source of truth for "passed the gate". The landing CTA now triggers
+  real sign-in. Verified: `npm run build` + `npm run lint` clean; `/dashboard` and
+  `/welcome` 307 → `/login` with no session; the three legal pages render verbatim
+  from the DB. Live OAuth + RLS test still pending Google provider config (see In
+  Progress).
+- **Legal docs wired into signup + rendered from the DB (2026-06-08).** `/terms`,
+  `/privacy`, `/medical-disclaimer` now render the current version verbatim from
+  `legal_documents` via one shared `components/legal/legal-document.tsx`
+  (replacing the "coming soon" placeholders); the gate links + records acceptance
+  of all three. Reverses the prior "stored only — not wired into signup" note in
+  `architecture.md` (updated).
+- **API role grants applied — Data API now works (2026-06-08).** Discovered during
+  verification that **no** `public` table was reachable by the API roles: `anon`
+  and `authenticated` held only `REFERENCES/TRIGGER/TRUNCATE` (no SELECT/INSERT/
+  UPDATE/DELETE), so every Data API call returned `42501 permission denied` —
+  including the gate's `profiles` UPDATE and the legal-doc reads. Root cause: the
+  schema/seed/legal migrations enabled RLS + policies but never granted table
+  privileges to the PostgREST roles, and this project's Supabase defaults don't
+  auto-grant. Fixed with the tracked `api_role_grants` migration (SQL in
+  `supabase/grants/001_api_role_grants.sql`): `legal_documents` SELECT → anon +
+  authenticated; catalogues SELECT → authenticated; user tables full DML →
+  authenticated; `profiles` SELECT/INSERT/UPDATE; views SELECT → authenticated.
+  RLS is unchanged and still the only row-level gate. Verified post-apply: anon
+  reads `legal_documents` (200), anon is correctly denied the authed-only
+  catalogues (42501), pages render.
 - Context system written: `project-overview.md`, `architecture.md`,
   `code-standards.md`, `ai-workflow-rules.md`, `ui-context.md`.
 - `ui-context.md` signed off by Adrian (co-founder) (2026-06-05): theme, colour tokens,
@@ -138,16 +182,14 @@ Last updated: 2026-06-08
 
 ## In Progress
 
-- **Auth — real Google sign-in + 18+/ToS gate (next).** Method = **Google OAuth**
-  (Angus's call; needs a one-time Google Cloud + Supabase provider setup). Build
-  `signInWithOAuth` + the callback route (replacing the `/login` placeholder), a
-  one-time post-sign-in **18+/ToS interstitial** (collect `date_of_birth` → set
-  `is_18_plus`; accept ToS → `tos_accepted_at`/`tos_version`; gate access on both),
-  an empty dashboard + `getUser()` guard with the root redirecting logged-in users
-  to `/dashboard`, and a post-signup "Add to Home Screen" prompt. Test signup hard
-  with a fresh account (the `handle_new_user()` trigger is the one place a failure
-  blocks all signups); confirm RLS isolation. Checkpoint target 11 Jun. See
-  `next-tasks.md`.
+- **Auth — live test pending Google provider config.** All code is built and
+  locally verified (see Completed → "Auth + app shell built"). What's left:
+  (1) **Angus's one-time Google OAuth dashboard setup** (Google Cloud OAuth client
+  + Supabase Google provider + Site/redirect URLs — steps in `next-tasks.md`);
+  (2) **hard test** with a brand-new Google account end-to-end (the
+  `handle_new_user()` trigger is the one place a failure silently blocks all
+  signups); (3) **RLS isolation check** with two real accounts (no cross-user
+  reads, querying the views + storage too). Checkpoint target 11 Jun.
 
 ## Tooling
 
@@ -191,6 +233,22 @@ Last updated: 2026-06-08
 
 ## Architecture Decisions
 
+- **PostgREST role grants are explicit, RLS stays the only row gate (2026-06-08).**
+  The Data API needs a table-level `GRANT` to `anon`/`authenticated` before RLS
+  even runs; this project's Supabase defaults don't auto-grant, so grants are
+  declared in `supabase/grants/001_api_role_grants.sql` (migration
+  `api_role_grants`). Grants follow the documented access model (public-read legal
+  docs, authed-read catalogues, authed full DML on user tables, no profile
+  self-delete, view reads). They open the table; RLS still gates the rows.
+  Consequence: **every new `public` table must ship its own grants** (or we set
+  `ALTER DEFAULT PRIVILEGES`), else it 42501s on the API.
+- **18+/ToS gate accepts all three legal docs in one consent (2026-06-08).**
+  Angus's call: the single acceptance at `/welcome` covers Terms + Privacy +
+  Medical Disclaimer (each linked), recorded as `tos_accepted_at` + `tos_version`
+  (the ToS version, read live from `legal_documents`). Strongest coverage for a
+  peptide/AAS tracker — the medical disclaimer is acknowledged up front. The gate
+  is the authoritative app entry: `(app)` layout redirects to `/welcome` until
+  `is_18_plus AND tos_accepted_at`.
 - **`legal_documents` is a new (18th) table for versioned legal text (2026-06-06).**
   ToS / Privacy / Medical Disclaimer text now lives in the DB, one row per
   `(doc_type, version)` with `is_current` (partial unique index = one current per
@@ -278,6 +336,19 @@ Last updated: 2026-06-08
   it's accessible exactly like the compounds + biomarkers catalogues: 36 rows, RLS
   on, single read-only-to-authed SELECT policy, no write policy (service-role-only).
   This closes the last open seed-catalogue item.
+- 2026-06-08: **Auth + app shell built.** Verified the `@supabase/ssr` PKCE
+  patterns against current Supabase docs (skill-driven), then built the whole
+  flow: Google sign-in, `/auth/callback` exchange, the `/welcome` 18+/ToS gate
+  (server-side age check; all-three-docs consent per Angus), the guarded `(app)`
+  shell + empty `/dashboard` + sign-out, the root redirect, a PWA install prompt +
+  manifest, and real legal-doc pages rendered from the DB. **Caught a live
+  blocker during verification:** the Data API returned 42501 on every table — the
+  API roles had no SELECT/DML grants (RLS + policies existed but the migrations
+  never granted table privileges, and this project doesn't auto-grant). Applied
+  the `api_role_grants` migration to fix it (RLS unchanged). `npm run build` +
+  `lint` clean; guards + legal rendering verified. Remaining before the 11 Jun
+  checkpoint: Angus's one-time Google OAuth dashboard setup, then the hard
+  fresh-account test + two-account RLS isolation check.
 - 2026-06-07: **Brand icons set, then logo swapped.** Adrian first supplied the
   "TrackdCo" logo; saved it as `app/logo-source.png` (master) and generated the three
   Next.js `app/` icons with `sips` (`favicon.ico` 48×48, `icon.png` 512×512,

@@ -69,14 +69,21 @@
 
 ## File Organization
 
-> Planned shape — Supabase is not wired up yet. Confirm before deviating.
-
-- `app/` — routes, layouts, server/client components, server actions.
+- `app/` — routes, layouts, server/client components, server actions. The
+  logged-in app lives in the `app/(app)/` route group, whose `layout.tsx` is the
+  auth + 18+/ToS guard every feature screen sits behind. `app/auth/callback/` is
+  the OAuth code-exchange route; `app/welcome/` is the gate; `app/login/` is the
+  sign-in screen.
 - `app/globals.css` — global styles and the design tokens. The only place hex
   values may appear.
-- `components/` — shared, reusable UI components.
-- `lib/supabase/` — Supabase client setup (server + browser clients).
+- `components/` — shared, reusable UI components (`components/ui/**` from
+  shadcn — **protected**; plus `components/auth/`, `components/legal/`,
+  `components/pwa/`).
+- `lib/supabase/` — Supabase client setup (browser + server + the proxy
+  `updateSession`).
+- `lib/auth.ts` — `getSessionContext()` (the authoritative `getUser()` + gate
+  check used by every guard).
 - `lib/` — pure helpers and shared types (no React, no side effects).
-- `supabase/` — canonical SQL: schema + storage policies. **Protected** — see
-  `ai-workflow-rules.md`.
+- `supabase/` — canonical SQL: schema + storage policies + `grants/` (API role
+  grants) + `seed/` + `legal/`. **Protected** — see `ai-workflow-rules.md`.
 - `Context/` — the spec. Update deliberately, in the same change as the code.

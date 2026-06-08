@@ -26,6 +26,15 @@ export const metadata: Metadata = {
   title: "Trackd Co",
   description:
     "Track peptide, anabolic, supplement, and hormone-optimisation protocols in one place.",
+  // PWA: link the manifest (app/manifest.ts) and tell iOS Safari this is a
+  // standalone web app so "Add to Home Screen" launches chromeless with our
+  // icon/title and a status bar that matches the near-black canvas.
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Trackd",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 // Native-app wiring: match the status bar to the near-black canvas and enable

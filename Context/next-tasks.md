@@ -119,26 +119,41 @@ placeholders** — swap to the real screens once the app UI is designed.
 
 ### ▶ NOW — Auth + app shell  (Angus · branch `feat/auth`)
 
-Wire the landing's CTA to a working account flow **and lay the logged-in shell
-every feature screen will sit in**:
-1. **Google OAuth setup (Angus, one-time):** Supabase → Auth → Providers → Google
-   (enable, copy callback URL) → Google Cloud OAuth client (consent screen + web
-   client using the Supabase callback) → paste client id/secret back → set Site URL
-   + redirect URLs (`https://trackdco.app/**`, `http://localhost:3000/**`).
-2. Build **Continue with Google** (`signInWithOAuth`) + the OAuth callback route
-   (code exchange); replace the `/login` placeholder.
-3. **18+ / ToS gate** as a one-time post-sign-in interstitial (Google gives name +
-   email, not DOB/consent): collect `date_of_birth` (reject <18 → set `is_18_plus`),
-   accept ToS → set `tos_accepted_at` + `tos_version`, via an authed `profiles`
-   UPDATE. Gate app access on `is_18_plus AND tos_accepted_at`.
-4. **Empty dashboard + the logged-in layout/route group** + route guard
-   (`getUser()`); root redirects a logged-in user to `/dashboard`. Sessions persist
-   (cookie + proxy refresh) so they stay logged in. *This shell is the foundation
-   Adrian's feature screens build on — land it first.*
-5. **Post-signup "Add to Home Screen" prompt** (PWA install) — Angus's flow ask.
-6. Test signup **HARD** with a brand-new Google account — the `handle_new_user()`
-   trigger is the one place a failure silently blocks *all* signups. Confirm RLS:
-   a second account sees none of the first's data.
+**Code is built + locally verified (2026-06-08).** Done: ✅ Continue-with-Google
+(`signInWithOAuth`), ✅ `/auth/callback` code exchange, ✅ real `/login`, ✅ the
+18+/ToS gate at `/welcome` (server-side age ≥18; one consent covering all three
+docs; writes `date_of_birth`/`is_18_plus`/`tos_accepted_at`/`tos_version`), ✅ the
+guarded `(app)` shell + empty `/dashboard` + sign-out, ✅ root redirect, ✅ PWA
+install prompt + manifest, ✅ legal docs rendered from the DB at
+`/terms`·`/privacy`·`/medical-disclaimer`. Also fixed a discovered blocker: ✅ the
+`api_role_grants` migration (the Data API had no table grants — see
+`progress-tracker.md`).
+
+**Remaining to hit the 11 Jun checkpoint:**
+
+1. **Google OAuth dashboard setup (Angus, one-time — THE blocker).** Until this is
+   done, "Continue with Google" errors. Steps:
+   - Supabase → Authentication → Providers → **Google** → enable, and **copy the
+     callback URL** it shows:
+     `https://boqqracwdpuisgvwbqlc.supabase.co/auth/v1/callback`.
+   - Google Cloud Console → APIs & Services → **OAuth consent screen** (External;
+     app name "Trackd Co"; support email; add the Privacy Policy + Terms links
+     `https://trackdco.app/privacy` and `/terms`).
+   - → **Credentials** → Create OAuth client ID → **Web application**.
+     - Authorized JavaScript origins: `https://trackdco.app`,
+       `http://localhost:3000`.
+     - Authorized redirect URI: the Supabase callback URL copied above.
+   - Paste the **Client ID + Client Secret** back into Supabase's Google provider,
+     save.
+   - Supabase → Authentication → **URL Configuration**: Site URL
+     `https://trackdco.app`; Redirect URLs add `https://trackdco.app/**` and
+     `http://localhost:3000/**`.
+2. **Hard test** with a brand-new Google account, end-to-end: sign in → gate →
+   dashboard → sign out → sign back in (skips the gate). The `handle_new_user()`
+   trigger is the one place a failure silently blocks *all* signups — watch the
+   first fresh signup closely.
+3. **RLS isolation** with two real accounts: account B sees none of account A's
+   data (query the **views + storage bucket**, not just base tables).
    - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones.
 
 ### Also (Angus) — beta outreach (alongside the build)
