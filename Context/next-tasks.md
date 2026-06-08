@@ -9,7 +9,7 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-06
+Last updated: 2026-06-08
 
 ---
 
@@ -169,20 +169,18 @@ tracked migrations, with Adrian-approved schema deltas (enum extensions for
 `sarm`/`thyroid`/`stimulant`/`g`; new `reference_ranges` table). CSVs + generator
 live in `supabase/seed/`. Full record in `progress-tracker.md`.
 
-### ⏭ Markers seed sheet — non-priority, but needed before journal/markers UI
+### ✅ DONE — Markers seed catalogue loaded (2026-06-08)
 
 The **third** catalogue (`markers` — subjective daily tracking: energy, libido,
-sleep, pumps, mood… plus side-effects as negative-polarity markers) is **not yet
-built**. Not urgent — the seed pass above shipped without it, and it's only needed
-when the journal + markers UI lands. When ready, build it the same way (CSV →
-`supabase/seed/` → re-run the generator). Exact columns (read from the schema):
-
-| column | values / notes |
-|--------|----------------|
-| name | e.g. "Energy", "Libido", "Sleep Quality", "Pumps" |
-| polarity | one of `positive` (up = good thing), `negative` (up = bad thing, e.g. acne/soreness), `neutral`. **Axis orientation only — never a judgement colour.** |
-| tier_labels | ordered low→high words, **pipe-separated** (commas break the CSV), e.g. `Drained\|Flat\|Coasting\|Charged\|Wired`. Store the index, show the word. A 2-tier `None\|Present` makes a side-effect behave as a daily checkbox. |
-| is_default | TRUE = shown to everyone by default; FALSE = optional catalogue item |
+sleep, pumps, mood… plus side-effects as negative-polarity markers) is now
+**built and loaded**. Adrian supplied the CSV; Claude added it as
+`supabase/seed/markers.csv` (36 markers), extended `build-seed-sql.mjs`
+(pipe-split `tier_labels` → `text[]`, `TRUE`/`FALSE` → boolean), regenerated
+`002_seed_catalogues.sql`, and applied the `seed_markers` tracked migration. No
+schema/enum change needed (`marker_polarity` already covered the values). Verified
+accessible exactly like compounds/biomarkers: 36 rows, RLS on, single
+read-only-to-authed SELECT policy, no write policy. Full record in
+`progress-tracker.md`. The catalogue is ready for the journal + markers UI to read.
 
 ### ✅ DONE — Legal / disclaimer copy drafted + stored (2026-06-06)
 
@@ -212,7 +210,6 @@ Do this **on launch day**, before/with going live (rule in `architecture.md`):
 
 ## 🗂️ Backlog (not yet scheduled — pull up here when the above is done)
 
-- **Apply the `markers` seed** once Adrian commits the sheet (see his lane above).
 - **Week 2+ build:** add-compound + inventory → dose logging → the daily-use loop
   (core-loop order in `ai-workflow-rules.md`) — Adrian's `feat/app-ui` lane once
   the shell's up.

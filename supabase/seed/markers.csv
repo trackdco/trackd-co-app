@@ -1,0 +1,37 @@
+name,polarity,tier_labels,is_default
+Energy,positive,Drained|Flat|Coasting|Charged|Wired,TRUE
+Libido,positive,Dormant|Low|Steady|High|Relentless,TRUE
+Sleep Quality,positive,Wrecked|Restless|Broken|Solid|Deep,TRUE
+Mood,positive,Low|Flat|Even|Good|Elevated,TRUE
+Pumps,positive,None|Faint|Decent|Full|Skin-Splitting,TRUE
+Strength,positive,Weak|Off|Baseline|Strong|PR-Setting,TRUE
+Recovery,positive,Trashed|Sore|Adequate|Fresh|Bulletproof,TRUE
+Motivation,positive,Checked-Out|Low|Steady|Driven|Locked-In,TRUE
+Focus,positive,Foggy|Scattered|Clear|Sharp|Dialed-In,TRUE
+Vascularity,positive,Smooth|Faint|Visible|Mapped|Shredded,FALSE
+Muscle Fullness,positive,Flat|Soft|Filling|Full|Spilling-Over,FALSE
+Erection Quality,positive,Nonexistent|Weak|Decent|Strong|Rock-Solid,FALSE
+Appetite,neutral,Suppressed|Low|Normal|High|Ravenous,TRUE
+Aggression,neutral,Subdued|Calm|Baseline|Heightened|Volatile,FALSE
+Water Retention,neutral,Dry|Tight|Normal|Holding|Watery,FALSE
+Acne,negative,None|Mild|Moderate|Severe,TRUE
+Night Sweats,negative,None|Mild|Moderate|Drenching,FALSE
+Joint Pain,negative,None|Niggle|Aching|Sharp,TRUE
+Bloating,negative,None|Slight|Puffy|Heavy,TRUE
+Injection Site Pain,negative,None|Tender|Sore|Painful,TRUE
+Insomnia,negative,None|Mild|Moderate|Severe,FALSE
+Irritability,negative,None|Mild|Moderate|Severe,FALSE
+Back Pumps,negative,None|Mild|Bad|Crippling,FALSE
+Anxiety,negative,None|Mild|Moderate|Severe,FALSE
+Headaches,negative,None|Mild|Moderate|Severe,FALSE
+Oily Skin,negative,None|Mild|Moderate|Severe,FALSE
+Breathlessness,negative,None|Winded|Laboured|Gasping,FALSE
+Hand Tremors,negative,None|Faint|Shaky|Severe,FALSE
+Muscle Cramps,negative,None|Twitchy|Cramping|Seizing,FALSE
+Hot Flushes,negative,None|Mild|Frequent|Severe,FALSE
+Gyno Symptoms,negative,None|Present,FALSE
+Hair Shedding,negative,None|Present,FALSE
+Voice Deepening,negative,None|Slight|Noticeable|Marked,FALSE
+Clitoral Enlargement,negative,None|Mild|Moderate|Marked,FALSE
+Facial / Body Hair,negative,None|Slight|Noticeable|Marked,FALSE
+Cycle Changes,negative,None|Light Changes|Irregular|Absent,FALSE

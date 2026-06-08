@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-07
+Last updated: 2026-06-08
 
 ## Current Phase
 
@@ -41,8 +41,21 @@ Last updated: 2026-06-07
   `node supabase/seed/build-seed-sql.mjs` → idempotent `ON CONFLICT` inserts.
   Post-seed verification passed: counts exact, 0 rows with bad encoding, 0 null
   categories, all 4 ranges FK-linked to IGF-1, `reference_ranges` RLS on with a
-  single read-only-to-authed policy. Live DB now **17 tables**. **Still TODO:** the
-  `markers` seed catalogue (sheet not built yet — spec is in `next-tasks.md`).
+  single read-only-to-authed policy. Live DB now **17 tables**.
+- **Markers seed catalogue loaded + VERIFIED on the live project (2026-06-08).**
+  Adrian's Markers CSV (`supabase/seed/markers.csv`, 36 markers) seeded the
+  pre-existing `markers` table via a third tracked migration, `seed_markers` —
+  built the same reproducible way as the other catalogues (CSV → extended
+  `build-seed-sql.mjs` → idempotent `ON CONFLICT (name) DO UPDATE`; the generated
+  `002_seed_catalogues.sql` now carries all three catalogues + ranges). **No
+  schema change needed:** `marker_polarity` already = `{positive,negative,neutral}`,
+  unlike compounds (which needed enum extensions). `tier_labels` are stored
+  pipe-split into `text[]`. Post-seed verification passed: 36 rows
+  (12 positive / 21 negative / 3 neutral; 14 default / 22 optional), 0 null/empty
+  tier arrays, 0 empty names, 0 mojibake; RLS on with the **same single
+  read-only-to-authed SELECT policy and no write policy** as `compounds` /
+  `biomarkers` (confirmed by a side-by-side `pg_policies` check). Table count
+  unchanged — `markers` was always one of the 18 tables; only its contents are new.
 - **Legal documents stored in the DB (2026-06-06).** New `legal_documents` table
   (18th table) + `legal_doc_type` enum, added via two tracked migrations
   (`legal_documents_table`, `seed_legal_documents`; SQL in `supabase/legal/`).
@@ -255,6 +268,16 @@ Last updated: 2026-06-07
 
 ## Session Notes
 
+- 2026-06-08: **Markers catalogue seeded.** Adrian supplied the Markers CSV (36
+  subjective-tracking markers — energy/libido/sleep/pumps… plus side-effects as
+  negative-polarity markers). Added it as `supabase/seed/markers.csv`, extended
+  `build-seed-sql.mjs` to emit a markers `INSERT` (pipe-split `tier_labels` →
+  `text[]`, `TRUE`/`FALSE` → boolean), regenerated `002_seed_catalogues.sql`, and
+  applied it to the live DB as the `seed_markers` tracked migration. No schema/enum
+  change required (the `marker_polarity` enum already covered all values). Verified
+  it's accessible exactly like the compounds + biomarkers catalogues: 36 rows, RLS
+  on, single read-only-to-authed SELECT policy, no write policy (service-role-only).
+  This closes the last open seed-catalogue item.
 - 2026-06-07: **Brand icons set, then logo swapped.** Adrian first supplied the
   "TrackdCo" logo; saved it as `app/logo-source.png` (master) and generated the three
   Next.js `app/` icons with `sips` (`favicon.ico` 48×48, `icon.png` 512×512,
