@@ -15,24 +15,28 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Trackd",
     description:
       "Track peptide, anabolic, supplement, and hormone-optimisation protocols in one place.",
-    start_url: "/",
+    // Installed app opens straight to /dashboard (the guard sends a logged-out
+    // or un-gated user on to /login or /welcome). Skips the /->/dashboard
+    // redirect on launch — one fewer round-trip, and iOS keeps the launch image
+    // up through a single navigation instead of dropping it on the redirect.
+    start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
     background_color: "#111110",
     theme_color: "#111110",
     icons: [
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      // Dedicated maskable icon (mark inside the safe zone on #111110) so adaptive-
+      // icon devices show an edge-to-edge icon, not the mark inside a white plate.
       {
-        src: "/icon.png",
+        src: "/icon-maskable.png",
         sizes: "512x512",
         type: "image/png",
-        purpose: "any",
+        purpose: "maskable",
       },
-      {
-        src: "/apple-icon.png",
-        sizes: "180x180",
-        type: "image/png",
-      },
+      { src: "/apple-icon.png", sizes: "180x180", type: "image/png" },
     ],
   };
 }

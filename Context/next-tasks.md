@@ -15,15 +15,21 @@ Last updated: 2026-06-08
 
 ## 🎯 Current focus
 
-Backend, deploy, domain **and the public landing are all live** on
-**https://trackdco.app**. Now **two parallel lanes**:
-- **Angus + Claude — auth + app shell:** ✅ **live on trackdco.app** (Google
-  sign-in → 18+/ToS gate → dashboard + logged-in shell). Finishing the checkpoint:
-  on-phone test, two-account RLS check, publish the Google app. Angus also owns
-  **beta outreach**.
-- **Adrian — app UI:** **bottom nav + Add-to-Stack search are built** (`feat/app-ui`,
-  integrated into the auth `(app)` shell, local only). Next: run locally (needs
-  `.env.local`), preview, coordinate the merge, then keep building feature screens.
+Auth + the logged-in shell are **✅ live on https://trackdco.app** (Google sign-in
+→ 18+/ToS gate → dashboard, branded PWA splash, RLS verified with two accounts —
+Week-1 checkpoint met). Now **two parallel app-UI lanes**, both via the PR flow
+(branch → PR → CodeRabbit → merge):
+- **Adrian — app UI** (`feat/app-ui`): **bottom nav + Add-to-Stack — catalogue
+  search + "Make your own" custom compounds, each row with add / edit / delete
+  controls — is in the open PR to `main`.** Next after it merges: the core loop
+  (cycles → compounds → inventory → dose logging → reflow), the week-2 spine.
+- **Angus + Claude — Profile & Settings** (`feat/settings`): `/settings` v1 built,
+  **PR #2 in CodeRabbit review**. Self-contained (own folders, own profile row).
+  Angus also owns **beta outreach** + the business setup (Airwallex → Pro + custom
+  domain). One follow-up: nav link to `/settings` in the shared `(app)/layout.tsx`
+  — coordinate with Adrian.
+- **Still open (Angus, quick):** publish the Google OAuth app (Audience → Publish)
+  before non-Test-user testers.
 
 ---
 
@@ -32,6 +38,11 @@ Backend, deploy, domain **and the public landing are all live** on
 Conflicts come from editing the **same files**, not from working at the same time:
 - **One branch per person** — `feat/auth` (Angus), `feat/app-ui` (Adrian). Never
   commit straight to `main`.
+- **Code lands via PR, not direct push (decided 2026-06-08).** Branch → push →
+  **open a PR to `main`** → **CodeRabbit auto-reviews** → address findings →
+  merge. CodeRabbit only reviews PRs, so anything pushed straight to `main` gets
+  no review. Merging a PR to `main` = a Vercel **prod** deploy. (Trivial
+  `Context/*.md` doc-only edits may still go direct for speed.)
 - **`git pull` before you start and before you push;** merge one lane at a time,
   the other pulls right after.
 - **Stay in your folders.** Shared foundations (`app/globals.css`, `app/layout.tsx`,
@@ -182,7 +193,7 @@ bundled MCP/CLI will need Vercel auth when we first use the deploy commands
 
 ## 🎨 Adrian's lane — legal, then app UI (design → build)
 
-### ✅ DONE (local) — Bottom nav + Add-to-Stack search (2026-06-08, `feat/app-ui`)
+### ✅ DONE — Bottom nav + Add-to-Stack (2026-06-08, `feat/app-ui` → open PR to `main`)
 
 Persistent **bottom navigation** built and **integrated into the merged auth shell**
 (rendered from `app/(app)/layout.tsx`; Protocol/Progress/Profile placeholders added
@@ -204,21 +215,34 @@ guard for bad categories, keyboard-hide focus gate, focus-into-form, magnifier i
 bigger drag target). Dev-only **`/preview`** route (404s in prod) shows it all without
 auth. `npm run build` + `npm run lint` clean. Full record in `progress-tracker.md`.
 
-### ▶ NEXT (Adrian) — pull Angus's push, then preview + merge this lane
+**Round-3 (in this PR):** each **custom** compound's row now carries three
+right-aligned controls — a primary add-to-stack **+** (matches the catalogue rows;
+visual until the cycle feature lands), a smaller **edit** (opens the unchanged edit
+menu), and **delete** (same inline red confirm + persistence as the edit menu). Also
+fixed a **Radix import regression** the earlier CodeRabbit commit introduced: it had
+swapped the unified `radix-ui` package for the individual `@radix-ui/react-*` packages
+but left the `Dialog.Root` / `Slot.Root` namespace usage, so `sheet` / `dialog` /
+`tabs` / `scroll-area` / `button` all crashed with "Element type is invalid" — fixed
+by switching the four wrappers to `import * as` and Button to use `Slot` directly.
+tsc + lint + build clean.
 
-> Sequencing: Angus is pushing; once he does, **pull `main`**, then rebase this lane
-> on top of it (it edits Angus's `app/(app)/layout.tsx`, so expect to reconcile).
+### ▶ NEXT (Adrian) — after this PR merges, build the core loop
 
-1. **Review now, no keys needed:** `npm run dev` → http://localhost:3000/preview
-   (search "deca"/"aromasin"/"npp"; try Make your own; edit/delete a custom; drag to
-   dismiss). For the *real* signed-in flow, add `.env.local` (from `.env.example`,
-   real `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from
-   Vercel), then sign in and open the dashboard → tap **+**.
-2. **Before push:** decide whether to keep the dev-only `/preview` route (harmless —
-   404s in prod) or delete it.
-3. **Commit + push:** after pulling Angus's `main`, `git add -A && git commit` on
-   `feat/app-ui`, push, and merge one lane at a time (Angus pulls right after).
-4. **Deploy a preview** (the push triggers a Vercel preview) to test on-phone.
+The bottom-nav + Add-to-Stack PR is open (CodeRabbit reviewing). Once it merges to
+`main` (= a Vercel **prod** deploy), build the **core loop** — the week-2 spine:
+1. **Cycles** — the create / active-cycle model + UI (archive-not-delete invariant).
+2. **Add compound → stack** — wire the now-visual **+** (on both catalogue and custom
+   rows) to actually add a compound to the active cycle. This is the first real use of
+   the **+**; until cycles exist it is intentionally inert on every row.
+3. **Inventory → dose logging → the daily-use loop** (order in `ai-workflow-rules.md`).
+
+Testing notes (banked this session): the dev-only `/preview` route is the no-auth
+harness for building these screens (keep it — 404s in prod). The *real* signed-in app
+needs `.env.local` locally (`NEXT_PUBLIC_SUPABASE_URL` +
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`). To test the full app **on a phone**, use the
+PR's Vercel **preview** URL and add it to **Supabase → Auth → URL Configuration →
+Redirect URLs** (+ make sure the `NEXT_PUBLIC_*` vars are enabled for the **Preview**
+env in Vercel) — a LAN-IP localhost won't pass Google's redirect allowlist.
 
 ### ✅ DONE — Seed catalogues compiled + loaded (2026-06-06)
 

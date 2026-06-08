@@ -28,6 +28,23 @@ Last updated: 2026-06-08
 
 ## Completed
 
+- **Add-to-Stack row controls + Radix import-bug fix (`feat/app-ui`, in the open PR
+  to `main`, 2026-06-08).** Each **custom** compound's row now shows three
+  right-aligned controls — a primary add-to-stack **+** (matches the catalogue rows;
+  visual until the cycle feature lands), a smaller **edit** (opens the unchanged edit
+  menu), and **delete** (same inline red confirm + per-user `localStorage` persistence
+  as the edit menu); custom rows in search results get them too. Before that, fixed a
+  **crash that took down the whole Add-to-Stack menu**: the earlier "code rabbit"
+  commit (`42e08fb`) swapped the unified `radix-ui` dependency for the individual
+  `@radix-ui/react-*` packages but left the `Dialog.Root` / `Slot.Root` namespace
+  usage intact, so those resolved to `undefined` and every
+  `sheet`/`dialog`/`tabs`/`scroll-area`/`button` threw "Element type is invalid" —
+  fixed by switching the four wrappers to `import * as X` and `Button` to use `Slot`
+  directly. `tsc` + `lint` + production build all clean. **Local dev unblocked:**
+  restored the git-ignored `.env.local` (`NEXT_PUBLIC_SUPABASE_URL` +
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) — without it every Supabase-backed route
+  500s locally (only `/preview`, which is outside the `(app)` auth shell, survives).
+  Landing via a **PR** (CodeRabbit review) per the new flow, not a direct push.
 - **Bottom nav + Add-to-Stack search (Adrian's lane, `feat/app-ui`, 2026-06-08).**
   Built the persistent **bottom navigation** (Home · Protocol · white **Plus** ·
   Progress · My Profile; route-driven amber/gray active state with a gray→amber
@@ -243,11 +260,18 @@ Last updated: 2026-06-08
 
 ## In Progress
 
-- **Auth — last two ticks before fully closing the checkpoint:** (1) confirm
-  **Add-to-Home-Screen / PWA install** on a founder's phone (sign-in itself is
-  confirmed); (2) **publish the Google OAuth app** (Audience → Publish App) before
-  opening to beta testers — currently in "Testing", so only listed Test users can
-  sign in.
+- **App UI — two parallel lanes (PR-based, CodeRabbit-reviewed).** Adrian → the
+  **core loop** (cycles → compounds → inventory → dose logging) on `feat/app-ui`.
+  Angus + Claude → **Profile & Settings** (`/settings`) on `feat/settings` — v1
+  built (read-only account block + editable sex/height/goal/units, server-validated
+  + RLS-scoped to the user's own row), **PR #2 open — CodeRabbit review came back
+  clean (no actionable comments); ready to merge** (build + lint + guard verified).
+  NB the nav link to `/settings` is a deferred shared-layout (`app/(app)/layout.tsx`)
+  change to coordinate with Adrian.
+- **Auth — effectively done; one tester-gating task left:** **publish the Google
+  OAuth app** (Audience → Publish App) before any non-Test-user can sign in. Sign-in,
+  the 18+/ToS gate, RLS isolation, and the branded PWA launch splash are all live +
+  verified on both founders' phones.
 
 ## Tooling
 
@@ -384,6 +408,21 @@ Last updated: 2026-06-08
 
 ## Session Notes
 
+- 2026-06-08 (cont.): **RLS verified, PWA splash, repo move, PR flow, parallel
+  lanes started.** Sign-in confirmed on both founders' phones; **two-account RLS
+  isolation VERIFIED** (each user sees only their own profiles/cycles rows;
+  cross-user INSERT blocked by `WITH CHECK`; all test data rolled back) — success
+  criterion #3 met. Shipped a branded **PWA launch splash**: 8 iOS
+  apple-touch-startup-image PNGs (Trackd mark on #111110) + the legacy
+  `apple-mobile-web-app-capable` meta Next 16 omits (the actual fix — iOS was
+  ignoring the launch images without it), `start_url=/dashboard`, and an Android
+  maskable icon — confirmed working on iOS. **Moved the repo out of iCloud** to
+  `~/dev/trackd-co-app` (the `mmap`/stale-NFS git errors are gone; old `~/Documents`
+  copy to be deleted). **Adopted a PR-based flow** so CodeRabbit reviews code before
+  `main` (it only reviews PRs; the auth+splash work had bypassed it — PR #1's old
+  findings were already addressed). Started the **parallel app-UI lanes**: Adrian on
+  the core loop (`feat/app-ui`), Angus + Claude on **Profile & Settings**
+  (`feat/settings`, **PR #2** — first PR in the new flow, in CodeRabbit review).
 - 2026-06-08: **Auth deployed live + DOB picker improved.** Angus completed the
   Google OAuth dashboard setup; tested the full flow locally with a real account
   and it worked end-to-end (sign-in → `handle_new_user` trigger → gate → dashboard,
