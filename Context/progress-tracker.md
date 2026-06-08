@@ -184,17 +184,25 @@ Last updated: 2026-06-08
   `.agents/skills/`, symlinked into `.claude/skills/` for Claude Code discovery,
   and pinned in `skills-lock.json`.
 
+- **Auth — deployed + verified; Week-1 checkpoint essentially met (2026-06-08).**
+  Built, Google OAuth set up, merged to `main`, live on trackdco.app, and
+  **sign-in confirmed on both founders' phones** (Angus `admin@trackdco.app`,
+  Adrian `adrianschimizzi1@gmail.com`). **RLS isolation VERIFIED with the two real
+  accounts** (success criterion #3): simulating each user's `authenticated` JWT
+  context, each saw only their own `profiles` + `cycles` row and never the other's;
+  cross-user INSERT was blocked by the `WITH CHECK` policy (`42501`); all test data
+  rolled back (0 rows persisted). Both ownership patterns proven (`id = auth.uid()`
+  and `user_id = auth.uid()`); the two views are `security_invoker` so they inherit
+  the same filtering (storage-bucket isolation to be checked once bloodwork uploads
+  exist, wk3). Recorded in Completed.
+
 ## In Progress
 
-- **Auth — deployed + verified; final checkpoint verification remaining.** Code
-  built, Google OAuth dashboard setup done (Angus), merged `feat/auth` → `main`
-  and live on trackdco.app, sign-in proven end-to-end with a real account (see
-  Completed + Current Phase). What's left for the 11 Jun checkpoint: (1) **on-phone
-  test** on both founders' phones at trackdco.app + Add-to-Home-Screen install;
-  (2) **two-account RLS isolation check** (account B sees none of account A's data
-  — query the views + storage bucket too, not just base tables); (3) **publish the
-  Google OAuth app** (Audience → Publish App) + add the co-founder as a Test user,
-  before opening to beta testers.
+- **Auth — last two ticks before fully closing the checkpoint:** (1) confirm
+  **Add-to-Home-Screen / PWA install** on a founder's phone (sign-in itself is
+  confirmed); (2) **publish the Google OAuth app** (Audience → Publish App) before
+  opening to beta testers — currently in "Testing", so only listed Test users can
+  sign in.
 
 ## Tooling
 
