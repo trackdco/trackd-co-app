@@ -15,14 +15,19 @@ Last updated: 2026-06-08
 
 ## 🎯 Current focus
 
-Backend, deploy, domain **and the public landing are all live** on
-**https://trackdco.app**. Now **two parallel lanes**:
-- **Angus + Claude — auth + app shell:** ✅ **live on trackdco.app** (Google
-  sign-in → 18+/ToS gate → dashboard + logged-in shell). Finishing the checkpoint:
-  on-phone test, two-account RLS check, publish the Google app. Angus also owns
-  **beta outreach**.
-- **Adrian — app UI:** after the legal copy, design then build the real feature
-  screens (the landing's feature cards are placeholders waiting on these).
+Auth + the logged-in shell are **✅ live on https://trackdco.app** (Google sign-in
+→ 18+/ToS gate → dashboard, branded PWA splash, RLS verified with two accounts —
+Week-1 checkpoint met). Now **two parallel app-UI lanes**, both via the PR flow
+(branch → PR → CodeRabbit → merge):
+- **Adrian — core loop** (`feat/app-ui`): cycles → compounds → inventory → dose
+  logging → reflow. The week-2 spine.
+- **Angus + Claude — Profile & Settings** (`feat/settings`): `/settings` v1 built,
+  **PR #2 in CodeRabbit review**. Self-contained (own folders, own profile row).
+  Angus also owns **beta outreach** + the business setup (Airwallex → Pro + custom
+  domain). One follow-up: nav link to `/settings` in the shared `(app)/layout.tsx`
+  — coordinate with Adrian.
+- **Still open (Angus, quick):** publish the Google OAuth app (Audience → Publish)
+  before non-Test-user testers.
 
 ---
 
