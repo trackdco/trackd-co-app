@@ -41,6 +41,9 @@ in the schema — storage only, no behaviour, until post-trip.
   that load the read-only catalogues. `supabase/legal/` holds the
   `legal_documents` table + seed (the `legal_documents_table` +
   `seed_legal_documents` migrations), bringing the live DB to **18 tables**.
+  `supabase/grants/` holds `001_api_role_grants.sql` (the `api_role_grants`
+  migration) — the table-level privileges the PostgREST roles need on top of RLS
+  (see Auth and Access Model).
 - `Context/` — The spec. Defines what to build (`project-overview.md`), how
   (`code-standards.md`, this file), the UI language (`ui-context.md`), the
   session rules (`ai-workflow-rules.md`), and current state (`progress-tracker.md`).
@@ -78,9 +81,14 @@ per type. Write model matches the seed catalogues — **service-role writes only
 but, unlike them, **read is public (`anon` + `authenticated`)** because signup
 shows the documents before a user has an account.
 
-**Stored only — NOT wired into signup yet.** `profiles` already carries
-`tos_version` + `tos_accepted_at` to record acceptance; the acceptance UI is a
-later, explicitly-directed task. Do nothing with these documents until directed.
+**Wired into signup (2026-06-08).** The 18+/ToS gate at `/welcome` now reads the
+current ToS version live from this table and records acceptance on the profile
+(`tos_accepted_at` + `tos_version`); a single acceptance covers all three
+documents (Terms + Privacy + Medical Disclaimer). The documents are rendered
+verbatim from this table at `/terms`, `/privacy`, and `/medical-disclaimer` (one
+shared `components/legal/legal-document.tsx` renderer, public read). The
+launch-day bump-to-1.0 procedure below still applies — the gate picks up the new
+version automatically because it reads `is_current`.
 
 ### Versioning & dating rule — follow this every time we touch a legal document
 
@@ -113,6 +121,18 @@ later, explicitly-directed task. Do nothing with these documents until directed.
   ownership check to fall back on.
 - The house RLS pattern wraps the identity call as `(SELECT auth.uid())` so the
   planner caches it. Use this everywhere; do not call `auth.uid()` bare.
+- **RLS gates rows; PostgREST grants open the table.** RLS only runs once the API
+  role can reach the table at all, which needs a table-level `GRANT` to
+  `anon`/`authenticated`. This project's Supabase defaults do **not** auto-grant
+  DML to those roles, so the grants are explicit in
+  `supabase/grants/001_api_role_grants.sql` (migration `api_role_grants`):
+  `legal_documents` SELECT to anon + authenticated; the read-only catalogues
+  SELECT to authenticated; user-owned tables full DML to authenticated; `profiles`
+  SELECT/INSERT/UPDATE (no self-delete); both views SELECT to authenticated. The
+  grants do not weaken anything — RLS is still the only row-level gate, and
+  read-only catalogues stay read-only via their absent write policy. **Any new
+  `public` table must ship its own grants** (or set `ALTER DEFAULT PRIVILEGES`),
+  or the Data API will 42501 on it.
 - Both views run with `security_invoker = true` so they respect the querying
   user's RLS (a plain view runs as its owner and would leak every user's rows).
   **RLS verification must query the views and the storage bucket, not just the

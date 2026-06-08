@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
+import { getSessionContext } from "@/lib/auth";
 import { FirstRun } from "./_components/first-run";
 
 export const metadata: Metadata = {
@@ -27,7 +29,14 @@ export const metadata: Metadata = {
  * gate replaces it, and once auth exists this screen redirects a logged-in user
  * to /dashboard.
  */
-export default function Home() {
+export default async function Home() {
+  // A live session never sees the landing — send them into the app (or the
+  // 18+/ToS gate if they haven't passed it yet).
+  const { user, passedGate } = await getSessionContext();
+  if (user) {
+    redirect(passedGate ? "/dashboard" : "/welcome");
+  }
+
   return (
     <>
       {/* Mobile: the app */}

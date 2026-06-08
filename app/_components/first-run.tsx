@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 
 /**
  * First Run — app-style onboarding (mobile). Reads as professionally crafted:
@@ -279,16 +279,7 @@ export function FirstRun() {
       {/* Sign in */}
       <div className="mt-4 border-t border-border/60 px-6 pt-5 text-center">
         <p className="mb-4 text-xs text-text-subtle">Built by people who run real protocols.</p>
-        <Button
-          asChild
-          size="lg"
-          className="h-12 w-full touch-manipulation select-none rounded-xl text-[0.95rem] transition-transform duration-100 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] motion-reduce:active:scale-100"
-        >
-          <Link href="/login">
-            <GoogleMark />
-            Continue with Google
-          </Link>
-        </Button>
+        <GoogleSignInButton />
         <p className="mt-3 text-[0.7rem] text-text-subtle">
           Free while it&apos;s in beta · 18+ ·{" "}
           <Link href="/terms" className="transition-colors hover:text-text-muted">
@@ -405,29 +396,3 @@ function SiteMapMock() {
   );
 }
 
-/**
- * Official Google "G" mark — four brand colours mandated by Google, the one
- * allowed exception to the no-hardcoded-colour rule (third-party logo).
- */
-function GoogleMark() {
-  return (
-    <svg viewBox="0 0 48 48" className="size-5" aria-hidden="true">
-      <path
-        fill="#EA4335"
-        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-      />
-      <path
-        fill="#4285F4"
-        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-      />
-      <path
-        fill="#34A853"
-        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-      />
-    </svg>
-  );
-}
