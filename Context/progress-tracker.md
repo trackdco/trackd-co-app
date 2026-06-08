@@ -10,17 +10,21 @@ Last updated: 2026-06-08
 
 ## Current Phase
 
-- **Auth + app shell built (code complete) — pending Google provider config +
-  live test.** The full auth flow is implemented and verified locally (build +
-  lint clean, route guards redirect correctly, the Data API now works, legal docs
-  render from the DB): Continue-with-Google → `/auth/callback` code exchange →
-  18+/ToS gate at `/welcome` → guarded `(app)` shell + empty `/dashboard`, with
-  sign-out, the root redirect, and a PWA install prompt. **The one remaining
-  blocker is the one-time Google OAuth dashboard setup (Angus)** — Google Cloud
-  OAuth client + Supabase Google provider + redirect URLs — after which the live
-  sign-in → gate → dashboard flow and RLS isolation can be hard-tested. Backend,
-  data model, seed catalogues, Vercel deploy, custom domain, and the public
-  landing remain live on **https://trackdco.app**.
+- **Auth + app shell LIVE on https://trackdco.app — verified in production
+  (2026-06-08).** The full signup flow is deployed and working end-to-end:
+  Continue-with-Google → `/auth/callback` code exchange → 18+/ToS gate at
+  `/welcome` (DOB via Day/Month/Year dropdowns; server-side age check;
+  all-three-docs consent) → guarded `(app)` shell + empty `/dashboard`, with
+  sign-out and the root redirect. Proven with a real Google account
+  (`admin@trackdco.app`): sign-in fired the `handle_new_user()` trigger, the gate
+  wrote `date_of_birth`/`is_18_plus`/`tos_accepted_at`/`tos_version=0.2`, and
+  sign-out + returning-user (skips the gate) both work. Prod checks pass: legal
+  docs render from the DB, the PWA manifest serves, route guards redirect. The
+  Data API works via the `api_role_grants` migration. **Remaining to fully close
+  the 11 Jun checkpoint:** on-phone test on both founders' phones (+ Add-to-Home-
+  Screen install), the two-account RLS isolation check, and publishing the Google
+  OAuth app (currently in "Testing", so only listed Test users can sign in).
+  Backend, data model, seed catalogues, domain, and the public landing remain live.
 
 ## Completed
 
@@ -182,14 +186,15 @@ Last updated: 2026-06-08
 
 ## In Progress
 
-- **Auth — live test pending Google provider config.** All code is built and
-  locally verified (see Completed → "Auth + app shell built"). What's left:
-  (1) **Angus's one-time Google OAuth dashboard setup** (Google Cloud OAuth client
-  + Supabase Google provider + Site/redirect URLs — steps in `next-tasks.md`);
-  (2) **hard test** with a brand-new Google account end-to-end (the
-  `handle_new_user()` trigger is the one place a failure silently blocks all
-  signups); (3) **RLS isolation check** with two real accounts (no cross-user
-  reads, querying the views + storage too). Checkpoint target 11 Jun.
+- **Auth — deployed + verified; final checkpoint verification remaining.** Code
+  built, Google OAuth dashboard setup done (Angus), merged `feat/auth` → `main`
+  and live on trackdco.app, sign-in proven end-to-end with a real account (see
+  Completed + Current Phase). What's left for the 11 Jun checkpoint: (1) **on-phone
+  test** on both founders' phones at trackdco.app + Add-to-Home-Screen install;
+  (2) **two-account RLS isolation check** (account B sees none of account A's data
+  — query the views + storage bucket too, not just base tables); (3) **publish the
+  Google OAuth app** (Audience → Publish App) + add the co-founder as a Test user,
+  before opening to beta testers.
 
 ## Tooling
 
@@ -326,6 +331,18 @@ Last updated: 2026-06-08
 
 ## Session Notes
 
+- 2026-06-08: **Auth deployed live + DOB picker improved.** Angus completed the
+  Google OAuth dashboard setup; tested the full flow locally with a real account
+  and it worked end-to-end (sign-in → `handle_new_user` trigger → gate → dashboard,
+  all values written). Reworked the gate's date-of-birth field from a native
+  calendar (paged month-by-month — brutal for a birthday) to Day/Month/Year
+  dropdowns + hardened server date validation. Merged `feat/auth` → `main` and
+  deployed to trackdco.app; verified in prod (manifest 200, route guards redirect,
+  legal docs render from the DB, login button present). **The merge had to be run
+  in a `/tmp` clone** — the local repo's git kept failing with `mmap`/stale-NFS
+  errors (iCloud-synced `~/Documents`; permanent fix is to move the repo out of
+  `~/Documents`). Remaining for the checkpoint: on-phone test, two-account RLS
+  isolation, publish the Google app.
 - 2026-06-08: **Markers catalogue seeded.** Adrian supplied the Markers CSV (36
   subjective-tracking markers — energy/libido/sleep/pumps… plus side-effects as
   negative-polarity markers). Added it as `supabase/seed/markers.csv`, extended

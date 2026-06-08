@@ -17,8 +17,10 @@ Last updated: 2026-06-08
 
 Backend, deploy, domain **and the public landing are all live** on
 **https://trackdco.app**. Now **two parallel lanes**:
-- **Angus + Claude — auth + app shell:** real Google sign-in → 18+/ToS gate →
-  dashboard + the logged-in layout. Angus also owns **beta outreach**.
+- **Angus + Claude — auth + app shell:** ✅ **live on trackdco.app** (Google
+  sign-in → 18+/ToS gate → dashboard + logged-in shell). Finishing the checkpoint:
+  on-phone test, two-account RLS check, publish the Google app. Angus also owns
+  **beta outreach**.
 - **Adrian — app UI:** after the legal copy, design then build the real feature
   screens (the landing's feature cards are placeholders waiting on these).
 
@@ -117,44 +119,47 @@ never-evaluative invariant still stands); the proxy now **fails open** if Supaba
 env is unset (a missing var can't 500 the whole site). **Feature mini-mocks are
 placeholders** — swap to the real screens once the app UI is designed.
 
-### ▶ NOW — Auth + app shell  (Angus · branch `feat/auth`)
+### ✅ DONE — Auth + app shell built & deployed (2026-06-08)
 
-**Code is built + locally verified (2026-06-08).** Done: ✅ Continue-with-Google
-(`signInWithOAuth`), ✅ `/auth/callback` code exchange, ✅ real `/login`, ✅ the
-18+/ToS gate at `/welcome` (server-side age ≥18; one consent covering all three
-docs; writes `date_of_birth`/`is_18_plus`/`tos_accepted_at`/`tos_version`), ✅ the
-guarded `(app)` shell + empty `/dashboard` + sign-out, ✅ root redirect, ✅ PWA
+Built on `feat/auth`, merged to `main`, **live on https://trackdco.app** (verified
+in prod). Shipped: ✅ Continue-with-Google (`signInWithOAuth`, PKCE), ✅
+`/auth/callback` code exchange, ✅ real `/login`, ✅ the 18+/ToS gate at `/welcome`
+(DOB via Day/Month/Year dropdowns; server-side age ≥18; one consent covering all
+three docs; writes `date_of_birth`/`is_18_plus`/`tos_accepted_at`/`tos_version`),
+✅ guarded `(app)` shell + empty `/dashboard` + sign-out, ✅ root redirect, ✅ PWA
 install prompt + manifest, ✅ legal docs rendered from the DB at
-`/terms`·`/privacy`·`/medical-disclaimer`. Also fixed a discovered blocker: ✅ the
-`api_role_grants` migration (the Data API had no table grants — see
-`progress-tracker.md`).
+`/terms`·`/privacy`·`/medical-disclaimer`, ✅ the `api_role_grants` migration (the
+Data API had no table grants). Google OAuth dashboard set up (Angus). Proven
+end-to-end with a real account: sign-in → `handle_new_user` trigger → gate writes →
+dashboard; sign-out + returning-user (skips gate) both confirmed. Full record in
+`progress-tracker.md`.
 
-**Remaining to hit the 11 Jun checkpoint:**
+### ▶ NOW — Finish the auth checkpoint (Angus)
 
-1. **Google OAuth dashboard setup (Angus, one-time — THE blocker).** Until this is
-   done, "Continue with Google" errors. Steps:
-   - Supabase → Authentication → Providers → **Google** → enable, and **copy the
-     callback URL** it shows:
-     `https://boqqracwdpuisgvwbqlc.supabase.co/auth/v1/callback`.
-   - Google Cloud Console → APIs & Services → **OAuth consent screen** (External;
-     app name "Trackd Co"; support email; add the Privacy Policy + Terms links
-     `https://trackdco.app/privacy` and `/terms`).
-   - → **Credentials** → Create OAuth client ID → **Web application**.
-     - Authorized JavaScript origins: `https://trackdco.app`,
-       `http://localhost:3000`.
-     - Authorized redirect URI: the Supabase callback URL copied above.
-   - Paste the **Client ID + Client Secret** back into Supabase's Google provider,
-     save.
-   - Supabase → Authentication → **URL Configuration**: Site URL
-     `https://trackdco.app`; Redirect URLs add `https://trackdco.app/**` and
-     `http://localhost:3000/**`.
-2. **Hard test** with a brand-new Google account, end-to-end: sign in → gate →
-   dashboard → sign out → sign back in (skips the gate). The `handle_new_user()`
-   trigger is the one place a failure silently blocks *all* signups — watch the
-   first fresh signup closely.
-3. **RLS isolation** with two real accounts: account B sees none of account A's
-   data (query the **views + storage bucket**, not just base tables).
+The flow is live; these three close the 11 Jun checkpoint:
+
+1. **On-phone test** — open https://trackdco.app on **both founders' phones**, sign
+   in with a **Test-user** Google account, pass the gate, land on the dashboard,
+   then **Add to Home Screen** and confirm the PWA installs with the Trackd icon
+   and opens full-screen.
+2. **Two-account RLS isolation** — sign in with the **second** founder account and
+   confirm it sees none of the first's data. Claude verifies with DB queries (check
+   the **views + storage bucket** too, not just base tables). Matters most once real
+   cycle/dose data exists, but baseline-check it now.
+3. **Publish the Google OAuth app** — Google Cloud → **Audience → Publish App**
+   (moves it out of "Testing", where only listed Test users can sign in) **and** add
+   the co-founder's Google account as a Test user meanwhile. Do this before handing
+   the app to beta testers.
    - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones.
+
+### Housekeeping — fix the flaky local repo (recommended)
+
+The local working copy at `~/Documents/GitHub/trackd-co-app` throws git
+`mmap`/stale-NFS errors on heavy ops (iCloud-synced Documents); the auth merge had
+to be done in a `/tmp` clone and pushed from there. Permanent fix: move the repo
+out of `~/Documents` (e.g. `~/dev/trackd-co-app`) and resync to `main`. Until then
+the local copy is behind GitHub — `git checkout main && git pull` once the FS
+cooperates. (Claude can do the move + resync on request.)
 
 ### Also (Angus) — beta outreach (alongside the build)
 
