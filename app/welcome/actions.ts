@@ -56,9 +56,15 @@ export async function completeGate(
     return { error: "Please enter your date of birth." };
   }
 
-  const dob = new Date(`${dobRaw}T00:00:00`);
+  // Parse as local Y/M/D and reject impossible dates (e.g. 31 Feb, which JS
+  // would otherwise silently roll forward into March). The picker can't produce
+  // these, but the server must not trust the client.
+  const [yy, mm, dd] = dobRaw.split("-").map(Number);
+  const dob = new Date(yy, mm - 1, dd);
   const now = new Date();
-  if (Number.isNaN(dob.getTime()) || dob > now || dob.getFullYear() < 1900) {
+  const isRealDate =
+    dob.getFullYear() === yy && dob.getMonth() === mm - 1 && dob.getDate() === dd;
+  if (!isRealDate || dob > now || yy < 1900) {
     return { error: "That date of birth doesn't look right." };
   }
   if (ageInYears(dob, now) < 18) {
