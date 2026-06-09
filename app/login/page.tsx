@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -33,11 +34,15 @@ export default async function LoginPage({
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-8 text-center">
-      <Link
-        href="/"
-        className="font-display text-lg font-medium tracking-[-0.01em] text-foreground"
-      >
-        trackd<span className="text-accent-amber"> co</span>
+      <Link href="/" aria-label="trackd co">
+        <Image
+          src="/trackd-wordmark.png"
+          alt="trackd co"
+          width={1049}
+          height={200}
+          priority
+          className="h-4 w-auto"
+        />
       </Link>
 
       <h1 className="mt-12 text-balance font-display text-[2rem] font-medium leading-[1.05] tracking-[-0.02em] text-foreground">

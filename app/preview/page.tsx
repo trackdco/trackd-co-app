@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
@@ -19,9 +20,13 @@ export default function PreviewPage() {
           paddingBottom: "0.75rem",
         }}
       >
-        <span className="font-display text-lg font-medium tracking-[-0.01em] text-foreground">
-          trackd<span className="text-accent-amber"> co</span>
-        </span>
+        <Image
+          src="/trackd-wordmark.png"
+          alt="trackd co"
+          width={1049}
+          height={200}
+          className="h-4 w-auto"
+        />
         <span className="rounded-full bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium tracking-wider text-text-muted uppercase">
           Preview
         </span>

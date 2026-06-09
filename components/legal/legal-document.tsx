@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -38,11 +39,14 @@ export async function LegalDocument({ docType }: { docType: LegalDocType }) {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col px-6 py-16">
-      <Link
-        href="/"
-        className="font-display text-lg font-medium tracking-[-0.01em] text-foreground"
-      >
-        trackd<span className="text-accent-amber"> co</span>
+      <Link href="/" aria-label="trackd co" className="w-fit">
+        <Image
+          src="/trackd-wordmark.png"
+          alt="trackd co"
+          width={1049}
+          height={200}
+          className="h-4 w-auto"
+        />
       </Link>
 
       <h1 className="mt-12 font-display text-3xl tracking-[-0.02em] text-foreground">

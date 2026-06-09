@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 
@@ -201,9 +202,14 @@ export function FirstRun() {
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-6">
-        <span className="font-display text-lg font-medium tracking-[-0.01em] text-foreground">
-          trackd<span className="text-accent-amber"> co</span>
-        </span>
+        <Image
+          src="/trackd-wordmark.png"
+          alt="trackd co"
+          width={1049}
+          height={200}
+          priority
+          className="h-4 w-auto"
+        />
         <Link
           href="/login"
           className="-mr-2 px-2 py-2 text-sm text-text-muted transition-transform duration-100 hover:text-foreground active:scale-95"

@@ -41,6 +41,11 @@ Week-1 checkpoint met). Now **two parallel app-UI lanes**, both via the PR flow
   — coordinate with Adrian.
 - **Still open (Angus, quick):** publish the Google OAuth app (Audience → Publish)
   before non-Test-user testers.
+- **Confirm (Adrian, quick):** the "black bar under the nav" — is it a Safari tab or
+  the installed home-screen app? In the PWA the nav already sits flush
+  (`viewport-fit=cover` verified); in Safari that strip is browser chrome. If it
+  still shows in a freshly-reinstalled PWA, reopen as a real bug. (Brand logo swap +
+  splash cleanup already shipped — see progress-tracker.)
 
 ---
 

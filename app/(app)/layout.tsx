@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
@@ -30,9 +31,14 @@ export default async function AppLayout({
           paddingBottom: "0.75rem",
         }}
       >
-        <span className="font-display text-lg font-medium tracking-[-0.01em] text-foreground">
-          trackd<span className="text-accent-amber"> co</span>
-        </span>
+        <Image
+          src="/trackd-wordmark.png"
+          alt="trackd co"
+          width={1049}
+          height={200}
+          priority
+          className="h-4 w-auto"
+        />
         <form action={signOut}>
           <button
             type="submit"

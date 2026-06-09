@@ -28,6 +28,26 @@ Last updated: 2026-06-09
 
 ## Completed
 
+- **Brand wordmark → gradient logo images + launch-splash cleanup (2026-06-09).**
+  Replaced the text wordmark ("trackd co", `co` in `--accent-amber`) with the real
+  **transparent gradient PNG** (`public/trackd-wordmark.png`) everywhere it appeared
+  at the small `text-lg` treatment — the `(app)` header, onboarding (`first-run`),
+  `/welcome`, `/login`, `/preview`, and the legal-doc header — rendered via
+  `next/image` at `h-5 w-auto`. The large `text-3xl` hero on the root landing
+  (`app/page.tsx`) was deliberately **left as text** (distinct treatment). **iOS
+  launch images regenerated** (`public/splash/apple-splash-*.png`) to show the short
+  "Trackd" mark centred on the #111110 canvas with **no box** — fixes the faint dark
+  square under the mark on launch. Source masters + a reproducible generator live in
+  `scripts/brand/` (`node scripts/brand/generate.mjs`, uses `sharp`).
+
+- **Bottom-of-screen "black bar" — diagnosed (not a PWA bug).** The strip reported
+  below the bottom nav measures ~62pt ≈ a collapsed Safari toolbar (~28pt) + the
+  home-indicator inset (34pt). The app already serves `viewport-fit=cover` (verified
+  in the rendered `<meta name="viewport">`) and the nav fills
+  `env(safe-area-inset-bottom)` with `bg-surface`, so in the **installed PWA** the
+  nav sits flush. **Open:** confirm Adrian is seeing it in a Safari tab (expected —
+  that area is browser chrome; use the installed app) vs. a stale cached install.
+
 - **Plus-button "Shortcuts" menu built (Adrian's lane, 2026-06-09, PR `feat/shortcuts-menu`).**
   The bottom-nav centre plus now opens a styled **Shortcuts** bottom sheet instead of
   going straight to Add-to-Stack. Built from the spec
