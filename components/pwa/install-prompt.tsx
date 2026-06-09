@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Share, X } from "lucide-react";
+import { ChevronDown, Download, Plus, Share, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -15,19 +15,32 @@ type BeforeInstallPromptEvent = Event & {
 
 const DISMISS_KEY = "trackd:install-prompt-dismissed";
 
+type Platform =
+  | "android" // Chrome/Android: real one-tap install via beforeinstallprompt
+  | "ios-safari" // iOS Safari: no install API exists — guide the Share flow
+  | "ios-other"; // iOS Chrome/Firefox/etc: Add to Home Screen only works in Safari
+
 /**
  * "Add to Home Screen" prompt shown post sign-in on the dashboard.
  *
- * Android/Chrome fires `beforeinstallprompt`, which we defer and trigger from a
- * button. iOS Safari has no such event, so we detect it and show the manual
- * Share -> Add to Home Screen steps instead. Hidden when already running as an
- * installed PWA, or once the user dismisses it (remembered in localStorage).
+ * Goal: the fewest taps each platform allows.
+ *  - Android/Chrome fires `beforeinstallprompt` -> we show ONE button that opens
+ *    the native install dialog (the platform minimum).
+ *  - iOS Safari has NO install API (Apple); the Share -> Add to Home Screen taps
+ *    are Apple's and can't be skipped, so we add no dead button — just an
+ *    auto-shown, visually guided card (Share icon + animated arrow) so there's
+ *    no fumbling.
+ *  - iOS in a non-Safari browser can't Add to Home Screen at all, so we don't
+ *    show steps that can't work — we point them to Safari instead.
+ *
+ * Hidden when already running as an installed PWA, or once dismissed
+ * (remembered in localStorage).
  */
 export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null,
   );
-  const [platform, setPlatform] = useState<"android" | "ios" | null>(null);
+  const [platform, setPlatform] = useState<Platform | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -53,12 +66,23 @@ export function InstallPrompt() {
     };
     window.addEventListener("appinstalled", onInstalled);
 
-    // iOS Safari has no beforeinstallprompt event. Detect it and show the manual
-    // steps — deferred to after paint so we don't setState synchronously in the
-    // effect (and so the server/first-client render match: both start as null).
+    // iOS has no beforeinstallprompt. Detect it (incl. iPadOS, which reports as
+    // a desktop Mac but has touch) and split Safari from other iOS browsers —
+    // only Safari can Add to Home Screen. Deferred to after paint so the
+    // server/first-client render match (both start as null).
+    const ua = window.navigator.userAgent;
+    const isIos =
+      /iphone|ipad|ipod/i.test(ua) ||
+      (window.navigator.platform === "MacIntel" &&
+        window.navigator.maxTouchPoints > 1);
     let raf = 0;
-    if (/iphone|ipad|ipod/i.test(window.navigator.userAgent)) {
-      raf = window.requestAnimationFrame(() => setPlatform("ios"));
+    if (isIos) {
+      // Chrome (CriOS), Firefox (FxiOS), Edge (EdgiOS), Opera (OPiOS) etc. embed
+      // their token in the UA; plain Safari does not. Anything else -> Safari.
+      const isOtherBrowser = /crios|fxios|edgios|opios|mercury/i.test(ua);
+      raf = window.requestAnimationFrame(() =>
+        setPlatform(isOtherBrowser ? "ios-other" : "ios-safari"),
+      );
     }
 
     return () => {
@@ -96,12 +120,13 @@ export function InstallPrompt() {
 
       <p className="font-display text-lg text-foreground">Install Trackd</p>
 
-      {platform === "android" ? (
+      {platform === "android" && (
         <>
           <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
             Add Trackd to your home screen for a full-screen, app-like
             experience.
           </p>
+          {/* The platform minimum: one tap opens the native install dialog. */}
           <Button
             type="button"
             onClick={install}
@@ -111,12 +136,46 @@ export function InstallPrompt() {
             Add to home screen
           </Button>
         </>
-      ) : (
+      )}
+
+      {platform === "ios-safari" && (
+        <>
+          <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+            Two quick taps and Trackd lives on your home screen.
+          </p>
+          {/* No button — iOS gives a website no way to open the Add to Home
+              Screen sheet, so we just make Apple's two taps unmistakable. */}
+          <ol className="mt-4 space-y-3">
+            <li className="flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+                <Share className="size-5" aria-hidden="true" />
+              </span>
+              <span className="text-sm leading-snug text-text-muted">
+                Tap the <span className="text-foreground">Share</span> button in
+                the toolbar below
+              </span>
+            </li>
+            <li className="flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+                <Plus className="size-5" aria-hidden="true" />
+              </span>
+              <span className="text-sm leading-snug text-text-muted">
+                Choose{" "}
+                <span className="text-foreground">Add to Home Screen</span>
+              </span>
+            </li>
+          </ol>
+          <div className="mt-3 flex justify-center" aria-hidden="true">
+            <ChevronDown className="size-5 animate-bounce text-text-subtle" />
+          </div>
+        </>
+      )}
+
+      {platform === "ios-other" && (
         <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-          Add Trackd to your home screen: tap the Share button{" "}
-          <Share className="inline size-4 -translate-y-0.5" aria-hidden="true" />{" "}
-          in Safari, then choose{" "}
-          <span className="text-foreground">Add to Home Screen</span>.
+          Open <span className="text-foreground">trackdco.app</span> in{" "}
+          <span className="text-foreground">Safari</span> to add Trackd to your
+          home screen — other browsers can&apos;t install it.
         </p>
       )}
     </div>
