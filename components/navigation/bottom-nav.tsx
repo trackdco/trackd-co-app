@@ -66,19 +66,23 @@ export function BottomNav({ userId }: { userId: string }) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
-  // px to nudge the bar DOWN onto the visible bottom (cold-launch float fix); see effect.
-  const [bottomPin, setBottomPin] = useState(0)
+  // Installed iOS PWAs can report innerHeight short of the real screen on cold
+  // launch, leaving an uncovered strip below the nav; `deficit` px fills it.
+  const [deficit, setDeficit] = useState(0)
+  // True only inside an installed iOS home-screen app (navigator.standalone).
+  // The fill below is gated on this so it can never affect Safari or Android.
+  const [iosStandalone, setIosStandalone] = useState(false)
 
-  // Two visual-viewport jobs share one listener:
+  // One visual-viewport listener, two jobs:
   //  1) Hide the bar while the on-screen keyboard is open — the visual viewport
   //     shrinks well below the layout viewport. Gate on a focused editable too so
   //     a non-keyboard shrink (pinch-zoom, split-screen) can't slide it off.
-  //  2) Pin the bar to the *visible* bottom. On a cold PWA/Safari launch iOS can
-  //     under-report the viewport height, so a `fixed bottom-0` nav floats above
-  //     the home indicator until the first swipe forces a relayout (the black-bar
-  //     bug). We push it back down by the gap — CLAMPED to >= 0 so it can only
-  //     move DOWN to reach the bottom, never up over content. Worst case it's a
-  //     no-op, so it can't regress the normal settled state.
+  //  2) Measure the cold-launch viewport deficit. On a standalone iOS launch the
+  //     web view reports innerHeight short of the real screen (measured: 812 vs
+  //     874), so the `fixed bottom-0` nav floats ~62px above the home indicator
+  //     until the first swipe forces a relayout — the black strip. screen.height
+  //     knows the true size; the JSX fills that gap with a nav-coloured strip.
+  //     Clamped 0..240 so a transient/keyboard reading can't run away.
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
@@ -92,9 +96,13 @@ export function BottomNav({ userId }: { userId: string }) {
       )
     }
     const update = () => {
+      setIosStandalone(
+        (window.navigator as unknown as { standalone?: boolean }).standalone === true,
+      )
       setKeyboardOpen(vv.height < window.innerHeight - 120 && editableFocused())
-      const gap = vv.height + vv.offsetTop - window.innerHeight
-      setBottomPin(Math.max(0, Math.round(gap)))
+      setDeficit(
+        Math.max(0, Math.min(240, Math.round(window.screen.height - window.innerHeight))),
+      )
     }
     update()
     // Re-measure as iOS finalises launch geometry (it otherwise only settles on
@@ -127,9 +135,8 @@ export function BottomNav({ userId }: { userId: string }) {
         style={{
           // Sit above the iPhone home indicator / Android gesture bar.
           paddingBottom: "env(safe-area-inset-bottom)",
-          // Hide while the keyboard is open; otherwise pin to the visible bottom
-          // (both via the single transform — see the visual-viewport effect).
-          transform: keyboardOpen ? "translateY(100%)" : `translateY(${bottomPin}px)`,
+          // Slide fully out of view while the keyboard is open.
+          transform: keyboardOpen ? "translateY(100%)" : undefined,
         }}
       >
         <div className="mx-auto grid h-16 max-w-md grid-cols-5 items-center px-2">
@@ -156,6 +163,21 @@ export function BottomNav({ userId }: { userId: string }) {
           ))}
         </div>
       </nav>
+
+      {/* Cold-launch black-strip cover — installed iOS PWA only. When the web
+          view reports a short viewport, this fills the uncovered strip below the
+          nav with the nav colour so the bottom reads as one surface. It sits just
+          below the layout-viewport bottom (translateY(100%)); if the web view
+          can't render there it's simply invisible (a no-op, never a regression).
+          Collapses to nothing once the viewport settles (deficit -> 0), and is
+          hidden with the nav while the keyboard is open. */}
+      {iosStandalone && !keyboardOpen && deficit > 0 ? (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-30 bg-bg-surface"
+          style={{ height: deficit, transform: "translateY(100%)" }}
+        />
+      ) : null}
 
       <ShortcutsMenu open={menuOpen} onOpenChange={setMenuOpen} userId={userId} />
     </>

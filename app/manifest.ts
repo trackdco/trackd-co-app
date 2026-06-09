@@ -23,12 +23,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    // background_color is --bg-base (matches the launch-splash PNG canvas).
     background_color: "#111110",
-    // theme_color is --bg-surface (the nav colour): iOS paints the uncovered
-    // bottom strip on a standalone launch from the theme-color, so matching it to
-    // the nav makes that strip blend in rather than read as a black bar.
-    theme_color: "#1c1c1a",
+    theme_color: "#111110",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "any" },

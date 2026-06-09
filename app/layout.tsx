@@ -39,13 +39,10 @@ export const metadata: Metadata = {
   },
 };
 
-// Native-app wiring: theme-color + safe-area insets (viewport-fit=cover).
-// theme-color is --bg-surface (the nav colour), NOT --bg-base: on a standalone
-// iOS launch the web view comes up ~62px shorter than the screen and iOS paints
-// the uncovered bottom strip from the theme-color. Matching it to the nav makes
-// that strip blend into the nav instead of reading as a black bar.
+// Native-app wiring: match the status bar to the near-black canvas and enable
+// the safe-area insets the entry screen relies on (viewport-fit=cover).
 export const viewport: Viewport = {
-  themeColor: "#1c1c1a",
+  themeColor: "#111110",
   colorScheme: "dark",
   viewportFit: "cover",
 };
