@@ -28,15 +28,10 @@ Change the bottom-nav plus button so that, instead of opening the add-to-cycle s
 
 **Visual intent:** take the *idea* from MacroFactor's Shortcuts sheet (a clean action menu in a bottom sheet) but **not** its minimalist look. Trackd's version should feel more substantial, sporty, and masculine — achieved through surface treatment, icon tiles, type weight, and generous spacing, all **within** the Obsidian tokens (never by overriding them).
 
-**Layout** — a single vertical stack of full-width action cards (not MacroFactor's two-tier circle-row + thin-list split). Seven cards, in this fixed order:
+**Layout** — two tiers. (This evolved from the original single-stack idea during the build, at Adrian's direction — drawing on MacroFactor's circle-row + list split, but kept entirely within Obsidian tokens.)
 
-1. Add a compound
-2. Today's dose
-3. Track your weight
-4. Reconstitution calculator
-5. Journal
-6. Track your blood work
-7. Calendar
+- **Top — fixed circle quick-actions** (not reorderable): Log (today's dose) · Calculator (reconstitution) · Journal · Calendar.
+- **Bottom — full-width reorderable cards** (order persists per-device; "Add a compound" defaults to the bottom): Weight · Blood work · Add a compound.
 
 **Card anatomy** — leading icon tile (rounded-square / "squircle", hairline border, subtle raised near-black fill) → title (Obsidian label/heading token, strong weight) → one-line subtitle (muted token) → trailing chevron. Each card is its own raised surface with a hairline border and comfortable padding. The larger touch targets and per-card surfaces are deliberately what makes this read less minimalist / more app-like than MacroFactor's thin rows.
 
@@ -58,7 +53,7 @@ Change the bottom-nav plus button so that, instead of opening the add-to-cycle s
 
 **Rough layout sketch** (structure only — not final styling):
 
-```
+```text
 ┌─────────────────────────────────────┐
 │            ▬▬  (drag handle)         │
 │  Shortcuts                       ✕   │

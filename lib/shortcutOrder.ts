@@ -22,8 +22,13 @@ export function loadShortcutOrder(userId: string): string[] | null {
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return null
-    const ids = parsed.filter((id): id is string => typeof id === "string")
-    return ids.length > 0 ? ids : null
+    // Drop non-strings/blanks and de-duplicate so a corrupt store can't surface
+    // duplicate ids (which would collide as React keys and break reorder).
+    const ids = parsed.filter(
+      (id): id is string => typeof id === "string" && id.length > 0
+    )
+    const uniqueIds = [...new Set(ids)]
+    return uniqueIds.length > 0 ? uniqueIds : null
   } catch {
     return null
   }

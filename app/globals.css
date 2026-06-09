@@ -188,6 +188,15 @@
   animation: shortcut-fade 240ms ease-out both;
 }
 
+/* Respect users who opt out of motion — no entrance/ripple/fade for them. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shortcut-in,
+  .animate-shortcut-ripple,
+  .animate-shortcut-fade {
+    animation: none;
+  }
+}
+
 @keyframes shortcut-fade {
   from {
     opacity: 0;

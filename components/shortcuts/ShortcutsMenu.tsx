@@ -493,7 +493,7 @@ function CircleShortcut({
     <button
       type="button"
       onClick={onPress}
-      className="group flex w-full flex-col items-center gap-2 outline-none"
+      className="group flex w-full flex-col items-center gap-2 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-accent-amber focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
     >
       <span className="flex h-16 w-16 items-center justify-center rounded-full border border-border-default bg-bg-surface-raised text-accent-amber transition-all duration-200 ease-out group-hover:border-accent-amber/40 group-hover:bg-bg-input group-active:scale-95">
         <Icon className="h-6 w-6" aria-hidden />

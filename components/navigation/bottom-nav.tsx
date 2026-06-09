@@ -119,6 +119,8 @@ export function BottomNav({ userId }: { userId: string }) {
               type="button"
               onClick={() => setMenuOpen(true)}
               aria-label="Shortcuts"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
               className="flex h-14 w-14 -translate-y-2 items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg transition-transform active:scale-95"
             >
               <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden />
