@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Share, X } from "lucide-react";
+import { Compass, Download, Plus, Share, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -15,19 +15,35 @@ type BeforeInstallPromptEvent = Event & {
 
 const DISMISS_KEY = "trackd:install-prompt-dismissed";
 
+type Platform =
+  | "android" // Chromium: real one-tap native install (beforeinstallprompt)
+  | "ios-safari" // iOS Safari: guide the manual Share -> Add to Home Screen
+  | "ios-open-in-safari"; // iOS in-app webview / non-Safari browser: install impossible here
+
 /**
  * "Add to Home Screen" prompt shown post sign-in on the dashboard.
  *
- * Android/Chrome fires `beforeinstallprompt`, which we defer and trigger from a
- * button. iOS Safari has no such event, so we detect it and show the manual
- * Share -> Add to Home Screen steps instead. Hidden when already running as an
- * installed PWA, or once the user dismisses it (remembered in localStorage).
+ * iOS gives a website NO way to trigger or shortcut the install (no
+ * `beforeinstallprompt`, and `navigator.share()` opens a sheet that does not
+ * contain "Add to Home Screen"). So we cannot cut taps on iOS — we can only
+ * raise the share of people who finish:
+ *  - Android/Chromium: one real one-tap install button.
+ *  - iOS Safari: clear, well-timed Share -> Add to Home Screen steps. iOS 26's
+ *    Compact Safari hides Share inside the "..." menu, so we say so rather than
+ *    point a (now often wrong) arrow at the toolbar.
+ *  - iOS inside an in-app browser (Instagram/TikTok/Facebook…) or a non-Safari
+ *    browser (Chrome/Firefox/Edge): "Add to Home Screen" doesn't exist there at
+ *    all, so we don't show steps that can't work — we tell them to open in
+ *    Safari first (rescues social-link traffic that would otherwise dead-end).
+ *
+ * Hidden when already running as an installed PWA, or once dismissed
+ * (remembered in localStorage).
  */
 export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null,
   );
-  const [platform, setPlatform] = useState<"android" | "ios" | null>(null);
+  const [platform, setPlatform] = useState<Platform | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -53,12 +69,32 @@ export function InstallPrompt() {
     };
     window.addEventListener("appinstalled", onInstalled);
 
-    // iOS Safari has no beforeinstallprompt event. Detect it and show the manual
-    // steps — deferred to after paint so we don't setState synchronously in the
-    // effect (and so the server/first-client render match: both start as null).
+    // iOS has no install API. Detect it (incl. iPadOS, which reports as a
+    // desktop Mac but has touch), then work out whether Add to Home Screen is
+    // even reachable: it ONLY works in real Safari. Deferred to after paint so
+    // the server/first-client render match (both start as null).
+    const ua = window.navigator.userAgent;
+    const isIos =
+      /iphone|ipad|ipod/i.test(ua) ||
+      (window.navigator.platform === "MacIntel" &&
+        window.navigator.maxTouchPoints > 1);
+
     let raf = 0;
-    if (/iphone|ipad|ipod/i.test(window.navigator.userAgent)) {
-      raf = window.requestAnimationFrame(() => setPlatform("ios"));
+    if (isIos) {
+      // Non-Safari iOS browsers carry their own UA token (CriOS=Chrome,
+      // FxiOS=Firefox, EdgiOS=Edge, OPiOS=Opera, GSA=Google app).
+      const isOtherBrowser = /crios|fxios|edgios|opios|gsa|mercury/i.test(ua);
+      // In-app webviews either name themselves or — being WKWebViews — omit
+      // the "Safari" token that real Safari always includes.
+      const isInAppWebview =
+        /instagram|fbav|fban|fbios|fb_iab|musical_ly|bytedance|tiktok|barcelona|linkedinapp|twitter|snapchat|pinterest|line\//i.test(
+          ua,
+        ) || !/safari/i.test(ua);
+      raf = window.requestAnimationFrame(() =>
+        setPlatform(
+          isOtherBrowser || isInAppWebview ? "ios-open-in-safari" : "ios-safari",
+        ),
+      );
     }
 
     return () => {
@@ -96,12 +132,13 @@ export function InstallPrompt() {
 
       <p className="font-display text-lg text-foreground">Install Trackd</p>
 
-      {platform === "android" ? (
+      {platform === "android" && (
         <>
           <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
             Add Trackd to your home screen for a full-screen, app-like
             experience.
           </p>
+          {/* The platform minimum: one tap opens the native install dialog. */}
           <Button
             type="button"
             onClick={install}
@@ -111,13 +148,62 @@ export function InstallPrompt() {
             Add to home screen
           </Button>
         </>
-      ) : (
-        <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-          Add Trackd to your home screen: tap the Share button{" "}
-          <Share className="inline size-4 -translate-y-0.5" aria-hidden="true" />{" "}
-          in Safari, then choose{" "}
-          <span className="text-foreground">Add to Home Screen</span>.
-        </p>
+      )}
+
+      {platform === "ios-safari" && (
+        <>
+          <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+            Add Trackd to your home screen for a full-screen, app-like
+            experience.
+          </p>
+          <ol className="mt-4 space-y-3">
+            <li className="flex items-start gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+                <Share className="size-5" aria-hidden="true" />
+              </span>
+              <span className="text-sm leading-snug text-text-muted">
+                Tap the{" "}
+                <span className="text-foreground">Share</span>{" "}
+                button — on newer iPhones it&apos;s inside the{" "}
+                <span className="text-foreground">•••</span>{" "}
+                menu
+              </span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+                <Plus className="size-5" aria-hidden="true" />
+              </span>
+              <span className="text-sm leading-snug text-text-muted">
+                Scroll down and choose{" "}
+                <span className="text-foreground">Add to Home Screen</span>{" "}
+                — tap{" "}
+                <span className="text-foreground">View More</span>{" "}
+                if you don&apos;t see it
+              </span>
+            </li>
+          </ol>
+        </>
+      )}
+
+      {platform === "ios-open-in-safari" && (
+        <>
+          <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+            You&apos;re viewing Trackd inside another app. To install it, open it
+            in Safari first.
+          </p>
+          <div className="mt-4 flex items-start gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+              <Compass className="size-5" aria-hidden="true" />
+            </span>
+            <span className="text-sm leading-snug text-text-muted">
+              Tap this app&apos;s{" "}
+              <span className="text-foreground">•••</span>{" "}
+              (or share) menu and choose{" "}
+              <span className="text-foreground">Open in Safari</span>{" "}
+              — then add Trackd to your home screen from there.
+            </span>
+          </div>
+        </>
       )}
     </div>
   );

@@ -23,7 +23,7 @@ export default async function WelcomePage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-8 text-center">
       <span className="font-display text-lg font-medium tracking-[-0.01em] text-foreground">
-        trackd<span className="text-text-muted"> co</span>
+        trackd<span className="text-accent-amber"> co</span>
       </span>
 
       <h1 className="mt-12 text-balance font-display text-[2rem] font-medium leading-[1.05] tracking-[-0.02em] text-foreground">

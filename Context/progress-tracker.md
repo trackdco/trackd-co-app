@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ## Current Phase
 
@@ -28,6 +28,127 @@ Last updated: 2026-06-08
 
 ## Completed
 
+- **Plus-button "Shortcuts" menu built (Adrian's lane, 2026-06-09, PR `feat/shortcuts-menu`).**
+  The bottom-nav centre plus now opens a styled **Shortcuts** bottom sheet instead of
+  going straight to Add-to-Stack. Built from the spec
+  (`Context/Feature Specs/03-shortcuts-control-creation.md`), then iterated with Adrian
+  into a **two-tier layout** (his direction, drawing on a MacroFactor reference but kept
+  entirely within `ui-context.md` tokens):
+  - **Top tier — fixed circle quick-actions:** Log (Today's dose, `ListChecks` icon) ·
+    Calculator (Reconstitution) · Journal · Calendar. Not reorderable.
+  - **Bottom tier — full-width cards:** Weight (`Scale`) · Blood work · **Add a compound**
+    (`Pill`). Add-a-compound defaults to the bottom but is reorderable like the others.
+  - Centred sans (Geist) title; amber icon-strokes in tiles + circles (the sanctioned
+    sparing amber use), warming on hover; the protected Add-to-Stack category dots are
+    untouched and intact.
+
+  **Only "Add a compound" is wired** — it presents the existing **Add-to-Stack flow
+  completely unchanged** (reached by navigation, not rebuilt — the spec's "navigate to
+  it" option, chosen so the protected flow stays untouched). Every other item opens one
+  shared, non-functional `PlaceholderActionSheet` (passed title + a visual-only field
+  that **saves nothing** + close; the **reconstitution calculator** also shows the
+  medical-disclaimer warning).
+
+  **Reorder (bottom cards only):** a small grey **pencil "Edit"** control top-right
+  enters edit mode (replaced the original long-press trigger at Adrian's request); cards
+  show a grip and drag up/down; **tap any shortcut, "Done", or dismiss commits** (tap-to-
+  finish). Pointer-based, **no new dependency** (reuses the existing drag idiom; deliberate
+  given the touch-PWA + flaky-npm note). Order persists per-device in `localStorage`
+  (`trackd.shortcutOrder.<uid>`, **card ids only** — the single carve-out to the
+  placeholders' no-persistence rule) and restores on open; the sheet's drag-to-dismiss is
+  disabled during edit so the gestures can't fight.
+
+  **Motion (professional, eased — no static cuts):** staggered fade-up **entrance** on
+  open; a soft amber **tap "light-up" ripple** from the touch point on cards; the edit-
+  mode hint **eases its height open/closed + fades** (which makes the cards + sheet rise/
+  settle smoothly); **Edit ⇄ Done cross-fade**; chevron ⇄ grip fade. Keyframes live as
+  plain classes in `app/globals.css` (`shortcut-in` / `shortcut-ripple` / `shortcut-fade`).
+
+  New files: `components/shortcuts/{shortcutItems.ts, ShortcutItem.tsx,
+  PlaceholderActionSheet.tsx, ShortcutsMenu.tsx}` + `lib/shortcutOrder.ts`;
+  `components/navigation/bottom-nav.tsx` now renders `ShortcutsMenu`; `app/globals.css`
+  gained the motion keyframes (shared-file change, Adrian-directed). No new
+  tokens/colours/fonts, no schema/DB change. `tsc` + `npm run lint` clean; reviewed live
+  via the dev-only `/preview` harness on localhost. Landed via the **PR flow** for
+  CodeRabbit review (not a direct push).
+- **Sydney region + honest PWA install + local toolchain (2026-06-09).** Moved the
+  Vercel functions to **`syd1`** (new root `vercel.json` `{"regions":["syd1"]}`) to
+  co-locate with the Sydney Supabase + the AU audience — warm app TTFB dropped from a
+  steady **~330–480ms → ~210ms** (diagnosed by measurement: Supabase was always ~40ms
+  = already Sydney; the lag was Vercel's `iad1`/US default). Resolves the "check
+  region" backlog item. Recoloured the wordmark **"co" to amber** across all 7 spots.
+  Rebuilt the **PWA install prompt** around what iOS actually allows — after two
+  adversarially-verified research workflows (~60 sources) confirmed iOS has **no**
+  programmatic Add-to-Home-Screen, `navigator.share()`'s sheet lacks the action
+  (confirmed on Angus's phone), `app.link`/Branch is native-app deep-linking (not a
+  PWA tool, not a push provider), and `.mobileconfig` profiles are worse + trust-toxic:
+  removed the misleading share button, added **in-app-webview / non-Safari detection →
+  "Open in Safari"** (rescues social-link traffic), iOS-26 "•••"-menu copy, and the
+  "View More" step. Installed **`gh` + Vercel CLI** user-level (`~/.local/bin`);
+  confirmed **`~/dev/trackd-co-app`** as the healthy off-iCloud canonical repo (all
+  today's pushes ran from it, zero mmap errors). Detail in Session Notes 2026-06-09.
+- **Add-to-Stack row controls + Radix import-bug fix (`feat/app-ui`, in the open PR
+  to `main`, 2026-06-08).** Each **custom** compound's row now shows three
+  right-aligned controls — a primary add-to-stack **+** (matches the catalogue rows;
+  visual until the cycle feature lands), a smaller **edit** (opens the unchanged edit
+  menu), and **delete** (same inline red confirm + per-user `localStorage` persistence
+  as the edit menu); custom rows in search results get them too. Before that, fixed a
+  **crash that took down the whole Add-to-Stack menu**: the earlier "code rabbit"
+  commit (`42e08fb`) swapped the unified `radix-ui` dependency for the individual
+  `@radix-ui/react-*` packages but left the `Dialog.Root` / `Slot.Root` namespace
+  usage intact, so those resolved to `undefined` and every
+  `sheet`/`dialog`/`tabs`/`scroll-area`/`button` threw "Element type is invalid" —
+  fixed by switching the four wrappers to `import * as X` and `Button` to use `Slot`
+  directly. `tsc` + `lint` + production build all clean. **Local dev unblocked:**
+  restored the git-ignored `.env.local` (`NEXT_PUBLIC_SUPABASE_URL` +
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) — without it every Supabase-backed route
+  500s locally (only `/preview`, which is outside the `(app)` auth shell, survives).
+  Landing via a **PR** (CodeRabbit review) per the new flow, not a direct push.
+- **Bottom nav + Add-to-Stack search (Adrian's lane, `feat/app-ui`, 2026-06-08).**
+  Built the persistent **bottom navigation** (Home · Protocol · white **Plus** ·
+  Progress · My Profile; route-driven amber/gray active state with a gray→amber
+  fade; keyboard-aware hide; safe-area insets) and **integrated it into the merged
+  auth shell** — rendered from `app/(app)/layout.tsx` with `userId` threaded in;
+  Protocol/Progress/Profile placeholder pages added under `app/(app)/`; the Home tab
+  points at Angus's real `/dashboard`. (Originally built under a parallel
+  `app/(main)/` group on a pre-auth base; **reconciled onto current `main`** —
+  dropped the duplicate `(main)` shell + placeholder dashboard to resolve the
+  `/dashboard` collision with the auth lane.) The centre plus slides up the
+  **Add to Stack** sheet (near-full-height card, drag-to-dismiss handle, Cancel +
+  centred sans title). **Search is now wired to real data:** it filters the bundled
+  **149-compound catalogue by name *and* aliases** (e.g. "deca"→Nandrolone
+  Decanoate, "aromasin"→Exemestane, "npp"→Nandrolone Phenylpropionate); empty query
+  shows a curated "Popular in comp prep" list + the user's saved compounds; no match
+  shows "'[query]' not found". A **"Make your own"** option sits at the bottom of the
+  list always → a form that saves a custom compound to **`localStorage` keyed per
+  user** (`trackd.customCompounds.<uid>`), persisting on that device for that user.
+  Custom compounds are **editable + deletable** (tap your compound → edit; delete is
+  behind a confirm warning); **duplicate names are blocked** (vs catalogue + your
+  own), name is capped at 80 chars, and a failed localStorage write surfaces a
+  non-fatal notice. Form pickers are **on-brand dark "pill" selectors** (not native
+  `<select>`, which can't be forced dark on mobile). The per-row "+" is visual for
+  now (real "add to stack" needs the cycle feature).
+- **Round-2 hardening of the Add-to-Stack sheet (2026-06-08, post-audit).** A
+  6-dimension multi-agent audit (36 raw → 28 verified findings) drove: **8 distinct
+  category dot hues** (`--cat-*` tokens in `globals.css`, documented in
+  `ui-context.md`); **search icon = magnifier** (was a grid glyph); **generator now
+  validates** category/unit/route/inventory and a **`prebuild` npm hook** regenerates
+  `lib/compounds-catalogue.ts` on every build (CSV can't ship stale); `crypto.randomUUID`
+  **fallback** (it throws over a plain-http LAN IP — i.e. on-phone QA — so "Make your
+  own" would have broken); a **render guard** so a corrupt/unknown category can't crash
+  the sheet; keyboard-hide now **gated on a focused editable element** (pinch-zoom can't
+  hide the nav); **focus moves into the form** on open; bigger (~44px) drag target.
+  `npm run build` + `npm run lint` clean; a dev-only **`/preview`** route (404s in prod)
+  renders the nav + sheet without auth for review. **Not pushed/deployed.** NB: local
+  run of the *real* signed-in app needs a `.env.local` (see below) — without it every
+  Supabase-backed page 500s; `/preview` works without it.
+- **Compounds catalogue bundled into the app (2026-06-08).** `lib/compounds-catalogue.ts`
+  (generated, 149 compounds) is produced from `supabase/seed/compounds.csv` by
+  `supabase/seed/build-compounds-data.mjs` — the CSV stays the single source of truth
+  (same file that seeds the DB). Taxonomy/labels/option-lists live in the
+  hand-authored `lib/compound-categories.ts`. The app reads this static module so the
+  Add-to-Stack search works offline (PWA) with no auth/network dependency; swap to a
+  live Supabase read later if the catalogue needs to update without a redeploy.
 - Next.js 16 (App Router) + React 19 + Tailwind v4 starter scaffolded.
 - Canonical schema authored: `supabase/trackd_schema_v0_4_2.sql` (16 tables,
   2 views) + `supabase/trackd_storage_policies.sql`.
@@ -198,11 +319,18 @@ Last updated: 2026-06-08
 
 ## In Progress
 
-- **Auth — last two ticks before fully closing the checkpoint:** (1) confirm
-  **Add-to-Home-Screen / PWA install** on a founder's phone (sign-in itself is
-  confirmed); (2) **publish the Google OAuth app** (Audience → Publish App) before
-  opening to beta testers — currently in "Testing", so only listed Test users can
-  sign in.
+- **App UI — two parallel lanes (PR-based, CodeRabbit-reviewed).** Adrian → the
+  **core loop** (cycles → compounds → inventory → dose logging) on `feat/app-ui`.
+  Angus + Claude → **Profile & Settings** (`/settings`) on `feat/settings` — v1
+  built (read-only account block + editable sex/height/goal/units, server-validated
+  + RLS-scoped to the user's own row), **PR #2 open — CodeRabbit review came back
+  clean (no actionable comments); ready to merge** (build + lint + guard verified).
+  NB the nav link to `/settings` is a deferred shared-layout (`app/(app)/layout.tsx`)
+  change to coordinate with Adrian.
+- **Auth — effectively done; one tester-gating task left:** **publish the Google
+  OAuth app** (Audience → Publish App) before any non-Test-user can sign in. Sign-in,
+  the 18+/ToS gate, RLS isolation, and the branded PWA launch splash are all live +
+  verified on both founders' phones.
 
 ## Tooling
 
@@ -246,6 +374,21 @@ Last updated: 2026-06-08
 
 ## Architecture Decisions
 
+- **Vercel functions pinned to Sydney `syd1` (2026-06-09).** Root `vercel.json`
+  `{"regions":["syd1"]}` sets the default function region; they were defaulting to
+  `iad1` (US East) while Supabase + users are AU, so every SSR page paid a US
+  round-trip plus US↔Sydney hops per auth/data call. Single region = Hobby-OK.
+  Note: `preferredRegion` in code is NOT the lever (it only applies with
+  `runtime='edge'`; the app is Node for `@supabase/ssr`). Revisit multi-region on Pro.
+- **iOS PWA install is manual-only — no shortcut exists (2026-06-09).** Settled by
+  two adversarially-verified research workflows: iOS has no programmatic
+  Add-to-Home-Screen, `navigator.share()`'s sheet doesn't contain the action,
+  `app.link`/Branch is native-app deep-linking (irrelevant to a PWA, and NOT a push
+  provider), and `.mobileconfig` web-clip profiles are more friction + trust-toxic.
+  So the install prompt's job is completion/clarity, never automation. **Push
+  notifications (when built) = standard Web Push** (VAPID + service worker via
+  `web-push`, or OneSignal/FCM); **iOS push needs the PWA installed to the home screen
+  first**. Full reference in memory `pwa-install-and-push-reality`.
 - **PostgREST role grants are explicit, RLS stays the only row gate (2026-06-08).**
   The Data API needs a table-level `GRANT` to `anon`/`authenticated` before RLS
   even runs; this project's Supabase defaults don't auto-grant, so grants are
@@ -339,6 +482,67 @@ Last updated: 2026-06-08
 
 ## Session Notes
 
+- 2026-06-09: **Plus-button Shortcuts menu built + iterated with Adrian** (spec
+  `Context/Feature Specs/03-shortcuts-control-creation.md`, followed step-by-step, then
+  refined live on `/preview`). A prior session had done Step 1 (`shortcutItems.ts`) +
+  Step 2 (`ShortcutItem.tsx`) before crashing; resumed and built the rest
+  (`PlaceholderActionSheet`, `ShortcutsMenu`, plus-button wiring, the reorder addition +
+  `lib/shortcutOrder.ts`). Then iterated with Adrian over several rounds: **two-tier
+  layout** (top circle quick-actions + bottom reorderable cards) from a MacroFactor
+  reference; renamed items (Today's dose → "Log", Weight, Blood work) and re-iconed
+  (`ListChecks`, `Scale`); sans (not serif) centred title; restrained **amber** accents;
+  reorder trigger changed **long-press → a grey pencil "Edit" button** (more discoverable)
+  with **tap-any-shortcut-to-finish**; Add-a-compound made reorderable (defaults bottom);
+  and a full **motion pass** (staggered entrance, tap light-up ripple, eased edit-mode
+  height/fade, Edit⇄Done cross-fade). Two deliberate judgement calls held throughout:
+  (a) reach the **unchanged** Add-to-Stack flow by navigation, never refactoring it
+  (protected); (b) **no new animation/drag dependency** — pointer drag + plain-CSS
+  keyframes, given the touch-PWA + flaky-npm. Verified the Add-to-Stack **category dots
+  are intact** (Adrian flagged them as possibly removed — they were never touched).
+  `tsc` + `lint` clean throughout; **NB: don't run `npm run build` while `next dev` is up
+  — they share `.next` and a concurrent build 500s with "Cannot find module page.js"**
+  (the dev server stays healthy; just build with dev stopped). Landed via PR
+  `feat/shortcuts-menu` for CodeRabbit review.
+- 2026-06-09: **Perf (Sydney region), branding, toolchain, PWA-install honesty.**
+  (1) **Amber wordmark** — "co" recoloured from muted grey to `--accent-amber` across
+  all 7 wordmark spots (app shell, login, welcome, first-run, preview, legal, landing).
+  (2) **Big perf win — Vercel functions moved `iad1`→`syd1`** via root `vercel.json`.
+  Angus reported the app felt slow (sign-out, reload); measured it: warm app TTFB was a
+  steady ~330–480ms from AU, but Supabase was ~40ms (already Sydney) — so the lag was
+  Vercel running in US East. Pinned `syd1`; re-measured ~210ms warm + confirmed
+  `x-vercel-id: sin1::syd1`. (3) **Toolchain** — installed `gh` 2.93 + Vercel CLI 54.10
+  user-level (no Homebrew/sudo: npm global prefix → `~/.local`, PATH in `~/.zshrc`);
+  **`~/dev/trackd-co-app` confirmed as the healthy canonical repo** (all pushes ran from
+  it, no mmap errors). CLI auth still pending (Angus: `gh auth login` / `vercel login`).
+  (4) **PWA install — researched then made honest.** Angus wanted a one-tap "Add to Home
+  Screen" / asked about `app.link` (from a video). Two multi-agent research workflows
+  (~60 sources, 3 fact-checkers each) confirmed: iOS gives a website **no** way to
+  trigger/shortcut Add-to-Home-Screen; `navigator.share()` opens a sheet that lacks the
+  action (verified on his phone — actions were Copy/Reading List/Amazon…);
+  **`app.link` = Branch deep-linking for NATIVE apps**, not PWAs, and **not** a push
+  provider; `.mobileconfig` profiles are worse + trust-toxic. Rebuilt the card to
+  maximise completion: dropped the misleading share button; **detect in-app webviews
+  (Instagram/TikTok/Facebook) + non-Safari iOS browsers → "Open in Safari"**; iOS-26
+  "•••"-menu wording; added the "View More" step (per his screenshots). Android keeps
+  real one-tap. All shipped + live. (5) **Push path banked** for later (memory
+  `pwa-install-and-push-reality`): Web Push (VAPID + SW via `web-push`, or OneSignal);
+  iOS push requires home-screen install first. Everything pushed direct to `main` (gh
+  not yet authed for the PR flow); region/install changes are low-risk + user-requested.
+- 2026-06-08 (cont.): **RLS verified, PWA splash, repo move, PR flow, parallel
+  lanes started.** Sign-in confirmed on both founders' phones; **two-account RLS
+  isolation VERIFIED** (each user sees only their own profiles/cycles rows;
+  cross-user INSERT blocked by `WITH CHECK`; all test data rolled back) — success
+  criterion #3 met. Shipped a branded **PWA launch splash**: 8 iOS
+  apple-touch-startup-image PNGs (Trackd mark on #111110) + the legacy
+  `apple-mobile-web-app-capable` meta Next 16 omits (the actual fix — iOS was
+  ignoring the launch images without it), `start_url=/dashboard`, and an Android
+  maskable icon — confirmed working on iOS. **Moved the repo out of iCloud** to
+  `~/dev/trackd-co-app` (the `mmap`/stale-NFS git errors are gone; old `~/Documents`
+  copy to be deleted). **Adopted a PR-based flow** so CodeRabbit reviews code before
+  `main` (it only reviews PRs; the auth+splash work had bypassed it — PR #1's old
+  findings were already addressed). Started the **parallel app-UI lanes**: Adrian on
+  the core loop (`feat/app-ui`), Angus + Claude on **Profile & Settings**
+  (`feat/settings`, **PR #2** — first PR in the new flow, in CodeRabbit review).
 - 2026-06-08: **Auth deployed live + DOB picker improved.** Angus completed the
   Google OAuth dashboard setup; tested the full flow locally with a real account
   and it worked end-to-end (sign-in → `handle_new_user` trigger → gate → dashboard,

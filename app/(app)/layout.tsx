@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { BottomNav } from "@/components/navigation/bottom-nav";
 import { getSessionContext } from "@/lib/auth";
 import { signOut } from "./actions";
 
@@ -30,7 +31,7 @@ export default async function AppLayout({
         }}
       >
         <span className="font-display text-lg font-medium tracking-[-0.01em] text-foreground">
-          trackd<span className="text-text-muted"> co</span>
+          trackd<span className="text-accent-amber"> co</span>
         </span>
         <form action={signOut}>
           <button
@@ -42,7 +43,12 @@ export default async function AppLayout({
         </form>
       </header>
 
-      <main className="flex-1">{children}</main>
+      {/* Bottom padding clears the fixed nav (height + safe-area inset). */}
+      <main className="flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))]">
+        {children}
+      </main>
+
+      <BottomNav userId={user.id} />
     </div>
   );
 }

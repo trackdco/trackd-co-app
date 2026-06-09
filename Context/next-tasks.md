@@ -9,20 +9,38 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ---
 
 ## 🎯 Current focus
 
-Backend, deploy, domain **and the public landing are all live** on
-**https://trackdco.app**. Now **two parallel lanes**:
-- **Angus + Claude — auth + app shell:** ✅ **live on trackdco.app** (Google
-  sign-in → 18+/ToS gate → dashboard + logged-in shell). Finishing the checkpoint:
-  on-phone test, two-account RLS check, publish the Google app. Angus also owns
-  **beta outreach**.
-- **Adrian — app UI:** after the legal copy, design then build the real feature
-  screens (the landing's feature cards are placeholders waiting on these).
+**Latest — 2026-06-09 (Angus + Claude, shipped to `main`/prod):** (1) **App is much
+faster** — moved Vercel functions to **Sydney `syd1`** (warm TTFB ~330–480ms → ~210ms);
+this **closes the "check region" backlog item**. (2) **Amber wordmark** ("co" in
+`--accent-amber`). (3) **PWA install prompt rebuilt honestly** — iOS has no way to
+shortcut Add-to-Home-Screen (researched + verified; `app.link`/Branch is for native
+apps, not PWAs), so the card now detects in-app webviews → "Open in Safari", uses iOS-26
+"•••"-menu wording, and adds the "View More" step. (4) **Local toolchain** — `gh` +
+Vercel CLI installed; `~/dev/trackd-co-app` confirmed as the canonical repo.
+**▶ Next for this lane:** land the open **`/settings` PR #2** (it's behind `main` now),
+then **build the Profile tab** — see the Build track below.
+
+Auth + the logged-in shell are **✅ live on https://trackdco.app** (Google sign-in
+→ 18+/ToS gate → dashboard, branded PWA splash, RLS verified with two accounts —
+Week-1 checkpoint met). Now **two parallel app-UI lanes**, both via the PR flow
+(branch → PR → CodeRabbit → merge):
+- **Adrian — app UI** (`feat/app-ui`): **bottom nav + Add-to-Stack — catalogue
+  search + "Make your own" custom compounds, each row with add / edit / delete
+  controls — is in the open PR to `main`.** Next after it merges: the core loop
+  (cycles → compounds → inventory → dose logging → reflow), the week-2 spine.
+- **Angus + Claude — Profile & Settings** (`feat/settings`): `/settings` v1 built,
+  **PR #2 in CodeRabbit review**. Self-contained (own folders, own profile row).
+  Angus also owns **beta outreach** + the business setup (Airwallex → Pro + custom
+  domain). One follow-up: nav link to `/settings` in the shared `(app)/layout.tsx`
+  — coordinate with Adrian.
+- **Still open (Angus, quick):** publish the Google OAuth app (Audience → Publish)
+  before non-Test-user testers.
 
 ---
 
@@ -157,14 +175,30 @@ The flow is live; these three close the 11 Jun checkpoint:
    the app to beta testers.
    - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones.
 
-### Housekeeping — fix the flaky local repo (recommended)
+### ✅ DONE — Healthy canonical repo off iCloud (2026-06-09)
 
-The local working copy at `~/Documents/GitHub/trackd-co-app` throws git
-`mmap`/stale-NFS errors on heavy ops (iCloud-synced Documents); the auth merge had
-to be done in a `/tmp` clone and pushed from there. Permanent fix: move the repo
-out of `~/Documents` (e.g. `~/dev/trackd-co-app`) and resync to `main`. Until then
-the local copy is behind GitHub — `git checkout main && git pull` once the FS
-cooperates. (Claude can do the move + resync on request.)
+**`~/dev/trackd-co-app` is the canonical working copy** (off iCloud, on APFS) — git is
+clean there (fsck/status/deep-log all pass, zero mmap errors; every 2026-06-09 push ran
+from it). The old `~/Documents/GitHub/trackd-co-app` is the iCloud copy that throws
+`mmap` errors and is now stale. **Action for Angus: open the IDE on `~/dev/trackd-co-app`
+and delete the Documents copy** once confirmed. Also installed `gh` + Vercel CLI
+user-level (`~/.local/bin`) — **run `gh auth login` + `vercel login`** to unlock the
+proper branch→PR→CodeRabbit flow (today's perf/install fixes went direct to `main` only
+because `gh` wasn't authed yet).
+
+### ▶ NEXT (Angus + Claude) — Profile & Settings: land PR #2, then build the Profile tab
+
+`/settings` (Profile & Settings v1 — read-only account block + editable
+sex/height/goal/units, RLS-scoped) is **built but still in open PR #2 on `feat/settings`,
+now behind `main`.** `/profile` (the bottom-nav Profile tab) is still a 12-line
+placeholder. Optimal order:
+1. **Land PR #2 first** — merge latest `main` into `feat/settings` (or rebase), let
+   CodeRabbit re-review, then merge so `/settings` reaches `main` instead of drifting
+   further. (Needs `gh` authed, or merge via GitHub web.)
+2. **Build the Profile tab** (`app/(app)/profile/page.tsx`) — surface account info
+   (name/email/plan/member-since), link to `/settings`, sign-out; self-contained, reads
+   only the user's own `profiles` row. Coordinate the one shared change (nav link to
+   `/settings` in `(app)/layout.tsx`) with Adrian.
 
 ### Also (Angus) — beta outreach (alongside the build)
 
@@ -185,6 +219,84 @@ bundled MCP/CLI will need Vercel auth when we first use the deploy commands
 ---
 
 ## 🎨 Adrian's lane — legal, then app UI (design → build)
+
+### ✅ DONE — Plus-button "Shortcuts" menu (2026-06-09, PR `feat/shortcuts-menu` → CodeRabbit)
+
+The centre plus opens a styled **Shortcuts** bottom sheet (per
+`Context/Feature Specs/03-shortcuts-control-creation.md`), iterated with Adrian into a
+**two-tier** layout (MacroFactor-inspired, kept within `ui-context.md`):
+- **Top — fixed circle quick-actions:** Log (Today's dose) · Calculator · Journal · Calendar.
+- **Bottom — reorderable cards:** Weight · Blood work · **Add a compound** (defaults bottom).
+
+**Only "Add a compound" is wired** → the existing Add-to-Stack flow, **completely
+unchanged** (reached by navigation). Everything else → one shared, non-functional
+`PlaceholderActionSheet` (visual-only field, saves nothing; the reconstitution one carries
+the medical-disclaimer warning). **Reorder (bottom cards):** grey pencil **"Edit"** button
+top-right → edit mode; drag to rearrange; **tap any shortcut / "Done" / dismiss commits**;
+order persists per-device in `localStorage` (`trackd.shortcutOrder.<uid>`, card ids only).
+Pointer-drag + plain-CSS keyframes — **no new dependency**. Full eased **motion**
+(staggered entrance, tap "light-up" ripple, eased edit-mode height/fade, Edit⇄Done
+cross-fade). New files under `components/shortcuts/` + `lib/shortcutOrder.ts`;
+`bottom-nav.tsx` → `ShortcutsMenu`; motion keyframes added to `app/globals.css`. `tsc` +
+`lint` clean; reviewed live on `/preview`.
+
+**Gotcha banked:** don't run `npm run build` while `next dev` is running — they share
+`.next` and the build 500s ("Cannot find module page.js"). Build with the dev server
+stopped.
+
+**Next:** address any CodeRabbit findings on the PR, manual on-device QA of the drag +
+ripple, then merge.
+
+### ✅ DONE — Bottom nav + Add-to-Stack (2026-06-08, `feat/app-ui` → open PR to `main`)
+
+Persistent **bottom navigation** built and **integrated into the merged auth shell**
+(rendered from `app/(app)/layout.tsx`; Protocol/Progress/Profile placeholders added
+under `app/(app)/`; Home → Angus's `/dashboard`). The branch was **reconciled onto
+current `main`** — the earlier parallel `app/(main)/` shell (built pre-auth) was
+dropped to resolve the `/dashboard` collision. The centre plus slides up the
+**Add to Stack** sheet (near-full-height, drag-to-dismiss). **Search wired to real
+data:** filters the bundled 149-compound catalogue by **name + aliases**; empty →
+"Popular in comp prep" + the user's saved compounds; no match → "'[query]' not
+found". A **"Make your own"** form (name/category/unit/route/inventory type) saves
+custom compounds to **per-user `localStorage`** (persists on-device). Customs are
+**editable + deletable** (delete behind a confirm), **duplicates blocked**, name
+capped at 80. Form pickers are **dark pill selectors**; **8 distinct category dot
+hues** (`--cat-*` tokens). Catalogue is bundled from `compounds.csv` via
+`build-compounds-data.mjs` → `lib/compounds-catalogue.ts` (validated + auto-regen via
+a **`prebuild`** hook; taxonomy in `lib/compound-categories.ts`). A post-build audit
+(28 verified findings) was applied (crypto-id fallback for on-phone http, render
+guard for bad categories, keyboard-hide focus gate, focus-into-form, magnifier icon,
+bigger drag target). Dev-only **`/preview`** route (404s in prod) shows it all without
+auth. `npm run build` + `npm run lint` clean. Full record in `progress-tracker.md`.
+
+**Round-3 (in this PR):** each **custom** compound's row now carries three
+right-aligned controls — a primary add-to-stack **+** (matches the catalogue rows;
+visual until the cycle feature lands), a smaller **edit** (opens the unchanged edit
+menu), and **delete** (same inline red confirm + persistence as the edit menu). Also
+fixed a **Radix import regression** the earlier CodeRabbit commit introduced: it had
+swapped the unified `radix-ui` package for the individual `@radix-ui/react-*` packages
+but left the `Dialog.Root` / `Slot.Root` namespace usage, so `sheet` / `dialog` /
+`tabs` / `scroll-area` / `button` all crashed with "Element type is invalid" — fixed
+by switching the four wrappers to `import * as` and Button to use `Slot` directly.
+tsc + lint + build clean.
+
+### ▶ NEXT (Adrian) — after this PR merges, build the core loop
+
+The bottom-nav + Add-to-Stack PR is open (CodeRabbit reviewing). Once it merges to
+`main` (= a Vercel **prod** deploy), build the **core loop** — the week-2 spine:
+1. **Cycles** — the create / active-cycle model + UI (archive-not-delete invariant).
+2. **Add compound → stack** — wire the now-visual **+** (on both catalogue and custom
+   rows) to actually add a compound to the active cycle. This is the first real use of
+   the **+**; until cycles exist it is intentionally inert on every row.
+3. **Inventory → dose logging → the daily-use loop** (order in `ai-workflow-rules.md`).
+
+Testing notes (banked this session): the dev-only `/preview` route is the no-auth
+harness for building these screens (keep it — 404s in prod). The *real* signed-in app
+needs `.env.local` locally (`NEXT_PUBLIC_SUPABASE_URL` +
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`). To test the full app **on a phone**, use the
+PR's Vercel **preview** URL and add it to **Supabase → Auth → URL Configuration →
+Redirect URLs** (+ make sure the `NEXT_PUBLIC_*` vars are enabled for the **Preview**
+env in Vercel) — a LAN-IP localhost won't pass Google's redirect allowlist.
 
 ### ✅ DONE — Seed catalogues compiled + loaded (2026-06-06)
 
@@ -238,12 +350,23 @@ Do this **on launch day**, before/with going live (rule in `architecture.md`):
 - **Week 2+ build:** add-compound + inventory → dose logging → the daily-use loop
   (core-loop order in `ai-workflow-rules.md`) — Adrian's `feat/app-ui` lane once
   the shell's up.
-- **Pre-public-beta — brand the OAuth domain + check region (after Airwallex/Pro).**
+- **Pre-public-beta — brand the OAuth domain (after Airwallex/Pro).**
   The Google sign-in screen shows the raw `…supabase.co` host — fix with a Supabase
   **Custom Domain** (e.g. `auth.trackdco.app`) so it reads as Trackd. Needs Supabase
   **Pro ($25/mo) + Custom Domain add-on ($10/mo)**. Angus does the subscription after
   setting up the Airwallex business account, then Claude drives the domain setup
-  (CNAME + TXT verify, add the new callback to Google, activate via CLI). Same pass:
-  **check the project region** (Settings → Infrastructure) and relocate if it's far
-  from the AU audience (do it while user data is minimal). Details in memory
-  `launch-custom-domain-and-region`.
+  (CNAME + TXT verify, add the new callback to Google, activate via CLI). Details in
+  memory `launch-custom-domain-and-region`.
+  - ✅ **Region check done (2026-06-09):** Supabase is already Sydney; Vercel moved
+    `iad1`→`syd1` — co-located + fast. No relocation needed.
+- **Push notifications (when there's something worth notifying about).** Standard
+  **Web Push** for the PWA: service worker + manifest + **VAPID** keys, sent server-side
+  via the `web-push` npm lib (or OneSignal/FCM to skip boilerplate). The opt-in must be
+  a real user tap. **iOS caveat:** Web Push only works once the user has **added Trackd
+  to their home screen** (iOS 16.4+); Android/desktop work from the browser. Branch/
+  `app.link` is NOT a push provider — ignore it. Reference: memory
+  `pwa-install-and-push-reality`.
+- **Android "richer install" card (low effort, later).** Add `screenshots` (+ keep
+  `description`) to `app/manifest.ts` so Android's install dialog becomes an app-store-
+  style card (conversion lift). Deferred until there's real app UI to screenshot (the
+  dashboard is still a placeholder).
