@@ -56,6 +56,12 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${playfairDisplay.variable} h-full antialiased`}
+      // Root background = --bg-surface (the nav colour). The page <body> paints
+      // --bg-base over the content area; this only shows in any bottom strip the
+      // web view fails to cover on a standalone launch, so it matches the nav
+      // rather than flashing black. Sanctioned exception to the no-hardcoded-hex
+      // rule (root element, mirrors --bg-surface #1c1c1a).
+      style={{ backgroundColor: "#1c1c1a" }}
     >
       <body className="min-h-full flex flex-col">
         {/* iOS launch images — React hoists these <link> tags into <head>. */}

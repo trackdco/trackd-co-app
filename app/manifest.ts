@@ -23,7 +23,12 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#111110",
+    // --bg-surface (the bottom-nav colour), NOT --bg-base. On a standalone iOS
+    // launch the web view can come up shorter than the screen and iOS paints the
+    // uncovered bottom strip with this colour; matching it to the nav surface
+    // makes that strip blend into the nav instead of reading as a black bar. The
+    // launch splash is a full-screen PNG (#111110), so it's unaffected.
+    background_color: "#1c1c1a",
     theme_color: "#111110",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

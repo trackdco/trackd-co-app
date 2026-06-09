@@ -14,6 +14,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { ShortcutsMenu } from "@/components/shortcuts/ShortcutsMenu"
+import { ViewportProbe } from "@/components/_debug/viewport-probe" // TEMP: remove after bottom-bar diagnosis
 
 type Tab = {
   href: string
@@ -121,6 +122,7 @@ export function BottomNav({ userId }: { userId: string }) {
 
   return (
     <>
+      <ViewportProbe />{/* TEMP: remove after bottom-bar diagnosis */}
       <nav
         aria-label="Primary"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border-default bg-bg-surface transition-transform duration-200 ease-out"
