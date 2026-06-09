@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ## Current Phase
 
@@ -28,6 +28,22 @@ Last updated: 2026-06-08
 
 ## Completed
 
+- **Sydney region + honest PWA install + local toolchain (2026-06-09).** Moved the
+  Vercel functions to **`syd1`** (new root `vercel.json` `{"regions":["syd1"]}`) to
+  co-locate with the Sydney Supabase + the AU audience — warm app TTFB dropped from a
+  steady **~330–480ms → ~210ms** (diagnosed by measurement: Supabase was always ~40ms
+  = already Sydney; the lag was Vercel's `iad1`/US default). Resolves the "check
+  region" backlog item. Recoloured the wordmark **"co" to amber** across all 7 spots.
+  Rebuilt the **PWA install prompt** around what iOS actually allows — after two
+  adversarially-verified research workflows (~60 sources) confirmed iOS has **no**
+  programmatic Add-to-Home-Screen, `navigator.share()`'s sheet lacks the action
+  (confirmed on Angus's phone), `app.link`/Branch is native-app deep-linking (not a
+  PWA tool, not a push provider), and `.mobileconfig` profiles are worse + trust-toxic:
+  removed the misleading share button, added **in-app-webview / non-Safari detection →
+  "Open in Safari"** (rescues social-link traffic), iOS-26 "•••"-menu copy, and the
+  "View More" step. Installed **`gh` + Vercel CLI** user-level (`~/.local/bin`);
+  confirmed **`~/dev/trackd-co-app`** as the healthy off-iCloud canonical repo (all
+  today's pushes ran from it, zero mmap errors). Detail in Session Notes 2026-06-09.
 - **Add-to-Stack row controls + Radix import-bug fix (`feat/app-ui`, in the open PR
   to `main`, 2026-06-08).** Each **custom** compound's row now shows three
   right-aligned controls — a primary add-to-stack **+** (matches the catalogue rows;
@@ -315,6 +331,21 @@ Last updated: 2026-06-08
 
 ## Architecture Decisions
 
+- **Vercel functions pinned to Sydney `syd1` (2026-06-09).** Root `vercel.json`
+  `{"regions":["syd1"]}` sets the default function region; they were defaulting to
+  `iad1` (US East) while Supabase + users are AU, so every SSR page paid a US
+  round-trip plus US↔Sydney hops per auth/data call. Single region = Hobby-OK.
+  Note: `preferredRegion` in code is NOT the lever (it only applies with
+  `runtime='edge'`; the app is Node for `@supabase/ssr`). Revisit multi-region on Pro.
+- **iOS PWA install is manual-only — no shortcut exists (2026-06-09).** Settled by
+  two adversarially-verified research workflows: iOS has no programmatic
+  Add-to-Home-Screen, `navigator.share()`'s sheet doesn't contain the action,
+  `app.link`/Branch is native-app deep-linking (irrelevant to a PWA, and NOT a push
+  provider), and `.mobileconfig` web-clip profiles are more friction + trust-toxic.
+  So the install prompt's job is completion/clarity, never automation. **Push
+  notifications (when built) = standard Web Push** (VAPID + service worker via
+  `web-push`, or OneSignal/FCM); **iOS push needs the PWA installed to the home screen
+  first**. Full reference in memory `pwa-install-and-push-reality`.
 - **PostgREST role grants are explicit, RLS stays the only row gate (2026-06-08).**
   The Data API needs a table-level `GRANT` to `anon`/`authenticated` before RLS
   even runs; this project's Supabase defaults don't auto-grant, so grants are
@@ -408,6 +439,31 @@ Last updated: 2026-06-08
 
 ## Session Notes
 
+- 2026-06-09: **Perf (Sydney region), branding, toolchain, PWA-install honesty.**
+  (1) **Amber wordmark** — "co" recoloured from muted grey to `--accent-amber` across
+  all 7 wordmark spots (app shell, login, welcome, first-run, preview, legal, landing).
+  (2) **Big perf win — Vercel functions moved `iad1`→`syd1`** via root `vercel.json`.
+  Angus reported the app felt slow (sign-out, reload); measured it: warm app TTFB was a
+  steady ~330–480ms from AU, but Supabase was ~40ms (already Sydney) — so the lag was
+  Vercel running in US East. Pinned `syd1`; re-measured ~210ms warm + confirmed
+  `x-vercel-id: sin1::syd1`. (3) **Toolchain** — installed `gh` 2.93 + Vercel CLI 54.10
+  user-level (no Homebrew/sudo: npm global prefix → `~/.local`, PATH in `~/.zshrc`);
+  **`~/dev/trackd-co-app` confirmed as the healthy canonical repo** (all pushes ran from
+  it, no mmap errors). CLI auth still pending (Angus: `gh auth login` / `vercel login`).
+  (4) **PWA install — researched then made honest.** Angus wanted a one-tap "Add to Home
+  Screen" / asked about `app.link` (from a video). Two multi-agent research workflows
+  (~60 sources, 3 fact-checkers each) confirmed: iOS gives a website **no** way to
+  trigger/shortcut Add-to-Home-Screen; `navigator.share()` opens a sheet that lacks the
+  action (verified on his phone — actions were Copy/Reading List/Amazon…);
+  **`app.link` = Branch deep-linking for NATIVE apps**, not PWAs, and **not** a push
+  provider; `.mobileconfig` profiles are worse + trust-toxic. Rebuilt the card to
+  maximise completion: dropped the misleading share button; **detect in-app webviews
+  (Instagram/TikTok/Facebook) + non-Safari iOS browsers → "Open in Safari"**; iOS-26
+  "•••"-menu wording; added the "View More" step (per his screenshots). Android keeps
+  real one-tap. All shipped + live. (5) **Push path banked** for later (memory
+  `pwa-install-and-push-reality`): Web Push (VAPID + SW via `web-push`, or OneSignal);
+  iOS push requires home-screen install first. Everything pushed direct to `main` (gh
+  not yet authed for the PR flow); region/install changes are low-risk + user-requested.
 - 2026-06-08 (cont.): **RLS verified, PWA splash, repo move, PR flow, parallel
   lanes started.** Sign-in confirmed on both founders' phones; **two-account RLS
   isolation VERIFIED** (each user sees only their own profiles/cycles rows;
