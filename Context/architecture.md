@@ -81,7 +81,11 @@ in the schema — storage only, no behaviour, until post-trip.
   compounds are stored in `localStorage` keyed `trackd.customCompounds.<auth.uid()>`
   (custom compounds are a later/v1.5 DB feature; this is an interim device-local
   store at Adrian's direction). Per-user, persists on that device; not synced. To be
-  migrated to Postgres when the custom-compounds table lands.
+  migrated to Postgres when the custom-compounds table lands. The plus-button
+  **Shortcuts menu card order** is likewise device-local, keyed
+  `trackd.shortcutOrder.<auth.uid()>` (a UI preference — an ordered array of item
+  ids, and the *only* thing that menu persists; the placeholder inputs save nothing).
+  Helper: `lib/shortcutOrder.ts`. See `Context/Feature Specs/03-shortcuts-control-creation.md`.
 
 ## Legal Documents
 

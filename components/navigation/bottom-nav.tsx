@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
+import { ShortcutsMenu } from "@/components/shortcuts/ShortcutsMenu"
 
 type Tab = {
   href: string
@@ -58,8 +58,9 @@ function NavTab({ href, label, icon: Icon, active }: Tab & { active: boolean }) 
 
 /**
  * Persistent bottom navigation for the logged-in app shell. The centre plus is
- * exempt from the active/gray logic — it stays white and opens the Add to Stack
- * sheet. `userId` scopes the user's "Make your own" compounds in local storage.
+ * exempt from the active/gray logic — it stays white and opens the Shortcuts
+ * menu (from which "Add a compound" reaches the Add-to-Stack flow). `userId`
+ * scopes the user's "Make your own" compounds in local storage.
  */
 export function BottomNav({ userId }: { userId: string }) {
   const pathname = usePathname()
@@ -117,7 +118,9 @@ export function BottomNav({ userId }: { userId: string }) {
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              aria-label="Add to Stack"
+              aria-label="Shortcuts"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
               className="flex h-14 w-14 -translate-y-2 items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg transition-transform active:scale-95"
             >
               <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden />
@@ -130,7 +133,7 @@ export function BottomNav({ userId }: { userId: string }) {
         </div>
       </nav>
 
-      <AddToStackMenu open={menuOpen} onOpenChange={setMenuOpen} userId={userId} />
+      <ShortcutsMenu open={menuOpen} onOpenChange={setMenuOpen} userId={userId} />
     </>
   )
 }
