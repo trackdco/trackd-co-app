@@ -24,14 +24,17 @@ type Platform =
  * "Add to Home Screen" prompt shown post sign-in on the dashboard.
  *
  * Goal: the fewest taps each platform allows.
- *  - Android/Chrome fires `beforeinstallprompt` -> we show ONE button that opens
- *    the native install dialog (the platform minimum).
- *  - iOS Safari has NO install API (Apple); the Share -> Add to Home Screen taps
- *    are Apple's and can't be skipped, so we add no dead button — just an
- *    auto-shown, visually guided card (Share icon + animated arrow) so there's
- *    no fumbling.
- *  - iOS in a non-Safari browser can't Add to Home Screen at all, so we don't
- *    show steps that can't work — we point them to Safari instead.
+ *  - Android/Chrome fires `beforeinstallprompt` -> ONE button opens the native
+ *    install dialog (the platform minimum).
+ *  - iOS Safari has no install API (Apple). The closest we can do is the Web
+ *    Share API: a tap calls `navigator.share()` which opens the iOS share sheet
+ *    directly, so the user skips hunting for Safari's Share button and just
+ *    picks "Add to Home Screen" (under More) from there. NB: whether that action
+ *    appears in the programmatic share sheet is Apple's call, not ours — if a
+ *    given iOS build doesn't surface it, the user can still add from the sheet's
+ *    More menu or fall back to Safari's own Share button. Older iOS without
+ *    `navigator.share` falls back to the written Share -> Add to Home Screen steps.
+ *  - iOS in a non-Safari browser can't Add to Home Screen at all -> point to Safari.
  *
  * Hidden when already running as an installed PWA, or once dismissed
  * (remembered in localStorage).
@@ -105,7 +108,25 @@ export function InstallPrompt() {
     dismiss();
   }
 
+  // iOS: open the native share sheet directly so the user skips finding Safari's
+  // Share button. Must be called inside the tap (user gesture). Swallow the
+  // AbortError when the user just closes the sheet.
+  async function shareForInstall() {
+    try {
+      await navigator.share({
+        title: "Trackd Co",
+        text: "Track your protocols in one place.",
+        url: window.location.origin,
+      });
+    } catch {
+      // user dismissed the sheet, or share is unavailable — no-op
+    }
+  }
+
   if (!platform) return null;
+
+  const supportsShare =
+    typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   return (
     <div className="relative mt-8 rounded-2xl border border-border bg-bg-surface p-5">
@@ -138,38 +159,61 @@ export function InstallPrompt() {
         </>
       )}
 
-      {platform === "ios-safari" && (
-        <>
-          <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-            Two quick taps and Trackd lives on your home screen.
-          </p>
-          {/* No button — iOS gives a website no way to open the Add to Home
-              Screen sheet, so we just make Apple's two taps unmistakable. */}
-          <ol className="mt-4 space-y-3">
-            <li className="flex items-center gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
-                <Share className="size-5" aria-hidden="true" />
-              </span>
-              <span className="text-sm leading-snug text-text-muted">
-                Tap the <span className="text-foreground">Share</span> button in
-                the toolbar below
-              </span>
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
-                <Plus className="size-5" aria-hidden="true" />
-              </span>
-              <span className="text-sm leading-snug text-text-muted">
-                Choose{" "}
-                <span className="text-foreground">Add to Home Screen</span>
-              </span>
-            </li>
-          </ol>
-          <div className="mt-3 flex justify-center" aria-hidden="true">
-            <ChevronDown className="size-5 animate-bounce text-text-subtle" />
-          </div>
-        </>
-      )}
+      {platform === "ios-safari" &&
+        (supportsShare ? (
+          <>
+            <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+              Tap below, then choose{" "}
+              <span className="text-foreground">Add to Home Screen</span>.
+            </p>
+            {/* One tap opens the iOS share sheet — no hunting for Safari's
+                Share button. */}
+            <Button
+              type="button"
+              onClick={shareForInstall}
+              className="mt-4 h-11 w-full rounded-xl"
+            >
+              <Share className="size-5" aria-hidden="true" />
+              Add to Home Screen
+            </Button>
+            <p className="mt-2 text-xs leading-relaxed text-text-subtle">
+              Opens the share menu — pick{" "}
+              <span className="text-text-muted">Add to Home Screen</span> (tap{" "}
+              <span className="text-text-muted">More</span> if you don&apos;t
+              see it).
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+              Two quick taps and Trackd lives on your home screen.
+            </p>
+            {/* Fallback for older iOS without the Web Share API. */}
+            <ol className="mt-4 space-y-3">
+              <li className="flex items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+                  <Share className="size-5" aria-hidden="true" />
+                </span>
+                <span className="text-sm leading-snug text-text-muted">
+                  Tap the <span className="text-foreground">Share</span> button
+                  in the toolbar below
+                </span>
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+                  <Plus className="size-5" aria-hidden="true" />
+                </span>
+                <span className="text-sm leading-snug text-text-muted">
+                  Choose{" "}
+                  <span className="text-foreground">Add to Home Screen</span>
+                </span>
+              </li>
+            </ol>
+            <div className="mt-3 flex justify-center" aria-hidden="true">
+              <ChevronDown className="size-5 animate-bounce text-text-subtle" />
+            </div>
+          </>
+        ))}
 
       {platform === "ios-other" && (
         <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
