@@ -31,7 +31,7 @@ export default async function AppLayout({
         }}
       >
         <span className="font-display text-lg font-medium tracking-[-0.01em] text-foreground">
-          trackd<span className="text-text-muted"> co</span>
+          trackd<span className="text-accent-amber"> co</span>
         </span>
         <form action={signOut}>
           <button

@@ -42,7 +42,7 @@ export async function LegalDocument({ docType }: { docType: LegalDocType }) {
         href="/"
         className="font-display text-lg font-medium tracking-[-0.01em] text-foreground"
       >
-        trackd<span className="text-text-muted"> co</span>
+        trackd<span className="text-accent-amber"> co</span>
       </Link>
 
       <h1 className="mt-12 font-display text-3xl tracking-[-0.02em] text-foreground">

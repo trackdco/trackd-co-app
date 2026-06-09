@@ -15,6 +15,17 @@ Last updated: 2026-06-09
 
 ## 🎯 Current focus
 
+**Latest — 2026-06-09 (Angus + Claude, shipped to `main`/prod):** (1) **App is much
+faster** — moved Vercel functions to **Sydney `syd1`** (warm TTFB ~330–480ms → ~210ms);
+this **closes the "check region" backlog item**. (2) **Amber wordmark** ("co" in
+`--accent-amber`). (3) **PWA install prompt rebuilt honestly** — iOS has no way to
+shortcut Add-to-Home-Screen (researched + verified; `app.link`/Branch is for native
+apps, not PWAs), so the card now detects in-app webviews → "Open in Safari", uses iOS-26
+"•••"-menu wording, and adds the "View More" step. (4) **Local toolchain** — `gh` +
+Vercel CLI installed; `~/dev/trackd-co-app` confirmed as the canonical repo.
+**▶ Next for this lane:** land the open **`/settings` PR #2** (it's behind `main` now),
+then **build the Profile tab** — see the Build track below.
+
 Auth + the logged-in shell are **✅ live on https://trackdco.app** (Google sign-in
 → 18+/ToS gate → dashboard, branded PWA splash, RLS verified with two accounts —
 Week-1 checkpoint met). Now **two parallel app-UI lanes**, both via the PR flow
@@ -164,14 +175,30 @@ The flow is live; these three close the 11 Jun checkpoint:
    the app to beta testers.
    - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones.
 
-### Housekeeping — fix the flaky local repo (recommended)
+### ✅ DONE — Healthy canonical repo off iCloud (2026-06-09)
 
-The local working copy at `~/Documents/GitHub/trackd-co-app` throws git
-`mmap`/stale-NFS errors on heavy ops (iCloud-synced Documents); the auth merge had
-to be done in a `/tmp` clone and pushed from there. Permanent fix: move the repo
-out of `~/Documents` (e.g. `~/dev/trackd-co-app`) and resync to `main`. Until then
-the local copy is behind GitHub — `git checkout main && git pull` once the FS
-cooperates. (Claude can do the move + resync on request.)
+**`~/dev/trackd-co-app` is the canonical working copy** (off iCloud, on APFS) — git is
+clean there (fsck/status/deep-log all pass, zero mmap errors; every 2026-06-09 push ran
+from it). The old `~/Documents/GitHub/trackd-co-app` is the iCloud copy that throws
+`mmap` errors and is now stale. **Action for Angus: open the IDE on `~/dev/trackd-co-app`
+and delete the Documents copy** once confirmed. Also installed `gh` + Vercel CLI
+user-level (`~/.local/bin`) — **run `gh auth login` + `vercel login`** to unlock the
+proper branch→PR→CodeRabbit flow (today's perf/install fixes went direct to `main` only
+because `gh` wasn't authed yet).
+
+### ▶ NEXT (Angus + Claude) — Profile & Settings: land PR #2, then build the Profile tab
+
+`/settings` (Profile & Settings v1 — read-only account block + editable
+sex/height/goal/units, RLS-scoped) is **built but still in open PR #2 on `feat/settings`,
+now behind `main`.** `/profile` (the bottom-nav Profile tab) is still a 12-line
+placeholder. Optimal order:
+1. **Land PR #2 first** — merge latest `main` into `feat/settings` (or rebase), let
+   CodeRabbit re-review, then merge so `/settings` reaches `main` instead of drifting
+   further. (Needs `gh` authed, or merge via GitHub web.)
+2. **Build the Profile tab** (`app/(app)/profile/page.tsx`) — surface account info
+   (name/email/plan/member-since), link to `/settings`, sign-out; self-contained, reads
+   only the user's own `profiles` row. Coordinate the one shared change (nav link to
+   `/settings` in `(app)/layout.tsx`) with Adrian.
 
 ### Also (Angus) — beta outreach (alongside the build)
 
@@ -323,12 +350,23 @@ Do this **on launch day**, before/with going live (rule in `architecture.md`):
 - **Week 2+ build:** add-compound + inventory → dose logging → the daily-use loop
   (core-loop order in `ai-workflow-rules.md`) — Adrian's `feat/app-ui` lane once
   the shell's up.
-- **Pre-public-beta — brand the OAuth domain + check region (after Airwallex/Pro).**
+- **Pre-public-beta — brand the OAuth domain (after Airwallex/Pro).**
   The Google sign-in screen shows the raw `…supabase.co` host — fix with a Supabase
   **Custom Domain** (e.g. `auth.trackdco.app`) so it reads as Trackd. Needs Supabase
   **Pro ($25/mo) + Custom Domain add-on ($10/mo)**. Angus does the subscription after
   setting up the Airwallex business account, then Claude drives the domain setup
-  (CNAME + TXT verify, add the new callback to Google, activate via CLI). Same pass:
-  **check the project region** (Settings → Infrastructure) and relocate if it's far
-  from the AU audience (do it while user data is minimal). Details in memory
-  `launch-custom-domain-and-region`.
+  (CNAME + TXT verify, add the new callback to Google, activate via CLI). Details in
+  memory `launch-custom-domain-and-region`.
+  - ✅ **Region check done (2026-06-09):** Supabase is already Sydney; Vercel moved
+    `iad1`→`syd1` — co-located + fast. No relocation needed.
+- **Push notifications (when there's something worth notifying about).** Standard
+  **Web Push** for the PWA: service worker + manifest + **VAPID** keys, sent server-side
+  via the `web-push` npm lib (or OneSignal/FCM to skip boilerplate). The opt-in must be
+  a real user tap. **iOS caveat:** Web Push only works once the user has **added Trackd
+  to their home screen** (iOS 16.4+); Android/desktop work from the browser. Branch/
+  `app.link` is NOT a push provider — ignore it. Reference: memory
+  `pwa-install-and-push-reality`.
+- **Android "richer install" card (low effort, later).** Add `screenshots` (+ keep
+  `description`) to `app/manifest.ts` so Android's install dialog becomes an app-store-
+  style card (conversion lift). Deferred until there's real app UI to screenshot (the
+  dashboard is still a placeholder).
