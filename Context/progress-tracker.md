@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ## Current Phase
 
@@ -28,6 +28,49 @@ Last updated: 2026-06-08
 
 ## Completed
 
+- **Plus-button "Shortcuts" menu built (Adrian's lane, 2026-06-09, PR `feat/shortcuts-menu`).**
+  The bottom-nav centre plus now opens a styled **Shortcuts** bottom sheet instead of
+  going straight to Add-to-Stack. Built from the spec
+  (`Context/Feature Specs/03-shortcuts-control-creation.md`), then iterated with Adrian
+  into a **two-tier layout** (his direction, drawing on a MacroFactor reference but kept
+  entirely within `ui-context.md` tokens):
+  - **Top tier — fixed circle quick-actions:** Log (Today's dose, `ListChecks` icon) ·
+    Calculator (Reconstitution) · Journal · Calendar. Not reorderable.
+  - **Bottom tier — full-width cards:** Weight (`Scale`) · Blood work · **Add a compound**
+    (`Pill`). Add-a-compound defaults to the bottom but is reorderable like the others.
+  - Centred sans (Geist) title; amber icon-strokes in tiles + circles (the sanctioned
+    sparing amber use), warming on hover; the protected Add-to-Stack category dots are
+    untouched and intact.
+
+  **Only "Add a compound" is wired** — it presents the existing **Add-to-Stack flow
+  completely unchanged** (reached by navigation, not rebuilt — the spec's "navigate to
+  it" option, chosen so the protected flow stays untouched). Every other item opens one
+  shared, non-functional `PlaceholderActionSheet` (passed title + a visual-only field
+  that **saves nothing** + close; the **reconstitution calculator** also shows the
+  medical-disclaimer warning).
+
+  **Reorder (bottom cards only):** a small grey **pencil "Edit"** control top-right
+  enters edit mode (replaced the original long-press trigger at Adrian's request); cards
+  show a grip and drag up/down; **tap any shortcut, "Done", or dismiss commits** (tap-to-
+  finish). Pointer-based, **no new dependency** (reuses the existing drag idiom; deliberate
+  given the touch-PWA + flaky-npm note). Order persists per-device in `localStorage`
+  (`trackd.shortcutOrder.<uid>`, **card ids only** — the single carve-out to the
+  placeholders' no-persistence rule) and restores on open; the sheet's drag-to-dismiss is
+  disabled during edit so the gestures can't fight.
+
+  **Motion (professional, eased — no static cuts):** staggered fade-up **entrance** on
+  open; a soft amber **tap "light-up" ripple** from the touch point on cards; the edit-
+  mode hint **eases its height open/closed + fades** (which makes the cards + sheet rise/
+  settle smoothly); **Edit ⇄ Done cross-fade**; chevron ⇄ grip fade. Keyframes live as
+  plain classes in `app/globals.css` (`shortcut-in` / `shortcut-ripple` / `shortcut-fade`).
+
+  New files: `components/shortcuts/{shortcutItems.ts, ShortcutItem.tsx,
+  PlaceholderActionSheet.tsx, ShortcutsMenu.tsx}` + `lib/shortcutOrder.ts`;
+  `components/navigation/bottom-nav.tsx` now renders `ShortcutsMenu`; `app/globals.css`
+  gained the motion keyframes (shared-file change, Adrian-directed). No new
+  tokens/colours/fonts, no schema/DB change. `tsc` + `npm run lint` clean; reviewed live
+  via the dev-only `/preview` harness on localhost. Landed via the **PR flow** for
+  CodeRabbit review (not a direct push).
 - **Add-to-Stack row controls + Radix import-bug fix (`feat/app-ui`, in the open PR
   to `main`, 2026-06-08).** Each **custom** compound's row now shows three
   right-aligned controls — a primary add-to-stack **+** (matches the catalogue rows;
@@ -408,6 +451,27 @@ Last updated: 2026-06-08
 
 ## Session Notes
 
+- 2026-06-09: **Plus-button Shortcuts menu built + iterated with Adrian** (spec
+  `Context/Feature Specs/03-shortcuts-control-creation.md`, followed step-by-step, then
+  refined live on `/preview`). A prior session had done Step 1 (`shortcutItems.ts`) +
+  Step 2 (`ShortcutItem.tsx`) before crashing; resumed and built the rest
+  (`PlaceholderActionSheet`, `ShortcutsMenu`, plus-button wiring, the reorder addition +
+  `lib/shortcutOrder.ts`). Then iterated with Adrian over several rounds: **two-tier
+  layout** (top circle quick-actions + bottom reorderable cards) from a MacroFactor
+  reference; renamed items (Today's dose → "Log", Weight, Blood work) and re-iconed
+  (`ListChecks`, `Scale`); sans (not serif) centred title; restrained **amber** accents;
+  reorder trigger changed **long-press → a grey pencil "Edit" button** (more discoverable)
+  with **tap-any-shortcut-to-finish**; Add-a-compound made reorderable (defaults bottom);
+  and a full **motion pass** (staggered entrance, tap light-up ripple, eased edit-mode
+  height/fade, Edit⇄Done cross-fade). Two deliberate judgement calls held throughout:
+  (a) reach the **unchanged** Add-to-Stack flow by navigation, never refactoring it
+  (protected); (b) **no new animation/drag dependency** — pointer drag + plain-CSS
+  keyframes, given the touch-PWA + flaky-npm. Verified the Add-to-Stack **category dots
+  are intact** (Adrian flagged them as possibly removed — they were never touched).
+  `tsc` + `lint` clean throughout; **NB: don't run `npm run build` while `next dev` is up
+  — they share `.next` and a concurrent build 500s with "Cannot find module page.js"**
+  (the dev server stays healthy; just build with dev stopped). Landed via PR
+  `feat/shortcuts-menu` for CodeRabbit review.
 - 2026-06-08 (cont.): **RLS verified, PWA splash, repo move, PR flow, parallel
   lanes started.** Sign-in confirmed on both founders' phones; **two-account RLS
   isolation VERIFIED** (each user sees only their own profiles/cycles rows;

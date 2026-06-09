@@ -9,7 +9,7 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ---
 
@@ -192,6 +192,33 @@ bundled MCP/CLI will need Vercel auth when we first use the deploy commands
 ---
 
 ## 🎨 Adrian's lane — legal, then app UI (design → build)
+
+### ✅ DONE — Plus-button "Shortcuts" menu (2026-06-09, PR `feat/shortcuts-menu` → CodeRabbit)
+
+The centre plus opens a styled **Shortcuts** bottom sheet (per
+`Context/Feature Specs/03-shortcuts-control-creation.md`), iterated with Adrian into a
+**two-tier** layout (MacroFactor-inspired, kept within `ui-context.md`):
+- **Top — fixed circle quick-actions:** Log (Today's dose) · Calculator · Journal · Calendar.
+- **Bottom — reorderable cards:** Weight · Blood work · **Add a compound** (defaults bottom).
+
+**Only "Add a compound" is wired** → the existing Add-to-Stack flow, **completely
+unchanged** (reached by navigation). Everything else → one shared, non-functional
+`PlaceholderActionSheet` (visual-only field, saves nothing; the reconstitution one carries
+the medical-disclaimer warning). **Reorder (bottom cards):** grey pencil **"Edit"** button
+top-right → edit mode; drag to rearrange; **tap any shortcut / "Done" / dismiss commits**;
+order persists per-device in `localStorage` (`trackd.shortcutOrder.<uid>`, card ids only).
+Pointer-drag + plain-CSS keyframes — **no new dependency**. Full eased **motion**
+(staggered entrance, tap "light-up" ripple, eased edit-mode height/fade, Edit⇄Done
+cross-fade). New files under `components/shortcuts/` + `lib/shortcutOrder.ts`;
+`bottom-nav.tsx` → `ShortcutsMenu`; motion keyframes added to `app/globals.css`. `tsc` +
+`lint` clean; reviewed live on `/preview`.
+
+**Gotcha banked:** don't run `npm run build` while `next dev` is running — they share
+`.next` and the build 500s ("Cannot find module page.js"). Build with the dev server
+stopped.
+
+**Next:** address any CodeRabbit findings on the PR, manual on-device QA of the drag +
+ripple, then merge.
 
 ### ✅ DONE — Bottom nav + Add-to-Stack (2026-06-08, `feat/app-ui` → open PR to `main`)
 
