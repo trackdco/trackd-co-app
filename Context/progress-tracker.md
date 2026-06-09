@@ -40,13 +40,19 @@ Last updated: 2026-06-09
   square under the mark on launch. Source masters + a reproducible generator live in
   `scripts/brand/` (`node scripts/brand/generate.mjs`, uses `sharp`).
 
-- **Bottom-of-screen "black bar" — diagnosed (not a PWA bug).** The strip reported
-  below the bottom nav measures ~62pt ≈ a collapsed Safari toolbar (~28pt) + the
-  home-indicator inset (34pt). The app already serves `viewport-fit=cover` (verified
-  in the rendered `<meta name="viewport">`) and the nav fills
-  `env(safe-area-inset-bottom)` with `bg-surface`, so in the **installed PWA** the
-  nav sits flush. **Open:** confirm Adrian is seeing it in a Safari tab (expected —
-  that area is browser chrome; use the installed app) vs. a stale cached install.
+- **Bottom-of-screen "black bar" — reproduced + fix shipped (pending on-device check).**
+  On cold launch the `fixed bottom-0` nav floats above the home indicator (a black
+  strip below it) until the first swipe snaps it down — the iOS dynamic-viewport bug,
+  reported in BOTH the installed PWA and Safari. Shipped a **visual-viewport pin** in
+  `components/navigation/bottom-nav.tsx`: measure the gap between the visual-viewport
+  bottom and the layout bottom and nudge the nav down by it on launch (re-measured via
+  rAF + a 400ms settle + vv `resize`/`orientationchange`/`pageshow`; vv `scroll`
+  deliberately skipped so overscroll can't jiggle it), **clamped to >= 0** so it can
+  only move DOWN to the bottom, never up over content — worst case a no-op, so it can't
+  regress. Keyboard-hide preserved (shares the single `transform`). `viewport-fit=cover`
+  is confirmed served. **Unverified on-device:** Adrian can't test yet (Angus mid-auth),
+  and the installed PWA serves stale cache (old splash persists) — needs a clean
+  reinstall to even pick up the fix.
 
 - **Plus-button "Shortcuts" menu built (Adrian's lane, 2026-06-09, PR `feat/shortcuts-menu`).**
   The bottom-nav centre plus now opens a styled **Shortcuts** bottom sheet instead of

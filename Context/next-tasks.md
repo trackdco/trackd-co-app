@@ -41,11 +41,15 @@ Week-1 checkpoint met). Now **two parallel app-UI lanes**, both via the PR flow
   — coordinate with Adrian.
 - **Still open (Angus, quick):** publish the Google OAuth app (Audience → Publish)
   before non-Test-user testers.
-- **Confirm (Adrian, quick):** the "black bar under the nav" — is it a Safari tab or
-  the installed home-screen app? In the PWA the nav already sits flush
-  (`viewport-fit=cover` verified); in Safari that strip is browser chrome. If it
-  still shows in a freshly-reinstalled PWA, reopen as a real bug. (Brand logo swap +
-  splash cleanup already shipped — see progress-tracker.)
+- **Verify (Adrian):** the "black bar under the nav" — confirmed it shows on cold
+  launch in BOTH the installed PWA and Safari and **settles to the bottom after the
+  first swipe** (classic iOS dynamic-viewport bug). Fix shipped: a **visual-viewport
+  pin** on the bottom nav (`components/navigation/bottom-nav.tsx`) that nudges it down
+  onto the visible bottom on launch, clamped so it can only be a no-op or a down-nudge.
+  **Test after a clean reinstall** (the installed app still serves stale cache — that's
+  why the old splash persists). Watch for: bar gone on cold launch; no jiggle on
+  rubber-band overscroll; keyboard still hides the bar. If it survives → add a 1px
+  scroll-nudge fallback / inspect the live geometry.
 
 ---
 

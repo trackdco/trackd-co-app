@@ -66,11 +66,19 @@ export function BottomNav({ userId }: { userId: string }) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
+  // px to nudge the bar DOWN onto the visible bottom (cold-launch float fix); see effect.
+  const [bottomPin, setBottomPin] = useState(0)
 
-  // Hide the bar while the on-screen keyboard is open: the visual viewport
-  // shrinks well below the layout viewport when it appears. Gate on an actually
-  // focused editable element too, so a non-keyboard viewport shrink (pinch-zoom,
-  // split-screen) can't slide the nav off-screen. (No-op without a soft keyboard.)
+  // Two visual-viewport jobs share one listener:
+  //  1) Hide the bar while the on-screen keyboard is open — the visual viewport
+  //     shrinks well below the layout viewport. Gate on a focused editable too so
+  //     a non-keyboard shrink (pinch-zoom, split-screen) can't slide it off.
+  //  2) Pin the bar to the *visible* bottom. On a cold PWA/Safari launch iOS can
+  //     under-report the viewport height, so a `fixed bottom-0` nav floats above
+  //     the home indicator until the first swipe forces a relayout (the black-bar
+  //     bug). We push it back down by the gap — CLAMPED to >= 0 so it can only
+  //     move DOWN to reach the bottom, never up over content. Worst case it's a
+  //     no-op, so it can't regress the normal settled state.
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
@@ -85,15 +93,29 @@ export function BottomNav({ userId }: { userId: string }) {
     }
     const update = () => {
       setKeyboardOpen(vv.height < window.innerHeight - 120 && editableFocused())
+      const gap = vv.height + vv.offsetTop - window.innerHeight
+      setBottomPin(Math.max(0, Math.round(gap)))
     }
+    update()
+    // Re-measure as iOS finalises launch geometry (it otherwise only settles on
+    // the first user scroll). `resize` covers keyboard / toolbar / rotate /
+    // finalisation; we deliberately skip vv `scroll` so rubber-band overscroll
+    // can't jiggle the bar.
+    const raf = requestAnimationFrame(update)
+    const settle = setTimeout(update, 400)
     vv.addEventListener("resize", update)
+    window.addEventListener("orientationchange", update)
     window.addEventListener("focusin", update)
     window.addEventListener("focusout", update)
-    update()
+    window.addEventListener("pageshow", update)
     return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(settle)
       vv.removeEventListener("resize", update)
+      window.removeEventListener("orientationchange", update)
       window.removeEventListener("focusin", update)
       window.removeEventListener("focusout", update)
+      window.removeEventListener("pageshow", update)
     }
   }, [])
 
@@ -101,12 +123,14 @@ export function BottomNav({ userId }: { userId: string }) {
     <>
       <nav
         aria-label="Primary"
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-40 border-t border-border-default bg-bg-surface transition-transform duration-200 ease-out",
-          keyboardOpen && "translate-y-full"
-        )}
-        // Sit above the iPhone home indicator / Android gesture bar.
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border-default bg-bg-surface transition-transform duration-200 ease-out"
+        style={{
+          // Sit above the iPhone home indicator / Android gesture bar.
+          paddingBottom: "env(safe-area-inset-bottom)",
+          // Hide while the keyboard is open; otherwise pin to the visible bottom
+          // (both via the single transform — see the visual-viewport effect).
+          transform: keyboardOpen ? "translateY(100%)" : `translateY(${bottomPin}px)`,
+        }}
       >
         <div className="mx-auto grid h-16 max-w-md grid-cols-5 items-center px-2">
           {LEFT_TABS.map((tab) => (
