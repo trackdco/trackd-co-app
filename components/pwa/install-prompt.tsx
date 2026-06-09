@@ -157,23 +157,28 @@ export function InstallPrompt() {
             experience.
           </p>
           <ol className="mt-4 space-y-3">
-            <li className="flex items-center gap-3">
+            <li className="flex items-start gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
                 <Share className="size-5" aria-hidden="true" />
               </span>
               <span className="text-sm leading-snug text-text-muted">
-                Tap the <span className="text-foreground">Share</span> button —
-                on newer iPhones it&apos;s inside the{" "}
-                <span className="text-foreground">•••</span> menu
+                Tap the{" "}
+                <span className="text-foreground">Share</span>{" "}
+                button — on newer iPhones it&apos;s inside the{" "}
+                <span className="text-foreground">•••</span>{" "}
+                menu
               </span>
             </li>
-            <li className="flex items-center gap-3">
+            <li className="flex items-start gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
                 <Plus className="size-5" aria-hidden="true" />
               </span>
               <span className="text-sm leading-snug text-text-muted">
-                Choose{" "}
-                <span className="text-foreground">Add to Home Screen</span>
+                Scroll down and choose{" "}
+                <span className="text-foreground">Add to Home Screen</span>{" "}
+                — tap{" "}
+                <span className="text-foreground">View More</span>{" "}
+                if you don&apos;t see it
               </span>
             </li>
           </ol>
@@ -191,10 +196,11 @@ export function InstallPrompt() {
               <Compass className="size-5" aria-hidden="true" />
             </span>
             <span className="text-sm leading-snug text-text-muted">
-              Tap this app&apos;s <span className="text-foreground">•••</span> (or
-              share) menu and choose{" "}
-              <span className="text-foreground">Open in Safari</span> — then add
-              Trackd to your home screen from there.
+              Tap this app&apos;s{" "}
+              <span className="text-foreground">•••</span>{" "}
+              (or share) menu and choose{" "}
+              <span className="text-foreground">Open in Safari</span>{" "}
+              — then add Trackd to your home screen from there.
             </span>
           </div>
         </>
