@@ -39,10 +39,13 @@ export const metadata: Metadata = {
   },
 };
 
-// Native-app wiring: match the status bar to the near-black canvas and enable
-// the safe-area insets the entry screen relies on (viewport-fit=cover).
+// Native-app wiring: theme-color + safe-area insets (viewport-fit=cover).
+// theme-color is --bg-surface (the nav colour), NOT --bg-base: on a standalone
+// iOS launch the web view comes up ~62px shorter than the screen and iOS paints
+// the uncovered bottom strip from the theme-color. Matching it to the nav makes
+// that strip blend into the nav instead of reading as a black bar.
 export const viewport: Viewport = {
-  themeColor: "#111110",
+  themeColor: "#1c1c1a",
   colorScheme: "dark",
   viewportFit: "cover",
 };
@@ -56,12 +59,6 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${playfairDisplay.variable} h-full antialiased`}
-      // Root background = --bg-surface (the nav colour). The page <body> paints
-      // --bg-base over the content area; this only shows in any bottom strip the
-      // web view fails to cover on a standalone launch, so it matches the nav
-      // rather than flashing black. Sanctioned exception to the no-hardcoded-hex
-      // rule (root element, mirrors --bg-surface #1c1c1a).
-      style={{ backgroundColor: "#1c1c1a" }}
     >
       <body className="min-h-full flex flex-col">
         {/* iOS launch images — React hoists these <link> tags into <head>. */}
