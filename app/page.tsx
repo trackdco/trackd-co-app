@@ -46,7 +46,7 @@ export default async function Home() {
 
       {/* Desktop: this is a phone app — go to your phone */}
       <div className="hidden min-h-dvh flex-col items-center justify-center px-6 text-center md:flex">
-        <span className="font-display text-3xl tracking-tight text-foreground">trackd co</span>
+        <span className="font-display text-3xl tracking-tight text-foreground">trackd<span className="text-accent-amber"> co</span></span>
         <h1 className="mt-10 font-display text-3xl text-foreground">Trackd is built for your phone</h1>
         <p className="mt-3 max-w-sm text-sm leading-relaxed text-text-muted">
           Open <span className="text-foreground">trackdco.app</span> on your phone to get started.
