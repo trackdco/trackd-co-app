@@ -46,7 +46,10 @@ Last updated: 2026-06-10
   `/settings`. **Follow-up (2026-06-10):** Settings gained a **Weight (kg)** field
   (validated 30–300 to match the schema CHECK; placeholder until the dedicated weight-
   tracking surface exists), and **Save now redirects to `/dashboard`** on success (via
-  `redirect()` in the action; the inline "Saved." message was dropped). **PR #2 is now
+  `redirect()` in the action; the inline "Saved." message was dropped). Height/Weight now
+  display + accept the user's chosen **units** (cm/kg ↔ in/lbs) — imperial converts to metric
+  on save (storage stays metric; the schema CHECKs validate the converted value; round-trip
+  verified). **PR #2 is now
   superseded — CLOSE it (do NOT merge; the branch is behind `main` and would clobber it).**
 
 - **Profile tab built — code complete, locally verified (2026-06-10).**

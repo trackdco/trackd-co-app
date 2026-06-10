@@ -20,12 +20,19 @@ const GOALS = new Set([
 ]);
 const UNITS = new Set(["metric", "imperial"]);
 
+// Storage is always metric. Imperial is a display/entry preference, so a height
+// (in) / weight (lbs) submitted in imperial is converted here, then validated
+// against the schema's metric CHECKs (height 100–250 cm, weight 30–300 kg).
+const CM_PER_IN = 2.54;
+const KG_PER_LB = 0.45359237;
+
 /**
  * Saves the user's profile/personalisation settings.
  *
  * Validates server-side (never trust the client), then UPDATEs the user's own
  * profile row — RLS scopes the write to (SELECT auth.uid()) = id, so a user can
  * only ever change their own. Optional enum fields accept "" to clear (null).
+ * Height/weight arrive in the user's selected units and are stored metric.
  */
 export async function updateSettings(
   _prev: SettingsState,
@@ -40,8 +47,8 @@ export async function updateSettings(
   const sexRaw = String(formData.get("sex") ?? "").trim();
   const goalRaw = String(formData.get("goal") ?? "").trim();
   const unitsRaw = String(formData.get("units_preference") ?? "").trim();
-  const heightRaw = String(formData.get("height_cm") ?? "").trim();
-  const weightRaw = String(formData.get("weight_kg") ?? "").trim();
+  const heightRaw = String(formData.get("height") ?? "").trim();
+  const weightRaw = String(formData.get("weight") ?? "").trim();
 
   const sex = sexRaw === "" ? null : sexRaw;
   if (sex !== null && !SEXES.has(sex)) return { error: "Invalid sex selection." };
@@ -50,25 +57,38 @@ export async function updateSettings(
   if (goal !== null && !GOALS.has(goal)) return { error: "Invalid goal selection." };
 
   if (!UNITS.has(unitsRaw)) return { error: "Invalid units selection." };
+  const imperial = unitsRaw === "imperial";
 
   let heightCm: number | null = null;
   if (heightRaw !== "") {
     const h = Number(heightRaw);
-    // Matches the schema CHECK (height_sane: 100–250) + numeric(5,1).
-    if (!Number.isFinite(h) || h < 100 || h > 250) {
-      return { error: "Height must be between 100 and 250 cm." };
+    if (!Number.isFinite(h)) return { error: "Enter a valid height." };
+    const cm = imperial ? h * CM_PER_IN : h;
+    // Schema CHECK height_sane: 100–250 cm (≈ 39–98 in).
+    if (cm < 100 || cm > 250) {
+      return {
+        error: imperial
+          ? "Height must be between 39 and 98 in."
+          : "Height must be between 100 and 250 cm.",
+      };
     }
-    heightCm = Math.round(h * 10) / 10;
+    heightCm = Math.round(cm * 10) / 10;
   }
 
   let weightKg: number | null = null;
   if (weightRaw !== "") {
     const w = Number(weightRaw);
-    // Matches the schema CHECK (weight_sane: 30–300) + numeric(5,1).
-    if (!Number.isFinite(w) || w < 30 || w > 300) {
-      return { error: "Weight must be between 30 and 300 kg." };
+    if (!Number.isFinite(w)) return { error: "Enter a valid weight." };
+    const kg = imperial ? w * KG_PER_LB : w;
+    // Schema CHECK weight_sane: 30–300 kg (≈ 66–661 lbs).
+    if (kg < 30 || kg > 300) {
+      return {
+        error: imperial
+          ? "Weight must be between 66 and 661 lbs."
+          : "Weight must be between 30 and 300 kg.",
+      };
     }
-    weightKg = Math.round(w * 10) / 10;
+    weightKg = Math.round(kg * 10) / 10;
   }
 
   const { error } = await supabase

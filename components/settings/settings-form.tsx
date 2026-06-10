@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,37 @@ const GOALS: { value: string; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
+// Storage is always metric (height_cm / weight_kg). Imperial is a display/entry
+// preference only: height shows in inches, weight in lbs — converted on save.
+type Units = "metric" | "imperial";
+const CM_PER_IN = 2.54;
+const KG_PER_LB = 0.45359237;
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+function heightToDisplay(cm: number | null, units: Units): string {
+  if (cm == null) return "";
+  return String(units === "imperial" ? round1(cm / CM_PER_IN) : round1(cm));
+}
+function weightToDisplay(kg: number | null, units: Units): string {
+  if (kg == null) return "";
+  return String(units === "imperial" ? round1(kg / KG_PER_LB) : round1(kg));
+}
+// Keep what the user already typed when they flip units: re-express the number.
+function reexpress(
+  value: string,
+  kind: "height" | "weight",
+  from: Units,
+  to: Units,
+): string {
+  if (from === to || value.trim() === "") return value;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return value;
+  const factor = kind === "height" ? CM_PER_IN : KG_PER_LB;
+  const metric = from === "imperial" ? n * factor : n;
+  const out = to === "imperial" ? metric / factor : metric;
+  return String(round1(out));
+}
+
 export type SettingsInitial = {
   sex: string | null;
   goal: string | null;
@@ -33,14 +64,32 @@ export type SettingsInitial = {
 
 /**
  * Editable personalisation. Saves to the user's own profile via updateSettings
- * (server-validated, RLS-scoped). Optional fields default to a blank "—" option
- * that clears them.
+ * (server-validated, RLS-scoped). Height/weight display + accept the user's
+ * chosen units (cm/kg or in/lbs); the server converts to metric for storage.
  */
 export function SettingsForm({ initial }: { initial: SettingsInitial }) {
   const [state, formAction, isPending] = useActionState(
     updateSettings,
     initialState,
   );
+
+  const startUnits: Units =
+    initial.units_preference === "imperial" ? "imperial" : "metric";
+  const [units, setUnits] = useState<Units>(startUnits);
+  const [height, setHeight] = useState(() =>
+    heightToDisplay(initial.height_cm, startUnits),
+  );
+  const [weight, setWeight] = useState(() =>
+    weightToDisplay(initial.weight_kg, startUnits),
+  );
+
+  const imperial = units === "imperial";
+
+  function handleUnitsChange(next: Units) {
+    setHeight((h) => reexpress(h, "height", units, next));
+    setWeight((w) => reexpress(w, "weight", units, next));
+    setUnits(next);
+  }
 
   return (
     <form action={formAction} className="mt-6 space-y-5">
@@ -56,30 +105,44 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
         </select>
       </Field>
 
-      <Field label="Height (cm)">
+      <Field label="Units">
+        <select
+          name="units_preference"
+          value={units}
+          onChange={(e) => handleUnitsChange(e.target.value as Units)}
+          className={SELECT_CLASS}
+        >
+          <option value="metric">Metric (kg, cm)</option>
+          <option value="imperial">Imperial (lb, in)</option>
+        </select>
+      </Field>
+
+      <Field label={imperial ? "Height (in)" : "Height (cm)"}>
         <Input
-          name="height_cm"
+          name="height"
           type="number"
           inputMode="decimal"
-          min={100}
-          max={250}
+          min={imperial ? 40 : 100}
+          max={imperial ? 98 : 250}
           step="0.1"
-          placeholder="e.g. 180"
-          defaultValue={initial.height_cm ?? ""}
+          placeholder={imperial ? "e.g. 71" : "e.g. 180"}
+          value={height}
+          onChange={(e) => setHeight(e.target.value)}
           className="h-12 rounded-xl"
         />
       </Field>
 
-      <Field label="Weight (kg)">
+      <Field label={imperial ? "Weight (lbs)" : "Weight (kg)"}>
         <Input
-          name="weight_kg"
+          name="weight"
           type="number"
           inputMode="decimal"
-          min={30}
-          max={300}
+          min={imperial ? 67 : 30}
+          max={imperial ? 661 : 300}
           step="0.1"
-          placeholder="e.g. 90"
-          defaultValue={initial.weight_kg ?? ""}
+          placeholder={imperial ? "e.g. 198" : "e.g. 90"}
+          value={weight}
+          onChange={(e) => setWeight(e.target.value)}
           className="h-12 rounded-xl"
         />
       </Field>
@@ -96,17 +159,6 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
               {g.label}
             </option>
           ))}
-        </select>
-      </Field>
-
-      <Field label="Units">
-        <select
-          name="units_preference"
-          defaultValue={initial.units_preference || "metric"}
-          className={SELECT_CLASS}
-        >
-          <option value="metric">Metric (kg, cm)</option>
-          <option value="imperial">Imperial (lb, in)</option>
         </select>
       </Field>
 
