@@ -200,26 +200,34 @@ because `gh` wasn't authed yet).
 
 ### ▶ NEXT (Angus + Claude) — Profile & Settings
 
-**`/profile` (Profile tab) — ✅ BUILT + locally verified (2026-06-10); visual QA + PR pending.**
-`app/(app)/profile/page.tsx` (was a 12-line placeholder) is now a full identity/account
-hub: code-point-safe initials avatar + serif name + email, an amber **"Beta · Pro"** plan
-pill (the single amber accent), an Account card (member-since / plan / email), a read-only
-**Physical glance** (sex/age/height/weight/goal/units, "—" where unset, "Edit in Settings"
-hint), an App card linking Settings + the three legal docs, and a bottom sign-out. Server
-component, reads only the user's own `profiles` row (RLS-scoped), no schema/dep/token/
-shared-file change. Built via a design-panel workflow (3 designs → synthesis) + a
-5-dimension adversarial review (9 findings → 6 verified-real, all fixed). `tsc` + `lint` +
-prod `build` all clean.
+**`/profile` + `/settings` — ✅ BUILT, on `main`, DEPLOYED to prod (2026-06-10).**
+- **Profile tab** (`app/(app)/profile/page.tsx`): identity/account hub — initials avatar,
+  serif name, email, amber "Beta · Pro" pill, Account card, read-only Physical glance, App
+  card (Settings + 3 legal docs), sign-out. Built via a design-panel workflow + a
+  5-dimension adversarial review (6 fixes). Shipped direct to `main` (Angus's call, to view
+  on phone) — commit `1e990ac`, deployed READY.
+- **Settings** (`app/(app)/settings/{page,actions}.tsx` + `components/settings/settings-form.tsx`):
+  read-only account block + editable sex/height/goal/units, server-validated + RLS-scoped.
+  **The 3 settings files were lifted directly onto `main`** from the stale `feat/settings`
+  branch (which had fallen far behind — merging the whole branch would have reverted Adrian's
+  gradient-wordmark / PWA / brand-script work). So the Profile's Settings links now resolve.
+- **Subtle fade-up entrance** added to both page roots (`animate-in fade-in-0
+  slide-in-from-bottom-2 duration-500 ease-out`, `motion-reduce:animate-none`) via the
+  already-imported `tw-animate-css` — no shared-file change.
+`tsc` + `lint` + prod `build` all clean (route table shows `/profile` + `/settings`).
 
-Remaining for this lane, in order:
-1. **Visual QA** — eyeball `/profile` signed-in (dev server or a PR preview URL). It's
-   inside the `(app)` auth shell, so it needs `.env.local` + a real session — `/preview`
-   can't show it.
-2. **Land PR #2 (`/settings`) FIRST, then PR the Profile tab** — so the Profile's
-   "Settings" row + "Edit in Settings" hint resolve instead of 404ing (both point at
-   `/settings`, which isn't on `main` yet). Needs `gh` authed, or merge via GitHub web.
-3. **Nav link to `/settings`** in the shared `(app)/layout.tsx` — coordinate with Adrian
-   (the one shared-file change this lane needs).
+**⚠ PR #2 hygiene — CLOSE it, do NOT merge it.** Its settings content is now on `main`
+directly; the branch is stale and merging the PR would clobber current `main`. On GitHub:
+**close PR #2** + delete the `feat/settings` branch.
+
+Remaining / next:
+1. **Visual QA on phone** — Angus reviewing `/profile` + `/settings` live on trackdco.app.
+   Decide: the Profile's Physical glance (mostly "—" for now) and the "Beta · Pro" wording.
+2. **Roll the fade to the other tabs?** — only Profile + Settings fade on nav right now. If
+   Angus likes it, generalise via a small per-route wrapper in `(app)/layout.tsx` (shared
+   file — coordinate with Adrian).
+3. **Optional top-level nav link to `/settings`** in `(app)/layout.tsx` (it's already
+   reachable from the Profile tab) — shared file, coordinate with Adrian.
 
 **Design-system note (Angus + Adrian — not actioned; shared-token call):** the review
 flagged `--text-muted` (#7A7A74) at ~4:1 on the surfaces, just under WCAG AA 4.5:1 for

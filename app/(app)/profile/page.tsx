@@ -53,7 +53,7 @@ export default async function ProfilePage() {
   const age = ageFromDob(profile?.date_of_birth);
 
   return (
-    <div className="mx-auto w-full max-w-md px-6 py-10">
+    <div className="mx-auto w-full max-w-md px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
       {/* ── Identity hero ─────────────────────────────────────────── */}
       <section className="flex flex-col items-center text-center">
         <div

@@ -30,6 +30,22 @@ Last updated: 2026-06-10
 
 ## Completed
 
+- **Settings landed on `main` + Profile/Settings page fade + prod deploy (2026-06-10).**
+  Lifted the 3 self-contained **Settings** files (`app/(app)/settings/{page,actions}.tsx`,
+  `components/settings/settings-form.tsx`) directly onto `main` from the **stale
+  `feat/settings`** branch — that branch had fallen far behind `main` (it predated the new
+  Profile page, Adrian's gradient wordmark, the brand scripts, and the PWA cold-launch
+  fixes), so merging the whole branch would have **reverted** that work. Only the feature
+  files were cherry-picked (every import already resolves on `main`). `/settings` (read-only
+  account block + server-validated, RLS-scoped editable sex/height/goal/units) is now live,
+  so the Profile tab's Settings links resolve instead of 404ing. Added a **subtle fade-up
+  entrance** (`animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out` +
+  `motion-reduce:animate-none`) to both the Profile and Settings page roots via the
+  already-imported `tw-animate-css` — no shared-file change. Pushed to `main` → deployed to
+  prod (trackdco.app); `tsc` + `lint` + prod `build` clean; route table shows `/profile` +
+  `/settings`. **PR #2 is now superseded — CLOSE it (do NOT merge; the branch is behind
+  `main` and would clobber it).**
+
 - **Profile tab built — code complete, locally verified (2026-06-10).**
   `app/(app)/profile/page.tsx` (was a blank placeholder) is now the bottom-nav Profile
   destination: an identity/account **hub, NOT an editor** (edits route to `/settings`).
