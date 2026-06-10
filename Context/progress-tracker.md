@@ -43,8 +43,11 @@ Last updated: 2026-06-10
   `motion-reduce:animate-none`) to both the Profile and Settings page roots via the
   already-imported `tw-animate-css` — no shared-file change. Pushed to `main` → deployed to
   prod (trackdco.app); `tsc` + `lint` + prod `build` clean; route table shows `/profile` +
-  `/settings`. **PR #2 is now superseded — CLOSE it (do NOT merge; the branch is behind
-  `main` and would clobber it).**
+  `/settings`. **Follow-up (2026-06-10):** Settings gained a **Weight (kg)** field
+  (validated 30–300 to match the schema CHECK; placeholder until the dedicated weight-
+  tracking surface exists), and **Save now redirects to `/dashboard`** on success (via
+  `redirect()` in the action; the inline "Saved." message was dropped). **PR #2 is now
+  superseded — CLOSE it (do NOT merge; the branch is behind `main` and would clobber it).**
 
 - **Profile tab built — code complete, locally verified (2026-06-10).**
   `app/(app)/profile/page.tsx` (was a blank placeholder) is now the bottom-nav Profile

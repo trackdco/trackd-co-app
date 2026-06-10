@@ -28,6 +28,7 @@ export type SettingsInitial = {
   goal: string | null;
   units_preference: string;
   height_cm: number | null;
+  weight_kg: number | null;
 };
 
 /**
@@ -69,6 +70,20 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
         />
       </Field>
 
+      <Field label="Weight (kg)">
+        <Input
+          name="weight_kg"
+          type="number"
+          inputMode="decimal"
+          min={30}
+          max={300}
+          step="0.1"
+          placeholder="e.g. 90"
+          defaultValue={initial.weight_kg ?? ""}
+          className="h-12 rounded-xl"
+        />
+      </Field>
+
       <Field label="Goal">
         <select
           name="goal"
@@ -98,11 +113,6 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
       {state.error ? (
         <p role="alert" className="text-sm text-[var(--state-error)]">
           {state.error}
-        </p>
-      ) : null}
-      {state.success ? (
-        <p role="status" className="text-sm text-[var(--accent-green)]">
-          Saved.
         </p>
       ) : null}
 

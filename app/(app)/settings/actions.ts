@@ -41,6 +41,7 @@ export async function updateSettings(
   const goalRaw = String(formData.get("goal") ?? "").trim();
   const unitsRaw = String(formData.get("units_preference") ?? "").trim();
   const heightRaw = String(formData.get("height_cm") ?? "").trim();
+  const weightRaw = String(formData.get("weight_kg") ?? "").trim();
 
   const sex = sexRaw === "" ? null : sexRaw;
   if (sex !== null && !SEXES.has(sex)) return { error: "Invalid sex selection." };
@@ -60,6 +61,16 @@ export async function updateSettings(
     heightCm = Math.round(h * 10) / 10;
   }
 
+  let weightKg: number | null = null;
+  if (weightRaw !== "") {
+    const w = Number(weightRaw);
+    // Matches the schema CHECK (weight_sane: 30–300) + numeric(5,1).
+    if (!Number.isFinite(w) || w < 30 || w > 300) {
+      return { error: "Weight must be between 30 and 300 kg." };
+    }
+    weightKg = Math.round(w * 10) / 10;
+  }
+
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -67,11 +78,15 @@ export async function updateSettings(
       goal,
       units_preference: unitsRaw,
       height_cm: heightCm,
+      weight_kg: weightKg,
     })
     .eq("id", user.id);
 
   if (error) return { error: "Couldn't save your changes. Please try again." };
 
+  // Refresh the pages that read these values, then drop the user back on the
+  // dashboard (redirect() throws NEXT_REDIRECT, so nothing returns past here).
   revalidatePath("/settings");
-  return { success: true };
+  revalidatePath("/profile");
+  redirect("/dashboard");
 }
