@@ -9,47 +9,41 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-09
+Last updated: 2026-06-10
 
 ---
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-09 (Angus + Claude, shipped to `main`/prod):** (1) **App is much
-faster** — moved Vercel functions to **Sydney `syd1`** (warm TTFB ~330–480ms → ~210ms);
-this **closes the "check region" backlog item**. (2) **Amber wordmark** ("co" in
-`--accent-amber`). (3) **PWA install prompt rebuilt honestly** — iOS has no way to
-shortcut Add-to-Home-Screen (researched + verified; `app.link`/Branch is for native
-apps, not PWAs), so the card now detects in-app webviews → "Open in Safari", uses iOS-26
-"•••"-menu wording, and adds the "View More" step. (4) **Local toolchain** — `gh` +
-Vercel CLI installed; `~/dev/trackd-co-app` confirmed as the canonical repo.
-**▶ Next for this lane:** land the open **`/settings` PR #2** (it's behind `main` now),
-then **build the Profile tab** — see the Build track below.
+**Latest — 2026-06-10 (Angus + Claude, all shipped to `main`/prod): the Profile & Settings
+lane is ✅ DONE.**
+- **Profile tab** (`/profile`) — identity/account hub: initials avatar, serif name, email,
+  amber "Beta · Pro" pill, Account card, **unit-aware** read-only Physical glance, App card
+  (Settings + 3 legal docs), sign-out. Built via a design-panel workflow + a 5-dimension
+  adversarial review (6 fixes applied).
+- **Settings** (`/settings`) — read-only account block + editable Sex/Units/Height/Weight/
+  Goal (server-validated, RLS-scoped). The **Units toggle live-relabels + converts**
+  Height/Weight (cm/kg ↔ in/lbs, stored metric); **Save redirects to the dashboard**. A
+  subtle **fade-up** entrance on both pages.
+- Landed **direct to `main`** (gh not authed) over commits `1e990ac` → `2a6207c`, each
+  deployed READY. **PR #2 CLOSED** (not merged — settings was landed straight on `main`; the
+  branch was stale). The `feat/settings` branch can still be deleted.
 
-Auth + the logged-in shell are **✅ live on https://trackdco.app** (Google sign-in
-→ 18+/ToS gate → dashboard, branded PWA splash, RLS verified with two accounts —
-Week-1 checkpoint met). Now **two parallel app-UI lanes**, both via the PR flow
-(branch → PR → CodeRabbit → merge):
-- **Adrian — app UI** (`feat/app-ui`): **bottom nav + Add-to-Stack — catalogue
-  search + "Make your own" custom compounds, each row with add / edit / delete
-  controls — is in the open PR to `main`.** Next after it merges: the core loop
-  (cycles → compounds → inventory → dose logging → reflow), the week-2 spine.
-- **Angus + Claude — Profile & Settings** (`feat/settings`): `/settings` v1 built,
-  **PR #2 in CodeRabbit review**. Self-contained (own folders, own profile row).
-  Angus also owns **beta outreach** + the business setup (Airwallex → Pro + custom
-  domain). One follow-up: nav link to `/settings` in the shared `(app)/layout.tsx`
-  — coordinate with Adrian.
-- **Still open (Angus, quick):** publish the Google OAuth app (Audience → Publish)
-  before non-Test-user testers.
-- **Verify (Adrian):** the "black bar under the nav" — confirmed it shows on cold
-  launch in BOTH the installed PWA and Safari and **settles to the bottom after the
-  first swipe** (classic iOS dynamic-viewport bug). Fix shipped: a **visual-viewport
-  pin** on the bottom nav (`components/navigation/bottom-nav.tsx`) that nudges it down
-  onto the visible bottom on launch, clamped so it can only be a no-op or a down-nudge.
-  **Test after a clean reinstall** (the installed app still serves stale cache — that's
-  why the old splash persists). Watch for: bar gone on cold launch; no jiggle on
-  rubber-band overscroll; keyboard still hides the bar. If it survives → add a 1px
-  scroll-nudge fallback / inspect the live geometry.
+**▶ Angus is now on the MARKETING PLAN (from 2026-06-10) — NOT building.** Re-warming the
+audience ahead of beta: the Trackd socials have been quiet for a while (cold audience), so
+he's restarting **consistent, Trackd-optimised posting** + building the marketing plan. This
+will take a while; he'll come back when it's in motion and we'll pick the next build task
+from where he + Adrian are. See **"NOW (Angus) — audience warm-up"** below.
+
+**The other lanes meanwhile:**
+- **Adrian — app UI** (`feat/app-ui`): building the **core loop** (cycles → compounds →
+  inventory → dose logging → reflow), the week-2 spine. (Also still pending: an on-device
+  check of his iOS cold-launch nav-strip fix after a clean reinstall.)
+- **Auth — one quick task still open (Angus, when he's back):** publish the Google OAuth app
+  (Audience → Publish) before any non-Test-user tester can sign in.
+- **Deferred offers (when the build resumes; both shared-file — coordinate with Adrian):**
+  roll the page **fade** out to the other tabs (Home/Protocol/Progress) via a per-route
+  wrapper in `(app)/layout.tsx`; optional top-level nav link to `/settings`.
 
 ---
 
@@ -168,21 +162,24 @@ dashboard; sign-out + returning-user (skips gate) both confirmed. Full record in
 
 ### ▶ NOW — Finish the auth checkpoint (Angus)
 
-The flow is live; these three close the 11 Jun checkpoint:
+Two of the three are **✅ done (confirmed by both founders 2026-06-10)** — only the
+Google publish remains:
 
-1. **On-phone test** — open https://trackdco.app on **both founders' phones**, sign
-   in with a **Test-user** Google account, pass the gate, land on the dashboard,
-   then **Add to Home Screen** and confirm the PWA installs with the Trackd icon
-   and opens full-screen.
-2. **Two-account RLS isolation** — sign in with the **second** founder account and
-   confirm it sees none of the first's data. Claude verifies with DB queries (check
-   the **views + storage bucket** too, not just base tables). Matters most once real
-   cycle/dose data exists, but baseline-check it now.
-3. **Publish the Google OAuth app** — Google Cloud → **Audience → Publish App**
-   (moves it out of "Testing", where only listed Test users can sign in) **and** add
-   the co-founder's Google account as a Test user meanwhile. Do this before handing
-   the app to beta testers.
-   - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones.
+1. ✅ **On-phone test** — done on both founders' phones: signed in, passed the 18+/ToS
+   gate, landed on the dashboard, **Added to Home Screen**, and the PWA installs with
+   the Trackd icon + opens full-screen.
+2. ✅ **Two-account RLS isolation** — both founders signed in; each account saw only its
+   own data, no leakage. (Re-verify the **views + storage bucket** once real cycle/dose
+   + bloodwork data exists — baseline is clean.)
+3. ▶ **Publish the Google OAuth app** — Google Cloud Console → **APIs & Services →
+   OAuth consent screen** (a.k.a. the **Audience** tab) → **Publish App** → confirm.
+   Moves it out of "Testing" (where only listed Test users can sign in). Sign-in uses
+   only non-sensitive scopes (email/profile/openid), so it flips to "In production"
+   immediately — **no Google verification review**. Add Adrian's Google account as a
+   Test user meanwhile. **Manual console step — Claude can't reach your Google account
+   to click it.**
+   - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones — **met**
+     once the app is published.
 
 ### ✅ DONE — Healthy canonical repo off iCloud (2026-06-09)
 
@@ -195,25 +192,43 @@ user-level (`~/.local/bin`) — **run `gh auth login` + `vercel login`** to unlo
 proper branch→PR→CodeRabbit flow (today's perf/install fixes went direct to `main` only
 because `gh` wasn't authed yet).
 
-### ▶ NEXT (Angus + Claude) — Profile & Settings: land PR #2, then build the Profile tab
+### ✅ DONE (Angus + Claude) — Profile & Settings (2026-06-10, on `main`/prod)
 
-`/settings` (Profile & Settings v1 — read-only account block + editable
-sex/height/goal/units, RLS-scoped) is **built but still in open PR #2 on `feat/settings`,
-now behind `main`.** `/profile` (the bottom-nav Profile tab) is still a 12-line
-placeholder. Optimal order:
-1. **Land PR #2 first** — merge latest `main` into `feat/settings` (or rebase), let
-   CodeRabbit re-review, then merge so `/settings` reaches `main` instead of drifting
-   further. (Needs `gh` authed, or merge via GitHub web.)
-2. **Build the Profile tab** (`app/(app)/profile/page.tsx`) — surface account info
-   (name/email/plan/member-since), link to `/settings`, sign-out; self-contained, reads
-   only the user's own `profiles` row. Coordinate the one shared change (nav link to
-   `/settings` in `(app)/layout.tsx`) with Adrian.
+Both screens built, deployed READY, and signed off by Angus ("very happy with it"):
+- **Profile tab** (`app/(app)/profile/page.tsx`) — identity/account hub: initials avatar,
+  serif name, email, amber "Beta · Pro" pill, Account card, **unit-aware** read-only Physical
+  glance, App card (Settings + 3 legal docs), sign-out. Design-panel workflow + 5-dimension
+  adversarial review (6 fixes).
+- **Settings** (`app/(app)/settings/{page,actions}.tsx` + `components/settings/settings-form.tsx`)
+  — read-only account block + editable Sex/Units/Height/Weight/Goal (server-validated,
+  RLS-scoped). **Units toggle live-relabels + converts** Height/Weight (cm/kg ↔ in/lbs,
+  stored metric); **Save → dashboard**.
+- **Fade-up** entrance on both page roots (reduced-motion safe). Landed direct to `main`
+  (gh not authed), `1e990ac` → `2a6207c`. **PR #2 CLOSED** (not merged) via the GitHub API,
+  with an explanatory comment.
 
-### Also (Angus) — beta outreach (alongside the build)
+**Deferred (pick up when the build resumes — items 1–2 shared-file, coordinate with Adrian):**
+1. Roll the **fade** out to the other tabs (Home/Protocol/Progress) via a small per-route
+   wrapper in `(app)/layout.tsx`.
+2. Optional top-level **nav link to `/settings`** (already reachable from the Profile tab).
+3. Optionally delete the stale `feat/settings` branch.
 
-Angus owns tester recruitment — his audience (100k social following + a 700-member
-peptide Discord), prioritising **influencers** for reach + credibility. Targeted at
-the **last few days** before 28 Jun; full strategy in a dedicated session.
+**Design-system note (Angus + Adrian — not actioned; shared-token call):** the review
+flagged `--text-muted` (#7A7A74) at ~4:1 on the surfaces, just under WCAG AA 4.5:1 for
+small text. It's used app-wide (dashboard/layout/nav), so the Profile tab follows the
+convention rather than diverging on one screen. Making muted text AA-clean is a one-token
+nudge in `globals.css` that lifts every screen — Adrian's call (it's the locked palette).
+
+### ▶ NOW (Angus) — audience warm-up + marketing plan (from 2026-06-10)
+
+**Angus's active focus** (not building). The Trackd socials have been quiet for a while, so
+the audience is cold — before the beta push he's **restarting consistent, Trackd-optimised
+posting** to re-warm them and building out the marketing plan. Expected to take a while; he'll
+come back when it's in motion and we'll choose the next build task from where he + Adrian are.
+
+When outreach proper begins, the base is ~**100k social following + a 700-member peptide
+Discord**, prioritising **influencers** for reach + credibility, aimed at the run-up to the
+**28 Jun** beta. (The warm-up now is the groundwork for that.)
 
 ### Tooling — Vercel plugin installed (2026-06-06)
 

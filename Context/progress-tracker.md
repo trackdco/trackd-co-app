@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-09
+Last updated: 2026-06-10
 
 ## Current Phase
 
@@ -21,12 +21,69 @@ Last updated: 2026-06-09
   sign-out + returning-user (skips the gate) both work. Prod checks pass: legal
   docs render from the DB, the PWA manifest serves, route guards redirect. The
   Data API works via the `api_role_grants` migration. **Remaining to fully close
-  the 11 Jun checkpoint:** on-phone test on both founders' phones (+ Add-to-Home-
-  Screen install), the two-account RLS isolation check, and publishing the Google
-  OAuth app (currently in "Testing", so only listed Test users can sign in).
-  Backend, data model, seed catalogues, domain, and the public landing remain live.
+  the 11 Jun checkpoint:** only publishing the Google OAuth app (currently in
+  "Testing", so only listed Test users can sign in). The on-phone test (+ Add-to-
+  Home-Screen install) and the two-account RLS isolation check are both **confirmed
+  by both founders (2026-06-10)** — the PWA installs with the Trackd icon and opens
+  full-screen, and each account saw only its own data. Backend, data model, seed
+  catalogues, domain, and the public landing remain live.
 
 ## Completed
+
+- **Profile glance unit-aware + PR #2 closed (2026-06-10).** The Profile tab's Physical
+  glance now shows **Height/Weight in the user's preferred units** (cm/kg or in/lbs),
+  mirroring the settings form — storage stays metric, converted for display only
+  (`formatMeasure` in `app/(app)/profile/page.tsx`, reading `profiles.units_preference`).
+  **PR #2 was CLOSED — not merged** (via the GitHub API using the osxkeychain git
+  credential, since `gh` isn't authed), with a comment explaining the settings feature was
+  landed directly on `main`. The stale `feat/settings` branch can still be deleted.
+
+- **Settings landed on `main` + Profile/Settings page fade + prod deploy (2026-06-10).**
+  Lifted the 3 self-contained **Settings** files (`app/(app)/settings/{page,actions}.tsx`,
+  `components/settings/settings-form.tsx`) directly onto `main` from the **stale
+  `feat/settings`** branch — that branch had fallen far behind `main` (it predated the new
+  Profile page, Adrian's gradient wordmark, the brand scripts, and the PWA cold-launch
+  fixes), so merging the whole branch would have **reverted** that work. Only the feature
+  files were cherry-picked (every import already resolves on `main`). `/settings` (read-only
+  account block + server-validated, RLS-scoped editable sex/height/goal/units) is now live,
+  so the Profile tab's Settings links resolve instead of 404ing. Added a **subtle fade-up
+  entrance** (`animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out` +
+  `motion-reduce:animate-none`) to both the Profile and Settings page roots via the
+  already-imported `tw-animate-css` — no shared-file change. Pushed to `main` → deployed to
+  prod (trackdco.app); `tsc` + `lint` + prod `build` clean; route table shows `/profile` +
+  `/settings`. **Follow-up (2026-06-10):** Settings gained a **Weight (kg)** field
+  (validated 30–300 to match the schema CHECK; placeholder until the dedicated weight-
+  tracking surface exists), and **Save now redirects to `/dashboard`** on success (via
+  `redirect()` in the action; the inline "Saved." message was dropped). Height/Weight now
+  display + accept the user's chosen **units** (cm/kg ↔ in/lbs) — imperial converts to metric
+  on save (storage stays metric; the schema CHECKs validate the converted value; round-trip
+  verified). **PR #2 is now
+  superseded — CLOSE it (do NOT merge; the branch is behind `main` and would clobber it).**
+
+- **Profile tab built — code complete, locally verified (2026-06-10).**
+  `app/(app)/profile/page.tsx` (was a blank placeholder) is now the bottom-nav Profile
+  destination: an identity/account **hub, NOT an editor** (edits route to `/settings`).
+  Sections: identity hero (**code-point-safe initials avatar** — no external photo, since
+  `next/image` has no `remotePatterns` — serif name, email, and a single amber **"Beta ·
+  Pro" plan pill** = the one sanctioned amber accent); an **Account** card (member-since /
+  plan / email); a **read-only Physical glance** (sex/age/height/weight/goal/units, "—"
+  where unset, "Edit in Settings" hint); an **App** card linking Settings + the three legal
+  docs (`/terms`·`/privacy`·`/medical-disclaimer`); and a bottom **sign-out**
+  (`<form action={signOut}>`, alongside the header's). Server component; reads ONLY the
+  user's own `profiles` row (RLS-scoped, `maybeSingle`, null-safe — defaults to Beta·Pro
+  and renders "—" if the row is missing). **No schema / dependency / token / shared-file
+  change.** Built via a **design-panel workflow** (3 diverse on-brand designs → synthesis)
+  then a **5-dimension adversarial review** (correctness · RLS/security · a11y ·
+  design-system · Next-16/React; 9 raw → 6 verified-real, all fixed): low-contrast
+  `text-subtle` on the interactive Edit link + nav chevron → `text-muted`; a **negative-age
+  guard** for a future/bad DOB (→ "—"); a proper **tap target** on the Edit link;
+  **focus-visible amber rings** on every hand-rolled control (inset on the card rows to
+  clear `overflow-hidden`); **code-point-safe initials**. Dismissed 3 (unreachable
+  `fmtNum("")` under the `numeric(5,1)`+CHECK schema; the deliberate plan/email IA
+  duplication). `tsc` + `npm run lint` + prod `npm run build` all clean; `/profile` builds
+  as a server-rendered route. **Not yet PR'd** — visual QA + PR pending; `/settings` links
+  404 until PR #2 merges (merge settings first). Open design-system note: `--text-muted`
+  sits ~4:1 (just under AA 4.5:1) app-wide — a one-token call for Adrian, not changed here.
 
 - **Brand wordmark → gradient logo images + launch-splash cleanup (2026-06-09).**
   Replaced the text wordmark ("trackd co", `co` in `--accent-amber`) with the real
@@ -345,14 +402,17 @@ Last updated: 2026-06-09
 
 ## In Progress
 
-- **App UI — two parallel lanes (PR-based, CodeRabbit-reviewed).** Adrian → the
-  **core loop** (cycles → compounds → inventory → dose logging) on `feat/app-ui`.
-  Angus + Claude → **Profile & Settings** (`/settings`) on `feat/settings` — v1
-  built (read-only account block + editable sex/height/goal/units, server-validated
-  + RLS-scoped to the user's own row), **PR #2 open — CodeRabbit review came back
-  clean (no actionable comments); ready to merge** (build + lint + guard verified).
-  NB the nav link to `/settings` is a deferred shared-layout (`app/(app)/layout.tsx`)
-  change to coordinate with Adrian.
+- **App UI lanes.** **Angus + Claude — Profile & Settings: ✅ DONE** (Profile tab +
+  Settings, unit-aware Height/Weight, page fade-up, Save→dashboard; landed direct on
+  `main` and deployed to prod 2026-06-10; PR #2 closed, not merged). **Adrian — the core
+  loop** (cycles → compounds → inventory → dose logging → reflow) on `feat/app-ui`, in
+  progress. The deferred fade-to-all-tabs + a `/settings` nav link are shared-layout
+  (`app/(app)/layout.tsx`) changes to coordinate with Adrian when the build resumes.
+- **Angus — marketing / audience warm-up (from 2026-06-10).** Now off the build and onto
+  the **marketing plan**: restarting consistent, Trackd-optimised social posting to re-warm
+  a **cold audience** (the socials have been quiet for a while) ahead of the 28 Jun beta.
+  Will return to the build when it's in motion; next build task chosen then from where he +
+  Adrian are. Details in `next-tasks.md` → "NOW (Angus) — audience warm-up".
 - **Auth — effectively done; one tester-gating task left:** **publish the Google
   OAuth app** (Audience → Publish App) before any non-Test-user can sign in. Sign-in,
   the 18+/ToS gate, RLS isolation, and the branded PWA launch splash are all live +
