@@ -30,6 +30,14 @@ Last updated: 2026-06-10
 
 ## Completed
 
+- **Profile glance unit-aware + PR #2 closed (2026-06-10).** The Profile tab's Physical
+  glance now shows **Height/Weight in the user's preferred units** (cm/kg or in/lbs),
+  mirroring the settings form — storage stays metric, converted for display only
+  (`formatMeasure` in `app/(app)/profile/page.tsx`, reading `profiles.units_preference`).
+  **PR #2 was CLOSED — not merged** (via the GitHub API using the osxkeychain git
+  credential, since `gh` isn't authed), with a comment explaining the settings feature was
+  landed directly on `main`. The stale `feat/settings` branch can still be deleted.
+
 - **Settings landed on `main` + Profile/Settings page fade + prod deploy (2026-06-10).**
   Lifted the 3 self-contained **Settings** files (`app/(app)/settings/{page,actions}.tsx`,
   `components/settings/settings-form.tsx`) directly onto `main` from the **stale

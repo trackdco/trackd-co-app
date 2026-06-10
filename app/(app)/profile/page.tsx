@@ -51,6 +51,7 @@ export default async function ProfilePage() {
   const planLabel = isPaid ? "Beta · Pro" : "Free";
   const memberSince = formatMemberSince(profile?.created_at);
   const age = ageFromDob(profile?.date_of_birth);
+  const imperial = profile?.units_preference === "imperial";
 
   return (
     <div className="mx-auto w-full max-w-md px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
@@ -111,9 +112,15 @@ export default async function ProfilePage() {
         <Divider />
         <InfoRow label="Age" value={age != null ? `${age} yrs` : "—"} />
         <Divider />
-        <InfoRow label="Height" value={fmtNum(profile?.height_cm, "cm")} />
+        <InfoRow
+          label="Height"
+          value={formatMeasure(profile?.height_cm, imperial, "cm", "in", CM_PER_IN)}
+        />
         <Divider />
-        <InfoRow label="Weight" value={fmtNum(profile?.weight_kg, "kg")} />
+        <InfoRow
+          label="Weight"
+          value={formatMeasure(profile?.weight_kg, imperial, "kg", "lbs", KG_PER_LB)}
+        />
         <Divider />
         <InfoRow label="Goal" value={fmtGoal(profile?.goal)} />
         <Divider />
@@ -278,11 +285,23 @@ const GOAL_LABELS: Record<string, string> = {
 const fmtGoal = (v?: string | null) =>
   v ? (GOAL_LABELS[v] ?? fmtCapital(v)) : "—";
 
-const fmtNum = (
-  v: number | string | null | undefined,
-  unit: string,
-): string => {
-  if (v == null) return "—";
-  const n = Number(v);
-  return Number.isNaN(n) ? "—" : `${n % 1 === 0 ? n : n.toFixed(1)} ${unit}`;
-};
+// Storage is metric; show in the user's preferred units (imperial = display only,
+// matching the settings form). perImperialUnit = metric units per 1 imperial unit.
+const CM_PER_IN = 2.54;
+const KG_PER_LB = 0.45359237;
+
+function formatMeasure(
+  value: number | string | null | undefined,
+  imperial: boolean,
+  metricUnit: string,
+  imperialUnit: string,
+  perImperialUnit: number,
+): string {
+  if (value == null) return "—";
+  const n = Number(value);
+  if (Number.isNaN(n)) return "—";
+  const v = imperial ? n / perImperialUnit : n;
+  const rounded = Math.round(v * 10) / 10;
+  const text = rounded % 1 === 0 ? String(rounded) : rounded.toFixed(1);
+  return `${text} ${imperial ? imperialUnit : metricUnit}`;
+}
