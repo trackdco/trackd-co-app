@@ -402,14 +402,17 @@ Last updated: 2026-06-10
 
 ## In Progress
 
-- **App UI — two parallel lanes (PR-based, CodeRabbit-reviewed).** Adrian → the
-  **core loop** (cycles → compounds → inventory → dose logging) on `feat/app-ui`.
-  Angus + Claude → **Profile & Settings** (`/settings`) on `feat/settings` — v1
-  built (read-only account block + editable sex/height/goal/units, server-validated
-  + RLS-scoped to the user's own row), **PR #2 open — CodeRabbit review came back
-  clean (no actionable comments); ready to merge** (build + lint + guard verified).
-  NB the nav link to `/settings` is a deferred shared-layout (`app/(app)/layout.tsx`)
-  change to coordinate with Adrian.
+- **App UI lanes.** **Angus + Claude — Profile & Settings: ✅ DONE** (Profile tab +
+  Settings, unit-aware Height/Weight, page fade-up, Save→dashboard; landed direct on
+  `main` and deployed to prod 2026-06-10; PR #2 closed, not merged). **Adrian — the core
+  loop** (cycles → compounds → inventory → dose logging → reflow) on `feat/app-ui`, in
+  progress. The deferred fade-to-all-tabs + a `/settings` nav link are shared-layout
+  (`app/(app)/layout.tsx`) changes to coordinate with Adrian when the build resumes.
+- **Angus — marketing / audience warm-up (from 2026-06-10).** Now off the build and onto
+  the **marketing plan**: restarting consistent, Trackd-optimised social posting to re-warm
+  a **cold audience** (the socials have been quiet for a while) ahead of the 28 Jun beta.
+  Will return to the build when it's in motion; next build task chosen then from where he +
+  Adrian are. Details in `next-tasks.md` → "NOW (Angus) — audience warm-up".
 - **Auth — effectively done; one tester-gating task left:** **publish the Google
   OAuth app** (Audience → Publish App) before any non-Test-user can sign in. Sign-in,
   the 18+/ToS gate, RLS isolation, and the branded PWA launch splash are all live +
