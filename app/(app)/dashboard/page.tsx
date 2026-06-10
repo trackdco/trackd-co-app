@@ -1,48 +1,55 @@
 import type { Metadata } from "next";
 
-import { InstallPrompt } from "@/components/pwa/install-prompt";
+import { HomeScreen } from "@/components/home/HomeScreen";
+import { mockWeightPoints, toDateKey } from "@/lib/home/mockHomeData";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Dashboard — Trackd Co",
+  title: "Home — Trackd Co",
 };
 
 /**
- * Empty dashboard — the home screen and the shell every feature lands in. The
- * protocol clock, cycles, dosing, and the rest build out from here (Adrian's
- * app-UI lane). For now it confirms a working signed-in session and offers the
- * install-to-home-screen prompt.
+ * Home — the default tab and the screen every daily-use session lands on: a
+ * glanceable status board (pinned week strip → greeting → Today's Cycle →
+ * Site rotation → Weight → Reconstitution Calculator). Cycle/site data is mock
+ * this pass; the Weight card reads the user's REAL `body_metrics` history (and
+ * "Log weight" persists there), falling back to mock points until they've logged.
  *
- * The (app) layout has already enforced auth + the 18+/ToS gate; here we only
- * read the user for a display-only greeting (user_metadata is never used for
- * access decisions).
+ * The (app) layout already enforced auth + the 18+/ToS gate. `todayKey` is
+ * resolved once here on the server so every date renders identically on server
+ * and client. The user's first name (display-only) feeds the greeting.
  */
 export default async function DashboardPage() {
+  const todayKey = toDateKey(new Date());
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   const fullName =
     (user?.user_metadata?.full_name as string | undefined) ??
     (user?.user_metadata?.name as string | undefined) ??
     null;
-  const firstName = fullName?.trim().split(/\s+/)[0] ?? null;
+  const firstName = fullName?.trim().split(/\s+/)[0] ?? "";
+
+  // RLS scopes this to the signed-in user; oldest → newest for the chart.
+  const { data } = await supabase
+    .from("body_metrics")
+    .select("measured_on, weight_kg")
+    .order("measured_on", { ascending: true })
+    .limit(120);
+  const rows = (data ?? []) as { measured_on: string; weight_kg: number | null }[];
+  const realWeight = rows
+    .filter((r) => r.weight_kg != null)
+    .map((r) => ({ key: r.measured_on, kg: Number(r.weight_kg) }));
+  const weight = realWeight.length > 0 ? realWeight : mockWeightPoints(new Date());
 
   return (
-    <div className="mx-auto w-full max-w-md px-6 py-10">
-      <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-        Today
-      </p>
-      <h1 className="mt-2 text-balance font-display text-[2rem] font-medium leading-[1.1] tracking-[-0.02em] text-foreground">
-        {firstName ? `Welcome, ${firstName}` : "Welcome to Trackd"}
-      </h1>
-      <p className="mt-3 text-[0.95rem] leading-relaxed text-text-muted">
-        You&apos;re all set. Your protocol clock, cycles, and dosing will live
-        here — building now.
-      </p>
-
-      <InstallPrompt />
-    </div>
+    <HomeScreen
+      todayKey={todayKey}
+      name={firstName}
+      weight={weight}
+      userId={user?.id ?? "anon"}
+    />
   );
 }

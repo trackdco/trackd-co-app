@@ -28,9 +28,13 @@
   --border-default: #2e2e2c;
   --border-strong: #3e3e3a;
 
-  /* Data viz + overlays */
+  /* Data viz + overlays. chart-line = raw scale weight (periwinkle); chart-trend
+     = the smoothed trend line (teal) — two harmonious series colours, neither
+     evaluative. */
   --chart-line: #6b7fd4;
   --chart-fill: rgba(107, 127, 212, 0.15);
+  --chart-trend: #4fb3a6;
+  --chart-trend-fill: rgba(79, 179, 166, 0.16);
   --overlay-backdrop: rgba(0, 0, 0, 0.7);
 
   /* Compound-category legend dots — an organisational legend only (one muted hue
@@ -108,6 +112,8 @@
   --color-border-strong: var(--border-strong);
   --color-chart-line: var(--chart-line);
   --color-chart-fill: var(--chart-fill);
+  --color-chart-trend: var(--chart-trend);
+  --color-chart-trend-fill: var(--chart-trend-fill);
   --color-overlay-backdrop: var(--overlay-backdrop);
   --color-state-error: var(--state-error);
   --color-state-success: var(--state-success);
@@ -188,12 +194,74 @@
   animation: shortcut-fade 240ms ease-out both;
 }
 
+/* Home "dose tracked" confirmation — the tick pops in with a soft overshoot and
+   a single ring pulse radiates out (a satisfying "approved" beat). */
+.animate-home-tick-pop {
+  animation: home-tick-pop 460ms cubic-bezier(0.2, 0.85, 0.3, 1) both;
+}
+
+.animate-home-tick-ring {
+  animation: home-tick-ring 620ms ease-out forwards;
+}
+
+/* Home entrance — each card fades + rises into place. Staggered per-card via an
+   inline animation-delay (see HomeScreen). Smooth ease-out, runs once on load. */
+.animate-home-up {
+  animation: home-up 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Amber pop-down notice — slides + fades down from the top edge (the only
+   notification style in the app; errors use this, never a modal pop-up). */
+.animate-notice-in {
+  animation: notice-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* A short horizontal shake — a tapped-but-blocked card (already in the log). */
+.animate-card-shake {
+  animation: card-shake 420ms ease-in-out both;
+}
+
 /* Respect users who opt out of motion — no entrance/ripple/fade for them. */
 @media (prefers-reduced-motion: reduce) {
   .animate-shortcut-in,
   .animate-shortcut-ripple,
-  .animate-shortcut-fade {
+  .animate-shortcut-fade,
+  .animate-home-tick-pop,
+  .animate-home-tick-ring,
+  .animate-home-up,
+  .animate-notice-in,
+  .animate-card-shake {
     animation: none;
+  }
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-120%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes card-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
   }
 }
 
@@ -225,6 +293,43 @@
   to {
     transform: translate(-50%, -50%) scale(1);
     opacity: 0;
+  }
+}
+
+@keyframes home-tick-pop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes home-tick-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+@keyframes home-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

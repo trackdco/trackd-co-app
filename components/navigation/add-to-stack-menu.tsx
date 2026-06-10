@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Pencil, Plus, Search, Trash2 } from "lucide-react"
+import { Check, Pencil, Plus, Search, Trash2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -23,6 +23,12 @@ import {
   type CompoundCategory,
 } from "@/lib/compound-categories"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
+import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
+import { loadStack } from "@/lib/home/stack"
+import {
+  AmberNotice,
+  useAmberNotice,
+} from "@/components/notifications/amber-notice"
 
 interface AddToStackMenuProps {
   open: boolean
@@ -154,6 +160,13 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
 
   const [query, setQuery] = useState("")
   const [customs, setCustoms] = useState<CustomCompound[]>([])
+  // The compound whose "+" was tapped — opens the "Add to protocol" sheet.
+  const [pendingCompound, setPendingCompound] = useState<Compound | null>(null)
+  // Names already in the user's log (lowercased) — those rows dim + block.
+  const [inLogNames, setInLogNames] = useState<Set<string>>(new Set())
+  const [shakingName, setShakingName] = useState<string | null>(null)
+  const blockedTapsRef = useRef<Record<string, number>>({})
+  const { notice, show: showNotice, dismiss: dismissNotice } = useAmberNotice()
 
   const [mode, setMode] = useState<"browse" | "form">("browse")
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
@@ -177,6 +190,12 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
       setQuery("")
       backToBrowse()
       setCustoms(loadCustoms(userId))
+      setPendingCompound(null)
+      blockedTapsRef.current = {}
+      setShakingName(null)
+      setInLogNames(
+        new Set((loadStack(userId) ?? []).map((c) => c.name.toLowerCase()))
+      )
     }
   }, [open, userId])
 
@@ -356,7 +375,21 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
 
   const nameValid = form.name.trim().length > 0
 
+  // A compound already in the log is dimmed + unclickable. Tapping it shakes the
+  // card; from the 3rd tap on, an amber notice explains why (Adrian's spec).
+  function handleBlockedTap(compound: Compound) {
+    const n = (blockedTapsRef.current[compound.name] ?? 0) + 1
+    blockedTapsRef.current[compound.name] = n
+    setShakingName(compound.name)
+    window.setTimeout(() => {
+      setShakingName((cur) => (cur === compound.name ? null : cur))
+    }, 450)
+    if (n >= 3) showNotice(`${compound.name} is already in your log.`)
+  }
+
   return (
+    <>
+    <AmberNotice notice={notice} onDismiss={dismissNotice} />
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
@@ -448,6 +481,10 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
               customs={customs}
               onEditCustom={openEdit}
               onMakeYourOwn={openCreate}
+              onAdd={setPendingCompound}
+              inLogNames={inLogNames}
+              onBlockedTap={handleBlockedTap}
+              shakingName={shakingName}
               confirmingDeleteId={confirmingDeleteId}
               onAskDeleteCustom={askDeleteCustom}
               onCancelDeleteCustom={cancelDeleteCustom}
@@ -458,6 +495,23 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
         </div>
       </SheetContent>
     </Sheet>
+
+    {/* "Add to protocol" — opened from a compound's "+". On save it closes the
+        whole Add-to-Stack flow so the user lands back on the home with the new
+        compound in their log. */}
+    <AddCompoundSheet
+      open={pendingCompound !== null}
+      compound={pendingCompound}
+      userId={userId}
+      onOpenChange={(o) => {
+        if (!o) setPendingCompound(null)
+      }}
+      onAdded={() => {
+        setPendingCompound(null)
+        onOpenChange(false)
+      }}
+    />
+    </>
   )
 }
 
@@ -471,6 +525,10 @@ function BrowseBody({
   customs,
   onEditCustom,
   onMakeYourOwn,
+  onAdd,
+  inLogNames,
+  onBlockedTap,
+  shakingName,
   confirmingDeleteId,
   onAskDeleteCustom,
   onCancelDeleteCustom,
@@ -484,6 +542,10 @@ function BrowseBody({
   customs: CustomCompound[]
   onEditCustom: (c: CustomCompound) => void
   onMakeYourOwn: () => void
+  onAdd: (c: Compound) => void
+  inLogNames: Set<string>
+  onBlockedTap: (c: Compound) => void
+  shakingName: string | null
   confirmingDeleteId: string | null
   onAskDeleteCustom: (id: string) => void
   onCancelDeleteCustom: () => void
@@ -494,6 +556,10 @@ function BrowseBody({
   // search results and under "Your compounds").
   const listProps = {
     onEditCustom,
+    onAdd,
+    inLogNames,
+    onBlockedTap,
+    shakingName,
     confirmingDeleteId,
     onAskDeleteCustom,
     onCancelDeleteCustom,
@@ -573,6 +639,10 @@ function RowMain({ compound }: { compound: Compound }) {
 function CompoundList({
   items,
   onEditCustom,
+  onAdd,
+  inLogNames,
+  onBlockedTap,
+  shakingName,
   confirmingDeleteId,
   onAskDeleteCustom,
   onCancelDeleteCustom,
@@ -581,6 +651,10 @@ function CompoundList({
 }: {
   items: Compound[]
   onEditCustom: (c: CustomCompound) => void
+  onAdd: (c: Compound) => void
+  inLogNames: Set<string>
+  onBlockedTap: (c: Compound) => void
+  shakingName: string | null
   confirmingDeleteId: string | null
   onAskDeleteCustom: (id: string) => void
   onCancelDeleteCustom: () => void
@@ -634,18 +708,36 @@ function CompoundList({
           // then a smaller edit and delete.
           return (
             <li key={compound.id}>
-              <div className={cn("flex items-center gap-3 px-4 py-3.5", divider)}>
+              <div
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3.5",
+                  divider,
+                  inLogNames.has(compound.name.toLowerCase()) && "opacity-60",
+                  shakingName === compound.name && "animate-card-shake"
+                )}
+              >
                 <RowMain compound={compound} />
                 <div className="flex shrink-0 items-center gap-1">
-                  {/* Add to stack — same visual as the catalogue rows' "+"
-                      (wires into the real stack when the cycle feature lands). */}
-                  <button
-                    type="button"
-                    aria-label={`Add ${compound.name} to stack`}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
-                  >
-                    <Plus className="h-4 w-4" aria-hidden />
-                  </button>
+                  {/* Add to log — or, if already in the log, a blocked Check. */}
+                  {inLogNames.has(compound.name.toLowerCase()) ? (
+                    <button
+                      type="button"
+                      onClick={() => onBlockedTap(compound)}
+                      aria-label={`${compound.name} is already in your log`}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-default text-text-subtle"
+                    >
+                      <Check className="h-4 w-4" aria-hidden />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onAdd(compound)}
+                      aria-label={`Add ${compound.name} to log`}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
+                    >
+                      <Plus className="h-4 w-4" aria-hidden />
+                    </button>
+                  )}
                   {/* Edit — opens the (unchanged) edit menu. */}
                   <button
                     type="button"
@@ -671,16 +763,37 @@ function CompoundList({
         }
         return (
           <li key={compound.name}>
-            <div className={cn("flex items-center gap-3 px-4 py-3.5", divider)}>
-              <RowMain compound={compound} />
+            {inLogNames.has(compound.name.toLowerCase()) ? (
+              // Already in the log — dimmed + unclickable. Taps shake the row;
+              // the 3rd tap fires the amber "already in your log" notice.
               <button
                 type="button"
-                aria-label={`Add ${compound.name} to stack`}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
+                onClick={() => onBlockedTap(compound)}
+                aria-label={`${compound.name} is already in your log`}
+                className={cn(
+                  "flex w-full items-center gap-3 px-4 py-3.5 text-left opacity-50",
+                  divider,
+                  shakingName === compound.name && "animate-card-shake"
+                )}
               >
-                <Plus className="h-4 w-4" aria-hidden />
+                <RowMain compound={compound} />
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-default text-text-subtle">
+                  <Check className="h-4 w-4" aria-hidden />
+                </span>
               </button>
-            </div>
+            ) : (
+              <div className={cn("flex items-center gap-3 px-4 py-3.5", divider)}>
+                <RowMain compound={compound} />
+                <button
+                  type="button"
+                  onClick={() => onAdd(compound)}
+                  aria-label={`Add ${compound.name} to log`}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
+                >
+                  <Plus className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            )}
           </li>
         )
       })}

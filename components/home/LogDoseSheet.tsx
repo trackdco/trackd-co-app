@@ -1,0 +1,494 @@
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import { AlertTriangle, Check } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import {
+  CATEGORY_META,
+  FALLBACK_CATEGORY_META,
+} from "@/lib/compound-categories"
+import type { DoseLog } from "@/lib/home/mockHomeData"
+import {
+  formatTimeLabel,
+  isInjectable,
+  nextSiteId,
+  sanitizeDoseInput,
+  type StackCompound,
+} from "@/lib/home/stack"
+import { siteLabel, sitesForMethod } from "@/lib/home/siteCatalog"
+
+interface LogDoseSheetProps {
+  open: boolean
+  /** The compound being logged; retained through the close animation. */
+  compound: StackCompound | null
+  /** The existing log when editing an already-logged dose; null = fresh log. */
+  existing: DoseLog | null
+  /** This compound's real next site to preselect (no auto-dodge). */
+  preselectSiteId: string | null
+  /** Sites OTHER compounds land on today — flagged (not blocked). */
+  usedByOtherIds: string[]
+  /** Days since each site was last logged on an earlier day — the rest hint. */
+  siteLastUsedDays: Record<string, number>
+  onOpenChange: (open: boolean) => void
+  /** Commit the log (fresh or edited) — marks the dose logged upstream. */
+  onTracked: (compoundId: string, log: DoseLog) => void
+  /** Undo — remove the dose's log entirely. */
+  onRemove: (compoundId: string) => void
+}
+
+// Release the handle past this fraction of the sheet height → dismiss.
+const DISMISS_THRESHOLD = 0.3
+// How long the green success state lingers before auto-dismissing.
+const SUCCESS_MS = 1200
+
+/**
+ * The bottom sheet the row "+" (or a logged tick) opens: a pre-filled, editable
+ * amount, injection time, and — for injectables — the site. The site selector is
+ * limited to THIS compound's own rotation sites, with its next site preselected;
+ * confirming advances that compound's pointer upstream. "Track"/"Update" shows a
+ * brief full-bleed green tick (auto-dismiss ~1.2s or on tap) then commits; in
+ * edit mode a "Remove dose" undoes it.
+ *
+ * The body is keyed by compound id and re-mounts on each open, so it always
+ * reflects the current compound/existing log (no setState-in-effect resets).
+ */
+export function LogDoseSheet({
+  open,
+  compound,
+  existing,
+  preselectSiteId,
+  usedByOtherIds,
+  siteLastUsedDays,
+  onOpenChange,
+  onTracked,
+  onRemove,
+}: LogDoseSheetProps) {
+  // Retain the target through the close animation so the sheet doesn't blank as
+  // it slides away. Adjusting state during render (guarded) is the sanctioned
+  // "keep state when a prop changes" pattern — not a setState-in-effect.
+  const [shown, setShown] = useState<{
+    compound: StackCompound
+    existing: DoseLog | null
+    preselectSiteId: string | null
+    usedByOtherIds: string[]
+  } | null>(
+    compound ? { compound, existing, preselectSiteId, usedByOtherIds } : null
+  )
+  if (
+    compound !== null &&
+    (compound !== shown?.compound || existing !== shown?.existing)
+  ) {
+    setShown({ compound, existing, preselectSiteId, usedByOtherIds })
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="bottom"
+        showCloseButton={false}
+        className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
+      >
+        {shown ? (
+          <LogDoseBody
+            key={shown.compound.id}
+            compound={shown.compound}
+            existing={shown.existing}
+            preselectSiteId={shown.preselectSiteId}
+            usedByOtherIds={shown.usedByOtherIds}
+            siteLastUsedDays={siteLastUsedDays}
+            onClose={() => onOpenChange(false)}
+            onTracked={onTracked}
+            onRemove={onRemove}
+          />
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+// Re-using a spot sooner than this (days) gets a gentle amber rest flag.
+const REST_DAYS = 7
+
+function LogDoseBody({
+  compound,
+  existing,
+  preselectSiteId,
+  usedByOtherIds,
+  siteLastUsedDays,
+  onClose,
+  onTracked,
+  onRemove,
+}: {
+  compound: StackCompound
+  existing: DoseLog | null
+  preselectSiteId: string | null
+  usedByOtherIds: string[]
+  siteLastUsedDays: Record<string, number>
+  onClose: () => void
+  onTracked: (compoundId: string, log: DoseLog) => void
+  onRemove: (compoundId: string) => void
+}) {
+  const editing = existing !== null
+  const injectable = isInjectable(compound.method)
+  // The selector is limited to this compound's own sites, IN CYCLE ORDER.
+  const rotationSites = compound.rotationSites.map((id) => ({
+    id,
+    label: siteLabel(id),
+  }))
+  const hasRotation = injectable && rotationSites.length > 0
+  const rotationSet = new Set(compound.rotationSites)
+  // Sites OTHER compounds land on today. These are FLAGGED, never blocked — the
+  // user can still pick them; it's their decision (tracking, not coaching).
+  const usedByOthers = new Set(usedByOtherIds)
+  // Preselect this compound's real next site (no auto-dodge).
+  const defaultSite = hasRotation
+    ? preselectSiteId ?? nextSiteId(compound) ?? rotationSites[0]?.id ?? null
+    : null
+  // Free spots elsewhere in the catalogue (not in the rotation, not used today) —
+  // offered if the user would rather keep injections apart, for that day only.
+  const freeSpots = hasRotation
+    ? sitesForMethod(compound.method).filter(
+        (s) => !usedByOthers.has(s.id) && !rotationSet.has(s.id)
+      )
+    : []
+
+  const cardRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ startY: number; height: number } | null>(null)
+  const [offsetY, setOffsetY] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const [amount, setAmount] = useState(existing?.amount ?? String(compound.dose))
+  const [time24, setTime24] = useState(
+    existing?.time24 ?? compound.schedule.timeOfDay
+  )
+  const [siteId, setSiteId] = useState<string | null>(
+    existing?.siteId ?? defaultSite
+  )
+  const [tracked, setTracked] = useState(false)
+
+  // The chosen site is also used by another compound today (a flagged clash).
+  const selectedClashes =
+    hasRotation && siteId != null && usedByOthers.has(siteId)
+
+  function buildLog(): DoseLog {
+    return {
+      amount,
+      siteId: hasRotation ? siteId : null,
+      time24: time24 || compound.schedule.timeOfDay,
+    }
+  }
+
+  // The log is committed the instant Track/Update is tapped (see below) — NOT on
+  // close — so dismissing the success tick (tapping it, the backdrop, or letting
+  // it auto-dismiss) can never cancel the log. This timer only auto-closes the
+  // success state; it never commits.
+  useEffect(() => {
+    if (!tracked) return
+    const t = setTimeout(onClose, SUCCESS_MS)
+    return () => clearTimeout(t)
+  }, [tracked, onClose])
+
+  /* --------------------------------------------------------- drag-to-dismiss */
+
+  function handlePointerDown(e: React.PointerEvent) {
+    const height = cardRef.current?.getBoundingClientRect().height ?? 0
+    dragRef.current = { startY: e.clientY, height }
+    setDragging(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    const drag = dragRef.current
+    if (!drag) return
+    setOffsetY(Math.max(0, Math.min(e.clientY - drag.startY, drag.height)))
+  }
+
+  function handlePointerUp() {
+    const drag = dragRef.current
+    dragRef.current = null
+    setDragging(false)
+    if (drag && offsetY > drag.height * DISMISS_THRESHOLD) {
+      setOffsetY(0)
+      onClose()
+    } else {
+      setOffsetY(0)
+    }
+  }
+
+  const meta = CATEGORY_META[compound.category] ?? FALLBACK_CATEGORY_META
+
+  return (
+    <div
+      ref={cardRef}
+      style={{
+        transform: `translateY(${offsetY}px)`,
+        transition: dragging ? "none" : "transform 250ms ease-out",
+      }}
+      className="relative flex flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
+    >
+      {/* Grab handle — drag down to dismiss. */}
+      <div
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className="flex h-11 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+      >
+        <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
+      </div>
+
+      <SheetTitle className="px-6 text-base font-semibold text-foreground">
+        {editing ? "Edit dose" : "Log dose"}
+      </SheetTitle>
+      <SheetDescription className="sr-only">
+        {editing
+          ? "Adjust the amount, time or site, then update or remove this dose."
+          : "Confirm or adjust the amount, time and site, then track this dose."}
+      </SheetDescription>
+
+      <div className="px-6 pt-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+        {/* Dose summary */}
+        <div className="flex items-center gap-3 rounded-xl bg-bg-surface-raised px-4 py-3">
+          <span
+            aria-hidden
+            className={cn("h-2 w-2 shrink-0 rounded-full", meta.dot)}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-medium text-foreground">
+              {compound.name}
+            </p>
+            <p className="truncate font-mono text-sm text-text-muted">
+              Scheduled {formatTimeLabel(compound.schedule.timeOfDay)}
+            </p>
+          </div>
+        </div>
+
+        {/* Amount + time */}
+        <div className="mt-5 flex gap-3">
+          <label className="block flex-1">
+            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+              Amount
+            </span>
+            <div className="relative">
+              <Input
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(sanitizeDoseInput(e.target.value))}
+                aria-label={`Amount in ${compound.unit}`}
+                className="h-12 rounded-xl border-border-default bg-bg-input pr-14 font-mono text-base dark:bg-bg-input"
+              />
+              <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sm text-text-muted">
+                {compound.unit}
+              </span>
+            </div>
+          </label>
+
+          <label className="block w-32">
+            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+              Time
+            </span>
+            <Input
+              type="time"
+              value={time24}
+              onChange={(e) => setTime24(e.target.value)}
+              aria-label="Time taken"
+              className="h-12 rounded-xl border-border-default bg-bg-input px-4 font-mono text-base dark:bg-bg-input"
+            />
+          </label>
+        </div>
+
+        {/* Injection site — this compound's own rotation (real next preselected,
+            no auto-dodge). A site another compound also lands on today is FLAGGED
+            (amber dot), never blocked. If the selected site clashes, free spots
+            are offered for that day — keep it or switch, the user's choice. */}
+        {hasRotation && (
+          <div className="mt-5">
+            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+              Injection site
+            </span>
+
+            <div className="flex flex-wrap gap-2">
+              {rotationSites.map((site) => {
+                const active = site.id === siteId
+                const shared = usedByOthers.has(site.id)
+                return (
+                  <button
+                    key={site.id}
+                    type="button"
+                    onClick={() => setSiteId(site.id)}
+                    aria-pressed={active}
+                    title={
+                      shared ? "Also used by another compound today" : undefined
+                    }
+                    className={cn(
+                      "relative rounded-full border px-3 py-1.5 font-mono text-sm transition-colors duration-200 ease-out",
+                      active
+                        ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                        : shared
+                          ? "border-accent-amber/40 bg-accent-amber/5 text-text-muted"
+                          : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+                    )}
+                  >
+                    {site.label}
+                    {shared && (
+                      <span
+                        aria-hidden
+                        className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-accent-amber"
+                      />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Selected site clashes → offer free alternates for today (optional). */}
+            {selectedClashes && freeSpots.length > 0 && (
+              <div className="animate-shortcut-in mt-3 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-amber"
+                    aria-hidden
+                  />
+                  <p className="text-xs leading-relaxed text-foreground">
+                    This site is also used by another compound today. These are
+                    free spots if you&apos;d rather keep them apart.{" "}
+                    <span className="text-text-muted">
+                      It&apos;s an observation, not advice. Where you inject is
+                      your choice.
+                    </span>
+                  </p>
+                </div>
+                <p className="mt-2.5 mb-1.5 text-[11px] font-medium tracking-wider text-text-muted uppercase">
+                  Free spots today
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {freeSpots.map((site) => {
+                    const active = site.id === siteId
+                    return (
+                      <button
+                        key={site.id}
+                        type="button"
+                        onClick={() => setSiteId(site.id)}
+                        aria-pressed={active}
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 font-mono text-sm transition-colors duration-200 ease-out",
+                          active
+                            ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                            : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+                        )}
+                      >
+                        {site.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            <p className="mt-2 px-1 text-xs text-text-subtle">
+              {selectedClashes
+                ? "A free spot only logs here for today. It won't change your saved rotation."
+                : "Next in your rotation is pre-selected. Change it if needed."}
+            </p>
+
+            {/* Site rest hint — how long since this spot was last used. */}
+            {siteId != null && siteLastUsedDays[siteId] !== undefined && (
+              <p
+                className={cn(
+                  "mt-1 px-1 text-xs",
+                  siteLastUsedDays[siteId] < REST_DAYS
+                    ? "text-accent-amber"
+                    : "text-text-subtle"
+                )}
+              >
+                {siteLastUsedDays[siteId] < REST_DAYS
+                  ? `You last used this spot ${siteLastUsedDays[siteId]}d ago. Just an observation, your choice.`
+                  : `Last used here ${siteLastUsedDays[siteId]}d ago.`}
+              </p>
+            )}
+
+            {/* Confirmation of the chosen site — so picking any spot (including a
+                free alternate that isn't in the rotation above) is clearly visible. */}
+            {siteId != null && (
+              <div
+                key={siteId}
+                className="animate-shortcut-fade mt-3 flex items-center gap-2 rounded-xl border border-accent-amber/50 bg-accent-amber/10 px-3 py-2.5"
+              >
+                <Check className="h-4 w-4 shrink-0 text-accent-amber" aria-hidden />
+                <span className="text-xs text-text-muted">Logging to</span>
+                <span className="font-mono text-sm font-medium text-foreground">
+                  {siteLabel(siteId)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="mt-6 flex gap-3">
+          <SheetClose className="flex-1 rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary">
+            Cancel
+          </SheetClose>
+          <button
+            type="button"
+            onClick={() => {
+              // Commit immediately, THEN show the success tick — so nothing about
+              // dismissing the tick can undo the log.
+              onTracked(compound.id, buildLog())
+              setTracked(true)
+            }}
+            className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+          >
+            {editing ? "Update" : "Track"}
+          </button>
+        </div>
+
+        {/* Undo — edit mode only. */}
+        {editing && (
+          <button
+            type="button"
+            onClick={() => {
+              onRemove(compound.id)
+              onClose()
+            }}
+            className="mt-4 block w-full text-center text-sm text-state-error transition-opacity hover:opacity-80"
+          >
+            Remove dose
+          </button>
+        )}
+      </div>
+
+      {/* Full-bleed success state — UI feedback only (sanctioned green). The log
+          is already committed; tapping just dismisses (it can't undo anything). */}
+      {tracked && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Dose tracked"
+          className="animate-shortcut-fade absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-t-3xl bg-accent-green text-bg-base"
+        >
+          <span className="relative flex h-16 w-16 items-center justify-center">
+            <span
+              aria-hidden
+              className="animate-home-tick-ring absolute inset-0 rounded-full border-2 border-bg-base/40"
+            />
+            <span className="animate-home-tick-pop flex h-16 w-16 items-center justify-center rounded-full bg-bg-base/15">
+              <Check className="h-9 w-9" strokeWidth={2.5} aria-hidden />
+            </span>
+          </span>
+          <span className="animate-shortcut-fade text-base font-semibold">
+            {editing ? "Updated" : "Tracked"}
+          </span>
+        </button>
+      )}
+    </div>
+  )
+}

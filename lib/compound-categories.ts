@@ -65,6 +65,24 @@ export const UNIT_OPTIONS = [
   { value: "capsule", label: "capsule" },
 ] as const
 
+// Units that measure the same thing can be swapped freely (a compound dosed in
+// mg can be entered in mcg or g, etc.). `iu`, `ml` and counts stand alone.
+const UNIT_FAMILIES: string[][] = [
+  ["mcg", "mg", "g"], // mass
+  ["iu"], // activity units
+  ["ml"], // volume
+  ["capsule", "tab"], // count
+]
+
+/**
+ * The interchangeable units a compound can be measured in, given its default —
+ * e.g. a mg compound (Tirzepatide) also offers mcg + g, so the Add sheet can show
+ * a unit dropdown. Falls back to just the default for an unknown unit.
+ */
+export function unitOptionsFor(unit: string): string[] {
+  return UNIT_FAMILIES.find((f) => f.includes(unit)) ?? [unit]
+}
+
 export const ROUTE_OPTIONS = [
   { value: "im", label: "IM" },
   { value: "subq", label: "SubQ" },
