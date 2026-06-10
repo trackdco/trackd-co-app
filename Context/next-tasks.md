@@ -9,7 +9,7 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-09
+Last updated: 2026-06-10
 
 ---
 
@@ -168,21 +168,24 @@ dashboard; sign-out + returning-user (skips gate) both confirmed. Full record in
 
 ### ▶ NOW — Finish the auth checkpoint (Angus)
 
-The flow is live; these three close the 11 Jun checkpoint:
+Two of the three are **✅ done (confirmed by both founders 2026-06-10)** — only the
+Google publish remains:
 
-1. **On-phone test** — open https://trackdco.app on **both founders' phones**, sign
-   in with a **Test-user** Google account, pass the gate, land on the dashboard,
-   then **Add to Home Screen** and confirm the PWA installs with the Trackd icon
-   and opens full-screen.
-2. **Two-account RLS isolation** — sign in with the **second** founder account and
-   confirm it sees none of the first's data. Claude verifies with DB queries (check
-   the **views + storage bucket** too, not just base tables). Matters most once real
-   cycle/dose data exists, but baseline-check it now.
-3. **Publish the Google OAuth app** — Google Cloud → **Audience → Publish App**
-   (moves it out of "Testing", where only listed Test users can sign in) **and** add
-   the co-founder's Google account as a Test user meanwhile. Do this before handing
-   the app to beta testers.
-   - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones.
+1. ✅ **On-phone test** — done on both founders' phones: signed in, passed the 18+/ToS
+   gate, landed on the dashboard, **Added to Home Screen**, and the PWA installs with
+   the Trackd icon + opens full-screen.
+2. ✅ **Two-account RLS isolation** — both founders signed in; each account saw only its
+   own data, no leakage. (Re-verify the **views + storage bucket** once real cycle/dose
+   + bloodwork data exists — baseline is clean.)
+3. ▶ **Publish the Google OAuth app** — Google Cloud Console → **APIs & Services →
+   OAuth consent screen** (a.k.a. the **Audience** tab) → **Publish App** → confirm.
+   Moves it out of "Testing" (where only listed Test users can sign in). Sign-in uses
+   only non-sensitive scopes (email/profile/openid), so it flips to "In production"
+   immediately — **no Google verification review**. Add Adrian's Google account as a
+   Test user meanwhile. **Manual console step — Claude can't reach your Google account
+   to click it.**
+   - ✅ Checkpoint (target 11 Jun): full flow works on both founders' phones — **met**
+     once the app is published.
 
 ### ✅ DONE — Healthy canonical repo off iCloud (2026-06-09)
 
@@ -195,19 +198,34 @@ user-level (`~/.local/bin`) — **run `gh auth login` + `vercel login`** to unlo
 proper branch→PR→CodeRabbit flow (today's perf/install fixes went direct to `main` only
 because `gh` wasn't authed yet).
 
-### ▶ NEXT (Angus + Claude) — Profile & Settings: land PR #2, then build the Profile tab
+### ▶ NEXT (Angus + Claude) — Profile & Settings
 
-`/settings` (Profile & Settings v1 — read-only account block + editable
-sex/height/goal/units, RLS-scoped) is **built but still in open PR #2 on `feat/settings`,
-now behind `main`.** `/profile` (the bottom-nav Profile tab) is still a 12-line
-placeholder. Optimal order:
-1. **Land PR #2 first** — merge latest `main` into `feat/settings` (or rebase), let
-   CodeRabbit re-review, then merge so `/settings` reaches `main` instead of drifting
-   further. (Needs `gh` authed, or merge via GitHub web.)
-2. **Build the Profile tab** (`app/(app)/profile/page.tsx`) — surface account info
-   (name/email/plan/member-since), link to `/settings`, sign-out; self-contained, reads
-   only the user's own `profiles` row. Coordinate the one shared change (nav link to
-   `/settings` in `(app)/layout.tsx`) with Adrian.
+**`/profile` (Profile tab) — ✅ BUILT + locally verified (2026-06-10); visual QA + PR pending.**
+`app/(app)/profile/page.tsx` (was a 12-line placeholder) is now a full identity/account
+hub: code-point-safe initials avatar + serif name + email, an amber **"Beta · Pro"** plan
+pill (the single amber accent), an Account card (member-since / plan / email), a read-only
+**Physical glance** (sex/age/height/weight/goal/units, "—" where unset, "Edit in Settings"
+hint), an App card linking Settings + the three legal docs, and a bottom sign-out. Server
+component, reads only the user's own `profiles` row (RLS-scoped), no schema/dep/token/
+shared-file change. Built via a design-panel workflow (3 designs → synthesis) + a
+5-dimension adversarial review (9 findings → 6 verified-real, all fixed). `tsc` + `lint` +
+prod `build` all clean.
+
+Remaining for this lane, in order:
+1. **Visual QA** — eyeball `/profile` signed-in (dev server or a PR preview URL). It's
+   inside the `(app)` auth shell, so it needs `.env.local` + a real session — `/preview`
+   can't show it.
+2. **Land PR #2 (`/settings`) FIRST, then PR the Profile tab** — so the Profile's
+   "Settings" row + "Edit in Settings" hint resolve instead of 404ing (both point at
+   `/settings`, which isn't on `main` yet). Needs `gh` authed, or merge via GitHub web.
+3. **Nav link to `/settings`** in the shared `(app)/layout.tsx` — coordinate with Adrian
+   (the one shared-file change this lane needs).
+
+**Design-system note (Angus + Adrian — not actioned; shared-token call):** the review
+flagged `--text-muted` (#7A7A74) at ~4:1 on the surfaces, just under WCAG AA 4.5:1 for
+small text. It's used app-wide (dashboard/layout/nav), so the Profile tab follows the
+convention rather than diverging on one screen. Making muted text AA-clean is a one-token
+nudge in `globals.css` that lifts every screen — Adrian's call (it's the locked palette).
 
 ### Also (Angus) — beta outreach (alongside the build)
 

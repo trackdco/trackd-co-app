@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-09
+Last updated: 2026-06-10
 
 ## Current Phase
 
@@ -21,12 +21,39 @@ Last updated: 2026-06-09
   sign-out + returning-user (skips the gate) both work. Prod checks pass: legal
   docs render from the DB, the PWA manifest serves, route guards redirect. The
   Data API works via the `api_role_grants` migration. **Remaining to fully close
-  the 11 Jun checkpoint:** on-phone test on both founders' phones (+ Add-to-Home-
-  Screen install), the two-account RLS isolation check, and publishing the Google
-  OAuth app (currently in "Testing", so only listed Test users can sign in).
-  Backend, data model, seed catalogues, domain, and the public landing remain live.
+  the 11 Jun checkpoint:** only publishing the Google OAuth app (currently in
+  "Testing", so only listed Test users can sign in). The on-phone test (+ Add-to-
+  Home-Screen install) and the two-account RLS isolation check are both **confirmed
+  by both founders (2026-06-10)** — the PWA installs with the Trackd icon and opens
+  full-screen, and each account saw only its own data. Backend, data model, seed
+  catalogues, domain, and the public landing remain live.
 
 ## Completed
+
+- **Profile tab built — code complete, locally verified (2026-06-10).**
+  `app/(app)/profile/page.tsx` (was a blank placeholder) is now the bottom-nav Profile
+  destination: an identity/account **hub, NOT an editor** (edits route to `/settings`).
+  Sections: identity hero (**code-point-safe initials avatar** — no external photo, since
+  `next/image` has no `remotePatterns` — serif name, email, and a single amber **"Beta ·
+  Pro" plan pill** = the one sanctioned amber accent); an **Account** card (member-since /
+  plan / email); a **read-only Physical glance** (sex/age/height/weight/goal/units, "—"
+  where unset, "Edit in Settings" hint); an **App** card linking Settings + the three legal
+  docs (`/terms`·`/privacy`·`/medical-disclaimer`); and a bottom **sign-out**
+  (`<form action={signOut}>`, alongside the header's). Server component; reads ONLY the
+  user's own `profiles` row (RLS-scoped, `maybeSingle`, null-safe — defaults to Beta·Pro
+  and renders "—" if the row is missing). **No schema / dependency / token / shared-file
+  change.** Built via a **design-panel workflow** (3 diverse on-brand designs → synthesis)
+  then a **5-dimension adversarial review** (correctness · RLS/security · a11y ·
+  design-system · Next-16/React; 9 raw → 6 verified-real, all fixed): low-contrast
+  `text-subtle` on the interactive Edit link + nav chevron → `text-muted`; a **negative-age
+  guard** for a future/bad DOB (→ "—"); a proper **tap target** on the Edit link;
+  **focus-visible amber rings** on every hand-rolled control (inset on the card rows to
+  clear `overflow-hidden`); **code-point-safe initials**. Dismissed 3 (unreachable
+  `fmtNum("")` under the `numeric(5,1)`+CHECK schema; the deliberate plan/email IA
+  duplication). `tsc` + `npm run lint` + prod `npm run build` all clean; `/profile` builds
+  as a server-rendered route. **Not yet PR'd** — visual QA + PR pending; `/settings` links
+  404 until PR #2 merges (merge settings first). Open design-system note: `--text-muted`
+  sits ~4:1 (just under AA 4.5:1) app-wide — a one-token call for Adrian, not changed here.
 
 - **Brand wordmark → gradient logo images + launch-splash cleanup (2026-06-09).**
   Replaced the text wordmark ("trackd co", `co` in `--accent-amber`) with the real
