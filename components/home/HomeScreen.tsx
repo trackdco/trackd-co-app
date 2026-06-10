@@ -4,25 +4,22 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 
 import { useMounted } from "@/components/home/useMounted"
+import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { WeekStrip, type WeekDay } from "@/components/home/WeekStrip"
 import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
-import { WeightCard } from "@/components/home/WeightCard"
+import { WeightGlanceCard } from "@/components/home/WeightGlanceCard"
 import { ReconCalcCard } from "@/components/home/ReconCalcCard"
+import { ReconCalculatorSheet } from "@/components/home/ReconCalculatorSheet"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
-import { LogWeightSheet } from "@/components/home/LogWeightSheet"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
-import { PlaceholderActionSheet } from "@/components/shortcuts/PlaceholderActionSheet"
-import { SHORTCUT_ITEMS } from "@/components/shortcuts/shortcutItems"
-import { logBodyWeight } from "@/app/(app)/dashboard/actions"
-import { ArchivedCompounds } from "@/components/home/ArchivedCompounds"
+import type { WeightUnit } from "@/lib/weight"
 import {
   dateKeyToDate,
   resolveDateKey,
   seedStack,
   toDateKey,
-  weightUnit,
   type DateKey,
   type DayStatus,
   type DoseLog,
@@ -57,12 +54,6 @@ const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ]
-
-// Reuse the Plus-menu's reconstitution-calculator entry so the Home card opens
-// the exact same placeholder sheet (title + medical-disclaimer warning).
-const RECON_ITEM = SHORTCUT_ITEMS.find(
-  (i) => i.id === "reconstitution-calculator"
-)
 
 // Stable empty-logs reference for useSyncExternalStore's server snapshot.
 const EMPTY_LOGS: DayLogs = {}
@@ -100,30 +91,30 @@ function computeNextDose(
 }
 
 /**
- * Home / Dashboard. A pinned week-strip header over scrolling cards (Today's
- * Cycle → Weight → Reconstitution Calculator). Selecting a day lifts here and
- * re-scopes the content; logging a dose flips that day's entry so the week dot
- * and Consistency strip both update, and advances that compound's injection-site
- * rotation. The stack (per-compound dosing/schedule/rotation) is device-local in
- * `localStorage`; a brand-new device falls back to the seed stack.
+ * Home / Dashboard. A pinned header (a sans "Dashboard" title + the selected
+ * day's date + the week strip) over scrolling cards (Today's Log → Reconstitution
+ * Calculator). Selecting a day re-scopes the content and the date; logging a dose
+ * flips that day's entry so the week dot and Consistency strip update, and
+ * advances that compound's injection-site rotation. The stack + dose logs are
+ * device-local; weight lives on its own view now (the + menu's Weight tile).
  *
- * `todayKey` is computed once on the server and passed in, so every date renders
- * identically on server and client; the stack is read from storage AFTER mount
- * (so SSR is deterministic), and only the countdown reads the live clock.
+ * `todayKey` is computed once on the server so every date renders identically on
+ * server and client; the stack is read from storage AFTER mount (SSR is
+ * deterministic), and only the countdown reads the live clock.
  */
 export function HomeScreen({
   todayKey,
-  name,
-  weight,
   userId,
+  weight,
+  unit,
 }: {
   todayKey: DateKey
-  /** The user's first name for the greeting (empty → a plain "Hello"). */
-  name: string
-  /** Body-weight points (real from body_metrics, or the mock fallback), asc. */
-  weight: { key: DateKey; kg: number }[]
   /** Scopes the device-local stack in localStorage. */
   userId: string
+  /** Bodyweight points from `weight_logs` (oldest → newest) for the glance card. */
+  weight: { key: DateKey; kg: number }[]
+  /** The user's display weight unit. */
+  unit: WeightUnit
 }) {
   const router = useRouter()
   const today = useMemo(() => dateKeyToDate(todayKey), [todayKey])
@@ -138,7 +129,6 @@ export function HomeScreen({
     usedByOtherIds: string[]
   } | null>(null)
   const [reconOpen, setReconOpen] = useState(false)
-  const [weightSheetOpen, setWeightSheetOpen] = useState(false)
   // Tapping a compound opens its detail; "Edit" from there opens the add sheet.
   const [detailTarget, setDetailTarget] = useState<StackCompound | null>(null)
   const [editTarget, setEditTarget] = useState<StackCompound | null>(null)
@@ -153,7 +143,6 @@ export function HomeScreen({
     () => seedStack
   )
   const activeStack = stack.filter((c) => !c.archived)
-  const archivedStack = stack.filter((c) => c.archived)
 
   // Logged doses, persisted device-local so history survives reloads — same store
   // pattern as the stack. Shape: { dateKey: { compoundId: DoseLog } }.
@@ -197,7 +186,9 @@ export function HomeScreen({
   }, [today])
 
   // A day's status is computed live from the persisted logs vs the active
-  // compounds due that day (no stored status). Future days are always `future`.
+  // compounds due that day (no stored status). Labelled by POSITION (A7): a
+  // future day is "future"; a past/today day with nothing due is `none` (a rest
+  // day — never "Upcoming", never "missed").
   const statusOf = (key: DateKey): DayStatus => {
     if (key > todayKey) return "future"
     const date = dateKeyToDate(key)
@@ -206,7 +197,7 @@ export function HomeScreen({
       .map((c) => c.id)
     const dayLogs = logs[key] ?? {}
     if (dueIds.length === 0) {
-      return Object.keys(dayLogs).length > 0 ? "logged" : "future"
+      return Object.keys(dayLogs).length > 0 ? "logged" : "none"
     }
     const loggedCount = dueIds.filter((id) => dayLogs[id]).length
     if (loggedCount === 0) return "missed"
@@ -214,10 +205,19 @@ export function HomeScreen({
     return "partial"
   }
 
+  // The earliest start date across the stack = "day one". The consistency strip
+  // is clamped to start there, so nothing renders before the protocol began (A7).
+  const earliestStartKey = useMemo(() => {
+    const keys = stack
+      .map((c) => c.schedule.startDate)
+      .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
+    return keys.length ? keys.reduce((a, b) => (a < b ? a : b)) : null
+  }, [stack])
+
   const consistencyItems = Array.from({ length: CONSISTENCY_DAYS }, (_, i) => {
     const key = resolveDateKey(today, CONSISTENCY_DAYS - 1 - i)
     return { key, status: statusOf(key) }
-  })
+  }).filter((item) => !earliestStartKey || item.key >= earliestStartKey)
 
   // Selected day's list: anything LOGGED that day (history — kept even after a
   // compound is archived) plus active compounds due that day. Each shows its REAL
@@ -285,12 +285,6 @@ export function HomeScreen({
     ? "Today's Log"
     : `${WEEKDAYS[selectedDate.getDay()]}'s Log`
 
-  // Weight points (real or mock fallback) resolved for the chart.
-  const weightSamples = useMemo(
-    () => weight.map((p) => ({ key: p.key, date: dateKeyToDate(p.key), kg: p.kg })),
-    [weight]
-  )
-
   function handleTracked(compoundId: string, log: DoseLog) {
     logDose(userId, selectedKey, compoundId, log)
     // Logging advances THIS compound's rotation to the slot after the site
@@ -306,14 +300,6 @@ export function HomeScreen({
     }
   }
 
-  // Persist a weight to body_metrics (server action), then refresh so the chart
-  // re-reads the user's real data. Returns the result for the sheet's UI.
-  async function handleSaveWeight(weightKg: number) {
-    const res = await logBodyWeight(weightKg)
-    if (res.ok) router.refresh()
-    return res
-  }
-
   // Undo a logged dose — removes its entry. The rotation pointer is left where it
   // is (advancing is a logging-only action).
   function handleRemove(compoundId: string) {
@@ -322,11 +308,15 @@ export function HomeScreen({
 
   return (
     <>
-      {/* Pinned header — the only sticky element on Home. It sits below the
-          shell's wordmark header (which scrolls away) and stays put while the
-          cards scroll beneath it. Opaque background so content scrolls under. */}
-      <div className="sticky top-0 z-30 border-b border-border-default bg-bg-base">
-        <div className="mx-auto w-full max-w-md px-4 pt-2 pb-2.5">
+      {/* Everything scrolls — each item fades + rises in on load, staggered. The
+          shared scroll-title provides the date eyebrow, the large "Dashboard"
+          heading, and the fade-in compact bar (same preset on every tab page). */}
+      <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
+        <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+          <PageScrollTitle title="Dashboard" eyebrow={dayLabel(selectedKey)} />
+        </div>
+
+        <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
           <WeekStrip
             days={weekDays}
             selectedKey={selectedKey}
@@ -335,19 +325,8 @@ export function HomeScreen({
             onSelect={setSelectedKey}
           />
         </div>
-      </div>
 
-      {/* Scrolling content — each item fades + rises in on load, staggered. */}
-      <div className="mx-auto w-full max-w-md space-y-5 px-5 py-5">
-        {/* Greeting + the selected-day date, just below the week strip. */}
-        <div className="animate-home-up px-1" style={{ animationDelay: "0ms" }}>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-foreground">
-            {name ? `Hello, ${name}` : "Hello"}
-          </h1>
-          <p className="mt-0.5 text-sm text-text-muted">{dayLabel(selectedKey)}</p>
-        </div>
-
-        <div className="animate-home-up" style={{ animationDelay: "70ms" }}>
+        <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
           {stack.length === 0 ? (
             <EmptyLogCard />
           ) : (
@@ -381,24 +360,13 @@ export function HomeScreen({
           )}
         </div>
 
-        {archivedStack.length > 0 && (
-          <div className="animate-home-up" style={{ animationDelay: "105ms" }}>
-            <ArchivedCompounds
-              compounds={archivedStack}
-              onOpen={(c) => setDetailTarget(c)}
-              onReactivate={(id) => archiveInStack(userId, id, false)}
-            />
-          </div>
-        )}
-
-        <div className="animate-home-up" style={{ animationDelay: "140ms" }}>
-          <WeightCard
-            series={weightSamples}
-            selectedKey={selectedKey}
-            unit={weightUnit}
-            scopeLabel={isToday ? "vs. yesterday" : "vs. prior"}
+        {/* Weight — display only; tap to open the full Weight view (logging lives
+            there + in the + menu). */}
+        <div className="animate-home-up" style={{ animationDelay: "165ms" }}>
+          <WeightGlanceCard
+            series={weight}
+            unit={unit}
             onOpenDetail={() => router.push("/weight")}
-            onLogWeight={() => setWeightSheetOpen(true)}
           />
         </div>
 
@@ -452,25 +420,8 @@ export function HomeScreen({
         onAdded={() => setEditTarget(null)}
       />
 
-      <LogWeightSheet
-        open={weightSheetOpen}
-        unit={weightUnit}
-        defaultValue={
-          weightSamples.length
-            ? String(weightSamples[weightSamples.length - 1].kg)
-            : ""
-        }
-        onOpenChange={setWeightSheetOpen}
-        onSave={handleSaveWeight}
-      />
-
-      {/* Same placeholder (title + medical disclaimer) the Plus menu opens. */}
-      <PlaceholderActionSheet
-        open={reconOpen}
-        onClose={() => setReconOpen(false)}
-        title={RECON_ITEM?.title ?? "Reconstitution calculator"}
-        warning={RECON_ITEM?.warning}
-      />
+      {/* The real reconstitution calculator (A8) — opened from the home card. */}
+      <ReconCalculatorSheet open={reconOpen} onOpenChange={setReconOpen} />
     </>
   )
 }

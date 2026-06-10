@@ -1,0 +1,8 @@
+{
+  // This project's SQL is PostgreSQL (Supabase), not SQL Server / T-SQL. The
+  // Microsoft "mssql" extension was parsing our .sql files as T-SQL and flagging
+  // valid Postgres (CREATE TABLE IF NOT EXISTS, CREATE POLICY, numeric(5,2), …)
+  // as syntax errors. These migrations are already applied + verified on the live
+  // DB, so the squiggles were false positives — turn the mssql error-checker off.
+  "mssql.intelliSense.enableErrorChecking": false
+}

@@ -15,6 +15,20 @@ Last updated: 2026-06-10
 
 ## 🎯 Current focus
 
+**Latest — 2026-06-10 (Adrian + Claude): Spec 08 home/profile/weight fixes ✅ DONE & pushed
+to `main`.** Stood up the Weight (`weight_logs`) + Avatar backend, built the `/weight`
+view, made the home Weight card display-only (taps to `/weight`), reworked the + menu
+(primary "Log a dose" + 6-tile grid), added the shared **`PageScrollTitle`** scroll-header
+preset to every bottom-nav tab root, fixed the log-dose sheet + the live-ticking time
+(log + add-compound), built the avatar upload, moved Archive to `/archive`, added a
+sign-out confirm (deep-red token), and **removed the "Starting weight" concept** (Profile
+"Weight" now = latest logged reading). Specs `Feature Specs/08`. **▶ Next for this lane:**
+build out Protocol / Progress (the preset header is already wired), then wire the
+device-local stack/dose logs to real Postgres `protocol_compounds` / `v_inventory_math`.
+
+---
+
+
 **Latest — 2026-06-10 (Adrian + Claude, shipped to `main`/prod): the home screen + the
 compound-tracking loop are ✅ LIVE.** Home dashboard (week strip · Today's Log · weight
 trend · consistency · recon entry · blank "get started" state); **add-to-log** (method +

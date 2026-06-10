@@ -24,6 +24,7 @@ const STATUS_LABEL: Record<DayStatus, string> = {
   logged: "All logged",
   partial: "Partial",
   missed: "Missed",
+  none: "No doses",
   future: "Upcoming",
 }
 
@@ -46,9 +47,16 @@ export function ConsistencyStrip({ items, todayKey }: ConsistencyStripProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const n = items.length
 
-  const loggedCount = items.filter(
+  // Adherence is measured ONLY over days that actually had doses due — rest days
+  // (`none`) and future days don't count for or against you (A7: adherence only,
+  // no streak/celebratory framing).
+  const doseItems = items.filter(
+    (d) => d.status !== "none" && d.status !== "future"
+  )
+  const loggedCount = doseItems.filter(
     (d) => d.status === "logged" || d.status === "partial"
   ).length
+  const doseDays = doseItems.length
 
   // No history yet (blank template / new user) — nothing to scrub.
   if (n === 0) {
@@ -93,7 +101,7 @@ export function ConsistencyStrip({ items, todayKey }: ConsistencyStripProps) {
           Consistency
         </p>
         <p className="font-mono text-xs text-text-muted">
-          {loggedCount}/{n} days
+          {doseDays > 0 ? `${loggedCount}/${doseDays} days` : "No doses yet"}
         </p>
       </div>
 
@@ -130,7 +138,7 @@ export function ConsistencyStrip({ items, todayKey }: ConsistencyStripProps) {
                 status === "logged" && "bg-text-primary",
                 status === "partial" && "bg-text-muted",
                 status === "missed" && "bg-border-strong",
-                status === "future" && "bg-bg-surface-raised",
+                (status === "none" || status === "future") && "bg-bg-surface-raised",
                 key === todayKey && "ring-1 ring-accent-amber/60",
                 i === activeIndex && "scale-y-110 ring-1 ring-accent-amber"
               )}

@@ -30,6 +30,37 @@ Last updated: 2026-06-10
 
 ## Completed
 
+- **Home / Profile / Weight fixes + Weight & Avatar backend (Spec 08, 2026-06-10).**
+  Implemented `Context/Feature Specs/08` end-to-end, then iterated on Adrian's
+  feedback. **Backend (applied live via MCP, additive):** `weight_logs` table
+  (`weight_logs_table`; RLS on `profile_id`, grants, one-per-day), private
+  `avatars` bucket + owner-scoped policies + `profiles.avatar_path`
+  (`avatar_storage`), and `profiles.weight_kg` widened to `numeric(5,2)`
+  (`starting_weight_precision`). SQL committed under `supabase/{weight,avatar,profile}/`.
+  **Weight (C):** full `/weight` view (log + back-date, Trend/Scale crossfade,
+  1W–All range chips, entry log, `xxx.xx`); the home Weight card is now a
+  **display-only** glance (latest + sparkline) that taps through to `/weight` —
+  logging happens only in the view / the + menu. **Home:** removed all sticky;
+  shared **`PageScrollTitle`** preset (large heading → fade-in compact bar,
+  portalled so transforms don't trap it) wired into **every bottom-nav tab root**
+  (Home/Protocol/Progress/Profile), not sub-pages; log-dose sheet preset-value +
+  keypad-on-tap, no overflow, logged-row opacity + flat amber tick; **live-ticking
+  time** in both the log-dose AND add-compound flows (evaluated at submit, manual
+  edit overrides, clearing resumes); group Today's Log by category; consistency =
+  rolling 30-day adherence (past ≠ "Upcoming"). Real **reconstitution calculator**
+  (A8, `v_inventory_math` maths) shared by the home card + the + menu. **+ menu
+  reworked** to a primary "Log a dose" over a consistent 6-tile grid (Weight tile →
+  `/weight`); the old reorder + `lib/shortcutOrder.ts` removed. **Profile:** avatar
+  upload (client crop/resize → bucket → signed-URL display), Archive moved to its
+  own `/archive` page, sign-out **confirm** on both entry points (deep-red
+  `--accent-destructive` token), and the **"Starting weight" concept removed** —
+  the Settings weight field is gone; Profile shows **"Weight"** = the latest logged
+  reading (syncs with the Weight view). Dead components pruned (WeightCard,
+  LogWeightSheet, ArchivedCompounds, ShortcutItem, dashboard/actions). Added
+  `.vscode/settings.json` (`mssql.intelliSense.enableErrorChecking:false`) — the
+  21 "Problems" were the MS SQL Server extension mis-parsing Postgres, not real
+  errors. `tsc` + `lint` + prod `build` clean (23 routes).
+
 - **Home dashboard + per-compound dose tracking, scheduling & site rotation
   (2026-06-10, `feat/home-dashboard` → merged to `main`).** Built the logged-in
   **home screen** and the **core compound-tracking loop** on top of it, all

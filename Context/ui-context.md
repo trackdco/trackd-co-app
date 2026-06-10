@@ -38,14 +38,16 @@ tokens — **no hardcoded hex values** outside `globals.css`.
 | Error            | `--state-error`        | `#EF4444`                |
 | Success          | `--state-success`      | `#4ADE80`                |
 | Warning          | `--state-warning`      | `#F59E0B`                |
+| Destructive      | `--accent-destructive` | `#B91C1C`                |
 
 ### Rule: state colours are for system/UI feedback ONLY
 
-`--state-error` (red), `--state-success` (green), and
-`--state-warning` (amber) are **strictly for UI and system
-feedback** — e.g. a failed login, a save error, a successful save,
-form validation. They must **never** be used to style **health
-data**. Biomarker results and side-effect markers are presented
+`--state-error` (red), `--state-success` (green),
+`--state-warning` (amber), and `--accent-destructive` (deep red, for
+deliberate destructive actions — sign out, delete) are **strictly for
+UI and system feedback** — e.g. a failed login, a save error, a
+successful save, form validation, a destructive confirm. They must
+**never** be used to style **health data**. Biomarker results and side-effect markers are presented
 **categorically and neutrally** (below / within / above — never
 high / bad / red, never good / green). Using red/green/amber to
 imply a health value is "bad," "good," or "warning" violates the

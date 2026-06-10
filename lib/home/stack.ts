@@ -6,9 +6,9 @@
  * only when a dose is logged. There is no global rotation.
  *
  * Persisted device-local in `localStorage` keyed `trackd.stack.<userId>` — the
- * same interim pattern as the Shortcuts order and custom compounds (see
- * `lib/shortcutOrder.ts` and `architecture.md` → Storage Model). No backend this
- * pass; migrates to Postgres `protocol_compounds` when the cycle feature lands.
+ * same interim pattern as the custom compounds (see `architecture.md` → Storage
+ * Model). No backend this pass; migrates to Postgres `protocol_compounds` when
+ * the cycle feature lands.
  *
  * Pure data + pure helpers + guarded storage only; no React, no other side
  * effects (Context/code-standards.md).

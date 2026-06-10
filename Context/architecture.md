@@ -40,10 +40,19 @@ in the schema — storage only, no behaviour, until post-trip.
   `reference_ranges` table) and the seed CSVs + generator (`build-seed-sql.mjs`)
   that load the read-only catalogues. `supabase/legal/` holds the
   `legal_documents` table + seed (the `legal_documents_table` +
-  `seed_legal_documents` migrations), bringing the live DB to **18 tables**.
-  `supabase/grants/` holds `001_api_role_grants.sql` (the `api_role_grants`
-  migration) — the table-level privileges the PostgREST roles need on top of RLS
-  (see Auth and Access Model).
+  `seed_legal_documents` migrations). `supabase/weight/` holds
+  `001_weight_logs.sql` (the `weight_logs_table` migration — the dedicated
+  bodyweight-tracking table), bringing the live DB to **19 tables**.
+  `supabase/avatar/` holds `001_avatar_storage.sql` (the `avatar_storage`
+  migration) — the private `avatars` storage bucket + owner-scoped policies and
+  the `profiles.avatar_path` column. `supabase/profile/` holds
+  `001_starting_weight_precision.sql` (the `starting_weight_precision` migration)
+  — widens `profiles.weight_kg` to `numeric(5,2)` for the 2-decimal starting
+  weight. `supabase/grants/` holds
+  `001_api_role_grants.sql` (the `api_role_grants` migration) — the table-level
+  privileges the PostgREST roles need on top of RLS (see Auth and Access Model);
+  new user-owned tables ship their grant inline (`weight_logs` grants full DML to
+  `authenticated`).
 - `Context/` — The spec. Defines what to build (`project-overview.md`), how
   (`code-standards.md`, this file), the UI language (`ui-context.md`), the
   session rules (`ai-workflow-rules.md`), and current state (`progress-tracker.md`).
@@ -66,9 +75,18 @@ in the schema — storage only, no behaviour, until post-trip.
 - **Postgres views (computed, never stored)** — `v_inventory_math` (remaining,
   concentration, mL/units per dose, doses-remaining, projected-empty) and
   `v_biomarker_position` (below / within / above). These are derived on read.
-- **Supabase Storage (private)** — Bloodwork file uploads only, in the private
-  `bloodwork` bucket. Path convention: `<auth.uid()>/<panel_id>/<file>`. Files
-  are referenced from Postgres; the bytes never live in the database.
+- **Supabase Storage (private)** — Two private, owner-scoped buckets. **`bloodwork`**
+  for lab-report uploads (path `<auth.uid()>/<panel_id>/<file>`) and **`avatars`**
+  for profile pictures (path `<auth.uid()>/<file>`; the chosen path is stored on
+  `profiles.avatar_path`, displayed via a short-lived signed URL). Both stay
+  PRIVATE; files are referenced from Postgres, the bytes never live in the database.
+- **Bodyweight (`weight_logs`)** — the single source of truth for bodyweight (one
+  row per `(profile_id, logged_for)`, last write wins; `weight numeric(5,2)`, kg).
+  The Weight view writes it; the home glance card and the Profile "Weight" row read
+  the latest entry. `profiles.weight_kg` is now only a legacy onboarding-snapshot
+  fallback (no longer user-editable — the Settings weight field was removed); and
+  `body_metrics` is superseded for weight tracking. Read directly (not a derived
+  view) and scoped by RLS.
 - **Bundled compounds catalogue (app, read-only)** — The `compounds` catalogue is
   also shipped to the app as a generated static module (`lib/compounds-catalogue.ts`,
   built from `supabase/seed/compounds.csv` via `build-compounds-data.mjs` — the CSV
@@ -81,11 +99,13 @@ in the schema — storage only, no behaviour, until post-trip.
   compounds are stored in `localStorage` keyed `trackd.customCompounds.<auth.uid()>`
   (custom compounds are a later/v1.5 DB feature; this is an interim device-local
   store at Adrian's direction). Per-user, persists on that device; not synced. To be
-  migrated to Postgres when the custom-compounds table lands. The plus-button
-  **Shortcuts menu card order** is likewise device-local, keyed
-  `trackd.shortcutOrder.<auth.uid()>` (a UI preference — an ordered array of item
-  ids, and the *only* thing that menu persists; the placeholder inputs save nothing).
-  Helper: `lib/shortcutOrder.ts`. See `Context/Feature Specs/03-shortcuts-control-creation.md`.
+  migrated to Postgres when the custom-compounds table lands. The per-compound
+  protocol **stack** (`trackd.stack.v2.<auth.uid()>`) and **dose log**
+  (`trackd.doselog.v1.<auth.uid()>`) are the other interim device-local stores
+  (see `lib/home/stack.ts` + `lib/home/doseLog.ts`). The plus-button **Shortcuts
+  menu** (A10) is now a fixed layout — a primary "Log a dose" over a consistent
+  six-tile grid — so it persists nothing (the earlier reorderable card order +
+  `lib/shortcutOrder.ts` were removed when the menu was reworked).
 
 ## Legal Documents
 

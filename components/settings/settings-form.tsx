@@ -23,35 +23,36 @@ const GOALS: { value: string; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-// Storage is always metric (height_cm / weight_kg). Imperial is a display/entry
-// preference only: height shows in inches, weight in lbs — converted on save.
+// Storage is always metric (height_cm). Imperial is a display/entry preference:
+// height shows in inches, converted to cm on save. (Weight is tracked in the
+// Weight view now — no weight field here.)
 type Units = "metric" | "imperial";
 const CM_PER_IN = 2.54;
-const KG_PER_LB = 0.45359237;
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 function heightToDisplay(cm: number | null, units: Units): string {
   if (cm == null) return "";
   return String(units === "imperial" ? round1(cm / CM_PER_IN) : round1(cm));
 }
-function weightToDisplay(kg: number | null, units: Units): string {
-  if (kg == null) return "";
-  return String(units === "imperial" ? round1(kg / KG_PER_LB) : round1(kg));
+
+// Input-side guard (B4): digits + an optional single decimal, integer part ≤3
+// digits (height is integer by default; one decimal is tolerated).
+function sanitizeHeight(raw: string): string {
+  let v = raw.replace(/[^0-9.]/g, "");
+  const dot = v.indexOf(".");
+  if (dot !== -1) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
+  const [int = "", dec] = v.split(".");
+  const clampedInt = int.slice(0, 3);
+  return v.includes(".") ? `${clampedInt}.${(dec ?? "").slice(0, 1)}` : clampedInt;
 }
-// Keep what the user already typed when they flip units: re-express the number.
-function reexpress(
-  value: string,
-  kind: "height" | "weight",
-  from: Units,
-  to: Units,
-): string {
+
+// Keep what the user typed when they flip units: re-express the height.
+function reexpressHeight(value: string, from: Units, to: Units): string {
   if (from === to || value.trim() === "") return value;
   const n = Number(value);
   if (!Number.isFinite(n)) return value;
-  const factor = kind === "height" ? CM_PER_IN : KG_PER_LB;
-  const metric = from === "imperial" ? n * factor : n;
-  const out = to === "imperial" ? metric / factor : metric;
-  return String(round1(out));
+  const cm = from === "imperial" ? n * CM_PER_IN : n;
+  return String(round1(to === "imperial" ? cm / CM_PER_IN : cm));
 }
 
 export type SettingsInitial = {
@@ -59,13 +60,13 @@ export type SettingsInitial = {
   goal: string | null;
   units_preference: string;
   height_cm: number | null;
-  weight_kg: number | null;
 };
 
 /**
  * Editable personalisation. Saves to the user's own profile via updateSettings
- * (server-validated, RLS-scoped). Height/weight display + accept the user's
- * chosen units (cm/kg or in/lbs); the server converts to metric for storage.
+ * (server-validated, RLS-scoped). Height displays + accepts the user's chosen
+ * units (cm or in); the server converts to metric for storage. Bodyweight is
+ * tracked in the Weight view, not here.
  */
 export function SettingsForm({ initial }: { initial: SettingsInitial }) {
   const [state, formAction, isPending] = useActionState(
@@ -79,15 +80,11 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
   const [height, setHeight] = useState(() =>
     heightToDisplay(initial.height_cm, startUnits),
   );
-  const [weight, setWeight] = useState(() =>
-    weightToDisplay(initial.weight_kg, startUnits),
-  );
 
   const imperial = units === "imperial";
 
   function handleUnitsChange(next: Units) {
-    setHeight((h) => reexpress(h, "height", units, next));
-    setWeight((w) => reexpress(w, "weight", units, next));
+    setHeight((h) => reexpressHeight(h, units, next));
     setUnits(next);
   }
 
@@ -117,32 +114,18 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
         </select>
       </Field>
 
+      {/* Height — integer by default; a single decimal is tolerated (B4). */}
       <Field label={imperial ? "Height (in)" : "Height (cm)"}>
         <Input
           name="height"
           type="number"
           inputMode="decimal"
-          min={imperial ? 40 : 100}
+          min={imperial ? 43 : 110}
           max={imperial ? 98 : 250}
           step="0.1"
           placeholder={imperial ? "e.g. 71" : "e.g. 180"}
           value={height}
-          onChange={(e) => setHeight(e.target.value)}
-          className="h-12 rounded-xl"
-        />
-      </Field>
-
-      <Field label={imperial ? "Weight (lbs)" : "Weight (kg)"}>
-        <Input
-          name="weight"
-          type="number"
-          inputMode="decimal"
-          min={imperial ? 67 : 30}
-          max={imperial ? 661 : 300}
-          step="0.1"
-          placeholder={imperial ? "e.g. 198" : "e.g. 90"}
-          value={weight}
-          onChange={(e) => setWeight(e.target.value)}
+          onChange={(e) => setHeight(sanitizeHeight(e.target.value))}
           className="h-12 rounded-xl"
         />
       </Field>

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
+  type CompoundCategory,
 } from "@/lib/compound-categories"
 import type { DateKey, DayStatus, DoseLog } from "@/lib/home/mockHomeData"
 import { formatTimeLabel, type StackCompound } from "@/lib/home/stack"
@@ -41,6 +42,47 @@ interface TodaysCycleCardProps {
 
 function formatDose(dose: number): string {
   return Number.isInteger(dose) ? String(dose) : dose.toFixed(2).replace(/0$/, "")
+}
+
+// Stable category display order (the order categories are declared in the meta).
+const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
+
+interface DoseGroup {
+  cat: string
+  label: string
+  dot: string
+  doses: DueDose[]
+}
+
+/**
+ * Group the day's doses by compound category (A6) — presentation only, no schema
+ * change. Categories appear in their declared order (unknowns last); within each
+ * group, doses are sorted by scheduled time (the secondary sort).
+ */
+function groupByCategory(doses: DueDose[]): DoseGroup[] {
+  const byCat = new Map<string, DueDose[]>()
+  for (const d of doses) {
+    const arr = byCat.get(d.category)
+    if (arr) arr.push(d)
+    else byCat.set(d.category, [d])
+  }
+  const rank = (c: string) => {
+    const i = CATEGORY_ORDER.indexOf(c as CompoundCategory)
+    return i < 0 ? CATEGORY_ORDER.length : i
+  }
+  return [...byCat.keys()]
+    .sort((a, b) => rank(a) - rank(b))
+    .map((cat) => {
+      const meta = CATEGORY_META[cat as CompoundCategory] ?? FALLBACK_CATEGORY_META
+      return {
+        cat,
+        label: meta.label,
+        dot: meta.dot,
+        doses: [...byCat.get(cat)!].sort((x, y) =>
+          x.schedule.timeOfDay.localeCompare(y.schedule.timeOfDay)
+        ),
+      }
+    })
 }
 
 function DoseRow({
@@ -90,7 +132,12 @@ function DoseRow({
           // Let the spread-from-touch glow play before the detail sheet rises and
           // its backdrop covers the row.
           onClick={() => window.setTimeout(() => onOpenDetail(dose), 180)}
-          className="relative flex min-w-0 flex-1 items-center gap-3 overflow-hidden px-4 py-3.5 text-left transition-colors hover:bg-bg-surface-raised/40"
+          className={cn(
+            "relative flex min-w-0 flex-1 items-center gap-3 overflow-hidden px-4 py-3.5 text-left transition-all duration-200 hover:bg-bg-surface-raised/40",
+            // A logged row reads as done: the row dims to ~half; only the tick
+            // (outside this button) stays fully opaque (A3).
+            log && "opacity-50"
+          )}
         >
           {ripples.map((r) => (
             <span
@@ -136,14 +183,15 @@ function DoseRow({
         </button>
         <div className="shrink-0 pr-3 pl-1">
           {log ? (
-            // Logged — tap the tick to edit or undo this dose.
+            // Logged — a flat, fully-opaque amber tick (no glow/ring); tap to
+            // edit or undo this dose (A3).
             <button
               type="button"
               onClick={() => onEdit(dose, log)}
               aria-label={`Edit ${dose.name} dose`}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-border-strong text-text-muted transition-all duration-200 ease-out hover:bg-bg-input hover:text-text-primary active:scale-95"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-amber text-bg-base transition-transform duration-200 ease-out active:scale-95"
             >
-              <Check className="h-4 w-4" aria-hidden />
+              <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden />
             </button>
           ) : (
             <button
@@ -216,18 +264,34 @@ export function TodaysCycleCard({
       )}
 
       {dueDoses.length > 0 ? (
-        <ul className="mt-4 overflow-hidden rounded-2xl bg-bg-surface-raised">
-          {dueDoses.map((dose, i) => (
-            <DoseRow
-              key={dose.id}
-              dose={dose}
-              divider={i > 0}
-              onLog={onLog}
-              onEdit={onEdit}
-              onOpenDetail={onOpenDetail}
-            />
+        <div className="mt-4 space-y-4">
+          {groupByCategory(dueDoses).map((group) => (
+            <div key={group.cat}>
+              {/* Category header — its colour-token dot + label (A6). */}
+              <div className="mb-1.5 flex items-center gap-2 px-1">
+                <span
+                  aria-hidden
+                  className={cn("h-2 w-2 shrink-0 rounded-full", group.dot)}
+                />
+                <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-text-muted">
+                  {group.label}
+                </span>
+              </div>
+              <ul className="overflow-hidden rounded-2xl bg-bg-surface-raised">
+                {group.doses.map((dose, i) => (
+                  <DoseRow
+                    key={dose.id}
+                    dose={dose}
+                    divider={i > 0}
+                    onLog={onLog}
+                    onEdit={onEdit}
+                    onOpenDetail={onOpenDetail}
+                  />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       ) : (
         <p className="mt-4 rounded-2xl bg-bg-surface-raised px-4 py-6 text-center text-sm text-text-muted">
           Nothing scheduled for this day.

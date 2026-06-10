@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
+  Archive,
   ChevronRight,
   FileText,
   Settings,
@@ -9,9 +10,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { ArchiveManager } from "@/components/home/ArchiveManager";
+import { AvatarUploader } from "@/components/profile/AvatarUploader";
+import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
+import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
 import { createClient } from "@/lib/supabase/server";
-import { signOut } from "../actions";
 
 export const metadata: Metadata = { title: "Profile — Trackd Co" };
 
@@ -32,10 +34,31 @@ export default async function ProfilePage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "tier, created_at, sex, date_of_birth, height_cm, weight_kg, goal, units_preference",
+      "tier, created_at, sex, date_of_birth, height_cm, weight_kg, goal, units_preference, avatar_path",
     )
     .eq("id", user!.id)
     .maybeSingle();
+
+  // The avatar bucket is private — display via a short-lived signed URL. A fresh
+  // URL is minted each render (the page revalidates), so it never reads stale.
+  let avatarUrl: string | null = null;
+  if (profile?.avatar_path) {
+    const { data: signed } = await supabase.storage
+      .from("avatars")
+      .createSignedUrl(profile.avatar_path, 3600);
+    avatarUrl = signed?.signedUrl ?? null;
+  }
+
+  // The displayed weight follows the Weight view: the latest logged reading,
+  // falling back to the onboarding snapshot, then "—". So logging in the weight
+  // section updates here too.
+  const { data: latestWeight } = await supabase
+    .from("weight_logs")
+    .select("weight")
+    .order("logged_for", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const displayWeightKg = latestWeight?.weight ?? profile?.weight_kg ?? null;
 
   // ----- display identity (auth metadata only; never an access decision) -----
   const fullName =
@@ -57,14 +80,16 @@ export default async function ProfilePage() {
 
   return (
     <div className="mx-auto w-full max-w-md px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
+      {/* Shared scroll-title preset (large heading → fade-in compact bar). */}
+      <PageScrollTitle title="Profile" />
+
       {/* ── Identity hero ─────────────────────────────────────────── */}
-      <section className="flex flex-col items-center text-center">
-        <div
-          aria-hidden
-          className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border border-border-strong bg-bg-surface-raised font-display text-2xl text-foreground"
-        >
-          {initials}
-        </div>
+      <section className="mt-6 flex flex-col items-center text-center">
+        <AvatarUploader
+          initials={initials}
+          signedUrl={avatarUrl}
+          userId={user!.id}
+        />
 
         <h1
           className={
@@ -121,7 +146,7 @@ export default async function ProfilePage() {
         <Divider />
         <InfoRow
           label="Weight"
-          value={formatMeasure(profile?.weight_kg, imperial, "kg", "lbs", KG_PER_LB)}
+          value={formatMeasure(displayWeightKg, imperial, "kg", "lbs", KG_PER_LB)}
         />
         <Divider />
         <InfoRow label="Goal" value={fmtGoal(profile?.goal)} />
@@ -129,19 +154,15 @@ export default async function ProfilePage() {
         <InfoRow label="Units" value={fmtUnits(profile?.units_preference)} />
       </div>
 
-      {/* ── Archive (manage the device-local compound stack) ───────── */}
-      <Eyebrow>Archive</Eyebrow>
-      <p className="mb-3 text-sm text-text-muted">
-        Stop logging a compound to move it here; reactivate to put it back. Your
-        past entries are always kept.
-      </p>
-      <ArchiveManager userId={user!.id} />
-
       {/* ── App & legal ───────────────────────────────────────────── */}
       <Eyebrow>App</Eyebrow>
       <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
         <LinkRow href="/settings" icon={Settings}>
           Settings
+        </LinkRow>
+        <Divider />
+        <LinkRow href="/archive" icon={Archive}>
+          Archive
         </LinkRow>
         <Divider />
         <LinkRow href="/terms" icon={FileText}>
@@ -157,15 +178,10 @@ export default async function ProfilePage() {
         </LinkRow>
       </div>
 
-      {/* ── Sign out ──────────────────────────────────────────────── */}
-      <form action={signOut} className="mt-8">
-        <button
-          type="submit"
-          className="flex w-full items-center justify-center rounded-2xl border border-border-strong bg-transparent py-3.5 text-sm font-medium text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
-        >
-          Sign out
-        </button>
-      </form>
+      {/* ── Sign out (confirm step; deep-red destructive button) ───── */}
+      <div className="mt-8">
+        <SignOutConfirm variant="button" />
+      </div>
 
       <p className="mt-6 text-center text-xs text-text-subtle">
         Trackd Co · v0.4 (Beta)

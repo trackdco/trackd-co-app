@@ -16,13 +16,16 @@ import type { StackCompound } from "@/lib/home/stack"
 export type DateKey = string
 
 /**
- * A day's dose-logging compliance.
+ * A day's dose-logging compliance. Labelled by POSITION, never as a celebratory
+ * state (Context/Feature Specs/08 → A7): a past day is never "Upcoming".
  *  - `logged`  — every due dose was logged
  *  - `partial` — some but not all due doses logged
- *  - `missed`  — a past day with nothing logged
- *  - `future`  — a day yet to come (nothing to log)
+ *  - `missed`  — a past/today day with due doses, none logged
+ *  - `none`    — a past/today day with nothing due (a rest day, or before the
+ *                protocol began) — not adherence-relevant, renders blank
+ *  - `future`  — a day yet to come ("Upcoming")
  */
-export type DayStatus = "logged" | "partial" | "missed" | "future"
+export type DayStatus = "logged" | "partial" | "missed" | "none" | "future"
 
 /**
  * The starting stack is EMPTY (the app is a blank template). A new user adds
@@ -43,18 +46,6 @@ export interface DoseLog {
   /** Time the dose was taken, 24h "HH:MM". */
   time24: string
 }
-
-/** One body-weight reading. */
-export interface WeightPoint {
-  /** Days before today; 0 = today. */
-  daysAgo: number
-  kg: number
-}
-
-// Blank template — no weight history until the user logs their first reading.
-export const weightSeries: WeightPoint[] = []
-
-export const weightUnit = "kg"
 
 /* ----------------------------------------------------------- pure helpers */
 
@@ -77,13 +68,4 @@ export function resolveDateKey(today: Date, daysAgo: number): DateKey {
 export function dateKeyToDate(key: DateKey): Date {
   const [y, m, d] = key.split("-").map(Number)
   return new Date(y, m - 1, d)
-}
-
-/** The mock weight series as absolute-dated points (the empty-state fallback
- *  when a user has no real `body_metrics` rows yet). Oldest → newest. */
-export function mockWeightPoints(today: Date): { key: DateKey; kg: number }[] {
-  return weightSeries.map((p) => ({
-    key: resolveDateKey(today, p.daysAgo),
-    kg: p.kg,
-  }))
 }

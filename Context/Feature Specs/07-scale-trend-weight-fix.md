@@ -44,4 +44,11 @@ On the weight view, selecting **Scale** weight dims **Trend**, and selecting **T
 - [ ] No flash of wrong state on first render.
 - [ ] No TS or lint errors; build is clean.
 
-Also whats very important is that you chang the weight entrys to be xxx.xx so no more than three digits for the kg and lbs and no more than two decimal points. also i need you to set realistic limits for lows in height and weight. obviously there will be outliers in both but keep it geberous but realisitc. ask me before you do it and give me some reference ranges. All of this last paragraph is about tracking/logging the compounds. 
+Also whats very important is that you chang the weight entrys to be xxx.xx so no more than three digits for the kg and lbs and no more than two decimal points. also i need you to set realistic limits for lows in height and weight. obviously there will be outliers in both but keep it geberous but realisitc. ask me before you do it and give me some reference ranges. All of this last paragraph is about tracking/logging the compounds. Also, what I want you to do is, on the plus menu, "Track your weight". It's simply the weight tracking option, and it just says "Track your weight". It's a text input. You put in your text, and then it just says "Done". I think if you even had "Track your weight" and it had the weight graph that slid up and faded up, that would be cool as well to see. Like a card pop up that says "Track your weight", or "Log your weight". Once the card fades up, then another card fades up on top of that; it's the graph of your weight with the trends so you can see it. When you log it, it adds it to it. Also, what I want you to do with the white section is you can click on it. And then when you click on it, you can simply select:
+- one week
+- one month
+- three months
+- six months
+- one year
+- all time
+That way, you can expand the track based on the time period, so you can see how long the term thing

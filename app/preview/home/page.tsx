@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { HomeScreen } from "@/components/home/HomeScreen";
-import { mockWeightPoints, toDateKey } from "@/lib/home/mockHomeData";
+import { toDateKey } from "@/lib/home/mockHomeData";
 
 /**
  * DEV-ONLY preview of the Home / Dashboard screen, viewable without signing in
@@ -40,9 +40,9 @@ export default function PreviewHomePage() {
       <main className="flex-1">
         <HomeScreen
           todayKey={todayKey}
-          name="Adrian"
-          weight={mockWeightPoints(new Date())}
           userId="preview-local"
+          weight={[]}
+          unit="kg"
         />
       </main>
 

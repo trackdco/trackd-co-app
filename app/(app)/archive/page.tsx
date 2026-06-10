@@ -1,0 +1,46 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
+
+import { ArchiveManager } from "@/components/home/ArchiveManager";
+import { createClient } from "@/lib/supabase/server";
+
+export const metadata: Metadata = { title: "Archive — Trackd Co" };
+
+/**
+ * Archive — its own page now (Context/Feature Specs/08 → B1), reached from the
+ * Profile App card alongside Settings + the legal docs. Lists the user's
+ * compounds split into Archived and Active, with one tap to move either way
+ * (Archive stops dosing but keeps history; Reactivate puts it back). No
+ * hard-delete here. The (app) layout already enforced auth + the gate.
+ */
+export default async function ArchivePage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return (
+    <div className="mx-auto w-full max-w-md px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
+      <Link
+        href="/profile"
+        className="-ml-1 inline-flex items-center gap-1 rounded-md py-1 pr-2 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden />
+        Profile
+      </Link>
+
+      <h1 className="mt-3 font-display text-3xl font-medium tracking-[-0.01em] text-foreground">
+        Archive
+      </h1>
+      <p className="mt-1.5 text-sm text-text-muted">
+        Stop logging a compound to move it here; reactivate to put it back. Your
+        past entries are always kept.
+      </p>
+
+      <div className="mt-6">
+        <ArchiveManager userId={user!.id} />
+      </div>
+    </div>
+  );
+}

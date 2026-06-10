@@ -23,6 +23,7 @@ const STATUS_LABEL: Record<DayStatus, string> = {
   logged: "all doses logged",
   partial: "some doses logged",
   missed: "nothing logged",
+  none: "no doses",
   future: "upcoming",
 }
 
@@ -40,7 +41,9 @@ function StatusDot({ status }: { status: DayStatus }) {
         status === "logged" && "bg-text-primary",
         status === "partial" && "bg-text-muted",
         status === "missed" && "border border-border-strong",
-        status === "future" && "bg-transparent"
+        // A rest day / pre-protocol day and a future day both read as blank —
+        // neither is adherence-relevant (A7: a past day is never "Upcoming").
+        (status === "none" || status === "future") && "bg-transparent"
       )}
     />
   )

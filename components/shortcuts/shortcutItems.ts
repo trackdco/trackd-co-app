@@ -10,21 +10,25 @@ import {
 } from "lucide-react"
 
 /**
- * Single source of truth for the plus-button "Shortcuts" menu.
+ * Single source of truth for the plus-button "Shortcuts" menu
+ * (Context/Feature Specs/08 → A10).
  *
- * One entry per action, in the fixed declaration order. The menu renders items in
- * two tiers, set by `variant`: a top row of `circle` quick-actions and a stack of
- * full-width `card`s below. Linking a placeholder to real functionality later is
- * just a matter of flipping its `action` (and giving the menu a handler for its
- * `id`) — no UI lives in this file.
+ * The menu is a primary "Log a dose" action over one consistent grid of six
+ * tiles. Each item declares what it does via `action`:
+ *  - `route`       → navigate (Log a dose → the home log; Weight → the Weight view)
+ *  - `add-stack`   → the existing, unchanged Add-to-Stack flow
+ *  - `calculator`  → the reconstitution calculator sheet (A8)
+ *  - `placeholder` → the shared not-yet-built sheet
  *
- * Only `add-compound` is wired to real functionality today (the existing
- * Add-to-Stack flow); every other item opens the shared placeholder sheet. Only
- * the reconstitution calculator carries a `warning`, surfaced on its placeholder
- * so the medical-disclaimer line isn't forgotten when the real tool is built.
+ * No UI lives in this file. Only the reconstitution calculator carries a
+ * `warning` (its placeholder is gone now that the real tool exists, but the line
+ * is kept here in case it's reused).
  */
-export type ShortcutAction = "route" | "placeholder"
-export type ShortcutVariant = "circle" | "card"
+export type ShortcutAction =
+  | "route"
+  | "add-stack"
+  | "calculator"
+  | "placeholder"
 
 export interface ShortcutItem {
   id: string
@@ -32,13 +36,11 @@ export interface ShortcutItem {
   subtitle: string
   icon: LucideIcon
   action: ShortcutAction
-  /** Top "circle" quick-action, or a full-width "card" in the reorderable stack. */
-  variant: ShortcutVariant
-  /** Short label for the circle row (the full title is too long under a circle). */
+  /** Destination for `route` items. */
+  href?: string
+  /** Short label for the compact grid tile. */
   shortLabel?: string
-  /** Card that defaults to the bottom of the stack (a setup action); still reorderable. */
-  pinnedBottom?: boolean
-  /** Optional disclaimer shown on the placeholder (reconstitution calculator only). */
+  /** Optional disclaimer (reconstitution calculator). */
   warning?: string
 }
 
@@ -46,44 +48,25 @@ const RECONSTITUTION_WARNING =
   "For personal tracking only — not medical or dosing advice. Always confirm " +
   "any figure with a qualified medical professional before acting on it."
 
-export const SHORTCUT_ITEMS: ShortcutItem[] = [
+/** The prominent primary action at the top of the menu. */
+export const PRIMARY_ITEM: ShortcutItem = {
+  id: "log-dose",
+  title: "Log a dose",
+  subtitle: "Log, edit or delete today's doses",
+  icon: ListChecks,
+  action: "route",
+  href: "/dashboard",
+}
+
+/** The consistent six-tile grid, in display order (A10). */
+export const GRID_ITEMS: ShortcutItem[] = [
   {
     id: "add-compound",
     title: "Add a compound",
     subtitle: "Add a new compound to your cycle",
     icon: Pill,
-    action: "route",
-    variant: "card",
-    pinnedBottom: true,
-  },
-  {
-    // The daily tracking hub — where the user logs the doses/peptides/supplements
-    // they're running. Kept id stable; label/icon tuned for "this is where I track".
-    id: "todays-dose",
-    title: "Log a dose",
-    subtitle: "Log, edit or delete today's doses",
-    icon: ListChecks,
-    action: "placeholder",
-    variant: "circle",
-    shortLabel: "Log",
-  },
-  {
-    id: "track-weight",
-    title: "Weight",
-    subtitle: "Record your bodyweight",
-    icon: Scale,
-    action: "placeholder",
-    variant: "card",
-  },
-  {
-    id: "reconstitution-calculator",
-    title: "Reconstitution calculator",
-    subtitle: "Work out your reconstitution",
-    icon: Calculator,
-    action: "placeholder",
-    variant: "circle",
-    shortLabel: "Calculator",
-    warning: RECONSTITUTION_WARNING,
+    action: "add-stack",
+    shortLabel: "Add compound",
   },
   {
     id: "journal",
@@ -91,8 +74,16 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     subtitle: "Free-write and track how you feel",
     icon: NotebookPen,
     action: "placeholder",
-    variant: "circle",
     shortLabel: "Journal",
+  },
+  {
+    id: "weight",
+    title: "Weight",
+    subtitle: "Track your bodyweight",
+    icon: Scale,
+    action: "route",
+    href: "/weight",
+    shortLabel: "Weight",
   },
   {
     id: "blood-work",
@@ -100,7 +91,16 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     subtitle: "Enter and review your bloods",
     icon: ClipboardList,
     action: "placeholder",
-    variant: "card",
+    shortLabel: "Blood work",
+  },
+  {
+    id: "calculator",
+    title: "Reconstitution calculator",
+    subtitle: "Work out your reconstitution",
+    icon: Calculator,
+    action: "calculator",
+    shortLabel: "Calculator",
+    warning: RECONSTITUTION_WARNING,
   },
   {
     id: "calendar",
@@ -108,7 +108,9 @@ export const SHORTCUT_ITEMS: ShortcutItem[] = [
     subtitle: "View your logged history",
     icon: CalendarDays,
     action: "placeholder",
-    variant: "circle",
     shortLabel: "Calendar",
   },
 ]
+
+/** Every item, for callers that need a flat lookup. */
+export const SHORTCUT_ITEMS: ShortcutItem[] = [PRIMARY_ITEM, ...GRID_ITEMS]

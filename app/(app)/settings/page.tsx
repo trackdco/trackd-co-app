@@ -25,7 +25,7 @@ export default async function SettingsPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "sex, date_of_birth, height_cm, weight_kg, goal, units_preference, tier, created_at",
+      "sex, date_of_birth, height_cm, goal, units_preference, tier, created_at",
     )
     .eq("id", user.id)
     .maybeSingle();
@@ -81,7 +81,6 @@ export default async function SettingsPage() {
           goal: profile?.goal ?? null,
           units_preference: profile?.units_preference ?? "metric",
           height_cm: profile?.height_cm ?? null,
-          weight_kg: profile?.weight_kg ?? null,
         }}
       />
 

@@ -54,6 +54,10 @@
   --state-success: #4ade80;
   --state-warning: #f59e0b;
 
+  /* Deep red for genuinely destructive actions (sign out, delete). Darker than
+     --state-error so it reads as "deliberate", not a transient error toast. */
+  --accent-destructive: #b91c1c;
+
   /* Corner radius base (cards = rounded-2xl); shadcn derives sm/md/lg/xl */
   --radius: 1rem;
 
@@ -118,6 +122,7 @@
   --color-state-error: var(--state-error);
   --color-state-success: var(--state-success);
   --color-state-warning: var(--state-warning);
+  --color-accent-destructive: var(--accent-destructive);
 
   /* Category legend dots → utilities (bg-cat-anabolic, …) */
   --color-cat-anabolic: var(--cat-anabolic);

@@ -2,8 +2,8 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
+import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { getSessionContext } from "@/lib/auth";
-import { signOut } from "./actions";
 
 /**
  * Logged-in app shell. The authoritative gate every feature screen sits behind:
@@ -39,14 +39,7 @@ export default async function AppLayout({
           priority
           className="h-4 w-auto"
         />
-        <form action={signOut}>
-          <button
-            type="submit"
-            className="-mr-2 px-2 py-2 text-sm text-text-muted transition-colors hover:text-foreground"
-          >
-            Sign out
-          </button>
-        </form>
+        <SignOutConfirm variant="link" />
       </header>
 
       {/* Bottom padding clears the fixed nav (height + safe-area inset). */}

@@ -118,6 +118,18 @@ export function LogDoseSheet({
 // Re-using a spot sooner than this (days) gets a gentle amber rest flag.
 const REST_DAYS = 7
 
+/** Local "HH:MM" for the time field / committed log. */
+function toHHMM(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(
+    d.getMinutes()
+  ).padStart(2, "0")}`
+}
+
+/** Local "HH:MM:SS" for the ticking live indicator. */
+function toHHMMSS(d: Date): string {
+  return `${toHHMM(d)}:${String(d.getSeconds()).padStart(2, "0")}`
+}
+
 function LogDoseBody({
   compound,
   existing,
@@ -165,10 +177,31 @@ function LogDoseBody({
   const dragRef = useRef<{ startY: number; height: number } | null>(null)
   const [offsetY, setOffsetY] = useState(0)
   const [dragging, setDragging] = useState(false)
+
+  // A1: the preset dose shows as a VALUE; tapping it reveals the keypad-bound
+  // input. So there's no keypad on open and the preset reads as a figure.
   const [amount, setAmount] = useState(existing?.amount ?? String(compound.dose))
-  const [time24, setTime24] = useState(
-    existing?.time24 ?? compound.schedule.timeOfDay
+  const [editingAmount, setEditingAmount] = useState(false)
+
+  // A4: the time live-tracks the clock (ticking each second) until the user makes
+  // a manual edit, which overrides + freezes it; clearing the field resumes live.
+  // `manualTime === null` ⇒ live. The committed time is evaluated at SUBMIT
+  // (new Date()), never captured at open. Editing an existing dose starts frozen
+  // at its logged time.
+  const [manualTime, setManualTime] = useState<string | null>(
+    existing?.time24 ?? null
   )
+  const [now, setNow] = useState<Date>(() => new Date())
+  useEffect(() => {
+    if (manualTime !== null) return
+    const tick = () => setNow(new Date())
+    tick()
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [manualTime])
+  const liveTracking = manualTime === null
+  const displayTime = manualTime ?? toHHMM(now)
+
   const [siteId, setSiteId] = useState<string | null>(
     existing?.siteId ?? defaultSite
   )
@@ -179,10 +212,12 @@ function LogDoseBody({
     hasRotation && siteId != null && usedByOthers.has(siteId)
 
   function buildLog(): DoseLog {
+    // Evaluate the time at SUBMIT: a manual override wins, otherwise the live
+    // clock right now (A4).
     return {
       amount,
       siteId: hasRotation ? siteId : null,
-      time24: time24 || compound.schedule.timeOfDay,
+      time24: manualTime ?? toHHMM(new Date()),
     }
   }
 
@@ -271,39 +306,74 @@ function LogDoseBody({
           </div>
         </div>
 
-        {/* Amount + time */}
+        {/* Amount + time. The row is sized to never overflow at 360–390px: the
+            amount can shrink (min-w-0) and the time is width-capped (A2). */}
         <div className="mt-5 flex gap-3">
-          <label className="block flex-1">
+          <label className="block min-w-0 flex-1">
             <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
               Amount
             </span>
             <div className="relative">
-              <Input
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(sanitizeDoseInput(e.target.value))}
-                aria-label={`Amount in ${compound.unit}`}
-                className="h-12 rounded-xl border-border-default bg-bg-input pr-14 font-mono text-base dark:bg-bg-input"
-              />
+              {editingAmount ? (
+                <Input
+                  // A1: the keypad-bound field only mounts (and focuses) once the
+                  // value is tapped — so opening the sheet never raises the keypad.
+                  autoFocus
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(sanitizeDoseInput(e.target.value))}
+                  onBlur={() => setEditingAmount(false)}
+                  aria-label={`Amount in ${compound.unit}`}
+                  className="h-12 rounded-xl border-border-default bg-bg-input pr-14 font-mono text-base dark:bg-bg-input"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingAmount(true)}
+                  aria-label={`Amount ${amount} ${compound.unit}. Tap to edit.`}
+                  className="flex h-12 w-full items-center rounded-xl border border-border-default bg-bg-input px-4 pr-14 text-left font-mono text-base text-foreground"
+                >
+                  {amount || "0"}
+                </button>
+              )}
               <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sm text-text-muted">
                 {compound.unit}
               </span>
             </div>
           </label>
 
-          <label className="block w-32">
+          <label className="block w-28 max-w-[40%] shrink-0">
             <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
               Time
             </span>
             <Input
               type="time"
-              value={time24}
-              onChange={(e) => setTime24(e.target.value)}
+              value={displayTime}
+              onChange={(e) =>
+                // Empty ⇒ resume live tracking; any value ⇒ a manual override.
+                setManualTime(e.target.value === "" ? null : e.target.value)
+              }
               aria-label="Time taken"
-              className="h-12 rounded-xl border-border-default bg-bg-input px-4 font-mono text-base dark:bg-bg-input"
+              className="h-12 w-full min-w-0 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm dark:bg-bg-input"
             />
           </label>
         </div>
+
+        {/* Live-clock hint — ticks each second while tracking; tapping the time
+            field to set a value freezes it (A4). */}
+        <p className="mt-1.5 px-1 text-xs text-text-subtle">
+          {liveTracking ? (
+            <>
+              Logging at{" "}
+              <span className="font-mono text-accent-amber">
+                {toHHMMSS(now)}
+              </span>{" "}
+              — live now. Tap the time to set it yourself.
+            </>
+          ) : (
+            <>Time set manually. Clear it to track the current time again.</>
+          )}
+        </p>
 
         {/* Injection site — this compound's own rotation (real next preselected,
             no auto-dodge). A site another compound also lands on today is FLAGGED

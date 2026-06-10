@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Pencil } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -272,7 +272,19 @@ function AddCompoundBody({
   const [sDay, setSDay] = useState(initial.sDay)
   const [sMonth, setSMonth] = useState(initial.sMonth)
   const [sYear, setSYear] = useState(initial.sYear)
-  const [timeOfDay, setTimeOfDay] = useState(initial.timeOfDay)
+  // The default dose time live-tracks the clock (ticking each minute) for a NEW
+  // compound until the user sets one; an edit starts frozen at its saved time.
+  // `manualTime === null` ⇒ live. Picking a time freezes it; clearing resumes.
+  const [manualTime, setManualTime] = useState<string | null>(
+    isEdit ? initial.timeOfDay : null
+  )
+  const [clock, setClock] = useState(() => now)
+  useEffect(() => {
+    if (manualTime !== null) return
+    const id = window.setInterval(() => setClock(new Date()), 1000)
+    return () => window.clearInterval(id)
+  }, [manualTime])
+  const timeOfDay = manualTime ?? hhmm(clock)
   const [rotationSites, setRotationSites] = useState<string[]>(source.rotationSites)
 
   const todayKey = toDateKey(now)
@@ -319,15 +331,18 @@ function AddCompoundBody({
       show("Enter a dose greater than 0.")
       return
     }
+    // When the time is still live-tracking, resolve it at SAVE (a fresh now), so
+    // a minute ticking by before saving can't trip the "later than now" check.
+    const nowAtSave = new Date()
+    const effectiveTime = manualTime ?? hhmm(nowAtSave)
     // Future-date / -time rules apply to NEW cycles only; an edit may already be
     // running (its start is historical), so don't block editing other fields.
     if (!isEdit) {
-      const nowAtSave = new Date()
       if (startDate < toDateKey(nowAtSave)) {
         show("Start date can't be in the past.")
         return
       }
-      if (startDate === toDateKey(nowAtSave) && timeOfDay < hhmm(nowAtSave)) {
+      if (startDate === toDateKey(nowAtSave) && effectiveTime < hhmm(nowAtSave)) {
         show("For a cycle starting today, the time must be later than now.")
         return
       }
@@ -347,7 +362,7 @@ function AddCompoundBody({
       method,
       dose: doseValue,
       unit,
-      schedule: previewSchedule,
+      schedule: { ...previewSchedule, timeOfDay: effectiveTime },
       rotationSites: injectable ? rotationSites : [],
       // Preserve the rotation position on edit, clamped into the (possibly
       // changed) site list; a new compound starts at the first site.
@@ -592,10 +607,11 @@ function AddCompoundBody({
               <Input
                 type="time"
                 value={timeOfDay}
-                min={!isEdit && startDate === todayKey ? hhmm(now) : undefined}
-                onChange={(e) => setTimeOfDay(e.target.value || timeOfDay)}
+                min={!isEdit && startDate === todayKey ? hhmm(clock) : undefined}
+                // Empty resumes live tracking; any value freezes it.
+                onChange={(e) => setManualTime(e.target.value || null)}
                 aria-label="Default dose time"
-                className="h-11 w-32 rounded-xl border-border-default bg-bg-input px-4 font-mono text-base dark:bg-bg-input"
+                className="h-11 w-32 max-w-[45%] rounded-xl border-border-default bg-bg-input px-4 font-mono text-base dark:bg-bg-input"
               />
             </label>
           </div>

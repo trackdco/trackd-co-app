@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
-import { mockWeightPoints, toDateKey } from "@/lib/home/mockHomeData";
+import { toDateKey } from "@/lib/home/mockHomeData";
+import { unitForPreference } from "@/lib/weight";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -10,14 +11,13 @@ export const metadata: Metadata = {
 
 /**
  * Home — the default tab and the screen every daily-use session lands on: a
- * glanceable status board (pinned week strip → greeting → Today's Cycle →
- * Site rotation → Weight → Reconstitution Calculator). Cycle/site data is mock
- * this pass; the Weight card reads the user's REAL `body_metrics` history (and
- * "Log weight" persists there), falling back to mock points until they've logged.
+ * glanceable status board (date + "Dashboard" + week strip → Today's Log →
+ * Weight glance → Reconstitution Calculator). Stack/dose data is device-local
+ * this pass (scoped by the signed-in user); the Weight card is a display read
+ * from the user's real `weight_logs` and taps through to the Weight view.
  *
  * The (app) layout already enforced auth + the 18+/ToS gate. `todayKey` is
- * resolved once here on the server so every date renders identically on server
- * and client. The user's first name (display-only) feeds the greeting.
+ * resolved once here on the server so every date renders identically.
  */
 export default async function DashboardPage() {
   const todayKey = toDateKey(new Date());
@@ -26,30 +26,30 @@ export default async function DashboardPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const fullName =
-    (user?.user_metadata?.full_name as string | undefined) ??
-    (user?.user_metadata?.name as string | undefined) ??
-    null;
-  const firstName = fullName?.trim().split(/\s+/)[0] ?? "";
 
-  // RLS scopes this to the signed-in user; oldest → newest for the chart.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("units_preference")
+    .eq("id", user!.id)
+    .maybeSingle();
+
+  // RLS scopes this to the signed-in user; oldest → newest for the sparkline.
   const { data } = await supabase
-    .from("body_metrics")
-    .select("measured_on, weight_kg")
-    .order("measured_on", { ascending: true })
-    .limit(120);
-  const rows = (data ?? []) as { measured_on: string; weight_kg: number | null }[];
-  const realWeight = rows
-    .filter((r) => r.weight_kg != null)
-    .map((r) => ({ key: r.measured_on, kg: Number(r.weight_kg) }));
-  const weight = realWeight.length > 0 ? realWeight : mockWeightPoints(new Date());
+    .from("weight_logs")
+    .select("logged_for, weight")
+    .order("logged_for", { ascending: true })
+    .limit(400);
+  const weight = (data ?? []).map((r) => ({
+    key: r.logged_for as string,
+    kg: Number(r.weight),
+  }));
 
   return (
     <HomeScreen
       todayKey={todayKey}
-      name={firstName}
-      weight={weight}
       userId={user?.id ?? "anon"}
+      weight={weight}
+      unit={unitForPreference(profile?.units_preference)}
     />
   );
 }
