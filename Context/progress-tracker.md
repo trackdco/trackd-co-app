@@ -30,6 +30,48 @@ Last updated: 2026-06-10
 
 ## Completed
 
+- **Home dashboard + per-compound dose tracking, scheduling & site rotation
+  (2026-06-10, `feat/home-dashboard` → merged to `main`).** Built the logged-in
+  **home screen** and the **core compound-tracking loop** on top of it, all
+  device-local (a blank template; migrates to Postgres `protocol_compounds` with
+  the cycles feature). Shipped:
+  - **Home:** pinned week strip → greeting → **Today's Log** → weight trend card
+    (real `body_metrics`, with an empty state) → 30-day consistency →
+    reconstitution-calc entry, and a **"get started"** empty state with
+    how-it-works until the first compound is added.
+  - **Add to log** (opened from the catalogue "+", a new sheet; the protected
+    Add-to-Stack browse/search/custom flow stays untouched): method + unit
+    **locked to the compound's database values** (a mg/mcg/g dropdown where the
+    measurement family allows it, e.g. Tirzepatide); **dose** (capped digits +
+    decimals); **schedule** (daily / every other day / every X days / specific
+    days with a Done-lock, plus a **start date** that is future-only, a DOB-style
+    Day/Month/Year picker, and a time that can't be earlier than now for "today");
+    and the **injection-site rotation** (full method catalogue, tap to pick,
+    **drag to order**).
+  - **Injection-site catalogue** rebuilt from research to medically-appropriate
+    sites: **IM** muscle sites (ventroglute/glute/delt/quads + common spot sites)
+    and **SubQ** fat sites (lower/side abdomen ≥2in from the navel, flanks, outer
+    thigh, back of arm; **no upper stomach**). Oral/nasal have none
+    (`lib/home/siteCatalog.ts`).
+  - **Logging** persists on-device; each compound's rotation advances
+    independently, and the success tick commits on tap (dismissing it can't
+    cancel the log). **Same-day site clashes are OBSERVED, not auto-changed**
+    (Adrian + Angus's "tracking, not coaching" call): an amber flag + free-
+    alternate suggestions for that day + a non-advice disclaimer, plus a
+    **"last used here"** rest hint.
+  - **Tap a compound → detail sheet** (spread-from-touch glow) with **Edit**
+    (reopens the add sheet pre-filled), **Archive** (stops dosing but keeps
+    history, reversible — managed from a new **Profile → Archive** menu), and
+    **Delete permanently** (two-step confirm). Archive/reactivate carry a
+    fade-in confirm.
+  - Reusable **amber pop-down notification** (`components/notifications/`); fade +
+    spread-from-touch motion throughout; em dashes scrubbed from user-facing copy.
+  - **Stores:** `lib/home/stack.ts` (`trackd.stack.v2.<uid>`) and
+    `lib/home/doseLog.ts` (`trackd.doselog.v1.<uid>`), both device-local
+    `useSyncExternalStore` stores. Dev-only **`/preview/home`** + **`/preview/profile`**
+    harnesses (404 in prod). `npm run build` clean (21 routes). Specs:
+    `Context/Feature Specs/04`–`07`.
+
 - **Profile glance unit-aware + PR #2 closed (2026-06-10).** The Profile tab's Physical
   glance now shows **Height/Weight in the user's preferred units** (cm/kg or in/lbs),
   mirroring the settings form — storage stays metric, converted for display only
@@ -404,10 +446,15 @@ Last updated: 2026-06-10
 
 - **App UI lanes.** **Angus + Claude — Profile & Settings: ✅ DONE** (Profile tab +
   Settings, unit-aware Height/Weight, page fade-up, Save→dashboard; landed direct on
-  `main` and deployed to prod 2026-06-10; PR #2 closed, not merged). **Adrian — the core
-  loop** (cycles → compounds → inventory → dose logging → reflow) on `feat/app-ui`, in
-  progress. The deferred fade-to-all-tabs + a `/settings` nav link are shared-layout
-  (`app/(app)/layout.tsx`) changes to coordinate with Adrian when the build resumes.
+  `main` and deployed to prod 2026-06-10; PR #2 closed, not merged). **Adrian + Claude —
+  home + compound tracking: ✅ BUILT & merged to `main` (2026-06-10)** — the home
+  dashboard, add-to-log, per-compound injection-site rotation, persisted dose logging,
+  same-day clash flagging, and the detail/edit/archive/delete flow, all **device-local**
+  (interim `localStorage`). **Next for this lane:** wire the device-local stack + dose
+  logs to **real Postgres cycles / `protocol_compounds` / inventory** (the data model
+  already exists), and reflow inventory maths from `v_inventory_math`. The deferred
+  fade-to-all-tabs + a `/settings` nav link are shared-layout (`app/(app)/layout.tsx`)
+  changes to fold in then.
 - **Angus — marketing / audience warm-up (from 2026-06-10).** Now off the build and onto
   the **marketing plan**: restarting consistent, Trackd-optimised social posting to re-warm
   a **cold audience** (the socials have been quiet for a while) ahead of the 28 Jun beta.

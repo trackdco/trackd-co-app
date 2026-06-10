@@ -15,6 +15,18 @@ Last updated: 2026-06-10
 
 ## 🎯 Current focus
 
+**Latest — 2026-06-10 (Adrian + Claude, shipped to `main`/prod): the home screen + the
+compound-tracking loop are ✅ LIVE.** Home dashboard (week strip · Today's Log · weight
+trend · consistency · recon entry · blank "get started" state); **add-to-log** (method +
+unit locked from the catalogue, with a mg/mcg/g dropdown where it applies; dose; schedule
+with a future-only start date; drag-ordered **injection-site rotation** on a researched,
+method-appropriate site catalogue); **persisted dose logging** with same-day site clashes
+**observed, not auto-changed** (free-alternate suggestions + non-advice disclaimer + a
+"last used here" rest hint); and a **tap-to-detail** edit / **archive** (keeps history) /
+two-step delete flow + a **Profile → Archive** menu. All **device-local** (interim
+`localStorage`); the next step is wiring it to real Postgres. Specs `Feature Specs/04`–`07`;
+dev harnesses `/preview/home` + `/preview/profile`. Details in the Build track below.
+
 **Latest — 2026-06-10 (Angus + Claude, all shipped to `main`/prod): the Profile & Settings
 lane is ✅ DONE.**
 - **Profile tab** (`/profile`) — identity/account hub: initials avatar, serif name, email,
@@ -36,9 +48,14 @@ will take a while; he'll come back when it's in motion and we'll pick the next b
 from where he + Adrian are. See **"NOW (Angus) — audience warm-up"** below.
 
 **The other lanes meanwhile:**
-- **Adrian — app UI** (`feat/app-ui`): building the **core loop** (cycles → compounds →
-  inventory → dose logging → reflow), the week-2 spine. (Also still pending: an on-device
-  check of his iOS cold-launch nav-strip fix after a clean reinstall.)
+- **Adrian + Claude — home + compound tracking: ✅ BUILT & merged to `main` (2026-06-10).**
+  The home dashboard + the device-local tracking loop are live (add-to-log, per-compound
+  injection-site rotation, persisted logging, same-day clash flagging, detail/edit/archive/
+  delete, Profile → Archive). **▶ Next:** wire the device-local stack + dose logs to real
+  **Postgres cycles / `protocol_compounds` / inventory** (data model already applied), with
+  inventory maths read from `v_inventory_math` (never stored); then the reconstitution
+  calculator + the dose-edit-and-reflow checkpoint. (Also still pending: an on-device check
+  of the iOS cold-launch nav-strip fix after a clean reinstall.)
 - **Auth — one quick task still open (Angus, when he's back):** publish the Google OAuth app
   (Audience → Publish) before any non-Test-user tester can sign in.
 - **Deferred offers (when the build resumes; both shared-file — coordinate with Adrian):**
