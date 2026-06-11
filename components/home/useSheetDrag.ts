@@ -1,9 +1,12 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
 // Release the grab handle past this fraction of the sheet's height → dismiss.
 const DISMISS_THRESHOLD = 0.3
+
+const useIsoLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect
 
 /**
  * Drag-to-dismiss for a bottom sheet — the shared version of the gesture that
@@ -14,12 +17,22 @@ const DISMISS_THRESHOLD = 0.3
  *
  * The handle element should carry `touch-none` so the browser doesn't claim the
  * vertical drag for scrolling.
+ *
+ * Pass `open` for sheets whose body PERSISTS across open/close (the offset state
+ * would otherwise carry a drag-dismiss over to the next open): it resets the card
+ * to rest each time the sheet opens. The dismiss path deliberately does NOT snap
+ * back to 0 — it lets the exit animation continue from the dragged position.
  */
-export function useSheetDrag(onClose: () => void) {
+export function useSheetDrag(onClose: () => void, open?: boolean) {
   const cardRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startY: number; height: number } | null>(null)
   const [offsetY, setOffsetY] = useState(0)
   const [dragging, setDragging] = useState(false)
+
+  // Back to rest whenever the sheet (re)opens.
+  useIsoLayoutEffect(() => {
+    if (open) setOffsetY(0)
+  }, [open])
 
   function onPointerDown(e: React.PointerEvent) {
     const height = cardRef.current?.getBoundingClientRect().height ?? 0
@@ -39,7 +52,8 @@ export function useSheetDrag(onClose: () => void) {
     dragRef.current = null
     setDragging(false)
     if (drag && offsetY > drag.height * DISMISS_THRESHOLD) {
-      setOffsetY(0)
+      // No snap-back — let the sheet's exit animation continue from the dragged
+      // position; `open` resets the offset on the next open.
       onClose()
     } else {
       setOffsetY(0)

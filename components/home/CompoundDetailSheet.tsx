@@ -40,7 +40,9 @@ interface CompoundDetailSheetProps {
   open: boolean
   compound: StackCompound | null
   onOpenChange: (open: boolean) => void
-  /** Edit TODAY'S dose — the white action; opens the Log sheet for today's entry. */
+  /** Whether the day being viewed is today — drives the primary action's label. */
+  isToday: boolean
+  /** Edit the dose for the viewed day — the white action; opens the Log sheet. */
   onEditTodaysDose: (compound: StackCompound) => void
   /** Edit the compound GOING FORWARD — opens the add sheet pre-filled (under More). */
   onEdit: (compound: StackCompound) => void
@@ -66,6 +68,7 @@ export function CompoundDetailSheet({
   open,
   compound,
   onOpenChange,
+  isToday,
   onEditTodaysDose,
   onEdit,
   onArchive,
@@ -88,6 +91,7 @@ export function CompoundDetailSheet({
             key={shown.id}
             compound={shown}
             onClose={() => onOpenChange(false)}
+            isToday={isToday}
             onEditTodaysDose={onEditTodaysDose}
             onEdit={onEdit}
             onArchive={onArchive}
@@ -103,6 +107,7 @@ export function CompoundDetailSheet({
 function DetailBody({
   compound,
   onClose,
+  isToday,
   onEditTodaysDose,
   onEdit,
   onArchive,
@@ -111,6 +116,7 @@ function DetailBody({
 }: {
   compound: StackCompound
   onClose: () => void
+  isToday: boolean
   onEditTodaysDose: (compound: StackCompound) => void
   onEdit: (compound: StackCompound) => void
   onArchive: (id: string) => void
@@ -243,7 +249,7 @@ function DetailBody({
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
               <Pencil className="h-4 w-4" aria-hidden />
-              Edit today&apos;s dose
+              {isToday ? "Edit today's dose" : "Edit this dose"}
             </button>
           )}
         </div>

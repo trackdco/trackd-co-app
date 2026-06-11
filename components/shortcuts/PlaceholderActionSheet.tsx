@@ -35,7 +35,7 @@ export function PlaceholderActionSheet({
   title,
   warning,
 }: PlaceholderActionSheetProps) {
-  const { cardRef, handleProps, cardStyle } = useSheetDrag(onClose)
+  const { cardRef, handleProps, cardStyle } = useSheetDrag(onClose, open)
 
   return (
     <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>

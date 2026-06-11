@@ -31,9 +31,9 @@ Last updated: 2026-06-11
 ## Completed
 
 - **Weight quick-log popup + home fixes (2026-06-11, branch
-  `feat/weight-popup-and-home-fixes` — built, `tsc`+`lint`+prod `build` clean (23
-  routes), ▶ pending Adrian's on-device QA → PR → CodeRabbit → merge).** Four small
-  units on Adrian's direction:
+  `feat/weight-popup-and-home-fixes`, **PR #5** — committed + pushed; `tsc`+`lint`
+  clean (Vercel builds the PR); CodeRabbit's first review addressed. ▶ pending
+  Adrian's on-device QA → merge).** Several units on Adrian's direction:
   - **Weight quick-log popup.** The + menu's **Weight tile** now opens a new
     **`AddWeightSheet`** bottom sheet (one unit-aware field → `logWeight()` for
     *today*, the shared `weight_logs` UPSERT) instead of routing to `/weight`.
@@ -104,6 +104,13 @@ Last updated: 2026-06-11
     else leaves their selected day). The server `isFuture` weight guard was loosened to
     allow **+1 day** so a user ahead of UTC can log their real "today" (max real offset
     is UTC+14 = one calendar day ahead).
+  - **CodeRabbit (PR #5) first-pass fixes.** Numeric dose comparison in the change
+    warning (so `100.0` vs `100` doesn't false-fire); the detail sheet's primary button
+    reads "Edit today's dose" only when viewing today (else "Edit this dose" — it edits
+    the viewed day either way); `useSheetDrag` no longer snaps the card back before
+    close (the exit animates from the dragged position; offset resets on open instead,
+    so persistent-body sheets don't carry a drag over); and the layout's
+    `units_preference` fetch logs on error instead of swallowing it.
 
 - **Home / Profile / Weight fixes + Weight & Avatar backend (Spec 08, 2026-06-10).**
   Implemented `Context/Feature Specs/08` end-to-end, then iterated on Adrian's

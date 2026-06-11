@@ -27,11 +27,15 @@ export default async function AppLayout({
   // The user's weight unit — for the + menu's quick log-weight popup. RLS scopes
   // the read to this user; defaults to kg when unset.
   const supabase = await createClient();
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("units_preference")
     .eq("id", user.id)
     .maybeSingle();
+  if (profileError) {
+    // Non-fatal: fall back to the default unit, but surface the failure.
+    console.error("[app/layout] units_preference fetch failed:", profileError.message);
+  }
   const unit = unitForPreference(profile?.units_preference);
 
   return (

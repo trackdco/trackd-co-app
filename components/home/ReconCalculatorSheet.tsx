@@ -78,8 +78,9 @@ export function ReconCalculatorSheet({
     return { concentration, mlPerDose, unitsPerDose }
   }, [powder, powderUnit, bac, dose, doseUnit])
 
-  const { cardRef, handleProps, cardStyle } = useSheetDrag(() =>
-    onOpenChange(false)
+  const { cardRef, handleProps, cardStyle } = useSheetDrag(
+    () => onOpenChange(false),
+    open
   )
 
   return (

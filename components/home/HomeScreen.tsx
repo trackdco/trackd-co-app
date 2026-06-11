@@ -428,6 +428,7 @@ export function HomeScreen({
       <CompoundDetailSheet
         open={detailTarget !== null}
         compound={detailTarget}
+        isToday={isToday}
         onOpenChange={(open) => {
           if (!open) setDetailTarget(null)
         }}
