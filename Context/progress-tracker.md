@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-10
+Last updated: 2026-06-11
 
 ## Current Phase
 
@@ -29,6 +29,81 @@ Last updated: 2026-06-10
   catalogues, domain, and the public landing remain live.
 
 ## Completed
+
+- **Weight quick-log popup + home fixes (2026-06-11, branch
+  `feat/weight-popup-and-home-fixes` — built, `tsc`+`lint`+prod `build` clean (23
+  routes), ▶ pending Adrian's on-device QA → PR → CodeRabbit → merge).** Four small
+  units on Adrian's direction:
+  - **Weight quick-log popup.** The + menu's **Weight tile** now opens a new
+    **`AddWeightSheet`** bottom sheet (one unit-aware field → `logWeight()` for
+    *today*, the shared `weight_logs` UPSERT) instead of routing to `/weight`.
+    Viewing / back-dating / the graph still live in the full `/weight` view, reached
+    by tapping the home Weight card (**unchanged** — Adrian: don't change how the home
+    looks). The user's `unit` is threaded `(app)/layout.tsx` → `BottomNav` →
+    `ShortcutsMenu` → the sheet (one `profiles.units_preference` read in the layout).
+    `logWeight`/`deleteWeight` now also `revalidatePath("/dashboard")` so the home
+    glance card refreshes after a quick log. The Weight `ShortcutItem` action changed
+    `route`→ new `weight`.
+  - **Today's Log → a tick-off category checklist.** After iterating (scroll-in-card →
+    collapsible category dropdowns, both rejected — Adrian: "I don't like it, I don't
+    know why"), a **6-direction design-panel workflow + judge** surfaced the diagnosis:
+    the dropdowns *hid* the real doses behind taps and read as empty headers. Final
+    design (Adrian picked a **blend of "Dense Ledger" + "Daily Checklist"**): the day is
+    a flat **checklist grouped by category** — every dose is one always-visible row, with
+    the **name (title) on its own line on top** and `dose · time · next site` (site in
+    amber; a dot flags a same-day clash) muted beneath, so the name is never squeezed.
+    **The tick is a pure toggle** (Adrian's call): empty ring → tap opens the Log sheet
+    to record the dose; filled amber tick → tap **unticks it (removes the log)** — it no
+    longer hides an "edit dose". **All edits live in one place**: a **"⋯"** on each row
+    (and tapping the name) opens the compound detail (change dose/time/site, archive,
+    delete); editing a logged dose's exact recorded value = untick + re-log (no separate
+    per-entry edit form). Categories are slim dividers (dot + label + hairline rule +
+    amber "N due" / muted "Logged"), not collapsible containers. **Nothing collapses,
+    nothing scrolls inside the card** — rows ~half the old height so the protocol stays
+    visible and the Weight section keeps its place. `DoseRow` rewritten; `TodaysCycleCard`
+    `onEdit` → `onUnlog` (wired to the existing dose-log removal), `onLog`/`onOpenDetail`
+    reused; no token/data changes.
+  - **Dose-edit split + drag-to-dismiss on the "⋯" sheet.** The row's **"⋯"** (and
+    tapping the name) opens `CompoundDetailSheet`, now reframed around Adrian's "edit
+    today's dose vs change it going forward" distinction: the **white primary button is
+    "Edit today's dose"** → opens the Log sheet for today's entry (edit if logged, fresh
+    if not, via a new `onEditTodaysDose` prop), while **"Edit dose & schedule" (going
+    forward)** moved into the **More** menu (with Stop logging / Delete; for an archived
+    compound the white button is Reactivate instead). Extracted the copy-pasted
+    drag-to-dismiss gesture into a shared **`useSheetDrag`** hook and added it to the
+    sheets that had a *static* handle — `CompoundDetailSheet`, `ReconCalculatorSheet`,
+    `PlaceholderActionSheet`. The full-screen `AddCompoundSheet` stays button-only
+    (Cancel/Save) — drag-to-dismiss there would risk losing a half-filled form.
+  - **Dose-edit refinements.** Renamed the going-forward menu item **"Edit dose &
+    schedule" → "Alter dose & schedule"** (Adrian dislikes "Edit dose"), and added a
+    non-alarming **dose-change warning** in the edit form — when the amount or unit
+    differs from the original it shows "You're changing your dose to X — applies to
+    upcoming doses, already-logged stays as-was" + the standing not-medical-advice
+    disclaimer. The home row now shows the **actually-logged amount** once logged (it
+    was always the scheduled dose — the "it still says the original dose" bug). (A
+    unit-switch on "Edit today's dose" was tried then **removed at Adrian's request** —
+    the dose unit there is fixed to the compound's; switching mg↔mcg happens only in
+    "Alter dose & schedule".)
+  - **Bottom-nav "Home" → "Dashboard" + grid icon.** The first tab is relabelled
+    **Dashboard** (matches the screen's `PageScrollTitle` heading) and its icon swapped
+    from the house (`Home`) to a four-squares grid (`LayoutGrid`). Route/active logic
+    unchanged (still `/dashboard`).
+  - **Injection-site conflict drop-up.** Fixed the **no-scroll** bug — `LogDoseSheet`'s
+    card was unbounded + `overflow-hidden`, so when the clash notice made the sheet
+    taller than the viewport its top scrolled off-screen unreachably; now
+    `max-h-[92dvh]` on the content + card with a `flex-1 overflow-y-auto` scroll body
+    (same pattern as `ShortcutsMenu`). Also collapsed the free-spot alternates to
+    **4 + "See more"** (`FREE_PREVIEW`) so the notice stays short.
+  - **Local-midnight rollover.** The dashboard computed "today" **server-side in UTC**
+    (`toDateKey(new Date())`), so a user ahead of UTC (AU) saw *yesterday* first thing
+    in the morning until a re-render — exactly Adrian's report. `HomeScreen` now seeds
+    from the server value (so SSR + first client render match — no hydration drift)
+    then re-derives "today" from the **device's local clock**, refreshing on mount, on
+    tab focus / visibility (a reopened PWA), and on a 1-min tick (rolls over at local
+    midnight while open; only follows the rollover if the user is parked on "today",
+    else leaves their selected day). The server `isFuture` weight guard was loosened to
+    allow **+1 day** so a user ahead of UTC can log their real "today" (max real offset
+    is UTC+14 = one calendar day ahead).
 
 - **Home / Profile / Weight fixes + Weight & Avatar backend (Spec 08, 2026-06-10).**
   Implemented `Context/Feature Specs/08` end-to-end, then iterated on Adrian's

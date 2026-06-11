@@ -13,18 +13,22 @@ import {
 } from "@/components/ui/sheet"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { ReconCalculatorSheet } from "@/components/home/ReconCalculatorSheet"
+import { AddWeightSheet } from "@/components/home/AddWeightSheet"
 import { PlaceholderActionSheet } from "@/components/shortcuts/PlaceholderActionSheet"
 import {
   GRID_ITEMS,
   PRIMARY_ITEM,
   type ShortcutItem,
 } from "@/components/shortcuts/shortcutItems"
+import type { WeightUnit } from "@/lib/weight"
 
 interface ShortcutsMenuProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Forwarded to the Add-to-Stack flow (scopes the user's custom compounds). */
   userId: string
+  /** The user's weight unit — the Weight tile's quick-log popup uses it. */
+  unit: WeightUnit
 }
 
 // Release the handle past this fraction of the sheet's height → dismiss.
@@ -40,10 +44,16 @@ const useIsoLayoutEffect =
  * Weight, Blood work, Calculator, Calendar. Routing items navigate (Log a dose →
  * the home log; Weight → the Weight view, its only entry point); Add a compound
  * opens the unchanged Add-to-Stack flow; Calculator opens the reconstitution
- * calculator; the rest open the shared placeholder. Opening any child flow closes
- * this menu first, so only one bottom sheet is on screen at a time.
+ * calculator; Weight opens the quick log-today's-weight popup; the rest open the
+ * shared placeholder. Opening any child flow closes this menu first, so only one
+ * bottom sheet is on screen at a time.
  */
-export function ShortcutsMenu({ open, onOpenChange, userId }: ShortcutsMenuProps) {
+export function ShortcutsMenu({
+  open,
+  onOpenChange,
+  userId,
+  unit,
+}: ShortcutsMenuProps) {
   const router = useRouter()
   const cardRef = useRef<HTMLDivElement>(null)
   const handleDragRef = useRef<{ startY: number; height: number } | null>(null)
@@ -54,6 +64,7 @@ export function ShortcutsMenu({ open, onOpenChange, userId }: ShortcutsMenuProps
   // Which child flow is open (only one at a time).
   const [addOpen, setAddOpen] = useState(false)
   const [calcOpen, setCalcOpen] = useState(false)
+  const [weightOpen, setWeightOpen] = useState(false)
   const [placeholder, setPlaceholder] = useState<ShortcutItem | null>(null)
 
   // Every open starts at rest. Runs before paint → no flash.
@@ -76,6 +87,10 @@ export function ShortcutsMenu({ open, onOpenChange, userId }: ShortcutsMenuProps
       case "calculator":
         onOpenChange(false)
         setCalcOpen(true)
+        break
+      case "weight":
+        onOpenChange(false)
+        setWeightOpen(true)
         break
       case "placeholder":
         onOpenChange(false)
@@ -189,6 +204,9 @@ export function ShortcutsMenu({ open, onOpenChange, userId }: ShortcutsMenuProps
 
       {/* "Calculator" → the reconstitution calculator (A8). */}
       <ReconCalculatorSheet open={calcOpen} onOpenChange={setCalcOpen} />
+
+      {/* "Weight" → quick log of today's bodyweight (view/graph live in /weight). */}
+      <AddWeightSheet open={weightOpen} onOpenChange={setWeightOpen} unit={unit} />
 
       {/* Journal / Blood work / Calendar → one shared placeholder. */}
       <PlaceholderActionSheet

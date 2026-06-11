@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Pencil } from "lucide-react"
+import { Pencil, TriangleAlert } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -458,6 +458,28 @@ function AddCompoundBody({
             )}
           </div>
         </div>
+
+        {/* Changing the dose (amount or unit) while EDITING — a non-alarming
+            heads-up that the change applies going forward, with the disclaimer. */}
+        {isEdit && (dose !== source.dose || unit !== source.unit) && (
+          <div className="animate-home-up flex gap-2.5 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
+            <TriangleAlert
+              className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
+              aria-hidden
+            />
+            <p className="text-xs leading-relaxed text-foreground">
+              You&apos;re changing your dose to{" "}
+              <span className="font-mono text-accent-amber">
+                {dose || "0"} {unit}
+              </span>
+              . This applies to your upcoming doses — anything already logged stays
+              as it was.{" "}
+              <span className="text-text-muted">
+                For personal tracking only, not medical or dosing advice.
+              </span>
+            </p>
+          </div>
+        )}
 
         {/* Schedule */}
         <div className="animate-home-up" style={{ animationDelay: "120ms" }}>

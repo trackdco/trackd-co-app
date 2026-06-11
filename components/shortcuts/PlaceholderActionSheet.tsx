@@ -10,6 +10,7 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { useSheetDrag } from "@/components/home/useSheetDrag"
 
 interface PlaceholderActionSheetProps {
   open: boolean
@@ -34,15 +35,28 @@ export function PlaceholderActionSheet({
   title,
   warning,
 }: PlaceholderActionSheetProps) {
+  const { cardRef, handleProps, cardStyle } = useSheetDrag(onClose)
+
   return (
     <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="gap-0 rounded-t-3xl border-t border-border-default bg-bg-surface p-0 shadow-lg"
+        className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
       >
-        {/* Header — close on the left, title centred (mirrors Add to Stack). */}
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center px-4 pt-4 pb-3">
+        <div
+          ref={cardRef}
+          style={cardStyle}
+          className="flex flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
+        >
+          <div
+            {...handleProps}
+            className="flex h-7 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+          >
+            <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
+          </div>
+          {/* Header — close on the left, title centred (mirrors Add to Stack). */}
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center px-4 pt-1 pb-3">
           <SheetClose className="justify-self-start text-base text-text-muted transition-colors hover:text-text-primary">
             Close
           </SheetClose>
@@ -83,6 +97,7 @@ export function PlaceholderActionSheet({
               <p className="text-sm leading-relaxed text-text-muted">{warning}</p>
             </div>
           )}
+        </div>
         </div>
       </SheetContent>
     </Sheet>

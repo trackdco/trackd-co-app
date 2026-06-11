@@ -1,7 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Archive, ChevronDown, Pencil, RotateCcw, Trash2 } from "lucide-react"
+import {
+  Archive,
+  CalendarClock,
+  ChevronDown,
+  Pencil,
+  RotateCcw,
+  Trash2,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -11,6 +18,7 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { useSheetDrag } from "@/components/home/useSheetDrag"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -32,7 +40,9 @@ interface CompoundDetailSheetProps {
   open: boolean
   compound: StackCompound | null
   onOpenChange: (open: boolean) => void
-  /** Edit — opens the add sheet pre-filled. */
+  /** Edit TODAY'S dose — the white action; opens the Log sheet for today's entry. */
+  onEditTodaysDose: (compound: StackCompound) => void
+  /** Edit the compound GOING FORWARD — opens the add sheet pre-filled (under More). */
   onEdit: (compound: StackCompound) => void
   /** Archive — stop dosing, keep history (reversible). */
   onArchive: (id: string) => void
@@ -56,6 +66,7 @@ export function CompoundDetailSheet({
   open,
   compound,
   onOpenChange,
+  onEditTodaysDose,
   onEdit,
   onArchive,
   onReactivate,
@@ -77,6 +88,7 @@ export function CompoundDetailSheet({
             key={shown.id}
             compound={shown}
             onClose={() => onOpenChange(false)}
+            onEditTodaysDose={onEditTodaysDose}
             onEdit={onEdit}
             onArchive={onArchive}
             onReactivate={onReactivate}
@@ -91,6 +103,7 @@ export function CompoundDetailSheet({
 function DetailBody({
   compound,
   onClose,
+  onEditTodaysDose,
   onEdit,
   onArchive,
   onReactivate,
@@ -98,11 +111,13 @@ function DetailBody({
 }: {
   compound: StackCompound
   onClose: () => void
+  onEditTodaysDose: (compound: StackCompound) => void
   onEdit: (compound: StackCompound) => void
   onArchive: (id: string) => void
   onReactivate: (id: string) => void
   onDelete: (id: string) => void
 }) {
+  const { cardRef, handleProps, cardStyle } = useSheetDrag(onClose)
   const [moreOpen, setMoreOpen] = useState(false)
   // A pending archive/reactivate confirmation (drops down before it happens).
   const [confirmArchive, setConfirmArchive] = useState<
@@ -120,8 +135,16 @@ function DetailBody({
   )
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg">
-      <div className="flex h-11 shrink-0 items-center justify-center">
+    <div
+      ref={cardRef}
+      style={cardStyle}
+      className="flex flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
+    >
+      {/* Grab handle — drag down to dismiss. */}
+      <div
+        {...handleProps}
+        className="flex h-11 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+      >
         <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
       </div>
 
@@ -197,19 +220,32 @@ function DetailBody({
           </div>
         )}
 
-        {/* Primary actions */}
+        {/* Primary actions. The white button is the day-to-day action — edit
+            TODAY'S logged dose (opens the Log sheet); editing the dose going
+            forward lives under More. For an archived compound it's Reactivate. */}
         <div className="flex gap-3 pt-1">
           <SheetClose className="flex-1 rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary">
             Close
           </SheetClose>
-          <button
-            type="button"
-            onClick={() => onEdit(compound)}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
-          >
-            <Pencil className="h-4 w-4" aria-hidden />
-            Edit
-          </button>
+          {compound.archived ? (
+            <button
+              type="button"
+              onClick={() => setConfirmArchive("reactivate")}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden />
+              Reactivate
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onEditTodaysDose(compound)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Edit today&apos;s dose
+            </button>
+          )}
         </div>
 
         {/* Archive / reactivate confirm — drops down before it happens. */}
@@ -260,27 +296,29 @@ function DetailBody({
             </button>
             {moreOpen && (
               <div className="animate-shortcut-in mt-2 overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
-                {compound.archived ? (
-                  <MenuRow
-                    icon={<RotateCcw className="h-4 w-4" aria-hidden />}
-                    onClick={() => {
-                      setMoreOpen(false)
-                      setConfirmArchive("reactivate")
-                    }}
-                  >
-                    Reactivate
-                  </MenuRow>
-                ) : (
-                  <MenuRow
-                    icon={<Archive className="h-4 w-4" aria-hidden />}
-                    sub="Hides it going forward · keeps all past entries · reversible"
-                    onClick={() => {
-                      setMoreOpen(false)
-                      setConfirmArchive("archive")
-                    }}
-                  >
-                    Stop logging
-                  </MenuRow>
+                {!compound.archived && (
+                  <>
+                    <MenuRow
+                      icon={<CalendarClock className="h-4 w-4" aria-hidden />}
+                      sub="Changes upcoming doses · today's logged dose stays as-is"
+                      onClick={() => {
+                        setMoreOpen(false)
+                        onEdit(compound)
+                      }}
+                    >
+                      Alter dose &amp; schedule
+                    </MenuRow>
+                    <MenuRow
+                      icon={<Archive className="h-4 w-4" aria-hidden />}
+                      sub="Hides it going forward · keeps all past entries · reversible"
+                      onClick={() => {
+                        setMoreOpen(false)
+                        setConfirmArchive("archive")
+                      }}
+                    >
+                      Stop logging
+                    </MenuRow>
+                  </>
                 )}
                 <MenuRow
                   destructive

@@ -17,7 +17,10 @@ export const metadata: Metadata = {
  * from the user's real `weight_logs` and taps through to the Weight view.
  *
  * The (app) layout already enforced auth + the 18+/ToS gate. `todayKey` is
- * resolved once here on the server so every date renders identically.
+ * resolved on the server as a seed so SSR + first client render match; the
+ * client (HomeScreen) re-derives it from the device's local clock, since this
+ * server runs in UTC and would otherwise be a day off for users ahead of/behind
+ * UTC.
  */
 export default async function DashboardPage() {
   const todayKey = toDateKey(new Date());

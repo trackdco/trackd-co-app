@@ -9,13 +9,40 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-10
+Last updated: 2026-06-11
 
 ---
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-10 (Adrian + Claude): Spec 08 home/profile/weight fixes ✅ DONE & pushed
+**Latest — 2026-06-11 (Adrian + Claude): weight quick-log popup + home fixes — built on
+`feat/weight-popup-and-home-fixes`, `tsc`+`lint`+prod `build` clean, ▶ pending Adrian's
+on-device QA → PR → CodeRabbit → merge.** Four units, all on Adrian's direction:
+1. **Weight quick-log popup** — the + menu's **Weight tile** now opens a new
+   **`AddWeightSheet`** (one unit-aware field → logs *today* via the existing
+   `weight_logs` UPSERT) instead of routing to `/weight`. Viewing / back-dating / the
+   graph stay in `/weight`, reached by tapping the home Weight card (home layout
+   deliberately unchanged). `logWeight`/`deleteWeight` now revalidate `/dashboard` too.
+2. **Today's Log → tick-off category checklist** — after the dropdowns were rejected, a
+   design-panel workflow led to a **checklist grouped by category** (Adrian's pick: a
+   blend of "Dense Ledger" + "Daily Checklist"): every dose is one always-visible row —
+   **name (title) on top**, `dose · time · site` (amber) beneath; the **tick is a pure
+   toggle** (tap empty → log via sheet, tap filled → untick/remove); **all edits live on
+   a "⋯" + the name** (→ compound detail). No collapsing, no inner scroll; compact rows
+   keep the Weight section visible. Also relabelled the **Home → Dashboard** nav tab
+   (four-squares `LayoutGrid` icon).
+3. **Injection-site conflict drop-up** — fixed the **no-scroll** bug (`LogDoseSheet` was
+   unbounded + `overflow-hidden`; now `max-h-[92dvh]` + a scrollable body) and collapsed
+   the free-spot alternates to **4 + "See more"**.
+4. **Local-midnight rollover** — "today" now derives from the **device clock** (was
+   server UTC, hence "woke up on yesterday"), refreshing on foreground + a 1-min tick;
+   the server `isFuture` guard loosened **+1 day** so a user ahead of UTC can log today.
+
+**▶ Next for this work:** Adrian QAs on-device (verify each of the four), then open the PR.
+
+---
+
+**Earlier — 2026-06-10 (Adrian + Claude): Spec 08 home/profile/weight fixes ✅ DONE & pushed
 to `main`.** Stood up the Weight (`weight_logs`) + Avatar backend, built the `/weight`
 view, made the home Weight card display-only (taps to `/weight`), reworked the + menu
 (primary "Log a dose" + 6-tile grid), added the shared **`PageScrollTitle`** scroll-header

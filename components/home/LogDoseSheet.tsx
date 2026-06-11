@@ -95,7 +95,7 @@ export function LogDoseSheet({
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
+        className="max-h-[92dvh] gap-0 border-t-0 bg-transparent p-0 shadow-none"
       >
         {shown ? (
           <LogDoseBody
@@ -117,6 +117,9 @@ export function LogDoseSheet({
 
 // Re-using a spot sooner than this (days) gets a gentle amber rest flag.
 const REST_DAYS = 7
+// How many free alternate spots to show before the "See more" reveal, so the
+// clash notice stays short instead of dumping every catalogue site at once.
+const FREE_PREVIEW = 4
 
 /** Local "HH:MM" for the time field / committed log. */
 function toHHMM(d: Date): string {
@@ -206,6 +209,8 @@ function LogDoseBody({
     existing?.siteId ?? defaultSite
   )
   const [tracked, setTracked] = useState(false)
+  // The clash notice shows a few free spots first; "See more" reveals the rest.
+  const [showAllFree, setShowAllFree] = useState(false)
 
   // The chosen site is also used by another compound today (a flagged clash).
   const selectedClashes =
@@ -267,7 +272,7 @@ function LogDoseBody({
         transform: `translateY(${offsetY}px)`,
         transition: dragging ? "none" : "transform 250ms ease-out",
       }}
-      className="relative flex flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
+      className="relative flex max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
     >
       {/* Grab handle — drag down to dismiss. */}
       <div
@@ -280,7 +285,7 @@ function LogDoseBody({
         <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
       </div>
 
-      <SheetTitle className="px-6 text-base font-semibold text-foreground">
+      <SheetTitle className="shrink-0 px-6 text-base font-semibold text-foreground">
         {editing ? "Edit dose" : "Log dose"}
       </SheetTitle>
       <SheetDescription className="sr-only">
@@ -289,7 +294,7 @@ function LogDoseBody({
           : "Confirm or adjust the amount, time and site, then track this dose."}
       </SheetDescription>
 
-      <div className="px-6 pt-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <div className="flex-1 overflow-y-auto overscroll-contain px-6 pt-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         {/* Dose summary */}
         <div className="flex items-center gap-3 rounded-xl bg-bg-surface-raised px-4 py-3">
           <span
@@ -440,7 +445,10 @@ function LogDoseBody({
                   Free spots today
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {freeSpots.map((site) => {
+                  {(showAllFree
+                    ? freeSpots
+                    : freeSpots.slice(0, FREE_PREVIEW)
+                  ).map((site) => {
                     const active = site.id === siteId
                     return (
                       <button
@@ -460,6 +468,17 @@ function LogDoseBody({
                     )
                   })}
                 </div>
+                {freeSpots.length > FREE_PREVIEW && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllFree((v) => !v)}
+                    className="mt-2 text-xs font-medium text-accent-amber transition-opacity hover:opacity-80"
+                  >
+                    {showAllFree
+                      ? "See fewer"
+                      : `See more (${freeSpots.length - FREE_PREVIEW})`}
+                  </button>
+                )}
               </div>
             )}
 

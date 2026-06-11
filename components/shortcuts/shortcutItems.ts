@@ -15,9 +15,12 @@ import {
  *
  * The menu is a primary "Log a dose" action over one consistent grid of six
  * tiles. Each item declares what it does via `action`:
- *  - `route`       → navigate (Log a dose → the home log; Weight → the Weight view)
+ *  - `route`       → navigate (Log a dose → the home log)
  *  - `add-stack`   → the existing, unchanged Add-to-Stack flow
  *  - `calculator`  → the reconstitution calculator sheet (A8)
+ *  - `weight`      → the quick log-today's-weight popup (the full Weight view,
+ *                    with the graph + history, is reached by tapping the home
+ *                    Weight card)
  *  - `placeholder` → the shared not-yet-built sheet
  *
  * No UI lives in this file. Only the reconstitution calculator carries a
@@ -28,6 +31,7 @@ export type ShortcutAction =
   | "route"
   | "add-stack"
   | "calculator"
+  | "weight"
   | "placeholder"
 
 export interface ShortcutItem {
@@ -79,10 +83,9 @@ export const GRID_ITEMS: ShortcutItem[] = [
   {
     id: "weight",
     title: "Weight",
-    subtitle: "Track your bodyweight",
+    subtitle: "Log today's bodyweight",
     icon: Scale,
-    action: "route",
-    href: "/weight",
+    action: "weight",
     shortLabel: "Weight",
   },
   {
