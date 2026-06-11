@@ -23,9 +23,15 @@ function isValidDateKey(s: string): boolean {
 }
 
 function isFuture(dateKey: string): boolean {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(`${dateKey}T00:00:00`).getTime() > today.getTime();
+  // The client sends its LOCAL date; this server runs in UTC. A user ahead of UTC
+  // (e.g. UTC+10) legitimately logs a date up to a day ahead of the server's UTC
+  // date, so only treat dates more than one day ahead as "future" — that still
+  // blocks fat-fingered future entries while never rejecting the user's real
+  // "today". (Max real offset is UTC+14, i.e. at most one calendar day ahead.)
+  const todayUtc = new Date();
+  todayUtc.setUTCHours(0, 0, 0, 0);
+  const logged = new Date(`${dateKey}T00:00:00Z`).getTime();
+  return logged > todayUtc.getTime() + 86_400_000;
 }
 
 export async function logWeight(
@@ -53,7 +59,10 @@ export async function logWeight(
   );
   if (error) return { ok: false, error: error.message };
 
+  // Refresh both the Weight view and the home Weight glance card (the + menu's
+  // quick log writes the same row).
   revalidatePath("/weight");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 
@@ -74,5 +83,6 @@ export async function deleteWeight(loggedFor: string): Promise<WeightResult> {
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/weight");
+  revalidatePath("/dashboard");
   return { ok: true };
 }

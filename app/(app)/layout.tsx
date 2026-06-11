@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { getSessionContext } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { unitForPreference } from "@/lib/weight";
 
 /**
  * Logged-in app shell. The authoritative gate every feature screen sits behind:
@@ -21,6 +23,20 @@ export default async function AppLayout({
   const { user, passedGate } = await getSessionContext();
   if (!user) redirect("/login");
   if (!passedGate) redirect("/welcome");
+
+  // The user's weight unit — for the + menu's quick log-weight popup. RLS scopes
+  // the read to this user; defaults to kg when unset.
+  const supabase = await createClient();
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("units_preference")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profileError) {
+    // Non-fatal: fall back to the default unit, but surface the failure.
+    console.error("[app/layout] units_preference fetch failed:", profileError.message);
+  }
+  const unit = unitForPreference(profile?.units_preference);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -47,7 +63,7 @@ export default async function AppLayout({
         {children}
       </main>
 
-      <BottomNav userId={user.id} />
+      <BottomNav userId={user.id} unit={unit} />
     </div>
   );
 }

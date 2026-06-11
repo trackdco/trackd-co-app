@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 
 import { useMounted } from "@/components/home/useMounted"
@@ -98,12 +98,15 @@ function computeNextDose(
  * advances that compound's injection-site rotation. The stack + dose logs are
  * device-local; weight lives on its own view now (the + menu's Weight tile).
  *
- * `todayKey` is computed once on the server so every date renders identically on
- * server and client; the stack is read from storage AFTER mount (SSR is
+ * `serverTodayKey` is computed on the server so SSR + the first client render
+ * match (no hydration drift); we then re-derive "today" from the DEVICE's local
+ * clock (the server runs in UTC and can be a day off) and keep it current across
+ * local midnight + app foreground — so the date always rolls over at the user's
+ * midnight, never UTC's. The stack is read from storage AFTER mount (SSR is
  * deterministic), and only the countdown reads the live clock.
  */
 export function HomeScreen({
-  todayKey,
+  todayKey: serverTodayKey,
   userId,
   weight,
   unit,
@@ -117,9 +120,14 @@ export function HomeScreen({
   unit: WeightUnit
 }) {
   const router = useRouter()
+
+  // "Today", corrected to the device's local date after mount (the server seed is
+  // UTC and can read as yesterday/tomorrow). See the foreground/midnight sync
+  // effect below.
+  const [todayKey, setTodayKey] = useState<DateKey>(serverTodayKey)
   const today = useMemo(() => dateKeyToDate(todayKey), [todayKey])
 
-  const [selectedKey, setSelectedKey] = useState<DateKey>(todayKey)
+  const [selectedKey, setSelectedKey] = useState<DateKey>(serverTodayKey)
   const [logTarget, setLogTarget] = useState<{
     compound: StackCompound
     existing: DoseLog | null
@@ -161,6 +169,39 @@ export function HomeScreen({
       notifyStackChanged()
     }
   }, [userId])
+
+  // Keep "today" pinned to the DEVICE's local date. The server seed is UTC-based
+  // and can read as the wrong day (e.g. a user ahead of UTC sees yesterday first
+  // thing in the morning). Correct it on mount, whenever the tab/app regains
+  // focus or visibility (covers a PWA reopened the next day), and on a 1-minute
+  // tick so it rolls over at local midnight while left open. If the user is
+  // parked on "today" we follow the rollover; if they've navigated to another
+  // day, their selection is left untouched. A `setState` only fires when the day
+  // actually changes, so the tick is a no-op in the steady state.
+  const todayKeyRef = useRef(todayKey)
+  useEffect(() => {
+    todayKeyRef.current = todayKey
+  }, [todayKey])
+  useEffect(() => {
+    function syncToday() {
+      const local = toDateKey(new Date())
+      if (local === todayKeyRef.current) return
+      setSelectedKey((sel) => (sel === todayKeyRef.current ? local : sel))
+      setTodayKey(local)
+    }
+    syncToday()
+    const onVisible = () => {
+      if (document.visibilityState === "visible") syncToday()
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("focus", syncToday)
+    const id = window.setInterval(syncToday, 60_000)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("focus", syncToday)
+      window.clearInterval(id)
+    }
+  }, [])
 
   // Countdown: captured once from the live clock by the useState initializer
   // (no ticking timer), and only revealed after mount so the server-rendered
@@ -347,14 +388,7 @@ export function HomeScreen({
                   usedByOtherIds: usedByOtherIds(dose.id),
                 })
               }
-              onEdit={(dose, log) =>
-                setLogTarget({
-                  compound: dose,
-                  existing: log,
-                  preselectSiteId: log.siteId ?? resolvedById[dose.id] ?? null,
-                  usedByOtherIds: usedByOtherIds(dose.id),
-                })
-              }
+              onUnlog={(dose) => handleRemove(dose.id)}
               onOpenDetail={(dose) => setDetailTarget(dose)}
             />
           )}
@@ -394,8 +428,20 @@ export function HomeScreen({
       <CompoundDetailSheet
         open={detailTarget !== null}
         compound={detailTarget}
+        isToday={isToday}
         onOpenChange={(open) => {
           if (!open) setDetailTarget(null)
+        }}
+        onEditTodaysDose={(c) => {
+          // "Edit today's dose" → open the Log sheet for today's entry (edit if
+          // already logged, fresh otherwise), the same site/time flow as logging.
+          setDetailTarget(null)
+          setLogTarget({
+            compound: c,
+            existing: selectedRows[c.id] ?? null,
+            preselectSiteId: selectedRows[c.id]?.siteId ?? resolvedById[c.id] ?? null,
+            usedByOtherIds: usedByOtherIds(c.id),
+          })
         }}
         onEdit={(c) => {
           setDetailTarget(null)

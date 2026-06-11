@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  Home,
+  LayoutGrid,
   LineChart,
   Plus,
   Syringe,
@@ -14,6 +14,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { ShortcutsMenu } from "@/components/shortcuts/ShortcutsMenu"
+import type { WeightUnit } from "@/lib/weight"
 
 type Tab = {
   href: string
@@ -23,7 +24,7 @@ type Tab = {
 
 // Order, left → right: two tabs, [the plus], two tabs.
 const LEFT_TABS: Tab[] = [
-  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
   { href: "/protocol", label: "Protocol", icon: Syringe },
 ]
 
@@ -33,8 +34,8 @@ const RIGHT_TABS: Tab[] = [
 ]
 
 function isActive(pathname: string, href: string): boolean {
-  // Home matches only its own route; the rest also match nested children so the
-  // tab stays active on deeper screens added later.
+  // The Dashboard tab matches only its own route; the rest also match nested
+  // children so the tab stays active on deeper screens added later.
   if (href === "/dashboard") return pathname === "/dashboard"
   return pathname === href || pathname.startsWith(`${href}/`)
 }
@@ -60,9 +61,16 @@ function NavTab({ href, label, icon: Icon, active }: Tab & { active: boolean }) 
  * Persistent bottom navigation for the logged-in app shell. The centre plus is
  * exempt from the active/gray logic — it stays white and opens the Shortcuts
  * menu (from which "Add a compound" reaches the Add-to-Stack flow). `userId`
- * scopes the user's "Make your own" compounds in local storage.
+ * scopes the user's "Make your own" compounds in local storage; `unit` is the
+ * user's weight unit, used by the menu's quick log-weight popup.
  */
-export function BottomNav({ userId }: { userId: string }) {
+export function BottomNav({
+  userId,
+  unit,
+}: {
+  userId: string
+  unit: WeightUnit
+}) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
@@ -179,7 +187,12 @@ export function BottomNav({ userId }: { userId: string }) {
         />
       ) : null}
 
-      <ShortcutsMenu open={menuOpen} onOpenChange={setMenuOpen} userId={userId} />
+      <ShortcutsMenu
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        userId={userId}
+        unit={unit}
+      />
     </>
   )
 }

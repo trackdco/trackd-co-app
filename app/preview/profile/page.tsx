@@ -49,7 +49,7 @@ export default function PreviewProfilePage() {
         </section>
       </main>
 
-      <BottomNav userId="preview-local" />
+      <BottomNav userId="preview-local" unit="kg" />
     </div>
   );
 }
