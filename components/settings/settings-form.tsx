@@ -120,8 +120,8 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
           name="height"
           type="number"
           inputMode="decimal"
-          min={imperial ? 43 : 110}
-          max={imperial ? 98 : 250}
+          min={imperial ? 47 : 120}
+          max={imperial ? 91 : 230}
           step="0.1"
           placeholder={imperial ? "e.g. 71" : "e.g. 180"}
           value={height}

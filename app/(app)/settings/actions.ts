@@ -21,7 +21,7 @@ const GOALS = new Set([
 const UNITS = new Set(["metric", "imperial"]);
 
 // Storage is always metric. Imperial is a display/entry preference, so a height
-// (in) submitted in imperial is converted here, then validated (110–250 cm).
+// (in) submitted in imperial is converted here, then validated (120–230 cm).
 const CM_PER_IN = 2.54;
 
 /**
@@ -62,13 +62,13 @@ export async function updateSettings(
     const h = Number(heightRaw);
     if (!Number.isFinite(h)) return { error: "Enter a valid height." };
     const cm = imperial ? h * CM_PER_IN : h;
-    // Input rule B4: 110–250 cm (≈ 43–98 in), integer with a single decimal
-    // tolerated. Stored at the column's 1-decimal precision.
-    if (cm < 110 || cm > 250) {
+    // Realistic-but-generous adult range: 120–230 cm (≈ 47–91 in), integer with
+    // a single decimal tolerated. Stored at the column's 1-decimal precision.
+    if (cm < 120 || cm > 230) {
       return {
         error: imperial
-          ? "Height must be between 43 and 98 in."
-          : "Height must be between 110 and 250 cm.",
+          ? "Height must be between 47 and 91 in."
+          : "Height must be between 120 and 230 cm.",
       };
     }
     heightCm = Math.round(cm * 10) / 10;

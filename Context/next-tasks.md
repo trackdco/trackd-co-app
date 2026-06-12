@@ -9,13 +9,27 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-11
+Last updated: 2026-06-12
 
 ---
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-11 (Adrian + Claude): weight quick-log popup + home fixes — built on
+**Latest — 2026-06-12 (Adrian + Claude): Spec 07 (Weight Scale/Trend + last-paragraph asks)
+— audited & closed, `tsc`+`lint` clean.** The spec's main body (Scale/Trend **opacity
+crossfade**, `xxx.xx` entry cap, 1W–All date-windowed range selector) was **already
+implemented** in the Spec-08 Weight view — verified each "Check When Done", no code change
+needed (crossfade is animated `duration-300 ease-out`, matches the nav fade). Adrian's
+decisions on the dictated last paragraph: **weight stays 30–300 kg**; **+ menu "Track your
+weight" sheet stays as-is**; **height limit tightened 100/110–250 → 120–230 cm** (settings
+form `min`/`max`, server action + error copy, and new DB migration
+`supabase/profile/002_height_range_120_230.sql` — live CHECK now 120–230, pre-checked safe).
+**▶ Next for this work:** Adrian sign-off → fold into a branch/PR with the other pending
+weight work (the doc edits + the two settings files + the migration file aren't committed yet).
+
+---
+
+**Earlier — 2026-06-11 (Adrian + Claude): weight quick-log popup + home fixes — built on
 `feat/weight-popup-and-home-fixes`, `tsc`+`lint`+prod `build` clean, ▶ pending Adrian's
 on-device QA → PR → CodeRabbit → merge.** Four units, all on Adrian's direction:
 1. **Weight quick-log popup** — the + menu's **Weight tile** now opens a new

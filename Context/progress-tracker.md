@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-11
+Last updated: 2026-06-12
 
 ## Current Phase
 
@@ -29,6 +29,32 @@ Last updated: 2026-06-11
   catalogues, domain, and the public landing remain live.
 
 ## Completed
+
+- **Spec 07 (Weight: Scale/Trend crossfade + last-paragraph asks) — audited & closed
+  (2026-06-12).** Read `Context/Feature Specs/07-scale-trend-weight-fix.md` against the
+  live code: the spec's **main body was already implemented** (it shipped inside the Spec-08
+  Weight view — the file header literally reads "08 → C, + 07"). Verified each "Check When
+  Done": the **Scale/Trend opacity crossfade** is animated, not snapped — both `<Area>`
+  series + the legend labels carry `transition-opacity duration-300 ease-out`, active =
+  `opacity-100`, inactive = `opacity-[0.3]` ([WeightView.tsx:399-436](../components/weight/WeightView.tsx)),
+  matching the nav selection fade exactly (`bottom-nav.tsx:50` → `duration-300 ease-out`),
+  with no first-paint flash (default `mode="trend"`); the **`xxx.xx` cap** (3 digits + 2
+  decimals) is enforced by `sanitizeWeightInput` (`lib/weight.ts`); and the **1W–All
+  range selector** already windows by date (clicking 1W after a 3-months-ago log drops the
+  old point and shows only the last 7 days). **No code change needed for the crossfade.**
+  Resolved the spec's voice-dictated last paragraph with Adrian (2026-06-12 decisions):
+  - **Weight limits → keep 30–300 kg** (66–661 lbs; already generous-but-realistic). No change.
+  - **+ menu "Track your weight" sheet → leave as-is** (the quick `AddWeightSheet` log;
+    graph + range selector stay in the full `/weight` view). No change.
+  - **Height limits → tightened 100/110–250 cm → 120–230 cm** (≈ 47–91 in; realistic-but-
+    inclusive — keeps little-people adults in range, drops the unrealistic sub-120 floor,
+    clears all but extreme-outlier tall). Applied in **three places**: the Settings form
+    HTML `min`/`max` (`settings-form.tsx`), the server action validation + error copy
+    (`settings/actions.ts`), and a new tracked **DB migration**
+    `supabase/profile/002_height_range_120_230.sql` (live `profiles.height_sane` CHECK now
+    `120 ≤ height_cm ≤ 230`; pre-checked safe — the 2 live profiles are 188/191 cm, 0
+    violations). Settings is the **only** height entry point. `tsc` + `lint` clean. Doc-only
+    deltas to the two trackers; not yet committed/PR'd.
 
 - **Weight quick-log popup + home fixes (2026-06-11, branch
   `feat/weight-popup-and-home-fixes`, **PR #5** — committed + pushed; `tsc`+`lint`

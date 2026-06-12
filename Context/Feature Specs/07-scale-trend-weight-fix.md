@@ -51,4 +51,4 @@ Also whats very important is that you chang the weight entrys to be xxx.xx so no
 - six months
 - one year
 - all time
-That way, you can expand the track based on the time period, so you can see how long the term thing
+That way, you can expand the track based on the time period, so you can see how long the term thing. so if i tracked a weight on a certain day, then it should be able to, let's say, I tracked my weight three months ago. If I click one week, it shouldn't just stay the same. It should get rid of the one I did three months ago and only do the weeks' worth from that week. Let's say from the Sunday till the Sunday of the week that we're on, if that makes sense. Just the previous seven days, I think that's 
