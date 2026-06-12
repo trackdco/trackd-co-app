@@ -25,6 +25,7 @@ import {
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { loadStack } from "@/lib/home/stack"
+import { pullCustoms, pushCustom, deleteCustom } from "@/lib/home/syncActions"
 import {
   AmberNotice,
   useAmberNotice,
@@ -76,43 +77,80 @@ const useIsoLayoutEffect =
 
 const storageKey = (userId: string) => `trackd.customCompounds.${userId}`
 
+// Normalise one stored/cloud record so a corrupt / legacy / hand-edited entry
+// can't crash the list (e.g. a missing `aliases` would throw in the search
+// filter). Shared by the localStorage read and the cloud-hydration merge.
+function normalizeCustom(item: unknown): CustomCompound | null {
+  if (!item || typeof item !== "object") return null
+  const c = item as Record<string, unknown>
+  if (typeof c.id !== "string" || typeof c.name !== "string") return null
+  return {
+    id: c.id,
+    isCustom: true,
+    name: c.name,
+    category:
+      typeof c.category === "string" && c.category in CATEGORY_META
+        ? (c.category as CompoundCategory)
+        : "anabolic",
+    aliases: Array.isArray(c.aliases)
+      ? c.aliases.filter((a): a is string => typeof a === "string")
+      : [],
+    defaultUnit: typeof c.defaultUnit === "string" ? c.defaultUnit : "mg",
+    defaultRoute: typeof c.defaultRoute === "string" ? c.defaultRoute : "im",
+    defaultInventoryType:
+      typeof c.defaultInventoryType === "string"
+        ? c.defaultInventoryType
+        : "preconcentrated",
+    halfLifeHours:
+      typeof c.halfLifeHours === "number" ? c.halfLifeHours : null,
+  }
+}
+
 function loadCustoms(userId: string): CustomCompound[] {
   if (typeof window === "undefined") return []
   try {
     const raw = window.localStorage.getItem(storageKey(userId))
     const parsed: unknown = raw ? JSON.parse(raw) : []
     if (!Array.isArray(parsed)) return []
-    // Normalise every entry so a corrupt / legacy / hand-edited record can't
-    // crash the list (e.g. a missing `aliases` would throw in the search filter).
     const out: CustomCompound[] = []
     for (const item of parsed) {
-      if (!item || typeof item !== "object") continue
-      const c = item as Record<string, unknown>
-      if (typeof c.id !== "string" || typeof c.name !== "string") continue
-      out.push({
-        id: c.id,
-        isCustom: true,
-        name: c.name,
-        category:
-          typeof c.category === "string" && c.category in CATEGORY_META
-            ? (c.category as CompoundCategory)
-            : "anabolic",
-        aliases: Array.isArray(c.aliases)
-          ? c.aliases.filter((a): a is string => typeof a === "string")
-          : [],
-        defaultUnit: typeof c.defaultUnit === "string" ? c.defaultUnit : "mg",
-        defaultRoute: typeof c.defaultRoute === "string" ? c.defaultRoute : "im",
-        defaultInventoryType:
-          typeof c.defaultInventoryType === "string"
-            ? c.defaultInventoryType
-            : "preconcentrated",
-        halfLifeHours:
-          typeof c.halfLifeHours === "number" ? c.halfLifeHours : null,
-      })
+      const c = normalizeCustom(item)
+      if (c) out.push(c)
     }
     return out
   } catch {
     return []
+  }
+}
+
+/**
+ * Pull this user's cloud-saved custom compounds and union them with the local
+ * set (cloud wins on conflict); persist the merge to localStorage and push any
+ * local-only ones up so a returning user's existing customs migrate to the
+ * cloud. Returns the merged list, or null on a no-op / failure. Best-effort —
+ * mirrors the stack/dose-log hydration (see components/home/useCloudHydration).
+ */
+async function hydrateCustomsFromCloud(
+  userId: string
+): Promise<CustomCompound[] | null> {
+  try {
+    const cloudRaw = await pullCustoms()
+    const cloud: CustomCompound[] = []
+    for (const item of cloudRaw) {
+      const c = normalizeCustom(item)
+      if (c) cloud.push(c)
+    }
+    const local = loadCustoms(userId)
+    const cloudIds = new Set(cloud.map((c) => c.id))
+    const localOnly = local.filter((c) => !cloudIds.has(c.id))
+    if (cloud.length === 0 && localOnly.length === 0) return null
+    const merged = [...cloud, ...localOnly]
+    saveCustoms(userId, merged)
+    for (const c of localOnly) void pushCustom(c)
+    return merged
+  } catch (e) {
+    console.error("hydrateCustomsFromCloud failed", e)
+    return null
   }
 }
 
@@ -166,6 +204,9 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
   const [inLogNames, setInLogNames] = useState<Set<string>>(new Set())
   const [shakingName, setShakingName] = useState<string | null>(null)
   const blockedTapsRef = useRef<Record<string, number>>({})
+  // Guards the once-per-user cloud hydration of custom compounds (see the open
+  // effect): we pull the user's cloud-saved customs the first time the menu opens.
+  const hydratedCustomsFor = useRef<string | null>(null)
   const { notice, show: showNotice, dismiss: dismissNotice } = useAmberNotice()
 
   const [mode, setMode] = useState<"browse" | "form">("browse")
@@ -196,6 +237,15 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
       setInLogNames(
         new Set((loadStack(userId) ?? []).map((c) => c.name.toLowerCase()))
       )
+      // Restore this user's cloud-saved custom compounds once per session, so a
+      // fresh PWA install repopulates "your own" compounds (best-effort backup;
+      // localStorage stays the read path). Updates the list when the pull lands.
+      if (userId && userId !== "anon" && hydratedCustomsFor.current !== userId) {
+        hydratedCustomsFor.current = userId
+        void hydrateCustomsFromCloud(userId).then((merged) => {
+          if (merged) setCustoms(merged)
+        })
+      }
     }
   }, [open, userId])
 
@@ -296,6 +346,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
     }
 
     let next: CustomCompound[]
+    let changed: CustomCompound | undefined
     if (formMode === "edit" && editingId) {
       next = customs.map((c) =>
         c.id === editingId
@@ -309,6 +360,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
             }
           : c
       )
+      changed = next.find((c) => c.id === editingId)
     } else {
       const created: CustomCompound = {
         id: newId(),
@@ -322,12 +374,14 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
         halfLifeHours: null,
       }
       next = [created, ...customs]
+      changed = created
     }
 
     // Only commit once it actually persists, so a failed write doesn't add an
     // unsaved item that then blocks a retry as a "duplicate".
     if (saveCustoms(userId, next)) {
       setCustoms(next)
+      if (changed) void pushCustom(changed) // best-effort cloud backup
       backToBrowse()
     } else {
       setSaveFailed(true)
@@ -336,12 +390,14 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
 
   async function performDelete() {
     if (!editingId) return
-    const next = customs.filter((c) => c.id !== editingId)
+    const deletingId = editingId
+    const next = customs.filter((c) => c.id !== deletingId)
 
     try {
       const saved = await saveCustoms(userId, next)
       if (saved) {
         setCustoms(next)
+        void deleteCustom(deletingId) // best-effort cloud backup
         backToBrowse()
       } else {
         setSaveFailed(true)
@@ -367,6 +423,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
     const next = customs.filter((c) => c.id !== id)
     if (saveCustoms(userId, next)) {
       setCustoms(next)
+      void deleteCustom(id) // best-effort cloud backup
       setConfirmingDeleteId(null)
     } else {
       setSaveFailed(true)

@@ -14,6 +14,7 @@
  * effects (Context/code-standards.md).
  */
 import type { CompoundCategory } from "@/lib/compound-categories"
+import { pushStackCompound, deleteStackCompound } from "@/lib/home/syncActions"
 
 /**
  * How a compound is administered — taken verbatim from the compound database's
@@ -129,7 +130,10 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
     ? cur.map((c) => (c.id === compound.id ? compound : c))
     : [...cur, compound]
   const ok = saveStack(userId, next)
-  if (ok) notifyStackChanged()
+  if (ok) {
+    notifyStackChanged()
+    void pushStackCompound(compound) // best-effort cloud backup
+  }
   return ok
 }
 
@@ -140,11 +144,15 @@ export function archiveInStack(
   archived: boolean
 ): boolean {
   const cur = loadStack(userId) ?? []
+  const updated = cur.find((c) => c.id === id)
   const ok = saveStack(
     userId,
     cur.map((c) => (c.id === id ? { ...c, archived } : c))
   )
-  if (ok) notifyStackChanged()
+  if (ok) {
+    notifyStackChanged()
+    if (updated) void pushStackCompound({ ...updated, archived })
+  }
   return ok
 }
 
@@ -156,7 +164,10 @@ export function removeFromStack(userId: string, id: string): boolean {
     userId,
     cur.filter((c) => c.id !== id)
   )
-  if (ok) notifyStackChanged()
+  if (ok) {
+    notifyStackChanged()
+    void deleteStackCompound(id)
+  }
   return ok
 }
 

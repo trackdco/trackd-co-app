@@ -122,11 +122,16 @@ from where he + Adrian are. See **"NOW (Angus) — audience warm-up"** below.
 - **Adrian + Claude — home + compound tracking: ✅ BUILT & merged to `main` (2026-06-10).**
   The home dashboard + the device-local tracking loop are live (add-to-log, per-compound
   injection-site rotation, persisted logging, same-day clash flagging, detail/edit/archive/
-  delete, Profile → Archive). **▶ Next:** wire the device-local stack + dose logs to real
-  **Postgres cycles / `protocol_compounds` / inventory** (data model already applied), with
-  inventory maths read from `v_inventory_math` (never stored); then the reconstitution
-  calculator + the dose-edit-and-reflow checkpoint. (Also still pending: an on-device check
-  of the iOS cold-launch nav-strip fix after a clean reinstall.)
+  delete, Profile → Archive). **✅ Compounds now survive reinstall (2026-06-12)** — the
+  stack / dose-log / custom-compound stores are **cloud-backed to Supabase** (interim
+  `device_state_sync` tables; `localStorage` stays the offline read path). `tsc`+`lint`+
+  `build` clean, RLS MCP-verified. **▶ Pending:** Adrian's on-device QA (add a compound →
+  delete + reinstall → confirm restored) + commit/PR. **▶ Next (still):** the *eventual*
+  normalised migration to **Postgres cycles / `protocol_compounds` / inventory** (data
+  model already applied), with inventory maths read from `v_inventory_math` (never stored)
+  — the cloud-backup is an interim stepping stone, not that end-state; then the
+  reconstitution calculator + the dose-edit-and-reflow checkpoint. (Also still pending: an
+  on-device check of the iOS cold-launch nav-strip fix after a clean reinstall.)
 - **Auth — one quick task still open (Angus, when he's back):** publish the Google OAuth app
   (Audience → Publish) before any non-Test-user tester can sign in.
 - **Deferred offers (when the build resumes; both shared-file — coordinate with Adrian):**

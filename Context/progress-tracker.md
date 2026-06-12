@@ -30,6 +30,40 @@ Last updated: 2026-06-12
 
 ## Completed
 
+- **Compounds survive reinstall — home stores cloud-backed (2026-06-12).** Fixed
+  Adrian's data-loss report (deleting + reinstalling the PWA wiped every compound):
+  the three home stores — protocol **stack** (`lib/home/stack.ts`), **dose log**
+  (`lib/home/doseLog.ts`), and **custom compounds** (`add-to-stack-menu.tsx`) — were
+  **localStorage-only**, which iOS erases with the installed app. Chose the **"quick
+  durable save"** approach (Adrian's pick over a full normalised migration): keep
+  `localStorage` as the synchronous, offline read path the UI uses unchanged, and
+  **mirror every change to Supabase** keyed to the account.
+  - **DB (applied live via MCP + committed):** `device_state_sync` migration
+    (`supabase/home/001_device_state_sync.sql`) — three user-owned tables
+    (`user_stack_compounds`, `user_dose_logs`, `user_custom_compounds`), row-per-entity
+    with the verbatim client object in a `jsonb` `data` payload. House pattern: RLS
+    `(SELECT auth.uid()) = profile_id`, explicit `authenticated` grants,
+    `set_updated_at` trigger, `compound_id text` (client-generated, may be non-UUID).
+    Live DB now **22 tables**.
+  - **Writes:** best-effort **server actions** in `lib/home/syncActions.ts` (identity
+    from the verified session, RLS the backstop — mirrors `weight/actions.ts`), fired
+    fire-and-forget from inside the existing store mutators (the single choke-point, so
+    no UI call site changes) and alongside each custom-compound save.
+  - **Reads / hydration:** `components/home/useCloudHydration.ts` (stack + logs,
+    mounted in `HomeScreen`) and the Add-to-Stack menu's open effect (customs) pull the
+    cloud copy on load and **union** it with local (cloud wins on conflict; local-only
+    entries migrate up so existing users' data lands in the cloud the first time it
+    runs), writing the merge back through the stores' `save*` + `notify*` path.
+  - **Interim, not the end-state:** this is a faithful lift of the current client shapes
+    to durable storage — NOT the normalised `cycles → protocol_compounds → inventory →
+    dose_logs` model, which remains the eventual migration (unlocks inventory maths).
+  - **Honest caveat:** already-lost compounds are unrecoverable (they only ever lived in
+    the wiped `localStorage`); this protects everything from here on.
+  - `tsc` + `lint` + prod `build` clean (24 routes). **RLS verified via MCP** with the
+    two real accounts: A sees its own row, B sees 0 of A's, cross-tenant insert → 42501;
+    test rows rolled back. **▶ Pending Adrian's on-device QA** (add a compound → delete +
+    reinstall the PWA → confirm it's restored) and the commit/PR.
+
 - **Dashboard → Calendar shortcut + placeholder route (2026-06-12).** Added a
   calendar icon (Lucide `CalendarDays`) inline to the right of the "Dashboard"
   heading, linking to a new `/calendar` route. `PageScrollTitle` gained an optional
