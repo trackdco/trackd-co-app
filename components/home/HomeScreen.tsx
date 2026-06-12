@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { CalendarDays } from "lucide-react"
 
 import { useMounted } from "@/components/home/useMounted"
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { WeekStrip, type WeekDay } from "@/components/home/WeekStrip"
+import { HomeGreeting } from "@/components/home/HomeGreeting"
 import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
 import { WeightGlanceCard } from "@/components/home/WeightGlanceCard"
@@ -110,6 +113,7 @@ export function HomeScreen({
   userId,
   weight,
   unit,
+  firstName,
 }: {
   todayKey: DateKey
   /** Scopes the device-local stack in localStorage. */
@@ -118,6 +122,8 @@ export function HomeScreen({
   weight: { key: DateKey; kg: number }[]
   /** The user's display weight unit. */
   unit: WeightUnit
+  /** First name for the greeting (from auth metadata; null = greet without a name). */
+  firstName: string | null
 }) {
   const router = useRouter()
 
@@ -260,6 +266,13 @@ export function HomeScreen({
     return { key, status: statusOf(key) }
   }).filter((item) => !earliestStartKey || item.key >= earliestStartKey)
 
+  // Today's completion for the greeting line — always TODAY (not the selected
+  // day): active compounds due today vs how many already have a log today.
+  const todayDue = activeStack.filter((c) => isDueOn(c.schedule, today))
+  const todayLogs = logs[todayKey] ?? {}
+  const dueToday = todayDue.length
+  const loggedToday = todayDue.filter((c) => todayLogs[c.id]).length
+
   // Selected day's list: anything LOGGED that day (history — kept even after a
   // compound is archived) plus active compounds due that day. Each shows its REAL
   // next site (no auto-dodge); we OBSERVE clashes and flag them (the user decides).
@@ -354,7 +367,19 @@ export function HomeScreen({
           heading, and the fade-in compact bar (same preset on every tab page). */}
       <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
         <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
-          <PageScrollTitle title="Dashboard" eyebrow={dayLabel(selectedKey)} />
+          <PageScrollTitle
+            title="Dashboard"
+            eyebrow={dayLabel(selectedKey)}
+            action={
+              <Link
+                href="/calendar"
+                aria-label="Open calendar"
+                className="-mr-1 flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <CalendarDays className="h-5 w-5" aria-hidden />
+              </Link>
+            }
+          />
         </div>
 
         <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
@@ -364,6 +389,17 @@ export function HomeScreen({
             todayKey={todayKey}
             statusOf={statusOf}
             onSelect={setSelectedKey}
+          />
+        </div>
+
+        {/* Greeting + today's completion — a "right now" status under the
+            calendar, always scoped to TODAY regardless of the selected day. */}
+        <div className="animate-home-up" style={{ animationDelay: "85ms" }}>
+          <HomeGreeting
+            firstName={firstName}
+            loggedToday={loggedToday}
+            dueToday={dueToday}
+            paused={logTarget !== null}
           />
         </div>
 

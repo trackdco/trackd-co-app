@@ -30,6 +30,34 @@ Last updated: 2026-06-12
 
 ## Completed
 
+- **Dashboard → Calendar shortcut + placeholder route (2026-06-12).** Added a
+  calendar icon (Lucide `CalendarDays`) inline to the right of the "Dashboard"
+  heading, linking to a new `/calendar` route. `PageScrollTitle` gained an optional
+  `action` slot (renders inline-right of the large heading, scrolls away with it;
+  compact bar stays a clean centred title) — backward-compatible, only Home passes
+  it. `/calendar` (`app/(app)/calendar/page.tsx`) is an honest **"Coming soon"**
+  placeholder (serif header + empty-state card + "← Dashboard" back link, on-theme,
+  behind the (app) auth gate) until the real month view is built. `tsc` + `eslint`
+  clean. **▶ Pending Adrian's QA/sign-off; build the real calendar later.**
+
+- **Home greeting + today's-completion line (2026-06-12).** Added a time-of-day
+  greeting ("Good morning/afternoon/evening, {firstName}") with a slim
+  today's-completion bar ("N of M logged today") on the Dashboard, sitting **under
+  the week strip**, above the Today's Log card (Adrian's placement + "slim bar +
+  text" pick). New `components/home/HomeGreeting.tsx`: the part-of-day word reads
+  the **device clock** (mounted-gated + focus/visibility/1-min tick, so SSR/UTC
+  can't drift and a long session rolls morning→afternoon on its own). Completion
+  is **always TODAY** (not the selected day): active stack due today vs how many
+  already have a log today, computed in `HomeScreen` and passed down. `firstName`
+  comes from Google auth metadata (display-only) in the dashboard server page;
+  `preview/home` passes "Adrian". Greeting uses `font-display` serif; the progress
+  bar uses `--accent-amber` (active-state accent — a logging-progress read, not
+  health data, so on-spec). The bar **slide-fills** on load and re-animates as
+  doses are ticked, but is **held while the log sheet is up** (`paused`) so the
+  slide isn't wasted behind the green "Tracked" confirmation — it advances ~300ms
+  after the sheet drops away, landing as the home screen reappears. `tsc` +
+  `eslint` clean. **▶ Pending Adrian's QA/sign-off.**
+
 - **Spec 07 (Weight: Scale/Trend crossfade + last-paragraph asks) — audited & closed
   (2026-06-12).** Read `Context/Feature Specs/07-scale-trend-weight-fix.md` against the
   live code: the spec's **main body was already implemented** (it shipped inside the Spec-08

@@ -43,6 +43,7 @@ export default function PreviewHomePage() {
           userId="preview-local"
           weight={[]}
           unit="kg"
+          firstName="Adrian"
         />
       </main>
 

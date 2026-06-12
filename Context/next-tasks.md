@@ -15,7 +15,23 @@ Last updated: 2026-06-12
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-12 (Adrian + Claude): Spec 07 (Weight Scale/Trend + last-paragraph asks)
+**Latest — 2026-06-12 (Adrian + Claude): Home greeting + today's-completion line — built,
+`tsc`+`lint` clean, ▶ pending Adrian's QA/sign-off.** Added a time-of-day greeting
+("Good morning/afternoon/evening, {firstName}") + a slim "N of M logged today" progress
+bar to the Dashboard, placed **under the week strip**, above Today's Log (Adrian's
+placement + "slim bar + text" pick). New `components/home/HomeGreeting.tsx` (device-clock
+part-of-day, mounted-gated + 1-min/focus refresh); completion is **always TODAY** (active
+stack due today vs logged today), computed in `HomeScreen`; `firstName` from Google auth
+metadata via the dashboard page (`preview/home` → "Adrian"). Serif greeting + amber bar,
+on `ui-context` tokens. Also added a **calendar shortcut** — a `CalendarDays` icon inline
+right of the "Dashboard" heading (via a new optional `action` slot on `PageScrollTitle`) →
+new `/calendar` route, currently an honest **"Coming soon"** placeholder until the real month
+view is built. **▶ Next:** Adrian QAs on-device → fold into the pending home/weight branch/PR
+(not committed yet); **build the real Calendar** (dose history + schedule month grid) later.
+
+---
+
+**Earlier — 2026-06-12 (Adrian + Claude): Spec 07 (Weight Scale/Trend + last-paragraph asks)
 — audited & closed, `tsc`+`lint` clean.** The spec's main body (Scale/Trend **opacity
 crossfade**, `xxx.xx` entry cap, 1W–All date-windowed range selector) was **already
 implemented** in the Spec-08 Weight view — verified each "Check When Done", no code change

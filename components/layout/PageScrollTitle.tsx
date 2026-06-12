@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
 import { useMounted } from "@/components/home/useMounted"
@@ -11,6 +11,12 @@ interface PageScrollTitleProps {
   title: string
   /** Optional small uppercase line above the title (e.g. the date on Home). */
   eyebrow?: string
+  /**
+   * Optional control rendered inline to the right of the large heading (e.g. the
+   * calendar shortcut on Home). It scrolls away with the heading; the compact bar
+   * stays a clean centred title.
+   */
+  action?: ReactNode
 }
 
 /**
@@ -26,7 +32,7 @@ interface PageScrollTitleProps {
  * Drop it at the top of a tab's main page and pass the page name; the behaviour
  * comes for free as those pages are built out.
  */
-export function PageScrollTitle({ title, eyebrow }: PageScrollTitleProps) {
+export function PageScrollTitle({ title, eyebrow, action }: PageScrollTitleProps) {
   const ref = useRef<HTMLHeadingElement>(null)
   const [compact, setCompact] = useState(false)
   const mounted = useMounted()
@@ -68,12 +74,15 @@ export function PageScrollTitle({ title, eyebrow }: PageScrollTitleProps) {
             {eyebrow}
           </p>
         ) : null}
-        <h1
-          ref={ref}
-          className="mt-1 font-sans text-4xl font-semibold tracking-tight text-foreground"
-        >
-          {title}
-        </h1>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <h1
+            ref={ref}
+            className="font-sans text-4xl font-semibold tracking-tight text-foreground"
+          >
+            {title}
+          </h1>
+          {action ? <div className="shrink-0">{action}</div> : null}
+        </div>
       </div>
     </>
   )

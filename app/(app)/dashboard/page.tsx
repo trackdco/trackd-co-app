@@ -36,6 +36,15 @@ export default async function DashboardPage() {
     .eq("id", user!.id)
     .maybeSingle();
 
+  // First name for the greeting — from Google auth metadata (display only, never
+  // an access decision). Falls back to the email local-part, else null (no name).
+  const fullName =
+    (user?.user_metadata?.full_name as string | undefined) ??
+    (user?.user_metadata?.name as string | undefined) ??
+    "";
+  const firstName =
+    fullName.trim().split(/\s+/)[0] || user?.email?.split("@")[0] || null;
+
   // RLS scopes this to the signed-in user; oldest → newest for the sparkline.
   const { data } = await supabase
     .from("weight_logs")
@@ -53,6 +62,7 @@ export default async function DashboardPage() {
       userId={user?.id ?? "anon"}
       weight={weight}
       unit={unitForPreference(profile?.units_preference)}
+      firstName={firstName}
     />
   );
 }
