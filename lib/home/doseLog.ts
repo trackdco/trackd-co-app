@@ -10,6 +10,11 @@
  * Pure data + pure helpers + guarded storage only; no React (Context/code-standards.md).
  */
 import type { DoseLog } from "@/lib/home/mockHomeData"
+import {
+  pushDoseLog,
+  deleteDoseLog,
+  deleteCompoundLogs,
+} from "@/lib/home/syncActions"
 
 export type DayLogs = Record<string, Record<string, DoseLog>>
 
@@ -68,6 +73,16 @@ function notify() {
   window.dispatchEvent(new CustomEvent(CHANGED_EVENT))
 }
 
+/**
+ * Dispatch the same-tab change signal so a sibling (the Home screen) re-reads.
+ * Exposed for the cloud-hydration pass, which writes the store directly via
+ * `saveDoseLogs` and then needs to wake `useSyncExternalStore` the same way the
+ * mutators do. (`saveDoseLogs` is intentionally silent; the mutators notify.)
+ */
+export function notifyDoseLogsChanged() {
+  notify()
+}
+
 export function subscribeDoseLogs(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {}
   window.addEventListener(CHANGED_EVENT, callback)
@@ -110,6 +125,7 @@ export function logDose(
   }
   saveDoseLogs(userId, next)
   notify()
+  void pushDoseLog(dateKey, compoundId, log) // best-effort cloud backup
 }
 
 export function unlogDose(userId: string, dateKey: string, compoundId: string) {
@@ -121,6 +137,7 @@ export function unlogDose(userId: string, dateKey: string, compoundId: string) {
   else next[dateKey] = day
   saveDoseLogs(userId, next)
   notify()
+  void deleteDoseLog(dateKey, compoundId)
 }
 
 /** Erase every logged dose for a compound across all days (hard delete only). */
@@ -134,4 +151,5 @@ export function removeCompoundLogs(userId: string, compoundId: string) {
   }
   saveDoseLogs(userId, next)
   notify()
+  void deleteCompoundLogs(compoundId)
 }

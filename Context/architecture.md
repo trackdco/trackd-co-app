@@ -48,7 +48,11 @@ in the schema — storage only, no behaviour, until post-trip.
   the `profiles.avatar_path` column. `supabase/profile/` holds
   `001_starting_weight_precision.sql` (the `starting_weight_precision` migration)
   — widens `profiles.weight_kg` to `numeric(5,2)` for the 2-decimal starting
-  weight. `supabase/grants/` holds
+  weight. `supabase/home/` holds `001_device_state_sync.sql` (the
+  `device_state_sync` migration) — the three cloud-backup tables for the interim
+  device-local home stores (`user_stack_compounds`, `user_dose_logs`,
+  `user_custom_compounds`), bringing the live DB to **22 tables**.
+  `supabase/grants/` holds
   `001_api_role_grants.sql` (the `api_role_grants` migration) — the table-level
   privileges the PostgREST roles need on top of RLS (see Auth and Access Model);
   new user-owned tables ship their grant inline (`weight_logs` grants full DML to
@@ -95,14 +99,27 @@ in the schema — storage only, no behaviour, until post-trip.
   round-trip. This applies **only** to the read-only `compounds` reference data; all
   user data and derived values still come from Postgres/views. Swap to a live
   Supabase read if the catalogue ever needs to update without a redeploy.
-- **Browser `localStorage` (per-user, device-local)** — User-created "Make your own"
-  compounds are stored in `localStorage` keyed `trackd.customCompounds.<auth.uid()>`
-  (custom compounds are a later/v1.5 DB feature; this is an interim device-local
-  store at Adrian's direction). Per-user, persists on that device; not synced. To be
-  migrated to Postgres when the custom-compounds table lands. The per-compound
-  protocol **stack** (`trackd.stack.v2.<auth.uid()>`) and **dose log**
-  (`trackd.doselog.v1.<auth.uid()>`) are the other interim device-local stores
-  (see `lib/home/stack.ts` + `lib/home/doseLog.ts`). The plus-button **Shortcuts
+- **Browser `localStorage` (device cache) + Supabase mirror (durable source)** —
+  The three home stores — the protocol **stack** (`trackd.stack.v2.<auth.uid()>`,
+  `lib/home/stack.ts`), the **dose log** (`trackd.doselog.v1.<auth.uid()>`,
+  `lib/home/doseLog.ts`), and the user-created "Make your own" **custom compounds**
+  (`trackd.customCompounds.<auth.uid()>`, `components/navigation/add-to-stack-menu.tsx`)
+  — keep `localStorage` as the synchronous, offline-capable read path the UI uses,
+  but are now **mirrored to Supabase** so they survive a PWA delete/reinstall (which
+  wipes the installed app's `localStorage`). The cloud tables live in
+  `supabase/home/001_device_state_sync.sql` (`user_stack_compounds`,
+  `user_dose_logs`, `user_custom_compounds`): one row per entity, each holding the
+  verbatim client object in a `jsonb` `data` payload. This is **interim** — NOT the
+  normalised `protocol_compounds`/inventory model (still the future end-state); the
+  stores' own read-normalisers harden the shape on the way back into `localStorage`.
+  Writes go through best-effort **server actions** in `lib/home/syncActions.ts`
+  (identity from the verified session, RLS the backstop — mirrors
+  `weight/actions.ts`); on load, `components/home/useCloudHydration.ts` (stack +
+  logs) and the Add-to-Stack menu (customs) **union** cloud with local (cloud wins
+  on conflict; any local-only entries migrate up) and write the merged set back into
+  `localStorage`. A network blip never blocks the UI — the synchronous local write
+  already succeeded; the cloud is a durable backup, not the read path. The
+  plus-button **Shortcuts
   menu** (A10) is now a fixed layout — a primary "Log a dose" over a consistent
   six-tile grid — so it persists nothing (the earlier reorderable card order +
   `lib/shortcutOrder.ts` were removed when the menu was reworked).

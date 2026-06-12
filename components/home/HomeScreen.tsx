@@ -6,6 +6,7 @@ import Link from "next/link"
 import { CalendarDays } from "lucide-react"
 
 import { useMounted } from "@/components/home/useMounted"
+import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { WeekStrip, type WeekDay } from "@/components/home/WeekStrip"
 import { HomeGreeting } from "@/components/home/HomeGreeting"
@@ -38,6 +39,7 @@ import {
   resolvedDaySite,
   saveStack,
   subscribeStack,
+  upsertStack,
   type StackCompound,
 } from "@/lib/home/stack"
 import {
@@ -165,6 +167,11 @@ export function HomeScreen({
     () => getDoseLogsSnapshot(userId),
     () => EMPTY_LOGS
   )
+
+  // Restore the stack + dose logs from the user's Supabase account on load (and
+  // migrate any local-only data up), so the protocol survives a PWA reinstall —
+  // localStorage is just the device cache. Best-effort; runs once per user.
+  useCloudHydration(userId)
 
   // Persist the seed stack once on a fresh device so the rest of the app (e.g.
   // the Add-to-log menu's "already in your log" check) reads the same source of
@@ -342,15 +349,13 @@ export function HomeScreen({
   function handleTracked(compoundId: string, log: DoseLog) {
     logDose(userId, selectedKey, compoundId, log)
     // Logging advances THIS compound's rotation to the slot after the site
-    // actually logged (§3.7); each compound's cycle is independent. Written to
-    // localStorage, then the notify re-syncs the store (and any sibling).
+    // actually logged (§3.7); each compound's cycle is independent. Routed
+    // through upsertStack so the advance persists locally AND mirrors to the
+    // cloud (notify re-syncs the store and any sibling).
     if (log.siteId) {
       const current = loadStack(userId) ?? seedStack
-      const next = current.map((c) =>
-        c.id === compoundId ? advanceRotation(c, log.siteId) : c
-      )
-      saveStack(userId, next)
-      notifyStackChanged()
+      const target = current.find((c) => c.id === compoundId)
+      if (target) upsertStack(userId, advanceRotation(target, log.siteId))
     }
   }
 
