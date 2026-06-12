@@ -1,8 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
+import Image from "next/image";
 import "./globals.css";
 
 import { AppleSplashLinks } from "@/components/pwa/apple-splash-links";
+import { DesktopGate } from "@/components/pwa/desktop-gate";
+import { DesktopInterstitial } from "@/components/pwa/desktop-interstitial";
+import { getCurrentUser } from "@/lib/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,11 +51,18 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Trackd is a phone-only PWA. At ≥1024px the whole app shell is hidden and
+  // the desktop interstitial stands in — even for signed-in users, who get the
+  // "welcome back" variant. `display:contents` means the wrapper is invisible
+  // to layout on mobile (the app renders exactly as before) and collapses to
+  // nothing at lg. One verified `getUser()` (cached) picks the variant.
+  const user = await getCurrentUser();
+
   return (
     <html
       lang="en"
@@ -60,7 +71,28 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {/* iOS launch images — React hoists these <link> tags into <head>. */}
         <AppleSplashLinks />
-        {children}
+
+        {/* The app below lg; the "go to your phone" interstitial at ≥1024px. */}
+        <DesktopGate
+          interstitial={
+            <DesktopInterstitial
+              className="hidden lg:flex"
+              returning={Boolean(user)}
+              logo={
+                <Image
+                  src="/trackd-wordmark.png"
+                  alt="trackd co"
+                  width={1049}
+                  height={200}
+                  priority
+                  className="h-5 w-auto"
+                />
+              }
+            />
+          }
+        >
+          {children}
+        </DesktopGate>
       </body>
     </html>
   );

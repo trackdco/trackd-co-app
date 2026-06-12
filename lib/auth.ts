@@ -1,6 +1,21 @@
+import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
+
+/**
+ * The verified current user for this request — `getUser()` revalidates against
+ * the Supabase Auth server, so it is the only trustworthy signal for access.
+ * Wrapped in React `cache()` so the many guards that need it (the root layout's
+ * desktop gate, the (app) shell, every page) share ONE round-trip per request.
+ */
+export const getCurrentUser = cache(async (): Promise<User | null> => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+});
 
 /**
  * Authoritative auth + gate state for server-side guards.
@@ -19,16 +34,13 @@ export type SessionContext = {
 };
 
 export async function getSessionContext(): Promise<SessionContext> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return { user: null, passedGate: false };
   }
 
+  const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
     .select("is_18_plus, tos_accepted_at")
