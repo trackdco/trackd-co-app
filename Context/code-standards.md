@@ -81,8 +81,9 @@
   `components/pwa/`).
 - `lib/supabase/` — Supabase client setup (browser + server + the proxy
   `updateSession`).
-- `lib/auth.ts` — `getSessionContext()` (the authoritative `getUser()` + gate
-  check used by every guard).
+- `lib/auth.ts` — `getCurrentUser()` (the authoritative, request-`cache()`d
+  `getUser()` — one verified auth round-trip per request, shared by every guard and
+  the desktop gate) and `getSessionContext()` (wraps it with the 18+/ToS gate check).
 - `lib/` — pure helpers and shared types (no React, no side effects).
 - `supabase/` — canonical SQL: schema + storage policies + `grants/` (API role
   grants) + `seed/` + `legal/`. **Protected** — see `ai-workflow-rules.md`.

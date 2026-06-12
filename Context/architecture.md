@@ -28,7 +28,13 @@ in the schema — storage only, no behaviour, until post-trip.
 - `app/` — Next.js App Router routes, layouts, server/client components, and
   server actions. Owns the UI and the today-dashboard / cycle / dose / journal
   / calendar / bloodwork flows. Calls Supabase; holds **no** business maths that
-  belong in the database (see Invariants).
+  belong in the database (see Invariants). **Phone-only by intent:** at ≥1024px the
+  root layout hides the whole app shell (`lg:hidden`) and renders
+  `DesktopInterstitial` in its place — a pure CSS-width gate (no UA sniffing, no
+  hydration flash), wired through the small client `DesktopGate` so the dev-only
+  `/preview/*` harness stays viewable at desktop. Even a signed-in user is gated
+  (a "welcome back / open it on your phone" QR card); the variant is chosen from the
+  verified session via the request-cached `getCurrentUser` (see Auth and Access Model).
 - `app/globals.css` — Global styles and the CSS-variable design tokens defined
   in `ui-context.md`. No hardcoded hex outside this file.
 - `supabase/` — Canonical data model and access policy. `trackd_schema_v0_4_2.sql`

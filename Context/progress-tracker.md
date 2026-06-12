@@ -30,6 +30,35 @@ Last updated: 2026-06-12
 
 ## Completed
 
+- **Desktop interstitial — phone-only gate, replaces the plain "mobile only" notice
+  (2026-06-12).** At ≥1024px the whole app shell is hidden and a polished
+  `DesktopInterstitial` (`components/pwa/desktop-interstitial.tsx`) stands in its place —
+  "go to your phone" with a **real, scannable QR** to `https://trackdco.app`
+  (`qrcode.react`, the one new dep; SSR-rendered, near-black-on-white, 4-module quiet zone,
+  encoded value verified exact). **Global by Adrian's call:** even a signed-in user is sent
+  to their phone — they get a separate **"Welcome back"** variant (basic two-column: message
+  + QR card, no side cards/feature rows), vs the first-visit variant (eyebrow pill → "Track
+  your protocol. / Not your spreadsheets." → 3 feature rows → 3 quiet decorative glass cards
+  → glowing amber hero QR card). Decorative cards mirror real Trackd UI: **Weight** (white
+  mono value + neutral `--chart-trend` sparkline + muted delta — non-evaluative health-data
+  rule, not amber as the brief asked), **Inventory** (Testosterone E vial, "runs dry" date),
+  **Today's log** (Testosterone E + amber check circles + streak). Every colour is an
+  existing token (amber washes via `/NN` opacity; glow/page-glow/hairline as `color-mix`
+  over `--accent-amber`; deep shadow via `--overlay-backdrop`) — flagged at the top of the
+  component since no `--accent-amber-soft`/glow/shadow tokens exist yet.
+  - **Wiring:** gate is CSS-only (no UA sniffing, no hydration flash). Root layout wraps the
+    app in `lg:hidden` and renders the interstitial `hidden lg:flex` via a tiny client
+    `DesktopGate` (`components/pwa/desktop-gate.tsx`) that exempts dev-only `/preview/*` (so
+    the existing preview harness still renders at desktop). Variant picked from the verified
+    session: added a request-`cache()`d **`getCurrentUser`** in `lib/auth.ts` (now the single
+    `getUser()` per request — `getSessionContext` reuses it, so no extra auth round-trip;
+    mobile cost neutral). Landing page (`app/page.tsx`) lost its old `md` desktop block (the
+    global `lg` gate replaces it; tablets 768–1023 now get the app).
+  - **Dev preview surfaces:** `/preview/desktop` (first-visit) + `/preview/desktop-returning`
+    (welcome-back), 404 in prod. `tsc` + `lint` + prod `build` clean (now 26 routes).
+    Verified both variants + the untouched mobile app via headless-Chrome screenshots.
+    **▶ Pending: Adrian's phone-scan of the live QR + on-device QA.**
+
 - **Compounds survive reinstall — home stores cloud-backed (2026-06-12).** Fixed
   Adrian's data-loss report (deleting + reinstalling the PWA wiped every compound):
   the three home stores — protocol **stack** (`lib/home/stack.ts`), **dose log**

@@ -15,7 +15,20 @@ Last updated: 2026-06-12
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-12 (Adrian + Claude): Home greeting + today's-completion line — built,
+**Latest — 2026-06-12 (Adrian + Claude): Desktop interstitial — phone-only gate, committed +
+PR'd.** Replaced the plain desktop "mobile only" notice with a polished `DesktopInterstitial`
+(`components/pwa/desktop-interstitial.tsx`): at ≥1024px the whole app shell is hidden and the
+user gets a "go to your phone" page with a **real scannable QR** to `trackdco.app`
+(`qrcode.react`). **Global** — even signed-in users are gated (a separate basic "Welcome back"
+variant). Decorative cards mirror real Trackd UI (Weight / Inventory "runs dry" / Today's log).
+CSS-width gate via a small client `DesktopGate` that exempts dev-only `/preview/*`; variant from
+the verified session via a new request-cached `getCurrentUser`. Dev previews:
+`/preview/desktop` + `/preview/desktop-returning`. `tsc`+`lint`+prod `build` clean (26 routes).
+**▶ Next:** Adrian **scans the live QR on his phone** + on-device QA → merge the PR.
+
+---
+
+**Earlier — 2026-06-12 (Adrian + Claude): Home greeting + today's-completion line — built,
 `tsc`+`lint` clean, ▶ pending Adrian's QA/sign-off.** Added a time-of-day greeting
 ("Good morning/afternoon/evening, {firstName}") + a slim "N of M logged today" progress
 bar to the Dashboard, placed **under the week strip**, above Today's Log (Adrian's
