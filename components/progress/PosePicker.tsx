@@ -41,7 +41,7 @@ export function PosePicker({
         />
       </div>
 
-      <div className="mt-1 max-h-56 overflow-y-auto">
+      <div className="mt-1">
         {results.map((p) => (
           <button
             key={p.id}

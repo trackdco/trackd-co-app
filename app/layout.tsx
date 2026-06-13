@@ -49,6 +49,10 @@ export const viewport: Viewport = {
   themeColor: "#111110",
   colorScheme: "dark",
   viewportFit: "cover",
+  // App feel: no pinch-zoom and, crucially, no iOS auto-zoom when focusing an
+  // input under 16px (which zoomed in and wouldn't zoom back out).
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default async function RootLayout({
