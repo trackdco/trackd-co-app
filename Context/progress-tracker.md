@@ -31,8 +31,10 @@ Last updated: 2026-06-13
 ## Completed
 
 - **Calendar screen built + Milligram redesign — Spec 10 (2026-06-13) —
-  `tsc`+`lint`+prod `build` clean (27 routes); on the working tree, NOT committed
-  (awaiting Adrian's on-device QA).** The `/calendar` route went from the "Coming
+  `tsc`+`lint`+prod `build` clean (27 routes); COMMITTED + MERGED + PUSHED to
+  `main` (prod) per Adrian (branch `feat/calendar-screen`; no PR — `gh` unavailable,
+  direct-merge fallback). ▶ Adrian's on-device QA still to come.** The `/calendar`
+  route went from the "Coming
   soon" placeholder to the real **date-first "look back"**. Built first to spec
   (month grid + muted dots + day sheet), then **redesigned to the Milligram format
   at Adrian's direction** (he supplied the reference + "switch between things at
