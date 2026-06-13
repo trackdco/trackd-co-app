@@ -13,7 +13,7 @@ import { HomeGreeting } from "@/components/home/HomeGreeting"
 import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
 import { WeightGlanceCard } from "@/components/home/WeightGlanceCard"
-import { ProgressPhotosGlanceCard } from "@/components/home/ProgressPhotosGlanceCard"
+import { ProgressPhotoSection } from "@/components/progress/ProgressPhotoSection"
 import { ReconCalcCard } from "@/components/home/ReconCalcCard"
 import { ReconCalculatorSheet } from "@/components/home/ReconCalculatorSheet"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
@@ -450,12 +450,16 @@ export function HomeScreen({
           />
         </div>
 
-        {/* Progress photos — a small peek at the latest session; taps through to
-            the Progress photos (kept separate from Weight, not merged). */}
+        {/* Progress photos — the SAME menu as the Progress tab's photo section
+            (card → gallery → add / edit / view / compare), opened inline. Tapping
+            opens the gallery here instead of routing to /progress and hunting for
+            it, so there's no navigation friction. */}
         <div className="animate-home-up" style={{ animationDelay: "185ms" }}>
-          <ProgressPhotosGlanceCard
+          <ProgressPhotoSection
             photos={progressPhotos}
-            onOpen={() => router.push("/progress")}
+            userId={userId}
+            todayKey={todayKey}
+            unit={unit}
           />
         </div>
 

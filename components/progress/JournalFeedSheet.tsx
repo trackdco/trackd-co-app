@@ -267,10 +267,10 @@ function MonthOption({
       aria-pressed={active}
       className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-bg-input/60"
     >
-      <span className={cn("font-medium", active ? "text-accent-amber" : "text-text-muted")}>
+      <span className={cn("min-w-0 truncate font-medium", active ? "text-accent-amber" : "text-text-muted")}>
         {label}
       </span>
-      <span className="font-mono text-xs text-text-subtle">{count}</span>
+      <span className="shrink-0 font-mono text-xs text-text-subtle">{count}</span>
     </button>
   );
 }

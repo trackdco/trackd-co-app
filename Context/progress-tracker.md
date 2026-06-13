@@ -30,6 +30,31 @@ Last updated: 2026-06-13
 
 ## Completed
 
+- **Weight graph load-in + weight-log by month, Profile load-in, Home photos
+  unified, mobile padding pass (2026-06-13) — `tsc` clean; on the working tree,
+  NOT yet committed (awaiting Adrian's on-device review).** A founder-directed
+  follow-up to the 2026-06-13 polish run:
+  - **Weight graph loads in.** The `/weight` Trend/Scale chart now uses the same
+    entrance animation as Consistency (`isAnimationActive`, 450 ms ease-out) and
+    re-animates on a range change (`key={rangeId}`); the Trend↔Scale opacity
+    crossfade is preserved (`components/weight/WeightView.tsx`).
+  - **Weight entry log by month.** The flat log is now stacked **month sections**
+    ("June 2026" headers, newest first), scrolled — the journal idiom *without* a
+    dropdown (per Adrian: "just the months… scroll down to see more").
+  - **Profile loads in like the others.** `app/(app)/profile/page.tsx` swapped its
+    single whole-page fade for per-section staggered `animate-home-up`, matching
+    Home + Progress.
+  - **Home progress-photos = the real menu.** Home now renders the SAME
+    `ProgressPhotoSection` as the Progress tab (card → gallery → add / edit / view /
+    compare) inline, replacing the peek-card that routed to `/progress` — removes
+    the navigate-then-hunt friction. `ProgressPhotosGlanceCard` is now unused.
+  - **Mobile padding/overflow pass.** Background audit across `app/` + `components/`;
+    fixed real right-edge spill where dynamic text sat beside a control by adding
+    `min-w-0`/`flex-1`/`truncate`/`shrink-0`: Weight graph header (value vs
+    Trend/Scale toggle), Progress-photo caption (long custom poses), marker rows,
+    recon-calc input vs unit toggle, Home Weight glance header, Journal month rows,
+    Profile "Edit in Settings" link. LogDoseSheet + the photo viewer were already
+    guarded (no change).
 - **UI-consistency pass + Home photo peek + journal-by-month + unified graphs +
   wired `+`-menu Journal/Blood work (2026-06-13) — `tsc`+`lint`+prod `build` clean
   (27 routes); committed + merged + pushed to `main` (prod). ▶ Adrian QAs on-device.**

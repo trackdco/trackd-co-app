@@ -181,12 +181,12 @@ export function MarkerDialer({
         return (
           <div key={id} className="animate-shortcut-in rounded-xl bg-bg-surface-raised p-3.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium text-foreground">{m.name}</span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{m.name}</span>
               <button
                 type="button"
                 onClick={() => removeMarker(id)}
                 aria-label={`Remove ${m.name}`}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-text-subtle transition-colors hover:text-text-muted"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-subtle transition-colors hover:text-text-muted"
               >
                 <X className="h-3.5 w-3.5" aria-hidden />
               </button>

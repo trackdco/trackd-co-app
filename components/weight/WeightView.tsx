@@ -26,6 +26,13 @@ interface Entry {
   kg: number;
 }
 
+/** A month bucket in the entry log — newest month first, entries newest-first. */
+interface LogMonth {
+  key: string; // "YYYY-MM"
+  label: string; // "June 2026"
+  rows: Entry[];
+}
+
 interface WeightViewProps {
   /** The user's weight_logs, oldest → newest. */
   entries: Entry[];
@@ -62,6 +69,18 @@ function shortDate(key: DateKey): string {
 function longDate(key: DateKey): string {
   const d = dateKeyToDate(key);
   return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+const MONTHS_FULL = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "YYYY-MM" → "June 2026" — the entry-log month headers. */
+function monthLabel(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m) return ym;
+  return `${MONTHS_FULL[m - 1]} ${y}`;
 }
 
 /** Trailing simple moving average — the smoothed "trend" that rides out the
@@ -193,8 +212,21 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
 
   const [chartRef, chartWidth] = useChartWidth();
 
-  // Newest → oldest for the entry log.
-  const logRows = useMemo(() => [...entries].reverse(), [entries]);
+  // Entry log grouped by month — newest month first, newest entry first within.
+  // Months simply stack and scroll (no dropdown), mirroring the journal feed.
+  const logMonths = useMemo<LogMonth[]>(() => {
+    const byMonth = new Map<string, Entry[]>();
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i];
+      const mk = e.key.slice(0, 7);
+      const arr = byMonth.get(mk);
+      if (arr) arr.push(e);
+      else byMonth.set(mk, [e]);
+    }
+    return [...byMonth.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, rows]) => ({ key, label: monthLabel(key), rows }));
+  }, [entries]);
 
   async function handleSave() {
     const n = parseFloat(value);
@@ -332,7 +364,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
         style={{ animationDelay: "140ms" }}
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
               {mode === "trend" ? "Trend" : "Scale"}
             </p>
@@ -382,6 +414,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
         >
           {hasData && chartWidth > 0 ? (
             <AreaChart
+              key={rangeId}
               width={chartWidth}
               height={CHART_HEIGHT}
               data={windowed}
@@ -417,7 +450,9 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                     ? { r: 4, fill: "var(--chart-line)", stroke: "var(--bg-surface)", strokeWidth: 2 }
                     : false
                 }
-                isAnimationActive={false}
+                isAnimationActive
+                animationDuration={450}
+                animationEasing="ease-out"
                 className={cn(
                   "transition-opacity duration-300 ease-out",
                   mode === "scale" ? "opacity-100" : DIMMED,
@@ -436,7 +471,9 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                     ? { r: 4, fill: "var(--chart-trend)", stroke: "var(--bg-surface)", strokeWidth: 2 }
                     : false
                 }
-                isAnimationActive={false}
+                isAnimationActive
+                animationDuration={450}
+                animationEasing="ease-out"
                 className={cn(
                   "transition-opacity duration-300 ease-out",
                   mode === "trend" ? "opacity-100" : DIMMED,
@@ -495,48 +532,57 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
           Entry log
         </p>
-        {logRows.length === 0 ? (
+        {logMonths.length === 0 ? (
           <p className="mt-3 text-sm text-text-muted">
             Nothing logged yet. Add today&apos;s weight above.
           </p>
         ) : (
-          <ul className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
-            {logRows.map((entry, i) => (
-              <li
-                key={entry.key}
-                className={cn(
-                  "flex items-center",
-                  i > 0 && "border-t border-border-default",
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={() => editEntry(entry)}
-                  className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-bg-input/40"
-                  aria-label={`Edit weight for ${longDate(entry.key)}`}
-                >
-                  <span className="truncate text-sm text-text-muted">
-                    {longDate(entry.key)}
-                    {entry.key === todayKey && (
-                      <span className="ml-2 text-xs text-accent-amber">Today</span>
-                    )}
-                  </span>
-                  <span className="shrink-0 font-mono text-sm font-medium text-foreground tabular-nums">
-                    {formatWeight(entry.kg, unit)} {unit}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(entry.key)}
-                  disabled={busyDelete === entry.key}
-                  aria-label={`Delete weight for ${longDate(entry.key)}`}
-                  className="mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-state-error disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden />
-                </button>
-              </li>
+          <div className="mt-3 space-y-5">
+            {logMonths.map((group) => (
+              <div key={group.key}>
+                <h3 className="px-1 pb-2 font-display text-lg font-medium text-foreground">
+                  {group.label}
+                </h3>
+                <ul className="overflow-hidden rounded-2xl bg-bg-surface-raised">
+                  {group.rows.map((entry, i) => (
+                    <li
+                      key={entry.key}
+                      className={cn(
+                        "flex items-center",
+                        i > 0 && "border-t border-border-default",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => editEntry(entry)}
+                        className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-bg-input/40"
+                        aria-label={`Edit weight for ${longDate(entry.key)}`}
+                      >
+                        <span className="truncate text-sm text-text-muted">
+                          {longDate(entry.key)}
+                          {entry.key === todayKey && (
+                            <span className="ml-2 text-xs text-accent-amber">Today</span>
+                          )}
+                        </span>
+                        <span className="shrink-0 font-mono text-sm font-medium text-foreground tabular-nums">
+                          {formatWeight(entry.kg, unit)} {unit}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(entry.key)}
+                        disabled={busyDelete === entry.key}
+                        aria-label={`Delete weight for ${longDate(entry.key)}`}
+                        className="mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-state-error disabled:opacity-50"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </section>
     </div>

@@ -232,7 +232,7 @@ function NumberField({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           aria-label={`${label} amount`}
-          className="h-12 flex-1 rounded-xl border-border-default bg-bg-input font-mono text-base dark:bg-bg-input"
+          className="h-12 min-w-0 flex-1 rounded-xl border-border-default bg-bg-input font-mono text-base dark:bg-bg-input"
         />
         <div className="inline-flex shrink-0 rounded-xl border border-border-default bg-bg-input p-0.5 text-xs">
           {(["mg", "mcg"] as const).map((u) => (
