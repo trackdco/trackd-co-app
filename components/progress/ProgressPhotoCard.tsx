@@ -110,10 +110,10 @@ export function ProgressPhotoCard({
       {/* Caption + swipe dots for the active photo. */}
       <div className="px-5 pb-5">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm text-foreground">
+          <span className="min-w-0 flex-1 truncate text-sm text-foreground">
             {poseLabel(day.photos[active]?.pose ?? day.photos[0].pose)}
           </span>
-          <span className="flex items-center gap-2">
+          <span className="flex shrink-0 items-center gap-2">
             {day.photos[active]?.weightKg != null && (
               <span className="font-mono text-xs text-text-muted">
                 {formatWeight(day.photos[active]!.weightKg!, unit)} {unit}

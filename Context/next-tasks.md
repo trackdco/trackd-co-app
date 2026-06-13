@@ -15,7 +15,25 @@ Last updated: 2026-06-13
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-13 (Adrian + Claude): UI-consistency pass + Home photo peek +
+**Latest — 2026-06-13 (Adrian + Claude): Weight graph load-in + weight-log by
+month, Profile load-in, Home photos unified, mobile padding pass — BUILT, `tsc`
+clean, on the working tree (NOT committed; awaiting Adrian's on-device QA).**
+- Weight `/weight` graph now loads in + re-animates on a range change like
+  Consistency; the entry log is restacked into scrolled **month sections** (no
+  dropdown — "just the months, scroll to see more").
+- Profile page now uses staggered per-section `animate-home-up` (was a single
+  whole-page fade), matching Home + Progress.
+- Home progress-photos now render the **same `ProgressPhotoSection`** as the
+  Progress tab inline — tapping opens the gallery directly, no route-then-hunt.
+- Mobile padding/overflow pass: added `min-w-0`/`flex-1`/`truncate`/`shrink-0` on
+  value-next-to-control rows app-wide (Weight graph header, photo captions, marker
+  rows, recon-calc input, Home Weight header, Journal month rows, Profile link).
+
+**Next:** Adrian QAs on device → if good, run `lint` + prod `build`, then commit +
+merge + push to `main` (same flow as the prior polish run). Optional tidy: delete
+the now-unused `components/home/ProgressPhotosGlanceCard.tsx`.
+
+**Previously — 2026-06-13 (Adrian + Claude): UI-consistency pass + Home photo peek +
 journal-by-month + unified graphs + wired `+`-menu Journal/Blood work — BUILT,
 `tsc`+`lint`+prod `build` clean (27 routes), COMMITTED + MERGED + PUSHED to `main`
 (prod) per Adrian.** A run of founder-directed polish:

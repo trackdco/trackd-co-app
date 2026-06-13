@@ -79,11 +79,11 @@ export function WeightGlanceCard({ series, unit, onOpenDetail }: WeightGlanceCar
     <div className="rounded-2xl border border-border-default bg-bg-surface">
       {/* Header — label + the Trend/Scale toggle. */}
       <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-1.5">
-        <div className="flex items-center gap-3.5">
+        <div className="flex min-w-0 items-center gap-3.5">
           <span aria-hidden className={CARD_ICON_BADGE}>
             <Scale className="h-5 w-5" />
           </span>
-          <p className={CARD_TITLE}>Weight</p>
+          <p className={`${CARD_TITLE} truncate`}>Weight</p>
         </div>
 
         {!empty && (

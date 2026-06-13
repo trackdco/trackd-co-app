@@ -79,12 +79,20 @@ export default async function ProfilePage() {
   const imperial = profile?.units_preference === "imperial";
 
   return (
-    <div className="mx-auto w-full max-w-md px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
-      {/* Shared scroll-title preset (large heading → fade-in compact bar). */}
-      <PageScrollTitle title="Profile" />
+    <div className="mx-auto w-full max-w-md px-6 py-10">
+      {/* Each block fades + rises in on load, staggered — the same
+          `animate-home-up` idiom as Home and Progress (per-section, not a single
+          whole-page fade), so every tab page loads in the same way. */}
+      <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+        {/* Shared scroll-title preset (large heading → fade-in compact bar). */}
+        <PageScrollTitle title="Profile" />
+      </div>
 
       {/* ── Identity hero ─────────────────────────────────────────── */}
-      <section className="mt-6 flex flex-col items-center text-center">
+      <section
+        className="animate-home-up mt-6 flex flex-col items-center text-center"
+        style={{ animationDelay: "55ms" }}
+      >
         <AvatarUploader
           initials={initials}
           signedUrl={avatarUrl}
@@ -113,77 +121,86 @@ export default async function ProfilePage() {
       </section>
 
       {/* ── Account ───────────────────────────────────────────────── */}
-      <Eyebrow>Account</Eyebrow>
-      <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
-        <InfoRow label="Member since" value={memberSince} />
-        <Divider />
-        <InfoRow label="Plan" value={planLabel} />
-        <Divider />
-        <InfoRow label="Email" value={email || "—"} truncate />
+      <div className="animate-home-up" style={{ animationDelay: "85ms" }}>
+        <Eyebrow>Account</Eyebrow>
+        <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
+          <InfoRow label="Member since" value={memberSince} />
+          <Divider />
+          <InfoRow label="Plan" value={planLabel} />
+          <Divider />
+          <InfoRow label="Email" value={email || "—"} truncate />
+        </div>
       </div>
 
       {/* ── Physical (read-only glance; editing lives in /settings) ── */}
-      <div className="mt-8 mb-3 flex items-baseline justify-between">
-        <p className="text-xs font-medium tracking-[0.18em] text-text-muted uppercase">
-          Physical
-        </p>
-        <Link
-          href="/settings"
-          className="-m-2 rounded-md p-2 text-xs text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
-        >
-          Edit in Settings
-        </Link>
-      </div>
-      <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
-        <InfoRow label="Sex" value={fmtCapital(profile?.sex)} />
-        <Divider />
-        <InfoRow label="Age" value={age != null ? `${age} yrs` : "—"} />
-        <Divider />
-        <InfoRow
-          label="Height"
-          value={formatMeasure(profile?.height_cm, imperial, "cm", "in", CM_PER_IN)}
-        />
-        <Divider />
-        <InfoRow
-          label="Weight"
-          value={formatMeasure(displayWeightKg, imperial, "kg", "lbs", KG_PER_LB)}
-        />
-        <Divider />
-        <InfoRow label="Goal" value={fmtGoal(profile?.goal)} />
-        <Divider />
-        <InfoRow label="Units" value={fmtUnits(profile?.units_preference)} />
+      <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
+        <div className="mt-8 mb-3 flex items-baseline justify-between gap-3">
+          <p className="text-xs font-medium tracking-[0.18em] text-text-muted uppercase">
+            Physical
+          </p>
+          <Link
+            href="/settings"
+            className="-m-2 shrink-0 whitespace-nowrap rounded-md p-2 text-xs text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
+          >
+            Edit in Settings
+          </Link>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
+          <InfoRow label="Sex" value={fmtCapital(profile?.sex)} />
+          <Divider />
+          <InfoRow label="Age" value={age != null ? `${age} yrs` : "—"} />
+          <Divider />
+          <InfoRow
+            label="Height"
+            value={formatMeasure(profile?.height_cm, imperial, "cm", "in", CM_PER_IN)}
+          />
+          <Divider />
+          <InfoRow
+            label="Weight"
+            value={formatMeasure(displayWeightKg, imperial, "kg", "lbs", KG_PER_LB)}
+          />
+          <Divider />
+          <InfoRow label="Goal" value={fmtGoal(profile?.goal)} />
+          <Divider />
+          <InfoRow label="Units" value={fmtUnits(profile?.units_preference)} />
+        </div>
       </div>
 
       {/* ── App & legal ───────────────────────────────────────────── */}
-      <Eyebrow>App</Eyebrow>
-      <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
-        <LinkRow href="/settings" icon={Settings}>
-          Settings
-        </LinkRow>
-        <Divider />
-        <LinkRow href="/archive" icon={Archive}>
-          Archive
-        </LinkRow>
-        <Divider />
-        <LinkRow href="/terms" icon={FileText}>
-          Terms of Service
-        </LinkRow>
-        <Divider />
-        <LinkRow href="/privacy" icon={ShieldCheck}>
-          Privacy Policy
-        </LinkRow>
-        <Divider />
-        <LinkRow href="/medical-disclaimer" icon={Stethoscope}>
-          Medical Disclaimer
-        </LinkRow>
+      <div className="animate-home-up" style={{ animationDelay: "140ms" }}>
+        <Eyebrow>App</Eyebrow>
+        <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
+          <LinkRow href="/settings" icon={Settings}>
+            Settings
+          </LinkRow>
+          <Divider />
+          <LinkRow href="/archive" icon={Archive}>
+            Archive
+          </LinkRow>
+          <Divider />
+          <LinkRow href="/terms" icon={FileText}>
+            Terms of Service
+          </LinkRow>
+          <Divider />
+          <LinkRow href="/privacy" icon={ShieldCheck}>
+            Privacy Policy
+          </LinkRow>
+          <Divider />
+          <LinkRow href="/medical-disclaimer" icon={Stethoscope}>
+            Medical Disclaimer
+          </LinkRow>
+        </div>
       </div>
 
       {/* ── Sign out (confirm step; deep-red destructive button) ───── */}
-      <div className="mt-8">
+      <div className="animate-home-up mt-8" style={{ animationDelay: "170ms" }}>
         <SignOutConfirm variant="button" />
       </div>
 
-      <p className="mt-6 text-center text-xs text-text-subtle">
+      <p
+        className="animate-home-up mt-6 text-center text-xs text-text-subtle"
+        style={{ animationDelay: "195ms" }}
+      >
         Trackd Co · v0.4 (Beta)
       </p>
     </div>
