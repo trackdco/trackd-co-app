@@ -1,48 +1,124 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, CalendarDays } from "lucide-react";
+
+import {
+  CalendarScreen,
+  type CalendarJournalDay,
+} from "@/components/calendar/CalendarScreen";
+import { createClient } from "@/lib/supabase/server";
+import { toDateKey, type DateKey } from "@/lib/home/mockHomeData";
+import {
+  wordFor,
+  type EntryMarker,
+  type MarkerCatalogueItem,
+} from "@/lib/progress/journal";
 
 export const metadata: Metadata = { title: "Calendar — Trackd Co" };
 
 /**
- * Calendar — placeholder. Reached from the calendar shortcut on the Dashboard
- * heading. The full dose calendar isn't built yet, so this is an honest "coming
- * soon" stop that keeps the shortcut on-theme rather than dead. The (app) layout
- * has already enforced auth + the 18+/ToS gate. Swap the empty state for the real
- * month view when the calendar feature lands.
+ * The Calendar tab's route — reached from the calendar shortcut on the Dashboard
+ * header (NOT a sixth nav tab). The (app) layout already enforced auth + the
+ * 18+/ToS gate. This server wrapper reads the user's own (RLS-scoped) weight and
+ * journal/markers, keys them by day, and threads them into the client screen,
+ * which adds the device-local "Running" read. Read-only: nothing is written here.
  */
-export default function CalendarPage() {
+export default async function CalendarPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  // The (app) layout redirects unauthenticated users; this guards the render that
+  // runs concurrently with that redirect so it never dereferences a null user.
+  if (!user) return null;
+
+  const [
+    { data: profile },
+    { data: weightData },
+    { data: markerData },
+    { data: entryData },
+    { data: readingData },
+    { data: userMarkerData },
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("units_preference")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("weight_logs")
+      .select("logged_for, weight")
+      .order("logged_for", { ascending: true })
+      .limit(2000),
+    supabase
+      .from("markers")
+      .select("id, name, polarity, is_default, tier_labels")
+      .order("name", { ascending: true }),
+    supabase
+      .from("journal_entries")
+      .select("id, entry_date, free_text")
+      .order("entry_date", { ascending: false }),
+    supabase.from("marker_readings").select("entry_id, user_marker_id, tier_value"),
+    supabase.from("user_markers").select("id, marker_id"),
+  ]);
+
+  // Weight by day (kg).
+  const weightByDate: Record<DateKey, number> = {};
+  for (const r of weightData ?? []) {
+    weightByDate[r.logged_for as string] = Number(r.weight);
+  }
+
+  // ── Journal: stitch entries ← readings ← user_markers ← catalogue ──
+  // (the same chain the Progress page walks; words displayed, never the ordinal).
+  const catalogueById = new Map<string, MarkerCatalogueItem>();
+  for (const m of markerData ?? []) {
+    catalogueById.set(m.id as string, {
+      id: m.id as string,
+      name: m.name as string,
+      polarity: m.polarity as string,
+      isDefault: Boolean(m.is_default),
+      tierLabels: (m.tier_labels as string[] | null) ?? [],
+    });
+  }
+  // user_markers.id → catalogue marker
+  const markerByUserMarker = new Map<string, MarkerCatalogueItem>();
+  for (const um of userMarkerData ?? []) {
+    const cat = um.marker_id
+      ? catalogueById.get(um.marker_id as string)
+      : undefined;
+    if (cat) markerByUserMarker.set(um.id as string, cat);
+  }
+  const markersByEntry = new Map<string, EntryMarker[]>();
+  for (const r of readingData ?? []) {
+    const cat = markerByUserMarker.get(r.user_marker_id as string);
+    if (!cat) continue; // custom markers aren't created by this app
+    const tierValue = Number(r.tier_value);
+    const arr = markersByEntry.get(r.entry_id as string) ?? [];
+    arr.push({
+      markerId: cat.id,
+      name: cat.name,
+      tierValue,
+      word: wordFor(cat.tierLabels, tierValue),
+    });
+    markersByEntry.set(r.entry_id as string, arr);
+  }
+  // One entry per day (DB invariant), so key straight by entry_date.
+  const journalByDate: Record<DateKey, CalendarJournalDay> = {};
+  for (const e of entryData ?? []) {
+    journalByDate[e.entry_date as string] = {
+      id: e.id as string,
+      body: (e.free_text as string | null) ?? null,
+      markers: (markersByEntry.get(e.id as string) ?? []).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+    };
+  }
+
   return (
-    <div className="mx-auto w-full max-w-md px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
-      <Link
-        href="/dashboard"
-        className="-ml-1 inline-flex items-center gap-1.5 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        Dashboard
-      </Link>
-
-      <header className="mt-6 px-1">
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-foreground">
-          Calendar
-        </h1>
-        <p className="mt-0.5 text-sm text-text-muted">
-          Your dose history and schedule, month by month.
-        </p>
-      </header>
-
-      <section className="mt-6 flex flex-col items-center rounded-2xl border border-border-default bg-bg-surface px-6 py-14 text-center">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-bg-surface-raised text-text-muted">
-          <CalendarDays className="h-7 w-7" aria-hidden />
-        </span>
-        <p className="mt-5 font-display text-xl font-medium text-foreground">
-          Coming soon
-        </p>
-        <p className="mt-1.5 max-w-xs text-sm text-text-muted">
-          A full calendar of your logged doses and upcoming schedule will live
-          here. For now, track today from the home screen.
-        </p>
-      </section>
-    </div>
+    <CalendarScreen
+      weightByDate={weightByDate}
+      journalByDate={journalByDate}
+      userId={user.id}
+      todayKey={toDateKey(new Date())}
+      unitPreference={profile?.units_preference ?? "metric"}
+    />
   );
 }
