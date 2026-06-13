@@ -16,6 +16,14 @@ export default function PreviewHomePage() {
 
   const todayKey = toDateKey(new Date());
 
+  // A gentle ~4-week trend so the Weight card's Trend/Scale toggle has data.
+  const today = new Date();
+  const sampleWeight = Array.from({ length: 28 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (27 - i));
+    const noise = i % 3 === 0 ? 0.5 : i % 2 === 0 ? -0.4 : 0.1;
+    return { key: toDateKey(d), kg: Math.round((92 - i * 0.12 + noise) * 10) / 10 };
+  });
+
   return (
     <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom))]">
       <header
@@ -41,7 +49,7 @@ export default function PreviewHomePage() {
         <HomeScreen
           todayKey={todayKey}
           userId="preview-local"
-          weight={[]}
+          weight={sampleWeight}
           unit="kg"
           firstName="Adrian"
         />
