@@ -47,9 +47,9 @@ const useIsoLayoutEffect =
  * opens the unchanged Add-to-Stack flow; Calculator opens the reconstitution
  * calculator; Weight opens the quick log-today's-weight popup; Journal and Blood
  * work navigate to Progress and open its real journal-compose / bloodwork-gallery
- * flows (via `requestProgressAction`); only Calendar still opens the shared
- * placeholder. Opening any child flow closes this menu first, so only one bottom
- * sheet is on screen at a time.
+ * flows (via `requestProgressAction`); Calendar routes to /calendar. Opening any
+ * child flow closes this menu first, so only one bottom sheet is on screen at a
+ * time.
  */
 export function ShortcutsMenu({
   open,
@@ -228,7 +228,8 @@ export function ShortcutsMenu({
         userId={userId}
       />
 
-      {/* Calendar → the shared placeholder (Journal + Blood work are real now). */}
+      {/* Shared placeholder — retained for reuse; no tile triggers it now
+          (Calendar routes to /calendar). */}
       <PlaceholderActionSheet
         open={placeholder !== null}
         onClose={() => setPlaceholder(null)}

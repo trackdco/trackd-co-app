@@ -24,12 +24,20 @@ export default function PreviewHomePage() {
     return { key: toDateKey(d), kg: Math.round((92 - i * 0.12 + noise) * 10) / 10 };
   });
 
-  // A latest session for the Progress-photos glance (no signed URLs offline —
-  // the tiles render as placeholders so the strip layout is reviewable).
+  // A latest session for the Progress-photos glance (mock portraits so the
+  // compact card size is reviewable; the real app uses signed URLs).
+  const mockPhoto = (label: string) =>
+    `data:image/svg+xml;utf8,${encodeURIComponent(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='400'>` +
+        `<rect width='100%' height='100%' fill='#242422'/>` +
+        `<circle cx='150' cy='150' r='90' fill='#2A2A28'/>` +
+        `<text x='150' y='380' fill='#7A7A74' font-family='sans-serif' font-size='16' text-anchor='middle'>${label}</text>` +
+        `</svg>`,
+    )}`;
   const sampleProgressPhotos = [
-    { id: "p1", pose: "front-relaxed", date: todayKey, url: null, weightKg: null, note: null },
-    { id: "p2", pose: "side-relaxed", date: todayKey, url: null, weightKg: null, note: null },
-    { id: "p3", pose: "back-relaxed", date: todayKey, url: null, weightKg: null, note: null },
+    { id: "p1", pose: "front-relaxed", date: todayKey, url: mockPhoto("Front"), weightKg: null, note: null },
+    { id: "p2", pose: "side-relaxed", date: todayKey, url: mockPhoto("Side"), weightKg: null, note: null },
+    { id: "p3", pose: "back-relaxed", date: todayKey, url: mockPhoto("Back"), weightKg: null, note: null },
   ];
 
   return (

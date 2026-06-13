@@ -11,8 +11,11 @@ import {
   type EntryMarker,
   type MarkerCatalogueItem,
 } from "@/lib/progress/journal";
+import type { CalendarPhoto } from "@/lib/calendar/calendar";
 
 export const metadata: Metadata = { title: "Calendar — Trackd Co" };
+
+const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every page load
 
 /**
  * The Calendar tab's route — reached from the calendar shortcut on the Dashboard
@@ -37,6 +40,7 @@ export default async function CalendarPage() {
     { data: entryData },
     { data: readingData },
     { data: userMarkerData },
+    { data: photoData },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -58,6 +62,12 @@ export default async function CalendarPage() {
       .order("entry_date", { ascending: false }),
     supabase.from("marker_readings").select("entry_id, user_marker_id, tier_value"),
     supabase.from("user_markers").select("id, marker_id"),
+    supabase
+      .from("progress_photos")
+      .select("id, pose, taken_on, created_at, storage_path")
+      .order("taken_on", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1000),
   ]);
 
   // Weight by day (kg).
@@ -112,10 +122,37 @@ export default async function CalendarPage() {
     };
   }
 
+  // ── Progress photos: sign each path (private bucket), group by day ──
+  const photoRows = photoData ?? [];
+  const photoPaths = photoRows
+    .map((p) => p.storage_path as string | null)
+    .filter((p): p is string => Boolean(p));
+  const photoSigned = new Map<string, string>();
+  if (photoPaths.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from("progress-photos")
+      .createSignedUrls(photoPaths, SIGNED_URL_TTL);
+    for (const s of signed ?? []) {
+      if (s.path && s.signedUrl) photoSigned.set(s.path, s.signedUrl);
+    }
+  }
+  const photosByDate: Record<DateKey, CalendarPhoto[]> = {};
+  for (const p of photoRows) {
+    const date =
+      (p.taken_on as string | null) ??
+      toDateKey(new Date(p.created_at as string));
+    (photosByDate[date] ??= []).push({
+      id: p.id as string,
+      pose: p.pose as string,
+      url: photoSigned.get(p.storage_path as string) ?? null,
+    });
+  }
+
   return (
     <CalendarScreen
       weightByDate={weightByDate}
       journalByDate={journalByDate}
+      photosByDate={photosByDate}
       userId={user.id}
       todayKey={toDateKey(new Date())}
       unitPreference={profile?.units_preference ?? "metric"}

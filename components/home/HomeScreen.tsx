@@ -460,6 +460,7 @@ export function HomeScreen({
             userId={userId}
             todayKey={todayKey}
             unit={unit}
+            compact
           />
         </div>
 

@@ -24,11 +24,14 @@ export function ProgressPhotoCard({
   unit,
   onOpen,
   onView,
+  compact = false,
 }: {
   photos: ProgressPhoto[];
   unit: WeightUnit;
   onOpen: () => void;
   onView: (photo: ProgressPhoto) => void;
+  /** Home glance: render the photo shorter so the card doesn't dominate. */
+  compact?: boolean;
 }) {
   const day = latestDay(photos);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -100,7 +103,14 @@ export function ProgressPhotoCard({
             <span className="block overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
               {p.url && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.url} alt="" className="aspect-[3/4] w-full object-cover object-top" />
+                <img
+                  src={p.url}
+                  alt=""
+                  className={cn(
+                    "w-full object-cover object-top",
+                    compact ? "h-56" : "aspect-[3/4]",
+                  )}
+                />
               )}
             </span>
           </button>

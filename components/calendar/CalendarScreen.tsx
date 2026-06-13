@@ -13,6 +13,7 @@ import { LegendSheet } from "@/components/calendar/LegendSheet";
 import {
   buildMonthMatrix,
   resolveDayStatus,
+  type CalendarPhoto,
   type DayInfo,
   type LoggedCompound,
   type MonthCell,
@@ -52,6 +53,8 @@ interface CalendarScreenProps {
   weightByDate: Record<DateKey, number>;
   /** Journal entry (body + markers) keyed by day. */
   journalByDate: Record<DateKey, CalendarJournalDay>;
+  /** Progress photos (signed) keyed by day. */
+  photosByDate: Record<DateKey, CalendarPhoto[]>;
   /** Scopes the device-local stack + dose-log reads. */
   userId: string;
   todayKey: DateKey;
@@ -101,6 +104,7 @@ function buildRunning(
 export function CalendarScreen({
   weightByDate,
   journalByDate,
+  photosByDate,
   userId,
   todayKey,
   unitPreference,
@@ -144,20 +148,23 @@ export function CalendarScreen({
   function infoFor(key: DateKey): DayInfo {
     const j = journalByDate[key];
     const loggedDose = deviceReady && Boolean(logs[key]);
+    const hasPhoto = (photosByDate[key]?.length ?? 0) > 0;
     const hasJournal = Boolean(j && (j.body?.trim() || j.markers.length));
     const hasWeight = weightByDate[key] != null;
     const scheduled =
       deviceReady &&
       activeStack.some((c) => isDueOn(c.schedule, dateKeyToDate(key)));
-    const logged = loggedDose || hasJournal || hasWeight;
+    const logged = loggedDose || hasPhoto || hasJournal || hasWeight;
     const status = resolveDayStatus(logged, scheduled, key > todayKey);
     const kind = loggedDose
       ? "dose"
-      : hasJournal
-        ? "journal"
-        : hasWeight
-          ? "weight"
-          : null;
+      : hasPhoto
+        ? "photo"
+        : hasJournal
+          ? "journal"
+          : hasWeight
+            ? "weight"
+            : null;
     return { status, kind };
   }
 
@@ -217,6 +224,7 @@ export function CalendarScreen({
         markers={selJournal?.markers ?? []}
         journalBody={selJournal?.body ?? null}
         hasJournalEntry={Boolean(selJournal)}
+        photos={photosByDate[selectedKey] ?? []}
         onOpenWeight={() => {
           setSheetOpen(false);
           router.push("/weight");
@@ -224,6 +232,11 @@ export function CalendarScreen({
         onOpenJournal={() => {
           setSheetOpen(false);
           requestProgressAction("journal-open", selectedKey);
+          router.push("/progress");
+        }}
+        onOpenPhotos={() => {
+          setSheetOpen(false);
+          requestProgressAction("photos-gallery");
           router.push("/progress");
         }}
       />

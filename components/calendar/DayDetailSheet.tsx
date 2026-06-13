@@ -19,7 +19,7 @@ import { siteLabel } from "@/lib/home/siteCatalog";
 import { formatJournalDate, type EntryMarker } from "@/lib/progress/journal";
 import { formatWeight, type WeightUnit } from "@/lib/weight";
 import type { DateKey } from "@/lib/home/mockHomeData";
-import type { LoggedCompound } from "@/lib/calendar/calendar";
+import type { CalendarPhoto, LoggedCompound } from "@/lib/calendar/calendar";
 
 interface DayDetailSheetProps {
   open: boolean;
@@ -37,10 +37,14 @@ interface DayDetailSheetProps {
   journalBody: string | null;
   /** Whether a journal entry exists for the day (enables the deep-link). */
   hasJournalEntry: boolean;
+  /** Progress photos taken that day (signed for display). */
+  photos: CalendarPhoto[];
   /** Deep-link to the canonical weight view. */
   onOpenWeight: () => void;
   /** Deep-link to that day's entry in the Journal. */
   onOpenJournal: () => void;
+  /** Deep-link to the progress-photo gallery. */
+  onOpenPhotos: () => void;
 }
 
 /**
@@ -60,8 +64,10 @@ export function DayDetailSheet({
   markers,
   journalBody,
   hasJournalEntry,
+  photos,
   onOpenWeight,
   onOpenJournal,
+  onOpenPhotos,
 }: DayDetailSheetProps) {
   const { cardRef, handleProps, cardStyle } = useSheetDrag(
     () => onOpenChange(false),
@@ -164,9 +170,36 @@ export function DayDetailSheet({
                 )}
               </Row>
 
-              {/* 5 — Photos (RESERVED — empty pending the storage decision). */}
+              {/* 5 — Photos (that day's progress photos; deep-links to the gallery). */}
               <Row label="Photos">
-                <p className="text-sm text-text-subtle">Reserved</p>
+                {photos.length === 0 ? (
+                  <Empty />
+                ) : (
+                  <DeepLink onClick={onOpenPhotos}>
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                      {photos.slice(0, 4).map((p) => (
+                        <span
+                          key={p.id}
+                          className="h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-border-default bg-bg-surface-raised"
+                        >
+                          {p.url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={p.url}
+                              alt=""
+                              className="h-full w-full object-cover object-top"
+                            />
+                          )}
+                        </span>
+                      ))}
+                      {photos.length > 4 && (
+                        <span className="self-center text-xs text-text-subtle">
+                          +{photos.length - 4}
+                        </span>
+                      )}
+                    </span>
+                  </DeepLink>
+                )}
               </Row>
             </div>
           </div>

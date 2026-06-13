@@ -8,6 +8,7 @@ import { AddProgressPhotoSheet } from "@/components/progress/AddProgressPhotoShe
 import { EditDaySheet } from "@/components/progress/EditDaySheet";
 import { ProgressPhotoViewer } from "@/components/progress/ProgressPhotoViewer";
 import { ComparePhotosSheet } from "@/components/progress/ComparePhotosSheet";
+import { useProgressAction } from "@/components/progress/useProgressAction";
 import { customPosesIn, type ProgressPhoto } from "@/lib/progress/photos";
 import type { WeightUnit } from "@/lib/weight";
 
@@ -24,11 +25,14 @@ export function ProgressPhotoSection({
   userId,
   todayKey,
   unit,
+  compact = false,
 }: {
   photos: ProgressPhoto[];
   userId: string;
   todayKey: string;
   unit: WeightUnit;
+  /** Home glance: render the photo card shorter. */
+  compact?: boolean;
 }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -41,6 +45,9 @@ export function ProgressPhotoSection({
   const [viewReturn, setViewReturn] = useState<Return>("none");
 
   const customPoses = customPosesIn(photos);
+
+  // The Calendar's Photos row deep-links here → open the photo gallery.
+  useProgressAction("photos-gallery", () => setGalleryOpen(true));
 
   function openAdd(date: string | undefined, ret: Return) {
     setAddDate(date);
@@ -57,6 +64,7 @@ export function ProgressPhotoSection({
       <ProgressPhotoCard
         photos={photos}
         unit={unit}
+        compact={compact}
         onOpen={() => setGalleryOpen(true)}
         onView={(p) => {
           setViewReturn("none");

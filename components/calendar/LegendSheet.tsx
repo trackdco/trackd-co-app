@@ -21,7 +21,7 @@ const KEY: { status: CalendarDayStatus; title: string; body: string }[] = [
   {
     status: "logged",
     title: "Logged",
-    body: "Filled disc. You logged at least one dose, journal entry, or weight on this day. The icon below shows which.",
+    body: "Filled disc. You logged at least one dose, photo, journal entry, or weight on this day. The icon below shows which.",
   },
   {
     status: "scheduled",
