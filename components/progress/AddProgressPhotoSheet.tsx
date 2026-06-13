@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
+import { Camera, Check, Loader2, Plus, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -198,20 +198,24 @@ export function AddProgressPhotoSheet({
               Tap a pose to take or choose a photo — fill any or all, then submit.
             </p>
 
-            {/* Pose tiles */}
-            <div className="mt-4 grid grid-cols-3 gap-2.5">
+            {/* Pose circles — tap to take or choose a photo for each. Compact so
+                the sheet stays short instead of scrolling. */}
+            <div className="mt-4 flex flex-wrap gap-3">
               {slots.map((pose) => {
                 const att = attachments[pose];
                 const shape = poseShape(pose);
                 return (
-                  <div key={pose} className="animate-shortcut-in flex flex-col gap-1.5">
+                  <div
+                    key={pose}
+                    className="animate-shortcut-in flex w-[4.5rem] flex-col items-center gap-1.5"
+                  >
                     <div className="relative">
                       <button
                         type="button"
                         onClick={() => pickFor(pose)}
                         aria-label={`${att ? "Replace" : "Add"} ${poseLabel(pose)} photo`}
                         className={cn(
-                          "flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-xl border transition-colors",
+                          "flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border transition-colors",
                           att
                             ? "border-accent-amber/50"
                             : "border-dashed border-border-strong bg-bg-input/40 text-text-muted hover:bg-bg-input/70",
@@ -220,15 +224,10 @@ export function AddProgressPhotoSheet({
                         {att ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={att.previewUrl} alt="" className="h-full w-full object-cover object-top" />
+                        ) : shape ? (
+                          <PoseIcon shape={shape} className="h-9 w-7" />
                         ) : (
-                          <span className="flex flex-col items-center gap-1.5">
-                            {shape ? (
-                              <PoseIcon shape={shape} className="h-9 w-7" />
-                            ) : (
-                              <Camera className="h-6 w-6" aria-hidden />
-                            )}
-                            <span className="text-[10px] font-medium">Add photo</span>
-                          </span>
+                          <Camera className="h-6 w-6" aria-hidden />
                         )}
                       </button>
                       {att && (
@@ -236,7 +235,7 @@ export function AddProgressPhotoSheet({
                           type="button"
                           onClick={() => removeAttachment(pose)}
                           aria-label={`Remove ${poseLabel(pose)} photo`}
-                          className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-bg-base/80 text-text-primary"
+                          className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-bg-base/80 text-text-primary"
                         >
                           <X className="h-3.5 w-3.5" aria-hidden />
                         </button>
@@ -249,17 +248,16 @@ export function AddProgressPhotoSheet({
                 );
               })}
 
-              {/* Add a pose tile. */}
-              <div className="flex flex-col gap-1.5">
+              {/* Add a pose. */}
+              <div className="flex w-[4.5rem] flex-col items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setPickerOpen((o) => !o)}
                   aria-expanded={pickerOpen}
                   aria-label="Add a pose"
-                  className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-1 rounded-xl border border-border-default bg-bg-surface-raised text-text-muted transition-colors hover:text-foreground"
+                  className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border border-border-default bg-bg-surface-raised text-text-muted transition-colors hover:text-foreground"
                 >
                   <Plus className="h-6 w-6" aria-hidden />
-                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", pickerOpen && "rotate-180")} aria-hidden />
                 </button>
                 <span className="text-center text-[11px] leading-tight text-text-muted">
                   Add pose
