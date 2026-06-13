@@ -30,6 +30,14 @@ Last updated: 2026-06-13
 
 ## Completed
 
+- **Weight glance card — on-card Trend/Scale toggle + crossfade (2026-06-13).**
+  The shared `WeightGlanceCard` (used on both Home and Progress) gained a **Trend /
+  Scale** toggle right on the card that opacity-**crossfades** the value, delta, and
+  sparkline between the smoothed trend and the raw scale (matching the full
+  `/weight` view). Restructured to a header (label + toggle) over a tappable
+  content row so the toggle doesn't fire the navigate-to-`/weight`. `tsc` + `lint`
+  + prod `build` clean.
+
 - **Progress tab built end-to-end (Spec 09 + founder-directed evolutions)
   (2026-06-13).** The whole Progress screen — a single vertical scroll on the
   Obsidian canvas, wired to real per-user Supabase data — built section by section
