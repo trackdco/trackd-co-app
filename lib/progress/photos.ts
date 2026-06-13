@@ -20,6 +20,8 @@ export interface ProgressPhoto {
   url: string | null;
   /** bodyweight (kg) logged on this date, if any — links weight ↔ photo */
   weightKg: number | null;
+  /** optional per-session note ("notes about the physique") */
+  note: string | null;
 }
 
 export type PoseShape = "relaxed" | "side" | "biceps" | "lat" | "abs" | "crab";

@@ -124,6 +124,11 @@ export function ProgressPhotoViewer({
                     Couldn&apos;t load this image.
                   </p>
                 )}
+                {shown.note && (
+                  <p className="mt-3 rounded-xl bg-bg-surface-raised px-4 py-3 text-sm whitespace-pre-wrap text-foreground">
+                    {shown.note}
+                  </p>
+                )}
                 {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
               </div>
 

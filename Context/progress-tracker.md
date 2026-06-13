@@ -72,6 +72,10 @@ Last updated: 2026-06-13
     auto-categorised. **DB:** `progress_photos` migration (table + private
     `progress-photos` bucket + RLS + grants), applied live + tracked in
     `supabase/progress/001_progress_photos.sql` → live DB now **23 tables**.
+    Adding photos is a **multi-pose session** (Front/Side/Back + more on one page,
+    submit together via a batch insert) with an optional **note** about the physique
+    (`002_progress_photo_note.sql` adds `progress_photos.note`, shown in the viewer +
+    day editor).
   - **Verified:** `tsc` + `eslint` + prod `build` clean (27 routes); every write
     path (bloodwork panel + note, journal entry + markers + word mapping, progress
     photo + custom pose) exercised against the live DB via MCP and rolled back;

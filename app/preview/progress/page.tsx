@@ -174,16 +174,22 @@ export default async function PreviewProgressPage({
 
   // Progress photos: full sessions across months, weight-linked, plus customs.
   const w = (daysAgo: number) => Math.round((92 + daysAgo * 0.03) * 10) / 10;
-  const session = (prefix: string, daysAgo: number, poses: string[]): ProgressPhoto[] =>
+  const session = (
+    prefix: string,
+    daysAgo: number,
+    poses: string[],
+    note: string | null = null,
+  ): ProgressPhoto[] =>
     poses.map((pose, i) => ({
       id: `${prefix}-${i}`,
       pose,
       date: dk(daysAgo),
       url: mockPhoto(pose, dk(daysAgo)),
       weightKg: w(daysAgo),
+      note,
     }));
   const progressPhotos: ProgressPhoto[] = [
-    ...session("d1", 4, ["front-relaxed", "side-relaxed", "back-relaxed"]),
+    ...session("d1", 4, ["front-relaxed", "side-relaxed", "back-relaxed"], "Conditioning coming in — vascularity up, waist tight."),
     ...session("d2", 12, ["front-relaxed", "side-relaxed", "back-relaxed", "most-muscular"]),
     ...session("d3", 40, ["front-relaxed", "side-chest"]),
     ...session("d4", 70, ["front-relaxed", "front-double-biceps"]),
