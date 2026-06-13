@@ -40,6 +40,12 @@ export function JournalSection({
     setFeedOpen(true);
   });
 
+  // The Calendar's Journal row deep-links a specific day → open that day's entry
+  // for review/edit (same as tapping it in the feed).
+  useProgressAction("journal-open", (signal) => {
+    if (signal.date) openEditor({ mode: "edit", initialDate: signal.date });
+  });
+
   function openEditor(config: EditorConfig) {
     setEditor(config);
     setFeedOpen(false);

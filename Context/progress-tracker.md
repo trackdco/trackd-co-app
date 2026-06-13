@@ -30,6 +30,63 @@ Last updated: 2026-06-13
 
 ## Completed
 
+- **Calendar screen built + Milligram redesign — Spec 10 (2026-06-13) —
+  `tsc`+`lint`+prod `build` clean (27 routes); on the working tree, NOT committed
+  (awaiting Adrian's on-device QA).** The `/calendar` route went from the "Coming
+  soon" placeholder to the real **date-first "look back"**. Built first to spec
+  (month grid + muted dots + day sheet), then **redesigned to the Milligram format
+  at Adrian's direction** (he supplied the reference + "switch between things at
+  the top right"). New files under `components/calendar/` (`CalendarScreen` ·
+  `MonthGrid` · `MonthYearPicker` · `AgendaList` · `DayDetailSheet` · `LegendSheet`)
+  + `lib/calendar/calendar.ts` (pure date helpers + the ring-status model); server
+  data fetch in `app/(app)/calendar/page.tsx`; dev harness `/preview/calendar`
+  (404 in prod) verified headlessly at 390 px (month grid, picker, agenda, legend).
+  - **Entry point:** kept the **existing Dashboard-header calendar icon** (no
+    change to the Progress header, no sixth nav tab) — Adrian's call over the
+    spec's proposed Progress-header icon.
+  - **Top-right corner:** a Month ⇄ Agenda switcher (and an agenda list) was built
+    then **removed at Adrian's direction** ("doesn't do much") — the corner is now
+    clean, just the month grid. A per-compound **filter** was prototyped + parked
+    (re-addable in one step). The per-compound "Protocol"/concentration view from
+    the Milligram flow stays deferred to its own spec. (`AgendaList.tsx` +
+    `CompoundFilter.tsx` deleted.)
+  - **Month grid = adherence RINGS** (the Milligram "Calendar key"): filled white
+    disc = **logged** (a dose / journal / weight + a tiny type icon — syringe /
+    pen / scale), dotted ring = **scheduled-unlogged** (past missed + upcoming),
+    regular stroke = **no dose that day** (past/rest), faint stroke = **nothing
+    scheduled** (future / pre-protocol). Selected day amber (the ONLY amber);
+    Mon-first; out-of-month dimmed. Scheduled-or-not derives from the device
+    stack's cadence (`isDueOn`); stays health-data-neutral (white/stroke, never
+    green/red). A **"June 2026 ⌄" month/year picker** (year stepper + month grid)
+    replaces chevrons; footer has **Today** + an **ⓘ** → the **Calendar key**
+    legend sheet.
+  - **Day detail sheet:** reuses the app bottom-sheet primitive (`Sheet` +
+    `useSheetDrag` + drag handle); rows in order **Running → Weight → Markers →
+    Journal → Photos**. **Read-only** — Weight deep-links to `/weight`, Journal
+    deep-links to **that day's entry editor** on `/progress`; the Calendar itself
+    creates/edits nothing. **Photos** is a reserved/empty stub (no photo content,
+    source, upload, or storage wired — pending the storage decision).
+  - **Deep-link wiring:** a small **additive** extension to the existing
+    `lib/progress/progressAction` signal — a new `journal-open` action that carries
+    the day, handled by `JournalSection` to open that date's entry (mirrors tapping
+    it in the feed). `useProgressAction`'s callback now receives the signal so
+    handlers can read `signal.date`; existing `journal-compose` / `bloodwork-gallery`
+    callers are unaffected.
+  - **Data — real, user-scoped, read-only, no schema/mock:** the server page reads
+    weight (`weight_logs`) + journal/markers (`journal_entries` → `marker_readings`
+    → `user_markers` → `markers`, the same stitch the Progress page uses) keyed by
+    day (RLS scopes to the user); `CalendarScreen` adds the **device-local** dose-log
+    read (`lib/home/doseLog` + `stack`) for "Running" + the active band, gated on
+    mount so SSR stays deterministic. No tables created or altered.
+  - **Two spec FLAGS reconciled (Spec 10 says "FLAG, don't guess"):** (1) the spec
+    proposed a Progress-header entry point, but one already existed on the Dashboard
+    header → kept the Dashboard one (Adrian). (2) The spec's "Running" row wants
+    cycle/compound **date-ranges**, but the cycles/`protocol_compounds` model isn't
+    wired — the only schedule data is the device stack's per-compound start date +
+    cadence (**no end date**) → per Adrian's call, "Running" shows **only what was
+    actually logged that day**, and a day is "active" iff a dose was logged on it.
+    Revisit to use true date-ranges once the normalised cycles model lands.
+
 - **Weight graph load-in + weight-log by month, Profile load-in, Home photos
   unified, mobile padding pass (2026-06-13) — `tsc` clean; on the working tree,
   NOT yet committed (awaiting Adrian's on-device review).** A founder-directed

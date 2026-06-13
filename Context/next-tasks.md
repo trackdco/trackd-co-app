@@ -15,7 +15,61 @@ Last updated: 2026-06-13
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-13 (Adrian + Claude): Weight graph load-in + weight-log by
+**Latest — 2026-06-13 (Adrian + Claude): CALENDAR screen built + Milligram redesign
+(Spec 10) — BUILT, `tsc`+`lint`+prod `build` clean (27 routes), on the working tree
+(NOT committed; awaiting Adrian's on-device QA).** The `/calendar` placeholder is
+now the real date-first "look back". Built first to spec (month grid + muted dots +
+day sheet), then **redesigned to the Milligram format at Adrian's direction** (he
+supplied the reference + "switch between things at the top right"). Verified
+headlessly at 390 px via the new dev harness **`/preview/calendar`** (404 in prod):
+month grid, month/year picker, agenda, legend all render.
+- **Entry point (DECISION):** kept the **existing Dashboard-header calendar icon**
+  only (Adrian's call); the Progress header was left untouched. No sixth nav tab.
+- **Top-right corner:** a Month ⇄ Agenda switcher (+ agenda list) was built then
+  **removed at Adrian's direction** ("doesn't do much") — the corner is clean now,
+  just the month grid + the "June 2026 ⌄" picker. A per-compound **filter** was
+  prototyped + parked (re-addable in one step). The per-compound "Protocol"/
+  concentration-curve view from the Milligram flow stays deferred to its own spec.
+- **Month grid = adherence RINGS** (`MonthGrid.tsx`, the Milligram "Calendar key"):
+  filled white disc = **logged** (dose/journal/weight + tiny type icon), dotted ring
+  = **scheduled-unlogged** (past missed + upcoming), regular stroke = **no dose that
+  day**, faint stroke = **nothing scheduled** (future / pre-protocol). Selected day
+  amber (the only amber); Mon-first; out-of-month dimmed; scheduled-or-not from the
+  device stack's cadence (`isDueOn`); health-data-neutral (white/stroke, never
+  green/red). A **"June 2026 ⌄" month/year picker** (`MonthYearPicker.tsx`, year
+  stepper + month grid) replaces chevrons; footer has **Today** + an **ⓘ** → the
+  **Calendar key** legend sheet (`LegendSheet.tsx`).
+- **Day detail sheet** (`DayDetailSheet.tsx`, reuses the app bottom-sheet primitive
+  + `useSheetDrag`): rows in order **Running → Weight → Markers → Journal → Photos**.
+  Weight deep-links to `/weight`; Journal deep-links to **that day's entry editor**
+  on `/progress` (small additive extension to `progressAction` — new `journal-open`
+  action carrying the date). Photos row is a **reserved/empty stub**. Read-only —
+  the Calendar creates/edits nothing.
+- **Data (real, user-scoped, read-only):** the page (`app/(app)/calendar/page.tsx`)
+  server-fetches weight (`weight_logs`) + journal/markers (`journal_entries` →
+  `marker_readings` → `user_markers` → `markers`, same stitch as Progress) keyed by
+  day; `CalendarScreen` adds the device-local **dose-log + stack** read
+  (`lib/home/doseLog` + `stack`) for "Running" + the ring states, after mount (SSR
+  stays deterministic).
+- **FLAGS reconciled (per Spec 10's "FLAG, don't guess"):** (1) the spec proposed a
+  Progress-header entry point but one already existed on the Dashboard header →
+  kept Dashboard (Adrian). (2) There is **no cycle/protocol date-range model** yet
+  (only the device stack's per-compound start date + cadence, no end date) → the
+  **"Running" row shows only what was actually logged that day** (Adrian's call); a
+  day reads as "logged" if a dose/journal/weight is present, and "scheduled" from
+  cadence. When the normalised cycles/`protocol_compounds` model lands, revisit to
+  use true date-ranges (and it unlocks the deferred per-compound Protocol view).
+
+**Next:** Adrian QAs on device — `/preview/calendar` for the visual, and the real
+`/calendar` signed-in (page months via the picker, tap days, rings match real data,
+Weight + Journal deep-links land, Photos stays a stub) → then fold into the pending
+working-tree branch with the other uncommitted work → commit/PR. (Ideas parked: a
+per-compound **filter** in the corner; the per-compound **Protocol view** —
+adherence ring + concentration curve from the Milligram flow — as its own spec.)
+
+---
+
+**Earlier — 2026-06-13 (Adrian + Claude): Weight graph load-in + weight-log by
 month, Profile load-in, Home photos unified, mobile padding pass — BUILT, `tsc`
 clean, on the working tree (NOT committed; awaiting Adrian's on-device QA).**
 - Weight `/weight` graph now loads in + re-animates on a range change like
