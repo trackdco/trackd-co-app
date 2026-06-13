@@ -21,7 +21,9 @@ import {
  *  - `weight`      → the quick log-today's-weight popup (the full Weight view,
  *                    with the graph + history, is reached by tapping the home
  *                    Weight card)
- *  - `placeholder` → the shared not-yet-built sheet
+ *  - `journal`     → go to Progress and open the journal compose (Write / Markers)
+ *  - `bloodwork`   → go to Progress and open the bloodwork gallery (view + add)
+ *  - `placeholder` → the shared not-yet-built sheet (only Calendar now)
  *
  * No UI lives in this file. Only the reconstitution calculator carries a
  * `warning` (its placeholder is gone now that the real tool exists, but the line
@@ -32,6 +34,8 @@ export type ShortcutAction =
   | "add-stack"
   | "calculator"
   | "weight"
+  | "journal"
+  | "bloodwork"
   | "placeholder"
 
 export interface ShortcutItem {
@@ -77,7 +81,7 @@ export const GRID_ITEMS: ShortcutItem[] = [
     title: "Journal",
     subtitle: "Free-write and track how you feel",
     icon: NotebookPen,
-    action: "placeholder",
+    action: "journal",
     shortLabel: "Journal",
   },
   {
@@ -91,9 +95,9 @@ export const GRID_ITEMS: ShortcutItem[] = [
   {
     id: "blood-work",
     title: "Blood work",
-    subtitle: "Enter and review your bloods",
+    subtitle: "View and add your bloods",
     icon: ClipboardList,
-    action: "placeholder",
+    action: "bloodwork",
     shortLabel: "Blood work",
   },
   {

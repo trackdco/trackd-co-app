@@ -30,6 +30,43 @@ Last updated: 2026-06-13
 
 ## Completed
 
+- **UI-consistency pass + Home photo peek + journal-by-month + unified graphs +
+  wired `+`-menu Journal/Blood work (2026-06-13) — `tsc`+`lint`+prod `build` clean
+  (27 routes); committed + merged + pushed to `main` (prod). ▶ Adrian QAs on-device.**
+  A founder-directed polish run across Home + Progress:
+  - **One card system.** New shared presets in `lib/ui-presets.ts` — `CARD_TITLE`
+    (display **serif**, white, matching Today's Log + the greeting) and
+    `CARD_ICON_BADGE` (the **amber** icon badge). Every section/glance-card title
+    (Today's Log, Weight, Progress photos, Bloodwork, Journal, Consistency,
+    Reconstitution Calculator) now uses `CARD_TITLE`; every card icon uses the amber
+    badge — the Reconstitution Calculator's white circle → amber, and Consistency
+    **gained** an amber `Activity` icon. `ui-context.md` updated (title rule + icon
+    rule + a new **Charts** section). Profile deliberately left as-is (Adrian's call).
+  - **Home progress-photos peek.** New `ProgressPhotosGlanceCard` — a small,
+    non-expandable thumbnail strip of the latest session, under the Weight card,
+    tapping through to `/progress`. **Kept separate from Weight (not merged)** per
+    Adrian. The dashboard page now fetches + signs the latest 12 photos and threads
+    them in; empty state is a gentle "add your first photo" prompt. The Weight card
+    is unchanged everywhere (incl. Progress).
+  - **Weight in the Add-photos flow.** `AddProgressPhotoSheet` gained an optional
+    **Weight** field that logs to `weight_logs` for the session's date (mirrors the
+    weight quick-log's attach-photos). `unit` threaded via `ProgressPhotoSection`.
+  - **Journal feed by month.** `JournalFeedSheet` groups entries under **month
+    headings** with an on-brand **month dropdown** filter (`groupJournalByMonth` +
+    `formatMonthLabel` added to `lib/progress/journal.ts`).
+  - **Unified graphs.** Consistency converted from a **bar chart → a line + downward
+    gradient fill** (thick→thin); on a **rest day the line holds flat at the previous
+    day's value** (carry-forward, not an interpolated slope) while the scrubber still
+    reads "Rest day". The Weight trend fill switched to the same gradient so both
+    graphs match. Convention recorded in `ui-context.md` → Charts.
+  - **`+`-menu Journal + Blood work wired to the real flows.** They were placeholders;
+    now tapping **Journal** goes to Progress and opens the journal compose (Write /
+    Markers branch expanded → saves to the journal), and **Blood work** opens the
+    bloodwork gallery (view recent + add). Done via a tiny client signal
+    (`lib/progress/progressAction.ts` + `useProgressAction`) so the global nav reuses
+    the Progress screen's own data/flows instead of duplicating fetches; only
+    **Calendar** still uses the placeholder. No schema/token/dependency changes.
+
 - **Weight glance card — on-card Trend/Scale toggle + crossfade (2026-06-13).**
   The shared `WeightGlanceCard` (used on both Home and Progress) gained a **Trend /
   Scale** toggle right on the card that opacity-**crossfades** the value, delta, and

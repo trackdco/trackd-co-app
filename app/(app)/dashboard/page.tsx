@@ -3,7 +3,10 @@ import type { Metadata } from "next";
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import { unitForPreference } from "@/lib/weight";
+import type { ProgressPhoto } from "@/lib/progress/photos";
 import { createClient } from "@/lib/supabase/server";
+
+const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every load
 
 export const metadata: Metadata = {
   title: "Home — Trackd Co",
@@ -45,15 +48,51 @@ export default async function DashboardPage() {
   const firstName =
     fullName.trim().split(/\s+/)[0] || user?.email?.split("@")[0] || null;
 
-  // RLS scopes this to the signed-in user; oldest → newest for the sparkline.
-  const { data } = await supabase
-    .from("weight_logs")
-    .select("logged_for, weight")
-    .order("logged_for", { ascending: true })
-    .limit(400);
-  const weight = (data ?? []).map((r) => ({
+  // RLS scopes both to the signed-in user. Weight: oldest → newest for the
+  // sparkline. Photos: newest first — just enough to cover the latest session for
+  // the Home glance peek (the full gallery lives on the Progress tab).
+  const [{ data: weightData }, { data: photoData }] = await Promise.all([
+    supabase
+      .from("weight_logs")
+      .select("logged_for, weight")
+      .order("logged_for", { ascending: true })
+      .limit(400),
+    supabase
+      .from("progress_photos")
+      .select("id, pose, taken_on, created_at, storage_path")
+      .order("taken_on", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(12),
+  ]);
+  const weight = (weightData ?? []).map((r) => ({
     key: r.logged_for as string,
     kg: Number(r.weight),
+  }));
+
+  // Sign the latest photos' paths for display (the bucket is private). Only the
+  // glance peek uses them, so weight/note aren't needed here.
+  const photoRows = photoData ?? [];
+  const photoPaths = photoRows
+    .map((p) => p.storage_path as string | null)
+    .filter((p): p is string => Boolean(p));
+  const photoSigned = new Map<string, string>();
+  if (photoPaths.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from("progress-photos")
+      .createSignedUrls(photoPaths, SIGNED_URL_TTL);
+    for (const s of signed ?? []) {
+      if (s.path && s.signedUrl) photoSigned.set(s.path, s.signedUrl);
+    }
+  }
+  const progressPhotos: ProgressPhoto[] = photoRows.map((p) => ({
+    id: p.id as string,
+    pose: p.pose as string,
+    date:
+      (p.taken_on as string | null) ??
+      toDateKey(new Date(p.created_at as string)),
+    url: photoSigned.get(p.storage_path as string) ?? null,
+    weightKg: null,
+    note: null,
   }));
 
   return (
@@ -63,6 +102,7 @@ export default async function DashboardPage() {
       weight={weight}
       unit={unitForPreference(profile?.units_preference)}
       firstName={firstName}
+      progressPhotos={progressPhotos}
     />
   );
 }

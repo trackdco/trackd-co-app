@@ -15,7 +15,45 @@ Last updated: 2026-06-13
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-13 (Adrian + Claude): the PROGRESS TAB is built end-to-end —
+**Latest — 2026-06-13 (Adrian + Claude): UI-consistency pass + Home photo peek +
+journal-by-month + unified graphs + wired `+`-menu Journal/Blood work — BUILT,
+`tsc`+`lint`+prod `build` clean (27 routes), COMMITTED + MERGED + PUSHED to `main`
+(prod) per Adrian.** A run of founder-directed polish:
+- **One card system (Home + Progress).** Every section/glance-card **title** now
+  uses the display serif in white via a new shared **`CARD_TITLE`** preset
+  (`lib/ui-presets.ts`), matching "Today's Log" / the greeting; every card **icon**
+  is the amber **`CARD_ICON_BADGE`** (the Reconstitution Calculator's white circle
+  → amber; Consistency **gained** an amber `Activity` icon). Documented in
+  `ui-context.md` (title rule + icon rule + a new **Charts** section).
+- **Home progress-photos peek.** New `ProgressPhotosGlanceCard` — a small,
+  non-expandable thumbnail strip of the latest session under the Weight card that
+  taps through to `/progress` (kept SEPARATE from Weight, not merged — Adrian's
+  call). Dashboard page now fetches + signs the latest 12 photos. Empty = a gentle
+  "add your first photo" prompt. Weight card unchanged everywhere.
+- **Weight in the Add-photos flow.** The "Add photos" session sheet
+  (`AddProgressPhotoSheet`) gained an optional **Weight** field that logs to
+  `weight_logs` for the session's date — the mirror of the weight quick-log's
+  attach-photos. (`unit` threaded through `ProgressPhotoSection`.)
+- **Journal feed by month.** `JournalFeedSheet` now groups entries under **month
+  headings** ("June 2026") with an on-brand **month dropdown** to filter to one
+  month (`groupJournalByMonth` + `formatMonthLabel` in `lib/progress/journal.ts`).
+- **Unified graphs.** Consistency is now a **line + downward gradient** (was a bar
+  chart); rest days **hold flat at the previous day's value** (carry-forward, not a
+  slope), scrubber still says "Rest day". The Weight graph's trend fill switched to
+  the same thick→thin gradient, so both graphs match. (`ui-context.md` → Charts.)
+- **`+`-menu Journal + Blood work wired.** Tapping **Journal** in the plus menu now
+  goes to Progress and opens the journal compose (Write / Markers → saves to the
+  journal); **Blood work** opens the bloodwork gallery (view recent + add). Via a
+  tiny client signal (`lib/progress/progressAction.ts` + `useProgressAction`); only
+  **Calendar** is still a placeholder (building it next).
+
+**▶ Next:** Adrian QAs on-device (Home peek with real photos → taps to Progress;
+add-photos-with-weight; journal month dropdown; both graphs; the plus-menu Journal +
+Blood work). Then: build the **Calendar** section.
+
+---
+
+**Earlier — 2026-06-13 (Adrian + Claude): the PROGRESS TAB is built end-to-end —
 committed, PR'd to `main`, merging.** Full Spec-09 screen + founder-directed
 evolutions: Title → Weight (summary hero → `/weight`) → **Progress photos**
 (MacroFactor month/day gallery, swipeable card, before/after compare, searchable

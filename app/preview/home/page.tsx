@@ -24,6 +24,14 @@ export default function PreviewHomePage() {
     return { key: toDateKey(d), kg: Math.round((92 - i * 0.12 + noise) * 10) / 10 };
   });
 
+  // A latest session for the Progress-photos glance (no signed URLs offline —
+  // the tiles render as placeholders so the strip layout is reviewable).
+  const sampleProgressPhotos = [
+    { id: "p1", pose: "front-relaxed", date: todayKey, url: null, weightKg: null, note: null },
+    { id: "p2", pose: "side-relaxed", date: todayKey, url: null, weightKg: null, note: null },
+    { id: "p3", pose: "back-relaxed", date: todayKey, url: null, weightKg: null, note: null },
+  ];
+
   return (
     <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom))]">
       <header
@@ -52,6 +60,7 @@ export default function PreviewHomePage() {
           weight={sampleWeight}
           unit="kg"
           firstName="Adrian"
+          progressPhotos={sampleProgressPhotos}
         />
       </main>
 

@@ -147,6 +147,7 @@ export function ProgressPhotoSection({
         todayKey={todayKey}
         customPoses={customPoses}
         initialDate={addDate}
+        unit={unit}
       />
     </>
   );

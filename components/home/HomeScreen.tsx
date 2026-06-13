@@ -13,12 +13,14 @@ import { HomeGreeting } from "@/components/home/HomeGreeting"
 import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
 import { WeightGlanceCard } from "@/components/home/WeightGlanceCard"
+import { ProgressPhotosGlanceCard } from "@/components/home/ProgressPhotosGlanceCard"
 import { ReconCalcCard } from "@/components/home/ReconCalcCard"
 import { ReconCalculatorSheet } from "@/components/home/ReconCalculatorSheet"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import type { WeightUnit } from "@/lib/weight"
+import type { ProgressPhoto } from "@/lib/progress/photos"
 import {
   dateKeyToDate,
   resolveDateKey,
@@ -116,6 +118,7 @@ export function HomeScreen({
   weight,
   unit,
   firstName,
+  progressPhotos,
 }: {
   todayKey: DateKey
   /** Scopes the device-local stack in localStorage. */
@@ -126,6 +129,8 @@ export function HomeScreen({
   unit: WeightUnit
   /** First name for the greeting (from auth metadata; null = greet without a name). */
   firstName: string | null
+  /** Latest progress photos (newest first) for the Home glance peek. */
+  progressPhotos: ProgressPhoto[]
 }) {
   const router = useRouter()
 
@@ -442,6 +447,15 @@ export function HomeScreen({
             series={weight}
             unit={unit}
             onOpenDetail={() => router.push("/weight")}
+          />
+        </div>
+
+        {/* Progress photos — a small peek at the latest session; taps through to
+            the Progress photos (kept separate from Weight, not merged). */}
+        <div className="animate-home-up" style={{ animationDelay: "185ms" }}>
+          <ProgressPhotosGlanceCard
+            photos={progressPhotos}
+            onOpen={() => router.push("/progress")}
           />
         </div>
 

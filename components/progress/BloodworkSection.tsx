@@ -6,6 +6,7 @@ import { BloodworkCard } from "@/components/progress/BloodworkCard";
 import { BloodworkGallerySheet } from "@/components/progress/BloodworkGallerySheet";
 import { AttachBloodworkSheet } from "@/components/progress/AttachBloodworkSheet";
 import { BloodworkPhotoViewer } from "@/components/progress/BloodworkPhotoViewer";
+import { useProgressAction } from "@/components/progress/useProgressAction";
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
 
 /**
@@ -29,6 +30,10 @@ export function BloodworkSection({
   const [attachOpen, setAttachOpen] = useState(false);
   const [viewing, setViewing] = useState<BloodworkPhoto | null>(null);
   const [returnToGallery, setReturnToGallery] = useState(false);
+
+  // The global "+" menu's Blood work tile lands here → open the gallery (view
+  // your recent panels; the gallery's "+" adds a new one).
+  useProgressAction("bloodwork-gallery", () => setGalleryOpen(true));
 
   function closeViewer() {
     setViewing(null);

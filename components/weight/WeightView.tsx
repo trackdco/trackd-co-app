@@ -387,6 +387,14 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
               data={windowed}
               margin={{ top: 6, right: 6, bottom: 0, left: 6 }}
             >
+              <defs>
+                {/* Trend fill fades from the line down to the base — "thick to
+                    thin" — the shared app graph treatment (see Consistency). */}
+                <linearGradient id="weightTrendFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="var(--chart-trend)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <XAxis dataKey="i" hide />
               <YAxis hide domain={[min - 0.6, max + 0.6]} />
               <Tooltip
@@ -421,7 +429,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                 dataKey="trend"
                 stroke="var(--chart-trend)"
                 strokeWidth={2.5}
-                fill="var(--chart-trend-fill)"
+                fill="url(#weightTrendFill)"
                 dot={false}
                 activeDot={
                   mode === "trend"
