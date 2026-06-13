@@ -2,11 +2,8 @@
 
 import { ChevronRight, Droplet } from "lucide-react";
 
+import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets";
 import { formatBloodworkDate, type BloodworkPhoto } from "@/lib/progress/bloodwork";
-
-const BADGE =
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent-amber/25 bg-accent-amber/10 text-accent-amber";
-const LABEL = "text-xs font-medium uppercase tracking-[0.18em] text-text-muted";
 
 /**
  * Bloodwork card on the Progress scroll (Step 4, revised). A leading icon badge
@@ -33,11 +30,11 @@ export function BloodworkCard({
         aria-label="Open bloodwork"
         className="flex w-full items-center gap-3.5 rounded-2xl border border-border-default bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
       >
-        <span className={BADGE} aria-hidden>
+        <span className={CARD_ICON_BADGE} aria-hidden>
           <Droplet className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className={`block ${LABEL}`}>Bloodwork</span>
+          <span className={`block ${CARD_TITLE}`}>Bloodwork</span>
           <span className="mt-1 block text-sm text-text-muted">
             Attach a screenshot of your blood work
           </span>
@@ -57,11 +54,11 @@ export function BloodworkCard({
         aria-label="Open bloodwork"
         className="flex w-full items-center gap-3.5 px-5 pt-5 pb-3.5 text-left transition-colors hover:bg-bg-surface-raised/30"
       >
-        <span className={BADGE} aria-hidden>
+        <span className={CARD_ICON_BADGE} aria-hidden>
           <Droplet className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className={`block ${LABEL}`}>Bloodwork</span>
+          <span className={`block ${CARD_TITLE}`}>Bloodwork</span>
           <span className="mt-0.5 block text-xs text-text-muted">
             {photos.length} {photos.length === 1 ? "panel" : "panels"}
           </span>

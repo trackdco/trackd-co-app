@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Camera, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets";
 import {
   formatPhotoDate,
   latestDay,
@@ -11,10 +12,6 @@ import {
   type ProgressPhoto,
 } from "@/lib/progress/photos";
 import { formatWeight, type WeightUnit } from "@/lib/weight";
-
-const BADGE =
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent-amber/25 bg-accent-amber/10 text-accent-amber";
-const LABEL = "text-xs font-medium uppercase tracking-[0.18em] text-text-muted";
 
 /**
  * Progress photos card on the Progress scroll (Spec 09 addendum). The latest
@@ -52,11 +49,11 @@ export function ProgressPhotoCard({
         aria-label="Open progress photos"
         className="flex w-full items-center gap-3.5 rounded-2xl border border-border-default bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
       >
-        <span className={BADGE} aria-hidden>
+        <span className={CARD_ICON_BADGE} aria-hidden>
           <Camera className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className={`block ${LABEL}`}>Progress photos</span>
+          <span className={`block ${CARD_TITLE}`}>Progress photos</span>
           <span className="mt-1 block text-sm text-text-muted">
             Add your first photo to track how you look
           </span>
@@ -74,11 +71,11 @@ export function ProgressPhotoCard({
         aria-label="Open progress photos"
         className="flex w-full items-center gap-3.5 px-5 pt-5 pb-3.5 text-left transition-colors hover:bg-bg-surface-raised/30"
       >
-        <span className={BADGE} aria-hidden>
+        <span className={CARD_ICON_BADGE} aria-hidden>
           <Camera className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className={`block ${LABEL}`}>Progress photos</span>
+          <span className={`block ${CARD_TITLE}`}>Progress photos</span>
           <span className="mt-0.5 block text-xs text-text-muted">
             {photos.length} {photos.length === 1 ? "photo" : "photos"}
           </span>

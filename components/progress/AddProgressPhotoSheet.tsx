@@ -13,7 +13,14 @@ import { PoseIcon } from "@/components/progress/PoseIcon";
 import { PosePicker } from "@/components/progress/PosePicker";
 import { createClient } from "@/lib/supabase/client";
 import { addProgressPhotos } from "@/app/(app)/progress/actions";
+import { logWeight } from "@/app/(app)/weight/actions";
 import { DEFAULT_POSES, poseLabel, poseShape } from "@/lib/progress/photos";
+import {
+  formatWeight,
+  sanitizeWeightInput,
+  unitToKg,
+  type WeightUnit,
+} from "@/lib/weight";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const EXT: Record<string, string> = {
@@ -52,6 +59,7 @@ export function AddProgressPhotoSheet({
   todayKey,
   customPoses,
   initialDate,
+  unit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -59,6 +67,8 @@ export function AddProgressPhotoSheet({
   todayKey: string;
   customPoses: string[];
   initialDate?: string;
+  /** The user's display weight unit (kg/lbs) for the optional weight field. */
+  unit: WeightUnit;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -70,6 +80,7 @@ export function AddProgressPhotoSheet({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [drawnOn, setDrawnOn] = useState(initialDate ?? todayKey);
   const [note, setNote] = useState("");
+  const [weight, setWeight] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,6 +94,7 @@ export function AddProgressPhotoSheet({
       setPickerOpen(false);
       setDrawnOn(initialDate ?? todayKey);
       setNote("");
+      setWeight("");
       setError(null);
     }
   }
@@ -138,6 +150,27 @@ export function AddProgressPhotoSheet({
       setError("Add at least one photo.");
       return;
     }
+    // Optional weight — logged for THIS session's date so it links to the photos.
+    // Validate the format/range before uploading anything.
+    let weightKg: number | null = null;
+    if (weight.trim() !== "") {
+      const num = Number(weight);
+      if (!Number.isFinite(num)) {
+        setError("Enter a valid weight, or leave it blank.");
+        return;
+      }
+      const kg = unitToKg(num, unit);
+      if (kg < 30 || kg > 300) {
+        setError(
+          `Enter a weight between ${formatWeight(30, unit)} and ${formatWeight(
+            300,
+            unit,
+          )} ${unit}, or leave it blank.`,
+        );
+        return;
+      }
+      weightKg = kg;
+    }
     setBusy(true);
     setError(null);
     const supabase = createClient();
@@ -156,6 +189,8 @@ export function AddProgressPhotoSheet({
       }
       const res = await addProgressPhotos(drawnOn, note, items);
       if (!res.ok) throw new Error(res.error ?? "Couldn't save. Try again.");
+      // Log the weight for this date too (best-effort — the photos are saved).
+      if (weightKg != null) await logWeight(weightKg, drawnOn);
       onOpenChange(false);
       router.refresh();
     } catch (err) {
@@ -292,6 +327,33 @@ export function AddProgressPhotoSheet({
                 aria-label="Date taken"
                 className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
               />
+            </label>
+
+            {/* Weight — optional; logged for the date above so it links to these
+                photos (the mirror of the weight quick-log's attach-photos). */}
+            <label className="mt-4 block">
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+                Weight <span className="normal-case text-text-subtle">(optional)</span>
+              </span>
+              <div className="relative">
+                <Input
+                  inputMode="decimal"
+                  value={weight}
+                  onChange={(e) => {
+                    setWeight(sanitizeWeightInput(e.target.value));
+                    if (error) setError(null);
+                  }}
+                  placeholder="0"
+                  aria-label={`Weight in ${unit}`}
+                  className="h-12 rounded-xl border-border-default bg-bg-input pr-14 font-mono text-sm dark:bg-bg-input"
+                />
+                <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sm text-text-muted">
+                  {unit}
+                </span>
+              </div>
+              <span className="mt-1 block text-xs text-text-subtle">
+                Saved as your weight for this date.
+              </span>
             </label>
 
             {/* Notes */}

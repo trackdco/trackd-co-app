@@ -70,6 +70,40 @@ export function formatJournalDateShort(key: string): string {
   return `${d} ${MONTHS_SHORT[m - 1]} ${y}`;
 }
 
+/** "June 2026" for a 'YYYY-MM' month key. */
+export function formatMonthLabel(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  if (!y || !m) return key;
+  return `${MONTHS[m - 1]} ${y}`;
+}
+
+export interface JournalMonthGroup {
+  /** 'YYYY-MM' */
+  key: string;
+  /** "June 2026" */
+  label: string;
+  /** that month's entries, newest first */
+  entries: JournalEntry[];
+}
+
+/**
+ * Group entries by calendar month, newest month first. Entries arrive already
+ * newest-first (the page orders `entry_date` desc), so they stay newest-first
+ * within each month — no extra sort needed.
+ */
+export function groupJournalByMonth(entries: JournalEntry[]): JournalMonthGroup[] {
+  const byMonth = new Map<string, JournalEntry[]>();
+  for (const e of entries) {
+    const key = e.date.slice(0, 7); // YYYY-MM
+    const arr = byMonth.get(key);
+    if (arr) arr.push(e);
+    else byMonth.set(key, [e]);
+  }
+  return [...byMonth.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, es]) => ({ key, label: formatMonthLabel(key), entries: es }));
+}
+
 /** One-line preview for a card/feed row: the body's first line, else a marker
  *  summary ("Energy · Charged, Mood · Good"), else a gentle fallback. */
 export function entryPreview(entry: JournalEntry): string {

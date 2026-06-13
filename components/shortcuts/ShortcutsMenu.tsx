@@ -20,6 +20,7 @@ import {
   PRIMARY_ITEM,
   type ShortcutItem,
 } from "@/components/shortcuts/shortcutItems"
+import { requestProgressAction } from "@/lib/progress/progressAction"
 import type { WeightUnit } from "@/lib/weight"
 
 interface ShortcutsMenuProps {
@@ -44,9 +45,11 @@ const useIsoLayoutEffect =
  * Weight, Blood work, Calculator, Calendar. Routing items navigate (Log a dose →
  * the home log; Weight → the Weight view, its only entry point); Add a compound
  * opens the unchanged Add-to-Stack flow; Calculator opens the reconstitution
- * calculator; Weight opens the quick log-today's-weight popup; the rest open the
- * shared placeholder. Opening any child flow closes this menu first, so only one
- * bottom sheet is on screen at a time.
+ * calculator; Weight opens the quick log-today's-weight popup; Journal and Blood
+ * work navigate to Progress and open its real journal-compose / bloodwork-gallery
+ * flows (via `requestProgressAction`); only Calendar still opens the shared
+ * placeholder. Opening any child flow closes this menu first, so only one bottom
+ * sheet is on screen at a time.
  */
 export function ShortcutsMenu({
   open,
@@ -91,6 +94,18 @@ export function ShortcutsMenu({
       case "weight":
         onOpenChange(false)
         setWeightOpen(true)
+        break
+      case "journal":
+        // Open the real journal compose on the Progress screen (Write / Markers).
+        onOpenChange(false)
+        requestProgressAction("journal-compose")
+        router.push("/progress")
+        break
+      case "bloodwork":
+        // Open the real bloodwork gallery on the Progress screen (view + add).
+        onOpenChange(false)
+        requestProgressAction("bloodwork-gallery")
+        router.push("/progress")
         break
       case "placeholder":
         onOpenChange(false)
@@ -213,7 +228,7 @@ export function ShortcutsMenu({
         userId={userId}
       />
 
-      {/* Journal / Blood work / Calendar → one shared placeholder. */}
+      {/* Calendar → the shared placeholder (Journal + Blood work are real now). */}
       <PlaceholderActionSheet
         open={placeholder !== null}
         onClose={() => setPlaceholder(null)}

@@ -2,11 +2,8 @@
 
 import { ChevronRight, NotebookPen } from "lucide-react";
 
+import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets";
 import { formatJournalDate, type JournalEntry } from "@/lib/progress/journal";
-
-const BADGE =
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent-amber/25 bg-accent-amber/10 text-accent-amber";
-const LABEL = "text-xs font-medium uppercase tracking-[0.18em] text-text-muted";
 
 function bodyFirstLine(body: string | null): string | null {
   return body?.split("\n").find((l) => l.trim() !== "")?.trim() ?? null;
@@ -34,11 +31,11 @@ export function JournalCard({
       aria-label="Open journal"
       className="flex w-full items-start gap-3.5 rounded-2xl border border-border-default bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
     >
-      <span className={BADGE} aria-hidden>
+      <span className={CARD_ICON_BADGE} aria-hidden>
         <NotebookPen className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={`block ${LABEL}`}>Journal</span>
+        <span className={`block ${CARD_TITLE}`}>Journal</span>
         {latest ? (
           <>
             <span className="mt-1 block text-sm text-foreground">

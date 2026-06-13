@@ -4,6 +4,7 @@ import { useState } from "react"
 import { ChevronRight, Scale } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
 import type { DateKey } from "@/lib/home/mockHomeData"
 import { kgToUnit, type WeightUnit } from "@/lib/weight"
 
@@ -79,15 +80,10 @@ export function WeightGlanceCard({ series, unit, onOpenDetail }: WeightGlanceCar
       {/* Header — label + the Trend/Scale toggle. */}
       <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-1.5">
         <div className="flex items-center gap-3.5">
-          <span
-            aria-hidden
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent-amber/25 bg-accent-amber/10 text-accent-amber"
-          >
+          <span aria-hidden className={CARD_ICON_BADGE}>
             <Scale className="h-5 w-5" />
           </span>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
-            Weight
-          </p>
+          <p className={CARD_TITLE}>Weight</p>
         </div>
 
         {!empty && (

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { JournalCard } from "@/components/progress/JournalCard";
 import { JournalFeedSheet } from "@/components/progress/JournalFeedSheet";
 import { JournalEntrySheet } from "@/components/progress/JournalEntrySheet";
+import { useProgressAction } from "@/components/progress/useProgressAction";
 import type { JournalEntry, MarkerCatalogueItem } from "@/lib/progress/journal";
 
 type EditorConfig = { mode: "write" | "markers" | "edit"; initialDate: string };
@@ -25,10 +26,18 @@ export function JournalSection({
   todayKey: string;
 }) {
   const [feedOpen, setFeedOpen] = useState(false);
+  const [feedCompose, setFeedCompose] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editor, setEditor] = useState<EditorConfig>({
     mode: "write",
     initialDate: todayKey,
+  });
+
+  // The global "+" menu's Journal tile lands here → open the feed with the
+  // Write/Markers branch already expanded (the entry then saves to the journal).
+  useProgressAction("journal-compose", () => {
+    setFeedCompose(true);
+    setFeedOpen(true);
   });
 
   function openEditor(config: EditorConfig) {
@@ -43,7 +52,11 @@ export function JournalSection({
 
       <JournalFeedSheet
         open={feedOpen}
-        onOpenChange={setFeedOpen}
+        onOpenChange={(o) => {
+          setFeedOpen(o);
+          if (!o) setFeedCompose(false);
+        }}
+        composeOnOpen={feedCompose}
         entries={entries}
         onWrite={() => openEditor({ mode: "write", initialDate: todayKey })}
         onMarkers={() => openEditor({ mode: "markers", initialDate: todayKey })}

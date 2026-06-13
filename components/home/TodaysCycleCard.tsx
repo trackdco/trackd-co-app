@@ -3,6 +3,7 @@
 import { AlertTriangle, Check, MoreHorizontal } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { CARD_TITLE } from "@/lib/ui-presets"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -192,9 +193,7 @@ export function TodaysCycleCard({
 }: TodaysCycleCardProps) {
   return (
     <section className="rounded-2xl border border-border-default bg-bg-surface p-5">
-      <h2 className="font-display text-xl font-medium tracking-[-0.01em] text-foreground">
-        {title}
-      </h2>
+      <h2 className={CARD_TITLE}>{title}</h2>
 
       {isToday && countdown && (
         <p className="mt-2 text-sm text-text-muted">

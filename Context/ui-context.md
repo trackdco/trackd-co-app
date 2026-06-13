@@ -92,6 +92,20 @@ utilities (`font-display`, `font-sans`, `font-mono`) in
 - UI text, labels, metadata, and buttons use the sans (Geist),
   which is also the default body font.
 
+### Rule: section + glance-card titles use the display serif, in white
+
+Every section / glance-card **title** across Home and Progress — Today's
+Log, Weight, Progress photos, Bloodwork, Journal, Consistency,
+Reconstitution Calculator (and the "Good morning, …" greeting) — uses the
+**display serif** (`font-display`) in **white** (`text-foreground`), so the
+cards read as one consistent "clinical journal" system rather than three
+different UIs. Apply the shared **`CARD_TITLE`** preset
+(`lib/ui-presets.ts` → `font-display text-xl font-medium tracking-[-0.01em]
+text-foreground`) rather than re-deriving the classes per card. The small
+uppercase tracked sans treatment (`text-xs … uppercase tracking-[0.18em]
+text-text-muted`) is reserved for **eyebrows / metadata** (e.g. the date
+line above a page title), **never** for a card title.
+
 ## Border Radius
 
 | Context           | Class                                |
@@ -130,6 +144,27 @@ applies to health data.
 - Metric cards: 2-up grid of surface cards (e.g. Compliance,
   Next Dose) with a muted uppercase label and a large value.
 
+## Charts
+
+Data graphs are **line / area charts** (recharts), kept visually identical
+across the app so they read as one system:
+
+- **Trend line:** the teal `--chart-trend`, a smooth `type="monotone"` stroke
+  (~2.5px), over a **downward linear-gradient fill** that fades **thick → thin**
+  (`--chart-trend` at ~0.35 opacity at the line → 0 at the base). Define the
+  gradient in the chart's `<defs>` (e.g. `weightTrendFill` /
+  `consistencyFill`) — a flat fill token reads uniform, not tapered.
+- **Raw / secondary series** (e.g. the Weight "Scale" line) use the periwinkle
+  `--chart-line` at lower emphasis (thinner, no fill), crossfading by opacity.
+- **Affordances:** a press-and-drag **scrub tooltip** and a **range selector**
+  (e.g. 30D / 90D / All) are the shared graph controls.
+- **No bar charts for trends** — the Weight and Consistency graphs both use the
+  line+gradient style above.
+
+Chart hues are a deliberately **neutral** teal/periwinkle (never red/green),
+because trend visuals must stay **non-evaluative** per the health-data rule
+above — a graph shows *movement*, never "good" or "bad".
+
 ## Styling Notes
 
 - Tailwind **v4** (CSS-first). The colour tokens above are defined
@@ -147,3 +182,13 @@ applies to health data.
 
 **Lucide React** (shadcn's default icon set). Stroke-based icons
 only. Sizes: `h-4 w-4` inline, `h-5 w-5` in buttons.
+
+**Glance-card icon badges are amber.** The leading icon on a section /
+glance card uses the shared **`CARD_ICON_BADGE`** preset
+(`lib/ui-presets.ts`) — an **amber** stroke icon (`text-accent-amber`) on a
+soft amber-tinted rounded square (`rounded-xl border border-accent-amber/25
+bg-accent-amber/10`). Every Home + Progress card icon uses it (Weight,
+Progress photos, Bloodwork, Journal, Consistency, Reconstitution Calculator)
+so the cards read as one system. Amber is the secondary signature accent
+(active/interactive state) — this is chrome/identity, not health data, so it
+stays within the colour rule above.
