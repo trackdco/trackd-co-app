@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, Scale } from "lucide-react"
 
 import type { DateKey } from "@/lib/home/mockHomeData"
 import { kgToUnit, type WeightUnit } from "@/lib/weight"
@@ -67,8 +67,14 @@ export function WeightGlanceCard({
       type="button"
       onClick={onOpenDetail}
       aria-label="Open the weight view"
-      className="flex w-full items-center gap-4 rounded-2xl border border-border-default bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+      className="flex w-full items-center gap-3.5 rounded-2xl border border-border-default bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
     >
+      <span
+        aria-hidden
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent-amber/25 bg-accent-amber/10 text-accent-amber"
+      >
+        <Scale className="h-5 w-5" />
+      </span>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
           Weight

@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-12
+Last updated: 2026-06-13
 
 ## Current Phase
 
@@ -29,6 +29,56 @@ Last updated: 2026-06-12
   catalogues, domain, and the public landing remain live.
 
 ## Completed
+
+- **Progress tab built end-to-end (Spec 09 + founder-directed evolutions)
+  (2026-06-13).** The whole Progress screen — a single vertical scroll on the
+  Obsidian canvas, wired to real per-user Supabase data — built section by section
+  with Adrian over many rounds. Order top → bottom: **Title → Weight (hero) →
+  Progress photos → Bloodwork → Journal → Consistency** (photos sit under Weight
+  by Adrian's call). All in `components/progress/` + `lib/progress/*`, fetched in
+  `app/(app)/progress/page.tsx`, with server actions in
+  `app/(app)/progress/actions.ts`; a dev-only `/preview/progress` (sample data,
+  404 in prod) was the build harness throughout.
+  - **Weight (hero):** reuses the existing `WeightGlanceCard` (current + trend +
+    sparkline) as a summary that taps into the one canonical `/weight` view — no
+    second weight view (Adrian's pick over embedding the full graph). Gained an
+    amber **Scale badge** to match the other cards (also shows on Home — approved).
+  - **Bloodwork → a dated PHOTO store (pivoted from a structured catalogue/charts
+    build).** Attach a screenshot + optional **note** + date → uploads to the
+    private `bloodwork` bucket, recorded as a `lab_panels` row (`source_file_path`
+    + `notes` + `drawn_on`). Card → gallery → full view + delete. No schema change
+    (reused `lab_panels`). The earlier structured version (catalogue search,
+    `biomarker_results`, per-metric charts, reference bands, compare) was built
+    then **removed** at Adrian's direction.
+  - **Journal:** `JournalCard` → feed (one row per day) → "+" branches **Write** /
+    **Markers**; the **marker dialer** reads the real `markers` catalogue
+    (single-select WORD per marker via a sliding **amber** indicator; presets +
+    a searchable "add marker"), stored as the ordinal `tier_value` into
+    auto-created `user_markers`; one entry/day (both paths merge, no clobber); read
+    /edit/delete in place. No `title` column → dropped. Health-data neutral (amber
+    = selection only).
+  - **Consistency:** a scrubbable **adherence bar graph** (per-day %, 100% top,
+    teal fill matching Weight, 30/90/All range that animates open) computed
+    client-side from the device-local stack + dose log (same source Home uses).
+    Per-cycle breakdown deferred (no cycles model yet).
+  - **Progress photos (NEW feature + NEW DB).** MacroFactor-style: month → day
+    rows with circular pose-thumbnails + edit; the card is a swipeable carousel of
+    the latest session (Front relaxed first); before/after **compare**; each photo
+    shows the **weight logged that day** (linked by date). Poses = 3 defaults
+    (Front/Side/Back relaxed) + a **searchable catalogue** of the standard
+    bodybuilding poses (each with a hand-drawn silhouette) + custom fallback
+    (shared `PosePicker`). **Capture is also embedded in the weight quick-log**
+    (+ menu → Weight): attach photos per pose right there, saved dated-today +
+    auto-categorised. **DB:** `progress_photos` migration (table + private
+    `progress-photos` bucket + RLS + grants), applied live + tracked in
+    `supabase/progress/001_progress_photos.sql` → live DB now **23 tables**.
+  - **Verified:** `tsc` + `eslint` + prod `build` clean (27 routes); every write
+    path (bloodwork panel + note, journal entry + markers + word mapping, progress
+    photo + custom pose) exercised against the live DB via MCP and rolled back;
+    RLS/owner-scoped paths confirmed. **Local dev fix:** the iCloud copy corrupts
+    Turbopack's `.next` writes, so `.next` is symlinked to an off-iCloud
+    `.next.nosync` (gitignored; eslint-ignored) — and that recurring iCloud
+    re-sync resurrected 3 deleted files mid-build (re-deleted).
 
 - **Desktop interstitial — phone-only gate, replaces the plain "mobile only" notice
   (2026-06-12).** At ≥1024px the whole app shell is hidden and a polished

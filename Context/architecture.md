@@ -58,6 +58,10 @@ in the schema — storage only, no behaviour, until post-trip.
   `device_state_sync` migration) — the three cloud-backup tables for the interim
   device-local home stores (`user_stack_compounds`, `user_dose_logs`,
   `user_custom_compounds`), bringing the live DB to **22 tables**.
+  `supabase/progress/` holds `001_progress_photos.sql` (the `progress_photos`
+  migration) — the **Progress screen's** posed photo log (one row per photo:
+  `pose` text, `taken_on` date, `storage_path`) plus the private `progress-photos`
+  bucket + owner-scoped policies, bringing the live DB to **23 tables**.
   `supabase/grants/` holds
   `001_api_role_grants.sql` (the `api_role_grants` migration) — the table-level
   privileges the PostgREST roles need on top of RLS (see Auth and Access Model);
@@ -85,11 +89,26 @@ in the schema — storage only, no behaviour, until post-trip.
 - **Postgres views (computed, never stored)** — `v_inventory_math` (remaining,
   concentration, mL/units per dose, doses-remaining, projected-empty) and
   `v_biomarker_position` (below / within / above). These are derived on read.
-- **Supabase Storage (private)** — Two private, owner-scoped buckets. **`bloodwork`**
-  for lab-report uploads (path `<auth.uid()>/<panel_id>/<file>`) and **`avatars`**
-  for profile pictures (path `<auth.uid()>/<file>`; the chosen path is stored on
-  `profiles.avatar_path`, displayed via a short-lived signed URL). Both stay
-  PRIVATE; files are referenced from Postgres, the bytes never live in the database.
+- **Supabase Storage (private)** — Three private, owner-scoped buckets. **`bloodwork`**
+  for lab-report uploads/photos (path `<auth.uid()>/<panel_id>/<file>`; the Progress
+  "bloodwork" section is a dated **photo store** over `lab_panels`, reusing this
+  bucket — values aren't parsed, the screenshot is the record), **`avatars`** for
+  profile pictures (path `<auth.uid()>/<file>`; the chosen path is stored on
+  `profiles.avatar_path`), and **`progress-photos`** for posed progress photos
+  (path `<auth.uid()>/<id>/<file>`, referenced by `progress_photos.storage_path`).
+  All stay PRIVATE, displayed via short-lived signed URLs; files are referenced
+  from Postgres, the bytes never live in the database.
+- **Progress screen (multi-source, all per-user, RLS-scoped).** Weight reads
+  `weight_logs`; bloodwork is the photo store above (`lab_panels` + `bloodwork`
+  bucket); the journal reads `journal_entries` + `marker_readings` → `user_markers`
+  → `markers` (display the WORD from `tier_labels`, store the ordinal `tier_value`;
+  one entry per day, both "+" paths merge); progress photos use `progress_photos` +
+  the `progress-photos` bucket (a photo also shows the weight logged that date — the
+  weight-quick-log can capture photos inline). **Consistency** is computed
+  client-side from the device-local dose data (the cycles/`dose_logs` model isn't
+  wired yet, so the per-cycle breakdown is deferred). Health data stays categorical/
+  neutral throughout (no good/bad colour); amber on Progress is selection/active
+  state only.
 - **Bodyweight (`weight_logs`)** — the single source of truth for bodyweight (one
   row per `(profile_id, logged_for)`, last write wins; `weight numeric(5,2)`, kg).
   The Weight view writes it; the home glance card and the Profile "Weight" row read
