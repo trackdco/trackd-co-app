@@ -11,6 +11,8 @@ interface PageScrollTitleProps {
   title: string
   /** Optional small uppercase line above the title (e.g. the date on Home). */
   eyebrow?: string
+  /** Optional muted line below the title (a short page descriptor). */
+  subtitle?: string
   /**
    * Optional control rendered inline to the right of the large heading (e.g. the
    * calendar shortcut on Home). It scrolls away with the heading; the compact bar
@@ -32,7 +34,7 @@ interface PageScrollTitleProps {
  * Drop it at the top of a tab's main page and pass the page name; the behaviour
  * comes for free as those pages are built out.
  */
-export function PageScrollTitle({ title, eyebrow, action }: PageScrollTitleProps) {
+export function PageScrollTitle({ title, eyebrow, subtitle, action }: PageScrollTitleProps) {
   const ref = useRef<HTMLHeadingElement>(null)
   const [compact, setCompact] = useState(false)
   const mounted = useMounted()
@@ -83,6 +85,9 @@ export function PageScrollTitle({ title, eyebrow, action }: PageScrollTitleProps
           </h1>
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
+        {subtitle ? (
+          <p className="mt-1.5 text-sm text-text-muted">{subtitle}</p>
+        ) : null}
       </div>
     </>
   )

@@ -205,8 +205,13 @@ export function ShortcutsMenu({
       {/* "Calculator" → the reconstitution calculator (A8). */}
       <ReconCalculatorSheet open={calcOpen} onOpenChange={setCalcOpen} />
 
-      {/* "Weight" → quick log of today's bodyweight (view/graph live in /weight). */}
-      <AddWeightSheet open={weightOpen} onOpenChange={setWeightOpen} unit={unit} />
+      {/* "Weight" → quick log of today's bodyweight + optional progress photos. */}
+      <AddWeightSheet
+        open={weightOpen}
+        onOpenChange={setWeightOpen}
+        unit={unit}
+        userId={userId}
+      />
 
       {/* Journal / Blood work / Calendar → one shared placeholder. */}
       <PlaceholderActionSheet

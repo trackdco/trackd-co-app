@@ -9,11 +9,29 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-12
+Last updated: 2026-06-13
 
 ---
 
 ## 🎯 Current focus
+
+**Latest — 2026-06-13 (Adrian + Claude): the PROGRESS TAB is built end-to-end —
+committed, PR'd to `main`, merging.** Full Spec-09 screen + founder-directed
+evolutions: Title → Weight (summary hero → `/weight`) → **Progress photos**
+(MacroFactor month/day gallery, swipeable card, before/after compare, searchable
+pose catalogue + custom, weight linked by date, capture also embedded in the
+weight quick-log) → **Bloodwork** (a dated photo store over `lab_panels` + the
+`bloodwork` bucket, with a note) → **Journal** (one entry/day, Write/Markers, the
+marker dialer reading the real catalogue, read/edit/delete) → **Consistency** (a
+scrubbable adherence bar graph from the device-local dose data). New DB:
+`progress_photos` table + private `progress-photos` bucket (live; tracked in
+`supabase/progress/`) → **23 tables**. `tsc`+`lint`+prod `build` clean (27 routes);
+write paths MCP-verified. **▶ Next:** address CodeRabbit's PR findings; then
+Adrian's on-device QA of the real signed-in flow (upload a photo from the weight
+log → see it under the right pose with the day's weight). Still deferred: the
+per-cycle consistency breakdown (waits on the cycles/`dose_logs` model).
+
+---
 
 **Latest — 2026-06-12 (Adrian + Claude): Desktop interstitial — phone-only gate, committed +
 PR'd.** Replaced the plain desktop "mobile only" notice with a polished `DesktopInterstitial`

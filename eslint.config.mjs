@@ -9,6 +9,9 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // Off-iCloud build cache (some local setups symlink .next here to dodge
+    // iCloud sync corrupting Turbopack's rapid writes) — never lint build output.
+    ".next.nosync/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

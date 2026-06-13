@@ -14,7 +14,8 @@
 /coverage
 
 # next.js
-/.next/
+# (no trailing slash, so a `.next` SYMLINK to an off-iCloud cache is ignored too)
+/.next
 /out/
 
 # production
@@ -40,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Dev cache symlinked from .next, kept off iCloud (ends in .nosync)
+.next.nosync
