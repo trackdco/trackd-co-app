@@ -94,6 +94,24 @@ export default function PreviewCalendarPage() {
     weightByDate[dk(ago)] = Math.round((92 - ago * 0.08) * 10) / 10;
   }
 
+  // A couple of days with progress photos (mock portraits for the preview).
+  const mockPhoto = (label: string) =>
+    `data:image/svg+xml;utf8,${encodeURIComponent(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='120' height='160'>` +
+        `<rect width='100%' height='100%' fill='#242422'/>` +
+        `<circle cx='60' cy='62' r='40' fill='#2A2A28'/>` +
+        `<text x='60' y='150' fill='#7A7A74' font-family='sans-serif' font-size='12' text-anchor='middle'>${label}</text>` +
+        `</svg>`,
+    )}`;
+  const photosByDate: Record<string, { id: string; pose: string; url: string }[]> = {
+    [dk(0)]: [
+      { id: "p1", pose: "front-relaxed", url: mockPhoto("Front") },
+      { id: "p2", pose: "side-relaxed", url: mockPhoto("Side") },
+      { id: "p3", pose: "back-relaxed", url: mockPhoto("Back") },
+    ],
+    [dk(4)]: [{ id: "p4", pose: "front-relaxed", url: mockPhoto("Front") }],
+  };
+
   // A few journal entries (body and/or markers).
   const journalByDate: Record<string, CalendarJournalDay> = {
     [dk(0)]: {
@@ -144,6 +162,7 @@ export default function PreviewCalendarPage() {
         <CalendarScreen
           weightByDate={weightByDate}
           journalByDate={journalByDate}
+          photosByDate={photosByDate}
           userId="preview-local"
           todayKey={toDateKey(today)}
           unitPreference="metric"

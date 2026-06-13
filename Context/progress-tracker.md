@@ -30,6 +30,24 @@ Last updated: 2026-06-13
 
 ## Completed
 
+- **Calendar photos + Home photo size + plus-menu Calendar (2026-06-13 follow-up)
+  — `tsc`+`lint`+prod `build` clean; COMMITTED + MERGED + PUSHED to `main` (prod)
+  per Adrian.** Three founder-requested tweaks after the Calendar landed:
+  - **Calendar Photos row now shows the day's progress photos.** Was a reserved/
+    empty stub; the calendar page now fetches + signs `progress_photos` (grouped by
+    day, same pattern as Progress/Home) and `DayDetailSheet` renders that day's
+    thumbnails as a deep-link to the photo gallery on `/progress` (new
+    `photos-gallery` progress-action, handled by `ProgressPhotoSection`). A day
+    with a photo now also counts as "logged" with a camera icon under it.
+  - **Home progress-photo card made smaller.** `ProgressPhotoCard` /
+    `ProgressPhotoSection` gained a `compact` flag (Home passes it) that caps the
+    photo at `h-56` instead of the full `aspect-[3/4]`; Progress keeps the big size.
+  - **Plus-menu "Calendar" tile now routes to `/calendar`** (was the placeholder)
+    — `shortcutItems` Calendar → `action: "route"`, `href: "/calendar"`. (The Home
+    header calendar icon already went there.) Placeholder machinery retained, unused.
+  - Preview harnesses (`/preview/calendar`, `/preview/home`) given mock photos so
+    both are reviewable. Verified headlessly at 390 px.
+
 - **Calendar screen built + Milligram redesign — Spec 10 (2026-06-13) —
   `tsc`+`lint`+prod `build` clean (27 routes); COMMITTED + MERGED + PUSHED to
   `main` (prod) per Adrian (branch `feat/calendar-screen`; no PR — `gh` unavailable,

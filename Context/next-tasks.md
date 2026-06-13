@@ -15,7 +15,19 @@ Last updated: 2026-06-13
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-13 (Adrian + Claude): CALENDAR screen built + Milligram redesign
+**Latest — 2026-06-13 (Adrian + Claude): Calendar/Home photo follow-ups — COMMITTED
++ MERGED + PUSHED to `main` (prod).** Three founder-requested tweaks after the
+Calendar landed: (1) the Calendar **Photos row now shows the day's progress photos**
+(thumbnails → deep-link to the gallery; was a reserved stub) — the calendar page
+fetches + signs `progress_photos`, a photo-day reads as "logged" with a camera icon;
+(2) the **Home progress-photo card is smaller** (`compact` flag caps it at `h-56`;
+Progress keeps the big size); (3) the **plus-menu "Calendar" tile routes to
+`/calendar`** (was a placeholder). `tsc`+`lint`+prod `build` clean. ▶ Adrian's
+on-device QA still to come.
+
+---
+
+**Earlier — 2026-06-13 (Adrian + Claude): CALENDAR screen built + Milligram redesign
 (Spec 10) — `tsc`+`lint`+prod `build` clean (27 routes); COMMITTED + MERGED + PUSHED
 to `main` (prod) per Adrian (branch `feat/calendar-screen`; direct-merge, no PR —
 `gh` unavailable). ▶ Adrian's on-device QA still to come.** The `/calendar` placeholder is

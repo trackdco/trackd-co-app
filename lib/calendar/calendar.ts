@@ -43,7 +43,14 @@ export interface MonthCell {
 export type CalendarDayStatus = "logged" | "scheduled" | "none-past" | "none-future";
 
 /** What was logged that day — drives the tiny icon under a logged day. */
-export type LoggedKind = "dose" | "journal" | "weight" | null;
+export type LoggedKind = "dose" | "photo" | "journal" | "weight" | null;
+
+/** A progress photo for a day (signed for display), passed in from the server. */
+export interface CalendarPhoto {
+  id: string;
+  pose: string;
+  url: string | null;
+}
 
 /** Resolve a day's ring state from whether it was logged / scheduled / in the future. */
 export function resolveDayStatus(

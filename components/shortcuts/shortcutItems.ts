@@ -23,7 +23,8 @@ import {
  *                    Weight card)
  *  - `journal`     → go to Progress and open the journal compose (Write / Markers)
  *  - `bloodwork`   → go to Progress and open the bloodwork gallery (view + add)
- *  - `placeholder` → the shared not-yet-built sheet (only Calendar now)
+ *  - `placeholder` → the shared not-yet-built sheet (no tiles use it now —
+ *                    Calendar routes to /calendar; kept for reuse)
  *
  * No UI lives in this file. Only the reconstitution calculator carries a
  * `warning` (its placeholder is gone now that the real tool exists, but the line
@@ -114,7 +115,8 @@ export const GRID_ITEMS: ShortcutItem[] = [
     title: "Calendar",
     subtitle: "View your logged history",
     icon: CalendarDays,
-    action: "placeholder",
+    action: "route",
+    href: "/calendar",
     shortLabel: "Calendar",
   },
 ]

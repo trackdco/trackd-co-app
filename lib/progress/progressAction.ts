@@ -12,7 +12,8 @@
 export type ProgressAction =
   | "journal-compose"
   | "journal-open"
-  | "bloodwork-gallery";
+  | "bloodwork-gallery"
+  | "photos-gallery";
 
 export interface ProgressActionSignal {
   action: ProgressAction;
