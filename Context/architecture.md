@@ -60,8 +60,11 @@ in the schema — storage only, no behaviour, until post-trip.
   `user_custom_compounds`), bringing the live DB to **22 tables**.
   `supabase/progress/` holds `001_progress_photos.sql` (the `progress_photos`
   migration) — the **Progress screen's** posed photo log (one row per photo:
-  `pose` text, `taken_on` date, `storage_path`) plus the private `progress-photos`
-  bucket + owner-scoped policies, bringing the live DB to **23 tables**.
+  `pose` text, `taken_on` date, `storage_path`, optional per-session `note` added
+  by `002_progress_photo_note.sql`) plus the private `progress-photos` bucket +
+  owner-scoped policies, bringing the live DB to **23 tables**. Adding photos is a
+  multi-pose **session** (fill Front/Side/Back + more on one page, submit together
+  via a batch insert sharing the note).
   `supabase/grants/` holds
   `001_api_role_grants.sql` (the `api_role_grants` migration) — the table-level
   privileges the PostgREST roles need on top of RLS (see Auth and Access Model);

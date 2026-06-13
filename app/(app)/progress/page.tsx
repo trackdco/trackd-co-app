@@ -68,7 +68,7 @@ export default async function ProgressPage() {
     supabase.from("user_markers").select("id, marker_id"),
     supabase
       .from("progress_photos")
-      .select("id, pose, taken_on, created_at, storage_path")
+      .select("id, pose, taken_on, created_at, storage_path, note")
       .order("taken_on", { ascending: false })
       .order("created_at", { ascending: false }),
   ]);
@@ -169,6 +169,7 @@ export default async function ProgressPage() {
       date,
       url: photoSigned.get(p.storage_path as string) ?? null,
       weightKg: weightByDate.get(date) ?? null,
+      note: (p.note as string | null) ?? null,
     };
   });
 

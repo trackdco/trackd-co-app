@@ -333,6 +333,59 @@ export async function addProgressPhoto(
   return { ok: true };
 }
 
+/**
+ * Record a whole progress-photo SESSION (Spec 09 addendum) — several poses for
+ * one date submitted together, sharing an optional note. Each item's storage path
+ * is re-verified to be the caller's own and each pose is trimmed; RLS scopes every
+ * row to the user.
+ */
+export async function addProgressPhotos(
+  takenOn: string,
+  note: string,
+  items: { pose: string; storagePath: string }[],
+): Promise<{ ok: boolean; error?: string }> {
+  if (!isValidDateKey(takenOn)) return { ok: false, error: "Invalid date." };
+  if (isFuture(takenOn)) return { ok: false, error: "You can't use a future date." };
+  if (!Array.isArray(items) || items.length === 0) {
+    return { ok: false, error: "Add at least one photo." };
+  }
+  const trimmedNote = typeof note === "string" ? note.trim().slice(0, 2000) : "";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You're not signed in." };
+
+  const rows: {
+    user_id: string;
+    pose: string;
+    taken_on: string;
+    storage_path: string;
+    note: string | null;
+  }[] = [];
+  for (const it of items) {
+    const pose = typeof it?.pose === "string" ? it.pose.trim().slice(0, 60) : "";
+    const path = typeof it?.storagePath === "string" ? it.storagePath : "";
+    if (!pose || !path || path.includes("..") || path.split("/")[0] !== user.id) {
+      return { ok: false, error: "Couldn't attach those photos." };
+    }
+    rows.push({
+      user_id: user.id,
+      pose,
+      taken_on: takenOn,
+      storage_path: path,
+      note: trimmedNote || null,
+    });
+  }
+
+  const { error } = await supabase.from("progress_photos").insert(rows);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/progress");
+  return { ok: true };
+}
+
 /** Delete a progress photo — its storage object and its row. */
 export async function deleteProgressPhoto(
   id: string,

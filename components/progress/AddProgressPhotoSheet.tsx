@@ -2,22 +2,18 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ImagePlus, Loader2, X } from "lucide-react";
+import { Camera, Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { PoseIcon } from "@/components/progress/PoseIcon";
 import { PosePicker } from "@/components/progress/PosePicker";
 import { createClient } from "@/lib/supabase/client";
-import { addProgressPhoto } from "@/app/(app)/progress/actions";
-import {
-  DEFAULT_POSES,
-  isDefaultPose,
-  poseLabel,
-  type Pose,
-} from "@/lib/progress/photos";
+import { addProgressPhotos } from "@/app/(app)/progress/actions";
+import { DEFAULT_POSES, poseLabel, poseShape } from "@/lib/progress/photos";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const EXT: Record<string, string> = {
@@ -36,11 +32,18 @@ function randomId(): string {
   return `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
 }
 
+interface Attachment {
+  pose: string;
+  file: File;
+  previewUrl: string;
+}
+
 /**
- * Add a progress photo (Spec 09 addendum). Three default poses up front; "Add
- * more poses" reveals your own custom poses + a field to create one. Choose the
- * photo, set the date, save — the image uploads client-side to the private
- * `progress-photos` bucket, a server action records the row.
+ * Add a progress-photo SESSION (Spec 09 addendum). A tile per pose — Front / Side
+ * / Back relaxed up front (+ more from the catalogue or custom) — each opens the
+ * camera / photo library; fill any or all, add an optional note about the
+ * physique, and submit them together. Photos upload client-side to the private
+ * `progress-photos` bucket; one server action records all the rows for the date.
  */
 export function AddProgressPhotoSheet({
   open,
@@ -48,99 +51,122 @@ export function AddProgressPhotoSheet({
   userId,
   todayKey,
   customPoses,
-  initialPose,
   initialDate,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string;
   todayKey: string;
-  /** The user's existing custom poses, for quick re-selection. */
   customPoses: string[];
-  initialPose?: string;
   initialDate?: string;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const pendingPose = useRef<string | null>(null);
   const { cardRef, handleProps, cardStyle } = useSheetDrag(() => onOpenChange(false), open);
 
-  const [pose, setPose] = useState(initialPose ?? "front-relaxed");
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [extras, setExtras] = useState<string[]>(customPoses);
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<Record<string, Attachment>>({});
+  const [extraPoses, setExtraPoses] = useState<string[]>(customPoses);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [drawnOn, setDrawnOn] = useState(initialDate ?? todayKey);
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const isExtraSelected = !isDefaultPose(pose);
 
   const [prevOpen, setPrevOpen] = useState(open);
   if (open !== prevOpen) {
     setPrevOpen(open);
     if (open) {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      const startPose = initialPose ?? "front-relaxed";
-      setPose(startPose);
-      setExtras(customPoses);
-      setMoreOpen(!DEFAULT_POSES.some((p) => p.id === startPose));
-      setFile(null);
-      setPreviewUrl(null);
+      for (const a of Object.values(attachments)) URL.revokeObjectURL(a.previewUrl);
+      setAttachments({});
+      setExtraPoses(customPoses);
+      setPickerOpen(false);
       setDrawnOn(initialDate ?? todayKey);
+      setNote("");
       setError(null);
     }
   }
 
-  function pickExtra(p: string) {
-    setPose(p);
-    if (!isDefaultPose(p) && !extras.includes(p)) {
-      setExtras((prev) => [...prev, p]);
-    }
+  const slots = [
+    ...DEFAULT_POSES.map((p) => p.id),
+    ...extraPoses,
+  ];
+
+  function pickFor(pose: string) {
+    pendingPose.current = pose;
+    fileRef.current?.click();
   }
 
-  function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
-    if (!f) return;
+    const pose = pendingPose.current;
+    pendingPose.current = null;
+    if (!f || !pose) return;
     if (!f.type.startsWith("image/")) {
       setError("Choose an image (a photo).");
       return;
     }
     if (f.size > MAX_BYTES) {
-      setError("That image is over 10 MB.");
+      setError("That photo is over 10 MB.");
       return;
     }
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setFile(f);
-    setPreviewUrl(URL.createObjectURL(f));
     setError(null);
+    setAttachments((prev) => {
+      if (prev[pose]) URL.revokeObjectURL(prev[pose].previewUrl);
+      return { ...prev, [pose]: { pose, file: f, previewUrl: URL.createObjectURL(f) } };
+    });
+  }
+
+  function removeAttachment(pose: string) {
+    setAttachments((prev) => {
+      const next = { ...prev };
+      if (next[pose]) URL.revokeObjectURL(next[pose].previewUrl);
+      delete next[pose];
+      return next;
+    });
+  }
+
+  function addPose(p: string) {
+    setExtraPoses((prev) => (prev.includes(p) ? prev : [...prev, p]));
+    setPickerOpen(false);
   }
 
   async function handleSave() {
-    if (!file) return;
+    const atts = Object.values(attachments);
+    if (atts.length === 0) {
+      setError("Add at least one photo.");
+      return;
+    }
     setBusy(true);
     setError(null);
-    const ext = EXT[file.type] ?? "img";
-    const path = `${userId}/${randomId()}/photo.${ext}`;
+    const supabase = createClient();
+    const uploaded: string[] = [];
     try {
-      const supabase = createClient();
-      const { error: upErr } = await supabase.storage
-        .from("progress-photos")
-        .upload(path, file, { contentType: file.type, upsert: false });
-      if (upErr) throw new Error(upErr.message);
-      const res = await addProgressPhoto(pose, drawnOn, path);
-      if (!res.ok) {
-        await supabase.storage.from("progress-photos").remove([path]);
-        throw new Error(res.error ?? "Couldn't save. Try again.");
+      const items: { pose: string; storagePath: string }[] = [];
+      for (const a of atts) {
+        const ext = EXT[a.file.type] ?? "img";
+        const path = `${userId}/${randomId()}/photo.${ext}`;
+        const up = await supabase.storage
+          .from("progress-photos")
+          .upload(path, a.file, { contentType: a.file.type, upsert: false });
+        if (up.error) throw new Error(up.error.message);
+        uploaded.push(path);
+        items.push({ pose: a.pose, storagePath: path });
       }
+      const res = await addProgressPhotos(drawnOn, note, items);
+      if (!res.ok) throw new Error(res.error ?? "Couldn't save. Try again.");
       onOpenChange(false);
       router.refresh();
     } catch (err) {
+      if (uploaded.length) await supabase.storage.from("progress-photos").remove(uploaded);
       setError(err instanceof Error ? err.message : "Couldn't save. Try again.");
     } finally {
       setBusy(false);
     }
   }
+
+  const count = Object.keys(attachments).length;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -161,97 +187,97 @@ export function AddProgressPhotoSheet({
             <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
           </div>
 
-          <SheetTitle className="sr-only">Add progress photo</SheetTitle>
+          <SheetTitle className="sr-only">Add progress photos</SheetTitle>
           <SheetDescription className="sr-only">
-            Pick a pose, choose a photo, and date it.
+            Add a photo for each pose and submit them together.
           </SheetDescription>
 
           <div className="flex-1 overflow-y-auto px-6">
-            <h2 className="font-display text-2xl font-medium text-foreground">Add photo</h2>
-
-            {/* Pose */}
-            <p className="mt-4 text-xs font-medium uppercase tracking-wider text-text-muted">
-              Pose
+            <h2 className="font-display text-2xl font-medium text-foreground">Add photos</h2>
+            <p className="mt-0.5 text-xs text-text-muted">
+              Tap a pose to take or choose a photo — fill any or all, then submit.
             </p>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {DEFAULT_POSES.map((p) => (
-                <PoseButton key={p.id} pose={p} selected={pose === p.id} onClick={() => setPose(p.id)} />
-              ))}
-            </div>
 
-            <button
-              type="button"
-              onClick={() => setMoreOpen((o) => !o)}
-              aria-expanded={moreOpen}
-              className="mt-2 flex items-center gap-1.5 text-sm text-text-muted transition-colors hover:text-foreground"
-            >
-              <ChevronDown className={cn("h-4 w-4 transition-transform", moreOpen && "rotate-180")} aria-hidden />
-              Add more poses
-            </button>
-            {moreOpen && (
-              <div className="animate-shortcut-in mt-2 space-y-2">
-                {extras.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {extras.map((c) => (
+            {/* Pose tiles */}
+            <div className="mt-4 grid grid-cols-3 gap-2.5">
+              {slots.map((pose) => {
+                const att = attachments[pose];
+                const shape = poseShape(pose);
+                return (
+                  <div key={pose} className="animate-shortcut-in flex flex-col gap-1.5">
+                    <div className="relative">
                       <button
-                        key={c}
                         type="button"
-                        onClick={() => setPose(c)}
-                        aria-pressed={pose === c}
+                        onClick={() => pickFor(pose)}
+                        aria-label={`${att ? "Replace" : "Add"} ${poseLabel(pose)} photo`}
                         className={cn(
-                          "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                          pose === c
-                            ? "border-accent-amber/50 bg-accent-amber/10 text-foreground"
-                            : "border-border-default text-text-muted hover:text-foreground",
+                          "flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-xl border transition-colors",
+                          att
+                            ? "border-accent-amber/50"
+                            : "border-dashed border-border-strong bg-bg-input/40 text-text-muted hover:bg-bg-input/70",
                         )}
                       >
-                        {poseLabel(c)}
+                        {att ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={att.previewUrl} alt="" className="h-full w-full object-cover object-top" />
+                        ) : (
+                          <span className="flex flex-col items-center gap-1.5">
+                            {shape ? (
+                              <PoseIcon shape={shape} className="h-9 w-7" />
+                            ) : (
+                              <Camera className="h-6 w-6" aria-hidden />
+                            )}
+                            <span className="text-[10px] font-medium">Add photo</span>
+                          </span>
+                        )}
                       </button>
-                    ))}
+                      {att && (
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(pose)}
+                          aria-label={`Remove ${poseLabel(pose)} photo`}
+                          className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-bg-base/80 text-text-primary"
+                        >
+                          <X className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-center text-[11px] leading-tight text-text-muted">
+                      {poseLabel(pose)}
+                    </span>
                   </div>
-                )}
-                <PosePicker
-                  exclude={[...DEFAULT_POSES.map((p) => p.id), ...extras]}
-                  onPick={pickExtra}
-                />
-                {isExtraSelected && (
-                  <p className="px-1 text-xs text-text-subtle">
-                    Selected: <span className="text-text-muted">{poseLabel(pose)}</span>
-                  </p>
-                )}
+                );
+              })}
+
+              {/* Add a pose tile. */}
+              <div className="flex flex-col gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen((o) => !o)}
+                  aria-expanded={pickerOpen}
+                  aria-label="Add a pose"
+                  className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-1 rounded-xl border border-border-default bg-bg-surface-raised text-text-muted transition-colors hover:text-foreground"
+                >
+                  <Plus className="h-6 w-6" aria-hidden />
+                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", pickerOpen && "rotate-180")} aria-hidden />
+                </button>
+                <span className="text-center text-[11px] leading-tight text-text-muted">
+                  Add pose
+                </span>
+              </div>
+            </div>
+
+            {pickerOpen && (
+              <div className="animate-shortcut-in mt-3">
+                <PosePicker exclude={slots} onPick={addPose} />
               </div>
             )}
 
-            {/* Photo */}
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="mt-5 flex w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-8 text-center transition-colors hover:bg-bg-input/70"
-            >
-              {previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewUrl} alt="Selected" className="max-h-80 w-full object-contain" />
-              ) : (
-                <>
-                  <ImagePlus className="h-7 w-7 text-text-muted" aria-hidden />
-                  <span className="text-sm text-text-muted">Tap to choose a photo</span>
-                </>
-              )}
-            </button>
-            {previewUrl && (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="mt-2 text-xs text-text-muted transition-colors hover:text-foreground"
-              >
-                Choose a different photo
-              </button>
-            )}
             <input
               ref={fileRef}
               type="file"
               accept="image/png,image/jpeg,image/webp,image/heic"
-              onChange={pickFile}
+              onChange={onFile}
               className="hidden"
             />
 
@@ -270,7 +296,23 @@ export function AddProgressPhotoSheet({
               />
             </label>
 
+            {/* Notes */}
+            <label className="mt-4 block">
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+                Notes <span className="normal-case text-text-subtle">(optional)</span>
+              </span>
+              <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="How the physique's looking — conditioning, pumps, anything worth noting…"
+                rows={3}
+                maxLength={2000}
+                className="rounded-xl border-border-default bg-bg-input text-sm dark:bg-bg-input"
+              />
+            </label>
+
             {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
+            <div className="h-2" />
           </div>
 
           {/* Action bar */}
@@ -286,50 +328,15 @@ export function AddProgressPhotoSheet({
             <button
               type="button"
               onClick={handleSave}
-              disabled={busy || !file}
+              disabled={busy || count === 0}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
-              {busy ? "Saving…" : "Save"}
+              {busy ? "Saving…" : count > 1 ? `Save ${count} photos` : "Save"}
             </button>
           </div>
         </div>
       </SheetContent>
     </Sheet>
-  );
-}
-
-function PoseButton({
-  pose,
-  selected,
-  onClick,
-}: {
-  pose: Pose;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={cn(
-        "flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-colors",
-        selected ? "border-accent-amber/50 bg-accent-amber/10" : "border-border-default hover:border-border-strong",
-      )}
-    >
-      <PoseIcon
-        shape={pose.shape}
-        className={cn("h-11 w-8", selected ? "text-accent-amber" : "text-text-muted")}
-      />
-      <span
-        className={cn(
-          "text-center text-[11px] font-medium leading-tight",
-          selected ? "text-foreground" : "text-text-muted",
-        )}
-      >
-        {pose.label}
-      </span>
-    </button>
   );
 }

@@ -88,6 +88,12 @@ export function EditDaySheet({
               {date ? formatPhotoDateRow(date) : "Edit"}
             </h2>
 
+            {dayPhotos.find((p) => p.note)?.note && (
+              <p className="mt-2 rounded-xl bg-bg-surface-raised px-4 py-3 text-sm whitespace-pre-wrap text-text-muted">
+                {dayPhotos.find((p) => p.note)?.note}
+              </p>
+            )}
+
             {dayPhotos.length === 0 ? (
               <p className="mt-4 text-sm text-text-muted">No photos for this day.</p>
             ) : (
