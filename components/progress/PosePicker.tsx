@@ -33,7 +33,6 @@ export function PosePicker({
           aria-hidden
         />
         <input
-          autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search poses (e.g. side chest)"
