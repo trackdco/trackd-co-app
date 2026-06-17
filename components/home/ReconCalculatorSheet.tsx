@@ -20,8 +20,9 @@ interface ReconCalculatorSheetProps {
 }
 
 const DISCLAIMER =
-  "For personal tracking only — not medical or dosing advice. Always confirm " +
-  "any figure with a qualified medical professional before acting on it."
+  "By using this reconstitution calculator you acknowledge it is for personal " +
+  "tracking only, not medical or dosing advice. Always confirm any figure with " +
+  "a qualified medical professional before acting on it."
 
 type MgUnit = "mg" | "mcg"
 
@@ -191,12 +192,14 @@ export function ReconCalculatorSheet({
           </div>
 
           {/* Always-on disclaimer (information, not advice). */}
-          <div className="flex gap-3 rounded-xl border border-border-default bg-bg-input p-3">
+          <div className="flex gap-3 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
             <TriangleAlert
-              className="mt-0.5 h-4 w-4 shrink-0 text-text-muted"
+              className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
               aria-hidden
             />
-            <p className="text-sm leading-relaxed text-text-muted">{DISCLAIMER}</p>
+            <p className="text-sm leading-relaxed text-accent-amber">
+              {DISCLAIMER}
+            </p>
           </div>
         </div>
         </div>
