@@ -229,6 +229,20 @@ Last updated: 2026-06-17
     `architecture.md`'s storage model still describes localStorage as canonical (true
     until Step 3) — it gets updated at the flip.
 
+- **Founder waitlist dashboard `/admin` + founder-read policy — LIVE (2026-06-17, Angus + Claude).**
+  Private **`/admin`** (founder-only) shows total signups, a **by-channel leaderboard**, and recent
+  signups. **Double-gated:** the page only renders data for a founder, and a founder-scoped SELECT
+  RLS policy + a `security_invoker` `v_waitlist_by_source` view
+  (`supabase/waitlist/002_founder_read.sql`, **applied + verified live**) return rows ONLY to
+  `admin@trackdco.app` + `adrianschimizzi1@gmail.com` (anon still denied — confirmed via a live
+  401/42501 check). Founder list in `lib/admin.ts` (keep in sync with the SQL). `/admin` is
+  **self-contained on desktop** — exempt from the phone-only gate, and when logged-out it renders
+  its OWN Google sign-in returning to `/admin` (instead of bouncing to the phone-only `/login`, which
+  was the desktop bug); `GoogleSignInButton` gained an optional `next` prop (→ `/auth/callback?next=`).
+  The waitlist `001` table was also applied + verified (a live anon insert returned 201). Channel
+  tracking = share `/waitlist?ref=<channel>` then read the `/admin` leaderboard (or
+  `select source, count(*) … group by source`). Deployed `daf6495` → `8f947cb`.
+
 - **Public waitlist shipped — `/waitlist` LIVE on prod (2026-06-17, Angus + Claude).**
   Public pre-launch email capture (Angus is promoting it hard). New `app/waitlist/` page —
   responsive (works on mobile AND desktop; **exempt from the phone-only desktop gate**, since

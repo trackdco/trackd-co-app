@@ -78,14 +78,17 @@ columns**; **(Q2) catalogue-only migration, customs stay device-local + Home mer
   runway via `v_inventory_math` (MCP-verified 20→19 doses; unlog restores). **The full
   Protocol Cutover (Steps 1–5) is built — pending Adrian's QA + commit/push.**
 
-**Latest — 2026-06-17 (Angus + Claude): public waitlist ✅ LIVE on prod.** `/waitlist` is a
-public pre-launch email capture (Angus is promoting it). Responsive (mobile + desktop; exempt
-from the phone-only gate), `?ref=` source tracking, case-insensitive dedupe + honeypot, a
-dynamic OG card for link unfurls, and a "Sign in" link for beta testers. Emails go to a new
-**INSERT-only `waitlist` table — nobody can read the list via the API** (admin reads it in the
-Supabase dashboard). **▶ Angus: apply `supabase/waitlist/001_waitlist.sql` in the Supabase SQL
-editor before promoting** (DB-migration MCP was down) — submissions error until the table
-exists. Decision: home page unchanged; the waitlist lives at `/waitlist`.
+**Latest — 2026-06-17 (Angus + Claude): public waitlist + founder dashboard ✅ LIVE on prod.**
+`/waitlist` is a public pre-launch email capture (Angus promoting it). Responsive (mobile +
+desktop; exempt from the phone-only gate), `?ref=` source tracking, dedupe + honeypot, a dynamic
+OG card, and a "Sign in" link for testers. Emails land in an **INSERT-only `waitlist` table —
+nobody can read the list via the API**. A founder-only **`/admin`** dashboard (total signups +
+by-channel leaderboard + recent) reads it via a founder-scoped SELECT policy (only
+`admin@trackdco.app` + `adrianschimizzi1@gmail.com`); `/admin` is self-contained on desktop (its
+own Google sign-in, gate-exempt). Both SQL migrations (`supabase/waitlist/001` + `002`) are
+**applied + verified live** (anon denied; founder reads). Channel numbers: share
+`/waitlist?ref=<channel>` → read the `/admin` leaderboard. Decision: home page unchanged.
+**Tidy-up left for Angus:** delete the verification test row — `delete from waitlist where source = 'claude-verify';`
 
 **Latest — 2026-06-13 (Adrian + Claude): Calendar/Home photo follow-ups — COMMITTED
 + MERGED + PUSHED to `main` (prod).** Three founder-requested tweaks after the
