@@ -9,11 +9,74 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-13
+Last updated: 2026-06-17
 
 ---
 
 ## 🎯 Current focus
+
+**Latest — 2026-06-17 (Adrian + Claude): PROTOCOL CUTOVER — STEPS 1–5 ✅ BUILT.**
+`tsc`+`lint`+prod `build` clean (33 routes); live-schema round-trips MCP-verified (rolled
+back, 0 rows); **NOT committed; ▶ Adrian's on-device QA pending.** All 5 steps of
+`Context/Feature Specs/11-protocol-page.md` cut Home over to the canonical
+`cycles → protocol_compounds → dose_logs` Postgres model, built the Protocol screen, and
+built the Stock view including the dose→inventory link.
+Adrian approved the design calls (spec-vs-schema/scope conflicts): **(Q1) add rotation
+columns**; **(Q2) catalogue-only migration, customs stay device-local + Home merges them**;
+**(Step 4) consolidate Cycles + My Protocol into one tab** (the spec's "confirm with Angus"
+— Adrian gave the go-ahead as co-founder).
+- **Step 1 — data + sync layer:** `lib/db/{cycles,protocolCompounds,doseLogs,compounds,types}.ts`
+  (`"use server"`, RLS-scoped, never the service role), `lib/sync/{cache,syncEngine}.ts`
+  (offline cache + outbox; Step-1 scaffolding), dev harness `/preview/db-sync` (404 in prod;
+  **throwaway — delete before the cutover settles**).
+- **Step 2 — migration** (`lib/migration/migrateDeviceState.ts`): one-time, **idempotent**,
+  marker-guarded backfill (local ∪ jsonb mirror → Postgres). Catalogue only; customs →
+  `skippedCustom`, left device-local. Schema delta `protocol_compound_rotation` (applied live):
+  `protocol_compounds.rotation_sites text[]` + `rotation_index`.
+- **Step 3 — Home flip (no component changes):** the device stores became a **cache over
+  Postgres**. `lib/home/protocolSync.ts` (`"use server"`) is the single adapter (catalogue
+  name⇄id, stable `protocol_compounds.id`, pull-with-join + writes); `stack.ts`/`doseLog.ts`
+  mutators **dual-write** Postgres; `useCloudHydration.ts` migrates-once then **hydrates from
+  Postgres**, merging device-local customs. `HomeScreen`/`TodaysCycleCard`/`AddCompoundSheet`
+  untouched. `architecture.md` storage model updated (Postgres now canonical).
+- **Step 4 — Protocol screen + Plan view:** `app/(app)/protocol/page.tsx` →
+  `components/protocol/{ProtocolScreen,PlanView,CycleHeader,CycleEditSheet}.tsx` +
+  `lib/protocol/cycle.ts`. ONE tab, in-page **Plan / Stock** toggle (Stock = the Step 5
+  view). Plan = active-cycle header ("Week X of N") + compound list (reusing the Home row
+  treatment, non-logging) + add (existing Add-to-Stack flow) + edit (`AddCompoundSheet`) + a
+  cycle-edit sheet (`updateCycle`). Labels "Plan"/"Cycle", never "protocol". Amber restraint.
+  **Look without signing in: `/preview/protocol`** (mock data).
+- **Cycle goals — prototyped then REMOVED** (Adrian's call): goals belong in **Progress**
+  (track against them there), not Protocol. Fully deleted (migration reverted, no trace);
+  revisit in a later version.
+- **Step 5 — Stock view + "stock left":** `lib/db/inventory.ts` +
+  `components/protocol/{StockView,StockItemCard,AddStockSheet}.tsx`, wired into the Stock
+  toggle. Lists `inventory_items` with remaining / ~doses / runs-dry **read only from
+  `v_inventory_math`** (neutral, no good/bad colour); add-stock branches the 3-way type
+  union; refill = new row; archive ≠ delete. Mock runway shows in `/preview/protocol`.
+
+**▶ Next for this lane:**
+1. **Adrian QAs Steps 1–5** (nothing pushed yet — test first). Sign in locally:
+   - **Cutover (1–3):** open **`/preview/protocol-test`** (cache vs Postgres side by side) —
+     Add → both sides; Log → `dose_logs` row + rotation advances; **Clear local → Hydrate**
+     restores from Postgres; a **Custom** stays local-only. Then `/dashboard` looks/behaves
+     identically.
+   - **Protocol screen (4):** look at **`/preview/protocol`** (mock data, no sign-in), or the
+     real **`/protocol`** — Plan/Stock toggle; set up a cycle (name + start + length →
+     "Week X of N"); Add a compound (appears on Home too); tap a row → edit. One bottom tab.
+   - **Stock (5):** the Stock tab lists inventory with **"X left · ~N doses · runs dry …"**
+     from `v_inventory_math`; Add stock (try all 3 types — reconstituted powder is in mg/iu),
+     refill, archive. Mock runway shows in `/preview/protocol`; the real `/protocol` is empty
+     until you add stock. Then **log a dose on Home** and pick the **"From vial"** option →
+     that vial's "stock left" drops (and recovers if you un-log).
+   Once happy: fold into the working-tree branch, commit, push. (Throwaway harnesses
+   `/preview/protocol-test` + `/preview/db-sync` are dev-only/404 in prod — delete before the
+   cutover settles.)
+- **Dose→inventory link — DONE** ("connect my vials to the doses"): `LogDoseSheet` has a
+  **"From vial"** picker (this compound's compatible vials, default = most recent);
+  `pushProtocolDoseLog` sets `dose_logs.inventory_item_id`, so logging decrements that vial's
+  runway via `v_inventory_math` (MCP-verified 20→19 doses; unlog restores). **The full
+  Protocol Cutover (Steps 1–5) is built — pending Adrian's QA + commit/push.**
 
 **Latest — 2026-06-17 (Angus + Claude): public waitlist + founder dashboard ✅ LIVE on prod.**
 `/waitlist` is a public pre-launch email capture (Angus promoting it). Responsive (mobile +

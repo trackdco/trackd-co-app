@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Pencil, TriangleAlert } from "lucide-react"
+import { Pencil, Plus, TriangleAlert } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
+import { addStockItem, type StockInsert } from "@/lib/db/inventory"
+import { pushProtocolCompound } from "@/lib/home/protocolSync"
 import {
   Sheet,
   SheetContent,
@@ -273,6 +275,26 @@ function AddCompoundBody({
     toMethod(routeForms[0]?.route ?? "po")
   )
   const injectable = isInjectable(method)
+
+  // Optional "stock on hand" entry (create only). The vial type comes from the
+  // selected catalogue route, so we show just that type's fields.
+  const stockType = (routeForms.find((f) => toMethod(f.route) === method)?.inventoryType ??
+    "") as "" | "reconstituted" | "preconcentrated" | "oral_solid"
+  const canStock =
+    !isEdit &&
+    (stockType === "reconstituted" ||
+      stockType === "preconcentrated" ||
+      stockType === "oral_solid")
+  const [addStockOn, setAddStockOn] = useState(false)
+  const [stPowder, setStPowder] = useState("")
+  const [stPowderUnit, setStPowderUnit] = useState<"mg" | "iu">("mg")
+  const [stBac, setStBac] = useState("")
+  const [stMl, setStMl] = useState("")
+  const [stConc, setStConc] = useState("")
+  const [stCount, setStCount] = useState("")
+  const [stForm, setStForm] = useState<"tab" | "capsule">("tab")
+  const [stStrength, setStStrength] = useState("")
+
   const [now] = useState(() => new Date())
   const [initial] = useState(() => initSchedule(source.schedule, now))
 
@@ -345,7 +367,48 @@ function AddCompoundBody({
       ? []
       : upcomingDoseDates(previewSchedule, dateKeyToDate(startDate), 4)
 
-  function handleSave() {
+  function buildStockInsert():
+    | Omit<StockInsert, "id" | "protocol_compound_id">
+    | null {
+    const n = (s: string) => {
+      const v = Number.parseFloat(s)
+      return Number.isFinite(v) ? v : 0
+    }
+    if (stockType === "reconstituted") {
+      if (n(stPowder) <= 0 || n(stBac) <= 0) return null
+      return {
+        inventory_type: "reconstituted",
+        base_unit: stPowderUnit,
+        total_amount: n(stPowder),
+        total_amount_unit: stPowderUnit,
+        bac_water_ml: n(stBac),
+        reconstituted_on: todayKey,
+      }
+    }
+    if (stockType === "preconcentrated") {
+      if (n(stMl) <= 0 || n(stConc) <= 0) return null
+      return {
+        inventory_type: "preconcentrated",
+        base_unit: "mg",
+        total_amount: n(stMl),
+        total_amount_unit: "ml",
+        concentration_mg_per_ml: n(stConc),
+      }
+    }
+    if (stockType === "oral_solid") {
+      if (n(stCount) <= 0 || n(stStrength) <= 0) return null
+      return {
+        inventory_type: "oral_solid",
+        base_unit: "mg",
+        total_amount: n(stCount),
+        total_amount_unit: stForm,
+        strength_per_unit_mg: n(stStrength),
+      }
+    }
+    return null
+  }
+
+  async function handleSave() {
     const doseValue = Number(dose)
     if (dose.trim() === "" || !Number.isFinite(doseValue) || doseValue <= 0) {
       show("Enter a dose greater than 0.")
@@ -391,10 +454,22 @@ function AddCompoundBody({
           ? source.rotationIndex % rotationSites.length
           : 0,
     }
-    if (upsertStack(userId, saved)) {
-      onAdded()
-    } else {
+    if (!upsertStack(userId, saved)) {
       show("Couldn't save to this device. Storage may be full or off.")
+      return
+    }
+    // Optionally record the vial they have on hand. Ensure the protocol_compound
+    // exists in Postgres first (idempotent) so the inventory FK resolves, then add
+    // it. Best-effort + backgrounded so the user isn't kept waiting.
+    const stock = canStock && addStockOn ? buildStockInsert() : null
+    onAdded()
+    if (stock) {
+      // Use the RESOLVED protocol_compound id (it can differ from saved.id for a
+      // non-uuid client id) so the inventory FK always resolves.
+      const r = await pushProtocolCompound(saved)
+      if (r.ok && r.protocolCompoundId) {
+        await addStockItem({ ...stock, id: newId(), protocol_compound_id: r.protocolCompoundId })
+      }
     }
   }
 
@@ -729,6 +804,77 @@ function AddCompoundBody({
           </div>
         )}
 
+        {/* Stock on hand — optional. Type comes from the compound's route, so we
+            show just that vial's fields. Starts full; counts down as doses log. */}
+        {canStock && (
+          <div className="animate-home-up" style={{ animationDelay: "210ms" }}>
+            <FieldLabel>Stock on hand — optional</FieldLabel>
+            {!addStockOn ? (
+              <button
+                type="button"
+                onClick={() => setAddStockOn(true)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border-strong bg-bg-input py-3 text-sm text-text-muted transition-colors hover:text-foreground"
+              >
+                <Plus className="h-4 w-4" aria-hidden /> Got a vial? Log how much you have
+              </button>
+            ) : (
+              <div className="space-y-3 rounded-xl border border-border-default bg-bg-input/40 p-3">
+                {stockType === "reconstituted" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-text-muted">Powder in vial</span>
+                      <div className="flex gap-1.5">
+                        <Input inputMode="decimal" value={stPowder} onChange={(e) => setStPowder(sanitizeDoseInput(e.target.value))} placeholder="5" className="h-11 min-w-0 flex-1 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                        <div className="flex gap-1">
+                          <button type="button" onClick={() => setStPowderUnit("mg")} className={cn(STOCK_PILL, stPowderUnit === "mg" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>mg</button>
+                          <button type="button" onClick={() => setStPowderUnit("iu")} className={cn(STOCK_PILL, stPowderUnit === "iu" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>iu</button>
+                        </div>
+                      </div>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-text-muted">BAC water (mL)</span>
+                      <Input inputMode="decimal" value={stBac} onChange={(e) => setStBac(sanitizeDoseInput(e.target.value))} placeholder="2" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                    </label>
+                  </div>
+                )}
+                {stockType === "preconcentrated" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-text-muted">Volume (mL)</span>
+                      <Input inputMode="decimal" value={stMl} onChange={(e) => setStMl(sanitizeDoseInput(e.target.value))} placeholder="10" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-text-muted">Strength (mg/mL)</span>
+                      <Input inputMode="decimal" value={stConc} onChange={(e) => setStConc(sanitizeDoseInput(e.target.value))} placeholder="250" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                    </label>
+                  </div>
+                )}
+                {stockType === "oral_solid" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-text-muted">Count</span>
+                      <div className="flex gap-1.5">
+                        <Input inputMode="numeric" value={stCount} onChange={(e) => setStCount(sanitizeDoseInput(e.target.value))} placeholder="100" className="h-11 min-w-0 flex-1 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                        <div className="flex gap-1">
+                          <button type="button" onClick={() => setStForm("tab")} className={cn(STOCK_PILL, stForm === "tab" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>tab</button>
+                          <button type="button" onClick={() => setStForm("capsule")} className={cn(STOCK_PILL, stForm === "capsule" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>cap</button>
+                        </div>
+                      </div>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-text-muted">Strength (mg each)</span>
+                      <Input inputMode="decimal" value={stStrength} onChange={(e) => setStStrength(sanitizeDoseInput(e.target.value))} placeholder="25" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                    </label>
+                  </div>
+                )}
+                <p className="text-xs text-text-subtle">
+                  Starts full, then counts down as you log doses from it (see the Stock tab).
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         <p className="px-1 text-xs leading-relaxed text-text-subtle">
           Saved to this device for you only.
         </p>
@@ -736,6 +882,10 @@ function AddCompoundBody({
     </div>
   )
 }
+
+const STOCK_PILL = "rounded-full border px-2.5 py-1 text-sm transition-colors"
+const STOCK_PILL_ON = "border-accent-amber bg-accent-amber/15 text-foreground"
+const STOCK_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (

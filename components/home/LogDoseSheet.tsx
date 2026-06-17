@@ -25,6 +25,7 @@ import {
   type StackCompound,
 } from "@/lib/home/stack"
 import { siteLabel, sitesForMethod } from "@/lib/home/siteCatalog"
+import { listStock, type StockItem } from "@/lib/db/inventory"
 
 interface LogDoseSheetProps {
   open: boolean
@@ -208,6 +209,38 @@ function LogDoseBody({
   const [siteId, setSiteId] = useState<string | null>(
     existing?.siteId ?? defaultSite
   )
+
+  // Vials of THIS compound the dose can draw from, so its "stock left" decrements.
+  // Only family-compatible ones (mg-tracked vial ↔ mg/mcg dose; iu ↔ iu) — the DB
+  // enforces the same. A fresh log defaults to the most-recent vial; editing keeps
+  // the dose's existing link. setState runs after the await (not in the effect body).
+  const [vials, setVials] = useState<StockItem[]>([])
+  const [inventoryItemId, setInventoryItemId] = useState<string | null>(
+    existing?.inventoryItemId ?? null
+  )
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const all = await listStock()
+        if (cancelled) return
+        const mine = all.filter(
+          (v) =>
+            v.protocolCompoundId === compound.id &&
+            ((v.baseUnit === "mg" && (compound.unit === "mg" || compound.unit === "mcg")) ||
+              (v.baseUnit === "iu" && compound.unit === "iu"))
+        )
+        setVials(mine)
+        if (existing == null && mine.length > 0) setInventoryItemId(mine[0].id)
+      } catch {
+        if (!cancelled) setVials([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [compound.id, compound.unit, existing])
+
   const [tracked, setTracked] = useState(false)
   // The clash notice shows a few free spots first; "See more" reveals the rest.
   const [showAllFree, setShowAllFree] = useState(false)
@@ -223,6 +256,7 @@ function LogDoseBody({
       amount,
       siteId: hasRotation ? siteId : null,
       time24: manualTime ?? toHHMM(new Date()),
+      inventoryItemId,
     }
   }
 
@@ -518,6 +552,60 @@ function LogDoseBody({
                 </span>
               </div>
             )}
+          </div>
+        )}
+
+        {/* From vial — connect this dose to a tracked vial so its "stock left"
+            counts down (v_inventory_math). Only this compound's compatible vials
+            are offered; "Not tracked" logs the dose without drawing from stock. */}
+        {vials.length > 0 && (
+          <div className="mt-5">
+            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+              From vial
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {vials.map((v) => {
+                const active = v.id === inventoryItemId
+                const label =
+                  v.remainingDisplay == null
+                    ? "Vial"
+                    : v.inventoryType === "oral_solid"
+                      ? `${v.remainingDisplay} left`
+                      : `${v.remainingDisplay} mL left`
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setInventoryItemId(v.id)}
+                    aria-pressed={active}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 font-mono text-sm transition-colors duration-200 ease-out",
+                      active
+                        ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                        : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+                    )}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+              <button
+                type="button"
+                onClick={() => setInventoryItemId(null)}
+                aria-pressed={inventoryItemId === null}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-sm transition-colors duration-200 ease-out",
+                  inventoryItemId === null
+                    ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                    : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+                )}
+              >
+                Not tracked
+              </button>
+            </div>
+            <p className="mt-2 px-1 text-xs text-text-subtle">
+              Counts this dose against that vial&apos;s “stock left”.
+            </p>
           </div>
         )}
 

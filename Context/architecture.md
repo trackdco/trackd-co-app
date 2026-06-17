@@ -69,7 +69,11 @@ in the schema — storage only, no behaviour, until post-trip.
   `001_api_role_grants.sql` (the `api_role_grants` migration) — the table-level
   privileges the PostgREST roles need on top of RLS (see Auth and Access Model);
   new user-owned tables ship their grant inline (`weight_logs` grants full DML to
-  `authenticated`).
+  `authenticated`). `supabase/protocol/` holds
+  `001_protocol_compound_rotation.sql` (the `protocol_compound_rotation` migration)
+  — the **Protocol Cutover** schema delta adding `protocol_compounds.rotation_sites
+  text[]` + `rotation_index` (the injection-site rotation plan, which the base
+  schema had nowhere for); additive columns, no new table (still **23 tables**).
 - `Context/` — The spec. Defines what to build (`project-overview.md`), how
   (`code-standards.md`, this file), the UI language (`ui-context.md`), the
   session rules (`ai-workflow-rules.md`), and current state (`progress-tracker.md`).
@@ -137,20 +141,75 @@ in the schema — storage only, no behaviour, until post-trip.
   wipes the installed app's `localStorage`). The cloud tables live in
   `supabase/home/001_device_state_sync.sql` (`user_stack_compounds`,
   `user_dose_logs`, `user_custom_compounds`): one row per entity, each holding the
-  verbatim client object in a `jsonb` `data` payload. This is **interim** — NOT the
-  normalised `protocol_compounds`/inventory model (still the future end-state); the
-  stores' own read-normalisers harden the shape on the way back into `localStorage`.
+  verbatim client object in a `jsonb` `data` payload. The stores' own
+  read-normalisers harden the shape on the way back into `localStorage`.
   Writes go through best-effort **server actions** in `lib/home/syncActions.ts`
   (identity from the verified session, RLS the backstop — mirrors
-  `weight/actions.ts`); on load, `components/home/useCloudHydration.ts` (stack +
-  logs) and the Add-to-Stack menu (customs) **union** cloud with local (cloud wins
-  on conflict; any local-only entries migrate up) and write the merged set back into
-  `localStorage`. A network blip never blocks the UI — the synchronous local write
-  already succeeded; the cloud is a durable backup, not the read path. The
-  plus-button **Shortcuts
-  menu** (A10) is now a fixed layout — a primary "Log a dose" over a consistent
-  six-tile grid — so it persists nothing (the earlier reorderable card order +
-  `lib/shortcutOrder.ts` were removed when the menu was reworked).
+  `weight/actions.ts`). A network blip never blocks the UI — the synchronous local
+  write already succeeded; the cloud is a durable backup, not the read path.
+
+- **Protocol Cutover — the canonical model is now Postgres (all 5 steps built).** As
+  of the cutover the **source of truth for the protocol stack + dose
+  logging is the normalised Postgres model** — `cycles → protocol_compounds →
+  dose_logs` (`supabase/trackd_schema_v0_4_2.sql`), one active `"Current"` cycle per
+  user via `ensureActiveCycle()`. The `localStorage` stores above are **demoted to an
+  offline cache** over Postgres: the UI still reads/writes them synchronously (instant +
+  offline), but every mutation now ALSO dual-writes Postgres, and on load they hydrate
+  from Postgres. Layers:
+  - **Data access** (`lib/db/cycles.ts`, `protocolCompounds.ts`, `doseLogs.ts`) —
+    `"use server"`, RLS-scoped, identity from the session, never the
+    service role; upsert on a client-generated id (idempotent). `lib/db/types.ts` holds
+    the row/insert types + the local↔Postgres mapping (cadence→`schedule_type`,
+    `0=Sun`→ISO `Mon=1`, site-id↔`injection_site`, and the `StackCompound`↔row mappers).
+  - **Home adapter** (`lib/home/protocolSync.ts`, `"use server"`) — the single place
+    that resolves catalogue name⇄`compounds.id` and derives the stable
+    `protocol_compounds.id` (the client uuid when valid, else a deterministic hash). The
+    `lib/home/stack.ts` / `doseLog.ts` mutators dual-write through it; the Home flip is
+    invisible to the components.
+  - **Migration** (`lib/migration/migrateDeviceState.ts`) — one-time, idempotent,
+    marker-guarded backfill of the device stores into Postgres, run post-login from
+    `useCloudHydration` (which now hydrates from Postgres, merging device-local customs).
+  - **Rotation** lives on `protocol_compounds.rotation_sites text[]` +
+    `rotation_index` (`supabase/protocol/001_protocol_compound_rotation.sql`).
+  - **Protocol screen (Step 4)** — `app/(app)/protocol/page.tsx` is now the real
+    screen (`components/protocol/`): ONE tab with an in-page **Plan / Stock** toggle
+    (Adrian-approved consolidation of Angus's "Cycles" + "My Protocol", a change from
+    Spec 11 — NOT a second nav tab). **Plan** = the cycle builder (active-cycle header
+    with "Week X of N" from `lib/protocol/cycle.ts`, the compound list reusing the Home
+    row treatment, add via the existing Add-to-Stack flow, edit via `AddCompoundSheet`,
+    and a cycle-edit sheet → `updateCycle`). **Stock** (Step 5,
+    `components/protocol/{StockView,StockItemCard,AddStockSheet}.tsx` + `lib/db/inventory.ts`)
+    lists `inventory_items` with **"stock left"** — remaining / doses-remaining /
+    projected-empty read ONLY from `v_inventory_math` (never recomputed); add-stock branches
+    the 3-way type union (reconstituted / preconcentrated / oral_solid; refill = a NEW row,
+    archive = `is_active=false`, never hard-delete). Each card shows a **neutral fullness bar**
+    (`remaining_base/total_base`, white on a track — no good/bad colour). Stock can also be
+    logged **inline when adding a compound** (`AddCompoundSheet` has an optional "Got a vial?"
+    step). Runway is shown **neutrally**. The cycle carries an optional free-text **description**
+    (`cycles.notes`) shown under the Plan header. The dose-plan is never labelled "protocol" in
+    UI (it's "Plan"/"Cycle").
+    A dev-only `/preview/protocol` (mock data, 404 in prod) renders the screen without auth.
+    (Per-cycle **goals** were prototyped then removed — goals belong in Progress, where you
+    track against them; revisit in a later version.)
+  - **Dose→inventory link (wired):** the Home log sheet (`LogDoseSheet`) shows a **"From
+    vial"** picker of THIS compound's compatible inventory items; the chosen one rides on the
+    device `DoseLog.inventoryItemId` and `pushProtocolDoseLog` sets `dose_logs.inventory_item_id`
+    (validating unit-family vs the vial, dropping an incompatible link rather than failing the
+    log). So logging a dose **decrements that vial's "stock left"** via `v_inventory_math`
+    (`consumed`); unlogging restores it.
+  - **Scope:** only **catalogue** compounds are in Postgres; **custom "Make your own"**
+    compounds remain device-local (jsonb mirror) and Home merges them — true custom
+    support is v1.5. The Step 5 Stock view reads `v_inventory_math` (runway), and logging a
+    dose against a vial decrements it. `lib/sync/{cache,syncEngine}.ts` + the dev-only
+    `/preview/db-sync` / `/preview/protocol-test` harnesses are throwaway scaffolding, to be
+    removed when the cutover settles.
+  - **Offline-first** is preserved: reads come from the cache; writes are optimistic to
+    the cache and dual-written to Postgres, with a reconnect/focus re-sync that re-pushes
+    anything written offline (idempotent). A failed/empty pull never wipes the cache.
+
+- The plus-button **Shortcuts menu** (A10) is now a fixed layout — a primary "Log a
+  dose" over a consistent six-tile grid — so it persists nothing (the earlier
+  reorderable card order + `lib/shortcutOrder.ts` were removed when the menu was reworked).
 
 ## Legal Documents
 

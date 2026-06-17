@@ -30,6 +30,205 @@ Last updated: 2026-06-17
 
 ## Completed
 
+- **Protocol Cutover STEP 5 — Stock view + "stock left" runway (2026-06-17, Adrian +
+  Claude) — `tsc`+`lint`+prod `build` clean (33 routes); all 3 inventory types
+  MCP-verified against `v_inventory_math` (rolled back); ▶ Adrian's on-device QA
+  pending; NOT committed.** The last cutover step — the **Stock** side of the Protocol
+  toggle is now real (was a placeholder). Adrian asked to "make sure we're able to do
+  stock left," so the runway is the centrepiece.
+  - **Data (`lib/db/inventory.ts`, `"use server"`):** `listStock` joins
+    `inventory_items` → its compound name and **`v_inventory_math`** (stitched by id),
+    so remaining / doses-remaining / projected-empty are **read-only from the view,
+    never recomputed in TS** (invariant 1). `addStockItem` (add + refill — refill is a
+    NEW row, never mutate), `setStockArchived` (`is_active=false`, no hard delete).
+  - **UI (`components/protocol/{StockView,StockItemCard,AddStockSheet}.tsx`):** lists
+    each item with **"X mL / units left"**, **"~N doses"**, and **"runs dry <date>"** —
+    all **neutral** (no red/green/amber good-bad; health-data colour rule). Add-stock
+    **branches the 3-way `inventory_type` union** (reconstituted = powder mg/iu + BAC
+    water; preconcentrated = mL + mg/mL; oral = count + mg/unit) and stores raw inputs
+    only. Refill pre-selects the compound; archive surfaces nothing destructive.
+    Wired into `ProtocolScreen` (replaced the placeholder); a `/preview/protocol`
+    Stock tab shows mock runway.
+  - **Verified:** `tsc`+`lint`+prod `build` clean. MCP round-trips (rolled back) for all
+    three types confirmed the inserts satisfy the schema CHECKs + the unit-family trigger
+    (key lesson: reconstituted `base_unit` is the powder's **mg/iu**, not the dose's mcg —
+    mcg doses are mg-family) and that `v_inventory_math` returns the right remaining /
+    doses / empty-date / mL-per-dose.
+  - **Dose→inventory link (WIRED — founder-requested "connect my vials to the doses"):**
+    the Home **`LogDoseSheet`** now shows a **"From vial"** picker of THIS compound's
+    compatible inventory items (mg-tracked vial ↔ mg/mcg dose; iu ↔ iu — filtered
+    client-side, re-checked server-side), defaulting to the most-recent vial on a fresh log.
+    The choice rides on `DoseLog.inventoryItemId` (persisted device-local) and
+    `pushProtocolDoseLog` sets `dose_logs.inventory_item_id` (dropping an incompatible link
+    rather than failing the log). **MCP-verified the full loop (rolled back):** a 250 mcg
+    dose linked to a 5 mg vial dropped `v_inventory_math` from 20→19 doses (2.0→1.9 mL).
+    Unlogging restores it. So "stock left" now tracks ACTUAL logged consumption.
+  - **Test:** `/preview/protocol` (Stock tab, mock runway) or the real `/protocol` signed in
+    (add stock → log a dose from that vial on Home → watch the runway drop → refill/archive).
+  - **Founder-requested polish (2026-06-17):** (1) **Fullness bar** on each Stock card —
+    `remaining_base / total_base` from `v_inventory_math`, a NEUTRAL fill (white on a surface
+    track, no red/green/amber per the stock-level rule) that starts full and shrinks as doses
+    log. (2) **Log your vial when adding a compound** — `AddCompoundSheet` (create only) has an
+    optional **"Got a vial? Log how much you have"** section showing just that compound's
+    inventory-type fields (from the catalogue route); on save it ensures the `protocol_compound`
+    exists then inserts the vial (`addStockItem`). (3) **Cycle description** — an optional
+    free-text field in the cycle editor (stored in the existing `cycles.notes`, no schema
+    change), shown under the Plan header. (4) **Smart inventory type** — **refill locks** to
+    the existing vial's form (the type picker is hidden; "same form as your current vial"), and
+    a **fresh add pre-selects** the form from the compound's catalogue `defaultInventoryType`
+    (still changeable). So you almost never touch the type picker, but it remains as an
+    override. All `tsc`+`lint`+`build` clean; the fill-bar data (`remaining_base`/`total_base`)
+    verified from the view.
+
+- **Protocol Cutover STEP 4 — Protocol screen shell + Plan view (cycle builder)
+  (2026-06-17, Adrian + Claude) — `tsc`+`lint`+prod `build` clean; cycle write-path
+  MCP-verified (rolled back); ▶ Adrian's on-device QA pending; NOT committed.**
+  **Adrian approved the consolidation** (the spec's "confirm with Angus" — Adrian, as
+  co-founder, gave the go-ahead): Angus's "Cycles" + "My Protocol" (Spec 11) become
+  **ONE Protocol tab** with an in-page **Plan / Stock** toggle (shadcn `tabs`), NOT a
+  second bottom-nav tab.
+  - **Screen** (`app/(app)/protocol/page.tsx` → `components/protocol/ProtocolScreen.tsx`):
+    replaces the "lives here soon" placeholder. Mirrors the Home composition
+    (`PageScrollTitle` + staggered `animate-home-up`). Plan/Stock toggle; **Stock is a
+    placeholder** until Step 5 (neutral copy). Mounts `useCloudHydration` so the stack is
+    Postgres-sourced here too; refreshes the active cycle after mount/focus (the
+    migration may create it just after the server render).
+  - **Plan view** (`PlanView.tsx` + `CycleHeader.tsx`): the active-cycle header (name +
+    **"Week X of N"** you-are-here, derived from `started_on`/`ended_on` in
+    `lib/protocol/cycle.ts` — a date derivation, not inventory maths) over the compound
+    list, which **reuses the Home `TodaysCycleCard` row treatment in a non-logging mode**
+    (category groups; name + dose · cadence · next site; tap → edit). **Add** reuses the
+    existing `AddToStackMenu` flow; **edit** reuses `AddCompoundSheet`; both write
+    `protocol_compounds` via the store's dual-write, so they also appear on Home.
+  - **Cycle builder** (`CycleEditSheet.tsx`): name + start date + length (weeks) → derives
+    `ended_on`, writes via `ensureActiveCycle`/`updateCycle`. Bottom sheet, Save/Cancel;
+    the form is keyed + mounted-on-open so it seeds via `useState` initializers (no
+    setState-in-effect). Verified the cycle update (name/started_on/ended_on, 12wk → 84d)
+    against the live schema, rolled back.
+  - **Cycle goals — prototyped then REMOVED (2026-06-17, Adrian's call).** A goals
+    feature (focus / target weight / body-fat % / notes on the cycle, with a Plan Goals
+    card + the `cycle_goals` migration) was built, then **fully deleted** — Adrian decided
+    goals belong in the **Progress** section (where you see how close you are to them), not
+    Protocol. The migration was reverted (goal columns dropped, the `cycle_goals` record
+    removed — DB clean), `lib/protocol/goals.ts` + all goal UI/types removed, no trace left.
+    Revisit goals in Progress in a later version.
+  - **Guardrails honoured:** one bottom tab (no new nav entry); the dose-plan is labelled
+    **"Plan"/"Cycle"**, never "protocol"; Obsidian tokens + `CARD_TITLE`/`CARD_ICON_BADGE`,
+    no hardcoded hex; amber only for active/interactive (the week marker, the Add pill); no
+    inventory/runway maths in TS. **Test surfaces:** **`/preview/protocol`** (mock data, no
+    sign-in — open and look) + the real `/protocol` signed in (+ `/preview/protocol-test` to
+    drive the underlying data). **Next: Step 5 — Stock view + "stock left" runway.**
+
+- **Protocol Cutover STEPS 2 + 3 — migration + Home flip onto Postgres (2026-06-17,
+  Adrian + Claude) — `tsc`+`lint`+prod `build` clean (31 routes); live-schema
+  round-trips MCP-verified (rolled back, 0 rows); ▶ Adrian's on-device QA pending;
+  NOT committed.** Continues `Context/Feature Specs/11-protocol-page.md`. Adrian
+  approved two design calls up front (the spec vs. schema/scope conflicts): **(Q1)
+  add rotation columns** to `protocol_compounds`; **(Q2) catalogue-only migration**,
+  customs stay device-local and Home merges them.
+  - **Schema delta (applied live):** `protocol_compound_rotation` migration adds
+    `protocol_compounds.rotation_sites text[]` + `rotation_index smallint`
+    (`supabase/protocol/001_*.sql`) — the base schema had nowhere for the rotation
+    plan. Additive; verified it accepts the granular local site ids. Still 23 tables.
+  - **STEP 2 — migration (`lib/migration/migrateDeviceState.ts`):** one-time,
+    **idempotent**, marker-guarded backfill of the device stack + dose logs (local ∪
+    the jsonb mirror) into `cycles → protocol_compounds → dose_logs`. Catalogue
+    compounds only; a name that doesn't resolve in the read-only `compounds`
+    catalogue is a custom compound → counted `skippedCustom`, left device-local
+    (v1.5). Writes through the same `protocolSync` actions the flip uses, so ids +
+    catalogue resolution live in ONE place.
+  - **STEP 3 — Home flip (no component changes — identical UX by construction):**
+    the device stores became a **cache over Postgres**. `lib/home/protocolSync.ts`
+    (`"use server"`) is the single adapter — resolves catalogue name⇄`compounds.id`,
+    derives the stable `protocol_compounds.id` (the client uuid when valid, else a
+    deterministic SHA-256 hash — handles the insecure-context `s_…`/`c_…` fallback
+    ids), and provides pull (joined to the catalogue for name/category) + the
+    push/archive/delete/dose-log writes. `lib/home/stack.ts` + `doseLog.ts` mutators
+    now **dual-write** Postgres alongside the existing jsonb mirror;
+    `components/home/useCloudHydration.ts` runs the migration once then **hydrates
+    from Postgres**, merging device-local customs so nothing disappears. Rotation
+    advances persist to `rotation_index`; per-dose site → the coarse
+    `injection_site` enum (granular plan kept in `rotation_sites`).
+    `HomeScreen`/`TodaysCycleCard`/`AddCompoundSheet` are **untouched** (they still
+    call `upsertStack`/`logDose`/… — only the stores' backing changed).
+  - **Offline-first preserved:** reads from the cache; writes optimistic + dual-written;
+    a reconnect/focus re-sync re-pushes anything written offline (idempotent); a
+    failed/empty pull never wipes the cache. `inventory_item_id` stays null (Step 5).
+  - **Verified:** `tsc`+`lint`+prod `build` clean. MCP round-trips (rolled back, 0
+    rows persisted) confirmed: the rotation columns accept granular site ids; the
+    **pull join** returns name/category + schedule + `rotation_sites`/`rotation_index`
+    + the dose-log site in exactly the shape the mappers expect; all three cadence
+    mappings + the schedule CHECKs hold. Model tables are still **empty (0 real
+    rows)**. The `/preview/db-sync` harness gained a **"Run migration"** button.
+  - **Test surface (Adrian asked for one before pushing):** new dev page
+    **`/preview/protocol-test`** (404 in prod; throwaway) shows the device-local cache
+    vs. Postgres SIDE BY SIDE and drives the real store mutators — Add / Log / Archive /
+    Delete / Run migration / **Clear local → Hydrate** (proves Postgres is canonical) /
+    add a Custom (stays local-only). The hydrate logic was extracted to
+    `lib/home/hydrateProtocol.ts` (shared by `useCloudHydration` + the test page).
+  - **Pending Adrian's on-device QA** (the one thing MCP can't prove — browser
+    behaviour): via `/preview/protocol-test` + the real `/dashboard` — Home looks/behaves
+    identically, reads come from Postgres, add/log/archive write
+    `protocol_compounds`/`dose_logs`, rotation persists, customs still show, works
+    offline + syncs on reconnect. **Nothing pushed yet** (Adrian: test first).
+    `architecture.md` storage model updated (Postgres now canonical). **Next: Step 4
+    needs Angus's OK (consolidating Cycles + My Protocol into one tab — a deliberate
+    change from Spec 11).**
+
+- **Protocol Cutover STEP 1 — Postgres data-access + offline sync layer (2026-06-17,
+  Adrian + Claude) — `tsc`+`lint`+prod `build` clean (31 routes); live-schema
+  round-trip MCP-verified (rolled back); ▶ Adrian's on-device QA pending; NOT yet
+  committed.** First step of `Context/Feature Specs/11-protocol-page.md` (the 5-step
+  cutover from the interim device-local stores to the canonical
+  `cycles → protocol_compounds → dose_logs` Postgres model). Step 1 is **pure backend —
+  no screen, component, route, or nav entry changed**; the live `localStorage` stores
+  (`lib/home/stack.ts` / `doseLog.ts`) and the jsonb mirror tables
+  (`supabase/home/*`) are **untouched** and remain the source of truth until the Home
+  flip (Step 3). New files only:
+  - **Data access (`lib/db/`)** — `cycles.ts` (`ensureActiveCycle()` → returns the
+    active cycle or creates a `"Current"` one; `getActiveCycle` / `updateCycle`),
+    `protocolCompounds.ts` (list / upsert / archive-via-`is_active` / hard-delete),
+    `doseLogs.ts` (list / upsert / delete). All are `"use server"` actions on the
+    **cookie-bound server client** (publishable key, RLS the only gate, **never** the
+    service role) — identity ALWAYS from the verified session, mirroring
+    `lib/home/syncActions.ts`. Writes **upsert on the client-generated `id`** so an
+    offline re-flush is idempotent. `inventory_item_id` left null (Step 5).
+  - **Types + mapping (`lib/db/types.ts`)** — `Cycle` / `ProtocolCompound` / `DoseLog`
+    rows + insert payloads mirroring `trackd_schema_v0_4_2.sql` exactly, plus the
+    local→Postgres mapping **defined here, applied in Step 2**: `cadenceToSchedule`
+    (`daily`→`every_day`; `everyOtherDay`→`every_n_days` interval 2; `everyNDays(n)`→
+    interval n; `daysOfWeek`→`specific_days`), and `localDowToIso` (0=Sun → ISO Mon=1…
+    Sun=7) with its inverse. Catalogue `compound_id` resolution + the local site-id →
+    `injection_site` enum map are flagged as Step 2 work (the migration resolves them).
+  - **Offline-first cache (`lib/sync/cache.ts`)** — a SEPARATE `useSyncExternalStore`
+    store under new keys (`trackd.dbcache.v1.<uid>`), holding the Postgres-model
+    snapshot + an **outbox** of pending writes. Optimistic mutators apply to the cache
+    instantly and queue an op; `applyServerSnapshot` reconciles a pull then re-applies
+    any un-flushed ops on top (last-write-wins, local edits ahead of the server win
+    until they flush). Split out of `syncEngine.ts` per "one concern, one file".
+  - **Sync engine (`lib/sync/syncEngine.ts`)** — `flush` (drain the outbox to
+    Postgres, drop confirmed ops, leave failures queued), `pull` (read active cycle +
+    compounds + dose logs, reconcile; a null/empty read NEVER wipes the cache),
+    `reconcile` (flush+pull), and `startSync` (initial reconcile + re-sync on `online`
+    / `focus` / `visibilitychange`). Wired to nothing yet — the Home flip (Step 3)
+    mounts it.
+  - **Verification:** `tsc`+`lint`+prod `build` all clean. A **transactional MCP
+    round-trip (rolled back, 0 rows persisted)** confirmed every column name, enum
+    value, and CHECK against the live schema — the `"Current"` cycle, all three cadence
+    mappings (`every_day` / `specific_days` with ISO `days_of_week {1,3,5}` /
+    `every_n_days` interval 2), and a `dose_log` (`taken`, `injection_site`, null
+    `inventory_item_id`). The model tables are currently **empty (0 rows)** — no real
+    user data exists in them yet. A **dev-only `/preview/db-sync` harness**
+    (404 in prod, throwaway — **remove before the Step 3 flip**) lets Adrian run the
+    live round-trip + an offline→online sync while signed in locally.
+  - **Honest caveats:** RLS scoping is structurally guaranteed by the existing
+    `(SELECT auth.uid()) = user_id` policies (verified previously with two accounts) +
+    the no-service-role server client; the MCP round-trip runs as the service role so
+    it proves schema correctness, not RLS. The live **offline→online browser sync**
+    (airplane-mode toggle) is pending Adrian's on-device QA via the harness.
+    `architecture.md`'s storage model still describes localStorage as canonical (true
+    until Step 3) — it gets updated at the flip.
+
 - **Founder waitlist dashboard `/admin` + founder-read policy — LIVE (2026-06-17, Angus + Claude).**
   Private **`/admin`** (founder-only) shows total signups, a **by-channel leaderboard**, and recent
   signups. **Double-gated:** the page only renders data for a founder, and a founder-scoped SELECT
@@ -76,7 +275,7 @@ Last updated: 2026-06-17
   state, and the dead `RECONSTITUTION_WARNING`/`warning` field in
   `shortcutItems.ts` (the real `ReconCalculatorSheet` carries its own disclaimer).
   (3) **Protocol tab kept as-is** — it's a deliberate WIP stub ("lives here soon"),
-  build pending (see `Context/Feature Specs/11-protocol-section.md`).
+  build pending (see `Context/Feature Specs/11-protocol-page.md`).
 - **Catalogue expansion — 56 common compounds added (2026-06-17) — `tsc`+`lint`
   clean; ▶ Adrian's on-device QA pending; NOT yet committed.** Founder-requested
   fill of common gaps (Adrian: "add all that"). Catalogue **149 → 205**.

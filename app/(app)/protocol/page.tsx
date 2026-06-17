@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
 
-import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
+import { getCurrentUser } from "@/lib/auth";
+import { getActiveCycle } from "@/lib/db/cycles";
+import { ProtocolScreen } from "@/components/protocol/ProtocolScreen";
 
-export const metadata: Metadata = { title: "My Protocol — Trackd Co" };
+export const metadata: Metadata = { title: "Protocol — Trackd Co" };
 
-// Protocol tab root. Content is built out later; the shared scroll-title preset
-// (large heading → fade-in compact bar) is wired in now so it behaves like the
-// other tab pages from the start.
-export default function ProtocolPage() {
-  return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
-      <PageScrollTitle title="Protocol" />
-      <p className="px-1 text-sm text-text-muted">
-        Your protocol lives here soon.
-      </p>
-    </div>
-  );
+/**
+ * Protocol tab — a single screen with an in-page Plan / Stock toggle (Protocol
+ * Cutover, Step 4). Reads the active cycle server-side (RLS-scoped) for the Plan
+ * header; the client screen hydrates the compound list from Postgres.
+ */
+export default async function ProtocolPage() {
+  const user = await getCurrentUser();
+  const cycle = user ? await getActiveCycle() : null;
+  return <ProtocolScreen userId={user?.id ?? "anon"} initialCycle={cycle} />;
 }

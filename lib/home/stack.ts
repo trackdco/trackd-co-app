@@ -15,6 +15,11 @@
  */
 import type { CompoundCategory } from "@/lib/compound-categories"
 import { pushStackCompound, deleteStackCompound } from "@/lib/home/syncActions"
+import {
+  archiveProtocolCompound,
+  deleteProtocolCompoundForStack,
+  pushProtocolCompound,
+} from "@/lib/home/protocolSync"
 
 /**
  * How a compound is administered. Defaults to the compound's primary `route`;
@@ -132,7 +137,8 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
   const ok = saveStack(userId, next)
   if (ok) {
     notifyStackChanged()
-    void pushStackCompound(compound) // best-effort cloud backup
+    void pushStackCompound(compound) // jsonb mirror (also backs up customs)
+    void pushProtocolCompound(compound) // Postgres (canonical; no-op for customs)
   }
   return ok
 }
@@ -152,6 +158,7 @@ export function archiveInStack(
   if (ok) {
     notifyStackChanged()
     if (updated) void pushStackCompound({ ...updated, archived })
+    void archiveProtocolCompound(id, archived) // Postgres (no-op for customs)
   }
   return ok
 }
@@ -167,6 +174,7 @@ export function removeFromStack(userId: string, id: string): boolean {
   if (ok) {
     notifyStackChanged()
     void deleteStackCompound(id)
+    void deleteProtocolCompoundForStack(id) // Postgres (cascades its dose logs)
   }
   return ok
 }
