@@ -40,7 +40,13 @@ export function CycleEditSheet({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-3xl border-border-default bg-bg-surface">
+      <SheetContent
+        side="bottom"
+        // Don't auto-focus the Name field on open — keeps the keypad from popping
+        // up over the form before the user taps a field.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        className="rounded-t-3xl border-border-default bg-bg-surface"
+      >
         <SheetHeader>
           <SheetTitle className="font-display text-xl text-foreground">Edit cycle</SheetTitle>
         </SheetHeader>

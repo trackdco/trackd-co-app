@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Boxes, Plus } from "lucide-react"
 
 import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
-import { listStock, setStockArchived, type StockItem } from "@/lib/db/inventory"
+import { listStock, deleteStockItem, type StockItem } from "@/lib/db/inventory"
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
 import { StockItemCard } from "@/components/protocol/StockItemCard"
 import type { InventoryType } from "@/lib/db/types"
@@ -61,8 +61,8 @@ export function StockView({
     setRefillType(inventoryType)
     setAddOpen(true)
   }
-  async function archive(id: string) {
-    await setStockArchived(id, true)
+  async function del(id: string) {
+    await deleteStockItem(id)
     await refresh()
   }
 
@@ -89,7 +89,7 @@ export function StockView({
       ) : items.length > 0 ? (
         <ul className="mt-4 space-y-2">
           {items.map((item) => (
-            <StockItemCard key={item.id} item={item} onRefill={openRefill} onArchive={(id) => void archive(id)} />
+            <StockItemCard key={item.id} item={item} onRefill={openRefill} onDelete={(id) => void del(id)} />
           ))}
         </ul>
       ) : (

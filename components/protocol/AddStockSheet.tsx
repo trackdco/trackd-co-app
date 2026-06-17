@@ -75,6 +75,9 @@ export function AddStockSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
+        // Don't auto-focus a field on open — otherwise the keypad pops up over the
+        // form (esp. on refill, where the compound select is disabled).
+        onOpenAutoFocus={(e) => e.preventDefault()}
         className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
       >
         <SheetHeader>
@@ -122,8 +125,10 @@ function AddStockForm({
 
   const [compoundId, setCompoundId] = useState(refillFor ?? compounds[0]?.id ?? "")
   // We usually already know the form: a refill keeps its existing vial's type; a
-  // fresh add pre-selects from the catalogue. Picker is hidden on refill (locked).
+  // fresh add pre-selects from the catalogue. On refill the picker is hidden behind
+  // a "Change form" toggle — for when the user actually switched how they track it.
   const lockedType = refillFor != null && refillType != null
+  const [overrideType, setOverrideType] = useState(false)
   const [type, setType] = useState<InventoryType>(
     refillType ?? typeForId(refillFor ?? compounds[0]?.id ?? "") ?? "reconstituted",
   )
@@ -228,12 +233,25 @@ function AddStockForm({
               </select>
             </label>
 
-            {lockedType ? (
-              // Refill: same form as the existing vial — no need to re-choose.
-              <p className="text-sm text-text-muted">
-                {TYPES.find((t) => t.value === type)?.label}{" "}
-                <span className="text-text-subtle">· same form as your current vial</span>
-              </p>
+            {lockedType && !overrideType ? (
+              // Refill: same form as the existing vial — but allow changing it if the
+              // user actually switched how they track this compound.
+              <div className="space-y-1.5">
+                <span className={LABEL}>Type</span>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="min-w-0 text-sm text-foreground">
+                    {TYPES.find((t) => t.value === type)?.label}
+                    <span className="text-text-subtle"> · same as your current vial</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setOverrideType(true)}
+                    className="shrink-0 text-xs font-medium text-accent-amber transition-opacity hover:opacity-80"
+                  >
+                    Change form
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="space-y-1.5">
                 <span className={LABEL}>Type</span>
@@ -245,7 +263,9 @@ function AddStockForm({
                   ))}
                 </div>
                 <span className="block text-xs text-text-subtle">
-                  {TYPES.find((t) => t.value === type)?.hint}
+                  {overrideType
+                    ? "Changing the form starts a fresh vial of the new type."
+                    : TYPES.find((t) => t.value === type)?.hint}
                 </span>
               </div>
             )}

@@ -168,3 +168,25 @@ export async function setStockArchived(
     return { ok: false }
   }
 }
+
+/**
+ * Delete a stock item outright (the user just wants the leftover stock gone; they
+ * can re-add it anytime). Safe re: history: `dose_logs.inventory_item_id` is
+ * `ON DELETE SET NULL`, so logged doses survive — only the vial record + its runway
+ * disappear. (Distinct from the compound, which is never hard-deleted here.)
+ */
+export async function deleteStockItem(id: string): Promise<{ ok: boolean }> {
+  try {
+    const ctx = await sessionCtx()
+    if (!ctx) return { ok: false }
+    const { error } = await ctx.supabase
+      .from("inventory_items")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", ctx.userId)
+    return { ok: !error }
+  } catch (e) {
+    console.error("deleteStockItem failed", e)
+    return { ok: false }
+  }
+}
