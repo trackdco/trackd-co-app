@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Pencil,
   RotateCcw,
+  Trash2,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -49,6 +50,8 @@ interface CompoundDetailSheetProps {
   onArchive: (id: string) => void
   /** Reactivate an archived compound. */
   onReactivate: (id: string) => void
+  /** Permanently delete the compound + all its logged history. */
+  onDelete: (id: string) => void
 }
 
 function formatDose(dose: number): string {
@@ -70,6 +73,7 @@ export function CompoundDetailSheet({
   onEdit,
   onArchive,
   onReactivate,
+  onDelete,
 }: CompoundDetailSheetProps) {
   // Retain through the close animation so the body doesn't blank.
   const [shown, setShown] = useState<StackCompound | null>(compound)
@@ -92,6 +96,7 @@ export function CompoundDetailSheet({
             onEdit={onEdit}
             onArchive={onArchive}
             onReactivate={onReactivate}
+            onDelete={onDelete}
           />
         ) : null}
       </SheetContent>
@@ -107,6 +112,7 @@ function DetailBody({
   onEdit,
   onArchive,
   onReactivate,
+  onDelete,
 }: {
   compound: StackCompound
   onClose: () => void
@@ -115,6 +121,7 @@ function DetailBody({
   onEdit: (compound: StackCompound) => void
   onArchive: (id: string) => void
   onReactivate: (id: string) => void
+  onDelete: (id: string) => void
 }) {
   const { cardRef, handleProps, cardStyle } = useSheetDrag(onClose)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -122,6 +129,8 @@ function DetailBody({
   const [confirmArchive, setConfirmArchive] = useState<
     "archive" | "reactivate" | null
   >(null)
+  // 0 = not started, 1 = first confirm, 2 = final confirm (the destructive path).
+  const [deleteStep, setDeleteStep] = useState(0)
   const meta = CATEGORY_META[compound.category] ?? FALLBACK_CATEGORY_META
   const injectable = isInjectable(compound.method)
   const nextSite = nextSiteId(compound)
@@ -245,10 +254,8 @@ function DetailBody({
           )}
         </div>
 
-        {/* Archive / reactivate confirm — drops down before it happens. The
-            permanent-delete path lives on the Archive screen, not here: the
-            everyday sheet only stops logging (reversible). */}
-        {confirmArchive ? (
+        {/* Archive / reactivate confirm — drops down before it happens. */}
+        {confirmArchive && deleteStep === 0 ? (
           <div className="animate-shortcut-in rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
             <p className="text-sm text-foreground">
               {confirmArchive === "archive"
@@ -276,7 +283,7 @@ function DetailBody({
               </button>
             </div>
           </div>
-        ) : !compound.archived ? (
+        ) : deleteStep === 0 ? (
           <div>
             <button
               type="button"
@@ -295,30 +302,76 @@ function DetailBody({
             </button>
             {moreOpen && (
               <div className="animate-shortcut-in mt-2 overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
+                {!compound.archived && (
+                  <>
+                    <MenuRow
+                      icon={<CalendarClock className="h-4 w-4" aria-hidden />}
+                      sub="Changes upcoming doses · today's logged dose stays as-is"
+                      onClick={() => {
+                        setMoreOpen(false)
+                        onEdit(compound)
+                      }}
+                    >
+                      Alter dose &amp; schedule
+                    </MenuRow>
+                    <MenuRow
+                      icon={<Archive className="h-4 w-4" aria-hidden />}
+                      sub="Hides it going forward · keeps all past entries · reversible"
+                      onClick={() => {
+                        setMoreOpen(false)
+                        setConfirmArchive("archive")
+                      }}
+                    >
+                      Stop logging
+                    </MenuRow>
+                  </>
+                )}
                 <MenuRow
-                  icon={<CalendarClock className="h-4 w-4" aria-hidden />}
-                  sub="Changes upcoming doses · today's logged dose stays as-is"
+                  destructive
+                  icon={<Trash2 className="h-4 w-4" aria-hidden />}
+                  sub="Erases this compound and ALL its logged history"
                   onClick={() => {
                     setMoreOpen(false)
-                    onEdit(compound)
+                    setDeleteStep(1)
                   }}
                 >
-                  Alter dose &amp; schedule
-                </MenuRow>
-                <MenuRow
-                  icon={<Archive className="h-4 w-4" aria-hidden />}
-                  sub="Hides it going forward · keeps all past entries · reversible"
-                  onClick={() => {
-                    setMoreOpen(false)
-                    setConfirmArchive("archive")
-                  }}
-                >
-                  Stop logging
+                  Delete all
                 </MenuRow>
               </div>
             )}
           </div>
-        ) : null}
+        ) : (
+          <div className="rounded-xl border border-state-error/40 bg-state-error/10 p-3">
+            <p className="text-sm text-foreground">
+              {deleteStep === 1
+                ? `Delete “${compound.name}” and ALL of its logged history? This can't be undone. Archive instead if you just want to stop dosing it.`
+                : `Last check. This permanently erases every logged dose for “${compound.name}”.`}
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteStep(0)}
+                className="flex-1 rounded-lg border border-border-strong py-2 text-sm text-text-muted transition-colors hover:text-text-primary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteStep === 1) {
+                    setDeleteStep(2)
+                  } else {
+                    onDelete(compound.id)
+                    onClose()
+                  }
+                }}
+                className="flex-1 rounded-lg bg-state-error py-2 text-sm font-medium text-text-primary transition-opacity hover:opacity-90"
+              >
+                {deleteStep === 1 ? "Continue" : "Delete forever"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -329,19 +382,26 @@ function MenuRow({
   sub,
   icon,
   onClick,
+  destructive,
 }: {
   children: React.ReactNode
   sub?: string
   icon: React.ReactNode
   onClick: () => void
+  destructive?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 px-4 py-3 text-left text-foreground transition-colors hover:bg-bg-input/50"
+      className={cn(
+        "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-bg-input/50",
+        destructive ? "text-state-error" : "text-foreground"
+      )}
     >
-      <span className="shrink-0 text-text-muted">{icon}</span>
+      <span className={cn("shrink-0", destructive ? "text-state-error" : "text-text-muted")}>
+        {icon}
+      </span>
       <span className="min-w-0">
         <span className="block text-sm font-medium">{children}</span>
         {sub && <span className="block text-xs text-text-subtle">{sub}</span>}
