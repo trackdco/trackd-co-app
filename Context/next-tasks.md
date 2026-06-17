@@ -15,6 +15,15 @@ Last updated: 2026-06-13
 
 ## 🎯 Current focus
 
+**Latest — 2026-06-17 (Angus + Claude): public waitlist ✅ LIVE on prod.** `/waitlist` is a
+public pre-launch email capture (Angus is promoting it). Responsive (mobile + desktop; exempt
+from the phone-only gate), `?ref=` source tracking, case-insensitive dedupe + honeypot, a
+dynamic OG card for link unfurls, and a "Sign in" link for beta testers. Emails go to a new
+**INSERT-only `waitlist` table — nobody can read the list via the API** (admin reads it in the
+Supabase dashboard). **▶ Angus: apply `supabase/waitlist/001_waitlist.sql` in the Supabase SQL
+editor before promoting** (DB-migration MCP was down) — submissions error until the table
+exists. Decision: home page unchanged; the waitlist lives at `/waitlist`.
+
 **Latest — 2026-06-13 (Adrian + Claude): Calendar/Home photo follow-ups — COMMITTED
 + MERGED + PUSHED to `main` (prod).** Three founder-requested tweaks after the
 Calendar landed: (1) the Calendar **Photos row now shows the day's progress photos**

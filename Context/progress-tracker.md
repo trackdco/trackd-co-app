@@ -30,6 +30,22 @@ Last updated: 2026-06-17
 
 ## Completed
 
+- **Public waitlist shipped — `/waitlist` LIVE on prod (2026-06-17, Angus + Claude).**
+  Public pre-launch email capture (Angus is promoting it hard). New `app/waitlist/` page —
+  responsive (works on mobile AND desktop; **exempt from the phone-only desktop gate**, since
+  promoted social traffic is heavily desktop) — plus a `waitlist` table
+  (`supabase/waitlist/001_waitlist.sql`). **Anon INSERT-only by RLS + GRANT; no SELECT for
+  anyone**, so the email list can't be read or enumerated via the Data API (admin reads it in
+  the Supabase dashboard; no service key exists). Case-insensitive dedupe (re-signup =
+  idempotent success), honeypot + email validation, **`?ref=` source tracking**, and a dynamic
+  **OG image** (`opengraph-image.tsx`) so shared links unfurl. Built via a 4-dimension
+  adversarial review (8 raw → 5 verified; 3 fixed: array-safe `searchParams`, `role=status`
+  success announcement, the OG card). The 2 contrast findings are the app-wide muted/subtle
+  token issue (a one-token `globals.css` nudge — Adrian's call), not changed here. Rebased
+  onto Adrian's `main`; deployed READY (`8e7c857`). **⚠ Manual step: apply the table SQL in
+  the Supabase SQL editor before promoting** (the DB-migration MCP was down this session) —
+  until then submissions error. **Decision (Angus): home page unchanged; waitlist at `/waitlist`.**
+
 - **Dead/vestigial-UI cleanup (2026-06-17) — `tsc`+`lint` clean; ▶ Adrian's
   on-device QA pending; NOT yet committed.** Founder-requested audit of UI that
   exists "for the sake of it." Three findings actioned per Adrian's calls:
