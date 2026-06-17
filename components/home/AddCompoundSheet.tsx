@@ -233,6 +233,9 @@ export function AddCompoundSheet({
       <SheetContent
         side="bottom"
         showCloseButton={false}
+        // Don't auto-focus a field on open — keeps the keypad from popping over the
+        // form/dropdowns before the user taps a field.
+        onOpenAutoFocus={(e) => e.preventDefault()}
         className="h-[92dvh] gap-0 border-t-0 bg-transparent p-0 shadow-none"
       >
         {shown ? (
