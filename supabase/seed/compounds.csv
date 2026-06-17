@@ -52,18 +52,18 @@ GHRP-6,peptide,mcg,subq,reconstituted,GHRP6,0.3
 Hexarelin,peptide,mcg,subq,reconstituted,Hex,1
 BPC-157,peptide,mcg,subq,reconstituted,"BPC, Body Protection Compound, BPC caps",4,po:oral_solid
 TB-500,peptide,mg,subq,reconstituted,"Thymosin Beta-4, TB4",2
-IGF-1 LR3,peptide,mcg,subq,reconstituted,"IGF, IGF1, LR3",24
+IGF-1 LR3,peptide,mcg,subq,reconstituted,"IGF, IGF1, LR3, IGF1-LR3",24
 Melanotan II,peptide,mg,subq,reconstituted,"MT-2, MT2, Melanotan",2,nasal
 PT-141,peptide,mg,subq,reconstituted,"Bremelanotide, Vyleesi, PT-141 spray",2.7,nasal
 Semaglutide,peptide,mg,subq,reconstituted,"Sema, Ozempic, Wegovy, Rybelsus",168,po:oral_solid,Ozempic
 Tirzepatide,peptide,mg,subq,reconstituted,"Tirz, Mounjaro, Zepbound",120,,Mounjaro
-Retatrutide,peptide,mg,subq,reconstituted,"Reta, Triple-G",144
+Retatrutide,peptide,mg,subq,reconstituted,"Reta, Triple-G, GLP3RT, GLP-3",144
 AOD-9604,peptide,mcg,subq,reconstituted,AOD,1
 Epitalon,peptide,mg,subq,reconstituted,Epithalon,0.5
 5-Amino-1MQ,peptide,mg,po,oral_solid,"5-Amino, 1MQ",4
 MK-677,peptide,mg,po,oral_solid,"Ibutamoren, MK677, Nutrobal",24
 Follistatin-344,peptide,mcg,subq,reconstituted,"Follistatin, FST",4
-CJC-1295 + Ipamorelin,peptide,mcg,subq,reconstituted,"CJC/Ipa, CJC Ipamorelin, CJC 1295 Ipamorelin, GH blend",
+CJC-1295 + Ipamorelin,peptide,mcg,subq,reconstituted,"CJC/Ipa, CJC Ipamorelin, CJC 1295 Ipamorelin, CJC no DAC Ipamorelin, GH blend",
 Wolverine (BPC-157 + TB-500),peptide,mcg,subq,reconstituted,"Wolverine, Wolverine Stack, BPC-157 TB-500, BPC TB500",
 Glow (BPC-157 + TB-500 + GHK-Cu),peptide,mcg,subq,reconstituted,"Glow, Glow Blend, Glow Stack, GHK-Cu BPC TB500",
 KLOW (BPC-157 + TB-500 + GHK-Cu + KPV),peptide,mcg,subq,reconstituted,"KLOW, KLOW Blend, KLOW Stack, KPV GHK-Cu BPC TB500",

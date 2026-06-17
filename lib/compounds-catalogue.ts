@@ -354,6 +354,7 @@ export const COMPOUNDS: Compound[] = [
       "CJC/Ipa",
       "CJC Ipamorelin",
       "CJC 1295 Ipamorelin",
+      "CJC no DAC Ipamorelin",
       "GH blend"
     ],
     "defaultUnit": "mcg",
@@ -933,7 +934,8 @@ export const COMPOUNDS: Compound[] = [
     "aliases": [
       "IGF",
       "IGF1",
-      "LR3"
+      "LR3",
+      "IGF1-LR3"
     ],
     "defaultUnit": "mcg",
     "defaultRoute": "subq",
@@ -1729,7 +1731,9 @@ export const COMPOUNDS: Compound[] = [
     "category": "peptide",
     "aliases": [
       "Reta",
-      "Triple-G"
+      "Triple-G",
+      "GLP3RT",
+      "GLP-3"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "subq",
