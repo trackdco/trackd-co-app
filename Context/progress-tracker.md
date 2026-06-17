@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-13
+Last updated: 2026-06-17
 
 ## Current Phase
 
@@ -30,6 +30,23 @@ Last updated: 2026-06-13
 
 ## Completed
 
+- **Dead/vestigial-UI cleanup (2026-06-17) — `tsc`+`lint` clean; ▶ Adrian's
+  on-device QA pending; NOT yet committed.** Founder-requested audit of UI that
+  exists "for the sake of it." Three findings actioned per Adrian's calls:
+  (1) **Permanent compound delete moved to Archive-only.** Removed "Delete
+  permanently" + its two-step confirm from the everyday `CompoundDetailSheet`
+  (the Home compound sheet now only edits / "Stop logging" — reversible). The
+  hard-delete now lives solely on the Archive screen (`ArchiveManager`): each
+  *archived* row gets a trash affordance behind the same two-step "Continue →
+  Delete forever" confirm; so a compound must be archived before it can be erased.
+  Dropped the now-unused `onDelete` prop + `removeFromStack`/`removeCompoundLogs`
+  imports from `HomeScreen`; updated the Archive page copy ("No hard-delete here"
+  was stale). (2) **Deleted orphaned `PlaceholderActionSheet`** (a "Coming soon"
+  stub no tile triggered) + its `placeholder` action type, `setPlaceholder`
+  state, and the dead `RECONSTITUTION_WARNING`/`warning` field in
+  `shortcutItems.ts` (the real `ReconCalculatorSheet` carries its own disclaimer).
+  (3) **Protocol tab kept as-is** — it's a deliberate WIP stub ("lives here soon"),
+  build pending (see `Context/Feature Specs/11-protocol-section.md`).
 - **Catalogue expansion — 56 common compounds added (2026-06-17) — `tsc`+`lint`
   clean; ▶ Adrian's on-device QA pending; NOT yet committed.** Founder-requested
   fill of common gaps (Adrian: "add all that"). Catalogue **149 → 205**.

@@ -37,7 +37,6 @@ import {
   isDueOn,
   loadStack,
   notifyStackChanged,
-  removeFromStack,
   resolvedDaySite,
   saveStack,
   subscribeStack,
@@ -47,7 +46,6 @@ import {
 import {
   getDoseLogsSnapshot,
   logDose,
-  removeCompoundLogs,
   subscribeDoseLogs,
   unlogDose,
   type DayLogs,
@@ -499,7 +497,8 @@ export function HomeScreen({
       />
 
       {/* Tap a compound → its detail; Edit there opens the add sheet pre-filled.
-          Archive keeps history; Delete permanently is the destructive path. */}
+          "Stop logging" archives it (history kept, reversible); permanent delete
+          lives on the Archive screen. */}
       <CompoundDetailSheet
         open={detailTarget !== null}
         compound={detailTarget}
@@ -524,10 +523,6 @@ export function HomeScreen({
         }}
         onArchive={(id) => archiveInStack(userId, id, true)}
         onReactivate={(id) => archiveInStack(userId, id, false)}
-        onDelete={(id) => {
-          removeFromStack(userId, id)
-          removeCompoundLogs(userId, id)
-        }}
       />
 
       <AddCompoundSheet

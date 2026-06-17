@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useSyncExternalStore } from "react"
-import { Archive, RotateCcw } from "lucide-react"
+import { Archive, RotateCcw, Trash2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -12,9 +12,11 @@ import {
   archiveInStack,
   getStackSnapshot,
   methodLabel,
+  removeFromStack,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack"
+import { removeCompoundLogs } from "@/lib/home/doseLog"
 
 const EMPTY: StackCompound[] = []
 
@@ -22,7 +24,10 @@ const EMPTY: StackCompound[] = []
  * The Archive menu (Profile). Lists the user's compounds split into Archived and
  * Active, with one tap to move a compound either way. Archiving stops it being
  * dosed in the present/future but keeps all its history; reactivating puts it
- * back in the log. Reads the device-local stack live (same store as the home).
+ * back in the log. The permanent-delete path lives here and ONLY here — an
+ * archived compound is the one thing that can be erased: it removes the compound
+ * and every dose ever logged for it, behind a two-step confirm. Reads the
+ * device-local stack live (same store as the home).
  */
 export function ArchiveManager({ userId }: { userId: string }) {
   const stack = useSyncExternalStore(
@@ -45,6 +50,10 @@ export function ArchiveManager({ userId }: { userId: string }) {
           `Add “${name}” back to your log? You can archive it again any time.`
         }
         onAction={(id) => archiveInStack(userId, id, false)}
+        onDelete={(id) => {
+          removeFromStack(userId, id)
+          removeCompoundLogs(userId, id)
+        }}
         dim
       />
       <Group
@@ -70,6 +79,7 @@ function Group({
   actionIcon,
   confirmText,
   onAction,
+  onDelete,
   dim,
 }: {
   title: string
@@ -79,10 +89,19 @@ function Group({
   actionIcon: React.ReactNode
   confirmText: (name: string) => string
   onAction: (id: string) => void
+  /** When set, each row gets a permanent-delete affordance (Archived only). */
+  onDelete?: (id: string) => void
   dim?: boolean
 }) {
-  // Which row is mid-confirm (the drop-down appears in place of the row).
+  // Which row is mid-confirm for the primary action (the drop-down appears in
+  // place of the row).
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  // Which row is mid-delete and which step (1 = first confirm, 2 = last check).
+  // The destructive path — only ever wired for the Archived group.
+  const [deleteState, setDeleteState] = useState<{
+    id: string
+    step: 1 | 2
+  } | null>(null)
 
   return (
     <section>
@@ -97,6 +116,7 @@ function Group({
         <ul className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
           {compounds.map((c, i) => {
             const meta = CATEGORY_META[c.category] ?? FALLBACK_CATEGORY_META
+            const deleting = deleteState?.id === c.id
             return (
               <li
                 key={c.id}
@@ -125,6 +145,37 @@ function Group({
                       </button>
                     </div>
                   </div>
+                ) : deleting ? (
+                  <div className="animate-shortcut-in rounded-xl border border-state-error/40 bg-state-error/10 p-3">
+                    <p className="text-sm text-foreground">
+                      {deleteState!.step === 1
+                        ? `Delete “${c.name}” and ALL of its logged history? This can't be undone.`
+                        : `Last check. This permanently erases every logged dose for “${c.name}”.`}
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDeleteState(null)}
+                        className="flex-1 rounded-lg border border-border-strong py-2 text-sm text-text-muted transition-colors hover:text-text-primary"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (deleteState!.step === 1) {
+                            setDeleteState({ id: c.id, step: 2 })
+                          } else {
+                            onDelete?.(c.id)
+                            setDeleteState(null)
+                          }
+                        }}
+                        className="flex-1 rounded-lg bg-state-error py-2 text-sm font-medium text-text-primary transition-opacity hover:opacity-90"
+                      >
+                        {deleteState!.step === 1 ? "Continue" : "Delete forever"}
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-3">
                     <span
@@ -148,9 +199,25 @@ function Group({
                         {meta.label} · {methodLabel(c.method)}
                       </span>
                     </span>
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmId(null)
+                          setDeleteState({ id: c.id, step: 1 })
+                        }}
+                        aria-label={`Delete ${c.name} permanently`}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-state-error"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setConfirmId(c.id)}
+                      onClick={() => {
+                        setDeleteState(null)
+                        setConfirmId(c.id)
+                      }}
                       className="flex shrink-0 items-center gap-1.5 rounded-full border border-border-strong px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text-primary"
                     >
                       {actionIcon}

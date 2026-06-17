@@ -14,7 +14,6 @@ import {
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { ReconCalculatorSheet } from "@/components/home/ReconCalculatorSheet"
 import { AddWeightSheet } from "@/components/home/AddWeightSheet"
-import { PlaceholderActionSheet } from "@/components/shortcuts/PlaceholderActionSheet"
 import {
   GRID_ITEMS,
   PRIMARY_ITEM,
@@ -68,7 +67,6 @@ export function ShortcutsMenu({
   const [addOpen, setAddOpen] = useState(false)
   const [calcOpen, setCalcOpen] = useState(false)
   const [weightOpen, setWeightOpen] = useState(false)
-  const [placeholder, setPlaceholder] = useState<ShortcutItem | null>(null)
 
   // Every open starts at rest. Runs before paint → no flash.
   useIsoLayoutEffect(() => {
@@ -106,10 +104,6 @@ export function ShortcutsMenu({
         onOpenChange(false)
         requestProgressAction("bloodwork-gallery")
         router.push("/progress")
-        break
-      case "placeholder":
-        onOpenChange(false)
-        setPlaceholder(item)
         break
     }
   }
@@ -226,15 +220,6 @@ export function ShortcutsMenu({
         onOpenChange={setWeightOpen}
         unit={unit}
         userId={userId}
-      />
-
-      {/* Shared placeholder — retained for reuse; no tile triggers it now
-          (Calendar routes to /calendar). */}
-      <PlaceholderActionSheet
-        open={placeholder !== null}
-        onClose={() => setPlaceholder(null)}
-        title={placeholder?.title ?? ""}
-        warning={placeholder?.warning}
       />
     </>
   )

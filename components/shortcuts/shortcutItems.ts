@@ -23,12 +23,8 @@ import {
  *                    Weight card)
  *  - `journal`     → go to Progress and open the journal compose (Write / Markers)
  *  - `bloodwork`   → go to Progress and open the bloodwork gallery (view + add)
- *  - `placeholder` → the shared not-yet-built sheet (no tiles use it now —
- *                    Calendar routes to /calendar; kept for reuse)
  *
- * No UI lives in this file. Only the reconstitution calculator carries a
- * `warning` (its placeholder is gone now that the real tool exists, but the line
- * is kept here in case it's reused).
+ * No UI lives in this file.
  */
 export type ShortcutAction =
   | "route"
@@ -37,7 +33,6 @@ export type ShortcutAction =
   | "weight"
   | "journal"
   | "bloodwork"
-  | "placeholder"
 
 export interface ShortcutItem {
   id: string
@@ -49,13 +44,7 @@ export interface ShortcutItem {
   href?: string
   /** Short label for the compact grid tile. */
   shortLabel?: string
-  /** Optional disclaimer (reconstitution calculator). */
-  warning?: string
 }
-
-const RECONSTITUTION_WARNING =
-  "For personal tracking only — not medical or dosing advice. Always confirm " +
-  "any figure with a qualified medical professional before acting on it."
 
 /** The prominent primary action at the top of the menu. */
 export const PRIMARY_ITEM: ShortcutItem = {
@@ -108,7 +97,6 @@ export const GRID_ITEMS: ShortcutItem[] = [
     icon: Calculator,
     action: "calculator",
     shortLabel: "Calculator",
-    warning: RECONSTITUTION_WARNING,
   },
   {
     id: "calendar",

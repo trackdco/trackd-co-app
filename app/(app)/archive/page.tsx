@@ -11,8 +11,10 @@ export const metadata: Metadata = { title: "Archive — Trackd Co" };
  * Archive — its own page now (Context/Feature Specs/08 → B1), reached from the
  * Profile App card alongside Settings + the legal docs. Lists the user's
  * compounds split into Archived and Active, with one tap to move either way
- * (Archive stops dosing but keeps history; Reactivate puts it back). No
- * hard-delete here. The (app) layout already enforced auth + the gate.
+ * (Archive stops dosing but keeps history; Reactivate puts it back). Permanent
+ * delete lives here and only here — an archived compound can be erased outright
+ * (it + all its logged history), behind a two-step confirm. The (app) layout
+ * already enforced auth + the gate.
  */
 export default async function ArchivePage() {
   const supabase = await createClient();
@@ -34,8 +36,9 @@ export default async function ArchivePage() {
         Archive
       </h1>
       <p className="mt-1.5 text-sm text-text-muted">
-        Stop logging a compound to move it here; reactivate to put it back. Your
-        past entries are always kept.
+        Stop logging a compound to move it here, then reactivate to put it back —
+        your past entries are kept. Or delete an archived compound to erase it and
+        its history for good.
       </p>
 
       <div className="mt-6">
