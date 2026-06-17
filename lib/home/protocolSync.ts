@@ -90,7 +90,9 @@ function unitFamilyOk(base: string, dose: string): boolean {
  * Resolves the catalogue uuid by name; a name not in the catalogue is a custom
  * compound and is left device-local (`skipped`).
  */
-export async function pushProtocolCompound(c: StackCompound): Promise<Ok> {
+export async function pushProtocolCompound(
+  c: StackCompound,
+): Promise<Ok & { protocolCompoundId?: string }> {
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -109,7 +111,7 @@ export async function pushProtocolCompound(c: StackCompound): Promise<Ok> {
     const saved = await upsertProtocolCompound(
       stackCompoundToProtocolInsert(c, { id: pcId, cycleId: cycle.id, compoundId })
     )
-    return { ok: saved !== null }
+    return { ok: saved !== null, protocolCompoundId: pcId }
   } catch (e) {
     console.error("pushProtocolCompound failed", e)
     return { ok: false }

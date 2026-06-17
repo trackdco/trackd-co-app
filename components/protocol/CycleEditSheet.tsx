@@ -86,7 +86,8 @@ function CycleEditForm({
         ended_on: ended,
         notes: description.trim() || null,
       })
-      if (updated) onSaved(updated)
+      if (!updated) return // keep the sheet open so edits aren't silently dropped
+      onSaved(updated)
       onClose()
     } finally {
       setSaving(false)

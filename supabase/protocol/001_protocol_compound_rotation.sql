@@ -26,7 +26,9 @@ ALTER TABLE protocol_compounds
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'rotation_index_nonneg'
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'rotation_index_nonneg'
+      AND conrelid = 'protocol_compounds'::regclass
   ) THEN
     ALTER TABLE protocol_compounds
       ADD CONSTRAINT rotation_index_nonneg CHECK (rotation_index >= 0);

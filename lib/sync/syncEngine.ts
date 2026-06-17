@@ -72,7 +72,8 @@ export async function flush(userId: string): Promise<number> {
     try {
       if (await applyOp(op)) done.push(op.opId)
     } catch (e) {
-      console.error("sync flush op failed", op, e)
+      // Log only safe identifiers — the op payload may hold dose notes / site data.
+      console.error("sync flush op failed", { opId: op.opId, entity: op.entity, action: op.action }, e)
     }
   }
   clearOps(userId, done)

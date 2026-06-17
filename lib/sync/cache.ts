@@ -248,8 +248,10 @@ export function applyServerSnapshot(
   for (const op of cur.outbox) {
     if (op.entity === "protocolCompound" && op.action === "upsert")
       compounds = upsertById(compounds, materializeCompound(userId, op.payload))
-    else if (op.entity === "protocolCompound" && op.action === "delete")
+    else if (op.entity === "protocolCompound" && op.action === "delete") {
       compounds = compounds.filter((c) => c.id !== op.id)
+      doseLogs = doseLogs.filter((l) => l.protocol_compound_id !== op.id)
+    }
     else if (op.entity === "doseLog" && op.action === "upsert")
       doseLogs = upsertById(doseLogs, materializeDoseLog(userId, op.payload))
     else if (op.entity === "doseLog" && op.action === "delete")

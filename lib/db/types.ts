@@ -307,7 +307,10 @@ export function stackCompoundToProtocolInsert(
     end_date: null,
     is_active: !c.archived,
     rotation_sites: rotation,
-    rotation_index: rotation.length > 0 ? c.rotationIndex % rotation.length : 0,
+    rotation_index:
+      rotation.length > 0
+        ? ((c.rotationIndex % rotation.length) + rotation.length) % rotation.length
+        : 0,
   }
 }
 

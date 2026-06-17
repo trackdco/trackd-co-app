@@ -51,7 +51,8 @@ export function cyclePosition(cycle: Pick<Cycle, "started_on" | "ended_on">): Cy
  *  "No dates set". */
 export function formatCyclePosition(pos: CyclePosition): string {
   if (pos.startsInDays !== null) {
-    return pos.startsInDays === 0 ? "Starts today" : `Starts in ${pos.startsInDays} days`
+    if (pos.startsInDays === 0) return "Starts today"
+    return `Starts in ${pos.startsInDays} ${pos.startsInDays === 1 ? "day" : "days"}`
   }
   if (pos.week === null) return "No dates set"
   return pos.total ? `Week ${pos.week} of ${pos.total}` : `Week ${pos.week}`

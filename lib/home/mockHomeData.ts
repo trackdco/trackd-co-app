@@ -82,7 +82,11 @@ export function dateKeyToDate(key: DateKey): Date {
 export function combineLocalDateTime(key: DateKey, time24: string): string {
   const [y, m, d] = key.split("-").map(Number)
   const tm = /^(\d{1,2}):(\d{2})$/.exec(time24)
-  const hh = tm ? Number(tm[1]) : 12
-  const mm = tm ? Number(tm[2]) : 0
+  const ph = tm ? Number(tm[1]) : NaN
+  const pm = tm ? Number(tm[2]) : NaN
+  // Reject overflow (e.g. "29:99") — fall back to noon as documented.
+  const valid = ph >= 0 && ph <= 23 && pm >= 0 && pm <= 59
+  const hh = valid ? ph : 12
+  const mm = valid ? pm : 0
   return new Date(y, (m ?? 1) - 1, d ?? 1, hh, mm).toISOString()
 }

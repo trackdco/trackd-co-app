@@ -20,7 +20,7 @@ Last updated: 2026-06-17
 back, 0 rows); **NOT committed; ▶ Adrian's on-device QA pending.** All 5 steps of
 `Context/Feature Specs/11-protocol-page.md` cut Home over to the canonical
 `cycles → protocol_compounds → dose_logs` Postgres model, built the Protocol screen, and
-built the Stock view (one piece — the dose→inventory link — is a noted follow-up).
+built the Stock view including the dose→inventory link.
 Adrian approved the design calls (spec-vs-schema/scope conflicts): **(Q1) add rotation
 columns**; **(Q2) catalogue-only migration, customs stay device-local + Home merges them**;
 **(Step 4) consolidate Cycles + My Protocol into one tab** (the spec's "confirm with Angus"

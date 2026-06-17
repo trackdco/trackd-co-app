@@ -88,6 +88,11 @@ export async function listStock(): Promise<StockItem[]> {
       console.error("listStock items failed", itemsRes.error)
       return []
     }
+    if (mathRes.error) {
+      // A failed math read would otherwise show items with null runway as if valid.
+      console.error("listStock math failed", mathRes.error)
+      return []
+    }
     const math = new Map<string, Record<string, unknown>>()
     for (const m of mathRes.data ?? []) {
       math.set(m.inventory_item_id as string, m as Record<string, unknown>)

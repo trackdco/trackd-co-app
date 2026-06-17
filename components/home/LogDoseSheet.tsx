@@ -221,16 +221,20 @@ function LogDoseBody({
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const all = await listStock()
-      if (cancelled) return
-      const mine = all.filter(
-        (v) =>
-          v.protocolCompoundId === compound.id &&
-          ((v.baseUnit === "mg" && (compound.unit === "mg" || compound.unit === "mcg")) ||
-            (v.baseUnit === "iu" && compound.unit === "iu"))
-      )
-      setVials(mine)
-      if (existing == null && mine.length > 0) setInventoryItemId(mine[0].id)
+      try {
+        const all = await listStock()
+        if (cancelled) return
+        const mine = all.filter(
+          (v) =>
+            v.protocolCompoundId === compound.id &&
+            ((v.baseUnit === "mg" && (compound.unit === "mg" || compound.unit === "mcg")) ||
+              (v.baseUnit === "iu" && compound.unit === "iu"))
+        )
+        setVials(mine)
+        if (existing == null && mine.length > 0) setInventoryItemId(mine[0].id)
+      } catch {
+        if (!cancelled) setVials([])
+      }
     })()
     return () => {
       cancelled = true

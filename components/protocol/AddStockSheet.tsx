@@ -184,7 +184,8 @@ function AddStockForm({
     setSaving(true)
     try {
       const r = await addStockItem(insert)
-      if (r.ok) onAdded()
+      if (!r.ok) return // keep the sheet open so the input isn't lost on a failed save
+      onAdded()
       onClose()
     } finally {
       setSaving(false)

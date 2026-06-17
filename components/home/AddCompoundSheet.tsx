@@ -464,9 +464,11 @@ function AddCompoundBody({
     const stock = canStock && addStockOn ? buildStockInsert() : null
     onAdded()
     if (stock) {
+      // Use the RESOLVED protocol_compound id (it can differ from saved.id for a
+      // non-uuid client id) so the inventory FK always resolves.
       const r = await pushProtocolCompound(saved)
-      if (r.ok) {
-        await addStockItem({ ...stock, id: newId(), protocol_compound_id: saved.id })
+      if (r.ok && r.protocolCompoundId) {
+        await addStockItem({ ...stock, id: newId(), protocol_compound_id: r.protocolCompoundId })
       }
     }
   }
