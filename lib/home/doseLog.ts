@@ -9,12 +9,17 @@
  *
  * Pure data + pure helpers + guarded storage only; no React (Context/code-standards.md).
  */
-import type { DoseLog } from "@/lib/home/mockHomeData"
+import { combineLocalDateTime, type DoseLog } from "@/lib/home/mockHomeData"
 import {
   pushDoseLog,
   deleteDoseLog,
   deleteCompoundLogs,
 } from "@/lib/home/syncActions"
+import { loadStack } from "@/lib/home/stack"
+import {
+  pushProtocolDoseLog,
+  deleteProtocolDoseLog,
+} from "@/lib/home/protocolSync"
 
 export type DayLogs = Record<string, Record<string, DoseLog>>
 
@@ -45,6 +50,10 @@ export function loadDoseLogs(userId: string): DayLogs {
             amount: log.amount,
             siteId: typeof log.siteId === "string" ? log.siteId : null,
             time24: log.time24,
+            inventoryItemId:
+              typeof (log as DoseLog).inventoryItemId === "string"
+                ? (log as DoseLog).inventoryItemId
+                : null,
           }
         }
       }
@@ -125,7 +134,11 @@ export function logDose(
   }
   saveDoseLogs(userId, next)
   notify()
-  void pushDoseLog(dateKey, compoundId, log) // best-effort cloud backup
+  void pushDoseLog(dateKey, compoundId, log) // jsonb mirror (also backs up customs)
+  // Postgres (canonical). Needs the compound's method (to map the injection site)
+  // and the device-local taken_at instant; no-op for a custom compound.
+  const method = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.method ?? "po"
+  void pushProtocolDoseLog(compoundId, dateKey, log, combineLocalDateTime(dateKey, log.time24), method)
 }
 
 export function unlogDose(userId: string, dateKey: string, compoundId: string) {
@@ -138,6 +151,7 @@ export function unlogDose(userId: string, dateKey: string, compoundId: string) {
   saveDoseLogs(userId, next)
   notify()
   void deleteDoseLog(dateKey, compoundId)
+  void deleteProtocolDoseLog(compoundId, dateKey) // Postgres (no-op for customs)
 }
 
 /** Erase every logged dose for a compound across all days (hard delete only). */

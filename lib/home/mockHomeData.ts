@@ -45,6 +45,9 @@ export interface DoseLog {
   siteId: string | null
   /** Time the dose was taken, 24h "HH:MM". */
   time24: string
+  /** The inventory item (vial) this dose drew from, so its runway decrements in
+   *  `v_inventory_math`. Null = not linked to tracked stock. */
+  inventoryItemId?: string | null
 }
 
 /* ----------------------------------------------------------- pure helpers */
@@ -68,4 +71,18 @@ export function resolveDateKey(today: Date, daysAgo: number): DateKey {
 export function dateKeyToDate(key: DateKey): Date {
   const [y, m, d] = key.split("-").map(Number)
   return new Date(y, m - 1, d)
+}
+
+/**
+ * A local "YYYY-MM-DD" + "HH:MM" → an ISO timestamp, anchored to the DEVICE's
+ * local interpretation of that wall-clock moment (what the user meant). Used to
+ * derive `dose_logs.taken_at` on the client, where the timezone is known — the
+ * server can't infer it. Falls back to noon when the time is malformed.
+ */
+export function combineLocalDateTime(key: DateKey, time24: string): string {
+  const [y, m, d] = key.split("-").map(Number)
+  const tm = /^(\d{1,2}):(\d{2})$/.exec(time24)
+  const hh = tm ? Number(tm[1]) : 12
+  const mm = tm ? Number(tm[2]) : 0
+  return new Date(y, (m ?? 1) - 1, d ?? 1, hh, mm).toISOString()
 }
