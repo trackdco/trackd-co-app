@@ -19,9 +19,12 @@ import { createClient } from "@/lib/supabase/client";
 export function GoogleSignInButton({
   label = "Continue with Google",
   className,
+  next,
 }: {
   label?: string;
   className?: string;
+  /** Internal path to land on after auth (threaded to /auth/callback?next=). */
+  next?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +37,9 @@ export function GoogleSignInButton({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback${
+          next ? `?next=${encodeURIComponent(next)}` : ""
+        }`,
       },
     });
 
