@@ -648,7 +648,7 @@ function BrowseBody({
       <div className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         {q ? (
           results.length > 0 ? (
-            <CompoundList items={results} {...listProps} />
+            <CompoundList items={results} {...listProps} query={q} />
           ) : (
             <p className="px-1 py-6 text-center text-sm text-text-muted">
               <span className="text-foreground">“{query.trim()}”</span> not found
@@ -675,8 +675,13 @@ function BrowseBody({
   )
 }
 
-function RowMain({ compound }: { compound: Compound }) {
+// `query` is set only in the search results, where the amber "aka" chip shows. The
+// chip appears ONLY for compounds with a curated `commonName` (those whose listed
+// scientific name isn't the name people use, e.g. Oxandrolone → "aka Anavar") — so
+// it's a confirmation, not noise on every row. Browse lists pass no query.
+function RowMain({ compound, query }: { compound: Compound; query?: string }) {
   const meta = CATEGORY_META[compound.category] ?? FALLBACK_CATEGORY_META
+  const showAka = Boolean(query) && Boolean(compound.commonName)
   return (
     <>
       <span
@@ -684,9 +689,16 @@ function RowMain({ compound }: { compound: Compound }) {
         className={cn("h-2 w-2 shrink-0 rounded-full", meta.dot)}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-base font-medium text-foreground">
-          {compound.name}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 truncate text-base font-medium text-foreground">
+            {compound.name}
+          </p>
+          {showAka && (
+            <span className="shrink-0 rounded-full bg-accent-amber/15 px-2 py-0.5 text-xs font-medium text-accent-amber">
+              aka {compound.commonName}
+            </span>
+          )}
+        </div>
         <p className="truncate text-sm text-text-muted">{meta.label}</p>
       </div>
     </>
@@ -705,6 +717,7 @@ function CompoundList({
   onCancelDeleteCustom,
   onConfirmDeleteCustom,
   deleteFailed,
+  query,
 }: {
   items: Compound[]
   onEditCustom: (c: CustomCompound) => void
@@ -717,6 +730,8 @@ function CompoundList({
   onCancelDeleteCustom: () => void
   onConfirmDeleteCustom: (id: string) => void
   deleteFailed: boolean
+  /** Set in search results → rows show the "also known as" line. */
+  query?: string
 }) {
   return (
     <ul className="overflow-hidden rounded-2xl bg-bg-surface-raised">
@@ -773,7 +788,7 @@ function CompoundList({
                   shakingName === compound.name && "animate-card-shake"
                 )}
               >
-                <RowMain compound={compound} />
+                <RowMain compound={compound} query={query} />
                 <div className="flex shrink-0 items-center gap-1">
                   {/* Add to log — or, if already in the log, a blocked Check. */}
                   {inLogNames.has(compound.name.toLowerCase()) ? (
@@ -833,14 +848,14 @@ function CompoundList({
                   shakingName === compound.name && "animate-card-shake"
                 )}
               >
-                <RowMain compound={compound} />
+                <RowMain compound={compound} query={query} />
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-default text-text-subtle">
                   <Check className="h-4 w-4" aria-hidden />
                 </span>
               </button>
             ) : (
               <div className={cn("flex items-center gap-3 px-4 py-3.5", divider)}>
-                <RowMain compound={compound} />
+                <RowMain compound={compound} query={query} />
                 <button
                   type="button"
                   onClick={() => onAdd(compound)}

@@ -18,6 +18,39 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 4
   },
   {
+    "name": "5-HTP",
+    "category": "supplement",
+    "aliases": [
+      "5-Hydroxytryptophan"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "ACP-105",
+    "category": "sarm",
+    "aliases": [
+      "ACP105"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "Agmatine",
+    "category": "supplement",
+    "aliases": [
+      "Agmatine Sulfate"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
     "name": "Alpha-GPC",
     "category": "supplement",
     "aliases": [
@@ -39,6 +72,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Arimidex",
     "halfLifeHours": 48
   },
   {
@@ -62,6 +96,27 @@ export const COMPOUNDS: Compound[] = [
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
     "halfLifeHours": 1
+  },
+  {
+    "name": "Apigenin",
+    "category": "supplement",
+    "aliases": [],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "Armodafinil",
+    "category": "stimulant",
+    "aliases": [
+      "Nuvigil",
+      "Waklert"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": 15
   },
   {
     "name": "Ashwagandha",
@@ -137,6 +192,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "commonName": "EQ",
     "halfLifeHours": 336
   },
   {
@@ -149,28 +205,39 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
-    "name": "BPC-157 (injectable)",
+    "name": "BPC-157",
     "category": "peptide",
     "aliases": [
-      "BPC inj",
-      "Body Protection Compound"
+      "BPC",
+      "Body Protection Compound",
+      "BPC caps"
     ],
     "defaultUnit": "mcg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
+    "routes": [
+      {
+        "route": "subq",
+        "inventoryType": "reconstituted"
+      },
+      {
+        "route": "po",
+        "inventoryType": "oral_solid"
+      }
+    ],
     "halfLifeHours": 4
   },
   {
-    "name": "BPC-157 (oral)",
-    "category": "peptide",
+    "name": "Bromocriptine",
+    "category": "ancillary",
     "aliases": [
-      "BPC oral",
-      "BPC caps"
+      "Parlodel",
+      "Bromo"
     ],
-    "defaultUnit": "mcg",
+    "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
-    "halfLifeHours": 4
+    "halfLifeHours": 12
   },
   {
     "name": "Cabergoline",
@@ -194,6 +261,17 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
+    "name": "Cagrilintide",
+    "category": "peptide",
+    "aliases": [
+      "Cagri"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
     "name": "Calcium",
     "category": "supplement",
     "aliases": [],
@@ -207,12 +285,22 @@ export const COMPOUNDS: Compound[] = [
     "category": "sarm",
     "aliases": [
       "GW-501516",
-      "GW"
+      "GW",
+      "Endurobol"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
     "halfLifeHours": 24
+  },
+  {
+    "name": "Cerebrolysin",
+    "category": "peptide",
+    "aliases": [],
+    "defaultUnit": "mg",
+    "defaultRoute": "im",
+    "defaultInventoryType": "preconcentrated",
+    "halfLifeHours": null
   },
   {
     "name": "Choline",
@@ -260,6 +348,21 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 0.5
   },
   {
+    "name": "CJC-1295 + Ipamorelin",
+    "category": "peptide",
+    "aliases": [
+      "CJC/Ipa",
+      "CJC Ipamorelin",
+      "CJC 1295 Ipamorelin",
+      "CJC no DAC Ipamorelin",
+      "GH blend"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
     "name": "CJC-1295 DAC",
     "category": "peptide",
     "aliases": [
@@ -292,6 +395,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Clomid",
     "halfLifeHours": 120
   },
   {
@@ -327,6 +431,17 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
+    "name": "Cordyceps",
+    "category": "supplement",
+    "aliases": [
+      "Cordyceps Militaris"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
     "name": "Creatine Monohydrate",
     "category": "supplement",
     "aliases": [
@@ -350,6 +465,29 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
+    "name": "D-Aspartic Acid",
+    "category": "supplement",
+    "aliases": [
+      "DAA",
+      "D-Asp"
+    ],
+    "defaultUnit": "g",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "DHEA",
+    "category": "supplement",
+    "aliases": [
+      "Dehydroepiandrosterone"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
     "name": "Dihydroboldenone",
     "category": "anabolic",
     "aliases": [
@@ -360,6 +498,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "commonName": "DHB",
     "halfLifeHours": 96
   },
   {
@@ -385,6 +524,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "commonName": "Masteron",
     "halfLifeHours": 120
   },
   {
@@ -398,7 +538,19 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "commonName": "Masteron",
     "halfLifeHours": 48
+  },
+  {
+    "name": "DSIP",
+    "category": "peptide",
+    "aliases": [
+      "Delta Sleep-Inducing Peptide"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
   },
   {
     "name": "Dutasteride",
@@ -419,6 +571,18 @@ export const COMPOUNDS: Compound[] = [
       "Essential Amino Acids"
     ],
     "defaultUnit": "g",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "Ecdysterone",
+    "category": "supplement",
+    "aliases": [
+      "Beta-Ecdysterone",
+      "20-Hydroxyecdysone"
+    ],
+    "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
     "halfLifeHours": null
@@ -467,6 +631,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Aromasin",
     "halfLifeHours": 24
   },
   {
@@ -494,6 +659,15 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 6
   },
   {
+    "name": "Fisetin",
+    "category": "supplement",
+    "aliases": [],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
     "name": "Fish Oil (Omega-3)",
     "category": "supplement",
     "aliases": [
@@ -515,6 +689,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Halotestin",
     "halfLifeHours": 9
   },
   {
@@ -530,6 +705,17 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 4
   },
   {
+    "name": "GABA",
+    "category": "supplement",
+    "aliases": [
+      "Gamma-Aminobutyric Acid"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
     "name": "Garlic Extract",
     "category": "supplement",
     "aliases": [
@@ -538,6 +724,19 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "GHK-Cu",
+    "category": "peptide",
+    "aliases": [
+      "Copper Peptide",
+      "GHK Copper",
+      "Copper Tripeptide"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
     "halfLifeHours": null
   },
   {
@@ -563,6 +762,20 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 0.3
   },
   {
+    "name": "Glow (BPC-157 + TB-500 + GHK-Cu)",
+    "category": "peptide",
+    "aliases": [
+      "Glow",
+      "Glow Blend",
+      "Glow Stack",
+      "GHK-Cu BPC TB500"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
     "name": "Glucosamine",
     "category": "supplement",
     "aliases": [
@@ -580,8 +793,18 @@ export const COMPOUNDS: Compound[] = [
       "GSH"
     ],
     "defaultUnit": "mg",
-    "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "routes": [
+      {
+        "route": "subq",
+        "inventoryType": "reconstituted"
+      },
+      {
+        "route": "po",
+        "inventoryType": "oral_solid"
+      }
+    ],
     "halfLifeHours": null
   },
   {
@@ -605,6 +828,29 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 0.1
   },
   {
+    "name": "GW-0742",
+    "category": "sarm",
+    "aliases": [
+      "GW0742"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "Hawthorn Berry",
+    "category": "supplement",
+    "aliases": [
+      "Hawthorn",
+      "Crataegus"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
     "name": "HCG",
     "category": "ancillary",
     "aliases": [
@@ -614,6 +860,16 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "iu",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
+    "routes": [
+      {
+        "route": "subq",
+        "inventoryType": "reconstituted"
+      },
+      {
+        "route": "im",
+        "inventoryType": "reconstituted"
+      }
+    ],
     "halfLifeHours": 33
   },
   {
@@ -628,12 +884,58 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 1
   },
   {
+    "name": "HMB",
+    "category": "supplement",
+    "aliases": [
+      "Beta-Hydroxy Beta-Methylbutyrate"
+    ],
+    "defaultUnit": "g",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "hMG",
+    "category": "ancillary",
+    "aliases": [
+      "Menotropin",
+      "Menopur"
+    ],
+    "defaultUnit": "iu",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "routes": [
+      {
+        "route": "subq",
+        "inventoryType": "reconstituted"
+      },
+      {
+        "route": "im",
+        "inventoryType": "reconstituted"
+      }
+    ],
+    "halfLifeHours": null
+  },
+  {
+    "name": "IGF-1 DES",
+    "category": "peptide",
+    "aliases": [
+      "IGF DES",
+      "DES IGF-1"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
     "name": "IGF-1 LR3",
     "category": "peptide",
     "aliases": [
       "IGF",
       "IGF1",
-      "LR3"
+      "LR3",
+      "IGF1-LR3"
     ],
     "defaultUnit": "mcg",
     "defaultRoute": "subq",
@@ -682,6 +984,67 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
+    "name": "Isotretinoin",
+    "category": "ancillary",
+    "aliases": [
+      "Accutane",
+      "Roaccutane"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "commonName": "Accutane",
+    "halfLifeHours": 21
+  },
+  {
+    "name": "Kisspeptin",
+    "category": "peptide",
+    "aliases": [
+      "Kisspeptin-10",
+      "KP-10"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
+    "name": "KLOW (BPC-157 + TB-500 + GHK-Cu + KPV)",
+    "category": "peptide",
+    "aliases": [
+      "KLOW",
+      "KLOW Blend",
+      "KLOW Stack",
+      "KPV GHK-Cu BPC TB500"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
+    "name": "KPV",
+    "category": "peptide",
+    "aliases": [
+      "Lysine-Proline-Valine"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
+    "name": "L-Arginine",
+    "category": "supplement",
+    "aliases": [
+      "Arginine"
+    ],
+    "defaultUnit": "g",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
     "name": "L-Carnitine",
     "category": "supplement",
     "aliases": [
@@ -691,6 +1054,16 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "routes": [
+      {
+        "route": "po",
+        "inventoryType": "oral_solid"
+      },
+      {
+        "route": "subq",
+        "inventoryType": "preconcentrated"
+      }
+    ],
     "halfLifeHours": null
   },
   {
@@ -748,6 +1121,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Femara",
     "halfLifeHours": 48
   },
   {
@@ -756,12 +1130,24 @@ export const COMPOUNDS: Compound[] = [
     "aliases": [
       "T4",
       "Synthroid",
-      "Levo"
+      "Levo",
+      "Eltroxin"
     ],
     "defaultUnit": "mcg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
     "halfLifeHours": 168
+  },
+  {
+    "name": "LGD-3303",
+    "category": "sarm",
+    "aliases": [
+      "LGD3303"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
   },
   {
     "name": "Ligandrol",
@@ -776,17 +1162,54 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 30
   },
   {
+    "name": "Lion's Mane",
+    "category": "supplement",
+    "aliases": [
+      "Hericium Erinaceus"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
     "name": "Liothyronine (T3)",
     "category": "thyroid",
     "aliases": [
       "T3",
       "Cytomel",
-      "Lio"
+      "Lio",
+      "Tiromel"
     ],
     "defaultUnit": "mcg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
     "halfLifeHours": 24
+  },
+  {
+    "name": "Liraglutide",
+    "category": "peptide",
+    "aliases": [
+      "Victoza",
+      "Saxenda"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "commonName": "Saxenda",
+    "halfLifeHours": 13
+  },
+  {
+    "name": "LL-37",
+    "category": "peptide",
+    "aliases": [
+      "Cathelicidin",
+      "LL37"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
   },
   {
     "name": "Magnesium",
@@ -801,28 +1224,51 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
-    "name": "Melanotan II (injectable)",
+    "name": "Mazdutide",
     "category": "peptide",
     "aliases": [
-      "MT-2 inj",
-      "MT2",
-      "Melanotan inj"
+      "Mazd",
+      "IBI362"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": 2
+    "halfLifeHours": null
   },
   {
-    "name": "Melanotan II (nasal)",
+    "name": "Melanotan I",
     "category": "peptide",
     "aliases": [
-      "MT-2 nasal",
-      "Melanotan spray"
+      "MT-1",
+      "MT1",
+      "Afamelanotide"
     ],
     "defaultUnit": "mg",
-    "defaultRoute": "nasal",
+    "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
+    "name": "Melanotan II",
+    "category": "peptide",
+    "aliases": [
+      "MT-2",
+      "MT2",
+      "Melanotan"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "routes": [
+      {
+        "route": "subq",
+        "inventoryType": "reconstituted"
+      },
+      {
+        "route": "nasal",
+        "inventoryType": "reconstituted"
+      }
+    ],
     "halfLifeHours": 2
   },
   {
@@ -844,7 +1290,19 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Proviron",
     "halfLifeHours": 12
+  },
+  {
+    "name": "Metformin",
+    "category": "ancillary",
+    "aliases": [
+      "Glucophage"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": 6
   },
   {
     "name": "Methandrostenolone",
@@ -858,6 +1316,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Dianabol",
     "halfLifeHours": 5
   },
   {
@@ -871,6 +1330,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Superdrol",
     "halfLifeHours": 8
   },
   {
@@ -883,6 +1343,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Primobolan",
     "halfLifeHours": 3
   },
   {
@@ -896,6 +1357,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "commonName": "Primobolan",
     "halfLifeHours": 120
   },
   {
@@ -908,6 +1370,18 @@ export const COMPOUNDS: Compound[] = [
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
     "halfLifeHours": 3
+  },
+  {
+    "name": "MGF",
+    "category": "peptide",
+    "aliases": [
+      "Mechano Growth Factor",
+      "IGF-1 Ec"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
   },
   {
     "name": "Milk Thistle",
@@ -934,6 +1408,30 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 24
   },
   {
+    "name": "Modafinil",
+    "category": "stimulant",
+    "aliases": [
+      "Provigil",
+      "Modalert"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": 15
+  },
+  {
+    "name": "MOTS-c",
+    "category": "peptide",
+    "aliases": [
+      "MOTSc",
+      "MOTS c"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
     "name": "NAC",
     "category": "supplement",
     "aliases": [
@@ -945,27 +1443,91 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
+    "name": "NAD+",
+    "category": "peptide",
+    "aliases": [
+      "NAD",
+      "Nicotinamide Adenine Dinucleotide"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "routes": [
+      {
+        "route": "subq",
+        "inventoryType": "reconstituted"
+      },
+      {
+        "route": "im",
+        "inventoryType": "reconstituted"
+      }
+    ],
+    "halfLifeHours": null
+  },
+  {
     "name": "Nandrolone Decanoate",
     "category": "anabolic",
     "aliases": [
       "Deca",
-      "Deca-Durabolin"
+      "Deca-Durabolin",
+      "Deca Durabolin"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "commonName": "Deca",
     "halfLifeHours": 144
   },
   {
     "name": "Nandrolone Phenylpropionate",
     "category": "anabolic",
     "aliases": [
-      "NPP"
+      "NPP",
+      "Durabolin"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "commonName": "NPP",
     "halfLifeHours": 65
+  },
+  {
+    "name": "Natural Desiccated Thyroid",
+    "category": "thyroid",
+    "aliases": [
+      "NDT",
+      "Armour Thyroid",
+      "Thyroid-S",
+      "NP Thyroid"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "commonName": "Armour Thyroid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "NMN",
+    "category": "supplement",
+    "aliases": [
+      "Nicotinamide Mononucleotide"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "NR",
+    "category": "supplement",
+    "aliases": [
+      "Nicotinamide Riboside",
+      "Niagen"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
   },
   {
     "name": "Ostarine",
@@ -991,6 +1553,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Anavar",
     "halfLifeHours": 9
   },
   {
@@ -999,12 +1562,37 @@ export const COMPOUNDS: Compound[] = [
     "aliases": [
       "Anadrol",
       "Drol",
-      "A-bombs"
+      "A-bombs",
+      "Anapolon"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Anadrol",
     "halfLifeHours": 9
+  },
+  {
+    "name": "PEG-MGF",
+    "category": "peptide",
+    "aliases": [
+      "PEG MGF",
+      "Pegylated MGF"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
+    "name": "Phentermine",
+    "category": "stimulant",
+    "aliases": [
+      "Adipex"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": 20
   },
   {
     "name": "Potassium",
@@ -1026,6 +1614,17 @@ export const COMPOUNDS: Compound[] = [
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
     "halfLifeHours": 8
+  },
+  {
+    "name": "Pregnenolone",
+    "category": "supplement",
+    "aliases": [
+      "Preg"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
   },
   {
     "name": "Probiotics",
@@ -1051,32 +1650,44 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
-    "name": "PT-141 (injectable)",
+    "name": "PT-141",
     "category": "peptide",
     "aliases": [
-      "Bremelanotide inj"
+      "Bremelanotide",
+      "Vyleesi",
+      "PT-141 spray"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": 2.7
-  },
-  {
-    "name": "PT-141 (nasal)",
-    "category": "peptide",
-    "aliases": [
-      "Bremelanotide nasal",
-      "PT-141 spray"
+    "routes": [
+      {
+        "route": "subq",
+        "inventoryType": "reconstituted"
+      },
+      {
+        "route": "nasal",
+        "inventoryType": "reconstituted"
+      }
     ],
-    "defaultUnit": "mg",
-    "defaultRoute": "nasal",
-    "defaultInventoryType": "reconstituted",
     "halfLifeHours": 2.7
   },
   {
     "name": "Quercetin",
     "category": "supplement",
     "aliases": [],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "RAD-150",
+    "category": "sarm",
+    "aliases": [
+      "TLB-150",
+      "RAD150"
+    ],
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
@@ -1095,6 +1706,18 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 28
   },
   {
+    "name": "Red Yeast Rice",
+    "category": "supplement",
+    "aliases": [
+      "RYR",
+      "Monacolin K"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
     "name": "Resveratrol",
     "category": "supplement",
     "aliases": [],
@@ -1108,7 +1731,9 @@ export const COMPOUNDS: Compound[] = [
     "category": "peptide",
     "aliases": [
       "Reta",
-      "Triple-G"
+      "Triple-G",
+      "GLP3RT",
+      "GLP-3"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "subq",
@@ -1142,6 +1767,7 @@ export const COMPOUNDS: Compound[] = [
     "category": "stimulant",
     "aliases": [
       "Albuterol",
+      "Ventolin",
       "Salb"
     ],
     "defaultUnit": "mcg",
@@ -1159,6 +1785,25 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
+    "name": "Selank",
+    "category": "peptide",
+    "aliases": [],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "routes": [
+      {
+        "route": "subq",
+        "inventoryType": "reconstituted"
+      },
+      {
+        "route": "nasal",
+        "inventoryType": "reconstituted"
+      }
+    ],
+    "halfLifeHours": null
+  },
+  {
     "name": "Selenium",
     "category": "supplement",
     "aliases": [],
@@ -1168,29 +1813,48 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
-    "name": "Semaglutide (injectable)",
+    "name": "Semaglutide",
     "category": "peptide",
     "aliases": [
-      "Sema inj",
+      "Sema",
       "Ozempic",
-      "Wegovy"
+      "Wegovy",
+      "Rybelsus"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
+    "routes": [
+      {
+        "route": "subq",
+        "inventoryType": "reconstituted"
+      },
+      {
+        "route": "po",
+        "inventoryType": "oral_solid"
+      }
+    ],
+    "commonName": "Ozempic",
     "halfLifeHours": 168
   },
   {
-    "name": "Semaglutide (oral)",
+    "name": "Semax",
     "category": "peptide",
-    "aliases": [
-      "Sema oral",
-      "Rybelsus"
+    "aliases": [],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "routes": [
+      {
+        "route": "subq",
+        "inventoryType": "reconstituted"
+      },
+      {
+        "route": "nasal",
+        "inventoryType": "reconstituted"
+      }
     ],
-    "defaultUnit": "mg",
-    "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
-    "halfLifeHours": 168
+    "halfLifeHours": null
   },
   {
     "name": "Sermorelin",
@@ -1204,17 +1868,65 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 0.2
   },
   {
+    "name": "Shilajit",
+    "category": "supplement",
+    "aliases": [
+      "Fulvic Acid"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "Sildenafil",
+    "category": "ancillary",
+    "aliases": [
+      "Viagra"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "commonName": "Viagra",
+    "halfLifeHours": 4
+  },
+  {
     "name": "Somatropin (HGH)",
     "category": "peptide",
     "aliases": [
       "HGH",
       "GH",
-      "Growth Hormone"
+      "Growth Hormone",
+      "Genotropin",
+      "Norditropin",
+      "Jintropin"
     ],
     "defaultUnit": "iu",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
     "halfLifeHours": 3
+  },
+  {
+    "name": "Spermidine",
+    "category": "supplement",
+    "aliases": [],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "SS-31",
+    "category": "peptide",
+    "aliases": [
+      "Elamipretide",
+      "MTP-131",
+      "SS31"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
   },
   {
     "name": "Stanozolol (injectable)",
@@ -1227,6 +1939,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "commonName": "Winstrol Depot",
     "halfLifeHours": 24
   },
   {
@@ -1240,6 +1953,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Winstrol",
     "halfLifeHours": 9
   },
   {
@@ -1255,6 +1969,15 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 4
   },
   {
+    "name": "Survodutide",
+    "category": "peptide",
+    "aliases": [],
+    "defaultUnit": "mg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
     "name": "Sustanon 250",
     "category": "anabolic",
     "aliases": [
@@ -1265,7 +1988,42 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "routes": [
+      {
+        "route": "im",
+        "inventoryType": "preconcentrated"
+      },
+      {
+        "route": "subq",
+        "inventoryType": "preconcentrated"
+      }
+    ],
     "halfLifeHours": 432
+  },
+  {
+    "name": "Synephrine",
+    "category": "stimulant",
+    "aliases": [
+      "Bitter Orange",
+      "Citrus Aurantium"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
+  },
+  {
+    "name": "Tadalafil",
+    "category": "ancillary",
+    "aliases": [
+      "Cialis",
+      "Tada"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "commonName": "Cialis",
+    "halfLifeHours": 36
   },
   {
     "name": "Tamoxifen",
@@ -1278,6 +2036,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "commonName": "Nolvadex",
     "halfLifeHours": 144
   },
   {
@@ -1300,6 +2059,17 @@ export const COMPOUNDS: Compound[] = [
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
     "halfLifeHours": 2
+  },
+  {
+    "name": "Telmisartan",
+    "category": "ancillary",
+    "aliases": [
+      "Micardis"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": 24
   },
   {
     "name": "Tesamorelin",
@@ -1330,11 +2100,22 @@ export const COMPOUNDS: Compound[] = [
     "category": "anabolic",
     "aliases": [
       "Test C",
-      "Test Cyp"
+      "Test Cyp",
+      "Depo-Testosterone"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "routes": [
+      {
+        "route": "im",
+        "inventoryType": "preconcentrated"
+      },
+      {
+        "route": "subq",
+        "inventoryType": "preconcentrated"
+      }
+    ],
     "halfLifeHours": 120
   },
   {
@@ -1343,11 +2124,22 @@ export const COMPOUNDS: Compound[] = [
     "aliases": [
       "Test E",
       "TestE",
-      "Test Enan"
+      "Test Enan",
+      "Testoviron"
     ],
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "routes": [
+      {
+        "route": "im",
+        "inventoryType": "preconcentrated"
+      },
+      {
+        "route": "subq",
+        "inventoryType": "preconcentrated"
+      }
+    ],
     "halfLifeHours": 108
   },
   {
@@ -1359,6 +2151,16 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "routes": [
+      {
+        "route": "im",
+        "inventoryType": "preconcentrated"
+      },
+      {
+        "route": "subq",
+        "inventoryType": "preconcentrated"
+      }
+    ],
     "halfLifeHours": 36
   },
   {
@@ -1372,6 +2174,16 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "routes": [
+      {
+        "route": "im",
+        "inventoryType": "preconcentrated"
+      },
+      {
+        "route": "subq",
+        "inventoryType": "preconcentrated"
+      }
+    ],
     "halfLifeHours": 20
   },
   {
@@ -1413,6 +2225,18 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": 4
   },
   {
+    "name": "Thymosin Alpha-1",
+    "category": "peptide",
+    "aliases": [
+      "TA-1",
+      "Zadaxin"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
     "name": "Tirzepatide",
     "category": "peptide",
     "aliases": [
@@ -1423,6 +2247,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
+    "commonName": "Mounjaro",
     "halfLifeHours": 120
   },
   {
@@ -1483,6 +2308,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "commonName": "Parabolan",
     "halfLifeHours": 240
   },
   {
@@ -1495,6 +2321,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "im",
     "defaultInventoryType": "preconcentrated",
+    "commonName": "MENT",
     "halfLifeHours": 24
   },
   {
@@ -1521,6 +2348,18 @@ export const COMPOUNDS: Compound[] = [
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
     "halfLifeHours": 16
+  },
+  {
+    "name": "Turkesterone",
+    "category": "supplement",
+    "aliases": [
+      "Turk",
+      "Ajuga Turkestanica"
+    ],
+    "defaultUnit": "mg",
+    "defaultRoute": "po",
+    "defaultInventoryType": "oral_solid",
+    "halfLifeHours": null
   },
   {
     "name": "Vitamin A",
@@ -1561,11 +2400,26 @@ export const COMPOUNDS: Compound[] = [
     "aliases": [
       "B12",
       "Cobalamin",
-      "Methylcobalamin"
+      "Methylcobalamin",
+      "Cyanocobalamin"
     ],
     "defaultUnit": "mcg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "routes": [
+      {
+        "route": "po",
+        "inventoryType": "oral_solid"
+      },
+      {
+        "route": "im",
+        "inventoryType": "preconcentrated"
+      },
+      {
+        "route": "subq",
+        "inventoryType": "preconcentrated"
+      }
+    ],
     "halfLifeHours": null
   },
   {
@@ -1646,6 +2500,16 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
+    "routes": [
+      {
+        "route": "po",
+        "inventoryType": "oral_solid"
+      },
+      {
+        "route": "subq",
+        "inventoryType": "preconcentrated"
+      }
+    ],
     "halfLifeHours": null
   },
   {
@@ -1696,6 +2560,20 @@ export const COMPOUNDS: Compound[] = [
     "halfLifeHours": null
   },
   {
+    "name": "Wolverine (BPC-157 + TB-500)",
+    "category": "peptide",
+    "aliases": [
+      "Wolverine",
+      "Wolverine Stack",
+      "BPC-157 TB-500",
+      "BPC TB500"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": null
+  },
+  {
     "name": "YK-11",
     "category": "sarm",
     "aliases": [
@@ -1711,6 +2589,7 @@ export const COMPOUNDS: Compound[] = [
     "category": "stimulant",
     "aliases": [
       "Yohimbine HCl",
+      "Yohimbe",
       "Yo"
     ],
     "defaultUnit": "mg",

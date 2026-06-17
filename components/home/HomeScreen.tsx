@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { CalendarDays } from "lucide-react"
@@ -141,6 +141,9 @@ export function HomeScreen({
   const today = useMemo(() => dateKeyToDate(todayKey), [todayKey])
 
   const [selectedKey, setSelectedKey] = useState<DateKey>(serverTodayKey)
+  // Which week the strip shows: 0 = current, -1 = last week, … Swipe to change,
+  // capped at 0 so it stays a "look back" (never a future week).
+  const [weekOffset, setWeekOffset] = useState(0)
   const [logTarget, setLogTarget] = useState<{
     compound: StackCompound
     existing: DoseLog | null
@@ -231,18 +234,28 @@ export function HomeScreen({
   )
   const countdown = mounted ? computedCountdown : null
 
-  const weekDays: WeekDay[] = useMemo(() => {
-    const mondayOffset = (today.getDay() + 6) % 7 // days since Monday
-    const monday = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate() - mondayOffset
-    )
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)
-      return { key: toDateKey(d), date: d }
-    })
-  }, [today])
+  // Build any week's 7 days from an offset (0 = current). The strip renders the
+  // current week plus its neighbours so it can slide smoothly between them.
+  const daysForOffset = useCallback(
+    (offset: number): WeekDay[] => {
+      const mondayOffset = (today.getDay() + 6) % 7 // days since Monday
+      const monday = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() - mondayOffset + offset * 7
+      )
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)
+        return { key: toDateKey(d), date: d }
+      })
+    },
+    [today]
+  )
+  // The week strip commits an absolute offset after its slide — unbounded in both
+  // directions (past and future weeks).
+  function handleWeekChange(offset: number) {
+    setWeekOffset(offset)
+  }
 
   // A day's status is computed live from the persisted logs vs the active
   // compounds due that day (no stored status). Labelled by POSITION (A7): a
@@ -394,11 +407,13 @@ export function HomeScreen({
 
         <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
           <WeekStrip
-            days={weekDays}
+            weekOffset={weekOffset}
+            daysForOffset={daysForOffset}
             selectedKey={selectedKey}
             todayKey={todayKey}
             statusOf={statusOf}
             onSelect={setSelectedKey}
+            onWeekChange={handleWeekChange}
           />
         </div>
 

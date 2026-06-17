@@ -30,6 +30,121 @@ Last updated: 2026-06-13
 
 ## Completed
 
+- **Catalogue expansion — 56 common compounds added (2026-06-17) — `tsc`+`lint`
+  clean; ▶ Adrian's on-device QA pending; NOT yet committed.** Founder-requested
+  fill of common gaps (Adrian: "add all that"). Catalogue **149 → 205**.
+  - **Peptides (20):** GHK-Cu, KPV, Thymosin Alpha-1, MOTS-c, NAD+ (+IM), Selank
+    (+nasal), Semax (+nasal), DSIP, IGF-1 DES, MGF, PEG-MGF, SS-31 (Elamipretide),
+    LL-37, Kisspeptin, Cerebrolysin (IM), Melanotan I, Cagrilintide, Liraglutide
+    (aka Saxenda), Survodutide, Mazdutide. (NAD+/Cerebrolysin filed under `peptide`
+    per the existing research-compound convention, e.g. 5-Amino-1MQ.)
+  - **Ancillaries (7):** Tadalafil (aka Cialis), Sildenafil (aka Viagra),
+    Telmisartan, Isotretinoin (aka Accutane), hMG (+IM), Bromocriptine, Metformin.
+  - **Thyroid (1):** Natural Desiccated Thyroid (aka Armour Thyroid).
+  - **Stimulants (4):** Modafinil, Armodafinil, Phentermine, Synephrine.
+  - **SARMs (4):** RAD-150, LGD-3303, ACP-105, GW-0742.
+  - **Supplements (20):** Turkesterone, Ecdysterone, DHEA, Pregnenolone, D-Aspartic
+    Acid, Shilajit, NMN, NR, Spermidine, Fisetin, Apigenin, Red Yeast Rice, Hawthorn
+    Berry, 5-HTP, GABA, Lion's Mane, Cordyceps, L-Arginine, Agmatine, HMB.
+  - All carry aliases for search; brand-dominant ones got `commonName` "aka" chips
+    (Cialis/Viagra/Accutane/Saxenda/Armour Thyroid). Regenerated both catalogues.
+    More to come — Adrian flagged he may add further compounds.
+
+- **Swipeable Home week strip — 3-panel carousel (2026-06-17) — `tsc`+`lint`
+  clean; ▶ Adrian's on-device QA pending; NOT yet committed.** Founder-requested:
+  swipe the Home dashboard's day-of-week strip across weeks, smoothly.
+  - `components/home/WeekStrip.tsx` is now a **3-panel carousel** ([prev · current ·
+    next], track `translateX`-centred at -100%). Dragging follows the finger; past a
+    threshold (max(40px, 20% of width)) the track **slides** to the neighbour
+    (280ms ease), and on `transitionend` it commits the week + re-centres with no
+    transition — seamless, since the panel slid into view IS the new centre. Replaces
+    the earlier instant "cut". Props: `weekOffset`, `daysForOffset`, `onSwipeWeek`.
+    A swipe suppresses the trailing click (capture-phase) so a drag never selects a
+    day; `touch-action: pan-y` keeps vertical scroll; side panels are `aria-hidden` +
+    `tabIndex=-1`.
+  - **Unlimited weeks in BOTH directions** (Adrian: like MacroFactor) — only the
+    three neighbours ever render, so back/forward are unbounded; no future-cap.
+    `components/home/HomeScreen.tsx` exposes `daysForOffset(offset)` (useCallback) and
+    commits via `handleWeekChange(absoluteOffset)`. Adherence dots recompute for any
+    week from `statusOf` (stack + dose logs) — no stored week data. Selection is
+    unchanged on swipe (a peek).
+  - **"Jump to this week" now slides too** (no more cut). The caption (week range +
+    button) moved INTO `WeekStrip`; the button animates a one-panel slide toward week
+    0 with **this week rendered in the incoming neighbour** (`overrideLeft/Right` on
+    the `Slide` state), so even a multi-week jump lands in one clean slide, then
+    re-centres + reselects today. Commit callback is now absolute (`onWeekChange`).
+  - **The caption itself fades + slides in** when you leave the current week, and its
+    **animated row height pushes the content below smoothly down** (kept mounted; a
+    `grid-template-rows` 0fr↔1fr transition + inner opacity/translate-y, 300ms ease).
+    Collapses the same way on return.
+
+- **"Also known as" in compound search + alias audit (2026-06-16) — `tsc`+`lint`
+  clean; ▶ Adrian's on-device QA pending; NOT yet committed.** Founder-requested:
+  surface a compound's nicknames so someone who searches a nickname (e.g. "Anavar")
+  can confirm they found the right entry (Oxandrolone).
+  - **Display (Adrian's chosen style: amber "aka" chip):** search-result rows in the
+    Add-to-Stack menu show a small **amber pill beside the compound name reading
+    "aka &lt;commonName&gt;"** (e.g. Oxandrolone → `aka Anavar`), via a `query` prop
+    threaded through `CompoundList`→`RowMain` in
+    `components/navigation/add-to-stack-menu.tsx`. **The chip shows ONLY for the
+    curated `commonName` subset** — compounds whose listed scientific name isn't the
+    name people use (~25 of them: Anavar, EQ, Primobolan, Masteron, Nolvadex,
+    Arimidex, Ozempic, Mounjaro, Deca, NPP, …). Compounds whose listed name is already
+    the known one (Test E, BPC-157, Creatine, T3/T4, SARMs, the blends) show no chip.
+    `commonName` is a new curated CSV column → `Compound.commonName?`. Amber is a UI
+    accent (not health-data semantics); chip only in search, not the browse lists.
+    (Evolution: dim line → chip-on-every-alias → curated "aka" chip, per Adrian.)
+  - **Alias audit (two passes):** the aliases were already comprehensive (every
+    anabolic/SARM/peptide/AI/SERM better known by a brand/street name already carried
+    it — Anavar, EQ, Primo, Nolvadex, Ozempic, …); the original complaint was a
+    **display** gap, not missing data. Filled the genuine gaps found:
+    Salbutamol→+Ventolin, Nandrolone Decanoate→+"Deca Durabolin", Yohimbine→+Yohimbe,
+    and a second pass adding Testoviron (Test E), Depo-Testosterone (Test C),
+    Durabolin (NPP), Anapolon (Anadrol), Endurobol (Cardarine),
+    Genotropin/Norditropin/Jintropin (HGH), Vyleesi (PT-141), Tiromel (T3), Eltroxin
+    (T4), Cyanocobalamin (B12). Regenerated both catalogues.
+
+- **Pre-blended peptide stacks added to the catalogue (2026-06-16) — `tsc`+`lint`
+  clean; ▶ Adrian's on-device QA pending; NOT yet committed.** Added the four
+  genuinely-sold, single-vial pre-blended peptide stacks as **single combined
+  catalogue entries** (Adrian's chosen representation — one entry, tracked like any
+  other peptide; no dose/half-life suggested, since the product ships pre-blended):
+  **CJC-1295 + Ipamorelin**, **Wolverine (BPC-157 + TB-500)**, **Glow (BPC-157 +
+  TB-500 + GHK-Cu)**, **KLOW (BPC-157 + TB-500 + GHK-Cu + KPV)** — all `peptide ·
+  mcg · subq · reconstituted`, with aliases for search (e.g. "Glow", "Wolverine",
+  "KLOW", "CJC/Ipa"). Note: **"Glow" is the peptide blend (BPC/TB-500/GHK-Cu)**, NOT
+  the GAC vitamin shot. GHK-Cu / KPV are NOT added as standalone compounds (a single
+  entry doesn't decompose) — left for a possible Task-5 addition. Deliberately
+  excluded invented "protocols" (classic bulk, lean gains, PCT, etc.) and
+  user-mixed combos with no commercial pre-blend evidence. Catalogue **145 → 149**.
+  Regenerated `lib/compounds-catalogue.ts` + `supabase/seed/002_seed_catalogues.sql`.
+
+- **Multi-route compounds + route picker + Glutathione subQ + SubQ glute sites
+  (2026-06-16) — `tsc`+`lint` clean; ▶ Adrian's on-device QA pending; NOT yet
+  committed.** Founder-requested catalogue/Add-flow work:
+  - **Glutathione is now subQ-injectable** (default **SubQ / reconstituted**, with
+    **Oral / tabs** as the alternate) — was oral-only.
+  - **SubQ injection list gained Glute – Right / Left** (`sq-glute-r/l` in
+    `lib/home/siteCatalog.ts`) — plenty of subcutaneous fat on the glutes.
+  - **Multi-route model + route picker.** New `RouteForm` + optional `routes[]` on
+    `Compound` (`lib/compound-categories.ts` + `routesOf` helper); the CSV gained an
+    optional `alt_routes` column (`route:inventory_type`, `|`-separated) parsed by
+    `build-compounds-data.mjs`. `AddCompoundSheet` shows a **Route** picker when a
+    compound has >1 route; switching route resets the site rotation. Single-route
+    compounds are unchanged (locked). **Route is no longer always fixed** — updates
+    the old "user does NOT choose route" note in `lib/home/stack.ts`.
+  - **Catalogue rollout (Adrian: "A + small B"):** consolidated the 4 clean split
+    entries into single multi-route compounds — **BPC-157** (subQ/oral),
+    **Semaglutide** (subQ/oral), **Melanotan II** (subQ/nasal), **PT-141**
+    (subQ/nasal); **kept Stanozolol and Testosterone Undecanoate split** (oral vs
+    injectable half-lives genuinely differ, which the per-route model doesn't carry).
+    Added routes: **Test esters (Enan/Cyp/Prop/PhenylProp) + Sustanon → SubQ**,
+    **HCG → IM**, **Vitamin B12 → IM/SubQ**, **Vitamin C & L-Carnitine → SubQ**
+    (last two for the Glow stack). Catalogue now **145 compounds** (was 149).
+    Regenerated `lib/compounds-catalogue.ts` + `supabase/seed/002_seed_catalogues.sql`;
+    re-seeding the live DB is a separate manual step (the `routes[]` data lives only
+    in the bundled app catalogue, not the DB `compounds` table).
+
 - **Calendar photos + Home photo size + plus-menu Calendar (2026-06-13 follow-up)
   — `tsc`+`lint`+prod `build` clean; COMMITTED + MERGED + PUSHED to `main` (prod)
   per Adrian.** Three founder-requested tweaks after the Calendar landed:

@@ -14,9 +14,12 @@ import {
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
+  ROUTE_OPTIONS,
+  routesOf,
   unitOptionsFor,
   type Compound,
   type CompoundCategory,
+  type RouteForm,
 } from "@/lib/compound-categories"
 import { RotationPicker } from "@/components/home/RotationPicker"
 import { AmberNotice, useAmberNotice } from "@/components/notifications/amber-notice"
@@ -107,7 +110,8 @@ interface Source {
   id: string | null
   name: string
   category: CompoundCategory
-  method: InjectionMethod
+  /** Selectable routes, default first. >1 ⇒ the Add sheet shows a route picker. */
+  routeForms: RouteForm[]
   /** The compound's base unit — its family drives the unit dropdown. */
   unitDefault: string
   dose: string
@@ -126,7 +130,8 @@ function toSource(
       id: editCompound.id,
       name: editCompound.name,
       category: editCompound.category,
-      method: editCompound.method,
+      // An edit keeps its saved route — the route picker is a create-time choice.
+      routeForms: [{ route: editCompound.method, inventoryType: "" }],
       unitDefault: editCompound.unit,
       dose: String(editCompound.dose),
       unit: editCompound.unit,
@@ -140,7 +145,7 @@ function toSource(
       id: null,
       name: compound.name,
       category: compound.category,
-      method: toMethod(compound.defaultRoute),
+      routeForms: routesOf(compound),
       unitDefault: compound.defaultUnit || "mg",
       dose: "",
       unit: compound.defaultUnit || "mg",
@@ -255,11 +260,19 @@ function AddCompoundBody({
 }) {
   const isEdit = source.id !== null
   const meta = CATEGORY_META[source.category] ?? FALLBACK_CATEGORY_META
-  const method = source.method
-  const injectable = isInjectable(method)
+  const routeForms = source.routeForms
+  // Compounds with more than one route (e.g. Glutathione: subQ or oral) let the
+  // user pick at add-time; single-route compounds lock to their one route.
+  const multiRoute = routeForms.length > 1
   const unitOptions = unitOptionsFor(source.unitDefault)
 
   const { notice, show, dismiss } = useAmberNotice()
+  // `method` is the chosen route. Switching route resets the rotation, because
+  // the available injection sites differ by route (IM vs SubQ vs none).
+  const [method, setMethod] = useState<InjectionMethod>(
+    toMethod(routeForms[0]?.route ?? "po")
+  )
+  const injectable = isInjectable(method)
   const [now] = useState(() => new Date())
   const [initial] = useState(() => initSchedule(source.schedule, now))
 
@@ -302,6 +315,13 @@ function AddCompoundBody({
     setDays((cur) =>
       cur.includes(day) ? cur.filter((d) => d !== day) : [...cur, day]
     )
+  }
+
+  function handleRouteChange(route: string) {
+    const next = toMethod(route)
+    if (next === method) return
+    setMethod(next)
+    setRotationSites([]) // sites differ by route — start the rotation fresh
   }
 
   function buildCadence(): Cadence {
@@ -424,6 +444,37 @@ function AddCompoundBody({
             </p>
           </div>
         </div>
+
+        {/* Route — only when the compound supports more than one. Picking a route
+            sets the method and shows/hides the injection-site rotation below. */}
+        {multiRoute && (
+          <div className="animate-home-up" style={{ animationDelay: "30ms" }}>
+            <FieldLabel>Route</FieldLabel>
+            <div className="flex flex-wrap gap-2">
+              {routeForms.map((f) => {
+                const active = toMethod(f.route) === method
+                const label =
+                  ROUTE_OPTIONS.find((o) => o.value === f.route)?.label ?? f.route
+                return (
+                  <button
+                    key={f.route}
+                    type="button"
+                    onClick={() => handleRouteChange(f.route)}
+                    aria-pressed={active}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                      active
+                        ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                        : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+                    )}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Dose — the unit is fixed to the compound's measurement family; if it can
             be measured more than one way (e.g. mg ↔ mcg) a dropdown lets you switch. */}
