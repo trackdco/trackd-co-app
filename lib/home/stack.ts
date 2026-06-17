@@ -17,9 +17,9 @@ import type { CompoundCategory } from "@/lib/compound-categories"
 import { pushStackCompound, deleteStackCompound } from "@/lib/home/syncActions"
 
 /**
- * How a compound is administered — taken verbatim from the compound database's
- * `route` (one fixed value per compound; multi-form compounds are separate
- * entries). The user does NOT choose it. Only `im`/`subq` have a site rotation.
+ * How a compound is administered. Defaults to the compound's primary `route`;
+ * when a compound offers more than one route (e.g. Glutathione: subQ or oral),
+ * the user picks one in the Add sheet. Only `im`/`subq` have a site rotation.
  */
 export type InjectionMethod = "im" | "subq" | "po" | "nasal"
 

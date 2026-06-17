@@ -85,18 +85,55 @@ for (const r of data) {
 
 const compounds = data
   .map((r) => {
+    const name = r[idx.name].trim()
     const aliasesRaw = (r[idx.aliases] ?? "").trim()
     const aliases = aliasesRaw
       ? aliasesRaw.split(",").map((a) => a.trim()).filter(Boolean)
       : []
     const hl = (r[idx.half_life_hours] ?? "").trim()
+    const defaultRoute = r[idx.default_route].trim()
+    const defaultInventoryType = r[idx.default_inventory_type].trim()
+    // Optional `common_name`: set only on compounds whose listed (scientific) name
+    // isn't the name people actually use — drives the "aka …" chip in search.
+    const commonName = (r[idx.common_name] ?? "").trim()
+
+    // Optional `alt_routes` column: extra routes the compound can be taken by,
+    // each "route:inventory_type" (inventory_type optional → falls back to the
+    // default), multiple separated by "|". e.g. Glutathione subQ → "po:oral_solid".
+    const routes = [{ route: defaultRoute, inventoryType: defaultInventoryType }]
+    const altRaw = (r[idx.alt_routes] ?? "").trim()
+    if (altRaw) {
+      for (const spec of altRaw.split("|").map((s) => s.trim()).filter(Boolean)) {
+        const [route, inv] = spec.split(":").map((s) => s.trim())
+        if (!VALID.default_route.has(route)) {
+          throw new Error(
+            `Invalid alt_routes route "${route}" for compound "${name}" in compounds.csv. ` +
+              `Allowed: ${[...VALID.default_route].join(", ")}`
+          )
+        }
+        const inventoryType = inv || defaultInventoryType
+        if (!VALID.default_inventory_type.has(inventoryType)) {
+          throw new Error(
+            `Invalid alt_routes inventory type "${inventoryType}" for compound "${name}" in compounds.csv. ` +
+              `Allowed: ${[...VALID.default_inventory_type].join(", ")}`
+          )
+        }
+        if (!routes.some((f) => f.route === route)) routes.push({ route, inventoryType })
+      }
+    }
+
     return {
-      name: r[idx.name].trim(),
+      name,
       category: r[idx.category].trim(),
       aliases,
       defaultUnit: r[idx.default_unit].trim(),
-      defaultRoute: r[idx.default_route].trim(),
-      defaultInventoryType: r[idx.default_inventory_type].trim(),
+      defaultRoute,
+      defaultInventoryType,
+      // Only emit `routes` when there's more than the default — keeps the
+      // generated file lean; single-route compounds use the `routesOf` fallback.
+      ...(routes.length > 1 ? { routes } : {}),
+      // Only emit `commonName` when set (the curated "better known as" subset).
+      ...(commonName ? { commonName } : {}),
       halfLifeHours: hl ? Number(hl) : null,
     }
   })

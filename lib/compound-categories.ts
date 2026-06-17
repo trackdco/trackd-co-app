@@ -18,6 +18,15 @@ export type CompoundCategory =
   | "supplement"
   | "stimulant"
 
+/** One way a compound can be taken — a route paired with its inventory form
+ *  (e.g. Glutathione: subQ → reconstituted, oral → tabs/caps). */
+export interface RouteForm {
+  /** im | subq | po | nasal */
+  route: string
+  /** reconstituted | preconcentrated | oral_solid */
+  inventoryType: string
+}
+
 export interface Compound {
   name: string
   category: CompoundCategory
@@ -25,7 +34,23 @@ export interface Compound {
   defaultUnit: string
   defaultRoute: string
   defaultInventoryType: string
+  /** Every route this compound can be taken by, default first. When there's more
+   *  than one, the Add sheet shows a route picker. Omitted for single-route
+   *  compounds (fall back to the default via `routesOf`); also absent on custom
+   *  compounds saved before this field existed. */
+  routes?: RouteForm[]
+  /** The name people actually use when the listed (scientific) name isn't it —
+   *  e.g. Oxandrolone → "Anavar". Set only on that curated subset; drives the
+   *  "aka …" chip in search. Absent ⇒ no chip (the listed name is the known one). */
+  commonName?: string
   halfLifeHours: number | null
+}
+
+/** A compound's selectable routes, default first. Falls back to the single
+ *  default route when `routes` is absent (single-route or legacy custom). */
+export function routesOf(c: Compound): RouteForm[] {
+  if (c.routes && c.routes.length > 0) return c.routes
+  return [{ route: c.defaultRoute, inventoryType: c.defaultInventoryType }]
 }
 
 interface CategoryMeta {

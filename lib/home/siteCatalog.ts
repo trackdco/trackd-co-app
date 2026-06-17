@@ -6,8 +6,9 @@
  * advice — see the app's medical disclaimer):
  *  - **SubQ** (subcutaneous — peptides, into fat): the abdomen AT LEAST ~2in from
  *    the navel (lower and side, never the upper stomach), the love handles /
- *    flanks, the outer thigh, and the back of the upper arm. The navel area,
- *    upper stomach, inner thigh and front thigh are deliberately excluded.
+ *    flanks, the glutes / buttocks (ample subcutaneous fat), the outer thigh, and
+ *    the back of the upper arm. The navel area, upper stomach, inner thigh and
+ *    front thigh are deliberately excluded.
  *  - **IM** (intramuscular — anabolics, into muscle): the established sites
  *    (ventrogluteal, gluteal, deltoid, vastus lateralis / outer quad, rectus
  *    femoris / front quad) plus the commonly-used spot-injection muscles.
@@ -53,6 +54,8 @@ export const SUBQ_SITES: InjectionSiteDef[] = [
   { id: "sq-abdo-l", label: "Side Abdomen – Left" },
   { id: "sq-flank-r", label: "Love Handle – Right" },
   { id: "sq-flank-l", label: "Love Handle – Left" },
+  { id: "sq-glute-r", label: "Glute – Right" },
+  { id: "sq-glute-l", label: "Glute – Left" },
   { id: "sq-thigh-up-r", label: "Outer Thigh – Upper Right" },
   { id: "sq-thigh-up-l", label: "Outer Thigh – Upper Left" },
   { id: "sq-thigh-lo-r", label: "Outer Thigh – Lower Right" },
