@@ -6,9 +6,10 @@ import { usePathname } from "next/navigation";
 /**
  * Wraps the app shell and the desktop interstitial, deciding which the viewer
  * gets purely by CSS width (the interstitial the caller passes is `hidden
- * lg:flex`; the shell is hidden at lg). The ONLY thing this needs the pathname
- * for is to let the dev-only `/preview/*` harness render at every width — so it
- * can be reviewed on a laptop without the gate swallowing it.
+ * lg:flex`; the shell is hidden at lg). It checks the pathname only to let two
+ * surfaces render at every width instead of being swallowed by the phone-only
+ * gate: the dev-only `/preview/*` harness, and the public `/waitlist` page
+ * (promoted on social, so it must convert desktop traffic too).
  *
  * `usePathname()` resolves during SSR too, so the server already emits the
  * correct branch — no hydration flash. The interstitial is passed in
@@ -23,7 +24,7 @@ export function DesktopGate({
 }) {
   const pathname = usePathname();
 
-  if (pathname?.startsWith("/preview")) {
+  if (pathname?.startsWith("/preview") || pathname?.startsWith("/waitlist")) {
     return <>{children}</>;
   }
 
