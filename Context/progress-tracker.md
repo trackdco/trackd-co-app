@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 ## Current Phase
 
@@ -30,6 +30,59 @@ Last updated: 2026-06-17
 
 ## Completed
 
+- **Quick-track popup + blend-overlap heads-up (2026-06-18, Adrian + Claude) —
+  `tsc`+`lint` clean; NOT committed; ▶ Adrian's on-device QA + prod `build` pending.**
+  Two founder-requested changes, both on the home/logging surface:
+  - **"What would you like to track?" quick-log popup.** The plus-menu **"Log a
+    dose"** primary action no longer routes to `/dashboard` — it opens a new
+    [QuickTrackSheet] in place. It lists the day's due compounds with a tick each;
+    the user ticks what they took and taps **Confirm**, and each is logged with its
+    own defaults (preset dose, current time, next rotation site, most-recent
+    compatible vial) → a green **"Tracked"** confirmation, then auto-closes.
+    Already-logged doses show as "Logged" and aren't re-logged; rotation advances
+    per compound exactly like the dashboard Log flow. Granular edits (different
+    dose/time/site) still live in the dashboard's Log sheet. Wired via a new
+    `quick-track` shortcut action (`shortcutItems.ts` → `ShortcutsMenu`).
+  - **Blends = single combined items, with an overlap note.** Glow / KLOW /
+    **Wolverine** already exist as single catalogue entries (so they log as ONE
+    unit — their constituents are never separately loggable). New
+    [lib/compound-blends.ts] maps each blend → its constituents (BPC-157 / TB-500 /
+    GHK-Cu / KPV) and detects overlap both ways. The **Add-to-log** sheet
+    ([AddCompoundSheet]) now shows a non-blocking amber heads-up when you add a
+    compound a blend you track already contains (or a blend covering something you
+    already track): "… add it on its own only if you want an extra dose on top."
+    **Decisions (Adrian):** one combined item (not expanded constituents); allow +
+    heads-up (never block); fixed catalogue blends only (no user-composable stacks
+    yet). No catalogue/CSV/DB changes — all three blends were already seeded.
+
+- **Stock form picker now follows the compound (2026-06-18, Adrian + Claude) —
+  `tsc`+`lint`+prod `build` clean (33 routes); NOT committed.** Fixes "every compound
+  offers all three forms even when only one makes sense" (e.g. Retatrutide showing
+  Pre-mixed / Oral). The Add/Refill **Stock** sheet ([AddStockSheet]) now derives a
+  compound's real form(s) from the catalogue's per-route data (`routesOf` →
+  `catalogueForms`; custom compounds fall back to `formsForMethod` off the route):
+  **187 of 205 compounds have exactly one form**, so the picker DISAPPEARS — just a
+  label ("Reconstituted — powder + BAC water"). Compounds with several forms (18, e.g.
+  BPC-157 = recon/oral) show pills for ONLY those. A quiet, collapsed escape hatch
+  ("Track it a different way?" / "Other form?") still reveals all three for an
+  off-catalogue setup — so changes are possible without making anyone think. The
+  `picker` state has three modes: `hidden` (one form / refill keeps its form) ·
+  `compound` (only this compound's forms) · `all` (escape hatch). This matches the
+  create flow ([AddCompoundSheet]), which already drove the vial form off the route.
+- **One active vial per compound — add/refill REPLACES the current vial (2026-06-18,
+  Adrian + Claude) — `tsc`+`lint` clean; archive SQL MCP-verified (rolled back); NOT
+  committed.** Fixes the duplicate-card flaw: refilling — or using the refill "Change
+  form" affordance — used to insert a NEW `inventory_items` row each time, so repeated
+  refills / form changes left multiple active vials → multiple Stock cards + a split
+  runway for one compound. Now `addStockItem` (the single path for both first-add and
+  refill, in `lib/db/inventory.ts`) inserts the new vial FIRST, then archives the
+  compound's OTHER active vials (`is_active=false`, `id <> new`). Insert-first ordering
+  means a failed archive never leaves a compound with zero active stock (worst case = a
+  transient duplicate the next add/refill cleans up). Result: exactly **one active vial
+  (one card) per compound**, always; history preserved (old vials archived, not deleted;
+  their logged doses survive); the live runway is unambiguous. Trade-off accepted: no two
+  simultaneous active vials of one compound (a backup) — rare; add an explicit path later
+  if wanted. No migration / no data cleanup (existing dupes were already inactive).
 - **Protocol Cutover STEP 5 — Stock view + "stock left" runway (2026-06-17, Adrian +
   Claude) — `tsc`+`lint`+prod `build` clean (33 routes); all 3 inventory types
   MCP-verified against `v_inventory_math` (rolled back); ▶ Adrian's on-device QA

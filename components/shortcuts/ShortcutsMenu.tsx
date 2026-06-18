@@ -14,6 +14,7 @@ import {
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { ReconCalculatorSheet } from "@/components/home/ReconCalculatorSheet"
 import { AddWeightSheet } from "@/components/home/AddWeightSheet"
+import { QuickTrackSheet } from "@/components/home/QuickTrackSheet"
 import {
   GRID_ITEMS,
   PRIMARY_ITEM,
@@ -64,6 +65,7 @@ export function ShortcutsMenu({
   const [dragging, setDragging] = useState(false)
 
   // Which child flow is open (only one at a time).
+  const [quickTrackOpen, setQuickTrackOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [calcOpen, setCalcOpen] = useState(false)
   const [weightOpen, setWeightOpen] = useState(false)
@@ -80,6 +82,12 @@ export function ShortcutsMenu({
       case "route":
         onOpenChange(false)
         if (item.href) router.push(item.href)
+        break
+      case "quick-track":
+        // The quick "What would you like to track?" popup — log today's doses
+        // in place instead of routing to the dashboard.
+        onOpenChange(false)
+        setQuickTrackOpen(true)
         break
       case "add-stack":
         onOpenChange(false)
@@ -207,6 +215,13 @@ export function ShortcutsMenu({
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* "Log a dose" → the quick-track popup (tick today's doses → confirm). */}
+      <QuickTrackSheet
+        open={quickTrackOpen}
+        onOpenChange={setQuickTrackOpen}
+        userId={userId}
+      />
 
       {/* "Add a compound" → the existing, unchanged Add-to-Stack flow. */}
       <AddToStackMenu open={addOpen} onOpenChange={setAddOpen} userId={userId} />
