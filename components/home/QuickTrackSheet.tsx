@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -125,6 +125,10 @@ function QuickTrackBody({
   // compatible) and decrement its "stock left" — the same default the detailed
   // Log sheet uses. Best-effort; an empty list just logs without a vial link.
   const [stock, setStock] = useState<StockItem[]>([])
+  // Gate Confirm until stock has loaded, so a fast tap can't log before the
+  // vials are known (which would skip the inventory link). Resolves even on
+  // error/empty, so Confirm is never stuck disabled.
+  const [stockLoaded, setStockLoaded] = useState(false)
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -133,6 +137,8 @@ function QuickTrackBody({
         if (!cancelled) setStock(all)
       } catch {
         if (!cancelled) setStock([])
+      } finally {
+        if (!cancelled) setStockLoaded(true)
       }
     })()
     return () => {
@@ -153,6 +159,9 @@ function QuickTrackBody({
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [tracked, setTracked] = useState(false)
   const [loggedCount, setLoggedCount] = useState(0)
+  // One-shot guard: a rapid double-tap must not log twice (the local store would
+  // dedupe, but the async canonical push could create a duplicate row).
+  const confirmedRef = useRef(false)
 
   // Auto-close after the success state lingers. The log is already committed.
   useEffect(() => {
@@ -174,6 +183,8 @@ function QuickTrackBody({
 
   function confirm() {
     if (selectedPending.length === 0) return
+    if (confirmedRef.current) return
+    confirmedRef.current = true
     const time = hhmm(new Date())
     for (const c of selectedPending) {
       const siteId = isInjectable(c.method) ? nextSiteId(c) : null
@@ -308,7 +319,7 @@ function QuickTrackBody({
           <button
             type="button"
             onClick={confirm}
-            disabled={selectedPending.length === 0}
+            disabled={selectedPending.length === 0 || !stockLoaded}
             className="flex-1 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {selectedPending.length > 0

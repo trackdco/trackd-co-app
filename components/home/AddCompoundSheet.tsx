@@ -283,7 +283,10 @@ function AddCompoundBody({
           source.name,
           findBlendOverlaps(
             source.name,
-            (loadStack(userId) ?? []).map((c) => c.name)
+            // Archived compounds aren't tracked any more — don't flag them.
+            (loadStack(userId) ?? [])
+              .filter((c) => c.archived !== true)
+              .map((c) => c.name)
           )
         )
   )
