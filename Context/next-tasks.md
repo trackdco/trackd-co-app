@@ -20,8 +20,10 @@ Last updated: 2026-06-17
 triaged (3 valid fixed, 3 skipped — see `progress-tracker.md`).**
 Two home/logging changes (details in `progress-tracker.md`):
 - **Plus-menu "Log a dose" → in-place quick popup** ([QuickTrackSheet]) instead of routing
-  to `/dashboard`: "What would you like to track?" → tick today's due compounds → **Confirm**
-  → each logged with defaults (preset dose / now / next site / most-recent vial) → "Tracked".
+  to `/dashboard`: "What would you like to track?". **Reworked 2026-06-18** (after Adrian's
+  feedback) to mirror the dashboard Today's Log exactly — tap a dose → the same `LogDoseSheet`
+  (confirm/edit amount·time·site → Track); tap a filled tick to un-log; doses grouped by
+  category. (Superseded the original batch "tick several → one Confirm" model.)
 - **Blends (Glow/KLOW/Wolverine) = single combined items** + a non-blocking amber **overlap
   heads-up** in the Add-to-log sheet ([lib/compound-blends.ts] + [AddCompoundSheet]).
 
