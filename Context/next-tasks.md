@@ -15,8 +15,9 @@ Last updated: 2026-06-17
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-18 (Adrian + Claude): quick-track popup + blend-overlap note — BUILT,
-`tsc`+`lint` clean; NOT committed; ▶ Adrian's on-device QA + prod `build` pending.**
+**Latest — 2026-06-18 (Adrian + Claude): quick-track popup + blend-overlap note — ✅ MERGED to
+`main` (prod) as PR #16 (squash); `tsc`+`lint`+prod `build` clean; CodeRabbit's 6 findings
+triaged (3 valid fixed, 3 skipped — see `progress-tracker.md`).**
 Two home/logging changes (details in `progress-tracker.md`):
 - **Plus-menu "Log a dose" → in-place quick popup** ([QuickTrackSheet]) instead of routing
   to `/dashboard`: "What would you like to track?" → tick today's due compounds → **Confirm**
@@ -25,14 +26,15 @@ Two home/logging changes (details in `progress-tracker.md`):
   heads-up** in the Add-to-log sheet ([lib/compound-blends.ts] + [AddCompoundSheet]).
 
 **▶ Next for this lane:**
-1. **Adrian QAs on-device:** plus → **Log a dose** → popup lists today's doses; tick a few →
-   Confirm → "Tracked"; back on `/dashboard` those rows read as logged + rotation advanced;
-   already-logged doses show "Logged" and aren't re-logged. Then add **BPC-157** while you
-   track **Glow** (or add **Glow** while you track BPC-157) → the amber overlap note shows; add
-   still works. Run prod `build` (dev server stopped), then fold in + commit with the other
-   uncommitted Protocol-cutover work.
+1. **Adrian QAs on prod** (already live): plus → **Log a dose** → popup lists today's doses;
+   tick a few → Confirm → "Tracked"; back on `/dashboard` those rows read as logged + rotation
+   advanced; already-logged doses show "Logged". Then add **BPC-157** while you track **Glow**
+   (or vice versa) → the amber overlap note shows; add still works.
 2. Optional polish (parked): pre-tick all unlogged due in the popup for one-tap confirm; a
    subtle inline overlap hint on the Add-to-Stack browse rows (not just the Add sheet).
+
+   NOTE: the `feat(protocol)` Stock form-picker tweak rode in on PR #16 too (it was sitting
+   uncommitted in the working tree) — so it's now on prod as well.
 
 **Latest — 2026-06-17 (Adrian + Claude): PROTOCOL CUTOVER — STEPS 1–5 ✅ BUILT.**
 `tsc`+`lint`+prod `build` clean (33 routes); live-schema round-trips MCP-verified (rolled

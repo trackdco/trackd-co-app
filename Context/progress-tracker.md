@@ -31,7 +31,11 @@ Last updated: 2026-06-18
 ## Completed
 
 - **Quick-track popup + blend-overlap heads-up (2026-06-18, Adrian + Claude) —
-  `tsc`+`lint` clean; NOT committed; ▶ Adrian's on-device QA + prod `build` pending.**
+  `tsc`+`lint`+prod `build` clean; ✅ MERGED to `main` (prod) as PR #16 (squash). CodeRabbit's
+  6 findings triaged — **3 valid fixed** (exclude archived compounds from overlap detection;
+  gate Confirm until `listStock()` resolves so a fast tap keeps the vial link; one-shot
+  `confirm()` guard vs double-log) and **3 skipped** (intentional tap-only autofocus; a minor
+  a11y nit + the pre-existing best-effort one-active-vial invariant, both out of scope).**
   Two founder-requested changes, both on the home/logging surface:
   - **"What would you like to track?" quick-log popup.** The plus-menu **"Log a
     dose"** primary action no longer routes to `/dashboard` — it opens a new
