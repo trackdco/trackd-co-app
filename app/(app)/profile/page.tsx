@@ -12,6 +12,7 @@ import {
 
 import { AvatarUploader } from "@/components/profile/AvatarUploader";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
+import { DeleteAccountRequest } from "@/components/auth/delete-account-request";
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
 import { createClient } from "@/lib/supabase/server";
 
@@ -197,9 +198,15 @@ export default async function ProfilePage() {
         <SignOutConfirm variant="button" />
       </div>
 
+      {/* Account deletion — request-based during beta (the in-app "deletion
+          control" the Privacy Policy refers to; full self-serve is post-beta). */}
+      <div className="animate-home-up mt-4" style={{ animationDelay: "185ms" }}>
+        <DeleteAccountRequest email={email} />
+      </div>
+
       <p
         className="animate-home-up mt-6 text-center text-xs text-text-subtle"
-        style={{ animationDelay: "195ms" }}
+        style={{ animationDelay: "205ms" }}
       >
         Trackd Co · v0.4 (Beta)
       </p>
