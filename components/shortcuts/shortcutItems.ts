@@ -15,7 +15,9 @@ import {
  *
  * The menu is a primary "Log a dose" action over one consistent grid of six
  * tiles. Each item declares what it does via `action`:
- *  - `route`       → navigate (Log a dose → the home log)
+ *  - `route`       → navigate to a route
+ *  - `quick-track` → the "What would you like to track?" quick-log popup (tick
+ *                    today's due compounds → confirm), instead of routing away
  *  - `add-stack`   → the existing, unchanged Add-to-Stack flow
  *  - `calculator`  → the reconstitution calculator sheet (A8)
  *  - `weight`      → the quick log-today's-weight popup (the full Weight view,
@@ -28,6 +30,7 @@ import {
  */
 export type ShortcutAction =
   | "route"
+  | "quick-track"
   | "add-stack"
   | "calculator"
   | "weight"
@@ -50,10 +53,9 @@ export interface ShortcutItem {
 export const PRIMARY_ITEM: ShortcutItem = {
   id: "log-dose",
   title: "Log a dose",
-  subtitle: "Log, edit or delete today's doses",
+  subtitle: "Tick off today's doses",
   icon: ListChecks,
-  action: "route",
-  href: "/dashboard",
+  action: "quick-track",
 }
 
 /** The consistent six-tile grid, in display order (A10). */

@@ -29,6 +29,7 @@ import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
 import {
   formatDateKeyShort,
   isInjectable,
+  loadStack,
   methodLabel,
   sanitizeDoseInput,
   upcomingDoseDates,
@@ -38,6 +39,7 @@ import {
   type Schedule,
   type StackCompound,
 } from "@/lib/home/stack"
+import { describeBlendOverlap, findBlendOverlaps } from "@/lib/compound-blends"
 
 interface AddCompoundSheetProps {
   open: boolean
@@ -270,6 +272,24 @@ function AddCompoundBody({
   // user pick at add-time; single-route compounds lock to their one route.
   const multiRoute = routeForms.length > 1
   const unitOptions = unitOptionsFor(source.unitDefault)
+
+  // Blend overlap heads-up (create only): adding a compound a blend you track
+  // already contains — or a blend covering something you already track — gets a
+  // non-blocking note (Adrian's call: stacking another dose on purpose is fine).
+  const [overlapNote] = useState<string | null>(() =>
+    isEdit
+      ? null
+      : describeBlendOverlap(
+          source.name,
+          findBlendOverlaps(
+            source.name,
+            // Archived compounds aren't tracked any more — don't flag them.
+            (loadStack(userId) ?? [])
+              .filter((c) => c.archived !== true)
+              .map((c) => c.name)
+          )
+        )
+  )
 
   const { notice, show, dismiss } = useAmberNotice()
   // `method` is the chosen route. Switching route resets the rotation, because
@@ -522,6 +542,24 @@ function AddCompoundBody({
             </p>
           </div>
         </div>
+
+        {/* Blend overlap — a non-blocking heads-up that this compound is already
+            covered by a blend you track (or vice versa). Add it anyway only if you
+            want the extra dose; the blend itself logs as one unit. */}
+        {overlapNote && (
+          <div className="animate-home-up flex gap-2.5 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
+            <TriangleAlert
+              className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
+              aria-hidden
+            />
+            <p className="text-xs leading-relaxed text-foreground">
+              {overlapNote}{" "}
+              <span className="text-text-muted">
+                For personal tracking only, not medical or dosing advice.
+              </span>
+            </p>
+          </div>
+        )}
 
         {/* Route — only when the compound supports more than one. Picking a route
             sets the method and shows/hides the injection-site rotation below. */}

@@ -12,8 +12,9 @@ import type { InventoryType } from "@/lib/db/types"
 /**
  * The Stock view (Protocol Cutover, Step 5): the user's inventory on hand with
  * "stock left" — remaining + doses-remaining + projected-empty read straight from
- * `v_inventory_math` (never recomputed in TS). Add stock, refill (a new vial), and
- * archive (no hard delete). Runway is presented NEUTRALLY (no good/bad colour).
+ * `v_inventory_math` (never recomputed in TS). Add stock, refill (replaces the
+ * compound's current vial — one card per compound), and delete (drops the stock;
+ * logged doses survive). Runway is presented NEUTRALLY (no good/bad colour).
  * Reads require a connection; offline simply shows nothing new.
  */
 export function StockView({

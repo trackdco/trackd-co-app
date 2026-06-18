@@ -9,6 +9,11 @@
  * mL-per-dose — come ONLY from `v_inventory_math` (read here, never recomputed in
  * TS). Writes store raw inputs only. Refill = a NEW row (never mutate a vial);
  * archive = `is_active = false` (never hard-delete).
+ *
+ * ONE ACTIVE VIAL PER COMPOUND: adding/refilling stock archives the compound's
+ * prior active vial(s) so only the newest is active. This keeps the Stock view to
+ * one card per compound (no duplicates from repeated refills or form changes) while
+ * preserving history — old vials become archived rows; their logged doses survive.
  */
 import { createClient } from "@/lib/supabase/server"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
@@ -130,9 +135,11 @@ export async function listStock(): Promise<StockItem[]> {
 }
 
 /**
- * Add a new inventory item. Used for both first stock AND refill (refill is just a
- * new row — never mutate an existing vial; consumption history is the moat).
- * Returns ok.
+ * Add a new inventory item. Used for both first stock AND refill (a new row — never
+ * mutate an existing vial; consumption history is the moat). Enforces ONE active
+ * vial per compound: the new row goes in first, then the compound's OTHER active
+ * vials are archived (`is_active = false`). Insert-first ordering means a failed
+ * archive never leaves the compound with zero active stock. Returns ok.
  */
 export async function addStockItem(row: StockInsert): Promise<{ ok: boolean }> {
   try {
@@ -141,8 +148,22 @@ export async function addStockItem(row: StockInsert): Promise<{ ok: boolean }> {
     const { error } = await ctx.supabase
       .from("inventory_items")
       .insert({ ...row, user_id: ctx.userId })
-    if (error) console.error("addStockItem failed", error)
-    return { ok: !error }
+    if (error) {
+      console.error("addStockItem failed", error)
+      return { ok: false }
+    }
+    // Archive the compound's prior active vials so only this new one stays active
+    // (one card per compound). Best-effort: the new vial is already in, so a failure
+    // here only risks a transient duplicate that the next add/refill cleans up.
+    const { error: archiveError } = await ctx.supabase
+      .from("inventory_items")
+      .update({ is_active: false })
+      .eq("user_id", ctx.userId)
+      .eq("protocol_compound_id", row.protocol_compound_id)
+      .eq("is_active", true)
+      .neq("id", row.id)
+    if (archiveError) console.error("addStockItem archive-prior failed", archiveError)
+    return { ok: true }
   } catch (e) {
     console.error("addStockItem failed", e)
     return { ok: false }
