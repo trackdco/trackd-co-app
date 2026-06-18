@@ -11,8 +11,14 @@ import {
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
-import { getStackSnapshot, subscribeStack, type StackCompound } from "@/lib/home/stack"
+import {
+  getStackSnapshot,
+  subscribeStack,
+  type InjectionMethod,
+  type StackCompound,
+} from "@/lib/home/stack"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
+import { routesOf } from "@/lib/compound-categories"
 import { todayKey } from "@/lib/protocol/cycle"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 
@@ -38,12 +44,32 @@ function clean(s: string): string {
   return v
 }
 
-/** The likely inventory type for a compound, from the bundled catalogue (so we
- *  can pre-select / skip the picker when we already know the form). */
-function catalogueType(name: string): InventoryType | null {
+const ALL_FORMS: InventoryType[] = ["reconstituted", "preconcentrated", "oral_solid"]
+const isForm = (t: string): t is InventoryType =>
+  t === "reconstituted" || t === "preconcentrated" || t === "oral_solid"
+
+/** The inventory form(s) a compound can actually be stocked as, from the bundled
+ *  catalogue's per-route data (default first) — so the picker shows only the real
+ *  options and disappears entirely when there's just one. Null for a custom compound
+ *  (no catalogue entry); callers fall back to the route via `formsForMethod`. */
+function catalogueForms(name: string): InventoryType[] | null {
   const c = COMPOUNDS.find((x) => x.name.toLowerCase() === name.toLowerCase())
-  const t = c?.defaultInventoryType
-  return t === "reconstituted" || t === "preconcentrated" || t === "oral_solid" ? t : null
+  if (!c) return null
+  const forms: InventoryType[] = []
+  for (const rf of routesOf(c)) {
+    if (isForm(rf.inventoryType) && !forms.includes(rf.inventoryType)) forms.push(rf.inventoryType)
+  }
+  return forms.length > 0 ? forms : null
+}
+
+/** Fallback for a custom compound (no catalogue routes): infer plausible form(s)
+ *  from how it's taken. Oral → tabs/caps; injectable → powder or pre-mixed oil;
+ *  nasal → reconstituted. */
+function formsForMethod(method: InjectionMethod): InventoryType[] {
+  if (method === "po") return ["oral_solid"]
+  if (method === "im" || method === "subq") return ["reconstituted", "preconcentrated"]
+  if (method === "nasal") return ["reconstituted"]
+  return ALL_FORMS
 }
 
 /**
@@ -118,19 +144,25 @@ function AddStockForm({
     () => EMPTY,
   )
   const compounds = stack.filter((c) => !c.archived)
-  const typeForId = (id: string): InventoryType | null => {
+  const formsForId = (id: string): InventoryType[] => {
     const c = compounds.find((x) => x.id === id)
-    return c ? catalogueType(c.name) : null
+    if (!c) return ALL_FORMS
+    return catalogueForms(c.name) ?? formsForMethod(c.method)
   }
 
   const [compoundId, setCompoundId] = useState(refillFor ?? compounds[0]?.id ?? "")
-  // We usually already know the form: a refill keeps its existing vial's type; a
-  // fresh add pre-selects from the catalogue. On refill the picker is hidden behind
-  // a "Change form" toggle — for when the user actually switched how they track it.
+  // The form usually picks itself: a refill keeps its vial's type; a fresh add takes
+  // the compound's only sensible form. `picker` controls what the Type section shows:
+  //   hidden   — just a label (one obvious form, or a refill keeping its form)
+  //   compound — pills for ONLY the forms this compound supports (e.g. BPC: recon/oral)
+  //   all      — the escape hatch: any of the three, for an off-catalogue/custom setup
   const lockedType = refillFor != null && refillType != null
-  const [overrideType, setOverrideType] = useState(false)
+  const initialForms = formsForId(refillFor ?? compounds[0]?.id ?? "")
+  const [picker, setPicker] = useState<"hidden" | "compound" | "all">(
+    lockedType || initialForms.length <= 1 ? "hidden" : "compound",
+  )
   const [type, setType] = useState<InventoryType>(
-    refillType ?? typeForId(refillFor ?? compounds[0]?.id ?? "") ?? "reconstituted",
+    refillType ?? initialForms[0] ?? "reconstituted",
   )
   // reconstituted
   const [powder, setPowder] = useState("")
@@ -183,6 +215,8 @@ function AddStockForm({
   }
 
   const insert = buildInsert()
+  const allowedForms = formsForId(compoundId)
+  const formsToShow = picker === "all" ? ALL_FORMS : allowedForms
 
   async function save() {
     if (!insert) return
@@ -219,10 +253,13 @@ function AddStockForm({
               <select
                 value={compoundId}
                 onChange={(e) => {
-                  setCompoundId(e.target.value)
-                  // Pre-select the form we expect for this compound (changeable).
-                  const t = typeForId(e.target.value)
-                  if (t) setType(t)
+                  const id = e.target.value
+                  setCompoundId(id)
+                  // Reset the form to this compound's real option(s): one → just show
+                  // it; several → let them pick from only those.
+                  const forms = formsForId(id)
+                  setType(forms[0] ?? "reconstituted")
+                  setPicker(forms.length > 1 ? "compound" : "hidden")
                 }}
                 disabled={!!refillFor}
                 className={cn(FIELD, refillFor && "opacity-60")}
@@ -233,22 +270,27 @@ function AddStockForm({
               </select>
             </label>
 
-            {lockedType && !overrideType ? (
-              // Refill: same form as the existing vial — but allow changing it if the
-              // user actually switched how they track this compound.
+            {picker === "hidden" ? (
+              // One obvious form (or a refill keeping its vial's form): no choice to
+              // make — just name it, with a quiet way out if they track it differently.
               <div className="space-y-1.5">
                 <span className={LABEL}>Type</span>
                 <div className="flex items-center justify-between gap-2">
                   <p className="min-w-0 text-sm text-foreground">
                     {TYPES.find((t) => t.value === type)?.label}
-                    <span className="text-text-subtle"> · same as your current vial</span>
+                    <span className="text-text-subtle">
+                      {" · "}
+                      {lockedType
+                        ? "same as your current vial"
+                        : TYPES.find((t) => t.value === type)?.hint}
+                    </span>
                   </p>
                   <button
                     type="button"
-                    onClick={() => setOverrideType(true)}
+                    onClick={() => setPicker(lockedType && allowedForms.length > 1 ? "compound" : "all")}
                     className="shrink-0 text-xs font-medium text-accent-amber transition-opacity hover:opacity-80"
                   >
-                    Change form
+                    {lockedType ? "Change form" : "Track it a different way?"}
                   </button>
                 </div>
               </div>
@@ -256,17 +298,28 @@ function AddStockForm({
               <div className="space-y-1.5">
                 <span className={LABEL}>Type</span>
                 <div className="flex flex-wrap gap-2">
-                  {TYPES.map((t) => (
-                    <button key={t.value} type="button" onClick={() => setType(t.value)} className={pill(type === t.value)}>
-                      {t.label}
+                  {formsToShow.map((v) => (
+                    <button key={v} type="button" onClick={() => setType(v)} className={pill(type === v)}>
+                      {TYPES.find((t) => t.value === v)?.label}
                     </button>
                   ))}
                 </div>
-                <span className="block text-xs text-text-subtle">
-                  {overrideType
-                    ? "Changing the form starts a fresh vial of the new type."
-                    : TYPES.find((t) => t.value === type)?.hint}
-                </span>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="block text-xs text-text-subtle">
+                    {picker === "all"
+                      ? "Changing the form starts a fresh vial of the new type."
+                      : TYPES.find((t) => t.value === type)?.hint}
+                  </span>
+                  {picker === "compound" && (
+                    <button
+                      type="button"
+                      onClick={() => setPicker("all")}
+                      className="shrink-0 text-xs text-text-subtle underline underline-offset-2 transition-colors hover:text-foreground"
+                    >
+                      Other form?
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
