@@ -30,6 +30,19 @@ Last updated: 2026-06-18
 
 ## Completed
 
+- **Quick-track popup reworked to mirror the dashboard Log flow (2026-06-18, Adrian + Claude)
+  — `tsc`+`lint`+prod `build` clean.** Per Adrian, the "What would you like to track?" popup
+  ([QuickTrackSheet]) now behaves **exactly like the home screen's Today's Log** instead of the
+  earlier batch "tick several → one Confirm" model: tapping a dose (empty tick or its name)
+  opens the **same `LogDoseSheet`** as the dashboard (confirm/edit amount · time · site →
+  Track), and tapping a filled tick **un-logs** it (the tick goes blank) — a pure toggle. Doses
+  are **grouped by category** with the same slim dividers as the dashboard (dot · label ·
+  "N due"/"Logged"). The popup computes the same Log-sheet context (resolved site, clashes,
+  last-used rest hint) and advances rotation identically. This also dissolves the two earlier
+  CodeRabbit edge-cases (fast-tap vial skip; double-log) since logging now flows through the
+  real Log sheet, which picks the vial and commits once. The batch Confirm/success overlay is
+  gone; a single **Done** closes the popup.
+
 - **Quick-track popup + blend-overlap heads-up (2026-06-18, Adrian + Claude) —
   `tsc`+`lint`+prod `build` clean; ✅ MERGED to `main` (prod) as PR #16 (squash). CodeRabbit's
   6 findings triaged — **3 valid fixed** (exclude archived compounds from overlap detection;
