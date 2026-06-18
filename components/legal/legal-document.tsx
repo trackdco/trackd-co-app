@@ -10,11 +10,93 @@ type LegalDocType =
   | "medical_disclaimer";
 
 /**
+ * Inline formatting: `**bold**` → <strong>, everything else verbatim. Legal
+ * docs use bold only for emphasis (e.g. safety-critical warnings), so this is
+ * the only inline markup we honour.
+ */
+function renderInline(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*.+?\*\*)/g);
+  return parts.map((part, i) =>
+    /^\*\*.+\*\*$/.test(part) ? (
+      <strong key={i} className="font-medium text-foreground">
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      part
+    ),
+  );
+}
+
+/**
+ * Renders the document body to React nodes. The text is stored verbatim with
+ * `\n` breaks and a small Markdown subset: `##`/`###` headings (or a bare
+ * "1. …" numbered line, the older format), `-`/`•` bullets, and `**bold**`.
+ * The first line repeats the title and the second the version — both shown in
+ * the header instead, so we drop them.
+ */
+function renderBody(body: string, title: string): React.ReactNode[] {
+  const lines = body.split("\n");
+  let start = 0;
+  const first = lines[start]?.trim() ?? "";
+  if (first.startsWith("# ") || first === title.trim()) start++;
+  if (lines[start]?.trimStart().toLowerCase().startsWith("version")) start++;
+
+  const nodes: React.ReactNode[] = [];
+  let bullets: string[] = [];
+  const flushBullets = () => {
+    if (!bullets.length) return;
+    nodes.push(
+      <ul
+        key={`ul-${nodes.length}`}
+        className="list-disc space-y-2 pl-5 marker:text-text-subtle"
+      >
+        {bullets.map((b, i) => (
+          <li key={i}>{renderInline(b)}</li>
+        ))}
+      </ul>,
+    );
+    bullets = [];
+  };
+
+  lines.slice(start).forEach((line, i) => {
+    const t = line.trim();
+    if (!t) {
+      flushBullets();
+      return;
+    }
+    if (t.startsWith("### ")) {
+      flushBullets();
+      nodes.push(
+        <h3 key={i} className="pt-2 font-display text-base text-foreground">
+          {renderInline(t.slice(4))}
+        </h3>,
+      );
+      return;
+    }
+    // Top-level section heading: "## 1. …" (new) or a bare "1. …" (older docs).
+    if (t.startsWith("## ") || /^\d+\.\s+\S/.test(t)) {
+      flushBullets();
+      nodes.push(
+        <h2 key={i} className="pt-3 font-display text-lg text-foreground">
+          {renderInline(t.startsWith("## ") ? t.slice(3) : t)}
+        </h2>,
+      );
+      return;
+    }
+    if (/^[-•]\s+/.test(t)) {
+      bullets.push(t.replace(/^[-•]\s+/, ""));
+      return;
+    }
+    flushBullets();
+    nodes.push(<p key={i}>{renderInline(t)}</p>);
+  });
+  flushBullets();
+  return nodes;
+}
+
+/**
  * Renders the current version of a legal document straight from the DB
- * (legal_documents, public read). The text is stored verbatim as plain text
- * with `\n` breaks; the first two lines repeat the title + version, which we
- * render separately, so we drop them and present the rest with numbered section
- * lines (e.g. "1. …") promoted to headings.
+ * (legal_documents, public read).
  *
  * Used by /terms, /privacy, and /medical-disclaimer — the same documents the
  * 18+/ToS gate links to and records acceptance of.
@@ -29,13 +111,6 @@ export async function LegalDocument({ docType }: { docType: LegalDocType }) {
     .maybeSingle();
 
   if (!doc) notFound();
-
-  const lines = String(doc.body).split("\n");
-  // Drop the leading title + "Version …" lines (shown in the header instead).
-  let start = 0;
-  if (lines[start]?.trim() === doc.title.trim()) start++;
-  if (lines[start]?.trimStart().toLowerCase().startsWith("version")) start++;
-  const bodyLines = lines.slice(start);
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col px-6 py-16">
@@ -59,22 +134,7 @@ export async function LegalDocument({ docType }: { docType: LegalDocType }) {
       </p>
 
       <article className="mt-8 space-y-4 text-[0.95rem] leading-relaxed text-text-muted">
-        {bodyLines.map((line: string, i: number) => {
-          const trimmed = line.trim();
-          if (!trimmed) return null;
-          // Top-level numbered section heading, e.g. "1. The sensitivity of…".
-          if (/^\d+\.\s+\S/.test(trimmed)) {
-            return (
-              <h2
-                key={i}
-                className="pt-3 font-display text-lg text-foreground"
-              >
-                {trimmed}
-              </h2>
-            );
-          }
-          return <p key={i}>{trimmed}</p>;
-        })}
+        {renderBody(String(doc.body), doc.title)}
       </article>
 
       <Link

@@ -253,7 +253,7 @@ export async function pullProtocolStackAndLogs(): Promise<{
         .eq("user_id", cx.userId),
       cx.supabase
         .from("dose_logs")
-        .select("protocol_compound_id, taken_at, dose_amount, injection_site")
+        .select("protocol_compound_id, taken_at, dose_amount, injection_site, inventory_item_id")
         .eq("user_id", cx.userId),
     ])
 
@@ -274,6 +274,7 @@ export async function pullProtocolStackAndLogs(): Promise<{
       takenAt: r.taken_at as string,
       amount: String(r.dose_amount),
       injectionSite: (r.injection_site as string | null) ?? null,
+      inventoryItemId: (r.inventory_item_id as string | null) ?? null,
     }))
 
     return { stack, doseRows }

@@ -30,6 +30,72 @@ Last updated: 2026-06-18
 
 ## Completed
 
+- **Pre-beta hardening pass — legal v1.0 (LIVE), error boundaries, offline
+  archive-revert fix, dead-code cleanup (2026-06-18, Adrian + Claude) —
+  `tsc`+`lint`+prod `build` clean; legal migration applied + verified LIVE; NOT
+  committed.** A founder-directed pre-beta review, then a fix-pass on the agreed items:
+  - **Legal documents finalised to v1.0 (applied LIVE).** ToS / Privacy Policy /
+    Medical Disclaimer replaced with Adrian's finalised v1.0 text via the
+    `legal_documents_v1_0` migration (`supabase/legal/003_legal_documents_v1_0.sql`;
+    verified live: exactly one `is_current` row per type, `is_beta = false`, zero
+    ⚠/`claude`/`Â·` cruft; the 0.x rows kept as history with `is_current = false`).
+    The earlier drafts had rendered internal "⚠ NOTE … claude" blocks **verbatim on
+    the public /privacy page** — now gone. **Date deliberately NOT set** (Adrian):
+    `effective_date` stays NULL and the in-body header still reads "DD Month 2026 —
+    set on launch"; the ONLY remaining launch-day legal step is setting the date.
+    The renderer (`components/legal/legal-document.tsx`) gained a small Markdown
+    subset (`##`/`###` headings, `-` bullets, `**bold**`) so the richer v1.0 text
+    formats faithfully; the 18+/ToS gate now records `tos_version` "1.0"; the /login
+    footnote lists all three docs. **Open content gaps (Adrian/lawyer's call):**
+    Privacy §5 "[retention window to be confirmed]" placeholder; Privacy describes
+    PostHog/Sentry and ToS describes paid plans, none wired in beta (forward-looking).
+  - **Error/404 boundaries added** — `app/{error,not-found,global-error}.tsx`,
+    branded to match login/legal. Previously any unhandled error dropped to Next's
+    raw default error screen with no recovery path.
+  - **Offline archive-revert bug FIXED** (Adrian reproduced on-device: archiving
+    compounds OFFLINE, then reconnecting, resurrected them as active). Root cause:
+    `hydrateProtocol.ts` `mergeAndSave` rebuilt the stack from the Postgres pull,
+    discarding the local `archived` flag for any compound Postgres knew about — and
+    the offline archive never reached Postgres. Fix: the local `archived` flag now
+    wins over a stale pull, and the divergence is pushed up to converge (idempotent;
+    no-op for customs). **Single-device assumption**; offline dose-UN-logging +
+    multi-device archive conflicts still need a proper offline outbox (post-beta).
+  - **Dose→vial link preserved across re-sync** — `pullProtocolStackAndLogs` now
+    selects `inventory_item_id` and threads it through `DoseRow` →
+    `doseRowsToDayLogs` → the local `DoseLog` (runway maths were always correct; this
+    fixes the displayed "From vial" forgetting its vial after a focus/reconnect).
+  - **Dead scaffolding removed** — `lib/sync/{cache,syncEngine}.ts`,
+    `app/preview/{db-sync,protocol-test}`, and the orphaned
+    `components/home/ProgressPhotosGlanceCard.tsx` + `components/ui/scroll-area.tsx`.
+    `components/pwa/install-prompt.tsx` (`InstallPrompt`) left in place — it is
+    unwired (rendered nowhere); **needs Adrian's call** on whether to mount it.
+  - **Sign-out modal fix** — the confirm dialog ([components/auth/sign-out-confirm.tsx])
+    is now rendered through a **portal to `document.body`**. It had been trapped inside
+    the Profile page's `animate-home-up` transform wrapper: `position: fixed` is
+    contained by a transformed ancestor and its `z-index` is scoped to that ancestor's
+    stacking context, so the modal rendered at the page bottom and sat BEHIND the
+    `z-40` bottom nav — its buttons weren't tappable (Adrian hit this on device).
+  - **Legal content refinement (Privacy Policy, still v1.0; applied LIVE; Adrian's
+    decisions).** Migrations `legal_documents_privacy_v1_0_content` (006) +
+    `legal_documents_privacy_v1_0_backups_safe` (007): **PostHog + Sentry removed**
+    (not in use); **sub-processors trimmed to Supabase + Vercel** (Stripe/Resend/
+    ConvertKit dropped — none active in beta; a forward-looking sentence covers adding
+    any later); **backup wording made true regardless of plan** (no longer asserts
+    encrypted backups / a fixed window). **OPEN:** confirm the Supabase plan's backup
+    policy (dashboard → Settings → Database → Backups) and finalise the §5/§7 wording
+    with the real retention (or drop the backup claim). ToS pay-plan language kept as
+    forward-looking (Adrian: "we'll get to that"). Medical Disclaimer §7 left as-is —
+    it states the user's duty to independently verify the reconstitution result and
+    that "Trackd does not check your inputs"; it does NOT claim an in-app confirmation
+    popup, so it already matches the amber-warning reality.
+  - **On-device QA (Adrian):** PWA delete + reinstall confirmed all account data
+    (weight, progress photos, compounds + their tracked doses) re-hydrates from
+    Postgres across 3 cycles — **account-linked, not phone-linked**, as intended.
+    **Two-account isolation PASS** — signed in as a second account, saw none of the
+    first account's data (RLS holding in the real app). Sign-out deliberately does NOT
+    wipe localStorage (data is account-scoped and re-hydrates on re-login; clearing it
+    would only matter on a shared device).
+
 - **Quick-track popup reworked to mirror the dashboard Log flow (2026-06-18, Adrian + Claude)
   — `tsc`+`lint`+prod `build` clean.** Per Adrian, the "What would you like to track?" popup
   ([QuickTrackSheet]) now behaves **exactly like the home screen's Today's Log** instead of the

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
 import { signOut } from "@/app/(app)/actions";
@@ -43,47 +44,56 @@ export function SignOutConfirm({ variant }: { variant: "link" | "button" }) {
         Sign out
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
-          onClick={() => setOpen(false)}
-        >
+      {/* Rendered through a portal to <body> so it escapes any transformed
+          ancestor (e.g. the Profile page's `animate-home-up` wrapper). Inside a
+          transform, `position: fixed` is contained by that ancestor and its
+          z-index is trapped in the ancestor's stacking context — which dropped
+          the modal behind the fixed bottom nav and pinned it to the page bottom.
+          Portaling + z-[60] (above the z-40 nav) keeps the buttons tappable. */}
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="signout-title"
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+            className="fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
+            onClick={() => setOpen(false)}
           >
-            <h2
-              id="signout-title"
-              className="text-base font-semibold text-foreground"
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="signout-title"
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
             >
-              Sign out?
-            </h2>
-            <p className="mt-1.5 text-sm text-text-muted">
-              You&apos;ll need to sign in again to get back to your protocol.
-            </p>
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="flex-1 rounded-xl border border-border-strong py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text-primary"
+              <h2
+                id="signout-title"
+                className="text-base font-semibold text-foreground"
               >
-                Cancel
-              </button>
-              <form action={signOut} className="flex-1">
+                Sign out?
+              </h2>
+              <p className="mt-1.5 text-sm text-text-muted">
+                You&apos;ll need to sign in again to get back to your protocol.
+              </p>
+              <div className="mt-5 flex gap-3">
                 <button
-                  type="submit"
-                  className="w-full rounded-xl bg-accent-destructive py-2.5 text-sm font-semibold text-text-primary transition-opacity hover:opacity-90"
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="flex-1 rounded-xl border border-border-strong py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text-primary"
                 >
-                  Sign out
+                  Cancel
                 </button>
-              </form>
+                <form action={signOut} className="flex-1">
+                  <button
+                    type="submit"
+                    className="w-full rounded-xl bg-accent-destructive py-2.5 text-sm font-semibold text-text-primary transition-opacity hover:opacity-90"
+                  >
+                    Sign out
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

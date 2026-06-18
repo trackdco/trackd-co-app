@@ -62,6 +62,9 @@ export interface DoseRow {
   takenAt: string
   amount: string
   injectionSite: string | null
+  /** The vial this dose was logged against, so the "From vial" link survives a
+   *  Postgres round-trip (the runway in v_inventory_math always uses it). */
+  inventoryItemId: string | null
 }
 
 /* ---------------------------------------------------------------- rows */

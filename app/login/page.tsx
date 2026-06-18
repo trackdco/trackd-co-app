@@ -67,13 +67,20 @@ export default async function LoginPage({
           18+ only. By continuing you agree to our{" "}
           <Link href="/terms" className="text-text-muted hover:text-foreground">
             Terms
-          </Link>{" "}
-          and{" "}
+          </Link>
+          ,{" "}
           <Link
             href="/privacy"
             className="text-text-muted hover:text-foreground"
           >
             Privacy Policy
+          </Link>
+          , and{" "}
+          <Link
+            href="/medical-disclaimer"
+            className="text-text-muted hover:text-foreground"
+          >
+            Medical Disclaimer
           </Link>
           .
         </p>

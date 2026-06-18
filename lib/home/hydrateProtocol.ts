@@ -1,8 +1,7 @@
 /**
  * Hydrate the device-local stack + dose-log caches from Postgres (Protocol
- * Cutover, Step 3). Shared by `components/home/useCloudHydration.ts` (the real
- * Home mount) and the `/preview/protocol-test` harness, so there is one merge
- * implementation.
+ * Cutover, Step 3). Used by `components/home/useCloudHydration.ts` (the real
+ * Home mount) as the single merge implementation.
  *
  * Postgres is canonical; entries not in Postgres (customs / offline adds) are
  * layered on from the jsonb mirror ∪ local, and purely local-only ones are pushed
@@ -25,7 +24,11 @@ import {
 } from "@/lib/home/doseLog"
 import { toDateKey, type DoseLog } from "@/lib/home/mockHomeData"
 import { pushStackCompound, pullStackAndLogs } from "@/lib/home/syncActions"
-import { pullProtocolStackAndLogs, pushProtocolCompound } from "@/lib/home/protocolSync"
+import {
+  archiveProtocolCompound,
+  pullProtocolStackAndLogs,
+  pushProtocolCompound,
+} from "@/lib/home/protocolSync"
 import { injectionSiteToLocal } from "@/lib/db/types"
 import type { DoseRow, InjectionSite } from "@/lib/db/types"
 
@@ -58,7 +61,12 @@ function doseRowsToDayLogs(
       r.injectionSite as InjectionSite | null,
       methodById.get(r.compoundId) ?? "po"
     )
-    const log: DoseLog = { amount: r.amount, siteId, time24 }
+    const log: DoseLog = {
+      amount: r.amount,
+      siteId,
+      time24,
+      inventoryItemId: r.inventoryItemId,
+    }
     ;(out[dateKey] ??= {})[r.compoundId] = log
   }
   return out
@@ -72,8 +80,25 @@ function mergeAndSave(
   const local = loadStack(userId) ?? []
   const localLogs = loadDoseLogs(userId)
 
-  // STACK: Postgres canonical, then non-Postgres extras (customs / offline adds)
-  // from the cloud mirror ∪ local, deduped by id.
+  // STACK: Postgres is canonical for MEMBERSHIP, but the local `archived` flag
+  // wins when it diverges. An archive / reactivate done OFFLINE never reached
+  // Postgres, so the pull still shows the compound active — without this, the
+  // pull resurrects a compound the user just archived (a confirmed bug). Keep the
+  // local intent and push it up so Postgres converges (idempotent; a no-op for
+  // customs). Single-device assumption — a true cross-device archive conflict
+  // would need an offline outbox / tombstones, which is out of beta scope.
+  const localById = new Map(local.map((c) => [c.id, c]))
+  const reconciledPg = pg.stack.map((c) => {
+    const loc = localById.get(c.id)
+    if (loc && Boolean(loc.archived) !== Boolean(c.archived)) {
+      void archiveProtocolCompound(c.id, Boolean(loc.archived))
+      return { ...c, archived: loc.archived }
+    }
+    return c
+  })
+
+  // Non-Postgres extras (customs / offline adds) from the cloud mirror ∪ local,
+  // deduped by id.
   const pgIds = new Set(pg.stack.map((c) => c.id))
   const seen = new Set(pgIds)
   const extras: StackCompound[] = []
@@ -82,7 +107,7 @@ function mergeAndSave(
     seen.add(c.id)
     extras.push(c)
   }
-  const mergedStack = [...pg.stack, ...extras]
+  const mergedStack = [...reconciledPg, ...extras]
   saveStack(userId, mergedStack)
   notifyStackChanged()
 

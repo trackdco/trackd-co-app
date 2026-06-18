@@ -200,12 +200,17 @@ in the schema — storage only, no behaviour, until post-trip.
   - **Scope:** only **catalogue** compounds are in Postgres; **custom "Make your own"**
     compounds remain device-local (jsonb mirror) and Home merges them — true custom
     support is v1.5. The Step 5 Stock view reads `v_inventory_math` (runway), and logging a
-    dose against a vial decrements it. `lib/sync/{cache,syncEngine}.ts` + the dev-only
-    `/preview/db-sync` / `/preview/protocol-test` harnesses are throwaway scaffolding, to be
-    removed when the cutover settles.
+    dose against a vial decrements it. (The `lib/sync/{cache,syncEngine}.ts` outbox
+    scaffold + the `/preview/db-sync` and `/preview/protocol-test` harnesses were
+    **removed (2026-06-18)** once the cutover settled — the live path is
+    `lib/home/protocolSync.ts` + `migrateDeviceState.ts`.)
   - **Offline-first** is preserved: reads come from the cache; writes are optimistic to
     the cache and dual-written to Postgres, with a reconnect/focus re-sync that re-pushes
     anything written offline (idempotent). A failed/empty pull never wipes the cache.
+    **Offline _state changes_ (archive/reactivate) win over a stale Postgres pull**
+    (`hydrateProtocol.ts` reconciles the local `archived` flag and converges Postgres) —
+    so an archive done offline is no longer resurrected on reconnect. A robust offline
+    outbox (covering offline dose un-logging + multi-device conflicts) is post-beta work.
 
 - The plus-button **Shortcuts menu** (A10) is now a fixed layout — a primary "Log a
   dose" over a consistent six-tile grid — so it persists nothing (the earlier
@@ -233,14 +238,22 @@ version automatically because it reads `is_current`.
 
 ### Versioning & dating rule — follow this every time we touch a legal document
 
-- **Pre-launch (current state):** documents sit at their draft versions — ToS
-  `0.2`, Medical Disclaimer `0.2`, **Privacy Policy `0.1`** — with `is_beta = true`,
-  `effective_date = NULL`, and the in-body header reading
-  "DD Month 2026 — set on launch".
-- **At first launch:** bump **all three to `1.0`**, set `effective_date` *and* the
-  in-body header date to the **launch day**, set `is_beta = false`, and rename the
-  current source files to `…-v1.0` (drop "beta" — it isn't beta once released).
-  The launch date is then **frozen**; it does **not** auto-advance afterwards.
+- **Current state (1.0, finalised text, date pending — 2026-06-18):** all three
+  documents are now at **version `1.0`** with `is_beta = false` and the
+  draft-era "⚠ NOTE" blocks removed (the `legal_documents_v1_0` migration,
+  `supabase/legal/003_legal_documents_v1_0.sql`, applied live; the 0.x rows are
+  retained as history with `is_current = false`). `effective_date` is still
+  `NULL` and the in-body header still reads "DD Month 2026 — set on launch" —
+  **Adrian deliberately deferred the date.** So the only remaining launch-day
+  step for legals is **setting the date** (next bullet).
+- **At first launch (date step only — versions are already 1.0):** set
+  `effective_date` *and* the in-body header date to the **launch day** on all
+  three current rows, in a new whole-version-free update (the text doesn't
+  change, so this is a date-only edit — do **not** invent a new version number
+  for it). The launch date is then **frozen**; it does **not** auto-advance.
+  (Known content gaps to close at or before this step: the Privacy Policy's
+  "[retention window to be confirmed]" placeholder, and confirming PostHog /
+  Sentry / Stripe are actually wired before the policy describes them as in use.)
 - **Each later change to a document:** bump that document by a **whole version**
   (`1.0 → 2.0 → 3.0 …` — never `1.1`/`2.3`), set its `effective_date`/header date
   to that change's date, and mark the previous row `is_current = false` (DB keeps
@@ -248,9 +261,10 @@ version automatically because it reads `is_current`.
   `supabase/legal/` exports — delete superseded legal source files so we "start
   fresh" each release. (Tracked SQL migrations are immutable history and are never
   rewritten or deleted.)
-- Text is stored **verbatim** with only encoding mojibake repaired. The Privacy
-  Policy's inline "⚠ NOTE" drafting blocks are intentionally retained at Adrian's
-  instruction until he finalises them.
+- Text is stored **verbatim** with only encoding mojibake repaired. The body now
+  uses a small Markdown subset the renderer understands (`##`/`###` headings,
+  `-` bullets, `**bold**` emphasis — see `components/legal/legal-document.tsx`);
+  the draft-era "⚠ NOTE" blocks were removed at 1.0.
 
 ## Auth and Access Model
 
