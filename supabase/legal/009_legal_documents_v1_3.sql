@@ -1,0 +1,35 @@
+-- ============================================================
+--  Legal documents v1.3 — finalised set (Adrian, 2026-06-20).
+--  Applied LIVE via two MCP migrations:
+--    1. `legal_documents_v1_3`             — demote the v1.0 rows (is_current=false)
+--                                            and upsert the three v1.3 documents.
+--    2. `legal_documents_v1_3_effective_date` — set effective_date = 2026-06-20
+--                                            (launch day) + the in-body date line.
+--
+--  STATE NOW (verified live): Terms / Privacy / Medical Disclaimer at **v1.3**,
+--  is_beta = false, effective_date = 2026-06-20, is_current = true; the v1.0/0.x
+--  rows are retained as history (is_current = false).
+--
+--  STORAGE: bodies are stored as PLAIN TEXT (the renderer renders plain text).
+--  They were inserted as Markdown then stripped in-migration with the standard
+--  transform (same as 004): line-start `###`/`##`/`#` removed, `**`/`*` removed,
+--  `- ` bullets → `• `. Mojibake repaired (Â· → ·, em-dashes). The signup gate
+--  reads each version live, so consent_records now record "1.3".
+--
+--  VERBATIM SOURCE: the full v1.3 text is the body of the `legal_documents_v1_3`
+--  migration (live DB is authoritative) and Adrian's v1.3 source documents. The
+--  full text is intentionally NOT re-duplicated here to avoid drift; export it
+--  from the DB if a repo copy is wanted:
+--    SELECT doc_type, body FROM legal_documents WHERE version='1.3';
+--
+--  The markdown→plain transform that was applied (for reference / re-run):
+--    UPDATE legal_documents
+--    SET body = regexp_replace(
+--                 replace(replace(
+--                   regexp_replace(regexp_replace(regexp_replace(
+--                     body,'^### ','','ng'),'^## ','','ng'),'^# ','','ng'),
+--                 '**',''),'*',''),
+--               '^- ','• ','ng')
+--    WHERE version='1.3'
+--      AND doc_type IN ('terms_of_service','privacy_policy','medical_disclaimer');
+-- ============================================================

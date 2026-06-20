@@ -20,9 +20,10 @@ interface ReconCalculatorSheetProps {
 }
 
 const DISCLAIMER =
-  "By using this reconstitution calculator you acknowledge it is for personal " +
-  "tracking only, not medical or dosing advice. Always confirm any figure with " +
-  "a qualified medical professional before acting on it."
+  "This is a calculator, not a dosing instruction. It does only arithmetic on " +
+  "the numbers you enter and may be wrong. Re-check every figure and confirm it " +
+  "against your physical product before drawing or injecting anything. Do not " +
+  "rely on this output alone."
 
 type MgUnit = "mg" | "mcg"
 
@@ -76,7 +77,14 @@ export function ReconCalculatorSheet({
       mlPerDose = Math.round((doseMg / concentration) * 1000) / 1000
       unitsPerDose = Math.round(mlPerDose * 100 * 10) / 10
     }
-    return { concentration, mlPerDose, unitsPerDose }
+    return {
+      concentration,
+      mlPerDose,
+      unitsPerDose,
+      // Echoed back (in mg) for the step-by-step working below.
+      powderMg,
+      doseMg: Number.isFinite(doseMg) && doseMg > 0 ? doseMg : null,
+    }
   }, [powder, powderUnit, bac, dose, doseUnit])
 
   const { cardRef, handleProps, cardStyle } = useSheetDrag(
@@ -190,6 +198,37 @@ export function ReconCalculatorSheet({
               </p>
             )}
           </div>
+
+          {/* The working behind the figures — shown step by step so it can be
+              re-checked by hand (Spec 12, Step 4). Display only; same maths. */}
+          {result ? (
+            <div className="rounded-2xl border border-border-default bg-bg-surface p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
+                Working
+              </p>
+              <div className="mt-2 space-y-1.5 font-mono text-xs leading-relaxed text-text-muted">
+                <p>concentration = powder ÷ BAC water</p>
+                <p>
+                  = {trim(result.powderMg, 3)} mg ÷ {bac || "—"} mL ={" "}
+                  <span className="text-foreground">
+                    {trim(result.concentration, 3)} mg/mL
+                  </span>
+                </p>
+                {result.doseMg != null && result.mlPerDose != null ? (
+                  <>
+                    <p className="pt-1.5">volume to draw = dose ÷ concentration</p>
+                    <p>
+                      = {trim(result.doseMg, 3)} mg ÷{" "}
+                      {trim(result.concentration, 3)} mg/mL ={" "}
+                      <span className="text-foreground">
+                        {trim(result.mlPerDose, 3)} mL
+                      </span>
+                    </p>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {/* Always-on disclaimer (information, not advice). */}
           <div className="flex gap-3 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">

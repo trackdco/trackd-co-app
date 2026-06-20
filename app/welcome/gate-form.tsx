@@ -58,6 +58,11 @@ export function GateForm() {
   const [month, setMonth] = useState(""); // "1".."12"
   const [year, setYear] = useState("");
 
+  // Three separate, un-ticked consents (Spec 12). All required to continue.
+  const [agreeTosPrivacy, setAgreeTosPrivacy] = useState(false);
+  const [agreeDisclaimer, setAgreeDisclaimer] = useState(false);
+  const [agreeHealth, setAgreeHealth] = useState(false);
+
   // Days available for the chosen month/year (so Feb never offers 30/31).
   const daysInMonth =
     month && year ? new Date(Number(year), Number(month), 0).getDate() : 31;
@@ -70,6 +75,11 @@ export function GateForm() {
     safeDay && month && year
       ? `${year}-${String(month).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`
       : "";
+
+  // Enable "Enter Trackd" only once a DOB is entered and all three consents are
+  // ticked. The server still enforces the 18+ age check on top of this.
+  const canSubmit =
+    agreeTosPrivacy && agreeDisclaimer && agreeHealth && dob !== "" && !isPending;
 
   return (
     <form action={formAction} className="mt-10 w-full max-w-[20rem] text-left">
@@ -125,19 +135,34 @@ export function GateForm() {
         Trackd is for adults 18 and over. We use this to confirm your age.
       </p>
 
-      <label className="mt-6 flex cursor-pointer items-start gap-3">
-        <input
-          type="checkbox"
-          name="agree"
-          className="mt-0.5 size-5 shrink-0 rounded accent-[var(--accent-amber)]"
-        />
-        <span className="text-[0.8rem] leading-relaxed text-text-muted">
-          I confirm I&apos;m 18 or older and I agree to Trackd&apos;s{" "}
-          <DocLink href="/terms">Terms of Service</DocLink>,{" "}
-          <DocLink href="/privacy">Privacy Policy</DocLink>, and{" "}
+      <fieldset className="mt-6 space-y-4 border-0 p-0">
+        <Consent
+          name="agree_tos_privacy"
+          checked={agreeTosPrivacy}
+          onChange={setAgreeTosPrivacy}
+        >
+          I agree to the <DocLink href="/terms">Terms of Service</DocLink> and{" "}
+          <DocLink href="/privacy">Privacy Policy</DocLink>.
+        </Consent>
+        <Consent
+          name="agree_disclaimer"
+          checked={agreeDisclaimer}
+          onChange={setAgreeDisclaimer}
+        >
+          I have read and agree to the{" "}
           <DocLink href="/medical-disclaimer">Medical Disclaimer</DocLink>.
-        </span>
-      </label>
+        </Consent>
+        <Consent
+          name="agree_health"
+          checked={agreeHealth}
+          onChange={setAgreeHealth}
+        >
+          I explicitly consent to Trackd processing my health-related data
+          (compounds, doses, bloodwork, body metrics, photos and journal entries)
+          to provide the Service, as described in the{" "}
+          <DocLink href="/privacy">Privacy Policy</DocLink>.
+        </Consent>
+      </fieldset>
 
       {state.error ? (
         <p role="alert" className="mt-4 text-sm text-[var(--state-error)]">
@@ -148,7 +173,7 @@ export function GateForm() {
       <Button
         type="submit"
         size="lg"
-        disabled={isPending}
+        disabled={!canSubmit}
         aria-busy={isPending}
         className="mt-6 h-12 w-full touch-manipulation select-none rounded-xl text-[0.95rem] transition-transform duration-100 active:scale-[0.98] motion-reduce:active:scale-100"
       >
@@ -177,5 +202,35 @@ function DocLink({
     >
       {children}
     </Link>
+  );
+}
+
+/** One consent row: a checkbox + its label. Controlled, so the parent can gate
+ *  the submit button on all three being ticked. Reuses the existing checkbox
+ *  treatment (amber accent) — no new component style. */
+function Consent({
+  name,
+  checked,
+  onChange,
+  children,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <input
+        type="checkbox"
+        name={name}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 size-5 shrink-0 rounded accent-[var(--accent-amber)]"
+      />
+      <span className="text-[0.8rem] leading-relaxed text-text-muted">
+        {children}
+      </span>
+    </label>
   );
 }

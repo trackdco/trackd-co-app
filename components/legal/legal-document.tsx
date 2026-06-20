@@ -9,6 +9,19 @@ type LegalDocType =
   | "privacy_policy"
   | "medical_disclaimer";
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "2026-06-20" → "20 June 2026" (parts-based, so no timezone shift). Falls back
+ *  to the raw value if it isn't a YYYY-MM-DD date. */
+function formatEffectiveDate(value: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return value;
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+}
+
 /**
  * Inline formatting: `**bold**` → <strong>, everything else verbatim. Legal
  * docs use bold only for emphasis (e.g. safety-critical warnings), so this is
@@ -130,7 +143,9 @@ export async function LegalDocument({ docType }: { docType: LegalDocType }) {
       <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-subtle">
         Version {doc.version}
         {doc.is_beta ? " · Beta draft" : ""}
-        {doc.effective_date ? ` · Effective ${doc.effective_date}` : ""}
+        {doc.effective_date
+          ? ` · Effective ${formatEffectiveDate(String(doc.effective_date))}`
+          : ""}
       </p>
 
       <article className="mt-8 space-y-4 text-[0.95rem] leading-relaxed text-text-muted">

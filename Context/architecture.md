@@ -74,6 +74,11 @@ in the schema — storage only, no behaviour, until post-trip.
   — the **Protocol Cutover** schema delta adding `protocol_compounds.rotation_sites
   text[]` + `rotation_index` (the injection-site rotation plan, which the base
   schema had nowhere for); additive columns, no new table (still **23 tables**).
+  `supabase/consent/` holds `001_consent_records.sql` (the `consent_records`
+  migration, Spec 12) — the append-only, per-user, per-version legal-consent
+  audit log written at signup (insert+select-own RLS, no update/delete; FK to
+  `profiles` so it cascades on account deletion), bringing the live DB to
+  **24 tables**.
 - `Context/` — The spec. Defines what to build (`project-overview.md`), how
   (`code-standards.md`, this file), the UI language (`ui-context.md`), the
   session rules (`ai-workflow-rules.md`), and current state (`progress-tracker.md`).
@@ -227,37 +232,42 @@ per type. Write model matches the seed catalogues — **service-role writes only
 but, unlike them, **read is public (`anon` + `authenticated`)** because signup
 shows the documents before a user has an account.
 
-**Wired into signup (2026-06-08).** The 18+/ToS gate at `/welcome` now reads the
-current ToS version live from this table and records acceptance on the profile
-(`tos_accepted_at` + `tos_version`); a single acceptance covers all three
-documents (Terms + Privacy + Medical Disclaimer). The documents are rendered
-verbatim from this table at `/terms`, `/privacy`, and `/medical-disclaimer` (one
-shared `components/legal/legal-document.tsx` renderer, public read). The
-launch-day bump-to-1.0 procedure below still applies — the gate picks up the new
-version automatically because it reads `is_current`.
+**Wired into signup (2026-06-08; consent model expanded 2026-06-20, Spec 12).**
+The 18+/ToS gate at `/welcome` records the access gate on the profile
+(`tos_accepted_at` + `tos_version`, read live from `is_current`) AND now captures
+**three separate, un-ticked consents** — (1) Terms + Privacy, (2) Medical
+Disclaimer, (3) explicit health-data processing — all required before
+"Enter Trackd" enables (on top of the DOB/age check). On submit it appends one
+row per consent to **`consent_records`** (`tos`, `privacy`, `disclaimer`,
+`health_data_consent`), each with the document version read live from
+`legal_documents` + the timestamp + user-agent — the auditable, append-only,
+per-version store the ToS/Privacy now promise (`supabase/consent/001_consent_records.sql`).
+The documents are rendered verbatim at `/terms`, `/privacy`, `/medical-disclaimer`
+(shared `components/legal/legal-document.tsx`, public read). **Versioning note:**
+legal docs may use **point versions** (e.g. `1.3`) for moderate refinements
+(Adrian's call, 2026-06-20) — this relaxes the earlier whole-versions-only rule;
+either way the gate + `consent_records` read the version live, so they stay
+correct across bumps.
 
 ### Versioning & dating rule — follow this every time we touch a legal document
 
-- **Current state (1.0, finalised text, date pending — 2026-06-18):** all three
-  documents are now at **version `1.0`** with `is_beta = false` and the
-  draft-era "⚠ NOTE" blocks removed (the `legal_documents_v1_0` migration,
-  `supabase/legal/003_legal_documents_v1_0.sql`, applied live; the 0.x rows are
-  retained as history with `is_current = false`). `effective_date` is still
-  `NULL` and the in-body header still reads "DD Month 2026 — set on launch" —
-  **Adrian deliberately deferred the date.** So the only remaining launch-day
-  step for legals is **setting the date** (next bullet).
-- **At first launch (date step only — versions are already 1.0):** set
-  `effective_date` *and* the in-body header date to the **launch day** on all
-  three current rows, in a new whole-version-free update (the text doesn't
-  change, so this is a date-only edit — do **not** invent a new version number
-  for it). The launch date is then **frozen**; it does **not** auto-advance.
-  (Known content gaps to close at or before this step: the Privacy Policy's
-  "[retention window to be confirmed]" placeholder, and confirming PostHog /
-  Sentry / Stripe are actually wired before the policy describes them as in use.)
-- **Each later change to a document:** bump that document by a **whole version**
-  (`1.0 → 2.0 → 3.0 …` — never `1.1`/`2.3`), set its `effective_date`/header date
-  to that change's date, and mark the previous row `is_current = false` (DB keeps
-  full version history). Keep only the current version's **source file** in
+- **Current state (v1.3, LAUNCHED — 2026-06-20):** all three documents are at
+  **version `1.3`** with `is_beta = false`, **`effective_date = 2026-06-20`**, and
+  the in-body header reading "20 June 2026" (the `legal_documents_v1_3` +
+  `legal_documents_v1_3_effective_date` migrations, recorded in
+  `supabase/legal/009_legal_documents_v1_3.sql`; applied live). The 1.0 / 0.x rows
+  are retained as history (`is_current = false`). The v1.3 set added the Australian
+  entity details (ACN/ABN), the three-consent model, GDPR/US-state/consumer-health
+  sections, and aligned the text to the built features (request-based account
+  deletion, calculator "shows its working", 7-day backups, no analytics,
+  Supabase+Vercel only). The launch date is now **frozen**.
+- **Versioning rule (relaxed 2026-06-20):** legal docs may use **point versions**
+  (e.g. `1.3`) for moderate refinements; reserve a bigger jump for a major rewrite.
+  Either way: set the new row `is_current = true`, mark the previous row
+  `is_current = false` (DB keeps full version history), and set the
+  `effective_date`/in-body date to the change date. The signup gate +
+  `consent_records` always read the version **live**, so they stay correct across
+  bumps. Keep only the current version's **source file** in
   `supabase/legal/` exports — delete superseded legal source files so we "start
   fresh" each release. (Tracked SQL migrations are immutable history and are never
   rewritten or deleted.)

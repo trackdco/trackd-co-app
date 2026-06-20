@@ -30,6 +30,54 @@ Last updated: 2026-06-18
 
 ## Completed
 
+- **Legal Compliance Cutover — Spec 12 (consent capture + calculator
+  transparency) (2026-06-20, Adrian + Claude) — `tsc`+`lint`+prod `build` clean;
+  `consent_records` migration applied + round-trip-verified LIVE (rolled back, 0
+  rows); NOT committed; ▶ Adrian to sample the preview routes then approve
+  deploy.** Built per `Context/Feature Specs/12-Legal-Direction-Spec` with
+  Adrian-approved calls. Steps 1–4 done; **Step 5 (bloodwork neutrality) is a
+  no-op** — the biomarker below/within/above indicator was removed earlier, so
+  bloodwork is a photo store and already non-clinical.
+  - **Step 2 — `consent_records` table (applied LIVE).** Append-only, per-user,
+    per-version legal-consent audit (`supabase/consent/001_consent_records.sql`).
+    Enum `consent_document` (tos/privacy/disclaimer/health_data_consent), FK
+    `profiles(id) ON DELETE CASCADE`, `(SELECT auth.uid())` insert+select-own RLS,
+    **no update/delete policy or grant** (audit trail), index `(user_id, document)`,
+    grants SELECT/INSERT to `authenticated`. Live DB now **24 tables**.
+  - **Step 1 — three separate signup consents.** `app/welcome/gate-form.tsx`
+    replaced the single combined tickbox with **three un-ticked** controls
+    (Terms+Privacy / Medical Disclaimer / explicit health-data processing);
+    "Enter Trackd" stays disabled until all three + a DOB (server still enforces
+    18+). `app/welcome/actions.ts` validates all three, keeps the `profiles` gate
+    write (`tos_accepted_at`+`tos_version`, the access gate), and appends 4
+    `consent_records` rows with each document's version **read live** from
+    `legal_documents` (+ timestamp + user-agent); health_data_consent carries the
+    Privacy version. Best-effort (a consent-insert blip never blocks signup).
+    Minor calls (Adrian): doc links keep opening in a new tab; button stays
+    "Enter Trackd".
+  - **Steps 3–4 — reconstitution calculator** (`components/home/ReconCalculatorSheet.tsx`).
+    Warning copy swapped to the spec's exact wording (still the always-on amber
+    card, no gate). Added a compact **"Working"** card: `concentration = powder ÷
+    BAC water` and `volume to draw = dose ÷ concentration` with the actual mg
+    values plugged in (mono) so it can be re-checked by hand. Maths unchanged
+    (still matches `v_inventory_math`).
+  - **Versioning decision (Adrian, 2026-06-20):** legal docs may now use **point
+    versions** (e.g. 1.3) for moderate refinements — relaxes the whole-versions-only
+    rule. Versions are read live everywhere, so consent records stay correct across
+    bumps. (Live docs are still 1.0 until the new 1.3 set is swapped in.)
+  - **Sample surfaces (dev-only, 404 in prod):** `/preview/legal-consent` (the
+    3-consent gate) and `/preview/recon` (calculator warning + working).
+  - **v1.3 legal docs swapped in + LAUNCHED (2026-06-20).** Adrian's finalised
+    Terms / Privacy / Medical **v1.3** replaced v1.0 live (`legal_documents_v1_3`
+    + `legal_documents_v1_3_effective_date`; `effective_date = 2026-06-20`,
+    is_beta=false; verified clean plain text; recorded in `supabase/legal/009`).
+    The renderer now formats the date ("20 June 2026"). The v1.3 text aligns with
+    the built features (three consents, request-based deletion, calculator shows
+    its working, 7-day backups, no analytics, Supabase+Vercel only) + adds the
+    AU entity details and GDPR/US-state/consumer-health sections. The whole batch
+    (Spec 12 consent flow + calculator + v1.3 docs + date) was committed + deployed
+    to `main`.
+
 - **Pre-beta hardening pass — legal v1.0 (LIVE), error boundaries, offline
   archive-revert fix, dead-code cleanup (2026-06-18, Adrian + Claude) —
   `tsc`+`lint`+prod `build` clean; legal migration applied + verified LIVE; NOT

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,13 +44,15 @@ export async function completeGate(
     redirect("/login");
   }
 
-  const agreed = formData.get("agree") === "on";
+  // Three separate affirmative consents (Spec 12). All required.
+  const agreeTosPrivacy = formData.get("agree_tos_privacy") === "on";
+  const agreeDisclaimer = formData.get("agree_disclaimer") === "on";
+  const agreeHealth = formData.get("agree_health") === "on";
   const dobRaw = String(formData.get("date_of_birth") ?? "").trim();
 
-  if (!agreed) {
+  if (!agreeTosPrivacy || !agreeDisclaimer || !agreeHealth) {
     return {
-      error:
-        "Please confirm you're 18+ and agree to the documents to continue.",
+      error: "Please tick all three boxes to agree and continue.",
     };
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dobRaw)) {
@@ -71,13 +74,22 @@ export async function completeGate(
     return { error: "You must be 18 or older to use Trackd." };
   }
 
-  // Which ToS version are they accepting? Read the live one (public read).
-  const { data: tos } = await supabase
+  // Record WHICH version of each document was accepted — read the live (current)
+  // versions from legal_documents (public read) so it stays correct after a bump.
+  const { data: docs } = await supabase
     .from("legal_documents")
-    .select("version")
-    .eq("doc_type", "terms_of_service")
+    .select("doc_type, version")
     .eq("is_current", true)
-    .maybeSingle();
+    .in("doc_type", [
+      "terms_of_service",
+      "privacy_policy",
+      "medical_disclaimer",
+    ]);
+  const versionOf = (t: string) =>
+    docs?.find((d) => d.doc_type === t)?.version ?? null;
+  const tosVersion = versionOf("terms_of_service");
+  const privacyVersion = versionOf("privacy_policy");
+  const disclaimerVersion = versionOf("medical_disclaimer");
 
   const { error } = await supabase
     .from("profiles")
@@ -85,12 +97,31 @@ export async function completeGate(
       date_of_birth: dobRaw,
       is_18_plus: true,
       tos_accepted_at: now.toISOString(),
-      tos_version: tos?.version ?? null,
+      tos_version: tosVersion,
     })
     .eq("id", user.id);
 
   if (error) {
     return { error: "Couldn't save that just now. Please try again." };
+  }
+
+  // Append the granular, per-version consent audit (Spec 12, consent_records).
+  // Best-effort: the profiles write above is the access gate + acceptance proof,
+  // so a transient failure here must not block the user. health_data_consent is
+  // tied to the Privacy Policy, so it carries the Privacy version.
+  if (tosVersion && privacyVersion && disclaimerVersion) {
+    const userAgent = (await headers()).get("user-agent");
+    const { error: consentError } = await supabase
+      .from("consent_records")
+      .insert([
+        { user_id: user.id, document: "tos", version: tosVersion, user_agent: userAgent },
+        { user_id: user.id, document: "privacy", version: privacyVersion, user_agent: userAgent },
+        { user_id: user.id, document: "disclaimer", version: disclaimerVersion, user_agent: userAgent },
+        { user_id: user.id, document: "health_data_consent", version: privacyVersion, user_agent: userAgent },
+      ]);
+    if (consentError) {
+      console.error("consent_records insert failed", consentError);
+    }
   }
 
   redirect("/dashboard");
