@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
+import { pushProtocolCompound } from "@/lib/home/protocolSync"
 import {
   getStackSnapshot,
   subscribeStack,
@@ -176,6 +177,7 @@ function AddStockForm({
   const [oralForm, setOralForm] = useState<"tab" | "capsule">("tab")
   const [strength, setStrength] = useState("")
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   function buildInsert(): StockInsert | null {
     if (!compoundId) return null
@@ -221,9 +223,30 @@ function AddStockForm({
   async function save() {
     if (!insert) return
     setSaving(true)
+    setError(null)
     try {
+      // The stock row references this compound's protocol_compound. A just-tracked
+      // compound's push to Postgres can still be in flight, and a custom ("make
+      // your own") compound has no protocol_compound at all — either way the insert
+      // would fail its foreign key. Ensure/learn it first instead of failing
+      // silently (which left the compound absent from Stock — "it didn't load").
+      const compound = compounds.find((c) => c.id === compoundId)
+      if (compound) {
+        const pushed = await pushProtocolCompound(compound)
+        if (!pushed.ok) {
+          setError(
+            pushed.skipped
+              ? "Stock tracking isn’t available for your own custom compounds yet."
+              : "Couldn’t sync this compound. Check your connection and try again."
+          )
+          return
+        }
+      }
       const r = await addStockItem(insert)
-      if (!r.ok) return // keep the sheet open so the input isn't lost on a failed save
+      if (!r.ok) {
+        setError("Couldn’t save this stock. Please try again.")
+        return // keep the sheet open so the input isn't lost on a failed save
+      }
       onAdded()
       onClose()
     } finally {
@@ -376,6 +399,10 @@ function AddStockForm({
           </>
         )}
       </div>
+
+      {error && (
+        <p className="px-4 pt-1 text-center text-sm text-state-error">{error}</p>
+      )}
 
       <SheetFooter className="flex-row gap-2">
         <button

@@ -162,7 +162,13 @@ export async function pushProtocolDoseLog(
   dateKey: string,
   log: DoseLog,
   takenAtIso: string,
-  method: "im" | "subq" | "po" | "nasal"
+  method: "im" | "subq" | "po" | "nasal",
+  // Live logs (`logDose`) pass `true`: when the client left the vial undecided
+  // (the Stock list loads async and the user can tap Track before it arrives),
+  // link the compound's current active vial server-side so the runway always
+  // decrements. The migration leaves this `false` so a historical dose never
+  // retro-links to a vial bought long after it was taken.
+  autoLinkActiveVial = false
 ): Promise<Ok> {
   try {
     const cx = await ctx()
@@ -176,20 +182,37 @@ export async function pushProtocolDoseLog(
       .maybeSingle()
     if (!pc) return { ok: false, skipped: true } // custom / unmigrated → skip
 
-    // Link the dose to the chosen vial so its runway decrements (v_inventory_math).
-    // Only if the vial's base unit is family-compatible with the dose unit — else
-    // drop the link rather than fail the whole log (the DB would reject it).
+    // Resolve which vial (if any) this dose draws from, so its runway decrements
+    // (v_inventory_math). A vial id = the user's explicit pick; `null` = an
+    // explicit "Not tracked"; `undefined` = undecided → fall back to the
+    // compound's newest active vial on a live log. A link is only kept when the
+    // vial's base unit is family-compatible with the dose unit — otherwise it's
+    // dropped rather than failing the whole log (the DB would reject it).
     let inventoryItemId: string | null = null
-    if (log.inventoryItemId) {
+    const picked = log.inventoryItemId
+    if (typeof picked === "string") {
       const { data: vial } = await cx.supabase
         .from("inventory_items")
         .select("base_unit")
-        .eq("id", log.inventoryItemId)
+        .eq("id", picked)
         .eq("user_id", cx.userId)
         .eq("is_active", true)
         .maybeSingle()
       if (vial && unitFamilyOk(vial.base_unit as string, pc.dose_unit as string)) {
-        inventoryItemId = log.inventoryItemId
+        inventoryItemId = picked
+      }
+    } else if (picked === undefined && autoLinkActiveVial) {
+      const { data: vial } = await cx.supabase
+        .from("inventory_items")
+        .select("id, base_unit")
+        .eq("protocol_compound_id", pcId)
+        .eq("user_id", cx.userId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (vial && unitFamilyOk(vial.base_unit as string, pc.dose_unit as string)) {
+        inventoryItemId = vial.id as string
       }
     }
 

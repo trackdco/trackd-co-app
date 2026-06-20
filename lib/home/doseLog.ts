@@ -136,9 +136,18 @@ export function logDose(
   notify()
   void pushDoseLog(dateKey, compoundId, log) // jsonb mirror (also backs up customs)
   // Postgres (canonical). Needs the compound's method (to map the injection site)
-  // and the device-local taken_at instant; no-op for a custom compound.
+  // and the device-local taken_at instant; no-op for a custom compound. The final
+  // `true` lets the server link the compound's active vial when the client hadn't
+  // resolved one yet (a live log), so the runway always decrements.
   const method = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.method ?? "po"
-  void pushProtocolDoseLog(compoundId, dateKey, log, combineLocalDateTime(dateKey, log.time24), method)
+  void pushProtocolDoseLog(
+    compoundId,
+    dateKey,
+    log,
+    combineLocalDateTime(dateKey, log.time24),
+    method,
+    true
+  )
 }
 
 export function unlogDose(userId: string, dateKey: string, compoundId: string) {

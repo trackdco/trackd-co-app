@@ -30,6 +30,26 @@ Last updated: 2026-06-18
 
 ## Completed
 
+- **Stock runway bugfix — dose↔inventory link (2026-06-20, Adrian + Claude) —
+  `tsc`+`lint` clean; root-caused against LIVE data; NOT committed/deployed.**
+  Beta tester reported the Stock view "didn't change storage" when logging a
+  dose. Confirmed in prod: the test account had 5 dose logs, **0** with
+  `inventory_item_id` set, so `v_inventory_math` never decremented (vial existed 2h
+  before the doses; runway stayed 100%). Root cause: the "From vial" link in
+  `LogDoseSheet` was only set after an async `listStock()` round-trip — the user
+  taps Track first, so the dose saved with a NULL link. **Fix:** resolve the link
+  **server-side** in `pushProtocolDoseLog` — `DoseLog.inventoryItemId` is now
+  tri-state (vial id = explicit pick · `null` = "Not tracked" · `undefined` =
+  undecided → server links the compound's newest active compatible vial). `logDose`
+  passes `autoLinkActiveVial=true`; the migration leaves it `false` so historical
+  doses never retro-link. Read-only sim proved the vial then drops 250→50 base
+  (2→0 doses). Also hardened **Add stock**: it now `await`s `pushProtocolCompound`
+  before inserting (a just-tracked compound's row may be in flight) and **surfaces
+  the failure** instead of silently keeping the sheet open (custom compounds →
+  "not available yet") — the likely cause of the "didn't load a compound" report.
+  Files: `lib/home/{protocolSync,doseLog,mockHomeData}.ts`,
+  `components/home/LogDoseSheet.tsx`, `components/protocol/AddStockSheet.tsx`.
+  ▶ Adrian to deploy, then re-test by logging a Test Cyp dose.
 - **Legal Compliance Cutover — Spec 12 (consent capture + calculator
   transparency) (2026-06-20, Adrian + Claude) — `tsc`+`lint`+prod `build` clean;
   `consent_records` migration applied + round-trip-verified LIVE (rolled back, 0

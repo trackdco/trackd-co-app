@@ -215,8 +215,12 @@ function LogDoseBody({
   // enforces the same. A fresh log defaults to the most-recent vial; editing keeps
   // the dose's existing link. setState runs after the await (not in the effect body).
   const [vials, setVials] = useState<StockItem[]>([])
-  const [inventoryItemId, setInventoryItemId] = useState<string | null>(
-    existing?.inventoryItemId ?? null
+  // `undefined` = undecided (a fresh log; the Stock list may still be loading) —
+  // the server then links the compound's active vial by default, so a dose logged
+  // before this resolves still draws down stock. `null` = the user tapped "Not
+  // tracked". A string = a specific vial. Editing starts from the dose's saved link.
+  const [inventoryItemId, setInventoryItemId] = useState<string | null | undefined>(
+    existing ? (existing.inventoryItemId ?? null) : undefined
   )
   useEffect(() => {
     let cancelled = false

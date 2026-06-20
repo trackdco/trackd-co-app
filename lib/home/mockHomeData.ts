@@ -46,7 +46,12 @@ export interface DoseLog {
   /** Time the dose was taken, 24h "HH:MM". */
   time24: string
   /** The inventory item (vial) this dose drew from, so its runway decrements in
-   *  `v_inventory_math`. Null = not linked to tracked stock. */
+   *  `v_inventory_math`.
+   *   - a vial id → drawn from that vial (the user's explicit pick)
+   *   - `null`    → explicitly "Not tracked" — log it without touching stock
+   *   - `undefined` → undecided: a live log left it to the server, which links the
+   *     compound's current active vial (so a dose logged before the Stock list
+   *     finished loading still draws down stock). See `pushProtocolDoseLog`. */
   inventoryItemId?: string | null
 }
 
