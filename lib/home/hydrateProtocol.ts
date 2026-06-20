@@ -98,13 +98,22 @@ function mergeAndSave(
   })
 
   // Non-Postgres extras (customs / offline adds) from the cloud mirror ∪ local,
-  // deduped by id.
+  // deduped by id AND by name. The name dedupe enforces "one compound per name":
+  // Postgres is canonical, so any cloud-mirror / local entry that shares a name
+  // with a Postgres compound is a stale leftover (e.g. a copy still cached on the
+  // device after the canonical one was deleted/re-added) and is dropped — it never
+  // shows as a phantom duplicate in the log. Genuine offline-only compounds (a
+  // name not in Postgres) are still kept and pushed up below.
   const pgIds = new Set(pg.stack.map((c) => c.id))
   const seen = new Set(pgIds)
+  const seenNames = new Set(reconciledPg.map((c) => c.name.trim().toLowerCase()))
   const extras: StackCompound[] = []
   for (const c of [...cloud.stack, ...local]) {
     if (seen.has(c.id)) continue
     seen.add(c.id)
+    const name = c.name.trim().toLowerCase()
+    if (seenNames.has(name)) continue // a same-name compound is already canonical
+    seenNames.add(name)
     extras.push(c)
   }
   const mergedStack = [...reconciledPg, ...extras]

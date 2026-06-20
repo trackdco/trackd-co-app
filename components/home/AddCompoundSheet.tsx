@@ -450,6 +450,17 @@ function AddCompoundBody({
       show("Select at least one injection site for the rotation.")
       return
     }
+    // No duplicates: a compound can only be in the log once. Adding one that's
+    // already there (by name) just clutters the log — block it (an edit, which
+    // keeps the same id, is exempt). To change its dose/schedule, edit the existing
+    // one; to re-run a stopped compound, reactivate it from the Archive.
+    if (!isEdit) {
+      const name = source.name.trim().toLowerCase()
+      if ((loadStack(userId) ?? []).some((c) => c.name.trim().toLowerCase() === name)) {
+        show(`${source.name} is already in your log.`)
+        return
+      }
+    }
     const saved: StackCompound = {
       id: source.id ?? newId(),
       name: source.name,
