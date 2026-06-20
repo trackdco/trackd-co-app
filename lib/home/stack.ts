@@ -14,6 +14,7 @@
  * effects (Context/code-standards.md).
  */
 import type { CompoundCategory } from "@/lib/compound-categories"
+import { isCustomName } from "@/lib/compound-lookup"
 import { pushStackCompound, deleteStackCompound } from "@/lib/home/syncActions"
 import {
   archiveProtocolCompound,
@@ -138,8 +139,12 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
   const ok = saveStack(userId, next)
   if (ok) {
     notifyStackChanged()
-    void pushStackCompound(compound) // jsonb mirror (also backs up customs)
-    void trackSync(pushProtocolCompound(compound)) // Postgres (canonical; no-op for customs)
+    // Catalogue compounds are canonical in Postgres; the jsonb mirror is now a
+    // CUSTOMS-ONLY backup (writing catalogue copies there was the reinstall
+    // resurrection source). Customs have no Postgres row, so the mirror is their
+    // only durable store.
+    if (isCustomName(compound.name)) void pushStackCompound(compound)
+    void trackSync(pushProtocolCompound(compound)) // Postgres (no-op for customs)
   }
   return ok
 }
@@ -158,7 +163,9 @@ export function archiveInStack(
   )
   if (ok) {
     notifyStackChanged()
-    if (updated) void pushStackCompound({ ...updated, archived })
+    // Custom archive state lives in the mirror (no Postgres row); catalogue archive
+    // state lives in Postgres (is_active), so only customs write to the mirror.
+    if (updated && isCustomName(updated.name)) void pushStackCompound({ ...updated, archived })
     void trackSync(archiveProtocolCompound(id, archived)) // Postgres (no-op for customs)
   }
   return ok

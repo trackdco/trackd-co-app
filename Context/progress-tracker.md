@@ -30,6 +30,38 @@ Last updated: 2026-06-18
 
 ## Completed
 
+- **Home ⇄ Protocol/Stock sync + reinstall-proof delete (2026-06-20, Adrian + Claude)
+  — `tsc`+`lint`+prod `build` clean (31 routes); `profile_protocol_migrated_at`
+  migration applied LIVE; NOT committed/deployed; ▶ clean-slate wipe of the
+  adrianschimizzi account PENDING (sequenced after deploy + the user's app
+  delete/reinstall).** Founder-reported: after deleting compounds then deleting +
+  reinstalling the PWA, deleted compounds (incl. customs) reappeared on Home, and the
+  Protocol/Stock list showed compounds (e.g. Trenbolone Acetate) that Home didn't.
+  Root-caused against live data — three stores had drifted (localStorage cache ↔ the
+  `user_stack_compounds` jsonb mirror ↔ canonical Postgres `protocol_compounds`).
+  Four root causes + fixes:
+  - **Reinstall resurrection.** The migration's "already ran" marker lived only in
+    localStorage, which a PWA reinstall WIPES → the migration re-ran and re-seeded the
+    stack from the stale jsonb mirror. Fix: durable cloud marker
+    `profiles.protocol_migrated_at` (`lib/db/migrationFlag.ts`, gated in
+    `migrateDeviceState`) — once migrated, never re-runs, even after reinstall.
+  - **Mirror resurrected catalogue compounds.** The `user_stack_compounds` mirror
+    outlives the localStorage wipe and the hydrator merged its entries back. Fix: the
+    mirror is now a **customs-only** backup (`lib/compound-lookup.ts` `isCatalogueName`
+    gates the writes in `stack.ts` + `hydrateProtocol.ts`); the hydrator REFUSES to
+    resurrect a catalogue compound the mirror holds but Postgres doesn't (deleted/stale).
+    Customs still survive reinstall (the mirror is their only durable store).
+  - **Stock showed non-Home compounds.** `listStock` returned any active vial
+    regardless of its compound's state. Fix: inner-join `protocol_compounds` + filter
+    `is_active = true`, so Stock is a strict subset of active Home compounds — archiving
+    a compound now drops its vial from Stock too.
+  - **Delete semantics confirmed (Adrian):** Archive = keep history; Remove (the
+    two-step "Delete all") = permanent + reinstall-proof. Both already exist on the Home
+    compound sheet; the fixes above make Remove actually stick.
+  - Files: `supabase/profile/004_protocol_migrated.sql`, `lib/db/migrationFlag.ts`,
+    `lib/compound-lookup.ts`, `lib/migration/migrateDeviceState.ts`,
+    `lib/db/inventory.ts`, `lib/home/hydrateProtocol.ts`, `lib/home/stack.ts`.
+
 - **Edit stock — correct a vial's amounts in place (2026-06-20, Adrian + Claude) —
   `tsc`+`lint`+prod `build` clean; deployed.** Each Stock card now has a pencil
   (Edit) alongside Refill/Delete. Edit reuses `AddStockSheet` in a new edit mode:

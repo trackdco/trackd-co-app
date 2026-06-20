@@ -152,6 +152,15 @@ in the schema — storage only, no behaviour, until post-trip.
   (identity from the verified session, RLS the backstop — mirrors
   `weight/actions.ts`). A network blip never blocks the UI — the synchronous local
   write already succeeded; the cloud is a durable backup, not the read path.
+  **The `user_stack_compounds` mirror is now a CUSTOMS-ONLY backup (2026-06-20).**
+  Since the Protocol Cutover, Postgres `protocol_compounds` is the canonical store for
+  catalogue compounds, so `lib/home/stack.ts` + `hydrateProtocol.ts` only write CUSTOM
+  compounds (name not in `lib/compounds-catalogue.ts`, via `lib/compound-lookup.ts`) to
+  the mirror, and the hydrator REFUSES to resurrect a catalogue compound the mirror
+  still holds but Postgres doesn't (a deleted/stale leftover). This closed the
+  reinstall bug where deleting compounds then reinstalling the PWA brought them back —
+  the mirror outlives the localStorage wipe, so it was re-seeding deleted catalogue
+  compounds. Customs still survive reinstall (the mirror is their only durable store).
 
 - **Protocol Cutover — the canonical model is now Postgres (all 5 steps built).** As
   of the cutover the **source of truth for the protocol stack + dose
@@ -174,6 +183,16 @@ in the schema — storage only, no behaviour, until post-trip.
   - **Migration** (`lib/migration/migrateDeviceState.ts`) — one-time, idempotent,
     marker-guarded backfill of the device stores into Postgres, run post-login from
     `useCloudHydration` (which now hydrates from Postgres, merging device-local customs).
+    **The "already migrated" marker is now DURABLE on the profile**
+    (`profiles.protocol_migrated_at`, migration `profile_protocol_migrated_at`, read/written
+    via `lib/db/migrationFlag.ts`) — the old localStorage-only marker was wiped by a PWA
+    reinstall, so the migration re-ran and re-seeded the stack from the stale jsonb mirror,
+    resurrecting deleted compounds. The cloud flag is now authoritative (the local marker
+    is just a fast-path cache); once set, the migration never runs again, even on reinstall.
+  - **Stock = active Home compounds only** — `lib/db/inventory.ts` `listStock` inner-joins
+    `protocol_compounds` and filters `is_active = true`, so the Protocol Stock view is a
+    strict subset of the user's ACTIVE compounds: archiving/removing a compound on Home
+    drops its vial from Stock too (it can never show a compound Home doesn't).
   - **Rotation** lives on `protocol_compounds.rotation_sites text[]` +
     `rotation_index` (`supabase/protocol/001_protocol_compound_rotation.sql`).
   - **Protocol screen (Step 4)** — `app/(app)/protocol/page.tsx` is now the real

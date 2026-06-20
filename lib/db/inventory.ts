@@ -83,11 +83,16 @@ export async function listStock(): Promise<StockItem[]> {
     const [itemsRes, mathRes] = await Promise.all([
       ctx.supabase
         .from("inventory_items")
+        // `protocol_compounds!inner` + the is_active filter below makes Stock a
+        // strict subset of the user's ACTIVE compounds: archiving or removing a
+        // compound on Home (which sets/clears its protocol_compounds row) drops its
+        // vial from Stock too, so Stock can never show a compound Home doesn't.
         .select(
-          "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, protocol_compounds(compounds(name, category))"
+          "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, protocol_compounds!inner(is_active, compounds(name, category))"
         )
         .eq("user_id", ctx.userId)
         .eq("is_active", true)
+        .eq("protocol_compounds.is_active", true)
         .order("created_at", { ascending: false }),
       ctx.supabase
         .from("v_inventory_math")

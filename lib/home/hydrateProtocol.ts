@@ -31,6 +31,7 @@ import {
 } from "@/lib/home/protocolSync"
 import { injectionSiteToLocal } from "@/lib/db/types"
 import type { DoseRow, InjectionSite } from "@/lib/db/types"
+import { isCatalogueName } from "@/lib/compound-lookup"
 
 /** Pull Postgres (canonical) + the jsonb mirror, merge with local, and write the
  *  merged set back into the device-local caches. */
@@ -97,38 +98,48 @@ function mergeAndSave(
     return c
   })
 
-  // Non-Postgres extras (customs / offline adds) from the cloud mirror ∪ local,
-  // deduped by id AND by name. The name dedupe enforces "one compound per name":
-  // Postgres is canonical, so any cloud-mirror / local entry that shares a name
-  // with a Postgres compound is a stale leftover (e.g. a copy still cached on the
-  // device after the canonical one was deleted/re-added) and is dropped — it never
-  // shows as a phantom duplicate in the log. Genuine offline-only compounds (a
-  // name not in Postgres) are still kept and pushed up below.
+  // Non-Postgres extras, deduped by id AND by name (one compound per name — a
+  // same-name Postgres compound is canonical, so a stale device/mirror copy is
+  // dropped). Two sources, with DIFFERENT trust:
+  //  - `local` (this device's cache): freshest intent — an offline add we keep and
+  //    re-push below. Kept whether catalogue or custom.
+  //  - `cloud.stack` (the jsonb mirror): kept for CUSTOM compounds only. Postgres is
+  //    canonical for catalogue compounds, so a catalogue entry the mirror still holds
+  //    but Postgres doesn't is a stale leftover (deleted here, or a failed sync on
+  //    another device) and must NOT resurrect — that was the reinstall "deleted
+  //    compounds came back" bug (the mirror outlives a PWA delete; Postgres is truth).
   const pgIds = new Set(pg.stack.map((c) => c.id))
   const seen = new Set(pgIds)
   const seenNames = new Set(reconciledPg.map((c) => c.name.trim().toLowerCase()))
   const extras: StackCompound[] = []
-  for (const c of [...cloud.stack, ...local]) {
-    if (seen.has(c.id)) continue
+  const pushExtra = (c: StackCompound, dropStaleCatalogue: boolean): void => {
+    if (seen.has(c.id)) return
     seen.add(c.id)
     const name = c.name.trim().toLowerCase()
-    if (seenNames.has(name)) continue // a same-name compound is already canonical
+    if (seenNames.has(name)) return // a same-name compound is already canonical
+    if (dropStaleCatalogue && isCatalogueName(c.name)) return // stale mirror leftover
     seenNames.add(name)
     extras.push(c)
   }
+  for (const c of local) pushExtra(c, false)
+  for (const c of cloud.stack) pushExtra(c, true)
   const mergedStack = [...reconciledPg, ...extras]
   saveStack(userId, mergedStack)
   notifyStackChanged()
 
-  // Flush local compounds Postgres doesn't have yet (offline adds), and back up
-  // purely local-only ones to the jsonb mirror. pushProtocolCompound resolves
-  // catalogue vs custom server-side: a custom no-ops after one indexed lookup and
-  // stays device-local; a catalogue offline-add gets written. Idempotent.
+  // Flush local compounds Postgres doesn't have yet (offline adds). A catalogue
+  // compound goes to Postgres (canonical); a CUSTOM one (no catalogue row) is backed
+  // up to the jsonb mirror instead — the mirror is now a customs-only store, so we no
+  // longer write catalogue compounds there (that stale copy was the resurrection
+  // source). pushProtocolCompound still no-ops for a custom, so the split is safe.
   const cloudIds = new Set(cloud.stack.map((c) => c.id))
   for (const c of local) {
     if (pgIds.has(c.id)) continue
-    void pushProtocolCompound(c)
-    if (!cloudIds.has(c.id)) void pushStackCompound(c)
+    if (isCatalogueName(c.name)) {
+      void pushProtocolCompound(c)
+    } else if (!cloudIds.has(c.id)) {
+      void pushStackCompound(c)
+    }
   }
 
   // LOGS: Postgres logs (re-keyed to local days) + cloud ∪ local entries not

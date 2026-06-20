@@ -26,6 +26,7 @@ import { loadStack, type StackCompound } from "@/lib/home/stack"
 import { loadDoseLogs, type DayLogs } from "@/lib/home/doseLog"
 import { pullStackAndLogs } from "@/lib/home/syncActions"
 import { pushProtocolCompound, pushProtocolDoseLog } from "@/lib/home/protocolSync"
+import { hasMigratedInCloud, markMigratedInCloud } from "@/lib/db/migrationFlag"
 
 export interface MigrationResult {
   ran: boolean
@@ -73,7 +74,16 @@ export async function migrateDeviceState(
     failures: 0,
   }
   if (!userId || userId === "anon") return { ...base, reason: "no-user" }
+  // Local fast-path: skip the network check when this device already migrated.
   if (!opts?.force && hasMigrated(userId)) return { ...base, reason: "already-migrated" }
+  // Durable, reinstall-proof guard: once the user has EVER migrated (cloud flag on
+  // their profile), never run again — a PWA reinstall wipes the local marker, and
+  // re-running would re-seed the stack from the stale jsonb mirror and resurrect
+  // deleted compounds. Cache the cloud truth back into the local marker.
+  if (await hasMigratedInCloud()) {
+    setMigrated(userId)
+    return { ...base, reason: "already-migrated" }
+  }
 
   try {
     // Source: local ∪ jsonb mirror (cloud wins; local-only entries included).
@@ -83,6 +93,7 @@ export async function migrateDeviceState(
 
     if (stack.length === 0) {
       setMigrated(userId) // nothing to copy — mark done so we don't re-pull each login
+      void markMigratedInCloud() // ...and durably, so a reinstall doesn't re-run it
       return { ...base, ran: true, reason: "nothing-to-migrate" }
     }
 
@@ -123,7 +134,10 @@ export async function migrateDeviceState(
 
     // Only mark done on a clean run — a transient failure retries next login (the
     // deterministic ids make the retry a no-op upsert for whatever already landed).
-    if (failures === 0) setMigrated(userId)
+    if (failures === 0) {
+      setMigrated(userId)
+      void markMigratedInCloud() // durable so a reinstall never re-runs this
+    }
     return { ran: true, compounds, doseLogs, skippedCustom, failures }
   } catch (e) {
     console.error("migrateDeviceState failed", e)
