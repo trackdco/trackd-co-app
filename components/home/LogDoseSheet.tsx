@@ -570,10 +570,60 @@ function LogDoseBody({
           <p className="mt-5 px-1 text-xs text-text-subtle">Checking your stock…</p>
         )}
 
-        {/* From vial — connect this dose to a tracked vial so its "stock left"
-            counts down (v_inventory_math). Only this compound's compatible vials
-            are offered; "Not tracked" logs the dose without drawing from stock. */}
-        {vials.length > 0 && (
+        {/* From vial — the dose AUTO-LINKS to this compound's active vial so its
+            "stock left" counts down (v_inventory_math); no manual picking. The
+            usual case (one active vial per compound) shows a calm confirmation with
+            a quiet opt-out. The rare 2+ vials case keeps an explicit chooser. */}
+        {vials.length === 1 &&
+          (() => {
+            const v = vials[0]
+            const left =
+              v.remainingDisplay == null
+                ? null
+                : v.inventoryType === "oral_solid"
+                  ? `${v.remainingDisplay} left`
+                  : `${v.remainingDisplay} mL left`
+            return (
+              <div className="mt-5">
+                <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+                  From vial
+                </span>
+                {inventoryItemId === null ? (
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3 py-2.5">
+                    <span className="min-w-0 text-xs text-text-muted">
+                      Not counting this dose against your stock.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setInventoryItemId(v.id)}
+                      className="shrink-0 text-xs font-medium text-accent-amber transition-opacity hover:opacity-80"
+                    >
+                      Count it
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-accent-amber/50 bg-accent-amber/10 px-3 py-2.5">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Check className="h-4 w-4 shrink-0 text-accent-amber" aria-hidden />
+                      <span className="truncate text-xs text-text-muted">
+                        Drawing from your stock
+                        {left && <span className="font-mono text-foreground">{` · ${left}`}</span>}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setInventoryItemId(null)}
+                      className="shrink-0 text-xs text-text-subtle underline underline-offset-2 transition-colors hover:text-foreground"
+                    >
+                      Don&apos;t count this one
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+        {vials.length > 1 && (
           <div className="mt-5">
             <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
               From vial
