@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { RotateCcw, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 
 import { wipeMyProtocol } from "@/lib/db/resetProtocol"
 
@@ -41,39 +41,29 @@ export function StartFreshSection({ userId }: { userId: string }) {
 
   return (
     <section className="mt-10">
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
-        Start fresh
-      </h3>
       {step === 0 ? (
-        <button
-          type="button"
-          onClick={() => setStep(1)}
-          className="flex w-full items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3.5 text-left transition-colors hover:bg-bg-surface-raised"
-        >
-          <RotateCcw className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-          <span className="min-w-0">
-            <span className="block text-sm font-medium text-foreground">
-              Clear all compounds &amp; stock
-            </span>
-            <span className="block text-xs text-text-subtle">
-              Empties your whole stack on this device and in the cloud. Weight, progress
-              photos and bloodwork are untouched.
-            </span>
-          </span>
-        </button>
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setStep(1)}
+            className="text-xs font-medium text-state-error/70 underline-offset-4 transition-colors hover:text-state-error hover:underline"
+          >
+            Clear all compounds &amp; stock
+          </button>
+        </div>
       ) : (
-        <div className="rounded-2xl border border-state-error/40 bg-state-error/10 p-4">
-          <p className="text-sm text-foreground">
+        <div className="rounded-xl border border-state-error/40 bg-state-error/10 p-3">
+          <p className="text-xs text-foreground">
             {step === 1
-              ? "Remove EVERY compound, vial and logged dose and start from an empty stack? This can't be undone."
+              ? "Remove EVERY compound, vial and logged dose and start from an empty stack? This can't be undone. (Weight, photos and bloodwork are kept.)"
               : "Last check. This permanently clears your entire stack everywhere."}
           </p>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-2.5 flex gap-2">
             <button
               type="button"
               disabled={busy}
               onClick={() => setStep(0)}
-              className="flex-1 rounded-lg border border-border-strong py-2 text-sm text-text-muted transition-colors hover:text-text-primary disabled:opacity-50"
+              className="flex-1 rounded-lg border border-border-strong py-1.5 text-xs text-text-muted transition-colors hover:text-text-primary disabled:opacity-50"
             >
               Cancel
             </button>
@@ -81,7 +71,7 @@ export function StartFreshSection({ userId }: { userId: string }) {
               type="button"
               disabled={busy}
               onClick={() => (step === 1 ? setStep(2) : confirmWipe())}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-state-error py-2 text-sm font-medium text-text-primary transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-state-error py-1.5 text-xs font-medium text-text-primary transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {busy ? (
                 "Clearing…"
