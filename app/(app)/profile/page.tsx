@@ -14,6 +14,7 @@ import { AvatarUploader } from "@/components/profile/AvatarUploader";
 import { ProfileFeedbackRow } from "@/components/profile/ProfileFeedbackRow";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { DeleteAccountRequest } from "@/components/auth/delete-account-request";
+import { StartFreshSection } from "@/components/home/StartFreshSection";
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
 import { createClient } from "@/lib/supabase/server";
 
@@ -202,9 +203,12 @@ export default async function ProfilePage() {
       </div>
 
       {/* Account deletion — request-based during beta (the in-app "deletion
-          control" the Privacy Policy refers to; full self-serve is post-beta). */}
+          control" the Privacy Policy refers to; full self-serve is post-beta).
+          The compound-stack reset sits right under it, sharing the same quiet,
+          muted treatment so it reads as the rare/irreversible action it is. */}
       <div className="animate-home-up mt-4" style={{ animationDelay: "185ms" }}>
         <DeleteAccountRequest email={email} />
+        <StartFreshSection userId={user!.id} />
       </div>
 
       <p

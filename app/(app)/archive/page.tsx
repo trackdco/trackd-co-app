@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
 import { ArchiveManager } from "@/components/home/ArchiveManager";
-import { StartFreshSection } from "@/components/home/StartFreshSection";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Archive — Trackd Co" };
@@ -45,8 +44,6 @@ export default async function ArchivePage() {
       <div className="mt-6">
         <ArchiveManager userId={user!.id} />
       </div>
-
-      <StartFreshSection userId={user!.id} />
     </div>
   );
 }
