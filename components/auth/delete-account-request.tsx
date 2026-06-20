@@ -68,12 +68,14 @@ export function DeleteAccountRequest({ email }: { email: string }) {
               >
                 Delete your account?
               </h2>
-              <p className="mt-1.5 text-sm text-text-muted">
-                During the beta, deletions are handled by request. This opens an
-                email to{" "}
-                <span className="break-all text-foreground">{LEGAL_EMAIL}</span>{" "}
-                — send it and we&apos;ll permanently erase your account and all
-                your data within 30 days. This can&apos;t be undone.
+              <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+                During the beta, account deletion is handled by request. Tap
+                below to email us at{" "}
+                <span className="whitespace-nowrap text-foreground">
+                  {LEGAL_EMAIL}
+                </span>
+                , and we&apos;ll permanently erase your account and all your data
+                within 30 days. This can&apos;t be undone.
               </p>
               <div className="mt-5 flex gap-3">
                 <button
