@@ -49,6 +49,7 @@ function SheetContent({
   children,
   side = "bottom",
   showCloseButton = true,
+  onOpenAutoFocus,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
@@ -59,6 +60,12 @@ function SheetContent({
       <SheetOverlay />
       <SheetPrimitive.Content
         data-slot="sheet-content"
+        // DEFAULT: don't move focus into the sheet on open. Radix otherwise focuses
+        // the first field, which springs the mobile keyboard up unbidden the moment
+        // a sheet appears (a recurring annoyance). Every sheet is keyboard-quiet by
+        // default; a sheet that genuinely wants a field focused on open can pass its
+        // own `onOpenAutoFocus` to override this.
+        onOpenAutoFocus={onOpenAutoFocus ?? ((e) => e.preventDefault())}
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-bg-surface shadow-lg transition ease-in-out outline-none data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
           side === "right" &&
