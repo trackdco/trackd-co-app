@@ -20,6 +20,7 @@ import {
   pushProtocolDoseLog,
   deleteProtocolDoseLog,
 } from "@/lib/home/protocolSync"
+import { trackSync } from "@/lib/home/syncStatus"
 
 export type DayLogs = Record<string, Record<string, DoseLog>>
 
@@ -140,13 +141,15 @@ export function logDose(
   // `true` lets the server link the compound's active vial when the client hadn't
   // resolved one yet (a live log), so the runway always decrements.
   const method = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.method ?? "po"
-  void pushProtocolDoseLog(
-    compoundId,
-    dateKey,
-    log,
-    combineLocalDateTime(dateKey, log.time24),
-    method,
-    true
+  void trackSync(
+    pushProtocolDoseLog(
+      compoundId,
+      dateKey,
+      log,
+      combineLocalDateTime(dateKey, log.time24),
+      method,
+      true
+    )
   )
 }
 
@@ -160,7 +163,7 @@ export function unlogDose(userId: string, dateKey: string, compoundId: string) {
   saveDoseLogs(userId, next)
   notify()
   void deleteDoseLog(dateKey, compoundId)
-  void deleteProtocolDoseLog(compoundId, dateKey) // Postgres (no-op for customs)
+  void trackSync(deleteProtocolDoseLog(compoundId, dateKey)) // Postgres (no-op for customs)
 }
 
 /** Erase every logged dose for a compound across all days (hard delete only). */

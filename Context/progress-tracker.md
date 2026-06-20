@@ -30,6 +30,30 @@ Last updated: 2026-06-18
 
 ## Completed
 
+- **Beta-readiness hardening — sync notice, consent audit, id fix, log loading
+  (2026-06-20, Adrian + Claude) — `tsc`+`lint`+prod `build` clean; consent unique
+  index applied LIVE; deployed.** Follow-ups from the beta-readiness pass (RLS
+  confirmed on all 26 tables; auth/legal gate verified; OAuth "Testing" publish is
+  Adrian's to do in the Google console).
+  - **#2 Silent-sync notice:** canonical Postgres pushes (`stack.ts`/`doseLog.ts`)
+    are now wrapped in `lib/home/syncStatus.ts` `trackSync()`, which fires a
+    `trackd:sync-failed` event when a write fails *while online* (offline is
+    expected — the reconnect re-sync handles it). `SyncStatusNotice` (mounted in
+    the app shell) shows one amber "saved on your device — still syncing" banner.
+  - **#3 Reliable consent audit (`app/welcome/actions.ts`):** the gate now writes
+    `consent_records` FIRST (idempotent upsert; unique index
+    `consent_records_user_doc_version_uidx`, `supabase/consent/002_consent_unique.sql`,
+    applied LIVE) and only sets the profile access gate once it lands — so no
+    account can have access without a complete, non-duplicated consent record.
+    Also errors out if the current legal versions can't be resolved.
+  - **#4 Insecure-context ids (`lib/home/id.ts`):** one shared `newId()` that
+    always returns a valid uuid *shape* even when `crypto.randomUUID` is missing
+    (LAN/dev), replacing the divergent `c_…`/`s_…` fallbacks that duplicated
+    compounds + broke stock/dose joins after hydration. Used by AddCompoundSheet +
+    add-to-stack-menu.
+  - **#5 Log-sheet loading:** `LogDoseSheet` shows a brief "Checking your stock…"
+    while the vial list loads. (The other half — a "custom compounds are
+    device-local" note — was a non-issue: customs already back up via `pushCustom`.)
 - **Beta notes & feedback — in-app feedback capture (2026-06-20, Adrian + Claude)
   — `tsc`+`lint`+prod `build` clean; `beta_feedback` migration applied LIVE +
   shape-verified (insert/delete round-trip, 0 rows left); deployed.** A distinct

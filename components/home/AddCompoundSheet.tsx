@@ -6,6 +6,7 @@ import { Pencil, Plus, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
+import { newId } from "@/lib/home/id"
 import { pushProtocolCompound } from "@/lib/home/protocolSync"
 import {
   Sheet,
@@ -95,18 +96,6 @@ function hhmm(d: Date): string {
   ).padStart(2, "0")}`
 }
 
-// A stable id even in an insecure context (plain-http LAN IP on a phone), where
-// crypto.randomUUID() throws — mirrors the Add-to-Stack menu's helper.
-function newId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    try {
-      return crypto.randomUUID()
-    } catch {
-      /* insecure context — fall through */
-    }
-  }
-  return `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
-}
 
 /** Normalised form source — from a catalogue pick (create) or a stack compound (edit). */
 interface Source {

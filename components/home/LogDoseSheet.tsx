@@ -222,6 +222,9 @@ function LogDoseBody({
   const [inventoryItemId, setInventoryItemId] = useState<string | null | undefined>(
     existing ? (existing.inventoryItemId ?? null) : undefined
   )
+  // Starts true — the body re-mounts per compound (keyed), so the initial value
+  // applies on each open; the fetch flips it false in `finally`.
+  const [loadingVials, setLoadingVials] = useState(true)
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -238,6 +241,8 @@ function LogDoseBody({
         if (existing == null && mine.length > 0) setInventoryItemId(mine[0].id)
       } catch {
         if (!cancelled) setVials([])
+      } finally {
+        if (!cancelled) setLoadingVials(false)
       }
     })()
     return () => {
@@ -557,6 +562,12 @@ function LogDoseBody({
               </div>
             )}
           </div>
+        )}
+
+        {/* While the Stock list loads, a brief hint so the vial picker doesn't
+            pop in unexplained (the link itself is set server-side regardless). */}
+        {loadingVials && vials.length === 0 && (
+          <p className="mt-5 px-1 text-xs text-text-subtle">Checking your stock…</p>
         )}
 
         {/* From vial — connect this dose to a tracked vial so its "stock left"

@@ -24,6 +24,7 @@ import {
 } from "@/lib/compound-categories"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
+import { newId } from "@/lib/home/id"
 import { loadStack } from "@/lib/home/stack"
 import { pullCustoms, pushCustom, deleteCustom } from "@/lib/home/syncActions"
 import {
@@ -162,20 +163,6 @@ function saveCustoms(userId: string, list: CustomCompound[]): boolean {
   } catch {
     return false
   }
-}
-
-// A stable id for a custom compound. crypto.randomUUID() only exists in a secure
-// context (https / localhost) — NOT over a plain-http LAN IP, which is exactly how
-// the dev server is opened on a phone — so fall back to a good-enough local id.
-function newId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    try {
-      return crypto.randomUUID()
-    } catch {
-      /* insecure context — fall through */
-    }
-  }
-  return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
 }
 
 function isCustom(c: Compound): c is CustomCompound {

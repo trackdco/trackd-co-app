@@ -20,6 +20,7 @@ import {
   deleteProtocolCompoundForStack,
   pushProtocolCompound,
 } from "@/lib/home/protocolSync"
+import { trackSync } from "@/lib/home/syncStatus"
 
 /**
  * How a compound is administered. Defaults to the compound's primary `route`;
@@ -138,7 +139,7 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
   if (ok) {
     notifyStackChanged()
     void pushStackCompound(compound) // jsonb mirror (also backs up customs)
-    void pushProtocolCompound(compound) // Postgres (canonical; no-op for customs)
+    void trackSync(pushProtocolCompound(compound)) // Postgres (canonical; no-op for customs)
   }
   return ok
 }
@@ -158,7 +159,7 @@ export function archiveInStack(
   if (ok) {
     notifyStackChanged()
     if (updated) void pushStackCompound({ ...updated, archived })
-    void archiveProtocolCompound(id, archived) // Postgres (no-op for customs)
+    void trackSync(archiveProtocolCompound(id, archived)) // Postgres (no-op for customs)
   }
   return ok
 }
@@ -174,7 +175,7 @@ export function removeFromStack(userId: string, id: string): boolean {
   if (ok) {
     notifyStackChanged()
     void deleteStackCompound(id)
-    void deleteProtocolCompoundForStack(id) // Postgres (cascades its dose logs)
+    void trackSync(deleteProtocolCompoundForStack(id)) // Postgres (cascades its dose logs)
   }
   return ok
 }

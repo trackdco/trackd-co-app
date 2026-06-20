@@ -91,6 +91,36 @@ export async function completeGate(
   const privacyVersion = versionOf("privacy_policy");
   const disclaimerVersion = versionOf("medical_disclaimer");
 
+  // We won't record acceptance of an unknown version, nor gate someone through
+  // without a complete consent record — so all three current versions must resolve.
+  if (!tosVersion || !privacyVersion || !disclaimerVersion) {
+    return { error: "Couldn't load the current legal documents. Please try again." };
+  }
+
+  // 1) Write the granular, per-version consent audit FIRST (Spec 12,
+  //    consent_records), and only gate the user through (step 2) once it lands —
+  //    so an account can never have app access without a complete consent record.
+  //    Idempotent: an upsert on (user_id, document, version) makes a retry after a
+  //    transient failure a no-op, never a duplicate. health_data_consent is tied
+  //    to the Privacy Policy, so it carries the Privacy version.
+  const userAgent = (await headers()).get("user-agent");
+  const { error: consentError } = await supabase
+    .from("consent_records")
+    .upsert(
+      [
+        { user_id: user.id, document: "tos", version: tosVersion, user_agent: userAgent },
+        { user_id: user.id, document: "privacy", version: privacyVersion, user_agent: userAgent },
+        { user_id: user.id, document: "disclaimer", version: disclaimerVersion, user_agent: userAgent },
+        { user_id: user.id, document: "health_data_consent", version: privacyVersion, user_agent: userAgent },
+      ],
+      { onConflict: "user_id,document,version", ignoreDuplicates: true }
+    );
+  if (consentError) {
+    console.error("consent_records insert failed", consentError);
+    return { error: "Couldn't record your consent just now. Please try again." };
+  }
+
+  // 2) Now set the access gate on the profile — this is what grants entry.
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -100,28 +130,8 @@ export async function completeGate(
       tos_version: tosVersion,
     })
     .eq("id", user.id);
-
   if (error) {
     return { error: "Couldn't save that just now. Please try again." };
-  }
-
-  // Append the granular, per-version consent audit (Spec 12, consent_records).
-  // Best-effort: the profiles write above is the access gate + acceptance proof,
-  // so a transient failure here must not block the user. health_data_consent is
-  // tied to the Privacy Policy, so it carries the Privacy version.
-  if (tosVersion && privacyVersion && disclaimerVersion) {
-    const userAgent = (await headers()).get("user-agent");
-    const { error: consentError } = await supabase
-      .from("consent_records")
-      .insert([
-        { user_id: user.id, document: "tos", version: tosVersion, user_agent: userAgent },
-        { user_id: user.id, document: "privacy", version: privacyVersion, user_agent: userAgent },
-        { user_id: user.id, document: "disclaimer", version: disclaimerVersion, user_agent: userAgent },
-        { user_id: user.id, document: "health_data_consent", version: privacyVersion, user_agent: userAgent },
-      ]);
-    if (consentError) {
-      console.error("consent_records insert failed", consentError);
-    }
   }
 
   redirect("/dashboard");
