@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
+import { WelcomeVideoPopup } from "@/components/welcome/WelcomeVideoPopup";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import { unitForPreference } from "@/lib/weight";
+import { WELCOME_VIDEO_READY } from "@/lib/welcomeVideo";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { createClient } from "@/lib/supabase/server";
 
@@ -35,9 +37,13 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("units_preference")
+    .select("units_preference, welcome_seen_at")
     .eq("id", user!.id)
     .maybeSingle();
+
+  // Show the one-time founder welcome only when it hasn't been seen AND a video
+  // link is configured (lib/welcomeVideo.ts) — so it stays dormant until then.
+  const showWelcome = WELCOME_VIDEO_READY && !profile?.welcome_seen_at;
 
   // First name for the greeting — from Google auth metadata (display only, never
   // an access decision). Falls back to the email local-part, else null (no name).
@@ -96,13 +102,16 @@ export default async function DashboardPage() {
   }));
 
   return (
-    <HomeScreen
-      todayKey={todayKey}
-      userId={user?.id ?? "anon"}
-      weight={weight}
-      unit={unitForPreference(profile?.units_preference)}
-      firstName={firstName}
-      progressPhotos={progressPhotos}
-    />
+    <>
+      <HomeScreen
+        todayKey={todayKey}
+        userId={user?.id ?? "anon"}
+        weight={weight}
+        unit={unitForPreference(profile?.units_preference)}
+        firstName={firstName}
+        progressPhotos={progressPhotos}
+      />
+      <WelcomeVideoPopup show={showWelcome} />
+    </>
   );
 }
