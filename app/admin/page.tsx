@@ -65,7 +65,7 @@ export default async function AdminWaitlistPage() {
   }
 
   // ── Founder: load + show the numbers ──────────────────────────────────────
-  const [{ count, error: countErr }, bySourceRes, recentRes] = await Promise.all([
+  const [{ count, error: countErr }, bySourceRes, recentRes, feedbackRes] = await Promise.all([
     supabase.from("waitlist").select("*", { count: "exact", head: true }),
     supabase
       .from("v_waitlist_by_source")
@@ -74,6 +74,11 @@ export default async function AdminWaitlistPage() {
     supabase
       .from("waitlist")
       .select("email, source, created_at")
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("beta_feedback")
+      .select("message, email, path, created_at")
       .order("created_at", { ascending: false })
       .limit(100),
   ]);
@@ -91,6 +96,12 @@ export default async function AdminWaitlistPage() {
   const recent = (recentRes.data ?? []) as {
     email: string;
     source: string | null;
+    created_at: string;
+  }[];
+  const feedback = (feedbackRes.data ?? []) as {
+    message: string;
+    email: string | null;
+    path: string | null;
     created_at: string;
   }[];
 
@@ -190,6 +201,34 @@ export default async function AdminWaitlistPage() {
               ))}
             </div>
           </>
+        )}
+
+        {/* Beta feedback — submissions from the + menu's "Beta notes & feedback". */}
+        <h2 className="mt-10 mb-3 text-xs uppercase tracking-[0.18em] text-text-muted">
+          Beta feedback{feedback.length > 0 ? ` · ${feedback.length}` : ""}
+        </h2>
+        {feedback.length === 0 ? (
+          <p className="text-sm text-text-muted">
+            No feedback yet. Testers can send notes from the + menu.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {feedback.map((f, i) => (
+              <div
+                key={`${f.created_at}-${i}`}
+                className="rounded-2xl border border-border-default bg-bg-surface p-4"
+              >
+                <p className="text-sm whitespace-pre-wrap text-foreground">{f.message}</p>
+                <div className="mt-2 flex items-center justify-between gap-3 text-xs text-text-subtle">
+                  <span className="min-w-0 truncate">
+                    {f.email ?? "unknown"}
+                    {f.path ? <span className="text-text-muted"> · {f.path}</span> : null}
+                  </span>
+                  <span className="shrink-0 tabular-nums">{fmtDate(f.created_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         <p className="mt-8 text-center text-xs text-text-subtle">

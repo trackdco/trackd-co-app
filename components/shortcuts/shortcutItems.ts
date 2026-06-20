@@ -6,6 +6,7 @@ import {
   NotebookPen,
   ClipboardList,
   CalendarDays,
+  MessageSquarePlus,
   type LucideIcon,
 } from "lucide-react"
 
@@ -25,6 +26,8 @@ import {
  *                    Weight card)
  *  - `journal`     → go to Progress and open the journal compose (Write / Markers)
  *  - `bloodwork`   → go to Progress and open the bloodwork gallery (view + add)
+ *  - `feedback`    → the beta "Beta notes & feedback" sheet (a row below the grid,
+ *                    not a tile) — sends a note to the founders
  *
  * No UI lives in this file.
  */
@@ -36,6 +39,7 @@ export type ShortcutAction =
   | "weight"
   | "journal"
   | "bloodwork"
+  | "feedback"
 
 export interface ShortcutItem {
   id: string
@@ -111,5 +115,18 @@ export const GRID_ITEMS: ShortcutItem[] = [
   },
 ]
 
+/**
+ * Beta-only "Beta notes & feedback" entry. Rendered as a distinct full-width row
+ * BELOW the grid (not one of the six tiles), so it reads as a temporary beta tool
+ * rather than a core action.
+ */
+export const FEEDBACK_ITEM: ShortcutItem = {
+  id: "feedback",
+  title: "Beta notes & feedback",
+  subtitle: "Found a bug or have an idea? Tell us",
+  icon: MessageSquarePlus,
+  action: "feedback",
+}
+
 /** Every item, for callers that need a flat lookup. */
-export const SHORTCUT_ITEMS: ShortcutItem[] = [PRIMARY_ITEM, ...GRID_ITEMS]
+export const SHORTCUT_ITEMS: ShortcutItem[] = [PRIMARY_ITEM, ...GRID_ITEMS, FEEDBACK_ITEM]

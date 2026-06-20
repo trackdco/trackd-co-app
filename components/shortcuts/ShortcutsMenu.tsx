@@ -15,7 +15,9 @@ import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { ReconCalculatorSheet } from "@/components/home/ReconCalculatorSheet"
 import { AddWeightSheet } from "@/components/home/AddWeightSheet"
 import { QuickTrackSheet } from "@/components/home/QuickTrackSheet"
+import { FeedbackSheet } from "@/components/feedback/FeedbackSheet"
 import {
+  FEEDBACK_ITEM,
   GRID_ITEMS,
   PRIMARY_ITEM,
   type ShortcutItem,
@@ -69,6 +71,7 @@ export function ShortcutsMenu({
   const [addOpen, setAddOpen] = useState(false)
   const [calcOpen, setCalcOpen] = useState(false)
   const [weightOpen, setWeightOpen] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   // Every open starts at rest. Runs before paint → no flash.
   useIsoLayoutEffect(() => {
@@ -112,6 +115,11 @@ export function ShortcutsMenu({
         onOpenChange(false)
         requestProgressAction("bloodwork-gallery")
         router.push("/progress")
+        break
+      case "feedback":
+        // The beta "Beta notes & feedback" sheet — send a note to the founders.
+        onOpenChange(false)
+        setFeedbackOpen(true)
         break
     }
   }
@@ -211,6 +219,17 @@ export function ShortcutsMenu({
                   </div>
                 ))}
               </div>
+
+              {/* Beta feedback — a distinct white row below the grid (beta-only). */}
+              <div
+                className="animate-shortcut-in mt-4"
+                style={{ animationDelay: `${(GRID_ITEMS.length + 1) * STAGGER_MS}ms` }}
+              >
+                <FeedbackRow
+                  item={FEEDBACK_ITEM}
+                  onPress={() => handlePress(FEEDBACK_ITEM)}
+                />
+              </div>
             </div>
           </div>
         </SheetContent>
@@ -236,7 +255,57 @@ export function ShortcutsMenu({
         unit={unit}
         userId={userId}
       />
+
+      {/* "Beta notes & feedback" → send a note straight to the founders. */}
+      <FeedbackSheet
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+        userId={userId}
+      />
     </>
+  )
+}
+
+/**
+ * The beta "Beta notes & feedback" row — a distinct full-width, white-faced button
+ * below the tile grid (a temporary beta affordance, set apart from the core
+ * actions). The white icon badge mirrors the bottom-nav plus.
+ */
+function FeedbackRow({
+  item,
+  onPress,
+}: {
+  item: ShortcutItem
+  onPress: () => void
+}) {
+  const Icon = item.icon
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      className="group flex w-full items-center gap-3.5 rounded-2xl border border-border-default bg-bg-surface-raised px-4 py-3.5 text-left transition-colors duration-200 ease-out hover:border-border-strong hover:bg-bg-input active:scale-[0.99]"
+    >
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-primary text-bg-base">
+        <Icon className="h-5 w-5" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="truncate text-base font-semibold text-foreground">
+            {item.title}
+          </span>
+          <span className="shrink-0 rounded-full bg-accent-amber/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-amber">
+            Beta
+          </span>
+        </span>
+        <span className="block truncate text-sm text-text-muted">
+          {item.subtitle}
+        </span>
+      </span>
+      <ChevronRight
+        className="h-5 w-5 shrink-0 text-text-muted transition-colors group-hover:text-foreground"
+        aria-hidden
+      />
+    </button>
   )
 }
 

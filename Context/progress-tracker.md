@@ -30,6 +30,24 @@ Last updated: 2026-06-18
 
 ## Completed
 
+- **Beta notes & feedback — in-app feedback capture (2026-06-20, Adrian + Claude)
+  — `tsc`+`lint`+prod `build` clean; `beta_feedback` migration applied LIVE +
+  shape-verified (insert/delete round-trip, 0 rows left); deployed.** A distinct
+  white-faced row below the + (Shortcuts) menu grid opens a `FeedbackSheet` (free-
+  text note → `submitBetaFeedback`), writing one `beta_feedback` row per
+  submission. No transactional-email service is wired up, so the store is Supabase
+  and founders read submissions in `/admin` (a new "Beta feedback" section).
+  - **Table `beta_feedback`** (`supabase/feedback/001_beta_feedback.sql`):
+    user_id FK→profiles ON DELETE CASCADE, server-captured email, message
+    (1–4000 CHECK), path + user_agent context, created_at. Append-only for
+    clients (INSERT+SELECT only); RLS = insert-own + **select own-or-founder**
+    (founder email list kept in sync with `lib/admin.ts` / waitlist policy).
+  - **Files:** `lib/db/feedback.ts` (server action; identity from session, never
+    the client), `components/feedback/FeedbackSheet.tsx`,
+    `components/shortcuts/{shortcutItems,ShortcutsMenu}.tsx` (new `feedback`
+    action + `FEEDBACK_ITEM` row), `app/admin/page.tsx` (founder feedback list).
+  - **Follow-up (optional):** email-forward each submission (Edge Function +
+    Resend secret) — schema already carries email/path so no migration needed.
 - **Stock runway bugfix — dose↔inventory link (2026-06-20, Adrian + Claude) —
   `tsc`+`lint` clean; root-caused against LIVE data; NOT committed/deployed.**
   Beta tester reported the Stock view "didn't change storage" when logging a
