@@ -58,9 +58,23 @@ Last updated: 2026-06-18
   - **Delete semantics confirmed (Adrian):** Archive = keep history; Remove (the
     two-step "Delete all") = permanent + reinstall-proof. Both already exist on the Home
     compound sheet; the fixes above make Remove actually stick.
+  - **"Start fresh" reset (follow-up, same day).** A cloud-only wipe never sticks: a
+    test wipe of the founder account came BACK because the device's localStorage is a
+    write-back cache that re-pushes the stack on the next focus/online (the giveaway:
+    only 1 mirror row returned — the new customs-only gate — so the re-push was the new
+    code reading old localStorage; a PWA "reinstall" on iOS updates the SW code but
+    keeps stored data). Fix: **Archive screen → "Clear all compounds & stock"**
+    (`components/home/StartFreshSection.tsx` + `lib/db/resetProtocol.ts` `wipeMyProtocol`,
+    wired in `app/(app)/archive/page.tsx`) clears BOTH halves at once — deletes
+    `protocol_compounds` (cascades stock + dose logs) + the 3 mirror tables + stamps the
+    migrated flag, AND removes the stack / dose-log / customs / migrate-marker
+    localStorage keys, then hard-reloads to an empty Home. Two-step confirm; leaves
+    weight / progress / bloodwork untouched. No reinstall needed.
   - Files: `supabase/profile/004_protocol_migrated.sql`, `lib/db/migrationFlag.ts`,
     `lib/compound-lookup.ts`, `lib/migration/migrateDeviceState.ts`,
-    `lib/db/inventory.ts`, `lib/home/hydrateProtocol.ts`, `lib/home/stack.ts`.
+    `lib/db/inventory.ts`, `lib/home/hydrateProtocol.ts`, `lib/home/stack.ts`,
+    `lib/db/resetProtocol.ts`, `components/home/StartFreshSection.tsx`,
+    `app/(app)/archive/page.tsx`.
 
 - **Edit stock — correct a vial's amounts in place (2026-06-20, Adrian + Claude) —
   `tsc`+`lint`+prod `build` clean; deployed.** Each Stock card now has a pencil
