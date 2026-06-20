@@ -10,7 +10,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
-import { addStockItem, type StockInsert } from "@/lib/db/inventory"
+import {
+  addStockItem,
+  updateStockItem,
+  type StockInsert,
+  type StockItem,
+} from "@/lib/db/inventory"
 import { pushProtocolCompound } from "@/lib/home/protocolSync"
 import {
   getStackSnapshot,
@@ -87,6 +92,7 @@ export function AddStockSheet({
   userId,
   refillFor,
   refillType,
+  editItem,
   onAdded,
 }: {
   open: boolean
@@ -96,6 +102,9 @@ export function AddStockSheet({
   refillFor?: string | null
   /** The existing vial's type on refill — locks the form (no re-choosing). */
   refillType?: InventoryType | null
+  /** When set, edit THIS vial's amounts in place (correct a mistake) rather than
+   *  add a new one. The compound is locked; the row id is preserved. */
+  editItem?: StockItem | null
   onAdded: () => void
 }) {
   return (
@@ -103,13 +112,13 @@ export function AddStockSheet({
       <SheetContent
         side="bottom"
         // Don't auto-focus a field on open — otherwise the keypad pops up over the
-        // form (esp. on refill, where the compound select is disabled).
+        // form (esp. on refill/edit, where the compound select is disabled).
         onOpenAutoFocus={(e) => e.preventDefault()}
         className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
       >
         <SheetHeader>
           <SheetTitle className="font-display text-xl text-foreground">
-            {refillFor ? "Refill stock" : "Add stock"}
+            {editItem ? "Edit stock" : refillFor ? "Refill stock" : "Add stock"}
           </SheetTitle>
         </SheetHeader>
         {open && (
@@ -117,6 +126,7 @@ export function AddStockSheet({
             userId={userId}
             refillFor={refillFor ?? null}
             refillType={refillType ?? null}
+            editItem={editItem ?? null}
             onClose={() => onOpenChange(false)}
             onAdded={onAdded}
           />
@@ -130,12 +140,14 @@ function AddStockForm({
   userId,
   refillFor,
   refillType,
+  editItem,
   onClose,
   onAdded,
 }: {
   userId: string
   refillFor: string | null
   refillType: InventoryType | null
+  editItem: StockItem | null
   onClose: () => void
   onAdded: () => void
 }) {
@@ -151,31 +163,47 @@ function AddStockForm({
     return catalogueForms(c.name) ?? formsForMethod(c.method)
   }
 
-  const [compoundId, setCompoundId] = useState(refillFor ?? compounds[0]?.id ?? "")
-  // The form usually picks itself: a refill keeps its vial's type; a fresh add takes
-  // the compound's only sensible form. `picker` controls what the Type section shows:
-  //   hidden   — just a label (one obvious form, or a refill keeping its form)
+  // Editing a vial and refilling both pre-select (and lock) the compound; editing
+  // additionally pre-fills the amount fields from the vial's stored raw inputs.
+  const initialId = refillFor ?? editItem?.protocolCompoundId ?? compounds[0]?.id ?? ""
+  const presetType = refillType ?? editItem?.inventoryType ?? null
+  const compoundLocked = refillFor != null || editItem != null
+  const ei = editItem
+  const numStr = (v: number | null | undefined) => (v != null ? String(v) : "")
+
+  const [compoundId, setCompoundId] = useState(initialId)
+  // The form usually picks itself: a refill/edit keeps the vial's type; a fresh add
+  // takes the compound's only sensible form. `picker` controls the Type section:
+  //   hidden   — just a label (one obvious form, or a refill/edit keeping its form)
   //   compound — pills for ONLY the forms this compound supports (e.g. BPC: recon/oral)
   //   all      — the escape hatch: any of the three, for an off-catalogue/custom setup
-  const lockedType = refillFor != null && refillType != null
-  const initialForms = formsForId(refillFor ?? compounds[0]?.id ?? "")
+  const lockedType = (refillFor != null && refillType != null) || editItem != null
+  const initialForms = formsForId(initialId)
   const [picker, setPicker] = useState<"hidden" | "compound" | "all">(
-    lockedType || initialForms.length <= 1 ? "hidden" : "compound",
+    presetType != null || initialForms.length <= 1 ? "hidden" : "compound",
   )
   const [type, setType] = useState<InventoryType>(
-    refillType ?? initialForms[0] ?? "reconstituted",
+    presetType ?? initialForms[0] ?? "reconstituted",
   )
   // reconstituted
-  const [powder, setPowder] = useState("")
-  const [powderUnit, setPowderUnit] = useState<"mg" | "iu">("mg")
-  const [bacWater, setBacWater] = useState("")
+  const [powder, setPowder] = useState(
+    ei?.inventoryType === "reconstituted" ? numStr(ei.totalAmount) : "",
+  )
+  const [powderUnit, setPowderUnit] = useState<"mg" | "iu">(ei?.baseUnit === "iu" ? "iu" : "mg")
+  const [bacWater, setBacWater] = useState(numStr(ei?.bacWaterMl))
   // preconcentrated
-  const [oilMl, setOilMl] = useState("")
-  const [concentration, setConcentration] = useState("")
+  const [oilMl, setOilMl] = useState(
+    ei?.inventoryType === "preconcentrated" ? numStr(ei.totalAmount) : "",
+  )
+  const [concentration, setConcentration] = useState(numStr(ei?.concentrationMgPerMl))
   // oral_solid
-  const [count, setCount] = useState("")
-  const [oralForm, setOralForm] = useState<"tab" | "capsule">("tab")
-  const [strength, setStrength] = useState("")
+  const [count, setCount] = useState(
+    ei?.inventoryType === "oral_solid" ? numStr(ei.totalAmount) : "",
+  )
+  const [oralForm, setOralForm] = useState<"tab" | "capsule">(
+    ei?.totalAmountUnit === "capsule" ? "capsule" : "tab",
+  )
+  const [strength, setStrength] = useState(numStr(ei?.strengthPerUnitMg))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -225,6 +253,27 @@ function AddStockForm({
     setSaving(true)
     setError(null)
     try {
+      // EDIT: correct this vial's amounts in place (same row id, so logged doses
+      // stay linked). The compound + protocol_compound already exist, so there's no
+      // foreign-key race to guard. Preserve the original reconstitution date on a
+      // same-type edit rather than stamping today.
+      if (editItem) {
+        const { id: _id, protocol_compound_id: _pc, ...fields } = insert
+        void _id
+        void _pc
+        if (fields.inventory_type === "reconstituted") {
+          fields.reconstituted_on = editItem.reconstitutedOn ?? fields.reconstituted_on
+        }
+        const r = await updateStockItem(editItem.id, fields)
+        if (!r.ok) {
+          setError("Couldn’t save your changes. Please try again.")
+          return
+        }
+        onAdded()
+        onClose()
+        return
+      }
+
       // The stock row references this compound's protocol_compound. A just-tracked
       // compound's push to Postgres can still be in flight, and a custom ("make
       // your own") compound has no protocol_compound at all — either way the insert
@@ -284,8 +333,8 @@ function AddStockForm({
                   setType(forms[0] ?? "reconstituted")
                   setPicker(forms.length > 1 ? "compound" : "hidden")
                 }}
-                disabled={!!refillFor}
-                className={cn(FIELD, refillFor && "opacity-60")}
+                disabled={compoundLocked}
+                className={cn(FIELD, compoundLocked && "opacity-60")}
               >
                 {compounds.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -418,7 +467,7 @@ function AddStockForm({
           disabled={saving || !insert}
           className="flex-1 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {saving ? "Saving…" : "Add stock"}
+          {saving ? "Saving…" : editItem ? "Save changes" : "Add stock"}
         </button>
       </SheetFooter>
     </>

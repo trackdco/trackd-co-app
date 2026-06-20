@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { RefreshCw, Trash2 } from "lucide-react"
+import { Pencil, RefreshCw, Trash2 } from "lucide-react"
 
 import { formatDateKeyShort } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
@@ -14,10 +14,12 @@ import type { InventoryType } from "@/lib/db/types"
  *  stock anytime). */
 export function StockItemCard({
   item,
+  onEdit,
   onRefill,
   onDelete,
 }: {
   item: StockItem
+  onEdit: (item: StockItem) => void
   onRefill: (protocolCompoundId: string, inventoryType: InventoryType) => void
   onDelete: (id: string) => void
 }) {
@@ -71,6 +73,14 @@ export function StockItemCard({
         </div>
 
         <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={() => onEdit(item)}
+            aria-label={`Edit ${item.compoundName} stock`}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground"
+          >
+            <Pencil className="h-4 w-4" aria-hidden />
+          </button>
           <button
             type="button"
             onClick={() => onRefill(item.protocolCompoundId, item.inventoryType)}

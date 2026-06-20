@@ -30,6 +30,29 @@ Last updated: 2026-06-18
 
 ## Completed
 
+- **Edit stock — correct a vial's amounts in place (2026-06-20, Adrian + Claude) —
+  `tsc`+`lint`+prod `build` clean; deployed.** Each Stock card now has a pencil
+  (Edit) alongside Refill/Delete. Edit reuses `AddStockSheet` in a new edit mode:
+  compound locked, amounts pre-filled from the vial's stored raw inputs, save →
+  `updateStockItem` (new in `lib/db/inventory.ts`) which UPDATEs the SAME row.
+  Distinct from refill (a new row): a typo fix keeps the row id, so doses already
+  logged against the vial stay linked and `v_inventory_math` just recomputes from
+  the corrected total. The update sets all type-discriminator columns (nulling the
+  unused ones) so even a type change can't violate the `inv_type_fields` CHECK
+  (verified against the live constraint). `protocol_compound_id` is not editable
+  (would orphan doses). `listStock` now also returns the raw inputs (total_amount,
+  bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, total_amount_unit)
+  for pre-fill. Files: `lib/db/inventory.ts`, `components/protocol/{AddStockSheet,
+  StockItemCard,StockView}.tsx`, `app/preview/protocol/preview.tsx`.
+- **Founder welcome popup (dormant) (2026-06-20, Adrian + Claude) — `tsc`+`lint`+
+  prod `build` clean; `profiles.welcome_seen_at` applied LIVE; deployed.** One-time
+  centered modal (message + embedded unlisted founder video) on first sign-in,
+  once per account (cross-device). Ships DORMANT — only appears once
+  `WELCOME_VIDEO_EMBED_URL` is set in `lib/welcomeVideo.ts` (so the seen-once flag
+  isn't spent early). Dismiss (button/X/backdrop) → `markWelcomeSeen` stamps the
+  flag. Files: `lib/welcomeVideo.ts`, `lib/db/welcome.ts`,
+  `components/welcome/WelcomeVideoPopup.tsx`, `app/(app)/dashboard/page.tsx`,
+  `supabase/profile/003_welcome_seen.sql`. ▶ Adrian: record video → paste embed URL.
 - **Permanent feedback in Profile + sheet keyboard fix (2026-06-20, Adrian +
   Claude) — `tsc`+`lint`+prod `build` clean; deployed.**
   - **Profile → App → "Send feedback"** row (`components/profile/ProfileFeedbackRow.tsx`,

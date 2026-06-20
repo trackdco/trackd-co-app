@@ -34,6 +34,7 @@ export function StockView({
   const [addOpen, setAddOpen] = useState(false)
   const [refillFor, setRefillFor] = useState<string | null>(null)
   const [refillType, setRefillType] = useState<InventoryType | null>(null)
+  const [editItem, setEditItem] = useState<StockItem | null>(null)
 
   const refresh = useCallback(async () => {
     if (previewItems) return
@@ -53,13 +54,21 @@ export function StockView({
   }, [signedOut, previewItems])
 
   function openAdd() {
+    setEditItem(null)
     setRefillFor(null)
     setRefillType(null)
     setAddOpen(true)
   }
   function openRefill(protocolCompoundId: string, inventoryType: InventoryType) {
+    setEditItem(null)
     setRefillFor(protocolCompoundId)
     setRefillType(inventoryType)
+    setAddOpen(true)
+  }
+  function openEdit(item: StockItem) {
+    setRefillFor(null)
+    setRefillType(null)
+    setEditItem(item)
     setAddOpen(true)
   }
   async function del(id: string) {
@@ -90,7 +99,13 @@ export function StockView({
       ) : items.length > 0 ? (
         <ul className="mt-4 space-y-2">
           {items.map((item) => (
-            <StockItemCard key={item.id} item={item} onRefill={openRefill} onDelete={(id) => void del(id)} />
+            <StockItemCard
+              key={item.id}
+              item={item}
+              onEdit={openEdit}
+              onRefill={openRefill}
+              onDelete={(id) => void del(id)}
+            />
           ))}
         </ul>
       ) : (
@@ -102,10 +117,14 @@ export function StockView({
 
       <AddStockSheet
         open={addOpen}
-        onOpenChange={setAddOpen}
+        onOpenChange={(o) => {
+          setAddOpen(o)
+          if (!o) setEditItem(null)
+        }}
         userId={userId}
         refillFor={refillFor}
         refillType={refillType}
+        editItem={editItem}
         onAdded={() => void refresh()}
       />
     </section>

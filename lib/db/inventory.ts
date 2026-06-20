@@ -38,6 +38,12 @@ export interface StockItem {
   baseUnit: string
   acquiredOn: string | null
   reconstitutedOn: string | null
+  // raw inputs — for pre-filling the edit form (NOT used for any maths):
+  totalAmount: number | null
+  totalAmountUnit: string | null
+  bacWaterMl: number | null
+  concentrationMgPerMl: number | null
+  strengthPerUnitMg: number | null
   // derived (v_inventory_math) — never recomputed in TS:
   remainingDisplay: number | null
   dosesRemaining: number | null
@@ -78,7 +84,7 @@ export async function listStock(): Promise<StockItem[]> {
       ctx.supabase
         .from("inventory_items")
         .select(
-          "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, protocol_compounds(compounds(name, category))"
+          "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, protocol_compounds(compounds(name, category))"
         )
         .eq("user_id", ctx.userId)
         .eq("is_active", true)
@@ -118,6 +124,11 @@ export async function listStock(): Promise<StockItem[]> {
         baseUnit: r.base_unit as string,
         acquiredOn: (r.acquired_on as string | null) ?? null,
         reconstitutedOn: (r.reconstituted_on as string | null) ?? null,
+        totalAmount: num(r.total_amount),
+        totalAmountUnit: (r.total_amount_unit as string | null) ?? null,
+        bacWaterMl: num(r.bac_water_ml),
+        concentrationMgPerMl: num(r.concentration_mg_per_ml),
+        strengthPerUnitMg: num(r.strength_per_unit_mg),
         remainingDisplay: num(m.remaining_display),
         dosesRemaining: num(m.doses_remaining),
         estEmptyDate: (m.est_empty_date as string | null) ?? null,
@@ -166,6 +177,49 @@ export async function addStockItem(row: StockInsert): Promise<{ ok: boolean }> {
     return { ok: true }
   } catch (e) {
     console.error("addStockItem failed", e)
+    return { ok: false }
+  }
+}
+
+/**
+ * Correct an existing inventory item's amounts in place (the "edit stock" path —
+ * for fixing a mis-typed quantity, not refilling). Distinct from refill (which
+ * adds a NEW row): a typo fix should change the SAME row, so the doses already
+ * logged against this vial keep their link and `v_inventory_math` just recomputes
+ * the remaining from the corrected total. ALL type-discriminator columns are set
+ * (nulling the ones the chosen type doesn't use) so even a type change can't leave
+ * stale columns that violate the per-type CHECK constraints. RLS-scoped to the
+ * owner; `protocol_compound_id` is intentionally NOT editable (that would orphan
+ * the linked doses).
+ */
+export async function updateStockItem(
+  id: string,
+  row: Omit<StockInsert, "id" | "protocol_compound_id">
+): Promise<{ ok: boolean }> {
+  try {
+    const ctx = await sessionCtx()
+    if (!ctx) return { ok: false }
+    const { error } = await ctx.supabase
+      .from("inventory_items")
+      .update({
+        inventory_type: row.inventory_type,
+        base_unit: row.base_unit,
+        total_amount: row.total_amount,
+        total_amount_unit: row.total_amount_unit,
+        bac_water_ml: row.bac_water_ml ?? null,
+        concentration_mg_per_ml: row.concentration_mg_per_ml ?? null,
+        strength_per_unit_mg: row.strength_per_unit_mg ?? null,
+        reconstituted_on: row.reconstituted_on ?? null,
+      })
+      .eq("id", id)
+      .eq("user_id", ctx.userId)
+    if (error) {
+      console.error("updateStockItem failed", error)
+      return { ok: false }
+    }
+    return { ok: true }
+  } catch (e) {
+    console.error("updateStockItem failed", e)
     return { ok: false }
   }
 }
