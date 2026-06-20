@@ -14,8 +14,17 @@
  */
 export const SYNC_FAILED_EVENT = "trackd:sync-failed"
 
+// Don't nag: at most one notice per cooldown window, however many writes fail.
+// A burst (logging several doses) or a sustained bad-network session shows the
+// banner once, not on every action. Resets on page reload.
+const NOTICE_COOLDOWN_MS = 60_000
+let lastNotifiedAt = 0
+
 function notifySyncFailed(): void {
   if (typeof window === "undefined") return
+  const now = Date.now()
+  if (now - lastNotifiedAt < NOTICE_COOLDOWN_MS) return
+  lastNotifiedAt = now
   window.dispatchEvent(new CustomEvent(SYNC_FAILED_EVENT))
 }
 
