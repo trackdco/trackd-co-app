@@ -30,6 +30,23 @@ Last updated: 2026-06-18
 
 ## Completed
 
+- **Permanent feedback in Profile + sheet keyboard fix (2026-06-20, Adrian +
+  Claude) — `tsc`+`lint`+prod `build` clean; deployed.**
+  - **Profile → App → "Send feedback"** row (`components/profile/ProfileFeedbackRow.tsx`,
+    wired into `app/(app)/profile/page.tsx`) — the PERMANENT feedback path that
+    stays after the beta-only + menu entry is removed. Reuses `FeedbackSheet`
+    (now copy-configurable via title/description/placeholder/submitLabel props) →
+    same `beta_feedback` table, founder-read in `/admin`. True auto-email is a
+    follow-up (Edge Function + Resend secret); schema already carries email/path.
+  - **Sheet keyboard fix:** `components/ui/sheet.tsx` `SheetContent` now defaults
+    `onOpenAutoFocus` to `preventDefault()`, so NO sheet (current or future) pops
+    the mobile keyboard on open unless it explicitly opts in. Fixed the feedback
+    sheet doing this.
+  - **Sync notice rate-limited** to once / 60s so it can't nag (`syncStatus.ts`).
+  - **Auth confirmed:** sign-in is Supabase + Google-only (login page has one
+    button; all real users via google). Adrian's decision: PUBLISH the Google
+    OAuth app (basic scopes → no Google verification review needed) rather than
+    per-tester test users. Console task for Adrian/Angus; no code change.
 - **Beta-readiness hardening — sync notice, consent audit, id fix, log loading
   (2026-06-20, Adrian + Claude) — `tsc`+`lint`+prod `build` clean; consent unique
   index applied LIVE; deployed.** Follow-ups from the beta-readiness pass (RLS

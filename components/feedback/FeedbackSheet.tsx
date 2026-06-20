@@ -23,10 +23,19 @@ export function FeedbackSheet({
   open,
   onOpenChange,
   userId,
+  title = "Beta notes & feedback",
+  description = "Found a bug, or have an idea? Tell us — it comes straight to the founders.",
+  placeholder = "What happened, or what would make this better?",
+  submitLabel = "Send to founders",
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   userId: string
+  /** Copy overrides — the + menu uses the beta defaults; Profile uses general wording. */
+  title?: string
+  description?: string
+  placeholder?: string
+  submitLabel?: string
 }) {
   const { cardRef, handleProps, cardStyle } = useSheetDrag(() => onOpenChange(false), open)
   const signedOut = !userId || userId === "anon"
@@ -86,7 +95,7 @@ export function FeedbackSheet({
             <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
           </div>
 
-          <SheetTitle className="sr-only">Beta notes &amp; feedback</SheetTitle>
+          <SheetTitle className="sr-only">{title}</SheetTitle>
           <SheetDescription className="sr-only">
             Send a bug report or idea straight to the Trackd founders.
           </SheetDescription>
@@ -97,12 +106,10 @@ export function FeedbackSheet({
                 <MessageSquarePlus className="h-4 w-4" aria-hidden />
               </span>
               <h2 className="font-display text-2xl font-medium text-foreground">
-                Beta notes &amp; feedback
+                {title}
               </h2>
             </div>
-            <p className="mt-2 text-sm text-text-muted">
-              Found a bug, or have an idea? Tell us — it comes straight to the founders.
-            </p>
+            <p className="mt-2 text-sm text-text-muted">{description}</p>
 
             <label className="mt-4 block">
               <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
@@ -112,7 +119,7 @@ export function FeedbackSheet({
                 value={message}
                 onChange={(e) => setMessage(e.target.value.slice(0, MAX_LEN))}
                 disabled={signedOut || busy}
-                placeholder="What happened, or what would make this better?"
+                placeholder={placeholder}
                 rows={7}
                 aria-label="Your feedback"
                 className="min-h-[9.5rem] rounded-xl border-border-default bg-bg-input text-sm leading-relaxed dark:bg-bg-input"
@@ -145,7 +152,7 @@ export function FeedbackSheet({
               className="flex flex-[1.6] items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-              {busy ? "Sending…" : "Send to founders"}
+              {busy ? "Sending…" : submitLabel}
             </button>
           </div>
 

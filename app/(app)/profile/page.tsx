@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { AvatarUploader } from "@/components/profile/AvatarUploader";
+import { ProfileFeedbackRow } from "@/components/profile/ProfileFeedbackRow";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { DeleteAccountRequest } from "@/components/auth/delete-account-request";
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
@@ -190,6 +191,8 @@ export default async function ProfilePage() {
           <LinkRow href="/medical-disclaimer" icon={Stethoscope}>
             Medical Disclaimer
           </LinkRow>
+          <Divider />
+          <ProfileFeedbackRow userId={user!.id} />
         </div>
       </div>
 
