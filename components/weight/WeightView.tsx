@@ -284,18 +284,25 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
     startTransition(async () => {
       // Show the new reading on the graph + log immediately.
       applyOptimistic({ type: "upsert", key: savedKey, kg });
-      const res = await logWeight(kg, savedKey);
-      setSaving(false);
-      if (res.ok) {
-        setSavedFlash(true);
-        window.setTimeout(() => setSavedFlash(false), 1400);
-        setValue("");
-        setDateKey(todayKey);
-        router.refresh(); // commit: holds the optimistic value until fresh data lands
-      } else {
-        // The transition ends here with no refresh → the optimistic entry rolls
-        // back automatically. Keep the typed value so the user can retry.
-        setError(res.error ?? "Couldn't save. Try again.");
+      try {
+        const res = await logWeight(kg, savedKey);
+        if (res.ok) {
+          setSavedFlash(true);
+          window.setTimeout(() => setSavedFlash(false), 1400);
+          setValue("");
+          setDateKey(todayKey);
+          router.refresh(); // commit: holds the optimistic value until fresh data lands
+        } else {
+          // The transition ends here with no refresh → the optimistic entry rolls
+          // back automatically. Keep the typed value so the user can retry.
+          setError(res.error ?? "Couldn't save. Try again.");
+        }
+      } catch {
+        // The action itself rejected (e.g. a network error before it could return
+        // its { ok: false } contract). Optimistic entry rolls back; show an error.
+        setError("Couldn't save. Try again.");
+      } finally {
+        setSaving(false); // always clear busy, even on a rejected promise
       }
     });
   }
@@ -306,13 +313,18 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
     startTransition(async () => {
       // Drop the row from the list + graph immediately.
       applyOptimistic({ type: "remove", key });
-      const res = await deleteWeight(key);
-      setBusyDelete(null);
-      if (res.ok) {
-        router.refresh();
-      } else {
-        // Transition ends with no refresh → the row reappears (rollback) + error.
+      try {
+        const res = await deleteWeight(key);
+        if (res.ok) {
+          router.refresh();
+        } else {
+          // Transition ends with no refresh → the row reappears (rollback) + error.
+          setError(res.error ?? "Couldn't delete that entry. Try again.");
+        }
+      } catch {
         setError("Couldn't delete that entry. Try again.");
+      } finally {
+        setBusyDelete(null); // always clear busy, even on a rejected promise
       }
     });
   }

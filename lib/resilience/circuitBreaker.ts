@@ -95,13 +95,21 @@ export async function guard<T>(
   } = options
 
   const b = breakers.get(name) ?? { failures: 0, state: "closed" as BreakerState, openedAt: 0 }
+  // Persist the shared object NOW (before any await) so concurrent callers on the
+  // same warm instance mutate one breaker, not separate throwaways — otherwise a
+  // burst of failures each starts from 0 and the breaker never trips.
+  breakers.set(name, b)
   const now = Date.now()
 
   if (b.state === "open") {
     if (now - b.openedAt < cooldownMs) {
       return fallback // fast-fail: don't even touch the dependency
     }
-    b.state = "half-open" // cooldown elapsed — allow exactly one trial call
+    b.state = "half-open" // cooldown elapsed — THIS caller becomes the single trial
+  } else if (b.state === "half-open") {
+    // A trial is already in flight (state was persisted before its await, and JS
+    // runs to the await synchronously) — don't pile on; fast-fail until it settles.
+    return fallback
   }
 
   try {
@@ -109,7 +117,6 @@ export async function guard<T>(
     // Recovered (or never broken) — reset.
     b.failures = 0
     b.state = "closed"
-    breakers.set(name, b)
     return result
   } catch {
     b.failures += 1
@@ -118,10 +125,9 @@ export async function guard<T>(
     // breaker within cooldown already returned the fallback above.)
     if (b.state === "half-open" || b.failures >= failureThreshold) {
       b.state = "open"
-      b.openedAt = now
+      b.openedAt = Date.now() // stamp at trip time, not call start
       onOpen?.(name)
     }
-    breakers.set(name, b)
     return fallback
   }
 }

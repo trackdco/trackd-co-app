@@ -24,7 +24,7 @@
 import { combineLocalDateTime } from "@/lib/home/mockHomeData"
 import { loadStack, type StackCompound } from "@/lib/home/stack"
 import { loadDoseLogs, type DayLogs } from "@/lib/home/doseLog"
-import { pullStackAndLogs } from "@/lib/home/syncActions"
+import { pullStackAndLogsForMigration } from "@/lib/home/syncActions"
 import { pushProtocolBatch } from "@/lib/home/protocolSync"
 import type { BatchDoseEntry } from "@/lib/db/types"
 import { hasMigratedInCloud, markMigratedInCloud } from "@/lib/db/migrationFlag"
@@ -88,7 +88,10 @@ export async function migrateDeviceState(
 
   try {
     // Source: local ∪ jsonb mirror (cloud wins; local-only entries included).
-    const cloud = await pullStackAndLogs()
+    // STRICT read — throws on a Supabase outage (caught below → not marked
+    // complete → retries next login) rather than returning a silent empty that
+    // would durably mark migration done with nothing copied.
+    const cloud = await pullStackAndLogsForMigration()
     const stack = unionStack(cloud.stack, loadStack(userId) ?? [])
     const logs = unionLogs(cloud.doseLogs, loadDoseLogs(userId))
 

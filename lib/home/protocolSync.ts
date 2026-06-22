@@ -149,10 +149,14 @@ export async function pushProtocolBatch(
     // parameterized (no wildcard/injection risk); a name absent from the read-only
     // catalogue is a custom compound and stays device-local.
     const names = [...new Set(stack.map((c) => c.name))]
-    const { data: catRows } = await cx.supabase
+    const { data: catRows, error: catError } = await cx.supabase
       .from("compounds")
       .select("id, name")
       .in("name", names)
+    // Supabase returns errors in `error`, it doesn't throw — surface it so the
+    // batch fails (caught below → ok:false → migration retries) instead of
+    // treating every compound as "custom" and reporting a false success.
+    if (catError) throw catError
     const idByName = new Map<string, string>()
     for (const r of catRows ?? []) idByName.set(r.name as string, r.id as string)
 
@@ -378,6 +382,10 @@ export async function pullProtocolStackAndLogs(): Promise<{
           .select("protocol_compound_id, taken_at, dose_amount, injection_site, inventory_item_id")
           .eq("user_id", cx.userId),
       ])
+      // Surface Supabase errors (they don't throw) so the breaker counts a real
+      // failure and we fall back to the cache, rather than rendering empty.
+      if (pcRes.error) throw pcRes.error
+      if (dlRes.error) throw dlRes.error
 
       const stack: StackCompound[] = []
       for (const row of pcRes.data ?? []) {

@@ -48,12 +48,18 @@ async function fetchCurrentLegalDocument(
   const supabase = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("legal_documents")
     .select("title, version, body, is_beta, effective_date")
     .eq("doc_type", docType)
     .eq("is_current", true)
     .maybeSingle();
+  // Throw on a real query error so `unstable_cache` doesn't cache the failure
+  // (which would 404 the page for the whole revalidate window). A genuine
+  // "no current row" returns null (uncached miss is fine — it's a true 404).
+  if (error) {
+    throw new Error(`legal_documents read failed (${docType}): ${error.message}`);
+  }
   return (data as LegalDoc | null) ?? null;
 }
 
