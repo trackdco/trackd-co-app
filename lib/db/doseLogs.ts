@@ -73,6 +73,42 @@ export async function upsertDoseLog(row: DoseLogInsert): Promise<DoseLog | null>
   }
 }
 
+/** Max rows per upsert statement — see `protocolCompounds.ts`. */
+const UPSERT_CHUNK = 200
+
+/**
+ * Bulk upsert dose logs in chunked multi-row statements (one INSERT per chunk,
+ * not one per row). `user_id` is injected per row; `onConflict: "id"` keeps it
+ * idempotent. Returns the written count + whether every chunk succeeded; a
+ * partial write is safe (deterministic ids make a retry overwrite in place).
+ * Used by the one-time device→Postgres migration backfill.
+ */
+export async function upsertDoseLogs(
+  rows: DoseLogInsert[]
+): Promise<{ ok: boolean; count: number }> {
+  try {
+    const ctx = await sessionCtx()
+    if (!ctx) return { ok: false, count: 0 }
+    if (rows.length === 0) return { ok: true, count: 0 }
+    let count = 0
+    for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
+      const chunk = rows.slice(i, i + UPSERT_CHUNK).map((r) => ({ ...r, user_id: ctx.userId }))
+      const { error } = await ctx.supabase
+        .from("dose_logs")
+        .upsert(chunk, { onConflict: "id" })
+      if (error) {
+        console.error("upsertDoseLogs failed", error)
+        return { ok: false, count }
+      }
+      count += chunk.length
+    }
+    return { ok: true, count }
+  } catch (e) {
+    console.error("upsertDoseLogs failed", e)
+    return { ok: false, count: 0 }
+  }
+}
+
 /** Remove a dose log (the untick / undo path). Returns ok. */
 export async function deleteDoseLog(id: string): Promise<{ ok: boolean }> {
   try {

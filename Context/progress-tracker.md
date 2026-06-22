@@ -30,6 +30,108 @@ Last updated: 2026-06-18
 
 ## Completed
 
+- **Spec 13 — extra final touches: perf + protection pass (2026-06-22, Adrian +
+  Claude) — `tsc`+`lint`+prod `build` clean (34 routes; dev server stopped first per
+  the shared-`.next` gotcha); ▶ Adrian's on-device QA; NOT committed/deployed.** Worked
+  `Context/Feature Specs/13-extra-final-touches.md` end to end — 5 performance + 5
+  protection prompts, one at a time. Three of the security audits came back **clean
+  with evidence** (the RLS-first / Server-Component / parameterized-PostgREST
+  architecture already closes them) — reported, not patched, per "don't invent /
+  don't layer workarounds."
+  - **P1 Compress responses — already on, verified live.** `curl` against prod:
+    HTML/RSC + JS chunks serve `content-encoding: br` (`/` 62.8 KB → 11.8 KB, ~81%;
+    biggest chunk 241 KB → 64 KB), Supabase Data API serves gzip JSON, tiny/already-
+    compressed payloads correctly skipped. Made it explicit (`next.config.ts`
+    `compress: true`) so the self-hosted `next start` path is covered too.
+  - **P2 Batch writes — fixed the one N+1 write loop.** The one-time device→Postgres
+    migration backfill (`migrateDeviceState`) called a `"use server"` action PER
+    compound + PER dose log — each a browser→server round-trip + re-verified
+    `getUser()` + 1–3 queries. New `pushProtocolBatch` (`lib/home/protocolSync.ts`)
+    does the whole backfill in ONE round-trip: 1 auth check, 1 catalogue `.in()`
+    lookup, 1 `ensureActiveCycle`, then chunked (200/stmt) multi-row upserts
+    (`upsertProtocolCompounds`/`upsertDoseLogs` in `lib/db/`). Same deterministic
+    ids → still idempotent; `taken_at` still computed client-side (device tz). For
+    N+M items: (N+M) round-trips → 1. (Markers + progress-photos writes were already
+    batched multi-row inserts.)
+  - **P3 Circuit breaker — added.** Only external dep is Supabase; a hung call had no
+    timeout (blocks the function to the platform limit → pile-up). New
+    `lib/resilience/circuitBreaker.ts` (`guard()` = timeout + named breaker → fast-
+    fail to a safe fallback; opens after N failures, half-opens after a cooldown).
+    Wired into the awaited hydration **pull** paths (`pullStackAndLogs`,
+    `pullCustoms`, `pullProtocolStackAndLogs`) → a degraded Supabase fast-fails to
+    the local cache (the read path; an empty pull never wipes it). Behaviour verified
+    with a standalone harness (timeout fast-fail @ ~timeout; open = instant + work not
+    called; clean recovery after cooldown; unrelated dep isolated). Serverless caveat
+    (per-warm-instance state; timeout is the always-on guard) documented in-file.
+  - **P4 Optimistic UI — core loop already optimistic; converted the weight log.** The
+    dose/compound/stack loop is optimistic by design (localStorage-first, best-effort
+    cloud dual-write). The `revalidatePath`-style server-form screens still waited on
+    the round-trip; converted the **weight log** (`WeightView`) to React 19
+    `useOptimistic` — add/edit/delete show INSTANTLY, `router.refresh()` (in a
+    transition) commits, and a failure auto-rolls-back the entry + shows an error.
+  - **P5 Cache rendered pages — legal-doc DB read now cached.** `/terms`, `/privacy`,
+    `/medical-disclaimer` are identical across users + change only on a rare version
+    bump, but were re-queried via the cookie-bound client every request. New
+    `lib/legal/getLegalDocument.ts` reads them through a **cookieless anon client**
+    (public read) wrapped in `unstable_cache` (tag `legal-documents`, 1h revalidate),
+    so Supabase is hit ~once/hour instead of per request. `docType` is the only cache
+    key (no locale). **Caveat found at build:** the page shells still render `ƒ`
+    (dynamic) — the root `app/layout.tsx` reads the session cookie for the desktop
+    gate, which taints the whole route tree dynamic, so `export const revalidate`
+    can't make them static here (kept as documented intent). The content-read cache
+    is the real win. Signup gate still reads versions LIVE (uncached) — unchanged.
+  - **S1 ORM injection — CLEAN.** Zero raw-fragment APIs (`.or`/`.filter`/`.textSearch`/
+    `.like`/`.ilike`/`.match`/`.rpc`); every `.order()`/`.eq()`/`.in()` uses a literal
+    column with parameterised values; search is client-side over the bundled static
+    catalogue; `protocolSync` already uses exact `.eq("name")` over `.ilike` to dodge
+    `%`/`_` abuse. RLS is the backstop.
+  - **S2 Over-exposed fields — CLEAN (no client leak).** The auth `User` is never
+    serialised whole (pages pass only `user.id`/`firstName`/`Boolean(user)`); reads are
+    own-data, RLS-scoped, column-specific; action returns are mapped shapes
+    (`StackCompound`/`DoseRow`) or `{ ok }`, never raw rows; cross-user data lives only
+    on `/admin`, gated at the page (no fetch until `isFounder`) AND by founder RLS, with
+    a `head:true` count. `lib/db/*` `select("*")` returns the user's OWN rows server-side
+    and is mapped before any serialisation.
+  - **S3 SSRF — CLEAN.** Zero outbound request primitives (no `fetch`/`axios`/`http`/…);
+    the server never fetches a user URL. User images load in the BROWSER via `<img>` on
+    Supabase signed URLs minted from the user's own `<uid>/…` paths; `next/image` remote
+    optimisation isn't configured; the welcome-video embed is a hardcoded founder config.
+    Guardrail noted for any FUTURE server-side fetch feature (link previews/importers).
+  - **S4 Stored XSS — CLEAN.** Zero `dangerouslySetInnerHTML`/`innerHTML`/`eval`/
+    `new Function`/`document.write`, no HTML-emitting markdown lib. All stored user
+    content (custom names, journal, cycle notes, **feedback + emails shown to founders
+    in `/admin`**, display names) renders as auto-escaped React text; the legal renderer
+    is service-role content and also escapes. Input already length/format-validated;
+    output encoding is consistent.
+  - **S5 CORS — safe by default + headers added.** No `Access-Control-*` anywhere (no
+    wildcard, no `Origin` reflection, no credentialed cross-origin); the credentialed
+    Server-Action surface is SAME-ORIGIN-only via Next's built-in CSRF check
+    (`allowedOrigins` left unset = same-origin; adding one would only loosen it). Added
+    baseline protective response headers in `next.config.ts` `headers()` for all routes:
+    `X-Frame-Options: SAMEORIGIN` (clickjacking), `X-Content-Type-Options: nosniff`,
+    `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security`
+    (1y, no includeSubDomains — a future `auth.*` subdomain shouldn't be pre-committed).
+  - **Files:** `next.config.ts`, `lib/resilience/circuitBreaker.ts`,
+    `lib/legal/getLegalDocument.ts`, `lib/home/protocolSync.ts`,
+    `lib/home/syncActions.ts`, `lib/db/{protocolCompounds,doseLogs,types}.ts`,
+    `lib/migration/migrateDeviceState.ts`, `components/weight/WeightView.tsx`,
+    `components/legal/legal-document.tsx`, `app/{terms,privacy,medical-disclaimer}/page.tsx`.
+  - **Shipped as PR #18** (`feat/spec-13-final-touches`). **CodeRabbit round 1 — all 6
+    findings fixed (commit `6f0a8e3`).** Common root: Supabase returns query errors in an
+    `error` field (doesn't throw), so error-ignoring reads looked like successful empties.
+    (1+2 critical) `pushProtocolBatch` + `pullStackAndLogs`/`pullCustoms`/
+    `pullProtocolStackAndLogs` now THROW on Supabase `error` so the breaker counts failures
+    and the batch reports `ok:false`; (critical) the migration reads via a new **unguarded
+    strict** `pullStackAndLogsForMigration` so a transient outage throws (caught → not marked
+    complete) instead of a silent empty that durably marks "nothing to migrate"; the
+    **circuit breaker** persists state before awaiting + serialises half-open to one probe
+    (verified: 3 concurrent → 1 runs); **getLegalDocument** throws on error so
+    `unstable_cache` can't cache a transient null (1h 404); **WeightView** wraps the
+    optimistic save/delete in try/finally so the busy state always clears even if the action
+    promise rejects. `tsc`+`lint`+prod `build` clean.
+  - **▶ Next:** Adrian on-device QA (weight optimistic add/edit/delete + rollback; legal
+    pages; Home still hydrates) → address any CodeRabbit round-2 → merge PR #18.
+
 - **Home ⇄ Protocol/Stock sync + reinstall-proof delete (2026-06-20, Adrian + Claude)
   — `tsc`+`lint`+prod `build` clean (31 routes); `profile_protocol_migrated_at`
   migration applied LIVE; NOT committed/deployed; ▶ clean-slate wipe of the

@@ -15,7 +15,32 @@ Last updated: 2026-06-17
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-18 (Adrian + Claude): quick-track popup + blend-overlap note — ✅ MERGED to
+**Latest — 2026-06-22 (Adrian + Claude): Spec 13 — extra final touches (5 perf + 5
+protection) — BUILT, `tsc`+`lint`+prod `build` clean (34 routes); ▶ on-device QA PENDING;
+NOT committed.** Worked `Context/Feature Specs/13-extra-final-touches.md` one prompt at a time
+(full detail in `progress-tracker.md`). Real code changes: P1 compression made explicit
+(already br/gzip live), P2 the device→Postgres **migration backfill now batches** into one
+round-trip (`pushProtocolBatch` + chunked multi-row upserts), P3 a **timeout + circuit
+breaker** (`lib/resilience/circuitBreaker.ts`) guards the awaited Supabase hydration pulls,
+P4 the **weight log is now optimistic** (`useOptimistic` add/edit/delete + rollback), P5 the
+**legal pages are ISR** (cookieless cached read), S5 **baseline security headers** in
+`next.config.ts`. The other three security audits — **S1 ORM injection, S2 over-exposed
+fields, S3 SSRF, S4 stored XSS** — came back **clean with evidence** (no change; the
+RLS/Server-Component/parameterized-PostgREST/React-escaping architecture already closes them).
+
+**▶ Next for this lane:**
+1. **Prod `build` — DONE this session** (`tsc`+`lint`+`build` clean, 34 routes; dev server
+   stopped first). Build surfaced that the legal pages are `ƒ` (dynamic), not static ISR —
+   the root layout's session-cookie read taints the whole tree dynamic; the legal **content
+   read** is still cached via `unstable_cache` (the real P5 win). Fixed: segment `revalidate`
+   must be a literal, not an imported const. **NOTE: I stopped your `next dev` server to build
+   — restart it (`npm run dev`) when you resume.**
+2. **Adrian on-device QA:** weight log feels instant (add/edit/delete), and a forced failure
+   rolls back + shows an error; legal pages render; Home still hydrates from Postgres; nothing
+   regressed on the dose/compound loop.
+3. Then commit → PR → CodeRabbit → merge (prod deploy). No migration/DB change in this batch.
+
+**Earlier — 2026-06-18 (Adrian + Claude): quick-track popup + blend-overlap note — ✅ MERGED to
 `main` (prod) as PR #16 (squash); `tsc`+`lint`+prod `build` clean; CodeRabbit's 6 findings
 triaged (3 valid fixed, 3 skipped — see `progress-tracker.md`).**
 Two home/logging changes (details in `progress-tracker.md`):

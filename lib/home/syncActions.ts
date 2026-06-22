@@ -21,6 +21,7 @@
  * way back into localStorage). `compound_id` is the client-generated id.
  */
 import { createClient } from "@/lib/supabase/server"
+import { guard } from "@/lib/resilience/circuitBreaker"
 import type { StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
 import type { DoseLog } from "@/lib/home/mockHomeData"
@@ -166,56 +167,79 @@ export async function deleteCustom(compoundId: string): Promise<Ok> {
 
 /** The user's cloud-saved stack + dose logs, for hydrating localStorage on load.
  *  Returns empty shapes (never throws) when signed out or on any read error. */
+/** Core read of the user's cloud-saved stack + dose logs. Returns empty when
+ *  signed out (a normal state, not an error), but THROWS on a Supabase query
+ *  error — Supabase resolves errors in an `error` field rather than rejecting, so
+ *  without this an outage looks like "empty" (the breaker would never trip and the
+ *  migration could mark itself done without copying data). Not exported. */
+async function readStackAndLogs(): Promise<{
+  stack: StackCompound[]
+  doseLogs: DayLogs
+}> {
+  const ctx = await sessionCtx()
+  if (!ctx) return { stack: [], doseLogs: {} as DayLogs }
+  const [stackRes, logRes] = await Promise.all([
+    ctx.supabase.from("user_stack_compounds").select("data").eq("profile_id", ctx.userId),
+    ctx.supabase
+      .from("user_dose_logs")
+      .select("logged_on, compound_id, data")
+      .eq("profile_id", ctx.userId),
+  ])
+  if (stackRes.error) throw stackRes.error
+  if (logRes.error) throw logRes.error
+
+  const stack = (stackRes.data ?? [])
+    .map((r) => r.data as StackCompound)
+    .filter((c): c is StackCompound => !!c && typeof c.id === "string")
+
+  const doseLogs: DayLogs = {}
+  for (const r of logRes.data ?? []) {
+    const day = r.logged_on as string
+    const compoundId = r.compound_id as string
+    ;(doseLogs[day] ??= {})[compoundId] = r.data as DoseLog
+  }
+  return { stack, doseLogs }
+}
+
+/** The user's cloud-saved stack + dose logs, for hydrating localStorage on load.
+ *  Guarded: a hung/erroring Supabase fast-fails to `empty` rather than blocking
+ *  hydration — safe because the hydrator merges (never wipes) the local cache. */
 export async function pullStackAndLogs(): Promise<{
   stack: StackCompound[]
   doseLogs: DayLogs
 }> {
-  const empty = { stack: [], doseLogs: {} as DayLogs }
-  try {
-    const ctx = await sessionCtx()
-    if (!ctx) return empty
-    const [stackRes, logRes] = await Promise.all([
-      ctx.supabase
-        .from("user_stack_compounds")
-        .select("data")
-        .eq("profile_id", ctx.userId),
-      ctx.supabase
-        .from("user_dose_logs")
-        .select("logged_on, compound_id, data")
-        .eq("profile_id", ctx.userId),
-    ])
+  const empty = { stack: [] as StackCompound[], doseLogs: {} as DayLogs }
+  return guard("supabase:pullStackAndLogs", readStackAndLogs, { fallback: empty })
+}
 
-    const stack = (stackRes.data ?? [])
-      .map((r) => r.data as StackCompound)
-      .filter((c): c is StackCompound => !!c && typeof c.id === "string")
-
-    const doseLogs: DayLogs = {}
-    for (const r of logRes.data ?? []) {
-      const day = r.logged_on as string
-      const compoundId = r.compound_id as string
-      ;(doseLogs[day] ??= {})[compoundId] = r.data as DoseLog
-    }
-
-    return { stack, doseLogs }
-  } catch (e) {
-    console.error("pullStackAndLogs failed", e)
-    return empty
-  }
+/** STRICT read for the one-time device→Postgres migration. Deliberately UNGUARDED
+ *  (no timeout/fallback): a transient outage THROWS instead of returning a silent
+ *  `empty`, so `migrateDeviceState` can tell "couldn't read" (don't mark complete —
+ *  retry next login) from "genuinely nothing to migrate". Reusing the guarded
+ *  hydration pull here would let an outage durably mark migration done with no data
+ *  copied (CodeRabbit, Spec 13 follow-up). */
+export async function pullStackAndLogsForMigration(): Promise<{
+  stack: StackCompound[]
+  doseLogs: DayLogs
+}> {
+  return readStackAndLogs()
 }
 
 /** The user's cloud-saved custom compounds (raw `data` payloads; the caller
  *  re-normalises). Empty array (never throws) when signed out or on error. */
 export async function pullCustoms(): Promise<unknown[]> {
-  try {
-    const ctx = await sessionCtx()
-    if (!ctx) return []
-    const { data } = await ctx.supabase
-      .from("user_custom_compounds")
-      .select("data")
-      .eq("profile_id", ctx.userId)
-    return (data ?? []).map((r) => r.data)
-  } catch (e) {
-    console.error("pullCustoms failed", e)
-    return []
-  }
+  return guard(
+    "supabase:pullCustoms",
+    async () => {
+      const ctx = await sessionCtx()
+      if (!ctx) return [] as unknown[]
+      const { data, error } = await ctx.supabase
+        .from("user_custom_compounds")
+        .select("data")
+        .eq("profile_id", ctx.userId)
+      if (error) throw error // surface to the breaker instead of a silent empty
+      return (data ?? []).map((r) => r.data)
+    },
+    { fallback: [] as unknown[] }
+  )
 }

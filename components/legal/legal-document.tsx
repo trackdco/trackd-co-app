@@ -2,12 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
-
-type LegalDocType =
-  | "terms_of_service"
-  | "privacy_policy"
-  | "medical_disclaimer";
+import { getCurrentLegalDocument, type LegalDocType } from "@/lib/legal/getLegalDocument";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -115,13 +110,7 @@ function renderBody(body: string, title: string): React.ReactNode[] {
  * 18+/ToS gate links to and records acceptance of.
  */
 export async function LegalDocument({ docType }: { docType: LegalDocType }) {
-  const supabase = await createClient();
-  const { data: doc } = await supabase
-    .from("legal_documents")
-    .select("title, version, body, is_beta, effective_date")
-    .eq("doc_type", docType)
-    .eq("is_current", true)
-    .maybeSingle();
+  const doc = await getCurrentLegalDocument(docType);
 
   if (!doc) notFound();
 
