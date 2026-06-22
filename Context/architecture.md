@@ -151,7 +151,13 @@ in the schema — storage only, no behaviour, until post-trip.
   Writes go through best-effort **server actions** in `lib/home/syncActions.ts`
   (identity from the verified session, RLS the backstop — mirrors
   `weight/actions.ts`). A network blip never blocks the UI — the synchronous local
-  write already succeeded; the cloud is a durable backup, not the read path.
+  write already succeeded; the cloud is a durable backup, not the read path. The
+  awaited hydration **pulls** (`pullStackAndLogs`/`pullCustoms`/
+  `pullProtocolStackAndLogs`) are wrapped in a **timeout + circuit breaker**
+  (`lib/resilience/circuitBreaker.ts`, `guard()`, Spec 13) so a slow/down Supabase
+  fast-fails to the local cache (the read path) instead of blocking the serverless
+  function — the only external dependency that could cascade. Serverless caveat:
+  breaker state is per-warm-instance, so the timeout is the always-on guard.
   **The `user_stack_compounds` mirror is now a CUSTOMS-ONLY backup (2026-06-20).**
   Since the Protocol Cutover, Postgres `protocol_compounds` is the canonical store for
   catalogue compounds, so `lib/home/stack.ts` + `hydrateProtocol.ts` only write CUSTOM
@@ -251,6 +257,21 @@ per type. Write model matches the seed catalogues — **service-role writes only
 but, unlike them, **read is public (`anon` + `authenticated`)** because signup
 shows the documents before a user has an account.
 
+The **public render pages** (`/terms`, `/privacy`, `/medical-disclaimer`) cache
+their DB read (Spec 13): the docs are identical across all users and change only on
+a rare version bump, so they read through a **cookieless anon client** wrapped in
+`unstable_cache` (`lib/legal/getLegalDocument.ts`, tag `legal-documents`, 1h
+revalidate) instead of a per-request Supabase hit — `docType` is the only cache-key
+dimension (no locale/personalisation). **Note:** the page *shells* still render
+dynamically (`ƒ`), because the root `app/layout.tsx` reads the session cookie
+(`getCurrentUser()` for the desktop-gate variant), which opts the whole route tree
+into dynamic rendering — so `export const revalidate = 3600` on these pages is
+aspirational (it would make them ISR-static only if the root layout stopped reading
+cookies). The substantive win is still real: the legal **content read** is served
+from cache, so Supabase rendering load drops to ~once/hour regardless of traffic.
+The signup gate + `consent_records` still read the current version **live**
+(uncached), so a version bump shows in consent immediately.
+
 **Wired into signup (2026-06-08; consent model expanded 2026-06-20, Spec 12).**
 The 18+/ToS gate at `/welcome` records the access gate on the profile
 (`tos_accepted_at` + `tos_version`, read live from `is_current`) AND now captures
@@ -327,6 +348,16 @@ correct across bumps.
 - Feature entitlements read `profiles.tier` and nothing else. Beta defaults
   everyone to `'paid'`; post-trip, the Stripe webhook becomes the column's only
   writer and the default flips to `'free'`. Gating logic never changes.
+- **Cross-origin posture (Spec 13).** The app exposes no JSON API for other
+  origins — all data flows through Server Components + Server Actions (the one
+  route handler, `/auth/callback`, only does same-origin redirects), so there is
+  **no CORS config** anywhere (no wildcard origin, no `Origin` reflection, no
+  credentialed cross-origin). The credentialed **Server Action** surface is
+  SAME-ORIGIN-only by Next's built-in CSRF check (`serverActions.allowedOrigins`
+  is intentionally left unset = same-origin; adding one would only loosen it).
+  `next.config.ts` `headers()` adds baseline protective headers on every route:
+  `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security`.
 
 ## Invariants
 

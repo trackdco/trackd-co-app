@@ -21,6 +21,7 @@
  * way back into localStorage). `compound_id` is the client-generated id.
  */
 import { createClient } from "@/lib/supabase/server"
+import { guard } from "@/lib/resilience/circuitBreaker"
 import type { StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
 import type { DoseLog } from "@/lib/home/mockHomeData"
@@ -171,51 +172,55 @@ export async function pullStackAndLogs(): Promise<{
   doseLogs: DayLogs
 }> {
   const empty = { stack: [], doseLogs: {} as DayLogs }
-  try {
-    const ctx = await sessionCtx()
-    if (!ctx) return empty
-    const [stackRes, logRes] = await Promise.all([
-      ctx.supabase
-        .from("user_stack_compounds")
-        .select("data")
-        .eq("profile_id", ctx.userId),
-      ctx.supabase
-        .from("user_dose_logs")
-        .select("logged_on, compound_id, data")
-        .eq("profile_id", ctx.userId),
-    ])
+  // Guarded: a hung Supabase fast-fails to `empty` rather than blocking hydration.
+  // An empty pull is safe — the hydrator merges (never wipes) the local cache.
+  return guard(
+    "supabase:pullStackAndLogs",
+    async () => {
+      const ctx = await sessionCtx()
+      if (!ctx) return empty
+      const [stackRes, logRes] = await Promise.all([
+        ctx.supabase
+          .from("user_stack_compounds")
+          .select("data")
+          .eq("profile_id", ctx.userId),
+        ctx.supabase
+          .from("user_dose_logs")
+          .select("logged_on, compound_id, data")
+          .eq("profile_id", ctx.userId),
+      ])
 
-    const stack = (stackRes.data ?? [])
-      .map((r) => r.data as StackCompound)
-      .filter((c): c is StackCompound => !!c && typeof c.id === "string")
+      const stack = (stackRes.data ?? [])
+        .map((r) => r.data as StackCompound)
+        .filter((c): c is StackCompound => !!c && typeof c.id === "string")
 
-    const doseLogs: DayLogs = {}
-    for (const r of logRes.data ?? []) {
-      const day = r.logged_on as string
-      const compoundId = r.compound_id as string
-      ;(doseLogs[day] ??= {})[compoundId] = r.data as DoseLog
-    }
+      const doseLogs: DayLogs = {}
+      for (const r of logRes.data ?? []) {
+        const day = r.logged_on as string
+        const compoundId = r.compound_id as string
+        ;(doseLogs[day] ??= {})[compoundId] = r.data as DoseLog
+      }
 
-    return { stack, doseLogs }
-  } catch (e) {
-    console.error("pullStackAndLogs failed", e)
-    return empty
-  }
+      return { stack, doseLogs }
+    },
+    { fallback: empty }
+  )
 }
 
 /** The user's cloud-saved custom compounds (raw `data` payloads; the caller
  *  re-normalises). Empty array (never throws) when signed out or on error. */
 export async function pullCustoms(): Promise<unknown[]> {
-  try {
-    const ctx = await sessionCtx()
-    if (!ctx) return []
-    const { data } = await ctx.supabase
-      .from("user_custom_compounds")
-      .select("data")
-      .eq("profile_id", ctx.userId)
-    return (data ?? []).map((r) => r.data)
-  } catch (e) {
-    console.error("pullCustoms failed", e)
-    return []
-  }
+  return guard(
+    "supabase:pullCustoms",
+    async () => {
+      const ctx = await sessionCtx()
+      if (!ctx) return [] as unknown[]
+      const { data } = await ctx.supabase
+        .from("user_custom_compounds")
+        .select("data")
+        .eq("profile_id", ctx.userId)
+      return (data ?? []).map((r) => r.data)
+    },
+    { fallback: [] as unknown[] }
+  )
 }

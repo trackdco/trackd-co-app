@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Check, Trash2 } from "lucide-react";
 import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
@@ -24,6 +31,26 @@ import { deleteWeight, logWeight } from "@/app/(app)/weight/actions";
 interface Entry {
   key: DateKey;
   kg: number;
+}
+
+/** Optimistic mutation applied to the entry list before the server confirms.
+ *  `upsert` covers both a new log and an edit (one row per day, last write wins);
+ *  `remove` is a delete. */
+type OptimisticAction =
+  | { type: "upsert"; key: DateKey; kg: number }
+  | { type: "remove"; key: DateKey };
+
+/** Apply an optimistic mutation, keeping the list sorted oldest → newest so the
+ *  moving-average / chart stay correct. (`DateKey` is "YYYY-MM-DD", which sorts
+ *  chronologically as a string.) */
+function applyEntryMutation(state: Entry[], action: OptimisticAction): Entry[] {
+  if (action.type === "remove") {
+    return state.filter((e) => e.key !== action.key);
+  }
+  const next = state.filter((e) => e.key !== action.key);
+  next.push({ key: action.key, kg: action.kg });
+  next.sort((a, b) => a.key.localeCompare(b.key));
+  return next;
 }
 
 /** A month bucket in the entry log — newest month first, entries newest-first. */
@@ -156,6 +183,14 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   const router = useRouter();
   const unit = unitForPreference(unitPreference);
 
+  // Optimistic view of the log: a save/edit/delete shows INSTANTLY, then either
+  // commits (the server confirms and `router.refresh()` re-fetches the canonical
+  // data, holding the optimistic value until it lands) or rolls back automatically
+  // when the transition ends without a refresh (the failure path), surfacing an
+  // error. Everything below derives from `viewEntries`, not the raw prop.
+  const [viewEntries, applyOptimistic] = useOptimistic(entries, applyEntryMutation);
+  const [, startTransition] = useTransition();
+
   const [mode, setMode] = useState<WeightMode>("trend");
   const [rangeId, setRangeId] = useState<string>("3m");
 
@@ -170,8 +205,8 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   // Full chart series (display units), oldest → newest. Trend is the SMA over the
   // whole series so the window's left edge still has a proper trailing average.
   const scaleAll = useMemo(
-    () => entries.map((e) => kgToUnit(e.kg, unit)),
-    [entries, unit],
+    () => viewEntries.map((e) => kgToUnit(e.kg, unit)),
+    [viewEntries, unit],
   );
   const trendAll = useMemo(
     () => movingAverage(scaleAll, TREND_WINDOW),
@@ -184,7 +219,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
     range.days === Number.POSITIVE_INFINITY
       ? -Infinity
       : Math.floor(dateKeyToDate(todayKey).getTime() / 86_400_000) - range.days;
-  const windowed: ChartPoint[] = entries
+  const windowed: ChartPoint[] = viewEntries
     .map((e, i) => ({ e, i }))
     .filter(
       ({ e }) =>
@@ -216,8 +251,8 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   // Months simply stack and scroll (no dropdown), mirroring the journal feed.
   const logMonths = useMemo<LogMonth[]>(() => {
     const byMonth = new Map<string, Entry[]>();
-    for (let i = entries.length - 1; i >= 0; i--) {
-      const e = entries[i];
+    for (let i = viewEntries.length - 1; i >= 0; i--) {
+      const e = viewEntries[i];
       const mk = e.key.slice(0, 7);
       const arr = byMonth.get(mk);
       if (arr) arr.push(e);
@@ -226,9 +261,9 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
     return [...byMonth.entries()]
       .sort((a, b) => b[0].localeCompare(a[0]))
       .map(([key, rows]) => ({ key, label: monthLabel(key), rows }));
-  }, [entries]);
+  }, [viewEntries]);
 
-  async function handleSave() {
+  function handleSave() {
     const n = parseFloat(value);
     if (!Number.isFinite(n)) {
       setError("Enter your weight.");
@@ -243,26 +278,43 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
       );
       return;
     }
+    const savedKey = dateKey;
     setSaving(true);
     setError(null);
-    const res = await logWeight(kg, dateKey);
-    setSaving(false);
-    if (res.ok) {
-      setSavedFlash(true);
-      window.setTimeout(() => setSavedFlash(false), 1400);
-      setValue("");
-      setDateKey(todayKey);
-      router.refresh();
-    } else {
-      setError(res.error ?? "Couldn't save. Try again.");
-    }
+    startTransition(async () => {
+      // Show the new reading on the graph + log immediately.
+      applyOptimistic({ type: "upsert", key: savedKey, kg });
+      const res = await logWeight(kg, savedKey);
+      setSaving(false);
+      if (res.ok) {
+        setSavedFlash(true);
+        window.setTimeout(() => setSavedFlash(false), 1400);
+        setValue("");
+        setDateKey(todayKey);
+        router.refresh(); // commit: holds the optimistic value until fresh data lands
+      } else {
+        // The transition ends here with no refresh → the optimistic entry rolls
+        // back automatically. Keep the typed value so the user can retry.
+        setError(res.error ?? "Couldn't save. Try again.");
+      }
+    });
   }
 
-  async function handleDelete(key: DateKey) {
+  function handleDelete(key: DateKey) {
     setBusyDelete(key);
-    const res = await deleteWeight(key);
-    setBusyDelete(null);
-    if (res.ok) router.refresh();
+    setError(null);
+    startTransition(async () => {
+      // Drop the row from the list + graph immediately.
+      applyOptimistic({ type: "remove", key });
+      const res = await deleteWeight(key);
+      setBusyDelete(null);
+      if (res.ok) {
+        router.refresh();
+      } else {
+        // Transition ends with no refresh → the row reappears (rollback) + error.
+        setError("Couldn't delete that entry. Try again.");
+      }
+    });
   }
 
   function editEntry(entry: Entry) {

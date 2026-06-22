@@ -67,6 +67,19 @@ export interface DoseRow {
   inventoryItemId: string | null
 }
 
+/** One logged dose, flattened for the batched device→Postgres migration backfill.
+ *  `takenAtIso` is computed CLIENT-side (the server can't know the device tz), so
+ *  the client pre-resolves it before the single batched server-action round-trip.
+ *  The compound's unit/amount/method are derived server-side from the matching
+ *  `StackCompound`, so they aren't carried here. */
+export interface BatchDoseEntry {
+  clientCompoundId: string
+  dateKey: string
+  amount: string
+  siteId: string | null
+  takenAtIso: string
+}
+
 /* ---------------------------------------------------------------- rows */
 // Row shapes as returned by PostgREST. Dates/timestamps come back as strings
 // ("YYYY-MM-DD" for `date`, ISO-8601 for `timestamptz`, "HH:MM:SS" for `time`).

@@ -72,6 +72,44 @@ export async function upsertProtocolCompound(
   }
 }
 
+/** Max rows per upsert statement — keeps any single multi-row INSERT well clear of
+ *  PostgREST/Postgres parameter limits and avoids long row locks on a big backfill. */
+const UPSERT_CHUNK = 200
+
+/**
+ * Bulk upsert protocol compounds in chunked multi-row statements (one INSERT per
+ * chunk, not one per row). `user_id` is injected from the session on every row;
+ * `onConflict: "id"` keeps it idempotent so a re-run (e.g. the migration retrying)
+ * is a no-op. Returns how many rows were written and whether every chunk
+ * succeeded — a partial write is safe because the deterministic ids make a retry
+ * overwrite in place. Used by the one-time device→Postgres migration backfill.
+ */
+export async function upsertProtocolCompounds(
+  rows: ProtocolCompoundInsert[]
+): Promise<{ ok: boolean; count: number }> {
+  try {
+    const ctx = await sessionCtx()
+    if (!ctx) return { ok: false, count: 0 }
+    if (rows.length === 0) return { ok: true, count: 0 }
+    let count = 0
+    for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
+      const chunk = rows.slice(i, i + UPSERT_CHUNK).map((r) => ({ ...r, user_id: ctx.userId }))
+      const { error } = await ctx.supabase
+        .from("protocol_compounds")
+        .upsert(chunk, { onConflict: "id" })
+      if (error) {
+        console.error("upsertProtocolCompounds failed", error)
+        return { ok: false, count }
+      }
+      count += chunk.length
+    }
+    return { ok: true, count }
+  } catch (e) {
+    console.error("upsertProtocolCompounds failed", e)
+    return { ok: false, count: 0 }
+  }
+}
+
 /**
  * Archive (stop dosing, keep history) or reactivate a protocol compound — the
  * archive-never-delete invariant. Returns the updated row, or null on failure.

@@ -25,7 +25,8 @@ import { combineLocalDateTime } from "@/lib/home/mockHomeData"
 import { loadStack, type StackCompound } from "@/lib/home/stack"
 import { loadDoseLogs, type DayLogs } from "@/lib/home/doseLog"
 import { pullStackAndLogs } from "@/lib/home/syncActions"
-import { pushProtocolCompound, pushProtocolDoseLog } from "@/lib/home/protocolSync"
+import { pushProtocolBatch } from "@/lib/home/protocolSync"
+import type { BatchDoseEntry } from "@/lib/db/types"
 import { hasMigratedInCloud, markMigratedInCloud } from "@/lib/db/migrationFlag"
 
 export interface MigrationResult {
@@ -97,48 +98,38 @@ export async function migrateDeviceState(
       return { ...base, ran: true, reason: "nothing-to-migrate" }
     }
 
-    const stackById = new Map(stack.map((c) => [c.id, c]))
-    const migrated = new Set<string>()
-    let compounds = 0
-    let skippedCustom = 0
-    let failures = 0
-
-    for (const c of stack) {
-      const r = await pushProtocolCompound(c)
-      if (r.ok) {
-        migrated.add(c.id)
-        compounds++
-      } else if (r.skipped) {
-        skippedCustom++ // custom / unresolved → stays device-local
-      } else {
-        failures++ // offline / transient — leave unmarked so it retries
-      }
-    }
-
-    let doseLogs = 0
+    // Flatten the dose logs into the migration's transport shape, computing each
+    // `takenAt` CLIENT-side (the server can't know the device timezone). The whole
+    // backfill then goes in ONE batched server-action round-trip (chunked multi-row
+    // upserts) instead of N+M individual writes that each re-auth + re-query.
+    const doseEntries: BatchDoseEntry[] = []
     for (const [dateKey, day] of Object.entries(logs)) {
       for (const [compoundId, log] of Object.entries(day)) {
-        if (!migrated.has(compoundId)) continue // custom or not-yet-migrated compound
-        const method = stackById.get(compoundId)?.method ?? "po"
-        const r = await pushProtocolDoseLog(
-          compoundId,
+        doseEntries.push({
+          clientCompoundId: compoundId,
           dateKey,
-          log,
-          combineLocalDateTime(dateKey, log.time24),
-          method
-        )
-        if (r.ok) doseLogs++
-        else if (!r.skipped) failures++
+          amount: log.amount,
+          siteId: log.siteId,
+          takenAtIso: combineLocalDateTime(dateKey, log.time24),
+        })
       }
     }
 
+    const res = await pushProtocolBatch(stack, doseEntries)
     // Only mark done on a clean run — a transient failure retries next login (the
     // deterministic ids make the retry a no-op upsert for whatever already landed).
+    const failures = res.ok ? 0 : 1
     if (failures === 0) {
       setMigrated(userId)
       void markMigratedInCloud() // durable so a reinstall never re-runs this
     }
-    return { ran: true, compounds, doseLogs, skippedCustom, failures }
+    return {
+      ran: true,
+      compounds: res.compounds,
+      doseLogs: res.doseLogs,
+      skippedCustom: res.skippedCustom,
+      failures,
+    }
   } catch (e) {
     console.error("migrateDeviceState failed", e)
     return { ...base, reason: "error" }

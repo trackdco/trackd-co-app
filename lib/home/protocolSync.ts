@@ -27,19 +27,24 @@
 import { createHash } from "node:crypto"
 
 import { createClient } from "@/lib/supabase/server"
+import { guard } from "@/lib/resilience/circuitBreaker"
 import { ensureActiveCycle } from "@/lib/db/cycles"
 import {
   deleteProtocolCompound,
   setProtocolCompoundActive,
   upsertProtocolCompound,
+  upsertProtocolCompounds,
 } from "@/lib/db/protocolCompounds"
-import { deleteDoseLog, upsertDoseLog } from "@/lib/db/doseLogs"
+import { deleteDoseLog, upsertDoseLog, upsertDoseLogs } from "@/lib/db/doseLogs"
 import {
   localSiteToInjectionSite,
   protocolCompoundToStack,
   stackCompoundToProtocolInsert,
+  type BatchDoseEntry,
+  type DoseLogInsert,
   type DoseRow,
   type DoseUnit,
+  type ProtocolCompoundInsert,
 } from "@/lib/db/types"
 import type { CompoundCategory } from "@/lib/compound-categories"
 import type { StackCompound } from "@/lib/home/stack"
@@ -115,6 +120,96 @@ export async function pushProtocolCompound(
   } catch (e) {
     console.error("pushProtocolCompound failed", e)
     return { ok: false }
+  }
+}
+
+/**
+ * Batched backfill for the one-time device→Postgres migration. Does in a SINGLE
+ * round-trip (one auth check, one catalogue lookup, one `ensureActiveCycle`, then
+ * chunked multi-row upserts) what the per-item `pushProtocolCompound` /
+ * `pushProtocolDoseLog` would do over N+M round-trips — each of which re-verifies
+ * the session and re-queries the catalogue/unit. Same deterministic ids + the same
+ * mappers, so it stays idempotent and interchangeable with the live single-item
+ * path; only the migration uses it.
+ *
+ * `doseEntries.takenAtIso` is computed client-side (device tz). `inventory_item_id`
+ * stays null — a historical dose never retro-links to a vial bought later.
+ */
+export async function pushProtocolBatch(
+  stack: StackCompound[],
+  doseEntries: BatchDoseEntry[]
+): Promise<{ ok: boolean; compounds: number; doseLogs: number; skippedCustom: number }> {
+  const empty = { ok: false, compounds: 0, doseLogs: 0, skippedCustom: 0 }
+  try {
+    const cx = await ctx()
+    if (!cx) return empty
+    if (stack.length === 0) return { ...empty, ok: true }
+
+    // Resolve every catalogue name → id in ONE query. Exact-match `.in()` is
+    // parameterized (no wildcard/injection risk); a name absent from the read-only
+    // catalogue is a custom compound and stays device-local.
+    const names = [...new Set(stack.map((c) => c.name))]
+    const { data: catRows } = await cx.supabase
+      .from("compounds")
+      .select("id, name")
+      .in("name", names)
+    const idByName = new Map<string, string>()
+    for (const r of catRows ?? []) idByName.set(r.name as string, r.id as string)
+
+    const cycle = await ensureActiveCycle()
+    if (!cycle) return empty
+
+    // Build the compound rows + a per-client-id map of what a dose log needs, so we
+    // never re-query a compound back for its unit/amount (the single-item path did).
+    const pcRows: ProtocolCompoundInsert[] = []
+    const meta = new Map<
+      string,
+      { pcId: string; doseUnit: DoseUnit; doseAmount: number; method: StackCompound["method"] }
+    >()
+    let skippedCustom = 0
+    for (const c of stack) {
+      const compoundId = idByName.get(c.name)
+      if (!compoundId) {
+        skippedCustom++
+        continue
+      }
+      const pcId = resolvePcId(cx.userId, c.id)
+      const row = stackCompoundToProtocolInsert(c, { id: pcId, cycleId: cycle.id, compoundId })
+      pcRows.push(row)
+      meta.set(c.id, {
+        pcId,
+        doseUnit: row.dose_unit,
+        doseAmount: row.dose_amount,
+        method: c.method,
+      })
+    }
+
+    const cRes = await upsertProtocolCompounds(pcRows)
+    // Don't attempt dose logs if the compounds didn't fully land — their FK would
+    // reject. A retry redoes both (deterministic ids → idempotent).
+    if (!cRes.ok) return { ok: false, compounds: cRes.count, doseLogs: 0, skippedCustom }
+
+    const dlRows: DoseLogInsert[] = []
+    for (const e of doseEntries) {
+      const m = meta.get(e.clientCompoundId)
+      if (!m) continue // custom / unresolved compound — its log stays device-local
+      const injectable = m.method === "im" || m.method === "subq"
+      dlRows.push({
+        id: deterministicUuid(`dl:${cx.userId}:${e.dateKey}:${m.pcId}`),
+        protocol_compound_id: m.pcId,
+        inventory_item_id: null,
+        status: "taken",
+        dose_amount: parseAmount(e.amount, m.doseAmount),
+        dose_unit: m.doseUnit,
+        injection_site: injectable ? localSiteToInjectionSite(e.siteId) : null,
+        taken_at: e.takenAtIso,
+      })
+    }
+    const dRes = await upsertDoseLogs(dlRows)
+    return { ok: dRes.ok, compounds: cRes.count, doseLogs: dRes.count, skippedCustom }
+  } catch (e) {
+    console.error("pushProtocolBatch failed", e)
+    return empty
   }
 }
 
@@ -266,43 +361,46 @@ export async function pullProtocolStackAndLogs(): Promise<{
   doseRows: DoseRow[]
 }> {
   const empty = { stack: [] as StackCompound[], doseRows: [] as DoseRow[] }
-  try {
-    const cx = await ctx()
-    if (!cx) return empty
-    const [pcRes, dlRes] = await Promise.all([
-      cx.supabase
-        .from("protocol_compounds")
-        .select("*, compounds(name, category)")
-        .eq("user_id", cx.userId),
-      cx.supabase
-        .from("dose_logs")
-        .select("protocol_compound_id, taken_at, dose_amount, injection_site, inventory_item_id")
-        .eq("user_id", cx.userId),
-    ])
+  // Guarded: a hung Supabase fast-fails to `empty` so hydration never blocks on a
+  // degraded dependency; an empty pull never wipes the local cache (the read path).
+  return guard(
+    "supabase:pullProtocolStackAndLogs",
+    async () => {
+      const cx = await ctx()
+      if (!cx) return empty
+      const [pcRes, dlRes] = await Promise.all([
+        cx.supabase
+          .from("protocol_compounds")
+          .select("*, compounds(name, category)")
+          .eq("user_id", cx.userId),
+        cx.supabase
+          .from("dose_logs")
+          .select("protocol_compound_id, taken_at, dose_amount, injection_site, inventory_item_id")
+          .eq("user_id", cx.userId),
+      ])
 
-    const stack: StackCompound[] = []
-    for (const row of pcRes.data ?? []) {
-      const cat = (row as { compounds?: { name: string; category: string } | null }).compounds
-      if (!cat) continue
-      stack.push(
-        protocolCompoundToStack(row, {
-          name: cat.name,
-          category: cat.category as CompoundCategory,
-        })
-      )
-    }
+      const stack: StackCompound[] = []
+      for (const row of pcRes.data ?? []) {
+        const cat = (row as { compounds?: { name: string; category: string } | null }).compounds
+        if (!cat) continue
+        stack.push(
+          protocolCompoundToStack(row, {
+            name: cat.name,
+            category: cat.category as CompoundCategory,
+          })
+        )
+      }
 
-    const doseRows: DoseRow[] = (dlRes.data ?? []).map((r) => ({
-      compoundId: r.protocol_compound_id as string,
-      takenAt: r.taken_at as string,
-      amount: String(r.dose_amount),
-      injectionSite: (r.injection_site as string | null) ?? null,
-      inventoryItemId: (r.inventory_item_id as string | null) ?? null,
-    }))
+      const doseRows: DoseRow[] = (dlRes.data ?? []).map((r) => ({
+        compoundId: r.protocol_compound_id as string,
+        takenAt: r.taken_at as string,
+        amount: String(r.dose_amount),
+        injectionSite: (r.injection_site as string | null) ?? null,
+        inventoryItemId: (r.inventory_item_id as string | null) ?? null,
+      }))
 
-    return { stack, doseRows }
-  } catch (e) {
-    console.error("pullProtocolStackAndLogs failed", e)
-    return empty
-  }
+      return { stack, doseRows }
+    },
+    { fallback: empty }
+  )
 }
