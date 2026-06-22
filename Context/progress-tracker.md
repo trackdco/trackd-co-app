@@ -116,9 +116,21 @@ Last updated: 2026-06-18
     `lib/home/syncActions.ts`, `lib/db/{protocolCompounds,doseLogs,types}.ts`,
     `lib/migration/migrateDeviceState.ts`, `components/weight/WeightView.tsx`,
     `components/legal/legal-document.tsx`, `app/{terms,privacy,medical-disclaimer}/page.tsx`.
-  - **▶ Next:** Adrian runs a clean prod `build` (stop `next dev` first — shared `.next`
-    gotcha) + on-device QA (weight optimistic add/edit/delete + rollback; legal pages;
-    Home still hydrates), then commit/PR.
+  - **Shipped as PR #18** (`feat/spec-13-final-touches`). **CodeRabbit round 1 — all 6
+    findings fixed (commit `6f0a8e3`).** Common root: Supabase returns query errors in an
+    `error` field (doesn't throw), so error-ignoring reads looked like successful empties.
+    (1+2 critical) `pushProtocolBatch` + `pullStackAndLogs`/`pullCustoms`/
+    `pullProtocolStackAndLogs` now THROW on Supabase `error` so the breaker counts failures
+    and the batch reports `ok:false`; (critical) the migration reads via a new **unguarded
+    strict** `pullStackAndLogsForMigration` so a transient outage throws (caught → not marked
+    complete) instead of a silent empty that durably marks "nothing to migrate"; the
+    **circuit breaker** persists state before awaiting + serialises half-open to one probe
+    (verified: 3 concurrent → 1 runs); **getLegalDocument** throws on error so
+    `unstable_cache` can't cache a transient null (1h 404); **WeightView** wraps the
+    optimistic save/delete in try/finally so the busy state always clears even if the action
+    promise rejects. `tsc`+`lint`+prod `build` clean.
+  - **▶ Next:** Adrian on-device QA (weight optimistic add/edit/delete + rollback; legal
+    pages; Home still hydrates) → address any CodeRabbit round-2 → merge PR #18.
 
 - **Home ⇄ Protocol/Stock sync + reinstall-proof delete (2026-06-20, Adrian + Claude)
   — `tsc`+`lint`+prod `build` clean (31 routes); `profile_protocol_migrated_at`
