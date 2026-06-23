@@ -13,10 +13,10 @@
 --  carries the real CRON_SECRET as the Bearer token. Do NOT commit the real secret;
 --  it lives only in the cron.job command (service-role-readable) + Vercel env.
 --
---  NOTE: schedule is '* * * * *' (every minute) during testing. Relax to
---  '*/15 * * * *' for steady state — a daily reminder only needs to fire within a
---  few minutes of its set time. To change: cron.unschedule('reminder-runner') then
---  re-run cron.schedule with the new cadence.
+--  NOTE: schedule is '*/15 * * * *' (every 15 min, steady state — relaxed from
+--  '* * * * *' after testing on 2026-06-23). A daily reminder only needs to fire
+--  within a few minutes of its set time. To change: cron.unschedule('reminder-runner')
+--  then re-run cron.schedule with the new cadence.
 -- ============================================================
 
 -- (extensions, enabled separately)
@@ -25,7 +25,7 @@
 
 select cron.schedule(
   'reminder-runner',
-  '* * * * *',
+  '*/15 * * * *',
   $cron$
   select net.http_post(
     url := 'https://trackdco.app/api/notifications/run',
