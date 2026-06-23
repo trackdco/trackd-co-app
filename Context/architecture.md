@@ -246,9 +246,15 @@ reminders, and storing each user's timezone (defaults to Sydney until then).
     projected-empty read ONLY from `v_inventory_math` (never recomputed); add-stock branches
     the 3-way type union (reconstituted / preconcentrated / oral_solid; refill = a NEW row,
     archive = `is_active=false`, never hard-delete). Each card shows a **neutral fullness bar**
-    (`remaining_base/total_base`, white on a track — no good/bad colour). Stock can also be
-    logged **inline when adding a compound** (`AddCompoundSheet` has an optional "Got a vial?"
-    step). Runway is shown **neutrally**. The cycle carries an optional free-text **description**
+    (`remaining_base/total_base`, white on a track — no good/bad colour). **Part-used vials**
+    (`supabase/protocol/002_inventory_partial_fill.sql`): a vial need not start full — the
+    AddStockSheet's "How much is in it?" control (Full/¾/½/¼ presets or an exact amount-left in
+    the vial's own measure) maps the estimate to a stored raw input
+    `inventory_items.prior_used_base` (base-unit amount already gone; NULL = full), which
+    `v_inventory_math` folds into remaining (`remaining = total − prior_used − consumed`).
+    `total_base` stays the TRUE full capacity, so the fullness bar and runway stay honest.
+    Stock can also be logged **inline when adding a compound** (`AddCompoundSheet` has an
+    optional "Got a vial?" step — this inline path still starts full). Runway is shown **neutrally**. The cycle carries an optional free-text **description**
     (`cycles.notes`) shown under the Plan header. The dose-plan is never labelled "protocol" in
     UI (it's "Plan"/"Cycle").
     A dev-only `/preview/protocol` (mock data, 404 in prod) renders the screen without auth.
@@ -474,7 +480,9 @@ scheduling is Phase 2.
    `v_inventory_math`. The calendar and today-dashboard are computed from
    schedules + logs. Editing, undoing, or skipping a dose must reflow
    everything by recomputation — never by a stored figure or a trigger that
-   mutates a balance.
+   mutates a balance. (A vial's `prior_used_base` is the part-used *starting*
+   offset — a raw INPUT, not a stored balance; the view still derives remaining
+   from it as `total − prior_used − consumed`.)
 2. **RLS on every table, always `(SELECT auth.uid())`.** No table ships without
    row-level policies. Views stay `security_invoker = true`. `SECURITY DEFINER`
    functions pin `search_path = ''`. Cross-user reads must be impossible.

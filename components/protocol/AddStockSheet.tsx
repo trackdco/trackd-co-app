@@ -26,6 +26,7 @@ import {
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { routesOf } from "@/lib/compound-categories"
 import { todayKey } from "@/lib/protocol/cycle"
+import { resolveFill, vialBasis, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 
 const EMPTY: StackCompound[] = []
@@ -204,12 +205,50 @@ function AddStockForm({
     ei?.totalAmountUnit === "capsule" ? "capsule" : "tab",
   )
   const [strength, setStrength] = useState(numStr(ei?.strengthPerUnitMg))
+  // "How much is in it?" — a Full/¾/½/¼ preset, or an exact amount-left in the
+  // vial's own measure (mL of solution, or tab/cap count). An exact entry overrides
+  // the preset. Both fold into prior_used_base on save; default Full = no change.
+  const [fillPreset, setFillPreset] = useState(1)
+  const [exactLeft, setExactLeft] = useState(() => {
+    // Editing a part-used vial: pre-fill the amount that was left when it was added
+    // (its starting fill — prior_used_base is the offset, independent of doses since).
+    if (!ei || ei.priorUsedBase == null || ei.priorUsedBase <= 0) return ""
+    const basis = vialBasis(ei.inventoryType, {
+      powder: ei.inventoryType === "reconstituted" ? (ei.totalAmount ?? 0) : 0,
+      bacWater: ei.bacWaterMl ?? 0,
+      oilMl: ei.inventoryType === "preconcentrated" ? (ei.totalAmount ?? 0) : 0,
+      concentration: ei.concentrationMgPerMl ?? 0,
+      count: ei.inventoryType === "oral_solid" ? (ei.totalAmount ?? 0) : 0,
+      strength: ei.strengthPerUnitMg ?? 0,
+    })
+    if (!basis || basis.perNative <= 0) return ""
+    const left = (basis.totalBase - ei.priorUsedBase) / basis.perNative
+    if (!(left > 0)) return ""
+    return ei.inventoryType === "oral_solid" ? String(Math.round(left)) : String(round3(left))
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // The "how much is in it?" estimate → the stored part-vial offset (base-unit amount
+  // already gone). Full (or no inputs yet) → null, the existing full-vial behaviour.
+  const fill = resolveFill(
+    type,
+    {
+      powder: num(powder),
+      bacWater: num(bacWater),
+      oilMl: num(oilMl),
+      concentration: num(concentration),
+      count: num(count),
+      strength: num(strength),
+    },
+    exactLeft,
+    fillPreset,
+  )
 
   function buildInsert(): StockInsert | null {
     if (!compoundId) return null
     const base = { id: crypto.randomUUID(), protocol_compound_id: compoundId }
+    const prior_used_base = fill.priorUsed
     if (type === "reconstituted") {
       if (num(powder) <= 0 || num(bacWater) <= 0) return null
       return {
@@ -220,6 +259,7 @@ function AddStockForm({
         total_amount_unit: powderUnit,
         bac_water_ml: num(bacWater),
         reconstituted_on: todayKey(),
+        prior_used_base,
       }
     }
     if (type === "preconcentrated") {
@@ -231,6 +271,7 @@ function AddStockForm({
         total_amount: num(oilMl),
         total_amount_unit: "ml",
         concentration_mg_per_ml: num(concentration),
+        prior_used_base,
       }
     }
     if (num(count) <= 0 || num(strength) <= 0) return null
@@ -241,12 +282,17 @@ function AddStockForm({
       total_amount: num(count),
       total_amount_unit: oralForm as DoseUnit,
       strength_per_unit_mg: num(strength),
+      prior_used_base,
     }
   }
 
   const insert = buildInsert()
   const allowedForms = formsForId(compoundId)
   const formsToShow = picker === "all" ? ALL_FORMS : allowedForms
+
+  // Live "how much is in it?" feedback: the picker only appears once the type's
+  // amounts are entered (no capacity → nothing to be a fraction of).
+  const fillUnit = type === "oral_solid" ? oralForm : "mL"
 
   async function save() {
     if (!insert) return
@@ -443,6 +489,43 @@ function AddStockForm({
                   <span className={LABEL}>Strength (mg each)</span>
                   <input value={strength} onChange={(e) => setStrength(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 25" className={FIELD} />
                 </label>
+              </div>
+            )}
+
+            {/* How much is in it? — start a part-used vial at the right level rather
+                than assuming it's full. Full = no offset (existing behaviour). */}
+            {fill.basis && (
+              <div className="space-y-2 rounded-2xl bg-bg-surface-raised/40 p-3">
+                <span className={LABEL}>How much is in it?</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {FILL_PRESETS.map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => {
+                        setFillPreset(p.f)
+                        setExactLeft("")
+                      }}
+                      className={pill(!fill.exactActive && fillPreset === p.f)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  <span className="text-xs text-text-subtle">or</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      value={exactLeft}
+                      onChange={(e) => setExactLeft(clean(e.target.value))}
+                      inputMode="decimal"
+                      placeholder={String(round3(fill.basis.fullNative))}
+                      className={cn(FIELD, "h-10 w-20")}
+                    />
+                    <span className="whitespace-nowrap text-xs text-text-subtle">{fillUnit} left</span>
+                  </div>
+                </div>
+                {fill.percent != null && (
+                  <p className="text-xs text-text-muted">≈ {Math.round(fill.percent)}% full</p>
+                )}
               </div>
             )}
           </>

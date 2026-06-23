@@ -44,6 +44,9 @@ export interface StockItem {
   bacWaterMl: number | null
   concentrationMgPerMl: number | null
   strengthPerUnitMg: number | null
+  /** Base-unit amount already used when the vial was added part-used (NULL = full).
+   *  A raw INPUT folded into remaining by v_inventory_math — never a stored balance. */
+  priorUsedBase: number | null
   // derived (v_inventory_math) — never recomputed in TS:
   remainingDisplay: number | null
   dosesRemaining: number | null
@@ -69,6 +72,8 @@ export interface StockInsert {
   concentration_mg_per_ml?: number | null
   strength_per_unit_mg?: number | null
   reconstituted_on?: string | null
+  /** Base-unit amount already gone when added part-used (NULL/0 = a full vial). */
+  prior_used_base?: number | null
 }
 
 /**
@@ -88,7 +93,7 @@ export async function listStock(): Promise<StockItem[]> {
         // compound on Home (which sets/clears its protocol_compounds row) drops its
         // vial from Stock too, so Stock can never show a compound Home doesn't.
         .select(
-          "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, protocol_compounds!inner(is_active, compounds(name, category))"
+          "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, prior_used_base, protocol_compounds!inner(is_active, compounds(name, category))"
         )
         .eq("user_id", ctx.userId)
         .eq("is_active", true)
@@ -134,6 +139,7 @@ export async function listStock(): Promise<StockItem[]> {
         bacWaterMl: num(r.bac_water_ml),
         concentrationMgPerMl: num(r.concentration_mg_per_ml),
         strengthPerUnitMg: num(r.strength_per_unit_mg),
+        priorUsedBase: num(r.prior_used_base),
         remainingDisplay: num(m.remaining_display),
         dosesRemaining: num(m.doses_remaining),
         estEmptyDate: (m.est_empty_date as string | null) ?? null,
@@ -215,6 +221,7 @@ export async function updateStockItem(
         concentration_mg_per_ml: row.concentration_mg_per_ml ?? null,
         strength_per_unit_mg: row.strength_per_unit_mg ?? null,
         reconstituted_on: row.reconstituted_on ?? null,
+        prior_used_base: row.prior_used_base ?? null,
       })
       .eq("id", id)
       .eq("user_id", ctx.userId)

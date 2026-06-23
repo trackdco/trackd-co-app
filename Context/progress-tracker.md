@@ -30,6 +30,24 @@ Last updated: 2026-06-23
 
 ## Completed
 
+- **Stock — part-used vials ("How much is in it?") (2026-06-23, Adrian + Claude)
+  — `tsc`+`lint`+prod `build` clean; migration `inventory_partial_fill` APPLIED LIVE
+  + verified.** A vial no longer has to start full. BOTH add-stock paths — the Stock
+  tab's `AddStockSheet` and the inline "Got a vial?" step in `AddCompoundSheet` — gained
+  a "How much is in it?" control (Full/¾/½/¼ presets or an exact amount-left in the
+  vial's own measure — mL or tab/cap count) with a live "≈ N% full" readout. The shared
+  maths live in `lib/protocol/vialFill.ts` (`resolveFill`). The estimate is stored as a
+  single raw INPUT, `inventory_items.prior_used_base` (base-unit amount already gone;
+  NULL = full), and `v_inventory_math` folds it into remaining
+  (`remaining = total − prior_used − consumed`, clamped ≥ 0). `total_base` stays the
+  TRUE full capacity, so the fullness bar and runway read honestly (a half-full vial
+  shows ~50%). Migration `supabase/protocol/002_inventory_partial_fill.sql` (additive
+  nullable column + CHECK ≥ 0 + `CREATE OR REPLACE VIEW`, output columns unchanged so the
+  `authenticated` SELECT grant + `security_invoker` survive — all verified post-apply).
+  AddStockSheet's edit path pre-fills the starting amount-left; default Full = zero
+  behaviour change. Approach chosen by Adrian over "enter what's left as the total" and a
+  synthetic opening-balance dose.
+
 - **Splash video — Kyle the vial (2026-06-23, Adrian + Claude) — `tsc`+`lint`
   clean; dev smoke test passed.** Replaced the perceived "trackd logo splash"
   with a full-screen muted-autoplay video of Kyle the vial

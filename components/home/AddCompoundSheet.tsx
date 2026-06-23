@@ -6,6 +6,7 @@ import { Pencil, Plus, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
+import { resolveFill, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
 import { newId } from "@/lib/home/id"
 import { pushProtocolCompound } from "@/lib/home/protocolSync"
 import {
@@ -306,6 +307,10 @@ function AddCompoundBody({
   const [stCount, setStCount] = useState("")
   const [stForm, setStForm] = useState<"tab" | "capsule">("tab")
   const [stStrength, setStStrength] = useState("")
+  // "How much is in it?" — same part-used estimate as the Stock tab (Full/¾/½/¼ or an
+  // exact amount-left). Default Full = no offset, the prior full-vial behaviour.
+  const [stFillPreset, setStFillPreset] = useState(1)
+  const [stExactLeft, setStExactLeft] = useState("")
 
   const [now] = useState(() => new Date())
   const [initial] = useState(() => initSchedule(source.schedule, now))
@@ -379,13 +384,29 @@ function AddCompoundBody({
       ? []
       : upcomingDoseDates(previewSchedule, dateKeyToDate(startDate), 4)
 
+  // The part-used estimate for the inline vial (mirrors the Stock tab). When the
+  // compound isn't stockable (stockType ""), the control is hidden and the insert is
+  // null, so the fallback type here is inert.
+  const stockFill = resolveFill(
+    stockType === "" ? "reconstituted" : stockType,
+    {
+      powder: amt(stPowder),
+      bacWater: amt(stBac),
+      oilMl: amt(stMl),
+      concentration: amt(stConc),
+      count: amt(stCount),
+      strength: amt(stStrength),
+    },
+    stExactLeft,
+    stFillPreset,
+  )
+  const stFillUnit = stockType === "oral_solid" ? stForm : "mL"
+
   function buildStockInsert():
     | Omit<StockInsert, "id" | "protocol_compound_id">
     | null {
-    const n = (s: string) => {
-      const v = Number.parseFloat(s)
-      return Number.isFinite(v) ? v : 0
-    }
+    const n = amt
+    const prior_used_base = stockFill.priorUsed
     if (stockType === "reconstituted") {
       if (n(stPowder) <= 0 || n(stBac) <= 0) return null
       return {
@@ -395,6 +416,7 @@ function AddCompoundBody({
         total_amount_unit: stPowderUnit,
         bac_water_ml: n(stBac),
         reconstituted_on: todayKey,
+        prior_used_base,
       }
     }
     if (stockType === "preconcentrated") {
@@ -405,6 +427,7 @@ function AddCompoundBody({
         total_amount: n(stMl),
         total_amount_unit: "ml",
         concentration_mg_per_ml: n(stConc),
+        prior_used_base,
       }
     }
     if (stockType === "oral_solid") {
@@ -415,6 +438,7 @@ function AddCompoundBody({
         total_amount: n(stCount),
         total_amount_unit: stForm,
         strength_per_unit_mg: n(stStrength),
+        prior_used_base,
       }
     }
     return null
@@ -908,9 +932,46 @@ function AddCompoundBody({
                     </label>
                   </div>
                 )}
-                <p className="text-xs text-text-subtle">
-                  Starts full, then counts down as you log doses from it (see the Stock tab).
-                </p>
+                {/* How much is in it? — start a part-used vial at the right level. */}
+                {stockFill.basis && (
+                  <div className="space-y-2 border-t border-border-default/60 pt-3">
+                    <span className="block text-xs text-text-muted">How much is in it?</span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {FILL_PRESETS.map((p) => (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={() => {
+                            setStFillPreset(p.f)
+                            setStExactLeft("")
+                          }}
+                          className={cn(
+                            STOCK_PILL,
+                            !stockFill.exactActive && stFillPreset === p.f
+                              ? STOCK_PILL_ON
+                              : STOCK_PILL_OFF,
+                          )}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                      <span className="text-xs text-text-subtle">or</span>
+                      <Input
+                        inputMode="decimal"
+                        value={stExactLeft}
+                        onChange={(e) => setStExactLeft(sanitizeDoseInput(e.target.value))}
+                        placeholder={String(round3(stockFill.basis.fullNative))}
+                        className="h-10 w-16 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input"
+                      />
+                      <span className="whitespace-nowrap text-xs text-text-subtle">{stFillUnit} left</span>
+                    </div>
+                    {stockFill.percent != null && (
+                      <p className="text-xs text-text-subtle">
+                        ≈ {Math.round(stockFill.percent)}% full · counts down as you log doses.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -922,6 +983,12 @@ function AddCompoundBody({
       </div>
     </div>
   )
+}
+
+/** Parse a numeric input string to a finite number (0 when blank/invalid). */
+function amt(s: string): number {
+  const v = Number.parseFloat(s)
+  return Number.isFinite(v) ? v : 0
 }
 
 const STOCK_PILL = "rounded-full border px-2.5 py-1 text-sm transition-colors"
