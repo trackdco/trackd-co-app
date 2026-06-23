@@ -121,13 +121,15 @@ function Toggle({
       aria-label="Notifications"
       disabled={busy}
       onClick={onClick}
-      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-60 ${
         on ? "bg-accent-amber" : "bg-bg-input border border-border-strong"
       }`}
     >
+      {/* Knob: flex-centered vertically; travel is exact so the 4px inset is equal
+          on both ends (off → translate-x-1, on → translate-x-6) — no overflow. */}
       <span
-        className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${
-          on ? "translate-x-[1.375rem]" : "translate-x-1"
+        className={`pointer-events-none inline-block size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          on ? "translate-x-6" : "translate-x-1"
         }`}
       />
     </button>

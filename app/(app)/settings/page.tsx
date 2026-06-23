@@ -85,15 +85,18 @@ export default async function SettingsPage() {
         }}
       />
 
-      {/* Notifications (Spec 14) — the Settings entry point for push. */}
-      <h2 className="mt-8 text-xs uppercase tracking-[0.18em] text-text-muted">
-        Notifications
-      </h2>
-      <div className="mt-3">
-        <NotificationsToggle
-          initialEnabled={Boolean(profile?.notifications_enabled)}
-        />
-      </div>
+      {/* Notifications (Spec 14) — its own section, divided off from the
+          About-you form above so it doesn't read as part of "Save changes". */}
+      <section className="mt-10 border-t border-border/60 pt-8">
+        <h2 className="text-xs uppercase tracking-[0.18em] text-text-muted">
+          Notifications
+        </h2>
+        <div className="mt-3">
+          <NotificationsToggle
+            initialEnabled={Boolean(profile?.notifications_enabled)}
+          />
+        </div>
+      </section>
 
       <div className="mt-10 flex flex-col gap-3 text-sm text-text-muted">
         <Link href="/dashboard" className="hover:text-foreground">
