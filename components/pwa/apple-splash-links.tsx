@@ -21,12 +21,13 @@
 const SPLASHES = [
   { w: 375, h: 667, dpr: 2, file: "750-1334" }, // SE 2nd/3rd
   { w: 414, h: 896, dpr: 2, file: "828-1792" }, // 11 / XR
-  { w: 390, h: 844, dpr: 3, file: "1170-2532" }, // 12/13/14, 12/13 Pro
+  { w: 390, h: 844, dpr: 3, file: "1170-2532" }, // 12/13/14, 12/13 Pro, 16e
   { w: 393, h: 852, dpr: 3, file: "1179-2556" }, // 14 Pro, 15, 15 Pro, 16
-  { w: 402, h: 874, dpr: 3, file: "1206-2622" }, // 16 Pro
+  { w: 402, h: 874, dpr: 3, file: "1206-2622" }, // 16 Pro, 17, 17 Pro
+  { w: 420, h: 912, dpr: 3, file: "1260-2736" }, // iPhone Air (17 gen)
   { w: 428, h: 926, dpr: 3, file: "1284-2778" }, // 14 Plus
   { w: 430, h: 932, dpr: 3, file: "1290-2796" }, // 14/15 Pro Max, 15/16 Plus
-  { w: 440, h: 956, dpr: 3, file: "1320-2868" }, // 16 Pro Max
+  { w: 440, h: 956, dpr: 3, file: "1320-2868" }, // 16 Pro Max, 17 Pro Max
 ] as const;
 
 export function AppleSplashLinks() {

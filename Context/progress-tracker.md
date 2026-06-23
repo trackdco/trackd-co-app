@@ -102,6 +102,18 @@ Last updated: 2026-06-23
     (frame 0 == poster == launch image, so the reveal is invisible). If autoplay
     is blocked the still just stays — never black. Dropped the redundant
     `<video poster>` (the img is the bridge). `lint` clean; pushed to prod.
+  - **Follow-up (2026-06-23): black-then-Kyle on iPhone Air — missing launch
+    image.** iOS exact-matches `apple-touch-startup-image` on device dims with no
+    fallback, so the new iPhone Air (420×912 @3x = 1260×2736 — a brand-new form
+    factor) had NO matching image and iOS painted the `#111110` background (reads
+    as black) until JS mounted the poster. The 17/17 Pro (402×874) and 17 Pro Max
+    (440×956) already matched existing entries; only the Air was a gap. Added the
+    `1260-2736` entry to `apple-splash-links.tsx` and generated
+    `public/splash/apple-splash-1260-2736.png` from frame 0 with the SAME recipe
+    (verified: it reproduces all 8 existing PNGs byte-for-byte — frame0 scaled to
+    `floor(0.58·H)` rounded down to even, centered on black). `tsc`+`lint` clean.
+    NOTE: an already-installed PWA caches the startup links — Adrian must remove
+    and re-add the home-screen app to pick up the new image.
 - **Spec 14 — Push Notifications, Phase 2 (reminder scheduler), founders-first
   (2026-06-23, Adrian + Claude) — `tsc`+`lint`+prod `build` clean;
   `reminder_scheduling_prefs` migration applied LIVE; shipping in a PR; ▶ cron
