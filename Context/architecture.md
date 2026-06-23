@@ -39,11 +39,16 @@ at most once per local day (dedupe stamps on `notification_preferences`). The
 compute+send engine (`lib/notifications/`) is shared by a **test harness** (the
 Settings "Send a test notification" button, force-sends the current user's real
 reminders) and a secured cron route (`/api/notifications/run`, founders-only). See
-**Push Notifications** below. **Activation still pending:** a Supabase `pg_cron`
-job to call the route every ~15 min + the `SUPABASE_SECRET_KEY`/`CRON_SECRET` env
-vars (the test harness works without them). **Still out of scope:** per-compound
-dose times (we store which DAYS a dose is due, not a per-dose time) and the
-journal/weekly-recap reminders.
+**Push Notifications** below. **The scheduler is now LIVE + verified end-to-end
+(2026-06-23):** a Supabase `pg_cron` job (`reminder-runner`) POSTs the route via
+`pg_net`, with `SUPABASE_SECRET_KEY` + `CRON_SECRET` in Vercel and a
+`service_role` table grant (`supabase/grants/002` — the project had never granted
+`service_role` since nothing server-side used it; the scheduler was the first, so
+its reads `42501`'d until granted). Confirmed: cron run `succeeded`, route `200`, a
+real reminder delivered. The cron is on `* * * * *` (every minute) during testing
+— relax to `*/15` for steady state. **Still out of scope:** per-compound dose times
+(we store which DAYS a dose is due, not a per-dose time), the journal/weekly-recap
+reminders, and storing each user's timezone (defaults to Sydney until then).
 
 ## System Boundaries
 
@@ -413,8 +418,11 @@ scheduling is Phase 2.
   `notification_preferences` (per-type toggles + `reminder_time` + quiet window +
   dedupe stamps, `supabase/notifications/002`), edited via
   `components/settings/ReminderSettings.tsx`. The scheduler reuses the same VAPID
-  secrets as the in-app sender; it just needs a `pg_cron` job + `SUPABASE_SECRET_KEY`
-  / `CRON_SECRET` to go live.
+  secrets as the in-app sender. It is **live**: the `reminder-runner` pg_cron job
+  (`supabase/notifications/003`) POSTs the route via `pg_net`, authed with
+  `CRON_SECRET`; the route uses `SUPABASE_SECRET_KEY` (service role, granted in
+  `supabase/grants/002`) to read across founders. Verified end-to-end
+  (cron `succeeded`, `200`, reminder delivered).
 
 ## Auth and Access Model
 

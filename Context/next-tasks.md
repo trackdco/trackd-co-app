@@ -34,19 +34,24 @@ force-sends your REAL reminders (the test harness Adrian asked for). Full detail
 2. Settings → **Reminders** card: toggle the 3 types, set your daily time + quiet
    hours → Save. (These drive the automatic scheduler once it's on.)
 
-**▶ To turn ON the AUTOMATIC scheduler (founder steps — then I wire pg_cron):**
-1. In Vercel, set two env vars (Production):
-   - `SUPABASE_SECRET_KEY` — from Supabase dashboard → Settings → API → secret key.
-   - `CRON_SECRET` — the value is in `.env.vapid` / `.env.local` (gitignored).
-   Redeploy.
-2. Tell me they're set — I'll create the Supabase `pg_cron` job (via MCP) to POST
-   `/api/notifications/run` every ~15 min with the `CRON_SECRET`. Then dose
-   reminders fire at each founder's chosen local time automatically.
-   (Until then, the **test button** exercises the exact same engine on demand.)
+**✅ AUTOMATIC scheduler is LIVE + verified end-to-end (2026-06-23).** Adrian set
+`SUPABASE_SECRET_KEY` + `CRON_SECRET` in Vercel; I enabled pg_cron/pg_net, granted
+`service_role` (it had never been granted — the scheduler 42501'd until
+`supabase/grants/002`), and created the `reminder-runner` cron. Confirmed: real run
+`sent:1`, cron `succeeded`, route `200`, reminder delivered to Adrian's phone.
+
+**▶ Small follow-ups (not blocking):**
+1. **Relax the cron cadence** from `* * * * *` (every minute, testing) to `*/15`
+   once Adrian's done poking at it: `select cron.unschedule('reminder-runner');`
+   then re-`cron.schedule` with `*/15 * * * *` (same command).
+2. **Store each user's timezone** (capture `Intl…timeZone` on subscribe → write
+   `profiles.timezone`) so reminder times honour the user's real local clock instead
+   of the Sydney default. Fine for AU founders now; needed before opening up.
+3. **Open the rollout** beyond founders: flip `FOUNDERS_ONLY = false` in
+   `app/api/notifications/run/route.ts` when ready (then it pages all opted-in users).
 
 **Out of scope still:** per-compound dose TIMES (we store which days a dose is due,
-not a time per dose) + the journal/weekly-recap reminders. Flip `FOUNDERS_ONLY` in
-the cron route to open scheduled reminders to all opted-in users later.
+not a time per dose) + the journal/weekly-recap reminders.
 
 ---
 
