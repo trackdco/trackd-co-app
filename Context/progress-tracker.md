@@ -338,15 +338,16 @@ Last updated: 2026-06-23
   bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, total_amount_unit)
   for pre-fill. Files: `lib/db/inventory.ts`, `components/protocol/{AddStockSheet,
   StockItemCard,StockView}.tsx`, `app/preview/protocol/preview.tsx`.
-- **Founder welcome popup (dormant) (2026-06-20, Adrian + Claude) — `tsc`+`lint`+
-  prod `build` clean; `profiles.welcome_seen_at` applied LIVE; deployed.** One-time
-  centered modal (message + embedded unlisted founder video) on first sign-in,
-  once per account (cross-device). Ships DORMANT — only appears once
-  `WELCOME_VIDEO_EMBED_URL` is set in `lib/welcomeVideo.ts` (so the seen-once flag
-  isn't spent early). Dismiss (button/X/backdrop) → `markWelcomeSeen` stamps the
-  flag. Files: `lib/welcomeVideo.ts`, `lib/db/welcome.ts`,
-  `components/welcome/WelcomeVideoPopup.tsx`, `app/(app)/dashboard/page.tsx`,
-  `supabase/profile/003_welcome_seen.sql`. ▶ Adrian: record video → paste embed URL.
+- **Founder welcome popup — REMOVED (2026-06-23, Adrian + Claude) —
+  `tsc`+`lint` clean.** Decision: the founder video is sent individually to each
+  tester instead of living in the app, so the one-time popup was dropped. Deleted
+  `lib/welcomeVideo.ts`, `lib/db/welcome.ts`, `components/welcome/` (whole dir),
+  and unwired it from `app/(app)/dashboard/page.tsx` (the only render site;
+  dropped the `welcome_seen_at` select + `showWelcome` gate). The feature never
+  actually showed in prod — it shipped DORMANT (`WELCOME_VIDEO_EMBED_URL = null`),
+  so `profiles.welcome_seen_at` was never populated. The column + its
+  `003_welcome_seen.sql` migration are LEFT IN PLACE (harmless, never-written
+  nullable column; kept as applied-migration history) — drop later if desired.
 - **Permanent feedback in Profile + sheet keyboard fix (2026-06-20, Adrian +
   Claude) — `tsc`+`lint`+prod `build` clean; deployed.**
   - **Profile → App → "Send feedback"** row (`components/profile/ProfileFeedbackRow.tsx`,
