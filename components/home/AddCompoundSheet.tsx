@@ -880,7 +880,7 @@ function AddCompoundBody({
                 onClick={() => setAddStockOn(true)}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border-strong bg-bg-input py-3 text-sm text-text-muted transition-colors hover:text-foreground"
               >
-                <Plus className="h-4 w-4" aria-hidden /> Got a vial? Log how much you have
+                <Plus className="h-4 w-4" aria-hidden /> Got a vial? Log how much you have left
               </button>
             ) : (
               <div className="space-y-3 rounded-xl border border-border-default bg-bg-input/40 p-3">
@@ -932,46 +932,67 @@ function AddCompoundBody({
                     </label>
                   </div>
                 )}
-                {/* How much is in it? — start a part-used vial at the right level. */}
-                {stockFill.basis && (
-                  <div className="space-y-2 border-t border-border-default/60 pt-3">
-                    <span className="block text-xs text-text-muted">How much is in it?</span>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {FILL_PRESETS.map((p) => (
-                        <button
-                          key={p.label}
-                          type="button"
-                          onClick={() => {
-                            setStFillPreset(p.f)
-                            setStExactLeft("")
-                          }}
-                          className={cn(
-                            STOCK_PILL,
-                            !stockFill.exactActive && stFillPreset === p.f
-                              ? STOCK_PILL_ON
-                              : STOCK_PILL_OFF,
-                          )}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                      <span className="text-xs text-text-subtle">or</span>
-                      <Input
-                        inputMode="decimal"
-                        value={stExactLeft}
-                        onChange={(e) => setStExactLeft(sanitizeDoseInput(e.target.value))}
-                        placeholder={String(round3(stockFill.basis.fullNative))}
-                        className="h-10 w-16 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input"
-                      />
-                      <span className="whitespace-nowrap text-xs text-text-subtle">{stFillUnit} left</span>
-                    </div>
-                    {stockFill.percent != null && (
+                {/* How much is in it? — always shown when the vial panel is open (not
+                    hidden until the amounts are typed), so the part-full option is
+                    discoverable straight away. The presets/bar light up once there's a
+                    capacity to take a fraction of. */}
+                <div className="space-y-2 border-t border-border-default/60 pt-3">
+                  <FieldLabel>How much is in it?</FieldLabel>
+                  {stockFill.basis ? (
+                    <>
+                      {/* Neutral fullness gauge — the same calm bar as the Stock card. */}
+                      <div
+                        className="h-1.5 overflow-hidden rounded-full bg-bg-surface-raised"
+                        role="progressbar"
+                        aria-valuenow={Math.round(stockFill.percent ?? 100)}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label="Vial fullness"
+                      >
+                        <div
+                          className="h-full rounded-full bg-foreground/80 transition-[width] duration-300 ease-out"
+                          style={{ width: `${stockFill.percent ?? 100}%` }}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {FILL_PRESETS.map((p) => (
+                          <button
+                            key={p.label}
+                            type="button"
+                            onClick={() => {
+                              setStFillPreset(p.f)
+                              setStExactLeft("")
+                            }}
+                            className={cn(
+                              STOCK_PILL,
+                              !stockFill.exactActive && stFillPreset === p.f
+                                ? STOCK_PILL_ON
+                                : STOCK_PILL_OFF,
+                            )}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                        <span className="text-xs text-text-subtle">or</span>
+                        <Input
+                          inputMode="decimal"
+                          value={stExactLeft}
+                          onChange={(e) => setStExactLeft(sanitizeDoseInput(e.target.value))}
+                          placeholder={String(round3(stockFill.basis.fullNative))}
+                          className="h-10 w-16 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input"
+                        />
+                        <span className="whitespace-nowrap text-xs text-text-subtle">{stFillUnit} left</span>
+                      </div>
                       <p className="text-xs text-text-subtle">
-                        ≈ {Math.round(stockFill.percent)}% full · counts down as you log doses.
+                        ≈ {Math.round(stockFill.percent ?? 100)}% full · counts down as you log doses.
                       </p>
-                    )}
-                  </div>
-                )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-text-subtle">
+                      Enter the vial’s details above, then set how full it is — defaults to full.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>
