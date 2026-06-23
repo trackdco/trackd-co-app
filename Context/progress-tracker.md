@@ -345,9 +345,10 @@ Last updated: 2026-06-23
   and unwired it from `app/(app)/dashboard/page.tsx` (the only render site;
   dropped the `welcome_seen_at` select + `showWelcome` gate). The feature never
   actually showed in prod — it shipped DORMANT (`WELCOME_VIDEO_EMBED_URL = null`),
-  so `profiles.welcome_seen_at` was never populated. The column + its
-  `003_welcome_seen.sql` migration are LEFT IN PLACE (harmless, never-written
-  nullable column; kept as applied-migration history) — drop later if desired.
+  so `profiles.welcome_seen_at` was never populated. Also dropped that column
+  LIVE via `005_remove_welcome_seen.sql` (MCP `apply_migration`; verified gone, 0
+  rows lost, nothing depended on it). `003_welcome_seen.sql` is kept as
+  applied-migration history; the 005 drop reverses it.
 - **Permanent feedback in Profile + sheet keyboard fix (2026-06-20, Adrian +
   Claude) — `tsc`+`lint`+prod `build` clean; deployed.**
   - **Profile → App → "Send feedback"** row (`components/profile/ProfileFeedbackRow.tsx`,
