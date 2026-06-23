@@ -8,10 +8,12 @@
  * every modern iPhone. `media` is in LOGICAL points; the PNG is PHYSICAL pixels
  * (logical × DPR). Each PNG has the Trackd mark baked onto #111110.
  *
- * Each PNG is frame 0 of the Kyle-the-vial splash clip, cover-cropped to the
- * device's physical resolution — so a cold launch opens straight on the video's
- * first frame and hands off seamlessly to the playing <video> (SplashScreen),
- * with no Trackd-logo screen in between.
+ * Each PNG is frame 0 of the Kyle-the-vial splash clip, fit (object-contain)
+ * into the device's physical resolution and letterboxed on black — matching the
+ * SplashScreen <video> (also object-contain on black) — so a cold launch opens
+ * straight on the video's first frame and hands off seamlessly to the playing
+ * clip, with no Trackd-logo screen in between. The clip's own background is pure
+ * black, so the letterbox is invisible.
  *
  * Rendered from the root layout; React hoists these <link> tags into <head>.
  * Portrait-only (an installed PWA cold-launches in portrait virtually always).

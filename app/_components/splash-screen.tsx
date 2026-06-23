@@ -13,9 +13,11 @@ import { useEffect, useRef, useState } from "react";
  * not on client-side navigations (the root layout island stays mounted across
  * App Router navs). Mobile only — desktop gets the interstitial instead.
  *
- * The overlay sits on `bg-background` (the same near-black #111110 as the
- * native PWA launch image that renders behind it), so there's no seam before
- * the first video frame paints, and the fade lands seamlessly on the app canvas.
+ * The clip is shown `object-contain` (the whole frame, so Kyle reads a touch
+ * smaller) on pure black. The clip's own background is pure #000, so the
+ * letterbox around the contained video — and the matching black bars baked into
+ * the launch images — blend in invisibly. The final fade to the app canvas
+ * (#111110) is a soft 500ms crossfade, so the slight tonal step isn't visible.
  */
 const SPLASH_SRC = "/trackd-kyle-vial-splashback.mp4";
 // Frame 0 of the clip — also baked into the iOS launch images, so the native
@@ -76,14 +78,14 @@ export function SplashScreen() {
       onTransitionEnd={() => {
         if (fading) setDone(true);
       }}
-      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-background transition-opacity ease-out lg:hidden ${
+      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black transition-opacity ease-out lg:hidden ${
         fading ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
       style={{ transitionDuration: `${FADE_MS}ms` }}
     >
       <video
         ref={videoRef}
-        className="h-full w-full object-cover"
+        className="h-full w-full object-contain"
         src={SPLASH_SRC}
         poster={SPLASH_POSTER}
         autoPlay

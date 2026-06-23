@@ -47,6 +47,13 @@ Last updated: 2026-06-23
   launch image → poster → first played frame are identical = seamless handoff.
   Originals recoverable via git. (ffmpeg installed via brew for the frame
   extraction; macOS swift/ffprobe toolchain was broken.)
+  - **Follow-up (2026-06-23): Kyle made "a bit smaller."** Switched the video
+    from `object-cover` to `object-contain` on a pure-black overlay (was
+    `bg-background`), so the whole frame shows and Kyle reads ~18% smaller. The
+    clip's background is pure #000, so the contain letterbox is invisible.
+    Regenerated the 8 launch PNGs as contain+black-letterbox to match (handoff
+    still seamless). `lint` clean; pushed to prod — on-device re-check of the
+    smaller version pending (Adrian had verified the prior full-bleed version).
 - **Spec 14 — Push Notifications, Phase 2 (reminder scheduler), founders-first
   (2026-06-23, Adrian + Claude) — `tsc`+`lint`+prod `build` clean;
   `reminder_scheduling_prefs` migration applied LIVE; shipping in a PR; ▶ cron
