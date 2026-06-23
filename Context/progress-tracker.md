@@ -30,6 +30,23 @@ Last updated: 2026-06-23
 
 ## Completed
 
+- **Splash video — Kyle the vial (2026-06-23, Adrian + Claude) — `tsc`+`lint`
+  clean; dev smoke test passed.** Replaced the perceived "trackd logo splash"
+  with a full-screen muted-autoplay video of Kyle the vial
+  (`public/trackd-kyle-vial-splashback.mp4`, 1080×1920, ~5s, ~1.1MB H.264). New
+  client overlay `app/_components/splash-screen.tsx`, mounted once in the root
+  layout, mobile only (`lg:hidden`). Plays on load (`object-cover`), then fades
+  into the app with the existing 500ms fade **the instant the page is ready**
+  (window `load`) — not the full ~5s clip; caps at 5.5s and fades on video
+  `ended` as fallbacks. Respects `prefers-reduced-motion` (skips the clip).
+  **No trackd-logo screen on cold launch anymore:** the 8 iOS launch PNGs in
+  `public/splash/` were regenerated from **frame 0** of the clip (Kyle is fully
+  visible from frame 0 — no black fade-in/logo intro), cover-cropped per device
+  with ffmpeg so they match the video's `object-cover`. Frame 0 is also the
+  `<video poster>` (`public/trackd-kyle-vial-splash-poster.jpg`), so native
+  launch image → poster → first played frame are identical = seamless handoff.
+  Originals recoverable via git. (ffmpeg installed via brew for the frame
+  extraction; macOS swift/ffprobe toolchain was broken.)
 - **Spec 14 — Push Notifications, Phase 2 (reminder scheduler), founders-first
   (2026-06-23, Adrian + Claude) — `tsc`+`lint`+prod `build` clean;
   `reminder_scheduling_prefs` migration applied LIVE; shipping in a PR; ▶ cron
