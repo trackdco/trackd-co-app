@@ -24,11 +24,15 @@ import { createClient } from "@/lib/supabase/server";
 type Ok = { ok: boolean };
 
 // Server-side VAPID config for the in-app Phase-1 sender (the "Send test
-// notification" path). These are plain server env vars (NOT NEXT_PUBLIC) so the
-// private key never reaches the client bundle — set them in Vercel (and
-// .env.local locally). The Phase-2 scheduler uses the same secrets via the
-// send-push Edge Function (supabase/functions/send-push), for arbitrary users.
-const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY ?? "";
+// notification" path). To keep deploy simple, the public key is reused from the
+// SAME NEXT_PUBLIC value the client uses (NEXT_PUBLIC vars are also readable
+// server-side) — so Vercel only needs TWO new settings:
+// NEXT_PUBLIC_VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY (the private key stays
+// server-only, never in the bundle). VAPID_PUBLIC_KEY is an optional override.
+// VAPID_SUBJECT defaults below. The Phase-2 scheduler uses the same secrets via
+// the send-push Edge Function (supabase/functions/send-push).
+const VAPID_PUBLIC =
+  process.env.VAPID_PUBLIC_KEY ?? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? "";
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT ?? "mailto:notifications@trackdco.app";
 
