@@ -58,8 +58,12 @@ function jwtSub(token: string): string | null {
   try {
     const [, payload] = token.split(".");
     if (!payload) return null;
-    const padded = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const decoded = JSON.parse(atob(padded + "=".repeat((4 - (padded.length % 4)) % 4)));
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const bin = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+    // Decode as UTF-8 — atob yields a binary string, so JSON.parse(atob(...))
+    // would corrupt any non-ASCII claim. We only read `sub`, but be correct.
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const decoded = JSON.parse(new TextDecoder().decode(bytes));
     return typeof decoded.sub === "string" ? decoded.sub : null;
   } catch {
     return null;

@@ -176,6 +176,9 @@ export async function sendTestNotification(): Promise<Ok> {
               keys: { p256dh: s.p256dh as string, auth: s.auth as string },
             },
             body,
+            // Socket timeout (ms) so a stalled push endpoint can't pin the server
+            // action open to the platform's max function duration.
+            { timeout: 5000 },
           );
           sent += 1;
         } catch (err) {

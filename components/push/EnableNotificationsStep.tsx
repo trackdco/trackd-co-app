@@ -10,6 +10,23 @@ import { usePushNotifications } from "@/components/push/usePushNotifications";
 
 const DISMISS_KEY = "trackd:push-onboard-dismissed";
 
+// localStorage can throw in privacy-restricted contexts (Safari private mode,
+// blocked storage) — guard so a failed read/write can't crash the dashboard.
+function getDismissedFlag(): boolean {
+  try {
+    return window.localStorage.getItem(DISMISS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function setDismissedFlag() {
+  try {
+    window.localStorage.setItem(DISMISS_KEY, "1");
+  } catch {
+    // Storage unavailable — fall back to session-only dismissal.
+  }
+}
+
 /**
  * The second push entry point (Spec 14 D5) — a one-time, skippable prime shown on
  * the dashboard for a signed-in user who hasn't turned notifications on. There is
@@ -32,7 +49,7 @@ export function EnableNotificationsStep({
   const [sessionDismissed, setSessionDismissed] = useState(false);
 
   function remember() {
-    window.localStorage.setItem(DISMISS_KEY, "1");
+    setDismissedFlag();
     setSessionDismissed(true);
   }
 
@@ -44,8 +61,7 @@ export function EnableNotificationsStep({
 
   // Server + first hydration render nothing (gate on mount) to avoid a flash.
   if (!mounted) return null;
-  const persistedDismissed =
-    window.localStorage.getItem(DISMISS_KEY) === "1";
+  const persistedDismissed = getDismissedFlag();
   // Nothing to onboard: dismissed, already on, still probing, blocked, or N/A.
   if (sessionDismissed || persistedDismissed) return null;
   if (status !== "off" && status !== "ios-needs-install") return null;

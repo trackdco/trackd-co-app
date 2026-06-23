@@ -89,14 +89,24 @@ export function getCapability(): PushCapability {
   };
 }
 
-/** The registered SW, waiting until it is active so pushManager is usable. */
-async function getReadyRegistration(): Promise<ServiceWorkerRegistration | null> {
+/** The registered SW, waiting until it is active so pushManager is usable.
+ *  Bounded by a timeout: if activation never completes, resolve null rather than
+ *  hang subscribe()/unsubscribe() (and the toggle's busy state) indefinitely. */
+async function getReadyRegistration(
+  timeoutMs = 4000,
+): Promise<ServiceWorkerRegistration | null> {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
     return null;
   }
   try {
     // The (app) shell registers /sw.js; ready resolves once it controls the page.
-    return await navigator.serviceWorker.ready;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const bail = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), timeoutMs);
+    });
+    const reg = await Promise.race([navigator.serviceWorker.ready, bail]);
+    clearTimeout(timer);
+    return reg;
   } catch {
     return null;
   }
