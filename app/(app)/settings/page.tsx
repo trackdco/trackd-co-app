@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Bell, ChevronRight } from "lucide-react";
 
 import { SettingsForm } from "@/components/settings/settings-form";
-import { NotificationsToggle } from "@/components/settings/NotificationsToggle";
-import { ReminderSettings } from "@/components/settings/ReminderSettings";
+import { CARD_ICON_BADGE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -27,23 +27,10 @@ export default async function SettingsPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "sex, date_of_birth, height_cm, goal, units_preference, tier, created_at, notifications_enabled",
+      "sex, date_of_birth, height_cm, goal, units_preference, tier, created_at",
     )
     .eq("id", user.id)
     .maybeSingle();
-
-  // Reminder preferences (Spec 14, Phase 2). Times come back as "HH:MM:SS"; the
-  // time inputs want "HH:MM". Every user has a row (signup trigger); defaults guard
-  // an unexpected miss.
-  const { data: prefs } = await supabase
-    .from("notification_preferences")
-    .select(
-      "dose_reminders_on, unlogged_alert_on, low_inventory_alert_on, reminder_time, quiet_start, quiet_end",
-    )
-    .eq("user_id", user.id)
-    .maybeSingle();
-  const hhmm = (t: unknown, fallback: string) =>
-    typeof t === "string" ? t.slice(0, 5) : fallback;
 
   const fullName =
     (user.user_metadata?.full_name as string | undefined) ??
@@ -99,28 +86,28 @@ export default async function SettingsPage() {
         }}
       />
 
-      {/* Notifications (Spec 14) — its own section, divided off from the
-          About-you form above so it doesn't read as part of "Save changes". */}
-      <section className="mt-10 border-t border-border/60 pt-8">
-        <h2 className="text-xs uppercase tracking-[0.18em] text-text-muted">
-          Notifications
-        </h2>
-        <div className="mt-3">
-          <NotificationsToggle
-            initialEnabled={Boolean(profile?.notifications_enabled)}
-          />
-        </div>
-        <ReminderSettings
-          initial={{
-            doseRemindersOn: prefs?.dose_reminders_on ?? true,
-            missedOn: prefs?.unlogged_alert_on ?? true,
-            lowStockOn: prefs?.low_inventory_alert_on ?? true,
-            reminderTime: hhmm(prefs?.reminder_time, "09:00"),
-            quietStart: hhmm(prefs?.quiet_start, "22:00"),
-            quietEnd: hhmm(prefs?.quiet_end, "08:00"),
-          }}
+      {/* Notifications & reminders live on their own page (Spec 14) — a single
+          tappable row here keeps Settings focused on personalisation. */}
+      <Link
+        href="/settings/notifications"
+        className="mt-8 flex items-center gap-3 rounded-2xl border border-border bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised"
+      >
+        <span className={CARD_ICON_BADGE} aria-hidden="true">
+          <Bell className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-lg text-foreground">
+            Notifications &amp; reminders
+          </span>
+          <span className="block text-sm text-text-muted">
+            Dose reminders, missed-dose nudges, low stock
+          </span>
+        </span>
+        <ChevronRight
+          className="size-5 shrink-0 text-text-muted"
+          aria-hidden="true"
         />
-      </section>
+      </Link>
 
       <div className="mt-10 flex flex-col gap-3 text-sm text-text-muted">
         <Link href="/dashboard" className="hover:text-foreground">
