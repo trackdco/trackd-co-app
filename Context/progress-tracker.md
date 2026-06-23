@@ -46,7 +46,12 @@ Last updated: 2026-06-23
   `authenticated` SELECT grant + `security_invoker` survive — all verified post-apply).
   AddStockSheet's edit path pre-fills the starting amount-left; default Full = zero
   behaviour change. Approach chosen by Adrian over "enter what's left as the total" and a
-  synthetic opening-balance dose.
+  synthetic opening-balance dose. **Discoverability follow-up (2026-06-23, Adrian's call
+  "make it more visible"):** in the add-to-log "Got a vial?" step the "How much is in it?"
+  section now shows the moment the panel opens (with a hint until the vial size is typed)
+  rather than only after the amounts, plus a neutral fullness bar and a clearer collapsed
+  CTA ("…how much you have left"). The compound EDIT path still defers fill adjustment to
+  Protocol → Stock (Adrian opted not to add it on edit for now).
 
 - **Splash video — Kyle the vial (2026-06-23, Adrian + Claude) — `tsc`+`lint`
   clean; dev smoke test passed.** Replaced the perceived "trackd logo splash"

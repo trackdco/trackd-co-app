@@ -315,6 +315,9 @@ export function resolvedDaySite(
 export function isDueOn(schedule: Schedule, date: Date): boolean {
   const start = parseDateKey(schedule.startDate)
   const dayN = daysSinceEpoch(date)
+
+
+  
   if (start && dayN < daysSinceEpoch(start)) return false
   const anchor = start ? daysSinceEpoch(start) : 0
   const { cadence } = schedule
