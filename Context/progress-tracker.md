@@ -59,6 +59,15 @@ Last updated: 2026-06-23
     `VIDEO_HEIGHT` AND re-run the launch-PNG generation at the same %. `lint`
     clean; pushed to prod — on-device re-check pending (needs PWA re-add for the
     cold-launch frame; the playing clip updates without re-adding).
+  - **Follow-up (2026-06-23): fixed "black screen for a few seconds" on the
+    installed PWA.** On iOS standalone (worse on slow eSIM) a `<video>` renders
+    as a black box while buffering and WebKit ignores the `poster` attr, so the
+    1.1MB clip showed black before Kyle. Fix in `splash-screen.tsx`: render the
+    poster still (frame 0) as an `<img fetchPriority="high">` UNDER the video,
+    and keep the video at `opacity-0` until its `onPlaying` fires, then reveal it
+    (frame 0 == poster == launch image, so the reveal is invisible). If autoplay
+    is blocked the still just stays — never black. Dropped the redundant
+    `<video poster>` (the img is the bridge). `lint` clean; pushed to prod.
 - **Spec 14 — Push Notifications, Phase 2 (reminder scheduler), founders-first
   (2026-06-23, Adrian + Claude) — `tsc`+`lint`+prod `build` clean;
   `reminder_scheduling_prefs` migration applied LIVE; shipping in a PR; ▶ cron

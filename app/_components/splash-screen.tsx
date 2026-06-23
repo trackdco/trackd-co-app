@@ -20,6 +20,15 @@ import { useEffect, useRef, useState } from "react";
  * fraction (see components/pwa/apple-splash-links.tsx) so the cold-launch →
  * playing-clip handoff stays seamless. The final fade to the app canvas
  * (#111110) is a soft 500ms crossfade, so the slight tonal step isn't visible.
+ *
+ * Why a still <img> UNDER the <video>: on an installed iOS PWA (and on slow
+ * connections), a <video> renders as a BLACK box while it buffers and standalone
+ * WebKit often ignores the `poster` attribute — so the clip used to show a few
+ * seconds of black before Kyle appeared. Instead we show the poster still
+ * (frame 0) immediately and keep the video at opacity 0 until it's actually
+ * playing, then reveal it. Frame 0 of the clip == the poster == the launch
+ * image, so the reveal is invisible and there is never a black gap. If autoplay
+ * is blocked, the still simply stays — still Kyle, never black.
  */
 const SPLASH_SRC = "/trackd-kyle-vial-splashback.mp4";
 // Frame 0 of the clip — also baked into the iOS launch images, so the native
@@ -37,6 +46,9 @@ export function SplashScreen() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [fading, setFading] = useState(false);
   const [done, setDone] = useState(false);
+  // The video stays invisible (poster still showing through) until it actually
+  // starts playing — see the component doc comment.
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     // Respect reduced motion: skip the moving splash entirely. The app's own
@@ -81,24 +93,39 @@ export function SplashScreen() {
   return (
     <div
       aria-hidden="true"
-      onTransitionEnd={() => {
-        if (fading) setDone(true);
+      onTransitionEnd={(e) => {
+        // Only the overlay's OWN fade ends the splash — ignore the video
+        // reveal transition bubbling up from the child.
+        if (e.target === e.currentTarget && fading) setDone(true);
       }}
-      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black transition-opacity ease-out lg:hidden ${
+      className={`fixed inset-0 z-[9999] bg-black transition-opacity ease-out lg:hidden ${
         fading ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
       style={{ transitionDuration: `${FADE_MS}ms` }}
     >
+      {/* Kyle still (frame 0) — shown instantly so there's never a black gap. */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- splash bridge, must paint before hydration with no layout pipeline */}
+      <img
+        src={SPLASH_POSTER}
+        alt=""
+        fetchPriority="high"
+        className="pointer-events-none absolute left-1/2 top-1/2 max-w-full -translate-x-1/2 -translate-y-1/2 object-contain"
+        style={{ height: VIDEO_HEIGHT }}
+      />
       <video
         ref={videoRef}
-        className="w-auto max-w-full object-contain"
+        className={`pointer-events-none absolute left-1/2 top-1/2 max-w-full -translate-x-1/2 -translate-y-1/2 object-contain transition-opacity duration-300 ${
+          revealed ? "opacity-100" : "opacity-0"
+        }`}
         style={{ height: VIDEO_HEIGHT }}
         src={SPLASH_SRC}
-        poster={SPLASH_POSTER}
         autoPlay
         muted
         playsInline
         preload="auto"
+        // Reveal only once frames are actually rendering, so the black buffering
+        // box never shows; the poster still sits underneath until then.
+        onPlaying={() => setRevealed(true)}
         // If the clip finishes before the app is ready, fade out on its end
         // rather than freezing on the last frame.
         onEnded={() => setFading(true)}
