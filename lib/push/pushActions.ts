@@ -20,6 +20,7 @@ import { revalidatePath } from "next/cache";
 import webpush from "web-push";
 
 import { createClient } from "@/lib/supabase/server";
+import { isValidTimeZone } from "@/lib/notifications/reminders";
 
 type Ok = { ok: boolean };
 
@@ -42,6 +43,8 @@ export type PushSubscriptionInput = {
   p256dh: string;
   auth: string;
   userAgent?: string | null;
+  /** The device's IANA timezone, so the scheduler fires in the user's local time. */
+  timezone?: string | null;
 };
 
 /** Verified session + user id, or null when signed out. Not exported, so it is
@@ -84,9 +87,15 @@ export async function savePushSubscription(
       );
     if (subError) return { ok: false };
 
+    // Flip the intent flag on, and capture the device timezone in the same write
+    // so reminders fire in the user's local time (validated; skipped if bad).
+    const profileUpdate: { notifications_enabled: boolean; timezone?: string } = {
+      notifications_enabled: true,
+    };
+    if (isValidTimeZone(sub.timezone)) profileUpdate.timezone = sub.timezone;
     const { error: flagError } = await ctx.supabase
       .from("profiles")
-      .update({ notifications_enabled: true })
+      .update(profileUpdate)
       .eq("id", ctx.userId);
 
     revalidatePath("/settings");

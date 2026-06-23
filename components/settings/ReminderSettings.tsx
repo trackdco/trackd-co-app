@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
 import {
   saveReminderPrefs,
+  saveTimezone,
   type ReminderPrefsInput,
 } from "@/lib/notifications/prefsActions";
 
@@ -25,7 +26,26 @@ const TIME_INPUT_CLASS =
  * and the quiet window. Writes the user's own notification_preferences row.
  * Defaults: dose 9am, quiet 10pm–8am — all editable here.
  */
-export function ReminderSettings({ initial }: { initial: ReminderPrefsInitial }) {
+export function ReminderSettings({
+  initial,
+  currentTimezone,
+}: {
+  initial: ReminderPrefsInitial;
+  currentTimezone: string | null;
+}) {
+  // Capture the device's real timezone so reminders fire in the user's local time.
+  // Runs once on mount; only writes when it differs from what's stored (also keeps
+  // it fresh if they travel). Best-effort, no UI — never blocks.
+  const syncedTz = useRef(false);
+  useEffect(() => {
+    if (syncedTz.current) return;
+    syncedTz.current = true;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz && tz !== currentTimezone) {
+      saveTimezone(tz).catch(() => {});
+    }
+  }, [currentTimezone]);
+
   const [doseRemindersOn, setDose] = useState(initial.doseRemindersOn);
   const [missedOn, setMissed] = useState(initial.missedOn);
   const [lowStockOn, setLowStock] = useState(initial.lowStockOn);

@@ -132,6 +132,7 @@ function decompose(sub: PushSubscription): PushSubscriptionInput {
     auth: json.keys?.auth ?? "",
     userAgent:
       typeof navigator !== "undefined" ? navigator.userAgent : null,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
   };
 }
 

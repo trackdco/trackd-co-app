@@ -34,6 +34,20 @@ export interface PushMessage {
   tag: string;
 }
 
+/* --------------------------------------------------------------- timezone */
+
+/** Validate an IANA timezone name (e.g. "Europe/London") before storing it —
+ *  Intl throws RangeError on an unknown zone, so this rejects garbage. */
+export function isValidTimeZone(tz: unknown): tz is string {
+  if (typeof tz !== "string" || tz.length === 0 || tz.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /* --------------------------------------------------------------- schedule */
 
 const mod = (a: number, n: number) => ((a % n) + n) % n;
