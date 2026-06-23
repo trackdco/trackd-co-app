@@ -20,10 +20,12 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - sw.js (the Web Push service worker - a static /public file that needs no
+     *   session refresh and must not be served with auth Set-Cookie headers)
      * - image asset extensions
      * Always re-verify auth inside Server Functions / a DAL - the proxy is
      * optimistic session refresh only.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

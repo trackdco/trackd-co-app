@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { SyncStatusNotice } from "@/components/notifications/SyncStatusNotice";
+import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
 import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { unitForPreference } from "@/lib/weight";
@@ -66,6 +67,7 @@ export default async function AppLayout({
 
       <BottomNav userId={user.id} unit={unit} />
       <SyncStatusNotice />
+      <ServiceWorkerRegistrar />
     </div>
   );
 }

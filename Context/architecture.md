@@ -18,10 +18,21 @@
 | Hosting   | Vercel                             | Deploy + edge; serves the installable PWA at the root `trackdco.app` |
 
 **Deferred (post-trip, not built during the sprint):** Stripe (payments),
-Web Push/VAPID + Supabase Edge Functions (notification delivery), Resend +
-ConvertKit (email), PostHog (analytics), Sentry (errors), Claude Sonnet
+Resend + ConvertKit (email), PostHog (analytics), Sentry (errors), Claude Sonnet
 (v1.5 bloodwork analyser). Tables/columns that model these may already exist
 in the schema — storage only, no behaviour, until post-trip.
+
+**Web Push — Phase 1 (transport) is BUILT (Spec 14, 2026-06-23).** Web Push/VAPID
++ a Supabase Edge Function (`send-push`) now deliver a real notification to a
+subscribed device end-to-end (Android/Chrome + an installed iOS PWA). The base
+schema's "deferred Web Push storage" (`push_subscriptions`,
+`notification_preferences`) is now wired: the client subscribes via the service
+worker, decomposes the `PushSubscription` into `push_subscriptions`, and the Edge
+Function fans out with `web-push` + VAPID, pruning dead endpoints (404/410). See
+**Push Notifications** below. **Deferred to Phase 2:** the reminder SCHEDULING
+engine (`pg_cron`/`pg_net` expanding due reminders) and the per-type
+`notification_preferences` (quiet hours, per-protocol) — `send-push` is built so
+the scheduler can call it unchanged.
 
 ## System Boundaries
 
@@ -78,7 +89,13 @@ in the schema — storage only, no behaviour, until post-trip.
   migration, Spec 12) — the append-only, per-user, per-version legal-consent
   audit log written at signup (insert+select-own RLS, no update/delete; FK to
   `profiles` so it cascades on account deletion), bringing the live DB to
-  **24 tables**.
+  **24 tables**. `supabase/notifications/` holds `001_push_subscriptions.sql` (the
+  `push_subscriptions` migration, Spec 14) — note the `push_subscriptions` table
+  itself already shipped in the base schema (deferred Web Push storage), so this
+  migration only adds the `profiles.notifications_enabled` intent flag (no new
+  table — still **24 tables**). `supabase/functions/send-push/` holds the Web Push
+  sender Edge Function (Deno; excluded from the app's `tsconfig`/ESLint). See
+  **Push Notifications** below.
 - `Context/` — The spec. Defines what to build (`project-overview.md`), how
   (`code-standards.md`, this file), the UI language (`ui-context.md`), the
   session rules (`ai-workflow-rules.md`), and current state (`progress-tracker.md`).
@@ -315,6 +332,63 @@ correct across bumps.
   uses a small Markdown subset the renderer understands (`##`/`###` headings,
   `-` bullets, `**bold**` emphasis — see `components/legal/legal-document.tsx`);
   the draft-era "⚠ NOTE" blocks were removed at 1.0.
+
+## Push Notifications (Spec 14, Phase 1 — transport)
+
+Cross-platform **Web Push** for the PWA — Android/Chrome and an **installed** iOS
+PWA — using the Web Push Protocol signed with **VAPID** (the one universal path;
+no APNs/FCM, no Apple cert). Phase 1 proves delivery end-to-end; reminder
+scheduling is Phase 2.
+
+- **Service worker (`public/sw.js`)** — the app's FIRST and only service worker,
+  hand-written, push-only. It registers `push` + `notificationclick` and
+  **deliberately has NO `fetch` handler**, so it can never intercept navigations
+  or cache a stale shell — the app's offline-first is localStorage + the Supabase
+  mirror, not SW caching. Registered from the `(app)` shell by
+  `components/pwa/service-worker-registrar.tsx`; excluded from the proxy
+  session-refresh matcher (`proxy.ts`). It is a static `/public` file (no build
+  step), served at root scope `/` so `pushManager.subscribe` works.
+- **Subscription store** — `push_subscriptions` (base schema, "ADD 3"): one row
+  per device endpoint, the `PushSubscription` decomposed into
+  `endpoint`/`p256dh`/`auth` columns (the sender needs them individually), FK to
+  `profiles(id) ON DELETE CASCADE`, UNIQUE `(user_id, endpoint)`, RLS
+  `own push_subscriptions - all` ((SELECT auth.uid()) = user_id), granted in
+  `api_role_grants`. Written by the client; READ by `send-push` with the service
+  role (bypasses RLS). Dead endpoints (HTTP 404/410) are pruned on send.
+- **Intent flag** — `profiles.notifications_enabled` (migration
+  `supabase/notifications/001_push_subscriptions.sql`, the ONLY new schema in this
+  spec) is the master ON/OFF. UI state is the live `Notification.permission` +
+  subscription presence; the flag records INTENT so toggling off suppresses sends
+  even while OS permission is still "granted". Enforced at the send primitive.
+  Distinct from the per-type `notification_preferences` table (dose reminders,
+  quiet hours, etc.), which is **Phase-2 scheduling, out of scope here**.
+- **Client layer** — `lib/push/pushService.ts` (capability detection,
+  subscribe/unsubscribe, server sync), the `usePushNotifications` hook
+  (`components/push/`), and best-effort server actions `lib/push/pushActions.ts`
+  (identity from the verified session, never the client; RLS the backstop).
+  ONE hook backs both entry points (Spec 14 D5): the **Settings** toggle
+  (`components/settings/NotificationsToggle.tsx`, with a "Send test notification"
+  affordance) and a one-time, skippable **dashboard** prime
+  (`components/push/EnableNotificationsStep.tsx`). iOS-not-installed renders
+  `AddToHomeScreenPrompt` instead of a dead button (iOS only delivers push to an
+  installed standalone PWA). Permission is never requested without a user gesture.
+  The VAPID public key is `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (inlined at build); the
+  private key lives ONLY server-side (Vercel env + the Edge Function secrets),
+  never in the bundle.
+- **Send — two paths, one VAPID keypair.**
+  - **Phase-1 test send (in-app, ships with Vercel):** `sendTestNotification` in
+    `lib/push/pushActions.ts` sends via **`web-push` in a Node server action**,
+    reading the user's OWN subscriptions under RLS (userId from the session) and
+    pruning 404/410. So once the app is pushed with the **server** VAPID env vars
+    set in Vercel, the "Send test notification" button works with **no separate
+    function deploy**. A user can only ever test-send to themselves.
+  - **Phase-2 scheduler primitive (Edge Function):**
+    `supabase/functions/send-push/index.ts`, input `{ userId, payload }`, loads
+    subscriptions with the **service role**, checks `notifications_enabled`, sends
+    via `web-push` + VAPID, prunes 404/410 — so the future `pg_cron`/`pg_net`
+    scheduler can reach arbitrary users. Built now (source in the repo) but **not
+    required for Phase-1 testing**; deploy it with Phase 2. A non-service-role
+    caller is restricted to their own id (defence in depth).
 
 ## Auth and Access Model
 

@@ -1,0 +1,38 @@
+-- ============================================================
+--  TRACKD CO — PUSH NOTIFICATIONS  (Spec 14, Phase 1: transport)
+-- ============================================================
+--
+--  IMPORTANT — most of this already exists. The base schema
+--  (trackd_schema_v0_4_2.sql, "ADD 3") already ships:
+--    - push_subscriptions      one row per Web Push endpoint, columns
+--                              decomposed (endpoint / p256dh / auth) so the
+--                              sender can encrypt against VAPID; FK to
+--                              profiles(id) ON DELETE CASCADE; UNIQUE
+--                              (user_id, endpoint); last_seen_at for pruning;
+--                              RLS "own push_subscriptions - all"
+--                              ((SELECT auth.uid()) = user_id); index on user_id.
+--    - notification_preferences  per-TYPE toggles (dose reminders, unlogged
+--                              alerts, journal, recap, low-inventory, sound) —
+--                              these are Phase-2 SCHEDULING prefs, OUT OF SCOPE
+--                              for this transport phase.
+--  Both were granted to `authenticated` in supabase/grants/001_api_role_grants.sql.
+--  This was the "deferred Web Push storage, no behaviour" architecture.md flagged.
+--
+--  So the ONLY schema change Phase 1 needs is the master INTENT flag the spec
+--  asks for: a single on/off on the profile that records whether the user WANTS
+--  push at all, so toggling off suppresses every send even while the OS
+--  permission is still "granted". This is deliberately NOT in
+--  notification_preferences (that table is the out-of-scope per-type model);
+--  it lives on the profile per Spec 14 D6 ("a flag on the settings/profile table").
+--
+--  Applied live via the Supabase MCP (project's migration flow). Idempotent:
+--  safe to re-run / replay on a fresh DB where the base schema already created
+--  push_subscriptions + notification_preferences.
+-- ============================================================
+
+-- The user's master ON/OFF intent for push. send-push (and the Phase-2 scheduler)
+-- must skip a user whose notifications_enabled is false, regardless of OS
+-- permission state. Defaults false: a user is opted out until they enable it
+-- from a real user gesture (Settings toggle or onboarding step).
+ALTER TABLE public.profiles
+    ADD COLUMN IF NOT EXISTS notifications_enabled boolean NOT NULL DEFAULT false;

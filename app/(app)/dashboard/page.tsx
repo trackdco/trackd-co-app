@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
+import { EnableNotificationsStep } from "@/components/push/EnableNotificationsStep";
 import { WelcomeVideoPopup } from "@/components/welcome/WelcomeVideoPopup";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import { unitForPreference } from "@/lib/weight";
@@ -37,7 +38,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("units_preference, welcome_seen_at")
+    .select("units_preference, welcome_seen_at, notifications_enabled")
     .eq("id", user!.id)
     .maybeSingle();
 
@@ -111,6 +112,13 @@ export default async function DashboardPage() {
         firstName={firstName}
         progressPhotos={progressPhotos}
       />
+      {/* One-time, skippable push prime — the second entry point (Spec 14 D5).
+          Aligned to the home content width; self-hides once enabled or skipped. */}
+      <div className="mx-auto w-full max-w-md px-5 pb-5">
+        <EnableNotificationsStep
+          initialEnabled={Boolean(profile?.notifications_enabled)}
+        />
+      </div>
       <WelcomeVideoPopup show={showWelcome} />
     </>
   );

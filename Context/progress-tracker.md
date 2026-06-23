@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-18
+Last updated: 2026-06-23
 
 ## Current Phase
 
@@ -29,6 +29,67 @@ Last updated: 2026-06-18
   catalogues, domain, and the public landing remain live.
 
 ## Completed
+
+- **Spec 14 — Push Notifications, Phase 1 (transport) (2026-06-23, Adrian +
+  Claude) — `tsc`+`lint`+prod `build` clean (34 routes; dev server stopped first per
+  the shared-`.next` gotcha); `notifications_enabled` migration applied + verified
+  LIVE; NOT committed/deployed; ▶ founder deploy steps + on-device proof PENDING.**
+  Built `Context/14-push-notifications.md` end to end, adapting its Vite-isms
+  (`src/sw.ts`, `VITE_*`, `injectManifest`/`generateSW`) to this **Next.js 16** app.
+  - **Key discovery — most of the schema already existed.** `push_subscriptions`
+    (decomposed endpoint/p256dh/auth, FK→`profiles`, UNIQUE `(user_id, endpoint)`,
+    `last_seen_at`, RLS `own … - all`, index) + the per-type `notification_preferences`
+    table both shipped in the **base schema** (`trackd_schema_v0_4_2.sql`, "ADD 3" —
+    the "deferred Web Push storage" the architecture flagged), already granted in
+    `api_role_grants`. So the **only** new schema is the master intent flag
+    `profiles.notifications_enabled` (`supabase/notifications/001_push_subscriptions.sql`).
+    A first migration pass redundantly re-declared the table + added split
+    select/insert/delete policies on top of the base `- all`; caught it via MCP
+    verification and **dropped the redundant policies** (corrective migration), so the
+    live RLS is back to the single base `- all` policy. Still **24 tables**.
+  - **Service worker (FIRST in the app):** hand-written `public/sw.js`, push-only
+    (`push` + `notificationclick`), **no `fetch` handler** so it can't touch the
+    localStorage-based offline-first or cache a stale shell. Registered from the
+    `(app)` shell via `components/pwa/service-worker-registrar.tsx`; `sw.js` excluded
+    from the `proxy.ts` session-refresh matcher.
+  - **VAPID:** a matching P-256 keypair generated (Node crypto, web-push format).
+    Public key wired into `.env.local` + documented in `.env.example`
+    (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, inlined at build). The **private** key lives only
+    in gitignored `.env.vapid` (handoff) — never committed, never in the bundle.
+  - **Client + server:** `lib/push/pushService.ts` (capability detection, subscribe/
+    unsubscribe, server sync, `urlBase64ToUint8Array`), `components/push/
+    usePushNotifications.ts` (the single hook backing both entry points, reconciling
+    `Notification.permission` + subscription presence + the stored flag), and
+    best-effort `lib/push/pushActions.ts` (upsert/delete subscription + flip the flag;
+    identity from the verified session, RLS the backstop — mirrors `syncActions.ts`).
+  - **UI (3 components, per spec):** `components/settings/NotificationsToggle.tsx`
+    (Settings entry, hand-built switch — no new dep — + "Send a test notification"),
+    `components/push/EnableNotificationsStep.tsx` (one-time, skippable **dashboard**
+    prime — there is no onboarding flow, so it stands alone like the install prompt;
+    `useMounted`-gated, remembered in localStorage), and
+    `components/push/AddToHomeScreenPrompt.tsx` (shown by both when iOS-not-installed).
+    Wired into `app/(app)/settings/page.tsx` + `app/(app)/dashboard/page.tsx` (each
+    now reads `notifications_enabled` and seeds the UI).
+  - **Send — two paths (Adrian asked: "make it testable once we push it").** The
+    **Phase-1 test send ships with the app**, not the Edge Function: `sendTestNotification`
+    sends in-app via **`web-push` (Node server action)**, reading the user's OWN subs under
+    RLS and pruning 404/410 — so it rides the normal `git push → Vercel` flow (no Supabase
+    CLI / function deploy needed; the CLI isn't even installed here). `web-push` is the one
+    new dependency (server-side, spec-blessed). The **Edge Function**
+    `supabase/functions/send-push/index.ts` (Deno; service role; same logic + the
+    `notifications_enabled` gate; restricts non-service callers to self) stays in the repo
+    as the **Phase-2 scheduler** primitive for arbitrary users — built now, deployed later.
+    Both share one VAPID keypair. Server VAPID vars are now also in `.env.local` +
+    documented in `.env.example` (set them in Vercel to test).
+  - **Honest caveats:** RLS scoping is structurally guaranteed by the base
+    `(SELECT auth.uid()) = user_id` policy (not re-proven with two live sessions this
+    pass). The **proof** (a real push on a physical Android + an installed iPhone PWA) is a
+    founder step (Claude can't reach a device). To test once pushed, the founder sets the 4
+    VAPID env vars in Vercel (values in gitignored `.env.vapid`) + redeploys without build
+    cache — then the test button works (no function deploy for Phase 1).
+    `sendTestNotification` returns `{ ok:false }` (surfaced cleanly) until VAPID is set /
+    there's a live subscription. **Out of scope (Phase 2):** the reminder scheduler
+    (`pg_cron`/`pg_net` → the Edge Function) + per-type `notification_preferences`.
 
 - **Spec 13 — extra final touches: perf + protection pass (2026-06-22, Adrian +
   Claude) — `tsc`+`lint`+prod `build` clean (34 routes; dev server stopped first per

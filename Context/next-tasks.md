@@ -9,11 +9,52 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-17
+Last updated: 2026-06-23
 
 ---
 
 ## 🎯 Current focus
+
+**Latest — 2026-06-23 (Adrian + Claude): Spec 14 — Push Notifications, Phase 1
+(transport) — BUILT, `tsc`+`lint`+prod `build` clean (34 routes); `notifications_enabled`
+migration applied LIVE; NOT committed; ▶ founder deploy + on-device proof PENDING.**
+Built `Context/14-push-notifications.md` (full detail in `progress-tracker.md`),
+adapting its Vite assumptions to Next.js 16. Most of the schema already existed in the
+base schema (`push_subscriptions` + `notification_preferences`); the only new DB is the
+master intent flag `profiles.notifications_enabled`. New: the app's first service worker
+(`public/sw.js`, push-only, no fetch handler), `lib/push/*` (service + actions),
+`components/push/*` (hook + onboarding prime + add-to-home prompt),
+`components/settings/NotificationsToggle.tsx` (+ test-send), and the `send-push` Edge
+Function (`supabase/functions/send-push/`). VAPID keypair generated (public in `.env.local`,
+private in gitignored `.env.vapid`).
+
+**The test now ships with the app** — `sendTestNotification` sends in-app via `web-push`
+(Node server action, RLS-scoped to your own devices), so testing rides your normal
+`git push → Vercel` flow. **No Supabase function deploy is needed for Phase-1 testing**
+(the `send-push` Edge Function is in the repo only for the Phase-2 scheduler).
+
+**▶ To test once we push it (founder steps — Claude can't reach Vercel or a phone):**
+1. **Set 4 env vars in Vercel** (Production + Preview), values in **`.env.vapid`** (repo
+   root, gitignored):
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` = the public key (browser; inlined at build)
+   - `VAPID_PUBLIC_KEY` = the public key (server)
+   - `VAPID_PRIVATE_KEY` = the private key (server — secret, never NEXT_PUBLIC)
+   - `VAPID_SUBJECT` = `mailto:notifications@trackdco.app`
+2. **Push → Vercel prod deploy** (redeploy **without build cache** so the NEXT_PUBLIC key
+   inlines). Note: the same VAPID vars are already in local `.env.local` so it works on
+   `npm run dev` too.
+3. **On-device test (the spec's proof):** install the PWA, Settings → turn Notifications on
+   → **Send a test notification** → confirm it arrives on a physical **Android** device AND
+   an **installed iPhone** PWA; tapping it opens/focuses the app. Then toggle off and
+   confirm the subscription row is gone (an expired endpoint is pruned on send).
+4. **Phase 2 only (later):** to let the reminder scheduler push to arbitrary users, deploy
+   `supabase/functions/send-push` and set the same VAPID values as Supabase secrets. Not
+   needed now.
+5. Once proven: commit → PR → CodeRabbit → merge. After it's all live, `.env.vapid` can be
+   deleted.
+   **NOTE: I stopped your `next dev` server to run the prod build — restart it (`npm run dev`).**
+
+---
 
 **Latest — 2026-06-22 (Adrian + Claude): Spec 13 — extra final touches (5 perf + 5
 protection) — BUILT, `tsc`+`lint`+prod `build` clean (34 routes); ▶ on-device QA PENDING;

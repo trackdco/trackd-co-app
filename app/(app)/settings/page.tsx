@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { SettingsForm } from "@/components/settings/settings-form";
+import { NotificationsToggle } from "@/components/settings/NotificationsToggle";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -25,7 +26,7 @@ export default async function SettingsPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "sex, date_of_birth, height_cm, goal, units_preference, tier, created_at",
+      "sex, date_of_birth, height_cm, goal, units_preference, tier, created_at, notifications_enabled",
     )
     .eq("id", user.id)
     .maybeSingle();
@@ -83,6 +84,16 @@ export default async function SettingsPage() {
           height_cm: profile?.height_cm ?? null,
         }}
       />
+
+      {/* Notifications (Spec 14) — the Settings entry point for push. */}
+      <h2 className="mt-8 text-xs uppercase tracking-[0.18em] text-text-muted">
+        Notifications
+      </h2>
+      <div className="mt-3">
+        <NotificationsToggle
+          initialEnabled={Boolean(profile?.notifications_enabled)}
+        />
+      </div>
 
       <div className="mt-10 flex flex-col gap-3 text-sm text-text-muted">
         <Link href="/dashboard" className="hover:text-foreground">
