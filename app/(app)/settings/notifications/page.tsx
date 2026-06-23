@@ -26,7 +26,7 @@ export default async function NotificationsSettingsPage() {
   const [{ data: profile }, { data: prefs }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("notifications_enabled")
+      .select("notifications_enabled, timezone")
       .eq("id", user.id)
       .maybeSingle(),
     supabase
@@ -58,6 +58,7 @@ export default async function NotificationsSettingsPage() {
         />
       </div>
       <ReminderSettings
+        currentTimezone={(profile?.timezone as string | null) ?? null}
         initial={{
           doseRemindersOn: prefs?.dose_reminders_on ?? true,
           missedOn: prefs?.unlogged_alert_on ?? true,

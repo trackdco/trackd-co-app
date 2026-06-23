@@ -9,6 +9,33 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { isValidTimeZone } from "@/lib/notifications/reminders";
+
+/**
+ * Store the user's device timezone (IANA, e.g. "Europe/London") so the scheduler
+ * fires reminders in THEIR local time, not a default. Captured automatically from
+ * the browser (Intl) when they manage notifications — best-effort, RLS-scoped to
+ * the user's own profile. Validated before write so a bad value can't be stored.
+ */
+export async function saveTimezone(tz: string): Promise<{ ok: boolean }> {
+  try {
+    if (!isValidTimeZone(tz)) return { ok: false };
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false };
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ timezone: tz })
+      .eq("id", user.id);
+    return { ok: !error };
+  } catch (e) {
+    console.error("saveTimezone failed", e);
+    return { ok: false };
+  }
+}
 
 export interface ReminderPrefsInput {
   doseRemindersOn: boolean;
