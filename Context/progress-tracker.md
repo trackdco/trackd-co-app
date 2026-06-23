@@ -30,6 +30,17 @@ Last updated: 2026-06-23
 
 ## Completed
 
+- **Hide scrollbars app-wide — native-app feel (2026-06-23, Adrian + Claude) —
+  MERGED to `main` (prod) as PR #33 (squash); CodeRabbit + Vercel checks passed.**
+  The default browser scrollbar rendered as a bright white strip on the dark canvas
+  whenever a page overflowed. Added two declarations to `app/globals.css` (after the
+  `@theme inline` block) — `*::-webkit-scrollbar { display: none }` (Chrome/Safari/
+  Edge) + `* { scrollbar-width: none }` (Firefox) — applied universally so the
+  document scroll and inner scroll rows are both covered. Scroll behaviour
+  (trackpad/wheel/touch) is untouched; only the visual bar is removed. Trade-off
+  accepted (Adrian's call "fully hidden"): no scroll-position thumb / "more below"
+  affordance — standard for a phone PWA, and iOS already auto-hides scrollbars.
+
 - **Stock — part-used vials ("How much is in it?") (2026-06-23, Adrian + Claude)
   — `tsc`+`lint`+prod `build` clean; migration `inventory_partial_fill` APPLIED LIVE
   + verified.** A vial no longer has to start full. BOTH add-stock paths — the Stock
