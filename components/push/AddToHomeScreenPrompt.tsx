@@ -1,0 +1,44 @@
+import { Plus, Share } from "lucide-react";
+
+/**
+ * Shown by both push entry points (Settings toggle + onboarding step) when the
+ * user is on iOS Safari but has NOT installed the PWA — iOS only delivers Web Push
+ * to a Home-Screen-installed, standalone PWA (Spec 14 D4). So instead of a dead
+ * permission button, we explain the one-time install. No permission request here.
+ *
+ * Presentational only (no hook, no state) — the parent decides when to show it.
+ */
+export function AddToHomeScreenPrompt() {
+  return (
+    <div className="rounded-2xl border border-border bg-bg-surface p-5">
+      <p className="font-display text-lg text-foreground">
+        Add Trackd to your Home Screen
+      </p>
+      <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+        On iPhone, reminders only work once Trackd is installed. It takes a
+        second:
+      </p>
+      <ol className="mt-4 space-y-3">
+        <li className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+            <Share className="size-5" aria-hidden="true" />
+          </span>
+          <span className="text-sm leading-snug text-text-muted">
+            Tap the <span className="text-foreground">Share</span> button — on
+            newer iPhones it&apos;s inside the{" "}
+            <span className="text-foreground">•••</span> menu
+          </span>
+        </li>
+        <li className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+            <Plus className="size-5" aria-hidden="true" />
+          </span>
+          <span className="text-sm leading-snug text-text-muted">
+            Choose <span className="text-foreground">Add to Home Screen</span>,
+            then open Trackd from your Home Screen and turn reminders on here.
+          </span>
+        </li>
+      </ol>
+    </div>
+  );
+}
