@@ -47,13 +47,18 @@ Last updated: 2026-06-23
   launch image → poster → first played frame are identical = seamless handoff.
   Originals recoverable via git. (ffmpeg installed via brew for the frame
   extraction; macOS swift/ffprobe toolchain was broken.)
-  - **Follow-up (2026-06-23): Kyle made "a bit smaller."** Switched the video
-    from `object-cover` to `object-contain` on a pure-black overlay (was
-    `bg-background`), so the whole frame shows and Kyle reads ~18% smaller. The
-    clip's background is pure #000, so the contain letterbox is invisible.
-    Regenerated the 8 launch PNGs as contain+black-letterbox to match (handoff
-    still seamless). `lint` clean; pushed to prod — on-device re-check of the
-    smaller version pending (Adrian had verified the prior full-bleed version).
+  - **Follow-up (2026-06-23): Kyle made smaller (two passes).** First switched
+    `object-cover` → `object-contain` on a pure-black overlay — but the clip is
+    9:16 vs the 9:19.5 screen, so contain fit by width and Kyle only shrank ~18%
+    ("looked the same"). Second pass: size the clip explicitly by height via the
+    `VIDEO_HEIGHT` const in `splash-screen.tsx` (now `58%` of the viewport,
+    centered on black) so Kyle is clearly smaller. The clip background is pure
+    #000 so the field around the scaled-down video is invisible. The 8 launch
+    PNGs are regenerated at the SAME fraction (ffmpeg `scale=-2:0.58*H` + black
+    pad) so the cold-launch handoff stays seamless. To re-tune size: change
+    `VIDEO_HEIGHT` AND re-run the launch-PNG generation at the same %. `lint`
+    clean; pushed to prod — on-device re-check pending (needs PWA re-add for the
+    cold-launch frame; the playing clip updates without re-adding).
 - **Spec 14 — Push Notifications, Phase 2 (reminder scheduler), founders-first
   (2026-06-23, Adrian + Claude) — `tsc`+`lint`+prod `build` clean;
   `reminder_scheduling_prefs` migration applied LIVE; shipping in a PR; ▶ cron

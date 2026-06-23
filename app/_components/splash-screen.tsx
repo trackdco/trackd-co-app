@@ -13,10 +13,12 @@ import { useEffect, useRef, useState } from "react";
  * not on client-side navigations (the root layout island stays mounted across
  * App Router navs). Mobile only — desktop gets the interstitial instead.
  *
- * The clip is shown `object-contain` (the whole frame, so Kyle reads a touch
- * smaller) on pure black. The clip's own background is pure #000, so the
- * letterbox around the contained video — and the matching black bars baked into
- * the launch images — blend in invisibly. The final fade to the app canvas
+ * The clip is centered at VIDEO_HEIGHT of the viewport on pure black, so Kyle
+ * reads clearly smaller than full-bleed. The clip's own background is pure #000,
+ * so the field around the scaled-down video is invisible — Kyle just looks
+ * smaller, no box/bars. The iOS launch images are regenerated at this SAME
+ * fraction (see components/pwa/apple-splash-links.tsx) so the cold-launch →
+ * playing-clip handoff stays seamless. The final fade to the app canvas
  * (#111110) is a soft 500ms crossfade, so the slight tonal step isn't visible.
  */
 const SPLASH_SRC = "/trackd-kyle-vial-splashback.mp4";
@@ -24,6 +26,10 @@ const SPLASH_SRC = "/trackd-kyle-vial-splashback.mp4";
 // cold-launch screen, this poster, and the first played frame are identical
 // (no flash/jump on either handoff).
 const SPLASH_POSTER = "/trackd-kyle-vial-splash-poster.jpg";
+// Kyle's size on the splash: the clip's display height as a fraction of the
+// viewport (the rest is invisible black). Lower = smaller Kyle. The iOS launch
+// PNGs are regenerated at this same fraction — keep them in sync if you tweak it.
+const VIDEO_HEIGHT = "58%";
 const FADE_MS = 500;
 const MAX_MS = 5500; // safety cap — never outlive the ~5s clip, even on a slow load
 
@@ -85,7 +91,8 @@ export function SplashScreen() {
     >
       <video
         ref={videoRef}
-        className="h-full w-full object-contain"
+        className="w-auto max-w-full object-contain"
+        style={{ height: VIDEO_HEIGHT }}
         src={SPLASH_SRC}
         poster={SPLASH_POSTER}
         autoPlay
