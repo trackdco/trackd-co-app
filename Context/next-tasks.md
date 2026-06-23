@@ -15,6 +15,18 @@ Last updated: 2026-06-23
 
 ## 🎯 Current focus
 
+**Stock — part-used vials ("How much is in it?") — BUILT + migration APPLIED LIVE;
+`tsc`+`lint`+prod `build` clean. Shipping via PR.** Lets a vial start part-used
+instead of assuming full (Option A, Adrian's pick), on BOTH add-stock paths (Stock
+tab + inline "Got a vial?"). Files: `supabase/protocol/002_inventory_partial_fill.sql`
+(applied as `inventory_partial_fill`, verified), `lib/protocol/vialFill.ts` (shared
+`resolveFill`), `lib/db/inventory.ts`, `components/protocol/AddStockSheet.tsx`,
+`components/home/AddCompoundSheet.tsx`, preview mock, docs. Full detail in
+`progress-tracker.md`. **Remaining:**
+1. **Smoke-test once deployed:** add a half vial on both paths → fullness bar shows
+   ~50%, doses-remaining / runway halve; log a dose → decrements from the part level.
+2. Merge the PR to deploy the UI (the DB change is already live + backward-compatible).
+
 **Latest — 2026-06-23 (Adrian + Claude): Spec 14 — Push Notifications, Phase 2
 (reminder scheduler), founders-first — BUILT, `tsc`+`lint`+prod `build` clean;
 `reminder_scheduling_prefs` migration applied LIVE; shipping in a PR.** Three
