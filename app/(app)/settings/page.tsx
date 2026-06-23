@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { SettingsForm } from "@/components/settings/settings-form";
 import { NotificationsToggle } from "@/components/settings/NotificationsToggle";
+import { ReminderSettings } from "@/components/settings/ReminderSettings";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -30,6 +31,19 @@ export default async function SettingsPage() {
     )
     .eq("id", user.id)
     .maybeSingle();
+
+  // Reminder preferences (Spec 14, Phase 2). Times come back as "HH:MM:SS"; the
+  // time inputs want "HH:MM". Every user has a row (signup trigger); defaults guard
+  // an unexpected miss.
+  const { data: prefs } = await supabase
+    .from("notification_preferences")
+    .select(
+      "dose_reminders_on, unlogged_alert_on, low_inventory_alert_on, reminder_time, quiet_start, quiet_end",
+    )
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const hhmm = (t: unknown, fallback: string) =>
+    typeof t === "string" ? t.slice(0, 5) : fallback;
 
   const fullName =
     (user.user_metadata?.full_name as string | undefined) ??
@@ -96,6 +110,16 @@ export default async function SettingsPage() {
             initialEnabled={Boolean(profile?.notifications_enabled)}
           />
         </div>
+        <ReminderSettings
+          initial={{
+            doseRemindersOn: prefs?.dose_reminders_on ?? true,
+            missedOn: prefs?.unlogged_alert_on ?? true,
+            lowStockOn: prefs?.low_inventory_alert_on ?? true,
+            reminderTime: hhmm(prefs?.reminder_time, "09:00"),
+            quietStart: hhmm(prefs?.quiet_start, "22:00"),
+            quietEnd: hhmm(prefs?.quiet_end, "08:00"),
+          }}
+        />
       </section>
 
       <div className="mt-10 flex flex-col gap-3 text-sm text-text-muted">

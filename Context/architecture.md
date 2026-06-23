@@ -29,10 +29,21 @@ schema's "deferred Web Push storage" (`push_subscriptions`,
 `notification_preferences`) is now wired: the client subscribes via the service
 worker, decomposes the `PushSubscription` into `push_subscriptions`, and the Edge
 Function fans out with `web-push` + VAPID, pruning dead endpoints (404/410). See
-**Push Notifications** below. **Deferred to Phase 2:** the reminder SCHEDULING
-engine (`pg_cron`/`pg_net` expanding due reminders) and the per-type
-`notification_preferences` (quiet hours, per-protocol) — `send-push` is built so
-the scheduler can call it unchanged.
+**Push Notifications** below.
+
+**Web Push — Phase 2 (reminder scheduler) is BUILT, founders-first (2026-06-23).**
+Three reminder jobs — **dose reminders** (a daily digest of what's due), a
+**missed-dose nudge**, and a **low-stock alert** (from `v_inventory_math`) — fire
+through the Phase-1 pipe, gated by each user's reminder time + **quiet hours**, sent
+at most once per local day (dedupe stamps on `notification_preferences`). The
+compute+send engine (`lib/notifications/`) is shared by a **test harness** (the
+Settings "Send a test notification" button, force-sends the current user's real
+reminders) and a secured cron route (`/api/notifications/run`, founders-only). See
+**Push Notifications** below. **Activation still pending:** a Supabase `pg_cron`
+job to call the route every ~15 min + the `SUPABASE_SECRET_KEY`/`CRON_SECRET` env
+vars (the test harness works without them). **Still out of scope:** per-compound
+dose times (we store which DAYS a dose is due, not a per-dose time) and the
+journal/weekly-recap reminders.
 
 ## System Boundaries
 
@@ -389,6 +400,21 @@ scheduling is Phase 2.
     scheduler can reach arbitrary users. Built now (source in the repo) but **not
     required for Phase-1 testing**; deploy it with Phase 2. A non-service-role
     caller is restricted to their own id (defence in depth).
+- **Phase-2 reminder engine (`lib/notifications/`).** `reminders.ts` is PURE:
+  `isDueToday` reads the `protocol_compounds` schedule columns
+  (`schedule_type`/`interval_days`/`days_of_week`/`first_dose_on`, mirroring the
+  client `isDueOn`), plus the dose/missed/low-stock message builders. `runner.ts`
+  (`runForUser`) collects a user's data in their `profiles.timezone`, computes
+  due-and-unlogged + low-stock, and sends via `web-push`, pruning dead endpoints.
+  Two callers: the **test harness** (`actions.ts` `sendMyRemindersNow`, force=true,
+  RLS-scoped to self — wired to the Settings test button) and the **scheduler**
+  (`/api/notifications/run`, service role, founders-only, respecting reminder time
+  + quiet hours + once-per-day dedupe). Preferences live on the extended
+  `notification_preferences` (per-type toggles + `reminder_time` + quiet window +
+  dedupe stamps, `supabase/notifications/002`), edited via
+  `components/settings/ReminderSettings.tsx`. The scheduler reuses the same VAPID
+  secrets as the in-app sender; it just needs a `pg_cron` job + `SUPABASE_SECRET_KEY`
+  / `CRON_SECRET` to go live.
 
 ## Auth and Access Model
 

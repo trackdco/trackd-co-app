@@ -15,7 +15,42 @@ Last updated: 2026-06-23
 
 ## 🎯 Current focus
 
-**Latest — 2026-06-23 (Adrian + Claude): Spec 14 — Push Notifications, Phase 1
+**Latest — 2026-06-23 (Adrian + Claude): Spec 14 — Push Notifications, Phase 2
+(reminder scheduler), founders-first — BUILT, `tsc`+`lint`+prod `build` clean;
+`reminder_scheduling_prefs` migration applied LIVE; shipping in a PR.** Three
+reminder jobs (dose reminders / missed-dose nudge / low-stock), once-daily at a
+user-set time, with quiet hours, founders-first. Engine in `lib/notifications/`
+(pure `reminders.ts` + `runner.ts`), Settings prefs UI
+(`components/settings/ReminderSettings.tsx`), and a secured cron route
+(`/api/notifications/run`). The Settings **"Send a test notification"** button now
+force-sends your REAL reminders (the test harness Adrian asked for). Full detail in
+`progress-tracker.md`.
+
+**▶ How to test it (works as soon as this PR deploys — no new secrets needed):**
+1. Add some compounds with doses due today on Home (if you haven't), so there's
+   something to remind about. Then Settings → Notifications on → **Send a test
+   notification** → you should get "Doses due today: …" (or "nothing's due right
+   now" if nothing is). Low-stock shows if a vial's runway is within 7 days.
+2. Settings → **Reminders** card: toggle the 3 types, set your daily time + quiet
+   hours → Save. (These drive the automatic scheduler once it's on.)
+
+**▶ To turn ON the AUTOMATIC scheduler (founder steps — then I wire pg_cron):**
+1. In Vercel, set two env vars (Production):
+   - `SUPABASE_SECRET_KEY` — from Supabase dashboard → Settings → API → secret key.
+   - `CRON_SECRET` — the value is in `.env.vapid` / `.env.local` (gitignored).
+   Redeploy.
+2. Tell me they're set — I'll create the Supabase `pg_cron` job (via MCP) to POST
+   `/api/notifications/run` every ~15 min with the `CRON_SECRET`. Then dose
+   reminders fire at each founder's chosen local time automatically.
+   (Until then, the **test button** exercises the exact same engine on demand.)
+
+**Out of scope still:** per-compound dose TIMES (we store which days a dose is due,
+not a time per dose) + the journal/weekly-recap reminders. Flip `FOUNDERS_ONLY` in
+the cron route to open scheduled reminders to all opted-in users later.
+
+---
+
+**Earlier — 2026-06-23 (Adrian + Claude): Spec 14 — Push Notifications, Phase 1
 (transport) — BUILT, `tsc`+`lint`+prod `build` clean (34 routes); `notifications_enabled`
 migration applied LIVE; NOT committed; ▶ founder deploy + on-device proof PENDING.**
 Built `Context/14-push-notifications.md` (full detail in `progress-tracker.md`),
