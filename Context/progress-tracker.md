@@ -30,6 +30,43 @@ Last updated: 2026-06-23
 
 ## Completed
 
+- **Spec 14 — Push Notifications, Phase 2 (reminder scheduler), founders-first
+  (2026-06-23, Adrian + Claude) — `tsc`+`lint`+prod `build` clean;
+  `reminder_scheduling_prefs` migration applied LIVE; shipping in a PR; ▶ cron
+  activation pending.** After Phase 1 landed + on-device tested, Adrian scoped
+  Phase 2 via a 4-question pass: notify about **dose reminders + missed-dose + low
+  stock** (not journal/recap); **once-daily at a user-set time** (we store which
+  DAYS a dose is due, not per-dose times); **quiet hours** default 10pm–8am;
+  **founders first**.
+  - **Migration** (`supabase/notifications/002_reminder_scheduling.sql`): extends
+    the existing `notification_preferences` (per-type on/off booleans + signup
+    trigger already there) with `reminder_time`/`missed_cutoff_time`/`quiet_start`/
+    `quiet_end`/`low_stock_days` + dedupe stamps (`last_dose_reminder_on`/
+    `last_missed_nudge_on`/`last_low_stock_on`). Times are user-local
+    (`profiles.timezone`).
+  - **Engine** (`lib/notifications/`): `reminders.ts` is PURE — `isDueToday` reads
+    the Postgres schedule columns (mirrors the client `isDueOn`) + the dose/missed/
+    low-stock message builders. `runner.ts` `runForUser` collects a user's data in
+    their tz, computes due-and-unlogged + low-stock (low-stock from
+    `v_inventory_math.est_empty_date`), sends via `web-push`, prunes 404/410.
+  - **Test harness (what Adrian asked for):** `actions.ts` `sendMyRemindersNow`
+    (force=true, RLS-scoped to self) is wired to the Settings **"Send a test
+    notification"** button — it now force-sends the user's REAL reminders (or a
+    friendly "nothing due" if none), so the whole logic is testable on demand
+    without waiting for the cron/time.
+  - **Settings UI:** `components/settings/ReminderSettings.tsx` — 3 per-type
+    toggles + daily reminder time + quiet-hours window, saved via `prefsActions.ts`
+    (RLS-scoped). Rendered in the Settings Notifications section.
+  - **Scheduler:** `app/api/notifications/run/route.ts` — Bearer `CRON_SECRET`,
+    service-role client, founders-only (`isFounder`), runs each founder through
+    `runForUser` (force=false → respects time/quiet/dedupe). **To go live:** a
+    Supabase `pg_cron` job calling it every ~15 min + `SUPABASE_SECRET_KEY` +
+    `CRON_SECRET` in Vercel (CRON_SECRET generated → `.env.local`/`.env.vapid`).
+  - **Caveats:** the cron path isn't active yet (needs the 2 secrets + the pg_cron
+    job — wire pg_cron via MCP once they're set). The test harness is live + works
+    with the existing VAPID env. tz defaults to Australia/Sydney when
+    `profiles.timezone` is unset.
+
 - **Spec 14 — Push Notifications, Phase 1 (transport) (2026-06-23, Adrian +
   Claude) — `tsc`+`lint`+prod `build` clean (34 routes; dev server stopped first per
   the shared-`.next` gotcha); `notifications_enabled` migration applied + verified

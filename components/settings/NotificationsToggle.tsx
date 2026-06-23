@@ -6,7 +6,7 @@ import { Bell, Loader2 } from "lucide-react";
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { usePushNotifications } from "@/components/push/usePushNotifications";
 import { CARD_ICON_BADGE } from "@/lib/ui-presets";
-import { sendTestNotification } from "@/lib/push/pushActions";
+import { sendMyRemindersNow } from "@/lib/notifications/actions";
 
 /**
  * Settings entry point for push (Spec 14 D5). One of two surfaces over the shared
@@ -145,7 +145,7 @@ function TestSend() {
   function send() {
     setResult("idle");
     startTransition(async () => {
-      const { ok } = await sendTestNotification();
+      const { ok } = await sendMyRemindersNow();
       setResult(ok ? "sent" : "failed");
     });
   }
