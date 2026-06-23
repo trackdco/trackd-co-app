@@ -41,6 +41,22 @@ async function handle(req: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  // TEMP diagnostic (?debug=1): surfaces whether the service client can actually
+  // read past RLS + which key TYPE was set, without leaking the secret. Remove once
+  // the scheduler is confirmed.
+  if (new URL(req.url).searchParams.get("debug") === "1") {
+    const prof = await supabase
+      .from("profiles")
+      .select("id, notifications_enabled")
+      .limit(3);
+    return NextResponse.json({
+      debug: true,
+      keyHint: key ? key.slice(0, 10) : "(none)",
+      profErr: prof.error?.message ?? null,
+      profCount: prof.data?.length ?? 0,
+    });
+  }
+
   // Resolve the target accounts. Founders-first reads the small founder list;
   // opening up later would page through all users with notifications_enabled.
   const { data: list, error: listErr } = await supabase.auth.admin.listUsers({
