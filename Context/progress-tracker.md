@@ -62,10 +62,20 @@ Last updated: 2026-06-23
     `runForUser` (force=false → respects time/quiet/dedupe). **To go live:** a
     Supabase `pg_cron` job calling it every ~15 min + `SUPABASE_SECRET_KEY` +
     `CRON_SECRET` in Vercel (CRON_SECRET generated → `.env.local`/`.env.vapid`).
-  - **Caveats:** the cron path isn't active yet (needs the 2 secrets + the pg_cron
-    job — wire pg_cron via MCP once they're set). The test harness is live + works
-    with the existing VAPID env. tz defaults to Australia/Sydney when
-    `profiles.timezone` is unset.
+  - **ACTIVATED + verified end-to-end (2026-06-23):** Adrian set `SUPABASE_SECRET_KEY`
+    + `CRON_SECRET` in Vercel; I enabled pg_cron/pg_net + created the `reminder-runner`
+    cron (every minute, testing cadence — relax to `*/15`) that POSTs the route via
+    pg_net. **Debug found a real gap:** the service-role read `42501`'d ("permission
+    denied for table profiles") — the project had only ever granted anon/authenticated,
+    never `service_role` (the scheduler is its first server-side user). Fixed with
+    `supabase/grants/002_service_role_grants.sql` (service_role already has BYPASSRLS,
+    so the grant is the standard Supabase posture). After the grant: real run returned
+    `sent:1` to Adrian's account; cron run `succeeded`, route `200`, reminder delivered.
+    Recorded sanitized in `supabase/notifications/003_reminder_cron.sql`.
+  - **Caveats/follow-ups:** cron is on `* * * * *` (relax to `*/15` for steady state);
+    `profiles.timezone` isn't captured yet so times default to Australia/Sydney (fine
+    for AU founders — a follow-up should store the browser tz on subscribe). The
+    `?debug=1` diagnostic was removed after confirming.
 
 - **Spec 14 — Push Notifications, Phase 1 (transport) (2026-06-23, Adrian +
   Claude) — `tsc`+`lint`+prod `build` clean (34 routes; dev server stopped first per
