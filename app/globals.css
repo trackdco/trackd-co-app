@@ -181,6 +181,18 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Native-app feel: hide scrollbars app-wide while keeping scroll behaviour
+   intact (wheel/trackpad/touch all still work). WebKit/Blink use the
+   ::-webkit-scrollbar pseudo-element; Firefox uses scrollbar-width.
+   --------------------------------------------------------------------------- */
+* {
+  scrollbar-width: none; /* Firefox */
+}
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+/* ---------------------------------------------------------------------------
    Shortcuts menu motion — staggered item entrance + the tap "light-up" ripple.
    Plain (unlayered) classes + keyframes: always emitted, win over Tailwind's
    layered utilities, and keep the keyframes referenced so the CSS optimiser
