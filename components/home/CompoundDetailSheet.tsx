@@ -40,10 +40,16 @@ interface CompoundDetailSheetProps {
   open: boolean
   compound: StackCompound | null
   onOpenChange: (open: boolean) => void
-  /** Whether the day being viewed is today — drives the primary action's label. */
-  isToday: boolean
-  /** Edit the dose for the viewed day — the white action; opens the Log sheet. */
-  onEditTodaysDose: (compound: StackCompound) => void
+  /** Where the sheet is opened from. "plan" (the Protocol builder) has no day-logging,
+   *  so the primary action becomes "Edit dose & schedule" and the redundant "today's
+   *  dose" path is dropped. Defaults to the dashboard behaviour. */
+  context?: "dashboard" | "plan"
+  /** Whether the day being viewed is today — drives the primary action's label.
+   *  Dashboard only. */
+  isToday?: boolean
+  /** Edit the dose for the viewed day — the white action; opens the Log sheet.
+   *  Dashboard only (omitted in the plan context). */
+  onEditTodaysDose?: (compound: StackCompound) => void
   /** Edit the compound GOING FORWARD — opens the add sheet pre-filled (under More). */
   onEdit: (compound: StackCompound) => void
   /** Archive — stop dosing, keep history (reversible). */
@@ -68,7 +74,8 @@ export function CompoundDetailSheet({
   open,
   compound,
   onOpenChange,
-  isToday,
+  context = "dashboard",
+  isToday = false,
   onEditTodaysDose,
   onEdit,
   onArchive,
@@ -91,6 +98,7 @@ export function CompoundDetailSheet({
             key={shown.id}
             compound={shown}
             onClose={() => onOpenChange(false)}
+            context={context}
             isToday={isToday}
             onEditTodaysDose={onEditTodaysDose}
             onEdit={onEdit}
@@ -107,6 +115,7 @@ export function CompoundDetailSheet({
 function DetailBody({
   compound,
   onClose,
+  context,
   isToday,
   onEditTodaysDose,
   onEdit,
@@ -116,8 +125,9 @@ function DetailBody({
 }: {
   compound: StackCompound
   onClose: () => void
+  context: "dashboard" | "plan"
   isToday: boolean
-  onEditTodaysDose: (compound: StackCompound) => void
+  onEditTodaysDose?: (compound: StackCompound) => void
   onEdit: (compound: StackCompound) => void
   onArchive: (id: string) => void
   onReactivate: (id: string) => void
@@ -242,10 +252,19 @@ function DetailBody({
               <RotateCcw className="h-4 w-4" aria-hidden />
               Reactivate
             </button>
+          ) : context === "plan" ? (
+            <button
+              type="button"
+              onClick={() => onEdit(compound)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Edit dose &amp; schedule
+            </button>
           ) : (
             <button
               type="button"
-              onClick={() => onEditTodaysDose(compound)}
+              onClick={() => onEditTodaysDose?.(compound)}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
               <Pencil className="h-4 w-4" aria-hidden />
@@ -304,16 +323,21 @@ function DetailBody({
               <div className="animate-shortcut-in mt-2 overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
                 {!compound.archived && (
                   <>
-                    <MenuRow
-                      icon={<CalendarClock className="h-4 w-4" aria-hidden />}
-                      sub="Changes upcoming doses · today's logged dose stays as-is"
-                      onClick={() => {
-                        setMoreOpen(false)
-                        onEdit(compound)
-                      }}
-                    >
-                      Alter dose &amp; schedule
-                    </MenuRow>
+                    {/* In the plan context the primary button already edits dose &
+                        schedule, so this row would be redundant — show it only on
+                        the dashboard, where the primary is "Edit today's dose". */}
+                    {context !== "plan" && (
+                      <MenuRow
+                        icon={<CalendarClock className="h-4 w-4" aria-hidden />}
+                        sub="Changes upcoming doses · today's logged dose stays as-is"
+                        onClick={() => {
+                          setMoreOpen(false)
+                          onEdit(compound)
+                        }}
+                      >
+                        Alter dose &amp; schedule
+                      </MenuRow>
+                    )}
                     <MenuRow
                       icon={<Archive className="h-4 w-4" aria-hidden />}
                       sub="Hides it going forward · keeps all past entries · reversible"

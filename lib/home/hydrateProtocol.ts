@@ -139,10 +139,12 @@ function mergeAndSave(
   notifyStackChanged()
 
   // Flush local compounds Postgres doesn't have yet (offline adds). A catalogue
-  // compound goes to Postgres (canonical); a CUSTOM one (no catalogue row) is backed
-  // up to the jsonb mirror instead — the mirror is now a customs-only store, so we no
-  // longer write catalogue compounds there (that stale copy was the resurrection
-  // source). pushProtocolCompound still no-ops for a custom, so the split is safe.
+  // compound is pushed to Postgres here; a CUSTOM one is backed up to the jsonb
+  // mirror (its durable metadata store — the mirror is customs-only, so we no
+  // longer write catalogue copies there, which was the resurrection source). A
+  // custom's protocol_compounds row (for vials/runway) is created on demand when a
+  // vial is added (AddStockSheet / AddCompoundSheet) and by the stack mutators'
+  // own dual-write — it doesn't need to be forced from this hydration flush.
   const cloudIds = new Set(cloud.stack.map((c) => c.id))
   for (const c of local) {
     if (pgIds.has(c.id)) continue

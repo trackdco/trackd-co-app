@@ -30,6 +30,44 @@ Last updated: 2026-06-24
 
 ## Completed
 
+- **Amounts on vials of CUSTOM compounds + Protocol "more" menu (2026-06-24,
+  Adrian + Claude) — `tsc`+`lint` clean; `custom_protocol_compounds` migration
+  APPLIED LIVE + verified; NOT committed/deployed; ▶ on-device QA pending.** Two
+  Adrian asks in one pass.
+  - **Custom-compound amounts — pulled INTO beta scope (was v1.5), recommended
+    approach.** Custom "Make your own" compounds couldn't hold vials/stock because the
+    whole inventory chain (`protocol_compounds → inventory_items → v_inventory_math`)
+    was anchored to the read-only `compounds` catalogue (`protocol_compounds.compound_id
+    NOT NULL REFERENCES compounds`). Fix: migration
+    `supabase/protocol/004_custom_protocol_compounds.sql` (applied live) makes
+    `compound_id` nullable + adds `custom_name`/`custom_category` (identity CHECK:
+    catalogue id XOR custom name; `(cycle_id, custom_name)` partial unique index). Now a
+    custom gets a `protocol_compounds` row (compound_id NULL) so it rides the UNCHANGED
+    `inventory_items`/`v_inventory_math` chain — stock, runway, part-used fill, dose↔vial
+    decrement and low-stock all light up for customs, with **no parallel TS maths** and
+    the `compounds` catalogue left fully read-only (Invariant 6 stands).
+    - **Code:** `pushProtocolCompound` (`lib/home/protocolSync.ts`) now CREATES a custom
+      row instead of returning `skipped` (id = `resolvePcId(client id)` = the local id,
+      since `newId()` is always a uuid → Postgres + local stay joined, dose logs hit the
+      right vial); `lib/db/types.ts` (`compound_id` nullable + `custom_name`/`custom_category`
+      on the row/insert + `stackCompoundToProtocolInsert` writes them); `listStock`
+      (`lib/db/inventory.ts`) coalesces `custom_name`/`custom_category` so Stock shows the
+      real name, not "Compound". The UI was ALREADY built for this — both the inline "Got a
+      vial?" step (`AddCompoundSheet`) and the Stock tab (`AddStockSheet`, which lists customs
+      + falls back to `formsForMethod`) just needed the backend to stop skipping; removed the
+      now-stale "not available for custom compounds yet" error. The Postgres stack PULL still
+      skips compound_id-NULL rows, so customs render once (device-local), never doubled.
+  - **Protocol "more" menu.** The Protocol → Compounds list rows had a decorative "⋯"
+    only; tapping a row just opened edit, with no archive/delete. Wired the dashboard's
+    `CompoundDetailSheet` into `PlanView` via a new `context="plan"` mode (primary action
+    "Edit dose & schedule"; More → Stop logging / Delete all). Tapping the row or the "⋯"
+    opens it; archive/delete use the same device-local + Postgres stores as Home, so both
+    screens stay in sync.
+  - **Also (same session): splash "box" softened.** `app/_components/splash-screen.tsx`
+    now masks the Kyle clip + poster with a radial vignette (`SPLASH_MASK`,
+    `circle closest-side`) so the clip's baked dark square dissolves into the black
+    overlay instead of showing a hard rectangular edge.
+
 - **Profile "Add to Home Screen" row — platform-aware + self-hides when installed
   (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean.** Finished the Android follow-up
   on the Profile row (`InstallAppRow`): on iPhone Safari it opens the manual steps; on

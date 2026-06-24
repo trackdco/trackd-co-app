@@ -15,7 +15,29 @@ Last updated: 2026-06-24
 
 ## 🎯 Current focus
 
-**2026-06-24 follow-ups (Adrian + Claude): splash animation + install-popup-once —
+**2026-06-24 (Adrian + Claude): amounts on CUSTOM vials + Protocol "more" menu +
+splash box softened — BUILT, `tsc`+`lint` clean; `custom_protocol_compounds`
+migration APPLIED LIVE + verified; NOT committed/deployed.** Custom "Make your own"
+compounds can now carry vials + stock runway (pulled into beta scope), the Protocol
+compound rows got the dashboard's edit/archive/delete sheet, and the splash clip's
+hard "box" edge is feathered into the black. Full detail in `progress-tracker.md`.
+
+**▶ How to test (then PR → CodeRabbit → merge):**
+1. **Custom vial — inline:** Add a custom compound via "Make your own" → on the Add
+   sheet use "Got a vial? Log how much you have left" → save. Open Protocol → Stock →
+   the custom appears by its REAL name (not "Compound") with a fullness bar + runway.
+2. **Custom vial — Stock tab:** For a custom already in your stack, Protocol → Stock →
+   Add stock → pick the custom in the Compound dropdown → save (no "not available yet"
+   error any more). Log a dose against it on Home → the vial's "stock left" decrements
+   (runway from `v_inventory_math`). Refill/edit/archive the vial all work like catalogue.
+3. **No duplicates:** the custom should show ONCE on Home/Plan (the Postgres pull skips
+   custom rows; device-local renders it). Reinstall/relaunch → still one, vial intact.
+4. **Protocol "more" menu:** Protocol → Compounds → tap a row or its "⋯" → the detail
+   sheet opens with **Edit dose & schedule** + **More → Stop logging / Delete all**.
+   Archive one → it leaves the Plan AND the Home dashboard (same stores).
+5. **Splash:** cold-launch → Kyle floats with a soft circular fade, no visible square box.
+
+**▶ Earlier — 2026-06-24 follow-ups (Adrian + Claude): splash animation + install-popup-once —
 BUILT on `fix/splash-anim-and-install-once`, `tsc`+`lint` clean; `pwa_install_state`
 migration applied LIVE.** After PR #34 merged, Adrian reported the splash showed only
 a static image (no animation) and the popup should show once-per-account / only when

@@ -11,16 +11,20 @@ import {
   type CompoundCategory,
 } from "@/lib/compound-categories"
 import {
+  archiveInStack,
   cadenceLabel,
   getStackSnapshot,
   hasRotation,
   nextSiteId,
+  removeFromStack,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack"
+import { removeCompoundLogs } from "@/lib/home/doseLog"
 import { siteLabel } from "@/lib/home/siteCatalog"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
+import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { CycleHeader } from "@/components/protocol/CycleHeader"
 import { CycleEditSheet } from "@/components/protocol/CycleEditSheet"
 import type { Cycle } from "@/lib/db/types"
@@ -61,25 +65,37 @@ function groupByCategory(items: StackCompound[]): PlanGroup[] {
 }
 
 /** One compound in the plan — the Home row treatment in a NON-logging mode: no
- *  tick; the whole row taps through to edit dose / schedule / rotation. */
-function PlanRow({ c, onEdit }: { c: StackCompound; onEdit: (c: StackCompound) => void }) {
+ *  tick. Tapping the row (or the "⋯") opens the compound detail sheet, the single
+ *  home for editing dose/schedule/rotation, stopping logging (archive), or deleting —
+ *  the same menu the dashboard uses, so the two screens read as one system. */
+function PlanRow({
+  c,
+  onOpenDetail,
+}: {
+  c: StackCompound
+  onOpenDetail: (c: StackCompound) => void
+}) {
   const site = hasRotation(c) ? nextSiteId(c) : null
   return (
-    <li>
-      <button type="button" onClick={() => onEdit(c)} className="flex w-full items-center gap-3 py-2 text-left">
-        <div className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-foreground">{c.name}</span>
-          <span className="mt-0.5 block truncate font-mono text-xs tabular-nums text-text-muted">
-            {formatDose(c.dose)}{c.unit} · {cadenceLabel(c.schedule.cadence)}
-            {site && <span className="text-accent-amber"> · ▸ {siteLabel(site)}</span>}
-          </span>
-        </div>
-        <span
-          aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted"
-        >
-          <MoreHorizontal className="h-5 w-5" />
+    <li className="flex items-center gap-3 py-2">
+      <button
+        type="button"
+        onClick={() => onOpenDetail(c)}
+        className="min-w-0 flex-1 text-left"
+      >
+        <span className="block truncate text-sm font-medium text-foreground">{c.name}</span>
+        <span className="mt-0.5 block truncate font-mono text-xs tabular-nums text-text-muted">
+          {formatDose(c.dose)}{c.unit} · {cadenceLabel(c.schedule.cadence)}
+          {site && <span className="text-accent-amber"> · ▸ {siteLabel(site)}</span>}
         </span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onOpenDetail(c)}
+        aria-label={`More options for ${c.name}`}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-text-primary"
+      >
+        <MoreHorizontal className="h-5 w-5" aria-hidden />
       </button>
     </li>
   )
@@ -103,6 +119,9 @@ export function PlanView({
   onCycleSaved: (cycle: Cycle) => void
 }) {
   const [addOpen, setAddOpen] = useState(false)
+  // Tapping a compound opens its detail sheet (edit / stop logging / delete); the
+  // sheet's "Edit dose & schedule" then opens the add sheet pre-filled.
+  const [detailTarget, setDetailTarget] = useState<StackCompound | null>(null)
   const [editTarget, setEditTarget] = useState<StackCompound | null>(null)
   const [cycleEditOpen, setCycleEditOpen] = useState(false)
 
@@ -160,7 +179,7 @@ export function PlanView({
                 </div>
                 <ul className="px-1">
                   {group.compounds.map((c) => (
-                    <PlanRow key={c.id} c={c} onEdit={setEditTarget} />
+                    <PlanRow key={c.id} c={c} onOpenDetail={setDetailTarget} />
                   ))}
                 </ul>
               </div>
@@ -174,6 +193,30 @@ export function PlanView({
       </section>
 
       <AddToStackMenu open={addOpen} onOpenChange={setAddOpen} userId={userId} />
+
+      {/* The compound detail / "more" menu — same sheet the dashboard uses, in the
+          plan context (primary action is "Edit dose & schedule"; "More" holds Stop
+          logging + Delete all). Archiving/deleting writes the same device-local +
+          Postgres dual-write stores as Home, so both screens stay in sync. */}
+      <CompoundDetailSheet
+        open={detailTarget !== null}
+        compound={detailTarget}
+        context="plan"
+        onOpenChange={(open) => {
+          if (!open) setDetailTarget(null)
+        }}
+        onEdit={(c) => {
+          setDetailTarget(null)
+          setEditTarget(c)
+        }}
+        onArchive={(id) => archiveInStack(userId, id, true)}
+        onReactivate={(id) => archiveInStack(userId, id, false)}
+        onDelete={(id) => {
+          removeFromStack(userId, id)
+          removeCompoundLogs(userId, id)
+        }}
+      />
+
       <AddCompoundSheet
         open={editTarget !== null}
         compound={null}

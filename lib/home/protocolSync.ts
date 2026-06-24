@@ -92,8 +92,12 @@ function unitFamilyOk(base: string, dose: string): boolean {
 
 /**
  * Upsert a stack compound into `protocol_compounds` under the active cycle.
- * Resolves the catalogue uuid by name; a name not in the catalogue is a custom
- * compound and is left device-local (`skipped`).
+ * Resolves the catalogue uuid by name; a name NOT in the catalogue is a custom
+ * "Make your own" compound and is stored as a custom row (compound_id NULL +
+ * custom_name/custom_category, supabase/protocol/004) — so it too can carry vials
+ * + stock runway via the unchanged inventory_items / v_inventory_math chain.
+ * Either way it returns the resolved `protocolCompoundId` so the caller can attach
+ * inventory to it.
  */
 export async function pushProtocolCompound(
   c: StackCompound,
@@ -108,10 +112,24 @@ export async function pushProtocolCompound(
       .select("id")
       .eq("name", c.name)
       .limit(1)
-    const compoundId = rows?.[0]?.id as string | undefined
-    if (!compoundId) return { ok: false, skipped: true } // custom → device-local
+    const compoundId = (rows?.[0]?.id as string | undefined) ?? null
     const cycle = await ensureActiveCycle()
     if (!cycle) return { ok: false }
+
+    if (compoundId === null) {
+      // Custom compound. Its id is deterministic from the stable client id, which
+      // is also what the dose-log path (pushProtocolDoseLog → resolvePcId) uses, so
+      // both resolve to THIS row and the runway decrements correctly. `newId()`
+      // always yields a uuid, so resolvePcId returns it unchanged ⇒ the Postgres
+      // row id == the local stack id (no divergence). Upsert-by-id is idempotent,
+      // and the (cycle_id, custom_name) partial unique index is the DB backstop.
+      const pcId = resolvePcId(cx.userId, c.id)
+      const saved = await upsertProtocolCompound(
+        stackCompoundToProtocolInsert(c, { id: pcId, cycleId: cycle.id, compoundId: null })
+      )
+      return { ok: saved !== null, protocolCompoundId: saved ? pcId : undefined }
+    }
+
     // Reuse the canonical row for this (cycle, compound) if one already exists,
     // so a RE-ADD (when the local cache has drifted from Postgres) UPDATES that
     // row instead of inserting a second one with a fresh client id — the
