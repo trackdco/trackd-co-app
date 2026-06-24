@@ -9,11 +9,34 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
 ---
 
 ## 🎯 Current focus
+
+**2026-06-24 (Adrian + Claude): three fixes — duplicate compounds + faster/offline
+splash + iOS install popup — BUILT, `tsc`+`lint` clean; migration applied LIVE; NOT
+committed/deployed.** Full detail in `progress-tracker.md`. **Prod `build` was
+deferred** because a `next dev` server is running (the shared-`.next` gotcha) — run it
+with the dev server stopped before pushing.
+
+**▶ How to test (then commit → PR → CodeRabbit → merge):**
+1. **Duplicates:** add a compound WITH a vial inline ("Got a vial?"), and via Stock →
+   Add stock. Confirm Home shows it ONCE. Try to re-add the same compound → blocked /
+   stays one. Check Supabase: exactly one `protocol_compounds` row per compound and one
+   active `cycles` row per user (the new `UNIQUE (cycle_id, compound_id)` +
+   `one_active_cycle_per_user` guards). Then a delete + PWA reinstall → still no dupes.
+2. **Splash:** cold-launch the installed PWA → Kyle plays then fades in ~1.4s (no ~5s
+   linger, no long double-Kyle). Turn on Airplane mode, force-quit, relaunch → Kyle
+   still plays (precached by the SW). **NOTE:** the SW must update first — open the app
+   online once (or re-add to Home Screen) so the new `sw.js` activates and precaches.
+3. **Install popup:** as a NEW iPhone user in Safari (not installed), the "Add to Home
+   Screen" sheet auto-shows once after signup; dismiss → never nags. Profile → App →
+   "Add to Home Screen" re-opens the same visuals any time. (Android/desktop/installed:
+   no popup.) The notifications prime no longer duplicates the install message.
+
+**▶ Earlier focus (still open):**
 
 **Stock — part-used vials ("How much is in it?") — BUILT + migration APPLIED LIVE;
 `tsc`+`lint`+prod `build` clean. Shipping via PR.** Lets a vial start part-used

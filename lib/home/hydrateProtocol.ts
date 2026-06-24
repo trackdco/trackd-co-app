@@ -89,7 +89,7 @@ function mergeAndSave(
   // customs). Single-device assumption — a true cross-device archive conflict
   // would need an offline outbox / tombstones, which is out of beta scope.
   const localById = new Map(local.map((c) => [c.id, c]))
-  const reconciledPg = pg.stack.map((c) => {
+  const reconciledPgRaw = pg.stack.map((c) => {
     const loc = localById.get(c.id)
     if (loc && Boolean(loc.archived) !== Boolean(c.archived)) {
       void archiveProtocolCompound(c.id, Boolean(loc.archived))
@@ -97,6 +97,17 @@ function mergeAndSave(
     }
     return c
   })
+
+  // Defence in depth against the duplicate-compound bug: the Postgres pull is
+  // already de-duped server-side, but never render the same compound (by name)
+  // twice even if a stale row slips through — keep the active one.
+  const pgByName = new Map<string, StackCompound>()
+  for (const c of reconciledPgRaw) {
+    const name = c.name.trim().toLowerCase()
+    const cur = pgByName.get(name)
+    if (!cur || (cur.archived && !c.archived)) pgByName.set(name, c)
+  }
+  const reconciledPg = [...pgByName.values()]
 
   // Non-Postgres extras, deduped by id AND by name (one compound per name — a
   // same-name Postgres compound is canonical, so a stale device/mirror copy is

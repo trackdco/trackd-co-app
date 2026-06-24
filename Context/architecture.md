@@ -101,6 +101,11 @@ reminders, and storing each user's timezone (defaults to Sydney until then).
   — the **Protocol Cutover** schema delta adding `protocol_compounds.rotation_sites
   text[]` + `rotation_index` (the injection-site rotation plan, which the base
   schema had nowhere for); additive columns, no new table (still **23 tables**).
+  `002_inventory_partial_fill.sql` adds `inventory_items.prior_used_base` (part-used
+  vials). `003_protocol_compound_uniqueness.sql` adds `UNIQUE (cycle_id, compound_id)`
+  + the `one_active_cycle_per_user` partial unique index (the duplicate-compound
+  fix — see the Protocol Cutover notes below). All additive/constraint-only, still
+  **23 tables**.
   `supabase/consent/` holds `001_consent_records.sql` (the `consent_records`
   migration, Spec 12) — the append-only, per-user, per-version legal-consent
   audit log written at signup (insert+select-own RLS, no update/delete; FK to
@@ -234,6 +239,22 @@ reminders, and storing each user's timezone (defaults to Sydney until then).
     drops its vial from Stock too (it can never show a compound Home doesn't).
   - **Rotation** lives on `protocol_compounds.rotation_sites text[]` +
     `rotation_index` (`supabase/protocol/001_protocol_compound_rotation.sql`).
+  - **One compound per (cycle, compound) + one active cycle per user**
+    (`supabase/protocol/003_protocol_compound_uniqueness.sql`, applied LIVE). The
+    base schema had only a PK on `protocol_compounds.id`, and the
+    `one_active_cycle_per_user` index was authored but commented out — so a
+    re-add on a drifted cache could mint a second row for the same compound, and
+    the concurrent `ensureActiveCycle()` race (the inline "Got a vial?" path fires
+    `pushProtocolCompound` twice) could spawn two "Current" cycles. The migration
+    de-dupes any leftovers then adds `UNIQUE (cycle_id, compound_id)` +
+    `one_active_cycle_per_user (user_id) WHERE is_active`. To match it,
+    `ensureActiveCycle` is race-safe (re-reads the winner on a `23505`), and
+    `pushProtocolCompound` REUSES the existing row's id for a `(cycle, compound)`
+    that already exists (so a re-add updates the canonical row instead of inserting
+    a twin); the Postgres pull (`pullProtocolStackAndLogs`) + the hydrate merge also
+    de-dupe by compound on read, so the Home stack can never render the same
+    compound twice. This is the durable fix for the "duplicate compounds came back"
+    class of bug.
   - **Protocol screen (Step 4)** — `app/(app)/protocol/page.tsx` is now the real
     screen (`components/protocol/`): ONE tab with an in-page **Plan / Stock** toggle
     (Adrian-approved consolidation of Angus's "Cycles" + "My Protocol", a change from
@@ -363,13 +384,19 @@ no APNs/FCM, no Apple cert). Phase 1 proves delivery end-to-end; reminder
 scheduling is Phase 2.
 
 - **Service worker (`public/sw.js`)** — the app's FIRST and only service worker,
-  hand-written, push-only. It registers `push` + `notificationclick` and
-  **deliberately has NO `fetch` handler**, so it can never intercept navigations
-  or cache a stale shell — the app's offline-first is localStorage + the Supabase
-  mirror, not SW caching. Registered from the `(app)` shell by
+  hand-written. Primarily push-only (`push` + `notificationclick`). It ALSO
+  precaches exactly two static assets — the Kyle-the-vial splash clip + its poster
+  (`SPLASH_CACHE`/`SPLASH_ASSETS`) — and its `fetch` handler **responds ONLY for
+  those two same-origin paths** (cache-first, with Range-request slicing so iOS
+  `<video>` gets `206 Partial Content`); for **every other request it returns
+  without calling `respondWith`**, so it still never intercepts a navigation or
+  caches the app shell. The offline-first model for app DATA stays localStorage +
+  the Supabase mirror (not SW caching); the only thing the SW caches is the splash,
+  so Kyle plays offline. Registered from the `(app)` shell by
   `components/pwa/service-worker-registrar.tsx`; excluded from the proxy
   session-refresh matcher (`proxy.ts`). It is a static `/public` file (no build
-  step), served at root scope `/` so `pushManager.subscribe` works.
+  step), served at root scope `/` so `pushManager.subscribe` works. (Bump
+  `SPLASH_CACHE` to roll the splash assets; old caches are pruned on `activate`.)
 - **Subscription store** — `push_subscriptions` (base schema, "ADD 3"): one row
   per device endpoint, the `PushSubscription` decomposed into
   `endpoint`/`p256dh`/`auth` columns (the sender needs them individually), FK to

@@ -23,41 +23,57 @@ async function sessionCtx() {
   return { supabase, userId: user.id }
 }
 
+/** The user's active cycle, oldest-first, or null. */
+async function readActiveCycle(
+  ctx: { supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
+): Promise<Cycle | null> {
+  const { data, error } = await ctx.supabase
+    .from("cycles")
+    .select("*")
+    .eq("user_id", ctx.userId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (error) {
+    console.error("ensureActiveCycle read failed", error)
+    return null
+  }
+  return (data as Cycle | null) ?? null
+}
+
 /**
  * The user's active cycle, creating a default `"Current"` one if none exists.
- * Idempotent: the first existing active cycle wins, so concurrent calls converge
- * (the beta has no DB-level single-active-cycle cap — see schema). Returns null
- * only when signed out or on an unrecoverable error.
+ * Idempotent and RACE-SAFE: the `one_active_cycle_per_user` partial unique index
+ * means two concurrent callers can't both create a cycle — the loser's INSERT
+ * trips the unique violation and we re-read the winner. (The inline "Got a vial?"
+ * path fires this twice at once; without the re-read it used to spawn two
+ * "Current" cycles.) Returns null only when signed out or on an unrecoverable
+ * error.
  */
 export async function ensureActiveCycle(): Promise<Cycle | null> {
   try {
     const ctx = await sessionCtx()
     if (!ctx) return null
 
-    const { data: existing, error: readErr } = await ctx.supabase
-      .from("cycles")
-      .select("*")
-      .eq("user_id", ctx.userId)
-      .eq("is_active", true)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    if (readErr) {
-      console.error("ensureActiveCycle read failed", readErr)
-      return null
-    }
-    if (existing) return existing as Cycle
+    const existing = await readActiveCycle(ctx)
+    if (existing) return existing
 
     const { data: created, error: insErr } = await ctx.supabase
       .from("cycles")
       .insert({ user_id: ctx.userId, name: "Current", is_active: true })
       .select("*")
       .single()
-    if (insErr) {
-      console.error("ensureActiveCycle insert failed", insErr)
-      return null
+    if (!insErr) return created as Cycle
+
+    // 23505 = unique_violation: another concurrent call won the race to create
+    // the single active cycle. Re-read and return that winner rather than failing.
+    if ((insErr as { code?: string }).code === "23505") {
+      const raced = await readActiveCycle(ctx)
+      if (raced) return raced
     }
-    return created as Cycle
+    console.error("ensureActiveCycle insert failed", insErr)
+    return null
   } catch (e) {
     console.error("ensureActiveCycle failed", e)
     return null

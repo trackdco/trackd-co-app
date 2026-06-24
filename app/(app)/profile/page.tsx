@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { AvatarUploader } from "@/components/profile/AvatarUploader";
+import { InstallAppRow } from "@/components/profile/InstallAppRow";
 import { ProfileFeedbackRow } from "@/components/profile/ProfileFeedbackRow";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { DeleteAccountRequest } from "@/components/auth/delete-account-request";
@@ -180,6 +181,8 @@ export default async function ProfilePage() {
           <LinkRow href="/archive" icon={Archive}>
             Archive
           </LinkRow>
+          <Divider />
+          <InstallAppRow />
           <Divider />
           <LinkRow href="/terms" icon={FileText}>
             Terms of Service
