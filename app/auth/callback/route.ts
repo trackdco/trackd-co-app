@@ -32,10 +32,25 @@ export async function GET(request: Request) {
       // forwarded host in production (Supabase Next.js SSR pattern).
       const forwardedHost = request.headers.get("x-forwarded-host");
       const isLocalEnv = process.env.NODE_ENV === "development";
-      if (isLocalEnv || !forwardedHost) {
-        return NextResponse.redirect(`${origin}${next}`);
-      }
-      return NextResponse.redirect(`https://${forwardedHost}${next}`);
+      const dest =
+        isLocalEnv || !forwardedHost
+          ? `${origin}${next}`
+          : `https://${forwardedHost}${next}`;
+      const response = NextResponse.redirect(dest);
+      // Mark this as a fresh PHYSICAL sign-in / sign-up so the dashboard shows the
+      // "Add to Home Screen" popup once for this login (the popup clears it on show,
+      // so it won't nag on later navigations; it returns on the next sign-in). A
+      // returning user reopening the app with a live session never hits this route,
+      // so they only see it when they actually sign in. Short TTL is just a fallback
+      // if the clear never runs.
+      response.cookies.set("trackd-install-hint", "1", {
+        path: "/",
+        maxAge: 600,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: !isLocalEnv,
+      });
+      return response;
     }
   }
 

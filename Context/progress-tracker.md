@@ -30,6 +30,19 @@ Last updated: 2026-06-24
 
 ## Completed
 
+- **Install popup → every sign-in, + copy spacing/grammar fix (2026-06-24,
+  Adrian + Claude) — `tsc`+`lint` clean; on branch
+  `fix/install-popup-per-signin-and-copy`.** Adrian wanted the "Add to Home Screen"
+  popup on EVERY physical sign-in / sign-up, not once per account. The auth callback
+  (`app/auth/callback/route.ts`) now sets a short-lived `trackd-install-hint` cookie
+  on a successful sign-in; the dashboard reads it and the popup clears it on show
+  (`clearInstallHint`, replacing `dismissInstallPrompt`) — so it shows once per login
+  and returns next sign-in, while a live-session reopen (no callback) doesn't nag.
+  Still suppressed once installed (`pwa_installed_at`) / in standalone. Also fixed a
+  **formatting bug** in `AddToHomeScreenPrompt`: a line wrap collapsed the space after
+  the bold words ("Sharebutton", "View moreif") — added explicit `{" "}` after each
+  bold span and tidied the copy (trailing periods, em-dash opener).
+
 - **Splash autoplay made reliable across launches + install copy reverted
   (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean; on branch
   `fix/splash-autoplay-and-install-copy`.** After #35 deployed, Adrian found the
