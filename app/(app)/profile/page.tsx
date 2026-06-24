@@ -181,7 +181,8 @@ export default async function ProfilePage() {
           <LinkRow href="/archive" icon={Archive}>
             Archive
           </LinkRow>
-          <Divider />
+          {/* InstallAppRow renders its own leading divider and self-hides when the
+              app is already on the Home Screen, so no stray divider is left. */}
           <InstallAppRow />
           <Divider />
           <LinkRow href="/terms" icon={FileText}>
