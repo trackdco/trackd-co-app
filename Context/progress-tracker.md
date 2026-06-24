@@ -30,6 +30,21 @@ Last updated: 2026-06-24
 
 ## Completed
 
+- **Splash autoplay made reliable across launches + install copy reverted
+  (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean; on branch
+  `fix/splash-autoplay-and-install-copy`.** After #35 deployed, Adrian found the
+  splash animated on the FIRST PWA launch but was static on most launches after.
+  Root cause: on a fast cached relaunch, iOS fires the muted `autoplay` BEFORE
+  React attaches its `onPlaying` listener, so the event is missed and the video is
+  never revealed (only the static poster shows). Fix: `splash-screen.tsx` no longer
+  relies on the `onPlaying` event — it POLLS `video.currentTime` (reveal the moment
+  frames are actually advancing) and retries `play()`, with `playing`/`timeupdate`/
+  `ended` listeners as additional triggers; NO_START_MS still covers a genuine
+  autoplay block. Also **reverted the install-popup copy** to the previous
+  phone-specific wording (Share — "on newer iPhones it's inside the ••• menu" —
+  then Add to Home Screen) at Adrian's request; the 3-step "View more" variant from
+  #35 is dropped.
+
 - **Follow-ups: splash actually animates, install popup shows once-per-account,
   dup fix verified (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean;
   `pwa_install_state` migration APPLIED LIVE; on branch `fix/splash-anim-and-install-once`;
