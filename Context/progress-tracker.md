@@ -30,6 +30,15 @@ Last updated: 2026-06-24
 
 ## Completed
 
+- **Install popup copy — drop the reminders framing (2026-06-24, Adrian + Claude)
+  — `tsc`+`lint` clean.** Adrian: the popup shouldn't mention reminders; it should
+  sell the install. `AddToHomeScreenPrompt` opener is now "Get the most out of
+  Trackd — add it to your Home Screen so it opens full-screen, one tap away, instead
+  of a Safari tab. It takes a second:" and step 3 drops "and turn reminders on here."
+  Steps (Share → View more → Add to Home Screen, with the older/newer-iPhone note)
+  unchanged. Copy-only; the shared component is also used by the notifications
+  settings + Profile row.
+
 - **Install popup: not showing on sign-in, then auto-dropping — two fixes
   (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean; on branch
   `fix/install-popup-show-on-signin`.** Two bugs found on-device:
