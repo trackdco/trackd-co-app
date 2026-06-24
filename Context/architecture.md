@@ -428,15 +428,17 @@ scheduling is Phase 2.
   plus a permanent Profile → "Add to Home Screen" row (`InstallAppRow`). The popup
   shows on **every physical sign-in / sign-up** (Adrian's call): the auth callback
   (`app/auth/callback/route.ts`) sets a short-lived `trackd-install-hint` cookie on a
-  successful code exchange, the dashboard reads it, and the popup clears it on show
-  (via `clearInstallHint`) so it appears once per login and returns on the next
-  sign-in — a returning user reopening the app with a live session never hits the
-  callback, so they aren't nagged. It is gated ONLY to iPhone + Safari (not
-  standalone); there is deliberately **no "already installed" suppression** (that
-  gate hid the popup on accounts that had once run the installed PWA, e.g. a
-  founder's). The `profiles.pwa_installed_at` / `install_prompt_dismissed_at` columns
-  (migration `supabase/profile/006_pwa_install_state.sql`) are now unused — kept only
-  to avoid a drop migration. Permission is never requested without a user gesture.
+  successful code exchange and the dashboard reads it — a returning user reopening the
+  app with a live session never hits the callback, so isn't nagged. The cookie is
+  consumed only on **dismiss**, via `POST /api/install-hint` (a route handler, NOT a
+  Server Action — a Server Action re-renders the route, and clearing on *show* let any
+  post-load RSC refresh re-read `freshSignIn=false` and auto-drop the popup mid-view).
+  So it stays until the user closes it, then returns on the next sign-in. Gated ONLY to
+  iPhone + Safari (not standalone); there is deliberately **no "already installed"
+  suppression** (that gate hid the popup on accounts that had once run the installed
+  PWA, e.g. a founder's). The `profiles.pwa_installed_at` / `install_prompt_dismissed_at`
+  columns (migration `supabase/profile/006_pwa_install_state.sql`) are now unused —
+  kept only to avoid a drop migration. Permission is never requested without a gesture.
   The VAPID public key is `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (inlined at build); the
   private key lives ONLY server-side (Vercel env + the Edge Function secrets),
   never in the bundle.
