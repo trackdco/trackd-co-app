@@ -20,8 +20,8 @@ export function AddToHomeScreenPrompt() {
         Add Trackd to your Home Screen
       </p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-        On iPhone, reminders only work once Trackd is installed — it takes a
-        second:
+        Get the most out of Trackd — add it to your Home Screen so it opens
+        full-screen, one tap away, instead of a Safari tab. It takes a second:
       </p>
       <ol className="mt-4 space-y-3">
         <li className="flex items-start gap-3">
@@ -49,7 +49,7 @@ export function AddToHomeScreenPrompt() {
           </span>
           <span className="text-sm leading-snug text-text-muted">
             Choose <span className="text-foreground">Add to Home Screen</span>,
-            then open Trackd from your Home Screen and turn reminders on here.
+            then open Trackd from your Home Screen.
           </span>
         </li>
       </ol>
