@@ -11,20 +11,23 @@ import {
 import { Button } from "@/components/ui/button";
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { useMounted } from "@/components/home/useMounted";
+import { usePwaInstall } from "@/components/pwa/usePwaInstall";
 import { getCapability } from "@/lib/push/pushService";
 
 /**
  * "Add Trackd to your Home Screen" popup, shown on EVERY physical sign-in / sign-up
  * (Adrian's call). `freshSignIn` comes from the `trackd-install-hint` cookie the
- * auth callback sets, so it only fires on an actual sign-in (a returning user
- * reopening the app with a live session doesn't hit the callback, so isn't nagged).
+ * auth callback sets; the cookie is consumed only on DISMISS (POST
+ * /api/install-hint — a route handler, NOT a Server Action, so it can't trigger an
+ * RSC refresh that would auto-drop the popup). A live-session reopen doesn't hit the
+ * callback, so isn't nagged.
  *
- * The cookie is consumed only on DISMISS (via a POST to /api/install-hint), NOT on
- * show — clearing on show let any post-load RSC refresh re-read `freshSignIn=false`
- * and auto-drop the popup. Now it stays until the user closes it, then won't return
- * until the next sign-in. Gated to iPhone + Safari (not standalone); the copy is
- * iOS-specific and there's nothing to install when already in the standalone app.
- * The same visuals live permanently in Profile → "Add to Home Screen".
+ * Two platform paths (never on desktop or an already-installed standalone launch):
+ *  - iPhone (Safari): manual Share-sheet steps (`AddToHomeScreenPrompt`) — iOS has
+ *    no install API.
+ *  - Android (Chrome/Samsung Internet): a single "Add to Home Screen" button that
+ *    fires the OS's native install dialog via `beforeinstallprompt` (`usePwaInstall`),
+ *    shown only when Chrome has actually offered an install (`canInstall`).
  */
 export function InstallHomeScreenPopup({
   freshSignIn,
@@ -32,24 +35,37 @@ export function InstallHomeScreenPopup({
   freshSignIn: boolean;
 }) {
   const mounted = useMounted();
+  const { canInstall, promptInstall } = usePwaInstall();
   const [closed, setClosed] = useState(false);
 
-  // Computed during render (post-mount, so SSR stays deterministic — no
-  // setState-in-effect). getCapability touches navigator/window, hence the gate.
+  // Computed during render (post-mount, so SSR stays deterministic). getCapability
+  // touches navigator/window, hence the gate.
   const cap = mounted ? getCapability() : null;
-  const eligible =
-    mounted && cap !== null && freshSignIn && cap.isIOS && !cap.isStandalone;
+  const platform: "ios" | "android" | null =
+    cap === null || cap.isStandalone
+      ? null
+      : cap.isIOS
+        ? "ios"
+        : canInstall
+          ? "android"
+          : null;
 
-  function dismiss() {
-    setClosed(true);
-    // Consume the one-shot hint via a plain fetch (NOT a Server Action, so it can't
-    // trigger an RSC refresh) so it won't reappear until the next sign-in.
+  function consume() {
+    // Plain fetch (NOT a Server Action) so it can't trigger an RSC refresh.
     void fetch("/api/install-hint", { method: "POST", keepalive: true }).catch(
       () => {},
     );
   }
+  function dismiss() {
+    setClosed(true);
+    consume();
+  }
+  async function install() {
+    await promptInstall();
+    dismiss();
+  }
 
-  if (!eligible) return null;
+  if (!freshSignIn || platform === null) return null;
 
   return (
     <Sheet
@@ -62,20 +78,51 @@ export function InstallHomeScreenPopup({
         side="bottom"
         className="gap-0 rounded-t-3xl border-border-default bg-bg-surface px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]"
       >
-        {/* The visible heading lives inside AddToHomeScreenPrompt; these satisfy
-            Radix Dialog's required a11y title/description. */}
         <SheetTitle className="sr-only">Add Trackd to your Home Screen</SheetTitle>
         <SheetDescription className="sr-only">
-          How to install Trackd as an app on your iPhone Home Screen.
+          Install Trackd as an app on your Home Screen.
         </SheetDescription>
-        <AddToHomeScreenPrompt />
-        <Button
-          type="button"
-          onClick={dismiss}
-          className="mt-4 h-11 w-full rounded-xl"
-        >
-          Got it
-        </Button>
+
+        {platform === "ios" ? (
+          <>
+            {/* Visible heading lives inside AddToHomeScreenPrompt. */}
+            <AddToHomeScreenPrompt />
+            <Button
+              type="button"
+              onClick={dismiss}
+              className="mt-4 h-11 w-full rounded-xl"
+            >
+              Got it
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="rounded-2xl border border-border bg-bg-surface p-5">
+              <p className="font-display text-lg text-foreground">
+                Add Trackd to your Home Screen
+              </p>
+              <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+                Get the full app, not a browser tab — full-screen and one tap away.
+              </p>
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={install}
+                className="h-11 flex-1 rounded-xl"
+              >
+                Add to Home Screen
+              </Button>
+              <button
+                type="button"
+                onClick={dismiss}
+                className="px-3 text-sm text-text-muted transition-colors hover:text-foreground"
+              >
+                Not now
+              </button>
+            </div>
+          </>
+        )}
       </SheetContent>
     </Sheet>
   );

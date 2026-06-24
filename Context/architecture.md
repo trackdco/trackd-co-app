@@ -433,12 +433,18 @@ scheduling is Phase 2.
   consumed only on **dismiss**, via `POST /api/install-hint` (a route handler, NOT a
   Server Action — a Server Action re-renders the route, and clearing on *show* let any
   post-load RSC refresh re-read `freshSignIn=false` and auto-drop the popup mid-view).
-  So it stays until the user closes it, then returns on the next sign-in. Gated ONLY to
-  iPhone + Safari (not standalone); there is deliberately **no "already installed"
-  suppression** (that gate hid the popup on accounts that had once run the installed
-  PWA, e.g. a founder's). The `profiles.pwa_installed_at` / `install_prompt_dismissed_at`
-  columns (migration `supabase/profile/006_pwa_install_state.sql`) are now unused —
-  kept only to avoid a drop migration. Permission is never requested without a gesture.
+  So it stays until the user closes it, then returns on the next sign-in. There is
+  deliberately **no "already installed" suppression** (that gate hid the popup on
+  accounts that had once run the installed PWA, e.g. a founder's). The
+  `profiles.pwa_installed_at` / `install_prompt_dismissed_at` columns (migration
+  `supabase/profile/006_pwa_install_state.sql`) are now unused — kept only to avoid a
+  drop migration. **Two platform paths** (never on desktop or a standalone launch):
+  **iPhone (Safari)** gets the manual Share-sheet steps (`AddToHomeScreenPrompt`) since
+  iOS has no install API; **Android (Chrome/Samsung Internet)** gets a single "Add to
+  Home Screen" button that fires the OS's native install dialog via the
+  `beforeinstallprompt` event (`components/pwa/usePwaInstall.ts` — module-level capture
+  + `useSyncExternalStore`), shown only when the browser has actually offered an install
+  (`canInstall`). Permission is never requested without a gesture.
   The VAPID public key is `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (inlined at build); the
   private key lives ONLY server-side (Vercel env + the Edge Function secrets),
   never in the bundle.
