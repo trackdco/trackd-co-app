@@ -30,6 +30,25 @@ Last updated: 2026-06-24
 
 ## Completed
 
+- **Install popup: not showing on sign-in, then auto-dropping — two fixes
+  (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean; on branch
+  `fix/install-popup-show-on-signin`.** Two bugs found on-device:
+  - **Not showing at all** on `adrianschimizzi1@gmail.com`: the `!installed` gate I'd
+    added — that account had `pwa_installed_at` stamped from earlier installed-PWA
+    testing, so the popup was permanently suppressed (and it conflicted with "every
+    sign-in" anyway). Fix: dropped the installed-suppression entirely. Removed the
+    now-dead `PwaInstallTracker` (deleted) + its `(app)`-layout mount + `markPwaInstalled`.
+  - **Showed then auto-dropped** on a fresh account: the popup cleared the
+    `trackd-install-hint` cookie on SHOW via a Server Action — a Server Action (or any
+    post-load RSC refresh) re-renders the dashboard, which then read `freshSignIn=false`
+    and unmounted the popup. Fix: consume the cookie only on **dismiss**, via a plain
+    route handler `POST /api/install-hint` (not a Server Action, so no RSC refresh).
+    `lib/pwa/installActions.ts` deleted.
+  - **Net:** the popup is now gated ONLY to iPhone + Safari (not standalone) + a fresh
+    sign-in cookie; it stays until dismissed, then returns next sign-in. The
+    `pwa_installed_at` / `install_prompt_dismissed_at` columns are left unused (no drop
+    migration).
+
 - **Install popup → every sign-in, + copy spacing/grammar fix (2026-06-24,
   Adrian + Claude) — `tsc`+`lint` clean; on branch
   `fix/install-popup-per-signin-and-copy`.** Adrian wanted the "Add to Home Screen"

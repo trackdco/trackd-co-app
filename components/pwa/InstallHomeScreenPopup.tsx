@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import {
   Sheet,
@@ -12,28 +12,24 @@ import { Button } from "@/components/ui/button";
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { useMounted } from "@/components/home/useMounted";
 import { getCapability } from "@/lib/push/pushService";
-import { clearInstallHint } from "@/lib/pwa/installActions";
 
 /**
  * "Add Trackd to your Home Screen" popup, shown on EVERY physical sign-in / sign-up
- * (Adrian's call) — not once per account. `freshSignIn` comes from the
- * `trackd-install-hint` cookie the auth callback sets, so it only fires when the
- * user actually signs in (a returning user reopening the app with a live session
- * doesn't hit the callback and so doesn't get nagged). On show it clears that
- * cookie so it appears once per login, then returns on the next sign-in.
+ * (Adrian's call). `freshSignIn` comes from the `trackd-install-hint` cookie the
+ * auth callback sets, so it only fires on an actual sign-in (a returning user
+ * reopening the app with a live session doesn't hit the callback, so isn't nagged).
  *
- * Still gated to iPhone + Safari (not standalone) — the copy is iOS-specific and
- * there's nothing to install in the standalone app — and suppressed once we've seen
- * the app run installed (`installed`, from profiles.pwa_installed_at), so people who
- * already added it aren't told to again. The same visuals live permanently in
- * Profile → "Add to Home Screen".
+ * The cookie is consumed only on DISMISS (via a POST to /api/install-hint), NOT on
+ * show — clearing on show let any post-load RSC refresh re-read `freshSignIn=false`
+ * and auto-drop the popup. Now it stays until the user closes it, then won't return
+ * until the next sign-in. Gated to iPhone + Safari (not standalone); the copy is
+ * iOS-specific and there's nothing to install when already in the standalone app.
+ * The same visuals live permanently in Profile → "Add to Home Screen".
  */
 export function InstallHomeScreenPopup({
   freshSignIn,
-  installed,
 }: {
   freshSignIn: boolean;
-  installed: boolean;
 }) {
   const mounted = useMounted();
   const [closed, setClosed] = useState(false);
@@ -42,22 +38,16 @@ export function InstallHomeScreenPopup({
   // setState-in-effect). getCapability touches navigator/window, hence the gate.
   const cap = mounted ? getCapability() : null;
   const eligible =
-    mounted &&
-    cap !== null &&
-    freshSignIn &&
-    !installed &&
-    cap.isIOS &&
-    !cap.isStandalone;
+    mounted && cap !== null && freshSignIn && cap.isIOS && !cap.isStandalone;
 
-  // Clear the one-shot hint as soon as we show it (a side effect to the cookie, not
-  // React state) so it doesn't reappear on later navigations this session.
-  const clearedRef = useRef(false);
-  useEffect(() => {
-    if (eligible && !clearedRef.current) {
-      clearedRef.current = true;
-      void clearInstallHint();
-    }
-  }, [eligible]);
+  function dismiss() {
+    setClosed(true);
+    // Consume the one-shot hint via a plain fetch (NOT a Server Action, so it can't
+    // trigger an RSC refresh) so it won't reappear until the next sign-in.
+    void fetch("/api/install-hint", { method: "POST", keepalive: true }).catch(
+      () => {},
+    );
+  }
 
   if (!eligible) return null;
 
@@ -65,7 +55,7 @@ export function InstallHomeScreenPopup({
     <Sheet
       open={!closed}
       onOpenChange={(o) => {
-        if (!o) setClosed(true);
+        if (!o) dismiss();
       }}
     >
       <SheetContent
@@ -81,7 +71,7 @@ export function InstallHomeScreenPopup({
         <AddToHomeScreenPrompt />
         <Button
           type="button"
-          onClick={() => setClosed(true)}
+          onClick={dismiss}
           className="mt-4 h-11 w-full rounded-xl"
         >
           Got it
