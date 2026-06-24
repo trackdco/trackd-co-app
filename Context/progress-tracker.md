@@ -30,6 +30,17 @@ Last updated: 2026-06-24
 
 ## Completed
 
+- **Profile "Add to Home Screen" row — platform-aware + self-hides when installed
+  (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean.** Finished the Android follow-up
+  on the Profile row (`InstallAppRow`): on iPhone Safari it opens the manual steps; on
+  Android it fires the native install dialog (`usePwaInstall`, shown only when
+  `canInstall`); and when the app is **already on the Home Screen (running standalone)
+  the row is removed entirely** (Adrian's preference over an "already installed"
+  message — `display-mode: standalone` is the reliable signal). The row renders its own
+  leading divider and the Profile page dropped the divider that preceded it, so the
+  App list closes up cleanly when the row hides. (On Android the row also hides when no
+  install is on offer — i.e. already installed but viewed in-browser.)
+
 - **Android/Samsung native install prompt (2026-06-24, Adrian + Claude) —
   `tsc`+`lint` clean.** The install popup was iPhone-only (manual Share-sheet steps);
   Samsung/Android users saw nothing. Added an Android path: new
