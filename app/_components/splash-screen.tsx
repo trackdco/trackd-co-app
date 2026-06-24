@@ -5,56 +5,53 @@ import { useEffect, useRef, useState } from "react";
 /**
  * Splash video overlay — Kyle the vial.
  *
- * Plays the splash clip full-screen the moment the app loads, then fades into
- * the app (same 500ms fade the shell already uses) after a short hold
- * (HOLD_MS). It deliberately does NOT wait for `window.load` — that waited on
- * the 1.1MB clip itself and stalled the splash on screen for ~5s. The app shell
- * is already mounted underneath, so the fade reveals a ready screen.
+ * Plays the splash clip full-screen on launch, lets Kyle ANIMATE, then crossfades
+ * into the app (the same 500ms fade the shell uses). The fade is driven by the
+ * clip itself — it fades a short, tunable PLAY_MS after the video actually starts
+ * playing (so you always see Kyle move, but it never drags), or on the video's own
+ * `ended`, whichever is first. It does NOT wait on `window.load` (which blocked on
+ * the 1.1MB clip and stalled the splash ~5s).
+ *
+ * Robustness: if the clip never starts (autoplay blocked / asset not ready), a
+ * no-start timer fades into the app rather than leaving the user on the static
+ * poster; MAX_MS is an absolute backstop so the splash can never stick.
+ *
+ * Mounted once in the root layout, so it shows on a fresh load / PWA launch but not
+ * on client-side navigations. Mobile only — desktop gets the interstitial instead.
+ *
+ * Why a still <img> UNDER the <video>: on an installed iOS PWA a <video> renders as
+ * a BLACK box while it buffers and standalone WebKit often ignores `poster`, so we
+ * paint the poster still (frame 0) immediately and keep the video at opacity 0
+ * until it's actually playing (`onPlaying`), then reveal it. Frame 0 == poster ==
+ * the native launch image, so the reveal is invisible and there's never a black
+ * gap. If the video never plays, the still simply stays — never black.
  *
  * Offline: the clip + poster are precached by the service worker (public/sw.js),
- * so Kyle still plays with no connection. If the video can't load at all, the
- * poster still (== the native iOS launch image) stays — never a black screen.
- *
- * Mounted once in the root layout, so it shows on a fresh load / PWA launch but
- * not on client-side navigations (the root layout island stays mounted across
- * App Router navs). Mobile only — desktop gets the interstitial instead.
- *
- * The clip is centered at VIDEO_HEIGHT of the viewport on pure black, so Kyle
- * reads clearly smaller than full-bleed. The clip's own background is pure #000,
- * so the field around the scaled-down video is invisible — Kyle just looks
- * smaller, no box/bars. The iOS launch images are regenerated at this SAME
- * fraction (see components/pwa/apple-splash-links.tsx) so the cold-launch →
- * playing-clip handoff stays seamless. The final fade to the app canvas
- * (#111110) is a soft 500ms crossfade, so the slight tonal step isn't visible.
- *
- * Why a still <img> UNDER the <video>: on an installed iOS PWA (and on slow
- * connections), a <video> renders as a BLACK box while it buffers and standalone
- * WebKit often ignores the `poster` attribute — so the clip used to show a few
- * seconds of black before Kyle appeared. Instead we show the poster still
- * (frame 0) immediately and keep the video at opacity 0 until it's actually
- * playing, then reveal it. Frame 0 of the clip == the poster == the launch
- * image, so the reveal is invisible and there is never a black gap. If autoplay
- * is blocked, the still simply stays — still Kyle, never black.
+ * so Kyle still plays with no connection.
  */
 const SPLASH_SRC = "/trackd-kyle-vial-splashback.mp4";
 // Frame 0 of the clip — also baked into the iOS launch images, so the native
-// cold-launch screen, this poster, and the first played frame are identical
-// (no flash/jump on either handoff).
+// cold-launch screen, this poster, and the first played frame are identical.
 const SPLASH_POSTER = "/trackd-kyle-vial-splash-poster.jpg";
 // Kyle's size on the splash: the clip's display height as a fraction of the
-// viewport (the rest is invisible black). Lower = smaller Kyle. The iOS launch
-// PNGs are regenerated at this same fraction — keep them in sync if you tweak it.
+// viewport (the rest is invisible black). The iOS launch PNGs are regenerated at
+// this same fraction — keep them in sync if you tweak it.
 const VIDEO_HEIGHT = "58%";
 const FADE_MS = 500;
-// Show Kyle just long enough to register, then fade — we do NOT wait for the full
-// clip (or `window.load`, which waits on the 1.1MB video itself, the old ~5s
-// stall). The app shell is already mounted under the overlay by the time this
-// runs, so fading here reveals a ready screen, not a blank one.
-const HOLD_MS = 1400; // how long Kyle is shown before the fade begins
-const MAX_MS = 2600; // hard ceiling, even on a slow/janky launch
+// How long Kyle animates after the clip starts playing, before the crossfade. Tune
+// this for the splash length (we also fade on the clip's own `ended` if it's
+// shorter). Kept short so it never feels like it "stays too long".
+const PLAY_MS = 2800;
+// If the clip hasn't started by here, it isn't going to (autoplay blocked / not
+// ready) — fade in rather than strand the user on the static poster.
+const NO_START_MS = 2200;
+// Absolute backstop so a wedged splash can never stick.
+const MAX_MS = 7000;
 
 export function SplashScreen() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const noStartRef = useRef<number | null>(null);
+  const playCapRef = useRef<number | null>(null);
   const [fading, setFading] = useState(false);
   const [done, setDone] = useState(false);
   // The video stays invisible (poster still showing through) until it actually
@@ -62,9 +59,8 @@ export function SplashScreen() {
   const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
-    // Respect reduced motion: skip the moving splash entirely. The app's own
-    // fade-in still covers the transition. (Deferred a frame so we're not
-    // setting state synchronously inside the effect body.)
+    // Respect reduced motion: skip the moving splash entirely. (Deferred a frame so
+    // we're not setting state synchronously inside the effect body.)
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       const raf = requestAnimationFrame(() => setDone(true));
       return () => cancelAnimationFrame(raf);
@@ -72,26 +68,19 @@ export function SplashScreen() {
 
     const video = videoRef.current;
     if (video) {
-      // React can drop the `muted` attribute on hydration, which blocks
-      // autoplay — set it on the element and nudge play() to be safe.
+      // React can drop the `muted` attribute on hydration, which blocks autoplay —
+      // set it on the element and nudge play() to be safe.
       video.muted = true;
       void video.play().catch(() => {});
     }
 
-    let triggered = false;
-    const fadeOut = () => {
-      if (triggered) return;
-      triggered = true;
-      setFading(true);
-    };
-
-    // Fade after a short hold — fast and predictable, regardless of how long the
-    // clip or the network takes. MAX_MS is just a belt-and-braces ceiling.
-    const hold = window.setTimeout(fadeOut, HOLD_MS);
-    const cap = window.setTimeout(fadeOut, MAX_MS);
+    // Backstops only. The happy path fades from onPlaying (PLAY_MS) / onEnded.
+    noStartRef.current = window.setTimeout(() => setFading(true), NO_START_MS);
+    const cap = window.setTimeout(() => setFading(true), MAX_MS);
 
     return () => {
-      window.clearTimeout(hold);
+      if (noStartRef.current) window.clearTimeout(noStartRef.current);
+      if (playCapRef.current) window.clearTimeout(playCapRef.current);
       window.clearTimeout(cap);
     };
   }, []);
@@ -102,8 +91,8 @@ export function SplashScreen() {
     <div
       aria-hidden="true"
       onTransitionEnd={(e) => {
-        // Only the overlay's OWN fade ends the splash — ignore the video
-        // reveal transition bubbling up from the child.
+        // Only the overlay's OWN fade ends the splash — ignore the video reveal
+        // transition bubbling up from the child.
         if (e.target === e.currentTarget && fading) setDone(true);
       }}
       className={`fixed inset-0 z-[9999] bg-black transition-opacity ease-out lg:hidden ${
@@ -131,11 +120,21 @@ export function SplashScreen() {
         muted
         playsInline
         preload="auto"
-        // Reveal only once frames are actually rendering, so the black buffering
-        // box never shows; the poster still sits underneath until then.
-        onPlaying={() => setRevealed(true)}
-        // If the clip finishes before the app is ready, fade out on its end
-        // rather than freezing on the last frame.
+        // The clip is actually rendering frames now: reveal it (over the identical
+        // poster, so it's seamless), cancel the no-start fade, and let it animate
+        // for PLAY_MS before the crossfade.
+        onPlaying={() => {
+          setRevealed(true);
+          if (noStartRef.current) {
+            window.clearTimeout(noStartRef.current);
+            noStartRef.current = null;
+          }
+          if (playCapRef.current === null) {
+            playCapRef.current = window.setTimeout(() => setFading(true), PLAY_MS);
+          }
+        }}
+        // If the clip finishes before PLAY_MS, fade on its end rather than freezing
+        // on the last frame.
         onEnded={() => setFading(true)}
       />
     </div>

@@ -59,10 +59,10 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Serve the two splash assets cache-first; everything else is left entirely to
-// the browser (no respondWith → no interception). Range requests (iOS <video>
-// demands 206 Partial Content) are sliced from the cached full body, so playback
-// works both online and offline.
+// Serve the two splash assets; everything else is left entirely to the browser
+// (no respondWith → no interception). The video is NETWORK-FIRST so that online
+// playback is byte-for-byte the server's own response (the SW never alters it) and
+// only falls back to the precached copy when offline; the poster is cache-first.
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -80,26 +80,41 @@ self.addEventListener("fetch", (event) => {
 
 async function serveSplash(request, pathname) {
   const cache = await caches.open(SPLASH_CACHE);
-  let full = await cache.match(pathname);
-  if (!full) {
+  const isVideo = pathname.endsWith(".mp4");
+
+  if (isVideo) {
+    // Network-first: when online, return the server's own response untouched so the
+    // SW can never break playback. Only when the network is unavailable do we serve
+    // the precached copy (with Range slicing for iOS <video>).
     try {
-      // Fetch the WHOLE asset (no Range) so the cache holds the full body.
-      const fresh = await fetch(pathname);
-      if (fresh && fresh.ok) {
-        await cache.put(pathname, fresh.clone());
-        full = fresh;
-      } else {
-        return fresh;
-      }
+      return await fetch(request);
     } catch {
-      return Response.error();
+      return rangeAwareFromCache(request, pathname, cache);
     }
   }
+
+  // Poster (image): cache-first is safe — images don't use Range requests.
+  const hit = await cache.match(pathname);
+  if (hit) return hit;
+  try {
+    const res = await fetch(request);
+    if (res && res.ok) await cache.put(pathname, res.clone());
+    return res;
+  } catch {
+    return Response.error();
+  }
+}
+
+// Serve a cached asset honouring a Range header — iOS <video> demands 206 Partial
+// Content, and a cached 200 served to a Range request can fail to play. Slices the
+// requested bytes out of the precached full body.
+async function rangeAwareFromCache(request, pathname, cache) {
+  const full = await cache.match(pathname);
+  if (!full) return Response.error();
 
   const range = request.headers.get("range");
   if (!range) return full.clone();
 
-  // Build a 206 from the cached full body for the requested byte range.
   const buf = await full.clone().arrayBuffer();
   const total = buf.byteLength;
   const match = /bytes=(\d+)-(\d*)/.exec(range);
@@ -118,7 +133,7 @@ async function serveSplash(request, pathname) {
       "Content-Range": `bytes ${start}-${end}/${total}`,
       "Accept-Ranges": "bytes",
       "Content-Length": String(chunk.byteLength),
-      "Content-Type": full.headers.get("Content-Type") || "application/octet-stream",
+      "Content-Type": full.headers.get("Content-Type") || "video/mp4",
     },
   });
 }
