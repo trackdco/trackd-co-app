@@ -6,7 +6,7 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
 ## Current Phase
 
@@ -29,6 +29,45 @@ Last updated: 2026-06-23
   catalogues, domain, and the public landing remain live.
 
 ## Completed
+
+- **Three fixes: duplicate compounds + faster/offline splash + iOS install popup
+  (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean; `protocol_compound_uniqueness`
+  migration APPLIED LIVE + verified; prod `build` deferred (a `next dev` server was
+  running — the shared-`.next` gotcha); NOT committed/deployed; ▶ Adrian's on-device
+  QA pending.** Three founder-reported issues in one pass:
+  - **#2 Duplicate compounds — root-caused + durably fixed.** The DB allowed it
+    (`protocol_compounds` had only a PK on `id`; `one_active_cycle_per_user` was
+    commented out) and the read-merge only de-duped the LOCAL extras, never the
+    Postgres pull itself — so two same-name rows both rendered. Two rows could be
+    created because the "already in your log" guard checks ONLY local localStorage
+    (a re-add on a drifted cache mints a fresh id → a twin row), and the inline
+    "Got a vial?" path fires `pushProtocolCompound` twice at once → on a cycle-less
+    post-reset state the `ensureActiveCycle` race spawned two "Current" cycles.
+    **Fix (full root-cause, Adrian's pick):** migration
+    `supabase/protocol/003_protocol_compound_uniqueness.sql` de-dupes any leftovers
+    then adds `UNIQUE (cycle_id, compound_id)` + `one_active_cycle_per_user`
+    (verified zero offending rows before applying; both guards confirmed live);
+    `ensureActiveCycle` is now race-safe (re-reads on `23505`); `pushProtocolCompound`
+    REUSES an existing `(cycle, compound)` row's id so a re-add updates the canonical
+    row instead of twinning; and both the Postgres pull + the hydrate merge de-dupe
+    by compound on read. Files: `lib/db/cycles.ts`, `lib/home/protocolSync.ts`,
+    `lib/home/hydrateProtocol.ts`. (Live DB was clean post-reset, so the migration's
+    cleanup was a verified no-op; the guards prevent recurrence.)
+  - **#3 Splash — fast + offline-proof.** It waited on `window.load` (which blocks
+    on the 1.1MB clip), so Kyle lingered ~5s; and the SW was cache-free, so the clip
+    never loaded offline. Now `app/_components/splash-screen.tsx` fades after a short
+    `HOLD_MS` (1.4s, cap 2.6s) instead of `window.load`, and `public/sw.js` precaches
+    the clip + poster and serves ONLY those two paths (cache-first, with Range slicing
+    so iOS `<video>` gets a `206`) — every other request is still passthrough (no
+    shell caching). Architecture's "no fetch handler" note updated.
+  - **#1 Add-to-Home-Screen popup + Profile entry.** New
+    `components/pwa/InstallHomeScreenPopup.tsx` — a one-time, dismiss-remembered
+    bottom sheet auto-shown to a new iPhone user in Safari (iOS && !standalone),
+    reusing the shared `AddToHomeScreenPrompt` visuals; wired into the dashboard.
+    New `components/profile/InstallAppRow.tsx` ("Add to Home Screen") opens the same
+    visuals from Profile → App, permanently. To avoid double install prompts,
+    `EnableNotificationsStep` no longer renders its own ios-needs-install variant
+    (install is now the popup's job; the push prime stays purely about notifications).
 
 - **Hide scrollbars app-wide — native-app feel (2026-06-23, Adrian + Claude) —
   MERGED to `main` (prod) as PR #33 (squash); CodeRabbit + Vercel checks passed.**

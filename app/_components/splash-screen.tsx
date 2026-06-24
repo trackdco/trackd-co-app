@@ -6,8 +6,14 @@ import { useEffect, useRef, useState } from "react";
  * Splash video overlay — Kyle the vial.
  *
  * Plays the splash clip full-screen the moment the app loads, then fades into
- * the app (same 500ms fade the shell already uses) as soon as the page is
- * ready. It does NOT wait for the whole ~5s clip — readiness wins.
+ * the app (same 500ms fade the shell already uses) after a short hold
+ * (HOLD_MS). It deliberately does NOT wait for `window.load` — that waited on
+ * the 1.1MB clip itself and stalled the splash on screen for ~5s. The app shell
+ * is already mounted underneath, so the fade reveals a ready screen.
+ *
+ * Offline: the clip + poster are precached by the service worker (public/sw.js),
+ * so Kyle still plays with no connection. If the video can't load at all, the
+ * poster still (== the native iOS launch image) stays — never a black screen.
  *
  * Mounted once in the root layout, so it shows on a fresh load / PWA launch but
  * not on client-side navigations (the root layout island stays mounted across
@@ -40,7 +46,12 @@ const SPLASH_POSTER = "/trackd-kyle-vial-splash-poster.jpg";
 // PNGs are regenerated at this same fraction — keep them in sync if you tweak it.
 const VIDEO_HEIGHT = "58%";
 const FADE_MS = 500;
-const MAX_MS = 5500; // safety cap — never outlive the ~5s clip, even on a slow load
+// Show Kyle just long enough to register, then fade — we do NOT wait for the full
+// clip (or `window.load`, which waits on the 1.1MB video itself, the old ~5s
+// stall). The app shell is already mounted under the overlay by the time this
+// runs, so fading here reveals a ready screen, not a blank one.
+const HOLD_MS = 1400; // how long Kyle is shown before the fade begins
+const MAX_MS = 2600; // hard ceiling, even on a slow/janky launch
 
 export function SplashScreen() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -74,17 +85,14 @@ export function SplashScreen() {
       setFading(true);
     };
 
-    // Fade the instant the app is ready (assets loaded) — not when the clip ends.
-    let raf = 0;
-    if (document.readyState === "complete") raf = requestAnimationFrame(fadeOut);
-    else window.addEventListener("load", fadeOut, { once: true });
-
+    // Fade after a short hold — fast and predictable, regardless of how long the
+    // clip or the network takes. MAX_MS is just a belt-and-braces ceiling.
+    const hold = window.setTimeout(fadeOut, HOLD_MS);
     const cap = window.setTimeout(fadeOut, MAX_MS);
 
     return () => {
-      window.removeEventListener("load", fadeOut);
+      window.clearTimeout(hold);
       window.clearTimeout(cap);
-      if (raf) cancelAnimationFrame(raf);
     };
   }, []);
 

@@ -112,7 +112,21 @@ export async function pushProtocolCompound(
     if (!compoundId) return { ok: false, skipped: true } // custom → device-local
     const cycle = await ensureActiveCycle()
     if (!cycle) return { ok: false }
-    const pcId = resolvePcId(cx.userId, c.id)
+    // Reuse the canonical row for this (cycle, compound) if one already exists,
+    // so a RE-ADD (when the local cache has drifted from Postgres) UPDATES that
+    // row instead of inserting a second one with a fresh client id — the
+    // duplicate-compound bug. A fresh add finds nothing and uses the client id
+    // (so local and Postgres stay joined). The `(cycle_id, compound_id)` unique
+    // constraint is the DB backstop either way.
+    const { data: existing } = await cx.supabase
+      .from("protocol_compounds")
+      .select("id")
+      .eq("user_id", cx.userId)
+      .eq("cycle_id", cycle.id)
+      .eq("compound_id", compoundId)
+      .limit(1)
+      .maybeSingle()
+    const pcId = (existing?.id as string | undefined) ?? resolvePcId(cx.userId, c.id)
     const saved = await upsertProtocolCompound(
       stackCompoundToProtocolInsert(c, { id: pcId, cycleId: cycle.id, compoundId })
     )
@@ -163,13 +177,40 @@ export async function pushProtocolBatch(
     const cycle = await ensureActiveCycle()
     if (!cycle) return empty
 
+    // Reuse the canonical id for any compound already in this cycle — exactly like
+    // the single-item pushProtocolCompound. Without this, a batch row would derive
+    // a fresh id from the local c.id and the `(cycle_id, compound_id)` unique guard
+    // would reject the whole upsert (aborting the migration). One query for all.
+    const existingIdByCompound = new Map<string, string>()
+    const compoundIds = [...new Set(idByName.values())]
+    if (compoundIds.length > 0) {
+      const { data: existingRows, error: existingError } = await cx.supabase
+        .from("protocol_compounds")
+        .select("id, compound_id")
+        .eq("user_id", cx.userId)
+        .eq("cycle_id", cycle.id)
+        .in("compound_id", compoundIds)
+      if (existingError) throw existingError
+      for (const row of existingRows ?? []) {
+        existingIdByCompound.set(row.compound_id as string, row.id as string)
+      }
+    }
+
     // Build the compound rows + a per-client-id map of what a dose log needs, so we
     // never re-query a compound back for its unit/amount (the single-item path did).
+    type Meta = {
+      pcId: string
+      doseUnit: DoseUnit
+      doseAmount: number
+      method: StackCompound["method"]
+    }
     const pcRows: ProtocolCompoundInsert[] = []
-    const meta = new Map<
-      string,
-      { pcId: string; doseUnit: DoseUnit; doseAmount: number; method: StackCompound["method"] }
-    >()
+    const meta = new Map<string, Meta>()
+    // One row per compound — the `(cycle_id, compound_id)` unique constraint would
+    // reject a batch that tried to insert the same compound twice (a legacy/corrupt
+    // local stack with two same-name entries). Keep the first; map any later
+    // entry's dose logs onto that canonical row so no log is lost.
+    const canonicalByCompound = new Map<string, Meta>()
     let skippedCustom = 0
     for (const c of stack) {
       const compoundId = idByName.get(c.name)
@@ -177,15 +218,22 @@ export async function pushProtocolBatch(
         skippedCustom++
         continue
       }
-      const pcId = resolvePcId(cx.userId, c.id)
+      const existing = canonicalByCompound.get(compoundId)
+      if (existing) {
+        meta.set(c.id, existing)
+        continue
+      }
+      const pcId = existingIdByCompound.get(compoundId) ?? resolvePcId(cx.userId, c.id)
       const row = stackCompoundToProtocolInsert(c, { id: pcId, cycleId: cycle.id, compoundId })
       pcRows.push(row)
-      meta.set(c.id, {
+      const m: Meta = {
         pcId,
         doseUnit: row.dose_unit,
         doseAmount: row.dose_amount,
         method: c.method,
-      })
+      }
+      canonicalByCompound.set(compoundId, m)
+      meta.set(c.id, m)
     }
 
     const cRes = await upsertProtocolCompounds(pcRows)
@@ -387,8 +435,29 @@ export async function pullProtocolStackAndLogs(): Promise<{
       if (pcRes.error) throw pcRes.error
       if (dlRes.error) throw dlRes.error
 
-      const stack: StackCompound[] = []
+      // One row per compound. The `(cycle_id, compound_id)` unique constraint
+      // prevents new duplicates, but a row left over from before the constraint
+      // (or in an archived cycle) could still surface the same compound twice —
+      // and the client merge only de-dupes the LOCAL extras, not this pull. Keep
+      // the best row per compound (active first, then most-recently-updated) so
+      // the Home stack can never render "two of the same".
+      type PcRow = NonNullable<typeof pcRes.data>[number]
+      const rank = (row: PcRow): number => {
+        const r = row as Record<string, unknown>
+        const active = r.is_active === false ? 0 : 1
+        const t = Date.parse((r.updated_at ?? r.created_at) as string) || 0
+        return active * 1e15 + t
+      }
+      const bestByCompound = new Map<string, PcRow>()
       for (const row of pcRes.data ?? []) {
+        const key = (row as { compound_id?: string }).compound_id
+        if (!key) continue
+        const cur = bestByCompound.get(key)
+        if (!cur || rank(row) > rank(cur)) bestByCompound.set(key, row)
+      }
+
+      const stack: StackCompound[] = []
+      for (const row of bestByCompound.values()) {
         const cat = (row as { compounds?: { name: string; category: string } | null }).compounds
         if (!cat) continue
         stack.push(

@@ -5,7 +5,6 @@ import { Bell } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useMounted } from "@/components/home/useMounted";
-import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { usePushNotifications } from "@/components/push/usePushNotifications";
 
 const DISMISS_KEY = "trackd:push-onboard-dismissed";
@@ -64,22 +63,10 @@ export function EnableNotificationsStep({
   const persistedDismissed = getDismissedFlag();
   // Nothing to onboard: dismissed, already on, still probing, blocked, or N/A.
   if (sessionDismissed || persistedDismissed) return null;
-  if (status !== "off" && status !== "ios-needs-install") return null;
-
-  if (status === "ios-needs-install") {
-    return (
-      <div className="mt-8">
-        <AddToHomeScreenPrompt />
-        <button
-          type="button"
-          onClick={remember}
-          className="mt-3 text-sm text-text-muted transition-colors hover:text-foreground"
-        >
-          Not now
-        </button>
-      </div>
-    );
-  }
+  // Install messaging is handled by the dedicated one-time popup + the Profile
+  // row (components/pwa/InstallHomeScreenPopup), so this prime stays purely about
+  // notifications: only an installed/Android user where push CAN be turned on.
+  if (status !== "off") return null;
 
   return (
     <div className="mt-8 rounded-2xl border border-border bg-bg-surface p-5">

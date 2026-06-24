@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { EnableNotificationsStep } from "@/components/push/EnableNotificationsStep";
+import { InstallHomeScreenPopup } from "@/components/pwa/InstallHomeScreenPopup";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import { unitForPreference } from "@/lib/weight";
 import type { ProgressPhoto } from "@/lib/progress/photos";
@@ -113,6 +114,10 @@ export default async function DashboardPage() {
           initialEnabled={Boolean(profile?.notifications_enabled)}
         />
       </div>
+
+      {/* One-time "Add to Home Screen" popup for a new iPhone user in Safari (not
+          yet installed). Portal sheet — self-hides on every other platform. */}
+      <InstallHomeScreenPopup />
     </>
   );
 }
