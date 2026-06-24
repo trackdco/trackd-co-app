@@ -38,7 +38,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("units_preference, notifications_enabled, pwa_installed_at")
+    .select("units_preference, notifications_enabled")
     .eq("id", user!.id)
     .maybeSingle();
 
@@ -122,11 +122,8 @@ export default async function DashboardPage() {
       </div>
 
       {/* "Add to Home Screen" popup — shown on every physical sign-in / sign-up
-          (iPhone + Safari, not yet installed). Self-hides on every other platform. */}
-      <InstallHomeScreenPopup
-        freshSignIn={freshSignIn}
-        installed={Boolean(profile?.pwa_installed_at)}
-      />
+          (iPhone + Safari). Self-hides on every other platform / in the app. */}
+      <InstallHomeScreenPopup freshSignIn={freshSignIn} />
     </>
   );
 }

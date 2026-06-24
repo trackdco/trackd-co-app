@@ -30,6 +30,19 @@ Last updated: 2026-06-24
 
 ## Completed
 
+- **Install popup wasn't showing on sign-in — removed the "already installed"
+  suppression (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean; on branch
+  `fix/install-popup-show-on-signin`.** Adrian signed in on the web app (iPhone
+  Safari) and the popup didn't appear. Cause: the `!installed` gate I'd added —
+  `adrianschimizzi1@gmail.com` had `pwa_installed_at` stamped from earlier
+  installed-PWA testing, so the popup was permanently suppressed on that account (and
+  it conflicted with "every sign-in" anyway). Fix: dropped the installed-suppression
+  entirely — the popup is now gated ONLY to iPhone + Safari (not standalone) + a fresh
+  sign-in (`trackd-install-hint` cookie). Removed the now-dead `PwaInstallTracker`
+  (deleted) + its `(app)`-layout mount + `markPwaInstalled`; `installActions.ts` is
+  just `clearInstallHint` now. The `pwa_installed_at` / `install_prompt_dismissed_at`
+  columns are left unused (no drop migration). 
+
 - **Install popup → every sign-in, + copy spacing/grammar fix (2026-06-24,
   Adrian + Claude) — `tsc`+`lint` clean; on branch
   `fix/install-popup-per-signin-and-copy`.** Adrian wanted the "Add to Home Screen"

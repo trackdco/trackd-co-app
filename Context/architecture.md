@@ -431,12 +431,12 @@ scheduling is Phase 2.
   successful code exchange, the dashboard reads it, and the popup clears it on show
   (via `clearInstallHint`) so it appears once per login and returns on the next
   sign-in — a returning user reopening the app with a live session never hits the
-  callback, so they aren't nagged. It is still **suppressed once installed**: gated
-  off `profiles.pwa_installed_at` (migration `supabase/profile/006_pwa_install_state.sql`,
-  stamped by `PwaInstallTracker` the first time the app runs standalone — the only
-  reliable "is it installed" signal iOS gives) and never shown in the standalone app.
-  (`install_prompt_dismissed_at` from the first cut is now unused.) Permission is
-  never requested without a user gesture.
+  callback, so they aren't nagged. It is gated ONLY to iPhone + Safari (not
+  standalone); there is deliberately **no "already installed" suppression** (that
+  gate hid the popup on accounts that had once run the installed PWA, e.g. a
+  founder's). The `profiles.pwa_installed_at` / `install_prompt_dismissed_at` columns
+  (migration `supabase/profile/006_pwa_install_state.sql`) are now unused — kept only
+  to avoid a drop migration. Permission is never requested without a user gesture.
   The VAPID public key is `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (inlined at build); the
   private key lives ONLY server-side (Vercel env + the Edge Function secrets),
   never in the bundle.
