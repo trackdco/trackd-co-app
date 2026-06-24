@@ -322,18 +322,15 @@ function AddStockForm({
 
       // The stock row references this compound's protocol_compound. A just-tracked
       // compound's push to Postgres can still be in flight, and a custom ("make
-      // your own") compound has no protocol_compound at all — either way the insert
-      // would fail its foreign key. Ensure/learn it first instead of failing
-      // silently (which left the compound absent from Stock — "it didn't load").
+      // your own") compound only gets its protocol_compound when first pushed —
+      // either way the insert would fail its foreign key. Ensure it first
+      // (catalogue AND custom alike now resolve to a row, supabase/protocol/004)
+      // instead of failing silently (which left the compound absent from Stock).
       const compound = compounds.find((c) => c.id === compoundId)
       if (compound) {
         const pushed = await pushProtocolCompound(compound)
         if (!pushed.ok) {
-          setError(
-            pushed.skipped
-              ? "Stock tracking isn’t available for your own custom compounds yet."
-              : "Couldn’t sync this compound. Check your connection and try again."
-          )
+          setError("Couldn’t sync this compound. Check your connection and try again.")
           return
         }
       }

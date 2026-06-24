@@ -92,8 +92,10 @@ export async function listStock(): Promise<StockItem[]> {
         // strict subset of the user's ACTIVE compounds: archiving or removing a
         // compound on Home (which sets/clears its protocol_compounds row) drops its
         // vial from Stock too, so Stock can never show a compound Home doesn't.
+        // custom_name/custom_category cover a CUSTOM compound (compound_id NULL,
+        // so the nested `compounds` join is null) — coalesced below.
         .select(
-          "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, prior_used_base, protocol_compounds!inner(is_active, compounds(name, category))"
+          "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, prior_used_base, protocol_compounds!inner(is_active, custom_name, custom_category, compounds(name, category))"
         )
         .eq("user_id", ctx.userId)
         .eq("is_active", true)
@@ -122,14 +124,20 @@ export async function listStock(): Promise<StockItem[]> {
 
     return (itemsRes.data ?? []).map((row) => {
       const r = row as Record<string, unknown>
-      const pc = r.protocol_compounds as { compounds?: { name?: string; category?: string } } | null
+      const pc = r.protocol_compounds as {
+        custom_name?: string | null
+        custom_category?: string | null
+        compounds?: { name?: string; category?: string } | null
+      } | null
       const cat = pc?.compounds
       const m = math.get(r.id as string) ?? {}
       return {
         id: r.id as string,
         protocolCompoundId: r.protocol_compound_id as string,
-        compoundName: cat?.name ?? "Compound",
-        category: cat?.category ?? "anabolic",
+        // Catalogue name/category, else the custom row's own — a custom vial shows
+        // the user's compound name in Stock, not a "Compound" placeholder.
+        compoundName: cat?.name ?? pc?.custom_name ?? "Compound",
+        category: cat?.category ?? pc?.custom_category ?? "anabolic",
         inventoryType: r.inventory_type as InventoryType,
         baseUnit: r.base_unit as string,
         acquiredOn: (r.acquired_on as string | null) ?? null,

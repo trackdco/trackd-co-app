@@ -103,7 +103,13 @@ export interface ProtocolCompound {
   id: string
   user_id: string
   cycle_id: string
-  compound_id: string
+  /** Catalogue compound id, or NULL for a custom "Make your own" compound
+   *  (which carries its identity in custom_name/custom_category instead). */
+  compound_id: string | null
+  /** Set only on a custom compound (compound_id NULL) — its display name/category,
+   *  since there's no catalogue row to join. (supabase/protocol/004.) */
+  custom_name: string | null
+  custom_category: string | null
   dose_amount: number
   dose_unit: DoseUnit
   route: AdminRoute
@@ -158,7 +164,10 @@ export interface CycleInsert {
 export interface ProtocolCompoundInsert {
   id: string
   cycle_id: string
-  compound_id: string
+  /** Catalogue id, or NULL for a custom compound (then set custom_name/category). */
+  compound_id: string | null
+  custom_name?: string | null
+  custom_category?: string | null
   dose_amount: number
   dose_unit: DoseUnit
   route: AdminRoute
@@ -299,18 +308,24 @@ export function localSiteToInjectionSite(siteId: string | null): InjectionSite |
  * `compound_id` (a uuid in the read-only `compounds` table) and the row `id`
  * are resolved by the **caller** — the live stack carries a client-generated id
  * and a compound *name*, not the catalogue uuid; Step 2's migration resolves the
- * name → catalogue id. `inventory_item_id` stays unset until Step 5.
+ * name → catalogue id. A custom "Make your own" compound has no catalogue row, so
+ * the caller passes `compoundId: null` and the row carries its name/category in
+ * `custom_name`/`custom_category` instead (the identity CHECK enforces exactly one
+ * source). `inventory_item_id` stays unset until Step 5.
  */
 export function stackCompoundToProtocolInsert(
   c: StackCompound,
-  args: { id: string; cycleId: string; compoundId: string }
+  args: { id: string; cycleId: string; compoundId: string | null }
 ): ProtocolCompoundInsert {
   const schedule = cadenceToSchedule(c.schedule.cadence)
   const rotation = isInjectable(c.method) ? c.rotationSites : []
+  const custom = args.compoundId === null
   return {
     id: args.id,
     cycle_id: args.cycleId,
     compound_id: args.compoundId,
+    custom_name: custom ? c.name : null,
+    custom_category: custom ? c.category : null,
     dose_amount: c.dose > 0 ? c.dose : 0.001, // dose_positive CHECK; 0 shouldn't occur
     dose_unit: coerceDoseUnit(c.unit),
     route: methodToRoute(c.method),

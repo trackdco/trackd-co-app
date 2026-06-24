@@ -59,7 +59,9 @@ Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormo
 - Push notification delivery (post-trip; `push_subscriptions` table already exists in schema — storage only).
 - Bloodwork AI analyser (v1.5; Claude Sonnet).
 - AI chat (cut permanently — legal liability; the tracker is the product).
-- Nutrition (cut from v1), dose titration (v1.5), custom compounds (v1.5).
+- Nutrition (cut from v1), dose titration (v1.5). (Custom "Make your own"
+  compounds — including **vials + stock runway** on them — were pulled INTO beta
+  scope 2026-06-24; see Architecture → Protocol Cutover.)
 - Native apps / App Store (PWA via Vercel only; native revisited in v2 if metrics justify).
 - DB-enforced cycle limits (open app-layer decision; tester behaviour decides).
 

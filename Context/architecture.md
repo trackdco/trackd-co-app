@@ -105,7 +105,13 @@ reminders, and storing each user's timezone (defaults to Sydney until then).
   vials). `003_protocol_compound_uniqueness.sql` adds `UNIQUE (cycle_id, compound_id)`
   + the `one_active_cycle_per_user` partial unique index (the duplicate-compound
   fix — see the Protocol Cutover notes below). All additive/constraint-only, still
-  **23 tables**.
+  **23 tables**. `004_custom_protocol_compounds.sql` makes
+  `protocol_compounds.compound_id` nullable and adds `custom_name` +
+  `custom_category` (a row is now a catalogue compound XOR a custom one, identity
+  CHECK-enforced + a `(cycle_id, custom_name)` partial unique index) so **custom
+  "Make your own" compounds can carry vials + stock runway** through the unchanged
+  `inventory_items`/`v_inventory_math` chain — the read-only `compounds` catalogue
+  is untouched, so Invariant 6 stands. Additive, still **23 tables**.
   `supabase/consent/` holds `001_consent_records.sql` (the `consent_records`
   migration, Spec 12) — the append-only, per-user, per-version legal-consent
   audit log written at signup (insert+select-own RLS, no update/delete; FK to
@@ -287,10 +293,18 @@ reminders, and storing each user's timezone (defaults to Sydney until then).
     (validating unit-family vs the vial, dropping an incompatible link rather than failing the
     log). So logging a dose **decrements that vial's "stock left"** via `v_inventory_math`
     (`consumed`); unlogging restores it.
-  - **Scope:** only **catalogue** compounds are in Postgres; **custom "Make your own"**
-    compounds remain device-local (jsonb mirror) and Home merges them — true custom
-    support is v1.5. The Step 5 Stock view reads `v_inventory_math` (runway), and logging a
-    dose against a vial decrements it. (The `lib/sync/{cache,syncEngine}.ts` outbox
+  - **Scope:** catalogue compounds are canonical in Postgres. **Custom "Make your own"
+    compounds** keep their STACK membership device-local (jsonb mirror, merged on Home),
+    but now ALSO get a `protocol_compounds` row on demand (compound_id NULL +
+    `custom_name`/`custom_category`, `supabase/protocol/004`) so they can carry **vials +
+    stock runway** — pulled into beta scope (2026-06-24). `pushProtocolCompound` creates the
+    custom row (id = `resolvePcId(client id)`, which equals the local id since `newId()` is
+    always a uuid, so Postgres + local stay joined and dose logs decrement the right vial);
+    `listStock` coalesces `custom_name`; both the inline "Got a vial?" step and the Stock
+    tab's `AddStockSheet` already drive customs. The Postgres stack PULL still SKIPS custom
+    rows (compound_id NULL), so customs render once (device-local), never doubled. The Step 5
+    Stock view reads `v_inventory_math` (runway), and logging a dose against a vial
+    decrements it. (The `lib/sync/{cache,syncEngine}.ts` outbox
     scaffold + the `/preview/db-sync` and `/preview/protocol-test` harnesses were
     **removed (2026-06-18)** once the cutover settled — the live path is
     `lib/home/protocolSync.ts` + `migrateDeviceState.ts`.)

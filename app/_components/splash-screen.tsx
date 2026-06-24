@@ -32,6 +32,16 @@ import { useEffect, useRef, useState } from "react";
 const SPLASH_SRC = "/trackd-kyle-vial-splashback.mp4";
 const SPLASH_POSTER = "/trackd-kyle-vial-splash-poster.jpg";
 const VIDEO_HEIGHT = "58%";
+// The clip has a dark-but-not-black square baked into its 9:16 frame, so it shows a
+// hard rectangular edge against the pure-black overlay. Feather it with a soft
+// circular vignette centred on Kyle so the box dissolves into the background instead.
+// `closest-side` ⇒ the radius is half the (portrait) element's width, so the fade
+// lands around the square's left/right edges; Kyle + his shadow stay inside the
+// opaque core and the square's corners fade fully to black. Applied identically to
+// the poster <img> and the <video> so the reveal crossfade stays seamless. Tunable:
+// raise the first stop to keep more of Kyle crisp, lower the second to fade harder.
+const SPLASH_MASK =
+  "radial-gradient(circle closest-side at 50% 50%, black 56%, transparent 90%)";
 const FADE_MS = 500;
 // How long Kyle animates after the clip starts advancing, before the crossfade.
 const PLAY_MS = 2800;
@@ -138,14 +148,22 @@ export function SplashScreen() {
         alt=""
         fetchPriority="high"
         className="pointer-events-none absolute left-1/2 top-1/2 max-w-full -translate-x-1/2 -translate-y-1/2 object-contain"
-        style={{ height: VIDEO_HEIGHT }}
+        style={{
+          height: VIDEO_HEIGHT,
+          WebkitMaskImage: SPLASH_MASK,
+          maskImage: SPLASH_MASK,
+        }}
       />
       <video
         ref={videoRef}
         className={`pointer-events-none absolute left-1/2 top-1/2 max-w-full -translate-x-1/2 -translate-y-1/2 object-contain transition-opacity duration-300 ${
           revealed ? "opacity-100" : "opacity-0"
         }`}
-        style={{ height: VIDEO_HEIGHT }}
+        style={{
+          height: VIDEO_HEIGHT,
+          WebkitMaskImage: SPLASH_MASK,
+          maskImage: SPLASH_MASK,
+        }}
         src={SPLASH_SRC}
         autoPlay
         muted

@@ -141,10 +141,12 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
     notifyStackChanged()
     // Catalogue compounds are canonical in Postgres; the jsonb mirror is now a
     // CUSTOMS-ONLY backup (writing catalogue copies there was the reinstall
-    // resurrection source). Customs have no Postgres row, so the mirror is their
-    // only durable store.
+    // resurrection source) — the mirror is the custom's durable metadata store.
+    // Both kinds ALSO get a protocol_compounds row now (supabase/protocol/004):
+    // a custom is stored as compound_id NULL + custom_name, so it can carry vials
+    // + stock runway exactly like a catalogue compound.
     if (isCustomName(compound.name)) void pushStackCompound(compound)
-    void trackSync(pushProtocolCompound(compound)) // Postgres (no-op for customs)
+    void trackSync(pushProtocolCompound(compound)) // Postgres (custom or catalogue)
   }
   return ok
 }
