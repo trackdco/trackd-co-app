@@ -1,4 +1,4 @@
-import { Plus, Share } from "lucide-react";
+import { MoreHorizontal, Plus, Share } from "lucide-react";
 
 /**
  * The shared "Add to Home Screen" instructions for iPhone. Used by the one-time
@@ -28,6 +28,15 @@ export function AddToHomeScreenPrompt() {
             Tap the <span className="text-foreground">Share</span> button — on
             newer iPhones it&apos;s inside the{" "}
             <span className="text-foreground">•••</span> menu
+          </span>
+        </li>
+        <li className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+            <MoreHorizontal className="size-5" aria-hidden="true" />
+          </span>
+          <span className="text-sm leading-snug text-text-muted">
+            Tap <span className="text-foreground">View more</span> if you don&apos;t
+            see the next option yet
           </span>
         </li>
         <li className="flex items-start gap-3">

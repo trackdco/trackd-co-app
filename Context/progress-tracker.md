@@ -40,10 +40,10 @@ Last updated: 2026-06-24
   relies on the `onPlaying` event — it POLLS `video.currentTime` (reveal the moment
   frames are actually advancing) and retries `play()`, with `playing`/`timeupdate`/
   `ended` listeners as additional triggers; NO_START_MS still covers a genuine
-  autoplay block. Also **reverted the install-popup copy** to the previous
-  phone-specific wording (Share — "on newer iPhones it's inside the ••• menu" —
-  then Add to Home Screen) at Adrian's request; the 3-step "View more" variant from
-  #35 is dropped.
+  autoplay block. Also **tuned the install-popup copy** (Adrian): keep the 3-step
+  flow (Share → View more → Add to Home Screen) BUT keep the older-vs-newer-iPhone
+  explanation he likes on the Share step ("on newer iPhones it's inside the •••
+  menu").
 
 - **Follow-ups: splash actually animates, install popup shows once-per-account,
   dup fix verified (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean;
