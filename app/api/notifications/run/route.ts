@@ -1,8 +1,8 @@
 /**
  * Scheduled reminder runner (Spec 14, Phase 2). The cron hits this endpoint every
- * ~15 min; it resolves the founder accounts (founders-first rollout) and runs each
- * through the reminder engine, which itself respects each user's reminder time,
- * quiet hours, and once-per-day dedupe (lib/notifications/runner.ts).
+ * ~15 min; it resolves the target accounts (all opted-in users — see FOUNDERS_ONLY)
+ * and runs each through the reminder engine, which itself respects each user's
+ * reminder time, quiet hours, and once-per-day dedupe (lib/notifications/runner.ts).
  *
  * Secured by a shared CRON_SECRET (Bearer). Uses the Supabase SERVICE ROLE to read
  * other users' due doses + subscriptions (the only place the app needs elevated
@@ -20,8 +20,8 @@ import { runForUser } from "@/lib/notifications/runner";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Founders-first: flip to false to open scheduled reminders to all opted-in users.
-const FOUNDERS_ONLY = true;
+// Open to all opted-in users (beta). Set back to true to fall back to founders-only.
+const FOUNDERS_ONLY = false;
 
 async function handle(req: Request) {
   const secret = process.env.CRON_SECRET ?? "";
@@ -41,33 +41,49 @@ async function handle(req: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Resolve the target accounts. Founders-first reads the small founder list;
-  // opening up later would page through all users with notifications_enabled.
-  const { data: list, error: listErr } = await supabase.auth.admin.listUsers({
-    page: 1,
-    perPage: 200,
-  });
-  if (listErr) {
-    return NextResponse.json({ error: listErr.message }, { status: 500 });
+  // Resolve the target user IDs.
+  let targetIds: string[];
+  if (FOUNDERS_ONLY) {
+    // Small founder list: read accounts and filter by founder email.
+    const { data: list, error: listErr } = await supabase.auth.admin.listUsers({
+      page: 1,
+      perPage: 200,
+    });
+    if (listErr) {
+      return NextResponse.json({ error: listErr.message }, { status: 500 });
+    }
+    targetIds = (list?.users ?? [])
+      .filter((u) => isFounder(u.email))
+      .map((u) => u.id);
+  } else {
+    // Everyone who opted into notifications — scales past the 200-account
+    // listUsers cap and skips non-subscribers. runForUser re-checks the intent
+    // flag + subscriptions, so this is only the candidate set. (Batch/paginate
+    // if the opted-in count ever gets large enough to strain one invocation.)
+    const { data: profs, error: profErr } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("notifications_enabled", true);
+    if (profErr) {
+      return NextResponse.json({ error: profErr.message }, { status: 500 });
+    }
+    targetIds = (profs ?? []).map((p) => p.id as string);
   }
-  const targets = (list?.users ?? []).filter((u) =>
-    FOUNDERS_ONLY ? isFounder(u.email) : Boolean(u.email),
-  );
 
   let sent = 0;
   const results: Array<{ id: string; sent: number; reason?: string }> = [];
-  for (const u of targets) {
+  for (const id of targetIds) {
     try {
-      const r = await runForUser(supabase, u.id, { force: false });
+      const r = await runForUser(supabase, id, { force: false });
       sent += r.sent;
-      results.push({ id: u.id, sent: r.sent, reason: r.reason });
+      results.push({ id, sent: r.sent, reason: r.reason });
     } catch (e) {
-      console.error("[cron] runForUser failed", u.id, e);
-      results.push({ id: u.id, sent: 0, reason: "error" });
+      console.error("[cron] runForUser failed", id, e);
+      results.push({ id, sent: 0, reason: "error" });
     }
   }
 
-  return NextResponse.json({ ran: targets.length, sent, results });
+  return NextResponse.json({ ran: targetIds.length, sent, results });
 }
 
 export async function POST(req: Request) {
