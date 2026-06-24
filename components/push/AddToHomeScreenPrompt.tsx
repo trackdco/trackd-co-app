@@ -20,8 +20,7 @@ export function AddToHomeScreenPrompt() {
         Add Trackd to your Home Screen
       </p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-        Get the most out of Trackd — add it to your Home Screen so it opens
-        full-screen, one tap away, instead of a Safari tab. It takes a second:
+        Get the full app, not a Safari tab — here&apos;s how:
       </p>
       <ol className="mt-4 space-y-3">
         <li className="flex items-start gap-3">
