@@ -30,6 +30,20 @@ Last updated: 2026-06-24
 
 ## Completed
 
+- **Android/Samsung native install prompt (2026-06-24, Adrian + Claude) —
+  `tsc`+`lint` clean.** The install popup was iPhone-only (manual Share-sheet steps);
+  Samsung/Android users saw nothing. Added an Android path: new
+  `components/pwa/usePwaInstall.ts` captures Chrome/Samsung Internet's
+  `beforeinstallprompt` (module-level capture so an early event isn't missed +
+  `useSyncExternalStore`, no setState-in-effect) and exposes a one-tap
+  `promptInstall()` that fires the OS's native install dialog. `InstallHomeScreenPopup`
+  now branches by platform: iPhone keeps the manual steps; Android (when `canInstall`)
+  shows a single "Add to Home Screen" button → native dialog. Same `freshSignIn`
+  trigger + dismiss-clears-cookie for both. Also trimmed the iOS opener to "Get the
+  full app, not a Safari tab — here's how:" (Adrian, prior commit). **Follow-up noted:**
+  the Profile → "Add to Home Screen" row still shows iOS steps to Android users (it
+  reuses `AddToHomeScreenPrompt`) — lower priority; revisit if needed.
+
 - **Install popup copy — drop the reminders framing (2026-06-24, Adrian + Claude)
   — `tsc`+`lint` clean.** Adrian: the popup shouldn't mention reminders; it should
   sell the install. `AddToHomeScreenPrompt` opener is now "Get the most out of
