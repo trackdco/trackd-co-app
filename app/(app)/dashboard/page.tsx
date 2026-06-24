@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { EnableNotificationsStep } from "@/components/push/EnableNotificationsStep";
@@ -37,11 +38,14 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select(
-      "units_preference, notifications_enabled, pwa_installed_at, install_prompt_dismissed_at",
-    )
+    .select("units_preference, notifications_enabled, pwa_installed_at")
     .eq("id", user!.id)
     .maybeSingle();
+
+  // Set by the auth callback on a fresh sign-in / sign-up — drives the one-time
+  // (per-login) "Add to Home Screen" popup below.
+  const cookieStore = await cookies();
+  const freshSignIn = cookieStore.get("trackd-install-hint")?.value === "1";
 
   // First name for the greeting — from Google auth metadata (display only, never
   // an access decision). Falls back to the email local-part, else null (no name).
@@ -117,12 +121,11 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* One-time "Add to Home Screen" popup for a new iPhone user in Safari (not
-          yet installed). Shows once per account; suppressed once installed or
-          dismissed. Self-hides on every other platform. */}
+      {/* "Add to Home Screen" popup — shown on every physical sign-in / sign-up
+          (iPhone + Safari, not yet installed). Self-hides on every other platform. */}
       <InstallHomeScreenPopup
+        freshSignIn={freshSignIn}
         installed={Boolean(profile?.pwa_installed_at)}
-        dismissed={Boolean(profile?.install_prompt_dismissed_at)}
       />
     </>
   );

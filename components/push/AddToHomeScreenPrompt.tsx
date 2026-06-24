@@ -1,11 +1,15 @@
 import { MoreHorizontal, Plus, Share } from "lucide-react";
 
 /**
- * The shared "Add to Home Screen" instructions for iPhone. Used by the one-time
- * install popup (components/pwa/InstallHomeScreenPopup), the permanent Profile →
- * "Add to Home Screen" row (components/profile/InstallAppRow), and the push flow
- * when iOS isn't installed yet (iOS only delivers Web Push to a Home-Screen-
- * installed standalone PWA).
+ * The shared "Add to Home Screen" instructions for iPhone. Used by the install
+ * popup (components/pwa/InstallHomeScreenPopup), the permanent Profile → "Add to
+ * Home Screen" row (components/profile/InstallAppRow), and the push flow when iOS
+ * isn't installed yet (iOS only delivers Web Push to a Home-Screen-installed
+ * standalone PWA).
+ *
+ * NOTE on spacing: every bold <span> is followed by an explicit {" "} so the space
+ * survives JSX whitespace collapsing — without it, a line wrap turns "Share button"
+ * into "Sharebutton".
  *
  * Presentational only (no hook, no state) — the parent decides when to show it.
  */
@@ -16,7 +20,7 @@ export function AddToHomeScreenPrompt() {
         Add Trackd to your Home Screen
       </p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-        On iPhone, reminders only work once Trackd is installed. It takes a
+        On iPhone, reminders only work once Trackd is installed — it takes a
         second:
       </p>
       <ol className="mt-4 space-y-3">
@@ -25,9 +29,9 @@ export function AddToHomeScreenPrompt() {
             <Share className="size-5" aria-hidden="true" />
           </span>
           <span className="text-sm leading-snug text-text-muted">
-            Tap the <span className="text-foreground">Share</span> button — on
-            newer iPhones it&apos;s inside the{" "}
-            <span className="text-foreground">•••</span> menu
+            Tap the <span className="text-foreground">Share</span>{" "}
+            button — on newer iPhones it&apos;s inside the{" "}
+            <span className="text-foreground">•••</span> menu.
           </span>
         </li>
         <li className="flex items-start gap-3">
@@ -35,8 +39,8 @@ export function AddToHomeScreenPrompt() {
             <MoreHorizontal className="size-5" aria-hidden="true" />
           </span>
           <span className="text-sm leading-snug text-text-muted">
-            Tap <span className="text-foreground">View more</span> if you don&apos;t
-            see the next option yet
+            Tap <span className="text-foreground">View more</span>{" "}
+            if you don&apos;t see the next option yet.
           </span>
         </li>
         <li className="flex items-start gap-3">

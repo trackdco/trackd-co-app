@@ -423,15 +423,20 @@ scheduling is Phase 2.
   affordance) and a one-time, skippable **dashboard** prime
   (`components/push/EnableNotificationsStep.tsx`). The notifications prime stays
   purely about notifications (renders only when push CAN be enabled); **iOS install
-  education is its own thing** — a one-time `AddToHomeScreenPrompt` popup
-  (`components/pwa/InstallHomeScreenPopup.tsx`, shown to a new iPhone-in-Safari user)
+  education is its own thing** — an `AddToHomeScreenPrompt` popup
+  (`components/pwa/InstallHomeScreenPopup.tsx`, shown to an iPhone-in-Safari user)
   plus a permanent Profile → "Add to Home Screen" row (`InstallAppRow`). The popup
-  shows **once per account**: gated by `profiles.pwa_installed_at` /
-  `install_prompt_dismissed_at` (migration `supabase/profile/006_pwa_install_state.sql`)
-  — `PwaInstallTracker` stamps `pwa_installed_at` the first time the app runs
-  standalone (a Home-Screen launch, the only reliable "is it installed" signal iOS
-  gives), so once added it never shows again, on any device. Permission is never
-  requested without a user gesture.
+  shows on **every physical sign-in / sign-up** (Adrian's call): the auth callback
+  (`app/auth/callback/route.ts`) sets a short-lived `trackd-install-hint` cookie on a
+  successful code exchange, the dashboard reads it, and the popup clears it on show
+  (via `clearInstallHint`) so it appears once per login and returns on the next
+  sign-in — a returning user reopening the app with a live session never hits the
+  callback, so they aren't nagged. It is still **suppressed once installed**: gated
+  off `profiles.pwa_installed_at` (migration `supabase/profile/006_pwa_install_state.sql`,
+  stamped by `PwaInstallTracker` the first time the app runs standalone — the only
+  reliable "is it installed" signal iOS gives) and never shown in the standalone app.
+  (`install_prompt_dismissed_at` from the first cut is now unused.) Permission is
+  never requested without a user gesture.
   The VAPID public key is `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (inlined at build); the
   private key lives ONLY server-side (Vercel env + the Edge Function secrets),
   never in the bundle.
