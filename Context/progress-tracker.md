@@ -30,6 +30,38 @@ Last updated: 2026-06-24
 
 ## Completed
 
+- **Follow-ups: splash actually animates, install popup shows once-per-account,
+  dup fix verified (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean;
+  `pwa_install_state` migration APPLIED LIVE; on branch `fix/splash-anim-and-install-once`;
+  ▶ on-device QA pending.** Founder feedback after the first PR (#34) merged:
+  - **Splash showed black → static poster, no animation.** Cause: the previous pass
+    faded after a fixed 1.4s, which cut the clip off before it visibly played; and
+    the SW intercepted the video and could alter playback. Fix: `splash-screen.tsx`
+    now lets the clip ANIMATE — reveals it on `onPlaying`, fades a short tunable
+    `PLAY_MS` (2.8s) after it starts or on its own `ended`, with a `NO_START_MS`
+    (2.2s) fade so it never strands on the static poster and a `MAX_MS` (7s)
+    backstop. `public/sw.js` now serves the **video network-first** (online playback
+    is the server's own untouched response; only offline falls back to the precached
+    copy with Range slicing), poster stays cache-first — so the SW can't break
+    online playback.
+  - **Install popup should show ONCE per account, and not if it's already on the
+    Home Screen.** Migration `supabase/profile/006_pwa_install_state.sql` (applied
+    live) adds `profiles.pwa_installed_at` + `install_prompt_dismissed_at`. New
+    `PwaInstallTracker` (mounted in the `(app)` shell) stamps `pwa_installed_at` the
+    first time the app runs standalone — `display-mode: standalone` is the only
+    reliable "is it installed?" signal iOS gives — so once added the popup never
+    shows again, on any device. `InstallHomeScreenPopup` now takes server-backed
+    `installed`/`dismissed` props (from the dashboard profile read) + dismisses via
+    `dismissInstallPrompt()` (`lib/pwa/installActions.ts`); shows only on iOS + in
+    Safari (not standalone) + both flags null. localStorage stays as an offline
+    backup for the dismissal.
+  - **Popup copy → 3 steps (Adrian's pick):** Share → View more → Add to Home Screen
+    (`AddToHomeScreenPrompt`, the shared visual used by the popup + Profile row).
+  - **Duplicate-compound fix VERIFIED:** a constraint test inserted a duplicate
+    `(cycle, compound)` row and the DB rejected it (rolled back, nothing persisted);
+    live data shows 0 duplicate groups + 0 multi-active-cycle users even after the
+    founder's live add-compound testing. Resolved at the DB level.
+
 - **Three fixes: duplicate compounds + faster/offline splash + iOS install popup
   (2026-06-24, Adrian + Claude) — `tsc`+`lint` clean; `protocol_compound_uniqueness`
   migration APPLIED LIVE + verified; prod `build` deferred (a `next dev` server was

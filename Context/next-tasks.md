@@ -15,26 +15,34 @@ Last updated: 2026-06-24
 
 ## 🎯 Current focus
 
-**2026-06-24 (Adrian + Claude): three fixes — duplicate compounds + faster/offline
-splash + iOS install popup — BUILT, `tsc`+`lint` clean; migration applied LIVE; NOT
-committed/deployed.** Full detail in `progress-tracker.md`. **Prod `build` was
-deferred** because a `next dev` server is running (the shared-`.next` gotcha) — run it
-with the dev server stopped before pushing.
+**2026-06-24 follow-ups (Adrian + Claude): splash animation + install-popup-once —
+BUILT on `fix/splash-anim-and-install-once`, `tsc`+`lint` clean; `pwa_install_state`
+migration applied LIVE.** After PR #34 merged, Adrian reported the splash showed only
+a static image (no animation) and the popup should show once-per-account / only when
+not already installed. Fixes (full detail in `progress-tracker.md`): splash now lets
+the clip ANIMATE (fade on play-through/`ended`, not a 1.4s cut) + SW serves the video
+network-first; the install popup is server-backed (`profiles.pwa_installed_at` /
+`install_prompt_dismissed_at`, recorded by `PwaInstallTracker` on a standalone launch)
+so it shows once per account and never once installed; popup copy is now Share → View
+more → Add to Home Screen. **Dup fix verified** (constraint rejects a duplicate insert;
+live data clean).
 
-**▶ How to test (then commit → PR → CodeRabbit → merge):**
-1. **Duplicates:** add a compound WITH a vial inline ("Got a vial?"), and via Stock →
-   Add stock. Confirm Home shows it ONCE. Try to re-add the same compound → blocked /
-   stays one. Check Supabase: exactly one `protocol_compounds` row per compound and one
-   active `cycles` row per user (the new `UNIQUE (cycle_id, compound_id)` +
-   `one_active_cycle_per_user` guards). Then a delete + PWA reinstall → still no dupes.
-2. **Splash:** cold-launch the installed PWA → Kyle plays then fades in ~1.4s (no ~5s
-   linger, no long double-Kyle). Turn on Airplane mode, force-quit, relaunch → Kyle
-   still plays (precached by the SW). **NOTE:** the SW must update first — open the app
-   online once (or re-add to Home Screen) so the new `sw.js` activates and precaches.
-3. **Install popup:** as a NEW iPhone user in Safari (not installed), the "Add to Home
-   Screen" sheet auto-shows once after signup; dismiss → never nags. Profile → App →
-   "Add to Home Screen" re-opens the same visuals any time. (Android/desktop/installed:
-   no popup.) The notifications prime no longer duplicates the install message.
+**▶ How to test (then PR → CodeRabbit → merge):**
+1. **Splash animation:** open the app ONLINE once so the new `sw.js` activates, then
+   cold-launch → Kyle should visibly ANIMATE (~2.8s) then crossfade in. If it still
+   shows only the static image, the clip isn't autoplaying — tell me. Airplane-mode
+   relaunch → still plays (precached).
+2. **Install popup once:** new iPhone-in-Safari account → popup shows once; dismiss →
+   never again (even after logout/login, different device). Add to Home Screen + open
+   it from there once → the popup is suppressed for good (we record the standalone
+   launch). Profile → "Add to Home Screen" still re-opens the visuals any time.
+3. Prod `build` is deferred locally (dev server running) — Vercel will build on the PR.
+
+**▶ Earlier — PR #34 (MERGED to prod, 2026-06-24):** the first cut of all three —
+the duplicate-compound DB guards + read/merge de-dupe, the initial splash speed-up +
+SW precache, and the first install popup + Profile row. This follow-up branch supersedes
+the splash + popup bits with the fixes above; the duplicate-compound work shipped in #34
+and is unchanged here.
 
 **▶ Earlier focus (still open):**
 

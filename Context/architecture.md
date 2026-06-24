@@ -387,12 +387,15 @@ scheduling is Phase 2.
   hand-written. Primarily push-only (`push` + `notificationclick`). It ALSO
   precaches exactly two static assets — the Kyle-the-vial splash clip + its poster
   (`SPLASH_CACHE`/`SPLASH_ASSETS`) — and its `fetch` handler **responds ONLY for
-  those two same-origin paths** (cache-first, with Range-request slicing so iOS
-  `<video>` gets `206 Partial Content`); for **every other request it returns
-  without calling `respondWith`**, so it still never intercepts a navigation or
-  caches the app shell. The offline-first model for app DATA stays localStorage +
-  the Supabase mirror (not SW caching); the only thing the SW caches is the splash,
-  so Kyle plays offline. Registered from the `(app)` shell by
+  those two same-origin paths**: the **video is network-first** (when online it
+  returns the server's own response untouched, so the SW can never alter playback;
+  only offline does it fall back to the precached copy, with Range-request slicing
+  so iOS `<video>` gets `206 Partial Content`), the **poster is cache-first**. For
+  **every other request it returns without calling `respondWith`**, so it still
+  never intercepts a navigation or caches the app shell. The offline-first model for
+  app DATA stays localStorage + the Supabase mirror (not SW caching); the only thing
+  the SW caches is the splash, so Kyle plays offline. Registered from the `(app)`
+  shell by
   `components/pwa/service-worker-registrar.tsx`; excluded from the proxy
   session-refresh matcher (`proxy.ts`). It is a static `/public` file (no build
   step), served at root scope `/` so `pushManager.subscribe` works. (Bump
@@ -418,9 +421,17 @@ scheduling is Phase 2.
   ONE hook backs both entry points (Spec 14 D5): the **Settings** toggle
   (`components/settings/NotificationsToggle.tsx`, with a "Send test notification"
   affordance) and a one-time, skippable **dashboard** prime
-  (`components/push/EnableNotificationsStep.tsx`). iOS-not-installed renders
-  `AddToHomeScreenPrompt` instead of a dead button (iOS only delivers push to an
-  installed standalone PWA). Permission is never requested without a user gesture.
+  (`components/push/EnableNotificationsStep.tsx`). The notifications prime stays
+  purely about notifications (renders only when push CAN be enabled); **iOS install
+  education is its own thing** — a one-time `AddToHomeScreenPrompt` popup
+  (`components/pwa/InstallHomeScreenPopup.tsx`, shown to a new iPhone-in-Safari user)
+  plus a permanent Profile → "Add to Home Screen" row (`InstallAppRow`). The popup
+  shows **once per account**: gated by `profiles.pwa_installed_at` /
+  `install_prompt_dismissed_at` (migration `supabase/profile/006_pwa_install_state.sql`)
+  — `PwaInstallTracker` stamps `pwa_installed_at` the first time the app runs
+  standalone (a Home-Screen launch, the only reliable "is it installed" signal iOS
+  gives), so once added it never shows again, on any device. Permission is never
+  requested without a user gesture.
   The VAPID public key is `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (inlined at build); the
   private key lives ONLY server-side (Vercel env + the Edge Function secrets),
   never in the bundle.
