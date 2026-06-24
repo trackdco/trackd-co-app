@@ -4,8 +4,8 @@ import { MoreHorizontal, Plus, Share } from "lucide-react";
  * The shared "Add to Home Screen" instructions for iPhone. Used by the one-time
  * install popup (components/pwa/InstallHomeScreenPopup), the permanent Profile →
  * "Add to Home Screen" row (components/profile/InstallAppRow), and the push flow
- * when iOS isn't installed yet — iOS only delivers Web Push to a Home-Screen-
- * installed standalone PWA, and the app simply feels better installed.
+ * when iOS isn't installed yet (iOS only delivers Web Push to a Home-Screen-
+ * installed standalone PWA).
  *
  * Presentational only (no hook, no state) — the parent decides when to show it.
  */
@@ -16,7 +16,8 @@ export function AddToHomeScreenPrompt() {
         Add Trackd to your Home Screen
       </p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-        On iPhone it takes a second:
+        On iPhone, reminders only work once Trackd is installed. It takes a
+        second:
       </p>
       <ol className="mt-4 space-y-3">
         <li className="flex items-start gap-3">
@@ -24,8 +25,9 @@ export function AddToHomeScreenPrompt() {
             <Share className="size-5" aria-hidden="true" />
           </span>
           <span className="text-sm leading-snug text-text-muted">
-            Tap the <span className="text-foreground">Share</span> button — the
-            square with an up-arrow
+            Tap the <span className="text-foreground">Share</span> button — on
+            newer iPhones it&apos;s inside the{" "}
+            <span className="text-foreground">•••</span> menu
           </span>
         </li>
         <li className="flex items-start gap-3">
@@ -42,8 +44,8 @@ export function AddToHomeScreenPrompt() {
             <Plus className="size-5" aria-hidden="true" />
           </span>
           <span className="text-sm leading-snug text-text-muted">
-            Choose <span className="text-foreground">Add to Home Screen</span>, then
-            open Trackd from your Home Screen
+            Choose <span className="text-foreground">Add to Home Screen</span>,
+            then open Trackd from your Home Screen and turn reminders on here.
           </span>
         </li>
       </ol>
