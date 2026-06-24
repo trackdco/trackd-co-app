@@ -38,16 +38,19 @@ ALTER TABLE protocol_compounds ALTER COLUMN compound_id DROP NOT NULL;
 ALTER TABLE protocol_compounds ADD COLUMN IF NOT EXISTS custom_name text;
 ALTER TABLE protocol_compounds ADD COLUMN IF NOT EXISTS custom_category text;
 
--- Exactly one identity source: a catalogue id XOR a custom name. (Idempotent —
--- Postgres has no IF NOT EXISTS for ADD CONSTRAINT, so guard via the catalog.)
+-- Exactly one identity source: a catalogue id XOR a custom (name + category). The
+-- two custom fields move TOGETHER — a custom row must carry both (so reads never
+-- silently fall back to a default category) and a catalogue row carries neither.
+-- (Idempotent — Postgres has no IF NOT EXISTS for ADD CONSTRAINT, so guard via the
+-- catalog.)
 DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'protocol_compound_identity'
     ) THEN
         ALTER TABLE protocol_compounds ADD CONSTRAINT protocol_compound_identity CHECK (
-            (compound_id IS NOT NULL AND custom_name IS NULL)
-            OR (compound_id IS NULL AND custom_name IS NOT NULL)
+            (compound_id IS NOT NULL AND custom_name IS NULL AND custom_category IS NULL)
+            OR (compound_id IS NULL AND custom_name IS NOT NULL AND custom_category IS NOT NULL)
         );
     END IF;
 END $$;
@@ -55,7 +58,11 @@ END $$;
 -- One custom compound of a given name per cycle. The catalogue uniqueness
 -- (UNIQUE (cycle_id, compound_id), supabase/protocol/003) does NOT constrain
 -- customs — compound_id is NULL and Postgres treats NULLs as distinct — so add a
--- name-scoped guard that applies only to custom rows.
+-- name-scoped guard that applies only to custom rows. Normalised with
+-- lower(btrim(...)) to match the client's trim().toLowerCase() canonicalisation
+-- (lib/home/hydrateProtocol.ts), so a case-/whitespace-only variant can't be
+-- stored as a second row the client would later collapse into one (hiding it +
+-- its attached stock/log data).
 CREATE UNIQUE INDEX IF NOT EXISTS protocol_compounds_custom_unique
-    ON protocol_compounds (cycle_id, custom_name)
+    ON protocol_compounds (cycle_id, lower(btrim(custom_name)))
     WHERE compound_id IS NULL;
