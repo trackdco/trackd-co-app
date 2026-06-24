@@ -15,20 +15,26 @@ import { getCapability } from "@/lib/push/pushService";
 
 const DISMISS_KEY = "trackd:ios-install-dismissed";
 
+// Fallback for privacy-restricted contexts (Safari private mode) where
+// localStorage throws: a module-level flag persists the dismissal for the rest of
+// the session, so a client remount doesn't re-show the popup (component state
+// alone would reset to false).
+let sessionDismissedFallback = false;
+
 // localStorage can throw in privacy-restricted contexts — guard so it can never
 // crash the dashboard (matches EnableNotificationsStep's pattern).
 function getDismissed(): boolean {
   try {
     return window.localStorage.getItem(DISMISS_KEY) === "1";
   } catch {
-    return false;
+    return sessionDismissedFallback;
   }
 }
 function setDismissed() {
   try {
     window.localStorage.setItem(DISMISS_KEY, "1");
   } catch {
-    /* storage unavailable — session-only dismissal */
+    sessionDismissedFallback = true; // storage unavailable — session-only dismissal
   }
 }
 

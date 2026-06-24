@@ -47,8 +47,12 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
+      // Only ever prune OUR splash caches (e.g. a prior trackd-splash-v0) — never
+      // touch caches owned by anything else on the origin.
       await Promise.all(
-        keys.filter((k) => k !== SPLASH_CACHE).map((k) => caches.delete(k)),
+        keys
+          .filter((k) => k.startsWith("trackd-splash-") && k !== SPLASH_CACHE)
+          .map((k) => caches.delete(k)),
       );
       await self.clients.claim();
     })(),

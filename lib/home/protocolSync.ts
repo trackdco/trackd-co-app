@@ -177,6 +177,25 @@ export async function pushProtocolBatch(
     const cycle = await ensureActiveCycle()
     if (!cycle) return empty
 
+    // Reuse the canonical id for any compound already in this cycle — exactly like
+    // the single-item pushProtocolCompound. Without this, a batch row would derive
+    // a fresh id from the local c.id and the `(cycle_id, compound_id)` unique guard
+    // would reject the whole upsert (aborting the migration). One query for all.
+    const existingIdByCompound = new Map<string, string>()
+    const compoundIds = [...new Set(idByName.values())]
+    if (compoundIds.length > 0) {
+      const { data: existingRows, error: existingError } = await cx.supabase
+        .from("protocol_compounds")
+        .select("id, compound_id")
+        .eq("user_id", cx.userId)
+        .eq("cycle_id", cycle.id)
+        .in("compound_id", compoundIds)
+      if (existingError) throw existingError
+      for (const row of existingRows ?? []) {
+        existingIdByCompound.set(row.compound_id as string, row.id as string)
+      }
+    }
+
     // Build the compound rows + a per-client-id map of what a dose log needs, so we
     // never re-query a compound back for its unit/amount (the single-item path did).
     type Meta = {
@@ -204,7 +223,7 @@ export async function pushProtocolBatch(
         meta.set(c.id, existing)
         continue
       }
-      const pcId = resolvePcId(cx.userId, c.id)
+      const pcId = existingIdByCompound.get(compoundId) ?? resolvePcId(cx.userId, c.id)
       const row = stackCompoundToProtocolInsert(c, { id: pcId, cycleId: cycle.id, compoundId })
       pcRows.push(row)
       const m: Meta = {
