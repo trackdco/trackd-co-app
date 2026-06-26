@@ -257,6 +257,7 @@ export async function setStockArchived(
       .update({ is_active: !archived })
       .eq("id", id)
       .eq("user_id", ctx.userId)
+    if (error) console.error("setStockArchived: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("setStockArchived failed", e)
@@ -279,6 +280,7 @@ export async function deleteStockItem(id: string): Promise<{ ok: boolean }> {
       .delete()
       .eq("id", id)
       .eq("user_id", ctx.userId)
+    if (error) console.error("deleteStockItem: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("deleteStockItem failed", e)

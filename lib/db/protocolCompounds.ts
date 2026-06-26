@@ -153,6 +153,7 @@ export async function deleteProtocolCompound(id: string): Promise<{ ok: boolean 
       .delete()
       .eq("id", id)
       .eq("user_id", ctx.userId)
+    if (error) console.error("deleteProtocolCompound: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("deleteProtocolCompound failed", e)

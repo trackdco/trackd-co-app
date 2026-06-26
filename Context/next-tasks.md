@@ -105,15 +105,14 @@ force-sends your REAL reminders (the test harness Adrian asked for). Full detail
 `supabase/grants/002`), and created the `reminder-runner` cron. Confirmed: real run
 `sent:1`, cron `succeeded`, route `200`, reminder delivered to Adrian's phone.
 
-**▶ Small follow-ups (not blocking):**
-1. **Relax the cron cadence** from `* * * * *` (every minute, testing) to `*/15`
-   once Adrian's done poking at it: `select cron.unschedule('reminder-runner');`
-   then re-`cron.schedule` with `*/15 * * * *` (same command).
-2. **Store each user's timezone** (capture `Intl…timeZone` on subscribe → write
-   `profiles.timezone`) so reminder times honour the user's real local clock instead
-   of the Sydney default. Fine for AU founders now; needed before opening up.
-3. **Open the rollout** beyond founders: flip `FOUNDERS_ONLY = false` in
-   `app/api/notifications/run/route.ts` when ready (then it pages all opted-in users).
+**▶ Small follow-ups — all ✅ DONE (verified live 2026-06-26):**
+1. ✅ **Cron cadence relaxed** to `*/15 * * * *` (the `reminder-runner` job is `*/15`
+   + active — confirmed live via MCP).
+2. ✅ **Per-user timezone stored** — captured from the browser (`Intl`) on
+   notification opt-in and written to `profiles.timezone` (`lib/push/pushService.ts`
+   + `pushActions.ts`); Sydney is only the fallback when none is stored.
+3. ✅ **Rollout opened beyond founders** — `FOUNDERS_ONLY = false` in
+   `app/api/notifications/run/route.ts` (pages all opted-in users).
 
 **Out of scope still:** per-compound dose TIMES (we store which days a dose is due,
 not a time per dose) + the journal/weekly-recap reminders.

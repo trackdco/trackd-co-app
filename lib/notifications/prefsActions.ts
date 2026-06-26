@@ -30,6 +30,7 @@ export async function saveTimezone(tz: string): Promise<{ ok: boolean }> {
       .from("profiles")
       .update({ timezone: tz })
       .eq("id", user.id);
+    if (error) console.error("saveTimezone: cloud write failed", error);
     return { ok: !error };
   } catch (e) {
     console.error("saveTimezone failed", e);

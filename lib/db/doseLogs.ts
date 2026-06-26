@@ -119,6 +119,7 @@ export async function deleteDoseLog(id: string): Promise<{ ok: boolean }> {
       .delete()
       .eq("id", id)
       .eq("user_id", ctx.userId)
+    if (error) console.error("deleteDoseLog: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("deleteDoseLog failed", e)

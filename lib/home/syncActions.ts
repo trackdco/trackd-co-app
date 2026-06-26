@@ -49,6 +49,7 @@ export async function pushStackCompound(compound: StackCompound): Promise<Ok> {
       { profile_id: ctx.userId, compound_id: compound.id, data: compound },
       { onConflict: "profile_id,compound_id" },
     )
+    if (error) console.error("pushStackCompound: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("pushStackCompound failed", e)
@@ -65,6 +66,7 @@ export async function deleteStackCompound(compoundId: string): Promise<Ok> {
       .delete()
       .eq("profile_id", ctx.userId)
       .eq("compound_id", compoundId)
+    if (error) console.error("deleteStackCompound: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("deleteStackCompound failed", e)
@@ -86,6 +88,7 @@ export async function pushDoseLog(
       { profile_id: ctx.userId, logged_on: loggedOn, compound_id: compoundId, data: log },
       { onConflict: "profile_id,logged_on,compound_id" },
     )
+    if (error) console.error("pushDoseLog: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("pushDoseLog failed", e)
@@ -106,6 +109,7 @@ export async function deleteDoseLog(
       .eq("profile_id", ctx.userId)
       .eq("logged_on", loggedOn)
       .eq("compound_id", compoundId)
+    if (error) console.error("deleteDoseLog: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("deleteDoseLog failed", e)
@@ -123,6 +127,7 @@ export async function deleteCompoundLogs(compoundId: string): Promise<Ok> {
       .delete()
       .eq("profile_id", ctx.userId)
       .eq("compound_id", compoundId)
+    if (error) console.error("deleteCompoundLogs: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("deleteCompoundLogs failed", e)
@@ -140,6 +145,7 @@ export async function pushCustom(custom: { id: string }): Promise<Ok> {
       { profile_id: ctx.userId, compound_id: custom.id, data: custom },
       { onConflict: "profile_id,compound_id" },
     )
+    if (error) console.error("pushCustom: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("pushCustom failed", e)
@@ -156,6 +162,7 @@ export async function deleteCustom(compoundId: string): Promise<Ok> {
       .delete()
       .eq("profile_id", ctx.userId)
       .eq("compound_id", compoundId)
+    if (error) console.error("deleteCustom: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("deleteCustom failed", e)
