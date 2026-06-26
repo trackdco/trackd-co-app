@@ -191,7 +191,9 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   const [viewEntries, applyOptimistic] = useOptimistic(entries, applyEntryMutation);
   const [, startTransition] = useTransition();
 
-  const [mode, setMode] = useState<WeightMode>("trend");
+  // Weight starts on the raw SCALE reading; the user can switch to the smoothed
+  // trend themselves. (We never auto-select trend.)
+  const [mode, setMode] = useState<WeightMode>("scale");
   const [rangeId, setRangeId] = useState<string>("3m");
 
   // Track-weight form. Editing a past entry loads it here.

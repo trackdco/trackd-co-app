@@ -17,6 +17,7 @@ import {
   type StackCompound,
 } from "@/lib/home/stack"
 import { removeCompoundLogs } from "@/lib/home/doseLog"
+import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 
 const EMPTY: StackCompound[] = []
 
@@ -37,37 +38,51 @@ export function ArchiveManager({ userId }: { userId: string }) {
   )
   const archived = stack.filter((c) => c.archived)
   const active = stack.filter((c) => !c.archived)
+  // Reactivation opens the pre-filled config sheet (reactivate mode) so the dose,
+  // schedule and injection sites can be re-tuned before the compound resumes today.
+  const [reactivateTarget, setReactivateTarget] = useState<StackCompound | null>(null)
 
   return (
-    <div className="space-y-6">
-      <Group
-        title="Archived"
-        empty="Nothing archived yet."
-        compounds={archived}
-        actionLabel="Reactivate"
-        actionIcon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
-        confirmText={(name) =>
-          `Add “${name}” back to your log? You can archive it again any time.`
-        }
-        onAction={(id) => archiveInStack(userId, id, false)}
-        onDelete={(id) => {
-          removeFromStack(userId, id)
-          removeCompoundLogs(userId, id)
+    <>
+      <div className="space-y-6">
+        <Group
+          title="Archived"
+          empty="Nothing archived yet."
+          compounds={archived}
+          actionLabel="Reactivate"
+          actionIcon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
+          onActionDirect={(c) => setReactivateTarget(c)}
+          onDelete={(id) => {
+            removeFromStack(userId, id)
+            removeCompoundLogs(userId, id)
+          }}
+          dim
+        />
+        <Group
+          title="Active"
+          empty="No active compounds."
+          compounds={active}
+          actionLabel="Archive"
+          actionIcon={<Archive className="h-3.5 w-3.5" aria-hidden />}
+          confirmText={(name) =>
+            `Archive “${name}”? You can reactivate it any time from here.`
+          }
+          onAction={(id) => archiveInStack(userId, id, true)}
+        />
+      </div>
+
+      {/* Reactivate → re-tune the compound, then it resumes from today. */}
+      <AddCompoundSheet
+        open={reactivateTarget !== null}
+        compound={null}
+        editCompound={reactivateTarget}
+        userId={userId}
+        onOpenChange={(o) => {
+          if (!o) setReactivateTarget(null)
         }}
-        dim
+        onAdded={() => setReactivateTarget(null)}
       />
-      <Group
-        title="Active"
-        empty="No active compounds."
-        compounds={active}
-        actionLabel="Archive"
-        actionIcon={<Archive className="h-3.5 w-3.5" aria-hidden />}
-        confirmText={(name) =>
-          `Archive “${name}”? You can reactivate it any time from here.`
-        }
-        onAction={(id) => archiveInStack(userId, id, true)}
-      />
-    </div>
+    </>
   )
 }
 
@@ -79,6 +94,7 @@ function Group({
   actionIcon,
   confirmText,
   onAction,
+  onActionDirect,
   onDelete,
   dim,
 }: {
@@ -87,8 +103,12 @@ function Group({
   compounds: StackCompound[]
   actionLabel: string
   actionIcon: React.ReactNode
-  confirmText: (name: string) => string
-  onAction: (id: string) => void
+  /** Inline-confirm action (Archive). Omitted when `onActionDirect` is used. */
+  confirmText?: (name: string) => string
+  onAction?: (id: string) => void
+  /** Direct action with the full compound, bypassing the inline confirm
+   *  (Reactivate → opens the config sheet). Takes precedence over `onAction`. */
+  onActionDirect?: (c: StackCompound) => void
   /** When set, each row gets a permanent-delete affordance (Archived only). */
   onDelete?: (id: string) => void
   dim?: boolean
@@ -124,7 +144,7 @@ function Group({
               >
                 {confirmId === c.id ? (
                   <div className="animate-shortcut-in rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
-                    <p className="text-sm text-foreground">{confirmText(c.name)}</p>
+                    <p className="text-sm text-foreground">{confirmText?.(c.name)}</p>
                     <div className="mt-3 flex gap-2">
                       <button
                         type="button"
@@ -136,7 +156,7 @@ function Group({
                       <button
                         type="button"
                         onClick={() => {
-                          onAction(c.id)
+                          onAction?.(c.id)
                           setConfirmId(null)
                         }}
                         className="flex-1 rounded-lg bg-accent-amber py-2 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
@@ -216,7 +236,8 @@ function Group({
                       type="button"
                       onClick={() => {
                         setDeleteState(null)
-                        setConfirmId(c.id)
+                        if (onActionDirect) onActionDirect(c)
+                        else setConfirmId(c.id)
                       }}
                       className="flex shrink-0 items-center gap-1.5 rounded-full border border-border-strong px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text-primary"
                     >

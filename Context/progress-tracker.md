@@ -6,7 +6,28 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-24
+Last updated: 2026-06-26
+
+## Archive reactivation (re-tune on resume) + weight default (2026-06-26)
+
+Two Home-stack UX refinements (device-local model, Postgres mirror via
+`pushProtocolCompound`):
+- **Reactivating an archived compound opens the pre-filled config sheet
+  (`AddCompoundSheet`) in a "reactivate" mode** so the dose, schedule and
+  injection-site rotation can be re-tuned before it resumes. It re-anchors the start
+  to TODAY by default — the days it sat archived aren't back-filled as missed, and
+  past logged doses are kept — and saving clears the `archived` flag → active
+  (Postgres `is_active=true` + `first_dose_on` in one upsert). The mode is detected
+  from `editCompound.archived`, so every reactivation entry point just opens the
+  sheet: the Add-to-Stack **search** (archived rows render dimmed + an amber ↺), the
+  **Archive Manager** (Profile), and the shared **CompoundDetailSheet** (Home/Plan,
+  via `onEdit`).
+- **Archived compounds in the Add-to-Stack search** render dimmed ("dark opacity")
+  with the ↺ reactivate control instead of the blocked "already in your log" check.
+- **Weight view defaults to the raw SCALE reading, not the trend** (`WeightView`
+  initial mode `"scale"`); the smoothed trend is opt-in, never auto-selected.
+- Dev-only `/preview/archive-weight` exercises both (seeds an archived compound).
+- `tsc --noEmit` + `eslint` clean.
 
 ## Current Phase
 

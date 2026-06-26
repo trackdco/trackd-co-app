@@ -102,6 +102,8 @@ function hhmm(d: Date): string {
 interface Source {
   /** null = creating a new entry; set = editing this id. */
   id: string | null
+  /** Reactivating an archived compound: resume from today + relabel "Reactivate". */
+  reactivate: boolean
   name: string
   category: CompoundCategory
   /** Selectable routes, default first. >1 ⇒ the Add sheet shows a route picker. */
@@ -122,6 +124,8 @@ function toSource(
   if (editCompound) {
     return {
       id: editCompound.id,
+      // An archived compound being edited IS a reactivation (resume from today).
+      reactivate: editCompound.archived === true,
       name: editCompound.name,
       category: editCompound.category,
       // An edit keeps its saved route — the route picker is a create-time choice.
@@ -137,6 +141,7 @@ function toSource(
   if (compound) {
     return {
       id: null,
+      reactivate: false,
       name: compound.name,
       category: compound.category,
       routeForms: routesOf(compound),
@@ -255,7 +260,11 @@ function AddCompoundBody({
   onCancel: () => void
   onAdded: () => void
 }) {
-  const isEdit = source.id !== null
+  // Reactivating an archived compound: an in-place upsert (keeps the id, drops the
+  // archived flag → active) that defaults the start to TODAY. It's NOT a plain
+  // "edit" — it resumes a stopped compound, so it takes the create-style start.
+  const isReactivate = source.reactivate
+  const isEdit = source.id !== null && !isReactivate
   const meta = CATEGORY_META[source.category] ?? FALLBACK_CATEGORY_META
   const routeForms = source.routeForms
   // Compounds with more than one route (e.g. Glutathione: subQ or oral) let the
@@ -267,7 +276,7 @@ function AddCompoundBody({
   // already contains — or a blend covering something you already track — gets a
   // non-blocking note (Adrian's call: stacking another dose on purpose is fine).
   const [overlapNote] = useState<string | null>(() =>
-    isEdit
+    isEdit || isReactivate
       ? null
       : describeBlendOverlap(
           source.name,
@@ -295,6 +304,7 @@ function AddCompoundBody({
     "") as "" | "reconstituted" | "preconcentrated" | "oral_solid"
   const canStock =
     !isEdit &&
+    !isReactivate &&
     (stockType === "reconstituted" ||
       stockType === "preconcentrated" ||
       stockType === "oral_solid")
@@ -313,7 +323,16 @@ function AddCompoundBody({
   const [stExactLeft, setStExactLeft] = useState("")
 
   const [now] = useState(() => new Date())
-  const [initial] = useState(() => initSchedule(source.schedule, now))
+  // Reactivation keeps the old cadence/sites but RE-ANCHORS the start to today, so
+  // the days it sat archived aren't back-filled. The user can still change it below.
+  const [initial] = useState(() =>
+    initSchedule(
+      isReactivate && source.schedule
+        ? { ...source.schedule, startDate: toDateKey(now) }
+        : source.schedule,
+      now
+    )
+  )
 
   const [dose, setDose] = useState(source.dose)
   const [unit, setUnit] = useState(source.unit)
@@ -328,7 +347,7 @@ function AddCompoundBody({
   // compound until the user sets one; an edit starts frozen at its saved time.
   // `manualTime === null` ⇒ live. Picking a time freezes it; clearing resumes.
   const [manualTime, setManualTime] = useState<string | null>(
-    isEdit ? initial.timeOfDay : null
+    isEdit || isReactivate ? initial.timeOfDay : null
   )
   const [clock, setClock] = useState(() => now)
   useEffect(() => {
@@ -456,7 +475,7 @@ function AddCompoundBody({
     const effectiveTime = manualTime ?? hhmm(nowAtSave)
     // Future-date / -time rules apply to NEW cycles only; an edit may already be
     // running (its start is historical), so don't block editing other fields.
-    if (!isEdit) {
+    if (!isEdit && !isReactivate) {
       if (startDate < toDateKey(nowAtSave)) {
         show("Start date can't be in the past.")
         return
@@ -478,7 +497,7 @@ function AddCompoundBody({
     // already there (by name) just clutters the log — block it (an edit, which
     // keeps the same id, is exempt). To change its dose/schedule, edit the existing
     // one; to re-run a stopped compound, reactivate it from the Archive.
-    if (!isEdit) {
+    if (!isEdit && !isReactivate) {
       const name = source.name.trim().toLowerCase()
       if ((loadStack(userId) ?? []).some((c) => c.name.trim().toLowerCase() === name)) {
         show(`${source.name} is already in your log.`)
@@ -534,14 +553,14 @@ function AddCompoundBody({
           Cancel
         </button>
         <SheetTitle className="justify-self-center text-base font-semibold text-foreground">
-          {isEdit ? "Edit compound" : "Add to log"}
+          {isReactivate ? "Reactivate compound" : isEdit ? "Edit compound" : "Add to log"}
         </SheetTitle>
         <button
           type="button"
           onClick={handleSave}
           className="justify-self-end text-base font-medium text-accent-amber transition-colors hover:opacity-80"
         >
-          {isEdit ? "Save" : "Add"}
+          {isReactivate ? "Reactivate" : isEdit ? "Save" : "Add"}
         </button>
       </div>
       <SheetDescription className="sr-only">
@@ -566,6 +585,15 @@ function AddCompoundBody({
             </p>
           </div>
         </div>
+
+        {/* Reactivation heads-up — you can re-tune everything before it resumes. */}
+        {isReactivate && (
+          <p className="animate-home-up -mt-2 px-1 text-xs leading-relaxed text-text-subtle">
+            Reactivating — adjust the dose, schedule or injection sites, then save. It
+            resumes from the start date below (today by default); the days it sat
+            archived stay empty and your past entries are kept.
+          </p>
+        )}
 
         {/* Blend overlap — a non-blocking heads-up that this compound is already
             covered by a blend you track (or vice versa). Add it anyway only if you
@@ -820,7 +848,7 @@ function AddCompoundBody({
               <Input
                 type="time"
                 value={timeOfDay}
-                min={!isEdit && startDate === todayKey ? hhmm(clock) : undefined}
+                min={!isEdit && !isReactivate && startDate === todayKey ? hhmm(clock) : undefined}
                 // Empty resumes live tracking; any value freezes it.
                 onChange={(e) => setManualTime(e.target.value || null)}
                 aria-label="Default dose time"

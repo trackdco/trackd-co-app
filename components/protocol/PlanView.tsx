@@ -210,7 +210,6 @@ export function PlanView({
           setEditTarget(c)
         }}
         onArchive={(id) => archiveInStack(userId, id, true)}
-        onReactivate={(id) => archiveInStack(userId, id, false)}
         onDelete={(id) => {
           removeFromStack(userId, id)
           removeCompoundLogs(userId, id)

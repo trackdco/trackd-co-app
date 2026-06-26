@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Check, Pencil, Plus, Search, Trash2 } from "lucide-react"
+import { Check, Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -25,7 +25,7 @@ import {
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { newId } from "@/lib/home/id"
-import { loadStack } from "@/lib/home/stack"
+import { loadStack, type StackCompound } from "@/lib/home/stack"
 import { pullCustoms, pushCustom, deleteCustom } from "@/lib/home/syncActions"
 import {
   AmberNotice,
@@ -187,8 +187,14 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
   const [customs, setCustoms] = useState<CustomCompound[]>([])
   // The compound whose "+" was tapped — opens the "Add to protocol" sheet.
   const [pendingCompound, setPendingCompound] = useState<Compound | null>(null)
+  // An archived compound being reactivated — opens the SAME sheet pre-filled, in
+  // reactivate mode (re-tune dose / schedule / sites, then resume from today).
+  const [reactivateTarget, setReactivateTarget] = useState<StackCompound | null>(null)
   // Names already in the user's log (lowercased) — those rows dim + block.
   const [inLogNames, setInLogNames] = useState<Set<string>>(new Set())
+  // Lowercased name → stack id for ARCHIVED compounds. Those rows still dim, but
+  // show a Reactivate control (resumes from today) instead of the blocked check.
+  const [archivedIds, setArchivedIds] = useState<Map<string, string>>(new Map())
   const [shakingName, setShakingName] = useState<string | null>(null)
   const blockedTapsRef = useRef<Record<string, number>>({})
   // Guards the once-per-user cloud hydration of custom compounds (see the open
@@ -221,9 +227,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
       setPendingCompound(null)
       blockedTapsRef.current = {}
       setShakingName(null)
-      setInLogNames(
-        new Set((loadStack(userId) ?? []).map((c) => c.name.toLowerCase()))
-      )
+      refreshStackState()
       // Restore this user's cloud-saved custom compounds once per session, so a
       // fresh PWA install repopulates "your own" compounds (best-effort backup;
       // localStorage stays the read path). Updates the list when the pull lands.
@@ -419,6 +423,30 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
 
   const nameValid = form.name.trim().length > 0
 
+  // Re-read the device stack into the in-log + archived lookups (on open, and after
+  // a reactivate so the row flips from "Reactivate" to the active "in your log" check).
+  function refreshStackState() {
+    const stackNow = loadStack(userId) ?? []
+    setInLogNames(new Set(stackNow.map((c) => c.name.toLowerCase())))
+    setArchivedIds(
+      new Map(
+        stackNow
+          .filter((c) => c.archived)
+          .map((c) => [c.name.toLowerCase(), c.id] as const)
+      )
+    )
+  }
+
+  // Reactivate an archived compound straight from search. Opens the pre-filled
+  // config sheet (reactivate mode) so the user can re-tune the dose / schedule /
+  // injection sites before it resumes from today (no backfill of the archived gap).
+  function handleReactivate(compound: Compound) {
+    const id = archivedIds.get(compound.name.toLowerCase())
+    if (!id) return
+    const sc = (loadStack(userId) ?? []).find((c) => c.id === id)
+    if (sc) setReactivateTarget(sc)
+  }
+
   // A compound already in the log is dimmed + unclickable. Tapping it shakes the
   // card; from the 3rd tap on, an amber notice explains why (Adrian's spec).
   function handleBlockedTap(compound: Compound) {
@@ -527,6 +555,8 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
               onMakeYourOwn={openCreate}
               onAdd={setPendingCompound}
               inLogNames={inLogNames}
+              archivedNames={new Set(archivedIds.keys())}
+              onReactivate={handleReactivate}
               onBlockedTap={handleBlockedTap}
               shakingName={shakingName}
               confirmingDeleteId={confirmingDeleteId}
@@ -544,14 +574,19 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
         whole Add-to-Stack flow so the user lands back on the home with the new
         compound in their log. */}
     <AddCompoundSheet
-      open={pendingCompound !== null}
+      open={pendingCompound !== null || reactivateTarget !== null}
       compound={pendingCompound}
+      editCompound={reactivateTarget}
       userId={userId}
       onOpenChange={(o) => {
-        if (!o) setPendingCompound(null)
+        if (!o) {
+          setPendingCompound(null)
+          setReactivateTarget(null)
+        }
       }}
       onAdded={() => {
         setPendingCompound(null)
+        setReactivateTarget(null)
         onOpenChange(false)
       }}
     />
@@ -571,6 +606,8 @@ function BrowseBody({
   onMakeYourOwn,
   onAdd,
   inLogNames,
+  archivedNames,
+  onReactivate,
   onBlockedTap,
   shakingName,
   confirmingDeleteId,
@@ -588,6 +625,8 @@ function BrowseBody({
   onMakeYourOwn: () => void
   onAdd: (c: Compound) => void
   inLogNames: Set<string>
+  archivedNames: Set<string>
+  onReactivate: (c: Compound) => void
   onBlockedTap: (c: Compound) => void
   shakingName: string | null
   confirmingDeleteId: string | null
@@ -602,6 +641,8 @@ function BrowseBody({
     onEditCustom,
     onAdd,
     inLogNames,
+    archivedNames,
+    onReactivate,
     onBlockedTap,
     shakingName,
     confirmingDeleteId,
@@ -697,6 +738,8 @@ function CompoundList({
   onEditCustom,
   onAdd,
   inLogNames,
+  archivedNames,
+  onReactivate,
   onBlockedTap,
   shakingName,
   confirmingDeleteId,
@@ -710,6 +753,8 @@ function CompoundList({
   onEditCustom: (c: CustomCompound) => void
   onAdd: (c: Compound) => void
   inLogNames: Set<string>
+  archivedNames: Set<string>
+  onReactivate: (c: Compound) => void
   onBlockedTap: (c: Compound) => void
   shakingName: string | null
   confirmingDeleteId: string | null
@@ -777,8 +822,18 @@ function CompoundList({
               >
                 <RowMain compound={compound} query={query} />
                 <div className="flex shrink-0 items-center gap-1">
-                  {/* Add to log — or, if already in the log, a blocked Check. */}
-                  {inLogNames.has(compound.name.toLowerCase()) ? (
+                  {/* Archived → Reactivate (resumes from today); else add-to-log, or
+                      a blocked Check when it's already active in the log. */}
+                  {archivedNames.has(compound.name.toLowerCase()) ? (
+                    <button
+                      type="button"
+                      onClick={() => onReactivate(compound)}
+                      aria-label={`Reactivate ${compound.name}`}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent-amber/60 text-accent-amber transition-all duration-200 ease-out hover:bg-accent-amber/10 active:scale-95"
+                    >
+                      <RotateCcw className="h-4 w-4" aria-hidden />
+                    </button>
+                  ) : inLogNames.has(compound.name.toLowerCase()) ? (
                     <button
                       type="button"
                       onClick={() => onBlockedTap(compound)}
@@ -820,9 +875,27 @@ function CompoundList({
             </li>
           )
         }
+        const lname = compound.name.toLowerCase()
         return (
           <li key={compound.name}>
-            {inLogNames.has(compound.name.toLowerCase()) ? (
+            {archivedNames.has(lname) ? (
+              // Archived — content reads dimmed ("dark opacity"), with a prominent
+              // Reactivate control on the right. Reactivating resumes the compound
+              // from TODAY (it doesn't backfill the days it sat archived).
+              <div className={cn("flex items-center gap-3 px-4 py-3.5", divider)}>
+                <div className="flex min-w-0 flex-1 items-center gap-3 opacity-50">
+                  <RowMain compound={compound} query={query} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onReactivate(compound)}
+                  aria-label={`Reactivate ${compound.name}`}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent-amber/60 text-accent-amber transition-all duration-200 ease-out hover:bg-accent-amber/10 active:scale-95"
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            ) : inLogNames.has(lname) ? (
               // Already in the log — dimmed + unclickable. Taps shake the row;
               // the 3rd tap fires the amber "already in your log" notice.
               <button
