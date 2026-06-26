@@ -8,6 +8,24 @@ Forward-looking, actionable steps do **not** live here — they live in
 
 Last updated: 2026-06-26
 
+## Cloud-write error logging + cron/doc verification (2026-06-26)
+
+Beta-readiness session (last of the trip). **Decided AGAINST adding Sentry** — it
+would breach the published Privacy Policy (which states no error-monitoring
+services + only Supabase/Vercel as sub-processors; the seed notes even say add
+Sentry "after beta … don't switch them on silently"). Error visibility for the
+beta rides **Vercel + Supabase logs** instead (Sentry deferred to post-beta with a
+v1.4 sub-processor/consent bump). To make those logs actually catch write failures,
+the **13 best-effort Supabase writes that returned `{ ok: !error }` silently** now
+`console.error("…: cloud write failed", error)` on the `error` field (the
+thrown-exception catches already logged, so this closes the gap — a systematic
+mirror-write failure is now visible in Vercel logs instead of invisible). Files:
+`lib/home/syncActions.ts` (7), `lib/db/{inventory,protocolCompounds,doseLogs,
+migrationFlag}.ts`, `lib/notifications/prefsActions.ts`. `tsc`+`lint` clean.
+Also **verified live + corrected stale docs**: the `reminder-runner` cron is
+already `*/15` (not every-minute), per-user timezone IS captured on opt-in, and the
+scheduler rollout is open to all opted-in users (`FOUNDERS_ONLY = false`).
+
 ## Archive reactivation (re-tune on resume) + weight default (2026-06-26)
 
 Two Home-stack UX refinements (device-local model, Postgres mirror via

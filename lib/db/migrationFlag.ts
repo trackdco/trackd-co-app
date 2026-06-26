@@ -49,6 +49,7 @@ export async function markMigratedInCloud(): Promise<{ ok: boolean }> {
       .update({ protocol_migrated_at: new Date().toISOString() })
       .eq("id", ctx.userId)
       .is("protocol_migrated_at", null)
+    if (error) console.error("markMigratedInCloud: cloud write failed", error)
     return { ok: !error }
   } catch (e) {
     console.error("markMigratedInCloud failed", e)
