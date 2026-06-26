@@ -43,6 +43,16 @@ Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormo
 ### Entitlements
 - Feature gates read `profiles.tier` and nothing else. Beta defaults everyone to `'paid'`. Stripe (post-trip) becomes the column's only writer; gating logic never changes. Default flips to `'free'` before public launch.
 
+### Billing & subscriptions (built on the `stripe` branch — NOT in beta)
+The post-trip Stripe integration is now implemented on a feature branch (not merged, not live for beta). Model:
+- **Plans:** one Stripe product ("Trackd Co") with a monthly and an annual recurring price (Stripe-hosted Checkout + Customer Portal).
+- **Trial:** 5-day free trial on the **annual** plan only; monthly charges immediately.
+- **Entitlement:** the Stripe webhook is the **sole writer** of `profiles.tier` (`'paid'` while `trialing`/`active`/`past_due`, else `'free'`). Gating logic is unchanged — it still reads `profiles.tier` and nothing else.
+- **Record:** a `subscriptions` table (one row per user) holds the Stripe customer/subscription bookkeeping. Users may READ their own row; only the service-role webhook writes it.
+- **Surface:** buy/manage lives at the gated `/billing` route (linked from Settings → Subscription).
+- **Founding-member tier:** deferred (not built).
+- **Merge gate:** must NOT reach beta users. Before merging to `main`, flip the `profiles.tier` default to `'free'` and set LIVE Stripe keys in Vercel only.
+
 ## Scope
 
 ### In Scope (beta build, ends 28 June 2026)
@@ -54,7 +64,7 @@ Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormo
 - PWA install tested on Android and iOS.
 
 ### Out of Scope (do not build during the sprint)
-- Stripe, payments, founding-member tier (post-trip; tier column already models it).
+- Stripe, payments, founding-member tier — still out of the beta sprint. (The subscription integration has since been built on the `stripe` feature branch — see "Billing & subscriptions" above — but founding-member is deferred and nothing is merged to `main`.)
 - Marketing site and waitlist (post-trip).
 - Push notification delivery (post-trip; `push_subscriptions` table already exists in schema — storage only).
 - Bloodwork AI analyser (v1.5; Claude Sonnet).

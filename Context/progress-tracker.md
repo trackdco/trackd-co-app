@@ -6,7 +6,32 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-24
+Last updated: 2026-06-25
+
+## Stripe subscriptions — BUILT on the `stripe` branch (2026-06-25, NOT merged)
+
+Recurring-subscription billing is implemented end-to-end on the `stripe` feature
+branch (NOT on `main`, NOT live for beta):
+- New code: `lib/stripe/{server,config,sync,actions}.ts`, `lib/supabase/service.ts`
+  (service-role client), `app/api/stripe/webhook/route.ts`, gated
+  `app/(app)/billing` page + `components/billing/*`, and a Settings → Subscription
+  row. Env documented in `.env.example`.
+- `subscriptions` table migration (`supabase/billing/001_subscriptions.sql`)
+  **APPLIED LIVE** (additive; RLS = user SELECT-only, service-role writes) — the
+  prod DB now has the table; existing beta data untouched.
+- Plans: monthly + annual via Stripe-hosted Checkout + Customer Portal; **5-day
+  free trial on ANNUAL only**. The webhook is the sole writer of `profiles.tier`
+  (`'paid'` while trialing/active/past_due, else `'free'`).
+- `stripe@22.3.0`; API version pinned `2026-06-24.dahlia` (period end read from
+  the subscription item). `tsc` clean; `npm run build` passes (routes
+  `/api/stripe/webhook` + `/billing` compile).
+- Set up in a Stripe TEST sandbox; `.env.local` has the test publishable/secret
+  keys + both price IDs. **Still TODO to run end-to-end:** set
+  `STRIPE_WEBHOOK_SECRET` (via `stripe listen`) and `SUPABASE_SECRET_KEY` locally,
+  then run the trial→active→cancel test (see `next-tasks.md`).
+- **Merge gate / open decision:** flip the `profiles.tier` default to `'free'`
+  and set LIVE keys in Vercel before this reaches public launch. Founding-member
+  tier deferred.
 
 ## Current Phase
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Bell, ChevronRight } from "lucide-react";
+import { Bell, ChevronRight, CreditCard } from "lucide-react";
 
 import { SettingsForm } from "@/components/settings/settings-form";
 import { CARD_ICON_BADGE } from "@/lib/ui-presets";
@@ -101,6 +101,28 @@ export default async function SettingsPage() {
           </span>
           <span className="block text-sm text-text-muted">
             Dose reminders, missed-dose nudges, low stock
+          </span>
+        </span>
+        <ChevronRight
+          className="size-5 shrink-0 text-text-muted"
+          aria-hidden="true"
+        />
+      </Link>
+
+      {/* Subscription & billing (Stripe) — manage plan / start a subscription. */}
+      <Link
+        href="/billing"
+        className="mt-3 flex items-center gap-3 rounded-2xl border border-border bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised"
+      >
+        <span className={CARD_ICON_BADGE} aria-hidden="true">
+          <CreditCard className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-lg text-foreground">
+            Subscription
+          </span>
+          <span className="block text-sm text-text-muted">
+            Manage your plan, billing &amp; payment method
           </span>
         </span>
         <ChevronRight

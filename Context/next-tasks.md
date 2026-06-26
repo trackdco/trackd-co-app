@@ -9,7 +9,36 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-24
+Last updated: 2026-06-25
+
+---
+
+## ▶ Stripe subscriptions — finish & test (on the `stripe` branch)
+
+Code is BUILT (see `progress-tracker.md`); these are the steps to make it work
+end-to-end and the gate before it can ever reach `main`.
+
+1. **Local secrets:** in `.env.local`, set `SUPABASE_SECRET_KEY` (service role —
+   the webhook needs it to write `profiles.tier` + `subscriptions`) and, after
+   step 2, `STRIPE_WEBHOOK_SECRET`. (Test publishable/secret keys + both price IDs
+   are already in.)
+2. **Forward webhooks locally:** `stripe login`, then
+   `stripe listen --forward-to localhost:3000/api/stripe/webhook` → copy the
+   printed `whsec_…` into `STRIPE_WEBHOOK_SECRET`, restart `npm run dev`.
+3. **Test the lifecycle** (Stripe sandbox, card `4242 4242 4242 4242`): sign in →
+   `/billing` (or Settings → Subscription) → start the ANNUAL 5-day trial →
+   confirm `profiles.tier` flips to `'paid'` and a `subscriptions` row appears
+   (`status='trialing'`). Then try monthly (charges immediately). Then Manage →
+   cancel in the Customer Portal → confirm tier returns to `'free'` on
+   `customer.subscription.deleted` / at period end.
+4. **Two-account RLS check:** a second account must NOT see the first's
+   `subscriptions` row.
+5. **MERGE GATE (do NOT skip):** before merging to `main` / public launch —
+   (a) flip the `profiles.tier` column default from `'paid'` to `'free'`;
+   (b) set LIVE Stripe keys + `STRIPE_WEBHOOK_SECRET` in Vercel (Prod) and create
+   the production webhook endpoint at `https://trackdco.app/api/stripe/webhook`;
+   (c) confirm `SUPABASE_SECRET_KEY` is set in Vercel. Until then this stays on
+   the branch.
 
 ---
 

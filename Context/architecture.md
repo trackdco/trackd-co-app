@@ -17,10 +17,13 @@
 | Storage   | Supabase Storage                    | Bloodwork file uploads (private, owner-scoped bucket)             |
 | Hosting   | Vercel                             | Deploy + edge; serves the installable PWA at the root `trackdco.app` |
 
-**Deferred (post-trip, not built during the sprint):** Stripe (payments),
-Resend + ConvertKit (email), PostHog (analytics), Sentry (errors), Claude Sonnet
-(v1.5 bloodwork analyser). Tables/columns that model these may already exist
-in the schema — storage only, no behaviour, until post-trip.
+**Deferred (post-trip, not built during the sprint):** Resend + ConvertKit
+(email), PostHog (analytics), Sentry (errors), Claude Sonnet (v1.5 bloodwork
+analyser). Tables/columns that model these may already exist in the schema —
+storage only, no behaviour, until post-trip. **Stripe (payments) has since been
+implemented on the `stripe` feature branch** (a `subscriptions` table + the
+`/api/stripe/webhook` route + a gated `/billing` page) but is **not merged and
+not live for beta** — see the entitlements section below.
 
 **Web Push — Phase 1 (transport) is BUILT (Spec 14, 2026-06-23).** Web Push/VAPID
 + a Supabase Edge Function (`send-push`) now deliver a real notification to a
@@ -527,6 +530,15 @@ scheduling is Phase 2.
 - Feature entitlements read `profiles.tier` and nothing else. Beta defaults
   everyone to `'paid'`; post-trip, the Stripe webhook becomes the column's only
   writer and the default flips to `'free'`. Gating logic never changes.
+- **Subscriptions (built on the `stripe` branch).** A `subscriptions` table (PK
+  `user_id` → `profiles.id`) records the Stripe customer/subscription state.
+  Users may READ their own row (RLS `SELECT` only — there is no insert/update/
+  delete policy); the Stripe webhook (`/api/stripe/webhook`, service role) is the
+  ONLY writer and the sole authority for `profiles.tier`. Period end is read from
+  the subscription ITEM (Stripe API `2026-06-24.dahlia` moved `current_period_end`
+  off the subscription onto its items). Annual carries a 5-day trial; monthly
+  does not. Canceled subs are archived (status `'canceled'`), never hard-deleted.
+  Not merged to `main` — see project-overview "Billing & subscriptions".
 - **Cross-origin posture (Spec 13).** The app exposes no JSON API for other
   origins — all data flows through Server Components + Server Actions (the one
   route handler, `/auth/callback`, only does same-origin redirects), so there is
