@@ -83,7 +83,7 @@ export default async function ProfilePage() {
   const imperial = profile?.units_preference === "imperial";
 
   return (
-    <div className="mx-auto w-full max-w-md px-6 py-10">
+    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
       {/* Each block fades + rises in on load, staggered — the same
           `animate-home-up` idiom as Home and Progress (per-section, not a single
           whole-page fade), so every tab page loads in the same way. */}
@@ -94,7 +94,7 @@ export default async function ProfilePage() {
 
       {/* ── Identity hero ─────────────────────────────────────────── */}
       <section
-        className="animate-home-up mt-6 flex flex-col items-center text-center"
+        className="animate-home-up flex flex-col items-center text-center"
         style={{ animationDelay: "55ms" }}
       >
         <AvatarUploader
@@ -138,7 +138,7 @@ export default async function ProfilePage() {
 
       {/* ── Physical (read-only glance; editing lives in /settings) ── */}
       <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
-        <div className="mt-8 mb-3 flex items-baseline justify-between gap-3">
+        <div className="mb-3 flex items-baseline justify-between gap-3">
           <p className="text-xs font-medium tracking-[0.18em] text-text-muted uppercase">
             Physical
           </p>
@@ -202,7 +202,7 @@ export default async function ProfilePage() {
       </div>
 
       {/* ── Sign out (confirm step; deep-red destructive button) ───── */}
-      <div className="animate-home-up mt-8" style={{ animationDelay: "170ms" }}>
+      <div className="animate-home-up" style={{ animationDelay: "170ms" }}>
         <SignOutConfirm variant="button" />
       </div>
 
@@ -210,13 +210,13 @@ export default async function ProfilePage() {
           control" the Privacy Policy refers to; full self-serve is post-beta).
           The compound-stack reset sits right under it, sharing the same quiet,
           muted treatment so it reads as the rare/irreversible action it is. */}
-      <div className="animate-home-up mt-4" style={{ animationDelay: "185ms" }}>
+      <div className="animate-home-up" style={{ animationDelay: "185ms" }}>
         <DeleteAccountRequest email={email} />
         <StartFreshSection userId={user!.id} />
       </div>
 
       <p
-        className="animate-home-up mt-6 text-center text-xs text-text-subtle"
+        className="animate-home-up text-center text-xs text-text-subtle"
         style={{ animationDelay: "205ms" }}
       >
         Trackd Co · v0.4 (Beta)
@@ -229,7 +229,7 @@ export default async function ProfilePage() {
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mt-8 mb-3 text-xs font-medium tracking-[0.18em] text-text-muted uppercase">
+    <p className="mb-3 text-xs font-medium tracking-[0.18em] text-text-muted uppercase">
       {children}
     </p>
   );
