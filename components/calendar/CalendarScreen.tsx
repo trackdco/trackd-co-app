@@ -189,7 +189,7 @@ export function CalendarScreen({
   }
 
   return (
-    <div className="mx-auto w-full max-w-md px-5 py-8 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
+    <div className="mx-auto w-full max-w-md px-5 pt-4 pb-5 animate-home-up">
       <Link
         href="/dashboard"
         className="-ml-1 inline-flex items-center gap-1.5 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:text-foreground"

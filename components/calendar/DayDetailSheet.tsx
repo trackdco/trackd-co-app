@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
+import { SHEET_TITLE } from "@/lib/ui-presets";
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -106,7 +107,7 @@ export function DayDetailSheet({
           </SheetDescription>
 
           <div className="flex-1 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-            <h2 className="pb-4 font-display text-2xl font-medium text-foreground">
+            <h2 className={`pb-4 ${SHEET_TITLE}`}>
               {dateKey ? formatJournalDate(dateKey) : ""}
             </h2>
 
