@@ -9,10 +9,11 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Trash2 } from "lucide-react";
+import { Check, History, Scale, Trash2 } from "lucide-react";
 import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { cn } from "@/lib/utils";
+import { CARD_ICON_BADGE, CARD_TITLE, PAGE_TITLE } from "@/lib/ui-presets";
 import { Input } from "@/components/ui/input";
 import {
   dateKeyToDate,
@@ -341,11 +342,9 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   }
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 py-6">
+    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
       <header className="animate-home-up px-1" style={{ animationDelay: "0ms" }}>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-foreground">
-          Weight
-        </h1>
+        <h1 className={PAGE_TITLE}>Weight</h1>
         <p className="mt-0.5 text-sm text-text-muted">
           Log your bodyweight and watch the trend.
         </p>
@@ -356,10 +355,13 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
         className="animate-home-up relative rounded-2xl border border-border-default bg-bg-surface p-5"
         style={{ animationDelay: "70ms" }}
       >
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
-          Track your weight
-        </p>
-        <div className="mt-3 flex gap-3">
+        <div className="flex items-center gap-3.5">
+          <span aria-hidden className={CARD_ICON_BADGE}>
+            <Scale className="h-5 w-5" />
+          </span>
+          <h2 className={CARD_TITLE}>Track your weight</h2>
+        </div>
+        <div className="mt-4 flex gap-3">
           <label className="block flex-1 min-w-0">
             <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
               Weight
@@ -595,9 +597,12 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
         className="animate-home-up rounded-2xl border border-border-default bg-bg-surface p-5"
         style={{ animationDelay: "210ms" }}
       >
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
-          Entry log
-        </p>
+        <div className="flex items-center gap-3.5">
+          <span aria-hidden className={CARD_ICON_BADGE}>
+            <History className="h-5 w-5" />
+          </span>
+          <h2 className={CARD_TITLE}>Entry log</h2>
+        </div>
         {logMonths.length === 0 ? (
           <p className="mt-3 text-sm text-text-muted">
             Nothing logged yet. Add today&apos;s weight above.
