@@ -95,7 +95,23 @@ export function StockView({
       </div>
 
       {items === null ? (
-        <p className="mt-4 text-center text-sm text-text-subtle">Loading…</p>
+        // Loading — shaped skeleton rows on --bg-surface-raised (States section:
+        // no spinner/text for content areas; match the StockItemCard shape).
+        <ul className="mt-4 space-y-2" aria-hidden>
+          {[0, 1].map((i) => (
+            <li
+              key={i}
+              className="animate-pulse rounded-xl border border-border-default bg-bg-surface-raised p-4 motion-reduce:animate-none"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="h-4 w-28 rounded-full bg-bg-input" />
+                <div className="h-3 w-12 rounded-full bg-bg-input" />
+              </div>
+              <div className="mt-3 h-1.5 w-full rounded-full bg-bg-input" />
+              <div className="mt-3 h-3 w-20 rounded-full bg-bg-input" />
+            </li>
+          ))}
+        </ul>
       ) : items.length > 0 ? (
         <ul className="mt-4 space-y-2">
           {items.map((item) => (

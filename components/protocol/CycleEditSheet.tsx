@@ -9,6 +9,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { SHEET_TITLE } from "@/lib/ui-presets"
 import { ensureActiveCycle, updateCycle } from "@/lib/db/cycles"
 import { cycleTotalWeeks, endDateFromLength, todayKey } from "@/lib/protocol/cycle"
 import type { Cycle } from "@/lib/db/types"
@@ -48,7 +49,7 @@ export function CycleEditSheet({
         className="rounded-t-3xl border-border-default bg-bg-surface"
       >
         <SheetHeader>
-          <SheetTitle className="font-display text-xl text-foreground">Edit cycle</SheetTitle>
+          <SheetTitle className={SHEET_TITLE}>Edit cycle</SheetTitle>
         </SheetHeader>
         {open && (
           <CycleEditForm
