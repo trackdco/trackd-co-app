@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Bell, ChevronRight } from "lucide-react";
 
 import { SettingsForm } from "@/components/settings/settings-form";
-import { CARD_ICON_BADGE } from "@/lib/ui-presets";
+import { CARD_ICON_BADGE, CARD_TITLE, PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -49,10 +49,8 @@ export default async function SettingsPage() {
     : null;
 
   return (
-    <div className="mx-auto w-full max-w-md px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
-      <h1 className="font-display text-[2rem] font-medium leading-[1.1] tracking-[-0.02em] text-foreground">
-        Settings
-      </h1>
+    <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
+      <h1 className={PAGE_TITLE}>Settings</h1>
 
       {/* Account (read-only) */}
       <section className="mt-6 rounded-2xl border border-border bg-bg-surface p-5">
@@ -65,7 +63,7 @@ export default async function SettingsPage() {
           <Row
             label="Plan"
             value={
-              profile?.tier === "free" ? "Free" : "Beta — all features unlocked"
+              profile?.tier === "free" ? "Free" : "Beta — all features"
             }
           />
           {age !== null ? <Row label="Age" value={`${age}`} /> : null}
@@ -96,7 +94,7 @@ export default async function SettingsPage() {
           <Bell className="size-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-display text-lg text-foreground">
+          <span className={`block ${CARD_TITLE}`}>
             Notifications &amp; reminders
           </span>
           <span className="block text-sm text-text-muted">

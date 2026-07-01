@@ -5,7 +5,7 @@ import { Bell, Loader2 } from "lucide-react";
 
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { usePushNotifications } from "@/components/push/usePushNotifications";
-import { CARD_ICON_BADGE } from "@/lib/ui-presets";
+import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets";
 import { sendMyRemindersNow } from "@/lib/notifications/actions";
 
 /**
@@ -51,7 +51,7 @@ export function NotificationsToggle({
           <Bell className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-display text-lg text-foreground">Notifications</p>
+          <p className={CARD_TITLE}>Notifications</p>
           <p className="mt-1 text-sm leading-relaxed text-text-muted">
             Dose reminders and protocol nudges, sent to this device.
           </p>
@@ -128,7 +128,7 @@ function Toggle({
       {/* Knob: flex-centered vertically; travel is exact so the 4px inset is equal
           on both ends (off → translate-x-1, on → translate-x-6) — no overflow. */}
       <span
-        className={`pointer-events-none inline-block size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+        className={`pointer-events-none inline-block size-5 rounded-full bg-primary shadow-sm transition-transform duration-200 ${
           on ? "translate-x-6" : "translate-x-1"
         }`}
       />
