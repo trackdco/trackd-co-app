@@ -6,6 +6,7 @@ import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMounted } from "@/components/home/useMounted";
 import { usePushNotifications } from "@/components/push/usePushNotifications";
+import { CARD_TITLE, STEP_ICON_BADGE } from "@/lib/ui-presets";
 
 const DISMISS_KEY = "trackd:push-onboard-dismissed";
 
@@ -71,16 +72,11 @@ export function EnableNotificationsStep({
   return (
     <div className="mt-8 rounded-2xl border border-border bg-bg-surface p-5">
       <div className="flex items-start gap-3">
-        <span
-          className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-accent-amber/25 bg-accent-amber/10 text-accent-amber"
-          aria-hidden="true"
-        >
+        <span className={STEP_ICON_BADGE} aria-hidden="true">
           <Bell className="size-5" />
         </span>
         <div className="min-w-0">
-          <p className="font-display text-lg text-foreground">
-            Never miss a dose
-          </p>
+          <p className={CARD_TITLE}>Never miss a dose</p>
           <p className="mt-1 text-sm leading-relaxed text-text-muted">
             Get a quiet reminder when a dose is due. You can change this any time
             in Settings.

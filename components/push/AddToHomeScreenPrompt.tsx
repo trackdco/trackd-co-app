@@ -1,5 +1,7 @@
 import { MoreHorizontal, Plus, Share } from "lucide-react";
 
+import { CARD_TITLE } from "@/lib/ui-presets";
+
 /**
  * The shared "Add to Home Screen" instructions for iPhone. Used by the install
  * popup (components/pwa/InstallHomeScreenPopup), the permanent Profile → "Add to
@@ -16,9 +18,7 @@ import { MoreHorizontal, Plus, Share } from "lucide-react";
 export function AddToHomeScreenPrompt() {
   return (
     <div className="rounded-2xl border border-border bg-bg-surface p-5">
-      <p className="font-display text-lg text-foreground">
-        Add Trackd to your Home Screen
-      </p>
+      <p className={CARD_TITLE}>Add Trackd to your Home Screen</p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
         Get the full app, not a Safari tab — here&apos;s how:
       </p>
