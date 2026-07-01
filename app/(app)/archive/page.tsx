@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
 import { ArchiveManager } from "@/components/home/ArchiveManager";
+import { PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Archive — Trackd Co" };
@@ -23,7 +24,7 @@ export default async function ArchivePage() {
   } = await supabase.auth.getUser();
 
   return (
-    <div className="mx-auto w-full max-w-md px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
+    <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
       <Link
         href="/profile"
         className="-ml-1 inline-flex items-center gap-1 rounded-md py-1 pr-2 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
@@ -32,9 +33,7 @@ export default async function ArchivePage() {
         Profile
       </Link>
 
-      <h1 className="mt-3 font-display text-3xl font-medium tracking-[-0.01em] text-foreground">
-        Archive
-      </h1>
+      <h1 className={`mt-3 ${PAGE_TITLE}`}>Archive</h1>
       <p className="mt-1.5 text-sm text-text-muted">
         Stop logging a compound to move it here, then reactivate to put it back —
         your past entries are kept. Or delete an archived compound to erase it and
