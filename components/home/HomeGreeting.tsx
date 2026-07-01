@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 
 import { useMounted } from "@/components/home/useMounted"
+import { SHEET_TITLE } from "@/lib/ui-presets"
 
 type Period = "morning" | "afternoon" | "evening"
 
@@ -96,7 +97,7 @@ export function HomeGreeting({
 
   return (
     <section className="px-1">
-      <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-foreground">
+      <h2 className={SHEET_TITLE}>
         {greeting}
         {name ? `, ${name}` : ""}
       </h2>

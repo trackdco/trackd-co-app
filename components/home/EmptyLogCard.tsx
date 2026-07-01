@@ -2,6 +2,8 @@
 
 import { CalendarClock, Plus, Syringe } from "lucide-react"
 
+import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
+
 /**
  * The Home empty state — shown when the user has no compounds in their log yet
  * (a blank template). Explains, in three steps, how the log works and points to
@@ -10,12 +12,12 @@ import { CalendarClock, Plus, Syringe } from "lucide-react"
  */
 export function EmptyLogCard() {
   return (
-    <section className="rounded-2xl border border-border-default bg-bg-surface p-6">
-      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-amber/10 text-accent-amber">
+    <section className="rounded-2xl border border-border-default bg-bg-surface p-5">
+      <span className={CARD_ICON_BADGE}>
         <Syringe className="h-5 w-5" aria-hidden />
       </span>
 
-      <h2 className="mt-4 font-display text-xl font-medium tracking-[-0.01em] text-foreground">
+      <h2 className={`mt-4 ${CARD_TITLE}`}>
         Start your log
       </h2>
       <p className="mt-1 text-sm text-text-muted">
