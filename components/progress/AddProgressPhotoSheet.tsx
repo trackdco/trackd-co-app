@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { PoseIcon } from "@/components/progress/PoseIcon";
 import { PosePicker } from "@/components/progress/PosePicker";
+import { SHEET_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/client";
 import { addProgressPhotos } from "@/app/(app)/progress/actions";
 import { logWeight } from "@/app/(app)/weight/actions";
@@ -228,7 +229,7 @@ export function AddProgressPhotoSheet({
           </SheetDescription>
 
           <div className="flex-1 overflow-y-auto px-6">
-            <h2 className="font-display text-2xl font-medium text-foreground">Add photos</h2>
+            <h2 className={SHEET_TITLE}>Add photos</h2>
             <p className="mt-0.5 text-xs text-text-muted">
               Tap a pose to take or choose a photo — fill any or all, then submit.
             </p>

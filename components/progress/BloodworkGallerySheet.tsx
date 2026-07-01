@@ -4,6 +4,7 @@ import { ImagePlus, Plus } from "lucide-react";
 
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
+import { SHEET_TITLE } from "@/lib/ui-presets";
 import { formatBloodworkDate, type BloodworkPhoto } from "@/lib/progress/bloodwork";
 
 /**
@@ -52,7 +53,7 @@ export function BloodworkGallerySheet({
 
           <div className="flex-1 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
             <div className="flex items-center justify-between gap-3 pb-1">
-              <h2 className="font-display text-2xl font-medium text-foreground">
+              <h2 className={SHEET_TITLE}>
                 Bloodwork
               </h2>
               <button

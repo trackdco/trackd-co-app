@@ -7,6 +7,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
+import { SHEET_TITLE } from "@/lib/ui-presets";
 import {
   formatPhotoDateRow,
   posePriority,
@@ -84,7 +85,7 @@ export function EditDaySheet({
           </SheetDescription>
 
           <div className="flex-1 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-            <h2 className="font-display text-2xl font-medium text-foreground">
+            <h2 className={SHEET_TITLE}>
               {date ? formatPhotoDateRow(date) : "Edit"}
             </h2>
 
