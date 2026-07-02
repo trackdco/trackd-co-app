@@ -6,7 +6,47 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-26
+Last updated: 2026-07-02
+
+## Billing / Stripe — paid-only pricing + beta code + founder-free (2026-07-02, Adrian + Claude)
+
+Post-trip payments work resumed. The `stripe` branch (Stripe subscriptions +
+pricing UI, originally built pre-branding on #43) was brought up to date with
+`main`, so the billing UI now rides the new UI-context restyle (branch is 4 ahead
+/ 0 behind `main`, ready for Adrian to merge). `tsc`+`lint` clean; `/preview/billing`
+renders live test prices; NOT deployed.
+
+- **Pricing is now paid-only.** Removed the placeholder "Free" tier/tab entirely —
+  the page is one Pro plan billed Monthly or Yearly. Re-skinned to ui-context
+  (`PAGE_TITLE` hero, `CARD_TITLE`, the standalone scaffold
+  `mx-auto max-w-md px-5 pt-4 pb-5` + `animate-home-up`, `rounded-2xl p-5` cards,
+  tokens only). **Amber is the single accent** (chrome/identity, not health data),
+  replacing the old green savings/check styling.
+- **7-day free trial on BOTH cadences** (was 5-day annual-only). Renamed
+  `ANNUAL_TRIAL_DAYS` → `TRIAL_DAYS`. With no free plan, the trial is the
+  try-before-you-pay path for everyone; the card is collected at checkout.
+- **Per-day price + explicit USD (Adrian's ask).** The Pro card shows a subtle
+  annualised "≈ $X/day" and labels the currency ("Billed $Y USD/year", "then
+  $Y USD/…", "Billed monthly in USD") so users know the shown price is USD, not
+  their local currency — the code is data-driven off the Stripe price currency,
+  not hardcoded. (Stripe charges via their card; the bank converts.)
+- **Beta code** (`BETA_ACCESS_CODE` env): a "Have a beta code?" field on the pricing
+  card. A valid code extends the checkout trial to 14 days (`BETA_TRIAL_DAYS`); an
+  unknown code is rejected rather than silently falling back. `startCheckout` /
+  `startSampleCheckout` now take an optional `code`. Card still collected (Adrian's
+  pick — keeps it inside the Stripe flow).
+- **Founders are free by email allowlist** (`isFounder`, `lib/admin.ts`) — the
+  billing page shows a "Founder access" comp state and never touches Stripe. No
+  founder coupon/code (Adrian's simplification over a Stripe coupon).
+- **Live DB already has the `subscriptions` table** (RLS on, 0 rows) — applied when
+  the branch was first built. No new migration this pass.
+- **Deferred (paywall pass, Adrian's call — "later"):** nothing is GATED yet.
+  `profiles.tier` still defaults to `'paid'`, so no one is cut off; the pricing
+  surface is real but enforcement (flip default to `'free'` + feature gates) is a
+  later task.
+- **Founder deploy steps pending:** create the Stripe product + monthly/annual
+  prices, set the Stripe env vars + `BETA_ACCESS_CODE` in Vercel, register the
+  webhook endpoint, redeploy without build cache, then merge `stripe` → `main`.
 
 ## Cloud-write error logging + cron/doc verification (2026-06-26)
 

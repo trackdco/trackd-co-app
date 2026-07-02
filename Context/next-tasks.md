@@ -9,13 +9,42 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-24
+Last updated: 2026-07-02
 
 ---
 
 ## 🎯 Current focus
 
-**2026-06-24 (Adrian + Claude): amounts on CUSTOM vials + Protocol "more" menu +
+**2026-07-02 (Adrian + Claude): BILLING / STRIPE — paid-only pricing + beta code +
+founder-free — BUILT on the `stripe` branch (now 4 ahead / 0 behind `main`),
+`tsc`+`lint` clean; `/preview/billing` renders live test prices; NOT deployed.**
+Resumed post-trip payments. Brought the `stripe` branch up to current `main` (so the
+billing UI carries the new UI-context restyle), then: pricing is **paid-only**
+(dropped the Free tab), **7-day trial on both cadences**, a subtle **per-day price +
+explicit USD** labelling, a **"Have a beta code?"** field that extends the trial to
+14 days via `BETA_ACCESS_CODE`, and **founders are free by email allowlist**
+(`isFounder` — no coupon/code). Full detail in `progress-tracker.md`.
+
+**▶ Founder steps to make it live (Claude can't reach your Stripe/Vercel):**
+1. **Stripe dashboard** → create product "Trackd Co" with a **monthly** and a
+   **yearly** recurring price (USD) → copy the two `price_…` ids.
+2. **Vercel env (Production + Preview)** → set `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`,
+   `STRIPE_SECRET_KEY`, `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_ANNUAL`,
+   `BETA_ACCESS_CODE` (e.g. TRACKDBETA). (Test keys are already in local `.env.local`.)
+3. **Webhook** → Stripe → Developers → Webhooks → add endpoint
+   `https://trackdco.app/api/stripe/webhook` (events: `checkout.session.completed` +
+   `customer.subscription.created/updated/deleted`) → copy the `whsec_…` signing
+   secret → set `STRIPE_WEBHOOK_SECRET` in Vercel.
+4. **Redeploy without build cache** (NEXT_PUBLIC_ inlines at build), then **merge
+   `stripe` → `main`**.
+5. Optional: add founder emails (Angus, your current email) to `FOUNDER_EMAILS` in
+   `lib/admin.ts`.
+
+**▶ Then (later, deferred — the paywall pass):** flip `profiles.tier` default to
+`'free'` and add the actual feature gates. Until then nothing is cut off — the
+pricing page is real but access isn't gated.
+
+**▶ Earlier — 2026-06-24 (Adrian + Claude): amounts on CUSTOM vials + Protocol "more" menu +
 splash box softened — BUILT, `tsc`+`lint` clean; `custom_protocol_compounds`
 migration APPLIED LIVE + verified; NOT committed/deployed.** Custom "Make your own"
 compounds can now carry vials + stock runway (pulled into beta scope), the Protocol

@@ -80,6 +80,11 @@ export function PricingPlans({
       ? Math.round(annual.cents / 12)
       : null
     : (monthly?.cents ?? null);
+  // Annualised daily cost, so the number reads the same story on both cadences.
+  const perDayCents = active
+    ? Math.round((isAnnual ? active.cents : active.cents * 12) / 365)
+    : null;
+  const currencyCode = currency.toUpperCase();
 
   const indicatorTranslate = isAnnual ? "translate-x-full" : "translate-x-0";
 
@@ -175,7 +180,11 @@ export function PricingPlans({
 
               {isAnnual ? (
                 <p className="mt-2 text-sm text-text-muted">
-                  {annual ? <>Billed {money(annual.cents, currency)}/year</> : null}
+                  {annual ? (
+                    <>
+                      Billed {money(annual.cents, currency)} {currencyCode}/year
+                    </>
+                  ) : null}
                   {savings ? (
                     <>
                       {" · "}
@@ -187,10 +196,16 @@ export function PricingPlans({
                 </p>
               ) : (
                 <p className="mt-2 text-sm text-text-muted">
-                  Billed monthly
+                  Billed monthly in {currencyCode}
                   {monthly && annual ? <> · switch to yearly to save</> : null}
                 </p>
               )}
+
+              {perDayCents != null ? (
+                <p className="mt-1 text-xs text-text-subtle">
+                  ≈ {money(perDayCents, currency)}/day
+                </p>
+              ) : null}
 
               <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-accent-amber/15 px-3 py-1 text-xs font-medium text-accent-amber">
                 {trialDays}-day free trial included
@@ -226,7 +241,7 @@ export function PricingPlans({
 
           <p className="mt-2.5 text-center text-xs text-text-subtle">
             Free for {trialDays} days, then{" "}
-            {active ? money(active.cents, currency) : ""}/
+            {active ? money(active.cents, currency) : ""} {currencyCode}/
             {isAnnual ? "year" : "month"}. Cancel anytime.
           </p>
 
