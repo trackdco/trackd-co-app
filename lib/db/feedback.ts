@@ -9,6 +9,7 @@
  * retry without losing the typed note.
  */
 import { createClient } from "@/lib/supabase/server"
+import { isFounder } from "@/lib/admin"
 
 const MAX_LEN = 4000
 
@@ -40,6 +41,41 @@ export async function submitBetaFeedback(
     return { ok: true }
   } catch (e) {
     console.error("submitBetaFeedback failed", e)
+    return { ok: false }
+  }
+}
+
+/**
+ * Founder-only: mark a `beta_feedback` row resolved (fix shipped) or reopen it.
+ * Used by the /admin list to tick items off so the open list stays uncrowded.
+ * Identity + the founder check come from the verified session; the column-scoped,
+ * founder-only UPDATE policy (`supabase/feedback/002_beta_feedback_resolved.sql`)
+ * is the backstop. Best-effort, never throws.
+ */
+export async function setFeedbackResolved(
+  id: string,
+  resolved: boolean
+): Promise<{ ok: boolean }> {
+  try {
+    if (!id) return { ok: false }
+
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user || !isFounder(user.email)) return { ok: false }
+
+    const { error } = await supabase
+      .from("beta_feedback")
+      .update({ resolved_at: resolved ? new Date().toISOString() : null })
+      .eq("id", id)
+    if (error) {
+      console.error("setFeedbackResolved failed", error)
+      return { ok: false }
+    }
+    return { ok: true }
+  } catch (e) {
+    console.error("setFeedbackResolved failed", e)
     return { ok: false }
   }
 }

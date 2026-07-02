@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { MarkerDialer } from "@/components/progress/MarkerDialer";
+import { SHEET_TITLE } from "@/lib/ui-presets";
 import {
   formatJournalDate,
   type JournalEntry,
@@ -151,7 +152,7 @@ export function JournalEntrySheet({
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-surface-raised text-text-muted">
                   <Icon className="h-4 w-4" aria-hidden />
                 </span>
-                <h2 className="font-display text-2xl font-medium text-foreground">{title}</h2>
+                <h2 className={SHEET_TITLE}>{title}</h2>
               </div>
               {mode === "edit" && (
                 <span className="font-mono text-sm text-text-muted">

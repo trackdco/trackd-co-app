@@ -17,6 +17,7 @@ import {
   FALLBACK_CATEGORY_META,
   type CompoundCategory,
 } from "@/lib/compound-categories"
+import { CARD_TITLE } from "@/lib/ui-presets"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
 import {
   advanceRotation,
@@ -112,7 +113,7 @@ export function QuickTrackSheet({
         className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
       >
         <SheetHeader>
-          <SheetTitle className="font-display text-xl text-foreground">
+          <SheetTitle className={CARD_TITLE}>
             What would you like to track?
           </SheetTitle>
         </SheetHeader>

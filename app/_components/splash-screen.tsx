@@ -136,7 +136,7 @@ export function SplashScreen() {
         // transition bubbling up from the child.
         if (e.target === e.currentTarget && fading) setDone(true);
       }}
-      className={`fixed inset-0 z-[9999] bg-black transition-opacity ease-out lg:hidden ${
+      className={`fixed inset-0 z-[9999] bg-bg-base transition-opacity ease-out lg:hidden ${
         fading ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
       style={{ transitionDuration: `${FADE_MS}ms` }}

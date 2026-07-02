@@ -65,7 +65,9 @@ function stat(vals: number[]): Stat {
  * and via the + menu. Neutral presentation — no good/bad colouring.
  */
 export function WeightGlanceCard({ series, unit, onOpenDetail }: WeightGlanceCardProps) {
-  const [mode, setMode] = useState<WeightMode>("trend")
+  // Starts on the raw SCALE reading; the user can switch to the smoothed trend
+  // themselves (matches the full Weight view — never auto-selects trend).
+  const [mode, setMode] = useState<WeightMode>("scale")
   const empty = series.length === 0
 
   const scaleAll = series.map((p) => kgToUnit(p.kg, unit))

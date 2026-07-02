@@ -72,8 +72,7 @@ export default async function WaitlistPage({
         </h1>
 
         <p className="mx-auto mt-4 max-w-sm text-pretty text-center text-[0.95rem] leading-relaxed text-text-muted">
-          The first app of its kind. Track everything in one place, with
-          injection-site rotation built in.
+          Track everything in one place, with injection-site rotation built in.
         </p>
 
         <div className="mt-8">

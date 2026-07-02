@@ -7,6 +7,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
+import { SHEET_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 import type { CalendarDayStatus } from "@/lib/calendar/calendar";
 
@@ -82,7 +83,7 @@ export function LegendSheet({
           </SheetDescription>
 
           <div className="flex-1 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-            <h2 className="pb-4 font-display text-2xl font-medium text-foreground">
+            <h2 className={`pb-4 ${SHEET_TITLE}`}>
               Calendar key
             </h2>
             <ul className="space-y-4">

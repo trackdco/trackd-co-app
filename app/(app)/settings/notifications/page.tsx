@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { NotificationsToggle } from "@/components/settings/NotificationsToggle";
 import { ReminderSettings } from "@/components/settings/ReminderSettings";
+import { PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -44,10 +45,8 @@ export default async function NotificationsSettingsPage() {
     typeof t === "string" ? t.slice(0, 5) : fallback;
 
   return (
-    <div className="mx-auto w-full max-w-md px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
-      <h1 className="font-display text-[2rem] font-medium leading-[1.1] tracking-[-0.02em] text-foreground">
-        Notifications
-      </h1>
+    <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
+      <h1 className={PAGE_TITLE}>Notifications</h1>
       <p className="mt-2 text-sm leading-relaxed text-text-muted">
         Reminders for your protocol, sent to this device.
       </p>

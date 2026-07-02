@@ -10,6 +10,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+import { SHEET_TITLE } from "@/lib/ui-presets"
 import {
   addStockItem,
   updateStockItem,
@@ -118,7 +119,7 @@ export function AddStockSheet({
         className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
       >
         <SheetHeader>
-          <SheetTitle className="font-display text-xl text-foreground">
+          <SheetTitle className={SHEET_TITLE}>
             {editItem ? "Edit stock" : refillFor ? "Refill stock" : "Add stock"}
           </SheetTitle>
         </SheetHeader>

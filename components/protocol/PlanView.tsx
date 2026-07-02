@@ -4,7 +4,7 @@ import { useState, useSyncExternalStore } from "react"
 import { CalendarRange, MoreHorizontal, Plus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { CARD_TITLE } from "@/lib/ui-presets"
+import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -142,7 +142,7 @@ export function PlanView({
           onClick={() => setCycleEditOpen(true)}
           className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised"
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent-amber/25 bg-accent-amber/10 text-accent-amber">
+          <span aria-hidden className={CARD_ICON_BADGE}>
             <CalendarRange className="h-5 w-5" aria-hidden />
           </span>
           <span className="min-w-0">
@@ -210,7 +210,6 @@ export function PlanView({
           setEditTarget(c)
         }}
         onArchive={(id) => archiveInStack(userId, id, true)}
-        onReactivate={(id) => archiveInStack(userId, id, false)}
         onDelete={(id) => {
           removeFromStack(userId, id)
           removeCompoundLogs(userId, id)

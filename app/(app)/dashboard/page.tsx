@@ -36,10 +36,17 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // The (app) layout redirects an unauthenticated user, but layout and page
+  // render concurrently in the App Router — so the page can't lean on that and
+  // must guard itself, or `user!.id` below throws (and is logged server-side)
+  // before the redirect lands. Render nothing; the layout's redirect is the
+  // actual response.
+  if (!user) return null;
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("units_preference, notifications_enabled")
-    .eq("id", user!.id)
+    .eq("id", user.id)
     .maybeSingle();
 
   // Set by the auth callback on a fresh sign-in / sign-up — drives the one-time

@@ -6,6 +6,7 @@ import { Check, Loader2, MessageSquarePlus } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
+import { SHEET_TITLE } from "@/lib/ui-presets"
 import { submitBetaFeedback } from "@/lib/db/feedback"
 
 const MAX_LEN = 4000
@@ -105,7 +106,7 @@ export function FeedbackSheet({
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-surface-raised text-text-muted">
                 <MessageSquarePlus className="h-4 w-4" aria-hidden />
               </span>
-              <h2 className="font-display text-2xl font-medium text-foreground">
+              <h2 className={SHEET_TITLE}>
                 {title}
               </h2>
             </div>

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Check, Loader2 } from "lucide-react";
 
+import { CARD_TITLE } from "@/lib/ui-presets";
 import { joinWaitlist, type WaitlistState } from "@/app/waitlist/actions";
 
 const initialState: WaitlistState = {};
@@ -28,9 +29,7 @@ export function WaitlistForm({ source }: { source?: string }) {
         <span className="flex h-11 w-11 items-center justify-center rounded-full border border-accent-amber/40 bg-accent-amber/10 text-accent-amber">
           <Check className="h-5 w-5" strokeWidth={2} aria-hidden />
         </span>
-        <p className="font-display text-xl text-foreground">
-          You&apos;re on the list.
-        </p>
+        <p className={CARD_TITLE}>You&apos;re on the list.</p>
         <p className="text-sm text-text-muted">
           We&apos;ll email you the moment your spot opens up — keep an eye on
           your inbox.

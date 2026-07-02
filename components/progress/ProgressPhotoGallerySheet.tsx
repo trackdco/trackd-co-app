@@ -5,6 +5,7 @@ import { ArrowLeftRight, Camera, Pencil, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
+import { CARD_TITLE, SHEET_TITLE } from "@/lib/ui-presets";
 import {
   formatPhotoDateRow,
   groupByMonth,
@@ -65,7 +66,7 @@ export function ProgressPhotoGallerySheet({
 
           <div className="flex-1 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
             <div className="flex items-center justify-between gap-2 pb-1">
-              <h2 className="font-display text-2xl font-medium text-foreground">
+              <h2 className={SHEET_TITLE}>
                 Progress photos
               </h2>
               <button
@@ -106,7 +107,7 @@ export function ProgressPhotoGallerySheet({
                     className="animate-shortcut-in"
                     style={{ animationDelay: `${mi * 50}ms` }}
                   >
-                    <h3 className="px-1 font-display text-xl font-medium text-foreground">
+                    <h3 className={`px-1 ${CARD_TITLE}`}>
                       {month.label}
                     </h3>
                     <ul className="mt-2 overflow-hidden rounded-2xl border border-border-default bg-bg-surface-raised">

@@ -32,8 +32,10 @@ export default function GlobalError({
           gap: "1rem",
           padding: "1.5rem",
           textAlign: "center",
-          backgroundColor: "#111110",
-          color: "#ededec",
+          // Inline styles can't use the CSS-var tokens here (the app stylesheet
+          // may be gone), so these literals MUST mirror app/globals.css exactly.
+          backgroundColor: "#111110", // --bg-base
+          color: "#f0efe9", // --text-primary
           fontFamily:
             "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
         }}
@@ -41,7 +43,7 @@ export default function GlobalError({
         <h1 style={{ fontSize: "1.5rem", fontWeight: 600, margin: 0 }}>
           Something went wrong
         </h1>
-        <p style={{ fontSize: "0.9rem", color: "#a1a19b", maxWidth: "24rem" }}>
+        <p style={{ fontSize: "0.9rem", color: "#7a7a74", maxWidth: "24rem" }}>
           The app hit an unexpected error. Your data is safe. Please try again.
         </p>
         <button
@@ -52,8 +54,8 @@ export default function GlobalError({
             padding: "0 1.5rem",
             borderRadius: "0.75rem",
             border: "none",
-            backgroundColor: "#e0a82e",
-            color: "#1a1a17",
+            backgroundColor: "#c8861a", // --accent-amber
+            color: "#111110", // --accent-foreground (→ --bg-base)
             fontSize: "0.95rem",
             fontWeight: 600,
             cursor: "pointer",

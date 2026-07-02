@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
+import { CARD_TITLE } from "@/lib/ui-presets";
 import {
   saveReminderPrefs,
   saveTimezone,
@@ -74,7 +75,7 @@ export function ReminderSettings({
 
   return (
     <div className="mt-3 rounded-2xl border border-border bg-bg-surface p-5">
-      <p className="font-display text-lg text-foreground">Reminders</p>
+      <p className={CARD_TITLE}>Reminders</p>
       <p className="mt-1 text-sm leading-relaxed text-text-muted">
         Choose what we remind you about and when.
       </p>
@@ -176,7 +177,7 @@ function SwitchRow({
         }`}
       >
         <span
-          className={`pointer-events-none inline-block size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          className={`pointer-events-none inline-block size-5 rounded-full bg-primary shadow-sm transition-transform duration-200 ${
             on ? "translate-x-6" : "translate-x-1"
           }`}
         />

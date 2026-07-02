@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { FeedbackList, type AdminFeedback } from "@/components/admin/FeedbackList";
 import { isFounder } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -78,7 +79,7 @@ export default async function AdminWaitlistPage() {
       .limit(100),
     supabase
       .from("beta_feedback")
-      .select("message, email, path, created_at")
+      .select("id, message, email, path, created_at, resolved_at")
       .order("created_at", { ascending: false })
       .limit(100),
   ]);
@@ -98,12 +99,7 @@ export default async function AdminWaitlistPage() {
     source: string | null;
     created_at: string;
   }[];
-  const feedback = (feedbackRes.data ?? []) as {
-    message: string;
-    email: string | null;
-    path: string | null;
-    created_at: string;
-  }[];
+  const feedback = (feedbackRes.data ?? []) as AdminFeedback[];
 
   return (
     <main className="min-h-dvh bg-bg-base px-6 py-10">
@@ -203,33 +199,13 @@ export default async function AdminWaitlistPage() {
           </>
         )}
 
-        {/* Beta feedback — submissions from the + menu's "Beta notes & feedback". */}
+        {/* Beta feedback — submissions from the + menu's "Beta notes & feedback".
+            Tick an item to resolve it (founder-only); resolved items collapse out
+            of the open list so it stays uncrowded as fixes ship. */}
         <h2 className="mt-10 mb-3 text-xs uppercase tracking-[0.18em] text-text-muted">
           Beta feedback{feedback.length > 0 ? ` · ${feedback.length}` : ""}
         </h2>
-        {feedback.length === 0 ? (
-          <p className="text-sm text-text-muted">
-            No feedback yet. Testers can send notes from the + menu.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {feedback.map((f, i) => (
-              <div
-                key={`${f.created_at}-${i}`}
-                className="rounded-2xl border border-border-default bg-bg-surface p-4"
-              >
-                <p className="text-sm whitespace-pre-wrap text-foreground">{f.message}</p>
-                <div className="mt-2 flex items-center justify-between gap-3 text-xs text-text-subtle">
-                  <span className="min-w-0 truncate">
-                    {f.email ?? "unknown"}
-                    {f.path ? <span className="text-text-muted"> · {f.path}</span> : null}
-                  </span>
-                  <span className="shrink-0 tabular-nums">{fmtDate(f.created_at)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <FeedbackList items={feedback} />
 
         <p className="mt-8 text-center text-xs text-text-subtle">
           Founder-only · signed in as {user.email}

@@ -54,8 +54,6 @@ interface CompoundDetailSheetProps {
   onEdit: (compound: StackCompound) => void
   /** Archive — stop dosing, keep history (reversible). */
   onArchive: (id: string) => void
-  /** Reactivate an archived compound. */
-  onReactivate: (id: string) => void
   /** Permanently delete the compound + all its logged history. */
   onDelete: (id: string) => void
 }
@@ -79,7 +77,6 @@ export function CompoundDetailSheet({
   onEditTodaysDose,
   onEdit,
   onArchive,
-  onReactivate,
   onDelete,
 }: CompoundDetailSheetProps) {
   // Retain through the close animation so the body doesn't blank.
@@ -103,7 +100,6 @@ export function CompoundDetailSheet({
             onEditTodaysDose={onEditTodaysDose}
             onEdit={onEdit}
             onArchive={onArchive}
-            onReactivate={onReactivate}
             onDelete={onDelete}
           />
         ) : null}
@@ -120,7 +116,6 @@ function DetailBody({
   onEditTodaysDose,
   onEdit,
   onArchive,
-  onReactivate,
   onDelete,
 }: {
   compound: StackCompound
@@ -130,15 +125,13 @@ function DetailBody({
   onEditTodaysDose?: (compound: StackCompound) => void
   onEdit: (compound: StackCompound) => void
   onArchive: (id: string) => void
-  onReactivate: (id: string) => void
   onDelete: (id: string) => void
 }) {
   const { cardRef, handleProps, cardStyle } = useSheetDrag(onClose)
   const [moreOpen, setMoreOpen] = useState(false)
-  // A pending archive/reactivate confirmation (drops down before it happens).
-  const [confirmArchive, setConfirmArchive] = useState<
-    "archive" | "reactivate" | null
-  >(null)
+  // A pending ARCHIVE confirmation (drops down before it happens). Reactivation no
+  // longer confirms here — it opens the pre-filled config sheet via onEdit.
+  const [confirmArchive, setConfirmArchive] = useState(false)
   // 0 = not started, 1 = first confirm, 2 = final confirm (the destructive path).
   const [deleteStep, setDeleteStep] = useState(0)
   const meta = CATEGORY_META[compound.category] ?? FALLBACK_CATEGORY_META
@@ -246,7 +239,7 @@ function DetailBody({
           {compound.archived ? (
             <button
               type="button"
-              onClick={() => setConfirmArchive("reactivate")}
+              onClick={() => onEdit(compound)}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
               <RotateCcw className="h-4 w-4" aria-hidden />
@@ -277,14 +270,13 @@ function DetailBody({
         {confirmArchive && deleteStep === 0 ? (
           <div className="animate-shortcut-in rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
             <p className="text-sm text-foreground">
-              {confirmArchive === "archive"
-                ? `Archive “${compound.name}”? You can change it any time, just unarchive it from your Profile.`
-                : `Add “${compound.name}” back to your log? You can archive it again any time.`}
+              Archive “{compound.name}”? You can reactivate it any time from your
+              Profile — it’ll resume from that day, and your past entries are kept.
             </p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
-                onClick={() => setConfirmArchive(null)}
+                onClick={() => setConfirmArchive(false)}
                 className="flex-1 rounded-lg border border-border-strong py-2 text-sm text-text-muted transition-colors hover:text-text-primary"
               >
                 Cancel
@@ -292,13 +284,12 @@ function DetailBody({
               <button
                 type="button"
                 onClick={() => {
-                  if (confirmArchive === "archive") onArchive(compound.id)
-                  else onReactivate(compound.id)
+                  onArchive(compound.id)
                   onClose()
                 }}
                 className="flex-1 rounded-lg bg-accent-amber py-2 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
               >
-                {confirmArchive === "archive" ? "Archive" : "Add back"}
+                Archive
               </button>
             </div>
           </div>
@@ -343,7 +334,7 @@ function DetailBody({
                       sub="Hides it going forward · keeps all past entries · reversible"
                       onClick={() => {
                         setMoreOpen(false)
-                        setConfirmArchive("archive")
+                        setConfirmArchive(true)
                       }}
                     >
                       Stop logging

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
+import { SHEET_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/client";
 import { addBloodworkPhoto } from "@/app/(app)/progress/actions";
 
@@ -82,7 +83,7 @@ export function AttachBloodworkSheet({
       return;
     }
     if (f.size > MAX_BYTES) {
-      setError("That image is over 10 MB — try a screenshot instead.");
+      setError("That image is over 10 MB — choose a smaller one.");
       return;
     }
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -143,7 +144,7 @@ export function AttachBloodworkSheet({
           </SheetDescription>
 
           <div className="flex-1 overflow-y-auto px-6">
-            <h2 className="font-display text-2xl font-medium text-foreground">
+            <h2 className={SHEET_TITLE}>
               Attach bloodwork
             </h2>
 

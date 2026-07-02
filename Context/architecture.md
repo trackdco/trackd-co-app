@@ -48,10 +48,12 @@ reminders) and a secured cron route (`/api/notifications/run`, founders-only). S
 `service_role` table grant (`supabase/grants/002` — the project had never granted
 `service_role` since nothing server-side used it; the scheduler was the first, so
 its reads `42501`'d until granted). Confirmed: cron run `succeeded`, route `200`, a
-real reminder delivered. The cron is on `* * * * *` (every minute) during testing
-— relax to `*/15` for steady state. **Still out of scope:** per-compound dose times
-(we store which DAYS a dose is due, not a per-dose time), the journal/weekly-recap
-reminders, and storing each user's timezone (defaults to Sydney until then).
+real reminder delivered. The cron runs every 15 min (`*/15 * * * *`, relaxed from
+every-minute after testing; confirmed live 2026-06-26). **Still out of scope:**
+per-compound dose times (we store which DAYS a dose is due, not a per-dose time)
+and the journal/weekly-recap reminders. (Each user's timezone is now captured on
+notification opt-in → `profiles.timezone`; Sydney is only the fallback when none is
+stored.)
 
 ## System Boundaries
 
