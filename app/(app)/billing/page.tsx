@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Crown } from "lucide-react";
 
 import { ManageSubscriptionButton } from "@/components/billing/manage-subscription-button";
 import { PricingPlans, type PricingData } from "@/components/billing/pricing-plans";
+import { isFounder } from "@/lib/admin";
 import { PRICE_ID, TRIAL_DAYS } from "@/lib/stripe/config";
 import { stripe, stripeConfigured } from "@/lib/stripe/server";
 import { createClient } from "@/lib/supabase/server";
+import { CARD_ICON_BADGE, CARD_TITLE, PAGE_TITLE } from "@/lib/ui-presets";
 
 export const metadata: Metadata = {
   title: "Subscription — Trackd Co",
@@ -42,10 +45,11 @@ async function loadPricing(): Promise<PricingData> {
 }
 
 /**
- * Subscription screen (gated by the (app) layout). Shows the current plan +
- * "Manage subscription" when the user has an active/trialing/past_due sub, or
- * the pricing card otherwise. Entitlement itself is read from profiles.tier
- * elsewhere — this page is the buy/manage surface, not a gate.
+ * Subscription screen (gated by the (app) layout). Founders get Pro free by
+ * email allowlist — no Stripe. Everyone else sees "Manage subscription" when
+ * they have an active/trialing/past_due sub, or the pricing card otherwise.
+ * Entitlement itself is read from profiles.tier (+ isFounder) elsewhere — this
+ * page is the buy/manage surface, not a gate.
  */
 export default async function BillingPage({
   searchParams,
@@ -60,23 +64,34 @@ export default async function BillingPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: sub } = await supabase
-    .from("subscriptions")
-    .select("status, cadence, current_period_end, cancel_at_period_end")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const founder = isFounder(user.email);
+
+  // Founders are free by allowlist, so they never carry a subscription — skip
+  // the read and the Stripe price fetch entirely.
+  let sub: {
+    status: string;
+    cadence: string | null;
+    current_period_end: string | null;
+    cancel_at_period_end: boolean;
+  } | null = null;
+  if (!founder) {
+    const res = await supabase
+      .from("subscriptions")
+      .select("status, cadence, current_period_end, cancel_at_period_end")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    sub = res.data;
+  }
 
   const hasActive = sub ? ACTIVE_STATUSES.has(sub.status) : false;
-  const pricing = hasActive
-    ? { monthly: null, annual: null }
-    : await loadPricing();
+  const pricing =
+    founder || hasActive ? { monthly: null, annual: null } : await loadPricing();
 
   return (
-    <div className="mx-auto w-full max-w-md px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
+    <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
       {checkout === "success" ? (
         <p className="mb-4 rounded-xl border border-accent-green/40 bg-accent-green/10 px-4 py-3 text-sm text-foreground">
-          You&rsquo;re all set — welcome aboard. Your plan may take a moment to
-          appear here.
+          You&rsquo;re subscribed. Your plan may take a moment to appear here.
         </p>
       ) : null}
       {checkout === "cancel" ? (
@@ -85,11 +100,11 @@ export default async function BillingPage({
         </p>
       ) : null}
 
-      {hasActive && sub ? (
+      {founder ? (
+        <FounderPlan />
+      ) : hasActive && sub ? (
         <>
-          <h1 className="font-display text-[2rem] font-medium leading-[1.1] tracking-[-0.02em] text-foreground">
-            Subscription
-          </h1>
+          <h1 className={PAGE_TITLE}>Subscription</h1>
           <ActivePlan sub={sub} />
         </>
       ) : (
@@ -102,6 +117,26 @@ export default async function BillingPage({
         </Link>
       </div>
     </div>
+  );
+}
+
+/** Founder comp — Pro on the house, no Stripe involved. */
+function FounderPlan() {
+  return (
+    <>
+      <h1 className={PAGE_TITLE}>Subscription</h1>
+      <section className="mt-6 rounded-2xl border border-accent-amber/40 bg-bg-surface p-5">
+        <div className="flex items-center gap-3">
+          <span className={CARD_ICON_BADGE} aria-hidden="true">
+            <Crown className="size-5" />
+          </span>
+          <span className={CARD_TITLE}>Founder access</span>
+        </div>
+        <p className="mt-3 text-sm text-text-muted">
+          Full Pro access, free — no subscription needed.
+        </p>
+      </section>
+    </>
   );
 }
 
@@ -141,7 +176,7 @@ function ActivePlan({
         <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
           Current plan
         </p>
-        <p className="mt-2 font-display text-xl text-foreground">
+        <p className={`mt-2 ${CARD_TITLE}`}>
           {cadenceLabel} &middot; {statusLabel}
         </p>
         {periodEnd ? (

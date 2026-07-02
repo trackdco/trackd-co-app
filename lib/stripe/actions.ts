@@ -2,7 +2,12 @@
 
 import { headers } from "next/headers";
 
-import { PRICE_ID, TRIAL_DAYS, type Cadence } from "@/lib/stripe/config";
+import {
+  BETA_TRIAL_DAYS,
+  PRICE_ID,
+  TRIAL_DAYS,
+  type Cadence,
+} from "@/lib/stripe/config";
 import { stripe, stripeConfigured } from "@/lib/stripe/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,12 +24,32 @@ async function requestOrigin(): Promise<string> {
 }
 
 /**
- * Start a Stripe Checkout session for a subscription. Identity comes from the
- * verified session, never the client. Both monthly and annual get a 7-day free
- * trial (card collected, charged when the trial ends). Returns a hosted Checkout URL for the client to redirect
- * to, or a friendly error — never throws (action convention).
+ * Resolve an optional access code to a trial length. A valid beta code extends
+ * the trial to two weeks; an unrecognised code is rejected so a typo can't
+ * silently fall through to the standard trial. Empty / absent = standard trial.
+ * Compared case-insensitively against a SERVER-ONLY env var (never NEXT_PUBLIC).
  */
-export async function startCheckout(cadence: Cadence): Promise<CheckoutResult> {
+function resolveTrial(
+  code: string | undefined,
+): { trialDays: number } | { error: string } {
+  const entered = code?.trim().toUpperCase();
+  if (!entered) return { trialDays: TRIAL_DAYS };
+  const beta = process.env.BETA_ACCESS_CODE?.trim().toUpperCase();
+  if (beta && entered === beta) return { trialDays: BETA_TRIAL_DAYS };
+  return { error: "That code isn't valid." };
+}
+
+/**
+ * Start a Stripe Checkout session for a subscription. Identity comes from the
+ * verified session, never the client. Both cadences start a 7-day free trial (a
+ * valid beta code extends it to two weeks); the card is collected and first
+ * charged when the trial ends. Returns a hosted Checkout URL, or a friendly
+ * error — never throws (action convention).
+ */
+export async function startCheckout(
+  cadence: Cadence,
+  code?: string,
+): Promise<CheckoutResult> {
   try {
     if (!stripeConfigured) return { error: "Billing isn't set up yet." };
     if (cadence !== "monthly" && cadence !== "annual") {
@@ -32,6 +57,9 @@ export async function startCheckout(cadence: Cadence): Promise<CheckoutResult> {
     }
     const priceId = PRICE_ID[cadence];
     if (!priceId) return { error: "That plan isn't available right now." };
+
+    const trial = resolveTrial(code);
+    if ("error" in trial) return { error: trial.error };
 
     const supabase = await createClient();
     const {
@@ -62,7 +90,7 @@ export async function startCheckout(cadence: Cadence): Promise<CheckoutResult> {
       metadata: { user_id: user.id },
       subscription_data: {
         metadata: { user_id: user.id },
-        trial_period_days: TRIAL_DAYS,
+        trial_period_days: trial.trialDays,
       },
       allow_promotion_codes: true,
       success_url: `${origin}/billing?checkout=success`,
@@ -122,6 +150,7 @@ export async function openBillingPortal(): Promise<CheckoutResult> {
  */
 export async function startSampleCheckout(
   cadence: Cadence,
+  code?: string,
 ): Promise<CheckoutResult> {
   try {
     if (process.env.NODE_ENV === "production") {
@@ -131,6 +160,9 @@ export async function startSampleCheckout(
     const priceId = PRICE_ID[cadence];
     if (!priceId) return { error: "That plan isn't available right now." };
 
+    const trial = resolveTrial(code);
+    if ("error" in trial) return { error: trial.error };
+
     const origin = await requestOrigin();
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -138,7 +170,7 @@ export async function startSampleCheckout(
       customer_email: "sample@trackdco.test",
       subscription_data: {
         metadata: { sample: "true" },
-        trial_period_days: TRIAL_DAYS,
+        trial_period_days: trial.trialDays,
       },
       allow_promotion_codes: true,
       success_url: `${origin}/preview/billing?checkout=success`,

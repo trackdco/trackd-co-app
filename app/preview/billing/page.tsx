@@ -84,7 +84,7 @@ export default async function PreviewBillingPage({
         <p className="mt-6 text-xs text-text-subtle">
           Preview — &ldquo;Subscribe&rdquo; here runs a real test-mode Stripe
           checkout (use card 4242 4242 4242 4242), but won&rsquo;t upgrade a real
-          account. The Free plan content is placeholder.
+          account.
         </p>
       </main>
     </div>
