@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Mail } from "lucide-react";
 
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 
@@ -286,19 +286,25 @@ export function FirstRun() {
       <div className="mt-4 border-t border-border/60 px-6 pt-5 text-center">
         <p className="mb-4 text-xs text-text-subtle">Built by people who run real protocols.</p>
         <GoogleSignInButton />
+
+        <div className="my-3 flex items-center gap-3" aria-hidden>
+          <span className="h-px flex-1 bg-border" />
+          <span className="text-xs text-text-subtle">or</span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
+
+        <Link
+          href="/login"
+          className="flex h-12 w-full touch-manipulation select-none items-center justify-center gap-2 rounded-xl border border-input bg-transparent text-[0.95rem] font-medium text-foreground transition-transform duration-100 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:bg-bg-surface active:scale-[0.98] motion-reduce:active:scale-100"
+        >
+          <Mail className="size-5" strokeWidth={1.75} aria-hidden />
+          Continue with email
+        </Link>
+
         <p className="mt-3 text-[0.7rem] text-text-subtle">
           Free while it&apos;s in beta · 18+ ·{" "}
           <Link href="/terms" className="transition-colors hover:text-text-muted">
             Terms
-          </Link>
-        </p>
-        <p className="mt-3 text-sm text-text-muted">
-          Already have an account?{" "}
-          <Link
-            href="/login"
-            className="inline-block text-foreground transition-transform duration-100 hover:text-text-muted active:scale-95"
-          >
-            Log in
           </Link>
         </p>
       </div>
