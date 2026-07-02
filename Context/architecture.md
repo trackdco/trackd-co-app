@@ -499,8 +499,28 @@ scheduling is Phase 2.
 
 ## Auth and Access Model
 
-- Every user signs in via **Supabase Auth**. There is no anonymous app state;
-  the today-dashboard requires a session.
+- Every user signs in via **Supabase Auth**, by either **Google OAuth** or
+  **email + password** — both land the same authenticated user (Supabase owns
+  the `auth.users` row and hashes the password; the `handle_new_user` trigger
+  creates the `profiles` row for every new user regardless of method, so RLS,
+  the gate, and every downstream feature are auth-method-agnostic). There is no
+  anonymous app state; the today-dashboard requires a session.
+  - **Google OAuth** uses the client-side PKCE flow
+    (`components/auth/google-sign-in-button.tsx` → `signInWithOAuth`) completed by
+    the code-exchange route `app/auth/callback/route.ts`.
+  - **Email + password** uses server actions (`app/login/actions.ts` —
+    `signInWithPassword` / `signUp`, RLS the backstop). **Email confirmation is
+    ON**, so `signUp` creates no session until the user clicks the emailed link;
+    that link (and the password-reset link) is handled by `app/auth/confirm/route.ts`,
+    which accepts **both** the recommended token-hash form (`verifyOtp`, works
+    cross-device) and the default `code` form (`exchangeCodeForSession`) so it works
+    whichever email template is live. **Password reset** is `/forgot-password`
+    (`resetPasswordForEmail`) → the recovery link → `/auth/confirm` → `/reset-password`
+    (`updateUser({ password })`). Confirmation + reset require working email delivery —
+    **custom SMTP (Resend)** must be configured on the Supabase project (its built-in
+    sender is throttled/non-prod); switch the *Confirm signup* / *Reset password*
+    email templates to the token-hash form for cross-device links. All sign-in error
+    copy is generic so it never reveals whether an email exists.
 - Signup is gated by an **18+ confirmation** before the account is usable.
 - Every row is owned by a single user. **RLS is enabled on every table** and is
   the only thing standing between two users' data — there is no app-layer
@@ -530,10 +550,12 @@ scheduling is Phase 2.
   everyone to `'paid'`; post-trip, the Stripe webhook becomes the column's only
   writer and the default flips to `'free'`. Gating logic never changes.
 - **Cross-origin posture (Spec 13).** The app exposes no JSON API for other
-  origins — all data flows through Server Components + Server Actions (the one
-  route handler, `/auth/callback`, only does same-origin redirects), so there is
-  **no CORS config** anywhere (no wildcard origin, no `Origin` reflection, no
-  credentialed cross-origin). The credentialed **Server Action** surface is
+  origins — all data flows through Server Components + Server Actions (the auth
+  route handlers `/auth/callback` (OAuth code exchange) and `/auth/confirm`
+  (email-OTP verify) only do same-origin redirects, and `?next=` is validated to
+  internal single-slash paths to block open redirects), so there is **no CORS
+  config** anywhere (no wildcard origin, no `Origin` reflection, no credentialed
+  cross-origin). The credentialed **Server Action** surface is
   SAME-ORIGIN-only by Next's built-in CSRF check (`serverActions.allowedOrigins`
   is intentionally left unset = same-origin; adding one would only loosen it).
   `next.config.ts` `headers()` adds baseline protective headers on every route:

@@ -72,8 +72,11 @@
 - `app/` — routes, layouts, server/client components, server actions. The
   logged-in app lives in the `app/(app)/` route group, whose `layout.tsx` is the
   auth + 18+/ToS guard every feature screen sits behind. `app/auth/callback/` is
-  the OAuth code-exchange route; `app/welcome/` is the gate; `app/login/` is the
-  sign-in screen.
+  the OAuth code-exchange route and `app/auth/confirm/` is the email-OTP verify
+  route (signup confirmation + password recovery); `app/welcome/` is the gate;
+  `app/login/` is the sign-in screen (Google + email/password, with
+  `login/actions.ts` for the email path); `app/forgot-password/` and
+  `app/reset-password/` are the password-reset flow.
 - `app/globals.css` — global styles and the design tokens. The only place hex
   values may appear.
 - `components/` — shared, reusable UI components (`components/ui/**` from

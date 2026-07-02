@@ -9,11 +9,45 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-06-24
+Last updated: 2026-07-02
 
 ---
 
 ## 🎯 Current focus
+
+**2026-07-02 (Adrian + Claude): AUTH — email + password added alongside Google —
+BUILT on branch `email-auth`, MERGED to `main` + pushed (deploys to Vercel prod),
+`tsc`+`lint`+`build` clean.** Login now offers "Continue with Google" *and* an
+email + password form (sign-in / create-account toggle), plus a full
+password-reset flow. Email confirmation is ON via `app/auth/confirm` (accepts both
+token-hash and default `code` links). No schema change. Full detail in
+`progress-tracker.md`.
+
+**▶ Founder steps to make email auth fully work (Claude can't reach the Supabase dashboard):**
+1. **Custom SMTP (Resend)** → Supabase → Authentication → Emails → SMTP Settings →
+   enable custom SMTP with Resend creds (create a Resend account + verify the
+   sending domain via DNS first). The built-in sender is throttled (~2–3/hr) and
+   non-prod, so confirmation + reset emails need this. **Fastest alternative if you
+   want signups working THIS MINUTE without email:** Authentication → Providers →
+   Email → turn **"Confirm email" OFF** — new email/password signups then log in
+   instantly (password *reset* still needs SMTP later).
+2. **Email templates** (only needed for cross-device links / when confirmation is ON)
+   → Authentication → Emails → Templates:
+   - *Confirm signup* → link =
+     `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
+   - *Reset password* → link =
+     `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password`
+   (If you leave the default templates, `/auth/confirm` still handles the `code`
+   form — but token-hash is recommended so links work across devices.)
+3. **URL config** → Authentication → URL Configuration: Site URL =
+   `https://trackdco.app`; add `https://trackdco.app/**` (and
+   `http://localhost:3000/**` for dev) to the redirect allow-list.
+4. **Recommended hardening** → turn on **leaked-password protection** (HaveIBeenPwned)
+   + **min length ≥ 8** (the app enforces 8 too).
+5. **Test on prod:** create an account with email/password → confirm via the email
+   link (or instantly if confirmation is OFF) → `/welcome` gate → dashboard. Then
+   "Forgot your password?" → reset link → `/reset-password` → sign in with the new
+   password.
 
 **2026-06-24 (Adrian + Claude): amounts on CUSTOM vials + Protocol "more" menu +
 splash box softened — BUILT, `tsc`+`lint` clean; `custom_protocol_compounds`

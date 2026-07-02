@@ -6,7 +6,46 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-06-26
+Last updated: 2026-07-02
+
+## Auth — email + password sign-in/sign-up added alongside Google (2026-07-02, Adrian + Claude)
+
+Sign-in was Google-only; added **email + password** as a second Supabase Auth
+method (Adrian's ask), on its own `email-auth` branch, merged to `main`.
+`tsc` + `lint` + `next build` clean.
+
+- **No new service, no schema change.** Supabase Auth already does email/password;
+  it owns the `auth.users` row and bcrypt-hashes the password. The existing
+  `handle_new_user` trigger (`AFTER INSERT ON auth.users`, `ON CONFLICT (id) DO
+  NOTHING`) creates the `profiles` row for every new user regardless of method, so
+  RLS, the 18+/ToS gate, and every downstream feature are auth-method-agnostic.
+- **Email confirmation is ON** (Adrian's call). `app/auth/confirm/route.ts` handles
+  the confirmation + recovery links and accepts BOTH shapes — the recommended
+  token-hash form (`verifyOtp`, cross-device) and the default `code` form
+  (`exchangeCodeForSession`) — so it works whether or not the email templates have
+  been switched. It's the OTP sibling of the OAuth `app/auth/callback`; both
+  validate `?next=` to internal single-slash paths.
+- **New files:** `app/login/actions.ts` (one `authenticate` server action branching
+  on an `intent` field → `signInWithPassword` / `signUp`),
+  `components/auth/email-password-form.tsx` (sign-in/create-account toggle under the
+  Google button, "or" divider on the login page), `app/auth/confirm/route.ts`,
+  `app/forgot-password/*` (`resetPasswordForEmail`), `app/reset-password/*`
+  (`updateUser({ password })`, guarded — expired link → request-a-new-one). Styled
+  with ui-context tokens verbatim (h-12/rounded-xl inputs, `bg-accent-primary`
+  primary button, amber "check your inbox" cards).
+- **Security posture:** all email auth goes through server actions (RLS the
+  backstop); sign-in and reset copy is generic so it never reveals whether an email
+  exists; sign-up shows "check your inbox" even for an already-registered address.
+  Email sign-in/confirm sets the same `trackd-install-hint` cookie as OAuth so the
+  Add-to-Home-Screen popup behaves identically.
+- **Live once email delivery is wired (founder dashboard step, see `next-tasks.md`):**
+  set up **custom SMTP via Resend** (built-in sender is throttled/non-prod), switch
+  the *Confirm signup* + *Reset password* templates to the token-hash form, add the
+  redirect-URL allow-list entries, and turn on leaked-password protection + min
+  length. Until SMTP is set, email/password *sign-in* works but new-signup
+  confirmation + reset emails won't send. (Fastest alternative if email isn't ready:
+  toggle "Confirm email" OFF in the dashboard — signups then log in instantly, no
+  email needed; reset still needs SMTP.)
 
 ## Cloud-write error logging + cron/doc verification (2026-06-26)
 

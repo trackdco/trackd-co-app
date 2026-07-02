@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { EmailPasswordForm } from "@/components/auth/email-password-form";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { getSessionContext } from "@/lib/auth";
 
@@ -49,7 +50,7 @@ export default async function LoginPage({
         Welcome back
       </h1>
       <p className="mt-3 max-w-[17rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">
-        Sign in to pick up where you left off.
+        Sign in, or create an account to get started.
       </p>
 
       {error ? (
@@ -63,7 +64,16 @@ export default async function LoginPage({
 
       <div className="mt-10 w-full max-w-[20rem]">
         <GoogleSignInButton />
-        <p className="mt-4 text-[0.7rem] leading-relaxed text-text-subtle">
+
+        <div className="my-5 flex items-center gap-3" aria-hidden>
+          <span className="h-px flex-1 bg-border" />
+          <span className="text-xs text-text-subtle">or</span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
+
+        <EmailPasswordForm />
+
+        <p className="mt-5 text-[0.7rem] leading-relaxed text-text-subtle">
           18+ only. By continuing you agree to our{" "}
           <Link href="/terms" className="text-text-muted hover:text-foreground">
             Terms
