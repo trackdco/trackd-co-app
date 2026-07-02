@@ -23,31 +23,25 @@ password-reset flow. Email confirmation is ON via `app/auth/confirm` (accepts bo
 token-hash and default `code` links). No schema change. Full detail in
 `progress-tracker.md`.
 
-**▶ Founder steps to make email auth fully work (Claude can't reach the Supabase dashboard):**
-1. **Custom SMTP (Resend)** → Supabase → Authentication → Emails → SMTP Settings →
-   enable custom SMTP with Resend creds (create a Resend account + verify the
-   sending domain via DNS first). The built-in sender is throttled (~2–3/hr) and
-   non-prod, so confirmation + reset emails need this. **Fastest alternative if you
-   want signups working THIS MINUTE without email:** Authentication → Providers →
-   Email → turn **"Confirm email" OFF** — new email/password signups then log in
-   instantly (password *reset* still needs SMTP later).
-2. **Email templates** (only needed for cross-device links / when confirmation is ON)
-   → Authentication → Emails → Templates:
-   - *Confirm signup* → link =
-     `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
-   - *Reset password* → link =
-     `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password`
-   (If you leave the default templates, `/auth/confirm` still handles the `code`
-   form — but token-hash is recommended so links work across devices.)
-3. **URL config** → Authentication → URL Configuration: Site URL =
-   `https://trackdco.app`; add `https://trackdco.app/**` (and
-   `http://localhost:3000/**` for dev) to the redirect allow-list.
-4. **Recommended hardening** → turn on **leaked-password protection** (HaveIBeenPwned)
-   + **min length ≥ 8** (the app enforces 8 too).
-5. **Test on prod:** create an account with email/password → confirm via the email
-   link (or instantly if confirmation is OFF) → `/welcome` gate → dashboard. Then
-   "Forgot your password?" → reset link → `/reset-password` → sign in with the new
-   password.
+**✅ Email auth delivery is now WIRED (2026-07-02):** Resend custom SMTP is set up
+(dedicated sending subdomain `send.trackdco.app` verified — DKIM/SPF/DMARC at
+Porkbun, separate from the root Google Workspace MX), the *Confirm signup* +
+*Reset password* templates are on the token-hash form, and Site URL / redirect
+allow-list are set. Verified end-to-end on prod: a `+alias` signup delivered the
+email and the link confirmed + logged in cleanly (fixing the earlier post-click
+`exchangeCodeForSession` error for links opened outside the signup browser).
+
+**▶ Remaining founder steps:**
+1. **Merge PR `fix/email-auth-onboarding`** (clearer "already registered" message +
+   non-Safari-iOS install guidance), then do one device test: open a confirmation
+   email so it lands in **Chrome on iPhone** → the install popup should now show the
+   **"Open in Safari"** card with a copy-link button, not the dead-end Share steps.
+   (Test on the PR's Vercel **preview URL** first, then again on prod after merge.)
+2. **Recommended hardening** → Supabase → Authentication → Providers → Email: turn on
+   **leaked-password protection** (HaveIBeenPwned) + **min length ≥ 8** (the app
+   enforces 8 too).
+3. **Reset-password pass on prod:** "Forgot your password?" → reset link →
+   `/reset-password` → sign in with the new password.
 
 **2026-06-24 (Adrian + Claude): amounts on CUSTOM vials + Protocol "more" menu +
 splash box softened — BUILT, `tsc`+`lint` clean; `custom_protocol_compounds`

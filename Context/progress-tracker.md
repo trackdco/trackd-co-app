@@ -8,6 +8,38 @@ Forward-looking, actionable steps do **not** live here — they live in
 
 Last updated: 2026-07-02
 
+## Email auth delivery wired (Resend) + onboarding fixes (2026-07-02, Angus + Claude)
+
+Followed up the email/password work: got confirmation emails actually delivering,
+and fixed two onboarding barriers found while testing on device.
+
+- **Email delivery live via Resend SMTP.** Founder created a Resend account,
+  verified a dedicated sending subdomain `send.trackdco.app` (DKIM TXT + SPF MX/TXT
+  + DMARC added at Porkbun, kept separate from the root Google Workspace MX), and
+  wired Resend's SMTP creds into Supabase (Authentication → Emails → SMTP). The
+  *Confirm signup* + *Reset password* templates were switched to the token-hash form
+  (`{{ .SiteURL }}/auth/confirm?token_hash=…`), so `/auth/confirm` verifies
+  statelessly and links work across browsers/devices. Verified end-to-end: a fresh
+  `+alias` signup delivered the email and the link confirmed + logged in cleanly —
+  fixing the earlier post-click `exchangeCodeForSession` error that hit anyone
+  opening the link outside the browser they signed up in (root cause: the default
+  PKCE `code` template needs the signup browser's verifier cookie).
+- **"Already registered" no longer mis-shows "check your inbox."** `signUp()` now
+  detects Supabase's empty-`identities` obfuscation and nudges the user to sign in /
+  use Google. This was the root cause of the founder's own test "not sending an
+  email": `barbrake24@gmail.com` is a Google-only account (no password), so email
+  sign-up silently no-ops.
+- **Non-Safari iOS users are guided to Safari to install.** The install prompt keyed
+  off `isIOS`, so Chrome / in-app browsers on iPhone got Safari Share-sheet steps
+  they can't complete (only Safari installs a PWA on iOS). Added `isIOSSafari`
+  detection (real Safari keeps the `Version/` UA token) + a new `OpenInSafariPrompt`
+  (steps + copy-link), wired into both the post-sign-in popup and the Profile install
+  row. Closes the gap where a confirmation email opens in Chrome → user can't add to
+  Home Screen. Safari + Android paths unchanged.
+- Shipped on branch `fix/email-auth-onboarding` (PR open, awaiting CodeRabbit +
+  merge). `tsc` + `lint` + `next build` clean; UA detection unit-verified against
+  real Safari/Chrome/Firefox/Edge/WKWebView/iPad strings.
+
 ## Auth — email + password sign-in/sign-up added alongside Google (2026-07-02, Adrian + Claude)
 
 Sign-in was Google-only; added **email + password** as a second Supabase Auth
