@@ -10,6 +10,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
+import { OpenInSafariPrompt } from "@/components/pwa/OpenInSafariPrompt";
 import { useMounted } from "@/components/home/useMounted";
 import { usePwaInstall } from "@/components/pwa/usePwaInstall";
 import { getCapability } from "@/lib/push/pushService";
@@ -21,6 +22,8 @@ import { getCapability } from "@/lib/push/pushService";
  *    its OWN leading divider, so when it returns null the list closes up cleanly —
  *    the page drops the divider that used to precede it.)
  *  - **iPhone (Safari):** opens the manual Share-sheet steps (`AddToHomeScreenPrompt`).
+ *  - **iPhone (non-Safari):** Chrome/Firefox/Edge on iOS and in-app browsers can't
+ *    install a PWA, so the sheet shows "open in Safari" guidance (`OpenInSafariPrompt`).
  *  - **Android (Chrome/Samsung Internet):** one tap fires the OS's native install
  *    dialog (`usePwaInstall`); shown only when an install is actually on offer
  *    (`canInstall` — which is also false once it's installed, so the row hides).
@@ -31,11 +34,13 @@ export function InstallAppRow() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const cap = mounted ? getCapability() : null;
-  const mode: "ios" | "android" | null =
+  const mode: "ios" | "ios-other" | "android" | null =
     cap === null || cap.isStandalone
       ? null
       : cap.isIOS
-        ? "ios"
+        ? cap.isIOSSafari
+          ? "ios"
+          : "ios-other"
         : canInstall
           ? "android"
           : null;
@@ -62,7 +67,7 @@ export function InstallAppRow() {
         <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
       </button>
 
-      {mode === "ios" && (
+      {(mode === "ios" || mode === "ios-other") && (
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetContent
             side="bottom"
@@ -72,7 +77,7 @@ export function InstallAppRow() {
             <SheetDescription className="sr-only">
               How to install Trackd as an app on your iPhone Home Screen.
             </SheetDescription>
-            <AddToHomeScreenPrompt />
+            {mode === "ios" ? <AddToHomeScreenPrompt /> : <OpenInSafariPrompt />}
           </SheetContent>
         </Sheet>
       )}

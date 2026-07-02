@@ -25,6 +25,13 @@ export type PushCapability = {
   supported: boolean;
   /** iPhone/iPad (incl. iPadOS, which masquerades as desktop Safari). */
   isIOS: boolean;
+  /**
+   * Real Safari on iOS/iPadOS — the ONLY iOS browser that can add a PWA to the
+   * Home Screen. Chrome/Firefox/Edge on iPhone and in-app webviews (Gmail,
+   * Instagram) all report `isIOS` but CANNOT install, so they need "open in
+   * Safari" guidance instead of the Share-sheet steps.
+   */
+  isIOSSafari: boolean;
   /** Running as an installed, standalone PWA (home-screen launch). */
   isStandalone: boolean;
   /** Whether a VAPID public key is configured in this build. */
@@ -64,6 +71,22 @@ function detectIOS(): boolean {
   );
 }
 
+/**
+ * True only for real Safari on iOS/iPadOS. Chrome (CriOS), Firefox (FxiOS), Edge
+ * (EdgiOS) etc. keep "Safari" in their iOS UA but drop the "Version/" token, and
+ * in-app webviews omit "Safari" altogether — so require both tokens and exclude
+ * the known wrappers. Matters because only Safari can install a PWA on iPhone.
+ */
+function detectIOSSafari(isIOS: boolean): boolean {
+  if (!isIOS || typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return (
+    /version\//i.test(ua) &&
+    /safari/i.test(ua) &&
+    !/crios|fxios|edgios|opios|gsa|mercury/i.test(ua)
+  );
+}
+
 function detectStandalone(): boolean {
   if (typeof window === "undefined") return false;
   return (
@@ -80,9 +103,11 @@ export function getCapability(): PushCapability {
     "PushManager" in window &&
     "Notification" in window;
 
+  const isIOS = detectIOS();
   return {
     supported,
-    isIOS: detectIOS(),
+    isIOS,
+    isIOSSafari: detectIOSSafari(isIOS),
     isStandalone: detectStandalone(),
     configured: VAPID_PUBLIC_KEY.length > 0,
     permission: supported ? Notification.permission : "default",

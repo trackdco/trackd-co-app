@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
+import { OpenInSafariPrompt } from "@/components/pwa/OpenInSafariPrompt";
 import { useMounted } from "@/components/home/useMounted";
 import { usePwaInstall } from "@/components/pwa/usePwaInstall";
 import { getCapability } from "@/lib/push/pushService";
@@ -22,9 +23,13 @@ import { getCapability } from "@/lib/push/pushService";
  * RSC refresh that would auto-drop the popup). A live-session reopen doesn't hit the
  * callback, so isn't nagged.
  *
- * Two platform paths (never on desktop or an already-installed standalone launch):
+ * Three platform paths (never on desktop or an already-installed standalone launch):
  *  - iPhone (Safari): manual Share-sheet steps (`AddToHomeScreenPrompt`) — iOS has
  *    no install API.
+ *  - iPhone (non-Safari): Chrome/Firefox/Edge on iOS and in-app browsers (Gmail,
+ *    Instagram) can't install a PWA at all, so we show "open in Safari" guidance
+ *    (`OpenInSafariPrompt`) instead of dead-end Share steps. This is the common
+ *    case right after a confirmation email opens the link in Chrome.
  *  - Android (Chrome/Samsung Internet): a single "Add to Home Screen" button that
  *    fires the OS's native install dialog via `beforeinstallprompt` (`usePwaInstall`),
  *    shown only when Chrome has actually offered an install (`canInstall`).
@@ -41,11 +46,13 @@ export function InstallHomeScreenPopup({
   // Computed during render (post-mount, so SSR stays deterministic). getCapability
   // touches navigator/window, hence the gate.
   const cap = mounted ? getCapability() : null;
-  const platform: "ios" | "android" | null =
+  const platform: "ios" | "ios-other" | "android" | null =
     cap === null || cap.isStandalone
       ? null
       : cap.isIOS
-        ? "ios"
+        ? cap.isIOSSafari
+          ? "ios"
+          : "ios-other"
         : canInstall
           ? "android"
           : null;
@@ -83,19 +90,7 @@ export function InstallHomeScreenPopup({
           Install Trackd as an app on your Home Screen.
         </SheetDescription>
 
-        {platform === "ios" ? (
-          <>
-            {/* Visible heading lives inside AddToHomeScreenPrompt. */}
-            <AddToHomeScreenPrompt />
-            <Button
-              type="button"
-              onClick={dismiss}
-              className="mt-4 h-11 w-full rounded-xl"
-            >
-              Got it
-            </Button>
-          </>
-        ) : (
+        {platform === "android" ? (
           <>
             <div className="rounded-2xl border border-border bg-bg-surface p-5">
               <p className="font-display text-lg text-foreground">
@@ -121,6 +116,19 @@ export function InstallHomeScreenPopup({
                 Not now
               </button>
             </div>
+          </>
+        ) : (
+          <>
+            {/* Visible heading lives inside each prompt. Safari → Share-sheet steps;
+                any other iOS browser → "open in Safari" (it can't install a PWA). */}
+            {platform === "ios" ? <AddToHomeScreenPrompt /> : <OpenInSafariPrompt />}
+            <Button
+              type="button"
+              onClick={dismiss}
+              className="mt-4 h-11 w-full rounded-xl"
+            >
+              Got it
+            </Button>
           </>
         )}
       </SheetContent>
