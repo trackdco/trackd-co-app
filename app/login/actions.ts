@@ -103,7 +103,7 @@ async function signUp(formData: FormData): Promise<AuthFormState> {
 
   const origin = await requestOrigin();
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -117,8 +117,20 @@ async function signUp(formData: FormData): Promise<AuthFormState> {
     return { error: "Couldn't create your account just now. Please try again." };
   }
 
+  // When the address already belongs to a confirmed account, Supabase sends no
+  // email and obscures the fact by returning a user with an empty `identities`
+  // array (anti-enumeration). A blanket "check your inbox" would then be a lie
+  // — and it's the common case here, since anyone who signed in with Google has
+  // no password. Nudge them to the path that works instead. This trades a
+  // little enumeration-resistance for a much clearer beta experience.
+  if (data.user && (data.user.identities?.length ?? 0) === 0) {
+    return {
+      error:
+        "That email may already be registered. Try signing in, or continue with Google.",
+    };
+  }
+
   // Confirmation is ON, so there is no session yet — the user must click the
-  // emailed link. We show the same confirmation whether or not the address was
-  // already registered (Supabase obscures that), so sign-up never leaks it.
+  // emailed link before they can sign in.
   return { emailSent: true, email };
 }
