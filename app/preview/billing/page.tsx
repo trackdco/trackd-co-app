@@ -2,7 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 
 import { PricingPlans, type PricingData } from "@/components/billing/pricing-plans";
-import { ANNUAL_TRIAL_DAYS, PRICE_ID } from "@/lib/stripe/config";
+import { PRICE_ID, TRIAL_DAYS } from "@/lib/stripe/config";
 import { stripe, stripeConfigured } from "@/lib/stripe/server";
 
 /**
@@ -79,7 +79,7 @@ export default async function PreviewBillingPage({
           </p>
         ) : null}
 
-        <PricingPlans pricing={pricing} trialDays={ANNUAL_TRIAL_DAYS} sample />
+        <PricingPlans pricing={pricing} trialDays={TRIAL_DAYS} sample />
 
         <p className="mt-6 text-xs text-text-subtle">
           Preview — &ldquo;Subscribe&rdquo; here runs a real test-mode Stripe

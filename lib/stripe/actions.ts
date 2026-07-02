@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 
-import { ANNUAL_TRIAL_DAYS, PRICE_ID, type Cadence } from "@/lib/stripe/config";
+import { PRICE_ID, TRIAL_DAYS, type Cadence } from "@/lib/stripe/config";
 import { stripe, stripeConfigured } from "@/lib/stripe/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,8 +20,8 @@ async function requestOrigin(): Promise<string> {
 
 /**
  * Start a Stripe Checkout session for a subscription. Identity comes from the
- * verified session, never the client. Annual gets a 5-day free trial; monthly
- * charges immediately. Returns a hosted Checkout URL for the client to redirect
+ * verified session, never the client. Both monthly and annual get a 7-day free
+ * trial (card collected, charged when the trial ends). Returns a hosted Checkout URL for the client to redirect
  * to, or a friendly error — never throws (action convention).
  */
 export async function startCheckout(cadence: Cadence): Promise<CheckoutResult> {
@@ -62,9 +62,7 @@ export async function startCheckout(cadence: Cadence): Promise<CheckoutResult> {
       metadata: { user_id: user.id },
       subscription_data: {
         metadata: { user_id: user.id },
-        ...(cadence === "annual"
-          ? { trial_period_days: ANNUAL_TRIAL_DAYS }
-          : {}),
+        trial_period_days: TRIAL_DAYS,
       },
       allow_promotion_codes: true,
       success_url: `${origin}/billing?checkout=success`,
@@ -140,9 +138,7 @@ export async function startSampleCheckout(
       customer_email: "sample@trackdco.test",
       subscription_data: {
         metadata: { sample: "true" },
-        ...(cadence === "annual"
-          ? { trial_period_days: ANNUAL_TRIAL_DAYS }
-          : {}),
+        trial_period_days: TRIAL_DAYS,
       },
       allow_promotion_codes: true,
       success_url: `${origin}/preview/billing?checkout=success`,

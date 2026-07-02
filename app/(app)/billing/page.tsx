@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { ManageSubscriptionButton } from "@/components/billing/manage-subscription-button";
 import { PricingPlans, type PricingData } from "@/components/billing/pricing-plans";
-import { ANNUAL_TRIAL_DAYS, PRICE_ID } from "@/lib/stripe/config";
+import { PRICE_ID, TRIAL_DAYS } from "@/lib/stripe/config";
 import { stripe, stripeConfigured } from "@/lib/stripe/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -93,7 +93,7 @@ export default async function BillingPage({
           <ActivePlan sub={sub} />
         </>
       ) : (
-        <PricingPlans pricing={pricing} trialDays={ANNUAL_TRIAL_DAYS} />
+        <PricingPlans pricing={pricing} trialDays={TRIAL_DAYS} />
       )}
 
       <div className="mt-10 text-sm text-text-muted">

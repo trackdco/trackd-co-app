@@ -16,8 +16,8 @@ export const PRICE_ID: Record<Cadence, string | undefined> = {
   annual: process.env.STRIPE_PRICE_ANNUAL,
 };
 
-/** Free-trial length in days — ANNUAL only. Monthly charges immediately. */
-export const ANNUAL_TRIAL_DAYS = 5;
+/** Free-trial length in days — applies to BOTH monthly and annual. */
+export const TRIAL_DAYS = 7;
 
 /**
  * Subscription statuses that grant the 'paid' entitlement. `past_due` keeps
