@@ -3,22 +3,33 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Splash video overlay — Kyle the vial.
+ * Splash overlay — Kyle the vial.
  *
- * Plays the splash clip full-screen on launch, lets Kyle ANIMATE, then crossfades
- * into the app (the same 500ms fade the shell uses). The fade is driven by the clip
- * — it fades a short, tunable PLAY_MS after the video actually starts advancing, or
- * on the clip's own `ended`, whichever is first. It does NOT wait on `window.load`.
+ * PRIORITY: the app and the static splash image load FIRST; the video is a
+ * best-effort bonus that must never slow the launch. We paint the poster still
+ * (frame 0) at high fetch priority so the branded splash appears instantly, then
+ * crossfade into the app (the same 500ms fade the shell uses). The video is NOT
+ * fetched or played during the app's initial load — it stays at `preload="none"`
+ * with no `autoplay`, and we defer starting it to the first idle frame
+ * (requestIdleCallback), at low fetch priority. On a slow or busy launch the page
+ * never idles before the splash fades, so the clip is simply skipped and the user
+ * gets a fast static splash: a static image that loads fast beats a video that
+ * stalls the app.
  *
- * iOS robustness — why we POLL instead of trusting `onPlaying`: on a fast cached
- * relaunch of an installed PWA, the muted `autoplay` often fires BEFORE React
- * attaches its `playing` listener, so the event is missed and the video would never
- * be revealed (you'd see only the static poster — exactly the "animates the first
- * time, static after" bug). And iOS standalone sometimes ignores the first
+ * The fade is driven by TIMERS, never by the video: it fades a short PLAY_MS after
+ * the clip actually starts advancing, or on NO_START_MS if the clip never starts
+ * (deferred / blocked / too slow), or on the clip's own `ended` — whichever is
+ * first. It does NOT wait on `window.load` or on the video.
+ *
+ * iOS robustness — why we POLL instead of trusting `onPlaying`: once we DO start
+ * the clip, on a fast cached relaunch the muted `play()` often resolves BEFORE
+ * React attaches its `playing` listener, so the event is missed and the video
+ * would never be revealed (you'd see only the static poster — the "animates the
+ * first time, static after" bug). And iOS standalone sometimes ignores the first
  * `play()`. So we (a) retry `play()` and (b) poll `currentTime`: the moment frames
  * are actually advancing we reveal the video and start the fade timer. If it never
- * advances (autoplay genuinely blocked), NO_START_MS fades into the app rather than
- * stranding the user on the poster.
+ * advances, NO_START_MS fades into the app rather than stranding the user on the
+ * poster.
  *
  * Why a still <img> UNDER the <video>: a <video> renders as a BLACK box while it
  * buffers and standalone WebKit often ignores `poster`, so we paint the poster
@@ -68,11 +79,13 @@ export function SplashScreen() {
     const video = videoRef.current;
     let playCap: number | undefined;
     let poll: number | undefined;
+    let idle: number | undefined;
     let revealedLocal = false;
 
     const startFade = () => setFading(true);
 
-    // Backstops: fade in even if the clip never starts (autoplay blocked) and an
+    // Backstops run on their OWN timers — the fade never waits on the video. Fade
+    // in even if the clip never starts (deferred / blocked / too slow), plus an
     // absolute ceiling so the splash can never stick.
     const noStart = window.setTimeout(startFade, NO_START_MS);
     const cap = window.setTimeout(startFade, MAX_MS);
@@ -89,7 +102,15 @@ export function SplashScreen() {
       playCap = window.setTimeout(startFade, PLAY_MS);
     };
 
-    if (video) {
+    // Best-effort, DEPRIORITIZED clip. We only touch the video once the browser is
+    // idle — i.e. after the app's own resources have been fetched — so the clip's
+    // network fetch never competes with the launch. If the page is still busy when
+    // NO_START_MS fires, the splash has already faded on the static poster and this
+    // never runs: the intended trade-off (fast static splash > app-stalling video).
+    const startVideo = () => {
+      if (!video) return;
+      // Hint the browser this fetch is low priority (honoured where supported).
+      video.setAttribute("fetchpriority", "low");
       // React can drop `muted` on hydration, which blocks autoplay — set it on the
       // element and nudge play().
       video.muted = true;
@@ -111,6 +132,15 @@ export function SplashScreen() {
         if (video.currentTime > 0 && video.currentTime !== lastT) markPlaying();
         lastT = video.currentTime;
       }, 120);
+    };
+
+    // Defer the clip to the first idle frame so its fetch yields to the app. The
+    // `timeout` is only a ceiling so a cached relaunch still gets to play; on
+    // browsers without requestIdleCallback (older iOS) a small setTimeout stands in.
+    if (typeof window.requestIdleCallback === "function") {
+      idle = window.requestIdleCallback(startVideo, { timeout: 1200 });
+    } else {
+      idle = window.setTimeout(startVideo, 300);
     }
 
     return () => {
@@ -118,6 +148,14 @@ export function SplashScreen() {
       window.clearTimeout(cap);
       if (playCap !== undefined) window.clearTimeout(playCap);
       if (poll !== undefined) window.clearInterval(poll);
+      if (idle !== undefined) {
+        // `idle` is a requestIdleCallback handle when available, else a timeout id;
+        // cancelling the wrong kind is a harmless no-op, so cover both.
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(idle);
+        }
+        window.clearTimeout(idle);
+      }
       if (video) {
         video.removeEventListener("playing", markPlaying);
         video.removeEventListener("timeupdate", markPlaying);
@@ -165,10 +203,12 @@ export function SplashScreen() {
           maskImage: SPLASH_MASK,
         }}
         src={SPLASH_SRC}
-        autoPlay
         muted
         playsInline
-        preload="auto"
+        // Deferred + deprioritized: no autoplay and preload="none" so the clip does
+        // ZERO network work on mount. The effect starts it on the first idle frame,
+        // at low fetch priority, so the app's own resources load first.
+        preload="none"
       />
     </div>
   );
