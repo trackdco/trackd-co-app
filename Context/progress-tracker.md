@@ -91,8 +91,10 @@ time, so any cycle can later return its full cross-type history (principle #6).
 Before this, only `dose_logs`/`inventory_items` were cycle-tied; journal, bloodwork,
 markers and weight wrote with `cycle_id = NULL` — silent, unbackfillable moat loss.
 `tsc`+`eslint` clean; migration `cycle_id_stamping` applied live + verified; a
-rolled-back live insert test proved all resolution paths. **NOT committed/deployed;
-prod `build` deferred (a `next dev` server was running — the shared-`.next` gotcha).**
+rolled-back live insert test proved all resolution paths. **MERGED as PR #50 (squash)
++ deployed to prod (2026-07-03); Vercel + CodeRabbit green; Adrian on-device tested
+"everything worked."** (Specs 15–17 + the CodeRabbit atomic-`log_weight`-RPC fix all
+shipped together in #50.)
 
 - **§0 finding that reshaped the spec — the "current cycle context" premise was
   STALE.** The spec assumed the single-active-cycle index was "commented out for

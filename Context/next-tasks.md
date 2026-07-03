@@ -15,6 +15,27 @@ Last updated: 2026-07-03
 
 ## 🎯 Current focus
 
+**✅ 2026-07-03 (Adrian + Claude): SPECS 15 + 16 + 17 — SHIPPED. MERGED as PR #50
+(squash) → deployed to prod; Vercel + CodeRabbit green; Adrian on-device tested
+"everything worked."** Cycle-id stamping (the moat), the `profiles.tier` lock, and the
+advisor hardening are all live. The optional cycle backfill was run (2 journal + 5
+weight rows). CodeRabbit's 4 findings were folded in (headline: the weight stamp is now
+an atomic `log_weight` RPC). Security Advisor is now **0 errors / 3 warnings**, and
+those 3 are all known-benign/deferred (see below). Detail in `progress-tracker.md`.
+
+**▶ The ONE remaining human action — a Supabase dashboard toggle:**
+- **Leaked-password protection:** Authentication → **Attack Protection** → turn ON
+  "Leaked password protection"; Authentication → Sign In/Providers → **Email** → set
+  **Minimum password length = 8**. (Clears the last actionable advisor warning + the
+  email-auth hardening step.)
+- The other 2 advisor warnings need **no action now:** *waitlist "RLS Policy Always
+  True"* is a verified false-positive (INSERT-only public signup; `anon` has no SELECT
+  grant; reads are founder-only) — formally acknowledged in **Spec 08**; *pg_net
+  "Extension in Public"* is deferred (it's in use by the reminder cron; move it to an
+  `extensions` schema when Edge Functions land).
+
+---
+
 **2026-07-03 (Adrian + Claude): SPEC 17 — supabase-advisor-hardening — migration
 APPLIED LIVE + verified; DB-only (no app code, no build).** Cleared the schema-level
 advisor warnings: pinned `search_path = ''` on the 5 mutable-search_path functions
