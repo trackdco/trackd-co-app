@@ -9,11 +9,89 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-07-02
+Last updated: 2026-07-03
 
 ---
 
 ## 🎯 Current focus
+
+**2026-07-03 (Adrian + Claude): SPEC 17 — supabase-advisor-hardening — migration
+APPLIED LIVE + verified; DB-only (no app code, no build).** Cleared the schema-level
+advisor warnings: pinned `search_path = ''` on the 5 mutable-search_path functions
+(all gold-standard, no body changes) and revoked direct EXECUTE on the 2 SECURITY
+DEFINER signup functions. All integrity triggers still fire + signup chain intact
+(verified live, rolled back). Migration
+`supabase/hardening/001_advisor_search_path_and_execute.sql`. Full detail in
+`progress-tracker.md`.
+
+**▶ Follow-ups / your steps (Claude can't reach the Supabase dashboard):**
+1. **Leaked-password protection** (out of scope for the migration — a dashboard
+   toggle): Authentication → Policies → enable **HaveIBeenPwned** leaked-password
+   protection + min length ≥ 8. (This also overlaps the email-auth hardening step.)
+2. **Waitlist "RLS Policy Always True"** advisor warning belongs with **spec 08**
+   (repo-housekeeping / waitlist tracked migration) — confirm the permissive policy
+   is INSERT-only (`WITH CHECK (true)`, public signup by design) and there's no anon
+   SELECT policy. Don't remove the INSERT `true` (it'd break signup).
+3. **pg_net deferral (noted, not urgent):** `pg_net` currently lives in the `public`
+   schema (the advisor's "Extension in Public"). It's IN USE (the `reminder-runner`
+   cron), so it was left alone. When Edge Functions land, move it into a dedicated
+   `extensions` schema (`DROP EXTENSION` + re-`CREATE … SCHEMA extensions`, re-point
+   the cron) — a small planned migration, not a fire.
+4. Optional: re-run the Supabase Advisor to confirm the 5 search_path + the
+   SECURITY-DEFINER-execute warnings are gone (Claude verified equivalently via
+   pg_catalog introspection).
+
+---
+
+**2026-07-03 (Adrian + Claude): SPEC 16 — tier-column-lock — migration APPLIED LIVE
++ verified; DB-only (no app code, no build).** `profiles.tier` can now only be
+written by the service role (the Stripe webhook). Approach A (column-level
+privilege): `authenticated` can UPDATE/INSERT every `profiles` column **except
+`tier`** (`supabase/grants/003_profiles_tier_lock.sql`). A self-upgrade PATCH/upsert
+is rejected `42501`; normal profile edits + the webhook's service-role writes still
+work. Full detail in `progress-tracker.md`.
+
+**▶ How to test (I already proved all 4 paths live via rolled-back role simulation;
+this is optional real-user confirmation):**
+1. Signed in as a tester, open the browser devtools/network and try a Data-API PATCH
+   to your own profile setting `tier` (or just trust the live proof) → it 42501s.
+   Editing units/height/goal/notifications from Settings still saves fine.
+2. **⚠️ Remember for later:** when we add any NEW `profiles` column, it must be added
+   to the UPDATE **and** INSERT grant lists in a new `supabase/grants/00N_*` migration
+   (new service-only columns stay OUT). Noted in `code-standards.md`.
+3. **Unblocks:** Spec 04 (entitlement gating) and the eventual `free`-default flip can
+   now ship safely — the column is genuinely webhook-only.
+
+---
+
+**2026-07-03 (Adrian + Claude): SPEC 15 — cycle-id-stamping (the moat) — BUILT +
+migration APPLIED LIVE + verified; `tsc`+`eslint` clean; NOT committed; prod `build`
+deferred (a `next dev` server was running).** Every journal entry, bloodwork panel,
+marker reading and weight log created while a cycle is active is now stamped with
+that cycle at insert time (was silently `NULL` — unbackfillable moat loss). "Current
+cycle" = the user's single active cycle (`getActiveCycle()`; the spec's "multiple
+actives" premise was stale — `one_active_cycle_per_user` is live). Migration
+`supabase/cycles/001_cycle_id_stamping.sql`; optional unrun backfill `002_*.optional.sql`.
+Full detail in `progress-tracker.md`.
+
+**▶ How to test (Claude already proved it live via a rolled-back insert; this is the
+on-device confirmation):**
+1. **On-cycle stamp:** with an active cycle (add a compound if you have none), log a
+   weight, write a journal entry (+ dial a marker), and add a bloodwork photo. Then
+   I can show you via MCP that each new row carries your active `cycle_id` (and the
+   marker/biomarker resolve to it through their parent).
+2. **Stable stamp on re-log:** re-log/correct that same day's weight — the `cycle_id`
+   must NOT change (it preserves the cycle it was first written under).
+3. **Off-cycle = NULL:** archive your only active cycle (Protocol), then log a weight
+   → it writes `cycle_id = NULL` with no error (a legit "logged off-cycle" state).
+4. **Prod `build`:** deferred locally (your `next dev` was running). Run
+   `npm run build` when you resume, or let Vercel build it on the PR. **No new secrets
+   / dashboard steps needed — the DB change is already live + backward-compatible.**
+5. **Optional backfill (your call):** to attribute the handful of pre-existing NULL
+   rows, open `supabase/cycles/002_cycle_id_backfill.optional.sql`, run its PREVIEW
+   block, and only if happy run the UPDATE block. Low value (few beta rows) — safe to skip.
+
+---
 
 **2026-07-02 (Adrian + Claude): AUTH — email + password added alongside Google —
 BUILT on branch `email-auth`, MERGED to `main` + pushed (deploys to Vercel prod),

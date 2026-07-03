@@ -53,10 +53,15 @@ export async function logWeight(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You're not signed in." };
 
-  const { error } = await supabase.from("weight_logs").upsert(
-    { profile_id: user.id, weight: kg, logged_for: loggedFor },
-    { onConflict: "profile_id,logged_for" },
-  );
+  // Atomic insert-or-preserve (supabase/weight/002_log_weight_rpc.sql): log_weight()
+  // stamps the user's single active cycle ONLY when creating the day's first row;
+  // re-logging/correcting a day updates the weight but NEVER re-derives cycle_id, so
+  // the stamp stays the cycle (or NULL) it was first written under. One statement —
+  // no read-modify-write race. Identity + RLS enforced inside via auth.uid(). (Spec 15.)
+  const { error } = await supabase.rpc("log_weight", {
+    p_weight: kg,
+    p_logged_for: loggedFor,
+  });
   if (error) return { ok: false, error: error.message };
 
   // Refresh both the Weight view and the home Weight glance card (the + menu's
