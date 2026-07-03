@@ -1,4 +1,4 @@
-# Feature Spec — 09-supabase-advisor-hardening
+# Feature Spec — 17-supabase-advisor-hardening
 *Agent-ready. Behaviour and data only. Paste into a fresh Claude Code chat. One spec = one chat.*
 *Source: Supabase Advisor, 3 July 2026 — 0 errors, 12 warnings. This spec clears the schema-level warnings. Two warnings are handled OUTSIDE this spec (see Out of scope).*
 

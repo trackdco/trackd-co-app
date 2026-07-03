@@ -185,8 +185,11 @@ stored.)
   they inherit the cycle **transitively** via their NOT-NULL parents (`entry_id →
   journal_entries.cycle_id`, `panel_id → lab_panels.cycle_id`). The stamp is
   **explicit and STABLE**: set once when the row is first created, never re-derived
-  on edit — the weight upsert preserves the first-written cycle, and journal edits
-  don't restamp. This is exactly why we STAMP rather than guess by date range (beta
+  on edit — journal edits don't restamp, and the weight write goes through an atomic
+  `log_weight` RPC (`supabase/weight/002`, SECURITY INVOKER, `search_path=''`) that
+  stamps the active cycle only on the day's first insert and, on re-log, updates the
+  weight while leaving `cycle_id` untouched (one `INSERT … ON CONFLICT DO UPDATE`, so
+  no read-modify-write race). This is exactly why we STAMP rather than guess by date range (beta
   allowed overlapping/unlimited cycles, so a date-range guess is ambiguous).
   `dose_logs` + `inventory_items` were already cycle-tied via
   `protocol_compounds.cycle_id`. The stamp is NOT a derived value (Invariant 1) —

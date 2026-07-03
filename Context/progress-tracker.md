@@ -119,12 +119,16 @@ prod `build` deferred (a `next dev` server was running — the shared-`.next` go
   `app/(app)/progress/actions.ts` (the `lab_panels` insert in `addBloodworkPhoto` +
   the `journal_entries` INSERT branch in `saveJournalEntry`) and
   `app/(app)/weight/actions.ts` (`logWeight`). The stamp is **stable** — journal
-  stamps only on the INSERT that creates the day's row, and the weight upsert now
-  **preserves the first-written cycle** on re-log (reads the existing `cycle_id`
-  and writes it back; only a brand-new day derives the active cycle). This was a
-  fix from an adversarial review (a 9-agent workflow) which caught that the first
-  cut re-stamped `cycle_id` on every weight re-log, which could overwrite/null a
-  past day's original attribution after a cycle change.
+  stamps only on the INSERT that creates the day's row, and the weight write goes
+  through an **atomic `log_weight` RPC** (`supabase/weight/002_log_weight_rpc.sql`,
+  SECURITY INVOKER, `search_path=''`) that stamps the active cycle only on the day's
+  first insert and, on re-log, updates the weight while leaving `cycle_id` untouched
+  (`INSERT … ON CONFLICT DO UPDATE SET weight` — no read-modify-write race). Two
+  layers of review shaped this: a 9-agent adversarial workflow caught that the first
+  cut re-stamped on every re-log (which could overwrite/null a past day's attribution
+  after a cycle change); the fix landed as a read-then-write preserve, then CodeRabbit
+  (PR #50) flagged that read-then-write still isn't atomic under a concurrent new-day
+  double-submit, so it became the single-statement RPC above.
 - **Optional backfill** `supabase/cycles/002_cycle_id_backfill.optional.sql` —
   written, fully commented-out, NOT run. Assigns a cycle only where exactly one
   cycle's date range contains the row's date; leaves NULL on zero/multiple matches.

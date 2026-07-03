@@ -1,4 +1,4 @@
-# Feature Spec — 02-cycle-id-stamping
+# Feature Spec — 15-cycle-id-stamping
 *Agent-ready. Behaviour and data only. Paste into a fresh Claude Code chat. One spec = one chat.*
 
 ---

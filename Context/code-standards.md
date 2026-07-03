@@ -56,8 +56,11 @@
 - `compounds` and `biomarkers` are read-only to users. Never write to them from
   the app; seeding is a service-role job.
 - **`profiles.tier` is service-role-write-only (Spec 16 — the tier-column lock).**
-  The Stripe webhook (service role) is the ONLY writer of `profiles.tier`. To make
-  that an enforced fact (not a convention), `authenticated` holds **column-level**
+  The Stripe webhook (service role) is the only **post-signup** writer of
+  `profiles.tier` (the `handle_new_user` SECURITY DEFINER trigger still *initializes*
+  it — to the enum default — at account creation; a `REVOKE`/grant change must not
+  break that path). To make that an enforced fact (not a convention), `authenticated`
+  holds **column-level**
   UPDATE + INSERT grants on `profiles` that ENUMERATE every column **except `tier`**
   (`supabase/grants/003_profiles_tier_lock.sql`, Approach A — column privilege,
   chosen over a trigger because nothing in the app writes tier as `authenticated`),

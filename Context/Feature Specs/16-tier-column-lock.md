@@ -1,4 +1,4 @@
-# Feature Spec — 03-tier-column-lock
+# Feature Spec — 16-tier-column-lock
 *Agent-ready. Behaviour and data only. Paste into a fresh Claude Code chat. One spec = one chat.*
 
 ---

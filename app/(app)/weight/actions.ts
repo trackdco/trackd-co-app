@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { getActiveCycle } from "@/lib/db/cycles";
 
 /**
  * Server actions for the Weight view (Context/Feature Specs/08 → C). All writes
@@ -54,27 +53,15 @@ export async function logWeight(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You're not signed in." };
 
-  // Stamp the current cycle context (the user's single active cycle) at insert
-  // time; NULL when off-cycle. The stamp is STABLE — re-logging or correcting a
-  // day preserves whatever cycle (or NULL) it was FIRST written under; we only
-  // derive the active cycle when creating that day's initial row. This mirrors
-  // the INSERT-only stamp on journal_entries and keeps the attribution honest
-  // even if the active cycle later changes. (Spec 15.)
-  const { data: existing } = await supabase
-    .from("weight_logs")
-    .select("cycle_id")
-    .eq("profile_id", user.id)
-    .eq("logged_for", loggedFor)
-    .maybeSingle();
-
-  const cycleId = existing
-    ? ((existing.cycle_id as string | null) ?? null)
-    : ((await getActiveCycle())?.id ?? null);
-
-  const { error } = await supabase.from("weight_logs").upsert(
-    { profile_id: user.id, cycle_id: cycleId, weight: kg, logged_for: loggedFor },
-    { onConflict: "profile_id,logged_for" },
-  );
+  // Atomic insert-or-preserve (supabase/weight/002_log_weight_rpc.sql): log_weight()
+  // stamps the user's single active cycle ONLY when creating the day's first row;
+  // re-logging/correcting a day updates the weight but NEVER re-derives cycle_id, so
+  // the stamp stays the cycle (or NULL) it was first written under. One statement —
+  // no read-modify-write race. Identity + RLS enforced inside via auth.uid(). (Spec 15.)
+  const { error } = await supabase.rpc("log_weight", {
+    p_weight: kg,
+    p_logged_for: loggedFor,
+  });
   if (error) return { ok: false, error: error.message };
 
   // Refresh both the Weight view and the home Weight glance card (the + menu's
