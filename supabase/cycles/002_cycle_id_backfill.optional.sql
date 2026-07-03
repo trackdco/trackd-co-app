@@ -1,0 +1,103 @@
+-- ============================================================
+--  TRACKD CO — CYCLE-ID BACKFILL  (OPTIONAL — DO NOT AUTO-RUN)
+--  Companion to 001_cycle_id_stamping.sql (Spec 15, Open Decision #3)
+-- ============================================================
+--
+--  ⚠️  This file is NOT a tracked migration and must NOT run automatically. It is
+--      a deliberate, human-run one-off. Correctness of NEW writes (001 + the app
+--      stamping) is the priority; this is a low-value convenience for the handful
+--      of pre-stamping beta rows.
+--
+--  RUN once on 2026-07-03 (Adrian approved): the preview showed 0 ambiguous rows, so
+--  it filled 2 journal_entries + 5 weight_logs unambiguously; the 1 lab_panel and the
+--  remaining weight rows had no single containing cycle and correctly stayed NULL.
+--  Kept here (idempotent — only touches NULL rows) as the reference / for future rows.
+--
+--  What it does: for each entry table row whose cycle_id is still NULL, assign a
+--  cycle ONLY where EXACTLY ONE of that user's cycles has a date range containing
+--  the row's date. Where zero or multiple cycles match, it leaves NULL — a wrong
+--  guess is worse than an honest NULL (beta allowed overlapping/unlimited cycles,
+--  so a date-range guess can be ambiguous; that ambiguity is exactly why the app
+--  STAMPS at insert rather than deriving by date).
+--
+--  A cycle "contains" a date when:  started_on IS NOT NULL
+--    AND started_on <= <row date>  AND (ended_on IS NULL OR <row date> <= ended_on)
+--  (Cycles with no started_on have no range and never match.)
+--
+--  HOW TO USE:
+--    1. Run the PREVIEW block first (read-only) to see exactly what would change.
+--    2. If happy, run the UPDATE block. It is idempotent (only touches NULL rows)
+--       and safe to re-run.
+--    3. This does NOT re-derive on cycle-date edits later — it is a one-time assist.
+-- ============================================================
+
+-- ---------- PREVIEW (read-only): how many NULL rows would get a cycle ----------
+-- SELECT 'journal_entries' AS t,
+--   count(*) FILTER (WHERE match_count = 1) AS would_fill,
+--   count(*) FILTER (WHERE match_count = 0) AS no_match,
+--   count(*) FILTER (WHERE match_count > 1) AS ambiguous
+-- FROM (
+--   SELECT je.id, count(c.id) AS match_count
+--   FROM journal_entries je
+--   LEFT JOIN cycles c ON c.user_id = je.user_id AND c.started_on IS NOT NULL
+--     AND c.started_on <= je.entry_date AND (c.ended_on IS NULL OR je.entry_date <= c.ended_on)
+--   WHERE je.cycle_id IS NULL GROUP BY je.id
+-- ) s
+-- UNION ALL SELECT 'lab_panels',
+--   count(*) FILTER (WHERE match_count = 1), count(*) FILTER (WHERE match_count = 0), count(*) FILTER (WHERE match_count > 1)
+-- FROM (SELECT lp.id, count(c.id) AS match_count FROM lab_panels lp
+--   LEFT JOIN cycles c ON c.user_id = lp.user_id AND c.started_on IS NOT NULL
+--     AND c.started_on <= lp.drawn_on AND (c.ended_on IS NULL OR lp.drawn_on <= c.ended_on)
+--   WHERE lp.cycle_id IS NULL GROUP BY lp.id) s
+-- UNION ALL SELECT 'weight_logs',
+--   count(*) FILTER (WHERE match_count = 1), count(*) FILTER (WHERE match_count = 0), count(*) FILTER (WHERE match_count > 1)
+-- FROM (SELECT w.id, count(c.id) AS match_count FROM weight_logs w
+--   LEFT JOIN cycles c ON c.user_id = w.profile_id AND c.started_on IS NOT NULL
+--     AND c.started_on <= w.logged_for AND (c.ended_on IS NULL OR w.logged_for <= c.ended_on)
+--   WHERE w.cycle_id IS NULL GROUP BY w.id) s;
+
+-- ---------- UPDATE block: fill only the unambiguous (exactly-one-match) rows ----------
+-- BEGIN;
+--
+-- UPDATE journal_entries je SET cycle_id = m.cycle_id
+-- FROM (
+--   SELECT je2.id AS row_id, (array_agg(c.id))[1] AS cycle_id  -- exactly one match (HAVING count=1); no min(uuid)
+--   FROM journal_entries je2
+--   JOIN cycles c ON c.user_id = je2.user_id AND c.started_on IS NOT NULL
+--     AND c.started_on <= je2.entry_date AND (c.ended_on IS NULL OR je2.entry_date <= c.ended_on)
+--   WHERE je2.cycle_id IS NULL
+--   GROUP BY je2.id HAVING count(*) = 1
+-- ) m WHERE je.id = m.row_id;
+--
+-- UPDATE lab_panels lp SET cycle_id = m.cycle_id
+-- FROM (
+--   SELECT lp2.id AS row_id, (array_agg(c.id))[1] AS cycle_id  -- exactly one match (HAVING count=1); no min(uuid)
+--   FROM lab_panels lp2
+--   JOIN cycles c ON c.user_id = lp2.user_id AND c.started_on IS NOT NULL
+--     AND c.started_on <= lp2.drawn_on AND (c.ended_on IS NULL OR lp2.drawn_on <= c.ended_on)
+--   WHERE lp2.cycle_id IS NULL
+--   GROUP BY lp2.id HAVING count(*) = 1
+-- ) m WHERE lp.id = m.row_id;
+--
+-- UPDATE weight_logs w SET cycle_id = m.cycle_id
+-- FROM (
+--   SELECT w2.id AS row_id, (array_agg(c.id))[1] AS cycle_id  -- exactly one match (HAVING count=1); no min(uuid)
+--   FROM weight_logs w2
+--   JOIN cycles c ON c.user_id = w2.profile_id AND c.started_on IS NOT NULL
+--     AND c.started_on <= w2.logged_for AND (c.ended_on IS NULL OR w2.logged_for <= c.ended_on)
+--   WHERE w2.cycle_id IS NULL
+--   GROUP BY w2.id HAVING count(*) = 1
+-- ) m WHERE w.id = m.row_id;
+--
+-- -- body_metrics (dormant; included for completeness — uses measured_on)
+-- UPDATE body_metrics b SET cycle_id = m.cycle_id
+-- FROM (
+--   SELECT b2.id AS row_id, (array_agg(c.id))[1] AS cycle_id  -- exactly one match (HAVING count=1); no min(uuid)
+--   FROM body_metrics b2
+--   JOIN cycles c ON c.user_id = b2.user_id AND c.started_on IS NOT NULL
+--     AND c.started_on <= b2.measured_on AND (c.ended_on IS NULL OR b2.measured_on <= c.ended_on)
+--   WHERE b2.cycle_id IS NULL
+--   GROUP BY b2.id HAVING count(*) = 1
+-- ) m WHERE b.id = m.row_id;
+--
+-- COMMIT;

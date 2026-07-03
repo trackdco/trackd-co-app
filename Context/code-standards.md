@@ -55,6 +55,17 @@
   truth for access. App-layer checks are UX, not security.
 - `compounds` and `biomarkers` are read-only to users. Never write to them from
   the app; seeding is a service-role job.
+- **`profiles.tier` is service-role-write-only (Spec 16 — the tier-column lock).**
+  The Stripe webhook (service role) is the ONLY writer of `profiles.tier`. To make
+  that an enforced fact (not a convention), `authenticated` holds **column-level**
+  UPDATE + INSERT grants on `profiles` that ENUMERATE every column **except `tier`**
+  (`supabase/grants/003_profiles_tier_lock.sql`, Approach A — column privilege,
+  chosen over a trigger because nothing in the app writes tier as `authenticated`),
+  so a user cannot set their own tier via the Data API (PATCH or upsert). **⚠️ When
+  you add ANY new `profiles` column, add it to BOTH grant lists in a new
+  `supabase/grants/00N_*` migration, or the Data API will 42501 on writes to that
+  column. Leave any new service-only column OUT (same treatment as `tier`).** Gates
+  still read `profiles.tier` only (Invariant 7); this changes only WHO may write it.
 - Validate and parse input before any mutation. Return consistent, predictable
   shapes from any server action or handler.
 

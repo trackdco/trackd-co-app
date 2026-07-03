@@ -167,6 +167,35 @@ stored.)
   wired yet, so the per-cycle breakdown is deferred). Health data stays categorical/
   neutral throughout (no good/bad colour); amber on Progress is selection/active
   state only.
+
+- **Cycle-ID stamping — the moat, per-cycle attribution (Spec 15).** Every
+  per-cycle user entry is stamped with the user's current cycle at INSERT time so
+  any cycle can later return its full cross-type history (principle #6). **"Current
+  cycle context" = the user's single `is_active = true` cycle** — unambiguous
+  because the Protocol Cutover's `one_active_cycle_per_user` unique index
+  (`(user_id) WHERE is_active`) is live; `lib/db/cycles.ts` `getActiveCycle()`
+  reads it. Off-cycle writes (no active cycle) stamp `cycle_id = NULL`, a
+  legitimate "logged off-cycle" state — so the column is **nullable**, never NOT
+  NULL. Stamped **directly**: `journal_entries` + `lab_panels` (columns pre-existed
+  in the base schema) and `weight_logs` + `body_metrics` (added by
+  `supabase/cycles/001_cycle_id_stamping.sql`), each `cycle_id uuid → cycles(id) ON
+  DELETE SET NULL`, partial-indexed (`WHERE cycle_id IS NOT NULL`) — deleting a
+  cycle **detaches** the stamp, never destroys journal/bloodwork/weight history
+  (Invariant 8). `marker_readings` and `biomarker_results` carry **no column** —
+  they inherit the cycle **transitively** via their NOT-NULL parents (`entry_id →
+  journal_entries.cycle_id`, `panel_id → lab_panels.cycle_id`). The stamp is
+  **explicit and STABLE**: set once when the row is first created, never re-derived
+  on edit — the weight upsert preserves the first-written cycle, and journal edits
+  don't restamp. This is exactly why we STAMP rather than guess by date range (beta
+  allowed overlapping/unlimited cycles, so a date-range guess is ambiguous).
+  `dose_logs` + `inventory_items` were already cycle-tied via
+  `protocol_compounds.cycle_id`. The stamp is NOT a derived value (Invariant 1) —
+  it's an explicit write, no trigger/view computes it. Insert paths:
+  `app/(app)/progress/actions.ts` (journal + bloodwork), `app/(app)/weight/actions.ts`
+  (weight). A separate, **optional, human-run** backfill for pre-stamping NULL rows
+  lives in `supabase/cycles/002_cycle_id_backfill.optional.sql` (not a tracked
+  migration; assigns a cycle only where exactly one cycle's date range contains the
+  row, else leaves NULL).
 - **Bodyweight (`weight_logs`)** — the single source of truth for bodyweight (one
   row per `(profile_id, logged_for)`, last write wins; `weight numeric(5,2)`, kg).
   The Weight view writes it; the home glance card and the Profile "Weight" row read
@@ -549,6 +578,18 @@ scheduling is Phase 2.
 - Feature entitlements read `profiles.tier` and nothing else. Beta defaults
   everyone to `'paid'`; post-trip, the Stripe webhook becomes the column's only
   writer and the default flips to `'free'`. Gating logic never changes.
+- **`profiles.tier` is LOCKED to the service role (Spec 16).** Previously any
+  authenticated user could `PATCH /profiles` and set their own `tier = 'paid'` (a
+  table-level UPDATE grant covered every column). Now `authenticated` holds
+  **column-level** UPDATE + INSERT grants enumerating every column **except `tier`**
+  (`supabase/grants/003_profiles_tier_lock.sql`), so a self-upgrade is rejected at
+  the DB with `42501` — via PATCH or an upsert's `ON CONFLICT DO UPDATE`. The Stripe
+  webhook still writes `tier` freely: `service_role` keeps `GRANT ALL` + BYPASSRLS
+  (grants/002), and `handle_new_user` (SECURITY DEFINER) still sets the default on
+  new profiles. `tier` is the only service-only column on `profiles` (billing state
+  lives in the separate `subscriptions` table). **Any new `profiles` column must be
+  added to the grant lists** (see `code-standards.md`). This closed the hole before
+  the tier default is ever flipped to `'free'` and gating (Spec 04) ships.
 - **Cross-origin posture (Spec 13).** The app exposes no JSON API for other
   origins — all data flows through Server Components + Server Actions (the auth
   route handlers `/auth/callback` (OAuth code exchange) and `/auth/confirm`
@@ -573,8 +614,14 @@ scheduling is Phase 2.
    offset — a raw INPUT, not a stored balance; the view still derives remaining
    from it as `total − prior_used − consumed`.)
 2. **RLS on every table, always `(SELECT auth.uid())`.** No table ships without
-   row-level policies. Views stay `security_invoker = true`. `SECURITY DEFINER`
-   functions pin `search_path = ''`. Cross-user reads must be impossible.
+   row-level policies. Views stay `security_invoker = true`. **Every** function
+   pins `search_path = ''` — not just `SECURITY DEFINER` ones but all trigger /
+   integrity functions (`set_updated_at`, `unit_family_compatible`, the three
+   `check_*_unit_family` triggers), cleared by `supabase/hardening/001_advisor_search_path_and_execute.sql`
+   (Spec 17); the two `SECURITY DEFINER` signup functions (`handle_new_user`,
+   `handle_new_profile_prefs`) also have direct EXECUTE revoked from
+   public/anon/authenticated (they run via their triggers as the definer, so signup
+   is unaffected). Cross-user reads must be impossible.
 3. **Categorical, never evaluative.** Biomarker results are expressed as
    below / within / above — never high / bad / red. Side-effect markers are
    negative-polarity ordinal markers, not alarms. The product informs; it does

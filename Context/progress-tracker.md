@@ -6,7 +6,135 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-07-02
+Last updated: 2026-07-03
+
+## Spec 17 — supabase-advisor-hardening — migration APPLIED LIVE + verified (2026-07-03, Adrian + Claude)
+
+Cleared the schema-level Supabase Advisor warnings via ONE tracked migration, with
+no integrity trigger or signup flow broken. DB-only (no app code, no build).
+
+- **Part A — pinned `search_path = ''` on the 5 mutable-search_path functions**
+  (`set_updated_at`, `unit_family_compatible`, `check_inventory_unit_family`,
+  `check_protocol_unit_family`, `check_dose_log_unit_family`). §0 read every body:
+  each is already safe under an empty path (only pg_catalog builtins, or FULLY
+  `public.`-qualified objects), so **`= ''` is the gold standard for all five — no
+  body rewrite, no `pg_catalog, public` fallback**. The linter's "empty-path breaks
+  an unqualified ref" trap did not apply.
+- **Part B — revoked direct EXECUTE on the 2 SECURITY DEFINER signup functions**
+  (`handle_new_user`, `handle_new_profile_prefs`) from public/anon/authenticated.
+  Their `search_path` was ALREADY `''` (so Part A didn't touch them). Triggers invoke
+  them as the definer, so signup is unaffected.
+- **Part C — pg_net: NO ACTION (it's IN USE).** Installed (v0.20.3, `public` schema)
+  and called by the live `reminder-runner` pg_cron job (`net.http_post` →
+  `/api/notifications/run`). Moving it to an `extensions` schema is deferred to when
+  Edge Functions land (noted in `next-tasks.md`).
+- **Sweep confirmed** these 7 are the ONLY public functions — no other
+  mutable-search_path or SECURITY DEFINER function lurks, so one migration clears the
+  whole schema-level set.
+- **Live verification (all rolled back):** (A/B/C) an incompatible inventory insert,
+  dose log, and protocol dose-unit change each still RAISE `23514` from the correct
+  `check_*` function — the unit-family triggers still fire under `search_path=''`;
+  (D) a compatible inventory insert still succeeds; (E) a direct
+  `SELECT handle_new_user()` as `authenticated` is denied (`42501`); (F) inserting an
+  `auth.users` row still creates BOTH the profile and the notification_preferences row
+  (signup chain intact). Introspection confirms all 7 functions now have a pinned
+  `search_path` and the 2 signup functions retain only `postgres` EXECUTE.
+- **Migration:** `supabase/hardening/001_advisor_search_path_and_execute.sql`.
+  **Out of scope (per spec, handled elsewhere):** leaked-password protection (Auth
+  dashboard toggle — Angus) and the waitlist "RLS Policy Always True" (spec 08).
+- **Docs:** `architecture.md` Invariant 2 updated (all functions pin `search_path`).
+
+## Spec 16 — tier-column-lock — migration APPLIED LIVE + verified (2026-07-03, Adrian + Claude)
+
+`profiles.tier` can now only be written by the service role (the Stripe webhook). A
+normal authenticated user can no longer set their own `tier = 'paid'` via the Data
+API, while keeping the ability to edit their other profile fields. This closes the
+hole BEFORE the tier default is ever flipped to `'free'` and gating (Spec 04) ships.
+DB-only change (grant migration + docs) — no app code, so no build needed.
+
+- **The hole (verified live).** `authenticated` held a **table-level** UPDATE grant
+  on `profiles` (`api_role_grants` line 67) and the owner UPDATE policy is whole-row
+  (`WITH CHECK (auth.uid() = id)`), so any user could `PATCH /profiles?id=eq.<self>`
+  with `{ "tier": "paid" }`. Harmless today (default already `'paid'`), catastrophic
+  once the default flips to `'free'`.
+- **Approach A — column-level privilege (the spec's preferred; no finding ruled it
+  out).** Migration `supabase/grants/003_profiles_tier_lock.sql` (applied live):
+  `REVOKE UPDATE, INSERT ON profiles FROM authenticated`, then re-`GRANT` UPDATE +
+  INSERT on **every column except `tier`** (22 of 23). Chosen over a trigger
+  (Approach B) because it's declarative and **nothing in the app writes `tier` as
+  `authenticated`** (every `profiles` `.update()` is avatar / tos-gate / prefs /
+  migration-flag / settings·sex·goal·units·height; there's no client-side profiles
+  INSERT — all verified), so the lock breaks no legitimate path. Also locked INSERT
+  (not just UPDATE) as defense-in-depth so `tier` can't ride in on an upsert either.
+- **`tier` is the only service-only column on `profiles`.** Billing state lives in
+  the separate `subscriptions` table (`billing_001`, on the `stripe` branch); no
+  Stripe columns on `profiles`. So `tier` is the sole exclusion.
+- **Webhook path unaffected.** The `stripe` branch's `lib/stripe/sync.ts` writes
+  `.update({ tier: tierForStatus(status) })` via `createServiceRoleClient()`.
+  `service_role` keeps `GRANT ALL` + BYPASSRLS (`grants/002`), and `handle_new_user`
+  (SECURITY DEFINER) still sets the default — both bypass the `authenticated` column
+  grants.
+- **Live verification (all rolled back, zero prod change):** (1) authenticated
+  `UPDATE … SET tier='paid'` on own row → **rejected 42501**; (2) authenticated
+  `UPDATE … SET timezone=…` on own row → **succeeds**; (3) `service_role`
+  `UPDATE … SET tier` → **succeeds**; (4) authenticated upsert
+  `ON CONFLICT DO UPDATE SET tier` → **rejected 42501**. Completeness check confirmed
+  exactly the 22 non-tier columns are updatable/insertable and `tier` is neither.
+- **Docs:** Approach A + the **"new `profiles` columns must join the grant lists"**
+  maintenance note recorded in `code-standards.md`; `architecture.md` Auth/Access
+  Model updated.
+
+## Spec 15 — cycle-id-stamping (the moat) — BUILT + migration APPLIED LIVE + verified (2026-07-03, Adrian + Claude)
+
+Every per-cycle user entry is now stamped with the user's current cycle at INSERT
+time, so any cycle can later return its full cross-type history (principle #6).
+Before this, only `dose_logs`/`inventory_items` were cycle-tied; journal, bloodwork,
+markers and weight wrote with `cycle_id = NULL` — silent, unbackfillable moat loss.
+`tsc`+`eslint` clean; migration `cycle_id_stamping` applied live + verified; a
+rolled-back live insert test proved all resolution paths. **NOT committed/deployed;
+prod `build` deferred (a `next dev` server was running — the shared-`.next` gotcha).**
+
+- **§0 finding that reshaped the spec — the "current cycle context" premise was
+  STALE.** The spec assumed the single-active-cycle index was "commented out for
+  beta, so multiple cycles can be active" and warned *"do not assume the one active
+  cycle."* But the Protocol Cutover (Spec 11, `supabase/protocol/003`) already
+  applied `one_active_cycle_per_user` — a live `UNIQUE (user_id) WHERE is_active`
+  index. Verified: all 8 live users have exactly ONE active cycle. So the current
+  cycle context is now a DB-enforced fact: the user's single `is_active = true`
+  cycle, already exposed as `getActiveCycle()` in `lib/db/cycles.ts`. No new
+  selector mechanism was needed.
+- **Migration** `supabase/cycles/001_cycle_id_stamping.sql` (applied live):
+  `journal_entries` + `lab_panels` already had nullable `cycle_id` + FK→cycles
+  (SET NULL) — only the cycle-scoped INDEX was missing (added, partial). Added
+  nullable `cycle_id` + FK (SET NULL) + partial index to `weight_logs` +
+  `body_metrics`. Deleting a cycle detaches the stamp (SET NULL), never destroys
+  history (Invariant 8). Grants are table-level so the new column needs none; owner
+  RLS is column-agnostic. `body_metrics` is dormant (superseded by `weight_logs`,
+  zero app write paths) but stamped per spec for shape consistency.
+- **`marker_readings` / `biomarker_results` — transitive, no own column.**
+  `marker_readings.entry_id` and `biomarker_results.panel_id` are both NOT NULL, so
+  each inherits the cycle via its parent (`entry_id → journal_entries.cycle_id`,
+  `panel_id → lab_panels.cycle_id`). Confirmed live.
+- **Code — stamp at insert time via `getActiveCycle()`** (`cycle?.id ?? null`):
+  `app/(app)/progress/actions.ts` (the `lab_panels` insert in `addBloodworkPhoto` +
+  the `journal_entries` INSERT branch in `saveJournalEntry`) and
+  `app/(app)/weight/actions.ts` (`logWeight`). The stamp is **stable** — journal
+  stamps only on the INSERT that creates the day's row, and the weight upsert now
+  **preserves the first-written cycle** on re-log (reads the existing `cycle_id`
+  and writes it back; only a brand-new day derives the active cycle). This was a
+  fix from an adversarial review (a 9-agent workflow) which caught that the first
+  cut re-stamped `cycle_id` on every weight re-log, which could overwrite/null a
+  past day's original attribution after a cycle change.
+- **Optional backfill** `supabase/cycles/002_cycle_id_backfill.optional.sql` —
+  written, fully commented-out, NOT run. Assigns a cycle only where exactly one
+  cycle's date range contains the row's date; leaves NULL on zero/multiple matches.
+  Adrian decides whether to run it (low value — few beta rows).
+- **Live verification (rolled back, zero prod pollution):** a single
+  `BEGIN…ROLLBACK` inserted a stamped journal/panel/weight + a transitive
+  marker_reading + biomarker_result for `admin@trackdco.app`, then one query
+  returned the cycle for all six paths (direct + transitive → the active cycle;
+  off-cycle weight → NULL). Confirmed nothing persisted.
+- **Docs:** `architecture.md` Storage Model gained a "Cycle-ID stamping" entry.
 
 ## Auth — email + password sign-in/sign-up added alongside Google (2026-07-02, Adrian + Claude)
 

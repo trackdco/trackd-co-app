@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { getActiveCycle } from "@/lib/db/cycles";
 
 /**
  * Server actions for the Progress bloodwork photo store (Context/Feature
@@ -62,8 +63,14 @@ export async function addBloodworkPhoto(
     return { ok: false, error: "Couldn't attach that file." };
   }
 
+  // Stamp the current cycle context (the user's single active cycle) at insert
+  // time so this panel is attributable to a cycle later; NULL when the user is
+  // off-cycle. Its biomarker_results inherit the cycle via panel_id. (Spec 15.)
+  const cycle = await getActiveCycle();
+
   const { error } = await supabase.from("lab_panels").insert({
     user_id: user.id,
+    cycle_id: cycle?.id ?? null,
     drawn_on: drawnOn,
     source_file_path: storagePath,
     notes: trimmedNote || null,
@@ -193,9 +200,19 @@ export async function saveJournalEntry(input: {
       if (error) return { ok: false, error: error.message };
     }
   } else {
+    // Stamp the current cycle context (the user's single active cycle) when the
+    // day's entry is first created; NULL when off-cycle. The stamp is stable —
+    // later edits (adding markers, editing the body) don't re-derive it, and the
+    // day's marker_readings inherit the cycle via entry_id. (Spec 15.)
+    const cycle = await getActiveCycle();
     const { data: created, error } = await supabase
       .from("journal_entries")
-      .insert({ user_id: user.id, entry_date: entryDate, free_text: finalBody })
+      .insert({
+        user_id: user.id,
+        cycle_id: cycle?.id ?? null,
+        entry_date: entryDate,
+        free_text: finalBody,
+      })
       .select("id")
       .single();
     if (error || !created) {
