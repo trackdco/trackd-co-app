@@ -21,16 +21,13 @@
  * no build step for /public, so there is nothing to compile.
  */
 
-// Bump the cache name to roll the splash assets (e.g. a new clip). Old caches are
-// pruned on activate.
-const SPLASH_CACHE = "trackd-splash-v1";
-const SPLASH_ASSETS = [
-  "/trackd-kyle-vial-splashback.mp4",
-  "/trackd-kyle-vial-splash-poster.jpg",
-];
+// Bump the cache name to roll the splash asset. Old caches are pruned on activate
+// (bumped to v2 to drop the retired splash video from the precache).
+const SPLASH_CACHE = "trackd-splash-v2";
+const SPLASH_ASSETS = ["/trackd-kyle-vial-splash-poster.jpg"];
 
 // Activate a new SW version immediately rather than waiting for all tabs to
-// close. Precache the splash assets so the clip plays offline.
+// close. Precache the splash poster so it shows offline.
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -59,10 +56,8 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Serve the two splash assets; everything else is left entirely to the browser
-// (no respondWith → no interception). The video is NETWORK-FIRST so that online
-// playback is byte-for-byte the server's own response (the SW never alters it) and
-// only falls back to the precached copy when offline; the poster is cache-first.
+// Serve the splash poster; everything else is left entirely to the browser (no
+// respondWith → no interception). The poster is cache-first so it shows offline.
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -80,18 +75,6 @@ self.addEventListener("fetch", (event) => {
 
 async function serveSplash(request, pathname) {
   const cache = await caches.open(SPLASH_CACHE);
-  const isVideo = pathname.endsWith(".mp4");
-
-  if (isVideo) {
-    // Network-first: when online, return the server's own response untouched so the
-    // SW can never break playback. Only when the network is unavailable do we serve
-    // the precached copy (with Range slicing for iOS <video>).
-    try {
-      return await fetch(request);
-    } catch {
-      return rangeAwareFromCache(request, pathname, cache);
-    }
-  }
 
   // Poster (image): cache-first is safe — images don't use Range requests.
   const hit = await cache.match(pathname);
@@ -103,39 +86,6 @@ async function serveSplash(request, pathname) {
   } catch {
     return Response.error();
   }
-}
-
-// Serve a cached asset honouring a Range header — iOS <video> demands 206 Partial
-// Content, and a cached 200 served to a Range request can fail to play. Slices the
-// requested bytes out of the precached full body.
-async function rangeAwareFromCache(request, pathname, cache) {
-  const full = await cache.match(pathname);
-  if (!full) return Response.error();
-
-  const range = request.headers.get("range");
-  if (!range) return full.clone();
-
-  const buf = await full.clone().arrayBuffer();
-  const total = buf.byteLength;
-  const match = /bytes=(\d+)-(\d*)/.exec(range);
-  const start = match ? Number(match[1]) : 0;
-  const end = match && match[2] ? Math.min(Number(match[2]), total - 1) : total - 1;
-  if (start >= total || start > end) {
-    return new Response(null, {
-      status: 416,
-      headers: { "Content-Range": `bytes */${total}` },
-    });
-  }
-  const chunk = buf.slice(start, end + 1);
-  return new Response(chunk, {
-    status: 206,
-    headers: {
-      "Content-Range": `bytes ${start}-${end}/${total}`,
-      "Accept-Ranges": "bytes",
-      "Content-Length": String(chunk.byteLength),
-      "Content-Type": full.headers.get("Content-Type") || "video/mp4",
-    },
-  });
 }
 
 // A push arrived. The server (send-push) sends a JSON body

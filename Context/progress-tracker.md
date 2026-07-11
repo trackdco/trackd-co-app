@@ -6,7 +6,27 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-07-03
+Last updated: 2026-07-11
+
+## Enable-notifications prompt — persistent banner, top of Home (2026-07-11, Adrian + Claude)
+
+Reworked the dashboard push prime from a **one-time, skippable card at the bottom**
+into a **slim, persistent banner above Today's Log**. Notifications are core to the
+app (dose reminders), so the prompt now stays until the user actually turns them on.
+
+- `components/push/EnableNotificationsStep.tsx` — dropped the "Not now" button + the
+  `trackd:push-onboard-dismissed` localStorage dismissal; now a compact single-row
+  banner (badge + "Enable notifications" + a compact "Enable" action, `p-4` — smaller
+  than the `p-5` glance cards). Still gated on `status === "off"` (only when push CAN
+  be enabled), so it self-hides when already on / denied / iOS-not-installed / probing.
+- `components/home/HomeScreen.tsx` — new optional `notificationsBanner?: ReactNode`
+  prop, rendered directly above Today's Log. The banner brings its own
+  `animate-home-up` wrapper and returns null when inactive, so `space-y-5` never opens
+  a gap.
+- `app/(app)/dashboard/page.tsx` — passes the banner via the prop (server reads
+  `profiles.notifications_enabled`); removed the old bottom render block.
+- Docs: `architecture.md` Client-layer paragraph updated (Invariant 9). `tsc` + `lint`
+  clean.
 
 ## Spec 17 — supabase-advisor-hardening — migration APPLIED LIVE + verified (2026-07-03, Adrian + Claude)
 

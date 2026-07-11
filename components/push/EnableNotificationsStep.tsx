@@ -1,41 +1,25 @@
 "use client";
 
-import { useState } from "react";
 import { Bell } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useMounted } from "@/components/home/useMounted";
 import { usePushNotifications } from "@/components/push/usePushNotifications";
-import { CARD_TITLE, STEP_ICON_BADGE } from "@/lib/ui-presets";
-
-const DISMISS_KEY = "trackd:push-onboard-dismissed";
-
-// localStorage can throw in privacy-restricted contexts (Safari private mode,
-// blocked storage) — guard so a failed read/write can't crash the dashboard.
-function getDismissedFlag(): boolean {
-  try {
-    return window.localStorage.getItem(DISMISS_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-function setDismissedFlag() {
-  try {
-    window.localStorage.setItem(DISMISS_KEY, "1");
-  } catch {
-    // Storage unavailable — fall back to session-only dismissal.
-  }
-}
+import { STEP_ICON_BADGE } from "@/lib/ui-presets";
 
 /**
- * The second push entry point (Spec 14 D5) — a one-time, skippable prime shown on
- * the dashboard for a signed-in user who hasn't turned notifications on. There is
- * no multi-step onboarding flow in the app, so this stands alone like the install
- * prompt: it primes, a button triggers subscribe() on tap (a real user gesture),
- * and it's remembered once enabled or skipped so it never nags.
+ * The dashboard's "Enable notifications" banner — a slim, PERSISTENT prompt that
+ * sits above Today's Log and stays until the user actually turns notifications on.
+ * Notifications are core to the app (dose reminders), so this is deliberately NOT
+ * dismissable: there's no "Not now" and no remembered-dismissed flag. It self-hides
+ * only when there's nothing to do — already on, permission denied (can't re-prompt;
+ * Settings has re-enable guidance), iOS-not-installed (the install popup owns that),
+ * or the browser can't do push at all. So it shows exactly when enabling is possible
+ * and not yet done, and disappears the moment the user accepts.
  *
  * Backed by the SAME usePushNotifications hook as the Settings toggle, so there is
- * one code path. Renders nothing unless there is something actionable to do.
+ * one code path. Intentionally smaller than the glance cards: a single row (badge +
+ * label + compact action), not a full p-5 card.
  */
 export function EnableNotificationsStep({
   initialEnabled,
@@ -44,64 +28,37 @@ export function EnableNotificationsStep({
 }) {
   const mounted = useMounted();
   const { status, busy, enable } = usePushNotifications(initialEnabled);
-  // Session-level dismissal; persisted dismissal is read from localStorage during
-  // render (post-mount, so SSR stays deterministic — no setState-in-effect).
-  const [sessionDismissed, setSessionDismissed] = useState(false);
-
-  function remember() {
-    setDismissedFlag();
-    setSessionDismissed(true);
-  }
-
-  async function handleEnable() {
-    const result = await enable();
-    // Either way, don't show this prime again — Settings is the place to retry.
-    if (result.ok || result.reason === "denied") remember();
-  }
 
   // Server + first hydration render nothing (gate on mount) to avoid a flash.
   if (!mounted) return null;
-  const persistedDismissed = getDismissedFlag();
-  // Nothing to onboard: dismissed, already on, still probing, blocked, or N/A.
-  if (sessionDismissed || persistedDismissed) return null;
-  // Install messaging is handled by the dedicated one-time popup + the Profile
-  // row (components/pwa/InstallHomeScreenPopup), so this prime stays purely about
-  // notifications: only an installed/Android user where push CAN be turned on.
+  // Only actionable when push CAN be turned on but isn't yet. Every other state
+  // (on, denied, ios-needs-install, unsupported, unconfigured, still probing) has
+  // nothing for this banner to do, so it stays hidden.
   if (status !== "off") return null;
 
   return (
-    <div className="mt-8 rounded-2xl border border-border bg-bg-surface p-5">
-      <div className="flex items-start gap-3">
+    <div className="animate-home-up" style={{ animationDelay: "100ms" }}>
+      <div className="flex items-center gap-3 rounded-2xl border border-border bg-bg-surface p-4">
         <span className={STEP_ICON_BADGE} aria-hidden="true">
           <Bell className="size-5" />
         </span>
-        <div className="min-w-0">
-          <p className={CARD_TITLE}>Never miss a dose</p>
-          <p className="mt-1 text-sm leading-relaxed text-text-muted">
-            Get a quiet reminder when a dose is due. You can change this any time
-            in Settings.
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-foreground">
+            Enable notifications
+          </p>
+          <p className="text-xs leading-snug text-text-muted">
+            Reminders when a dose is due.
           </p>
         </div>
-      </div>
-
-      <div className="mt-4 flex items-center gap-3">
         <Button
           type="button"
-          onClick={handleEnable}
+          onClick={() => void enable()}
           disabled={busy}
           aria-busy={busy}
-          className="h-11 flex-1 rounded-xl"
+          className="h-9 shrink-0 rounded-lg px-4 text-sm"
         >
-          {busy ? "Enabling…" : "Turn on reminders"}
+          {busy ? "Enabling…" : "Enable"}
         </Button>
-        <button
-          type="button"
-          onClick={remember}
-          disabled={busy}
-          className="px-3 text-sm text-text-muted transition-colors hover:text-foreground disabled:opacity-60"
-        >
-          Not now
-        </button>
       </div>
     </div>
   );
