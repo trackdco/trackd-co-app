@@ -31,7 +31,7 @@ Get a user's device subscribed to Web Push and able to receive a **real** push n
 
 - **D2 — Server send path.** A Supabase Edge Function `send-push`. Rationale: the Postgres layer (per `architecture.md`) is the Supabase instance, so Edge Functions need no extra infra, and `pg_cron`/`pg_net` are already available for the Phase-2 scheduler. ⚠️ **If that Postgres is not Supabase**, swap the send path to a Node service using the `web-push` library plus a worker scheduler — the client contract and DB schema below stay identical.
 
-- **D3 — Service worker.** Extend the **existing** SW source already handling offline-first sync (per `architecture.md`). It must be the **`injectManifest`** strategy with a custom `src/sw.ts` so the `push` and `notificationclick` handlers survive the build. If the project is currently on `generateSW`, migrate it to `injectManifest`. `push`/`notificationclick` are independent listeners from the sync handlers — no conflict is expected, but verify sync still works after editing.
+- **D3 — Service worker.** As-built: this project ships a **hand-written `public/sw.js`** (plain JS, served verbatim from `/public` at root scope — **no Workbox, no `injectManifest`, no build step**), already handling the splash-asset cache. Add the `push` and `notificationclick` handlers directly to it. `push`/`notificationclick` are independent listeners from the existing fetch/cache handlers — no conflict is expected, but verify the splash cache still works after editing.
 
 - **D4 — iOS gate.** iOS only delivers Web Push to a PWA that has been **installed to the Home Screen and launched standalone**. Detect iOS + non-standalone and render an Add-to-Home-Screen prompt instead of a dead permission button. Detection uses the `(display-mode: standalone)` media query **and** legacy `navigator.standalone`; iOS/iPadOS detection uses UA plus the `MacIntel` + `maxTouchPoints > 1` check.
 
@@ -67,12 +67,14 @@ create table public.push_subscriptions (
 
 alter table public.push_subscriptions enable row level security;
 
-create policy "own subscriptions - select"
-  on public.push_subscriptions for select using (auth.uid() = user_id);
-create policy "own subscriptions - insert"
-  on public.push_subscriptions for insert with check (auth.uid() = user_id);
-create policy "own subscriptions - delete"
-  on public.push_subscriptions for delete using (auth.uid() = user_id);
+-- As-built: ONE broad policy (not the three narrow select/insert/delete policies
+-- this spec first drafted). The client writes with upsert on conflict
+-- (user_id, endpoint), so the UPDATE path must be covered too — `for all` covers
+-- select/insert/update/delete in a single policy.
+create policy "own push_subscriptions - all"
+  on public.push_subscriptions for all
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 ```
 
 Add `notifications_enabled boolean not null default false` to the existing settings/profile table (confirm its name per **D6**). The `send-push` function reads subscriptions with the service role and is not bound by these RLS policies.
@@ -83,14 +85,14 @@ Add `notifications_enabled boolean not null default false` to the existing setti
 
 Generate a keypair once: `npx web-push generate-vapid-keys`.
 
-- Client env (`.env`): `VITE_VAPID_PUBLIC_KEY` (public key only).
+- Client env (`.env`): `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (public key only; Next.js exposes `NEXT_PUBLIC_*` vars to the browser bundle).
 - Supabase secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (e.g. `mailto:notifications@trackd.app`).
 
 **Verify:** the public key is readable client-side; the three secrets are set on the Supabase project; the **private key never appears in the client bundle**.
 
 ### Step 3 — Service worker handlers
 
-In the existing SW source (`src/sw.ts` per **D3**), add:
+In the existing hand-written service worker (`public/sw.js` per **D3** — plain JS served verbatim from `/public` at root scope, so there is **no build step / no `injectManifest`**), add:
 
 ```ts
 self.addEventListener('push', (event) => {
@@ -98,8 +100,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title ?? 'Trackd', {
       body: data.body,
-      icon: '/icons/icon-192.png',
-      badge: '/icons/badge-72.png',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
       tag: data.tag,
       data: { url: data.url ?? '/' },
     })
@@ -118,16 +120,16 @@ self.addEventListener('notificationclick', (event) => {
 });
 ```
 
-Confirm `icon`/`badge` asset paths exist in the PWA manifest set; add minimal assets if missing.
+Confirm the `icon`/`badge` assets exist under `/public` (`/icon-192.png` ships today); add minimal assets if missing.
 
-**Verify:** the SW builds under `injectManifest`; existing offline-sync behaviour is unchanged (test a sync action); in desktop Chrome DevTools → Application → Service Workers → "Push" test event, a notification appears and clicking it focuses/opens the app.
+**Verify:** `public/sw.js` registers at root scope (no build step); the existing splash-cache behaviour is unchanged; in desktop Chrome DevTools → Application → Service Workers → "Push" test event, a notification appears and clicking it focuses/opens the app.
 
 ### Step 4 — Client push service + hook
 
-Create `src/lib/push/pushService.ts` (capability detection, permission, subscribe/unsubscribe, server sync) and `src/hooks/usePushNotifications.ts` (React state over the service). The service must expose, at minimum:
+Create `lib/push/pushService.ts` (capability detection, permission, subscribe/unsubscribe, server sync) and `components/push/usePushNotifications.ts` (React state over the service). The service must expose, at minimum:
 
 - `getCapability()` → `{ supported, isIOS, isStandalone, permission }`. `supported` = `'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window`.
-- `subscribe()` — request permission (must be called from a user gesture), then `registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: <VITE_VAPID_PUBLIC_KEY as Uint8Array> })`, then upsert the subscription (`endpoint`, `keys.p256dh`, `keys.auth`, `navigator.userAgent`) into `push_subscriptions`, then set `notifications_enabled = true`.
+- `subscribe()` — request permission (must be called from a user gesture), then `registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: <NEXT_PUBLIC_VAPID_PUBLIC_KEY as Uint8Array> })`, then upsert the subscription (`endpoint`, `keys.p256dh`, `keys.auth`, `navigator.userAgent`) into `push_subscriptions`, then set `notifications_enabled = true`.
 - `unsubscribe()` — `subscription.unsubscribe()`, delete the row by `endpoint`, set `notifications_enabled = false`.
 - Reuse any existing subscription via `registration.pushManager.getSubscription()` rather than re-subscribing.
 
