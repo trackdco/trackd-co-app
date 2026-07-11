@@ -468,9 +468,15 @@ scheduling is Phase 2.
   (identity from the verified session, never the client; RLS the backstop).
   ONE hook backs both entry points (Spec 14 D5): the **Settings** toggle
   (`components/settings/NotificationsToggle.tsx`, with a "Send test notification"
-  affordance) and a one-time, skippable **dashboard** prime
-  (`components/push/EnableNotificationsStep.tsx`). The notifications prime stays
-  purely about notifications (renders only when push CAN be enabled); **iOS install
+  affordance) and a **persistent dashboard banner**
+  (`components/push/EnableNotificationsStep.tsx`) — a slim, non-dismissable prompt
+  rendered by `HomeScreen` (via its `notificationsBanner` prop) directly **above
+  Today's Log**. Notifications are core to the app (dose reminders), so this prompt
+  is deliberately NOT skippable: there's no "Not now" and no remembered-dismissed
+  flag — it stays until the user actually turns notifications on, then self-hides.
+  The notifications prime stays purely about notifications (renders only when push
+  CAN be enabled — `status === "off"`; every other state, incl. already-on / denied
+  / iOS-not-installed, renders nothing so it never leaves a gap); **iOS install
   education is its own thing** — an `AddToHomeScreenPrompt` popup
   (`components/pwa/InstallHomeScreenPopup.tsx`, shown to an iPhone-in-Safari user)
   plus a permanent Profile → "Add to Home Screen" row (`InstallAppRow`). The popup

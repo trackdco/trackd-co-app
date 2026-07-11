@@ -119,14 +119,15 @@ export default async function DashboardPage() {
         unit={unitForPreference(profile?.units_preference)}
         firstName={firstName}
         progressPhotos={progressPhotos}
+        // Slim, persistent "Enable notifications" prompt, rendered above Today's
+        // Log. Notifications are core to the app, so it stays until turned on (no
+        // dismiss); self-hides when already on / not actionable.
+        notificationsBanner={
+          <EnableNotificationsStep
+            initialEnabled={Boolean(profile?.notifications_enabled)}
+          />
+        }
       />
-      {/* One-time, skippable push prime — the second entry point (Spec 14 D5).
-          Aligned to the home content width; self-hides once enabled or skipped. */}
-      <div className="mx-auto w-full max-w-md px-5 pb-5">
-        <EnableNotificationsStep
-          initialEnabled={Boolean(profile?.notifications_enabled)}
-        />
-      </div>
 
       {/* "Add to Home Screen" popup — shown on every physical sign-in / sign-up
           (iPhone + Safari). Self-hides on every other platform / in the app. */}

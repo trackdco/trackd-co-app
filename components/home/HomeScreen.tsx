@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { CalendarDays } from "lucide-react"
@@ -119,6 +119,7 @@ export function HomeScreen({
   unit,
   firstName,
   progressPhotos,
+  notificationsBanner,
 }: {
   todayKey: DateKey
   /** Scopes the device-local stack in localStorage. */
@@ -131,6 +132,9 @@ export function HomeScreen({
   firstName: string | null
   /** Latest progress photos (newest first) for the Home glance peek. */
   progressPhotos: ProgressPhoto[]
+  /** Slim "Enable notifications" prompt, rendered above Today's Log. Self-hides
+   *  (renders null) when there's nothing to do, so it never leaves a gap. */
+  notificationsBanner?: ReactNode
 }) {
   const router = useRouter()
 
@@ -427,6 +431,11 @@ export function HomeScreen({
             paused={logTarget !== null}
           />
         </div>
+
+        {/* Slim, persistent "Enable notifications" prompt (brings its own
+            animate-home-up wrapper; renders null when there's nothing to do, so
+            space-y-5 never opens a gap here). */}
+        {notificationsBanner}
 
         <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
           {stack.length === 0 ? (
