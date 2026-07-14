@@ -3,7 +3,6 @@ import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import Image from "next/image";
 import "./globals.css";
 
-import { SplashScreen } from "@/app/_components/splash-screen";
 import { AppleSplashLinks } from "@/components/pwa/apple-splash-links";
 import { DesktopGate } from "@/components/pwa/desktop-gate";
 import { DesktopInterstitial } from "@/components/pwa/desktop-interstitial";
@@ -74,12 +73,12 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${playfairDisplay.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {/* iOS launch images — React hoists these <link> tags into <head>. */}
+        {/* iOS launch images — React hoists these <link> tags into <head>.
+            This native launch image IS the splash: iOS shows Kyle the vial once
+            on cold launch, then hands off straight to the app. There is no
+            in-app splash overlay (it caused a second Kyle "come-up" after the
+            native one). */}
         <AppleSplashLinks />
-
-        {/* Full-screen Kyle-the-vial video splash; fades into the app once
-            loaded. Sits above everything on the near-black canvas. */}
-        <SplashScreen />
 
         {/* The app below lg; the "go to your phone" interstitial at ≥1024px. */}
         <DesktopGate
