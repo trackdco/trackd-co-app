@@ -13,6 +13,14 @@ import type { InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
 import { BodyMap } from "@/components/sites/BodyMap"
 import { decayWindow, siteHeat } from "@/lib/home/siteRecency"
 
+interface RecentSite {
+  siteLabel: string | null
+  route: InjectionSiteRoute
+  /** The compound(s) logged at this site on its most recent day. */
+  compounds: string[]
+  daysAgo: number
+}
+
 interface InjectionSitesSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -20,6 +28,8 @@ interface InjectionSitesSheetProps {
   catalogue: InjectionSiteRow[]
   /** Days since each site was last used (from the dose log). */
   daysSince: Record<string, number>
+  /** Recently-used sites (newest first), each with the compound(s) put there. */
+  recentSites: RecentSite[]
   /** Show the one-time "front is mirrored" tip (first open only; parent decides). */
   showMirrorTip: boolean
 }
@@ -46,6 +56,7 @@ export function InjectionSitesSheet({
   onOpenChange,
   catalogue,
   daysSince,
+  recentSites,
   showMirrorTip,
 }: InjectionSitesSheetProps) {
   const [route, setRoute] = useState<InjectionSiteRoute>("im")
@@ -58,18 +69,18 @@ export function InjectionSitesSheet({
     [catalogue, route],
   )
 
-  const { heat, recent } = useMemo(() => {
+  const heat = useMemo(() => {
     const heat: Record<string, number> = {}
-    const recent: { site: InjectionSiteRow; days: number }[] = []
     for (const s of routeSites) {
       const d = daysSince[s.id]
       if (d === undefined) continue
       heat[s.id] = siteHeat(d, route)
-      recent.push({ site: s, days: d })
     }
-    recent.sort((a, b) => a.days - b.days)
-    return { heat, recent }
+    return heat
   }, [routeSites, daysSince, route])
+
+  // The most-recent muscles on this route, each with the compound(s) put there.
+  const recentForRoute = recentSites.filter((s) => s.route === route)
 
   const inspected = inspectedId
     ? routeSites.find((s) => s.id === inspectedId)
@@ -186,29 +197,37 @@ export function InjectionSitesSheet({
               <RecencyLegend />
             </div>
 
-            {/* Last logged — your last few pins, minimal. */}
+            {/* Last logged — your most-recent muscles, each with the compound(s) you
+                put there (two compounds in one area read together). */}
             <div className="rounded-2xl border border-border-default bg-bg-input px-4 py-3.5">
               <h3 className="mb-3 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-muted">
                 Last logged
               </h3>
-              {recent.length > 0 ? (
-                <ul className="flex flex-col gap-3">
-                  {recent.slice(0, 3).map(({ site, days }) => (
-                    <li key={site.id} className="flex items-center gap-3">
+              {recentForRoute.length > 0 ? (
+                <ul className="flex flex-col gap-3.5">
+                  {recentForRoute.slice(0, 4).map((s, i) => (
+                    <li key={i} className="flex items-start gap-3">
                       <span
                         aria-hidden
-                        className="h-2 w-2 shrink-0 rounded-full"
+                        className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
                         style={{
                           background: "var(--accent-amber)",
-                          opacity: Math.max(0.4, heat[site.id]),
+                          opacity: Math.max(0.4, siteHeat(s.daysAgo, route)),
                         }}
                       />
-                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                        {site.label}
-                      </span>
-                      <span className="shrink-0 font-mono text-xs text-text-muted">
-                        Pinned {agoLabel(days)}
-                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="min-w-0 truncate text-sm text-foreground">
+                            {s.siteLabel ?? "No site"}
+                          </span>
+                          <span className="shrink-0 font-mono text-xs text-text-muted">
+                            {agoLabel(s.daysAgo)}
+                          </span>
+                        </div>
+                        <p className="truncate text-xs text-text-muted">
+                          {s.compounds.join(", ")}
+                        </p>
+                      </div>
                     </li>
                   ))}
                 </ul>

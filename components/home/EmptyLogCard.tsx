@@ -41,7 +41,7 @@ export function EmptyLogCard() {
           n={3}
           icon={<Syringe className="h-4 w-4" aria-hidden />}
           title="Log each dose"
-          body="Tap a compound's + to log it. For injectables, choose the site on the body map — each shows how long since you last used it."
+          body="Tap the empty circle beside a compound to log it. For injectables, choose the site on the body map — each shows how long since you last used it."
         />
       </ol>
 

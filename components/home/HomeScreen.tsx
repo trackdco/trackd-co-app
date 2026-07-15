@@ -307,15 +307,20 @@ export function HomeScreen({
     log: selectedRows[c.id] ?? null,
   }))
 
-  // Days since each site was last logged (on any earlier day) — powers the log
-  // sheet's "last used here" rest hint. Fills in as the user logs over time.
+  // Days since each site was last used, for the log sheet's "last used here" rest
+  // hint. Relative to the SELECTED day and INCLUDING it — so a site another compound
+  // already used that day reads "used today" (you can still log two compounds into
+  // one muscle; this just tells you). Only the dose being logged right now (the
+  // active compound's own log on that day) is left out, so it never counts itself.
+  const activeLogCompoundId = logTarget?.compound.id
   const selDayN = Math.floor(selectedDate.getTime() / 86_400_000)
   const siteLastUsedDays: Record<string, number> = {}
   for (const [key, dayLogObj] of Object.entries(logs)) {
-    if (key >= selectedKey) continue
+    if (key > selectedKey) continue
     const ago = selDayN - Math.floor(dateKeyToDate(key).getTime() / 86_400_000)
-    if (ago <= 0) continue
-    for (const dayLog of Object.values(dayLogObj)) {
+    if (ago < 0) continue
+    for (const [compoundId, dayLog] of Object.entries(dayLogObj)) {
+      if (key === selectedKey && compoundId === activeLogCompoundId) continue
       const sid = dayLog.siteId
       if (sid && (siteLastUsedDays[sid] === undefined || ago < siteLastUsedDays[sid])) {
         siteLastUsedDays[sid] = ago
@@ -330,17 +335,24 @@ export function HomeScreen({
   // hint — "don't count the dose you're logging").
   const siteDaysSinceToday = siteDaysSince(logs, todayKey)
 
-  // Last few injectable doses (compound + site + days-ago), newest first, for the
-  // Injection-sites card's "Last logged" strip. Injectable (IM / Sub-Q) only; an
-  // archived/deleted compound's history is skipped (no name to show).
+  // Recent injectable doses grouped by SITE (muscle), newest first, for the
+  // Injection-sites "Last logged" list. Each muscle shows the compound(s) logged
+  // there on its most recent day ("Left Delt — Test E, Deca · today"), so two
+  // compounds put in one area read together instead of as separate rows. Injectable
+  // (IM / Sub-Q) only; a site-less dose stays on its own; an archived/deleted
+  // compound is skipped (no name to show).
   const todayN = Math.floor(dateKeyToDate(todayKey).getTime() / 86_400_000)
-  const recentInjectionLogs: {
-    compound: string
-    siteLabel: string | null
-    route: InjectionSiteRoute
-    daysAgo: number
-    sortKey: string
-  }[] = []
+  const siteGroups = new Map<
+    string,
+    {
+      siteLabel: string | null
+      route: InjectionSiteRoute
+      dayKey: DateKey
+      daysAgo: number
+      sortKey: string
+      compounds: string[]
+    }
+  >()
   for (const [key, dayLogObj] of Object.entries(logs)) {
     if (key > todayKey) continue
     const ago = todayN - Math.floor(dateKeyToDate(key).getTime() / 86_400_000)
@@ -353,16 +365,36 @@ export function HomeScreen({
       const site = log.siteId
         ? injectionCatalogue.find((s) => s.id === log.siteId)
         : null
-      recentInjectionLogs.push({
-        compound: c.name,
-        siteLabel: site?.label ?? null,
-        route,
-        daysAgo: ago,
-        sortKey: `${key}T${log.time24 ?? "00:00"}`,
-      })
+      // Group by site id; a site-less dose gets a unique key so it stays separate.
+      const groupKey = log.siteId ?? `none:${compoundId}:${key}`
+      const sortKey = `${key}T${log.time24 ?? "00:00"}`
+      const g = siteGroups.get(groupKey)
+      if (!g) {
+        siteGroups.set(groupKey, {
+          siteLabel: site?.label ?? null,
+          route,
+          dayKey: key as DateKey,
+          daysAgo: ago,
+          sortKey,
+          compounds: [c.name],
+        })
+      } else if (key > g.dayKey) {
+        // A newer day for this site — it becomes the shown day; reset its compounds.
+        g.dayKey = key as DateKey
+        g.daysAgo = ago
+        g.sortKey = sortKey
+        g.compounds = [c.name]
+      } else if (key === g.dayKey) {
+        // Same (most-recent) day — collect the other compound(s) put in this muscle.
+        if (!g.compounds.includes(c.name)) g.compounds.push(c.name)
+        if (sortKey > g.sortKey) g.sortKey = sortKey
+      }
+      // Older day → ignore (we only show each site's most recent day).
     }
   }
-  recentInjectionLogs.sort((a, b) => (a.sortKey < b.sortKey ? 1 : -1))
+  const recentInjectionSites = [...siteGroups.values()].sort((a, b) =>
+    a.sortKey < b.sortKey ? 1 : -1,
+  )
 
   const cycleTitle = isToday
     ? "Today's Log"
@@ -460,9 +492,8 @@ export function HomeScreen({
             your sites or see where you last pinned. */}
         <div className="animate-home-up" style={{ animationDelay: "175ms" }}>
           <InjectionSitesGlanceCard
-            catalogue={injectionCatalogue}
             daysSince={siteDaysSinceToday}
-            recentLogs={recentInjectionLogs}
+            recentSites={recentInjectionSites}
             onOpen={() => {
               setSitesOpen(true)
               try {
@@ -558,6 +589,7 @@ export function HomeScreen({
         onOpenChange={setSitesOpen}
         catalogue={injectionCatalogue}
         daysSince={siteDaysSinceToday}
+        recentSites={recentInjectionSites}
         showMirrorTip={mirrorTip}
       />
     </>

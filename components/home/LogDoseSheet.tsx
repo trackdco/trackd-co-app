@@ -169,15 +169,14 @@ function LogDoseBody({
 
   const [siteId, setSiteId] = useState<string | null>(existing?.siteId ?? null)
 
-  // Injection-site body map (Spec 19): the full site catalogue for this compound's
-  // route, lazily loaded like the vials below (so this stays localised to the
-  // sheet). One tap picks where you injected — every site is available. The map
-  // opens on the compound's route; the user may switch. Oral compounds skip it.
+  // Injection-site body map (Spec 19): this compound's site catalogue, lazily
+  // loaded like the vials below (so this stays localised to the sheet). One tap
+  // picks where you injected. The route is FIXED to the compound's method — an IM
+  // compound only logs IM sites, Sub-Q only Sub-Q; there's no cross-route logging
+  // (the method is chosen once, when the compound is added). Oral compounds skip it.
+  const route: InjectionSiteRoute = compound.method === "subq" ? "subq" : "im"
   const [catalogue, setCatalogue] = useState<InjectionSiteRow[]>([])
   const [loadingSites, setLoadingSites] = useState(injectable)
-  const [mapRoute, setMapRoute] = useState<InjectionSiteRoute>(
-    compound.method === "subq" ? "subq" : "im"
-  )
   useEffect(() => {
     if (!injectable) return
     let cancelled = false
@@ -238,10 +237,10 @@ function LogDoseBody({
 
   const [tracked, setTracked] = useState(false)
 
-  // Sites to show on the map: the full catalogue for the current route — pick any.
+  // Sites to show on the map: this compound's route only — pick any site on it.
   // The day-count for the picked spot is shown in the caption below (never on the
   // muscle itself).
-  const sitesToShow = catalogue.filter((s) => s.route === mapRoute)
+  const sitesToShow = catalogue.filter((s) => s.route === route)
 
   function buildLog(): DoseLog {
     // Evaluate the time at SUBMIT: a manual override wins, otherwise the live
@@ -408,38 +407,20 @@ function LogDoseBody({
           )}
         </p>
 
-        {/* Injection site — the shared body map (Spec 19), the full catalogue for
-            this compound's route. One tap picks where you injected; each carries its
-            day-count. Opens on the compound's route (switchable). Oral compounds show
-            nothing; picking a site is optional (the dose logs either way). */}
+        {/* Injection site — the shared body map (Spec 19), this compound's own
+            route only (IM or Sub-Q, fixed by the compound — no cross-route logging).
+            One tap picks where you injected; each carries its day-count. Oral
+            compounds show nothing; picking a site is optional (the dose logs either
+            way). */}
         {injectable && (
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between gap-3">
               <span className="text-xs font-medium uppercase tracking-wider text-text-muted">
                 Injection site
               </span>
-              <div
-                className="inline-flex rounded-full border border-border-default bg-bg-input p-0.5 text-xs"
-                role="group"
-                aria-label="Route"
-              >
-                {(["im", "subq"] as const).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setMapRoute(r)}
-                    aria-pressed={mapRoute === r}
-                    className={cn(
-                      "rounded-full px-3 py-1 font-medium transition-colors duration-200 ease-out",
-                      mapRoute === r
-                        ? "bg-bg-surface-raised text-foreground"
-                        : "text-text-muted"
-                    )}
-                  >
-                    {r === "im" ? "IM" : "Sub-Q"}
-                  </button>
-                ))}
-              </div>
+              <span className="text-xs text-text-subtle">
+                {route === "im" ? "Intramuscular" : "Subcutaneous"}
+              </span>
             </div>
 
             {loadingSites ? (

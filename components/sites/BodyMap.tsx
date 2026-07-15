@@ -200,7 +200,9 @@ function RegionShape({
           : undefined
       }
     >
-      {site && <title>{site.label}</title>}
+      {/* Native tooltip only when NOT the scrub target — otherwise the browser's
+          default title tooltip fights the parent's pointer-following tooltip. */}
+      {site && !canInspect && <title>{site.label}</title>}
       <path d={region.d} className="mr-fill" />
       {amberOpacity > 0 && (
         <path

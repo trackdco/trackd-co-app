@@ -554,8 +554,8 @@ function AddCompoundBody({
         </button>
       </div>
       <SheetDescription className="sr-only">
-        Set this compound&apos;s dose and schedule. Method and unit are fixed by the
-        compound.
+        Set this compound&apos;s dose and schedule. Choose a method or unit when
+        multiple options are available.
       </SheetDescription>
 
       <div className="flex-1 space-y-5 overflow-y-auto px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">

@@ -5,29 +5,24 @@ import { Syringe } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
-import type {
-  InjectionSiteAspect,
-  InjectionSiteRoute,
-  InjectionSiteRow,
-} from "@/lib/db/types"
+import type { InjectionSiteAspect, InjectionSiteRoute } from "@/lib/db/types"
 import { siteHeat } from "@/lib/home/siteRecency"
 import { BodySilhouette } from "@/components/sites/BodySilhouette"
 import { routeRegions, routeTransform } from "@/components/sites/bodyArtwork"
 
-interface RecentLog {
-  compound: string
+interface RecentSite {
   siteLabel: string | null
   route: InjectionSiteRoute
+  /** The compound(s) logged at this site on its most recent day. */
+  compounds: string[]
   daysAgo: number
 }
 
 interface InjectionSitesGlanceCardProps {
-  /** Full catalogue (both routes) — parent loads it once. */
-  catalogue: InjectionSiteRow[]
   /** Days since each site was last used (from the dose log). */
   daysSince: Record<string, number>
-  /** Recent injectable doses (newest first) for the "Last logged" strip. */
-  recentLogs: RecentLog[]
+  /** Recently-used sites (newest first), each with the compound(s) put there. */
+  recentSites: RecentSite[]
   /** Tap → the injection-site map (sheet). */
   onOpen: () => void
 }
@@ -40,29 +35,23 @@ const ROUTES: { key: InjectionSiteRoute; label: string }[] = [
 /**
  * Home glance card — your injection map at a glance, mirroring the Weight card's
  * shape (icon + title + a segmented toggle). The toggle switches between
- * **Intramuscular** and **Sub-Q**; a mini front + back body shows where you've been
- * injecting, your **last pin** brightest amber and older ones fading. There's no
- * pre-set list — you pick any site when you log a dose; this just reflects your
- * history. Tap opens the fuller map. Display only.
+ * **Intramuscular** and **Sub-Q**; a mini front + back body shades where you've been
+ * injecting by recency (brighter = more recent), fading to empty past the decay
+ * window (the same ramp as the full map). Below, "Last logged" lists your most-recent
+ * **muscles**, each with the compound(s) you put there — so two compounds in one area
+ * read together. There's no pre-set list — you pick any site (on the compound's route)
+ * when you log a dose; this just reflects your history. Tap opens the fuller map.
+ * Display only.
  */
 export function InjectionSitesGlanceCard({
-  catalogue,
   daysSince,
-  recentLogs,
+  recentSites,
   onOpen,
 }: InjectionSitesGlanceCardProps) {
   const [route, setRoute] = useState<InjectionSiteRoute>("im")
 
-  const routeSites = catalogue.filter((s) => s.route === route)
-  // Sites you've actually injected on this route (from the dose log).
-  const pinned = routeSites.filter((s) => daysSince[s.id] !== undefined)
-  const logsForRoute = recentLogs.filter((l) => l.route === route).slice(0, 3)
-
-  let lastPinned: { site: InjectionSiteRow; days: number } | null = null
-  for (const s of pinned) {
-    const d = daysSince[s.id]
-    if (!lastPinned || d < lastPinned.days) lastPinned = { site: s, days: d }
-  }
+  // The most-recently-used sites on this route, each with the compound(s) put there.
+  const sitesForRoute = recentSites.filter((s) => s.route === route).slice(0, 3)
 
   return (
     <div className="rounded-2xl border border-border-default bg-bg-surface">
@@ -108,38 +97,35 @@ export function InjectionSitesGlanceCard({
           key={route}
           className="flex w-full flex-col items-center gap-4 duration-300 animate-in fade-in motion-reduce:animate-none"
         >
-          <SitePreview
-            route={route}
-            daysSince={daysSince}
-            lastPinnedId={lastPinned?.site.id ?? null}
-          />
+          <SitePreview route={route} daysSince={daysSince} />
 
           <div className="w-full border-t border-border-default pt-3.5">
-          <p className="mb-2.5 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-text-muted">
-            Last logged
-          </p>
-          {logsForRoute.length > 0 ? (
-            <ul className="flex flex-col gap-2">
-              {logsForRoute.map((l, i) => (
-                <li
-                  key={i}
-                  className="flex items-baseline justify-between gap-3"
-                >
-                  <span className="min-w-0 truncate text-sm text-foreground">
-                    {l.compound}
-                  </span>
-                  <span className="shrink-0 font-mono text-[0.7rem] text-text-muted">
-                    {l.siteLabel ? `${l.siteLabel} · ` : ""}
-                    {l.daysAgo === 0 ? "today" : `${l.daysAgo}d`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-text-muted">
-              No {route === "im" ? "IM" : "sub-Q"} doses logged yet.
+            <p className="mb-2.5 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-text-muted">
+              Last logged
             </p>
-          )}
+            {sitesForRoute.length > 0 ? (
+              <ul className="flex flex-col gap-2.5">
+                {sitesForRoute.map((s, i) => (
+                  <li key={i} className="min-w-0">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0 truncate text-sm text-foreground">
+                        {s.siteLabel ?? "No site"}
+                      </span>
+                      <span className="shrink-0 font-mono text-[0.7rem] text-text-muted">
+                        {s.daysAgo === 0 ? "today" : `${s.daysAgo}d`}
+                      </span>
+                    </div>
+                    <p className="truncate text-[0.7rem] text-text-muted">
+                      {s.compounds.join(", ")}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-text-muted">
+                No {route === "im" ? "IM" : "sub-Q"} doses logged yet.
+              </p>
+            )}
           </div>
         </div>
       </button>
@@ -149,23 +135,23 @@ export function InjectionSitesGlanceCard({
 
 const ASPECTS: InjectionSiteAspect[] = ["anterior", "posterior"]
 
-/** Mini front + back bodies showing where you've pinned, shaded by recency (last
- *  pin brightest). Every region is drawn so the body reads; pinned ones lit amber.
- *  Read-only. */
+/** Mini front + back bodies showing where you've pinned, shaded by recency (brighter
+ *  = more recent, fading to empty past the decay window — the same ramp as the full
+ *  map). Every region is drawn so the body reads; used ones lit amber. Read-only. */
 function SitePreview({
   route,
   daysSince,
-  lastPinnedId,
 }: {
   route: InjectionSiteRoute
   daysSince: Record<string, number>
-  lastPinnedId: string | null
 }) {
   const heatFor = (siteId: string) => {
     const d = daysSince[siteId]
     if (d === undefined) return 0
-    if (siteId === lastPinnedId) return 1
-    return Math.max(0.35, siteHeat(d, route))
+    const h = siteHeat(d, route)
+    // Same visibility floor the sheet's body map uses (recency mode), so the card
+    // and the full map read identically — both fade to empty past the decay window.
+    return h > 0 ? Math.max(0.14, h) : 0
   }
 
   return (

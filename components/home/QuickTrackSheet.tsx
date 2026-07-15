@@ -157,23 +157,28 @@ function QuickTrackBody({
     todayLogs[c.id] ? true : !c.archived && isDueOn(c.schedule, todayDate)
   )
 
-  // Days since each site was last logged on an earlier day — the Log sheet's map
-  // day-count (same computation as the dashboard).
+  const [logTarget, setLogTarget] = useState<LogTarget | null>(null)
+
+  // Days since each site was last used — the Log sheet's "last used here" rest hint.
+  // INCLUDES today's OTHER doses (so a site another compound already used today reads
+  // "used today"; you can still log two compounds into one muscle — this just tells
+  // you), but leaves out the dose being logged right now (the active compound's own
+  // log) so it never counts itself. Same computation as the dashboard.
+  const activeLogCompoundId = logTarget?.compound.id
   const todayN = Math.floor(todayDate.getTime() / 86_400_000)
   const siteLastUsedDays: Record<string, number> = {}
   for (const [key, dayLogObj] of Object.entries(logs)) {
-    if (key >= todayKey) continue
+    if (key > todayKey) continue
     const ago = todayN - Math.floor(dateKeyToDate(key).getTime() / 86_400_000)
-    if (ago <= 0) continue
-    for (const dayLog of Object.values(dayLogObj)) {
+    if (ago < 0) continue
+    for (const [compoundId, dayLog] of Object.entries(dayLogObj)) {
+      if (key === todayKey && compoundId === activeLogCompoundId) continue
       const sid = dayLog.siteId
       if (sid && (siteLastUsedDays[sid] === undefined || ago < siteLastUsedDays[sid])) {
         siteLastUsedDays[sid] = ago
       }
     }
   }
-
-  const [logTarget, setLogTarget] = useState<LogTarget | null>(null)
 
   function openLog(c: StackCompound) {
     setLogTarget({ compound: c, existing: todayLogs[c.id] ?? null })
