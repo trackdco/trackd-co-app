@@ -15,19 +15,24 @@ Last updated: 2026-07-15
 
 ## 🎯 Current focus
 
-**✅ 2026-07-15 (Adrian + Claude): SPEC 19 — as-built, COMMITTED + PR'd for CodeRabbit.**
+**✅ 2026-07-15 (Adrian + Claude): SPEC 19 — SHIPPED to prod (PR #53, squash `cabc184`).**
 The rework shipped differently from the 4-step plan below: the "choose your own sites"
-**working set was removed** (every catalogue site is pickable when logging), a **Home
-"Injection sites" glance card + sheet** replaced the `/settings/sites` screen, IM **and**
-Sub-Q are anatomical **region maps** with a **mirror-front** convention (screen-left =
-your left), and the **Home consistency strip was removed** (kept in Progress). Committed
-`39d5152` (feature) + `2baf547` (review fix) on branch `feat/spec-19-injection-sites` →
-**PR open for CodeRabbit**. NOT merged (no prod deploy) — awaiting CodeRabbit + Adrian's
-go. A 3-track adversarial code review passed with one HIGH fixed (recency shading now
-counts today). **▶ Next:** CodeRabbit findings → Adrian's on-device QA (log a dose on the
-body map, confirm the pin lights up on the card) → merge to `main`. The 4-step plan text
-below is superseded/historical (it still describes the old working-set + `/settings/sites`
-version).
+**working set was removed** (every catalogue site is pickable when logging, on the
+compound's own route), a **Home "Injection sites" glance card + sheet** replaced the
+`/settings/sites` screen, IM **and** Sub-Q are anatomical **region maps** with a
+**mirror-front** convention (screen-left = your left), **"Last logged" is grouped by
+muscle** (with the compound(s) put there), and the **Home consistency strip was removed**
+(kept in Progress). Two CodeRabbit rounds folded in; recency decay verified end-to-end.
+The 4-step plan text below is superseded/historical (old working-set + `/settings/sites`).
+
+**▶ Next — Adrian's on-device QA (nothing blocking):**
+1. Log an injectable dose → the body map shows ONLY the compound's route; pick a site → it
+   saves and reads back on edit.
+2. Log two compounds into the SAME muscle → both appear under that muscle in "Last logged".
+3. The "Injection sites" card: used muscles are amber, brightest = most recent, fading each
+   day (IM 7d / Sub-Q 5d) back to the neutral body. Full sheet: scrub a muscle → tooltip
+   follows; first open shows the one-time "front is mirrored" note.
+4. Home has NO consistency strip; Progress still shows its consistency graph.
 
 **✅ 2026-07-15 (Angus + Claude): SPEC 19 (Injection Site Rework) — ALL 4 STEPS
 BUILT + verified. FEATURE COMPLETE (local).** Step 1 = data foundation

@@ -8,13 +8,29 @@ Forward-looking, actionable steps do **not** live here — they live in
 
 Last updated: 2026-07-15
 
-## Spec 19 — committed + code-reviewed + PR'd for CodeRabbit; Home consistency strip removed; demo login cleaned up (2026-07-15, Adrian + Claude)
+## Spec 19 — SHIPPED: merged to prod as PR #53 (squash `cabc184`); Home consistency strip removed; demo login cleaned up (2026-07-15, Adrian + Claude)
 
 The full Spec 19 injection-site body map (IM + Sub-Q region maps, mirror-front,
-Home glance card + sheet, recency shading, working-set flow removed) is now
-**committed** — `39d5152` (feature) + `2baf547` (review fix) — on branch
-`feat/spec-19-injection-sites`, pushed and opened as a **PR for CodeRabbit**. NOT
-merged to `main` (no prod deploy) — awaiting CodeRabbit + Adrian's go.
+Home glance card + sheet, recency shading, working-set flow removed) is **MERGED to
+`main` → deployed to Vercel prod** as **PR #53** (squash `cabc184`). Two CodeRabbit
+review rounds were folded in (round 1 on the feature, round 2 on the fixes below); its
+findings addressed. **▶ Remaining: Adrian's on-device QA.**
+
+- **Route locked (Adrian's call):** the log flow shows only the compound's own route
+  (an IM compound logs IM sites, Sub-Q only Sub-Q — no cross-route logging); the
+  IM/Sub-Q toggle in `LogDoseSheet` was removed and `buildLog` drops any off-route/stale
+  `siteId` on submit.
+- **"Last logged" grouped by muscle (Adrian's ask):** the card + sheet now list each
+  muscle with the compound(s) put there ("Left Delt — Test E, Deca · today"), so two
+  compounds in one area read together; the rest hint now counts the current day's other
+  doses so a second dose to a same-day site reads "used today".
+- **Recency decay verified end-to-end** (`tsx` over the real `siteHeat`/`siteDaysSince`):
+  a logged muscle is full amber on day 0 and fades a step each day to empty at the window
+  (IM 7d / Sub-Q 5d), then returns to the neutral body.
+- **Card opacity floor removed** (matches the sheet); EmptyLogCard/AddCompoundSheet copy +
+  BodyMap `<title>` fixes; `architecture.md` rewritten to as-built.
+- **Orphaned `user_injection_sites` working-set table dropped** (`supabase/sites/010`,
+  applied live — 85 dead rows, no code read it; dose history untouched).
 
 - **Home consistency strip removed** (Adrian's call — "get rid of the consistency of
   the days on the home section"): deleted `components/home/ConsistencyStrip.tsx` and
