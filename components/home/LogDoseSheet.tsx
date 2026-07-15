@@ -243,11 +243,20 @@ function LogDoseBody({
   const sitesToShow = catalogue.filter((s) => s.route === route)
 
   function buildLog(): DoseLog {
+    // Keep the chosen site only if it's a real site on THIS compound's route —
+    // editing an older/cross-route dose could otherwise round-trip a siteId that
+    // isn't even pickable here (it's off-route or gone from the catalogue), so drop
+    // it to null. While the catalogue is still loading we can't validate, so the
+    // existing value is trusted (the dose logs either way).
+    const siteOnRoute =
+      siteId == null ||
+      catalogue.length === 0 ||
+      sitesToShow.some((s) => s.id === siteId)
     // Evaluate the time at SUBMIT: a manual override wins, otherwise the live
     // clock right now (A4).
     return {
       amount,
-      siteId: injectable ? siteId : null,
+      siteId: injectable && siteOnRoute ? siteId : null,
       time24: manualTime ?? toHHMM(new Date()),
       inventoryItemId,
     }
