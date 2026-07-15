@@ -5,13 +5,13 @@ import { useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet"
 import type { InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
 import { BodyMap } from "@/components/sites/BodyMap"
+import { useSheetDrag } from "@/components/home/useSheetDrag"
 import { decayWindow, siteHeat } from "@/lib/home/siteRecency"
 
 interface RecentSite {
@@ -105,6 +105,39 @@ export function InjectionSitesSheet({
     setInspectedId(null)
   }
 
+  // Drag the top of the sheet DOWN to dismiss — the shared bottom-sheet gesture
+  // (15+ sheets use it). Pulling the handle/title strip past ~30% of the height
+  // closes; otherwise it springs back.
+  const { cardRef, handleProps, cardStyle } = useSheetDrag(
+    () => onOpenChange(false),
+    open,
+  )
+
+  // Left-edge swipe-back: a drag that STARTS at the very left edge and moves
+  // decisively right closes the sheet (like an OS back gesture). Detect-and-close,
+  // no visual drag — so it can't get stuck part-way or fight the scroll / map scrub.
+  const edgeRef = useRef<{ startX: number; startY: number } | null>(null)
+  const EDGE_ZONE = 30 // px from the left edge a back-swipe may start in
+  function onEdgePointerDown(e: React.PointerEvent) {
+    edgeRef.current =
+      e.clientX <= EDGE_ZONE ? { startX: e.clientX, startY: e.clientY } : null
+  }
+  function onEdgePointerMove(e: React.PointerEvent) {
+    const d = edgeRef.current
+    if (!d) return
+    const dx = e.clientX - d.startX
+    const dy = e.clientY - d.startY
+    if (dx > 70 && dx > Math.abs(dy) * 1.5) {
+      edgeRef.current = null
+      onOpenChange(false)
+    } else if (Math.abs(dy) > 40) {
+      edgeRef.current = null // it's a vertical move — leave it for scrolling
+    }
+  }
+  function endEdge() {
+    edgeRef.current = null
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -112,28 +145,40 @@ export function InjectionSitesSheet({
         showCloseButton={false}
         className="h-[94dvh] gap-0 border-t-0 bg-transparent p-0 shadow-none"
       >
-        <div className="flex h-full flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg">
-          {/* Grab handle — also a tap target to close (so you're never stuck here). */}
-          <SheetClose
-            aria-label="Close"
-            className="flex h-11 shrink-0 items-center justify-center focus-visible:outline-none"
+        <div
+          ref={cardRef}
+          style={cardStyle}
+          onPointerDown={onEdgePointerDown}
+          onPointerMove={onEdgePointerMove}
+          onPointerUp={endEdge}
+          onPointerCancel={endEdge}
+          className="flex h-full flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
+        >
+          {/* Grab strip — drag DOWN to dismiss (or swipe in from the very left edge). */}
+          <div
+            {...handleProps}
+            className="flex h-11 shrink-0 items-center justify-center cursor-grab touch-none active:cursor-grabbing"
           >
             <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
-          </SheetClose>
+          </div>
 
-          {/* Title + an always-visible Done button — the reliable way out. */}
+          {/* Title + Done — Done is the quick tap-out; drag-down / edge-swipe also close. */}
           <div className="flex shrink-0 items-center justify-between gap-3 px-6">
             <SheetTitle className="text-lg font-semibold text-foreground">
               Injection sites
             </SheetTitle>
-            <SheetClose className="-mr-2 flex h-9 items-center rounded-full px-3 text-sm font-medium text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="-mr-2 flex h-9 items-center rounded-full px-3 text-sm font-medium text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               Done
-            </SheetClose>
+            </button>
           </div>
           <SheetDescription className="sr-only">
             Your injection rotation on a body map. Hover a muscle to see when you
-            last pinned it; recent pins are listed below. Tap Done or the handle to
-            close.
+            last pinned it; recent pins are listed below. Drag the top down, swipe in
+            from the left edge, or tap Done to close.
           </SheetDescription>
 
           <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 pb-10 pt-4">
@@ -262,11 +307,6 @@ export function InjectionSitesSheet({
                 left.
               </p>
             )}
-
-            {/* A clear way out at the bottom too, for the scroll/swipe-down instinct. */}
-            <SheetClose className="mt-1 w-full rounded-xl border border-border-default bg-bg-input py-3 text-sm font-medium text-text-primary transition-colors hover:bg-bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              Close
-            </SheetClose>
           </div>
         </div>
       </SheetContent>
