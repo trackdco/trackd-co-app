@@ -34,14 +34,14 @@ export function EmptyLogCard() {
         <Step
           n={2}
           icon={<CalendarClock className="h-4 w-4" aria-hidden />}
-          title="Set the dose, schedule & sites"
-          body="Enter the dose, choose how often and when it starts, and (for injectables) pick the injection sites you rotate through, arranged top-to-bottom in the order you'll use them."
+          title="Set the dose & schedule"
+          body="Enter the dose, choose how often and when it starts. For injectables you'll pick the site when you log each dose, from the body map."
         />
         <Step
           n={3}
           icon={<Syringe className="h-4 w-4" aria-hidden />}
           title="Log each dose"
-          body="Tap a compound's + to log it. Trackd advances your rotation to the next site and keeps two compounds off the same spot on the same day."
+          body="Tap a compound's + to log it. For injectables, choose the site on the body map — each shows how long since you last used it."
         />
       </ol>
 

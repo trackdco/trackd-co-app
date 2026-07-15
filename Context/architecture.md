@@ -124,7 +124,15 @@ stored.)
   migration only adds the `profiles.notifications_enabled` intent flag (no new
   table — still **24 tables**). `supabase/functions/send-push/` holds the Web Push
   sender Edge Function (Deno; excluded from the app's `tsconfig`/ESLint). See
-  **Push Notifications** below.
+  **Push Notifications** below. `supabase/sites/` holds the **Injection Site
+  Rework** (Spec 19, Step 1) data foundation — `001_injection_site_catalogue.sql`
+  (the read-only, coordinate-bearing `injection_sites` catalogue: the app's site
+  list promoted from `lib/home/siteCatalog.ts` to a table carrying route/side/aspect
+  + x/y map coordinates, seeded from `injection_sites.csv` via `build-sites-seed.mjs`
+  → the idempotent `002_seed_injection_sites.sql`, same CSV pipeline as the other
+  catalogues) and `003_injection_site_working_set.sql` (the per-user
+  `user_injection_sites` working set — a row-per-membership join, RLS + grants),
+  adding **two tables**. See **Injection Sites (Spec 19)** below.
 - `Context/` — The spec. Defines what to build (`project-overview.md`), how
   (`code-standards.md`, this file), the UI language (`ui-context.md`), the
   session rules (`ai-workflow-rules.md`), and current state (`progress-tracker.md`).
@@ -535,6 +543,88 @@ scheduling is Phase 2.
   `supabase/grants/002`) to read across founders. Verified end-to-end
   (cron `succeeded`, `200`, reminder delivered).
 
+## Injection Sites (Spec 19 — Injection Site Rework)
+
+A four-step rework replacing per-compound injection-site config with a shared,
+coordinate-bearing site catalogue + a per-user working set rendered on an
+anatomical body map. **The feature reports, it does not recommend** — it shows
+which sites are fresh and which are rested; it never suggests where to inject
+next, ranks sites, or warns (decision-support, not decision-making; Invariant 4).
+
+- **Step 1 — data foundation (BUILT, `supabase/sites/`).** The app's site list
+  (34 entries in `lib/home/siteCatalog.ts`) is promoted from free-standing TS data
+  to a read-only `injection_sites` **catalogue table** carrying the metadata the
+  body map needs: `route` (im/subq, reusing `admin_route`), `side`
+  (left/right/n_a), `aspect` (anterior/posterior — which silhouette), and `x`/`y`
+  **map coordinates** (0–100 normalized per silhouette, centreline x=50,
+  viewer-facing). Started at **32 sites**, now **36 (22 IM + 14 SubQ)** after Angus
+  added Traps + restored Ventroglute (`supabase/sites/005`, 2026-07-15). Every
+  existing site is preserved
+  (nothing renamed/merged — the glute stays TWO rows, `im-glute-*` + `sq-glute-*`,
+  one per route). (The ventrogluteal pair was dropped at Step 1 then **restored**
+  2026-07-15 along with Traps — see the 36-site note above.) Historical
+  `dose_logs.injection_site` (the untouched 13-value tracking enum) and
+  `protocol_compounds.rotation_sites` keep every logged value — the legacy list +
+  per-compound picker stay live until Step 3. The
+  catalogue is seeded from `injection_sites.csv` via `build-sites-seed.mjs` (the
+  same CSV → idempotent `ON CONFLICT` pipeline as compounds/biomarkers/markers).
+  `user_injection_sites` is the per-user **working set** — a row-per-membership
+  join (user → catalogue site; route derived from the catalogue, never stored),
+  RLS `(SELECT auth.uid()) = user_id` + explicit grants. Data access is
+  `lib/db/injectionSites.ts` (RLS-scoped, session identity; no screen consumes it
+  yet). **Compound route already resolves** for every compound via
+  `compounds.default_route` + `protocol_compounds.route` — no new route column was
+  needed; oral (`po`) compounds correctly get no map.
+- **Step 2 — site setup menu (BUILT).** `app/(app)/settings/sites/page.tsx` (a
+  standalone screen reached from a Settings row, no nav tab) renders
+  `components/sites/SitesScreen.tsx` (the two-mode screen — see Step 4): its **Set
+  up** mode is a route toggle (IM / Sub-Q) over the **shared body map**
+  (`components/sites/BodyMap.tsx`) in `select` mode, showing
+  **front and back silhouettes simultaneously**. Tapping a site toggles its
+  working-set membership (optimistic, reverts on a failed save) via
+  `lib/db/injectionSites.ts`. The body map is built ONCE here as a reusable
+  component with a `mode` prop (`select` / `pick` / `recency`) — Steps 3–4 render
+  the same one; it is purely presentational (parent supplies active ids /
+  sub-labels / heat, computes nothing). The silhouette
+  (`components/sites/BodySilhouette.tsx`) is a hand-authored anatomical SVG (single
+  flat token fill + muscle-group contour lines) drawn to the 0–100 catalogue grid,
+  so markers sit on the anatomy.
+- **Step 3 — log-flow cutover + removal of per-compound sites (BUILT).** The dose
+  log sheet's "Injection site" section is now the shared `BodyMap` in `pick` mode,
+  drawn from the user's working set for the compound's route (lazy-loaded inside
+  the sheet like the vial list, so it barely ripples): opens on the compound's
+  route (switchable), each site carries its factual day-count ("2d"), one tap
+  writes `dose_logs.injection_site` (via the UNCHANGED device-siteId→enum map).
+  Oral compounds show no map; an empty working set falls back to the full catalogue
+  for that route + a setup nudge, and the dose always logs (never a gate). **Per-
+  compound injection-site configuration is removed** everywhere it was collected or
+  shown — the add-compound flow's rotation picker (`RotationPicker.tsx` deleted),
+  the compound detail sheet, the Today's-Log next-site + same-site "clash" warning,
+  the quick-track row, and the Protocol Plan row. `StackCompound.rotationSites`/
+  `rotation_index` + the `nextSiteId`/`advanceRotation`/`resolvedDaySite` helpers
+  are left **vestigial** (fields always `[]`, helpers uncalled) — no destructive
+  migration; the legacy `protocol_compounds.rotation_sites` data is inert and
+  cleared on a compound's next save. A one-time idempotent migration
+  (`supabase/sites/004`) seeded each user's working set from the union of their
+  configured `rotation_sites` (the retired `im-vglute-*` values had no catalogue
+  match and were skipped/reported). `dose_logs.injection_site` (the enum) + all
+  logged history are untouched (Invariant 8).
+- **Step 4 — rotation view (BUILT).** The `/settings/sites` screen is now
+  **two-mode** (`components/sites/SitesScreen.tsx`): a top **Set up / Rotation**
+  toggle over the same shared `BodyMap` + route toggle (no new nav tab). Rotation
+  renders the working set in `recency` mode — **amber shaded by days-since-last-use**
+  (full on the day of injection, one shade lighter per day via **opacity on
+  `--accent-amber`**, neutral/unfilled at the decay window's end), every site
+  labelled with its factual day-count ("today"/"2d"). Decay windows + heat are pure
+  helpers in `lib/home/siteRecency.ts` (**IM 7d / Sub-Q 5d**, `siteHeat`,
+  `siteDaysSince`). **Recency is derived at read time and nothing is stored**
+  (Invariant 1); to stay granular-accurate it reads the **device dose log's
+  `siteId`** (the coarse `dose_logs.injection_site` enum collapses many sites to
+  `other`) — the same source Step 3's day-counts use. It **reports, never
+  recommends**: no suggested-next-site, ranking, risk score, or warning icon (the
+  amber exception is documented in `ui-context.md`). **Spec 19 is now complete
+  (all 4 steps built); not yet deployed.**
+
 ## Auth and Access Model
 
 - Every user signs in via **Supabase Auth**, by either **Google OAuth** or
@@ -581,9 +671,12 @@ scheduling is Phase 2.
   user's RLS (a plain view runs as its owner and would leak every user's rows).
   **RLS verification must query the views and the storage bucket, not just the
   base tables.**
-- `compounds`, `biomarkers`, `markers`, and `reference_ranges` are read-only seed
-  catalogues: readable by all authenticated users, writable only by the service
-  role (no write policy ⇒ RLS denies all user writes).
+- `compounds`, `biomarkers`, `markers`, `reference_ranges`, and `injection_sites`
+  (Spec 19) are read-only seed catalogues: readable by all authenticated users,
+  writable only by the service role (no write policy ⇒ RLS denies all user writes).
+  `user_injection_sites` is a user-owned working-set table — authenticated full
+  DML, gated per-row by `(SELECT auth.uid()) = user_id` (verified live: account B
+  cannot read or write account A's set).
 - Feature entitlements read `profiles.tier` and nothing else. Beta defaults
   everyone to `'paid'`; post-trip, the Stripe webhook becomes the column's only
   writer and the default flips to `'free'`. Gating logic never changes.

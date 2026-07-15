@@ -6,7 +6,293 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-07-11
+Last updated: 2026-07-15
+
+## Spec 19 — Sub-Q body art + mirror-front convention — BUILT + migration 009 APPLIED LIVE (2026-07-15, Adrian + Claude)
+
+Follows the IM work below. **Sub-Q is now integrated exactly like IM** (region map, not
+dots) and the **front view was mirrored** so screen-left = the user's own left.
+
+- **Sub-Q artwork:** `components/sites/bodyArtworkSubQ.ts` (generated from
+  `Subq_front.svg` + `subq_back.svg`) — base + 14 region paths mapped to the Sub-Q
+  sites (abdomen side/lower, outer thigh upper/lower front; love-handle, glute,
+  back-of-arm back). Shares IM's transform (same canvas).
+- **Region maps for BOTH routes:** new `components/sites/bodyArtwork.ts` route selector
+  (`routeTransform/routeBasePaths/routeRegions`). `BodySilhouette` renders the base;
+  `BodyMap` overlays interactive regions for IM **and** Sub-Q. The Sub-Q dot `Marker`
+  and the placeholder silhouette are **removed**; `IM_MUSCLES_*`/`ImMuscle` renamed to
+  `*_REGIONS_*`/`BodyRegion`. Card `SitePreview` renders regions for both routes too.
+- **Mirror-front convention (Adrian's call, to fix "tap my left → logs right"):**
+  image-left region → the `-l` site on BOTH views (no per-view flip). Migration
+  **`009_mirror_front_and_subq_coords.sql`** swapped IM anterior L/R coords + set Sub-Q
+  coords to region centroids (idempotent, APPLIED LIVE via MCP). Rendering is region-
+  path driven now, so `injection_sites.x/y` is display metadata only.
+- Verified by render (IM front mirrored, Sub-Q front/back regions land right) →
+  `Context/Feature Specs/body-svg/_verify/`. `tsc` + `lint` clean; dashboard 200. NOT
+  committed / pushed to Vercel (migration 009 is live in the DB per the standing pattern).
+
+## Spec 19 — Body SVG integration (IM) + Front/Back pill toggle — BUILT + migration APPLIED LIVE (2026-07-15, Angus + Claude)
+
+Angus's hand-authored anatomical body SVGs (`Context/Feature Specs/body-svg/im_front.svg`
++ `im_back.svg`, native `0 0 1491 2109` viewBox) now drive the **IM** injection-site
+body map, replacing the hand-coded placeholder silhouette.
+
+- **`components/sites/bodyArtworkIM.ts`** (new, generated) — the sanitised path data:
+  stray Figma-frame `<rect>` dropped, baked `#2A2A28` fill stripped (fill is driven by
+  the `--bg-input` token in the component), plus `IM_ART_TRANSFORM`
+  (`translate(12.0465 -4.3425) scale(0.05074)`) mapping the native artwork onto the
+  shared 0–100 marker grid. Front + back share ONE frame (both authored at the same
+  scale — content bbox y0=125, h=1892 for each).
+- **`BodySilhouette.tsx`** now takes an optional `route`: `im` → Angus's anatomy,
+  anything else keeps the placeholder (Sub-Q until its art lands). `BodyMap` derives
+  route from its (single-route) `sites`, so no consumer/public-API change for that.
+- **Markers re-tuned to the new anatomy:** all 22 IM `x/y` remapped to the muscle-group
+  centroids Angus labelled in the SVG (delt/pec/bicep/quad_front/quad_outer/ventroglute
+  on front; trap/lat/tricep/glute/calf on back), computed by rendering each muscle path
+  with `sharp` + trim. Delts nudged up/out onto the shoulder cap, lats out onto the
+  lateral back. **Ventroglute moved to the anterior (front) view** where Angus drew it
+  (was posterior; dose-log enum unaffected). Verified by PNG render of silhouette + all
+  markers → `Context/Feature Specs/body-svg/_verify/`.
+- **`supabase/sites/injection_sites.csv`** re-tuned; `002` seed regenerated; migrations
+  **`007_retune_im_coords_body_svg.sql`** (centroid coords) + **`008_respace_crowded_im_markers.sql`**
+  both APPLIED LIVE via Supabase MCP. Sub-Q rows untouched.
+- **Tap-target fix (008):** an adversarial multi-agent review of a standalone sample
+  caught that 007's centroids put Outer-Quad/Front-Quad (~4.3 apart) and Tricep/Lat
+  (~6.4) inside each other's r=7 hit disc — the later-painted marker stole the tap, so
+  Outer-Quad was unreachable. This also affected the real app (`Marker` uses the same
+  r=7 hit circle). 008 nudges those 8 markers apart (still on-muscle) to the catalogue's
+  usual ≥~8-unit spacing. Verified by render.
+- **Shareable sample:** a self-contained claude.ai Artifact reproduces the IM map
+  (Front/Back pill toggle + tappable markers) from the exact same path data + coords +
+  inlined Geist/Playfair fonts, for eyeballing the look/toggle on a link.
+- **Front/Back pill toggle (new UX):** `BodyMap` now shows ONE view at a time with a
+  Front/Back segmented control (same style as the SitesScreen toggles) and a sliding
+  `translateX` transition — both panels stay mounted, only the visible one is
+  interactive / in the a11y tree, `motion-reduce` guarded. Replaces the side-by-side
+  layout across all three modes (setup / log / rotation). SitesScreen setup copy updated.
+- **Scope:** IM only. Sub-Q silhouette stays the placeholder pending its artwork.
+  `tsc` + `lint` + `build` clean. NOT committed/deployed to Vercel (migration 007 is live
+  in the DB per the standing Spec 19 pattern; the git push is Angus's call).
+
+## Splash double "come-up" fixed — removed the in-app overlay (2026-07-15, Adrian + Claude)
+
+Adrian reported Kyle "came up" twice on an installed-PWA launch: the native iOS
+launch image (Kyle) → the app briefly paints → then a full-screen React overlay
+covered it with Kyle **again** before fading. Two separate splash mechanisms were
+both showing Kyle. Fix: **deleted the in-app overlay** so the native launch image is
+the single come-up.
+
+- Removed `app/_components/splash-screen.tsx` (deleted) and its mount/import in
+  `app/layout.tsx`. The `apple-touch-startup-image` PNGs (`AppleSplashLinks`) are now
+  the only splash — iOS holds Kyle from cold launch until the app paints, then hands
+  off to the near-black (#111110) canvas. `tsc` clean.
+- Left untouched: the launch-image PNGs, and the SW poster precache
+  (`SPLASH_ASSETS`/`trackd-kyle-vial-splash-poster.jpg` in `public/sw.js`) — now
+  orphaned/harmless (the poster is no longer rendered by any UI). Can be pruned later
+  if we want to trim the SW to Web Push only. NOT committed/deployed.
+
+## Spec 19 — Catalogue expanded to 36 sites (Traps + Ventroglute) — APPLIED LIVE (2026-07-15, Angus + Claude)
+
+Angus's call after reviewing the list: **add Traps** (a common IM spot-injection site
+that was missing) and **restore Ventroglute** (the medically-safest IM site, dropped
+in Step 1). Now **36 sites (22 IM + 14 SubQ)**. `tsc` + lint clean.
+
+- `injection_sites.csv` + regenerated `002` seed; migration
+  `supabase/sites/005_add_traps_ventroglute.sql` (applied live, idempotent) inserts
+  `im-vglute-r/l` (posterior, upper-outer hip, x 64/36 y 51) + `im-trap-r/l`
+  (posterior, upper back, x 57/43 y 19).
+- `006_rebackfill_working_set.sql` (applied live) re-ran the Step-3 backfill; now that
+  ventroglute is back in the catalogue it matched the 4 users who had it configured →
+  **8 ventroglute memberships** seeded. Traps → enum `other` on dose_logs (like the
+  other spot sites); ventroglute maps to the existing `ventroglute_*` enum.
+- `lib/home/siteCatalog.ts` gained the Trap labels so the log-sheet "Logging to …"
+  confirmation resolves them (Ventroglute was already there).
+- The phone **preview artifact** was updated to the 36 sites + a third **Rotation**
+  mode (amber recency ramp), re-published to the same URL.
+
+## Spec 19 — Injection Site Rework, Step 4 (rotation view) — BUILT + verified; FEATURE COMPLETE (all 4 steps) (2026-07-15, Angus + Claude)
+
+The last step: a view of the working set on the body map, amber-shaded by recency,
+so the user can see what's fresh and rotate off it themselves. **It reports, it does
+not recommend** — no next-site, ranking, risk score, or warning. `tsc` + `eslint` +
+`next build` all clean; the recency heat-ramp PNG-verified. NOT committed/deployed.
+
+- **Two-mode screen, no new nav tab.** `/settings/sites` now renders
+  `components/sites/SitesScreen.tsx` with a top **Set up / Rotation** toggle over the
+  SAME shared `BodyMap` + route toggle (replaced the single-purpose
+  `SiteSetupScreen.tsx`, deleted). Set up = the Step 2 picker; Rotation = the new
+  recency view.
+- **Recency, derived + never stored** (`lib/home/siteRecency.ts`, pure helpers):
+  `siteDaysSince(logs, todayKey)` (most-recent use INCLUDING today = 0),
+  `siteHeat(daysSince, route)` = `clamp(1 − d/W, 0, 1)`, and the decay windows
+  **`IM_DECAY_DAYS = 7` / `SUBQ_DECAY_DAYS = 5`** (the ONE place; tuned on feel).
+  The `BodyMap` `recency` mode shades amber by heat (opacity on `--accent-amber`),
+  full on the day of injection → one shade lighter per day → **unfilled** at the
+  window's end; every site shows its factual day-count ("today"/"2d"), a
+  never-used/rested site reads as **unfilled + its count** (never "safe"/"ready").
+- **Source = the device dose log's granular `siteId`** (not the coarse
+  `dose_logs.injection_site` enum, which collapses bicep/tricep/lat/pec/calf/thigh/
+  arm to `other`) — the same source Step 3's day-counts use, so the numbers match.
+  `SitesScreen` reads it via `useSyncExternalStore` (device-local; graceful empty
+  state before hydration). Nothing recency/freshness is stored (Invariant 1).
+- **The sanctioned amber exception is documented** in `ui-context.md` (a new
+  "Injection-site recency ramp" subsection): it's behavioural recency, not a health
+  reading; the day-count text keeps it factual; the ramp is opacity on
+  `--accent-amber` (no discrete ramp token, no hardcoded hex).
+- **Checklist:** amber shading by days-since across 7d/5d ✓; every site shows a
+  day-count ✓; route toggle + front/back both visible ✓; no warning language/icon/
+  risk score/ranking/suggested-next-site ✓; no recency value stored ✓; tokens only,
+  no hex ✓; no new nav tab / TS / lint errors ✓.
+- **Heads-up (memory):** Angus is making an anatomical **body SVG** to drop into
+  `BodySilhouette.tsx` — the placeholder is intentionally not over-polished; the
+  shared `BodyMap` + 0–100 coordinate grid stay unchanged when it lands.
+- **Docs:** `ui-context.md` (amber ramp), `architecture.md` (Step 4 built + Spec 19
+  complete).
+
+## Spec 19 — Injection Site Rework, Step 3 (log-flow cutover + removal of per-compound sites) — BUILT + migration APPLIED LIVE + verified (2026-07-11, Angus + Claude)
+
+The dose-log flow now picks the injection site on the shared body map (drawn from
+the user's working set), and **per-compound injection-site configuration is removed
+across the whole app**. `tsc` + `eslint` + `next build` all clean; the body-map
+pick surface PNG-verified; the backfill migration applied live + idempotency
+confirmed. NOT committed/deployed. **On-device QA of the live log flow is the
+founder's final check** (can't drive the authed client + localStorage here).
+
+- **Part A — backfill migration** (`supabase/sites/004_backfill_working_set.sql`,
+  applied live): seeded each user's `user_injection_sites` from the union of every
+  site configured across their compounds (`protocol_compounds.rotation_sites`),
+  filtered to catalogue matches. **66 rows across 16 users; re-run adds 0**
+  (idempotent). The ONLY unmatched values were the retired `im-vglute-l/-r` (4
+  users) — reported, not guessed; those users add other sites in the setup menu.
+- **Part B — log-flow cutover** (`LogDoseSheet.tsx`): the "Injection site" section
+  is the shared `BodyMap` in `pick` mode. It **lazy-loads** the catalogue + working
+  set inside the sheet (same idiom as the vial list) so the change barely rippled
+  through the hosts. Route toggle defaults to the compound's route (IM/Sub-Q,
+  switchable); each shown site carries its factual day-count ("2d") from the
+  existing device-derived `siteLastUsedDays`; one tap sets the site. **Oral → no
+  map. Empty working set → the full catalogue for that route + a "Set up your sites"
+  nudge, and the dose still logs** (never a gate). The chosen `siteId` rides the
+  UNCHANGED device→Postgres path (`pushProtocolDoseLog` → `localSiteToInjectionSite`
+  → `dose_logs.injection_site`), so persistence/read-back is preserved.
+- **Part C — surgical removal** (Angus's call: remove BOTH the Today's-Log inline
+  next-site and the same-site clash warning). Dropped: the add-compound rotation
+  picker (`RotationPicker.tsx` **deleted**) + its "select a site" validation; the
+  compound detail sheet's rotation list; the Today's-Log `nextSiteLabel` + clash
+  notice (`TodaysCycleCard` `DueDose`/`hasClash` slimmed); the quick-track row's
+  site; the Protocol **Plan** row's next-site; and the `advanceRotation` calls in
+  both log hosts. New/edited compounds store `rotationSites: []`. `StackCompound`'s
+  rotation fields + the `nextSiteId`/`advanceRotation`/`resolvedDaySite`/
+  `hasRotation` helpers are left **vestigial** (uncalled) to avoid a stack.ts
+  refactor + a destructive migration — the legacy `rotation_sites` data is inert,
+  displayed nowhere, and cleared on a compound's next save. Copy updated
+  (`EmptyLogCard`, sheet descriptions).
+- **Files touched:** `LogDoseSheet`, `HomeScreen`, `QuickTrackSheet`,
+  `TodaysCycleCard`, `AddCompoundSheet`, `CompoundDetailSheet`, `PlanView`,
+  `EmptyLogCard` (+ `RotationPicker.tsx` deleted); `supabase/sites/004`.
+- **Checklist:** no compound asks for/shows a site anywhere ✓; injectable log shows
+  the working-set map opened on the compound's route ✓; oral shows none ✓; empty
+  set → full catalogue + nudge, still logs ✓; site persists to `dose_logs` + reads
+  back (unchanged path) ✓; existing sites migrated, re-run no dup ✓; no logged
+  history/catalogue lost ✓; no draw amount / stored derived value ✓; no new TS/lint
+  errors ✓.
+- **Known limitation flagged for Step 4:** the coarse `dose_logs.injection_site`
+  enum collapses many sites to `other`; granular recency will come from the device
+  `siteId`, not the enum.
+- **Docs:** `architecture.md` Injection Sites section updated (Step 3 built + the
+  Step-4 recency-source note).
+
+## Spec 19 — Injection Site Rework, Step 2 (site setup menu + shared body map) — BUILT + verified (2026-07-11, Angus + Claude)
+
+The standalone setup screen where a user builds their working set on a body map,
+per route. **No log flow / per-compound config touched** (that's Step 3). `tsc` +
+`eslint` + `next build` all clean. NOT committed/deployed.
+
+- **Shared body-map component (built once, reused by Steps 3–4).**
+  `components/sites/BodyMap.tsx` — presentational + interactive, a `mode` prop
+  (`select` / `pick` / `recency`); renders **front AND back silhouettes together**
+  and plots each catalogue site at its (x, y). The parent supplies active ids /
+  sub-labels / heat; the map computes no business logic. Marker states: `select` →
+  amber-filled (in set) vs hollow outline; `pick` → filled + white ring + a
+  day-count sub-label; `recency` → amber opacity = `heat` (0–1) + sub-label. Full
+  keyboard support (each marker a button, Enter/Space, focus ring, generous touch
+  target).
+- **The silhouette** (`components/sites/BodySilhouette.tsx`) — a hand-authored
+  anatomical SVG: filled masses (head, deltoid caps, tapered torso, wide hips,
+  tapered thighs, calves, feet) + round-capped arm strokes, all ONE flat token
+  fill (`--bg-input`) so they union seamlessly, plus muscle-group **contour lines**
+  (`--border-strong`) that swap per aspect (front: linea alba, pec fold, ab lines,
+  quad sweeps; back: spine, lats, glute crease, hamstrings, calves). Drawn to the
+  0–100 catalogue grid so markers sit on the anatomy. **Visually verified** by
+  rendering the exact geometry + all 32 markers to a PNG (via `sharp`): reads as a
+  clean anatomy chart (not a stick figure), every marker on its correct region.
+  Token-only (no hex).
+- **Setup screen** (`components/sites/SiteSetupScreen.tsx`, `"use client"`): route
+  segmented control (Intramuscular / Subcutaneous, the house idiom), the map, a
+  live "N sites selected" count + last-action notice. Optimistic toggle → persists
+  via `setWorkingSetSite` (RLS-scoped server action), reverts on failure. Copy notes
+  deselecting never changes logged doses. Reached from a new **Settings row**
+  (`app/(app)/settings/page.tsx`, Syringe icon → `/settings/sites`); page is
+  `force-dynamic` (per-user authed data — avoids a false static-prerender log).
+- **Live round-trip verified** (rolled-back txn, real `authenticated` role): add
+  two sites + re-add one → dedupes to the set (idempotent, no duplicate); remove
+  one → gone; the join read derives route from the catalogue. Plus the Step-1 RLS
+  isolation still holds.
+- **Checklist:** front+back shown together ✓; working set persists + reloads per
+  route ✓; deselect leaves dose logs untouched ✓; body map is a reusable
+  mode-prop component, not a one-off ✓; tokens/presets, no hex, no new nav tab ✓;
+  log flow + per-compound config unchanged ✓; no new TS/lint errors ✓.
+- **Follow-up:** on-device eyeball of the silhouette/marker feel is Angus's to
+  confirm; coordinates stay tunable (edit `injection_sites.csv` → re-seed).
+- **Docs:** `architecture.md` Injection Sites section updated (Step 2 built).
+
+## Spec 19 — Injection Site Rework, Step 1 (site catalogue + working set) — BUILT + migrations APPLIED LIVE + verified (2026-07-11, Angus + Claude)
+
+Data foundation for the injection-site rework: the app's site list is promoted from
+free-standing TS to a read-only, coordinate-bearing **catalogue table**, plus a
+per-user **working-set** table and its data-access layer. **No screens changed**
+(spec Step 1 scope). `tsc` + `eslint` + `next build` all clean. Migrations recorded
+in `supabase/sites/`. NOT committed/deployed yet.
+
+- **Preflight (bound to the live schema, per spec).** Confirmed the site "list" is
+  the 34-entry TS catalogue in `lib/home/siteCatalog.ts` (feeds the per-compound
+  rotation picker + `protocol_compounds.rotation_sites text[]`), distinct from the
+  coarser 13-value `dose_logs.injection_site` **enum** (the untouched tracking
+  layer; 34→13 map already in `lib/db/types.ts`). **Compound route already
+  resolves** — `compounds.default_route` is populated for all 205 compounds +
+  `protocol_compounds.route` per row, so no new route column was needed (oral =
+  no map). All live `rotation_sites` values fall within the catalogue (no stale
+  ids); all logged enum values map cleanly.
+- **Angus's calls on the ambiguities I surfaced (didn't guess, per spec):**
+  (1) glute kept as TWO rows — `im-glute-*` + `sq-glute-*`, one per route (nothing
+  renamed/merged); (2) **ventrogluteal removed** from the new catalogue ("we already
+  have glutes") — the one deliberate deviation from "nothing dropped", historical
+  data untouched so nothing is lost; (3) love-handle → back (posterior), delt →
+  front (anterior). Net **32 sites** (18 IM + 14 SubQ; 18 anterior + 14 posterior).
+- **Catalogue** (`injection_sites`, `supabase/sites/001` + seeded by `002`): `id`
+  (stable code, e.g. `im-glute-r`), `label`, `route` (`admin_route`, CHECK im/subq),
+  `side`, `aspect`, `x`/`y` (0–100 normalized per silhouette, centreline x=50,
+  viewer-facing — Step 2's SVG is drawn to this grid), `sort_order`. Read-only under
+  RLS (authenticated SELECT via `USING(true)`, no write policy, explicit grant) —
+  same posture as compounds/biomarkers/markers. Seeded from `injection_sites.csv`
+  via new `build-sites-seed.mjs` (same CSV → idempotent `ON CONFLICT (id)` pipeline).
+- **Working set** (`user_injection_sites`, `supabase/sites/003`): row-per-membership
+  join (`user_id` → `site_id`), UNIQUE `(user_id, site_id)`, RLS
+  `(SELECT auth.uid()) = user_id` + explicit `authenticated` DML grant + index.
+  Route is DERIVED from the catalogue join, never stored (a site id is 1:1 with a
+  route). Data access: new `lib/db/injectionSites.ts` (`"use server"`, RLS-scoped,
+  session identity; catalogue read + working-set read/add/remove/toggle). Types in
+  `lib/db/types.ts`.
+- **Live verification (rolled-back transactions, real `authenticated` role + JWT
+  claims, zero prod residue):** catalogue = 32 rows, 0 ventroglute, x∈26–74 /
+  y∈21–86 (in range). RLS isolation — account A added a site (sees 1); **account B
+  saw 0 total and 0 of A's** (cannot read A's set). Write defenses — a user INSERT
+  into `injection_sites` is **denied** (read-only), and B inserting a row owned by A
+  is **denied** by WITH CHECK.
+- **Untouched (spec Step 1 scope):** `dose_logs.injection_site`, the per-compound
+  site config + `siteCatalog.ts` picker, and every screen/component/route/nav entry.
+- **Docs:** `architecture.md` gained a **Injection Sites (Spec 19)** section +
+  System-Boundaries `supabase/sites/` entry + the read-only-catalogue / working-set
+  access notes.
 
 ## Enable-notifications prompt — persistent banner, top of Home (2026-07-11, Adrian + Claude)
 

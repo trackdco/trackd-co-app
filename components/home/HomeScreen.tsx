@@ -13,6 +13,8 @@ import { HomeGreeting } from "@/components/home/HomeGreeting"
 import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
 import { WeightGlanceCard } from "@/components/home/WeightGlanceCard"
+import { InjectionSitesGlanceCard } from "@/components/home/InjectionSitesGlanceCard"
+import { InjectionSitesSheet } from "@/components/home/InjectionSitesSheet"
 import { ProgressPhotoSection } from "@/components/progress/ProgressPhotoSection"
 import { ReconCalcCard } from "@/components/home/ReconCalcCard"
 import { ReconCalculatorSheet } from "@/components/home/ReconCalculatorSheet"
@@ -21,9 +23,9 @@ import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import type { WeightUnit } from "@/lib/weight"
 import type { ProgressPhoto } from "@/lib/progress/photos"
+import type { InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
 import {
   dateKeyToDate,
-  resolveDateKey,
   seedStack,
   toDateKey,
   type DateKey,
@@ -31,17 +33,14 @@ import {
   type DoseLog,
 } from "@/lib/home/mockHomeData"
 import {
-  advanceRotation,
   archiveInStack,
   getStackSnapshot,
   isDueOn,
   loadStack,
   notifyStackChanged,
   removeFromStack,
-  resolvedDaySite,
   saveStack,
   subscribeStack,
-  upsertStack,
   type StackCompound,
 } from "@/lib/home/stack"
 import {
@@ -52,7 +51,6 @@ import {
   unlogDose,
   type DayLogs,
 } from "@/lib/home/doseLog"
-import { siteLabel } from "@/lib/home/siteCatalog"
 
 const WEEKDAYS = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
@@ -64,7 +62,6 @@ const MONTHS = [
 
 // Stable empty-logs reference for useSyncExternalStore's server snapshot.
 const EMPTY_LOGS: DayLogs = {}
-const CONSISTENCY_DAYS = 30
 
 function dayLabel(key: DateKey): string {
   const d = dateKeyToDate(key)
@@ -101,7 +98,7 @@ function computeNextDose(
  * Home / Dashboard. A pinned header (a sans "Dashboard" title + the selected
  * day's date + the week strip) over scrolling cards (Today's Log → Reconstitution
  * Calculator). Selecting a day re-scopes the content and the date; logging a dose
- * flips that day's entry so the week dot and Consistency strip update, and
+ * flips that day's entry so the week dot updates, and
  * advances that compound's injection-site rotation. The stack + dose logs are
  * device-local; weight lives on its own view now (the + menu's Weight tile).
  *
@@ -119,6 +116,7 @@ export function HomeScreen({
   unit,
   firstName,
   progressPhotos,
+  injectionCatalogue,
   notificationsBanner,
 }: {
   todayKey: DateKey
@@ -132,6 +130,8 @@ export function HomeScreen({
   firstName: string | null
   /** Latest progress photos (newest first) for the Home glance peek. */
   progressPhotos: ProgressPhoto[]
+  /** Injection-site catalogue (both routes) for the glance card + menu. */
+  injectionCatalogue: InjectionSiteRow[]
   /** Slim "Enable notifications" prompt, rendered above Today's Log. Self-hides
    *  (renders null) when there's nothing to do, so it never leaves a gap. */
   notificationsBanner?: ReactNode
@@ -151,12 +151,14 @@ export function HomeScreen({
   const [logTarget, setLogTarget] = useState<{
     compound: StackCompound
     existing: DoseLog | null
-    /** This compound's real next site to preselect (no auto-dodge). */
-    preselectSiteId: string | null
-    /** Sites OTHER compounds land on today — flagged (not blocked) in the sheet. */
-    usedByOtherIds: string[]
   } | null>(null)
   const [reconOpen, setReconOpen] = useState(false)
+  // Injection-site map (opened from the glance card) — a read-only view of the
+  // rotation derived from the dose log. `mirrorTip` shows a one-time note that the
+  // front view is mirrored, decided on the first-ever open (event-driven, so no
+  // setState-in-effect).
+  const [sitesOpen, setSitesOpen] = useState(false)
+  const [mirrorTip, setMirrorTip] = useState(false)
   // Tapping a compound opens its detail; "Edit" from there opens the add sheet.
   const [detailTarget, setDetailTarget] = useState<StackCompound | null>(null)
   const [editTarget, setEditTarget] = useState<StackCompound | null>(null)
@@ -281,20 +283,6 @@ export function HomeScreen({
     return "partial"
   }
 
-  // The earliest start date across the stack = "day one". The consistency strip
-  // is clamped to start there, so nothing renders before the protocol began (A7).
-  const earliestStartKey = useMemo(() => {
-    const keys = stack
-      .map((c) => c.schedule.startDate)
-      .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
-    return keys.length ? keys.reduce((a, b) => (a < b ? a : b)) : null
-  }, [stack])
-
-  const consistencyItems = Array.from({ length: CONSISTENCY_DAYS }, (_, i) => {
-    const key = resolveDateKey(today, CONSISTENCY_DAYS - 1 - i)
-    return { key, status: statusOf(key) }
-  }).filter((item) => !earliestStartKey || item.key >= earliestStartKey)
-
   // Today's completion for the greeting line — always TODAY (not the selected
   // day): active compounds due today vs how many already have a log today.
   const todayDue = activeStack.filter((c) => isDueOn(c.schedule, today))
@@ -303,8 +291,8 @@ export function HomeScreen({
   const loggedToday = todayDue.filter((c) => todayLogs[c.id]).length
 
   // Selected day's list: anything LOGGED that day (history — kept even after a
-  // compound is archived) plus active compounds due that day. Each shows its REAL
-  // next site (no auto-dodge); we OBSERVE clashes and flag them (the user decides).
+  // compound is archived) plus active compounds due that day. The injection site
+  // is chosen in the log sheet's body map (Spec 19), not per compound here.
   const isToday = selectedKey === todayKey
   const selectedDate = dateKeyToDate(selectedKey)
   const selectedRows = logs[selectedKey] ?? {}
@@ -313,40 +301,10 @@ export function HomeScreen({
       ? true
       : !c.archived && isDueOn(c.schedule, selectedDate)
   )
-  // Each injectable's resolved site for the day (logged site, else its next).
-  const resolvedById: Record<string, string | null> = {}
-  for (const c of dueCompounds) {
-    resolvedById[c.id] = resolvedDaySite(c, selectedRows[c.id]?.siteId ?? null)
-  }
-  // Sites two or more compounds both land on today = a clash.
-  const siteCount: Record<string, number> = {}
-  for (const s of Object.values(resolvedById)) {
-    if (s) siteCount[s] = (siteCount[s] ?? 0) + 1
-  }
-  const clashSites = new Set(
-    Object.entries(siteCount)
-      .filter(([, n]) => n >= 2)
-      .map(([s]) => s)
-  )
-  const hasClash = clashSites.size > 0
-  // Sites used by OTHER due compounds (for the log sheet's free-alternates list).
-  const usedByOtherIds = (compoundId: string): string[] => {
-    const out: string[] = []
-    for (const c of dueCompounds) {
-      const s = resolvedById[c.id]
-      if (c.id !== compoundId && s) out.push(s)
-    }
-    return out
-  }
-  const dueDoses = dueCompounds.map((c) => {
-    const site = resolvedById[c.id]
-    return {
-      ...c,
-      log: selectedRows[c.id] ?? null,
-      nextSiteLabel: site ? siteLabel(site) : null,
-      clash: site != null && clashSites.has(site),
-    }
-  })
+  const dueDoses = dueCompounds.map((c) => ({
+    ...c,
+    log: selectedRows[c.id] ?? null,
+  }))
 
   // Days since each site was last logged (on any earlier day) — powers the log
   // sheet's "last used here" rest hint. Fills in as the user logs over time.
@@ -364,25 +322,49 @@ export function HomeScreen({
     }
   }
 
+  // Last few injectable doses (compound + site + days-ago), newest first, for the
+  // Injection-sites card's "Last logged" strip. Injectable (IM / Sub-Q) only; an
+  // archived/deleted compound's history is skipped (no name to show).
+  const todayN = Math.floor(dateKeyToDate(todayKey).getTime() / 86_400_000)
+  const recentInjectionLogs: {
+    compound: string
+    siteLabel: string | null
+    route: InjectionSiteRoute
+    daysAgo: number
+    sortKey: string
+  }[] = []
+  for (const [key, dayLogObj] of Object.entries(logs)) {
+    if (key > todayKey) continue
+    const ago = todayN - Math.floor(dateKeyToDate(key).getTime() / 86_400_000)
+    if (ago < 0) continue
+    for (const [compoundId, log] of Object.entries(dayLogObj)) {
+      const c = stack.find((s) => s.id === compoundId)
+      const route =
+        c?.method === "im" ? "im" : c?.method === "subq" ? "subq" : null
+      if (!c || !route) continue
+      const site = log.siteId
+        ? injectionCatalogue.find((s) => s.id === log.siteId)
+        : null
+      recentInjectionLogs.push({
+        compound: c.name,
+        siteLabel: site?.label ?? null,
+        route,
+        daysAgo: ago,
+        sortKey: `${key}T${log.time24 ?? "00:00"}`,
+      })
+    }
+  }
+  recentInjectionLogs.sort((a, b) => (a.sortKey < b.sortKey ? 1 : -1))
+
   const cycleTitle = isToday
     ? "Today's Log"
     : `${WEEKDAYS[selectedDate.getDay()]}'s Log`
 
   function handleTracked(compoundId: string, log: DoseLog) {
     logDose(userId, selectedKey, compoundId, log)
-    // Logging advances THIS compound's rotation to the slot after the site
-    // actually logged (§3.7); each compound's cycle is independent. Routed
-    // through upsertStack so the advance persists locally AND mirrors to the
-    // cloud (notify re-syncs the store and any sibling).
-    if (log.siteId) {
-      const current = loadStack(userId) ?? seedStack
-      const target = current.find((c) => c.id === compoundId)
-      if (target) upsertStack(userId, advanceRotation(target, log.siteId))
-    }
   }
 
-  // Undo a logged dose — removes its entry. The rotation pointer is left where it
-  // is (advancing is a logging-only action).
+  // Undo a logged dose — removes its entry.
   function handleRemove(compoundId: string) {
     unlogDose(userId, selectedKey, compoundId)
   }
@@ -447,16 +429,8 @@ export function HomeScreen({
               countdown={countdown}
               nextDoseName={nextDose?.name ?? ""}
               dueDoses={dueDoses}
-              hasClash={hasClash}
-              consistencyItems={consistencyItems}
-              todayKey={todayKey}
               onLog={(dose) =>
-                setLogTarget({
-                  compound: dose,
-                  existing: null,
-                  preselectSiteId: resolvedById[dose.id] ?? null,
-                  usedByOtherIds: usedByOtherIds(dose.id),
-                })
+                setLogTarget({ compound: dose, existing: null })
               }
               onUnlog={(dose) => handleRemove(dose.id)}
               onOpenDetail={(dose) => setDetailTarget(dose)}
@@ -471,6 +445,27 @@ export function HomeScreen({
             series={weight}
             unit={unit}
             onOpenDetail={() => router.push("/weight")}
+          />
+        </div>
+
+        {/* Injection sites — the muscle map at a glance (IM / Sub-Q); tap to choose
+            your sites or see where you last pinned. */}
+        <div className="animate-home-up" style={{ animationDelay: "175ms" }}>
+          <InjectionSitesGlanceCard
+            catalogue={injectionCatalogue}
+            daysSince={siteLastUsedDays}
+            recentLogs={recentInjectionLogs}
+            onOpen={() => {
+              setSitesOpen(true)
+              try {
+                const seen = localStorage.getItem("trackd-injsites-mirror-seen")
+                setMirrorTip(!seen)
+                if (!seen)
+                  localStorage.setItem("trackd-injsites-mirror-seen", "1")
+              } catch {
+                setMirrorTip(false)
+              }
+            }}
           />
         </div>
 
@@ -497,8 +492,6 @@ export function HomeScreen({
         open={logTarget !== null}
         compound={logTarget?.compound ?? null}
         existing={logTarget?.existing ?? null}
-        preselectSiteId={logTarget?.preselectSiteId ?? null}
-        usedByOtherIds={logTarget?.usedByOtherIds ?? []}
         siteLastUsedDays={siteLastUsedDays}
         onOpenChange={(open) => {
           if (!open) setLogTarget(null)
@@ -524,8 +517,6 @@ export function HomeScreen({
           setLogTarget({
             compound: c,
             existing: selectedRows[c.id] ?? null,
-            preselectSiteId: selectedRows[c.id]?.siteId ?? resolvedById[c.id] ?? null,
-            usedByOtherIds: usedByOtherIds(c.id),
           })
         }}
         onEdit={(c) => {
@@ -552,6 +543,15 @@ export function HomeScreen({
 
       {/* The real reconstitution calculator (A8) — opened from the home card. */}
       <ReconCalculatorSheet open={reconOpen} onOpenChange={setReconOpen} />
+
+      {/* Injection-site menu — choose your sites / see where you last pinned. */}
+      <InjectionSitesSheet
+        open={sitesOpen}
+        onOpenChange={setSitesOpen}
+        catalogue={injectionCatalogue}
+        daysSince={siteLastUsedDays}
+        showMirrorTip={mirrorTip}
+      />
     </>
   )
 }

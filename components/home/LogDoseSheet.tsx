@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Check } from "lucide-react"
+import { Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -20,12 +20,14 @@ import type { DoseLog } from "@/lib/home/mockHomeData"
 import {
   formatTimeLabel,
   isInjectable,
-  nextSiteId,
   sanitizeDoseInput,
   type StackCompound,
 } from "@/lib/home/stack"
-import { siteLabel, sitesForMethod } from "@/lib/home/siteCatalog"
+import { siteLabel } from "@/lib/home/siteCatalog"
 import { listStock, type StockItem } from "@/lib/db/inventory"
+import { BodyMap } from "@/components/sites/BodyMap"
+import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites"
+import type { InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
 
 interface LogDoseSheetProps {
   open: boolean
@@ -33,11 +35,7 @@ interface LogDoseSheetProps {
   compound: StackCompound | null
   /** The existing log when editing an already-logged dose; null = fresh log. */
   existing: DoseLog | null
-  /** This compound's real next site to preselect (no auto-dodge). */
-  preselectSiteId: string | null
-  /** Sites OTHER compounds land on today — flagged (not blocked). */
-  usedByOtherIds: string[]
-  /** Days since each site was last logged on an earlier day — the rest hint. */
+  /** Days since each site was last logged on an earlier day — the map's day-count. */
   siteLastUsedDays: Record<string, number>
   onOpenChange: (open: boolean) => void
   /** Commit the log (fresh or edited) — marks the dose logged upstream. */
@@ -53,11 +51,10 @@ const SUCCESS_MS = 1200
 
 /**
  * The bottom sheet the row "+" (or a logged tick) opens: a pre-filled, editable
- * amount, injection time, and — for injectables — the site. The site selector is
- * limited to THIS compound's own rotation sites, with its next site preselected;
- * confirming advances that compound's pointer upstream. "Track"/"Update" shows a
- * brief full-bleed green tick (auto-dismiss ~1.2s or on tap) then commits; in
- * edit mode a "Remove dose" undoes it.
+ * amount, injection time, and — for injectables — the site, chosen on the shared
+ * body map (Spec 19) drawn from the user's working set for this compound's route.
+ * "Track"/"Update" shows a brief full-bleed green tick (auto-dismiss ~1.2s or on
+ * tap) then commits; in edit mode a "Remove dose" undoes it.
  *
  * The body is keyed by compound id and re-mounts on each open, so it always
  * reflects the current compound/existing log (no setState-in-effect resets).
@@ -66,8 +63,6 @@ export function LogDoseSheet({
   open,
   compound,
   existing,
-  preselectSiteId,
-  usedByOtherIds,
   siteLastUsedDays,
   onOpenChange,
   onTracked,
@@ -79,16 +74,12 @@ export function LogDoseSheet({
   const [shown, setShown] = useState<{
     compound: StackCompound
     existing: DoseLog | null
-    preselectSiteId: string | null
-    usedByOtherIds: string[]
-  } | null>(
-    compound ? { compound, existing, preselectSiteId, usedByOtherIds } : null
-  )
+  } | null>(compound ? { compound, existing } : null)
   if (
     compound !== null &&
     (compound !== shown?.compound || existing !== shown?.existing)
   ) {
-    setShown({ compound, existing, preselectSiteId, usedByOtherIds })
+    setShown({ compound, existing })
   }
 
   return (
@@ -103,8 +94,6 @@ export function LogDoseSheet({
             key={shown.compound.id}
             compound={shown.compound}
             existing={shown.existing}
-            preselectSiteId={shown.preselectSiteId}
-            usedByOtherIds={shown.usedByOtherIds}
             siteLastUsedDays={siteLastUsedDays}
             onClose={() => onOpenChange(false)}
             onTracked={onTracked}
@@ -118,9 +107,6 @@ export function LogDoseSheet({
 
 // Re-using a spot sooner than this (days) gets a gentle amber rest flag.
 const REST_DAYS = 7
-// How many free alternate spots to show before the "See more" reveal, so the
-// clash notice stays short instead of dumping every catalogue site at once.
-const FREE_PREVIEW = 4
 
 /** Local "HH:MM" for the time field / committed log. */
 function toHHMM(d: Date): string {
@@ -137,8 +123,6 @@ function toHHMMSS(d: Date): string {
 function LogDoseBody({
   compound,
   existing,
-  preselectSiteId,
-  usedByOtherIds,
   siteLastUsedDays,
   onClose,
   onTracked,
@@ -146,8 +130,6 @@ function LogDoseBody({
 }: {
   compound: StackCompound
   existing: DoseLog | null
-  preselectSiteId: string | null
-  usedByOtherIds: string[]
   siteLastUsedDays: Record<string, number>
   onClose: () => void
   onTracked: (compoundId: string, log: DoseLog) => void
@@ -155,27 +137,6 @@ function LogDoseBody({
 }) {
   const editing = existing !== null
   const injectable = isInjectable(compound.method)
-  // The selector is limited to this compound's own sites, IN CYCLE ORDER.
-  const rotationSites = compound.rotationSites.map((id) => ({
-    id,
-    label: siteLabel(id),
-  }))
-  const hasRotation = injectable && rotationSites.length > 0
-  const rotationSet = new Set(compound.rotationSites)
-  // Sites OTHER compounds land on today. These are FLAGGED, never blocked — the
-  // user can still pick them; it's their decision (tracking, not coaching).
-  const usedByOthers = new Set(usedByOtherIds)
-  // Preselect this compound's real next site (no auto-dodge).
-  const defaultSite = hasRotation
-    ? preselectSiteId ?? nextSiteId(compound) ?? rotationSites[0]?.id ?? null
-    : null
-  // Free spots elsewhere in the catalogue (not in the rotation, not used today) —
-  // offered if the user would rather keep injections apart, for that day only.
-  const freeSpots = hasRotation
-    ? sitesForMethod(compound.method).filter(
-        (s) => !usedByOthers.has(s.id) && !rotationSet.has(s.id)
-      )
-    : []
 
   const cardRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startY: number; height: number } | null>(null)
@@ -206,9 +167,34 @@ function LogDoseBody({
   const liveTracking = manualTime === null
   const displayTime = manualTime ?? toHHMM(now)
 
-  const [siteId, setSiteId] = useState<string | null>(
-    existing?.siteId ?? defaultSite
+  const [siteId, setSiteId] = useState<string | null>(existing?.siteId ?? null)
+
+  // Injection-site body map (Spec 19): the full site catalogue for this compound's
+  // route, lazily loaded like the vials below (so this stays localised to the
+  // sheet). One tap picks where you injected — every site is available. The map
+  // opens on the compound's route; the user may switch. Oral compounds skip it.
+  const [catalogue, setCatalogue] = useState<InjectionSiteRow[]>([])
+  const [loadingSites, setLoadingSites] = useState(injectable)
+  const [mapRoute, setMapRoute] = useState<InjectionSiteRoute>(
+    compound.method === "subq" ? "subq" : "im"
   )
+  useEffect(() => {
+    if (!injectable) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const cat = await listInjectionSiteCatalogue()
+        if (!cancelled) setCatalogue(cat)
+      } catch {
+        if (!cancelled) setCatalogue([])
+      } finally {
+        if (!cancelled) setLoadingSites(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [injectable])
 
   // Vials of THIS compound the dose can draw from, so its "stock left" decrements.
   // Only family-compatible ones (mg-tracked vial ↔ mg/mcg dose; iu ↔ iu) — the DB
@@ -251,19 +237,18 @@ function LogDoseBody({
   }, [compound.id, compound.unit, existing])
 
   const [tracked, setTracked] = useState(false)
-  // The clash notice shows a few free spots first; "See more" reveals the rest.
-  const [showAllFree, setShowAllFree] = useState(false)
 
-  // The chosen site is also used by another compound today (a flagged clash).
-  const selectedClashes =
-    hasRotation && siteId != null && usedByOthers.has(siteId)
+  // Sites to show on the map: the full catalogue for the current route — pick any.
+  // The day-count for the picked spot is shown in the caption below (never on the
+  // muscle itself).
+  const sitesToShow = catalogue.filter((s) => s.route === mapRoute)
 
   function buildLog(): DoseLog {
     // Evaluate the time at SUBMIT: a manual override wins, otherwise the live
     // clock right now (A4).
     return {
       amount,
-      siteId: hasRotation ? siteId : null,
+      siteId: injectable ? siteId : null,
       time24: manualTime ?? toHHMM(new Date()),
       inventoryItemId,
     }
@@ -423,143 +408,85 @@ function LogDoseBody({
           )}
         </p>
 
-        {/* Injection site — this compound's own rotation (real next preselected,
-            no auto-dodge). A site another compound also lands on today is FLAGGED
-            (amber dot), never blocked. If the selected site clashes, free spots
-            are offered for that day — keep it or switch, the user's choice. */}
-        {hasRotation && (
+        {/* Injection site — the shared body map (Spec 19), the full catalogue for
+            this compound's route. One tap picks where you injected; each carries its
+            day-count. Opens on the compound's route (switchable). Oral compounds show
+            nothing; picking a site is optional (the dose logs either way). */}
+        {injectable && (
           <div className="mt-5">
-            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-              Injection site
-            </span>
-
-            <div className="flex flex-wrap gap-2">
-              {rotationSites.map((site) => {
-                const active = site.id === siteId
-                const shared = usedByOthers.has(site.id)
-                return (
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-xs font-medium uppercase tracking-wider text-text-muted">
+                Injection site
+              </span>
+              <div
+                className="inline-flex rounded-full border border-border-default bg-bg-input p-0.5 text-xs"
+                role="group"
+                aria-label="Route"
+              >
+                {(["im", "subq"] as const).map((r) => (
                   <button
-                    key={site.id}
+                    key={r}
                     type="button"
-                    onClick={() => setSiteId(site.id)}
-                    aria-pressed={active}
-                    title={
-                      shared ? "Also used by another compound today" : undefined
-                    }
+                    onClick={() => setMapRoute(r)}
+                    aria-pressed={mapRoute === r}
                     className={cn(
-                      "relative rounded-full border px-3 py-1.5 font-mono text-sm transition-colors duration-200 ease-out",
-                      active
-                        ? "border-accent-amber bg-accent-amber/15 text-foreground"
-                        : shared
-                          ? "border-accent-amber/40 bg-accent-amber/5 text-text-muted"
-                          : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+                      "rounded-full px-3 py-1 font-medium transition-colors duration-200 ease-out",
+                      mapRoute === r
+                        ? "bg-bg-surface-raised text-foreground"
+                        : "text-text-muted"
                     )}
                   >
-                    {site.label}
-                    {shared && (
-                      <span
-                        aria-hidden
-                        className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-accent-amber"
-                      />
-                    )}
+                    {r === "im" ? "IM" : "Sub-Q"}
                   </button>
-                )
-              })}
+                ))}
+              </div>
             </div>
 
-            {/* Selected site clashes → offer free alternates for today (optional). */}
-            {selectedClashes && freeSpots.length > 0 && (
-              <div className="animate-shortcut-in mt-3 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle
-                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-amber"
-                    aria-hidden
-                  />
-                  <p className="text-xs leading-relaxed text-foreground">
-                    This site is also used by another compound today. These are
-                    free spots if you&apos;d rather keep them apart.{" "}
-                    <span className="text-text-muted">
-                      It&apos;s an observation, not advice. Where you inject is
-                      your choice.
-                    </span>
-                  </p>
-                </div>
-                <p className="mt-2.5 mb-1.5 text-[11px] font-medium tracking-wider text-text-muted uppercase">
-                  Free spots today
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {(showAllFree
-                    ? freeSpots
-                    : freeSpots.slice(0, FREE_PREVIEW)
-                  ).map((site) => {
-                    const active = site.id === siteId
-                    return (
-                      <button
-                        key={site.id}
-                        type="button"
-                        onClick={() => setSiteId(site.id)}
-                        aria-pressed={active}
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 font-mono text-sm transition-colors duration-200 ease-out",
-                          active
-                            ? "border-accent-amber bg-accent-amber/15 text-foreground"
-                            : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
-                        )}
-                      >
-                        {site.label}
-                      </button>
-                    )
-                  })}
-                </div>
-                {freeSpots.length > FREE_PREVIEW && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllFree((v) => !v)}
-                    className="mt-2 text-xs font-medium text-accent-amber transition-opacity hover:opacity-80"
-                  >
-                    {showAllFree
-                      ? "See fewer"
-                      : `See more (${freeSpots.length - FREE_PREVIEW})`}
-                  </button>
-                )}
-              </div>
-            )}
-
-            <p className="mt-2 px-1 text-xs text-text-subtle">
-              {selectedClashes
-                ? "A free spot only logs here for today. It won't change your saved rotation."
-                : "Next in your rotation is pre-selected. Change it if needed."}
-            </p>
-
-            {/* Site rest hint — how long since this spot was last used. */}
-            {siteId != null && siteLastUsedDays[siteId] !== undefined && (
-              <p
-                className={cn(
-                  "mt-1 px-1 text-xs",
-                  siteLastUsedDays[siteId] < REST_DAYS
-                    ? "text-accent-amber"
-                    : "text-text-subtle"
-                )}
-              >
-                {siteLastUsedDays[siteId] < REST_DAYS
-                  ? `You last used this spot ${siteLastUsedDays[siteId]}d ago. Just an observation, your choice.`
-                  : `Last used here ${siteLastUsedDays[siteId]}d ago.`}
+            {loadingSites ? (
+              <p className="px-1 text-xs text-text-subtle">Loading sites…</p>
+            ) : sitesToShow.length === 0 ? (
+              <p className="rounded-xl border border-border-default bg-bg-input px-3 py-3 text-xs text-text-muted">
+                Couldn&apos;t load the body map — you can still log the dose.
               </p>
+            ) : (
+              <BodyMap
+                sites={sitesToShow}
+                mode="pick"
+                activeIds={siteId ? [siteId] : []}
+                onTapSite={setSiteId}
+              />
             )}
 
-            {/* Confirmation of the chosen site — so picking any spot (including a
-                free alternate that isn't in the rotation above) is clearly visible. */}
             {siteId != null && (
-              <div
-                key={siteId}
-                className="animate-shortcut-fade mt-3 flex items-center gap-2 rounded-xl border border-accent-amber/50 bg-accent-amber/10 px-3 py-2.5"
-              >
-                <Check className="h-4 w-4 shrink-0 text-accent-amber" aria-hidden />
-                <span className="text-xs text-text-muted">Logging to</span>
-                <span className="font-mono text-sm font-medium text-foreground">
-                  {siteLabel(siteId)}
-                </span>
-              </div>
+              <>
+                {/* Site rest hint — how long since this spot was last used. */}
+                {siteLastUsedDays[siteId] !== undefined && (
+                  <p
+                    className={cn(
+                      "mt-2 px-1 text-xs",
+                      siteLastUsedDays[siteId] < REST_DAYS
+                        ? "text-accent-amber"
+                        : "text-text-subtle"
+                    )}
+                  >
+                    {siteLastUsedDays[siteId] < REST_DAYS
+                      ? `You last used this spot ${siteLastUsedDays[siteId]}d ago. Just an observation, your choice.`
+                      : `Last used here ${siteLastUsedDays[siteId]}d ago.`}
+                  </p>
+                )}
+
+                {/* Confirmation of the chosen site. */}
+                <div
+                  key={siteId}
+                  className="animate-shortcut-fade mt-3 flex items-center gap-2 rounded-xl border border-accent-amber/50 bg-accent-amber/10 px-3 py-2.5"
+                >
+                  <Check className="h-4 w-4 shrink-0 text-accent-amber" aria-hidden />
+                  <span className="text-xs text-text-muted">Logging to</span>
+                  <span className="font-mono text-sm font-medium text-foreground">
+                    {siteLabel(siteId)}
+                  </span>
+                </div>
+              </>
             )}
           </div>
         )}

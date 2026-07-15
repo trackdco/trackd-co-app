@@ -107,6 +107,9 @@ export default async function SettingsPage() {
         />
       </Link>
 
+      {/* Injection sites live on the dashboard now (the "Injection sites" card);
+          nothing to configure — you pick a site when you log a dose. */}
+
       <div className="mt-10 flex flex-col gap-3 text-sm text-text-muted">
         <Link href="/dashboard" className="hover:text-foreground">
           ← Back to dashboard

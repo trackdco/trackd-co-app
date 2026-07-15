@@ -20,14 +20,10 @@ import {
 import { CARD_TITLE } from "@/lib/ui-presets"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
 import {
-  advanceRotation,
   formatTimeLabel,
   getStackSnapshot,
   isDueOn,
-  loadStack,
-  resolvedDaySite,
   subscribeStack,
-  upsertStack,
   type StackCompound,
 } from "@/lib/home/stack"
 import {
@@ -37,7 +33,6 @@ import {
   unlogDose,
   type DayLogs,
 } from "@/lib/home/doseLog"
-import { siteLabel } from "@/lib/home/siteCatalog"
 import { dateKeyToDate, toDateKey, type DoseLog } from "@/lib/home/mockHomeData"
 
 // Stable references for useSyncExternalStore's server snapshot.
@@ -93,7 +88,7 @@ function groupByCategory(items: StackCompound[]): DoseGroup[] {
  * compound is a tick-off row: tapping an empty tick (or the name) opens the SAME
  * Log sheet as the home screen (confirm/edit the amount, time and site → Track),
  * and tapping a filled tick un-logs it (the tick goes blank), exactly like the
- * dashboard. Logging here advances that compound's rotation identically.
+ * dashboard.
  */
 export function QuickTrackSheet({
   open,
@@ -131,8 +126,6 @@ export function QuickTrackSheet({
 interface LogTarget {
   compound: StackCompound
   existing: DoseLog | null
-  preselectSiteId: string | null
-  usedByOtherIds: string[]
 }
 
 function QuickTrackBody({
@@ -164,24 +157,8 @@ function QuickTrackBody({
     todayLogs[c.id] ? true : !c.archived && isDueOn(c.schedule, todayDate)
   )
 
-  // Resolved site per compound (the logged site, else its next rotation) and the
-  // sites two+ compounds share today — so the Log sheet flags clashes exactly as
-  // it does from the dashboard.
-  const resolvedById: Record<string, string | null> = {}
-  for (const c of dueCompounds) {
-    resolvedById[c.id] = resolvedDaySite(c, todayLogs[c.id]?.siteId ?? null)
-  }
-  const usedByOtherIds = (compoundId: string): string[] => {
-    const out: string[] = []
-    for (const c of dueCompounds) {
-      const s = resolvedById[c.id]
-      if (c.id !== compoundId && s) out.push(s)
-    }
-    return out
-  }
-
-  // Days since each site was last logged on an earlier day — the Log sheet's rest
-  // hint (same computation as the dashboard).
+  // Days since each site was last logged on an earlier day — the Log sheet's map
+  // day-count (same computation as the dashboard).
   const todayN = Math.floor(todayDate.getTime() / 86_400_000)
   const siteLastUsedDays: Record<string, number> = {}
   for (const [key, dayLogObj] of Object.entries(logs)) {
@@ -199,22 +176,12 @@ function QuickTrackBody({
   const [logTarget, setLogTarget] = useState<LogTarget | null>(null)
 
   function openLog(c: StackCompound) {
-    setLogTarget({
-      compound: c,
-      existing: todayLogs[c.id] ?? null,
-      preselectSiteId: resolvedById[c.id] ?? null,
-      usedByOtherIds: usedByOtherIds(c.id),
-    })
+    setLogTarget({ compound: c, existing: todayLogs[c.id] ?? null })
   }
 
-  // Commit a dose (fresh or edited) and advance that compound's rotation — the
-  // exact same handler the dashboard uses.
+  // Commit a dose (fresh or edited) — the exact same handler the dashboard uses.
   function handleTracked(compoundId: string, log: DoseLog) {
     logDose(userId, todayKey, compoundId, log)
-    if (log.siteId) {
-      const target = (loadStack(userId) ?? []).find((c) => c.id === compoundId)
-      if (target) upsertStack(userId, advanceRotation(target, log.siteId))
-    }
   }
   function handleRemove(compoundId: string) {
     unlogDose(userId, todayKey, compoundId)
@@ -258,7 +225,6 @@ function QuickTrackBody({
                         key={c.id}
                         compound={c}
                         log={todayLogs[c.id] ?? null}
-                        site={resolvedById[c.id] ?? null}
                         onOpen={() => openLog(c)}
                         onUnlog={() => handleRemove(c.id)}
                       />
@@ -287,8 +253,6 @@ function QuickTrackBody({
         open={logTarget !== null}
         compound={logTarget?.compound ?? null}
         existing={logTarget?.existing ?? null}
-        preselectSiteId={logTarget?.preselectSiteId ?? null}
-        usedByOtherIds={logTarget?.usedByOtherIds ?? []}
         siteLastUsedDays={siteLastUsedDays}
         onOpenChange={(open) => {
           if (!open) setLogTarget(null)
@@ -303,14 +267,11 @@ function QuickTrackBody({
 function QuickRow({
   compound,
   log,
-  site,
   onOpen,
   onUnlog,
 }: {
   compound: StackCompound
   log: DoseLog | null
-  /** Resolved site label id for the day (logged site, else next rotation). */
-  site: string | null
   onOpen: () => void
   onUnlog: () => void
 }) {
@@ -348,7 +309,6 @@ function QuickRow({
             ? `${log.amount}${compound.unit}`
             : `${fmtDose(compound.dose)}${compound.unit}`}{" "}
           · {formatTimeLabel(log?.time24 ?? compound.schedule.timeOfDay)}
-          {site && <span className="text-accent-amber"> · ▸ {siteLabel(site)}</span>}
         </span>
       </button>
     </li>

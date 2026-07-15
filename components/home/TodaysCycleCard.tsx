@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, Check, MoreHorizontal } from "lucide-react"
+import { Check, MoreHorizontal } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { CARD_TITLE } from "@/lib/ui-presets"
@@ -9,17 +9,12 @@ import {
   FALLBACK_CATEGORY_META,
   type CompoundCategory,
 } from "@/lib/compound-categories"
-import type { DateKey, DayStatus, DoseLog } from "@/lib/home/mockHomeData"
+import type { DoseLog } from "@/lib/home/mockHomeData"
 import { formatTimeLabel, type StackCompound } from "@/lib/home/stack"
-import { ConsistencyStrip } from "@/components/home/ConsistencyStrip"
 
-/** A due compound plus its log state and the resolved next-site label. */
+/** A due compound plus its log state. */
 export type DueDose = StackCompound & {
   log: DoseLog | null
-  /** Resolved label of the site the next dose goes into; null = no rotation. */
-  nextSiteLabel: string | null
-  /** True when another compound lands on this same site today. */
-  clash: boolean
 }
 
 interface TodaysCycleCardProps {
@@ -30,10 +25,6 @@ interface TodaysCycleCardProps {
   countdown: string | null
   nextDoseName: string
   dueDoses: DueDose[]
-  /** Two or more compounds land on the same site today — show the flag. */
-  hasClash: boolean
-  consistencyItems: { key: DateKey; status: DayStatus }[]
-  todayKey: DateKey
   onLog: (dose: StackCompound) => void
   /** Untick a logged dose → remove its log. The tick is a pure toggle. */
   onUnlog: (dose: StackCompound) => void
@@ -144,12 +135,6 @@ function DoseRow({
             ? `${log.amount}${dose.unit}`
             : `${formatDose(dose.dose)}${dose.unit}`}{" "}
           · {formatTimeLabel(dose.schedule.timeOfDay)}
-          {dose.nextSiteLabel && (
-            <span className="text-accent-amber">
-              {" "}· ▸ {dose.nextSiteLabel}
-              {dose.clash && " · shared"}
-            </span>
-          )}
         </span>
       </button>
 
@@ -172,11 +157,11 @@ function DoseRow({
  * with a "Next dose in {Xh Ym}" countdown (computed once on mount upstream — no
  * live timer — and hidden on past days). The day is a tick-off CHECKLIST grouped
  * by category: every due compound is one always-visible row — a tick (a pure
- * toggle: log, or untick to remove), then the name on top with dose·time and the
- * inline next rotation site below it, plus a "⋯" that (like tapping the name)
- * opens the detail where every edit lives. Nothing collapses and nothing scrolls
- * inside the card; the compact rows keep the Weight section in view. The 30-day
- * Consistency strip sits below in the same section.
+ * toggle: log, or untick to remove), then the name on top with dose·time below it,
+ * plus a "⋯" that (like tapping the name) opens the detail where every edit lives
+ * (including the injection site, chosen on the log sheet's body map). Nothing
+ * collapses and nothing scrolls
+ * inside the card; the compact rows keep the Weight section in view.
  */
 export function TodaysCycleCard({
   isToday,
@@ -184,9 +169,6 @@ export function TodaysCycleCard({
   countdown,
   nextDoseName,
   dueDoses,
-  hasClash,
-  consistencyItems,
-  todayKey,
   onLog,
   onUnlog,
   onOpenDetail,
@@ -203,23 +185,6 @@ export function TodaysCycleCard({
           </span>{" "}
           · {nextDoseName}
         </p>
-      )}
-
-      {/* Same-day site clash — an amber observation, not a block or advice. */}
-      {hasClash && (
-        <div className="animate-notice-in mt-3 flex items-start gap-2 rounded-xl border border-accent-amber/40 bg-accent-amber/10 px-3 py-2.5 text-xs leading-relaxed text-foreground">
-          <AlertTriangle
-            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-amber"
-            aria-hidden
-          />
-          <span>
-            Two compounds are set for the same injection site today. When you log,
-            you can pick a free spot or keep them.{" "}
-            <span className="text-text-muted">
-              This is an observation, not advice.
-            </span>
-          </span>
-        </div>
       )}
 
       {dueDoses.length > 0 ? (
@@ -271,10 +236,6 @@ export function TodaysCycleCard({
           Nothing scheduled for this day.
         </p>
       )}
-
-      <div className="mt-5 border-t border-border-default pt-5">
-        <ConsistencyStrip items={consistencyItems} todayKey={todayKey} />
-      </div>
     </section>
   )
 }

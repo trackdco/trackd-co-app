@@ -28,13 +28,10 @@ import {
   cadenceLabel,
   formatDateKeyShort,
   formatTimeLabel,
-  isInjectable,
   methodLabel,
-  nextSiteId,
   upcomingDoseDates,
   type StackCompound,
 } from "@/lib/home/stack"
-import { siteLabel } from "@/lib/home/siteCatalog"
 
 interface CompoundDetailSheetProps {
   open: boolean
@@ -64,9 +61,8 @@ function formatDose(dose: number): string {
 
 /**
  * The sheet that opens when a compound row on the Home card is tapped (the row
- * plays the spread-from-touch glow as it opens). Read-only detail — dose,
- * schedule and the injection-site rotation — with Edit (reopens the add sheet
- * pre-filled) and Remove from log.
+ * plays the spread-from-touch glow as it opens). Read-only detail — dose and
+ * schedule — with Edit (reopens the add sheet pre-filled) and Remove from log.
  */
 export function CompoundDetailSheet({
   open,
@@ -135,8 +131,6 @@ function DetailBody({
   // 0 = not started, 1 = first confirm, 2 = final confirm (the destructive path).
   const [deleteStep, setDeleteStep] = useState(0)
   const meta = CATEGORY_META[compound.category] ?? FALLBACK_CATEGORY_META
-  const injectable = isInjectable(compound.method)
-  const nextSite = nextSiteId(compound)
   const upcoming = upcomingDoseDates(
     compound.schedule,
     dateKeyToDate(compound.schedule.startDate),
@@ -159,7 +153,7 @@ function DetailBody({
 
       <SheetTitle className="sr-only">{compound.name}</SheetTitle>
       <SheetDescription className="sr-only">
-        Dose, schedule and injection-site rotation for {compound.name}.
+        Dose and schedule for {compound.name}.
       </SheetDescription>
 
       <div className="space-y-5 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -199,34 +193,6 @@ function DetailBody({
               {upcoming.map(formatDateKeyShort).join(", ")}
             </span>
           </p>
-        )}
-
-        {/* Rotation — read-only; the next site is marked. Editing happens in Edit. */}
-        {injectable && compound.rotationSites.length > 0 && (
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-text-muted">
-              Rotation (next is highlighted)
-            </p>
-            <ol className="flex flex-wrap gap-2">
-              {compound.rotationSites.map((id) => {
-                const isNext = id === nextSite
-                return (
-                  <li
-                    key={id}
-                    className={cn(
-                      "rounded-full border px-3 py-1.5 font-mono text-sm",
-                      isNext
-                        ? "border-accent-amber bg-accent-amber/15 text-foreground"
-                        : "border-border-default bg-bg-input text-text-muted"
-                    )}
-                  >
-                    {isNext && <span className="text-accent-amber">▸ </span>}
-                    {siteLabel(id)}
-                  </li>
-                )
-              })}
-            </ol>
-          </div>
         )}
 
         {/* Primary actions. The white button is the day-to-day action — edit

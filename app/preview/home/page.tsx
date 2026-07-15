@@ -69,6 +69,7 @@ export default function PreviewHomePage() {
           unit="kg"
           firstName="Adrian"
           progressPhotos={sampleProgressPhotos}
+          injectionCatalogue={[]}
         />
       </main>
 
