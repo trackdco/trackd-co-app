@@ -413,6 +413,38 @@ export function protocolCompoundToStack(
   }
 }
 
+/* --------------------------------------- injection-site catalogue (Spec 19) */
+// `injection_sites` is a read-only, coordinate-bearing catalogue (promoted from the
+// free-standing `lib/home/siteCatalog.ts` list). Sites are picked ad-hoc when
+// logging a dose — there is no per-user working set. SQL: `supabase/sites/`.
+
+/** The two injectable routes the site catalogue covers (a subset of AdminRoute). */
+export type InjectionSiteRoute = Extract<AdminRoute, "im" | "subq">
+
+/** Which body side a site sits on. */
+export type InjectionSiteSide = "left" | "right" | "n_a"
+
+/** Which silhouette a site renders on (front / back). */
+export type InjectionSiteAspect = "anterior" | "posterior"
+
+/**
+ * An `injection_sites` catalogue row — one physical site plus the metadata the
+ * body map needs. `id` is the stable code (e.g. "im-glute-r"), shared with the
+ * legacy `lib/home/siteCatalog.ts` ids and `protocol_compounds.rotation_sites`.
+ * `x`/`y` are 0–100 normalized coordinates on the `aspect` silhouette (Step 2's
+ * SVG is drawn to the same grid).
+ */
+export interface InjectionSiteRow {
+  id: string
+  label: string
+  route: InjectionSiteRoute
+  side: InjectionSiteSide
+  aspect: InjectionSiteAspect
+  x: number
+  y: number
+  sort_order: number
+}
+
 const DOSE_UNITS: readonly DoseUnit[] = ["mg", "mcg", "iu", "ml", "tab", "capsule", "g"]
 
 /** Coerce the live store's free-string `unit` to a valid `dose_unit` (fallback

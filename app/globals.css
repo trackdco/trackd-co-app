@@ -28,6 +28,10 @@
   --border-default: #2e2e2c;
   --border-strong: #3e3e3a;
 
+  /* Injection-site muscle regions (Spec 19) — a step lighter than the body
+     (--bg-input), so each injectable muscle reads as a distinct selectable site. */
+  --muscle-region: #3a3a37;
+
   /* Data viz + overlays. chart-line = raw scale weight (periwinkle); chart-trend
      = the smoothed trend line (teal) — two harmonious series colours, neither
      evaluative. */
@@ -190,6 +194,42 @@
 }
 *::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Edge */
+}
+
+/* ---------------------------------------------------------------------------
+   Injection-site muscle regions (Spec 19) — each injectable muscle is a
+   selectable SVG <path>. Plain (unlayered) classes so they win over Tailwind's
+   layered utilities. The focus ring uses non-scaling-stroke so it stays a crisp
+   ~2px despite the body group's scale transform (the paths live inside a
+   scale(0.05) group, which would otherwise shrink the stroke to sub-pixel).
+   --------------------------------------------------------------------------- */
+.mr-fill {
+  fill: var(--muscle-region);
+  transition: fill 0.18s ease;
+}
+.muscle-region {
+  outline: none;
+}
+.mr-interactive {
+  cursor: pointer;
+}
+.mr-interactive:hover .mr-fill {
+  fill: color-mix(in srgb, var(--accent-amber) 28%, var(--muscle-region));
+}
+.mr-focus {
+  fill: none;
+  stroke: var(--accent-amber);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  opacity: 0;
+}
+.muscle-region:focus-visible .mr-focus {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mr-fill {
+    transition: none;
+  }
 }
 
 /* ---------------------------------------------------------------------------

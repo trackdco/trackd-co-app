@@ -14,14 +14,11 @@ import {
   archiveInStack,
   cadenceLabel,
   getStackSnapshot,
-  hasRotation,
-  nextSiteId,
   removeFromStack,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack"
 import { removeCompoundLogs } from "@/lib/home/doseLog"
-import { siteLabel } from "@/lib/home/siteCatalog"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
@@ -75,7 +72,6 @@ function PlanRow({
   c: StackCompound
   onOpenDetail: (c: StackCompound) => void
 }) {
-  const site = hasRotation(c) ? nextSiteId(c) : null
   return (
     <li className="flex items-center gap-3 py-2">
       <button
@@ -86,7 +82,6 @@ function PlanRow({
         <span className="block truncate text-sm font-medium text-foreground">{c.name}</span>
         <span className="mt-0.5 block truncate font-mono text-xs tabular-nums text-text-muted">
           {formatDose(c.dose)}{c.unit} · {cadenceLabel(c.schedule.cadence)}
-          {site && <span className="text-accent-amber"> · ▸ {siteLabel(site)}</span>}
         </span>
       </button>
       <button

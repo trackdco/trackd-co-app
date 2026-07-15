@@ -75,6 +75,22 @@ deliberately restrained and non-alarming (no pure red). Source of
 truth for the label + dot per category is
 `lib/compound-categories.ts` (`CATEGORY_META`).
 
+### Injection-site recency ramp (Spec 19 — a sanctioned amber exception)
+
+The injection-site **rotation view** shades each site **amber** by how recently it
+was used — full saturation on the day of injection, **one shade lighter per day**,
+fading to a **neutral/unfilled** state at the end of the decay window (**IM 7 days,
+Sub-Q 5 days**, named constants in `lib/home/siteRecency.ts`). This is a
+**deliberate, documented exception** to the amber-for-interactive convention,
+explicitly sanctioned by the spec. It does **not** violate "categorical, never
+evaluative": it encodes injection **recency** (a behavioural fact about the user's
+own logging), not a health/biomarker reading, and **every site carries its factual
+day-count label** ("2d", "today") so the colour reads as heat, not a warning. There
+is **no discrete amber ramp token** — the ramp is achieved with **opacity on
+`--accent-amber`** (lower opacity = more rested), so it stays token-based with **no
+hardcoded hex**. The feature **reports, it does not recommend**: never a
+suggested-next-site, ranking, risk score, or warning icon.
+
 ## Typography
 
 Three faces, exposed as CSS variables and mapped to Tailwind

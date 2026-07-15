@@ -25,12 +25,10 @@ import {
   type CompoundCategory,
   type RouteForm,
 } from "@/lib/compound-categories"
-import { RotationPicker } from "@/components/home/RotationPicker"
 import { AmberNotice, useAmberNotice } from "@/components/notifications/amber-notice"
 import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
 import {
   formatDateKeyShort,
-  isInjectable,
   loadStack,
   methodLabel,
   sanitizeDoseInput,
@@ -199,8 +197,9 @@ function initSchedule(schedule: Schedule | null, now: Date) {
 }
 
 /**
- * "Add to log" / "Edit compound" — captures dose, schedule (with a start date so
- * the cycle can be planned) and, for injectables, the injection-site rotation.
+ * "Add to log" / "Edit compound" — captures dose and schedule (with a start date
+ * so the cycle can be planned). The injection site is no longer set per compound
+ * (Spec 19) — it's chosen at log time from the user's working set.
  * Method and unit are locked to the compound's database values (the unit can be
  * switched within its measurement family). Saves a StackCompound to the device-
  * local log — appending a new one, or updating the one being edited.
@@ -296,7 +295,6 @@ function AddCompoundBody({
   const [method, setMethod] = useState<InjectionMethod>(
     toMethod(routeForms[0]?.route ?? "po")
   )
-  const injectable = isInjectable(method)
 
   // Optional "stock on hand" entry (create only). The vial type comes from the
   // selected catalogue route, so we show just that type's fields.
@@ -356,7 +354,6 @@ function AddCompoundBody({
     return () => window.clearInterval(id)
   }, [manualTime])
   const timeOfDay = manualTime ?? hhmm(clock)
-  const [rotationSites, setRotationSites] = useState<string[]>(source.rotationSites)
 
   const todayKey = toDateKey(now)
   const startYears = [now.getFullYear(), now.getFullYear() + 1, now.getFullYear() + 2]
@@ -379,7 +376,6 @@ function AddCompoundBody({
     const next = toMethod(route)
     if (next === method) return
     setMethod(next)
-    setRotationSites([]) // sites differ by route — start the rotation fresh
   }
 
   function buildCadence(): Cadence {
@@ -489,10 +485,6 @@ function AddCompoundBody({
       show("Select at least one day for the schedule.")
       return
     }
-    if (injectable && rotationSites.length === 0) {
-      show("Select at least one injection site for the rotation.")
-      return
-    }
     // No duplicates: a compound can only be in the log once. Adding one that's
     // already there (by name) just clutters the log — block it (an edit, which
     // keeps the same id, is exempt). To change its dose/schedule, edit the existing
@@ -512,13 +504,11 @@ function AddCompoundBody({
       dose: doseValue,
       unit,
       schedule: { ...previewSchedule, timeOfDay: effectiveTime },
-      rotationSites: injectable ? rotationSites : [],
-      // Preserve the rotation position on edit, clamped into the (possibly
-      // changed) site list; a new compound starts at the first site.
-      rotationIndex:
-        injectable && rotationSites.length > 0
-          ? source.rotationIndex % rotationSites.length
-          : 0,
+      // Per-compound injection-site config was retired (Spec 19, Step 3): the site
+      // is now chosen at log time from the user's working set. Any legacy value is
+      // cleared on save. These fields remain vestigial on the model/sync.
+      rotationSites: [],
+      rotationIndex: 0,
     }
     if (!upsertStack(userId, saved)) {
       show("Couldn't save to this device. Storage may be full or off.")
@@ -564,8 +554,8 @@ function AddCompoundBody({
         </button>
       </div>
       <SheetDescription className="sr-only">
-        Set this compound&apos;s dose, schedule and injection-site rotation. Method
-        and unit are fixed by the compound.
+        Set this compound&apos;s dose and schedule. Choose a method or unit when
+        multiple options are available.
       </SheetDescription>
 
       <div className="flex-1 space-y-5 overflow-y-auto px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -589,9 +579,9 @@ function AddCompoundBody({
         {/* Reactivation heads-up — you can re-tune everything before it resumes. */}
         {isReactivate && (
           <p className="animate-home-up -mt-2 px-1 text-xs leading-relaxed text-text-subtle">
-            Reactivating — adjust the dose, schedule or injection sites, then save. It
-            resumes from the start date below (today by default); the days it sat
-            archived stay empty and your past entries are kept.
+            Reactivating — adjust the dose or schedule, then save. It resumes from
+            the start date below (today by default); the days it sat archived stay
+            empty and your past entries are kept.
           </p>
         )}
 
@@ -880,22 +870,6 @@ function AddCompoundBody({
             </p>
           )}
         </div>
-
-        {/* Rotation — injectables only. */}
-        {injectable && (
-          <div className="animate-home-up" style={{ animationDelay: "180ms" }}>
-            <FieldLabel>Injection-site rotation</FieldLabel>
-            <p className="mb-2 px-1 text-xs text-text-muted">
-              Select all that apply. Tap the sites you use, then arrange them
-              top-to-bottom in the order you&apos;ll inject.
-            </p>
-            <RotationPicker
-              method={method}
-              selected={rotationSites}
-              onChange={setRotationSites}
-            />
-          </div>
-        )}
 
         {/* Stock on hand — optional. Type comes from the compound's route, so we
             show just that vial's fields. Starts full; counts down as doses log. */}

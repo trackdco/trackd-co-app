@@ -8,6 +8,7 @@ import { toDateKey } from "@/lib/home/mockHomeData";
 import { unitForPreference } from "@/lib/weight";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { createClient } from "@/lib/supabase/server";
+import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites";
 
 const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every load
 
@@ -66,7 +67,11 @@ export default async function DashboardPage() {
   // RLS scopes both to the signed-in user. Weight: oldest → newest for the
   // sparkline. Photos: newest first — just enough to cover the latest session for
   // the Home glance peek (the full gallery lives on the Progress tab).
-  const [{ data: weightData }, { data: photoData }] = await Promise.all([
+  const [
+    { data: weightData },
+    { data: photoData },
+    injectionCatalogue,
+  ] = await Promise.all([
     supabase
       .from("weight_logs")
       .select("logged_for, weight")
@@ -78,6 +83,7 @@ export default async function DashboardPage() {
       .order("taken_on", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(12),
+    listInjectionSiteCatalogue(),
   ]);
   const weight = (weightData ?? []).map((r) => ({
     key: r.logged_for as string,
@@ -119,6 +125,7 @@ export default async function DashboardPage() {
         unit={unitForPreference(profile?.units_preference)}
         firstName={firstName}
         progressPhotos={progressPhotos}
+        injectionCatalogue={injectionCatalogue}
         // Slim, persistent "Enable notifications" prompt, rendered above Today's
         // Log. Notifications are core to the app, so it stays until turned on (no
         // dismiss); self-hides when already on / not actionable.

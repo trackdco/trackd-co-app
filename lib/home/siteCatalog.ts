@@ -30,6 +30,8 @@ export const IM_SITES: InjectionSiteDef[] = [
   { id: "im-glute-l", label: "Glute – Left" },
   { id: "im-delt-r", label: "Delt – Right" },
   { id: "im-delt-l", label: "Delt – Left" },
+  { id: "im-trap-r", label: "Trap – Right" },
+  { id: "im-trap-l", label: "Trap – Left" },
   { id: "im-quad-out-r", label: "Outer Quad – Right" },
   { id: "im-quad-out-l", label: "Outer Quad – Left" },
   { id: "im-quad-front-r", label: "Front Quad – Right" },

@@ -9,11 +9,59 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-07-03
+Last updated: 2026-07-15
 
 ---
 
 ## 🎯 Current focus
+
+**✅ 2026-07-15 (Adrian + Claude): SPEC 19 — as-built, COMMITTED + PR'd for CodeRabbit.**
+The rework shipped differently from the 4-step plan below: the "choose your own sites"
+**working set was removed** (every catalogue site is pickable when logging), a **Home
+"Injection sites" glance card + sheet** replaced the `/settings/sites` screen, IM **and**
+Sub-Q are anatomical **region maps** with a **mirror-front** convention (screen-left =
+your left), and the **Home consistency strip was removed** (kept in Progress). Committed
+`39d5152` (feature) + `2baf547` (review fix) on branch `feat/spec-19-injection-sites` →
+**PR open for CodeRabbit**. NOT merged (no prod deploy) — awaiting CodeRabbit + Adrian's
+go. A 3-track adversarial code review passed with one HIGH fixed (recency shading now
+counts today). **▶ Next:** CodeRabbit findings → Adrian's on-device QA (log a dose on the
+body map, confirm the pin lights up on the card) → merge to `main`. The 4-step plan text
+below is superseded/historical (it still describes the old working-set + `/settings/sites`
+version).
+
+**✅ 2026-07-15 (Angus + Claude): SPEC 19 (Injection Site Rework) — ALL 4 STEPS
+BUILT + verified. FEATURE COMPLETE (local).** Step 1 = data foundation
+(`injection_sites` catalogue — 32 sites — + `user_injection_sites` working set,
+`supabase/sites/` + `lib/db/injectionSites.ts`). Step 2 = the **setup menu** +
+the **shared body map** (`components/sites/`, `select`/`pick`/`recency`). Step 3 =
+**log-flow cutover** (site picked on the working-set body map in `pick` mode) +
+**removal of per-compound site config everywhere** + the **backfill migration**
+(`supabase/sites/004`, applied live). Step 4 = the **rotation view** — a two-mode
+`/settings/sites` (Set up / Rotation) with amber recency shading (7d IM / 5d Sub-Q,
+`lib/home/siteRecency.ts`), day-count labels, reports-not-recommends;
+`SiteSetupScreen` → `SitesScreen`. All `tsc`+`lint`+`build` clean; every body-map
+surface PNG-verified.
+
+**▶ Remaining for Spec 19 (human/founder steps — NOT started):**
+- **Commit + deploy** Steps 1–4 (all local right now; the `supabase/sites/`
+  migrations 001–004 are already applied to the live DB via MCP). One whole-feature
+  PR is cleanest.
+- **On-device QA:** the live log flow (pick a site on the map, confirm it persists +
+  reads back in history) and the Rotation view (shading matches real logs) — can't
+  drive the authed client + localStorage from here.
+- **Body SVG swap (has a handoff doc):** Angus is uploading anatomical body SVGs to
+  drop into `components/sites/BodySilhouette.tsx` (placeholder for now) — **IM first,
+  Sub-Q later**. Full brief: **`Context/Feature Specs/19-body-svg-integration.md`**
+  (read it before starting). Re-tune marker x/y in `injection_sites.csv` → re-seed
+  (new migration) if the new proportions need it; verify placement with a `sharp` PNG
+  render.
+- **Tune the decay windows** (`IM_DECAY_DAYS`/`SUBQ_DECAY_DAYS`) on feel once seen
+  on device. Shared body map in `recency` mode: amber shading by
+  days-since-last-use (one shade lighter per day; **IM 7d / SubQ 5d** decay windows
+  as named constants), every site labelled with a factual day-count. No warning
+  language/icons/risk score, no suggested-next-site, no ranking. Recency derived at
+  read time from `dose_logs`; nothing stored. Confirm the amber ramp against
+  `ui-context.md` (flag if the ramp token doesn't exist yet).
 
 **✅ 2026-07-03 (Adrian + Claude): SPECS 15 + 16 + 17 — SHIPPED. MERGED as PR #50
 (squash) → deployed to prod; Vercel + CodeRabbit green; Adrian on-device tested
