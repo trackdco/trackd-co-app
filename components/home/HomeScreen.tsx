@@ -51,6 +51,7 @@ import {
   unlogDose,
   type DayLogs,
 } from "@/lib/home/doseLog"
+import { siteDaysSince } from "@/lib/home/siteRecency"
 
 const WEEKDAYS = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
@@ -322,6 +323,13 @@ export function HomeScreen({
     }
   }
 
+  // Days since each site was last used, TODAY-relative and INCLUDING today — the
+  // recency shading for the Injection-sites card + sheet (last pin brightest amber).
+  // This intentionally differs from siteLastUsedDays above, which is selected-day
+  // relative and excludes the selected day (that one is only the log sheet's rest
+  // hint — "don't count the dose you're logging").
+  const siteDaysSinceToday = siteDaysSince(logs, todayKey)
+
   // Last few injectable doses (compound + site + days-ago), newest first, for the
   // Injection-sites card's "Last logged" strip. Injectable (IM / Sub-Q) only; an
   // archived/deleted compound's history is skipped (no name to show).
@@ -453,7 +461,7 @@ export function HomeScreen({
         <div className="animate-home-up" style={{ animationDelay: "175ms" }}>
           <InjectionSitesGlanceCard
             catalogue={injectionCatalogue}
-            daysSince={siteLastUsedDays}
+            daysSince={siteDaysSinceToday}
             recentLogs={recentInjectionLogs}
             onOpen={() => {
               setSitesOpen(true)
@@ -549,7 +557,7 @@ export function HomeScreen({
         open={sitesOpen}
         onOpenChange={setSitesOpen}
         catalogue={injectionCatalogue}
-        daysSince={siteLastUsedDays}
+        daysSince={siteDaysSinceToday}
         showMirrorTip={mirrorTip}
       />
     </>
