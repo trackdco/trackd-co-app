@@ -9,11 +9,25 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-07-03
+Last updated: 2026-07-15
 
 ---
 
 ## 🎯 Current focus
+
+**✅ 2026-07-15 (Adrian + Claude): SPEC 19 — as-built, COMMITTED + PR'd for CodeRabbit.**
+The rework shipped differently from the 4-step plan below: the "choose your own sites"
+**working set was removed** (every catalogue site is pickable when logging), a **Home
+"Injection sites" glance card + sheet** replaced the `/settings/sites` screen, IM **and**
+Sub-Q are anatomical **region maps** with a **mirror-front** convention (screen-left =
+your left), and the **Home consistency strip was removed** (kept in Progress). Committed
+`39d5152` (feature) + `2baf547` (review fix) on branch `feat/spec-19-injection-sites` →
+**PR open for CodeRabbit**. NOT merged (no prod deploy) — awaiting CodeRabbit + Adrian's
+go. A 3-track adversarial code review passed with one HIGH fixed (recency shading now
+counts today). **▶ Next:** CodeRabbit findings → Adrian's on-device QA (log a dose on the
+body map, confirm the pin lights up on the card) → merge to `main`. The 4-step plan text
+below is superseded/historical (it still describes the old working-set + `/settings/sites`
+version).
 
 **✅ 2026-07-15 (Angus + Claude): SPEC 19 (Injection Site Rework) — ALL 4 STEPS
 BUILT + verified. FEATURE COMPLETE (local).** Step 1 = data foundation

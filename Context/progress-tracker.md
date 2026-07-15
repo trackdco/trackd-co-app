@@ -8,6 +8,33 @@ Forward-looking, actionable steps do **not** live here — they live in
 
 Last updated: 2026-07-15
 
+## Spec 19 — committed + code-reviewed + PR'd for CodeRabbit; Home consistency strip removed; demo login cleaned up (2026-07-15, Adrian + Claude)
+
+The full Spec 19 injection-site body map (IM + Sub-Q region maps, mirror-front,
+Home glance card + sheet, recency shading, working-set flow removed) is now
+**committed** — `39d5152` (feature) + `2baf547` (review fix) — on branch
+`feat/spec-19-injection-sites`, pushed and opened as a **PR for CodeRabbit**. NOT
+merged to `main` (no prod deploy) — awaiting CodeRabbit + Adrian's go.
+
+- **Home consistency strip removed** (Adrian's call — "get rid of the consistency of
+  the days on the home section"): deleted `components/home/ConsistencyStrip.tsx` and
+  its render/props/computation in `HomeScreen`/`TodaysCycleCard`. Progress-tab
+  consistency (`components/progress/ConsistencyGraph.tsx` / `ConsistencySection.tsx`)
+  is untouched.
+- **3-track adversarial code review** (rendering/mirror · integration/dead-code · SQL
+  migrations). Verdict: the "tap-my-left → logs-left" mirror convention is correct
+  across all 36 regions; the log-a-dose "pick any site" flow works end-to-end;
+  migrations 002→009 are replay-safe. **One HIGH found + fixed:** the Home card + sheet
+  recency shading was fed `siteLastUsedDays` (selected-day-relative, excludes the day),
+  so a site injected *today* never lit amber — rewired to the purpose-built
+  `siteDaysSince(logs, todayKey)` (`2baf547`). Remaining notes are LOW and deferred
+  (dead rotation helpers in `stack.ts`; stale "working set" comments; a cross-route edit
+  opens the map on the compound's route; SQL doc-comment staleness; orphaned
+  `user_injection_sites` table from the dropped working-set feature).
+- **Demo login removed:** the throwaway `demo@trackd.app` account (seeded in PROD auth
+  for local testing) was deleted via MCP — cascades only its own data; no beta user
+  touched.
+
 ## Spec 19 — Sub-Q body art + mirror-front convention — BUILT + migration 009 APPLIED LIVE (2026-07-15, Adrian + Claude)
 
 Follows the IM work below. **Sub-Q is now integrated exactly like IM** (region map, not
