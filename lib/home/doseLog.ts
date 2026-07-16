@@ -51,10 +51,21 @@ export function loadDoseLogs(userId: string): DayLogs {
             amount: log.amount,
             siteId: typeof log.siteId === "string" ? log.siteId : null,
             time24: log.time24,
-            inventoryItemId:
-              typeof (log as DoseLog).inventoryItemId === "string"
-                ? (log as DoseLog).inventoryItemId
-                : null,
+            // `undefined` is a MEANINGFUL third state here, not just "missing" (see
+            // DoseLog): a vial id = an explicit pick, `null` = an explicit "Not
+            // tracked", absent = undecided → the server resolves the vial for the
+            // dose's date. `JSON.stringify` drops an undefined value, so the KEY's
+            // absence is what carries "undecided" across a reload — flattening it to
+            // null here used to destroy that, and re-opening such a dose then read as
+            // "Not tracked" and UNLINKED its vial on update.
+            ...("inventoryItemId" in log
+              ? {
+                  inventoryItemId:
+                    typeof log.inventoryItemId === "string"
+                      ? log.inventoryItemId
+                      : null,
+                }
+              : {}),
           }
         }
       }

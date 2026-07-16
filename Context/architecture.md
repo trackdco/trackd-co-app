@@ -331,17 +331,32 @@ stored.)
     device `DoseLog.inventoryItemId` and `pushProtocolDoseLog` sets `dose_logs.inventory_item_id`
     (validating unit-family vs the vial, dropping an incompatible link rather than failing the
     log). So logging a dose **decrements that vial's "stock left"** via `v_inventory_math`
-    (`consumed`); unlogging restores it. When the client leaves the vial **undecided**
-    (`undefined` — the Stock list loads async, and a back-dated log leaves it undecided by
-    design), `pushProtocolDoseLog` resolves it **by the dose's own date**: the newest vial whose
-    `acquired_on <= dateKey`, active **or since-archived**. One vial is in use per compound at a
-    time (`addStockItem` archives the priors on every add/refill), so "newest acquired by then"
-    *is* the vial that was in use then. No vial that far back ⇒ **no link**, rather than a wrong
-    one. This is what keeps back-dating honest — a dose logged for last Tuesday can't draw down
-    a vial opened on Friday — and it leaves live logging unchanged (the current vial was always
-    acquired on or before today). Compared by DAY, not instant: a dose's time-of-day is a
-    user-editable guess, so an instant compare would drop the link on a dose logged for 08:00
-    today from a vial added at 14:00 today. See **Back-dating** below.
+    (`consumed`); unlogging restores it.
+    **The vial is resolved for the dose's own DAY** by `vialOnDate` (`protocolSync.ts`) — the
+    single rule, used by BOTH the write path (`pushProtocolDoseLog`) and the log sheet's read
+    (the `resolveVialForDate` server action), so they can't drift. It takes the newest vial whose
+    `acquired_on <= dateKey`, active **or since-archived**, with the unit family filtered **in
+    the query** (so an incompatible newest vial falls through to an older compatible one rather
+    than losing the link). One vial is in use per compound at a time (`addStockItem` archives the
+    priors on every add/refill), so "newest acquired by then" *is* the vial that was in use then.
+    No vial that far back ⇒ **no link**, rather than a wrong one. This is what keeps back-dating
+    honest — a dose logged for last Tuesday can't draw down a vial opened on Friday — and it
+    leaves live logging unchanged (the current vial was always acquired on or before today).
+    Compared by DAY, not instant: a dose's time-of-day is a user-editable guess, so an instant
+    compare would drop the link on a dose logged for 08:00 today from a vial added at 14:00
+    today. The explicit-pick validation checks **ownership + unit family, NOT `is_active`**: a
+    back-dated dose legitimately draws from a vial that is archived by now, so filtering on
+    `is_active` there would silently drop exactly the link `vialOnDate` just resolved (RLS + the
+    `dose_logs` unit-family trigger stay the backstop). See **Back-dating** below.
+  - **`DoseLog.inventoryItemId` has THREE meaningful states**, and the device store preserves all
+    three: a **string** = an explicit pick; **`null`** = an explicit "Not tracked" (log it, don't
+    touch stock); **absent/`undefined`** = *undecided* → the server resolves the vial for the
+    dose's date. `JSON.stringify` drops an undefined value, so the **key's absence** is what
+    carries "undecided" across a reload — `loadDoseLogs` must therefore preserve the key's
+    absence rather than normalise it to `null`. Flattening it conflated "undecided" with
+    "explicitly don't count this", so re-opening such a dose read as *Not tracked* and **unlinked
+    its vial on update**. (The Postgres pull can only ever return string-or-null — Postgres has no
+    third state — which is correct: a pulled row either has a link or genuinely has none.)
   - **Scope:** catalogue compounds are canonical in Postgres. **Custom "Make your own"
     compounds** keep their STACK membership device-local (jsonb mirror, merged on Home),
     but now ALSO get a `protocol_compounds` row on demand (compound_id NULL +
@@ -413,6 +428,11 @@ on Wednesday. **The day the dashboard is parked on is the day you write to** —
   the strip has always scrolled forward and the tick has always worked).
 - **Vials resolve by the dose's date**, so a back-dated dose never retro-links to a
   vial bought since — see the dose→inventory link under the Protocol Cutover above.
+  The log sheet resolves it up front (`resolveVialForDate`) so a back-dated log can
+  **name the vial it's about to draw down and offer the opt-out**; the "From vial"
+  block shows exactly when a vial *will* be linked. `listStock` can't answer this — it
+  only knows what's active NOW, and the vial in use on a past day is often archived by
+  now — which is why this is its own read rather than a filter over the Stock list.
 
 ## Legal Documents
 

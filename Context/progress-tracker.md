@@ -89,6 +89,68 @@ day without qualifying it. No further action.
 **Deferred — CONFIRMED (Adrian, 2026-07-17):** a logging path on the **Calendar** ("the
 calendar for now is read-only, yes") — its day sheet stays read-only.
 
+### PR #55 — CodeRabbit round 1: 5 findings, 3 fixed / 2 skipped
+
+**FIXED — the vial link was silently unlinked when editing a back-dated dose (Major, real).**
+CodeRabbit flagged `useState(existing ? (existing.inventoryItemId ?? null) : undefined)`, but
+the **root cause was one layer down**: `loadDoseLogs` normalised the absent key to `null`.
+`DoseLog.inventoryItemId` has THREE meaningful states — string / `null` ("Not tracked") /
+absent ("undecided → server resolves it") — and the normaliser destroyed the third, so
+re-opening a back-dated dose read as *Not tracked* and **dropped its vial link on Update**
+(stock silently returned). `JSON.stringify` drops undefined values, so the key's ABSENCE is the
+carrier; `loadDoseLogs` now preserves it, and the sheet no longer `?? null`s it.
+- **Proven both ways in the browser:** post-fix, a back-dated log stores
+  `{"amount":"125","siteId":null,"time24":"08:30"}` (no key) and still has no key after
+  reload → edit → Update. Stashing the fix back to the committed PR state reproduced the bug
+  exactly — `"inventoryItemId":null` after the edit. The bug was real, not a phantom.
+
+**FIXED — the opt-out was hidden when no vial is active today (Major, real).** `vials` is
+active-now stock, so `vials.length === 0` can coexist with an **archived** vial the server
+will link ⇒ silent stock decrement with no way to decline. CodeRabbit's suggested
+`!loadingVials` would have shown the block for compounds that never had a vial (claiming one
+that doesn't exist), so instead the sheet now **resolves the day's vial** via the new
+`resolveVialForDate` server action and shows the block **exactly when a vial will be linked**.
+That also makes the committed link an explicit id, so an edit round-trips the real vial.
+- Required dropping `.eq("is_active", true)` from the explicit-pick validation — a back-dated
+  dose legitimately draws from a vial archived by now, and that filter would have silently
+  dropped exactly the link just resolved. Ownership + unit family remain checked; RLS + the
+  `dose_logs` unit-family trigger stay the backstop.
+
+**FIXED — unit family now filtered IN the query (Minor, real but pre-existing).** The old code
+took `limit 1` then checked `unitFamilyOk`, so an incompatible newest vial lost the link
+instead of falling through to an older compatible one. The rule is now one helper
+(`vialOnDate`) shared by the write path and the sheet's read, with `base_unit` filtered in the
+query. Re-verified on live data: identical picks (today → active 11 Jul vial; 1 Jul → archived
+24 Jun vial; 1 Jun → null), and `dose_unit mg → required base mg`.
+
+**SKIPPED ×2 — "documentation is future-dated (should be 2026-07-16)".** Not a defect:
+CodeRabbit is reading **UTC**. This project is Sydney-based (`profiles.timezone`, Sydney the
+documented fallback) and the machine reads `Fri Jul 17 01:34 AEST` = `Thu Jul 16 15:34 UTC`.
+The commit itself is stamped `2026-07-17 +1000`, the app's own device clock rendered
+"FRIDAY, 17 JULY" in the verification screenshots, and the repo's dates are local throughout.
+**2026-07-17 is correct.**
+
+### Adversarial review of the fix — 15 claims, 0 survived
+
+A 4-lens review (three-state semantics / the resolve effect / the server rule / regressions to
+today) raised 15 claims; every one was refuted on inspection, almost all because the scenario
+is **identical at HEAD** (the diff must make something *worse* to count). Two were worth acting
+on anyway, since this change now owns that exact code:
+
+- **`.eq("protocol_compound_id", pcId)` added to the explicit-pick validation.** Dropping
+  `is_active` (needed — see above) had widened the accepted set from "this compound's active
+  vials" to "every vial the user owns", and that check had never verified compound membership.
+  Without it, a stale or hand-edited cache could point compound A's dose at compound B's vial
+  and draw down the wrong stock. The DB constrains the unit family but **not** the compound, so
+  nothing else caught it. Verified against live data: **51 linked dose logs, 0 cross-compound**
+  → the check rejects nothing real. (The same query found **5 existing links to archived
+  vials** — independent proof that the `is_active` relaxation was necessary: under the old rule
+  those 5 doses would have lost their link on any re-save.)
+- **`vialOnDate` now logs its Supabase `error`** instead of discarding it. A failed read and
+  "no vial that far back" both correctly yield no link (never guess a vial), but they're very
+  different problems and a broken query used to read as empty stock. Flagged independently by
+  three reviewers.
+
 ## Injection-site route now defaults to the stack's majority route (2026-07-17, Adrian + Claude)
 
 Both injection-site views (the Home glance card and the full map sheet) hardcoded

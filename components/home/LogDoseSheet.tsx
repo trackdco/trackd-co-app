@@ -26,6 +26,7 @@ import {
 } from "@/lib/home/stack"
 import { siteLabel, sitesForSex } from "@/lib/home/siteCatalog"
 import { listStock, type StockItem } from "@/lib/db/inventory"
+import { resolveVialForDate } from "@/lib/home/protocolSync"
 import { BodyMap } from "@/components/sites/BodyMap"
 import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites"
 import type {
@@ -240,12 +241,15 @@ function LogDoseBody({
   // active NOW, which may not be the one that was in use on the dose's day. It stays
   // undecided so the server resolves the vial by the dose's own instant instead.
   const [vials, setVials] = useState<StockItem[]>([])
-  // `undefined` = undecided (a fresh log; the Stock list may still be loading) —
-  // the server then links the compound's active vial by default, so a dose logged
-  // before this resolves still draws down stock. `null` = the user tapped "Not
-  // tracked". A string = a specific vial. Editing starts from the dose's saved link.
+  // `undefined` = undecided (a fresh log; the vial read may still be in flight) —
+  // the server then resolves the vial for the dose's date, so a dose tracked before
+  // this settles still draws down stock. `null` = the user tapped "Not tracked". A
+  // string = a specific vial. Editing starts from the dose's saved link — and an
+  // undecided one must stay `undefined`, NOT collapse to `null`: `null` means
+  // "explicitly don't count this", so updating the dose would unlink the vial the
+  // server had resolved for it. (The store preserves the distinction; see doseLog.)
   const [inventoryItemId, setInventoryItemId] = useState<string | null | undefined>(
-    existing ? (existing.inventoryItemId ?? null) : undefined
+    existing ? existing.inventoryItemId : undefined
   )
   // Starts true — the body re-mounts per compound (keyed), so the initial value
   // applies on each open; the fetch flips it false in `finally`.
@@ -276,6 +280,36 @@ function LogDoseBody({
       cancelled = true
     }
   }, [compound.id, compound.unit, existing, onToday])
+
+  // BACK-DATED: which vial this compound was actually drawing from on `dateKey`.
+  // `listStock` above can't answer that — it only knows what's active NOW, and the
+  // vial in use on a past day is often archived by now — so the server resolves it
+  // by the same rule the write path uses. Drives BOTH the section's visibility (no
+  // vial back then ⇒ nothing links ⇒ show nothing, rather than claim a vial that
+  // doesn't exist) and the committed link, so an edit round-trips the real id
+  // instead of re-guessing. `undefined` = still resolving.
+  const [dateVialId, setDateVialId] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (onToday) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const v = await resolveVialForDate(compound.id, dateKey)
+        if (cancelled) return
+        setDateVialId(v?.id ?? null)
+        // Only adopt it as the pick for a FRESH log, and only while the user hasn't
+        // decided — never clobber an edit's saved link or an explicit "Not tracked".
+        if (v && existing == null) {
+          setInventoryItemId((cur) => (cur === undefined ? v.id : cur))
+        }
+      } catch {
+        if (!cancelled) setDateVialId(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [onToday, compound.id, dateKey, existing])
 
   const [tracked, setTracked] = useState(false)
 
@@ -565,13 +599,14 @@ function LogDoseBody({
           <p className="mt-5 px-1 text-xs text-text-subtle">Checking your stock…</p>
         )}
 
-        {/* From vial, BACK-DATED — the vials above are the ones active NOW, which
-            needn't be the one that was in use on the dose's day (adding or refilling
-            stock archives the prior vial). So there's nothing honest to name here:
-            the dose stays undecided and the server links whichever vial the compound
-            was actually drawing from at that instant — or nothing, if the compound
-            had no vial yet. The opt-out still works. */}
-        {!onToday && vials.length > 0 && (
+        {/* From vial, BACK-DATED — keyed off the vial resolved for THIS DAY, not the
+            active-now list (which needn't contain it: adding or refilling archives
+            the prior vial, so the vial in use back then is often archived today).
+            Shown exactly when a vial WILL be linked — so the opt-out is always
+            reachable for a dose that's about to draw down stock, including an
+            archived vial with nothing active today, and a compound that had no vial
+            back then shows nothing rather than naming one that doesn't exist. */}
+        {!onToday && dateVialId != null && (
           <div className="mt-5">
             <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
               From vial
@@ -583,7 +618,7 @@ function LogDoseBody({
                 </span>
                 <button
                   type="button"
-                  onClick={() => setInventoryItemId(undefined)}
+                  onClick={() => setInventoryItemId(dateVialId)}
                   className="shrink-0 text-xs font-medium text-accent-amber transition-opacity hover:opacity-80"
                 >
                   Count it
@@ -592,7 +627,7 @@ function LogDoseBody({
             ) : (
               <div className="flex items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3 py-2.5">
                 <span className="min-w-0 text-xs text-text-muted">
-                  Counts against whichever vial you were using on{" "}
+                  Counts against the vial you were using on{" "}
                   <span className="font-mono text-foreground">
                     {formatDateKeyShort(dateKey)}
                   </span>

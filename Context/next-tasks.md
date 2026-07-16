@@ -16,7 +16,9 @@ Last updated: 2026-07-17
 ## 🎯 Current focus
 
 **▶ 2026-07-17 (Adrian + Claude): BACK-DATING — log a dose / start a compound on a past
-day. BUILT + verified locally; `tsc`+`eslint`+prod `build` clean; NOT committed.**
+day. BUILT + verified locally; `tsc`+`eslint`+prod `build` clean. ON PR #55 — CodeRabbit
+round 1 folded in (3 fixed, 2 skipped as a UTC-vs-Sydney date artifact). AWAITING ADRIAN'S
+GO-AHEAD TO MERGE (do not merge to main without it — main deploys straight to prod).**
 The day the week strip is parked on is now the day you write to. Half already worked
 *silently* (the tick always wrote to `selectedKey`; the DB never had a temporal
 constraint) — but it stamped **today's clock time** and drew down **today's vial**. Now:
@@ -49,11 +51,17 @@ detail in `progress-tracker.md`.
 7. **A future day reads the same.** Scroll forward → the notice says just "Logging to
    Sun 19 Jul", with no "future" wording. Future logging is deliberately **not blocked**
    (your call — a future dose is tracked on its date like any other).
+8. **Edit a back-dated dose and check its stock link survives** (the bug CodeRabbit
+   caught). Back-date a dose against a vial → re-open it via the row's "⋯" → *Edit this
+   dose* → the "From vial" row should read "Counts against the vial you were using on
+   {date}", **not** "Not counting this dose against your stock" → Update → the vial's
+   "stock left" must stay decremented (it used to silently bounce back).
 
-**▶ Then:** commit + PR (one feature PR). No migration needed — the DB has always
-accepted a past `taken_at` (a `now()` *default*, no CHECK; RLS carries no date
-predicate). Calendar logging stays deferred (confirmed: "the calendar for now is
-read-only, yes") — its day sheet is still read-only.
+**▶ Then — YOUR CALL TO MERGE.** PR #55 is open with CodeRabbit round 1 folded in.
+Nothing is merged; **main deploys straight to prod**, so it waits for your go-ahead. No
+migration needed — the DB has always accepted a past `taken_at` (a `now()` *default*, no
+CHECK; RLS carries no date predicate). Calendar logging stays deferred (confirmed: "the
+calendar for now is read-only, yes") — its day sheet is still read-only.
 
 ## Also open — Spec 19 female bodies (shipped to prod, QA still pending)
 
