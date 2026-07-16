@@ -5,7 +5,11 @@ import { Syringe } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
-import type { InjectionSiteAspect, InjectionSiteRoute } from "@/lib/db/types"
+import type {
+  BodySex,
+  InjectionSiteAspect,
+  InjectionSiteRoute,
+} from "@/lib/db/types"
 import { siteHeat } from "@/lib/home/siteRecency"
 import { BodySilhouette } from "@/components/sites/BodySilhouette"
 import { routeRegions, routeTransform } from "@/components/sites/bodyArtwork"
@@ -23,6 +27,8 @@ interface InjectionSitesGlanceCardProps {
   daysSince: Record<string, number>
   /** Recently-used sites (newest first), each with the compound(s) put there. */
   recentSites: RecentSite[]
+  /** Which figure the preview draws (from the user's profile). */
+  bodySex: BodySex
   /** Tap → the injection-site map (sheet). */
   onOpen: () => void
 }
@@ -46,6 +52,7 @@ const ROUTES: { key: InjectionSiteRoute; label: string }[] = [
 export function InjectionSitesGlanceCard({
   daysSince,
   recentSites,
+  bodySex,
   onOpen,
 }: InjectionSitesGlanceCardProps) {
   const [route, setRoute] = useState<InjectionSiteRoute>("im")
@@ -97,7 +104,7 @@ export function InjectionSitesGlanceCard({
           key={route}
           className="flex w-full flex-col items-center gap-4 duration-300 animate-in fade-in motion-reduce:animate-none"
         >
-          <SitePreview route={route} daysSince={daysSince} />
+          <SitePreview route={route} daysSince={daysSince} sex={bodySex} />
 
           <div className="w-full border-t border-border-default pt-3.5">
             <p className="mb-2.5 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-text-muted">
@@ -141,9 +148,11 @@ const ASPECTS: InjectionSiteAspect[] = ["anterior", "posterior"]
 function SitePreview({
   route,
   daysSince,
+  sex,
 }: {
   route: InjectionSiteRoute
   daysSince: Record<string, number>
+  sex: BodySex
 }) {
   const heatFor = (siteId: string) => {
     const d = daysSince[siteId]
@@ -163,9 +172,9 @@ function SitePreview({
           className="min-w-0 max-w-[10rem] flex-1"
           preserveAspectRatio="xMidYMid meet"
         >
-          <BodySilhouette aspect={aspect} route={route} />
-          <g transform={routeTransform(route)}>
-            {routeRegions(route, aspect).map((r) => {
+          <BodySilhouette aspect={aspect} route={route} sex={sex} />
+          <g transform={routeTransform(route, sex)}>
+            {routeRegions(route, aspect, sex).map((r) => {
               const o = heatFor(r.siteId)
               return (
                 <g key={r.siteId}>

@@ -8,6 +8,7 @@ import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registra
 import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { unitForPreference } from "@/lib/weight";
+import { bodySexFor } from "@/lib/db/types";
 
 /**
  * Logged-in app shell. The authoritative gate every feature screen sits behind:
@@ -26,19 +27,21 @@ export default async function AppLayout({
   if (!user) redirect("/login");
   if (!passedGate) redirect("/welcome");
 
-  // The user's weight unit — for the + menu's quick log-weight popup. RLS scopes
-  // the read to this user; defaults to kg when unset.
+  // The user's weight unit — for the + menu's quick log-weight popup — and the
+  // body their injection-site map draws (the + menu's log-dose flow shows one).
+  // RLS scopes the read to this user; defaults to kg / the male body when unset.
   const supabase = await createClient();
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("units_preference")
+    .select("units_preference, sex")
     .eq("id", user.id)
     .maybeSingle();
   if (profileError) {
-    // Non-fatal: fall back to the default unit, but surface the failure.
-    console.error("[app/layout] units_preference fetch failed:", profileError.message);
+    // Non-fatal: fall back to the defaults, but surface the failure.
+    console.error("[app/layout] profile fetch failed:", profileError.message);
   }
   const unit = unitForPreference(profile?.units_preference);
+  const bodySex = bodySexFor(profile?.sex);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -65,7 +68,7 @@ export default async function AppLayout({
         {children}
       </main>
 
-      <BottomNav userId={user.id} unit={unit} />
+      <BottomNav userId={user.id} unit={unit} bodySex={bodySex} />
       <SyncStatusNotice />
       <ServiceWorkerRegistrar />
     </div>

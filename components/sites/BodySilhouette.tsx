@@ -6,22 +6,29 @@
  * parent `<svg viewBox="0 0 100 100">`; native artwork is mapped to that grid by the
  * route's transform. Single flat fill (no hex, no gradients / shading / 3D).
  */
-import type { InjectionSiteAspect, InjectionSiteRoute } from "@/lib/db/types"
+import type {
+  BodySex,
+  InjectionSiteAspect,
+  InjectionSiteRoute,
+} from "@/lib/db/types"
 import { routeBasePaths, routeTransform } from "@/components/sites/bodyArtwork"
 
 export function BodySilhouette({
   aspect,
   route = "im",
+  sex = "male",
 }: {
   aspect: InjectionSiteAspect
   /** Which body to draw (IM or Sub-Q). */
   route?: InjectionSiteRoute
+  /** Which figure to draw. Defaults to male (the body for a profile with no sex). */
+  sex?: BodySex
 }) {
-  const paths = routeBasePaths(route, aspect)
+  const paths = routeBasePaths(route, aspect, sex)
   return (
     <g aria-hidden="true">
       <g
-        transform={routeTransform(route)}
+        transform={routeTransform(route, sex)}
         style={{ fill: "var(--bg-input)" }}
         stroke="none"
       >

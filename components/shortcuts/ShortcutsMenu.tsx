@@ -24,6 +24,7 @@ import {
 } from "@/components/shortcuts/shortcutItems"
 import { requestProgressAction } from "@/lib/progress/progressAction"
 import type { WeightUnit } from "@/lib/weight"
+import type { BodySex } from "@/lib/db/types"
 
 interface ShortcutsMenuProps {
   open: boolean
@@ -32,6 +33,8 @@ interface ShortcutsMenuProps {
   userId: string
   /** The user's weight unit — the Weight tile's quick-log popup uses it. */
   unit: WeightUnit
+  /** Forwarded to the quick log-dose flow's body map (which figure to draw). */
+  bodySex: BodySex
 }
 
 // Release the handle past this fraction of the sheet's height → dismiss.
@@ -58,6 +61,7 @@ export function ShortcutsMenu({
   onOpenChange,
   userId,
   unit,
+  bodySex,
 }: ShortcutsMenuProps) {
   const router = useRouter()
   const cardRef = useRef<HTMLDivElement>(null)
@@ -240,6 +244,7 @@ export function ShortcutsMenu({
         open={quickTrackOpen}
         onOpenChange={setQuickTrackOpen}
         userId={userId}
+        bodySex={bodySex}
       />
 
       {/* "Add a compound" → the existing, unchanged Add-to-Stack flow. */}

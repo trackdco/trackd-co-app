@@ -25,7 +25,7 @@
 --    Chosen over Approach B (a BEFORE UPDATE trigger) because it is declarative,
 --    enforced by the privilege system with no per-row trigger cost, and NOTHING in
 --    the app writes tier as `authenticated` (every profiles .update() is
---    avatar / tos-gate / prefs / migration-flag / settings(sex·goal·units·height);
+--    avatar / tos-gate(dob·sex) / prefs / migration-flag / settings(sex·goal·units·height);
 --    there is no client-side profiles INSERT) — so the lock breaks no legitimate path.
 --
 --  WHO CAN STILL WRITE tier

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -90,17 +91,7 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
 
   return (
     <form action={formAction} className="mt-6 space-y-5">
-      <Field label="Sex">
-        <select
-          name="sex"
-          defaultValue={initial.sex ?? ""}
-          className={SELECT_CLASS}
-        >
-          <option value="">Prefer not to say</option>
-          <option value="male">Male</option>
-          <option value="female">Female</option>
-        </select>
-      </Field>
+      <SexField initial={initial.sex} />
 
       <Field label="Units">
         <select
@@ -164,6 +155,110 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
         {isPending ? "Saving…" : "Save changes"}
       </Button>
     </form>
+  );
+}
+
+/**
+ * Sex — the one setting that changes what the app DRAWS: the injection-site body
+ * map switches between the male and female figure, so a mis-tap on a select is
+ * worth a confirm step. The pending choice is held until confirmed; Cancel puts
+ * the select back. The value still saves with the rest of the form (Save changes)
+ * — this only guards the change, it doesn't commit it.
+ *
+ * There's no "prefer not to say": the welcome quiz makes it a required choice.
+ * Profiles that predate the quiz have no sex, so those (and only those) get a
+ * "Select…" placeholder and must pick one — otherwise a select defaulting to the
+ * first option would quietly save "male" for someone who never chose it.
+ */
+function SexField({ initial }: { initial: string | null }) {
+  const start = initial === "male" || initial === "female" ? initial : "";
+  const [sex, setSex] = useState(start);
+  const [pending, setPending] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pending === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPending(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pending]);
+
+  const nextLabel = pending === "female" ? "female" : "male";
+
+  return (
+    <>
+      <Field label="Sex">
+        <select
+          name="sex"
+          required
+          // Controlled by `sex`, which only moves once a change is confirmed —
+          // so Cancel snaps the select straight back to the saved value.
+          value={sex}
+          onChange={(e) => setPending(e.target.value)}
+          className={SELECT_CLASS}
+        >
+          {start === "" ? (
+            <option value="" disabled>
+              Select…
+            </option>
+          ) : null}
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </Field>
+
+      {/* Portaled to <body> for the same reason as the sign-out confirm: a fixed
+          overlay inside a transformed ancestor gets trapped in its stacking
+          context and lands behind the bottom nav. */}
+      {pending !== null &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
+            onClick={() => setPending(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="sex-confirm-title"
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+            >
+              <h2
+                id="sex-confirm-title"
+                className="text-base font-semibold text-foreground"
+              >
+                Change to {nextLabel}?
+              </h2>
+              <p className="mt-1.5 text-sm text-text-muted">
+                Your injection-site map will show the {nextLabel} body. Your
+                logged sites and history stay exactly as they are.
+              </p>
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPending(null)}
+                  className="flex-1 rounded-xl border border-border-strong py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text-primary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSex(pending);
+                    setPending(null);
+                  }}
+                  className="flex-1 rounded-xl bg-accent-amber py-2.5 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 

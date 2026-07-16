@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils"
 import { ShortcutsMenu } from "@/components/shortcuts/ShortcutsMenu"
 import type { WeightUnit } from "@/lib/weight"
+import type { BodySex } from "@/lib/db/types"
 
 type Tab = {
   href: string
@@ -67,9 +68,12 @@ function NavTab({ href, label, icon: Icon, active }: Tab & { active: boolean }) 
 export function BottomNav({
   userId,
   unit,
+  bodySex,
 }: {
   userId: string
   unit: WeightUnit
+  /** Which figure the menu's log-dose body map draws (from the user's profile). */
+  bodySex: BodySex
 }) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -192,6 +196,7 @@ export function BottomNav({
         onOpenChange={setMenuOpen}
         userId={userId}
         unit={unit}
+        bodySex={bodySex}
       />
     </>
   )

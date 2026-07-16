@@ -23,11 +23,15 @@ import {
   sanitizeDoseInput,
   type StackCompound,
 } from "@/lib/home/stack"
-import { siteLabel } from "@/lib/home/siteCatalog"
+import { siteLabel, sitesForSex } from "@/lib/home/siteCatalog"
 import { listStock, type StockItem } from "@/lib/db/inventory"
 import { BodyMap } from "@/components/sites/BodyMap"
 import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites"
-import type { InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
+import type {
+  BodySex,
+  InjectionSiteRoute,
+  InjectionSiteRow,
+} from "@/lib/db/types"
 
 interface LogDoseSheetProps {
   open: boolean
@@ -37,6 +41,8 @@ interface LogDoseSheetProps {
   existing: DoseLog | null
   /** Days since each site was last logged on an earlier day — the map's day-count. */
   siteLastUsedDays: Record<string, number>
+  /** Which figure the pick map draws (from the user's profile). */
+  bodySex: BodySex
   onOpenChange: (open: boolean) => void
   /** Commit the log (fresh or edited) — marks the dose logged upstream. */
   onTracked: (compoundId: string, log: DoseLog) => void
@@ -64,6 +70,7 @@ export function LogDoseSheet({
   compound,
   existing,
   siteLastUsedDays,
+  bodySex,
   onOpenChange,
   onTracked,
   onRemove,
@@ -95,6 +102,7 @@ export function LogDoseSheet({
             compound={shown.compound}
             existing={shown.existing}
             siteLastUsedDays={siteLastUsedDays}
+            bodySex={bodySex}
             onClose={() => onOpenChange(false)}
             onTracked={onTracked}
             onRemove={onRemove}
@@ -124,6 +132,7 @@ function LogDoseBody({
   compound,
   existing,
   siteLastUsedDays,
+  bodySex,
   onClose,
   onTracked,
   onRemove,
@@ -131,6 +140,7 @@ function LogDoseBody({
   compound: StackCompound
   existing: DoseLog | null
   siteLastUsedDays: Record<string, number>
+  bodySex: BodySex
   onClose: () => void
   onTracked: (compoundId: string, log: DoseLog) => void
   onRemove: (compoundId: string) => void
@@ -239,8 +249,13 @@ function LogDoseBody({
 
   // Sites to show on the map: this compound's route only — pick any site on it.
   // The day-count for the picked spot is shown in the caption below (never on the
-  // muscle itself).
-  const sitesToShow = catalogue.filter((s) => s.route === route)
+  // muscle itself). Narrowed to the sites that exist on this user's body too (the
+  // sheet loads the catalogue itself, so it filters itself — the female IM art has
+  // no pecs, and an unpickable site in the list would be a dead end).
+  const sitesToShow = sitesForSex(
+    catalogue.filter((s) => s.route === route),
+    bodySex,
+  )
 
   function buildLog(): DoseLog {
     // Keep the chosen site only if it's a real site on THIS compound's route —
@@ -442,6 +457,7 @@ function LogDoseBody({
               <BodyMap
                 sites={sitesToShow}
                 mode="pick"
+                sex={bodySex}
                 activeIds={siteId ? [siteId] : []}
                 onTapSite={setSiteId}
               />

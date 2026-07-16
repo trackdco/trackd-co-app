@@ -23,7 +23,7 @@ import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import type { WeightUnit } from "@/lib/weight"
 import type { ProgressPhoto } from "@/lib/progress/photos"
-import type { InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
+import type { BodySex, InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
 import {
   dateKeyToDate,
   seedStack,
@@ -118,6 +118,7 @@ export function HomeScreen({
   firstName,
   progressPhotos,
   injectionCatalogue,
+  bodySex,
   notificationsBanner,
 }: {
   todayKey: DateKey
@@ -131,8 +132,11 @@ export function HomeScreen({
   firstName: string | null
   /** Latest progress photos (newest first) for the Home glance peek. */
   progressPhotos: ProgressPhoto[]
-  /** Injection-site catalogue (both routes) for the glance card + menu. */
+  /** Injection-site catalogue (both routes) for the glance card + menu. Already
+   *  narrowed to the sites that exist on `bodySex`'s body by the server. */
   injectionCatalogue: InjectionSiteRow[]
+  /** Which figure every body map on Home draws (from the user's profile). */
+  bodySex: BodySex
   /** Slim "Enable notifications" prompt, rendered above Today's Log. Self-hides
    *  (renders null) when there's nothing to do, so it never leaves a gap. */
   notificationsBanner?: ReactNode
@@ -494,6 +498,7 @@ export function HomeScreen({
           <InjectionSitesGlanceCard
             daysSince={siteDaysSinceToday}
             recentSites={recentInjectionSites}
+            bodySex={bodySex}
             onOpen={() => {
               setSitesOpen(true)
               try {
@@ -532,6 +537,7 @@ export function HomeScreen({
         compound={logTarget?.compound ?? null}
         existing={logTarget?.existing ?? null}
         siteLastUsedDays={siteLastUsedDays}
+        bodySex={bodySex}
         onOpenChange={(open) => {
           if (!open) setLogTarget(null)
         }}
@@ -590,6 +596,7 @@ export function HomeScreen({
         catalogue={injectionCatalogue}
         daysSince={siteDaysSinceToday}
         recentSites={recentInjectionSites}
+        bodySex={bodySex}
         showMirrorTip={mirrorTip}
       />
     </>

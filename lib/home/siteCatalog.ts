@@ -16,6 +16,7 @@
  * `po` / `nasal` have no sites (`sitesForMethod` returns `[]`). Static data only.
  */
 import type { InjectionMethod } from "@/lib/home/stack"
+import type { BodySex } from "@/lib/db/types"
 
 export interface InjectionSiteDef {
   id: string
@@ -71,6 +72,33 @@ export function sitesForMethod(method: InjectionMethod): InjectionSiteDef[] {
   if (method === "im") return IM_SITES
   if (method === "subq") return SUBQ_SITES
   return [] // po / nasal — no injection sites
+}
+
+/**
+ * Sites that don't exist on a given body. The female IM artwork has no pec
+ * regions, so those two sites are never offered to a female user — without this
+ * they'd sit in the picker with nothing on the map to tap or shade.
+ */
+const SITES_EXCLUDED_BY_SEX: Record<BodySex, ReadonlySet<string>> = {
+  male: new Set(),
+  female: new Set(["im-pec-l", "im-pec-r"]),
+}
+
+/** True if this site has a region on `sex`'s body map. */
+export function siteExistsForSex(siteId: string, sex: BodySex): boolean {
+  return !SITES_EXCLUDED_BY_SEX[sex].has(siteId)
+}
+
+/**
+ * Narrow a catalogue to the sites that exist on this body. Historical dose logs
+ * are NOT touched — a site that's since been filtered out still renders its label
+ * in history via `siteLabel`.
+ */
+export function sitesForSex<T extends { id: string }>(
+  sites: T[],
+  sex: BodySex,
+): T[] {
+  return sites.filter((s) => siteExistsForSex(s.id, sex))
 }
 
 const SITE_LABELS: Record<string, string> = Object.fromEntries(

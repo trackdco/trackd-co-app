@@ -171,7 +171,7 @@ export default function PreviewCalendarPage() {
         />
       </main>
 
-      <BottomNav userId="preview-local" unit="kg" />
+      <BottomNav userId="preview-local" unit="kg" bodySex="male" />
     </div>
   );
 }

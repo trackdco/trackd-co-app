@@ -9,6 +9,8 @@ import { unitForPreference } from "@/lib/weight";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { createClient } from "@/lib/supabase/server";
 import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites";
+import { bodySexFor } from "@/lib/db/types";
+import { sitesForSex } from "@/lib/home/siteCatalog";
 
 const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every load
 
@@ -46,7 +48,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("units_preference, notifications_enabled")
+    .select("units_preference, notifications_enabled, sex")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -90,6 +92,14 @@ export default async function DashboardPage() {
     kg: Number(r.weight),
   }));
 
+  // Which body the site map draws, and the catalogue narrowed to the sites that
+  // exist on it (the female IM art has no pecs). Filtered here, server-side, so
+  // every downstream consumer — glance card, sites sheet, log flow — sees one
+  // consistent set. A profile with no sex gets the male body (legacy rows only:
+  // the welcome quiz now requires a choice).
+  const bodySex = bodySexFor(profile?.sex);
+  const injectionCatalogueForSex = sitesForSex(injectionCatalogue, bodySex);
+
   // Sign the latest photos' paths for display (the bucket is private). Only the
   // glance peek uses them, so weight/note aren't needed here.
   const photoRows = photoData ?? [];
@@ -125,7 +135,8 @@ export default async function DashboardPage() {
         unit={unitForPreference(profile?.units_preference)}
         firstName={firstName}
         progressPhotos={progressPhotos}
-        injectionCatalogue={injectionCatalogue}
+        injectionCatalogue={injectionCatalogueForSex}
+        bodySex={bodySex}
         // Slim, persistent "Enable notifications" prompt, rendered above Today's
         // Log. Notifications are core to the app, so it stays until turned on (no
         // dismiss); self-hides when already on / not actionable.

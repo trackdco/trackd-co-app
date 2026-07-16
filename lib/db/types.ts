@@ -421,6 +421,23 @@ export function protocolCompoundToStack(
 /** The two injectable routes the site catalogue covers (a subset of AdminRoute). */
 export type InjectionSiteRoute = Extract<AdminRoute, "im" | "subq">
 
+/** `profiles.sex` — the `sex_type` enum. Nullable in the DB: rows created before
+ *  the welcome quiz collected it never set one. */
+export type Sex = "male" | "female"
+
+/** Which figure the injection-site body map draws. Always concrete — a profile
+ *  with no sex still has to render something. */
+export type BodySex = Sex
+
+/**
+ * The body to draw for a profile's `sex`. The welcome quiz makes sex a required
+ * choice, so this only falls back for the legacy rows that predate it (and for a
+ * value the enum somehow doesn't cover) — those get the male figure.
+ */
+export function bodySexFor(sex: string | null | undefined): BodySex {
+  return sex === "female" ? "female" : "male"
+}
+
 /** Which body side a site sits on. */
 export type InjectionSiteSide = "left" | "right" | "n_a"
 

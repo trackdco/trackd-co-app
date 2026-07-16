@@ -158,7 +158,7 @@ export function ProtocolPreview() {
         <ProtocolScreen userId={USER} initialCycle={cycle} previewStock={stock} />
       </main>
 
-      <BottomNav userId={USER} unit="kg" />
+      <BottomNav userId={USER} unit="kg" bodySex="male" />
     </div>
   )
 }
