@@ -268,6 +268,10 @@ function QuickTrackBody({
         open={logTarget !== null}
         compound={logTarget?.compound ?? null}
         existing={logTarget?.existing ?? null}
+        // The + menu is a "log it now" shortcut with no day context of its own, so
+        // it's always today — back-dating lives on the dashboard's week strip.
+        dateKey={todayKey}
+        todayKey={todayKey}
         siteLastUsedDays={siteLastUsedDays}
         bodySex={bodySex}
         onOpenChange={(open) => {

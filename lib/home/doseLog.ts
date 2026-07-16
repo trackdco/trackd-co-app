@@ -138,8 +138,10 @@ export function logDose(
   void pushDoseLog(dateKey, compoundId, log) // jsonb mirror (also backs up customs)
   // Postgres (canonical). Needs the compound's method (to map the injection site)
   // and the device-local taken_at instant; no-op for a custom compound. The final
-  // `true` lets the server link the compound's active vial when the client hadn't
-  // resolved one yet (a live log), so the runway always decrements.
+  // `true` lets the server resolve the vial when the client hadn't (the Stock list
+  // loads async, and a back-dated log deliberately leaves it undecided) — it links
+  // whichever vial the compound was drawing from at `taken_at`, so the runway
+  // decrements without a back-dated dose retro-linking to a vial bought since.
   const method = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.method ?? "po"
   void trackSync(
     pushProtocolDoseLog(

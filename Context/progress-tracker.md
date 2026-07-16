@@ -8,6 +8,87 @@ Forward-looking, actionable steps do **not** live here — they live in
 
 Last updated: 2026-07-17
 
+## Back-dating — log a dose (and start a compound) on a past day (2026-07-17, Adrian + Claude)
+
+Adrian's ask: "what if I logged something the day before, but then I track it the day
+after?" You take a shot Tuesday night and open the app Wednesday. **The day the week
+strip is parked on is now the day you write to.** BUILT + verified locally; `tsc` +
+`eslint` + prod `build` clean. NOT committed.
+
+**Half of it already worked, silently — that was the real problem.** The per-compound
+tick already wrote to `selectedKey` ([HomeScreen.tsx:413]) and the DB never had a
+temporal constraint (`taken_at` has a `now()` *default*, no CHECK; RLS has no date
+predicate). So back-dating was already possible with **no indication**, stamped with
+**today's wall-clock time**, and **drawing down today's vial**. The work was making it
+honest, not making it possible.
+
+- **The log sheet is day-aware.** `LogDoseSheet` now takes `dateKey` + `todayKey`
+  (from `HomeScreen`'s `selectedKey`; `QuickTrackSheet` passes today for both — the
+  + menu is a "log it now" shortcut with no day context).
+- **Time defaults per day.** Today → the live-ticking clock, evaluated at submit
+  (unchanged). Any other day → **the compound's `schedule.timeOfDay`** (Adrian's pick).
+  Stamping "now" onto yesterday's dose was the thing making late-logged data wrong.
+- **Past start dates unblocked.** `AddCompoundSheet` dropped both "Start date can't be
+  in the past" and "the time must be later than now". You add a compound *after* you've
+  started running it, and `isDueOn` gates on the start date — so without this, a
+  back-dated dose has nothing to attach to. The year dropdown now reaches back 5 years
+  (`PAST_START_YEARS`), which also lets an existing compound's start be **moved
+  backwards** (edit was always exempt from the check; the year list just never offered
+  the years).
+- **Quiet notices, not warnings** (Adrian: "make it something small… not super
+  noticeable"). Muted `bg-bg-surface-raised` + `text-text-muted`, date in mono,
+  deliberately **not amber** — amber is active/interactive state, and back-dating is
+  supported, not an alarm. Same pattern in both sheets.
+- **The log-sheet note states the date and nothing else** — "Logging to Wed 15 Jul".
+  Adrian reviewed the first cut and cut both qualifiers: ", not today" and "— a future
+  day" are gone, so **past and future read identically**. Naming the day is the whole
+  job; qualifying it editorialises about a choice the user just made, and a future dose
+  is simply "tracked on the date" like any other. (The add sheet's past-start note is
+  untouched — it explains *why* the option exists, which is a different job.)
+- **Unlimited, deliberately** (Adrian's call). No clamp on how far back; the year
+  dropdown bound is a picker affordance, not a rule.
+
+**Vial link now resolves by the dose's DATE (Adrian's call).** The auto-link took the
+compound's *newest active* vial regardless of when the dose happened — the code's own
+comment called this out ("a historical dose never retro-links to a vial bought long
+after it was taken") while the live path did it anyway. It now takes the newest vial
+with `acquired_on <= dateKey`, **active or since-archived** (one vial is in use per
+compound at a time — `addStockItem` archives the priors — so "newest acquired by then"
+*is* the one that was in use). No vial that far back ⇒ **no link**, not a wrong one.
+- **`acquired_on` (a date), not `created_at` (an instant)** — it's the column that
+  means "when this item started being used", and comparing by DAY avoids a bug the
+  instant-compare introduced: a dose logged for 08:00 today from a vial added at 14:00
+  today would have lost its link. Checked live first: 22 vials, **0 null `acquired_on`,
+  0 rows where it differs from `created_at::date`** → behaviour-identical on real data.
+- **Verified against live data** across 5 dose dates on the one compound that has two
+  vials (24 Jun archived → 11 Jul active): today and 11 Jul pick the active vial under
+  **both** old and new rules (**no regression to live logging**); 1 Jul now picks the
+  archived 24 Jun vial (old rule wrongly picked 11 Jul); 1 Jun now links **nothing**
+  (old rule wrongly deducted from the 11 Jul vial).
+- A back-dated log therefore leaves the vial **undecided** client-side (`undefined`)
+  so the server resolves it — `listStock` only knows what's active *now*. The sheet
+  shows "Counts against whichever vial you were using on {date}" with the same opt-out.
+
+**Verified by driving the real UI** (headless Chrome over CDP against `/preview/home`
+— zero new dependencies; Chrome + Node 24's global `WebSocket`):
+- Back-dated (−2d): notice "Logging to Wed 15 Jul", time **08:30** = the compound's
+  scheduled time, hint "Using this compound's scheduled time."
+- **Today (0d): no notice, time 00:56, "Logging at 00:56:31 — live now."** — the
+  regression check that matters; today's flow is untouched.
+- Future (+2d): "Logging to Sun 19 Jul" — identical wording to the past.
+- Add-compound: year list `2021…2028`; notice "Starting on Fri 17 Apr, in the past —
+  so you can log the doses you've already taken."; **Add saved
+  `startDate: "2026-04-17"`** (3 months back) — previously rejected outright.
+
+**Future logging — SETTLED (Adrian, 2026-07-17): leave it, and don't call it out.** You
+can log a dose to a future day, and could before this change (the strip scrolls forward
+unbounded and the tick has always worked). Adrian's call is that a future dose is just
+"tracked on the date" like any other — so it is **not blocked** and the notice names the
+day without qualifying it. No further action.
+
+**Deferred — CONFIRMED (Adrian, 2026-07-17):** a logging path on the **Calendar** ("the
+calendar for now is read-only, yes") — its day sheet stays read-only.
+
 ## Injection-site route now defaults to the stack's majority route (2026-07-17, Adrian + Claude)
 
 Both injection-site views (the Home glance card and the full map sheet) hardcoded

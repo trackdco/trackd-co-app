@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Check } from "lucide-react"
+import { CalendarDays, Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,7 @@ import {
 } from "@/lib/compound-categories"
 import type { DoseLog } from "@/lib/home/mockHomeData"
 import {
+  formatDateKeyShort,
   formatTimeLabel,
   isInjectable,
   sanitizeDoseInput,
@@ -39,6 +40,12 @@ interface LogDoseSheetProps {
   compound: StackCompound | null
   /** The existing log when editing an already-logged dose; null = fresh log. */
   existing: DoseLog | null
+  /** The day this dose lands on, "YYYY-MM-DD" — the caller's selected day, which
+   *  need NOT be today (the week strip can look back). Everything date-dependent
+   *  keys off this: the notice, the default time, and which vial it draws from. */
+  dateKey: string
+  /** The device's local today, "YYYY-MM-DD" — what `dateKey` is judged against. */
+  todayKey: string
   /** Days since each site was last logged on an earlier day — the map's day-count. */
   siteLastUsedDays: Record<string, number>
   /** Which figure the pick map draws (from the user's profile). */
@@ -69,6 +76,8 @@ export function LogDoseSheet({
   open,
   compound,
   existing,
+  dateKey,
+  todayKey,
   siteLastUsedDays,
   bodySex,
   onOpenChange,
@@ -98,9 +107,13 @@ export function LogDoseSheet({
       >
         {shown ? (
           <LogDoseBody
-            key={shown.compound.id}
+            // Keyed by day too: the default time and the vial wording both derive
+            // from it, so re-opening on another day must start fresh.
+            key={`${shown.compound.id}:${dateKey}`}
             compound={shown.compound}
             existing={shown.existing}
+            dateKey={dateKey}
+            todayKey={todayKey}
             siteLastUsedDays={siteLastUsedDays}
             bodySex={bodySex}
             onClose={() => onOpenChange(false)}
@@ -131,6 +144,8 @@ function toHHMMSS(d: Date): string {
 function LogDoseBody({
   compound,
   existing,
+  dateKey,
+  todayKey,
   siteLastUsedDays,
   bodySex,
   onClose,
@@ -139,6 +154,8 @@ function LogDoseBody({
 }: {
   compound: StackCompound
   existing: DoseLog | null
+  dateKey: string
+  todayKey: string
   siteLastUsedDays: Record<string, number>
   bodySex: BodySex
   onClose: () => void
@@ -147,6 +164,10 @@ function LogDoseBody({
 }) {
   const editing = existing !== null
   const injectable = isInjectable(compound.method)
+  // Life doesn't happen at the phone: the week strip can look back, so a dose may
+  // land on a day that isn't today. Everything below that depends on "when" reads
+  // this rather than the clock.
+  const onToday = dateKey === todayKey
 
   const cardRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startY: number; height: number } | null>(null)
@@ -158,24 +179,28 @@ function LogDoseBody({
   const [amount, setAmount] = useState(existing?.amount ?? String(compound.dose))
   const [editingAmount, setEditingAmount] = useState(false)
 
-  // A4: the time live-tracks the clock (ticking each second) until the user makes
-  // a manual edit, which overrides + freezes it; clearing the field resumes live.
-  // `manualTime === null` ⇒ live. The committed time is evaluated at SUBMIT
-  // (new Date()), never captured at open. Editing an existing dose starts frozen
-  // at its logged time.
+  // A4: `manualTime === null` ⇒ take the day's default; any value ⇒ the user's own,
+  // frozen. Editing an existing dose starts frozen at its logged time.
+  //
+  // What the default IS depends on the day. On TODAY it live-tracks the clock
+  // (ticking each second) and is evaluated at SUBMIT, never captured at open. On a
+  // BACK-DATED day the clock is meaningless — stamping "now" onto yesterday's dose
+  // is exactly the thing that makes late-logged data wrong — so it defaults to the
+  // compound's own scheduled time for that day, which is the best guess available.
   const [manualTime, setManualTime] = useState<string | null>(
     existing?.time24 ?? null
   )
   const [now, setNow] = useState<Date>(() => new Date())
   useEffect(() => {
-    if (manualTime !== null) return
+    if (manualTime !== null || !onToday) return
     const tick = () => setNow(new Date())
     tick()
     const id = window.setInterval(tick, 1000)
     return () => window.clearInterval(id)
-  }, [manualTime])
-  const liveTracking = manualTime === null
-  const displayTime = manualTime ?? toHHMM(now)
+  }, [manualTime, onToday])
+  const liveTracking = manualTime === null && onToday
+  const defaultTime = onToday ? toHHMM(now) : compound.schedule.timeOfDay
+  const displayTime = manualTime ?? defaultTime
 
   const [siteId, setSiteId] = useState<string | null>(existing?.siteId ?? null)
 
@@ -207,8 +232,13 @@ function LogDoseBody({
 
   // Vials of THIS compound the dose can draw from, so its "stock left" decrements.
   // Only family-compatible ones (mg-tracked vial ↔ mg/mcg dose; iu ↔ iu) — the DB
-  // enforces the same. A fresh log defaults to the most-recent vial; editing keeps
-  // the dose's existing link. setState runs after the await (not in the effect body).
+  // enforces the same. A fresh log ON TODAY defaults to the most-recent vial;
+  // editing keeps the dose's existing link. setState runs after the await (not in
+  // the effect body).
+  //
+  // A BACK-DATED log never picks from this list: `listStock` only knows the vials
+  // active NOW, which may not be the one that was in use on the dose's day. It stays
+  // undecided so the server resolves the vial by the dose's own instant instead.
   const [vials, setVials] = useState<StockItem[]>([])
   // `undefined` = undecided (a fresh log; the Stock list may still be loading) —
   // the server then links the compound's active vial by default, so a dose logged
@@ -233,7 +263,9 @@ function LogDoseBody({
               (v.baseUnit === "iu" && compound.unit === "iu"))
         )
         setVials(mine)
-        if (existing == null && mine.length > 0) setInventoryItemId(mine[0].id)
+        if (existing == null && onToday && mine.length > 0) {
+          setInventoryItemId(mine[0].id)
+        }
       } catch {
         if (!cancelled) setVials([])
       } finally {
@@ -243,7 +275,7 @@ function LogDoseBody({
     return () => {
       cancelled = true
     }
-  }, [compound.id, compound.unit, existing])
+  }, [compound.id, compound.unit, existing, onToday])
 
   const [tracked, setTracked] = useState(false)
 
@@ -267,12 +299,14 @@ function LogDoseBody({
       siteId == null ||
       catalogue.length === 0 ||
       sitesToShow.some((s) => s.id === siteId)
-    // Evaluate the time at SUBMIT: a manual override wins, otherwise the live
-    // clock right now (A4).
+    // Evaluate the time at SUBMIT: a manual override wins, otherwise the day's
+    // default — the live clock right now on today (A4), or the compound's scheduled
+    // time when back-dating (the clock says nothing about a dose taken yesterday).
     return {
       amount,
       siteId: injectable && siteOnRoute ? siteId : null,
-      time24: manualTime ?? toHHMM(new Date()),
+      time24:
+        manualTime ?? (onToday ? toHHMM(new Date()) : compound.schedule.timeOfDay),
       inventoryItemId,
     }
   }
@@ -346,6 +380,28 @@ function LogDoseBody({
       </SheetDescription>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-6 pt-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+        {/* Which day this lands on — shown ONLY when that isn't today, so nobody
+            back-fills a week of doses having forgotten they scrolled the strip back.
+            Deliberately quiet (muted, no amber): it's an orientation note, not a
+            warning, and the whole point of the week strip is that this is allowed.
+            It states the date and nothing else — past and future read identically
+            (Adrian's call). Naming the day is the whole job; qualifying it ("not
+            today", "a future day") editorialises about a choice the user just made. */}
+        {!onToday && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2">
+            <CalendarDays
+              className="h-3.5 w-3.5 shrink-0 text-text-muted"
+              aria-hidden
+            />
+            <p className="text-xs text-text-muted">
+              Logging to{" "}
+              <span className="font-mono text-foreground">
+                {formatDateKeyShort(dateKey)}
+              </span>
+            </p>
+          </div>
+        )}
+
         {/* Dose summary */}
         <div className="flex items-center gap-3 rounded-xl bg-bg-surface-raised px-4 py-3">
           <span
@@ -415,8 +471,9 @@ function LogDoseBody({
           </label>
         </div>
 
-        {/* Live-clock hint — ticks each second while tracking; tapping the time
-            field to set a value freezes it (A4). */}
+        {/* Time hint — on today the clock ticks each second until you set a value
+            (A4); on a back-dated day it says which default it fell back to, since
+            "live now" would be a lie about a dose taken days ago. */}
         <p className="mt-1.5 px-1 text-xs text-text-subtle">
           {liveTracking ? (
             <>
@@ -426,8 +483,13 @@ function LogDoseBody({
               </span>{" "}
               — live now. Tap the time to set it yourself.
             </>
+          ) : manualTime === null ? (
+            <>
+              Using this compound&apos;s scheduled time. Tap the time to set it
+              yourself.
+            </>
           ) : (
-            <>Time set manually. Clear it to track the current time again.</>
+            <>Time set manually. Clear it to use the default again.</>
           )}
         </p>
 
@@ -503,11 +565,57 @@ function LogDoseBody({
           <p className="mt-5 px-1 text-xs text-text-subtle">Checking your stock…</p>
         )}
 
+        {/* From vial, BACK-DATED — the vials above are the ones active NOW, which
+            needn't be the one that was in use on the dose's day (adding or refilling
+            stock archives the prior vial). So there's nothing honest to name here:
+            the dose stays undecided and the server links whichever vial the compound
+            was actually drawing from at that instant — or nothing, if the compound
+            had no vial yet. The opt-out still works. */}
+        {!onToday && vials.length > 0 && (
+          <div className="mt-5">
+            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+              From vial
+            </span>
+            {inventoryItemId === null ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3 py-2.5">
+                <span className="min-w-0 text-xs text-text-muted">
+                  Not counting this dose against your stock.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setInventoryItemId(undefined)}
+                  className="shrink-0 text-xs font-medium text-accent-amber transition-opacity hover:opacity-80"
+                >
+                  Count it
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3 py-2.5">
+                <span className="min-w-0 text-xs text-text-muted">
+                  Counts against whichever vial you were using on{" "}
+                  <span className="font-mono text-foreground">
+                    {formatDateKeyShort(dateKey)}
+                  </span>
+                  .
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setInventoryItemId(null)}
+                  className="shrink-0 text-xs text-text-subtle underline underline-offset-2 transition-colors hover:text-foreground"
+                >
+                  Don&apos;t count this one
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* From vial — the dose AUTO-LINKS to this compound's active vial so its
             "stock left" counts down (v_inventory_math); no manual picking. The
             usual case (one active vial per compound) shows a calm confirmation with
             a quiet opt-out. The rare 2+ vials case keeps an explicit chooser. */}
-        {vials.length === 1 &&
+        {onToday &&
+          vials.length === 1 &&
           (() => {
             const v = vials[0]
             const left =
@@ -556,7 +664,7 @@ function LogDoseBody({
             )
           })()}
 
-        {vials.length > 1 && (
+        {onToday && vials.length > 1 && (
           <div className="mt-5">
             <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
               From vial

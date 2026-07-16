@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Pencil, Plus, TriangleAlert } from "lucide-react"
+import { CalendarDays, Pencil, Plus, TriangleAlert } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -70,6 +70,9 @@ const DOW: { letter: string; day: number }[] = [
   { letter: "F", day: 5 },
   { letter: "S", day: 6 },
 ]
+
+// How many past years the start-date picker offers, on top of the current year + 2.
+const PAST_START_YEARS = 5
 
 // Start date uses Day / Month / Year dropdowns — the SAME pattern as the sign-up
 // date-of-birth picker (app/welcome/gate-form.tsx), styled to match the form.
@@ -356,15 +359,24 @@ function AddCompoundBody({
   const timeOfDay = manualTime ?? hhmm(clock)
 
   const todayKey = toDateKey(now)
-  const startYears = [now.getFullYear(), now.getFullYear() + 1, now.getFullYear() + 2]
-  // An edit may have a start year in the past — keep it selectable so the year
-  // shows correctly even though new starts are future-only.
+  // Past years are offered because a compound can start in the past (you add it to
+  // the app after you've already been running it). PAST_START_YEARS is a dropdown
+  // bound, not a rule — nothing rejects an older date, it's just how far back the
+  // picker reaches without becoming a scroll.
+  const startYears = Array.from(
+    { length: PAST_START_YEARS + 3 },
+    (_, i) => now.getFullYear() - PAST_START_YEARS + i
+  )
+  // An edit may reach back further than the picker offers — keep its year
+  // selectable so it still shows correctly.
   if (!startYears.includes(Number(sYear))) startYears.unshift(Number(sYear))
   // Days available for the chosen month/year (so Feb never offers 30/31).
   const startDaysInMonth = new Date(Number(sYear), Number(sMonth), 0).getDate()
   const safeStartDay =
     Number(sDay) > startDaysInMonth ? String(startDaysInMonth) : sDay
   const startDate = `${sYear}-${String(sMonth).padStart(2, "0")}-${safeStartDay.padStart(2, "0")}`
+  // Both are "YYYY-MM-DD", so a string compare is a date compare.
+  const startsInPast = startDate < todayKey
 
   function toggleDay(day: number) {
     setDays((cur) =>
@@ -466,21 +478,16 @@ function AddCompoundBody({
       return
     }
     // When the time is still live-tracking, resolve it at SAVE (a fresh now), so
-    // a minute ticking by before saving can't trip the "later than now" check.
+    // the saved default matches what the field last showed.
     const nowAtSave = new Date()
     const effectiveTime = manualTime ?? hhmm(nowAtSave)
-    // Future-date / -time rules apply to NEW cycles only; an edit may already be
-    // running (its start is historical), so don't block editing other fields.
-    if (!isEdit && !isReactivate) {
-      if (startDate < toDateKey(nowAtSave)) {
-        show("Start date can't be in the past.")
-        return
-      }
-      if (startDate === toDateKey(nowAtSave) && effectiveTime < hhmm(nowAtSave)) {
-        show("For a cycle starting today, the time must be later than now.")
-        return
-      }
-    }
+    // A start date in the past is allowed, deliberately. You often only add a
+    // compound to the app AFTER you've started running it, and the doses you
+    // already took need somewhere to land — a compound that didn't exist on Tuesday
+    // can't have a Tuesday dose logged against it (`isDueOn` gates on the start).
+    // The past start is confirmed in the sheet instead of blocked (see the notice by
+    // the date picker), so back-dating stays a choice you can see rather than a
+    // silent one. Same reason the time is no longer forced later than now.
     if (cadenceType === "daysOfWeek" && days.length === 0) {
       show("Select at least one day for the schedule.")
       return
@@ -790,7 +797,7 @@ function AddCompoundBody({
           )}
 
           {/* Start date — Day / Month / Year dropdowns (same as the sign-up DOB
-              picker), future dates only for a new cycle. */}
+              picker). Past dates are allowed and confirmed below, not blocked. */}
           <div className="mt-3">
             <span className="mb-1.5 block text-xs text-text-muted">Starts on</span>
             <div className="grid grid-cols-[1fr_1.5fr_1.1fr] gap-2">
@@ -838,13 +845,33 @@ function AddCompoundBody({
               <Input
                 type="time"
                 value={timeOfDay}
-                min={!isEdit && !isReactivate && startDate === todayKey ? hhmm(clock) : undefined}
+                // No `min`: a cycle can start earlier today (or on a past day), so
+                // the time isn't forced later than now.
                 // Empty resumes live tracking; any value freezes it.
                 onChange={(e) => setManualTime(e.target.value || null)}
                 aria-label="Default dose time"
                 className="h-11 w-32 max-w-[45%] rounded-xl border-border-default bg-bg-input px-4 font-mono text-base dark:bg-bg-input"
               />
             </label>
+
+            {/* Past start — a quiet confirmation of the date it's landing on, so a
+                back-dated cycle is deliberate rather than a mis-set dropdown. Muted,
+                not amber: this is a supported thing to do, not a warning. */}
+            {startsInPast && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2">
+                <CalendarDays
+                  className="h-3.5 w-3.5 shrink-0 text-text-muted"
+                  aria-hidden
+                />
+                <p className="text-xs text-text-muted">
+                  Starting on{" "}
+                  <span className="font-mono text-foreground">
+                    {formatDateKeyShort(startDate)}
+                  </span>
+                  , in the past — so you can log the doses you&apos;ve already taken.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Date preview — what days this actually lands on. */}

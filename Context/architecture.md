@@ -331,7 +331,17 @@ stored.)
     device `DoseLog.inventoryItemId` and `pushProtocolDoseLog` sets `dose_logs.inventory_item_id`
     (validating unit-family vs the vial, dropping an incompatible link rather than failing the
     log). So logging a dose **decrements that vial's "stock left"** via `v_inventory_math`
-    (`consumed`); unlogging restores it.
+    (`consumed`); unlogging restores it. When the client leaves the vial **undecided**
+    (`undefined` — the Stock list loads async, and a back-dated log leaves it undecided by
+    design), `pushProtocolDoseLog` resolves it **by the dose's own date**: the newest vial whose
+    `acquired_on <= dateKey`, active **or since-archived**. One vial is in use per compound at a
+    time (`addStockItem` archives the priors on every add/refill), so "newest acquired by then"
+    *is* the vial that was in use then. No vial that far back ⇒ **no link**, rather than a wrong
+    one. This is what keeps back-dating honest — a dose logged for last Tuesday can't draw down
+    a vial opened on Friday — and it leaves live logging unchanged (the current vial was always
+    acquired on or before today). Compared by DAY, not instant: a dose's time-of-day is a
+    user-editable guess, so an instant compare would drop the link on a dose logged for 08:00
+    today from a vial added at 14:00 today. See **Back-dating** below.
   - **Scope:** catalogue compounds are canonical in Postgres. **Custom "Make your own"
     compounds** keep their STACK membership device-local (jsonb mirror, merged on Home),
     but now ALSO get a `protocol_compounds` row on demand (compound_id NULL +
@@ -358,6 +368,51 @@ stored.)
 - The plus-button **Shortcuts menu** (A10) is now a fixed layout — a primary "Log a
   dose" over a consistent six-tile grid — so it persists nothing (the earlier
   reorderable card order + `lib/shortcutOrder.ts` were removed when the menu was reworked).
+
+## Back-dating (2026-07-17)
+
+Life doesn't happen at the phone: you take a shot on Tuesday night and open the app
+on Wednesday. **The day the dashboard is parked on is the day you write to** — not
+"today". The selected day is the writable day.
+
+- **The selected day IS the target.** `HomeScreen`'s `selectedKey` (the week strip's
+  day, local `useState`, unbounded in both directions) is what `logDose` /`unlogDose`
+  already wrote to; the log sheet now receives it as `dateKey` + `todayKey` so
+  everything date-dependent agrees with where the dose actually lands. The bottom-nav
+  **+ menu** (`QuickTrackSheet`) has no day context of its own and is **always today**
+  — back-dating lives on the week strip. The **Calendar is still read-only** (no log
+  path); wiring one up is deferred.
+- **No limit, by design.** Nothing clamps how far back a dose or a start date may go.
+  `dose_logs.taken_at` has a `now()` *default*, never a temporal CHECK, and RLS carries
+  no date predicate — the DB has always accepted this (Invariant 5: don't
+  re-implement in TS what the DB enforces, and don't invent a rule it doesn't have).
+  The `AddCompoundSheet` year dropdown offers current − 5 … current + 2, a **picker
+  bound, not a rule**.
+- **Time-of-day is the part that makes late-logged data wrong**, so it's day-aware:
+  on today the field live-tracks the clock (evaluated at submit); on any other day it
+  defaults to **the compound's own `schedule.timeOfDay`** — the best guess available —
+  because stamping "now" onto yesterday's dose is exactly the corruption to avoid.
+  Either way the user can override it.
+- **A past start date is allowed and confirmed, not blocked.** `AddCompoundSheet`
+  previously rejected `startDate < today` (and forced a same-day time later than now).
+  Both are gone: you usually add a compound to the app *after* you've started running
+  it, and `isDueOn` gates on the start date — a compound that didn't exist on Tuesday
+  can have no Tuesday dose. An existing compound's start can also be **moved
+  backwards** (edit was always exempt from the check; the year list now reaches back
+  far enough to actually do it).
+- **Notices, not warnings.** A back-dated log sheet and a past-start add sheet each
+  carry a quiet **muted** note naming the date (`border-border-default`
+  `bg-bg-surface-raised`, `text-text-muted`, date in mono) — deliberately **not amber**:
+  amber is active/interactive state (`ui-context.md`), and back-dating is a supported
+  thing to do, not an alarm. It exists so nobody back-fills a week having forgotten
+  they scrolled the strip back. The log-sheet note reads **"Logging to {date}" and
+  nothing more** — past and future are worded identically (Adrian's call, 2026-07-17).
+  Naming the day is the whole job; qualifying it ("not today", "— a future day")
+  editorialises about a choice the user just made, and a **future** dose is a dose
+  tracked on its date like any other. Future logging is **not blocked** (it never was —
+  the strip has always scrolled forward and the tick has always worked).
+- **Vials resolve by the dose's date**, so a back-dated dose never retro-links to a
+  vial bought since — see the dose→inventory link under the Protocol Cutover above.
 
 ## Legal Documents
 
