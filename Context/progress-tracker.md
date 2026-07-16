@@ -8,11 +8,13 @@ Forward-looking, actionable steps do **not** live here — they live in
 
 Last updated: 2026-07-16
 
-## Spec 19 (female bodies) — BUILT, awaiting on-device QA + sign-off (2026-07-16, Adrian + Claude)
+## Spec 19 (female bodies) — SHIPPED to prod as PR #54 (squash `afb9dec`) (2026-07-16, Adrian + Claude)
 
 The injection-site body map is now **sex-aware**: male users get the existing figure,
-female users get Angus's female artwork. Built on `main`, typecheck + `npm run build`
-clean. **▶ Remaining: Adrian's on-device QA, then commit/PR.**
+female users get Angus's female artwork. **Merged to `main` → deployed to Vercel prod**
+as **PR #54** (squash `afb9dec`); typecheck + lint + build clean, CodeRabbit review folded
+in (a single preview-only nitpick: a picked site's label blanked when switching route).
+**▶ Remaining: Adrian's on-device QA.**
 
 - **Angus's 4 female SVGs integrated** (`Context/Feature Specs/body-svg/female/`, male
   art moved to `body-svg/male/`) → generated `bodyArtworkFemale{IM,SubQ}.ts`. They were

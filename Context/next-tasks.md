@@ -15,12 +15,13 @@ Last updated: 2026-07-16
 
 ## 🎯 Current focus
 
-**🟡 2026-07-16 (Adrian + Claude): SPEC 19 — FEMALE BODIES built, awaiting QA + sign-off.**
+**✅ 2026-07-16 (Adrian + Claude): SPEC 19 — FEMALE BODIES shipped to prod (PR #54, squash `afb9dec`).**
 The body map is sex-aware: `profiles.sex` → male or female figure. Angus's 4 female SVGs
 are integrated (all 8 bodies render-verified headless), sex is now a **required** question
 on the welcome gate, Settings dropped "prefer not to say" and puts a confirm in front of a
 change, and `im-pec-*` is filtered out for female users (Angus's female IM art has no pecs).
-Typecheck + build clean. **Not committed yet** — see `progress-tracker.md` for the detail.
+Typecheck + build clean; CodeRabbit review folded in (one preview-only nitpick). Merged to
+`main` → deployed to Vercel prod. **▶ Remaining: Adrian's on-device QA below.**
 
 **▶ Next — Adrian's on-device QA on the female path:**
 1. **Settings → Sex.** Only Male / Female (no "prefer not to say"). Change it → a confirm
