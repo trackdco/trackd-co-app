@@ -98,10 +98,12 @@ export function SitesPreview() {
                 onTapSite={(id) => setPicked((p) => ({ ...p, [sex]: id }))}
               />
 
+              {/* The pick is kept per-sex across route switches, so an IM pick is
+                  still there when you switch back — but it has no label on the
+                  OTHER route's catalogue, so fall back to the prompt. */}
               <p className="mt-3 min-h-[1.25rem] text-center text-sm text-text-muted">
-                {chosen
-                  ? sites.find((s) => s.id === chosen)?.label
-                  : "Tap a muscle — the label should match YOUR side."}
+                {(chosen && sites.find((s) => s.id === chosen)?.label) ||
+                  "Tap a muscle — the label should match YOUR side."}
               </p>
             </section>
           )
