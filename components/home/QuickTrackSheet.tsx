@@ -19,6 +19,7 @@ import {
 } from "@/lib/compound-categories"
 import { CARD_TITLE } from "@/lib/ui-presets"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
+import type { BodySex } from "@/lib/db/types"
 import {
   formatTimeLabel,
   getStackSnapshot,
@@ -94,10 +95,13 @@ export function QuickTrackSheet({
   open,
   onOpenChange,
   userId,
+  bodySex,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   userId: string
+  /** Which figure the log-dose body map draws (from the user's profile). */
+  bodySex: BodySex
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -116,7 +120,11 @@ export function QuickTrackSheet({
           Tap a compound to log it, or tap a logged tick to undo it.
         </SheetDescription>
         {open && (
-          <QuickTrackBody userId={userId} onClose={() => onOpenChange(false)} />
+          <QuickTrackBody
+            userId={userId}
+            bodySex={bodySex}
+            onClose={() => onOpenChange(false)}
+          />
         )}
       </SheetContent>
     </Sheet>
@@ -130,9 +138,11 @@ interface LogTarget {
 
 function QuickTrackBody({
   userId,
+  bodySex,
   onClose,
 }: {
   userId: string
+  bodySex: BodySex
   onClose: () => void
 }) {
   const stack = useSyncExternalStore(
@@ -259,6 +269,7 @@ function QuickTrackBody({
         compound={logTarget?.compound ?? null}
         existing={logTarget?.existing ?? null}
         siteLastUsedDays={siteLastUsedDays}
+        bodySex={bodySex}
         onOpenChange={(open) => {
           if (!open) setLogTarget(null)
         }}

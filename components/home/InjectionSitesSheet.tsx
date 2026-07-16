@@ -9,7 +9,11 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet"
-import type { InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
+import type {
+  BodySex,
+  InjectionSiteRoute,
+  InjectionSiteRow,
+} from "@/lib/db/types"
 import { BodyMap } from "@/components/sites/BodyMap"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
 import { decayWindow, siteHeat } from "@/lib/home/siteRecency"
@@ -25,8 +29,10 @@ interface RecentSite {
 interface InjectionSitesSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Full catalogue (both routes). */
+  /** Full catalogue (both routes), already narrowed to `bodySex`'s sites. */
   catalogue: InjectionSiteRow[]
+  /** Which figure the map draws (from the user's profile). */
+  bodySex: BodySex
   /** Days since each site was last used (from the dose log). */
   daysSince: Record<string, number>
   /** Recently-used sites (newest first), each with the compound(s) put there. */
@@ -56,6 +62,7 @@ export function InjectionSitesSheet({
   open,
   onOpenChange,
   catalogue,
+  bodySex,
   daysSince,
   recentSites,
   showMirrorTip,
@@ -226,7 +233,13 @@ export function InjectionSitesSheet({
               onPointerLeave={endScrub}
               onPointerCancel={endScrub}
             >
-              <BodyMap sites={routeSites} mode="recency" heat={heat} inspectable />
+              <BodyMap
+                sites={routeSites}
+                mode="recency"
+                sex={bodySex}
+                heat={heat}
+                inspectable
+              />
 
               {inspected && (
                 <div

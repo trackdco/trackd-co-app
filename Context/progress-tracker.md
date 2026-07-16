@@ -6,7 +6,40 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
+
+## Spec 19 (female bodies) — BUILT, awaiting on-device QA + sign-off (2026-07-16, Adrian + Claude)
+
+The injection-site body map is now **sex-aware**: male users get the existing figure,
+female users get Angus's female artwork. Built on `main`, typecheck + `npm run build`
+clean. **▶ Remaining: Adrian's on-device QA, then commit/PR.**
+
+- **Angus's 4 female SVGs integrated** (`Context/Feature Specs/body-svg/female/`, male
+  art moved to `body-svg/male/`) → generated `bodyArtworkFemale{IM,SubQ}.ts`. They were
+  authored in the **same 1491×2109 canvas** as the male set, so all four modules share
+  one identical transform — switching sex or route never resizes or shifts the body.
+  Angus's ids differ in spelling from the male set (`outer_quad_l` vs `quad_outer_l`,
+  `delth_l` typo, `outer_quad_l_2` Figma dedupe suffix), so the generator maps each id
+  explicitly to its catalogue site id and **fails loudly** on an unmapped/duplicate/
+  missing one rather than silently dropping a region.
+- **Verified by rendering, not just typecheck:** all 8 bodies (2 sexes × 2 routes ×
+  front/back) were rendered headless from the *generated* data using the app's own
+  transform + 0–100 viewBox. Regions land on the right anatomy; the mirror convention
+  (screen-left = your left) holds on every view, including the backs — checked against
+  Angus's labels, which were all correct.
+- **Decisions (Adrian's calls, 2026-07-16):**
+  - **Female has no pecs.** Angus's female IM art omits them, so `im-pec-*` is filtered
+    out for female users (`sitesForSex`). Female IM = 20 sites, Sub-Q = full 14.
+    Existing history is untouched — a logged pec still renders its label.
+  - **No "prefer not to say".** Removed from Settings; the **welcome gate now asks for
+    sex** (required, server-validated) alongside DOB. It's male or female.
+  - **Null sex → male body.** Only legacy rows (pre-gate-question) can be null; Settings
+    shows those a "Select…" placeholder and requires a pick, so a save can't silently
+    write a sex the user never chose.
+  - **Changing sex in Settings pops a confirm** naming the body-map switch; selections
+    and history are explicitly kept (site ids are shared across both bodies).
+- No migration needed — `sex` was already `sex_type` on `profiles` and already in the
+  column-level UPDATE grant (`grants/003`).
 
 ## Spec 19 — SHIPPED: merged to prod as PR #53 (squash `cabc184`); Home consistency strip removed; demo login cleaned up (2026-07-15, Adrian + Claude)
 

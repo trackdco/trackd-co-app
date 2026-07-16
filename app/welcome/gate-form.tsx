@@ -41,6 +41,10 @@ const SELECT_CLASS =
  * never decides age). The day list adapts to the chosen month/year so an
  * impossible date (e.g. 31 February) can't be selected.
  *
+ * Sex is asked here too, and is required: it decides which body the
+ * injection-site map draws (male / female figure). There's no "prefer not to
+ * say" — without a value the map has no body to pick.
+ *
  * Acceptance is a single checkbox covering all three legal documents, each
  * opening in a new tab so reading them doesn't drop the form. On success the
  * action redirects to /dashboard.
@@ -57,6 +61,7 @@ export function GateForm() {
   const [day, setDay] = useState("");
   const [month, setMonth] = useState(""); // "1".."12"
   const [year, setYear] = useState("");
+  const [sex, setSex] = useState(""); // "male" | "female" — required, see below
 
   // Three separate, un-ticked consents (Spec 12). All required to continue.
   const [agreeTosPrivacy, setAgreeTosPrivacy] = useState(false);
@@ -76,10 +81,16 @@ export function GateForm() {
       ? `${year}-${String(month).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`
       : "";
 
-  // Enable "Enter Trackd" only once a DOB is entered and all three consents are
-  // ticked. The server still enforces the 18+ age check on top of this.
+  // Enable "Enter Trackd" only once a DOB + sex are entered and all three
+  // consents are ticked. The server still enforces the 18+ age check on top of
+  // this, and re-validates sex (the client never decides either).
   const canSubmit =
-    agreeTosPrivacy && agreeDisclaimer && agreeHealth && dob !== "" && !isPending;
+    agreeTosPrivacy &&
+    agreeDisclaimer &&
+    agreeHealth &&
+    dob !== "" &&
+    sex !== "" &&
+    !isPending;
 
   return (
     <form action={formAction} className="mt-10 w-full max-w-[20rem] text-left">
@@ -133,6 +144,29 @@ export function GateForm() {
       <input type="hidden" name="date_of_birth" value={dob} />
       <p className="mt-2 text-[0.7rem] text-text-subtle">
         Trackd is for adults 18 and over. We use this to confirm your age.
+      </p>
+
+      {/* Sex — required. Sets which body the injection-site map draws; changeable
+          later in Settings (behind a confirm). */}
+      <fieldset className="mt-6 border-0 p-0">
+        <legend className="mb-2 block text-xs uppercase tracking-[0.18em] text-text-muted">
+          Sex
+        </legend>
+        <select
+          name="sex"
+          required
+          aria-label="Sex"
+          value={sex}
+          onChange={(e) => setSex(e.target.value)}
+          className={SELECT_CLASS}
+        >
+          <option value="">Select…</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </fieldset>
+      <p className="mt-2 text-[0.7rem] text-text-subtle">
+        Sets your injection-site body map. You can change it later in Settings.
       </p>
 
       <fieldset className="mt-6 space-y-4 border-0 p-0">

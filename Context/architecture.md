@@ -577,6 +577,28 @@ full-screen sheet, and the site picker inside the log-dose sheet.
   and region overlays fill amber. Front/Back is one crossfading view. **Mirror-front
   convention:** an image-left region maps to the user's own left on both views, so
   screen-left = your left (the region's site id already encodes the side).
+- **Male + female bodies (sex-aware).** There are **four** generated artwork modules —
+  `bodyArtwork{IM,SubQ}.ts` (male) and `bodyArtworkFemale{IM,SubQ}.ts` — all drawn in
+  the same 1491×2109 canvas and sharing **one identical transform** onto the 0–100
+  grid, so switching route *or* sex never resizes or shifts the body. Which body to
+  draw comes from `profiles.sex` via `bodySexFor()` (`lib/db/types.ts`), threaded down
+  as a `bodySex` prop from two server entry points: the **dashboard page** (glance card
+  + sites sheet) and the **(app) layout** (→ `BottomNav` → `ShortcutsMenu` →
+  `QuickTrackSheet` → the log flow). `components/sites/bodyArtwork.ts` is the only
+  thing that knows which module is which — `routeTransform` / `routeBasePaths` /
+  `routeRegions` all take `(route, [aspect,] sex)`.
+  - **Female has no pec sites.** Angus's female IM art omits the pecs, so `im-pec-l` /
+    `im-pec-r` are filtered out of the catalogue for female users by `sitesForSex`
+    (`lib/home/siteCatalog.ts`) — server-side on the dashboard, and again inside
+    `LogDoseSheet` (which loads its own catalogue). The female Sub-Q set is a 1:1 match
+    with the male's. **History is never rewritten:** a pec logged earlier still renders
+    its label via `siteLabel`; it's just not offered going forward.
+  - **Sex is required, not nullable-in-practice.** The welcome gate asks for it
+    alongside DOB and validates it server-side; Settings offers only Male / Female
+    (no "prefer not to say") behind a confirm step, since it changes what the map
+    draws. Profiles predating the gate question have `sex = null` → `bodySexFor`
+    falls back to the **male** body, and Settings shows them a "Select…" placeholder
+    so a save can't silently write a sex they never chose.
 - **Surfaces (all on Home).** `InjectionSitesGlanceCard` — a square widget: IM/Sub-Q
   toggle, mini front+back bodies shaded by recency, and a "Last logged" list grouped
   by **muscle** (each row shows the compound(s) put there, so two compounds in one

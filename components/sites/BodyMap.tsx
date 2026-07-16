@@ -20,7 +20,11 @@
 import { useState } from "react"
 
 import { cn } from "@/lib/utils"
-import type { InjectionSiteAspect, InjectionSiteRow } from "@/lib/db/types"
+import type {
+  BodySex,
+  InjectionSiteAspect,
+  InjectionSiteRow,
+} from "@/lib/db/types"
 import { BodySilhouette } from "@/components/sites/BodySilhouette"
 import {
   routeRegions,
@@ -31,9 +35,11 @@ import {
 export type BodyMapMode = "select" | "pick" | "recency"
 
 interface BodyMapProps {
-  /** The catalogue sites to render (parent has already filtered by route). */
+  /** The catalogue sites to render (parent has already filtered by route + sex). */
   sites: InjectionSiteRow[]
   mode: BodyMapMode
+  /** Which figure to draw. Defaults to male (the body for a profile with no sex). */
+  sex?: BodySex
   /** `select`: the working-set ids. `pick`: a single-element array of the chosen id. */
   activeIds?: string[]
   /** Per-site amber intensity 0–1 (`recency`); 1 = injected today, 0 = unfilled. */
@@ -54,6 +60,7 @@ const ASPECTS: { key: InjectionSiteAspect; label: string }[] = [
 export function BodyMap({
   sites,
   mode,
+  sex = "male",
   activeIds,
   heat,
   onTapSite,
@@ -117,9 +124,9 @@ export function BodyMap({
                   role="group"
                   aria-label={`${label} view`}
                 >
-                  <BodySilhouette aspect={key} route={route} />
-                  <g transform={routeTransform(route)}>
-                    {routeRegions(route, key).map((r) => (
+                  <BodySilhouette aspect={key} route={route} sex={sex} />
+                  <g transform={routeTransform(route, sex)}>
+                    {routeRegions(route, key, sex).map((r) => (
                       <RegionShape
                         key={r.siteId}
                         region={r}

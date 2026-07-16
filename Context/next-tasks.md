@@ -9,11 +9,37 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 ---
 
 ## 🎯 Current focus
+
+**🟡 2026-07-16 (Adrian + Claude): SPEC 19 — FEMALE BODIES built, awaiting QA + sign-off.**
+The body map is sex-aware: `profiles.sex` → male or female figure. Angus's 4 female SVGs
+are integrated (all 8 bodies render-verified headless), sex is now a **required** question
+on the welcome gate, Settings dropped "prefer not to say" and puts a confirm in front of a
+change, and `im-pec-*` is filtered out for female users (Angus's female IM art has no pecs).
+Typecheck + build clean. **Not committed yet** — see `progress-tracker.md` for the detail.
+
+**▶ Next — Adrian's on-device QA on the female path:**
+1. **Settings → Sex.** Only Male / Female (no "prefer not to say"). Change it → a confirm
+   names the body-map switch; **Cancel** snaps the dropdown back, **Confirm** then *Save
+   changes* persists. Check a founder account whose `sex` is still null shows "Select…"
+   and won't save until a pick is made.
+2. **Set sex = female** → Home glance card, the sites sheet, and the log-dose picker all
+   draw the **female** figure on both routes, front and back.
+3. **Female IM has no pecs** — confirm they're absent from the map/picker, and that any
+   pec logged earlier still reads correctly in "Last logged" history.
+4. **Mirror convention still holds on the female body** (screen-left = your left) — tap a
+   left-side muscle and check the label says Left.
+5. **Set sex = male** → everything reverts to the existing figure, selections/history intact.
+6. **New sign-up → /welcome** asks for Sex; "Enter Trackd" stays disabled until it's picked.
+
+**▶ Then:** commit + PR (one feature PR, as with #53). No migration needed — `sex` already
+exists on `profiles` and is already in the `grants/003` column-level UPDATE list.
+
+## Superseded / historical
 
 **✅ 2026-07-15 (Adrian + Claude): SPEC 19 — SHIPPED to prod (PR #53, squash `cabc184`).**
 The rework shipped differently from the 4-step plan below: the "choose your own sites"

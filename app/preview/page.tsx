@@ -55,7 +55,7 @@ export default function PreviewPage() {
         </ul>
       </main>
 
-      <BottomNav userId="preview-local" unit="kg" />
+      <BottomNav userId="preview-local" unit="kg" bodySex="male" />
     </div>
   );
 }

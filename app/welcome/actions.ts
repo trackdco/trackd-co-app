@@ -49,6 +49,7 @@ export async function completeGate(
   const agreeDisclaimer = formData.get("agree_disclaimer") === "on";
   const agreeHealth = formData.get("agree_health") === "on";
   const dobRaw = String(formData.get("date_of_birth") ?? "").trim();
+  const sexRaw = String(formData.get("sex") ?? "").trim();
 
   if (!agreeTosPrivacy || !agreeDisclaimer || !agreeHealth) {
     return {
@@ -57,6 +58,11 @@ export async function completeGate(
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dobRaw)) {
     return { error: "Please enter your date of birth." };
+  }
+  // Required — it decides which body the injection-site map draws. Validated
+  // against the `sex_type` enum here; the client never decides it.
+  if (sexRaw !== "male" && sexRaw !== "female") {
+    return { error: "Please select male or female." };
   }
 
   // Parse as local Y/M/D and reject impossible dates (e.g. 31 Feb, which JS
@@ -125,6 +131,7 @@ export async function completeGate(
     .from("profiles")
     .update({
       date_of_birth: dobRaw,
+      sex: sexRaw,
       is_18_plus: true,
       tos_accepted_at: now.toISOString(),
       tos_version: tosVersion,

@@ -48,8 +48,12 @@ export async function updateSettings(
   const unitsRaw = String(formData.get("units_preference") ?? "").trim();
   const heightRaw = String(formData.get("height") ?? "").trim();
 
-  const sex = sexRaw === "" ? null : sexRaw;
-  if (sex !== null && !SEXES.has(sex)) return { error: "Invalid sex selection." };
+  // Sex is required — it decides which body the injection-site map draws, and the
+  // welcome quiz makes everyone choose. Profiles that predate the quiz have none,
+  // so the form shows them a placeholder and they pick one on their next save;
+  // "" is rejected rather than stored as null.
+  const sex = sexRaw;
+  if (!SEXES.has(sex)) return { error: "Select male or female." };
 
   const goal = goalRaw === "" ? null : goalRaw;
   if (goal !== null && !GOALS.has(goal)) return { error: "Invalid goal selection." };
