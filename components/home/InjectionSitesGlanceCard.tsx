@@ -29,6 +29,9 @@ interface InjectionSitesGlanceCardProps {
   recentSites: RecentSite[]
   /** Which figure the preview draws (from the user's profile). */
   bodySex: BodySex
+  /** The route to open on — the stack's majority route. Followed until the user
+   *  picks a route themselves; their pick then holds for the session only. */
+  defaultRoute: InjectionSiteRoute
   /** Tap → the injection-site map (sheet). */
   onOpen: () => void
 }
@@ -53,9 +56,14 @@ export function InjectionSitesGlanceCard({
   daysSince,
   recentSites,
   bodySex,
+  defaultRoute,
   onOpen,
 }: InjectionSitesGlanceCardProps) {
-  const [route, setRoute] = useState<InjectionSiteRoute>("im")
+  // Null = untouched, so the card tracks `defaultRoute` — which only settles once
+  // the stack hydrates from localStorage, after the first render. Seeding
+  // `useState` with it instead would freeze the pre-hydration guess.
+  const [picked, setPicked] = useState<InjectionSiteRoute | null>(null)
+  const route = picked ?? defaultRoute
 
   // The most-recently-used sites on this route, each with the compound(s) put there.
   const sitesForRoute = recentSites.filter((s) => s.route === route).slice(0, 3)
@@ -76,7 +84,7 @@ export function InjectionSitesGlanceCard({
             <button
               key={r.key}
               type="button"
-              onClick={() => setRoute(r.key)}
+              onClick={() => setPicked(r.key)}
               aria-pressed={route === r.key}
               className={cn(
                 "rounded-full px-2.5 py-1 font-medium transition-colors duration-300 ease-out",

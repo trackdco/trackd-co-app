@@ -6,7 +6,32 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
+
+## Injection-site route now defaults to the stack's majority route (2026-07-17, Adrian + Claude)
+
+Both injection-site views (the Home glance card and the full map sheet) hardcoded
+`useState<InjectionSiteRoute>("im")`, so a mostly-Sub-Q user landed on an empty IM
+body and had to re-toggle on every app open. The default is now **derived from the
+protocol**: `majorityInjectionRoute(activeStack)` (`lib/home/stack.ts`) counts the
+injectable compounds and returns the route with more of them.
+
+- **Counted per compound, not per dose** — Adrian's call. One daily Sub-Q peptide
+  does not outvote two weekly IM compounds. Orals/nasal don't vote; archived
+  compounds don't vote (no longer dosed).
+- **IM wins a tie**, an all-oral stack, and an empty stack — the pre-protocol default
+  is unchanged, so a new user's first impression is what it always was.
+- **Soft default, session-scoped.** The toggle still switches freely; the pick is
+  deliberately *not* persisted, so closing and reopening the app re-derives from the
+  protocol. Implemented as `picked ?? defaultRoute` (`picked: InjectionSiteRoute |
+  null`) rather than seeding `useState`, because the stack hydrates from localStorage
+  *after* first render — a seeded `useState` would freeze the pre-hydration guess of
+  `im` and reintroduce the bug for everyone.
+- Verified against the real helper across 8 stack shapes (majority both ways, tie,
+  empty, all-oral, archived-only-IM); typecheck + build clean.
+- **Known, pre-existing:** the card and sheet hold independent route state, so
+  toggling the card then opening the sheet doesn't carry the pick over (both now open
+  on the correct default, so the friction is much smaller). Not fixed this pass.
 
 ## Spec 19 (female bodies) — SHIPPED to prod as PR #54 (squash `afb9dec`) (2026-07-16, Adrian + Claude)
 

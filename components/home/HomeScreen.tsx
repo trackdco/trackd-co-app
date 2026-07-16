@@ -37,6 +37,7 @@ import {
   getStackSnapshot,
   isDueOn,
   loadStack,
+  majorityInjectionRoute,
   notifyStackChanged,
   removeFromStack,
   saveStack,
@@ -178,6 +179,11 @@ export function HomeScreen({
     () => seedStack
   )
   const activeStack = stack.filter((c) => !c.archived)
+
+  // Open the injection-site views on whichever route the protocol actually uses
+  // most (by compound count) — a mostly-Sub-Q stack shouldn't land on an empty IM
+  // body. A soft default: the user can still toggle, and it re-derives next load.
+  const defaultRoute = majorityInjectionRoute(activeStack)
 
   // Logged doses, persisted device-local so history survives reloads — same store
   // pattern as the stack. Shape: { dateKey: { compoundId: DoseLog } }.
@@ -499,6 +505,7 @@ export function HomeScreen({
             daysSince={siteDaysSinceToday}
             recentSites={recentInjectionSites}
             bodySex={bodySex}
+            defaultRoute={defaultRoute}
             onOpen={() => {
               setSitesOpen(true)
               try {
@@ -597,6 +604,7 @@ export function HomeScreen({
         daysSince={siteDaysSinceToday}
         recentSites={recentInjectionSites}
         bodySex={bodySex}
+        defaultRoute={defaultRoute}
         showMirrorTip={mirrorTip}
       />
     </>

@@ -37,6 +37,9 @@ interface InjectionSitesSheetProps {
   daysSince: Record<string, number>
   /** Recently-used sites (newest first), each with the compound(s) put there. */
   recentSites: RecentSite[]
+  /** The route to open on — the stack's majority route. Followed until the user
+   *  picks a route themselves; their pick then holds for the session only. */
+  defaultRoute: InjectionSiteRoute
   /** Show the one-time "front is mirrored" tip (first open only; parent decides). */
   showMirrorTip: boolean
 }
@@ -65,9 +68,14 @@ export function InjectionSitesSheet({
   bodySex,
   daysSince,
   recentSites,
+  defaultRoute,
   showMirrorTip,
 }: InjectionSitesSheetProps) {
-  const [route, setRoute] = useState<InjectionSiteRoute>("im")
+  // Null = untouched, so the map tracks `defaultRoute` — which only settles once
+  // the stack hydrates from localStorage, after the first render. Seeding
+  // `useState` with it instead would freeze the pre-hydration guess.
+  const [picked, setPicked] = useState<InjectionSiteRoute | null>(null)
+  const route = picked ?? defaultRoute
   const [inspectedId, setInspectedId] = useState<string | null>(null)
   const [pointer, setPointer] = useState({ x: 0, y: 0 })
   const mapRef = useRef<HTMLDivElement>(null)
@@ -201,7 +209,7 @@ export function InjectionSitesSheet({
                     key={r.key}
                     type="button"
                     onClick={() => {
-                      setRoute(r.key)
+                      setPicked(r.key)
                       setInspectedId(null)
                     }}
                     aria-pressed={route === r.key}

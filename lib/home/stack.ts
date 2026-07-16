@@ -65,6 +65,29 @@ export function isInjectable(method: InjectionMethod): boolean {
 }
 
 /**
+ * Which route the injection-site views should open on, by counting the
+ * injectable compounds in the stack: run mostly Sub-Q and you land on Sub-Q.
+ * Counted per compound, NOT per dose — one daily Sub-Q peptide does not
+ * outvote two weekly IM compounds. IM wins a tie and an all-oral / empty
+ * stack, matching the map's pre-protocol default.
+ *
+ * Callers pass the ACTIVE stack; archived compounds are no longer dosed and
+ * must not sway the default.
+ */
+export function majorityInjectionRoute(
+  stack: StackCompound[],
+): Extract<InjectionMethod, "im" | "subq"> {
+  let im = 0
+  let subq = 0
+  for (const c of stack) {
+    if (c.archived) continue
+    if (c.method === "im") im++
+    else if (c.method === "subq") subq++
+  }
+  return subq > im ? "subq" : "im"
+}
+
+/**
  * One compound in the user's active protocol.
  *  - `rotationSites` — ordered ticked site ids; **the order IS the cycle order**.
  *    Empty for oral compounds.
