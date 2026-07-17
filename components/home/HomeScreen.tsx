@@ -543,6 +543,11 @@ export function HomeScreen({
         open={logTarget !== null}
         compound={logTarget?.compound ?? null}
         existing={logTarget?.existing ?? null}
+        // The dose lands on the day the strip is parked on, not necessarily today —
+        // `handleTracked` already writes to `selectedKey`, and the sheet needs the
+        // same day to default the time and name it back to the user.
+        dateKey={selectedKey}
+        todayKey={todayKey}
         siteLastUsedDays={siteLastUsedDays}
         bodySex={bodySex}
         onOpenChange={(open) => {

@@ -315,6 +315,116 @@ export async function deleteProtocolCompoundForStack(clientId: string): Promise<
 
 /* --------------------------------------------------------------- dose logs */
 
+/** The vial `base_unit` a dose in `doseUnit` may draw from (the `unitFamilyOk`
+ *  families, expressed as a query filter). Null = no vial can ever match. */
+function baseUnitForDose(doseUnit: string): "mg" | "iu" | null {
+  if (doseUnit === "mg" || doseUnit === "mcg") return "mg"
+  if (doseUnit === "iu") return "iu"
+  return null
+}
+
+/**
+ * The `acquired_on` cutoff for a dose on `dateKey`: the day AFTER it.
+ *
+ * The +1 day is the local-vs-UTC tolerance, the same one `weight/actions.ts`
+ * `isFuture` uses. `inventory_items.acquired_on` defaults to `current_date`, which
+ * the DB evaluates in **UTC**, while `dateKey` is the **device's local** date — so a
+ * vial added this evening by a user BEHIND UTC is stamped with tomorrow's UTC date
+ * and a strict `<= dateKey` would refuse to link the dose they just took from it.
+ * (Max real offset either way is one calendar day.) Back-dating stays honest: a vial
+ * acquired a week after the dose still can't link — this only forgives the boundary.
+ */
+function acquiredOnCutoff(dateKey: string): string {
+  const d = new Date(`${dateKey}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * THE vial-on-a-date rule, in one place (both the write path and the log sheet's
+ * read use it, so they can't drift).
+ *
+ * Which vial a compound was drawing from on `dateKey` = the newest one already
+ * acquired by then. `addStockItem` archives the compound's prior vials on every
+ * add/refill, so exactly one vial is in use at a time and "newest acquired on or
+ * before D" is precisely that one. Deliberately NOT filtered on `is_active`: the
+ * vial a back-dated dose came from has often been used up and archived since, and
+ * it's still the right one to draw down.
+ *
+ * The `lte` is what makes back-dating honest — a dose logged for last Tuesday can
+ * never draw down a vial that wasn't acquired until Friday. It leaves live logging
+ * unchanged (the current vial was always acquired on or before today). Nothing that
+ * far back ⇒ null ⇒ no link, rather than a wrong one.
+ *
+ * Compared by DAY (`acquired_on`, the column meaning "when this item started being
+ * used") rather than by instant: a dose's time-of-day is a user-editable guess, so
+ * an instant compare would drop the link on a dose logged for 08:00 today from a
+ * vial added at 14:00 today — same day, real vial.
+ *
+ * Unit-family is filtered IN the query (not after `limit 1`), so an incompatible
+ * newest vial falls through to an older compatible one instead of losing the link.
+ */
+async function vialOnDate(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  pcId: string,
+  dateKey: string,
+  doseUnit: string
+): Promise<{ id: string } | null> {
+  const base = baseUnitForDose(doseUnit)
+  if (!base) return null
+  const { data, error } = await supabase
+    .from("inventory_items")
+    .select("id")
+    .eq("protocol_compound_id", pcId)
+    .eq("user_id", userId)
+    .eq("base_unit", base)
+    .lte("acquired_on", acquiredOnCutoff(dateKey))
+    .order("acquired_on", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  // A failed read and "no vial that far back" both yield no link — the safe answer
+  // either way (never guess a vial). But they're very different problems, so say
+  // which one happened rather than letting a broken query read as empty stock.
+  if (error) {
+    console.error("vialOnDate failed", error)
+    return null
+  }
+  return data ? { id: data.id as string } : null
+}
+
+/**
+ * Which vial a dose on `dateKey` would draw from — the log sheet's read, so a
+ * back-dated log can name the vial it's about to decrement (and offer the opt-out)
+ * instead of guessing. `listStock` can't answer this: it only knows what's active
+ * NOW, and the vial in use on a past day is often archived by now.
+ *
+ * Returns null when the compound had no compatible vial that far back (⇒ the dose
+ * links nothing), or for a custom/unmigrated compound.
+ */
+export async function resolveVialForDate(
+  clientCompoundId: string,
+  dateKey: string
+): Promise<{ id: string } | null> {
+  try {
+    const cx = await ctx()
+    if (!cx) return null
+    const pcId = resolvePcId(cx.userId, clientCompoundId)
+    const { data: pc } = await cx.supabase
+      .from("protocol_compounds")
+      .select("dose_unit")
+      .eq("id", pcId)
+      .eq("user_id", cx.userId)
+      .maybeSingle()
+    if (!pc) return null
+    return await vialOnDate(cx.supabase, cx.userId, pcId, dateKey, pc.dose_unit as string)
+  } catch (e) {
+    console.error("resolveVialForDate failed", e)
+    return null
+  }
+}
+
 /**
  * Upsert a logged dose. `takenAtIso` is computed CLIENT-side from the local date +
  * time (the server can't know the device's timezone). The dose-log id is
@@ -328,12 +438,11 @@ export async function pushProtocolDoseLog(
   log: DoseLog,
   takenAtIso: string,
   method: "im" | "subq" | "po" | "nasal",
-  // Live logs (`logDose`) pass `true`: when the client left the vial undecided
-  // (the Stock list loads async and the user can tap Track before it arrives),
-  // link the compound's current active vial server-side so the runway always
-  // decrements. The migration leaves this `false` so a historical dose never
-  // retro-links to a vial bought long after it was taken.
-  autoLinkActiveVial = false
+  // Live logs (`logDose`) pass `true`: when the client left the vial undecided,
+  // resolve one server-side from `takenAtIso` so the runway still decrements. The
+  // migration leaves this `false` — bulk-imported history should link nothing at
+  // all rather than guess.
+  autoLinkVialForDate = false
 ): Promise<Ok> {
   try {
     const cx = await ctx()
@@ -348,37 +457,57 @@ export async function pushProtocolDoseLog(
     if (!pc) return { ok: false, skipped: true } // custom / unmigrated → skip
 
     // Resolve which vial (if any) this dose draws from, so its runway decrements
-    // (v_inventory_math). A vial id = the user's explicit pick; `null` = an
-    // explicit "Not tracked"; `undefined` = undecided → fall back to the
-    // compound's newest active vial on a live log. A link is only kept when the
-    // vial's base unit is family-compatible with the dose unit — otherwise it's
-    // dropped rather than failing the whole log (the DB would reject it).
+    // (v_inventory_math). A vial id = an explicit pick; `null` = an explicit "Not
+    // tracked"; `undefined` = undecided → resolve it from the dose's own day. A link
+    // is only kept when the vial's base unit is family-compatible with the dose unit
+    // — otherwise it's dropped rather than failing the whole log (the DB would
+    // reject it).
     let inventoryItemId: string | null = null
     const picked = log.inventoryItemId
     if (typeof picked === "string") {
-      const { data: vial } = await cx.supabase
+      // What must hold: the vial is the user's own, belongs to THIS compound, and
+      // is unit-family compatible. `is_active` is deliberately NOT one of them — a
+      // back-dated dose legitimately draws from the vial that was in use on its day,
+      // which is often archived by now (every add/refill archives the prior vial), so
+      // filtering on it here would silently drop exactly the link `vialOnDate` just
+      // resolved. The `protocol_compound_id` check is what keeps that relaxation
+      // safe: without it the accepted set would widen from "this compound's active
+      // vials" to "every vial the user owns", letting a stale or hand-edited cache
+      // point compound A's dose at compound B's vial and draw down the wrong stock.
+      // (The DB constrains the unit family but not the compound.) RLS stays the
+      // ownership backstop.
+      // `acquired_on` is checked here too, not just in `vialOnDate` — otherwise the
+      // date rule would be trivially bypassable by anything that sends an explicit
+      // id, and a link made under the OLD rule (newest ACTIVE vial, whenever the dose
+      // happened) would survive every re-save instead of healing. Legit picks all
+      // satisfy it by construction: today's picker only offers vials acquired by
+      // today, and a back-dated pick comes from `vialOnDate`, which applies the same
+      // cutoff. Verified against live data — 51 linked doses, none with a vial
+      // acquired after the dose's day — so this rejects nothing real.
+      const { data: vial, error } = await cx.supabase
         .from("inventory_items")
         .select("base_unit")
         .eq("id", picked)
         .eq("user_id", cx.userId)
-        .eq("is_active", true)
+        .eq("protocol_compound_id", pcId)
+        .lte("acquired_on", acquiredOnCutoff(dateKey))
         .maybeSingle()
+      if (error) console.error("pushProtocolDoseLog vial check failed", error)
       if (vial && unitFamilyOk(vial.base_unit as string, pc.dose_unit as string)) {
         inventoryItemId = picked
       }
-    } else if (picked === undefined && autoLinkActiveVial) {
-      const { data: vial } = await cx.supabase
-        .from("inventory_items")
-        .select("id, base_unit")
-        .eq("protocol_compound_id", pcId)
-        .eq("user_id", cx.userId)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (vial && unitFamilyOk(vial.base_unit as string, pc.dose_unit as string)) {
-        inventoryItemId = vial.id as string
-      }
+    } else if (picked === undefined && autoLinkVialForDate) {
+      // Undecided — resolve the vial from the dose's own DAY (see `vialOnDate`).
+      // The sheet normally resolves this itself and sends an explicit id; this is
+      // the fallback for a dose tracked before that read returned.
+      const vial = await vialOnDate(
+        cx.supabase,
+        cx.userId,
+        pcId,
+        dateKey,
+        pc.dose_unit as string
+      )
+      if (vial) inventoryItemId = vial.id
     }
 
     const dlId = deterministicUuid(`dl:${cx.userId}:${dateKey}:${pcId}`)

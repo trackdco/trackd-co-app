@@ -9,11 +9,61 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 ---
 
 ## 🎯 Current focus
+
+**▶ 2026-07-17 (Adrian + Claude): BACK-DATING — log a dose / start a compound on a past
+day. BUILT + verified locally; `tsc`+`eslint`+prod `build` clean. ON PR #55 — CodeRabbit
+round 1 folded in (3 fixed, 2 skipped as a UTC-vs-Sydney date artifact). AWAITING ADRIAN'S
+GO-AHEAD TO MERGE (do not merge to main without it — main deploys straight to prod).**
+The day the week strip is parked on is now the day you write to. Half already worked
+*silently* (the tick always wrote to `selectedKey`; the DB never had a temporal
+constraint) — but it stamped **today's clock time** and drew down **today's vial**. Now:
+the log sheet is day-aware, a back-dated dose defaults to the compound's **scheduled
+time**, past start dates are **unblocked + confirmed** (so a back-dated dose has a
+compound to attach to), and the vial link resolves by the **dose's date**
+(`acquired_on <= dateKey`, active or since-archived) so it can't retro-link to a vial
+bought since. Notices are quiet/muted, never amber. No migration — DB unchanged. Full
+detail in `progress-tracker.md`.
+
+**▶ Adrian's on-device QA:**
+1. **Back-date a dose.** Scroll the week strip back a couple of days → tap a compound's
+   tick → the sheet shows a quiet "Logging to Wed 15 Jul" (just the date) and the time
+   defaults to that compound's **scheduled** time (not the current clock). Track → it
+   lands on that day, and reads back on the strip.
+2. **Today is unchanged** (the thing to watch for a regression): tick a dose on today →
+   **no notice**, time still live-ticks "Logging at HH:MM:SS — live now."
+3. **Stock draws from the right vial.** Back-date a dose to before you opened your
+   current vial → it should NOT decrement today's vial. If you had an older vial then,
+   that one draws down. The sheet reads "Counts against whichever vial you were using
+   on {date}" with a "Don't count this one" opt-out.
+4. **Start a compound in the past.** Add compound → set the start to a past date → a
+   quiet "Starting on Fri 17 Apr, in the past…" note; **Add** now saves (it used to be
+   rejected). Then check its past due-days appear on the strip so you can back-fill.
+5. **Move an existing compound backwards.** Edit a compound → set its start earlier
+   (the year dropdown now reaches back 5 years) → save.
+6. **The + menu is still today-only** (it has no day context) — confirm it shows no
+   notice and behaves exactly as before.
+
+7. **A future day reads the same.** Scroll forward → the notice says just "Logging to
+   Sun 19 Jul", with no "future" wording. Future logging is deliberately **not blocked**
+   (your call — a future dose is tracked on its date like any other).
+8. **Edit a back-dated dose and check its stock link survives** (the bug CodeRabbit
+   caught). Back-date a dose against a vial → re-open it via the row's "⋯" → *Edit this
+   dose* → the "From vial" row should read "Counts against the vial you were using on
+   {date}", **not** "Not counting this dose against your stock" → Update → the vial's
+   "stock left" must stay decremented (it used to silently bounce back).
+
+**▶ Then — YOUR CALL TO MERGE.** PR #55 is open with CodeRabbit round 1 folded in.
+Nothing is merged; **main deploys straight to prod**, so it waits for your go-ahead. No
+migration needed — the DB has always accepted a past `taken_at` (a `now()` *default*, no
+CHECK; RLS carries no date predicate). Calendar logging stays deferred (confirmed: "the
+calendar for now is read-only, yes") — its day sheet is still read-only.
+
+## Also open — Spec 19 female bodies (shipped to prod, QA still pending)
 
 **✅ 2026-07-16 (Adrian + Claude): SPEC 19 — FEMALE BODIES shipped to prod (PR #54, squash `afb9dec`).**
 The body map is sex-aware: `profiles.sex` → male or female figure. Angus's 4 female SVGs

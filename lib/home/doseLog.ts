@@ -51,10 +51,21 @@ export function loadDoseLogs(userId: string): DayLogs {
             amount: log.amount,
             siteId: typeof log.siteId === "string" ? log.siteId : null,
             time24: log.time24,
-            inventoryItemId:
-              typeof (log as DoseLog).inventoryItemId === "string"
-                ? (log as DoseLog).inventoryItemId
-                : null,
+            // `undefined` is a MEANINGFUL third state here, not just "missing" (see
+            // DoseLog): a vial id = an explicit pick, `null` = an explicit "Not
+            // tracked", absent = undecided → the server resolves the vial for the
+            // dose's date. `JSON.stringify` drops an undefined value, so the KEY's
+            // absence is what carries "undecided" across a reload — flattening it to
+            // null here used to destroy that, and re-opening such a dose then read as
+            // "Not tracked" and UNLINKED its vial on update.
+            ...("inventoryItemId" in log
+              ? {
+                  inventoryItemId:
+                    typeof log.inventoryItemId === "string"
+                      ? log.inventoryItemId
+                      : null,
+                }
+              : {}),
           }
         }
       }
@@ -138,8 +149,10 @@ export function logDose(
   void pushDoseLog(dateKey, compoundId, log) // jsonb mirror (also backs up customs)
   // Postgres (canonical). Needs the compound's method (to map the injection site)
   // and the device-local taken_at instant; no-op for a custom compound. The final
-  // `true` lets the server link the compound's active vial when the client hadn't
-  // resolved one yet (a live log), so the runway always decrements.
+  // `true` lets the server resolve the vial when the client hadn't (the Stock list
+  // loads async, and a back-dated log deliberately leaves it undecided) — it links
+  // whichever vial the compound was drawing from at `taken_at`, so the runway
+  // decrements without a back-dated dose retro-linking to a vial bought since.
   const method = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.method ?? "po"
   void trackSync(
     pushProtocolDoseLog(

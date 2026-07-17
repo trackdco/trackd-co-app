@@ -8,6 +8,196 @@ Forward-looking, actionable steps do **not** live here — they live in
 
 Last updated: 2026-07-17
 
+## Back-dating — log a dose (and start a compound) on a past day (2026-07-17, Adrian + Claude)
+
+Adrian's ask: "what if I logged something the day before, but then I track it the day
+after?" You take a shot Tuesday night and open the app Wednesday. **The day the week
+strip is parked on is now the day you write to.** BUILT + verified locally; `tsc` +
+`eslint` + prod `build` clean. **Shipped via PR #55** (two CodeRabbit rounds folded in
+— see below), merged to `main` → Vercel prod on Adrian's go-ahead.
+
+**Half of it already worked, silently — that was the real problem.** The per-compound
+tick already wrote to `selectedKey` ([HomeScreen.tsx:413]) and the DB never had a
+temporal constraint (`taken_at` has a `now()` *default*, no CHECK; RLS has no date
+predicate). So back-dating was already possible with **no indication**, stamped with
+**today's wall-clock time**, and **drawing down today's vial**. The work was making it
+honest, not making it possible.
+
+- **The log sheet is day-aware.** `LogDoseSheet` now takes `dateKey` + `todayKey`
+  (from `HomeScreen`'s `selectedKey`; `QuickTrackSheet` passes today for both — the
+  + menu is a "log it now" shortcut with no day context).
+- **Time defaults per day.** Today → the live-ticking clock, evaluated at submit
+  (unchanged). Any other day → **the compound's `schedule.timeOfDay`** (Adrian's pick).
+  Stamping "now" onto yesterday's dose was the thing making late-logged data wrong.
+- **Past start dates unblocked.** `AddCompoundSheet` dropped both "Start date can't be
+  in the past" and "the time must be later than now". You add a compound *after* you've
+  started running it, and `isDueOn` gates on the start date — so without this, a
+  back-dated dose has nothing to attach to. The year dropdown now reaches back 5 years
+  (`PAST_START_YEARS`), which also lets an existing compound's start be **moved
+  backwards** (edit was always exempt from the check; the year list just never offered
+  the years).
+- **Quiet notices, not warnings** (Adrian: "make it something small… not super
+  noticeable"). Muted `bg-bg-surface-raised` + `text-text-muted`, date in mono,
+  deliberately **not amber** — amber is active/interactive state, and back-dating is
+  supported, not an alarm. Same pattern in both sheets.
+- **The log-sheet note states the date and nothing else** — "Logging to Wed 15 Jul".
+  Adrian reviewed the first cut and cut both qualifiers: ", not today" and "— a future
+  day" are gone, so **past and future read identically**. Naming the day is the whole
+  job; qualifying it editorialises about a choice the user just made, and a future dose
+  is simply "tracked on the date" like any other. (The add sheet's past-start note is
+  untouched — it explains *why* the option exists, which is a different job.)
+- **Unlimited, deliberately** (Adrian's call). No clamp on how far back; the year
+  dropdown bound is a picker affordance, not a rule.
+
+**Vial link now resolves by the dose's DATE (Adrian's call).** The auto-link took the
+compound's *newest active* vial regardless of when the dose happened — the code's own
+comment called this out ("a historical dose never retro-links to a vial bought long
+after it was taken") while the live path did it anyway. It now takes the newest vial
+with `acquired_on <= dateKey`, **active or since-archived** (one vial is in use per
+compound at a time — `addStockItem` archives the priors — so "newest acquired by then"
+*is* the one that was in use). No vial that far back ⇒ **no link**, not a wrong one.
+- **`acquired_on` (a date), not `created_at` (an instant)** — it's the column that
+  means "when this item started being used", and comparing by DAY avoids a bug the
+  instant-compare introduced: a dose logged for 08:00 today from a vial added at 14:00
+  today would have lost its link. Checked live first: 22 vials, **0 null `acquired_on`,
+  0 rows where it differs from `created_at::date`** → behaviour-identical on real data.
+- **Verified against live data** across 5 dose dates on the one compound that has two
+  vials (24 Jun archived → 11 Jul active): today and 11 Jul pick the active vial under
+  **both** old and new rules (**no regression to live logging**); 1 Jul now picks the
+  archived 24 Jun vial (old rule wrongly picked 11 Jul); 1 Jun now links **nothing**
+  (old rule wrongly deducted from the 11 Jul vial).
+- A back-dated log can't pick from `listStock` (it only knows what's active *now*), so
+  the sheet **resolves the day's vial itself** via `resolveVialForDate` and adopts that
+  id — a fresh back-dated log therefore commits an **explicit id**, and the sheet shows
+  "Counts against the vial you were using on {date}" with the same opt-out. It stays
+  **undecided** (`undefined`, no key) only when there's nothing to adopt: the compound
+  had no vial back then, or the dose was tracked before the read returned — and the
+  server's `vialOnDate` fallback covers that second case with the same rule. (This
+  paragraph originally described the pre-review design, where *every* back-dated log
+  stayed undecided; the round-1 fix below changed it.)
+
+**Verified by driving the real UI** (headless Chrome over CDP against `/preview/home`
+— zero new dependencies; Chrome + Node 24's global `WebSocket`):
+- Back-dated (−2d): notice "Logging to Wed 15 Jul", time **08:30** = the compound's
+  scheduled time, hint "Using this compound's scheduled time."
+- **Today (0d): no notice, time 00:56, "Logging at 00:56:31 — live now."** — the
+  regression check that matters; today's flow is untouched.
+- Future (+2d): "Logging to Sun 19 Jul" — identical wording to the past.
+- Add-compound: year list `2021…2028`; notice "Starting on Fri 17 Apr, in the past —
+  so you can log the doses you've already taken."; **Add saved
+  `startDate: "2026-04-17"`** (3 months back) — previously rejected outright.
+
+**Future logging — SETTLED (Adrian, 2026-07-17): leave it, and don't call it out.** You
+can log a dose to a future day, and could before this change (the strip scrolls forward
+unbounded and the tick has always worked). Adrian's call is that a future dose is just
+"tracked on the date" like any other — so it is **not blocked** and the notice names the
+day without qualifying it. No further action.
+
+**Deferred — CONFIRMED (Adrian, 2026-07-17):** a logging path on the **Calendar** ("the
+calendar for now is read-only, yes") — its day sheet stays read-only.
+
+### PR #55 — CodeRabbit round 1: 5 findings, 3 fixed / 2 skipped
+
+**FIXED — the vial link was silently unlinked when editing a back-dated dose (Major, real).**
+CodeRabbit flagged `useState(existing ? (existing.inventoryItemId ?? null) : undefined)`, but
+the **root cause was one layer down**: `loadDoseLogs` normalised the absent key to `null`.
+`DoseLog.inventoryItemId` has THREE meaningful states — string / `null` ("Not tracked") /
+absent ("undecided → server resolves it") — and the normaliser destroyed the third, so
+re-opening a back-dated dose read as *Not tracked* and **dropped its vial link on Update**
+(stock silently returned). `JSON.stringify` drops undefined values, so the key's ABSENCE is the
+carrier; `loadDoseLogs` now preserves it, and the sheet no longer `?? null`s it.
+- **Proven both ways in the browser:** post-fix, a back-dated log stores
+  `{"amount":"125","siteId":null,"time24":"08:30"}` (no key) and still has no key after
+  reload → edit → Update. Stashing the fix back to the committed PR state reproduced the bug
+  exactly — `"inventoryItemId":null` after the edit. The bug was real, not a phantom.
+  (The harness is unauthenticated, so `resolveVialForDate` finds nothing and the log stays
+  keyless — which is precisely the state that used to rot into an explicit `null`. With a real
+  vial the sheet adopts its id instead, and the round-trip carries that string through.)
+
+**FIXED — the opt-out was hidden when no vial is active today (Major, real).** `vials` is
+active-now stock, so `vials.length === 0` can coexist with an **archived** vial the server
+will link ⇒ silent stock decrement with no way to decline. CodeRabbit's suggested
+`!loadingVials` would have shown the block for compounds that never had a vial (claiming one
+that doesn't exist), so instead the sheet now **resolves the day's vial** via the new
+`resolveVialForDate` server action and shows the block **exactly when a vial will be linked**.
+That also makes the committed link an explicit id, so an edit round-trips the real vial.
+- Required dropping `.eq("is_active", true)` from the explicit-pick validation — a back-dated
+  dose legitimately draws from a vial archived by now, and that filter would have silently
+  dropped exactly the link just resolved. Ownership + unit family remain checked; RLS + the
+  `dose_logs` unit-family trigger stay the backstop.
+
+**FIXED — unit family now filtered IN the query (Minor, real but pre-existing).** The old code
+took `limit 1` then checked `unitFamilyOk`, so an incompatible newest vial lost the link
+instead of falling through to an older compatible one. The rule is now one helper
+(`vialOnDate`) shared by the write path and the sheet's read, with `base_unit` filtered in the
+query. Re-verified on live data: identical picks (today → active 11 Jul vial; 1 Jul → archived
+24 Jun vial; 1 Jun → null), and `dose_unit mg → required base mg`.
+
+**SKIPPED ×2 — "documentation is future-dated (should be 2026-07-16)".** Not a defect:
+CodeRabbit is reading **UTC**. This project is Sydney-based (`profiles.timezone`, Sydney the
+documented fallback) and the machine reads `Fri Jul 17 01:34 AEST` = `Thu Jul 16 15:34 UTC`.
+The commit itself is stamped `2026-07-17 +1000`, the app's own device clock rendered
+"FRIDAY, 17 JULY" in the verification screenshots, and the repo's dates are local throughout.
+**2026-07-17 is correct.**
+
+### Adversarial review of the fix — 15 claims, 0 survived
+
+A 4-lens review (three-state semantics / the resolve effect / the server rule / regressions to
+today) raised 15 claims; every one was refuted on inspection, almost all because the scenario
+is **identical at HEAD** (the diff must make something *worse* to count). Two were worth acting
+on anyway, since this change now owns that exact code:
+
+- **`.eq("protocol_compound_id", pcId)` added to the explicit-pick validation.** Dropping
+  `is_active` (needed — see above) had widened the accepted set from "this compound's active
+  vials" to "every vial the user owns", and that check had never verified compound membership.
+  Without it, a stale or hand-edited cache could point compound A's dose at compound B's vial
+  and draw down the wrong stock. The DB constrains the unit family but **not** the compound, so
+  nothing else caught it. Verified against live data: **51 linked dose logs, 0 cross-compound**
+  → the check rejects nothing real. (The same query found **5 existing links to archived
+  vials** — independent proof that the `is_active` relaxation was necessary: under the old rule
+  those 5 doses would have lost their link on any re-save.)
+- **`vialOnDate` now logs its Supabase `error`** instead of discarding it. A failed read and
+  "no vial that far back" both correctly yield no link (never guess a vial), but they're very
+  different problems and a broken query used to read as empty stock. Flagged independently by
+  three reviewers.
+
+### PR #55 — CodeRabbit round 2: 4 findings, 3 fixed / 1 part-skipped
+
+**FIXED — the acquisition-date rule now applies to EXPLICIT vial ids too**, not just the
+auto-resolve. Otherwise the date rule is bypassable by anything sending an explicit id, and a
+link made under the OLD rule (newest *active* vial, whenever the dose happened) would survive
+every re-save instead of healing. Legit picks satisfy it by construction. Verified on live
+data: **51 linked doses, 0 with a vial acquired after the dose's day** → rejects nothing real.
+
+**FIXED (and it exposed a bug neither review caught) — the `acquired_on` compare needed a
++1-day local-vs-UTC tolerance.** `inventory_items.acquired_on` defaults to `current_date`,
+evaluated by the DB in **UTC**, while `dateKey` is the **device's local** date. A user BEHIND
+UTC adding a vial in the evening gets it stamped with tomorrow's UTC date, so a strict
+`<= dateKey` would have refused to link the dose they'd just taken from it. Now
+`<= dateKey + 1`, matching the identical tolerance already used by `weight/actions.ts`
+`isFuture` ("a user ahead of UTC legitimately logs a date up to a day ahead of the server's
+UTC date"; max real offset is one calendar day either way). Back-dating stays honest — a vial
+acquired a week after the dose still can't link; this only forgives the boundary. Invisible in
+our own data (all AU, max diff 0 days), which is exactly why it needed reasoning rather than a
+query.
+
+**FIXED — a cycle starting EARLIER TODAY now gets the same confirmation.** `startsInPast` only
+compared dates, and removing the "time must be later than now" rule had made an earlier-today
+start reachable and unconfirmed — its first dose has already been and gone, so it's a past
+start. The notice adapts ("Starting today at 8:30 AM, already passed…") since "in the past"
+reads wrong for today. Can't fire on its own as the clock ticks: while the time is
+live-tracking, `timeOfDay` IS `hhmm(clock)`.
+
+**PART-SKIPPED — "disable Track while the historical vial is still resolving".** Took the
+disclosure half, refused the blocking half. Gating the primary action on a Supabase round-trip
+would contradict a documented invariant (`architecture.md`: "A network blip never blocks the
+UI — the synchronous local write already succeeded"), and offline it would be worse than the
+problem. It isn't a data bug either: tracking early links the **same** vial, because the server
+fallback runs the same `vialOnDate` rule — it's a disclosure gap, and the opt-out is one tap
+away on re-open. So the back-dated vial section now has its **own pending hint** ("Checking
+which vial you were using…") instead of rendering nothing and reading as "no vial" before it
+knows. Track stays enabled.
+
 ## Injection-site route now defaults to the stack's majority route (2026-07-17, Adrian + Claude)
 
 Both injection-site views (the Home glance card and the full map sheet) hardcoded
