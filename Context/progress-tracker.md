@@ -66,9 +66,15 @@ compound at a time — `addStockItem` archives the priors — so "newest acquire
   **both** old and new rules (**no regression to live logging**); 1 Jul now picks the
   archived 24 Jun vial (old rule wrongly picked 11 Jul); 1 Jun now links **nothing**
   (old rule wrongly deducted from the 11 Jul vial).
-- A back-dated log therefore leaves the vial **undecided** client-side (`undefined`)
-  so the server resolves it — `listStock` only knows what's active *now*. The sheet
-  shows "Counts against whichever vial you were using on {date}" with the same opt-out.
+- A back-dated log can't pick from `listStock` (it only knows what's active *now*), so
+  the sheet **resolves the day's vial itself** via `resolveVialForDate` and adopts that
+  id — a fresh back-dated log therefore commits an **explicit id**, and the sheet shows
+  "Counts against the vial you were using on {date}" with the same opt-out. It stays
+  **undecided** (`undefined`, no key) only when there's nothing to adopt: the compound
+  had no vial back then, or the dose was tracked before the read returned — and the
+  server's `vialOnDate` fallback covers that second case with the same rule. (This
+  paragraph originally described the pre-review design, where *every* back-dated log
+  stayed undecided; the round-1 fix below changed it.)
 
 **Verified by driving the real UI** (headless Chrome over CDP against `/preview/home`
 — zero new dependencies; Chrome + Node 24's global `WebSocket`):
@@ -104,6 +110,9 @@ carrier; `loadDoseLogs` now preserves it, and the sheet no longer `?? null`s it.
   `{"amount":"125","siteId":null,"time24":"08:30"}` (no key) and still has no key after
   reload → edit → Update. Stashing the fix back to the committed PR state reproduced the bug
   exactly — `"inventoryItemId":null` after the edit. The bug was real, not a phantom.
+  (The harness is unauthenticated, so `resolveVialForDate` finds nothing and the log stays
+  keyless — which is precisely the state that used to rot into an explicit `null`. With a real
+  vial the sheet adopts its id instead, and the round-trip carries that string through.)
 
 **FIXED — the opt-out was hidden when no vial is active today (Major, real).** `vials` is
 active-now stock, so `vials.length === 0` can coexist with an **archived** vial the server
