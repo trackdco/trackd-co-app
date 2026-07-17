@@ -15,6 +15,55 @@ Last updated: 2026-07-17
 
 ## 🎯 Current focus
 
+**▶ 2026-07-17 (Adrian + Claude): SPEC 21 — PER-DOSE DRAW is BUILT, on `main`, NOT yet
+committed/merged/deployed.** Each Home today's-log row now shows the draw for that dose
+(`50u (0.5 mL)`) right after the time. **No migration — the preflight found
+`v_inventory_math` already exposed everything needed** (`ml_per_dose`, `units_per_dose`
+already `mL × 100`, `units_per_dose_oral`), already `security_invoker=true` with grants.
+Full detail in `progress-tracker.md`.
+
+**Adrian's calls, already made:** the draw tracks the **row's own dose** (not the view's
+planned-dose figure — an edited log must never sit beside a draw for a dose it isn't);
+rounding is **whole units + mL 2dp**; the **D8 vial-switch was dropped** (unreachable
+state — `addStockItem` archives priors).
+
+### ▶ What's actually left
+
+1. **Adrian: device pass.** This is the ONE thing blocking. Nothing has been rendered in
+   a browser — the today's-log is behind auth with no `/preview` harness, so code-level
+   verification (typecheck, lint, prod build, 14 test vectors, parity vs all 16 live
+   vial rows, the query chain replayed on live data) is as far as it goes. Check on a
+   real phone:
+   - The draw sits **after the time** on a row with a vial and doesn't crowd/truncate
+     the name — the row is now `tick · name / dose · time · draw · ⋯`.
+   - **A compound with no vial** shows a faint "add stock" → taps through to
+     `/protocol?tab=stock` (**Stock**, not Plan), and **the tick still logs fine**.
+   - **"add stock" must NOT flash on every row while the page loads** (this was a real
+     bug, fixed — worth confirming it's actually gone on a slow connection).
+   - **An oral** reads a count, no mL (live: `Ligandrol 10mg` from `20mg` tabs → `0.5
+     tabs`).
+   - **Scrub the week strip back** — the draw should re-resolve per day, and a
+     back-dated row prices against the vial in use *then*.
+   - **Add a vial on the Protocol tab, come back to Home** — the slot should fill in on
+     focus, no reload.
+2. **⚠️ Test the `iu` path with a REAL vial (HGH or hCG).** It has **zero production
+   coverage** — all 24 live inventory rows are `mg`. It's covered by test vector only
+   (`HGH 2iu @ 20iu/mL → 10u (0.1 mL)`). This is the highest-risk gap in the feature,
+   and it's the one where D3 matters most: the dose reads `2iu` (potency) and the draw
+   reads `10u` (graduations) — **different quantities that must never be conflated**.
+3. **Then:** commit → PR → CodeRabbit → merge → prod (the Spec 20 flow). No migration to
+   apply.
+
+### Deferred / noted, not doing now
+
+- **v1 is the Home today's-log only** — the log-a-dose screen and compound detail are
+  explicitly out of scope in the spec.
+- **"One active vial per compound" has no DB constraint** — it's app convention
+  (`addStockItem`'s best-effort archive), not a unique index. Live data holds it today
+  (0 violations). Out of scope for Spec 21; worth its own spec if it ever bites.
+
+---
+
 **✅ 2026-07-17 (Adrian + Claude): SPEC 20 — QUICK-ACTIONS FAB + CALCULATOR NAV SLOT is
 MERGED TO `main` → PROD (PR #56, squash `f9e8816`; Vercel prod deploy `success`, and
 `/calculator` answers 307 → the auth gate on `trackdco.app`, so the route is live).

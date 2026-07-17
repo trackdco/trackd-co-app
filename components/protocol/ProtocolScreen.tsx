@@ -23,15 +23,20 @@ export function ProtocolScreen({
   userId,
   initialCycle,
   previewStock,
+  initialTab = "plan",
 }: {
   userId: string
   initialCycle: Cycle | null
   /** Dev-only: mock stock for the `/preview/protocol` harness. */
   previewStock?: StockItem[]
+  /** Which tab to open on. Plan by default; `?tab=stock` lands on Stock, so the
+   *  Home draw slot's "add stock" tap (Spec 21) arrives at the add-flow rather than
+   *  at Plan. The tab stays local state after mount — this only seeds it. */
+  initialTab?: "plan" | "stock"
 }) {
   useCloudHydration(userId)
   const [cycle, setCycle] = useState<Cycle | null>(initialCycle)
-  const [tab, setTab] = useState("plan")
+  const [tab, setTab] = useState<string>(initialTab)
 
   // The cutover migration (in useCloudHydration) may create the active cycle just
   // after this server-rendered with none. Refresh shortly after mount and on focus

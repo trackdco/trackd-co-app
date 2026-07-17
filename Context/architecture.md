@@ -449,6 +449,40 @@ on Wednesday. **The day the dashboard is parked on is the day you write to** —
   only knows what's active NOW, and the vial in use on a past day is often archived by
   now — which is why this is its own read rather than a filter over the Stock list.
 
+## Per-Dose Draw (Spec 21 — how much to draw, on the today's-log row)
+
+Each dose row on Home's today's-log shows **how much to draw from the backing vial for
+that dose** — `50u (0.5 mL)` — sitting immediately after the time, so nobody re-opens
+the reconstitution calculator to work out a number the app already knows. **Nothing is
+stored and no new user input exists**: the draw is arithmetic on the user's own dose and
+their own vial, computed at read time. It **reports, it does not recommend** (Invariant
+4) — no suggested dose, no suggested site.
+
+**No schema surface.** The preflight (live, via MCP) found `v_inventory_math` already
+exposing `ml_per_dose` / `units_per_dose` / `units_per_dose_oral`, already
+`security_invoker=true` with grants. **No view was added or altered; no migration.**
+
+- **`lib/home/draw.ts` (pure)** — `formatDraw(amount, source)` → `{units, ml}`, a
+  `{label}` count for orals, or **null**. **U-100** (units = mL × 100, Design Decision
+  4); display rounding is **whole units + mL 2dp** and never feeds back into a stored
+  dose. `u` is a syringe **graduation**, never `IU` (a dose-*potency* measure) — D3;
+  conflating them would build a dosing error into the row.
+- **`resolveDrawSources` (`lib/home/protocolSync.ts`, `"use server"`)** — its own read,
+  because **the today's-log is computed client-side** from the device stack + dose logs
+  and carries no inventory data (there was no select to add columns to). Resolution
+  reuses **`vialOnDate` verbatim**, so a row prices against exactly the vial a dose
+  logged that day would draw down — and resolves for the **selected day**, not today, so
+  a back-dated row prices against the vial in use *then*.
+- **Fallbacks.** No vial ⇒ no concentration ⇒ no number: the slot renders **empty with a
+  faint "add stock"** tap → `/protocol?tab=stock` (the Stock tab — `ProtocolScreen` now
+  takes an `initialTab`, seeded from `?tab=`). **Logging is never blocked by the absence
+  of a draw.** "add stock" is gated on the read having *landed* — it asserts "you have no
+  vial", so it must never appear while in flight or on a row we merely couldn't price.
+  Stale-day reads are discarded by key, because a wrong draw is worse than no draw.
+- **Not built:** the D8 vial-switch (D8 says "may"; `addStockItem` archives priors, so
+  multiple open vials at different concentrations isn't reachable). v1 is the Home
+  today's-log only — the log-a-dose screen and compound detail are deferred.
+
 ## Legal Documents
 
 The Terms of Service, Privacy Policy, and Medical Disclaimer **text** lives in the
@@ -804,6 +838,21 @@ full-screen sheet, and the site picker inside the log-dose sheet.
    mutates a balance. (A vial's `prior_used_base` is the part-used *starting*
    offset — a raw INPUT, not a stored balance; the view still derives remaining
    from it as `total − prior_used − consumed`.)
+
+   **The one sanctioned carve-out — the per-dose draw (Spec 21).** The view's
+   `ml_per_dose` / `units_per_dose` are bound to the **planned** dose
+   (`protocol_compounds.dose_amount`); the view has **no per-log grain**. A logged dose
+   carries its own **editable `amount`**, so a row showing an edited amount beside the
+   view's planned-dose figure would display **two disagreeing numbers** — a dosing-error
+   footgun, not a rounding nit. So `lib/home/draw.ts` divides the **row's own dose** by
+   the vial's concentration. **The derived quantity itself — `concentration_per_ml` —
+   still comes ONLY from the view and is never recomputed**; only the final division
+   moves, and only because the view cannot answer it. Where the row's dose equals the
+   planned dose the result is **identical** to `ml_per_dose` (same formula, dividing by
+   the same 3dp-rounded concentration the view uses as its own basis) — verified against
+   every live vial row, so the two can't drift. This is a narrow exception for a
+   quantity the DB has no grain for; it is **not** licence to recompute inventory maths
+   in TS. Everything else still reads the view (Invariant 5, `code-standards.md`).
 2. **RLS on every table, always `(SELECT auth.uid())`.** No table ships without
    row-level policies. Views stay `security_invoker = true`. **Every** function
    pins `search_path = ''` — not just `SECURITY DEFINER` ones but all trigger /
