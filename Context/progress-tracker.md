@@ -47,10 +47,16 @@ and a body JSX differing only by `<p>{DISCLAIMER}</p>` collapsing from three lin
 one. Nothing was lost in the move; nothing needed re-adding. Worth having done properly
 rather than inferred — this is the one bit of the app that touches dosing arithmetic.
 
-**One gap remains, accepted by Adrian to ship: no device pass.** The FAB clearing the
-iOS home indicator is the one acceptance criterion a headless browser cannot answer (it
-reports a synthetic safe-area inset), and it went live unverified. If it sits wrong it's
-a one-line change to `FAB_BOTTOM` in `QuickActionsFab.tsx`.
+**Device pass DONE (2026-07-17, Adrian, iPhone 17 on prod).** The FAB sits correctly,
+clears the home indicator, and every action in the menu is tappable. This was the one
+acceptance criterion a headless browser could not answer — it reports a *synthetic*
+`env(safe-area-inset-bottom)`, so the offset maths could only ever be confirmed on real
+glass. Spec 20 is now fully verified end-to-end.
+
+(Android + an *installed* PWA weren't separately checked. Low risk by construction: a
+standalone launch only *increases* `safe-area-inset-bottom`, and both the nav's padding
+and `FAB_BOTTOM` read the same inset, so the FAB rises with the bar rather than being
+overlapped by it. Flagged, not chased.)
 
 - **The nav is five equal tabs now.** Dashboard / Protocol / **Calculator** / Progress /
   Profile, every one on the same active-amber logic. The raised white plus that held the

@@ -21,11 +21,9 @@ MERGED TO `main` → PROD (PR #56, squash `f9e8816`; Vercel prod deploy `success
 CodeRabbit (Pro Plus) raised 3 findings, all valid, all fixed in `f0a9717` before the
 merge. No migration — this spec touched no data.**
 
-**⚠️ The on-device QA below never happened.** Adrian chose to ship without it. It is
-still worth doing on prod — the FAB clearing the **iOS home indicator** is the one
-acceptance criterion no headless browser can answer, and it is now live to testers
-unverified. If it sits wrong, it is a CSS offset fix in `QuickActionsFab.tsx`
-(`FAB_BOTTOM`), not a rebuild.
+**✅ Device pass DONE (2026-07-17, Adrian, iPhone 17 on prod): the FAB sits correctly,
+clears the home indicator, and every menu action is tappable.** That was the last open
+item — **Spec 20 is fully verified and needs nothing further.**
 
 **✅ CLOSED (2026-07-17): the calculator extraction is PROVEN identical.** The earlier
 gap — an adversarial sweep died on a session limit before it could prove
@@ -46,7 +44,8 @@ of the nav into a **FAB** bottom-right: tap → plus rotates to an X, scrim dims
 a card of 6 tiles + a white "Beta notes & feedback" row rises above the button. Full
 detail in `progress-tracker.md`.
 
-**▶ Adrian's on-device QA (iOS PWA + Android) — NOT DONE; run it against prod:**
+**▶ The QA list, retained for reference** (item 3 — the reason it existed — is confirmed
+good on an iPhone 17; re-run the rest only if something about the menu looks off):
 1. **The nav.** Five equal tabs, Calculator in the middle — no raised white plus. Tap
    Calculator → the standalone page opens and the tab highlights amber. Check the other
    four tabs still highlight correctly.
@@ -67,9 +66,9 @@ detail in `progress-tracker.md`.
 7. **The thing to watch for a regression:** the FAB appears on every screen with the
    bottom nav — and nowhere else (not on `/login`, `/welcome`, or the legal pages).
 
-**▶ Shipped on Adrian's explicit go-ahead** ("fix all the issues… just submit it"),
-without the device pass. Merged + deployed; see the flags above for what that leaves
-unverified.
+**▶ Spec 20 is CLOSED.** Shipped on Adrian's go-ahead, then both outstanding gaps were
+closed after the fact: the calculator extraction is proven byte-identical, and the
+device pass came back clean on an iPhone 17. Nothing further is owed on this spec.
 
 **▶ Resolved in-flight (2026-07-17), both on Adrian seeing it built:**
 - **The Home calculator card is gone** — "it doesn't need to be on the dashboard screen
