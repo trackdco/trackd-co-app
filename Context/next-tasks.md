@@ -15,17 +15,34 @@ Last updated: 2026-07-17
 
 ## 🎯 Current focus
 
-**▶ 2026-07-17 (Adrian + Claude): SPEC 20 — QUICK-ACTIONS FAB + CALCULATOR NAV SLOT.
-BUILT + driven locally in a headless browser (every acceptance behaviour exercised);
-`tsc`+`eslint`+prod `build` clean, no console errors. NOT COMMITTED, NOT ON A PR.
-NEEDS: Adrian's on-device QA (below), then a PR. No migration — this spec touches no
-data.** The centre nav slot is now **Calculator** (opening the real `/calculator` page —
+**✅ 2026-07-17 (Adrian + Claude): SPEC 20 — QUICK-ACTIONS FAB + CALCULATOR NAV SLOT is
+MERGED TO `main` → PROD (PR #56, squash `f9e8816`; Vercel prod deploy `success`, and
+`/calculator` answers 307 → the auth gate on `trackdco.app`, so the route is live).
+CodeRabbit (Pro Plus) raised 3 findings, all valid, all fixed in `f0a9717` before the
+merge. No migration — this spec touched no data.**
+
+**⚠️ The on-device QA below never happened.** Adrian chose to ship without it. It is
+still worth doing on prod — the FAB clearing the **iOS home indicator** is the one
+acceptance criterion no headless browser can answer, and it is now live to testers
+unverified. If it sits wrong, it is a CSS offset fix in `QuickActionsFab.tsx`
+(`FAB_BOTTOM`), not a rebuild.
+
+**⚠️ One verification gap, for the record:** an adversarial sweep for issues CodeRabbit
+missed was launched and **died on a session limit** — including the check that
+`ReconCalculator`'s extracted arithmetic is behaviourally identical to the deleted
+`ReconCalculatorSheet`. That maths *was* driven by hand in a browser (5 mg / 2 mL /
+250 mcg → 2.5 mg/mL, 0.1 mL, 10 U; and 10 mg / 2 mL / 1 mg → 5 mg/mL, 0.2 mL, 20 U) and
+the extraction was a verbatim move, so confidence is high — but a line-by-line diff of
+old vs new was never completed. Cheap to close: `git show 6bd0ca8:components/home/ReconCalculatorSheet.tsx`
+vs `components/home/ReconCalculator.tsx`. Worth doing given it is dosing-adjacent.
+
+The centre nav slot is now **Calculator** (opening the real `/calculator` page —
 its **only** entry point now; the Home glance card is deleted), and quick-add moved out
 of the nav into a **FAB** bottom-right: tap → plus rotates to an X, scrim dims the page,
 a card of 6 tiles + a white "Beta notes & feedback" row rises above the button. Full
 detail in `progress-tracker.md`.
 
-**▶ Adrian's on-device QA (iOS PWA + Android — the acceptance list):**
+**▶ Adrian's on-device QA (iOS PWA + Android) — NOT DONE; run it against prod:**
 1. **The nav.** Five equal tabs, Calculator in the middle — no raised white plus. Tap
    Calculator → the standalone page opens and the tab highlights amber. Check the other
    four tabs still highlight correctly.
@@ -46,8 +63,9 @@ detail in `progress-tracker.md`.
 7. **The thing to watch for a regression:** the FAB appears on every screen with the
    bottom nav — and nowhere else (not on `/login`, `/welcome`, or the legal pages).
 
-**▶ Then — YOUR CALL.** Nothing is committed. If the device pass is clean, this goes up
-as a PR; **main deploys straight to prod**, so it waits for your go-ahead either way.
+**▶ Shipped on Adrian's explicit go-ahead** ("fix all the issues… just submit it"),
+without the device pass. Merged + deployed; see the flags above for what that leaves
+unverified.
 
 **▶ Resolved in-flight (2026-07-17), both on Adrian seeing it built:**
 - **The Home calculator card is gone** — "it doesn't need to be on the dashboard screen

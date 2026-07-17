@@ -11,10 +11,40 @@ Last updated: 2026-07-17
 ## Spec 20 — Quick-actions FAB + Calculator nav slot (2026-07-17, Adrian + Claude)
 
 The bottom-nav centre slot is now **Calculator**, and quick-add moved out of the nav
-into a **floating action button** bottom-right. BUILT + driven locally in a real
-headless browser (every acceptance behaviour exercised, screenshots reviewed); `tsc` +
-`eslint` + prod `build` clean, no console errors. **Not yet on a device — Adrian's QA
-pending.** No schema surface: this spec touches no data.
+into a **floating action button** bottom-right. **SHIPPED to prod** via PR #56 (squash
+`f9e8816`), on Adrian's explicit go-ahead. No schema surface: this spec touches no data.
+
+**CodeRabbit (Pro Plus) raised 3 findings, all valid, all fixed in `f0a9717`:**
+- **The `aria-modal` was a lie, and it hid the close button.** The menu declared
+  `aria-modal="true"` but never contained focus, so Tab wandered into the nav behind the
+  scrim — and worse, `aria-modal` tells a screen reader to ignore everything outside the
+  dialog, while the FAB (the only close control) sat outside it. The attribute hid the X
+  from exactly the users it exists to serve. Fixed by making **one fixed `inset-0`
+  layer own both the card and the FAB** and carry the dialog role only while open, so
+  the boundary contains its own close control; a Tab handler cycles focus over
+  `[card buttons…, FAB]`. The layer is `pointer-events-none`, so the scrim underneath
+  still takes a tap and — the regression this restructure risked — the *closed* layer
+  can't swallow taps meant for the page. Verified: nav tabs, mid-page controls and page
+  scroll all still work through it.
+- **The card could clip its own actions off-screen.** No max-height while opening locks
+  body scroll ⇒ in landscape the top row of tiles went off the top with no way to reach
+  them. Capped at `calc(100dvh - CARD_BOTTOM - 1rem)` + `overflow-y-auto`; the geometry
+  (`FAB_BOTTOM`/`CARD_BOTTOM`/`CARD_MAX_H`) is now expressed **once** so the height
+  derives from the FAB's offset instead of re-deriving the same calc and drifting.
+- Stale `/preview` copy still naming the old plus → Add-to-Stack flow.
+
+**Five independent adversarial lenses failed to refute either fix** (accessibility spec,
+React/DOM correctness, CSS validity, iOS interaction, layout equivalence) — including
+confirming the nested `calc(…env()…)` resolves in-engine and that the card's rect is
+unchanged by the restructure.
+
+**Two gaps are on the record, both accepted by Adrian to ship:**
+1. **No device pass.** The FAB clearing the iOS home indicator is the one acceptance
+   criterion a headless browser cannot answer, and it went live unverified.
+2. **The "what did CodeRabbit miss" sweep died on a session limit** — including a
+   line-by-line proof that `ReconCalculator`'s extracted arithmetic matches the deleted
+   sheet. The maths was driven by hand in a browser and the move was verbatim, so this is
+   low-risk, not no-risk. See `next-tasks.md` for the one-command way to close it.
 
 - **The nav is five equal tabs now.** Dashboard / Protocol / **Calculator** / Progress /
   Profile, every one on the same active-amber logic. The raised white plus that held the
