@@ -31,6 +31,22 @@ interface QuickActionsFabProps {
 /** Keep in step with `--motion-fast` — the JS unmount must outlast the CSS exit. */
 const EXIT_MS = 180
 
+/* The one place the menu's geometry is expressed, so the card's height can be
+   derived from the FAB's offset instead of re-deriving the same calc twice and
+   drifting. */
+
+/** D3: nav height + the iOS home indicator + a spacing step. */
+const FAB_BOTTOM = "calc(4rem + env(safe-area-inset-bottom) + 1rem)"
+/** The card clears the FAB (h-14) and a gap on top of the FAB's own offset. */
+const CARD_BOTTOM = `calc(${FAB_BOTTOM} + 3.5rem + 0.75rem)`
+/**
+ * ...and never grows past the top of the viewport. Without this the card is
+ * unbounded, and since opening it locks body scroll, anything pushed off the top
+ * in landscape (or on a short viewport) is unreachable — the actions would be
+ * there but impossible to tap. `1rem` leaves it off the very top edge.
+ */
+const CARD_MAX_H = `calc(100dvh - ${CARD_BOTTOM} - 1rem)`
+
 const prefersReducedMotion = () =>
   typeof window !== "undefined" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -48,12 +64,19 @@ const prefersReducedMotion = () =>
  * while the menu is open — it is the close button — and a modal dialog makes
  * everything outside its own content inert.
  *
+ * Because it IS modal in every other respect (scrim, locked scroll, trapped
+ * focus), the modality is honoured by hand rather than merely asserted: one fixed
+ * layer holds both the card and the FAB and carries the dialog role, so the
+ * `aria-modal` boundary contains its own close control; Tab cycles within that
+ * layer; Escape closes; focus enters on open and returns to the FAB on dismissal.
+ *
  * Rendered once by the (app) shell, so it appears on exactly the screens that
  * show the bottom nav.
  */
 export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps) {
   const router = useRouter()
   const fabRef = useRef<HTMLButtonElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
   const firstActionRef = useRef<HTMLButtonElement>(null)
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -90,13 +113,50 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
     if (exitTimer.current) clearTimeout(exitTimer.current)
   }, [])
 
-  // Escape closes (hardware keyboards), and the body stays put while open — a
-  // scrolling page under a fixed menu reads as broken. Both unwind on close.
+  // Escape closes (hardware keyboards), Tab cycles inside the menu, and the body
+  // stays put while open — a scrolling page under a fixed menu reads as broken.
+  // All three unwind on close.
   useEffect(() => {
     if (!open) return
+
+    /**
+     * The trap's cycle is [the card's buttons…, the FAB] — DOM order, which is
+     * also reading order. Including the FAB is the whole point: it is the X that
+     * closes the menu, so a trap that stopped at the card's edge would strand the
+     * close control outside the very boundary `aria-modal` draws.
+     */
+    const focusables = (): HTMLElement[] => [
+      ...Array.from(
+        cardRef.current?.querySelectorAll<HTMLElement>("button:not([disabled])") ??
+          [],
+      ),
+      ...(fabRef.current ? [fabRef.current] : []),
+    ]
+
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close()
+      if (e.key === "Escape") {
+        close()
+        return
+      }
+      if (e.key !== "Tab") return
+      const nodes = focusables()
+      if (nodes.length === 0) return
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      const i = nodes.indexOf(document.activeElement as HTMLElement)
+      // Focus escaped the set (or never entered it) — pull it back in.
+      if (i === -1) {
+        e.preventDefault()
+        first.focus()
+      } else if (e.shiftKey && i === 0) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && i === nodes.length - 1) {
+        e.preventDefault()
+        first.focus()
+      }
     }
+
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
     window.addEventListener("keydown", onKeyDown)
@@ -162,64 +222,71 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
         />
       ) : null}
 
-      {/* The action card — anchored above the FAB, inset from both edges. */}
-      {mounted ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Quick actions"
-          className={cn(
-            "fixed inset-x-5 z-[46] mx-auto max-w-md rounded-3xl border border-border-default bg-bg-surface-raised p-5 shadow-lg",
-            open ? "animate-quick-menu-in" : "animate-quick-menu-out",
-            !open && "pointer-events-none",
-          )}
-          style={{
-            // Clears the FAB (3.5rem) and its own gap, on top of the FAB's own
-            // offset: nav height + safe area + spacing.
-            bottom:
-              "calc(4rem + env(safe-area-inset-bottom) + 1rem + 3.5rem + 0.75rem)",
-          }}
-        >
-          <div className="grid grid-cols-3 gap-3">
-            {QUICK_ACTIONS.map((item, i) => (
-              <ActionTile
-                key={item.id}
-                ref={i === 0 ? firstActionRef : undefined}
-                item={item}
-                onPress={() => handlePress(item)}
-              />
-            ))}
-          </div>
-
-          {/* Beta feedback — a full-width white row below the grid, set apart
-              from the six core actions (beta-only). */}
-          <FeedbackRow
-            item={FEEDBACK_ACTION}
-            onPress={() => handlePress(FEEDBACK_ACTION)}
-          />
-        </div>
-      ) : null}
-
-      {/* The FAB — stays above the scrim, and is the X that closes the menu. */}
-      <button
-        ref={fabRef}
-        type="button"
-        onClick={() => (open ? close() : setOpen(true))}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-label={open ? "Close quick actions" : "Open quick actions"}
-        className="fixed right-5 z-[46] flex h-14 w-14 items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg transition-transform active:scale-95"
-        style={{ bottom: "calc(4rem + env(safe-area-inset-bottom) + 1rem)" }}
+      {/* One fixed layer owns BOTH the card and the FAB, and carries the dialog
+          semantics while open. That pairing is deliberate: `aria-modal` tells a
+          screen reader to ignore everything outside the dialog, so with the FAB
+          outside it, the control that closes the menu would be hidden from the
+          very users the attribute exists to serve. The layer itself is
+          click-through (`pointer-events-none`) so the scrim underneath still
+          takes a tap to dismiss. */}
+      <div
+        className="pointer-events-none fixed inset-0 z-[46]"
+        {...(open
+          ? { role: "dialog", "aria-modal": true, "aria-label": "Quick actions" }
+          : {})}
       >
-        <Plus
-          className={cn(
-            "h-6 w-6 transition-transform duration-[var(--motion-fast)] ease-motion",
-            open && "rotate-45",
-          )}
-          strokeWidth={2.5}
-          aria-hidden
-        />
-      </button>
+        {/* The action card — anchored above the FAB, inset from both edges. */}
+        {mounted ? (
+          <div
+            ref={cardRef}
+            className={cn(
+              "pointer-events-auto absolute inset-x-5 mx-auto max-w-md overflow-y-auto rounded-3xl border border-border-default bg-bg-surface-raised p-5 shadow-lg",
+              open ? "animate-quick-menu-in" : "animate-quick-menu-out",
+              !open && "pointer-events-none",
+            )}
+            style={{ bottom: CARD_BOTTOM, maxHeight: CARD_MAX_H }}
+          >
+            <div className="grid grid-cols-3 gap-3">
+              {QUICK_ACTIONS.map((item, i) => (
+                <ActionTile
+                  key={item.id}
+                  ref={i === 0 ? firstActionRef : undefined}
+                  item={item}
+                  onPress={() => handlePress(item)}
+                />
+              ))}
+            </div>
+
+            {/* Beta feedback — a full-width row below the grid, set apart from
+                the six core actions (beta-only). */}
+            <FeedbackRow
+              item={FEEDBACK_ACTION}
+              onPress={() => handlePress(FEEDBACK_ACTION)}
+            />
+          </div>
+        ) : null}
+
+        {/* The FAB — stays above the scrim, and is the X that closes the menu. */}
+        <button
+          ref={fabRef}
+          type="button"
+          onClick={() => (open ? close() : setOpen(true))}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label={open ? "Close quick actions" : "Open quick actions"}
+          className="pointer-events-auto absolute right-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg transition-transform active:scale-95"
+          style={{ bottom: FAB_BOTTOM }}
+        >
+          <Plus
+            className={cn(
+              "h-6 w-6 transition-transform duration-[var(--motion-fast)] ease-motion",
+              open && "rotate-45",
+            )}
+            strokeWidth={2.5}
+            aria-hidden
+          />
+        </button>
+      </div>
 
       {/* "Log a dose" → the quick-track popup (tick today's doses → confirm). */}
       <QuickTrackSheet
