@@ -27,14 +27,18 @@ acceptance criterion no headless browser can answer, and it is now live to teste
 unverified. If it sits wrong, it is a CSS offset fix in `QuickActionsFab.tsx`
 (`FAB_BOTTOM`), not a rebuild.
 
-**⚠️ One verification gap, for the record:** an adversarial sweep for issues CodeRabbit
-missed was launched and **died on a session limit** — including the check that
-`ReconCalculator`'s extracted arithmetic is behaviourally identical to the deleted
-`ReconCalculatorSheet`. That maths *was* driven by hand in a browser (5 mg / 2 mL /
-250 mcg → 2.5 mg/mL, 0.1 mL, 10 U; and 10 mg / 2 mL / 1 mg → 5 mg/mL, 0.2 mL, 20 U) and
-the extraction was a verbatim move, so confidence is high — but a line-by-line diff of
-old vs new was never completed. Cheap to close: `git show 6bd0ca8:components/home/ReconCalculatorSheet.tsx`
-vs `components/home/ReconCalculator.tsx`. Worth doing given it is dosing-adjacent.
+**✅ CLOSED (2026-07-17): the calculator extraction is PROVEN identical.** The earlier
+gap — an adversarial sweep died on a session limit before it could prove
+`ReconCalculator` matches the deleted `ReconCalculatorSheet` — has been closed by a
+direct diff of `git show 6bd0ca8:components/home/ReconCalculatorSheet.tsx` against
+`components/home/ReconCalculator.tsx`. **All eight logic units are byte-identical**
+(`sanitize()`, `toMg()`, `trim()`, the `useState` block, the `useMemo` that does the
+arithmetic, `NumberField`, `ResultRow`, the `DISCLAIMER` text), every label /
+placeholder / result string matches, and the body JSX differs only in that
+`<p>{DISCLAIMER}</p>` collapsed from three lines to one — identical render. **Nothing
+was lost in the move and nothing needed re-adding.** This is now proof, not inference;
+the two hand-driven browser checks (5 mg / 2 mL / 250 mcg → 2.5 mg/mL, 0.1 mL, 10 U;
+10 mg / 2 mL / 1 mg → 5 mg/mL, 0.2 mL, 20 U) were already consistent with it.
 
 The centre nav slot is now **Calculator** (opening the real `/calculator` page —
 its **only** entry point now; the Home glance card is deleted), and quick-add moved out

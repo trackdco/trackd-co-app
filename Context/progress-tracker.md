@@ -38,13 +38,19 @@ React/DOM correctness, CSS validity, iOS interaction, layout equivalence) — in
 confirming the nested `calc(…env()…)` resolves in-engine and that the card's rect is
 unchanged by the restructure.
 
-**Two gaps are on the record, both accepted by Adrian to ship:**
-1. **No device pass.** The FAB clearing the iOS home indicator is the one acceptance
-   criterion a headless browser cannot answer, and it went live unverified.
-2. **The "what did CodeRabbit miss" sweep died on a session limit** — including a
-   line-by-line proof that `ReconCalculator`'s extracted arithmetic matches the deleted
-   sheet. The maths was driven by hand in a browser and the move was verbatim, so this is
-   low-risk, not no-risk. See `next-tasks.md` for the one-command way to close it.
+**The extraction is PROVEN identical (closed 2026-07-17).** The post-merge diff of
+`git show 6bd0ca8:components/home/ReconCalculatorSheet.tsx` vs
+`components/home/ReconCalculator.tsx` shows **all eight logic units byte-identical**
+(`sanitize()`, `toMg()`, `trim()`, the `useState` block, the `useMemo` arithmetic,
+`NumberField`, `ResultRow`, `DISCLAIMER`), identical labels/placeholders/result strings,
+and a body JSX differing only by `<p>{DISCLAIMER}</p>` collapsing from three lines to
+one. Nothing was lost in the move; nothing needed re-adding. Worth having done properly
+rather than inferred — this is the one bit of the app that touches dosing arithmetic.
+
+**One gap remains, accepted by Adrian to ship: no device pass.** The FAB clearing the
+iOS home indicator is the one acceptance criterion a headless browser cannot answer (it
+reports a synthetic safe-area inset), and it went live unverified. If it sits wrong it's
+a one-line change to `FAB_BOTTOM` in `QuickActionsFab.tsx`.
 
 - **The nav is five equal tabs now.** Dashboard / Protocol / **Calculator** / Progress /
   Profile, every one on the same active-amber logic. The raised white plus that held the
