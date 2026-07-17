@@ -324,6 +324,23 @@ function baseUnitForDose(doseUnit: string): "mg" | "iu" | null {
 }
 
 /**
+ * The `acquired_on` cutoff for a dose on `dateKey`: the day AFTER it.
+ *
+ * The +1 day is the local-vs-UTC tolerance, the same one `weight/actions.ts`
+ * `isFuture` uses. `inventory_items.acquired_on` defaults to `current_date`, which
+ * the DB evaluates in **UTC**, while `dateKey` is the **device's local** date — so a
+ * vial added this evening by a user BEHIND UTC is stamped with tomorrow's UTC date
+ * and a strict `<= dateKey` would refuse to link the dose they just took from it.
+ * (Max real offset either way is one calendar day.) Back-dating stays honest: a vial
+ * acquired a week after the dose still can't link — this only forgives the boundary.
+ */
+function acquiredOnCutoff(dateKey: string): string {
+  const d = new Date(`${dateKey}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
  * THE vial-on-a-date rule, in one place (both the write path and the log sheet's
  * read use it, so they can't drift).
  *
@@ -362,7 +379,7 @@ async function vialOnDate(
     .eq("protocol_compound_id", pcId)
     .eq("user_id", userId)
     .eq("base_unit", base)
-    .lte("acquired_on", dateKey)
+    .lte("acquired_on", acquiredOnCutoff(dateKey))
     .order("acquired_on", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(1)
@@ -459,12 +476,21 @@ export async function pushProtocolDoseLog(
       // point compound A's dose at compound B's vial and draw down the wrong stock.
       // (The DB constrains the unit family but not the compound.) RLS stays the
       // ownership backstop.
+      // `acquired_on` is checked here too, not just in `vialOnDate` — otherwise the
+      // date rule would be trivially bypassable by anything that sends an explicit
+      // id, and a link made under the OLD rule (newest ACTIVE vial, whenever the dose
+      // happened) would survive every re-save instead of healing. Legit picks all
+      // satisfy it by construction: today's picker only offers vials acquired by
+      // today, and a back-dated pick comes from `vialOnDate`, which applies the same
+      // cutoff. Verified against live data — 51 linked doses, none with a vial
+      // acquired after the dose's day — so this rejects nothing real.
       const { data: vial, error } = await cx.supabase
         .from("inventory_items")
         .select("base_unit")
         .eq("id", picked)
         .eq("user_id", cx.userId)
         .eq("protocol_compound_id", pcId)
+        .lte("acquired_on", acquiredOnCutoff(dateKey))
         .maybeSingle()
       if (error) console.error("pushProtocolDoseLog vial check failed", error)
       if (vial && unitFamilyOk(vial.base_unit as string, pc.dose_unit as string)) {

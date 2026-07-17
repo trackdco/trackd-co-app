@@ -29,6 +29,7 @@ import { AmberNotice, useAmberNotice } from "@/components/notifications/amber-no
 import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
 import {
   formatDateKeyShort,
+  formatTimeLabel,
   loadStack,
   methodLabel,
   sanitizeDoseInput,
@@ -375,8 +376,14 @@ function AddCompoundBody({
   const safeStartDay =
     Number(sDay) > startDaysInMonth ? String(startDaysInMonth) : sDay
   const startDate = `${sYear}-${String(sMonth).padStart(2, "0")}-${safeStartDay.padStart(2, "0")}`
-  // Both are "YYYY-MM-DD", so a string compare is a date compare.
-  const startsInPast = startDate < todayKey
+  // Both are "YYYY-MM-DD", so a string compare is a date compare. A cycle starting
+  // EARLIER TODAY is a past start too — its first dose has already been and gone —
+  // so it gets the same confirmation (the "time must be later than now" rule that
+  // used to make this unreachable is gone). While the time is still live-tracking,
+  // timeOfDay IS hhmm(clock), so this can't fire on its own as the clock ticks; it
+  // takes a deliberate earlier time.
+  const startedEarlierToday = startDate === todayKey && timeOfDay < hhmm(clock)
+  const startsInPast = startDate < todayKey || startedEarlierToday
 
   function toggleDay(day: number) {
     setDays((cur) =>
@@ -864,11 +871,25 @@ function AddCompoundBody({
                   aria-hidden
                 />
                 <p className="text-xs text-text-muted">
-                  Starting on{" "}
-                  <span className="font-mono text-foreground">
-                    {formatDateKeyShort(startDate)}
-                  </span>
-                  , in the past — so you can log the doses you&apos;ve already taken.
+                  {startedEarlierToday ? (
+                    <>
+                      Starting today at{" "}
+                      <span className="font-mono text-foreground">
+                        {formatTimeLabel(timeOfDay)}
+                      </span>
+                      , already passed — so you can log the dose you&apos;ve already
+                      taken.
+                    </>
+                  ) : (
+                    <>
+                      Starting on{" "}
+                      <span className="font-mono text-foreground">
+                        {formatDateKeyShort(startDate)}
+                      </span>
+                      , in the past — so you can log the doses you&apos;ve already
+                      taken.
+                    </>
+                  )}
                 </p>
               </div>
             )}

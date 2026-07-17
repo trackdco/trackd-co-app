@@ -593,11 +593,26 @@ function LogDoseBody({
           </div>
         )}
 
-        {/* While the Stock list loads, a brief hint so the vial picker doesn't
-            pop in unexplained (the link itself is set server-side regardless). */}
-        {loadingVials && vials.length === 0 && (
-          <p className="mt-5 px-1 text-xs text-text-subtle">Checking your stock…</p>
-        )}
+        {/* While the vial read is in flight, a brief hint so the picker doesn't pop
+            in unexplained and the sheet doesn't read as "no vial" before it knows
+            (the link itself is set server-side regardless). Each day asks a different
+            question — today reads the active Stock list, a back-dated day resolves
+            the vial that was in use then — so each has its own pending signal.
+            Deliberately NOT a blocked "Track": the local write is synchronous and
+            offline-first (architecture.md — "a network blip never blocks the UI"), so
+            gating the primary action on a Supabase round-trip would be the worse bug.
+            Tracking early still links the SAME vial via the server fallback, which
+            runs the same rule; the opt-out is then one tap away on re-open. */}
+        {onToday
+          ? loadingVials &&
+            vials.length === 0 && (
+              <p className="mt-5 px-1 text-xs text-text-subtle">Checking your stock…</p>
+            )
+          : dateVialId === undefined && (
+              <p className="mt-5 px-1 text-xs text-text-subtle">
+                Checking which vial you were using…
+              </p>
+            )}
 
         {/* From vial, BACK-DATED — keyed off the vial resolved for THIS DAY, not the
             active-now list (which needn't contain it: adding or refilling archives

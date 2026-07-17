@@ -13,7 +13,8 @@ Last updated: 2026-07-17
 Adrian's ask: "what if I logged something the day before, but then I track it the day
 after?" You take a shot Tuesday night and open the app Wednesday. **The day the week
 strip is parked on is now the day you write to.** BUILT + verified locally; `tsc` +
-`eslint` + prod `build` clean. NOT committed.
+`eslint` + prod `build` clean. **Shipped via PR #55** (two CodeRabbit rounds folded in
+— see below), merged to `main` → Vercel prod on Adrian's go-ahead.
 
 **Half of it already worked, silently — that was the real problem.** The per-compound
 tick already wrote to `selectedKey` ([HomeScreen.tsx:413]) and the DB never had a
@@ -150,6 +151,43 @@ on anyway, since this change now owns that exact code:
   "no vial that far back" both correctly yield no link (never guess a vial), but they're very
   different problems and a broken query used to read as empty stock. Flagged independently by
   three reviewers.
+
+### PR #55 — CodeRabbit round 2: 4 findings, 3 fixed / 1 part-skipped
+
+**FIXED — the acquisition-date rule now applies to EXPLICIT vial ids too**, not just the
+auto-resolve. Otherwise the date rule is bypassable by anything sending an explicit id, and a
+link made under the OLD rule (newest *active* vial, whenever the dose happened) would survive
+every re-save instead of healing. Legit picks satisfy it by construction. Verified on live
+data: **51 linked doses, 0 with a vial acquired after the dose's day** → rejects nothing real.
+
+**FIXED (and it exposed a bug neither review caught) — the `acquired_on` compare needed a
++1-day local-vs-UTC tolerance.** `inventory_items.acquired_on` defaults to `current_date`,
+evaluated by the DB in **UTC**, while `dateKey` is the **device's local** date. A user BEHIND
+UTC adding a vial in the evening gets it stamped with tomorrow's UTC date, so a strict
+`<= dateKey` would have refused to link the dose they'd just taken from it. Now
+`<= dateKey + 1`, matching the identical tolerance already used by `weight/actions.ts`
+`isFuture` ("a user ahead of UTC legitimately logs a date up to a day ahead of the server's
+UTC date"; max real offset is one calendar day either way). Back-dating stays honest — a vial
+acquired a week after the dose still can't link; this only forgives the boundary. Invisible in
+our own data (all AU, max diff 0 days), which is exactly why it needed reasoning rather than a
+query.
+
+**FIXED — a cycle starting EARLIER TODAY now gets the same confirmation.** `startsInPast` only
+compared dates, and removing the "time must be later than now" rule had made an earlier-today
+start reachable and unconfirmed — its first dose has already been and gone, so it's a past
+start. The notice adapts ("Starting today at 8:30 AM, already passed…") since "in the past"
+reads wrong for today. Can't fire on its own as the clock ticks: while the time is
+live-tracking, `timeOfDay` IS `hhmm(clock)`.
+
+**PART-SKIPPED — "disable Track while the historical vial is still resolving".** Took the
+disclosure half, refused the blocking half. Gating the primary action on a Supabase round-trip
+would contradict a documented invariant (`architecture.md`: "A network blip never blocks the
+UI — the synchronous local write already succeeded"), and offline it would be worse than the
+problem. It isn't a data bug either: tracking early links the **same** vial, because the server
+fallback runs the same `vialOnDate` rule — it's a disclosure gap, and the opt-out is one tap
+away on re-open. So the back-dated vial section now has its **own pending hint** ("Checking
+which vial you were using…") instead of rendering nothing and reading as "no vial" before it
+knows. Track stays enabled.
 
 ## Injection-site route now defaults to the stack's majority route (2026-07-17, Adrian + Claude)
 
