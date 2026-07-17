@@ -8,6 +8,76 @@ Forward-looking, actionable steps do **not** live here — they live in
 
 Last updated: 2026-07-17
 
+## Spec 21 — Per-Dose Draw (2026-07-17, Adrian + Claude)
+
+Each Home today's-log row now shows **how much to draw from the vial for that dose** —
+`50u (0.5 mL)`, immediately after the time — so nobody re-opens the calculator to work
+out a number the app already knows. **BUILT, not yet merged/deployed.** Device pass
+outstanding.
+
+**The preflight paid for itself — it overturned two of the spec's own premises:**
+- **The spec assumed the draw needed a backend step.** It didn't. `v_inventory_math`
+  already exposed `ml_per_dose`, `units_per_dose` (already `mL × 100` — Design Decision
+  4's U-100 rule was **pre-baked**), and `units_per_dose_oral`, already
+  `security_invoker=true` with grants. **No migration, no new view, no schema change.**
+- **The spec assumed the today's-log was a Postgres select** to add columns to. **It
+  isn't** — it's computed client-side from the device stack + dose logs, and the
+  dashboard's server component never touches inventory. So there was *no select*, and
+  the draw needed its own server read. That's why the job wasn't UI-only either.
+- **Current-vial resolution already existed** (`vialOnDate`) and is deterministic, so
+  per the spec's own escape hatch ("if it does not exist cleanly, building it is Step 1
+  and the spec grows") **the spec did not grow**.
+
+**The one real design fork, decided by Adrian: the draw tracks the row's OWN dose.**
+The view's `ml_per_dose` is bound to the **planned** dose and has no per-log grain — but
+a logged dose carries an **editable amount**. Rendering the view's figure beside an
+edited amount would put **two disagreeing numbers on one row**: exactly the dosing error
+D3 exists to prevent. So `concentration_per_ml` (the genuinely derived value) still comes
+**only** from the view, and `lib/home/draw.ts` does the final division against the row's
+dose. Where the row's dose equals the planned dose the output is **identical** to the
+view's — **verified against all 16 live vial rows**, so no drift. Logged as a narrow,
+sanctioned carve-out under `architecture.md` Invariant 1 rather than left silent.
+
+**Two bugs found by verifying rather than assuming — both mine, both pre-merge:**
+- **The sub-graduation guard didn't guard.** It fell back to `toFixed(2)`, which rounds
+  to `"0.00"` itself — so a real draw still rendered `0u (0 mL)`, i.e. *draw nothing*
+  for a dose that has volume. Now keeps the first significant digit.
+- **"add stock" would have flashed on every row on load.** The empty state fired on
+  `!draw`, which is also true while the read is in flight — asserting "you have no
+  stock" **before we'd looked**. It also fired on a half-typed amount, where a vial does
+  exist. Now gated on `drawsResolved && no vial`; anything else renders a quiet empty
+  slot. Stale-day reads are discarded by key too — a wrong draw is worse than no draw.
+
+**Rounding rule CONFIRMED (Adrian deferred the call):** whole syringe units + mL to 2dp.
+A U-100 pin has no half-graduations, so a decimal unit implies a precision you can't
+draw; mL stays the precise reference. Display-only — nothing is written back.
+
+**Verified:** typecheck, lint, clean prod build; 14 test vectors (incl. the `iu` path);
+**parity against all 16 live vial rows** — the only differences are the intended display
+rounding (`0.198 → 0.2`); and the full query chain replayed against live data, resolving
+a vial + concentration + type for every real compound (incl. the oral: `Ligandrol 10mg`
+from `20mg` tabs → `0.5 tabs`). Copy audit clean — no `IU` in any user-visible string, no
+recommendation language.
+
+**⚠️ Not verified: nothing has been rendered in a browser.** The today's-log sits behind
+auth with no `/preview` harness, so the on-device pass is Adrian's (as with Spec 20).
+**And the `iu` path has zero production coverage** — all 24 live inventory rows are `mg`,
+so HGH/hCG is covered by test vector only. Worth a real `iu` vial on the device pass.
+
+**Deliberately not built:** the D8 vial-switch label. D8 says the display "*may*" offer
+it and it's "never a gate", and `addStockItem` archives priors on every add — so multiple
+open vials at different concentrations **isn't reachable** (0 in live data). A switcher
+for an unreachable state is scope creep. Adrian's call.
+
+**Noted, not fixed (out of scope):** "one active vial per compound" is **app convention,
+not a DB guarantee** — there's no unique index, only `addStockItem`'s own best-effort
+archive step. Live data holds it today (0 compounds with >1 active vial).
+
+**Touched:** `lib/home/draw.ts` (new, pure), `resolveDrawSources` in
+`lib/home/protocolSync.ts`, `TodaysCycleCard` (the row + `DrawSlot`), `HomeScreen` (the
+read), and `ProtocolScreen`/`protocol/page.tsx` (an `initialTab` seeded from `?tab=`, so
+"add stock" lands on **Stock** rather than Plan).
+
 ## Spec 20 — Quick-actions FAB + Calculator nav slot (2026-07-17, Adrian + Claude)
 
 The bottom-nav centre slot is now **Calculator**, and quick-add moved out of the nav

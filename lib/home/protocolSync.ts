@@ -44,9 +44,11 @@ import {
   type DoseLogInsert,
   type DoseRow,
   type DoseUnit,
+  type InventoryType,
   type ProtocolCompoundInsert,
 } from "@/lib/db/types"
 import type { CompoundCategory } from "@/lib/compound-categories"
+import type { DrawSource } from "@/lib/home/draw"
 import type { StackCompound } from "@/lib/home/stack"
 import type { DoseLog } from "@/lib/home/mockHomeData"
 
@@ -422,6 +424,122 @@ export async function resolveVialForDate(
   } catch (e) {
     console.error("resolveVialForDate failed", e)
     return null
+  }
+}
+
+/**
+ * Per-Dose Draw (Spec 21) — the vial-side facts each of the day's dose rows needs
+ * to show how much to draw, keyed by the CLIENT compound id the caller passed.
+ *
+ * The Home today's-log is computed client-side from the device stack + dose logs
+ * (it is not a Postgres select), so it carries no inventory data at all — hence
+ * this read rather than extra columns on an existing query.
+ *
+ * Resolution reuses `vialOnDate` verbatim, so the vial a row prices its draw
+ * against is exactly the vial a dose logged that day would draw down. It resolves
+ * for the SELECTED day, not today: a back-dated row must price against the vial in
+ * use *then* (often archived by now), the same rule that keeps back-dating honest.
+ *
+ * `concentration_per_ml` / `inventory_type` / `strength_per_unit_mg` come ONLY from
+ * `v_inventory_math` — never recomputed. The division by the row's own dose happens
+ * in `lib/home/draw.ts`; see the note there for why the view can't do it.
+ *
+ * Best-effort like the rest of this module: a compound with no vial (or a custom /
+ * unmigrated one) is simply absent from the result — the row renders "add stock"
+ * and logging is never blocked. Never throws.
+ */
+export async function resolveDrawSources(
+  clientCompoundIds: string[],
+  dateKey: string
+): Promise<Record<string, DrawSource>> {
+  try {
+    const cx = await ctx()
+    if (!cx || clientCompoundIds.length === 0) return {}
+
+    // Client id ⇄ protocol_compounds.id, de-duped (the same compound can't appear
+    // twice on a day, but the caller shouldn't have to guarantee that).
+    const pairs = [...new Set(clientCompoundIds)].map((clientId) => ({
+      clientId,
+      pcId: resolvePcId(cx.userId, clientId),
+    }))
+
+    // dose_unit from Postgres, not the client: it's what the vial's unit family is
+    // filtered on, so reading it here keeps the match and the formatting on one fact.
+    const { data: pcs, error: pcErr } = await cx.supabase
+      .from("protocol_compounds")
+      .select("id, dose_unit")
+      .eq("user_id", cx.userId)
+      .in("id", pairs.map((p) => p.pcId))
+    if (pcErr) {
+      console.error("resolveDrawSources compounds failed", pcErr)
+      return {}
+    }
+    const unitByPc = new Map(
+      (pcs ?? []).map((r) => [r.id as string, r.dose_unit as string])
+    )
+
+    // One `vialOnDate` per compound — THE shared rule, applied per compound rather
+    // than re-implemented as a batch pick in TS (a second implementation is exactly
+    // the drift that rule exists to prevent). Small, indexed, and run in parallel.
+    const resolved = (
+      await Promise.all(
+        pairs.map(async (p) => {
+          const doseUnit = unitByPc.get(p.pcId)
+          if (!doseUnit) return null // custom / unmigrated compound
+          const vial = await vialOnDate(cx.supabase, cx.userId, p.pcId, dateKey, doseUnit)
+          return vial ? { ...p, doseUnit, vialId: vial.id } : null
+        })
+      )
+    ).filter((r): r is NonNullable<typeof r> => r !== null)
+    if (resolved.length === 0) return {}
+
+    const vialIds = resolved.map((r) => r.vialId)
+    const [mathRes, itemRes] = await Promise.all([
+      cx.supabase
+        .from("v_inventory_math")
+        .select("inventory_item_id, inventory_type, concentration_per_ml, strength_per_unit_mg")
+        .in("inventory_item_id", vialIds),
+      // `total_amount_unit` is a raw input and isn't carried by the view — it only
+      // decides whether an oral reads "tabs" or "caps".
+      cx.supabase
+        .from("inventory_items")
+        .select("id, total_amount_unit")
+        .eq("user_id", cx.userId)
+        .in("id", vialIds),
+    ])
+    if (mathRes.error) {
+      // Showing a row with no draw is safe; showing one with a silently-null
+      // concentration would read as "no vial" when the vial is right there.
+      console.error("resolveDrawSources math failed", mathRes.error)
+      return {}
+    }
+    if (itemRes.error) console.error("resolveDrawSources items failed", itemRes.error)
+
+    const math = new Map(
+      (mathRes.data ?? []).map((m) => [m.inventory_item_id as string, m])
+    )
+    const oralForm = new Map(
+      (itemRes.data ?? []).map((i) => [i.id as string, i.total_amount_unit as string])
+    )
+
+    const out: Record<string, DrawSource> = {}
+    for (const r of resolved) {
+      const m = math.get(r.vialId)
+      if (!m) continue
+      out[r.clientId] = {
+        inventoryType: m.inventory_type as InventoryType,
+        concentrationPerMl:
+          m.concentration_per_ml == null ? null : Number(m.concentration_per_ml),
+        strengthPerUnitMg:
+          m.strength_per_unit_mg == null ? null : Number(m.strength_per_unit_mg),
+        oralForm: oralForm.get(r.vialId) ?? null,
+        doseUnit: r.doseUnit,
+      }
+    }
+    return out
+  } catch (e) {
+    console.error("resolveDrawSources failed", e)
+    return {}
   }
 }
 

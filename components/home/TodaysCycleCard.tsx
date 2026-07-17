@@ -10,6 +10,7 @@ import {
   type CompoundCategory,
 } from "@/lib/compound-categories"
 import type { DoseLog } from "@/lib/home/mockHomeData"
+import { formatDraw, type Draw, type DrawSource } from "@/lib/home/draw"
 import { formatTimeLabel, type StackCompound } from "@/lib/home/stack"
 
 /** A due compound plus its log state. */
@@ -30,6 +31,15 @@ interface TodaysCycleCardProps {
   onUnlog: (dose: StackCompound) => void
   /** Tap the name or the "⋯" → open this compound's detail, where every edit lives. */
   onOpenDetail: (dose: StackCompound) => void
+  /** Per-Dose Draw (Spec 21) — the backing vial's facts per compound id, resolved
+   *  for the selected day. A compound absent from the map has no vial that day. */
+  drawSources: Record<string, DrawSource>
+  /** Whether `drawSources` is the landed answer for this day (vs. a read still in
+   *  flight). Gates the "add stock" empty state, which must never claim "no vial"
+   *  before we've looked. */
+  drawsResolved: boolean
+  /** Tap "add stock" on a row with no vial → the storage add-flow (D1). */
+  onAddStock: (dose: StackCompound) => void
 }
 
 function formatDose(dose: number): string {
@@ -77,18 +87,91 @@ function groupByCategory(doses: DueDose[]): DoseGroup[] {
     })
 }
 
+/**
+ * The draw, or the empty state that stands in for it.
+ *
+ * No vial ⇒ no concentration ⇒ no number to show — that's arithmetic, not a choice
+ * (D1). So the slot renders empty with a faint "add stock" tap through to the
+ * storage flow, and logging the dose is never blocked by its absence.
+ *
+ * `showAddStock` is deliberately NOT just `!draw`. "add stock" asserts the user has
+ * no vial, so it may only appear once we've actually looked and found none — never
+ * while the read is still in flight (it would flash on every row on load), and never
+ * on a row we simply couldn't price (a half-typed amount, a zero concentration),
+ * where a vial does exist and the honest slot is an empty one.
+ */
+function DrawSlot({
+  draw,
+  showAddStock,
+  onAddStock,
+}: {
+  draw: Draw | null
+  showAddStock: boolean
+  onAddStock: () => void
+}) {
+  if (!draw) {
+    if (!showAddStock) return null
+    return (
+      <button
+        type="button"
+        onClick={onAddStock}
+        className="shrink-0 text-xs text-text-subtle underline decoration-dotted underline-offset-2 transition-colors hover:text-text-muted"
+      >
+        add stock
+      </button>
+    )
+  }
+
+  if (draw.kind === "count") {
+    // An oral solid has no draw volume — a count, no mL, no units (D6).
+    return (
+      <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
+        · <span className="text-text-primary">{draw.label}</span>
+      </span>
+    )
+  }
+
+  return (
+    <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
+      ·{" "}
+      <span className="text-text-primary">{draw.units}u</span>{" "}
+      <span>({draw.ml} mL)</span>
+    </span>
+  )
+}
+
+/** The dose the row is SHOWING — the logged amount once logged, else the scheduled
+ *  dose. The draw is priced against this, so the two figures on a row always agree
+ *  (an edited log must never sit beside the planned dose's draw). A half-typed /
+ *  unusable amount yields null → no draw, rather than a wrong one. */
+function shownAmount(dose: DueDose): number | null {
+  if (!dose.log) return dose.dose
+  const n = Number.parseFloat(dose.log.amount)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
 function DoseRow({
   dose,
   onLog,
   onUnlog,
   onOpenDetail,
+  drawSource,
+  drawsResolved,
+  onAddStock,
 }: {
   dose: DueDose
   onLog: (dose: StackCompound) => void
   onUnlog: (dose: StackCompound) => void
   onOpenDetail: (dose: StackCompound) => void
+  drawSource: DrawSource | undefined
+  drawsResolved: boolean
+  onAddStock: (dose: StackCompound) => void
 }) {
   const log = dose.log
+  const amount = shownAmount(dose)
+  const draw = amount == null ? null : formatDraw(amount, drawSource ?? null)
+  // Only offer "add stock" once the read has landed AND found this compound no vial.
+  const showAddStock = drawsResolved && drawSource == null
 
   return (
     <li
@@ -118,25 +201,47 @@ function DoseRow({
       </button>
 
       {/* Title first, specs below — the name stays fully readable (never squeezed by
-          the figures). Tapping anywhere here opens the compound detail, where every
-          edit lives. */}
-      <button
-        type="button"
-        onClick={() => onOpenDetail(dose)}
-        className="min-w-0 flex-1 text-left"
-      >
-        <span className="block truncate text-sm font-medium text-foreground">
-          {dose.name}
-        </span>
-        <span className="mt-0.5 block truncate font-mono text-xs tabular-nums text-text-muted">
-          {/* Once logged, show the amount you ACTUALLY logged — not the scheduled
-              dose — so an edited dose reads back correctly. */}
-          {log
-            ? `${log.amount}${dose.unit}`
-            : `${formatDose(dose.dose)}${dose.unit}`}{" "}
-          · {formatTimeLabel(dose.schedule.timeOfDay)}
-        </span>
-      </button>
+          the figures). Tapping the name or the specs opens the compound detail, where
+          every edit lives. The two are separate buttons only because the draw slot
+          sits inside the specs line and can itself be a tap ("add stock") — a button
+          inside a button is invalid markup. */}
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => onOpenDetail(dose)}
+          className="block w-full min-w-0 text-left"
+        >
+          <span className="block truncate text-sm font-medium text-foreground">
+            {dose.name}
+          </span>
+        </button>
+        <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5">
+          <button
+            type="button"
+            onClick={() => onOpenDetail(dose)}
+            className="min-w-0 shrink truncate text-left font-mono text-xs tabular-nums text-text-muted"
+          >
+            {/* Once logged, show the amount you ACTUALLY logged — not the scheduled
+                dose — so an edited dose reads back correctly. */}
+            {log
+              ? `${log.amount}${dose.unit}`
+              : `${formatDose(dose.dose)}${dose.unit}`}{" "}
+            · {formatTimeLabel(dose.schedule.timeOfDay)}
+          </button>
+
+          {/* The draw — how much to pull from the vial for THIS dose (Spec 21),
+              immediately next to the time. Syringe units read primary, mL is the
+              precise secondary figure (D2). "u" is a syringe GRADUATION, never "IU"
+              (a dose-potency measure) — see D3; conflating them would build a dosing
+              error into the row. Reports arithmetic on the user's own dose and vial;
+              it recommends nothing. */}
+          <DrawSlot
+            draw={draw}
+            showAddStock={showAddStock}
+            onAddStock={() => onAddStock(dose)}
+          />
+        </div>
+      </div>
 
       {/* "⋯" — the single home for every edit (change dose / time / site, archive,
           delete). Same destination as tapping the name; kept off the tick. */}
@@ -172,6 +277,9 @@ export function TodaysCycleCard({
   onLog,
   onUnlog,
   onOpenDetail,
+  drawSources,
+  drawsResolved,
+  onAddStock,
 }: TodaysCycleCardProps) {
   return (
     <section className="rounded-2xl border border-border-default bg-bg-surface p-5">
@@ -224,6 +332,9 @@ export function TodaysCycleCard({
                       onLog={onLog}
                       onUnlog={onUnlog}
                       onOpenDetail={onOpenDetail}
+                      drawSource={drawSources[dose.id]}
+                      drawsResolved={drawsResolved}
+                      onAddStock={onAddStock}
                     />
                   ))}
                 </ul>

@@ -50,6 +50,8 @@ import {
   unlogDose,
   type DayLogs,
 } from "@/lib/home/doseLog"
+import { resolveDrawSources } from "@/lib/home/protocolSync"
+import type { DrawSource } from "@/lib/home/draw"
 import { siteDaysSince } from "@/lib/home/siteRecency"
 
 const WEEKDAYS = [
@@ -62,6 +64,9 @@ const MONTHS = [
 
 // Stable empty-logs reference for useSyncExternalStore's server snapshot.
 const EMPTY_LOGS: DayLogs = {}
+
+// Stable empty reference so a day with no resolved vials doesn't remount the rows.
+const EMPTY_DRAW_SOURCES: Record<string, DrawSource> = {}
 
 function dayLabel(key: DateKey): string {
   const d = dateKeyToDate(key)
@@ -315,6 +320,45 @@ export function HomeScreen({
     log: selectedRows[c.id] ?? null,
   }))
 
+  // Per-Dose Draw (Spec 21) — the backing vial per due compound, for the selected
+  // day. Its own read because the today's-log is computed from the device stack +
+  // logs and carries no inventory data. Resolved for `selectedKey`, not today, so a
+  // back-dated row prices against the vial that was in use then.
+  //
+  // Derived at read time and never stored: an inventory edit, an undo, or a skip
+  // reflows the draw with no extra action (Invariant 1). Re-runs when the day or the
+  // due set changes — and on focus, so adding a vial on the Protocol tab and coming
+  // back fills the slot in without a reload.
+  const [drawState, setDrawState] = useState<{
+    key: string
+    sources: Record<string, DrawSource>
+  }>({ key: "", sources: EMPTY_DRAW_SOURCES })
+  const dueIdsKey = dueDoses.map((d) => d.id).sort().join(",")
+  const drawKey = `${selectedKey}|${dueIdsKey}`
+  useEffect(() => {
+    if (!dueIdsKey) return
+    let cancelled = false
+    const read = async () => {
+      const sources = await resolveDrawSources(dueIdsKey.split(","), selectedKey)
+      if (!cancelled) setDrawState({ key: drawKey, sources })
+    }
+    void read()
+    const onFocus = () => void read()
+    window.addEventListener("focus", onFocus)
+    return () => {
+      cancelled = true
+      window.removeEventListener("focus", onFocus)
+    }
+  }, [drawKey, dueIdsKey, selectedKey])
+
+  // Trust the resolved vials ONLY for the exact day + due-set they were read for.
+  // Scrubbing the week strip re-reads, and until that lands the slot stays empty
+  // rather than showing a draw priced against the previous day's vial — a wrong draw
+  // is worse than no draw. `drawsResolved` is what keeps the empty slot honest in the
+  // meantime: it stays quiet, rather than claiming "add stock" before we've looked.
+  const drawsResolved = drawState.key === drawKey
+  const drawSources = drawsResolved ? drawState.sources : EMPTY_DRAW_SOURCES
+
   // Days since each site was last used, for the log sheet's "last used here" rest
   // hint. Relative to the SELECTED day and INCLUDING it — so a site another compound
   // already used that day reads "used today" (you can still log two compounds into
@@ -482,6 +526,11 @@ export function HomeScreen({
               }
               onUnlog={(dose) => handleRemove(dose.id)}
               onOpenDetail={(dose) => setDetailTarget(dose)}
+              drawSources={drawSources}
+              drawsResolved={drawsResolved}
+              // No vial → the draw slot's "add stock" tap lands on the Stock tab's
+              // add-flow, not the Plan tab you'd otherwise get from /protocol.
+              onAddStock={() => router.push("/protocol?tab=stock")}
             />
           )}
         </div>
