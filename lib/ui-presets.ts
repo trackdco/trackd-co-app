@@ -41,3 +41,10 @@ export const CARD_ICON_BADGE =
  *  too large. Same amber-tint idiom. */
 export const STEP_ICON_BADGE =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent-amber/25 bg-accent-amber/10 text-accent-amber"
+
+/** The CARD_ICON_BADGE idiom made round — the icon-over-label tiles in the
+ *  quick-actions FAB menu (Spec 20). Circular is the shape that reads as a
+ *  tappable action rather than a card's leading mark; same amber tint, so the
+ *  menu still belongs to the same system. */
+export const QUICK_ACTION_BADGE =
+  "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-accent-amber/25 bg-accent-amber/10 text-accent-amber"

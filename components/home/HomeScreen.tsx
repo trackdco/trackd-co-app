@@ -16,8 +16,6 @@ import { WeightGlanceCard } from "@/components/home/WeightGlanceCard"
 import { InjectionSitesGlanceCard } from "@/components/home/InjectionSitesGlanceCard"
 import { InjectionSitesSheet } from "@/components/home/InjectionSitesSheet"
 import { ProgressPhotoSection } from "@/components/progress/ProgressPhotoSection"
-import { ReconCalcCard } from "@/components/home/ReconCalcCard"
-import { ReconCalculatorSheet } from "@/components/home/ReconCalculatorSheet"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
@@ -98,11 +96,12 @@ function computeNextDose(
 
 /**
  * Home / Dashboard. A pinned header (a sans "Dashboard" title + the selected
- * day's date + the week strip) over scrolling cards (Today's Log → Reconstitution
- * Calculator). Selecting a day re-scopes the content and the date; logging a dose
+ * day's date + the week strip) over scrolling cards (Today's Log → Progress
+ * photos). Selecting a day re-scopes the content and the date; logging a dose
  * flips that day's entry so the week dot updates, and
  * advances that compound's injection-site rotation. The stack + dose logs are
- * device-local; weight lives on its own view now (the + menu's Weight tile).
+ * device-local; weight lives on its own view now (the quick-actions Weight tile),
+ * and the reconstitution calculator has its own nav tab (`/calculator`, Spec 20).
  *
  * `serverTodayKey` is computed on the server so SSR + the first client render
  * match (no hydration drift); we then re-derive "today" from the DEVICE's local
@@ -158,7 +157,6 @@ export function HomeScreen({
     compound: StackCompound
     existing: DoseLog | null
   } | null>(null)
-  const [reconOpen, setReconOpen] = useState(false)
   // Injection-site map (opened from the glance card) — a read-only view of the
   // rotation derived from the dose log. `mirrorTip` shows a one-time note that the
   // front view is mirrored, decided on the first-ever open (event-driven, so no
@@ -533,10 +531,6 @@ export function HomeScreen({
             compact
           />
         </div>
-
-        <div className="animate-home-up" style={{ animationDelay: "210ms" }}>
-          <ReconCalcCard onOpenCalculator={() => setReconOpen(true)} />
-        </div>
       </div>
 
       <LogDoseSheet
@@ -597,9 +591,6 @@ export function HomeScreen({
         }}
         onAdded={() => setEditTarget(null)}
       />
-
-      {/* The real reconstitution calculator (A8) — opened from the home card. */}
-      <ReconCalculatorSheet open={reconOpen} onOpenChange={setReconOpen} />
 
       {/* Injection-site menu — choose your sites / see where you last pinned. */}
       <InjectionSitesSheet

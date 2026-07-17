@@ -2,6 +2,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
+import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { SyncStatusNotice } from "@/components/notifications/SyncStatusNotice";
 import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
@@ -27,8 +28,8 @@ export default async function AppLayout({
   if (!user) redirect("/login");
   if (!passedGate) redirect("/welcome");
 
-  // The user's weight unit — for the + menu's quick log-weight popup — and the
-  // body their injection-site map draws (the + menu's log-dose flow shows one).
+  // The user's weight unit — for the FAB menu's quick log-weight popup — and the
+  // body their injection-site map draws (the menu's log-dose flow shows one).
   // RLS scopes the read to this user; defaults to kg / the male body when unset.
   const supabase = await createClient();
   const { data: profile, error: profileError } = await supabase
@@ -68,7 +69,8 @@ export default async function AppLayout({
         {children}
       </main>
 
-      <BottomNav userId={user.id} unit={unit} bodySex={bodySex} />
+      <BottomNav />
+      <QuickActionsFab userId={user.id} unit={unit} bodySex={bodySex} />
       <SyncStatusNotice />
       <ServiceWorkerRegistrar />
     </div>

@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react"
 import Image from "next/image"
 
 import { BottomNav } from "@/components/navigation/bottom-nav"
+import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab"
 import { useMounted } from "@/components/home/useMounted"
 import { ProtocolScreen } from "@/components/protocol/ProtocolScreen"
 import { saveStack, notifyStackChanged, type StackCompound } from "@/lib/home/stack"
@@ -158,7 +159,8 @@ export function ProtocolPreview() {
         <ProtocolScreen userId={USER} initialCycle={cycle} previewStock={stock} />
       </main>
 
-      <BottomNav userId={USER} unit="kg" bodySex="male" />
+      <BottomNav />
+      <QuickActionsFab userId={USER} unit="kg" bodySex="male" />
     </div>
   )
 }

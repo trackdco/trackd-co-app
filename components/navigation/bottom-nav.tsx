@@ -4,18 +4,15 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  Calculator,
   LayoutGrid,
   LineChart,
-  Plus,
   Syringe,
   UserRound,
   type LucideIcon,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { ShortcutsMenu } from "@/components/shortcuts/ShortcutsMenu"
-import type { WeightUnit } from "@/lib/weight"
-import type { BodySex } from "@/lib/db/types"
 
 type Tab = {
   href: string
@@ -23,13 +20,13 @@ type Tab = {
   icon: LucideIcon
 }
 
-// Order, left → right: two tabs, [the plus], two tabs.
-const LEFT_TABS: Tab[] = [
+// Five equal tabs, left → right. The centre slot is Calculator (Spec 20): the
+// quick-add plus that used to sit here now floats bottom-right as a FAB, so one
+// of the four core differentiators gets the permanent nav real estate instead.
+const TABS: Tab[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
   { href: "/protocol", label: "Protocol", icon: Syringe },
-]
-
-const RIGHT_TABS: Tab[] = [
+  { href: "/calculator", label: "Calculator", icon: Calculator },
   { href: "/progress", label: "Progress", icon: LineChart },
   { href: "/profile", label: "Profile", icon: UserRound },
 ]
@@ -59,24 +56,13 @@ function NavTab({ href, label, icon: Icon, active }: Tab & { active: boolean }) 
 }
 
 /**
- * Persistent bottom navigation for the logged-in app shell. The centre plus is
- * exempt from the active/gray logic — it stays white and opens the Shortcuts
- * menu (from which "Add a compound" reaches the Add-to-Stack flow). `userId`
- * scopes the user's "Make your own" compounds in local storage; `unit` is the
- * user's weight unit, used by the menu's quick log-weight popup.
+ * Persistent bottom navigation for the logged-in app shell — five equal tabs,
+ * every one on the same active/gray logic (Spec 20 retired the raised white plus
+ * that used to hold the centre slot; quick actions now live in the FAB, and
+ * Calculator took the slot).
  */
-export function BottomNav({
-  userId,
-  unit,
-  bodySex,
-}: {
-  userId: string
-  unit: WeightUnit
-  /** Which figure the menu's log-dose body map draws (from the user's profile). */
-  bodySex: BodySex
-}) {
+export function BottomNav() {
   const pathname = usePathname()
-  const [menuOpen, setMenuOpen] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   // Installed iOS PWAs can report innerHeight short of the real screen on cold
   // launch, leaving an uncovered strip below the nav; `deficit` px fills it.
@@ -152,25 +138,7 @@ export function BottomNav({
         }}
       >
         <div className="mx-auto grid h-16 max-w-md grid-cols-5 items-center px-2">
-          {LEFT_TABS.map((tab) => (
-            <NavTab key={tab.href} {...tab} active={isActive(pathname, tab.href)} />
-          ))}
-
-          {/* Centre plus — always white, never part of the active/gray logic. */}
-          <div className="flex items-center justify-center">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              aria-label="Shortcuts"
-              aria-haspopup="dialog"
-              aria-expanded={menuOpen}
-              className="flex h-14 w-14 -translate-y-2 items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg transition-transform active:scale-95"
-            >
-              <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden />
-            </button>
-          </div>
-
-          {RIGHT_TABS.map((tab) => (
+          {TABS.map((tab) => (
             <NavTab key={tab.href} {...tab} active={isActive(pathname, tab.href)} />
           ))}
         </div>
@@ -190,14 +158,6 @@ export function BottomNav({
           style={{ height: deficit, transform: "translateY(100%)" }}
         />
       ) : null}
-
-      <ShortcutsMenu
-        open={menuOpen}
-        onOpenChange={setMenuOpen}
-        userId={userId}
-        unit={unit}
-        bodySex={bodySex}
-      />
     </>
   )
 }

@@ -56,8 +56,16 @@ stored.)
 
 - `app/` — Next.js App Router routes, layouts, server/client components, and
   server actions. Owns the UI and the today-dashboard / cycle / dose / journal
-  / calendar / bloodwork flows. Calls Supabase; holds **no** business maths that
-  belong in the database (see Invariants). **Phone-only by intent:** at ≥1024px the
+  / calendar / bloodwork / calculator flows. Calls Supabase; holds **no** business
+  maths that belong in the database (see Invariants). **The five bottom-nav tabs are
+  `/dashboard`, `/protocol`, `/calculator`, `/progress`, `/profile`** — `/calculator`
+  (Spec 20) mounts the reconstitution calculator (`components/home/ReconCalculator.tsx`)
+  on its own screen, and is its **only** entry point: the Home glance card
+  (`ReconCalcCard`) and its bottom-sheet frame (`ReconCalculatorSheet`) were both
+  **deleted** once the nav tab landed (Adrian's call — the tab replaces them, so they
+  only duplicated it). The calculator reads nothing — the maths are pure arithmetic on
+  what the user types (and mirror `v_inventory_math`; see Invariant 1). The dev-only
+  `/preview/recon` harness mounts the same component unauthed. **Phone-only by intent:** at ≥1024px the
   root layout hides the whole app shell (`lg:hidden`) and renders
   `DesktopInterstitial` in its place — a pure CSS-width gate (no UA sniffing, no
   hydration flash), wired through the small client `DesktopGate` so the dev-only
@@ -380,9 +388,15 @@ stored.)
     so an archive done offline is no longer resurrected on reconnect. A robust offline
     outbox (covering offline dose un-logging + multi-device conflicts) is post-beta work.
 
-- The plus-button **Shortcuts menu** (A10) is now a fixed layout — a primary "Log a
-  dose" over a consistent six-tile grid — so it persists nothing (the earlier
-  reorderable card order + `lib/shortcutOrder.ts` were removed when the menu was reworked).
+- The **quick-actions menu** (A10) lives on a **floating action button** pinned
+  bottom-right above the nav (`components/shortcuts/QuickActionsFab.tsx`, Spec 20),
+  rendered once by the `(app)` shell so it tracks the bottom nav exactly. One flat
+  three-column grid of seven equal tiles (`QUICK_ACTIONS` in `shortcutItems.ts`) — it
+  persists nothing (the earlier reorderable card order + `lib/shortcutOrder.ts`, and
+  later the primary-row / six-tile / feedback-row split of `ShortcutsMenu`, were all
+  removed as the menu was reworked). It carries **no calculator action**: the
+  reconstitution calculator holds the centre bottom-nav slot and `/calculator` is its
+  entry point (Spec 20 → D4/D6), so a tile would only duplicate it.
 
 ## Back-dating (2026-07-17)
 
@@ -393,9 +407,10 @@ on Wednesday. **The day the dashboard is parked on is the day you write to** —
 - **The selected day IS the target.** `HomeScreen`'s `selectedKey` (the week strip's
   day, local `useState`, unbounded in both directions) is what `logDose` /`unlogDose`
   already wrote to; the log sheet now receives it as `dateKey` + `todayKey` so
-  everything date-dependent agrees with where the dose actually lands. The bottom-nav
-  **+ menu** (`QuickTrackSheet`) has no day context of its own and is **always today**
-  — back-dating lives on the week strip. The **Calendar is still read-only** (no log
+  everything date-dependent agrees with where the dose actually lands. The
+  **quick-actions menu**'s "Log a dose" (`QuickTrackSheet`, on the FAB since Spec 20)
+  has no day context of its own and is **always today** — back-dating lives on the week
+  strip. The **Calendar is still read-only** (no log
   path); wiring one up is deferred.
 - **No limit, by design.** Nothing clamps how far back a dose or a start date may go.
   `dose_logs.taken_at` has a `now()` *default*, never a temporal CHECK, and RLS carries
@@ -658,8 +673,8 @@ full-screen sheet, and the site picker inside the log-dose sheet.
   grid, so switching route *or* sex never resizes or shifts the body. Which body to
   draw comes from `profiles.sex` via `bodySexFor()` (`lib/db/types.ts`), threaded down
   as a `bodySex` prop from two server entry points: the **dashboard page** (glance card
-  + sites sheet) and the **(app) layout** (→ `BottomNav` → `ShortcutsMenu` →
-  `QuickTrackSheet` → the log flow). `components/sites/bodyArtwork.ts` is the only
+  + sites sheet) and the **(app) layout** (→ `QuickActionsFab` → `QuickTrackSheet` →
+  the log flow; since Spec 20 the FAB owns this chain, not `BottomNav`). `components/sites/bodyArtwork.ts` is the only
   thing that knows which module is which — `routeTransform` / `routeBasePaths` /
   `routeRegions` all take `(route, [aspect,] sex)`.
   - **Female has no pec sites.** Angus's female IM art omits the pecs, so `im-pec-l` /

@@ -2,6 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
+import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { toDateKey } from "@/lib/home/mockHomeData";
 
@@ -74,7 +75,8 @@ export default function PreviewHomePage() {
         />
       </main>
 
-      <BottomNav userId="preview-local" unit="kg" bodySex="male" />
+      <BottomNav />
+      <QuickActionsFab userId="preview-local" unit="kg" bodySex="male" />
     </div>
   );
 }

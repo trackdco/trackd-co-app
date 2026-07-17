@@ -2,6 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
+import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 
 /**
  * DEV-ONLY preview of the bottom nav + Add to Stack sheet, viewable without
@@ -55,7 +56,8 @@ export default function PreviewPage() {
         </ul>
       </main>
 
-      <BottomNav userId="preview-local" unit="kg" bodySex="male" />
+      <BottomNav />
+      <QuickActionsFab userId="preview-local" unit="kg" bodySex="male" />
     </div>
   );
 }

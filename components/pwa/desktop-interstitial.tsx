@@ -290,7 +290,7 @@ export function DesktopInterstitial({
 
 /* ===========================================================================
    Decorative stat cards — fake-but-plausible, styled to read as real Trackd
-   screenshots (mirrors WeightGlanceCard / ReconCalcCard patterns). Wholly
+   screenshots (mirrors the WeightGlanceCard card pattern). Wholly
    decorative: the parent marks this subtree aria-hidden.
    =========================================================================== */
 
