@@ -170,7 +170,9 @@ function DoseRow({
 }) {
   const log = dose.log
   const amount = shownAmount(dose)
-  const draw = amount == null ? null : formatDraw(amount, drawSource ?? null)
+  // `dose.unit` is the unit the amount is shown in; `formatDraw` bails if it doesn't
+  // match the unit the vial was matched on, rather than print a wrong draw.
+  const draw = amount == null ? null : formatDraw(amount, dose.unit, drawSource ?? null)
 
   return (
     <li

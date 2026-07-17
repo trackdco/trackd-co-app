@@ -117,12 +117,25 @@ function formatCount(count: number, oralForm: string | null): string {
  *
  * @param amount the dose the ROW is displaying — the logged amount once logged,
  *   else the scheduled dose. Not the planned dose from the view.
+ * @param displayUnit the unit the row shows the amount IN — the device compound's
+ *   own `unit`. It must equal the unit the vial + concentration were matched on
+ *   (`source.doseUnit`, from Postgres); see the guard below.
  */
 export function formatDraw(
   amount: number,
+  displayUnit: string,
   source: DrawSource | null
 ): Draw | null {
   if (!source) return null
+  // The amount is shown beside `displayUnit` (the device compound's unit), but the
+  // vial + `concentrationPerMl` were resolved against `source.doseUnit` (Postgres).
+  // They normally agree — the Add flow locks a compound's unit to its catalogue
+  // value — but a unit change whose offline dual-write hasn't landed, or a legacy row
+  // that `coerceDoseUnit` fell back to `mg`, can leave them different. Dividing the
+  // displayed value by a concentration for a DIFFERENT unit would print a wrong
+  // dosing figure (the exact error D3 guards against). When they disagree we don't
+  // know which is right, so we show no draw rather than a plausible-but-wrong one.
+  if (displayUnit !== source.doseUnit) return null
   const base = doseInBaseUnit(amount, source.doseUnit)
   if (base == null) return null
 
