@@ -8,6 +8,107 @@ Forward-looking, actionable steps do **not** live here — they live in
 
 Last updated: 2026-07-17
 
+## Spec 20 — Quick-actions FAB + Calculator nav slot (2026-07-17, Adrian + Claude)
+
+The bottom-nav centre slot is now **Calculator**, and quick-add moved out of the nav
+into a **floating action button** bottom-right. BUILT + driven locally in a real
+headless browser (every acceptance behaviour exercised, screenshots reviewed); `tsc` +
+`eslint` + prod `build` clean, no console errors. **Not yet on a device — Adrian's QA
+pending.** No schema surface: this spec touches no data.
+
+- **The nav is five equal tabs now.** Dashboard / Protocol / **Calculator** / Progress /
+  Profile, every one on the same active-amber logic. The raised white plus that held the
+  centre slot is gone — with it the `-translate-y-2` lift and the exemption from the
+  active/gray rule. `BottomNav` takes **no props** at all any more; `userId`/`unit`/
+  `bodySex` went to the FAB, which is what needs them.
+- **Why the calculator got the slot:** it's one of the four core differentiators, and it
+  was buried behind a plus-menu tile. Adrian confirmed the standalone page matters
+  beyond this spec — **the calculator itself is getting reworked later**, and it needs a
+  page to be reworked *on*.
+- **`/calculator` is a real route** (`app/(app)/calculator/page.tsx`), a standalone
+  screen on the serif `PAGE_TITLE` scaffold, behind the `(app)` auth + gate like every
+  other feature screen.
+- **The calculator was extracted, not rewritten** (Spec 20 → D5). It only ever existed
+  as a bottom sheet — its fields and maths lived *inside* `Sheet`/`useSheetDrag` chrome,
+  so there was nothing mountable on a page. `components/home/ReconCalculator.tsx` is now
+  the calculator itself (state + arithmetic + fields + result + working + disclaimer),
+  moved **verbatim**; `ReconCalculatorSheet` is reduced to frame-only and renders it, so
+  the **Home glance card behaves exactly as before**. Two frames, one calculator.
+  Verified by driving it: 5 mg / 2 mL / 250 mcg → 2.5 mg/mL, 0.1 mL, 10 U — unchanged.
+  D5's stop condition (coupling to *add-compound state*) did **not** apply: the
+  calculator takes no props and fetches nothing. Flagged to Adrian before touching it;
+  he approved the extraction.
+- **The nav tab is the calculator's ONLY entry point** (Adrian's call, on seeing it
+  built). It first shipped with two — the tab plus the Home `ReconCalcCard` glance card,
+  since changing Home was out of Spec 20's scope — and he cut the Home one: "it doesn't
+  need to be on the dashboard screen anymore." So `ReconCalcCard.tsx` and
+  `ReconCalculatorSheet.tsx` are both **deleted**, and with them the last caller of the
+  sheet frame. That leaves the extraction doing exactly one job: `ReconCalculator` on a
+  page. (The card was the bottom-most card in the Home scroll, so it lifted out without
+  reflowing anything above it.) `/preview/recon` was repointed at `ReconCalculator` on
+  the real page scaffold — it's the only way to see the calculator without logging in.
+- **The FAB** (`components/shortcuts/QuickActionsFab.tsx`) is rendered once by the
+  `(app)` shell, so it appears on exactly the screens that show the nav. Tap → the plus
+  rotates 45° into an X, a scrim dims the full viewport (**the nav included**), and a
+  raised card rises above the button. Tap the X, the scrim, or Escape → the whole thing
+  plays in reverse.
+- **Hand-rolled, not a Radix dialog** — and that's forced, not preference: the FAB must
+  stay live while the menu is open (it *is* the close button), and a modal dialog makes
+  everything outside its own content inert. So plain `useState` per D8, with Escape,
+  body-scroll lock, focus-into-menu-on-open and focus-back-to-FAB-on-close done by hand.
+  An **action** closes without restoring focus (the flow it opens takes over); a
+  **dismissal** restores it.
+- **The action set is the old menu's, minus the calculator** (D6 — reported to Adrian
+  and on the record: the nav slot is now its entry point, so a tile would only duplicate
+  it). **The old primary "Log a dose" amber row folded in as an equal tile** (Adrian's
+  call) — inside a pop-up that size, that hierarchy read as clutter, not emphasis. It
+  needed a `shortLabel` it never had ("Log a dose"). Six tiles, 3×2, exactly full: Log a
+  dose, Add compound, Journal, Weight, Blood work, Calendar.
+- **"Beta notes & feedback" is a full-width WHITE row under the grid** — `QUICK_ACTIONS`
+  (six) + a separate `FEEDBACK_ACTION`. It was *also* folded in as a seventh tile at
+  first; seeing it built, Adrian cut that: a 7th tile left a ragged one-item last row,
+  and the white row both fills that space and reads better. White is the primary accent
+  (`ui-context.md`), so the row carries weight without amber — and the shape sets the
+  temporary beta tool apart from the six core actions rather than hiding it among them.
+  This lands close to where the pre-Spec-20 menu had it (a distinct row below the grid),
+  which is some evidence the original split was right about *this* item, if not about
+  "Log a dose".
+- **The old dropdown is deleted.** `components/shortcuts/ShortcutsMenu.tsx` is gone;
+  `shortcutItems.ts` is rewritten around `QUICK_ACTIONS` (six) + `FEEDBACK_ACTION` (the
+  old `PRIMARY_ITEM`/`GRID_ITEMS`/`FEEDBACK_ITEM` split and the `"calculator"` action
+  are retired). Grep confirms no orphan references. The six dev-only `/preview/*`
+  harnesses were updated to the new shell shape so they stay representative.
+- **Two missing tokens were flagged, not invented** (the spec's own rule), and Adrian
+  chose to document them first:
+  - **A motion scale** — `--motion-fast` 180ms / `--motion-base` 240ms / `--motion-slow`
+    320ms / `--motion-ease` `cubic-bezier(0.16, 1, 0.3, 1)`, read off the as-built
+    screens rather than invented, exposed as the `ease-motion` utility. Durations have
+    no Tailwind theme namespace, hence `duration-[var(--motion-fast)]`.
+  - **A z-index scale** — the de-facto ladder written down: nav `z-40`, quick-actions
+    scrim `z-[45]`, FAB + card `z-[46]`, sheets `z-50`, confirm modals `z-[60]`, notice
+    `z-[70]`. The FAB sits above the nav and below the sheets on purpose: it must clear
+    the bar it floats over, but any flow it opens must cover it. Tailwind has no z-index
+    theme namespace, so these are documented values, not CSS vars.
+  - Plus a new **`QUICK_ACTION_BADGE`** preset (the `CARD_ICON_BADGE` amber idiom made
+    circular) — added to `ui-presets.ts` + `ui-context.md` **before** use, per the
+    doc-first rule. It's the only round badge in the app.
+- **Verified by driving it, not just building it:** FAB 56×56 (≥44px) sitting clear of
+  the nav's top edge and fixed across a 400px scroll; `aria-expanded` false→true;
+  `aria-label` "Open quick actions"→"Close quick actions"; the rotate resolving to
+  `45deg` over `0.18s` with the house easing (Tailwind v4 sets the `rotate` property,
+  not `transform`); scrim `rgba(0,0,0,0.7)` = `--overlay-backdrop`; card
+  `rgb(36,36,34)` = `--bg-surface-raised`; six tiles + the white feedback row
+  (`rgb(255,255,255)`), **no calculator**; focus landing on
+  "Log a dose" and returning to the FAB on Escape; body scroll locked then restored; the
+  Calendar tile landing on `/calendar`; and under `prefers-reduced-motion` the menu
+  showing and hiding instantly with `animation-name: none`. The calculator's arithmetic
+  was re-driven after the extraction (5 mg / 2 mL / 250 mcg → 2.5 mg/mL, 0.1 mL, 10 U)
+  and again on the page itself (10 mg / 2 mL / 1 mg → 5 mg/mL, 0.2 mL, 20 U).
+- **One fix came out of looking at it:** the card was first built on `--bg-surface` and
+  read flat against the dimmed page — swapped to the documented elevated surface
+  (`--bg-surface-raised`), and the tile hover moved up a layer to `--bg-input` to stay
+  visible on it.
+
 ## Back-dating — log a dose (and start a compound) on a past day (2026-07-17, Adrian + Claude)
 
 Adrian's ask: "what if I logged something the day before, but then I track it the day

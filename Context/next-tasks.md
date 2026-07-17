@@ -15,10 +15,53 @@ Last updated: 2026-07-17
 
 ## 🎯 Current focus
 
-**▶ 2026-07-17 (Adrian + Claude): BACK-DATING — log a dose / start a compound on a past
-day. BUILT + verified locally; `tsc`+`eslint`+prod `build` clean. ON PR #55 — CodeRabbit
-round 1 folded in (3 fixed, 2 skipped as a UTC-vs-Sydney date artifact). AWAITING ADRIAN'S
-GO-AHEAD TO MERGE (do not merge to main without it — main deploys straight to prod).**
+**▶ 2026-07-17 (Adrian + Claude): SPEC 20 — QUICK-ACTIONS FAB + CALCULATOR NAV SLOT.
+BUILT + driven locally in a headless browser (every acceptance behaviour exercised);
+`tsc`+`eslint`+prod `build` clean, no console errors. NOT COMMITTED, NOT ON A PR.
+NEEDS: Adrian's on-device QA (below), then a PR. No migration — this spec touches no
+data.** The centre nav slot is now **Calculator** (opening the real `/calculator` page —
+its **only** entry point now; the Home glance card is deleted), and quick-add moved out
+of the nav into a **FAB** bottom-right: tap → plus rotates to an X, scrim dims the page,
+a card of 6 tiles + a white "Beta notes & feedback" row rises above the button. Full
+detail in `progress-tracker.md`.
+
+**▶ Adrian's on-device QA (iOS PWA + Android — the acceptance list):**
+1. **The nav.** Five equal tabs, Calculator in the middle — no raised white plus. Tap
+   Calculator → the standalone page opens and the tab highlights amber. Check the other
+   four tabs still highlight correctly.
+2. **The calculator is unchanged.** Same fields, same maths, same working, same
+   disclaimer — just on a page now. **Check Home no longer carries the calculator card**
+   (it was the bottom-most card; nothing above it should have moved).
+3. **The FAB clears the iOS home indicator** and sits above the nav — this is the one a
+   simulator can't answer. Scroll a long screen (Dashboard / Progress): it must stay
+   pinned bottom-right and never drift.
+4. **Open it.** Plus rotates into an X, the page dims *including the nav bar*, the card
+   rises above the button.
+5. **Every action lands where the old menu did:** six tiles (Log a dose, Add compound,
+   Journal, Weight, Blood work, Calendar) + the white **Beta notes & feedback** row
+   below them. **No calculator tile** — that's deliberate (D6: the nav slot is its entry
+   point now, so a tile would just duplicate it).
+6. **Every way out works:** tap the X, tap the scrim, and (on a keyboard) Escape. Each
+   should reverse the animation and unlock scrolling.
+7. **The thing to watch for a regression:** the FAB appears on every screen with the
+   bottom nav — and nowhere else (not on `/login`, `/welcome`, or the legal pages).
+
+**▶ Then — YOUR CALL.** Nothing is committed. If the device pass is clean, this goes up
+as a PR; **main deploys straight to prod**, so it waits for your go-ahead either way.
+
+**▶ Resolved in-flight (2026-07-17), both on Adrian seeing it built:**
+- **The Home calculator card is gone** — "it doesn't need to be on the dashboard screen
+  anymore." The nav tab is the calculator's only entry point, so `ReconCalcCard` +
+  `ReconCalculatorSheet` were deleted outright.
+- **Beta notes went back to a full-width white row** under a clean 3×2 grid, rather than
+  a seventh tile leaving a ragged last row.
+
+## Shipped, awaiting nothing — back-dating (2026-07-17)
+
+**✅ BACK-DATING merged to `main` → prod (PR #55, squash `6bd0ca8`).** Two CodeRabbit
+rounds folded in. The QA list below is retained for reference; re-run it if anything
+about dose logging looks off.
+
 The day the week strip is parked on is now the day you write to. Half already worked
 *silently* (the tick always wrote to `selectedKey`; the DB never had a temporal
 constraint) — but it stamped **today's clock time** and drew down **today's vial**. Now:
@@ -45,8 +88,9 @@ detail in `progress-tracker.md`.
    rejected). Then check its past due-days appear on the strip so you can back-fill.
 5. **Move an existing compound backwards.** Edit a compound → set its start earlier
    (the year dropdown now reaches back 5 years) → save.
-6. **The + menu is still today-only** (it has no day context) — confirm it shows no
-   notice and behaves exactly as before.
+6. **The quick-actions menu is still today-only** (it has no day context) — confirm it
+   shows no notice and behaves exactly as before. (Since Spec 20 this is the **FAB**
+   bottom-right, not the bottom-nav plus; the "Log a dose" tile is the same flow.)
 
 7. **A future day reads the same.** Scroll forward → the notice says just "Logging to
    Sun 19 Jul", with no "future" wording. Future logging is deliberately **not blocked**

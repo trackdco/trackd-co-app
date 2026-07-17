@@ -2,6 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
+import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 
 /**
  * DEV-ONLY preview of the bottom nav + Add to Stack sheet, viewable without
@@ -37,12 +38,13 @@ export default function PreviewPage() {
           Dev preview
         </p>
         <h1 className="mt-2 font-display text-[2rem] leading-[1.1] font-medium tracking-[-0.02em] text-foreground">
-          Bottom nav &amp; Add to Stack
+          Bottom nav &amp; quick actions
         </h1>
         <p className="mt-3 text-[0.95rem] leading-relaxed text-text-muted">
-          Tap the white <span className="text-foreground">+</span> to open Add to
-          Stack. Search by name or alias — try{" "}
-          <span className="text-foreground">deca</span>,{" "}
+          Tap the white <span className="text-foreground">+</span> bottom-right to
+          open the quick-actions menu, then{" "}
+          <span className="text-foreground">Add compound</span>. Search by name or
+          alias — try <span className="text-foreground">deca</span>,{" "}
           <span className="text-foreground">aromasin</span>, or{" "}
           <span className="text-foreground">npp</span>. Search something that
           doesn&apos;t exist to see{" "}
@@ -55,7 +57,8 @@ export default function PreviewPage() {
         </ul>
       </main>
 
-      <BottomNav userId="preview-local" unit="kg" bodySex="male" />
+      <BottomNav />
+      <QuickActionsFab userId="preview-local" unit="kg" bodySex="male" />
     </div>
   );
 }

@@ -65,6 +65,15 @@
   /* Corner radius base (cards = rounded-2xl); shadcn derives sm/md/lg/xl */
   --radius: 1rem;
 
+  /* Motion — the duration + easing scale (see ui-context.md → Motion). Read off
+     the as-built screens rather than invented, so existing motion already sits on
+     it. Use these (or a named .animate-* class) instead of a per-screen literal:
+     that drift is exactly what a scale exists to stop. */
+  --motion-fast: 180ms; /* scrim fades, icon rotations, menu cards */
+  --motion-base: 240ms; /* the default — cross-fades, colour/state changes */
+  --motion-slow: 320ms; /* staggered entrances (.animate-shortcut-in) */
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1); /* the house ease-out */
+
   /* ---- shadcn/ui semantic aliases → mapped onto the Trackd palette ---- */
   --background: var(--bg-base);
   --foreground: var(--text-primary);
@@ -123,6 +132,10 @@
   --color-chart-trend: var(--chart-trend);
   --color-chart-trend-fill: var(--chart-trend-fill);
   --color-overlay-backdrop: var(--overlay-backdrop);
+
+  /* House easing → utility (ease-motion). Durations have no Tailwind theme
+     namespace, so reach for them as duration-[var(--motion-fast)]. */
+  --ease-motion: var(--motion-ease);
   --color-state-error: var(--state-error);
   --color-state-success: var(--state-success);
   --color-state-warning: var(--state-warning);
@@ -251,6 +264,25 @@
   animation: shortcut-fade 240ms ease-out both;
 }
 
+/* Quick-actions FAB (Spec 20) — the scrim fades the page down and the action
+   card rises into place above the button; both play in reverse on dismiss, so
+   closing retraces the open rather than cutting. */
+.animate-quick-scrim-in {
+  animation: shortcut-fade var(--motion-fast) ease-out both;
+}
+
+.animate-quick-scrim-out {
+  animation: shortcut-fade var(--motion-fast) ease-out reverse both;
+}
+
+.animate-quick-menu-in {
+  animation: quick-menu-in var(--motion-fast) var(--motion-ease) both;
+}
+
+.animate-quick-menu-out {
+  animation: quick-menu-in var(--motion-fast) var(--motion-ease) reverse both;
+}
+
 /* Home "dose tracked" confirmation — the tick pops in with a soft overshoot and
    a single ring pulse radiates out (a satisfying "approved" beat). */
 .animate-home-tick-pop {
@@ -283,12 +315,27 @@
   .animate-shortcut-in,
   .animate-shortcut-ripple,
   .animate-shortcut-fade,
+  .animate-quick-scrim-in,
+  .animate-quick-scrim-out,
+  .animate-quick-menu-in,
+  .animate-quick-menu-out,
   .animate-home-tick-pop,
   .animate-home-tick-ring,
   .animate-home-up,
   .animate-notice-in,
   .animate-card-shake {
     animation: none;
+  }
+}
+
+@keyframes quick-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

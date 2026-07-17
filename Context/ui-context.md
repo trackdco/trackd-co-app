@@ -113,8 +113,8 @@ utilities (`font-display`, `font-sans`, `font-mono`) in
 ### Rule: section + glance-card titles use the display serif, in white
 
 Every section / glance-card **title** across Home and Progress — Today's
-Log, Weight, Progress photos, Bloodwork, Journal, Consistency,
-Reconstitution Calculator (and the "Good morning, …" greeting) — uses the
+Log, Weight, Progress photos, Bloodwork, Journal, Consistency (and the
+"Good morning, …" greeting) — uses the
 **display serif** (`font-display`) in **white** (`text-foreground`), so the
 cards read as one consistent "clinical journal" system rather than three
 different UIs. Apply the shared **`CARD_TITLE`** preset
@@ -254,7 +254,7 @@ glance card uses the shared **`CARD_ICON_BADGE`** preset
 (`lib/ui-presets.ts`) — an **amber** stroke icon (`text-accent-amber`) on a
 soft amber-tinted rounded square (`rounded-xl border border-accent-amber/25
 bg-accent-amber/10`). Every Home + Progress card icon uses it (Weight,
-Progress photos, Bloodwork, Journal, Consistency, Reconstitution Calculator)
+Progress photos, Bloodwork, Journal, Consistency)
 so the cards read as one system. Amber is the secondary signature accent
 (active/interactive state) — this is chrome/identity, not health data, so it
 stays within the colour rule above.
@@ -262,6 +262,12 @@ stays within the colour rule above.
 For a smaller inline badge — an in-flow prompt or a numbered step, where the
 `h-11` card badge is too big — use **`STEP_ICON_BADGE`** (the same amber-tint
 idiom at `h-9`). Don't hand-roll a third badge size.
+
+For the **quick-actions FAB menu's** icon-over-label tiles, use
+**`QUICK_ACTION_BADGE`** — the same amber-tint idiom made **circular** at `h-12`.
+Round is what separates a tappable action from a card's leading mark; the tint is
+unchanged, so the menu still reads as the same system. It is the only round
+badge — everywhere else stays `rounded-xl`.
 
 ## States
 
@@ -284,11 +290,48 @@ part of the design, not a fallback.
 - **Partial** — a card with some data shows what it has plus a muted
   placeholder for the rest, not a full empty state.
 
+## Z-index scale
+
+Fixed chrome stacks in one documented ladder — defined here, in
+`app/globals.css` order of intent. Tailwind has no z-index theme namespace, so
+these are **documented values**, not CSS-variable tokens; use the class shown.
+
+| Layer                                  | Class     |
+| -------------------------------------- | --------- |
+| In-page layering (sticky rows, badges) | `z-10`–`z-30` |
+| Bottom nav, `PageScrollTitle` bar      | `z-40`    |
+| Quick-actions scrim                    | `z-[45]`  |
+| Quick-actions FAB + menu card          | `z-[46]`  |
+| Sheets / dialogs (shadcn)              | `z-50`    |
+| Confirm modals (sign out, delete)      | `z-[60]`  |
+| Amber pop-down notice                  | `z-[70]`  |
+
+The FAB sits **above the nav and below the sheets** deliberately: it must clear
+the bar it floats over, but any flow it opens must cover it. Anything new goes
+**on** this ladder — never a fresh `z-[99]`.
+
 ## Motion & Interaction
 
 Motion **reinforces meaning, never decorates.** The keyframes live once
 in `app/globals.css`; use the named `animate-*` classes rather than
 hand-rolling animation per screen.
+
+**Durations and easing are tokens** (`app/globals.css` `:root`) — read off the
+as-built screens, so existing motion already sits on the scale. Reach for these
+rather than a per-screen literal; that drift is what the scale prevents.
+
+| Role                                            | Token           | Value                          |
+| ----------------------------------------------- | --------------- | ------------------------------ |
+| Fast — scrim fades, icon rotations, menu cards  | `--motion-fast` | `180ms`                        |
+| Base — cross-fades, colour / state changes      | `--motion-base` | `240ms`                        |
+| Slow — staggered entrances                      | `--motion-slow` | `320ms`                        |
+| House ease-out                                  | `--motion-ease` | `cubic-bezier(0.16, 1, 0.3, 1)` |
+
+The easing is exposed as the Tailwind utility **`ease-motion`**. Durations have
+no Tailwind theme namespace, so use `duration-[var(--motion-fast)]`. Longer
+one-off entrances that predate the scale (`animate-home-up` 520ms,
+`animate-shortcut-in` 320ms) keep their tuned values — the scale governs new
+motion, it isn't a retrofit mandate.
 
 - **Entrance** — tab screens stagger their cards in with `animate-home-up`
   (fade + rise) via a per-card inline `animation-delay`. Same idiom on
