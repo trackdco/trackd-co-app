@@ -366,18 +366,27 @@ function acquiredOnCutoff(dateKey: string): string {
  * Unit-family is filtered IN the query (not after `limit 1`), so an incompatible
  * newest vial falls through to an older compatible one instead of losing the link.
  */
-async function vialOnDate(
+type VialLookup =
+  /** The query ran. `vial` is null only when there genuinely wasn't one that day. */
+  | { ok: true; vial: { id: string; totalAmountUnit: string | null } | null }
+  /** The query failed — we do NOT know whether a vial exists. */
+  | { ok: false }
+
+async function vialOnDateResult(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   pcId: string,
   dateKey: string,
   doseUnit: string
-): Promise<{ id: string } | null> {
+): Promise<VialLookup> {
   const base = baseUnitForDose(doseUnit)
-  if (!base) return null
+  if (!base) return { ok: true, vial: null } // no vial can ever match — a real answer
   const { data, error } = await supabase
     .from("inventory_items")
-    .select("id")
+    // `total_amount_unit` rides along for the draw's tab/cap wording (Spec 21). The
+    // view doesn't carry it, and fetching it here rather than in a second query keeps
+    // it impossible for the noun to go missing while the vial resolved.
+    .select("id, total_amount_unit")
     .eq("protocol_compound_id", pcId)
     .eq("user_id", userId)
     .eq("base_unit", base)
@@ -386,14 +395,34 @@ async function vialOnDate(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
-  // A failed read and "no vial that far back" both yield no link — the safe answer
-  // either way (never guess a vial). But they're very different problems, so say
-  // which one happened rather than letting a broken query read as empty stock.
+  // A failed read and "no vial that far back" are very different problems, so they get
+  // different answers. The dose-log WRITE path deliberately collapses both to "no
+  // link" (never guess a vial) — see the `vialOnDate` wrapper. The draw READ must not:
+  // "no vial" is rendered as the claim *you have no stock*, which a broken query has
+  // no business making.
   if (error) {
     console.error("vialOnDate failed", error)
-    return null
+    return { ok: false }
   }
-  return data ? { id: data.id as string } : null
+  return {
+    ok: true,
+    vial: data
+      ? { id: data.id as string, totalAmountUnit: (data.total_amount_unit as string | null) ?? null }
+      : null,
+  }
+}
+
+/** The write path's view of the rule: a failed read and "no vial" both mean no link —
+ *  the safe answer either way, since a wrong link would decrement the wrong vial. */
+async function vialOnDate(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  pcId: string,
+  dateKey: string,
+  doseUnit: string
+): Promise<{ id: string } | null> {
+  const r = await vialOnDateResult(supabase, userId, pcId, dateKey, doseUnit)
+  return r.ok && r.vial ? { id: r.vial.id } : null
 }
 
 /**
@@ -444,17 +473,28 @@ export async function resolveVialForDate(
  * `v_inventory_math` — never recomputed. The division by the row's own dose happens
  * in `lib/home/draw.ts`; see the note there for why the view can't do it.
  *
- * Best-effort like the rest of this module: a compound with no vial (or a custom /
- * unmigrated one) is simply absent from the result — the row renders "add stock"
- * and logging is never blocked. Never throws.
+ * Best-effort like the rest of this module: never throws, and logging is never
+ * blocked. But "no vial" is NOT signalled by absence — it's returned explicitly in
+ * `noVial`, because the row renders it as the claim *you have no stock*. A failed
+ * lookup leaves a compound out of BOTH maps: we don't know, so the row says nothing.
  */
+export interface DrawSourcesResult {
+  /** Vial facts, per client compound id — only where a vial actually resolved. */
+  sources: Record<string, DrawSource>
+  /** Client compound ids we successfully looked up and CONFIRMED have no vial that
+   *  day. Only these may offer "add stock". Absent from both maps ⇒ lookup failed. */
+  noVial: string[]
+}
+
+const EMPTY_RESULT: DrawSourcesResult = { sources: {}, noVial: [] }
+
 export async function resolveDrawSources(
   clientCompoundIds: string[],
   dateKey: string
-): Promise<Record<string, DrawSource>> {
+): Promise<DrawSourcesResult> {
   try {
     const cx = await ctx()
-    if (!cx || clientCompoundIds.length === 0) return {}
+    if (!cx || clientCompoundIds.length === 0) return EMPTY_RESULT
 
     // Client id ⇄ protocol_compounds.id, de-duped (the same compound can't appear
     // twice on a day, but the caller shouldn't have to guarantee that).
@@ -471,8 +511,9 @@ export async function resolveDrawSources(
       .eq("user_id", cx.userId)
       .in("id", pairs.map((p) => p.pcId))
     if (pcErr) {
+      // We couldn't even read the compounds — we know nothing about anyone's stock.
       console.error("resolveDrawSources compounds failed", pcErr)
-      return {}
+      return EMPTY_RESULT
     }
     const unitByPc = new Map(
       (pcs ?? []).map((r) => [r.id as string, r.dose_unit as string])
@@ -481,65 +522,63 @@ export async function resolveDrawSources(
     // One `vialOnDate` per compound — THE shared rule, applied per compound rather
     // than re-implemented as a batch pick in TS (a second implementation is exactly
     // the drift that rule exists to prevent). Small, indexed, and run in parallel.
-    const resolved = (
-      await Promise.all(
-        pairs.map(async (p) => {
-          const doseUnit = unitByPc.get(p.pcId)
-          if (!doseUnit) return null // custom / unmigrated compound
-          const vial = await vialOnDate(cx.supabase, cx.userId, p.pcId, dateKey, doseUnit)
-          return vial ? { ...p, doseUnit, vialId: vial.id } : null
-        })
-      )
-    ).filter((r): r is NonNullable<typeof r> => r !== null)
-    if (resolved.length === 0) return {}
+    const looked = await Promise.all(
+      pairs.map(async (p) => {
+        const doseUnit = unitByPc.get(p.pcId)
+        // A custom / unmigrated compound has no protocol_compounds row and so can
+        // hold no vial — a real "no vial", not a failure.
+        if (!doseUnit) return { ...p, doseUnit: null, lookup: { ok: true, vial: null } as VialLookup }
+        const lookup = await vialOnDateResult(cx.supabase, cx.userId, p.pcId, dateKey, doseUnit)
+        return { ...p, doseUnit, lookup }
+      })
+    )
 
-    const vialIds = resolved.map((r) => r.vialId)
-    const [mathRes, itemRes] = await Promise.all([
-      cx.supabase
-        .from("v_inventory_math")
-        .select("inventory_item_id, inventory_type, concentration_per_ml, strength_per_unit_mg")
-        .in("inventory_item_id", vialIds),
-      // `total_amount_unit` is a raw input and isn't carried by the view — it only
-      // decides whether an oral reads "tabs" or "caps".
-      cx.supabase
-        .from("inventory_items")
-        .select("id, total_amount_unit")
-        .eq("user_id", cx.userId)
-        .in("id", vialIds),
-    ])
+    // Confirmed no vial ⇒ the row may offer "add stock". A failed lookup falls through
+    // both lists and the row stays quiet.
+    const noVial = looked
+      .filter((l) => l.lookup.ok && l.lookup.vial === null)
+      .map((l) => l.clientId)
+    const hits = looked.flatMap((l) =>
+      l.lookup.ok && l.lookup.vial && l.doseUnit
+        ? [{ clientId: l.clientId, doseUnit: l.doseUnit, vial: l.lookup.vial }]
+        : []
+    )
+    if (hits.length === 0) return { sources: {}, noVial }
+
+    const mathRes = await cx.supabase
+      .from("v_inventory_math")
+      .select("inventory_item_id, inventory_type, concentration_per_ml, strength_per_unit_mg")
+      .in("inventory_item_id", hits.map((h) => h.vial.id))
     if (mathRes.error) {
-      // Showing a row with no draw is safe; showing one with a silently-null
-      // concentration would read as "no vial" when the vial is right there.
+      // The vials resolved but their maths didn't load. Keep the confirmed-no-vial
+      // rows (that lookup DID succeed) and leave the rest quiet — never downgrade a
+      // compound we know has a vial into "add stock".
       console.error("resolveDrawSources math failed", mathRes.error)
-      return {}
+      return { sources: {}, noVial }
     }
-    if (itemRes.error) console.error("resolveDrawSources items failed", itemRes.error)
 
     const math = new Map(
       (mathRes.data ?? []).map((m) => [m.inventory_item_id as string, m])
     )
-    const oralForm = new Map(
-      (itemRes.data ?? []).map((i) => [i.id as string, i.total_amount_unit as string])
-    )
 
-    const out: Record<string, DrawSource> = {}
-    for (const r of resolved) {
-      const m = math.get(r.vialId)
-      if (!m) continue
-      out[r.clientId] = {
+    const sources: Record<string, DrawSource> = {}
+    for (const h of hits) {
+      const m = math.get(h.vial.id)
+      if (!m) continue // vial resolved but no math row — say nothing, don't claim empty
+      sources[h.clientId] = {
         inventoryType: m.inventory_type as InventoryType,
         concentrationPerMl:
           m.concentration_per_ml == null ? null : Number(m.concentration_per_ml),
         strengthPerUnitMg:
           m.strength_per_unit_mg == null ? null : Number(m.strength_per_unit_mg),
-        oralForm: oralForm.get(r.vialId) ?? null,
-        doseUnit: r.doseUnit,
+        oralForm: h.vial.totalAmountUnit,
+        doseUnit: h.doseUnit,
       }
     }
-    return out
+    return { sources, noVial }
   } catch (e) {
     console.error("resolveDrawSources failed", e)
-    return {}
+    return EMPTY_RESULT
   }
 }
 

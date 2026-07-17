@@ -118,7 +118,7 @@ The draw is computed at read time from the backing vial's concentration and the 
 
 1. **Preflight** — run all six checks above against the live schema via MCP. Do not proceed until #1 and #2 are answered.
 2. **View** — if per-dose volume + current-item resolution are already exposed, no schema change; read them. If current-item resolution is missing, add/extend a `security_invoker = true` view exposing resolved per-dose draw volume + inventory type per active dose, with grants shipped. No derived storage, no depletion triggers.
-3. **Today's-log read** — ensure the home today list select carries per-dose draw volume (mL) and inventory type from the view.
+3. **Today's-log read** — ~~ensure the home today list select carries per-dose draw volume (mL) and inventory type from the view.~~ **Corrected at build:** there is no such select — Preflight #5 found the today's-log is computed **client-side** from the device stack + dose logs, and the dashboard's server component never touches inventory. So this step became a **dedicated server read** (`resolveDrawSources`) that resolves the selected day's vial via `vialOnDate` and returns its view-derived concentration + inventory type + oral strength per active dose.
 4. **UI — dose row** — add the draw slot next to the time. Format per Design Decision 2/3/6. Type-gate the render.
 5. **Fallback states** — no vial → empty slot + faint "add stock" tap. Multiple vials → resolved-current with optional switch label.
 6. **Copy audit** — verify TGA framing (markets the tracking readout, not dosing guidance), the coaching line (reports, never recommends), and the "u" vs "IU" label correctness.

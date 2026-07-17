@@ -32,12 +32,13 @@ interface TodaysCycleCardProps {
   /** Tap the name or the "⋯" → open this compound's detail, where every edit lives. */
   onOpenDetail: (dose: StackCompound) => void
   /** Per-Dose Draw (Spec 21) — the backing vial's facts per compound id, resolved
-   *  for the selected day. A compound absent from the map has no vial that day. */
+   *  for the selected day. */
   drawSources: Record<string, DrawSource>
-  /** Whether `drawSources` is the landed answer for this day (vs. a read still in
-   *  flight). Gates the "add stock" empty state, which must never claim "no vial"
-   *  before we've looked. */
-  drawsResolved: boolean
+  /** Compounds we looked up and CONFIRMED have no vial that day — the only ones that
+   *  may offer "add stock". Deliberately explicit rather than "absent from
+   *  `drawSources`": absence also covers a read in flight and a failed query, neither
+   *  of which may claim the user has no stock. */
+  noVialIds: ReadonlySet<string>
   /** Tap "add stock" on a row with no vial → the storage add-flow (D1). */
   onAddStock: (dose: StackCompound) => void
 }
@@ -94,11 +95,11 @@ function groupByCategory(doses: DueDose[]): DoseGroup[] {
  * (D1). So the slot renders empty with a faint "add stock" tap through to the
  * storage flow, and logging the dose is never blocked by its absence.
  *
- * `showAddStock` is deliberately NOT just `!draw`. "add stock" asserts the user has
- * no vial, so it may only appear once we've actually looked and found none — never
- * while the read is still in flight (it would flash on every row on load), and never
- * on a row we simply couldn't price (a half-typed amount, a zero concentration),
- * where a vial does exist and the honest slot is an empty one.
+ * `showAddStock` is deliberately NOT just `!draw`. "add stock" asserts the user has no
+ * vial, so it may only appear where we looked and CONFIRMED none. Never while the read
+ * is in flight (it would flash on every row on load), never when the query failed (we
+ * don't know), and never on a row we simply couldn't price (a half-typed amount, a zero
+ * concentration) — there a vial does exist and the honest slot is an empty one.
  */
 function DrawSlot({
   draw,
@@ -156,7 +157,7 @@ function DoseRow({
   onUnlog,
   onOpenDetail,
   drawSource,
-  drawsResolved,
+  showAddStock,
   onAddStock,
 }: {
   dose: DueDose
@@ -164,14 +165,12 @@ function DoseRow({
   onUnlog: (dose: StackCompound) => void
   onOpenDetail: (dose: StackCompound) => void
   drawSource: DrawSource | undefined
-  drawsResolved: boolean
+  showAddStock: boolean
   onAddStock: (dose: StackCompound) => void
 }) {
   const log = dose.log
   const amount = shownAmount(dose)
   const draw = amount == null ? null : formatDraw(amount, drawSource ?? null)
-  // Only offer "add stock" once the read has landed AND found this compound no vial.
-  const showAddStock = drawsResolved && drawSource == null
 
   return (
     <li
@@ -278,7 +277,7 @@ export function TodaysCycleCard({
   onUnlog,
   onOpenDetail,
   drawSources,
-  drawsResolved,
+  noVialIds,
   onAddStock,
 }: TodaysCycleCardProps) {
   return (
@@ -333,7 +332,7 @@ export function TodaysCycleCard({
                       onUnlog={onUnlog}
                       onOpenDetail={onOpenDetail}
                       drawSource={drawSources[dose.id]}
-                      drawsResolved={drawsResolved}
+                      showAddStock={noVialIds.has(dose.id)}
                       onAddStock={onAddStock}
                     />
                   ))}

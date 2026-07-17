@@ -99,10 +99,13 @@ function formatMl(ml: number): string {
   return trim(ml.toPrecision(1))
 }
 
-/** "2 tabs" / "1 cap" — halves are real (people split tabs), so allow 2dp. */
+/** "2 tabs" / "1 cap" — halves are real (people split tabs), so allow 2dp. Carries the
+ *  same honesty guard as the volume figures: a real dose below 0.005 of a tab must not
+ *  round to "0 tabs", which would read as *take nothing*. */
 function formatCount(count: number, oralForm: string | null): string {
   const noun = oralForm === "capsule" ? "cap" : "tab"
-  const n = trim(count.toFixed(2))
+  const fixed = count.toFixed(2)
+  const n = Number(fixed) === 0 ? trim(count.toPrecision(1)) : trim(fixed)
   return `${n} ${Number(n) === 1 ? noun : `${noun}s`}`
 }
 
