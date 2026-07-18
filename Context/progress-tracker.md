@@ -6,7 +6,102 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
+
+## Spec 22 — Multi-spec batch: per-dose hint, custom markers, compound soft-delete, journal photos (2026-07-18, Adrian + Claude)
+
+Four specs from `Context/Feature Specs/22-multi-spec-fixes.md`, built in one pass.
+**All code done; `tsc` + `lint` + prod `build` all clean.** **NOT committed.** The
+DB migrations are **written but NOT yet applied** — the Supabase MCP wouldn't
+authenticate in this session (its OAuth browser login can't run in the VS Code
+extension, and there's no `claude` CLI installed), so **migrations are to be applied
+by hand via the Supabase SQL Editor** (Adrian's call: "do everything, we'll fix the
+MCP later"). Two of the four specs needed no migration at all.
+
+**Two of the four preflights overturned their own specs (à la Spec 21):**
+
+- **Spec 4 — Per-Dose Entry Hint (UI-only, no schema).** A faint one-line `per dose`
+  hint under the per-dose amount field, on BOTH entry points: `AddCompoundSheet`
+  (Dose field) and `LogDoseSheet` (Amount field, which also backs the FAB quick-log).
+  `text-xs text-text-subtle`, no box/icon/colour — field-semantics only, never a
+  warning (principle 3), validates/blocks nothing. **Adrian iterated the copy**: the
+  first cut ("Amount per single dose — not your weekly total. E.g. …") was "too much
+  shit" — cut to a bare, faint **`per dose`**. Render-verified.
+
+- **Spec 1 — Custom Markers + Custom Scales.** PREFLIGHT OVERTURN: the schema ALREADY
+  models a fully-custom user marker on `user_markers` (`marker_id` NULL + `custom_name`
+  + `custom_tier_labels[]`, with `is_active` as the forward-only soft-remove). So the
+  spec's proposed new `marker_scales`/`marker_scale_levels` tables + ownership columns
+  on `markers` were **not built** — one code path, riding existing columns. The ONLY DB
+  change is a migration adding **`user_markers.custom_polarity`** (a custom marker had
+  nowhere to store polarity) + a **partial unique index** on `(user_id, lower(custom_name))
+  WHERE marker_id IS NULL AND is_active` (names unique per user, active only).
+  `supabase/markers/001_custom_marker_polarity.sql`. Build: a namespaced key
+  (`own:<user_markers.id>` via `customMarkerKey()`) lets custom markers flow through the
+  same dialer/read/write path as catalogue markers. New: the **create-your-own-marker
+  form** in `MarkerDialer` (name → ordered scale low→high → polarity; polarity is
+  axis-orientation only, never a good/bad colour — Invariant 3), a **"Your markers"**
+  group in the add dropdown, and a guarded **soft-remove** (`is_active=false`, history
+  kept). Read side (`progress/page.tsx` + `calendar/page.tsx`) now resolves custom
+  markers instead of silently dropping them (`if (!cat) continue` is gone); soft-removed
+  customs still render on past entries. Server actions `createCustomMarker` /
+  `removeCustomMarker`; `saveJournalEntry` upserts readings against custom user_marker
+  ids directly. 10 files. **Render-verified** the create form + dialer headless.
+
+- **Spec 2 — Compound Soft-Delete (no migration).** PREFLIGHT OVERTURN: forward-only
+  soft-remove ALREADY exists as **Archive / "Stop logging"** (`protocol_compounds.is_active`)
+  — every forward surface (Home, Plan, calendar, dose picker, Stock) already excludes it
+  while keeping history, and `v_inventory_math` is untouched by it. So NO `removed_at`
+  column (the spec's preflight itself warned against a second convention). The only real
+  problem was the destructive **"Delete all"** on LIVE compounds (`deleteProtocolCompound`
+  cascades `dose_logs` + `inventory_items`). Fix (RESOLVED with Adrian, 2026-07-18): the
+  live **"Delete"** action is now the SOFT one — **renamed from "Stop logging" to
+  "Delete"** (Trash2, neutral styling), it stops the compound going forward and keeps
+  every logged dose; the confirm copy states history is kept and it's recoverable from
+  Profile. The destructive **"delete all history"** is gated behind `compound.archived`
+  → relabeled **"Delete permanently"**, offered ONLY on an already-deleted compound
+  behind the existing two-step typed confirm. So a live compound can never lose its
+  history in one tap; the hard delete still exists but is deliberately buried ("we can,
+  but it shouldn't be easy — I don't see a need for it" — Adrian, matching competitors'
+  soft-delete-forward behaviour). No schema.
+
+- **Spec 3 — Journal Photo Attachments (genuinely new).** New private **`journal`**
+  storage bucket + **`journal_attachments`** table, both mirroring `progress_photos`
+  exactly (owner-scoped RLS + 4 storage policies + inline grant + path
+  `<auth.uid()>/<id>/<file>`). `supabase/journal/001_journal_attachments.sql`.
+  Composer (`JournalEntrySheet`) gains a **quiet** attach affordance (small `ImagePlus`,
+  not a CTA): photos upload client-side straight to the bucket (bytes off the Next
+  server), preview as thumbnails with a remove ×, tap → a **full-screen viewer**, and are
+  recorded on save; **unsaved uploads roll back** on close (no orphans). `saveJournalEntry`
+  gained `attachmentsAdd`/`attachmentsRemove` (path re-verified against the caller's uid),
+  treats an entry with photos as non-empty, and cleans up storage bytes on the empty/delete
+  paths; `deleteJournalEntry` cleans up bytes before the rows cascade. Read+sign in
+  `progress/page.tsx` (batched `createSignedUrls`, 1h TTL); a **"has photo" thumbnail** on
+  the journal card + feed rows. `JournalEntry` gained `attachments: JournalAttachment[]`.
+  **Render-verified** the composer + thumbnail headless. (Calendar has-photo indicator:
+  left out of v1 — the spec says "can", optional; the calendar type is separate so nothing
+  broke.)
+
+**Verification.** `tsc --noEmit` clean; `eslint` clean on all touched files; **prod
+`next build` clean** (37 routes). Two headless CDP render passes: (1) the per-dose `per
+dose` hint on both sheets; (2) the journal composer — the custom-marker dialer, the
+create-your-own form, and the photo thumbnail + attach affordance. Artifacts published
+for both. **What a headless browser CANNOT verify (Adrian's device QA):** the auth-gated
+round-trips — creating a marker (writes `user_markers`), logging a reading against it,
+uploading a real photo, two-account isolation on the `journal` bucket + `user_markers` /
+`journal_attachments` (RLS), and the compound delete-gating on real data.
+
+**Touched:** Spec 4 — `AddCompoundSheet`, `LogDoseSheet`. Spec 1 — `lib/progress/journal.ts`,
+`app/(app)/progress/{page,actions}.ts`, `app/(app)/calendar/page.tsx`,
+`components/progress/{MarkerDialer,JournalEntrySheet,JournalSection,ProgressScreen}.tsx`,
+`app/preview/progress/page.tsx`, `supabase/markers/001`. Spec 2 — `CompoundDetailSheet`.
+Spec 3 — `lib/progress/journal.ts`, `app/(app)/progress/{page,actions}.ts`,
+`components/progress/{JournalEntrySheet,JournalCard,JournalFeedSheet}.tsx`,
+`supabase/journal/001`.
+
+**▶ Remaining (see `next-tasks.md`):** apply the 2 migrations via the SQL Editor, Adrian's
+device QA of the round-trips + two-account isolation, confirm the Spec 2 escape-hatch
+call, then commit → PR → prod.
 
 ## Spec 21 — Per-Dose Draw (2026-07-17, Adrian + Claude)
 

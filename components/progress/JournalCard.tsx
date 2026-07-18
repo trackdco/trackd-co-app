@@ -69,6 +69,21 @@ export function JournalCard({
           </span>
         )}
       </span>
+      {latest?.attachments[0]?.url && (
+        <span className="relative mt-0.5 shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={latest.attachments[0].url}
+            alt=""
+            className="h-14 w-10 rounded-lg border border-border-default object-cover object-top"
+          />
+          {latest.attachments.length > 1 && (
+            <span className="absolute -right-1 -bottom-1 rounded-full border border-border-strong bg-bg-surface px-1 text-[10px] leading-tight text-text-muted">
+              {latest.attachments.length}
+            </span>
+          )}
+        </span>
+      )}
       <ChevronRight className="mt-0.5 h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
     </button>
   );

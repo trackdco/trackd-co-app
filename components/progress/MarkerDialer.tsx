@@ -1,12 +1,37 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Plus, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Check,
+  ChevronDown,
+  Loader2,
+  Minus,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { EntryMarker, MarkerCatalogueItem } from "@/lib/progress/journal";
+import {
+  customMarkerUserMarkerId,
+  isCustomMarkerKey,
+  type EntryMarker,
+  type MarkerOption,
+} from "@/lib/progress/journal";
+import {
+  createCustomMarker,
+  removeCustomMarker,
+} from "@/app/(app)/progress/actions";
 
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+const POLARITIES: { value: string; label: string }[] = [
+  { value: "positive", label: "Positive" },
+  { value: "neutral", label: "Neutral" },
+  { value: "negative", label: "Negative" },
+];
 
 /**
  * A marker's word values as a single-select scale with a sliding amber thumb —
@@ -70,7 +95,7 @@ function WordScale({
         const sel = selectedIndex === i;
         return (
           <button
-            key={w}
+            key={`${w}-${i}`}
             ref={(el) => {
               pillRefs.current[i] = el;
             }}
@@ -93,34 +118,65 @@ function WordScale({
 }
 
 /**
- * The marker dialer (Step 5, revised). Nothing is forced or pre-listed — you add
- * the markers you care about from a single "Add marker" dropdown (every marker,
- * common ones first), so the sheet never overloads. Each added marker becomes a
- * compact card where you pick ONE word value. Words, never numbers; single-select
- * (tap the chosen word again to clear). Presented NEUTRALLY — no colour by
- * polarity/severity, no amber: markers are categorical, never a verdict. Users
- * can't create markers; this only switches on existing catalogue ones.
+ * The marker dialer (Step 5, revised; custom markers added by Spec 22 · 1). Nothing
+ * is forced or pre-listed — you add the markers you care about from a single "Add
+ * marker" dropdown (your own first, then common, then the rest), and you can create
+ * your OWN markers on a custom word-scale. Each added marker becomes a compact card
+ * where you pick ONE word value. Words, never numbers; single-select (tap the chosen
+ * word again to clear). Presented NEUTRALLY — no colour by polarity/severity, no
+ * amber-as-verdict: markers are categorical, never a judgement.
  */
 export function MarkerDialer({
-  catalogue,
+  options,
   initial,
   onChange,
 }: {
-  catalogue: MarkerCatalogueItem[];
+  options: MarkerOption[];
   initial: EntryMarker[];
   onChange: (markers: { markerId: string; tierValue: number }[]) => void;
 }) {
+  const router = useRouter();
+
+  // Custom markers created this session appear immediately (before the server
+  // round-trip refreshes `options`); removed ones hide immediately.
+  const [extra, setExtra] = useState<MarkerOption[]>([]);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());
+
+  const allOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: MarkerOption[] = [];
+    for (const o of [...options, ...extra]) {
+      if (removedIds.has(o.id) || seen.has(o.id)) continue;
+      seen.add(o.id);
+      out.push(o);
+    }
+    return out;
+  }, [options, extra, removedIds]);
+
   const byId = useMemo(
-    () => new Map(catalogue.map((m) => [m.id, m])),
-    [catalogue],
+    () => new Map(allOptions.map((m) => [m.id, m])),
+    [allOptions],
+  );
+  const customs = useMemo(
+    () =>
+      allOptions
+        .filter((m) => m.kind === "custom" && m.addable)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [allOptions],
   );
   const presets = useMemo(
-    () => catalogue.filter((m) => m.isDefault).sort((a, b) => a.name.localeCompare(b.name)),
-    [catalogue],
+    () =>
+      allOptions
+        .filter((m) => m.kind === "catalogue" && m.isDefault && m.addable)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [allOptions],
   );
   const optional = useMemo(
-    () => catalogue.filter((m) => !m.isDefault).sort((a, b) => a.name.localeCompare(b.name)),
-    [catalogue],
+    () =>
+      allOptions
+        .filter((m) => m.kind === "catalogue" && !m.isDefault && m.addable)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [allOptions],
   );
 
   // The markers currently shown, in the order added.
@@ -130,6 +186,8 @@ export function MarkerDialer({
   );
   const [addOpen, setAddOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
   function emit(next: Map<string, number>) {
     onChange([...next.entries()].map(([markerId, tierValue]) => ({ markerId, tierValue })));
@@ -147,7 +205,7 @@ export function MarkerDialer({
     setOrder((prev) => (prev.includes(id) ? prev : [...prev, id]));
   }
 
-  function removeMarker(id: string) {
+  function removeFromDial(id: string) {
     setOrder((prev) => prev.filter((x) => x !== id));
     if (selected.has(id)) {
       const next = new Map(selected);
@@ -157,19 +215,36 @@ export function MarkerDialer({
     }
   }
 
+  function onCreated(marker: MarkerOption) {
+    setExtra((prev) => [...prev, marker]);
+    addMarker(marker.id);
+    setCreating(false);
+    setAddOpen(false);
+    setQuery("");
+    router.refresh();
+  }
+
+  async function softRemove(id: string) {
+    setRemovedIds((prev) => new Set(prev).add(id));
+    removeFromDial(id);
+    setConfirmRemove(null);
+    await removeCustomMarker(customMarkerUserMarkerId(id));
+    router.refresh();
+  }
+
   const shownSet = new Set(order);
   const q = query.trim().toLowerCase();
-  const match = (m: MarkerCatalogueItem) =>
+  const match = (m: MarkerOption) =>
     !shownSet.has(m.id) && (q === "" || m.name.toLowerCase().includes(q));
+  const addableCustoms = customs.filter(match);
   const addablePresets = presets.filter(match);
   const addableOptional = optional.filter(match);
-  const nothingLeft =
-    presets.filter((m) => !shownSet.has(m.id)).length === 0 &&
-    optional.filter((m) => !shownSet.has(m.id)).length === 0;
 
   function toggleAdd() {
     setAddOpen((o) => !o);
     setQuery("");
+    setCreating(false);
+    setConfirmRemove(null);
   }
 
   return (
@@ -178,14 +253,22 @@ export function MarkerDialer({
         const m = byId.get(id);
         if (!m) return null;
         const chosen = selected.get(id);
+        const isCustom = isCustomMarkerKey(m.id);
         return (
           <div key={id} className="animate-shortcut-in rounded-xl bg-bg-surface-raised p-3.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{m.name}</span>
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="min-w-0 truncate text-sm font-medium text-foreground">{m.name}</span>
+                {isCustom && (
+                  <span className="shrink-0 rounded-full border border-border-default px-1.5 py-px text-[10px] uppercase tracking-wider text-text-subtle">
+                    custom
+                  </span>
+                )}
+              </span>
               <button
                 type="button"
-                onClick={() => removeMarker(id)}
-                aria-label={`Remove ${m.name}`}
+                onClick={() => removeFromDial(id)}
+                aria-label={`Remove ${m.name} from this entry`}
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-subtle transition-colors hover:text-text-muted"
               >
                 <X className="h-3.5 w-3.5" aria-hidden />
@@ -202,77 +285,154 @@ export function MarkerDialer({
         );
       })}
 
-      {/* Add marker — a single dropdown over every marker, common ones first. */}
-      {!nothingLeft && (
-        <div>
-          <button
-            type="button"
-            onClick={toggleAdd}
-            aria-expanded={addOpen}
-            className="flex w-full items-center justify-between gap-2 rounded-xl border border-dashed border-border-strong bg-bg-input/40 px-4 py-3 text-sm text-text-muted transition-colors hover:bg-bg-input/70 hover:text-foreground"
-          >
-            <span className="flex items-center gap-2">
-              <Plus className="h-4 w-4" aria-hidden />
-              {order.length === 0 ? "Add a marker to track" : "Add another marker"}
-            </span>
-            <ChevronDown
-              className={cn("h-4 w-4 transition-transform", addOpen && "rotate-180")}
-              aria-hidden
-            />
-          </button>
+      {/* Add marker — your own first, then common, then the rest, plus "create your own". */}
+      <div>
+        <button
+          type="button"
+          onClick={toggleAdd}
+          aria-expanded={addOpen}
+          className="flex w-full items-center justify-between gap-2 rounded-xl border border-dashed border-border-strong bg-bg-input/40 px-4 py-3 text-sm text-text-muted transition-colors hover:bg-bg-input/70 hover:text-foreground"
+        >
+          <span className="flex items-center gap-2">
+            <Plus className="h-4 w-4" aria-hidden />
+            {order.length === 0 ? "Add a marker to track" : "Add another marker"}
+          </span>
+          <ChevronDown
+            className={cn("h-4 w-4 transition-transform", addOpen && "rotate-180")}
+            aria-hidden
+          />
+        </button>
 
-          {addOpen && (
-            <div className="animate-shortcut-in mt-2 rounded-xl border border-border-default bg-bg-surface-raised p-2">
-              {/* Search — every marker is one tap away, without overload. */}
-              <div className="relative mb-1">
-                <Search
-                  className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-text-muted"
-                  aria-hidden
-                />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search markers"
-                  aria-label="Search markers"
-                  className="h-10 w-full rounded-lg border border-border-default bg-bg-input pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-text-muted focus-visible:border-border-strong"
-                />
-              </div>
+        {addOpen && (
+          <div className="animate-shortcut-in mt-2 rounded-xl border border-border-default bg-bg-surface-raised p-2">
+            {creating ? (
+              <CreateMarkerForm
+                onCancel={() => setCreating(false)}
+                onCreated={onCreated}
+              />
+            ) : (
+              <>
+                {/* Search — every marker is one tap away, without overload. */}
+                <div className="relative mb-1">
+                  <Search
+                    className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-text-muted"
+                    aria-hidden
+                  />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search markers"
+                    aria-label="Search markers"
+                    className="h-10 w-full rounded-lg border border-border-default bg-bg-input pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-text-muted focus-visible:border-border-strong"
+                  />
+                </div>
 
-              <div className="max-h-56 overflow-y-auto">
-                {addablePresets.length > 0 && (
-                  <>
-                    <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
-                      Common
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 px-1 pb-2">
-                      {addablePresets.map((m) => (
-                        <AddChip key={m.id} label={m.name} onClick={() => addMarker(m.id)} />
-                      ))}
-                    </div>
-                  </>
-                )}
-                {addableOptional.length > 0 && (
-                  <>
-                    <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
-                      More
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 px-1 pb-1">
-                      {addableOptional.map((m) => (
-                        <AddChip key={m.id} label={m.name} onClick={() => addMarker(m.id)} />
-                      ))}
-                    </div>
-                  </>
-                )}
-                {addablePresets.length === 0 && addableOptional.length === 0 && (
-                  <p className="px-2 py-3 text-sm text-text-muted">
-                    No marker matches “{query.trim()}”.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+                <div className="max-h-56 overflow-y-auto">
+                  {addableCustoms.length > 0 && (
+                    <>
+                      <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+                        Your markers
+                      </p>
+                      <div className="space-y-1 px-1 pb-2">
+                        {addableCustoms.map((m) =>
+                          confirmRemove === m.id ? (
+                            <div
+                              key={m.id}
+                              className="flex items-center justify-between gap-2 rounded-lg border border-border-default bg-bg-input px-2.5 py-1.5"
+                            >
+                              <span className="min-w-0 truncate text-sm text-text-muted">
+                                Remove “{m.name}”? History stays.
+                              </span>
+                              <span className="flex shrink-0 gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmRemove(null)}
+                                  className="rounded-md px-2 py-1 text-xs text-text-muted hover:text-foreground"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => softRemove(m.id)}
+                                  className="rounded-md px-2 py-1 text-xs font-medium text-accent-destructive hover:opacity-80"
+                                >
+                                  Remove
+                                </button>
+                              </span>
+                            </div>
+                          ) : (
+                            <div
+                              key={m.id}
+                              className="flex items-center gap-1 rounded-lg"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => addMarker(m.id)}
+                                className="flex min-w-0 flex-1 items-center rounded-lg border border-border-default px-3 py-1.5 text-left text-sm text-text-muted transition-colors hover:border-border-strong hover:text-foreground"
+                              >
+                                <span className="truncate">{m.name}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmRemove(m.id)}
+                                aria-label={`Remove ${m.name} permanently`}
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-subtle transition-colors hover:text-accent-destructive"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                              </button>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </>
+                  )}
+                  {addablePresets.length > 0 && (
+                    <>
+                      <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+                        Common
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 px-1 pb-2">
+                        {addablePresets.map((m) => (
+                          <AddChip key={m.id} label={m.name} onClick={() => addMarker(m.id)} />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {addableOptional.length > 0 && (
+                    <>
+                      <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+                        More
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 px-1 pb-1">
+                        {addableOptional.map((m) => (
+                          <AddChip key={m.id} label={m.name} onClick={() => addMarker(m.id)} />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {addableCustoms.length === 0 &&
+                    addablePresets.length === 0 &&
+                    addableOptional.length === 0 && (
+                      <p className="px-2 py-3 text-sm text-text-muted">
+                        {q ? `No marker matches “${query.trim()}”.` : "Every marker is on the entry."}
+                      </p>
+                    )}
+                </div>
+
+                {/* Create your own — an ordered word-scale + polarity, reusable across entries. */}
+                <button
+                  type="button"
+                  onClick={() => setCreating(true)}
+                  className="mt-1 flex w-full items-center gap-2 rounded-lg border border-dashed border-border-default px-3 py-2.5 text-sm text-text-muted transition-colors hover:border-border-strong hover:text-foreground"
+                >
+                  <Plus className="h-4 w-4" aria-hidden />
+                  Create your own marker
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -286,5 +446,154 @@ function AddChip({ label, onClick }: { label: string; onClick: () => void }) {
     >
       {label}
     </button>
+  );
+}
+
+/**
+ * Create-your-own-marker form: a name, an ordered set of scale words (low → high),
+ * and a polarity. Polarity orients future charts only — it is NEVER rendered as a
+ * good/bad colour (architecture Invariant 3). Informed-adult, dense; no hand-holding.
+ */
+function CreateMarkerForm({
+  onCancel,
+  onCreated,
+}: {
+  onCancel: () => void;
+  onCreated: (marker: MarkerOption) => void;
+}) {
+  const [name, setName] = useState("");
+  const [labels, setLabels] = useState<string[]>(["", ""]);
+  const [polarity, setPolarity] = useState("neutral");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function setLabel(i: number, value: string) {
+    setLabels((prev) => prev.map((l, idx) => (idx === i ? value : l)));
+  }
+  function addLabel() {
+    setLabels((prev) => (prev.length >= 7 ? prev : [...prev, ""]));
+  }
+  function removeLabel(i: number) {
+    setLabels((prev) => (prev.length <= 2 ? prev : prev.filter((_, idx) => idx !== i)));
+  }
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    const res = await createCustomMarker({ name, labels, polarity });
+    setBusy(false);
+    if (res.ok && res.marker) onCreated(res.marker);
+    else setError(res.error ?? "Couldn't create that marker.");
+  }
+
+  return (
+    <div className="space-y-3 p-1">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium uppercase tracking-wider text-text-subtle">
+          New marker
+        </p>
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label="Cancel"
+          className="flex h-6 w-6 items-center justify-center rounded-full text-text-subtle transition-colors hover:text-text-muted"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      </div>
+
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Marker name (e.g. Gut feel)"
+        aria-label="Marker name"
+        maxLength={40}
+        className="h-10 w-full rounded-lg border border-border-default bg-bg-input px-3 text-sm text-foreground outline-none placeholder:text-text-muted focus-visible:border-border-strong"
+      />
+
+      <div>
+        <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+          Scale — low to high
+        </p>
+        <div className="space-y-1.5">
+          {labels.map((l, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <span className="w-4 shrink-0 text-right font-mono text-xs text-text-subtle">
+                {i + 1}
+              </span>
+              <input
+                value={l}
+                onChange={(e) => setLabel(i, e.target.value)}
+                placeholder={i === 0 ? "e.g. Low" : i === labels.length - 1 ? "e.g. High" : "…"}
+                aria-label={`Scale word ${i + 1}`}
+                maxLength={24}
+                className="h-9 min-w-0 flex-1 rounded-lg border border-border-default bg-bg-input px-3 text-sm text-foreground outline-none placeholder:text-text-muted focus-visible:border-border-strong"
+              />
+              <button
+                type="button"
+                onClick={() => removeLabel(i)}
+                disabled={labels.length <= 2}
+                aria-label={`Remove scale word ${i + 1}`}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-subtle transition-colors hover:text-text-muted disabled:opacity-30"
+              >
+                <Minus className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            </div>
+          ))}
+        </div>
+        {labels.length < 7 && (
+          <button
+            type="button"
+            onClick={addLabel}
+            className="mt-1.5 flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-text-muted transition-colors hover:text-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            Add a word
+          </button>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+          Polarity
+        </p>
+        <div className="flex gap-1.5">
+          {POLARITIES.map((p) => {
+            const on = polarity === p.value;
+            return (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => setPolarity(p.value)}
+                aria-pressed={on}
+                className={cn(
+                  "flex-1 rounded-lg border px-2 py-1.5 text-xs transition-colors",
+                  on
+                    ? "border-accent-amber bg-accent-amber/10 text-foreground"
+                    : "border-border-default text-text-muted hover:text-foreground",
+                )}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1.5 text-[11px] text-text-subtle">
+          Only orients this marker on future charts — never a score.
+        </p>
+      </div>
+
+      {error && <p className="text-xs text-state-error">{error}</p>}
+
+      <button
+        type="button"
+        onClick={submit}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent-primary py-2.5 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
+        {busy ? "Creating…" : "Create marker"}
+      </button>
+    </div>
   );
 }

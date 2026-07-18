@@ -7,6 +7,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { toDateKey, type DateKey } from "@/lib/home/mockHomeData";
 import {
+  customMarkerKey,
   wordFor,
   type EntryMarker,
   type MarkerCatalogueItem,
@@ -61,7 +62,9 @@ export default async function CalendarPage() {
       .select("id, entry_date, free_text")
       .order("entry_date", { ascending: false }),
     supabase.from("marker_readings").select("entry_id, user_marker_id, tier_value"),
-    supabase.from("user_markers").select("id, marker_id"),
+    supabase
+      .from("user_markers")
+      .select("id, marker_id, custom_name, custom_tier_labels"),
     supabase
       .from("progress_photos")
       .select("id, pose, taken_on, created_at, storage_path")
@@ -88,25 +91,44 @@ export default async function CalendarPage() {
       tierLabels: (m.tier_labels as string[] | null) ?? [],
     });
   }
-  // user_markers.id → catalogue marker
-  const markerByUserMarker = new Map<string, MarkerCatalogueItem>();
+  // Resolve each user_marker to its display identity — a catalogue marker OR the
+  // user's own custom marker (custom_* columns), regardless of is_active so a
+  // soft-removed custom marker's past readings still render (Spec 22 · 1).
+  const resolvedUserMarker = new Map<
+    string,
+    { key: string; name: string; tierLabels: string[] }
+  >();
   for (const um of userMarkerData ?? []) {
-    const cat = um.marker_id
-      ? catalogueById.get(um.marker_id as string)
-      : undefined;
-    if (cat) markerByUserMarker.set(um.id as string, cat);
+    if (um.marker_id) {
+      const cat = catalogueById.get(um.marker_id as string);
+      if (cat) {
+        resolvedUserMarker.set(um.id as string, {
+          key: cat.id,
+          name: cat.name,
+          tierLabels: cat.tierLabels,
+        });
+      }
+      continue;
+    }
+    if (um.custom_name) {
+      resolvedUserMarker.set(um.id as string, {
+        key: customMarkerKey(um.id as string),
+        name: um.custom_name as string,
+        tierLabels: (um.custom_tier_labels as string[] | null) ?? [],
+      });
+    }
   }
   const markersByEntry = new Map<string, EntryMarker[]>();
   for (const r of readingData ?? []) {
-    const cat = markerByUserMarker.get(r.user_marker_id as string);
-    if (!cat) continue; // custom markers aren't created by this app
+    const resolved = resolvedUserMarker.get(r.user_marker_id as string);
+    if (!resolved) continue; // an orphaned reading — skip
     const tierValue = Number(r.tier_value);
     const arr = markersByEntry.get(r.entry_id as string) ?? [];
     arr.push({
-      markerId: cat.id,
-      name: cat.name,
+      markerId: resolved.key,
+      name: resolved.name,
       tierValue,
-      word: wordFor(cat.tierLabels, tierValue),
+      word: wordFor(resolved.tierLabels, tierValue),
     });
     markersByEntry.set(r.entry_id as string, arr);
   }

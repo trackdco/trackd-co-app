@@ -8,7 +8,9 @@
  * - Markers are GLOBAL catalogue rows (`markers`): a preset flag (`is_default`)
  *   and an ordered set of word values (`tier_labels`). A reading stores the
  *   1-based ORDINAL into those words (`marker_readings.tier_value`) and we DISPLAY
- *   the word — words, never numbers. Users can't create markers.
+ *   the word — words, never numbers. Catalogue markers are global; a user can ALSO
+ *   create their OWN custom markers (user_markers.custom_*), keyed by
+ *   customMarkerKey() so they flow through the same read/write path (Spec 22 · 1).
  */
 
 export interface MarkerCatalogueItem {
@@ -22,6 +24,41 @@ export interface MarkerCatalogueItem {
   tierLabels: string[];
 }
 
+/**
+ * A marker the dialer can offer — a global catalogue marker OR the user's own
+ * custom marker. `id` is the dialer/reading KEY: a catalogue marker uses its
+ * `markers.id`; a custom marker uses `own:<user_markers.id>` (customMarkerKey), so
+ * both flow through ONE code path (the save action decodes it).
+ */
+export interface MarkerOption {
+  id: string;
+  name: string;
+  /** 'positive' | 'negative' | 'neutral' — axis orientation only, never a verdict. */
+  polarity: string;
+  /** Ordered word values, low → high (the marker's scale). */
+  tierLabels: string[];
+  /** Catalogue: true = preset (Common), false = optional (More). Custom: false. */
+  isDefault: boolean;
+  kind: "catalogue" | "custom";
+  /** Offerable for a NEW reading. Catalogue: always true. Custom: is_active — a
+   *  soft-removed custom marker stays renderable on entries that already use it,
+   *  but is never offered again. */
+  addable: boolean;
+}
+
+/** Custom-marker identity: namespace the user_markers.id so a custom key can never
+ *  collide with a catalogue markers.id, and the save action can tell them apart. */
+export const CUSTOM_MARKER_PREFIX = "own:";
+export function customMarkerKey(userMarkerId: string): string {
+  return CUSTOM_MARKER_PREFIX + userMarkerId;
+}
+export function isCustomMarkerKey(key: string): boolean {
+  return key.startsWith(CUSTOM_MARKER_PREFIX);
+}
+export function customMarkerUserMarkerId(key: string): string {
+  return key.slice(CUSTOM_MARKER_PREFIX.length);
+}
+
 export interface EntryMarker {
   markerId: string;
   name: string;
@@ -29,6 +66,15 @@ export interface EntryMarker {
   tierValue: number;
   /** The displayed word = tierLabels[tierValue - 1]. */
   word: string;
+}
+
+/** An attached photo on a journal entry (Spec 22 · 3). The `journal` bucket is
+ *  private; `url` is a short-lived signed URL regenerated on every page load, or
+ *  null if signing failed. Raw storage paths are never exposed to the client. */
+export interface JournalAttachment {
+  /** journal_attachments.id */
+  id: string;
+  url: string | null;
 }
 
 export interface JournalEntry {
@@ -39,6 +85,8 @@ export interface JournalEntry {
   /** free_text (null for a markers-only entry). */
   body: string | null;
   markers: EntryMarker[];
+  /** Attached photos, newest first (Spec 22 · 3). */
+  attachments: JournalAttachment[];
 }
 
 /** The word for a 1-based tier value, clamped defensively (the upper bound is

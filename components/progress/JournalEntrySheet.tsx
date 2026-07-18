@@ -1,8 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, NotebookPen, Pencil, Tags, Trash2 } from "lucide-react";
+import {
+  Check,
+  ImagePlus,
+  Loader2,
+  NotebookPen,
+  Pencil,
+  Tags,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -11,48 +20,66 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { MarkerDialer } from "@/components/progress/MarkerDialer";
 import { SHEET_TITLE } from "@/lib/ui-presets";
+import { createClient } from "@/lib/supabase/client";
 import {
   formatJournalDate,
   type JournalEntry,
-  type MarkerCatalogueItem,
+  type MarkerOption,
 } from "@/lib/progress/journal";
 import { deleteJournalEntry, saveJournalEntry } from "@/app/(app)/progress/actions";
 
 type Mode = "write" | "markers" | "edit";
+
+// Photo attachments (Spec 22 · 3) — mirror the progress-photo upload guards.
+const MAX_BYTES = 10 * 1024 * 1024;
+const EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/heic": "heic",
+};
+function randomId(): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+}
 
 function markersOf(entry: JournalEntry | null) {
   return entry ? entry.markers.map((m) => ({ markerId: m.markerId, tierValue: m.tierValue })) : [];
 }
 
 /**
- * The journal editor (Step 5). One sheet, three entry points that all write to the
- * day's single row:
+ * The journal editor (Step 5; photo attachments added by Spec 22 · 3). One sheet,
+ * three entry points that all write to the day's single row:
  * - "write"   → free-text body + an optional "add markers" dialer (touches body).
  * - "markers" → just the dialer, no body (leaves an existing body untouched).
  * - "edit"    → an existing day's body + markers, with Delete (touches body).
  *
- * Picking a date that already has an entry preloads it (one row per day), so the
- * two quick paths never clobber each other.
+ * Photos are a QUIET affordance: a small icon, not a CTA. New photos upload straight
+ * to the private `journal` bucket (bytes off the Next server) and are recorded when
+ * the entry saves; unsaved uploads are rolled back on close.
  */
 export function JournalEntrySheet({
   open,
   onOpenChange,
   mode,
-  catalogue,
+  options,
   entries,
+  userId,
   todayKey,
   initialDate,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: Mode;
-  catalogue: MarkerCatalogueItem[];
+  options: MarkerOption[];
   entries: JournalEntry[];
+  userId: string;
   todayKey: string;
   initialDate: string;
 }) {
   const router = useRouter();
-  const { cardRef, handleProps, cardStyle } = useSheetDrag(() => onOpenChange(false), open);
+  const supabase = useMemo(() => createClient(), []);
 
   const bodyVisible = mode !== "markers";
   const [date, setDate] = useState(initialDate);
@@ -63,6 +90,16 @@ export function JournalEntrySheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  // Attachments: photos removed from the existing entry, and new uploads (with a
+  // local object-URL preview) not yet committed.
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const [pendingAdds, setPendingAdds] = useState<{ path: string; url: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [viewingUrl, setViewingUrl] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const savedRef = useRef(false);
 
   function preload(forDate: string) {
     const e = entries.find((x) => x.date === forDate) ?? null;
@@ -76,31 +113,110 @@ export function JournalEntrySheet({
   if (open !== prevOpen) {
     setPrevOpen(open);
     if (open) {
+      savedRef.current = false;
       setDate(initialDate);
       preload(initialDate);
       setError(null);
+      setAttachError(null);
       setConfirmingDelete(false);
       setDialerAnim(false);
+      setRemovedIds([]);
+      setPendingAdds([]);
+      setViewingUrl(null);
     }
   }
 
   const entryForDate = entries.find((e) => e.date === date) ?? null;
-  const canSave = (bodyVisible && body.trim().length > 0) || markers.length > 0;
+  const keptAttachments = (entryForDate?.attachments ?? []).filter(
+    (a) => !removedIds.includes(a.id),
+  );
+  const hasPhotos = keptAttachments.length > 0 || pendingAdds.length > 0;
+  const canSave =
+    (bodyVisible && body.trim().length > 0) || markers.length > 0 || hasPhotos;
   const title = mode === "edit" ? "Edit entry" : mode === "markers" ? "Log markers" : "Write";
   const Icon = mode === "markers" ? Tags : mode === "edit" ? Pencil : NotebookPen;
 
+  async function rollbackPending() {
+    const paths = pendingAdds.map((a) => a.path);
+    pendingAdds.forEach((a) => URL.revokeObjectURL(a.url));
+    setPendingAdds([]);
+    if (paths.length > 0) await supabase.storage.from("journal").remove(paths);
+  }
+
   function changeDate(next: string) {
     const d = next || todayKey;
+    void rollbackPending();
+    setRemovedIds([]);
     setDate(d);
     preload(d);
+  }
+
+  // Any close that ISN'T a successful save rolls back unsaved uploads (no orphans).
+  function handleOpenChange(next: boolean) {
+    if (!next && !savedRef.current) void rollbackPending();
+    onOpenChange(next);
+  }
+
+  const { cardRef, handleProps, cardStyle } = useSheetDrag(
+    () => handleOpenChange(false),
+    open,
+  );
+
+  async function uploadFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setAttachError(null);
+    setUploading(true);
+    const added: { path: string; url: string }[] = [];
+    try {
+      for (const file of Array.from(files)) {
+        const ext = EXT[file.type];
+        if (!ext) throw new Error("Photos only — JPG, PNG, WebP or HEIC.");
+        if (file.size > MAX_BYTES) throw new Error("Each photo must be under 10 MB.");
+        const path = `${userId}/${randomId()}/photo.${ext}`;
+        const up = await supabase.storage
+          .from("journal")
+          .upload(path, file, { contentType: file.type, upsert: false });
+        if (up.error) throw new Error(up.error.message);
+        added.push({ path, url: URL.createObjectURL(file) });
+      }
+      setPendingAdds((prev) => [...prev, ...added]);
+    } catch (err) {
+      if (added.length > 0) {
+        await supabase.storage.from("journal").remove(added.map((a) => a.path));
+      }
+      added.forEach((a) => URL.revokeObjectURL(a.url));
+      setAttachError(err instanceof Error ? err.message : "Couldn't add that photo.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  function removeExisting(id: string) {
+    setRemovedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  }
+  async function removePending(path: string) {
+    const item = pendingAdds.find((a) => a.path === path);
+    setPendingAdds((prev) => prev.filter((a) => a.path !== path));
+    if (item) URL.revokeObjectURL(item.url);
+    await supabase.storage.from("journal").remove([path]);
   }
 
   async function handleSave() {
     setBusy(true);
     setError(null);
-    const res = await saveJournalEntry({ entryDate: date, touchBody: bodyVisible, body, markers });
+    const res = await saveJournalEntry({
+      entryDate: date,
+      touchBody: bodyVisible,
+      body,
+      markers,
+      attachmentsAdd: pendingAdds.map((a) => a.path),
+      attachmentsRemove: removedIds,
+    });
     setBusy(false);
     if (res.ok) {
+      savedRef.current = true;
+      pendingAdds.forEach((a) => URL.revokeObjectURL(a.url));
       onOpenChange(false);
       router.refresh();
     } else {
@@ -115,6 +231,7 @@ export function JournalEntrySheet({
     const res = await deleteJournalEntry(entryForDate.id);
     setBusy(false);
     if (res.ok) {
+      savedRef.current = true;
       onOpenChange(false);
       router.refresh();
     } else {
@@ -123,7 +240,7 @@ export function JournalEntrySheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
@@ -143,7 +260,7 @@ export function JournalEntrySheet({
 
           <SheetTitle className="sr-only">{title}</SheetTitle>
           <SheetDescription className="sr-only">
-            Journal entry — a free-write note and/or dialed markers for the day.
+            Journal entry — a free-write note and/or dialed markers for the day, with optional photos.
           </SheetDescription>
 
           <div className="flex-1 overflow-y-auto px-6">
@@ -215,11 +332,60 @@ export function JournalEntrySheet({
                   </p>
                   <MarkerDialer
                     key={date}
-                    catalogue={catalogue}
+                    options={options}
                     initial={entryForDate?.markers ?? []}
                     onChange={setMarkers}
                   />
                 </div>
+              )}
+            </div>
+
+            {/* Photos — a QUIET affordance (Spec 22 · 3): a small icon, not a CTA.
+                Thumbnails tap through to a full-screen view; each has a remove ×. */}
+            <div className="mt-5">
+              {(keptAttachments.length > 0 || pendingAdds.length > 0) && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {keptAttachments.map((a) => (
+                    <Thumb
+                      key={a.id}
+                      url={a.url}
+                      onView={() => a.url && setViewingUrl(a.url)}
+                      onRemove={() => removeExisting(a.id)}
+                    />
+                  ))}
+                  {pendingAdds.map((a) => (
+                    <Thumb
+                      key={a.path}
+                      url={a.url}
+                      onView={() => setViewingUrl(a.url)}
+                      onRemove={() => removePending(a.path)}
+                    />
+                  ))}
+                </div>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic"
+                multiple
+                className="hidden"
+                onChange={(e) => uploadFiles(e.target.files)}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-1.5 rounded-lg px-1 py-1 text-xs text-text-muted transition-colors hover:text-foreground disabled:opacity-50"
+              >
+                {uploading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <ImagePlus className="h-3.5 w-3.5" aria-hidden />
+                )}
+                {uploading ? "Adding…" : keptAttachments.length + pendingAdds.length > 0 ? "Add another photo" : "Add a photo"}
+              </button>
+              {attachError && (
+                <p className="mt-1 px-1 text-xs text-state-error">{attachError}</p>
               )}
             </div>
 
@@ -278,6 +444,65 @@ export function JournalEntrySheet({
           )}
         </div>
       </SheetContent>
+
+      {viewingUrl && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setViewingUrl(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={viewingUrl}
+            alt="Journal attachment"
+            className="max-h-full max-w-full rounded-lg object-contain"
+          />
+          <button
+            type="button"
+            onClick={() => setViewingUrl(null)}
+            aria-label="Close photo"
+            className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white"
+          >
+            <X className="h-5 w-5" aria-hidden />
+          </button>
+        </div>
+      )}
     </Sheet>
+  );
+}
+
+function Thumb({
+  url,
+  onView,
+  onRemove,
+}: {
+  url: string | null;
+  onView: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <span className="relative">
+      <button
+        type="button"
+        onClick={onView}
+        className="block h-16 w-12 overflow-hidden rounded-lg border border-border-default bg-bg-surface-raised"
+        aria-label="View photo"
+      >
+        {url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="" className="h-full w-full object-cover object-top" />
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Remove photo"
+        className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-border-strong bg-bg-surface text-text-muted transition-colors hover:text-foreground"
+      >
+        <X className="h-3 w-3" aria-hidden />
+      </button>
+    </span>
   );
 }

@@ -7,7 +7,7 @@ import { ProgressPhotoSection } from "@/components/progress/ProgressPhotoSection
 import type { DateKey } from "@/lib/home/mockHomeData";
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
 import type { AdherencePoint } from "@/lib/progress/consistency";
-import type { JournalEntry, MarkerCatalogueItem } from "@/lib/progress/journal";
+import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { unitForPreference } from "@/lib/weight";
 
@@ -28,7 +28,7 @@ export function ProgressScreen({
   userId,
   bloodworkPhotos,
   journalEntries,
-  markerCatalogue,
+  markerOptions,
   consistencySample,
   progressPhotos,
 }: {
@@ -43,8 +43,8 @@ export function ProgressScreen({
   bloodworkPhotos: BloodworkPhoto[];
   /** The user's journal entries, newest first. */
   journalEntries: JournalEntry[];
-  /** The global marker catalogue for the dialer. */
-  markerCatalogue: MarkerCatalogueItem[];
+  /** The markers the journal dialer offers: the global catalogue + the user's own custom markers. */
+  markerOptions: MarkerOption[];
   /** Dev-preview-only adherence series (real data is read device-side). */
   consistencySample?: AdherencePoint[];
   /** The user's progress photos, newest first. */
@@ -87,7 +87,8 @@ export function ProgressScreen({
       <div className="animate-home-up" style={{ animationDelay: "165ms" }}>
         <JournalSection
           entries={journalEntries}
-          catalogue={markerCatalogue}
+          options={markerOptions}
+          userId={userId}
           todayKey={todayKey}
         />
       </div>

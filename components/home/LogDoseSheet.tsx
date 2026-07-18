@@ -505,6 +505,10 @@ function LogDoseBody({
           </label>
         </div>
 
+        {/* Per-dose entry hint (Spec 22 · 4): a minimal, neutral field annotation
+            — the amount is one dose. Not a warning; blocks nothing. */}
+        <p className="mt-1.5 px-1 text-xs text-text-subtle">per dose</p>
+
         {/* Time hint — on today the clock ticks each second until you set a value
             (A4); on a back-dated day it says which default it fell back to, since
             "live now" would be a lie about a dose taken days ago. */}

@@ -680,6 +680,9 @@ function AddCompoundBody({
               </span>
             )}
           </div>
+          {/* Per-dose entry hint (Spec 22 · 4): a minimal, neutral field
+              annotation — the amount is one dose. Not a warning; blocks nothing. */}
+          <p className="mt-1.5 px-1 text-xs text-text-subtle">per dose</p>
         </div>
 
         {/* Changing the dose (amount or unit) while EDITING — a non-alarming

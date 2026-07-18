@@ -160,15 +160,19 @@ stored.)
 - **Postgres views (computed, never stored)** — `v_inventory_math` (remaining,
   concentration, mL/units per dose, doses-remaining, projected-empty) and
   `v_biomarker_position` (below / within / above). These are derived on read.
-- **Supabase Storage (private)** — Three private, owner-scoped buckets. **`bloodwork`**
+- **Supabase Storage (private)** — Four private, owner-scoped buckets. **`bloodwork`**
   for lab-report uploads/photos (path `<auth.uid()>/<panel_id>/<file>`; the Progress
   "bloodwork" section is a dated **photo store** over `lab_panels`, reusing this
   bucket — values aren't parsed, the screenshot is the record), **`avatars`** for
   profile pictures (path `<auth.uid()>/<file>`; the chosen path is stored on
   `profiles.avatar_path`), and **`progress-photos`** for posed progress photos
-  (path `<auth.uid()>/<id>/<file>`, referenced by `progress_photos.storage_path`).
-  All stay PRIVATE, displayed via short-lived signed URLs; files are referenced
-  from Postgres, the bytes never live in the database.
+  (path `<auth.uid()>/<id>/<file>`, referenced by `progress_photos.storage_path`), and
+  **`journal`** for photos attached to journal entries (Spec 22 · 3; path
+  `<auth.uid()>/<id>/<file>`, referenced by `journal_attachments.storage_path` —
+  `supabase/journal/001`). All stay PRIVATE, displayed via short-lived signed URLs;
+  files are referenced from Postgres, the bytes never live in the database.
+  (Custom user markers, Spec 22 · 1, are structured data only — they ride the existing
+  `user_markers.custom_name` / `custom_tier_labels` / `custom_polarity` columns, no bucket.)
 - **Progress screen (multi-source, all per-user, RLS-scoped).** Weight reads
   `weight_logs`; bloodwork is the photo store above (`lab_panels` + `bloodwork`
   bucket); the journal reads `journal_entries` + `marker_readings` → `user_markers`
