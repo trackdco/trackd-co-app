@@ -9,11 +9,66 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 ---
 
 ## 🎯 Current focus
+
+**▶ 2026-07-18 (Adrian + Claude): SPEC 22 — 4-SPEC BATCH is BUILT, `tsc`+`lint`+prod
+`build` clean, NOT committed. DB migrations WRITTEN but NOT APPLIED (Supabase MCP wouldn't
+authenticate this session — see below).** Per-dose hint (Spec 4), custom markers (Spec 1),
+compound soft-delete (Spec 2), journal photo attachments (Spec 3). Full detail +
+per-spec design decisions in `progress-tracker.md`. Two preflights overturned their
+specs: **Spec 1** rides the `user_markers.custom_*` columns the schema already had (one
+tiny migration, no new tables); **Spec 2** needs NO migration (`is_active`/Archive was
+already the forward-only soft-remove).
+
+### ▶ 1. Apply the two migrations (Supabase SQL Editor — the MCP is down)
+Dashboard → **SQL Editor** → paste each file's contents → **Run**. Both are idempotent.
+1. `supabase/markers/001_custom_marker_polarity.sql` — adds `user_markers.custom_polarity`
+   + a per-user unique index on active custom-marker names.
+2. `supabase/journal/001_journal_attachments.sql` — the `journal_attachments` table +
+   the private `journal` storage bucket + 4 owner-scoped storage policies + grant.
+
+*(Specs 2 & 4 touch no database.)*
+
+### ▶ 2. Adrian's device QA (the auth-gated round-trips a headless browser can't do)
+- **Custom markers:** Progress → Journal → dial → **"Add another marker" → "Create your
+  own marker"** → name + scale (low→high) + polarity → Create → it appears in the dialer;
+  pick a value → Save → reopen the entry, the reading round-trips. Soft-remove it from
+  "Your markers" (trash → confirm) → it's gone from the dropdown but its past readings
+  still show. Names are unique per user **among active custom markers** (a soft-removed
+  name can be reused).
+- **Journal photos:** open an entry → **"Add a photo"** (quiet icon) → pick a photo → it
+  thumbnails → Save → the entry shows a thumbnail on the card + feed; tap the thumbnail in
+  the composer → full-screen. Remove a photo → Save → it's gone (bytes too). Delete the
+  whole entry → its photos are cleaned up. **Two-account isolation:** account B must not
+  see account A's photos (signed URL / bucket) or custom markers (`user_markers` RLS).
+- **Compound delete-gating:** a LIVE compound's "⋯ → More" shows **Delete** — the soft one
+  (removes it going forward, keeps all history), no permanent delete. Delete it → reopen it
+  (it shows on a day it was logged, or via Profile → Archive) → now **"Delete permanently"**
+  appears behind the two-step confirm. Confirm no live compound can be hard-deleted in one step.
+- **Per-dose hint:** a faint `per dose` under the Dose field (add/edit compound) and the
+  Amount field (log a dose). Nothing more.
+
+### ▶ 3. Decisions — RESOLVED (2026-07-18, Adrian)
+- **Spec 2:** the live **"Delete"** is SOFT — removes the compound going forward, keeps
+  all logged history (renamed from "Stop logging"; competitors' behaviour). The hard
+  "delete all history" stays but is buried on an already-deleted compound behind a
+  two-step typed confirm ("Delete permanently"). Built.
+- **Spec 4 copy:** `per dose` is fine as-is. Done.
+
+### ▶ 4. Then: commit → PR → CodeRabbit → merge → prod (the usual flow).
+
+### ▶ Fixing the MCP (later, your call)
+The hosted Supabase MCP (`.mcp.json`) needs an OAuth **browser** login the VS Code
+extension can't trigger, and there's no `claude` CLI installed to do it in a terminal.
+When you want me applying migrations directly again, the reliable path is the **local
+stdio** Supabase MCP with a **personal access token** (no browser) — ~5 min to set up;
+ask and I'll walk you through it. Until then, the SQL Editor is the DB channel.
+
+---
 
 **▶ 2026-07-17 (Adrian + Claude): SPEC 21 — PER-DOSE DRAW is BUILT, on `main`, NOT yet
 committed/merged/deployed.** Each Home today's-log row now shows the draw for that dose

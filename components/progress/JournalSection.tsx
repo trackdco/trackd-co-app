@@ -6,7 +6,7 @@ import { JournalCard } from "@/components/progress/JournalCard";
 import { JournalFeedSheet } from "@/components/progress/JournalFeedSheet";
 import { JournalEntrySheet } from "@/components/progress/JournalEntrySheet";
 import { useProgressAction } from "@/components/progress/useProgressAction";
-import type { JournalEntry, MarkerCatalogueItem } from "@/lib/progress/journal";
+import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
 
 type EditorConfig = { mode: "write" | "markers" | "edit"; initialDate: string };
 
@@ -18,11 +18,13 @@ type EditorConfig = { mode: "write" | "markers" | "edit"; initialDate: string };
  */
 export function JournalSection({
   entries,
-  catalogue,
+  options,
+  userId,
   todayKey,
 }: {
   entries: JournalEntry[];
-  catalogue: MarkerCatalogueItem[];
+  options: MarkerOption[];
+  userId: string;
   todayKey: string;
 }) {
   const [feedOpen, setFeedOpen] = useState(false);
@@ -76,8 +78,9 @@ export function JournalSection({
           if (!open) setFeedOpen(true); // return to the feed
         }}
         mode={editor.mode}
-        catalogue={catalogue}
+        options={options}
         entries={entries}
+        userId={userId}
         todayKey={todayKey}
         initialDate={editor.initialDate}
       />

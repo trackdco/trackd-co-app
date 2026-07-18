@@ -5,10 +5,13 @@ import { createClient } from "@/lib/supabase/server";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
 import {
+  customMarkerKey,
   wordFor,
   type EntryMarker,
+  type JournalAttachment,
   type JournalEntry,
   type MarkerCatalogueItem,
+  type MarkerOption,
 } from "@/lib/progress/journal";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 
@@ -37,6 +40,7 @@ export default async function ProgressPage() {
     { data: readingData },
     { data: userMarkerData },
     { data: photoData },
+    { data: attachmentData },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -65,11 +69,17 @@ export default async function ProgressPage() {
       .select("id, entry_date, free_text")
       .order("entry_date", { ascending: false }),
     supabase.from("marker_readings").select("entry_id, user_marker_id, tier_value"),
-    supabase.from("user_markers").select("id, marker_id"),
+    supabase
+      .from("user_markers")
+      .select("id, marker_id, custom_name, custom_tier_labels, custom_polarity, is_active"),
     supabase
       .from("progress_photos")
       .select("id, pose, taken_on, created_at, storage_path, note")
       .order("taken_on", { ascending: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("journal_attachments")
+      .select("id, journal_entry_id, storage_path")
       .order("created_at", { ascending: false }),
   ]);
 
@@ -105,7 +115,7 @@ export default async function ProgressPage() {
     };
   });
 
-  // ── Journal: stitch entries ← readings ← user_markers ← catalogue ──
+  // ── Journal: stitch entries ← readings ← user_markers ← (catalogue | custom) ──
   const markerCatalogue: MarkerCatalogueItem[] = (markerData ?? []).map((m) => ({
     id: m.id as string,
     name: m.name as string,
@@ -114,26 +124,101 @@ export default async function ProgressPage() {
     tierLabels: (m.tier_labels as string[] | null) ?? [],
   }));
   const catalogueById = new Map(markerCatalogue.map((m) => [m.id, m]));
-  // user_markers.id → catalogue marker
-  const markerByUserMarker = new Map<string, MarkerCatalogueItem>();
+
+  // A user_markers row resolves to a dialer/reading identity — either a catalogue
+  // marker (marker_id set) or the user's OWN custom marker (custom_* columns). We
+  // resolve BOTH; custom markers resolve regardless of is_active so a soft-removed
+  // marker's PAST readings still render (Spec 22 · 1: removing keeps history).
+  const resolvedUserMarker = new Map<
+    string,
+    { key: string; name: string; tierLabels: string[] }
+  >();
+  const customOptions: MarkerOption[] = [];
   for (const um of userMarkerData ?? []) {
-    const cat = um.marker_id ? catalogueById.get(um.marker_id as string) : undefined;
-    if (cat) markerByUserMarker.set(um.id as string, cat);
+    if (um.marker_id) {
+      const cat = catalogueById.get(um.marker_id as string);
+      if (cat) {
+        resolvedUserMarker.set(um.id as string, {
+          key: cat.id,
+          name: cat.name,
+          tierLabels: cat.tierLabels,
+        });
+      }
+      continue;
+    }
+    if (um.custom_name) {
+      const key = customMarkerKey(um.id as string);
+      const tierLabels = (um.custom_tier_labels as string[] | null) ?? [];
+      resolvedUserMarker.set(um.id as string, {
+        key,
+        name: um.custom_name as string,
+        tierLabels,
+      });
+      customOptions.push({
+        id: key,
+        name: um.custom_name as string,
+        polarity: (um.custom_polarity as string | null) ?? "neutral",
+        tierLabels,
+        isDefault: false,
+        kind: "custom",
+        addable: Boolean(um.is_active),
+      });
+    }
   }
+
+  // What the dialer offers: the whole catalogue + the user's custom markers.
+  const markerOptions: MarkerOption[] = [
+    ...markerCatalogue.map((m) => ({
+      id: m.id,
+      name: m.name,
+      polarity: m.polarity,
+      tierLabels: m.tierLabels,
+      isDefault: m.isDefault,
+      kind: "catalogue" as const,
+      addable: true,
+    })),
+    ...customOptions,
+  ];
+
   const markersByEntry = new Map<string, EntryMarker[]>();
   for (const r of readingData ?? []) {
-    const cat = markerByUserMarker.get(r.user_marker_id as string);
-    if (!cat) continue; // custom markers aren't created by this app
+    const resolved = resolvedUserMarker.get(r.user_marker_id as string);
+    if (!resolved) continue; // an orphaned reading (marker hard-removed) — skip
     const tierValue = Number(r.tier_value);
     const arr = markersByEntry.get(r.entry_id as string) ?? [];
     arr.push({
-      markerId: cat.id,
-      name: cat.name,
+      markerId: resolved.key,
+      name: resolved.name,
       tierValue,
-      word: wordFor(cat.tierLabels, tierValue),
+      word: wordFor(resolved.tierLabels, tierValue),
     });
     markersByEntry.set(r.entry_id as string, arr);
   }
+  // ── Journal attachments: sign each path (private `journal` bucket) ──
+  const attachmentRows = attachmentData ?? [];
+  const attachmentPaths = attachmentRows
+    .map((a) => a.storage_path as string | null)
+    .filter((p): p is string => Boolean(p));
+  const attachmentSigned = new Map<string, string>();
+  if (attachmentPaths.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from("journal")
+      .createSignedUrls(attachmentPaths, SIGNED_URL_TTL);
+    for (const s of signed ?? []) {
+      if (s.path && s.signedUrl) attachmentSigned.set(s.path, s.signedUrl);
+    }
+  }
+  const attachmentsByEntry = new Map<string, JournalAttachment[]>();
+  for (const a of attachmentRows) {
+    const entryId = a.journal_entry_id as string;
+    const arr = attachmentsByEntry.get(entryId) ?? [];
+    arr.push({
+      id: a.id as string,
+      url: attachmentSigned.get(a.storage_path as string) ?? null,
+    });
+    attachmentsByEntry.set(entryId, arr);
+  }
+
   const journalEntries: JournalEntry[] = (entryData ?? []).map((e) => ({
     id: e.id as string,
     date: e.entry_date as string,
@@ -141,6 +226,7 @@ export default async function ProgressPage() {
     markers: (markersByEntry.get(e.id as string) ?? []).sort((a, b) =>
       a.name.localeCompare(b.name),
     ),
+    attachments: attachmentsByEntry.get(e.id as string) ?? [],
   }));
 
   // ── Progress photos: sign each path (private bucket) ──
@@ -181,7 +267,7 @@ export default async function ProgressPage() {
       userId={user.id}
       bloodworkPhotos={bloodworkPhotos}
       journalEntries={journalEntries}
-      markerCatalogue={markerCatalogue}
+      markerOptions={markerOptions}
       progressPhotos={progressPhotos}
     />
   );

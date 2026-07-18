@@ -9,7 +9,7 @@ import {
   formatBloodworkDate,
   type BloodworkPhoto,
 } from "@/lib/progress/bloodwork";
-import type { JournalEntry, MarkerCatalogueItem } from "@/lib/progress/journal";
+import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
 import type { AdherencePoint } from "@/lib/progress/consistency";
 import {
   formatPhotoDateShort,
@@ -95,9 +95,17 @@ export default async function PreviewProgressPage({
     name: string,
     isDefault: boolean,
     tierLabels: string[],
-  ): MarkerCatalogueItem => ({ id, name, polarity: "neutral", isDefault, tierLabels });
+  ): MarkerOption => ({
+    id,
+    name,
+    polarity: "neutral",
+    isDefault,
+    tierLabels,
+    kind: "catalogue",
+    addable: true,
+  });
   // The full live catalogue (14 preset + 22 optional) so the dropdown matches prod.
-  const markerCatalogue: MarkerCatalogueItem[] = [
+  const markerOptions: MarkerOption[] = [
     mk("acne", "Acne", true, ["None", "Mild", "Moderate", "Severe"]),
     mk("appetite", "Appetite", true, ["Suppressed", "Low", "Normal", "High", "Ravenous"]),
     mk("bloating", "Bloating", true, ["None", "Slight", "Puffy", "Heavy"]),
@@ -144,6 +152,7 @@ export default async function PreviewProgressPage({
         { markerId: "energy", name: "Energy", tierValue: 4, word: "Charged" },
         { markerId: "sleep", name: "Sleep Quality", tierValue: 5, word: "Deep" },
       ],
+      attachments: [],
     },
     {
       id: "j2",
@@ -153,12 +162,14 @@ export default async function PreviewProgressPage({
         { markerId: "mood", name: "Mood", tierValue: 4, word: "Good" },
         { markerId: "libido", name: "Libido", tierValue: 4, word: "High" },
       ],
+      attachments: [],
     },
     {
       id: "j3",
       date: dk(5),
       body: "Bit flat today, joints aching after legs.",
       markers: [],
+      attachments: [],
     },
   ];
 
@@ -226,7 +237,7 @@ export default async function PreviewProgressPage({
           userId="preview-local"
           bloodworkPhotos={photos}
           journalEntries={journalEntries}
-          markerCatalogue={markerCatalogue}
+          markerOptions={markerOptions}
           consistencySample={consistencySample}
           progressPhotos={progressPhotos}
         />

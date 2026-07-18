@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import {
-  Archive,
   CalendarClock,
   ChevronDown,
   Pencil,
@@ -232,12 +231,12 @@ function DetailBody({
           )}
         </div>
 
-        {/* Archive / reactivate confirm — drops down before it happens. */}
+        {/* Delete (soft, forward-only) confirm — drops down before it happens. */}
         {confirmArchive && deleteStep === 0 ? (
           <div className="animate-shortcut-in rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
             <p className="text-sm text-foreground">
-              Archive “{compound.name}”? You can reactivate it any time from your
-              Profile — it’ll resume from that day, and your past entries are kept.
+              Delete “{compound.name}”? It stops being dosed from here on, but every
+              logged dose is kept — you can bring it back any time from your Profile.
             </p>
             <div className="mt-3 flex gap-2">
               <button
@@ -255,7 +254,7 @@ function DetailBody({
                 }}
                 className="flex-1 rounded-lg bg-accent-amber py-2 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
               >
-                Archive
+                Delete
               </button>
             </div>
           </div>
@@ -278,8 +277,14 @@ function DetailBody({
             </button>
             {moreOpen && (
               <div className="animate-shortcut-in mt-2 overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
-                {!compound.archived && (
+                {!compound.archived ? (
                   <>
+                    {/* Forward-only soft delete (Spec 22 · 2): a LIVE compound's
+                        "Delete" only STOPS it (is_active=false) — every logged dose is
+                        kept, so one tap can't destroy history (competitors' behaviour;
+                        Adrian's call). The hard "delete all history" is the guarded
+                        escape hatch, offered ONLY once a compound is already deleted
+                        (the else branch), behind a two-step typed confirm. */}
                     {/* In the plan context the primary button already edits dose &
                         schedule, so this row would be redundant — show it only on
                         the dashboard, where the primary is "Edit today's dose". */}
@@ -296,28 +301,31 @@ function DetailBody({
                       </MenuRow>
                     )}
                     <MenuRow
-                      icon={<Archive className="h-4 w-4" aria-hidden />}
-                      sub="Hides it going forward · keeps all past entries · reversible"
+                      icon={<Trash2 className="h-4 w-4" aria-hidden />}
+                      sub="Removes it going forward · keeps all your logged history"
                       onClick={() => {
                         setMoreOpen(false)
                         setConfirmArchive(true)
                       }}
                     >
-                      Stop logging
+                      Delete
                     </MenuRow>
                   </>
+                ) : (
+                  // Escape hatch — a permanent delete, offered ONLY on an already-
+                  // stopped (archived) compound, behind the two-step confirm below.
+                  <MenuRow
+                    destructive
+                    icon={<Trash2 className="h-4 w-4" aria-hidden />}
+                    sub="Erases this stopped compound and ALL its logged history"
+                    onClick={() => {
+                      setMoreOpen(false)
+                      setDeleteStep(1)
+                    }}
+                  >
+                    Delete permanently
+                  </MenuRow>
                 )}
-                <MenuRow
-                  destructive
-                  icon={<Trash2 className="h-4 w-4" aria-hidden />}
-                  sub="Erases this compound and ALL its logged history"
-                  onClick={() => {
-                    setMoreOpen(false)
-                    setDeleteStep(1)
-                  }}
-                >
-                  Delete all
-                </MenuRow>
               </div>
             )}
           </div>
@@ -325,7 +333,7 @@ function DetailBody({
           <div className="rounded-xl border border-state-error/40 bg-state-error/10 p-3">
             <p className="text-sm text-foreground">
               {deleteStep === 1
-                ? `Delete “${compound.name}” and ALL of its logged history? This can't be undone. Archive instead if you just want to stop dosing it.`
+                ? `Delete “${compound.name}” and ALL of its logged history? It's already stopped, so its past doses stay unless you erase them here — and this can't be undone.`
                 : `Last check. This permanently erases every logged dose for “${compound.name}”.`}
             </p>
             <div className="mt-3 flex gap-2">
