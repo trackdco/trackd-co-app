@@ -4,6 +4,8 @@
 > Match `01-design-system` house format.
 > **Scope note:** this was in the locked "Deferred by design / v1.5" bucket. Confirm it's a go *now* before building (see the covering message). It is the heaviest of the current batch.
 
+> **AS-BUILT (Spec 22 · 1, 2026-07-18):** shipped on the EXISTING `user_markers.custom_name` / `custom_tier_labels` / (new) `custom_polarity` columns. The ownership columns on `markers`, the `marker_scales` / `marker_scale_levels` tables, and the reusable-scale flow described below were **NOT built** — the live schema already modelled a fully-custom user marker with an inline ordinal scale, so a UI + one small migration sufficed. See `progress-tracker.md` → Spec 22 and `supabase/markers/001_custom_marker_polarity.sql`.
+
 ## Preflight (Supabase MCP against the live schema — before any code)
 
 - Confirm `markers` table: columns for polarity, tier labels, category, and **how the 36 seed markers currently represent their scale** (inline enum? ordinal ints? a related table?). This determines whether a scale primitive already exists or must be introduced.

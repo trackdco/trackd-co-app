@@ -30,7 +30,18 @@ CREATE TABLE IF NOT EXISTS journal_attachments (
 ALTER TABLE journal_attachments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "own journal_attachments - all" ON journal_attachments;
 CREATE POLICY "own journal_attachments - all" ON journal_attachments FOR ALL
-    USING ((SELECT auth.uid()) = user_id) WITH CHECK ((SELECT auth.uid()) = user_id);
+    USING ((SELECT auth.uid()) = user_id)
+    WITH CHECK (
+        (SELECT auth.uid()) = user_id
+        -- Defence in depth: an attachment may only hang off the caller's OWN journal
+        -- entry. The FK alone binds journal_entry_id to *some* entry; this binds it to
+        -- the caller's, so a known foreign entry UUID can't be written against.
+        AND EXISTS (
+            SELECT 1 FROM public.journal_entries je
+            WHERE je.id = journal_entry_id
+              AND je.user_id = (SELECT auth.uid())
+        )
+    );
 CREATE INDEX IF NOT EXISTS idx_journal_attachments_entry
     ON journal_attachments(journal_entry_id);
 CREATE INDEX IF NOT EXISTS idx_journal_attachments_user
@@ -46,7 +57,12 @@ VALUES (
     10485760,
     ARRAY['image/jpeg','image/png','image/webp','image/heic']
 )
-ON CONFLICT (id) DO NOTHING;
+-- Re-assert private + the size/mime limits on replay, so a pre-existing `journal`
+-- bucket can never be left public or with looser limits than intended.
+ON CONFLICT (id) DO UPDATE
+    SET public = EXCLUDED.public,
+        file_size_limit = EXCLUDED.file_size_limit,
+        allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- Owner-scoped storage policies — first path segment must be the owner's uid.
 DROP POLICY IF EXISTS "own journal files - select" ON storage.objects;

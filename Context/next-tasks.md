@@ -38,16 +38,17 @@ Dashboard → **SQL Editor** → paste each file's contents → **Run**. Both ar
   own marker"** → name + scale (low→high) + polarity → Create → it appears in the dialer;
   pick a value → Save → reopen the entry, the reading round-trips. Soft-remove it from
   "Your markers" (trash → confirm) → it's gone from the dropdown but its past readings
-  still show. Names are unique per user.
+  still show. Names are unique per user **among active custom markers** (a soft-removed
+  name can be reused).
 - **Journal photos:** open an entry → **"Add a photo"** (quiet icon) → pick a photo → it
   thumbnails → Save → the entry shows a thumbnail on the card + feed; tap the thumbnail in
   the composer → full-screen. Remove a photo → Save → it's gone (bytes too). Delete the
   whole entry → its photos are cleaned up. **Two-account isolation:** account B must not
   see account A's photos (signed URL / bucket) or custom markers (`user_markers` RLS).
-- **Compound delete-gating:** a LIVE compound's "⋯ → More" shows **Stop logging** only (no
-  Delete). Stop it → reopen it (it shows on a day it was logged, or via Archive) → now
-  **"Delete permanently"** appears behind the two-step confirm. Confirm no live compound
-  can be hard-deleted in one step.
+- **Compound delete-gating:** a LIVE compound's "⋯ → More" shows **Delete** — the soft one
+  (removes it going forward, keeps all history), no permanent delete. Delete it → reopen it
+  (it shows on a day it was logged, or via Profile → Archive) → now **"Delete permanently"**
+  appears behind the two-step confirm. Confirm no live compound can be hard-deleted in one step.
 - **Per-dose hint:** a faint `per dose` under the Dose field (add/edit compound) and the
   Amount field (log a dose). Nothing more.
 

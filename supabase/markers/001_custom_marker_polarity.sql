@@ -41,7 +41,10 @@ COMMENT ON COLUMN public.user_markers.custom_polarity IS
 
 -- Custom marker/scale NAMES are unique PER USER, not globally (spec) — and only
 -- among ACTIVE customs, so a user can soft-remove a marker and reuse its name.
--- Case-insensitive via lower(); names are stored already-trimmed by the app.
+-- Case- AND whitespace-insensitive via lower(btrim(...)): the Data API can be written
+-- directly, so app-side trimming can't be assumed as an invariant ("Sleep" vs " Sleep ").
+-- Drop-then-create so a replay upgrades an index built before btrim() was added.
+DROP INDEX IF EXISTS user_markers_custom_name_unique;
 CREATE UNIQUE INDEX IF NOT EXISTS user_markers_custom_name_unique
-    ON public.user_markers (user_id, lower(custom_name))
+    ON public.user_markers (user_id, lower(btrim(custom_name)))
     WHERE marker_id IS NULL AND is_active;

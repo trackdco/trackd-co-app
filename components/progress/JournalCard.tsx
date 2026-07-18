@@ -23,6 +23,7 @@ export function JournalCard({
 }) {
   const latest = entries[0] ?? null;
   const line = latest ? bodyFirstLine(latest.body) : null;
+  const latestPhotoUrl = latest?.attachments.find((a) => a.url)?.url ?? null;
 
   return (
     <button
@@ -69,17 +70,17 @@ export function JournalCard({
           </span>
         )}
       </span>
-      {latest?.attachments[0]?.url && (
+      {latestPhotoUrl && (
         <span className="relative mt-0.5 shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={latest.attachments[0].url}
+            src={latestPhotoUrl}
             alt=""
             className="h-14 w-10 rounded-lg border border-border-default object-cover object-top"
           />
-          {latest.attachments.length > 1 && (
+          {(latest?.attachments.length ?? 0) > 1 && (
             <span className="absolute -right-1 -bottom-1 rounded-full border border-border-strong bg-bg-surface px-1 text-[10px] leading-tight text-text-muted">
-              {latest.attachments.length}
+              {latest?.attachments.length}
             </span>
           )}
         </span>

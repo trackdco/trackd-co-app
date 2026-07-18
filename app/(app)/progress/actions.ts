@@ -350,13 +350,18 @@ export async function saveJournalEntry(input: {
       .from("marker_readings")
       .upsert(rows, { onConflict: "entry_id,user_marker_id" });
     if (error) return { ok: false, error: error.message };
-    await supabase
+    const { error: pruneError } = await supabase
       .from("marker_readings")
       .delete()
       .eq("entry_id", entryId)
       .not("user_marker_id", "in", `(${desiredUserMarkerIds.join(",")})`);
+    if (pruneError) return { ok: false, error: pruneError.message };
   } else {
-    await supabase.from("marker_readings").delete().eq("entry_id", entryId);
+    const { error: clearError } = await supabase
+      .from("marker_readings")
+      .delete()
+      .eq("entry_id", entryId);
+    if (clearError) return { ok: false, error: clearError.message };
   }
 
   // Attachments: remove the ones the user cleared (row + bytes), add the new ones.

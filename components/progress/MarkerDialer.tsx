@@ -228,7 +228,16 @@ export function MarkerDialer({
     setRemovedIds((prev) => new Set(prev).add(id));
     removeFromDial(id);
     setConfirmRemove(null);
-    await removeCustomMarker(customMarkerUserMarkerId(id));
+    const res = await removeCustomMarker(customMarkerUserMarkerId(id));
+    if (!res.ok) {
+      // The server still has it — un-hide so the UI matches reality.
+      setRemovedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      return;
+    }
     router.refresh();
   }
 
@@ -375,7 +384,7 @@ export function MarkerDialer({
                               <button
                                 type="button"
                                 onClick={() => setConfirmRemove(m.id)}
-                                aria-label={`Remove ${m.name} permanently`}
+                                aria-label={`Remove ${m.name}`}
                                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-subtle transition-colors hover:text-accent-destructive"
                               >
                                 <Trash2 className="h-3.5 w-3.5" aria-hidden />

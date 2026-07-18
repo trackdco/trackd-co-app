@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -100,6 +100,30 @@ export function JournalEntrySheet({
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const savedRef = useRef(false);
+  // Every path uploaded this session; rollback/commit consult it so an upload still
+  // in flight when the sheet closes is never orphaned (it's tracked before setState).
+  const uploadedRef = useRef<string[]>([]);
+
+  // The photo viewer is a lightweight overlay (not a nested Radix dialog, which would
+  // fight the open Sheet's focus trap), so wire Escape-to-close by hand; the close
+  // button autofocuses for initial keyboard focus.
+  useEffect(() => {
+    if (!viewingUrl) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setViewingUrl(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewingUrl]);
+
+  // Reset the commit/rollback bookkeeping refs on each open (ref writes belong in an
+  // effect, not render).
+  useEffect(() => {
+    if (open) {
+      savedRef.current = false;
+      uploadedRef.current = [];
+    }
+  }, [open]);
 
   function preload(forDate: string) {
     const e = entries.find((x) => x.date === forDate) ?? null;
@@ -113,7 +137,6 @@ export function JournalEntrySheet({
   if (open !== prevOpen) {
     setPrevOpen(open);
     if (open) {
-      savedRef.current = false;
       setDate(initialDate);
       preload(initialDate);
       setError(null);
@@ -137,7 +160,10 @@ export function JournalEntrySheet({
   const Icon = mode === "markers" ? Tags : mode === "edit" ? Pencil : NotebookPen;
 
   async function rollbackPending() {
-    const paths = pendingAdds.map((a) => a.path);
+    // uploadedRef is a superset of pendingAdds — it includes any upload that finished
+    // mid-batch but hadn't hit state yet, so nothing is left orphaned in the bucket.
+    const paths = uploadedRef.current;
+    uploadedRef.current = [];
     pendingAdds.forEach((a) => URL.revokeObjectURL(a.url));
     setPendingAdds([]);
     if (paths.length > 0) await supabase.storage.from("journal").remove(paths);
@@ -177,12 +203,17 @@ export function JournalEntrySheet({
           .from("journal")
           .upload(path, file, { contentType: file.type, upsert: false });
         if (up.error) throw new Error(up.error.message);
+        // Track the path the instant it lands (before setState), so rollback covers
+        // it even if the sheet closes / date changes mid-batch.
+        uploadedRef.current.push(path);
         added.push({ path, url: URL.createObjectURL(file) });
       }
       setPendingAdds((prev) => [...prev, ...added]);
     } catch (err) {
       if (added.length > 0) {
-        await supabase.storage.from("journal").remove(added.map((a) => a.path));
+        const failed = added.map((a) => a.path);
+        await supabase.storage.from("journal").remove(failed);
+        uploadedRef.current = uploadedRef.current.filter((p) => !failed.includes(p));
       }
       added.forEach((a) => URL.revokeObjectURL(a.url));
       setAttachError(err instanceof Error ? err.message : "Couldn't add that photo.");
@@ -198,6 +229,7 @@ export function JournalEntrySheet({
   async function removePending(path: string) {
     const item = pendingAdds.find((a) => a.path === path);
     setPendingAdds((prev) => prev.filter((a) => a.path !== path));
+    uploadedRef.current = uploadedRef.current.filter((p) => p !== path);
     if (item) URL.revokeObjectURL(item.url);
     await supabase.storage.from("journal").remove([path]);
   }
@@ -216,6 +248,7 @@ export function JournalEntrySheet({
     setBusy(false);
     if (res.ok) {
       savedRef.current = true;
+      uploadedRef.current = [];
       pendingAdds.forEach((a) => URL.revokeObjectURL(a.url));
       onOpenChange(false);
       router.refresh();
@@ -461,6 +494,7 @@ export function JournalEntrySheet({
           />
           <button
             type="button"
+            autoFocus
             onClick={() => setViewingUrl(null)}
             aria-label="Close photo"
             className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white"

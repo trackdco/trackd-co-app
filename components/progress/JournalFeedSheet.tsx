@@ -200,6 +200,7 @@ export function JournalFeedSheet({
                       <ul className="space-y-2">
                         {group.entries.map((e) => {
                           const line = bodyFirstLine(e.body);
+                          const photoUrl = e.attachments.find((a) => a.url)?.url ?? null;
                           return (
                             <li key={e.id}>
                               <button
@@ -229,11 +230,11 @@ export function JournalFeedSheet({
                                     </span>
                                   )}
                                 </span>
-                                {e.attachments[0]?.url && (
+                                {photoUrl && (
                                   <span className="relative mt-0.5 shrink-0">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
-                                      src={e.attachments[0].url}
+                                      src={photoUrl}
                                       alt=""
                                       className="h-12 w-9 rounded-lg border border-border-default object-cover object-top"
                                     />
