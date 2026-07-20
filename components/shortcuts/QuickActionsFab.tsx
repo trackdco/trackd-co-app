@@ -239,7 +239,7 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
           <div
             ref={cardRef}
             className={cn(
-              "pointer-events-auto absolute inset-x-5 mx-auto max-w-md overflow-y-auto rounded-3xl border border-border-default bg-bg-surface-raised p-5 shadow-lg",
+              "pointer-events-auto absolute inset-x-5 mx-auto max-w-md overflow-y-auto rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg",
               open ? "animate-quick-menu-in" : "animate-quick-menu-out",
               !open && "pointer-events-none",
             )}
@@ -316,12 +316,10 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
 }
 
 /**
- * The beta "Beta notes & feedback" row — full-width under the grid: a quiet,
- * neutral hairline-outlined panel with a muted icon and label (the amber tint was
- * retired with the premium-minimal restyle). The full-width shape still sets the
- * temporary beta tool apart from the six core tiles, and it is deliberately
- * QUIETER than they are — a beta afterthought that must not pull the eye past the
- * actual actions.
+ * The beta "Beta notes & feedback" row — full-width under the grid: a neutral
+ * hairline-outlined panel with a bright icon + label (the amber tint was retired
+ * with the premium-minimal restyle). Its full-width bordered shape — not a dimmer
+ * colour — is what sets the temporary beta tool apart from the six core tiles.
  */
 function FeedbackRow({
   item,
@@ -337,8 +335,8 @@ function FeedbackRow({
       onClick={onPress}
       className="mt-3 flex min-h-11 w-full items-center justify-center gap-2.5 rounded-2xl border border-border-default px-4 py-3 transition-colors duration-[var(--motion-base)] ease-motion hover:bg-bg-input"
     >
-      <Icon className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-      <span className="text-sm font-medium text-text-muted">{item.title}</span>
+      <Icon className="h-4 w-4 shrink-0 text-foreground" aria-hidden />
+      <span className="text-sm font-medium text-foreground">{item.title}</span>
     </button>
   )
 }
@@ -361,10 +359,10 @@ function ActionTile({
       onClick={onPress}
       className="flex min-h-11 flex-col items-center justify-start gap-2 rounded-2xl p-1 text-center transition-colors duration-[var(--motion-base)] ease-motion hover:bg-bg-input active:bg-bg-input"
     >
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-bg-input text-text-muted">
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-bg-input text-foreground">
         <Icon className="h-5 w-5" aria-hidden />
       </span>
-      <span className="text-xs leading-tight font-medium text-text-muted">
+      <span className="text-xs leading-tight font-medium text-foreground">
         {item.shortLabel ?? item.title}
       </span>
     </button>
