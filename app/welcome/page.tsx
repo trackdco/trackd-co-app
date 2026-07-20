@@ -32,7 +32,7 @@ export default async function WelcomePage() {
         className="h-4 w-auto"
       />
 
-      <h1 className="mt-12 text-balance font-display text-[2rem] font-medium leading-[1.05] tracking-[-0.02em] text-foreground">
+      <h1 className="mt-12 text-balance text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
         One quick thing
       </h1>
       <p className="mt-3 max-w-[18rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">

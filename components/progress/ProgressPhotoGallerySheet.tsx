@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowLeftRight, Camera, Pencil, Plus } from "lucide-react";
+import { ArrowsLeftRight, Camera, PencilSimple, Plus } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
-import { CARD_TITLE, SHEET_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW, SHEET_TITLE } from "@/lib/ui-presets";
 import {
   formatPhotoDateRow,
   groupByMonth,
@@ -85,7 +85,7 @@ export function ProgressPhotoGallerySheet({
                 onClick={onCompare}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-surface-raised py-3 text-sm font-medium text-text-primary transition-colors hover:bg-bg-input/60"
               >
-                <ArrowLeftRight className="h-4 w-4" aria-hidden />
+                <ArrowsLeftRight className="h-4 w-4" aria-hidden />
                 Compare before &amp; after
               </button>
             )}
@@ -107,14 +107,14 @@ export function ProgressPhotoGallerySheet({
                     className="animate-shortcut-in"
                     style={{ animationDelay: `${mi * 50}ms` }}
                   >
-                    <h3 className={`px-1 ${CARD_TITLE}`}>
+                    <h3 className={`px-1 ${CARD_EYEBROW}`}>
                       {month.label}
                     </h3>
                     <ul className="mt-2 overflow-hidden rounded-2xl border border-border-default bg-bg-surface-raised">
                       {month.days.map((day, i) => (
                         <li
                           key={day.date}
-                          className={cn(i > 0 && "border-t border-border-default")}
+                          className={cn(i > 0 && "hairline-t")}
                         >
                           <DayRow day={day} onView={onView} onEdit={() => onEditDay(day.date)} />
                         </li>
@@ -176,7 +176,7 @@ function DayRow({
         aria-label={`Edit ${formatPhotoDateRow(day.date)}`}
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-input text-text-muted transition-colors hover:text-foreground"
       >
-        <Pencil className="h-4 w-4" aria-hidden />
+        <PencilSimple className="h-4 w-4" aria-hidden />
       </button>
     </div>
   );

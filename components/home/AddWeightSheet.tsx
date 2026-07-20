@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Camera, Check, Plus, X } from "lucide-react"
+import { Camera, Check, Plus, X } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { SHEET_TITLE } from "@/lib/ui-presets"
 import { Input } from "@/components/ui/input"
 import {
   Sheet,
@@ -260,7 +261,7 @@ function AddWeightBody({
         <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
       </div>
 
-      <SheetTitle className="px-6 text-base font-semibold text-foreground">
+      <SheetTitle className={cn("px-6", SHEET_TITLE)}>
         Log weight
       </SheetTitle>
       <SheetDescription className="sr-only">
@@ -318,7 +319,7 @@ function AddWeightBody({
                     className={cn(
                       "relative flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border transition-colors",
                       att
-                        ? "border-accent-amber/50"
+                        ? "border-border-strong"
                         : "border-dashed border-border-strong bg-bg-input/40 text-text-muted hover:bg-bg-input/70",
                     )}
                   >
@@ -384,7 +385,7 @@ function AddWeightBody({
       </div>
 
       {/* Action bar. */}
-      <div className="flex shrink-0 gap-3 border-t border-border-default px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <div className="flex shrink-0 gap-3 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <SheetClose className="flex-1 rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary">
           Cancel
         </SheetClose>
@@ -392,7 +393,7 @@ function AddWeightBody({
           type="button"
           onClick={submit}
           disabled={pending || saved}
-          className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
+          className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
         >
           {pending ? "Saving…" : "Log weight"}
         </button>
@@ -412,10 +413,10 @@ function AddWeightBody({
               className="animate-home-tick-ring absolute inset-0 rounded-full border-2 border-bg-base/40"
             />
             <span className="animate-home-tick-pop flex h-16 w-16 items-center justify-center rounded-full bg-bg-base/15">
-              <Check className="h-9 w-9" strokeWidth={2.5} aria-hidden />
+              <Check className="h-9 w-9" aria-hidden />
             </span>
           </span>
-          <span className="animate-shortcut-fade text-base font-semibold">Logged</span>
+          <span className="animate-shortcut-fade text-base font-medium">Logged</span>
         </button>
       )}
     </div>

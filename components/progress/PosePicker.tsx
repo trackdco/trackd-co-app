@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus, MagnifyingGlass } from "@/components/icons";
 
 import { PoseIcon } from "@/components/progress/PoseIcon";
 import { searchPoses } from "@/lib/progress/photos";
@@ -28,7 +28,7 @@ export function PosePicker({
   return (
     <div className="rounded-xl border border-border-default bg-bg-surface-raised p-2">
       <div className="relative">
-        <Search
+        <MagnifyingGlass
           className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-text-muted"
           aria-hidden
         />

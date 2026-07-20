@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { CaretDown, CaretLeft, CaretRight } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
+import { PAGE_TITLE } from "@/lib/ui-presets";
 import { monthTitle } from "@/lib/calendar/calendar";
 
 const MONTHS_SHORT = [
@@ -22,7 +23,7 @@ interface MonthYearPickerProps {
  * The "May 2026 ⌄" month/year title. Tapping it opens a small on-brand panel — a
  * year stepper over a 3-column month grid — to jump anywhere (the Milligram month
  * switcher, kept within ui-context tokens rather than a native wheel). The title
- * itself is the page's display-serif heading.
+ * itself is the page's `PAGE_TITLE` heading (sans, light).
  */
 export function MonthYearPicker({ year, month0, onChange }: MonthYearPickerProps) {
   const [open, setOpen] = useState(false);
@@ -41,10 +42,10 @@ export function MonthYearPicker({ year, month0, onChange }: MonthYearPickerProps
         aria-expanded={open}
         className="flex items-center gap-1.5 rounded-xl px-1 py-0.5 outline-none transition-colors hover:opacity-80 focus-visible:ring-2 focus-visible:ring-accent-amber/50"
       >
-        <span className="font-display text-3xl font-medium tracking-[-0.01em] text-foreground">
+        <span className={PAGE_TITLE}>
           {monthTitle(year, month0)}
         </span>
-        <ChevronDown
+        <CaretDown
           className={cn(
             "h-5 w-5 text-text-muted transition-transform duration-200",
             open && "rotate-180",
@@ -67,11 +68,11 @@ export function MonthYearPicker({ year, month0, onChange }: MonthYearPickerProps
             {/* Year stepper. */}
             <div className="flex items-center justify-between pb-2">
               <StepButton label="Previous year" onClick={() => setBrowseYear((y) => y - 1)}>
-                <ChevronLeft className="h-4 w-4" aria-hidden />
+                <CaretLeft className="h-4 w-4" aria-hidden />
               </StepButton>
               <span className="font-mono text-sm font-medium text-foreground">{browseYear}</span>
               <StepButton label="Next year" onClick={() => setBrowseYear((y) => y + 1)}>
-                <ChevronRight className="h-4 w-4" aria-hidden />
+                <CaretRight className="h-4 w-4" aria-hidden />
               </StepButton>
             </div>
 
@@ -91,7 +92,7 @@ export function MonthYearPicker({ year, month0, onChange }: MonthYearPickerProps
                     className={cn(
                       "rounded-lg py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent-amber/50",
                       active
-                        ? "bg-accent-amber font-semibold text-bg-base"
+                        ? "bg-accent-primary font-medium text-bg-base"
                         : "text-text-muted hover:bg-bg-input hover:text-foreground",
                     )}
                   >

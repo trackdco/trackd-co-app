@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Loader2, MessageSquarePlus } from "lucide-react"
+import { ChatCircleDots, Check, CircleNotch } from "@/components/icons"
 
 import { Textarea } from "@/components/ui/textarea"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
@@ -104,7 +104,7 @@ export function FeedbackSheet({
           <div className="flex-1 overflow-y-auto px-6 pb-2">
             <div className="flex items-center gap-2.5">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-surface-raised text-text-muted">
-                <MessageSquarePlus className="h-4 w-4" aria-hidden />
+                <ChatCircleDots className="h-4 w-4" aria-hidden />
               </span>
               <h2 className={SHEET_TITLE}>
                 {title}
@@ -150,9 +150,9 @@ export function FeedbackSheet({
               type="button"
               onClick={() => void handleSend()}
               disabled={!canSend}
-              className="flex flex-[1.6] items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+              className="flex flex-[1.6] items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+              {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : null}
               {busy ? "Sending…" : submitLabel}
             </button>
           </div>
@@ -166,9 +166,9 @@ export function FeedbackSheet({
               className="animate-shortcut-fade absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-t-3xl bg-accent-green text-bg-base"
             >
               <span className="flex h-16 w-16 items-center justify-center rounded-full bg-bg-base/15">
-                <Check className="h-9 w-9" strokeWidth={2.5} aria-hidden />
+                <Check className="h-9 w-9" aria-hidden />
               </span>
-              <span className="text-base font-semibold">Thanks — got it</span>
+              <span className="text-base font-medium">Thanks — got it</span>
             </button>
           )}
         </div>

@@ -1,10 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Syringe } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
 import type {
   BodySex,
   InjectionSiteAspect,
@@ -69,14 +68,11 @@ export function InjectionSitesGlanceCard({
   const sitesForRoute = recentSites.filter((s) => s.route === route).slice(0, 3)
 
   return (
-    <div className="rounded-2xl border border-border-default bg-bg-surface">
+    <div className="rounded-2xl bg-bg-surface">
       {/* Header — label + the IM / Sub-Q toggle. */}
       <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-1.5">
-        <div className="flex min-w-0 items-center gap-3.5">
-          <span aria-hidden className={CARD_ICON_BADGE}>
-            <Syringe className="h-5 w-5" />
-          </span>
-          <p className={`${CARD_TITLE} truncate`}>Injection sites</p>
+        <div className="flex min-w-0 items-center">
+          <p className={cn(CARD_EYEBROW, "truncate")}>Injection sites</p>
         </div>
 
         <div className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]">
@@ -114,7 +110,7 @@ export function InjectionSitesGlanceCard({
         >
           <SitePreview route={route} daysSince={daysSince} sex={bodySex} />
 
-          <div className="w-full border-t border-border-default pt-3.5">
+          <div className="w-full hairline-t pt-3.5">
             <p className="mb-2.5 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-text-muted">
               Last logged
             </p>

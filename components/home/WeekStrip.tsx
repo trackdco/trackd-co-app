@@ -246,7 +246,7 @@ export function WeekStrip({
                           className={cn(
                             "flex h-9 w-9 items-center justify-center rounded-full font-mono text-sm transition-colors",
                             selected
-                              ? "bg-accent-amber font-semibold text-bg-base"
+                              ? "bg-accent-primary font-medium text-bg-base"
                               : isToday
                                 ? "text-foreground ring-1 ring-border-strong"
                                 : "text-text-primary"
@@ -291,7 +291,7 @@ export function WeekStrip({
               type="button"
               tabIndex={weekOffset === 0 ? -1 : undefined}
               onClick={handleJump}
-              className="font-medium text-accent-amber transition-opacity hover:opacity-80"
+              className="font-medium text-foreground transition-opacity hover:opacity-80"
             >
               Jump to this week
             </button>

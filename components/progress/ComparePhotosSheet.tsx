@@ -199,7 +199,7 @@ function PhotoStrip({
             aria-pressed={selectedId === p.id}
             className={cn(
               "h-16 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-colors",
-              selectedId === p.id ? "border-accent-amber" : "border-border-default",
+              selectedId === p.id ? "border-accent-primary" : "border-border-default",
             )}
             aria-label={`${poseLabel(p.pose)} ${formatPhotoDateShort(p.date)}`}
           >

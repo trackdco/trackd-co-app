@@ -1,11 +1,10 @@
 "use client";
 
-import { Bell } from "lucide-react";
+import { Bell } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import { useMounted } from "@/components/home/useMounted";
 import { usePushNotifications } from "@/components/push/usePushNotifications";
-import { STEP_ICON_BADGE } from "@/lib/ui-presets";
 
 /**
  * The dashboard's "Enable notifications" banner — a slim, PERSISTENT prompt that
@@ -38,8 +37,11 @@ export function EnableNotificationsStep({
 
   return (
     <div className="animate-home-up" style={{ animationDelay: "100ms" }}>
-      <div className="flex items-center gap-3 rounded-2xl border border-border bg-bg-surface p-4">
-        <span className={STEP_ICON_BADGE} aria-hidden="true">
+      <div className="flex items-center gap-3 rounded-2xl bg-bg-surface p-4">
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center text-text-muted"
+          aria-hidden="true"
+        >
           <Bell className="size-5" />
         </span>
         <div className="min-w-0 flex-1">

@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
 import "./globals.css";
 
+import { IconProvider } from "@/components/providers/icon-provider";
 import { AppleSplashLinks } from "@/components/pwa/apple-splash-links";
 import { DesktopGate } from "@/components/pwa/desktop-gate";
 import { DesktopInterstitial } from "@/components/pwa/desktop-interstitial";
@@ -16,16 +17,6 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-});
-
-// Serif display face for headings and the wordmark (see Context/ui-context.md).
-// Load real display weights so the high-contrast Didone actually shows (default
-// 400 renders flat). Italic enabled for editorial emphasis on key heading words.
-const playfairDisplay = Playfair_Display({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "700", "900"],
-  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
@@ -70,7 +61,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${playfairDisplay.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/* iOS launch images — React hoists these <link> tags into <head>.
@@ -80,27 +71,30 @@ export default async function RootLayout({
             native one). */}
         <AppleSplashLinks />
 
-        {/* The app below lg; the "go to your phone" interstitial at ≥1024px. */}
-        <DesktopGate
-          interstitial={
-            <DesktopInterstitial
-              className="hidden lg:flex"
-              returning={Boolean(user)}
-              logo={
-                <Image
-                  src="/trackd-wordmark.png"
-                  alt="trackd co"
-                  width={1049}
-                  height={200}
-                  priority
-                  className="h-5 w-auto"
-                />
-              }
-            />
-          }
-        >
-          {children}
-        </DesktopGate>
+        {/* Phosphor stroke weight is set once here for every icon in the app. */}
+        <IconProvider>
+          {/* The app below lg; the "go to your phone" interstitial at ≥1024px. */}
+          <DesktopGate
+            interstitial={
+              <DesktopInterstitial
+                className="hidden lg:flex"
+                returning={Boolean(user)}
+                logo={
+                  <Image
+                    src="/trackd-wordmark.png"
+                    alt="trackd co"
+                    width={1049}
+                    height={200}
+                    priority
+                    className="h-5 w-auto"
+                  />
+                }
+              />
+            }
+          >
+            {children}
+          </DesktopGate>
+        </IconProvider>
       </body>
     </html>
   );

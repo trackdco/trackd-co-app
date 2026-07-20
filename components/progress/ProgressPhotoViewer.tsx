@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2 } from "lucide-react";
+import { CircleNotch, Trash } from "@/components/icons";
 
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
@@ -107,7 +107,7 @@ export function ProgressPhotoViewer({
                   aria-label="Delete this photo"
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-accent-destructive"
                 >
-                  <Trash2 className="h-4 w-4" aria-hidden />
+                  <Trash className="h-4 w-4" aria-hidden />
                 </button>
               </div>
 
@@ -133,7 +133,7 @@ export function ProgressPhotoViewer({
               </div>
 
               {confirming ? (
-                <div className="animate-shortcut-in shrink-0 border-t border-border-default px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+                <div className="animate-shortcut-in shrink-0 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
                   <p className="text-sm text-foreground">
                     Delete this photo? This can&apos;t be undone.
                   </p>
@@ -152,13 +152,13 @@ export function ProgressPhotoViewer({
                       disabled={busy}
                       className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent-destructive py-2.5 text-sm font-medium text-text-primary transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
+                      {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Trash className="h-4 w-4" aria-hidden />}
                       Delete
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="shrink-0 border-t border-border-default px-6 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+                <div className="shrink-0 hairline-t px-6 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
                   <SheetClose className="w-full rounded-xl border border-border-strong py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text-primary">
                     Close
                   </SheetClose>

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Loader2, Trash2 } from "lucide-react";
+import { Camera, CircleNotch, Trash } from "@/components/icons";
 
 import { createClient } from "@/lib/supabase/client";
 import { clearAvatar, setAvatarPath } from "@/app/(app)/profile/actions";
@@ -126,7 +126,7 @@ export function AvatarUploader({
             className="h-full w-full object-cover"
           />
         ) : (
-          <span className="flex h-full w-full items-center justify-center font-display text-2xl text-foreground">
+          <span className="flex h-full w-full items-center justify-center text-2xl text-foreground">
             {initials}
           </span>
         )}
@@ -134,7 +134,7 @@ export function AvatarUploader({
         {/* Edit affordance — a small camera badge, or a spinner while busy. */}
         <span className="absolute inset-0 flex items-center justify-center bg-bg-base/0 transition-colors group-hover:bg-bg-base/40">
           {busy ? (
-            <Loader2 className="h-5 w-5 animate-spin text-text-primary" aria-hidden />
+            <CircleNotch className="h-5 w-5 animate-spin text-text-primary" aria-hidden />
           ) : (
             <Camera
               className="h-5 w-5 text-text-primary opacity-0 transition-opacity group-hover:opacity-100"
@@ -168,7 +168,7 @@ export function AvatarUploader({
             disabled={busy}
             className="inline-flex items-center gap-1 rounded-md px-1 text-xs text-text-muted outline-none transition-colors hover:text-accent-destructive focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
-            <Trash2 className="h-3 w-3" aria-hidden />
+            <Trash className="h-3 w-3" aria-hidden />
             Remove
           </button>
         )}

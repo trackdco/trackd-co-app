@@ -53,28 +53,38 @@ export function routesOf(c: Compound): RouteForm[] {
   return [{ route: c.defaultRoute, inventoryType: c.defaultInventoryType }]
 }
 
+/** The physical form a compound is taken as — drives the little type icon next to
+ *  a compound (vial = injectable, tablet = oral, tub = supplement), rendered by
+ *  `<CategoryIcon>`. See Context/ui-context.md → "Compound type icons". */
+export type CompoundForm = "injectable" | "oral" | "supplement"
+
 interface CategoryMeta {
   label: string
-  dot: string
+  /** Typical form of this category — picks the type icon. */
+  form: CompoundForm
+  /** `text-cat-*` colour for the type icon, per category. */
+  tint: string
 }
 
-// One distinct, muted hue per category (tokens defined in globals.css).
+// One distinct, muted hue per category (tokens defined in globals.css). `form`
+// picks the type icon (vial / tablet / tub); `tint` colours it per category.
 export const CATEGORY_META: Record<CompoundCategory, CategoryMeta> = {
-  anabolic: { label: "Anabolics", dot: "bg-cat-anabolic" },
-  oral: { label: "Orals", dot: "bg-cat-oral" },
-  sarm: { label: "SARMs", dot: "bg-cat-sarm" },
-  peptide: { label: "Peptides", dot: "bg-cat-peptide" },
-  ancillary: { label: "Ancillaries", dot: "bg-cat-ancillary" },
-  thyroid: { label: "Thyroid", dot: "bg-cat-thyroid" },
-  supplement: { label: "Supplements", dot: "bg-cat-supplement" },
-  stimulant: { label: "Stimulants", dot: "bg-cat-stimulant" },
+  anabolic: { label: "Anabolics", form: "injectable", tint: "text-cat-anabolic" },
+  oral: { label: "Orals", form: "oral", tint: "text-cat-oral" },
+  sarm: { label: "SARMs", form: "oral", tint: "text-cat-sarm" },
+  peptide: { label: "Peptides", form: "injectable", tint: "text-cat-peptide" },
+  ancillary: { label: "Ancillaries", form: "oral", tint: "text-cat-ancillary" },
+  thyroid: { label: "Thyroid", form: "oral", tint: "text-cat-thyroid" },
+  supplement: { label: "Supplements", form: "supplement", tint: "text-cat-supplement" },
+  stimulant: { label: "Stimulants", form: "oral", tint: "text-cat-stimulant" },
 }
 
 // Neutral fallback for a missing/unknown category (e.g. a hand-edited or stale
 // localStorage entry) so a row renders harmlessly instead of crashing.
 export const FALLBACK_CATEGORY_META: CategoryMeta = {
   label: "Other",
-  dot: "bg-text-muted",
+  form: "oral",
+  tint: "text-text-muted",
 }
 
 // Option lists for the "Make your own" form — mirror the catalogue's own enums.

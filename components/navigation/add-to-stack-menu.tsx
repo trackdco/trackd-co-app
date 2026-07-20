@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Check, Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react"
+import { Check, PencilSimple, Plus, ArrowCounterClockwise, MagnifyingGlass, Trash } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -23,6 +23,7 @@ import {
   type CompoundCategory,
 } from "@/lib/compound-categories"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { newId } from "@/lib/home/id"
 import { loadStack, type StackCompound } from "@/lib/home/stack"
@@ -476,7 +477,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
             transform: `translateY(${offsetY}px)`,
             transition: dragging ? "none" : "transform 250ms ease-out",
           }}
-          className="flex h-full flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
+          className="flex h-full flex-col overflow-hidden rounded-t-3xl hairline-t bg-bg-surface shadow-lg"
         >
           {/* Grab handle — drag down to dismiss (≈44px tap target) */}
           <div
@@ -505,7 +506,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
               </SheetClose>
             )}
 
-            <SheetTitle className="justify-self-center text-base font-semibold text-foreground">
+            <SheetTitle className="justify-self-center text-base font-medium text-foreground">
               {mode === "form"
                 ? formMode === "edit"
                   ? "Edit compound"
@@ -518,7 +519,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
                 type="button"
                 onClick={handleSubmit}
                 disabled={!nameValid}
-                className="justify-self-end text-base font-medium text-accent-amber transition-colors hover:opacity-80 disabled:text-text-subtle"
+                className="justify-self-end text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:text-text-subtle"
               >
                 {formMode === "edit" ? "Save" : "Add"}
               </button>
@@ -657,7 +658,7 @@ function BrowseBody({
       {/* Search bar */}
       <div className="shrink-0 px-4 pb-4">
         <div className="relative">
-          <Search
+          <MagnifyingGlass
             aria-hidden
             className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-text-muted"
           />
@@ -712,17 +713,14 @@ function RowMain({ compound, query }: { compound: Compound; query?: string }) {
   const showAka = Boolean(query) && Boolean(compound.commonName)
   return (
     <>
-      <span
-        aria-hidden
-        className={cn("h-2 w-2 shrink-0 rounded-full", meta.dot)}
-      />
+      <CategoryIcon category={compound.category} className="h-3.5 w-3.5" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="min-w-0 truncate text-base font-medium text-foreground">
             {compound.name}
           </p>
           {showAka && (
-            <span className="shrink-0 rounded-full bg-accent-amber/15 px-2 py-0.5 text-xs font-medium text-accent-amber">
+            <span className="shrink-0 rounded-full border border-border-default px-2 py-0.5 text-xs font-medium text-text-muted">
               aka {compound.commonName}
             </span>
           )}
@@ -768,7 +766,7 @@ function CompoundList({
   return (
     <ul className="overflow-hidden rounded-2xl bg-bg-surface-raised">
       {items.map((compound, i) => {
-        const divider = i > 0 ? "border-t border-border-default" : ""
+        const divider = i > 0 ? "hairline-t" : ""
         if (isCustom(compound)) {
           // Your own compound, mid-delete-confirm — same red confirm as the edit
           // menu's delete, shown inline in place of the row.
@@ -829,9 +827,9 @@ function CompoundList({
                       type="button"
                       onClick={() => onReactivate(compound)}
                       aria-label={`Reactivate ${compound.name}`}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent-amber/60 text-accent-amber transition-all duration-200 ease-out hover:bg-accent-amber/10 active:scale-95"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
                     >
-                      <RotateCcw className="h-4 w-4" aria-hidden />
+                      <ArrowCounterClockwise className="h-4 w-4" aria-hidden />
                     </button>
                   ) : inLogNames.has(compound.name.toLowerCase()) ? (
                     <button
@@ -859,7 +857,7 @@ function CompoundList({
                     aria-label={`Edit ${compound.name}`}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-input hover:text-text-primary"
                   >
-                    <Pencil className="h-4 w-4" aria-hidden />
+                    <PencilSimple className="h-4 w-4" aria-hidden />
                   </button>
                   {/* Delete — same confirm + delete as the edit menu. */}
                   <button
@@ -868,7 +866,7 @@ function CompoundList({
                     aria-label={`Delete ${compound.name}`}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-state-error transition-colors hover:bg-state-error/10"
                   >
-                    <Trash2 className="h-4 w-4" aria-hidden />
+                    <Trash className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
               </div>
@@ -890,9 +888,9 @@ function CompoundList({
                   type="button"
                   onClick={() => onReactivate(compound)}
                   aria-label={`Reactivate ${compound.name}`}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent-amber/60 text-accent-amber transition-all duration-200 ease-out hover:bg-accent-amber/10 active:scale-95"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
                 >
-                  <RotateCcw className="h-4 w-4" aria-hidden />
+                  <ArrowCounterClockwise className="h-4 w-4" aria-hidden />
                 </button>
               </div>
             ) : inLogNames.has(lname) ? (
@@ -1055,7 +1053,7 @@ function CompoundForm({
       </p>
 
       {formMode === "edit" && (
-        <div className="border-t border-border-default pt-4">
+        <div className="hairline-t pt-4">
           {confirmingDelete ? (
             <div className="rounded-xl border border-state-error/40 bg-state-error/10 p-3">
               <p className="text-sm text-foreground">
@@ -1085,7 +1083,7 @@ function CompoundForm({
               onClick={onAskDelete}
               className="flex items-center gap-2 text-sm text-state-error transition-opacity hover:opacity-80"
             >
-              <Trash2 className="h-4 w-4" aria-hidden />
+              <Trash className="h-4 w-4" aria-hidden />
               Delete compound
             </button>
           )}
@@ -1122,9 +1120,6 @@ function PillGroup({
       <div className="flex flex-wrap gap-2">
         {options.map((o) => {
           const active = o.value === value
-          const dot =
-            CATEGORY_META[o.value as CompoundCategory]?.dot ??
-            FALLBACK_CATEGORY_META.dot
           return (
             <button
               key={o.value}
@@ -1134,15 +1129,12 @@ function PillGroup({
               className={cn(
                 "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
                 active
-                  ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                  ? "border-transparent bg-accent-primary font-medium text-bg-base"
                   : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
               )}
             >
               {showDot && (
-                <span
-                  aria-hidden
-                  className={cn("h-1.5 w-1.5 rounded-full", dot)}
-                />
+                <CategoryIcon category={o.value} className="h-3.5 w-3.5" />
               )}
               {o.label}
             </button>

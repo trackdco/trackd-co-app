@@ -1,15 +1,15 @@
 "use client";
 
-import { ChevronRight, Droplet } from "lucide-react";
+import { CaretRight } from "@/components/icons";
 
-import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { formatBloodworkDate, type BloodworkPhoto } from "@/lib/progress/bloodwork";
 
 /**
- * Bloodwork card on the Progress scroll (Step 4, revised). A leading icon badge
- * gives the section identity; tapping the card opens the bloodwork page. Empty, it
- * invites you to attach a screenshot. Once you've uploaded, it shows the latest
- * photo big — tap the photo to grow it full, the header to open all your panels.
+ * Bloodwork card on the Progress scroll (Step 4, revised). The card leads with its
+ * eyebrow (no icon badge); tapping it opens the bloodwork page. Empty, it invites
+ * you to attach a screenshot. Once you've uploaded, it shows the latest photo big —
+ * tap the photo to grow it full, the header to open all your panels.
  */
 export function BloodworkCard({
   photos,
@@ -28,18 +28,15 @@ export function BloodworkCard({
         type="button"
         onClick={onOpen}
         aria-label="Open bloodwork"
-        className="flex w-full items-center gap-3.5 rounded-2xl border border-border-default bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+        className="flex w-full items-center gap-3.5 rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
       >
-        <span className={CARD_ICON_BADGE} aria-hidden>
-          <Droplet className="h-5 w-5" />
-        </span>
         <span className="min-w-0 flex-1">
-          <span className={`block ${CARD_TITLE}`}>Bloodwork</span>
-          <span className="mt-1 block text-sm text-text-muted">
+          <span className={`block ${CARD_EYEBROW}`}>Bloodwork</span>
+          <span className="mt-1.5 block text-sm text-text-muted">
             Attach a screenshot of your blood work
           </span>
         </span>
-        <ChevronRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+        <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
       </button>
     );
   }
@@ -47,23 +44,20 @@ export function BloodworkCard({
   const latest = photos[0];
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
+    <div className="overflow-hidden rounded-2xl bg-bg-surface">
       <button
         type="button"
         onClick={onOpen}
         aria-label="Open bloodwork"
         className="flex w-full items-center gap-3.5 px-5 pt-5 pb-3.5 text-left transition-colors hover:bg-bg-surface-raised/30"
       >
-        <span className={CARD_ICON_BADGE} aria-hidden>
-          <Droplet className="h-5 w-5" />
-        </span>
         <span className="min-w-0 flex-1">
-          <span className={`block ${CARD_TITLE}`}>Bloodwork</span>
-          <span className="mt-0.5 block text-xs text-text-muted">
+          <span className={`block ${CARD_EYEBROW}`}>Bloodwork</span>
+          <span className="mt-1 block text-xs text-text-muted">
             {photos.length} {photos.length === 1 ? "panel" : "panels"}
           </span>
         </span>
-        <ChevronRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+        <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
       </button>
 
       {/* Latest photo — tap to grow it full. */}

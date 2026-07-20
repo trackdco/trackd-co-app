@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
+import { SHEET_TITLE } from "@/lib/ui-presets"
 import {
   Sheet,
   SheetContent,
@@ -179,7 +180,7 @@ export function InjectionSitesSheet({
 
           {/* Title + Done — Done is the quick tap-out; drag-down / edge-swipe also close. */}
           <div className="flex shrink-0 items-center justify-between gap-3 px-6">
-            <SheetTitle className="text-lg font-semibold text-foreground">
+            <SheetTitle className={SHEET_TITLE}>
               Injection sites
             </SheetTitle>
             <button
@@ -251,15 +252,15 @@ export function InjectionSitesSheet({
 
               {inspected && (
                 <div
-                  className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-xl border border-border-strong bg-bg-surface-raised px-3 py-1.5 shadow-lg"
+                  className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-lg border border-border-default bg-bg-surface-raised px-2.5 py-1.5 shadow-lg"
                   style={{ left: pointer.x, top: pointer.y - 12 }}
                 >
-                  <p className="whitespace-nowrap text-xs font-semibold text-foreground">
+                  <p className="whitespace-nowrap text-xs font-medium text-foreground">
                     {inspected.label}
                   </p>
                   <p
                     className={cn(
-                      "whitespace-nowrap text-[0.7rem]",
+                      "whitespace-nowrap text-[11px] tabular-nums",
                       inspectedPinned ? "text-accent-amber" : "text-text-muted",
                     )}
                   >
@@ -277,7 +278,7 @@ export function InjectionSitesSheet({
 
             {/* Last logged — your most-recent muscles, each with the compound(s) you
                 put there (two compounds in one area read together). */}
-            <div className="rounded-2xl border border-border-default bg-bg-input px-4 py-3.5">
+            <div className="rounded-2xl bg-bg-input px-4 py-3.5">
               <h3 className="mb-3 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-muted">
                 Last logged
               </h3>

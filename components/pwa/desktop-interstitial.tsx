@@ -1,15 +1,15 @@
 import type { ComponentType, ReactNode } from "react";
 import {
-  CalendarDays,
+  CalendarDots,
   Camera,
   Check,
-  FlaskConical,
+  Flask,
   Flame,
   Lock,
-  Smartphone,
-  TrendingUp,
-  Zap,
-} from "lucide-react";
+  DeviceMobile,
+  TrendUp,
+  Lightning,
+} from "@/components/icons";
 import { QRCodeSVG } from "qrcode.react";
 
 import { cn } from "@/lib/utils";
@@ -27,30 +27,29 @@ import { cn } from "@/lib/utils";
 
    ── DERIVED VALUES, FLAGGED FOR REVIEW ──────────────────────────────────────
    Every colour below resolves to an EXISTING design token — there are no new
-   hex literals. The amber washes/borders use `--accent-amber` at low opacity
-   (Tailwind `/NN` utilities); the three effects the token system has no name
-   for (the action-card glow, the warm page glow, the top hairline) are
-   centralised here as `color-mix` over `--accent-amber`, and the deep drop
-   shadow reuses the `--overlay-backdrop` token. If we want these to be first-
-   class, promote them into app/globals.css as real tokens.
+   hex literals. The premium-minimal restyle retired the amber washes: the
+   surface effects the token system has no name for (the warm page lift, the
+   card top hairline) are centralised here as `color-mix` over neutral surface /
+   border tokens, and the deep drop shadow reuses the `--overlay-backdrop` token.
+   If we want these to be first-class, promote them into app/globals.css as real
+   tokens.
    --------------------------------------------------------------------------- */
 
 /** The exact URL the QR encodes — the only place this string lives. */
 const APP_URL = "https://trackdco.app";
 
-// Action-card glow: amber halo (~12%) over a deep drop shadow (overlay token).
-const HERO_SHADOW =
-  "0 0 80px color-mix(in srgb, var(--accent-amber) 12%, transparent), 0 40px 80px -28px var(--overlay-backdrop)";
-// Warm radial glow, top-right corner of the page (amber ~7%).
+// Action-card float: a deep neutral drop shadow (overlay token).
+const HERO_SHADOW = "0 40px 80px -28px var(--overlay-backdrop)";
+// Soft radial lift, top-right corner of the page (neutral raised surface).
 const PAGE_GLOW =
-  "radial-gradient(58% 48% at 90% 2%, color-mix(in srgb, var(--accent-amber) 7%, transparent), transparent 72%)";
+  "radial-gradient(58% 48% at 90% 2%, color-mix(in srgb, var(--bg-surface-raised) 60%, transparent), transparent 72%)";
 // Faint ridge/landscape silhouette along the bottom edge (surface over base).
 const RIDGE_BG = "linear-gradient(to top, var(--bg-surface), transparent 82%)";
 const RIDGE_CLIP =
   "polygon(0 64%, 11% 54%, 23% 60%, 35% 47%, 47% 55%, 59% 43%, 71% 52%, 83% 41%, 100% 50%, 100% 100%, 0 100%)";
-// Top inner hairline on the action card: transparent → amber → transparent.
+// Top inner hairline on the action card: transparent → border → transparent.
 const HERO_HAIRLINE =
-  "linear-gradient(to right, transparent, color-mix(in srgb, var(--accent-amber) 60%, transparent), transparent)";
+  "linear-gradient(to right, transparent, color-mix(in srgb, var(--border-strong) 80%, transparent), transparent)";
 
 type Feature = {
   icon: ComponentType<{ className?: string; strokeWidth?: number }>;
@@ -62,17 +61,17 @@ type Feature = {
 // coming back to" for a returning one, so both variants share them.
 const FEATURES: Feature[] = [
   {
-    icon: Zap,
+    icon: Lightning,
     title: "See what's working",
     body: "Track weight, biomarkers and outcomes over time.",
   },
   {
-    icon: FlaskConical,
+    icon: Flask,
     title: "Stay consistent",
     body: "Log your protocol and build streaks.",
   },
   {
-    icon: TrendingUp,
+    icon: TrendUp,
     title: "Get real insights",
     body: "Outcomes over time, not just data.",
   },
@@ -154,24 +153,24 @@ export function DesktopInterstitial({
         >
           {/* ── Primary column ───────────────────────────────────────────── */}
           <div className="flex flex-col justify-center">
-            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-accent-amber/25 bg-accent-amber/10 px-3.5 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-accent-amber">
-              <Smartphone className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border-default bg-bg-surface-raised px-3.5 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
+              <DeviceMobile className="h-3.5 w-3.5" aria-hidden />
               {copy.eyebrow}
             </span>
 
-            <h1 className="mt-6 font-display text-[clamp(2.5rem,4vw,3.75rem)] font-medium leading-[1.04] tracking-[-0.02em]">
+            <h1 className="mt-6 text-[clamp(2.5rem,4vw,3.75rem)] font-light leading-[1.04] tracking-[-0.02em]">
               {returning ? (
                 <>
                   <span className="block text-foreground">Welcome back.</span>
                   <span className="block text-foreground">
-                    Continue <span className="text-accent-amber">on your phone.</span>
+                    Continue <span className="text-foreground">on your phone.</span>
                   </span>
                 </>
               ) : (
                 <>
                   <span className="block text-foreground">Track your protocol.</span>
                   <span className="block text-foreground">
-                    <span className="text-accent-amber">Not</span> your spreadsheets.
+                    <span className="text-foreground">Not</span> your spreadsheets.
                   </span>
                 </>
               )}
@@ -184,11 +183,11 @@ export function DesktopInterstitial({
             {/* Feature rows — only the first-visit variant sells; the returning
                 "welcome back" view stays deliberately basic. */}
             {!returning && (
-              <div className="mt-9 max-w-md divide-y divide-border-default border-y border-border-default">
+              <div className="mt-9 max-w-md divide-hairline hairline-t hairline-b">
                 {FEATURES.map(({ icon: Icon, title, body }) => (
                   <div key={title} className="flex items-start gap-4 py-4">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-accent-amber/30 bg-accent-amber/10 text-accent-amber">
-                      <Icon className="h-5 w-5" strokeWidth={1.75} />
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center text-text-muted">
+                      <Icon className="h-5 w-5" />
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">{title}</p>
@@ -210,7 +209,7 @@ export function DesktopInterstitial({
           {/* ── Action card — THE HERO ───────────────────────────────────── */}
           <div className="flex items-center justify-center">
             <div
-              className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-accent-amber/30 bg-bg-surface px-8 py-10 text-center"
+              className="relative w-full max-w-sm overflow-hidden rounded-3xl bg-bg-surface px-8 py-10 text-center"
               style={{ boxShadow: HERO_SHADOW }}
             >
               <span
@@ -219,11 +218,11 @@ export function DesktopInterstitial({
                 style={{ background: HERO_HAIRLINE }}
               />
 
-              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-accent-amber/30 bg-accent-amber/10 text-accent-amber">
-                <Smartphone className="h-7 w-7" strokeWidth={1.5} aria-hidden />
+              <span className="mx-auto flex h-14 w-14 items-center justify-center text-text-muted">
+                <DeviceMobile className="h-7 w-7" aria-hidden />
               </span>
 
-              <h2 className="mt-6 font-display text-3xl font-medium leading-[1.12] text-foreground">
+              <h2 className="mt-6 text-3xl font-light leading-[1.12] tracking-[-0.02em] text-foreground">
                 {copy.heroHeading}
               </h2>
 
@@ -253,8 +252,8 @@ export function DesktopInterstitial({
                 </div>
               </div>
 
-              <p className="mt-6 flex items-center justify-center gap-2 text-sm font-medium text-accent-amber">
-                <Camera className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+              <p className="mt-6 flex items-center justify-center gap-2 text-sm font-medium text-foreground">
+                <Camera className="h-4 w-4" aria-hidden />
                 Point your phone&apos;s camera at the code
               </p>
               <p className="mt-2 text-sm text-text-muted">
@@ -263,7 +262,7 @@ export function DesktopInterstitial({
               </p>
 
               <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-text-subtle">
-                <Lock className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+                <Lock className="h-3.5 w-3.5" aria-hidden />
                 Your data is private and secure.
               </p>
             </div>
@@ -272,15 +271,14 @@ export function DesktopInterstitial({
 
         {/* Bottom-left footer note. */}
         <div className="flex shrink-0 items-start gap-2.5 text-text-muted">
-          <Smartphone
+          <DeviceMobile
             className="mt-0.5 h-4 w-4 shrink-0 text-text-subtle"
-            strokeWidth={1.75}
             aria-hidden
           />
           <p className="text-xs leading-relaxed">
             Trackd is designed for mobile-first health tracking.
             <br />
-            Open <span className="text-accent-amber">trackdco.app</span> on your phone.
+            Open <span className="text-foreground">trackdco.app</span> on your phone.
           </p>
         </div>
       </div>
@@ -320,7 +318,7 @@ function GlassCard({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border-default bg-bg-surface/80 p-5 backdrop-blur-sm",
+        "rounded-2xl bg-bg-surface/80 p-5 backdrop-blur-sm",
         "shadow-[0_24px_55px_-28px_var(--overlay-backdrop)]",
         className,
       )}
@@ -348,7 +346,7 @@ function WeightCardBody() {
       <div className="mt-1.5 flex items-end justify-between gap-3">
         <div>
           <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-3xl font-semibold text-foreground">84.2</span>
+            <span className="font-mono text-3xl font-light text-foreground">84.2</span>
             <span className="text-sm text-text-muted">kg</span>
           </div>
           <p className="mt-1 font-mono text-sm text-text-muted">
@@ -385,21 +383,21 @@ function InventoryCardBody() {
       <CardLabel>Inventory</CardLabel>
       <p className="mt-1 text-[11px] text-text-muted">Testosterone E · 10 mL vial</p>
       <div className="mt-1.5 flex items-baseline gap-1.5">
-        <span className="font-mono text-3xl font-semibold text-foreground">6.4</span>
+        <span className="font-mono text-3xl font-light text-foreground">6.4</span>
         <span className="text-sm text-text-muted">mL left</span>
       </div>
       <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-bg-input">
         <div className="h-full rounded-full bg-text-muted" style={{ width: "64%" }} />
       </div>
       <div className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
-        <CalendarDays className="h-3.5 w-3.5 text-accent-amber" strokeWidth={1.75} aria-hidden />
+        <CalendarDots className="h-3.5 w-3.5 text-text-muted" aria-hidden />
         Runs dry ~ 18 Jul
       </div>
     </>
   );
 }
 
-// Today's log — protocol checklist with amber check circles + a streak line.
+// Today's log — protocol checklist with white completed-check circles + a streak line.
 function LogCardBody() {
   const items = [
     { name: "Testosterone E", sub: "250mg", done: true },
@@ -416,11 +414,11 @@ function LogCardBody() {
               className={cn(
                 "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
                 item.done
-                  ? "border-accent-amber bg-accent-amber/15 text-accent-amber"
+                  ? "border-accent-primary bg-accent-primary text-bg-base"
                   : "border-border-strong",
               )}
             >
-              {item.done ? <Check className="h-3 w-3" strokeWidth={2.5} aria-hidden /> : null}
+              {item.done ? <Check className="h-3 w-3" aria-hidden /> : null}
             </span>
             <span className="text-sm text-foreground">{item.name}</span>
             <span className="ml-auto font-mono text-xs text-text-muted">{item.sub}</span>
@@ -428,7 +426,7 @@ function LogCardBody() {
         ))}
       </div>
       <div className="mt-3.5 flex items-center gap-1.5 text-xs text-text-muted">
-        <Flame className="h-3.5 w-3.5 text-accent-amber" strokeWidth={1.75} aria-hidden />
+        <Flame className="h-3.5 w-3.5 text-text-muted" aria-hidden />
         18 day streak
       </div>
     </>

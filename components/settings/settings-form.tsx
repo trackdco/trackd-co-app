@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -150,7 +150,7 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
         className="h-12 w-full touch-manipulation select-none rounded-xl text-[0.95rem] transition-transform duration-100 active:scale-[0.98] motion-reduce:active:scale-100"
       >
         {isPending ? (
-          <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+          <CircleNotch className="size-5 animate-spin" aria-hidden="true" />
         ) : null}
         {isPending ? "Saving…" : "Save changes"}
       </Button>
@@ -227,7 +227,7 @@ function SexField({ initial }: { initial: string | null }) {
             >
               <h2
                 id="sex-confirm-title"
-                className="text-base font-semibold text-foreground"
+                className="text-base font-medium text-foreground"
               >
                 Change to {nextLabel}?
               </h2>
@@ -249,7 +249,7 @@ function SexField({ initial }: { initial: string | null }) {
                     setSex(pending);
                     setPending(null);
                   }}
-                  className="flex-1 rounded-xl bg-accent-amber py-2.5 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90"
+                  className="flex-1 rounded-xl bg-accent-primary py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
                 >
                   Confirm
                 </button>

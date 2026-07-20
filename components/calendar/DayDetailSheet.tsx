@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { CaretRight } from "@/components/icons";
 
 import {
   Sheet,
@@ -9,12 +9,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
+import { CategoryIcon } from "@/components/compounds/CategoryIcon";
 import { SHEET_TITLE } from "@/lib/ui-presets";
-import {
-  CATEGORY_META,
-  FALLBACK_CATEGORY_META,
-  type CompoundCategory,
-} from "@/lib/compound-categories";
 import { formatTimeLabel } from "@/lib/home/stack";
 import { siteLabel } from "@/lib/home/siteCatalog";
 import { formatJournalDate, type EntryMarker } from "@/lib/progress/journal";
@@ -53,7 +49,7 @@ interface DayDetailSheetProps {
  * primitive (drag handle + `useSheetDrag`). Rows, in order: Running → Weight →
  * Markers → Journal → Photos (reserved, empty). Read-only: Weight and Journal
  * deep-link to their existing editors; nothing is created or edited here. No
- * amber — the sheet stays muted/hairline (amber is the selected day only).
+ * amber — the sheet stays muted/hairline (the selected day reads white, not amber).
  */
 export function DayDetailSheet({
   open,
@@ -240,14 +236,12 @@ function DeepLink({
       className="flex w-full items-center gap-3 rounded-xl border border-border-default bg-bg-surface-raised px-4 py-3 text-left outline-none transition-colors hover:border-border-strong focus-visible:ring-2 focus-visible:ring-accent-amber/50"
     >
       {children}
-      <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+      <CaretRight className="ml-auto h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
     </button>
   );
 }
 
 function RunningRow({ compound }: { compound: LoggedCompound }) {
-  const meta =
-    CATEGORY_META[compound.category as CompoundCategory] ?? FALLBACK_CATEGORY_META;
   const parts = [
     `${compound.amount}${compound.unit ? ` ${compound.unit}` : ""}`,
     formatTimeLabel(compound.time24),
@@ -255,8 +249,8 @@ function RunningRow({ compound }: { compound: LoggedCompound }) {
   ].filter(Boolean);
 
   return (
-    <li className="flex items-start gap-2.5 rounded-xl border border-border-default bg-bg-surface-raised px-4 py-3">
-      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${meta.dot}`} aria-hidden />
+    <li className="flex items-start gap-2.5 rounded-xl bg-bg-surface-raised px-4 py-3">
+      <CategoryIcon category={compound.category} className="mt-0.5 h-3.5 w-3.5" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-foreground">
           {compound.name}

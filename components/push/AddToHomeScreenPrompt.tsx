@@ -1,6 +1,4 @@
-import { MoreHorizontal, Plus, Share } from "lucide-react";
-
-import { CARD_TITLE } from "@/lib/ui-presets";
+import { SHEET_TITLE } from "@/lib/ui-presets";
 
 /**
  * The shared "Add to Home Screen" instructions for iPhone. Used by the install
@@ -17,15 +15,15 @@ import { CARD_TITLE } from "@/lib/ui-presets";
  */
 export function AddToHomeScreenPrompt() {
   return (
-    <div className="rounded-2xl border border-border bg-bg-surface p-5">
-      <p className={CARD_TITLE}>Add Trackd to your Home Screen</p>
+    <div className="rounded-2xl bg-bg-surface p-5">
+      <p className={SHEET_TITLE}>Add Trackd to your Home Screen</p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
         Get the full app, not a Safari tab — here&apos;s how:
       </p>
       <ol className="mt-4 space-y-3">
         <li className="flex items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
-            <Share className="size-5" aria-hidden="true" />
+          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
+            1
           </span>
           <span className="text-sm leading-snug text-text-muted">
             Tap the <span className="text-foreground">Share</span>{" "}
@@ -34,8 +32,8 @@ export function AddToHomeScreenPrompt() {
           </span>
         </li>
         <li className="flex items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
-            <MoreHorizontal className="size-5" aria-hidden="true" />
+          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
+            2
           </span>
           <span className="text-sm leading-snug text-text-muted">
             Tap <span className="text-foreground">View more</span>{" "}
@@ -43,8 +41,8 @@ export function AddToHomeScreenPrompt() {
           </span>
         </li>
         <li className="flex items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
-            <Plus className="size-5" aria-hidden="true" />
+          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
+            3
           </span>
           <span className="text-sm leading-snug text-text-muted">
             Choose <span className="text-foreground">Add to Home Screen</span>,

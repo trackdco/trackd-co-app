@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Pencil, RefreshCw, Trash2 } from "lucide-react"
+import { PencilSimple, ArrowsClockwise, Trash } from "@/components/icons"
 
 import { formatDateKeyShort } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
@@ -43,7 +43,7 @@ export function StockItemCard({
   if (item.estEmptyDate) runway.push(`runs dry ${formatDateKeyShort(item.estEmptyDate)}`)
 
   return (
-    <li className="rounded-xl border border-border-default bg-bg-base p-3">
+    <li className="rounded-xl bg-bg-base p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
@@ -79,7 +79,7 @@ export function StockItemCard({
             aria-label={`Edit ${item.compoundName} stock`}
             className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground"
           >
-            <Pencil className="h-4 w-4" aria-hidden />
+            <PencilSimple className="h-4 w-4" aria-hidden />
           </button>
           <button
             type="button"
@@ -87,7 +87,7 @@ export function StockItemCard({
             aria-label={`Refill ${item.compoundName}`}
             className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground"
           >
-            <RefreshCw className="h-4 w-4" aria-hidden />
+            <ArrowsClockwise className="h-4 w-4" aria-hidden />
           </button>
           <button
             type="button"
@@ -95,7 +95,7 @@ export function StockItemCard({
             aria-label={`Delete ${item.compoundName} stock`}
             className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground"
           >
-            <Trash2 className="h-4 w-4" aria-hidden />
+            <Trash className="h-4 w-4" aria-hidden />
           </button>
         </div>
       </div>

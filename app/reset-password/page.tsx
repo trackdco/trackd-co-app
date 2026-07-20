@@ -31,7 +31,7 @@ export default async function ResetPasswordPage() {
         />
       </Link>
 
-      <h1 className="mt-12 text-balance font-display text-[2rem] font-medium leading-[1.05] tracking-[-0.02em] text-foreground">
+      <h1 className="mt-12 text-balance text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
         Set a new password
       </h1>
 

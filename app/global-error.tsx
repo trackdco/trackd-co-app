@@ -40,7 +40,7 @@ export default function GlobalError({
             "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
         }}
       >
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, margin: 0 }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 500, margin: 0 }}>
           Something went wrong
         </h1>
         <p style={{ fontSize: "0.9rem", color: "#7a7a74", maxWidth: "24rem" }}>
@@ -54,10 +54,10 @@ export default function GlobalError({
             padding: "0 1.5rem",
             borderRadius: "0.75rem",
             border: "none",
-            backgroundColor: "#c8861a", // --accent-amber
-            color: "#111110", // --accent-foreground (→ --bg-base)
+            backgroundColor: "#ffffff", // --accent-primary
+            color: "#111110", // --primary-foreground (→ --bg-base)
             fontSize: "0.95rem",
-            fontWeight: 600,
+            fontWeight: 500,
             cursor: "pointer",
           }}
         >

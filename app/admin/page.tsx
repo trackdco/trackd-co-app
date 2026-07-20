@@ -5,6 +5,7 @@ import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { FeedbackList, type AdminFeedback } from "@/components/admin/FeedbackList";
 import { isFounder } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
+import { PAGE_TITLE } from "@/lib/ui-presets";
 
 export const metadata: Metadata = {
   title: "Waitlist · Admin — Trackd Co",
@@ -32,7 +33,7 @@ export default async function AdminWaitlistPage() {
         <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
           Trackd · Admin
         </p>
-        <h1 className="mt-3 font-display text-[2rem] font-medium tracking-[-0.02em] text-foreground">
+        <h1 className={`mt-3 ${PAGE_TITLE}`}>
           Founder access
         </h1>
         <p className="mt-3 text-sm text-text-muted">
@@ -49,7 +50,7 @@ export default async function AdminWaitlistPage() {
   if (!isFounder(user.email)) {
     return (
       <Shell>
-        <h1 className="font-display text-[2rem] font-medium tracking-[-0.02em] text-foreground">
+        <h1 className={PAGE_TITLE}>
           Founders only
         </h1>
         <p className="mt-3 text-sm text-text-muted">
@@ -115,16 +116,16 @@ export default async function AdminWaitlistPage() {
             ← App
           </Link>
         </div>
-        <h1 className="mt-2 font-display text-[2rem] font-medium tracking-[-0.02em] text-foreground">
+        <h1 className={`mt-2 ${PAGE_TITLE}`}>
           Waitlist
         </h1>
 
         {notSetUp ? (
-          <div className="mt-6 rounded-2xl border border-border-default bg-bg-surface p-5 text-sm">
+          <div className="mt-6 rounded-2xl bg-bg-surface p-5 text-sm">
             <p className="font-medium text-foreground">One setup step left</p>
             <p className="mt-2 text-text-muted">
               Run{" "}
-              <code className="text-accent-amber">
+              <code className="text-foreground">
                 supabase/waitlist/002_founder_read.sql
               </code>{" "}
               in the Supabase SQL editor to grant founder read access, then
@@ -140,11 +141,11 @@ export default async function AdminWaitlistPage() {
         ) : (
           <>
             {/* Total */}
-            <div className="mt-6 rounded-2xl border border-border-default bg-bg-surface p-6">
+            <div className="mt-6 rounded-2xl bg-bg-surface p-6">
               <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
                 Total signups
               </p>
-              <p className="mt-1 font-display text-5xl font-medium tabular-nums text-foreground">
+              <p className="mt-1 text-5xl font-light tabular-nums text-foreground">
                 {total.toLocaleString()}
               </p>
             </div>
@@ -153,9 +154,9 @@ export default async function AdminWaitlistPage() {
             <h2 className="mt-8 mb-3 text-xs uppercase tracking-[0.18em] text-text-muted">
               By channel
             </h2>
-            <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
+            <div className="overflow-hidden rounded-2xl bg-bg-surface">
               {leaderboard.map(({ source, signups }, i) => (
-                <div key={source} className={i > 0 ? "border-t border-border-default" : ""}>
+                <div key={source} className={i > 0 ? "hairline-t" : ""}>
                   <div className="flex items-center justify-between gap-4 px-4 pt-3">
                     <span className="truncate text-sm text-foreground">{source}</span>
                     <span className="shrink-0 text-sm font-medium tabular-nums text-foreground">
@@ -164,7 +165,7 @@ export default async function AdminWaitlistPage() {
                   </div>
                   <div className="mx-4 mt-2 mb-3 h-1 overflow-hidden rounded-full bg-bg-input">
                     <div
-                      className="h-full rounded-full bg-accent-amber"
+                      className="h-full rounded-full bg-text-muted"
                       style={{ width: `${maxN ? Math.round((signups / maxN) * 100) : 0}%` }}
                     />
                   </div>
@@ -176,12 +177,12 @@ export default async function AdminWaitlistPage() {
             <h2 className="mt-8 mb-3 text-xs uppercase tracking-[0.18em] text-text-muted">
               Recent
             </h2>
-            <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
+            <div className="overflow-hidden rounded-2xl bg-bg-surface">
               {recent.map((r, i) => (
                 <div
                   key={`${r.email}-${i}`}
                   className={`flex items-center justify-between gap-3 px-4 py-3 ${
-                    i > 0 ? "border-t border-border-default" : ""
+                    i > 0 ? "hairline-t" : ""
                   }`}
                 >
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">

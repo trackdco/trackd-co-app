@@ -26,7 +26,7 @@ export default function ForgotPasswordPage() {
         />
       </Link>
 
-      <h1 className="mt-12 text-balance font-display text-[2rem] font-medium leading-[1.05] tracking-[-0.02em] text-foreground">
+      <h1 className="mt-12 text-balance text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
         Reset your password
       </h1>
       <p className="mt-3 max-w-[19rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">

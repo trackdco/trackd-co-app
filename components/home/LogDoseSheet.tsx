@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { CalendarDays, Check } from "lucide-react"
+import { CalendarDots, Check } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { SHEET_TITLE } from "@/lib/ui-presets"
 import { Input } from "@/components/ui/input"
 import {
   Sheet,
@@ -12,10 +13,7 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet"
-import {
-  CATEGORY_META,
-  FALLBACK_CATEGORY_META,
-} from "@/lib/compound-categories"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import type { DoseLog } from "@/lib/home/mockHomeData"
 import {
   formatDateKeyShort,
@@ -382,8 +380,6 @@ function LogDoseBody({
     }
   }
 
-  const meta = CATEGORY_META[compound.category] ?? FALLBACK_CATEGORY_META
-
   return (
     <div
       ref={cardRef}
@@ -391,7 +387,7 @@ function LogDoseBody({
         transform: `translateY(${offsetY}px)`,
         transition: dragging ? "none" : "transform 250ms ease-out",
       }}
-      className="relative flex max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
+      className="relative flex max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl hairline-t bg-bg-surface shadow-lg"
     >
       {/* Grab handle — drag down to dismiss. */}
       <div
@@ -404,7 +400,7 @@ function LogDoseBody({
         <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
       </div>
 
-      <SheetTitle className="shrink-0 px-6 text-base font-semibold text-foreground">
+      <SheetTitle className={cn(SHEET_TITLE, "shrink-0 px-6")}>
         {editing ? "Edit dose" : "Log dose"}
       </SheetTitle>
       <SheetDescription className="sr-only">
@@ -422,8 +418,8 @@ function LogDoseBody({
             (Adrian's call). Naming the day is the whole job; qualifying it ("not
             today", "a future day") editorialises about a choice the user just made. */}
         {!onToday && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2">
-            <CalendarDays
+          <div className="mb-4 flex items-center gap-2 rounded-xl bg-bg-surface-raised px-3 py-2">
+            <CalendarDots
               className="h-3.5 w-3.5 shrink-0 text-text-muted"
               aria-hidden
             />
@@ -438,10 +434,7 @@ function LogDoseBody({
 
         {/* Dose summary */}
         <div className="flex items-center gap-3 rounded-xl bg-bg-surface-raised px-4 py-3">
-          <span
-            aria-hidden
-            className={cn("h-2 w-2 shrink-0 rounded-full", meta.dot)}
-          />
+          <CategoryIcon category={compound.category} className="h-3.5 w-3.5" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-medium text-foreground">
               {compound.name}
@@ -584,9 +577,9 @@ function LogDoseBody({
                 {/* Confirmation of the chosen site. */}
                 <div
                   key={siteId}
-                  className="animate-shortcut-fade mt-3 flex items-center gap-2 rounded-xl border border-accent-amber/50 bg-accent-amber/10 px-3 py-2.5"
+                  className="animate-shortcut-fade mt-3 flex items-center gap-2 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2.5"
                 >
-                  <Check className="h-4 w-4 shrink-0 text-accent-amber" aria-hidden />
+                  <Check className="h-4 w-4 shrink-0 text-accent-primary" aria-hidden />
                   <span className="text-xs text-text-muted">Logging to</span>
                   <span className="font-mono text-sm font-medium text-foreground">
                     {siteLabel(siteId)}
@@ -638,7 +631,7 @@ function LogDoseBody({
                 <button
                   type="button"
                   onClick={() => setInventoryItemId(dateVialId)}
-                  className="shrink-0 text-xs font-medium text-accent-amber transition-opacity hover:opacity-80"
+                  className="shrink-0 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
                 >
                   Count it
                 </button>
@@ -691,15 +684,15 @@ function LogDoseBody({
                     <button
                       type="button"
                       onClick={() => setInventoryItemId(v.id)}
-                      className="shrink-0 text-xs font-medium text-accent-amber transition-opacity hover:opacity-80"
+                      className="shrink-0 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
                     >
                       Count it
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between gap-2 rounded-xl border border-accent-amber/50 bg-accent-amber/10 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3 py-2.5">
                     <span className="flex min-w-0 items-center gap-2">
-                      <Check className="h-4 w-4 shrink-0 text-accent-amber" aria-hidden />
+                      <Check className="h-4 w-4 shrink-0 text-accent-primary" aria-hidden />
                       <span className="truncate text-xs text-text-muted">
                         Drawing from your stock
                         {left && <span className="font-mono text-foreground">{` · ${left}`}</span>}
@@ -741,7 +734,7 @@ function LogDoseBody({
                     className={cn(
                       "rounded-full border px-3 py-1.5 font-mono text-sm transition-colors duration-200 ease-out",
                       active
-                        ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                        ? "border-transparent bg-accent-primary font-medium text-bg-base"
                         : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
                     )}
                   >
@@ -756,7 +749,7 @@ function LogDoseBody({
                 className={cn(
                   "rounded-full border px-3 py-1.5 text-sm transition-colors duration-200 ease-out",
                   inventoryItemId === null
-                    ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                    ? "border-transparent bg-accent-primary font-medium text-bg-base"
                     : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
                 )}
               >
@@ -782,7 +775,7 @@ function LogDoseBody({
               onTracked(compound.id, buildLog())
               setTracked(true)
             }}
-            className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+            className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
           >
             {editing ? "Update" : "Track"}
           </button>
@@ -818,10 +811,10 @@ function LogDoseBody({
               className="animate-home-tick-ring absolute inset-0 rounded-full border-2 border-bg-base/40"
             />
             <span className="animate-home-tick-pop flex h-16 w-16 items-center justify-center rounded-full bg-bg-base/15">
-              <Check className="h-9 w-9" strokeWidth={2.5} aria-hidden />
+              <Check className="h-9 w-9" aria-hidden />
             </span>
           </span>
-          <span className="animate-shortcut-fade text-base font-semibold">
+          <span className="animate-shortcut-fade text-base font-medium">
             {editing ? "Updated" : "Tracked"}
           </span>
         </button>

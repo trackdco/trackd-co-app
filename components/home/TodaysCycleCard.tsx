@@ -1,9 +1,10 @@
 "use client"
 
-import { Check, MoreHorizontal } from "lucide-react"
+import { Check, DotsThree } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { CARD_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -19,12 +20,8 @@ export type DueDose = StackCompound & {
 }
 
 interface TodaysCycleCardProps {
-  isToday: boolean
   /** Heading for the selected day — "Today's Cycle" or e.g. "Monday's Cycle". */
   title: string
-  /** "Xh Ym" once computed on mount; null hides the line (and past days). */
-  countdown: string | null
-  nextDoseName: string
   dueDoses: DueDose[]
   onLog: (dose: StackCompound) => void
   /** Untick a logged dose → remove its log. The tick is a pure toggle. */
@@ -53,7 +50,6 @@ const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
 interface DoseGroup {
   cat: string
   label: string
-  dot: string
   doses: DueDose[]
 }
 
@@ -80,7 +76,6 @@ function groupByCategory(doses: DueDose[]): DoseGroup[] {
       return {
         cat,
         label: meta.label,
-        dot: meta.dot,
         doses: [...byCat.get(cat)!].sort((x, y) =>
           x.schedule.timeOfDay.localeCompare(y.schedule.timeOfDay)
         ),
@@ -184,7 +179,7 @@ function DoseRow({
       )}
     >
       {/* The tick is a PURE TOGGLE. Empty ring → opens the Log sheet to record the
-          dose (where the injection site + time are chosen). Filled amber tick → tap
+          dose (where the injection site + time are chosen). Filled white tick → tap
           again simply UNTICKS it (removes the log), the way a checkbox is expected
           to behave. No edit hides behind the tick — edits live on the name / "⋯". */}
       <button
@@ -194,11 +189,11 @@ function DoseRow({
         className={cn(
           "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
           log
-            ? "border-accent-amber bg-accent-amber text-bg-base"
+            ? "border-accent-primary bg-accent-primary text-bg-base"
             : "border-border-strong text-transparent hover:border-text-primary"
         )}
       >
-        <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
+        <Check className="h-3.5 w-3.5" aria-hidden />
       </button>
 
       {/* Title first, specs below — the name stays fully readable (never squeezed by
@@ -252,28 +247,24 @@ function DoseRow({
         aria-label={`Edit ${dose.name}`}
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-text-primary"
       >
-        <MoreHorizontal className="h-5 w-5" aria-hidden />
+        <DotsThree className="h-5 w-5" aria-hidden />
       </button>
     </li>
   )
 }
 
 /**
- * The hero card: the cycle scoped to the selected day. On today's view it leads
- * with a "Next dose in {Xh Ym}" countdown (computed once on mount upstream — no
- * live timer — and hidden on past days). The day is a tick-off CHECKLIST grouped
- * by category: every due compound is one always-visible row — a tick (a pure
- * toggle: log, or untick to remove), then the name on top with dose·time below it,
- * plus a "⋯" that (like tapping the name) opens the detail where every edit lives
- * (including the injection site, chosen on the log sheet's body map). Nothing
- * collapses and nothing scrolls
+ * The hero card: the cycle scoped to the selected day. The "Next dose" countdown
+ * now lives in the greeting's widget grid (see next-tasks.md → RESUME STEP 0), so
+ * the card is purely the day's tick-off CHECKLIST grouped by category: every due
+ * compound is one always-visible row — a tick (a pure toggle: log, or untick to
+ * remove), then the name on top with dose·time below it, plus a "⋯" that (like
+ * tapping the name) opens the detail where every edit lives (including the injection
+ * site, chosen on the log sheet's body map). Nothing collapses and nothing scrolls
  * inside the card; the compact rows keep the Weight section in view.
  */
 export function TodaysCycleCard({
-  isToday,
   title,
-  countdown,
-  nextDoseName,
   dueDoses,
   onLog,
   onUnlog,
@@ -283,18 +274,8 @@ export function TodaysCycleCard({
   onAddStock,
 }: TodaysCycleCardProps) {
   return (
-    <section className="rounded-2xl border border-border-default bg-bg-surface p-5">
-      <h2 className={CARD_TITLE}>{title}</h2>
-
-      {isToday && countdown && (
-        <p className="mt-2 text-sm text-text-muted">
-          Next dose in{" "}
-          <span className="font-mono text-base font-semibold text-foreground">
-            {countdown}
-          </span>{" "}
-          · {nextDoseName}
-        </p>
-      )}
+    <section className="rounded-2xl bg-bg-surface p-5">
+      <h2 className={CARD_EYEBROW}>{title}</h2>
 
       {dueDoses.length > 0 ? (
         // A tick-off checklist grouped by category: every dose stays visible as one
@@ -309,14 +290,11 @@ export function TodaysCycleCard({
                 {/* Slim category divider — dot + label + hairline rule + an
                     at-a-glance status (amber "N due" / muted "Logged"). */}
                 <div className="flex items-center gap-2 px-1 pb-1">
-                  <span
-                    aria-hidden
-                    className={cn("h-1.5 w-1.5 shrink-0 rounded-full", group.dot)}
-                  />
+                  <CategoryIcon category={group.cat} className="h-3.5 w-3.5" />
                   <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-text-muted">
                     {group.label}
                   </span>
-                  <span aria-hidden className="h-px flex-1 bg-border-default" />
+                  <span aria-hidden className="h-[0.5px] flex-1 bg-border-default" />
                   {pending > 0 ? (
                     <span className="font-mono text-[11px] tabular-nums text-accent-amber">
                       {pending} due

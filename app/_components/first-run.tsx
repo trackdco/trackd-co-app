@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays, Mail } from "lucide-react";
+import { CalendarDots, EnvelopeSimple } from "@/components/icons";
 
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 
@@ -241,10 +241,10 @@ export function FirstRun() {
             >
               {slide.visual ? <div className="mb-6">{slide.visual}</div> : null}
               <p className="mb-3 inline-flex items-center gap-1.5 text-[0.7rem] uppercase tracking-[0.22em] text-text-muted">
-                <span className="size-1 rounded-full bg-accent-amber" aria-hidden="true" />
+                <span className="size-1 rounded-full bg-text-muted" aria-hidden="true" />
                 {slide.eyebrow}
               </p>
-              <h2 className="text-balance font-display text-[2.25rem] font-medium leading-[1.03] tracking-[-0.02em] text-foreground">
+              <h2 className="text-balance text-[2.25rem] font-light leading-[1.03] tracking-[-0.02em] text-foreground">
                 {slide.heading}
               </h2>
               <p className="mt-4 max-w-[17rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">
@@ -255,7 +255,7 @@ export function FirstRun() {
         ))}
       </div>
 
-      {/* Segmented progress (fills gold) */}
+      {/* Segmented progress (fills white — the active/progress accent) */}
       <div className="flex justify-center gap-1.5 px-10 pt-5">
         {SLIDES.map((slide, i) => (
           <button
@@ -270,7 +270,7 @@ export function FirstRun() {
                 ref={(node) => {
                   segRefs.current[i] = node;
                 }}
-                className="block h-full w-full origin-left rounded-full bg-accent-amber"
+                className="block h-full w-full origin-left rounded-full bg-accent-primary"
                 style={{ transform: "scaleX(0)" }}
               />
             </span>
@@ -283,7 +283,7 @@ export function FirstRun() {
       </div>
 
       {/* Sign in */}
-      <div className="mt-4 border-t border-border/60 px-6 pt-5 text-center">
+      <div className="mt-4 hairline-t border-border/60 px-6 pt-5 text-center">
         <p className="mb-4 text-xs text-text-subtle">Built by people who run real protocols.</p>
         <GoogleSignInButton />
 
@@ -297,7 +297,7 @@ export function FirstRun() {
           href="/login"
           className="flex h-12 w-full touch-manipulation select-none items-center justify-center gap-2 rounded-xl border border-input bg-transparent text-[0.95rem] font-medium text-foreground transition-transform duration-100 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:bg-bg-surface active:scale-[0.98] motion-reduce:active:scale-100"
         >
-          <Mail className="size-5" strokeWidth={1.75} aria-hidden />
+          <EnvelopeSimple className="size-5" aria-hidden />
           Continue with email
         </Link>
 
@@ -321,7 +321,7 @@ function StackMock() {
     { name: "Aromasin", dose: "12.5mg · EOD", tag: "Ancillary", due: false },
   ];
   return (
-    <div className="w-[17rem] rounded-2xl border border-border bg-card p-2 text-left">
+    <div className="w-[17rem] rounded-2xl bg-card p-2 text-left">
       {rows.map((row, i) => (
         <div
           key={row.name}
@@ -334,7 +334,7 @@ function StackMock() {
             aria-hidden="true"
           />
           <div className="min-w-0 flex-1">
-            <p className="font-display text-[14px] leading-none text-foreground">{row.name}</p>
+            <p className="text-[14px] font-medium leading-none text-foreground">{row.name}</p>
             <p className="mt-1 text-[11px] text-text-muted">{row.dose}</p>
           </div>
           <span className="rounded-full border border-border-strong px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-muted">
@@ -348,16 +348,16 @@ function StackMock() {
 
 function InventoryMock() {
   return (
-    <div className="w-[17rem] rounded-2xl border border-border bg-card p-4 text-left">
+    <div className="w-[17rem] rounded-2xl bg-card p-4 text-left">
       <p className="text-[11px] uppercase tracking-wide text-text-muted">Testosterone E · 10mL vial</p>
-      <p className="mt-2 font-display text-3xl text-foreground">
-        6.4<span className="ml-1.5 font-sans text-base text-text-muted">mL left</span>
+      <p className="mt-2 text-3xl font-light text-foreground">
+        6.4<span className="ml-1.5 text-base text-text-muted">mL left</span>
       </p>
       <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-bg-input">
         <div className="h-full rounded-full bg-text-muted" style={{ width: "64%" }} />
       </div>
       <div className="mt-3 flex items-center gap-1.5 text-[12px] text-text-muted">
-        <CalendarDays className="size-3.5 text-accent-amber" strokeWidth={1.5} />
+        <CalendarDots className="size-3.5 text-text-subtle" />
         Runs dry ~ 18 Jul
       </div>
     </div>
@@ -374,7 +374,7 @@ function SiteMapMock() {
     { label: "R quad", due: false },
   ];
   return (
-    <div className="w-[17rem] rounded-2xl border border-border bg-card p-4 text-left">
+    <div className="w-[17rem] rounded-2xl bg-card p-4 text-left">
       <div className="flex items-center justify-between">
         <p className="text-[11px] uppercase tracking-wide text-text-muted">Site rotation</p>
         <p className="text-[11px] text-text-subtle">auto-rotates</p>

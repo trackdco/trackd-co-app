@@ -2,18 +2,18 @@
 
 import { useState } from "react";
 import {
-  CalendarRange,
-  ChevronDown,
-  ChevronRight,
-  NotebookPen,
+  CalendarBlank,
+  CaretDown,
+  CaretRight,
+  NotePencil,
   Plus,
-  Tags,
-} from "lucide-react";
+  Tag,
+} from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
-import { SHEET_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW, SHEET_TITLE } from "@/lib/ui-presets";
 import {
   formatJournalDate,
   formatMonthLabel,
@@ -112,7 +112,7 @@ export function JournalFeedSheet({
             {branchOpen && (
               <div className="animate-shortcut-in mt-2 grid grid-cols-2 gap-2">
                 <BranchButton
-                  icon={<NotebookPen className="h-4 w-4" aria-hidden />}
+                  icon={<NotePencil className="h-4 w-4" aria-hidden />}
                   label="Write a note"
                   sub="Free-write + optional markers"
                   onClick={() => {
@@ -121,7 +121,7 @@ export function JournalFeedSheet({
                   }}
                 />
                 <BranchButton
-                  icon={<Tags className="h-4 w-4" aria-hidden />}
+                  icon={<Tag className="h-4 w-4" aria-hidden />}
                   label="Log markers"
                   sub="Dial how you feel"
                   onClick={() => {
@@ -147,14 +147,14 @@ export function JournalFeedSheet({
                     className="flex w-full items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3.5 py-2.5 text-sm transition-colors hover:border-border-strong"
                   >
                     <span className="flex items-center gap-2">
-                      <CalendarRange className="h-4 w-4 text-text-muted" aria-hidden />
+                      <CalendarBlank className="h-4 w-4 text-text-muted" aria-hidden />
                       <span className="font-medium text-foreground">
                         {selectedMonth === "all"
                           ? "All months"
                           : formatMonthLabel(selectedMonth)}
                       </span>
                     </span>
-                    <ChevronDown
+                    <CaretDown
                       className={cn(
                         "h-4 w-4 text-text-muted transition-transform duration-200",
                         monthMenuOpen && "rotate-180",
@@ -164,7 +164,7 @@ export function JournalFeedSheet({
                   </button>
 
                   {monthMenuOpen && (
-                    <div className="animate-shortcut-in mt-1.5 divide-y divide-border-default overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
+                    <div className="animate-shortcut-in mt-1.5 divide-hairline overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
                       <MonthOption
                         label="All months"
                         count={entries.length}
@@ -194,7 +194,7 @@ export function JournalFeedSheet({
                 <div className="mt-4 space-y-5">
                   {visibleMonths.map((group) => (
                     <section key={group.key}>
-                      <h3 className="px-1 pb-2 font-display text-lg font-medium text-foreground">
+                      <h3 className={`px-1 pb-2 ${CARD_EYEBROW}`}>
                         {group.label}
                       </h3>
                       <ul className="space-y-2">
@@ -245,7 +245,7 @@ export function JournalFeedSheet({
                                     )}
                                   </span>
                                 )}
-                                <ChevronRight
+                                <CaretRight
                                   className="mt-0.5 h-4 w-4 shrink-0 text-text-subtle"
                                   aria-hidden
                                 />
@@ -284,7 +284,7 @@ function MonthOption({
       aria-pressed={active}
       className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-bg-input/60"
     >
-      <span className={cn("min-w-0 truncate font-medium", active ? "text-accent-amber" : "text-text-muted")}>
+      <span className={cn("min-w-0 truncate font-medium", active ? "text-foreground" : "text-text-muted")}>
         {label}
       </span>
       <span className="shrink-0 font-mono text-xs text-text-subtle">{count}</span>

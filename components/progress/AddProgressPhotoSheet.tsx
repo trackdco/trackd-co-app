@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Loader2, Plus, X } from "lucide-react";
+import { Camera, Check, CircleNotch, Plus, X } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -253,7 +253,7 @@ export function AddProgressPhotoSheet({
                         className={cn(
                           "flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border transition-colors",
                           att
-                            ? "border-accent-amber/50"
+                            ? "border-accent-primary/50"
                             : "border-dashed border-border-strong bg-bg-input/40 text-text-muted hover:bg-bg-input/70",
                         )}
                       >
@@ -377,7 +377,7 @@ export function AddProgressPhotoSheet({
           </div>
 
           {/* Action bar */}
-          <div className="flex shrink-0 gap-3 border-t border-border-default px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+          <div className="flex shrink-0 gap-3 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -390,9 +390,9 @@ export function AddProgressPhotoSheet({
               type="button"
               onClick={handleSave}
               disabled={busy || count === 0}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
+              {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
               {busy ? "Saving…" : count > 1 ? `Save ${count} photos` : "Save"}
             </button>
           </div>

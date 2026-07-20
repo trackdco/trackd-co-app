@@ -2,12 +2,12 @@
 
 import { useState } from "react"
 import {
-  CalendarClock,
-  ChevronDown,
-  Pencil,
-  RotateCcw,
-  Trash2,
-} from "lucide-react"
+  CalendarDot,
+  CaretDown,
+  PencilSimple,
+  ArrowCounterClockwise,
+  Trash,
+} from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import {
@@ -18,6 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -140,7 +141,7 @@ function DetailBody({
     <div
       ref={cardRef}
       style={cardStyle}
-      className="flex flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
+      className="flex flex-col overflow-hidden rounded-t-3xl hairline-t bg-bg-surface shadow-lg"
     >
       {/* Grab handle — drag down to dismiss. */}
       <div
@@ -158,7 +159,7 @@ function DetailBody({
       <div className="space-y-5 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <span aria-hidden className={cn("h-2.5 w-2.5 shrink-0 rounded-full", meta.dot)} />
+          <CategoryIcon category={compound.category} className="h-3.5 w-3.5" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-lg font-medium text-foreground">
               {compound.name}
@@ -205,27 +206,27 @@ function DetailBody({
             <button
               type="button"
               onClick={() => onEdit(compound)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
-              <RotateCcw className="h-4 w-4" aria-hidden />
+              <ArrowCounterClockwise className="h-4 w-4" aria-hidden />
               Reactivate
             </button>
           ) : context === "plan" ? (
             <button
               type="button"
               onClick={() => onEdit(compound)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
-              <Pencil className="h-4 w-4" aria-hidden />
+              <PencilSimple className="h-4 w-4" aria-hidden />
               Edit dose &amp; schedule
             </button>
           ) : (
             <button
               type="button"
               onClick={() => onEditTodaysDose?.(compound)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
-              <Pencil className="h-4 w-4" aria-hidden />
+              <PencilSimple className="h-4 w-4" aria-hidden />
               {isToday ? "Edit today's dose" : "Edit this dose"}
             </button>
           )}
@@ -267,7 +268,7 @@ function DetailBody({
               className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary"
             >
               More
-              <ChevronDown
+              <CaretDown
                 className={cn(
                   "h-4 w-4 transition-transform",
                   moreOpen && "rotate-180"
@@ -290,7 +291,7 @@ function DetailBody({
                         the dashboard, where the primary is "Edit today's dose". */}
                     {context !== "plan" && (
                       <MenuRow
-                        icon={<CalendarClock className="h-4 w-4" aria-hidden />}
+                        icon={<CalendarDot className="h-4 w-4" aria-hidden />}
                         sub="Changes upcoming doses · today's logged dose stays as-is"
                         onClick={() => {
                           setMoreOpen(false)
@@ -301,7 +302,7 @@ function DetailBody({
                       </MenuRow>
                     )}
                     <MenuRow
-                      icon={<Trash2 className="h-4 w-4" aria-hidden />}
+                      icon={<Trash className="h-4 w-4" aria-hidden />}
                       sub="Removes it going forward · keeps all your logged history"
                       onClick={() => {
                         setMoreOpen(false)
@@ -316,7 +317,7 @@ function DetailBody({
                   // stopped (archived) compound, behind the two-step confirm below.
                   <MenuRow
                     destructive
-                    icon={<Trash2 className="h-4 w-4" aria-hidden />}
+                    icon={<Trash className="h-4 w-4" aria-hidden />}
                     sub="Erases this stopped compound and ALL its logged history"
                     onClick={() => {
                       setMoreOpen(false)

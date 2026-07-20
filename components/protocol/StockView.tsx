@@ -1,9 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Boxes, Plus } from "lucide-react"
+import { Plus } from "@/components/icons"
 
-import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
 import { listStock, deleteStockItem, type StockItem } from "@/lib/db/inventory"
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
 import { StockItemCard } from "@/components/protocol/StockItemCard"
@@ -77,18 +77,13 @@ export function StockView({
   }
 
   return (
-    <section className="rounded-2xl border border-border-default bg-bg-surface p-5">
+    <section className="rounded-2xl bg-bg-surface p-5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className={CARD_ICON_BADGE} aria-hidden>
-            <Boxes className="h-5 w-5" />
-          </span>
-          <h2 className={CARD_TITLE}>Stock</h2>
-        </div>
+        <h2 className={CARD_EYEBROW}>Stock</h2>
         <button
           type="button"
           onClick={openAdd}
-          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent-amber/30 bg-accent-amber/10 px-3 py-1.5 text-sm font-medium text-accent-amber transition-colors hover:bg-accent-amber/20"
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-primary px-3 py-1.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
         >
           <Plus className="h-4 w-4" aria-hidden /> Add
         </button>
@@ -101,7 +96,7 @@ export function StockView({
           {[0, 1].map((i) => (
             <li
               key={i}
-              className="animate-pulse rounded-xl border border-border-default bg-bg-surface-raised p-4 motion-reduce:animate-none"
+              className="animate-pulse rounded-xl bg-bg-surface-raised p-4 motion-reduce:animate-none"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="h-4 w-28 rounded-full bg-bg-input" />
@@ -126,7 +121,7 @@ export function StockView({
         </ul>
       ) : (
         <p className="mt-4 rounded-2xl bg-bg-surface-raised px-4 py-6 text-center text-sm text-text-muted">
-          No stock yet. Tap <span className="text-accent-amber">Add</span> to log what you have on hand
+          No stock yet. Tap <span className="text-foreground">Add</span> to log what you have on hand
           and see how long it lasts.
         </p>
       )}

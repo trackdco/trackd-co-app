@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useSyncExternalStore } from "react"
-import { Archive, RotateCcw, Trash2 } from "lucide-react"
+import { Archive, ArrowCounterClockwise, Trash } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -50,7 +52,7 @@ export function ArchiveManager({ userId }: { userId: string }) {
           empty="Nothing archived yet."
           compounds={archived}
           actionLabel="Reactivate"
-          actionIcon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
+          actionIcon={<ArrowCounterClockwise className="h-3.5 w-3.5" aria-hidden />}
           onActionDirect={(c) => setReactivateTarget(c)}
           onDelete={(id) => {
             removeFromStack(userId, id)
@@ -125,25 +127,25 @@ function Group({
 
   return (
     <section>
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
+      <h3 className={cn("mb-2", CARD_EYEBROW)}>
         {title} {compounds.length > 0 && `(${compounds.length})`}
       </h3>
       {compounds.length === 0 ? (
-        <p className="rounded-2xl border border-border-default bg-bg-surface px-4 py-5 text-center text-sm text-text-muted">
+        <p className="rounded-2xl bg-bg-surface px-4 py-5 text-center text-sm text-text-muted">
           {empty}
         </p>
       ) : (
-        <ul className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
+        <ul className="overflow-hidden rounded-2xl bg-bg-surface">
           {compounds.map((c, i) => {
             const meta = CATEGORY_META[c.category] ?? FALLBACK_CATEGORY_META
             const deleting = deleteState?.id === c.id
             return (
               <li
                 key={c.id}
-                className={cn("px-4 py-3", i > 0 && "border-t border-border-default")}
+                className={cn("px-4 py-3", i > 0 && "hairline-t")}
               >
                 {confirmId === c.id ? (
-                  <div className="animate-shortcut-in rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
+                  <div className="animate-shortcut-in rounded-xl border border-border-default bg-bg-surface-raised p-3">
                     <p className="text-sm text-foreground">{confirmText?.(c.name)}</p>
                     <div className="mt-3 flex gap-2">
                       <button
@@ -159,7 +161,7 @@ function Group({
                           onAction?.(c.id)
                           setConfirmId(null)
                         }}
-                        className="flex-1 rounded-lg bg-accent-amber py-2 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+                        className="flex-1 rounded-lg bg-accent-primary py-2 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
                       >
                         {actionLabel}
                       </button>
@@ -198,13 +200,9 @@ function Group({
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "h-2 w-2 shrink-0 rounded-full",
-                        meta.dot,
-                        dim && "opacity-60"
-                      )}
+                    <CategoryIcon
+                      category={c.category}
+                      className={cn("h-3.5 w-3.5", dim && "opacity-60")}
                     />
                     <span className="min-w-0 flex-1">
                       <span
@@ -229,7 +227,7 @@ function Group({
                         aria-label={`Delete ${c.name} permanently`}
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-state-error"
                       >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                        <Trash className="h-3.5 w-3.5" aria-hidden />
                       </button>
                     )}
                     <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, Plus } from "lucide-react";
+import { ImageSquare, Plus } from "@/components/icons";
 
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
@@ -72,7 +72,7 @@ export function BloodworkGallerySheet({
                 onClick={onAttach}
                 className="mt-4 flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-12 text-center transition-colors hover:bg-bg-input/70"
               >
-                <ImagePlus className="h-8 w-8 text-text-muted" aria-hidden />
+                <ImageSquare className="h-8 w-8 text-text-muted" aria-hidden />
                 <span className="text-sm text-text-muted">
                   Attach a screenshot of your blood work
                 </span>

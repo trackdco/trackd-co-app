@@ -37,7 +37,7 @@ export default function PreviewPage() {
         <p className="text-xs tracking-[0.18em] text-text-muted uppercase">
           Dev preview
         </p>
-        <h1 className="mt-2 font-display text-[2rem] leading-[1.1] font-medium tracking-[-0.02em] text-foreground">
+        <h1 className="mt-2 text-[2rem] leading-[1.1] font-light tracking-[-0.02em] text-foreground">
           Bottom nav &amp; quick actions
         </h1>
         <p className="mt-3 text-[0.95rem] leading-relaxed text-text-muted">

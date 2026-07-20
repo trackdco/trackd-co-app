@@ -3,7 +3,7 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/components/icons";
 
 import { useMounted } from "@/components/home/useMounted";
 import { MonthGrid } from "@/components/calendar/MonthGrid";
@@ -91,9 +91,9 @@ function buildRunning(
  * The Calendar screen — the date-first "look back" (Milligram-style). A month
  * grid of adherence rings: filled disc (logged: a dose, journal, or weight + a
  * tiny type icon), dotted ring (scheduled, unlogged), regular stroke (past,
- * nothing due), faint stroke (future / pre-protocol). The selected day is the
- * only amber element. Tap any day for a read-only detail sheet (Running → Weight
- * → Markers → Journal → Photos); Weight and Journal deep-link to their canonical
+ * nothing due), faint stroke (future / pre-protocol). The selected day reads
+ * white — the primary accent. Tap any day for a read-only detail sheet (Running →
+ * Weight → Markers → Journal → Photos); Weight and Journal deep-link to their canonical
  * editors. A "June 2026 ⌄" month/year picker pages the months; the footer has a
  * Today button and the ⓘ Calendar key.
  *

@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   // Negotiated via the client's `Accept-Encoding`.
   compress: true,
 
+  // Phosphor's main entry re-exports 1512 icons (`export * from './csr/*'`).
+  // optimizePackageImports rewrites `{ Plus }` to the direct module path so the
+  // whole barrel never loads — keeps dev compile + prod tree-shaking fast.
+  experimental: {
+    optimizePackageImports: ["@phosphor-icons/react"],
+  },
+
   // Cross-origin posture (CORS review, Spec 13 §2.5):
   //  - CORS itself is safe by DEFAULT. The app exposes no JSON API for other
   //    origins — all data flows through Server Components + Server Actions (the

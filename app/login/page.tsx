@@ -46,7 +46,7 @@ export default async function LoginPage({
         />
       </Link>
 
-      <h1 className="mt-12 text-balance font-display text-[2rem] font-medium leading-[1.05] tracking-[-0.02em] text-foreground">
+      <h1 className="mt-12 text-balance text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
         Welcome back
       </h1>
       <p className="mt-3 max-w-[17rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">
@@ -66,9 +66,9 @@ export default async function LoginPage({
         <GoogleSignInButton />
 
         <div className="my-5 flex items-center gap-3" aria-hidden>
-          <span className="h-px flex-1 bg-border" />
+          <span className="h-[0.5px] flex-1 bg-border-default" />
           <span className="text-xs text-text-subtle">or</span>
-          <span className="h-px flex-1 bg-border" />
+          <span className="h-[0.5px] flex-1 bg-border-default" />
         </div>
 
         <EmailPasswordForm />

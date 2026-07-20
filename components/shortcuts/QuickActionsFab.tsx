@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Plus } from "lucide-react"
+import { Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { QUICK_ACTION_BADGE } from "@/lib/ui-presets"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddWeightSheet } from "@/components/home/AddWeightSheet"
 import { QuickTrackSheet } from "@/components/home/QuickTrackSheet"
@@ -282,7 +281,6 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
               "h-6 w-6 transition-transform duration-[var(--motion-fast)] ease-motion",
               open && "rotate-45",
             )}
-            strokeWidth={2.5}
             aria-hidden
           />
         </button>
@@ -318,12 +316,12 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
 }
 
 /**
- * The beta "Beta notes & feedback" row — full-width under the grid, in the house
- * amber-tint idiom (the `CARD_ICON_BADGE` surface, widened into a row): a soft
- * warm-grey panel with an amber icon and a muted label. The shape still sets the
- * temporary beta tool apart from the six core tiles, but it is deliberately
- * QUIETER than they are — it was white first and pulled the eye straight past
- * the actual actions, which is backwards for a beta afterthought.
+ * The beta "Beta notes & feedback" row — full-width under the grid: a quiet,
+ * neutral hairline-outlined panel with a muted icon and label (the amber tint was
+ * retired with the premium-minimal restyle). The full-width shape still sets the
+ * temporary beta tool apart from the six core tiles, and it is deliberately
+ * QUIETER than they are — a beta afterthought that must not pull the eye past the
+ * actual actions.
  */
 function FeedbackRow({
   item,
@@ -337,9 +335,9 @@ function FeedbackRow({
     <button
       type="button"
       onClick={onPress}
-      className="mt-3 flex min-h-11 w-full items-center justify-center gap-2.5 rounded-2xl border border-accent-amber/25 bg-accent-amber/10 px-4 py-3 transition-colors duration-[var(--motion-base)] ease-motion hover:border-accent-amber/40 hover:bg-accent-amber/15"
+      className="mt-3 flex min-h-11 w-full items-center justify-center gap-2.5 rounded-2xl border border-border-default px-4 py-3 transition-colors duration-[var(--motion-base)] ease-motion hover:bg-bg-input"
     >
-      <Icon className="h-4 w-4 shrink-0 text-accent-amber" aria-hidden />
+      <Icon className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
       <span className="text-sm font-medium text-text-muted">{item.title}</span>
     </button>
   )
@@ -363,7 +361,7 @@ function ActionTile({
       onClick={onPress}
       className="flex min-h-11 flex-col items-center justify-start gap-2 rounded-2xl p-1 text-center transition-colors duration-[var(--motion-base)] ease-motion hover:bg-bg-input active:bg-bg-input"
     >
-      <span className={QUICK_ACTION_BADGE}>
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-bg-input text-text-muted">
         <Icon className="h-5 w-5" aria-hidden />
       </span>
       <span className="text-xs leading-tight font-medium text-text-muted">
