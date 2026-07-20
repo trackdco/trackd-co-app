@@ -9,7 +9,7 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Check, History, Scale, Trash2 } from "lucide-react";
+import { Check, ClockCounterClockwise, Scales, Trash } from "@/components/icons";
 import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { cn } from "@/lib/utils";
@@ -357,7 +357,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
       >
         <div className="flex items-center gap-3.5">
           <span aria-hidden className={CARD_ICON_BADGE}>
-            <Scale className="h-5 w-5" />
+            <Scales className="h-5 w-5" />
           </span>
           <h2 className={CARD_TITLE}>Track your weight</h2>
         </div>
@@ -599,7 +599,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
       >
         <div className="flex items-center gap-3.5">
           <span aria-hidden className={CARD_ICON_BADGE}>
-            <History className="h-5 w-5" />
+            <ClockCounterClockwise className="h-5 w-5" />
           </span>
           <h2 className={CARD_TITLE}>Entry log</h2>
         </div>
@@ -646,7 +646,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                         aria-label={`Delete weight for ${longDate(entry.key)}`}
                         className="mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-state-error disabled:opacity-50"
                       >
-                        <Trash2 className="h-4 w-4" aria-hidden />
+                        <Trash className="h-4 w-4" aria-hidden />
                       </button>
                     </li>
                   ))}

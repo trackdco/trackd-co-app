@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, CircleNotch } from "@/components/icons";
 
 import { CARD_TITLE } from "@/lib/ui-presets";
 import { joinWaitlist, type WaitlistState } from "@/app/waitlist/actions";
@@ -27,7 +27,7 @@ export function WaitlistForm({ source }: { source?: string }) {
         className="flex flex-col items-center gap-3 rounded-2xl border border-accent-amber/30 bg-accent-amber/5 px-6 py-8 text-center"
       >
         <span className="flex h-11 w-11 items-center justify-center rounded-full border border-accent-amber/40 bg-accent-amber/10 text-accent-amber">
-          <Check className="h-5 w-5" strokeWidth={2} aria-hidden />
+          <Check className="h-5 w-5" aria-hidden />
         </span>
         <p className={CARD_TITLE}>You&apos;re on the list.</p>
         <p className="text-sm text-text-muted">
@@ -82,7 +82,7 @@ export function WaitlistForm({ source }: { source?: string }) {
         className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 text-[0.95rem] font-medium text-bg-base transition-transform duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base active:scale-[0.98] disabled:opacity-60 motion-reduce:active:scale-100"
       >
         {isPending ? (
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+          <CircleNotch className="h-5 w-5 animate-spin" aria-hidden />
         ) : null}
         {isPending ? "Joining…" : "Join the waitlist"}
       </button>

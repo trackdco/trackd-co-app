@@ -27,10 +27,11 @@ export const CARD_TITLE =
 export const SHEET_TITLE =
   "font-display text-2xl font-medium tracking-[-0.01em] text-foreground"
 
-/** Standalone screen page title — the serif `<h1>` on non-tab screens (Settings,
- *  Weight, Billing, Archive). Tab screens use the sans `PageScrollTitle` instead. */
+/** Standalone screen page title + the Home greeting — sans, light, tightly tracked
+ *  (was the Playfair serif; retired with the type inversion, see ui-context.md →
+ *  Typography). Settings, Weight, Billing, Archive `<h1>`, and "Good morning, …". */
 export const PAGE_TITLE =
-  "font-display text-[2rem] font-medium leading-[1.1] tracking-[-0.02em] text-foreground"
+  "text-2xl font-light tracking-[-0.02em] text-foreground"
 
 /** Leading icon badge — amber stroke on a soft amber-tinted rounded square. */
 export const CARD_ICON_BADGE =
@@ -48,3 +49,36 @@ export const STEP_ICON_BADGE =
  *  menu still belongs to the same system. */
 export const QUICK_ACTION_BADGE =
   "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-accent-amber/25 bg-accent-amber/10 text-accent-amber"
+
+/* ---------------------------------------------------------------------------
+   Premium-minimal inversion presets (see ui-context.md → Typography). The new
+   identity flips the hierarchy: card TITLES recede into small tracked-uppercase
+   eyebrows, and the DATA VALUE becomes the display layer (large, light, mono).
+   These are added now; the serif `CARD_TITLE` / `PAGE_TITLE` / `SHEET_TITLE`
+   and the amber `*_BADGE` presets above are retired as each screen migrates.
+   --------------------------------------------------------------------------- */
+
+/** Card / section title — a small tracked-uppercase eyebrow, NOT a heading.
+ *  The inversion (small titles, large values) IS the identity. */
+export const CARD_EYEBROW =
+  "text-[10px] font-sans uppercase tracking-[0.18em] text-text-muted"
+
+/** Dimmer eyebrow — labels a metric value, one notch quieter than a card title
+ *  so the value dominates. */
+export const METRIC_LABEL =
+  "text-[10px] font-sans uppercase tracking-[0.2em] text-text-subtle"
+
+/** The big number on metric / glance cards — the display layer. Light-weight
+ *  mono, tightly tracked, tabular. Units/suffixes demote inline via UNIT_SUFFIX
+ *  (e.g. 92▸%, 8:00▸pm) — never at value size. */
+export const METRIC_VALUE =
+  "text-[28px] font-light tracking-[-0.02em] tabular-nums text-foreground"
+
+/** Demoted unit / suffix rendered inline beside a METRIC_VALUE. */
+export const UNIT_SUFFIX = "text-sm text-text-muted"
+
+/** Row-level data (doses, timestamps, counters) — right-aligned in list rows so
+ *  figures rail vertically. Uppercase mono metadata (e.g. `L-DELT · 3D`) adds
+ *  `tracking-[0.08em]`: tracked-out mono at small sizes is the instrument-panel
+ *  detail; default spacing reads generic. */
+export const DATA_MONO = "font-mono text-xs tabular-nums text-text-muted"

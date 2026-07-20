@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { CircleNotch, Plus, Trash } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -130,7 +130,7 @@ export function EditDaySheet({
                             : "text-text-muted hover:text-accent-destructive",
                         )}
                       >
-                        <Trash2 className="h-4 w-4" aria-hidden />
+                        <Trash className="h-4 w-4" aria-hidden />
                       </button>
                     </div>
                     {confirmingId === p.id && (
@@ -149,7 +149,7 @@ export function EditDaySheet({
                           disabled={busyId === p.id}
                           className="flex items-center gap-1.5 rounded-lg bg-accent-destructive px-3 py-1.5 text-xs font-medium text-text-primary transition-opacity hover:opacity-90 disabled:opacity-50"
                         >
-                          {busyId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
+                          {busyId === p.id ? <CircleNotch className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Trash className="h-3.5 w-3.5" aria-hidden />}
                           Delete
                         </button>
                       </div>

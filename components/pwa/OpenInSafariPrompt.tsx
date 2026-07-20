@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Compass, Copy, Share } from "lucide-react";
+import { Check, Compass, Copy, Share } from "@/components/icons";
 
 import { CARD_TITLE } from "@/lib/ui-presets";
 

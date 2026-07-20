@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check } from "lucide-react";
+import { Check } from "@/components/icons";
 
 import { setFeedbackResolved } from "@/lib/db/feedback";
 
@@ -107,7 +107,7 @@ function FeedbackCard({
             : "border-border-strong text-transparent hover:border-accent-amber"
         }`}
       >
-        <Check className="size-3.5" strokeWidth={3} />
+        <Check className="size-3.5" />
       </button>
       <div className="min-w-0 flex-1">
         <p

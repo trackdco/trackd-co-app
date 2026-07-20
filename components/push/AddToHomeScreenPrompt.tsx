@@ -1,4 +1,4 @@
-import { MoreHorizontal, Plus, Share } from "lucide-react";
+import { DotsThree, Plus, Share } from "@/components/icons";
 
 import { CARD_TITLE } from "@/lib/ui-presets";
 
@@ -35,7 +35,7 @@ export function AddToHomeScreenPrompt() {
         </li>
         <li className="flex items-start gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
-            <MoreHorizontal className="size-5" aria-hidden="true" />
+            <DotsThree className="size-5" aria-hidden="true" />
           </span>
           <span className="text-sm leading-snug text-text-muted">
             Tap <span className="text-foreground">View more</span>{" "}

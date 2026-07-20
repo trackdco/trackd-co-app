@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
@@ -64,7 +64,7 @@ export function GoogleSignInButton({
         }
       >
         {loading ? (
-          <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+          <CircleNotch className="size-5 animate-spin" aria-hidden="true" />
         ) : (
           <GoogleMark />
         )}

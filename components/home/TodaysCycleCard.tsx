@@ -1,9 +1,10 @@
 "use client"
 
-import { Check, MoreHorizontal } from "lucide-react"
+import { Check, DotsThree } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { CARD_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -184,7 +185,7 @@ function DoseRow({
       )}
     >
       {/* The tick is a PURE TOGGLE. Empty ring → opens the Log sheet to record the
-          dose (where the injection site + time are chosen). Filled amber tick → tap
+          dose (where the injection site + time are chosen). Filled white tick → tap
           again simply UNTICKS it (removes the log), the way a checkbox is expected
           to behave. No edit hides behind the tick — edits live on the name / "⋯". */}
       <button
@@ -194,11 +195,11 @@ function DoseRow({
         className={cn(
           "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
           log
-            ? "border-accent-amber bg-accent-amber text-bg-base"
+            ? "border-accent-primary bg-accent-primary text-bg-base"
             : "border-border-strong text-transparent hover:border-text-primary"
         )}
       >
-        <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
+        <Check className="h-3.5 w-3.5" aria-hidden />
       </button>
 
       {/* Title first, specs below — the name stays fully readable (never squeezed by
@@ -252,7 +253,7 @@ function DoseRow({
         aria-label={`Edit ${dose.name}`}
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-text-primary"
       >
-        <MoreHorizontal className="h-5 w-5" aria-hidden />
+        <DotsThree className="h-5 w-5" aria-hidden />
       </button>
     </li>
   )
@@ -283,13 +284,13 @@ export function TodaysCycleCard({
   onAddStock,
 }: TodaysCycleCardProps) {
   return (
-    <section className="rounded-2xl border border-border-default bg-bg-surface p-5">
-      <h2 className={CARD_TITLE}>{title}</h2>
+    <section className="rounded-2xl bg-bg-surface p-5">
+      <h2 className={CARD_EYEBROW}>{title}</h2>
 
       {isToday && countdown && (
         <p className="mt-2 text-sm text-text-muted">
           Next dose in{" "}
-          <span className="font-mono text-base font-semibold text-foreground">
+          <span className="font-mono text-base tabular-nums text-foreground">
             {countdown}
           </span>{" "}
           · {nextDoseName}
@@ -309,14 +310,11 @@ export function TodaysCycleCard({
                 {/* Slim category divider — dot + label + hairline rule + an
                     at-a-glance status (amber "N due" / muted "Logged"). */}
                 <div className="flex items-center gap-2 px-1 pb-1">
-                  <span
-                    aria-hidden
-                    className={cn("h-1.5 w-1.5 shrink-0 rounded-full", group.dot)}
-                  />
+                  <CategoryIcon category={group.cat} className="h-3.5 w-3.5" />
                   <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-text-muted">
                     {group.label}
                   </span>
-                  <span aria-hidden className="h-px flex-1 bg-border-default" />
+                  <span aria-hidden className="h-[0.5px] flex-1 bg-border-default" />
                   {pending > 0 ? (
                     <span className="font-mono text-[11px] tabular-nums text-accent-amber">
                       {pending} due

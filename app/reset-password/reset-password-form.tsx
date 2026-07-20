@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@/components/icons";
 
 import {
   updatePassword,
@@ -58,7 +58,7 @@ export function ResetPasswordForm() {
         className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 text-[0.95rem] font-medium text-bg-base transition-transform duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base active:scale-[0.98] disabled:opacity-60 motion-reduce:active:scale-100"
       >
         {isPending ? (
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+          <CircleNotch className="h-5 w-5 animate-spin" aria-hidden />
         ) : null}
         {isPending ? "Saving…" : "Set new password"}
       </button>

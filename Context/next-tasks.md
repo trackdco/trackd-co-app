@@ -9,11 +9,104 @@ already done.
 steps. Keep it focused on the current + immediately-upcoming work — the full
 long-range roadmap doesn't belong here.
 
-Last updated: 2026-07-18
+Last updated: 2026-07-20
 
 ---
 
 ## 🎯 Current focus
+
+**▶ 2026-07-20 · PAUSED mid-Phase-2 — RESUME IN A NEW CHAT (read this block first).**
+Branch `feat/premium-ui-restyle` off `main`. **Foundation + Home (the reference screen) +
+compound type-icons are DONE and committed**; `lint`+`tsc` clean, dev `/preview/home` 200.
+Restyle-IN-PLACE only: NO feature/layout changes, palette unchanged, injection-site body
+SVGs + PNG wordmark kept. Adrian loves the Home look ("beautiful… less vibe-coded").
+Preview any screen at PHONE WIDTH: `npm run dev` → `http://localhost:3000/preview/<home|
+progress|calendar|protocol|sites|recon|profile|archive-weight>`. Full state in
+`progress-tracker.md`.
+
+### ▶ RESUME STEP 0 — finish the 2 Home tweaks Adrian asked for (were mid-flight)
+1. **Completion-ring widgets (Home "looks a little plain"):** replace `HomeGreeting`'s
+   linear completion bar with a **2-up grid** — an **amber progress RING** (the day's live
+   pulse, sweeps as you log; reuse the existing `fill` state to drive `stroke-dashoffset`)
+   + a **next-dose** widget (countdown + compound). MOVE the "Next dose in Xh · name" line
+   OUT of `TodaysCycleCard` into the widget: pass `countdown`/`nextDoseName` from
+   `HomeScreen` → `HomeGreeting`, and drop those props + the countdown block from
+   `TodaysCycleCard`. The amber ring is one of the "~1-2 purposeful ambers" Adrian OK'd.
+2. **Category type-icons rollout:** `<CategoryIcon>` is built + live in Today's Log;
+   convert the OTHER dot sites from the old `bg-cat-*` dot to
+   `<CategoryIcon category={cat} />`: PlanView, StockView/StockItemCard, LogDoseSheet,
+   QuickTrackSheet, CompoundDetailSheet, AddCompoundSheet, calendar DayDetailSheet,
+   add-to-stack-menu, ArchiveManager.
+
+### ▶ RESUME STEP 1 — apply the PROVEN Home pattern to every other screen (Phase 2)
+Copy Home exactly: borderless cards (drop `border border-border-default`); titles →
+`CARD_EYEBROW`; big numbers → `METRIC_VALUE` (light, NEVER ≥600 weight); dividers →
+`hairline`/`hairline-t`/`divide-hairline`; retire amber badges (`CARD_ICON_BADGE`/
+`STEP_ICON_BADGE`/`QUICK_ACTION_BADGE`); **completion/selection → WHITE**, keep amber only
+on the genuine due/active beat (1-2 per screen) + the sanctioned recency ramp; flip the
+`SHEET_TITLE` preset to sans-light; category dots → `<CategoryIcon>`. Areas: Progress
+(Bloodwork/Journal/Consistency cards+sections, MarkerDialer), Protocol (Plan/Stock/
+StockItem/CycleHeader), Calendar (screen/MonthGrid/DayDetail/Legend/MonthYearPicker),
+Weight (WeightView), Settings (+toggles), Archive (+ArchiveManager), Profile (+rows/
+avatar), Calculator/Recon, and ALL bottom sheets (LogDose, CompoundDetail, AddCompound,
+QuickTrack — incl. its amber→white tick, ReconCalculator, AddWeight, InjectionSites, all
+progress/calendar/feedback sheets). This is the big fan-out — a Workflow (one agent per
+component, this exact spec) is the intended tool.
+
+### ▶ RESUME STEP 2 — external / "outside-the-app" surfaces (Phase 3)
+first-run hero, login, welcome/gate, waitlist, desktop-interstitial (laptop), install
+prompts, error/404, legal, admin, forgot/reset-password. Retire the serif on headings
+(`font-display` → sans / `PAGE_TITLE`); keep the PNG wordmark + layout untouched.
+
+### ▶ RESUME STEP 3 — final cleanup (only after no `font-display` remains)
+Remove the Playfair loader + `--font-display` (`app/layout.tsx`, `app/globals.css`).
+Retire the now-unused presets from `lib/ui-presets.ts` (`CARD_TITLE`, `CARD_ICON_BADGE`,
+`STEP_ICON_BADGE`, `QUICK_ACTION_BADGE`) + the `dot` field on `CATEGORY_META`. `git rm`
+the dead `… 2.tsx` cruft, then drop `lucide-react` from `package.json`. Full `npm run
+build` + a pass over every `/preview/*` route.
+
+### ⚠ Judgment calls for Adrian to sanity-check on review
+- **WeekStrip selected day is WHITE** (amber reserved for "N due"). Want it amber instead?
+  one-liner in `WeekStrip.tsx`.
+- **Category icons are by FORM** (vial/pill/tub), coloured by category — so the 5 oral
+  categories all show a pill (differ only by colour). Want a distinct icon per category?
+  edit `FORM_ICON` in `CategoryIcon.tsx` + add a per-category `icon` to `CATEGORY_META`.
+- **`PAGE_TITLE` (+ pending `SHEET_TITLE`) flipped to sans-light app-wide** — standalone
+  pages/sheets already show the new sans title even before their cards are restyled.
+
+---
+
+**▶ 2026-07-20 (Adrian + Claude): UI OVERHAUL — premium-minimal restyle. Branch
+`feat/premium-ui-restyle` off main. Phase 0 (docs) + Phase 1 (foundation) DONE —
+prod `build` + `tsc` + `lint` all clean.** Restyle-IN-PLACE only: **NO feature/layout
+changes**, palette unchanged, injection-site body SVGs kept, wordmark stays the PNG.
+Foundation landed: Phosphor icons (via the `@/components/icons` barrel + global light
+provider), `hairline` utilities, `tabular-nums`, new inversion presets
+(`CARD_EYEBROW`/`METRIC_VALUE`/`DATA_MONO`/…). Serif (Playfair) + old serif/amber-badge
+presets deliberately kept until each screen migrates. Full detail in `progress-tracker.md`.
+
+### ▶ Next — Phase 2: restyle the in-app screens (in place, card by card)
+Using the new presets: eyebrow titles + big mono `METRIC_VALUE`; borderless cards +
+`hairline` dividers; amber discipline — **completion tick amber→white** (`TodaysCycleCard`
++ `QuickTrackSheet`), **active tab→white** (`bottom-nav`), retire the amber icon badges;
+keep every card/section/feature exactly where it is. Surfaces: Home, Progress (+ Spec 22
+markers / journal photos), injection-site glance card / sheet / body map (chrome only —
+SVGs untouched), Protocol (Plan/Stock), Calendar, Settings, Archive, Profile, Weight, all
+bottom sheets. Pause for Adrian on any screen whose layout would have to change to fit the
+new type, and on anything ambiguous under the one-amber-per-screen rule.
+
+### ▶ Then — Phase 3: external surfaces + final cleanup
+first-run hero, login, welcome/gate, waitlist, desktop-interstitial (laptop screen),
+install prompts, error/404, legal, admin. FINAL cleanup: remove the Playfair loader +
+`--font-display` once no `font-display` usage remains; `git rm` the dead `… 2.tsx` cruft;
+drop `lucide-react` from `package.json`.
+
+### ⚠ Housekeeping flagged (do when convenient)
+Dead macOS duplicates still importing Lucide (unused): `app/forgot-password/forgot-password-form
+2.tsx`, `app/reset-password/reset-password-form 2.tsx`, `components/auth/email-password-form
+2.tsx`, `app/preview/sites/… 2.tsx`. `git rm` them.
+
+---
 
 **▶ 2026-07-18 (Adrian + Claude): SPEC 22 — 4-SPEC BATCH is BUILT, `tsc`+`lint`+prod
 `build` clean, NOT committed. DB migrations WRITTEN but NOT APPLIED (Supabase MCP wouldn't

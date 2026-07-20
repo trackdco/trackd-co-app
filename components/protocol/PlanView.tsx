@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useSyncExternalStore } from "react"
-import { CalendarRange, MoreHorizontal, Plus } from "lucide-react"
+import { CalendarBlank, DotsThree, Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
@@ -90,7 +90,7 @@ function PlanRow({
         aria-label={`More options for ${c.name}`}
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-text-primary"
       >
-        <MoreHorizontal className="h-5 w-5" aria-hidden />
+        <DotsThree className="h-5 w-5" aria-hidden />
       </button>
     </li>
   )
@@ -138,7 +138,7 @@ export function PlanView({
           className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised"
         >
           <span aria-hidden className={CARD_ICON_BADGE}>
-            <CalendarRange className="h-5 w-5" aria-hidden />
+            <CalendarBlank className="h-5 w-5" aria-hidden />
           </span>
           <span className="min-w-0">
             <span className={`${CARD_TITLE} block`}>Set up your cycle</span>

@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarRange, Pencil } from "lucide-react"
+import { CalendarBlank, PencilSimple } from "@/components/icons"
 
 import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
 import { cyclePosition, formatCyclePosition } from "@/lib/protocol/cycle"
@@ -25,7 +25,7 @@ export function CycleHeader({ cycle, onEdit }: { cycle: Cycle; onEdit: () => voi
     <section className="rounded-2xl border border-border-default bg-bg-surface p-5">
       <div className="flex items-start gap-3">
         <span className={CARD_ICON_BADGE} aria-hidden>
-          <CalendarRange className="h-5 w-5" />
+          <CalendarBlank className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
           <h2 className={`${CARD_TITLE} truncate`}>{cycle.name}</h2>
@@ -37,7 +37,7 @@ export function CycleHeader({ cycle, onEdit }: { cycle: Cycle; onEdit: () => voi
           aria-label="Edit cycle"
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Pencil className="h-4 w-4" aria-hidden />
+          <PencilSimple className="h-4 w-4" aria-hidden />
         </button>
       </div>
 

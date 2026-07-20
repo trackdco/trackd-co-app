@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useRef, useState } from "react"
-import { AlertTriangle } from "lucide-react"
+import { Warning } from "@/components/icons"
 
 /**
  * The app's single notification style: a small **amber** banner that slides down
@@ -63,7 +63,7 @@ export function AmberNotice({
         role="alert"
         className="animate-notice-in pointer-events-auto flex max-w-md items-center gap-2.5 rounded-2xl border border-accent-amber/40 bg-bg-surface-raised/95 px-4 py-3 text-left text-sm text-foreground shadow-lg backdrop-blur"
       >
-        <AlertTriangle
+        <Warning
           className="h-4 w-4 shrink-0 text-accent-amber"
           aria-hidden
         />

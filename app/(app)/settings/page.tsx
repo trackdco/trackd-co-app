@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Bell, ChevronRight } from "lucide-react";
+import { Bell, CaretRight } from "@/components/icons";
 
 import { SettingsForm } from "@/components/settings/settings-form";
 import { CARD_ICON_BADGE, CARD_TITLE, PAGE_TITLE } from "@/lib/ui-presets";
@@ -101,7 +101,7 @@ export default async function SettingsPage() {
             Dose reminders, missed-dose nudges, low stock
           </span>
         </span>
-        <ChevronRight
+        <CaretRight
           className="size-5 shrink-0 text-text-muted"
           aria-hidden="true"
         />

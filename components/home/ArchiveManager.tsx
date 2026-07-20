@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useSyncExternalStore } from "react"
-import { Archive, RotateCcw, Trash2 } from "lucide-react"
+import { Archive, ArrowCounterClockwise, Trash } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import {
@@ -50,7 +50,7 @@ export function ArchiveManager({ userId }: { userId: string }) {
           empty="Nothing archived yet."
           compounds={archived}
           actionLabel="Reactivate"
-          actionIcon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
+          actionIcon={<ArrowCounterClockwise className="h-3.5 w-3.5" aria-hidden />}
           onActionDirect={(c) => setReactivateTarget(c)}
           onDelete={(id) => {
             removeFromStack(userId, id)
@@ -229,7 +229,7 @@ function Group({
                         aria-label={`Delete ${c.name} permanently`}
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-state-error"
                       >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                        <Trash className="h-3.5 w-3.5" aria-hidden />
                       </button>
                     )}
                     <button

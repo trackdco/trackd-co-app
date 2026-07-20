@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ImagePlus, Loader2, X } from "lucide-react";
+import { Check, ImageSquare, CircleNotch, X } from "@/components/icons";
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -163,7 +163,7 @@ export function AttachBloodworkSheet({
                 />
               ) : (
                 <>
-                  <ImagePlus className="h-7 w-7 text-text-muted" aria-hidden />
+                  <ImageSquare className="h-7 w-7 text-text-muted" aria-hidden />
                   <span className="text-sm text-text-muted">
                     Tap to choose a screenshot or photo
                   </span>
@@ -242,7 +242,7 @@ export function AttachBloodworkSheet({
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
             >
               {busy ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />
               ) : (
                 <Check className="h-4 w-4" aria-hidden />
               )}

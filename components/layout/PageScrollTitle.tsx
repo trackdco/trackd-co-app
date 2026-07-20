@@ -54,12 +54,12 @@ export function PageScrollTitle({ title, eyebrow, subtitle, action }: PageScroll
     <div
       aria-hidden={!compact}
       className={cn(
-        "fixed inset-x-0 top-0 z-40 border-b border-border-default bg-bg-base/90 backdrop-blur transition-opacity duration-300 ease-out",
+        "fixed inset-x-0 top-0 z-40 hairline-b bg-bg-base/80 backdrop-blur transition-opacity duration-300 ease-out",
         compact ? "opacity-100" : "pointer-events-none opacity-0"
       )}
       style={{ paddingTop: "max(0.625rem, env(safe-area-inset-top))" }}
     >
-      <p className="pb-2.5 text-center text-base font-semibold text-foreground">
+      <p className="pb-2.5 text-center text-base font-medium text-foreground">
         {title}
       </p>
     </div>
@@ -79,7 +79,7 @@ export function PageScrollTitle({ title, eyebrow, subtitle, action }: PageScroll
         <div className="mt-1 flex items-center justify-between gap-3">
           <h1
             ref={ref}
-            className="font-sans text-4xl font-semibold tracking-tight text-foreground"
+            className="font-sans text-4xl font-light tracking-tight text-foreground"
           >
             {title}
           </h1>

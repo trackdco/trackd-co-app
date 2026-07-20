@@ -5,30 +5,30 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   Calculator,
-  LayoutGrid,
-  LineChart,
+  SquaresFour,
+  ChartLine,
   Syringe,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react"
+  User,
+  type Icon,
+} from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 
 type Tab = {
   href: string
   label: string
-  icon: LucideIcon
+  icon: Icon
 }
 
 // Five equal tabs, left → right. The centre slot is Calculator (Spec 20): the
 // quick-add plus that used to sit here now floats bottom-right as a FAB, so one
 // of the four core differentiators gets the permanent nav real estate instead.
 const TABS: Tab[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
+  { href: "/dashboard", label: "Dashboard", icon: SquaresFour },
   { href: "/protocol", label: "Protocol", icon: Syringe },
   { href: "/calculator", label: "Calculator", icon: Calculator },
-  { href: "/progress", label: "Progress", icon: LineChart },
-  { href: "/profile", label: "Profile", icon: UserRound },
+  { href: "/progress", label: "Progress", icon: ChartLine },
+  { href: "/profile", label: "Profile", icon: User },
 ]
 
 function isActive(pathname: string, href: string): boolean {
@@ -43,10 +43,10 @@ function NavTab({ href, label, icon: Icon, active }: Tab & { active: boolean }) 
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      // Subtle gray → amber fade on selection (restrained, per ui-context).
+      // Gray → white fade on selection — the tab bar stays monochrome (per ui-context).
       className={cn(
         "flex flex-col items-center justify-center gap-1 py-1 transition-colors duration-300 ease-out",
-        active ? "text-accent-amber" : "text-text-muted"
+        active ? "text-foreground" : "text-text-subtle"
       )}
     >
       <Icon className="h-5 w-5" aria-hidden />
@@ -129,7 +129,7 @@ export function BottomNav() {
     <>
       <nav
         aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border-default bg-bg-surface transition-transform duration-200 ease-out"
+        className="fixed inset-x-0 bottom-0 z-40 hairline-t bg-bg-base/80 backdrop-blur transition-transform duration-200 ease-out"
         style={{
           // Sit above the iPhone home indicator / Android gesture bar.
           paddingBottom: "env(safe-area-inset-bottom)",
@@ -154,7 +154,7 @@ export function BottomNav() {
       {iosStandalone && !keyboardOpen && deficit > 0 ? (
         <div
           aria-hidden
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-30 bg-bg-surface"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-30 bg-bg-base"
           style={{ height: deficit, transform: "translateY(100%)" }}
         />
       ) : null}

@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import { completeGate, type GateState } from "./actions";
@@ -212,7 +212,7 @@ export function GateForm() {
         className="mt-6 h-12 w-full touch-manipulation select-none rounded-xl text-[0.95rem] transition-transform duration-100 active:scale-[0.98] motion-reduce:active:scale-100"
       >
         {isPending ? (
-          <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+          <CircleNotch className="size-5 animate-spin" aria-hidden="true" />
         ) : null}
         {isPending ? "Setting up…" : "Enter Trackd"}
       </Button>

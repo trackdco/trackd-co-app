@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Boxes, Plus } from "lucide-react"
+import { Package, Plus } from "@/components/icons"
 
 import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
 import { listStock, deleteStockItem, type StockItem } from "@/lib/db/inventory"
@@ -81,7 +81,7 @@ export function StockView({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <span className={CARD_ICON_BADGE} aria-hidden>
-            <Boxes className="h-5 w-5" />
+            <Package className="h-5 w-5" />
           </span>
           <h2 className={CARD_TITLE}>Stock</h2>
         </div>

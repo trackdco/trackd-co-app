@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CalendarDays, Pencil, Plus, TriangleAlert } from "lucide-react"
+import { CalendarDots, PencilSimple, Plus, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -604,7 +604,7 @@ function AddCompoundBody({
             want the extra dose; the blend itself logs as one unit. */}
         {overlapNote && (
           <div className="animate-home-up flex gap-2.5 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
-            <TriangleAlert
+            <Warning
               className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
               aria-hidden
             />
@@ -689,7 +689,7 @@ function AddCompoundBody({
             heads-up that the change applies going forward, with the disclaimer. */}
         {isEdit && (Number(dose) !== Number(source.dose) || unit !== source.unit) && (
           <div className="animate-home-up flex gap-2.5 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
-            <TriangleAlert
+            <Warning
               className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
               aria-hidden
             />
@@ -789,7 +789,7 @@ function AddCompoundBody({
                     onClick={() => setDaysLocked(false)}
                     className="flex items-center gap-1.5 text-xs text-text-muted transition-colors hover:text-text-primary"
                   >
-                    <Pencil className="h-3.5 w-3.5" aria-hidden />
+                    <PencilSimple className="h-3.5 w-3.5" aria-hidden />
                     Edit days
                   </button>
                 ) : (
@@ -869,7 +869,7 @@ function AddCompoundBody({
                 not amber: this is a supported thing to do, not a warning. */}
             {startsInPast && (
               <div className="mt-3 flex items-center gap-2 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2">
-                <CalendarDays
+                <CalendarDots
                   className="h-3.5 w-3.5 shrink-0 text-text-muted"
                   aria-hidden
                 />

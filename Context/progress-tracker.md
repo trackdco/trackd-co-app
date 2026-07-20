@@ -6,7 +6,89 @@ decisions made along the way. This file is the rear-view mirror.
 Forward-looking, actionable steps do **not** live here — they live in
 `Context/next-tasks.md`. Update this file after every meaningful change.
 
-Last updated: 2026-07-18
+Last updated: 2026-07-20
+
+## UI overhaul — premium-minimal restyle · Phase 0 + Foundation (2026-07-20, Adrian + Claude)
+
+Adrian's call: move the whole app **and every out-of-app surface** to the revised
+premium-minimal dark UI (`Context/ui-context.md`, adopted from his revision — the app
+currently "looks vibe-coded"). Hard guardrails he set and pushed hard on: **restyle in
+place only — NO feature changes, NO layout changes**; **palette unchanged**; keep the
+injection-site body SVGs exactly (restyle surrounding chrome only); **do not build** the
+unbuilt Spec-19 recency ramp; the `trackd` wordmark stays the existing PNG.
+
+**Branch:** `feat/premium-ui-restyle` off `main` (main = the complete app: Spec 19 body
+map + Spec 22). Billing lives ONLY on the `stripe` branch (which was 28 commits behind
+main and had none of the injection-site feature) — it merges/restyles in a later pass,
+NOT here.
+
+**Phase 0 (docs) — done.** Adopted the revised spec as canonical `Context/ui-context.md`
+(kept Progress photos + Bloodwork in the eyebrow card-title list — the revision draft had
+dropped them, but Adrian is keeping all features). Updated `01-design-system.md` (serif
+retiring, Phosphor, hairline, tabular-nums).
+
+**Phase 1 (foundation) — done; prod `build` + `tsc` + `lint` all clean.**
+- **Type:** `tabular-nums` on `body`; new inversion presets appended to
+  `lib/ui-presets.ts` — `CARD_EYEBROW`, `METRIC_LABEL`, `METRIC_VALUE`, `UNIT_SUFFIX`,
+  `DATA_MONO`. The serif `CARD_TITLE`/`PAGE_TITLE`/`SHEET_TITLE` + amber `*_BADGE` presets
+  are **kept for now**, retired per-screen in Phase 2/3.
+- **Serif:** Playfair is **still loaded on purpose** — 31 screens still use `font-display`;
+  pulling it now would leave them in fallback. Serif removal is the final Phase-3 cleanup.
+  The wordmark was already a PNG everywhere, so no wordmark work was needed.
+- **Hairlines:** `hairline` / `hairline-t/-b/-x` / `divide-hairline` true-0.5px utilities
+  added to `globals.css` (colour inherited from the base `border-border`).
+- **Icons: Lucide → Phosphor (light).** Installed `@phosphor-icons/react`; global
+  `IconContext` light provider (`components/providers/icon-provider.tsx`) in the root
+  layout; `optimizePackageImports` added. Migrated **71 files** off Lucide (66 via a
+  parallel workflow + 5 straggler icons: Mail→EnvelopeSimple, MailCheck→EnvelopeSimpleOpen,
+  Copy, Minus). **Gotcha that shaped the design:** Phosphor icons read React Context, so a
+  Server Component importing them crashes the build (`createContext is not a function`).
+  Fixed with a **`"use client"` icon barrel `components/icons.ts`** — every file imports
+  icons from `@/components/icons`; only the barrel + provider touch `@phosphor-icons/react`.
+  Global light weight is preserved everywhere, incl. Server Components.
+
+**Flagged for Adrian:** 3 dead macOS duplicate files still import Lucide and are unused
+cruft — `app/forgot-password/forgot-password-form 2.tsx`, `app/reset-password/reset-password-form
+2.tsx`, `components/auth/email-password-form 2.tsx` (+ `app/preview/sites/… 2.tsx`). `git rm`
+them, after which `lucide-react` can be dropped from `package.json` (kept installed only so
+those cruft files still typecheck). Next: **Phase 2 — restyle in-app screens**, then
+**Phase 3 — external surfaces**, then serif + lucide-dep cleanup.
+
+## UI overhaul — Phase 2 START: Home = the reference screen + compound type-icons (2026-07-20, Adrian + Claude)
+
+**Home is fully restyled to the new premium-minimal system — it is the REFERENCE the
+rest of the app copies.** Adrian's reaction: "this is beautiful… looks a lot more simple
+and less vibe-coded." Verified clean (`lint` + `tsc` + dev `/preview/home` 200) and
+**committed** as the Phase-2 checkpoint. **PAUSED here at Adrian's request** — the exact
+resume steps live in `next-tasks.md` (read that first in a new session).
+
+**The Home pattern (replicate on every screen):**
+- **Type inversion:** card titles → `CARD_EYEBROW` (small tracked-uppercase); the DATA is
+  the display layer. Greeting → `PAGE_TITLE` (the shared preset was flipped OFF the serif
+  to sans-light). `PageScrollTitle` "Dashboard" heading → `font-light`.
+- **Borderless cards:** dropped `border border-border-default` on every card surface;
+  inner structure is `hairline`/`hairline-t` 0.5px rules, never nested boxes.
+- **Amber discipline (Adrian: "one or two things amber, not everything"):** completion &
+  selection went WHITE — the logged-dose tick (`TodaysCycleCard`; `QuickTrackSheet` still
+  TODO), the greeting completion bar, the WeekStrip **selected day**, and the **active
+  tab** (`bottom-nav`, now monochrome + translucent + `hairline-t`). Amber kept ONLY on
+  Today's Log **"N due"** + the sanctioned **injection-site recency ramp**.
+- **Amber icon badges retired** across Home cards; cards lead with the eyebrow; numbered
+  steps are plain muted mono. **WeightGlanceCard** number → `METRIC_VALUE` + white
+  sparkline latest-point dot.
+
+**Compound type-icons (Adrian's request — replaces the little category dot):** a small
+icon by FORM next to a compound — **vial (`TestTube`) = injectable, tablet (`Pill`) =
+oral, tub (`Cylinder`) = supplement** — **coloured by category** (`text-cat-*`). Built as
+`<CategoryIcon>` (`components/compounds/CategoryIcon.tsx`); `CATEGORY_META` gained `form`
++ `tint` (`lib/compound-categories.ts`, `dot` kept until every surface migrates). Applied
+so far ONLY in Today's Log; the other ~8 dot sites still use the old dot (rollout).
+
+**Files this phase:** `components/home/{TodaysCycleCard,WeightGlanceCard,HomeGreeting,
+EmptyLogCard,InjectionSitesGlanceCard,WeekStrip}.tsx`, `components/layout/PageScrollTitle
+.tsx`, `components/navigation/bottom-nav.tsx`, `components/progress/ProgressPhotoCard.tsx`,
+`lib/ui-presets.ts` (PAGE_TITLE → sans-light), `lib/compound-categories.ts`,
+`components/compounds/CategoryIcon.tsx` (new), `components/icons.ts` (+TestTube, +Cylinder).
 
 ## Spec 22 — Multi-spec batch: per-dose hint, custom markers, compound soft-delete, journal photos (2026-07-18, Adrian + Claude)
 

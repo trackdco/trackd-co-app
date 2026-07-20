@@ -2,15 +2,17 @@
 
 ## Theme
 
-Dark only. No light mode. The design language is a calm, editorial
-dark interface — near-black backgrounds with subtly layered card
-surfaces, generous spacing, and restrained colour. **White is the
-primary accent** (primary text, primary actions, emphasis); a warm
-**amber** is the secondary signature accent, reserved for
-active/interactive state (due doses, current selection, key
-metrics, etc.). High-contrast serif display type
-pairs with a quiet sans-serif for UI labels, giving a premium
-"clinical journal" feel rather than a neon technical one.
+Dark only. No light mode. The design language is a calm, premium-minimal
+dark interface — near-black backgrounds with soft borderless card
+surfaces, hairline dividers, generous spacing, and severely restrained
+colour. **White is the primary accent** (primary text, primary actions,
+completed states); a warm **amber** is the secondary signature accent,
+reserved for the **single active/due moment on screen** (the due dose,
+the current selection). The typographic hierarchy is inverted from a
+conventional app: **data values are the display layer** — large,
+light-weight sans figures — while titles recede into small tracked
+eyebrows. Mono figures for all data give an instrumented, "clinical
+journal" precision rather than a neon technical one.
 
 ## Colors
 
@@ -62,6 +64,19 @@ is not permitted.
 > "good." Chart colours (`--chart-line` / `--chart-fill`) are a
 > neutral blue precisely so trend visuals stay non-evaluative.
 
+### Rule: one amber moment per screen
+
+Amber's job is **"this needs you now."** On any given screen, amber
+appears on **at most one element** — the due dose ring + its "due now"
+line, the active selection in a control, the pop-down notice. Everything
+else that once carried amber as decoration (icon badges, chevrons,
+secondary highlights) is muted or white. **Completion is white, not
+amber**: a logged dose resolves to a filled `--accent-primary` tick on
+the dark base — completion is *resolved*, no longer *active*, so it
+takes the primary accent. Rarity is what makes the amber read; if two
+things are amber, neither is urgent. (The injection-site recency ramp
+below is the one sanctioned multi-amber surface.)
+
 ### Category legend dots
 
 Compound **categories** (anabolic / oral / sarm / peptide /
@@ -81,57 +96,72 @@ The injection-site **rotation view** shades each site **amber** by how recently 
 was used — full saturation on the day of injection, **one shade lighter per day**,
 fading to a **neutral/unfilled** state at the end of the decay window (**IM 7 days,
 Sub-Q 5 days**, named constants in `lib/home/siteRecency.ts`). This is a
-**deliberate, documented exception** to the amber-for-interactive convention,
-explicitly sanctioned by the spec. It does **not** violate "categorical, never
-evaluative": it encodes injection **recency** (a behavioural fact about the user's
-own logging), not a health/biomarker reading, and **every site carries its factual
-day-count label** ("2d", "today") so the colour reads as heat, not a warning. There
-is **no discrete amber ramp token** — the ramp is achieved with **opacity on
-`--accent-amber`** (lower opacity = more rested), so it stays token-based with **no
-hardcoded hex**. The feature **reports, it does not recommend**: never a
-suggested-next-site, ranking, risk score, or warning icon.
+**deliberate, documented exception** to the one-amber-moment rule and the
+amber-for-active convention, explicitly sanctioned by the spec. It does **not**
+violate "categorical, never evaluative": it encodes injection **recency** (a
+behavioural fact about the user's own logging), not a health/biomarker reading,
+and **every site carries its factual day-count label** ("2d", "today") so the
+colour reads as heat, not a warning. There is **no discrete amber ramp token** —
+the ramp is achieved with **opacity on `--accent-amber`** (lower opacity = more
+rested), so it stays token-based with **no hardcoded hex**. The feature
+**reports, it does not recommend**: never a suggested-next-site, ranking, risk
+score, or warning icon.
 
 ## Typography
 
-Three faces, exposed as CSS variables and mapped to Tailwind
-utilities (`font-display`, `font-sans`, `font-mono`) in
-`app/globals.css`.
+Two faces, exposed as CSS variables and mapped to Tailwind
+utilities (`font-sans`, `font-mono`) in `app/globals.css`.
 
-| Role          | Font             | Variable            |
-| ------------- | ---------------- | ------------------- |
-| Display/serif | Playfair Display | `--font-display`    |
-| UI text       | Geist            | `--font-geist-sans` |
-| Code/mono     | Geist Mono       | `--font-geist-mono` |
+| Role          | Font       | Variable            |
+| ------------- | ---------- | ------------------- |
+| UI text       | Geist      | `--font-geist-sans` |
+| Data/mono     | Geist Mono | `--font-geist-mono` |
 
 **Notes**
 
-- The large headings and the `trackd` wordmark use a high-contrast
-  Didone-style serif (**Playfair Display**).
-- UI text, labels, metadata, and buttons use the sans (Geist),
-  which is also the default body font.
+- The display serif (**Playfair Display** / `--font-display` /
+  `font-display`) is **retired from the UI**. Remove the font load and
+  the utility; no screen may reference it. The serif `trackd` wordmark
+  survives only as a **static logotype asset** (SVG), not a live font.
+- Hierarchy comes from **weight and size contrast within Geist**:
+  Light (300) for large values and page greetings, Regular (400) for
+  body, Medium (500) for the rare emphasis. Never 600+.
+- **All data figures use the mono** (`font-mono`) with
+  `tabular-nums` — doses, times, counts, deltas, units. Apply
+  `font-variant-numeric: tabular-nums` globally as the base so even
+  sans numerals align.
 
-### Rule: section + glance-card titles use the display serif, in white
+### Rule: card titles are eyebrows; values are the display layer
 
 Every section / glance-card **title** across Home and Progress — Today's
-Log, Weight, Progress photos, Bloodwork, Journal, Consistency (and the
-"Good morning, …" greeting) — uses the
-**display serif** (`font-display`) in **white** (`text-foreground`), so the
-cards read as one consistent "clinical journal" system rather than three
-different UIs. Apply the shared **`CARD_TITLE`** preset
-(`lib/ui-presets.ts` → `font-display text-xl font-medium tracking-[-0.01em]
-text-foreground`) rather than re-deriving the classes per card. The small
-uppercase tracked sans treatment (`text-xs … uppercase tracking-[0.18em]
-text-text-muted`) is reserved for **eyebrows / metadata** (e.g. the date
-line above a page title), **never** for a card title.
+Log, Weight, Progress photos, Bloodwork, Journal, Sites, Consistency,
+Reconstitution Calculator — is a small **tracked-uppercase eyebrow**, not a
+large heading. The largest text
+on any card is its **value** (the number, the time, the weight), set light
+and tightly tracked. Apply the shared presets (`lib/ui-presets.ts`) rather
+than re-deriving classes per card:
 
-**Three serif title sizes, one family** — always the matching preset, never
-hand-rolled classes (`lib/ui-presets.ts`):
+- **`CARD_EYEBROW`** — `text-[10px] font-sans uppercase tracking-[0.18em]
+  text-text-muted` — every card/section title. A dimmer variant
+  (`text-text-subtle`, `tracking-[0.2em]`) labels metric values.
+- **`METRIC_VALUE`** — `text-[28px] font-light tracking-[-0.02em]
+  tabular-nums text-foreground` — the big number on metric and glance
+  cards. Units and suffixes are demoted inline via **`UNIT_SUFFIX`**
+  (`text-sm text-text-muted`), e.g. `92`▸`%`, `8:00`▸` pm`.
+- **`DATA_MONO`** — `font-mono text-xs tabular-nums text-text-muted` —
+  row-level data (doses, timestamps, counters), **right-aligned** in list
+  rows so figures rail vertically. Uppercase mono metadata (e.g.
+  `L-DELT · 3D`) adds `tracking-[0.08em]` — tracked-out mono at small
+  sizes is the "instrument panel" detail; default spacing reads generic.
+- **`PAGE_TITLE`** — `text-2xl font-light tracking-[-0.02em]
+  text-foreground` — the greeting and the `<h1>` on standalone screens
+  (Settings, Weight, Billing, Archive).
+- **`SHEET_TITLE`** — `text-xl font-light tracking-[-0.01em]
+  text-foreground` — bottom-sheet headers.
 
-- **`CARD_TITLE`** (`text-xl`) — section / glance-card titles (above).
-- **`SHEET_TITLE`** (`text-2xl`) — bottom-sheet + large section headers.
-- **`PAGE_TITLE`** (`text-[2rem]`) — the `<h1>` on standalone (non-tab)
-  screens (Settings, Weight, Billing, Archive). Tab screens (Home, Progress,
-  Protocol) instead use the sans `PageScrollTitle` heading.
+Never hand-roll these classes per screen, and never promote an eyebrow to
+a heading size — the inversion (small titles, large values) **is** the
+identity.
 
 ## Border Radius
 
@@ -144,9 +174,9 @@ hand-rolled classes (`lib/ui-presets.ts`):
 ## Spacing & Rhythm
 
 "Generous spacing" is the most drift-prone phrase in a design system —
-one session's *generous* is not another's. These values are **fixed**,
-read off the as-built Home + Progress screens, and are the only spacing
-values for page structure: no per-screen ad-hoc margins or padding.
+one session's *generous* is not another's. These values are **fixed**
+and are the only spacing values for page structure: no per-screen
+ad-hoc margins or padding.
 
 | Role                      | Class                                             |
 | ------------------------- | ------------------------------------------------- |
@@ -158,12 +188,29 @@ values for page structure: no per-screen ad-hoc margins or padding.
 | Intra-card element gap    | `space-y-3` (tight label/value pairs `space-y-1`) |
 | Metric grid               | `grid-cols-2` + `gap-3`                            |
 | Inline icon / label gap   | `gap-2` / `gap-3`                                  |
+| In-card row dividers      | `divide-y divide-border-default` (rows `py-3`)     |
 
 The scaffold every tab screen shares is
 `mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5` (see `HomeScreen` /
 `ProgressScreen`) — match it, don't re-derive a per-screen wrapper.
 Spacing steps come from the Tailwind scale; the values above are the
 canonical picks — reuse them rather than reaching for a new step.
+
+### Rule: cards are borderless; hairlines live inside
+
+Cards separate from the page by **surface alone** (`bg-bg-surface` on
+`--bg-base`) — **no card borders**. Structure *within* a card comes from
+hairline dividers (`divide-border-default`) between rows, never from
+nested boxes or borders-in-borders. A border is reserved for genuinely
+interactive outline elements (the due-dose ring, an unchecked circle, an
+input focus).
+
+Hairlines render at **true 0.5px** on high-DPI screens — a CSS `1px`
+divider reads chunky on a phone and is half of why web apps feel less
+fine than native. Define one `hairline` utility in `globals.css`
+(`border-width: 0.5px`, with the transform-scaled pseudo-element
+fallback where 0.5px is unsupported) and use it for every divider —
+never raw `border-t` / `divide-y` widths per screen.
 
 ## Component Library
 
@@ -175,7 +222,8 @@ semantic tokens are **mapped onto the Trackd palette** in
 `--destructive` → `--state-error`). So shadcn utilities like
 `bg-primary` / `bg-card` / `bg-accent` are on-theme out of the box.
 The `--state-*` mapping is UI-only — the colour rule above still
-applies to health data.
+applies to health data. Note `--card` surfaces render **without**
+shadcn's default border per the borderless-card rule.
 
 **Conventions**
 
@@ -193,17 +241,28 @@ applies to health data.
 - Mobile-first single column: vertically stacked sections on a
   near-black canvas with generous vertical rhythm (this is a PWA).
 - Metric cards: 2-up grid of surface cards (e.g. Compliance,
-  Next Dose) with a muted uppercase label and a large value.
+  Next Dose) with a subtle uppercase eyebrow, a `METRIC_VALUE`
+  number, and one muted context line beneath.
+- List rows (doses, entries): status circle → name + muted detail
+  line → right-railed `DATA_MONO` figure, separated by hairlines.
+- The primary action (log/add) is a **white** circular button —
+  primary action takes the primary accent; the tab bar stays
+  monochrome (active item white, inactive `--text-subtle`).
+- The tab bar is **fixed and translucent**: `bg-bg-base/80` +
+  `backdrop-blur`, a `hairline` top divider, and safe-area inset
+  padding (`pb-[env(safe-area-inset-bottom)]`), so content slides
+  under it on scroll instead of stopping at a solid block — the last
+  visible "web app" tell on scroll-heavy screens.
 
 ### Rule: new screens reuse the system
 
 Any new screen (Protocol, Calendar, Settings, …) is composed **only**
-from the existing patterns — `CARD_TITLE`, `CARD_ICON_BADGE`, the 2-up
-metric grid, the shared chart style, the radius scale, and the Spacing &
-Rhythm scale above. If a screen needs a pattern that isn't yet a preset,
-**add it to this doc and `lib/ui-presets.ts` first**, then use it — never
-invent a one-off per screen. This is the rule that stops drift at the
-source.
+from the existing patterns — `CARD_EYEBROW`, `METRIC_VALUE`,
+`DATA_MONO`, the 2-up metric grid, the list-row pattern, the shared
+chart style, the radius scale, and the Spacing & Rhythm scale above. If
+a screen needs a pattern that isn't yet a preset, **add it to this doc
+and `lib/ui-presets.ts` first**, then use it — never invent a one-off
+per screen. This is the rule that stops drift at the source.
 
 ## Charts
 
@@ -224,8 +283,9 @@ across the app so they read as one system:
 - **Glance sparklines** are the ONE sanctioned exception: a compact preview (e.g.
   the Home Weight glance card) may draw a minimal token-coloured `<polyline>`
   sparkline — same neutral `--chart-line` / `--chart-trend` hues, no fill / scrub /
-  range — because it only teases the full graph one tap away (`/weight`). It stays
-  non-evaluative; anything larger than a glance uses the full line+gradient style.
+  range, with a small `--accent-primary` dot on the latest point — because it only
+  teases the full graph one tap away (`/weight`). It stays non-evaluative;
+  anything larger than a glance uses the full line+gradient style.
 
 Chart hues are a deliberately **neutral** teal/periwinkle (never red/green),
 because trend visuals must stay **non-evaluative** per the health-data rule
@@ -241,33 +301,45 @@ above — a graph shows *movement*, never "good" or "bad".
   semantic utilities). The `--radius` scale drives `rounded-sm/md/lg/xl`.
 - Surfaces layer by elevation: `--bg-base` (page) → `--bg-surface`
   (cards) → `--bg-surface-raised` (raised) → `--bg-input` (fields).
+- `font-variant-numeric: tabular-nums` is set on the body so **every
+  numeral in the app aligns** — no per-component opt-in.
 - Follow the border-radius scale above; no hardcoded hex outside
   `globals.css`.
 
 ## Icons
 
-**Lucide React** (shadcn's default icon set). Stroke-based icons
-only. Sizes: `h-4 w-4` inline, `h-5 w-5` in buttons.
+**Phosphor** (`@phosphor-icons/react`), **light weight**, set once
+globally via `<IconContext.Provider value={{ weight: 'light' }}>` in the
+app root — never per-icon, so stroke weight cannot drift. The light
+stroke matches the weight-300 type so icons and typography read as one
+system (Lucide's fixed 2px stroke is the most recognisable AI-built
+tell and is retired). Sizes: `h-4 w-4` inline, `h-5 w-5` in buttons.
 
-**Glance-card icon badges are amber.** The leading icon on a section /
-glance card uses the shared **`CARD_ICON_BADGE`** preset
-(`lib/ui-presets.ts`) — an **amber** stroke icon (`text-accent-amber`) on a
-soft amber-tinted rounded square (`rounded-xl border border-accent-amber/25
-bg-accent-amber/10`). Every Home + Progress card icon uses it (Weight,
-Progress photos, Bloodwork, Journal, Consistency)
-so the cards read as one system. Amber is the secondary signature accent
-(active/interactive state) — this is chrome/identity, not health data, so it
-stays within the colour rule above.
+- **Import from the barrel, never the package.** Every icon is imported
+  from **`@/components/icons`** (`components/icons.ts`), never from
+  `@phosphor-icons/react` directly. The barrel carries a `"use client"`
+  directive: Phosphor icons read React Context (for the global weight), so
+  importing them straight into a **Server Component** would evaluate
+  `createContext` on the server and crash the build. The barrel turns them
+  into client references, so a Server Component can render `<Plus />` and it
+  hydrates client-side under the provider — still light, no `/dist/ssr`
+  split, no per-icon `weight`. Only `components/icons.ts` and the provider
+  touch `@phosphor-icons/react`; adding an icon = one line in the barrel.
+- **Migration:** Lucide is fully retired (no `lucide-react` imports in app
+  code). The generated `components/ui/**` primitives are protected — their
+  icon imports were repointed to the barrel (import only, not styling).
+- **Identity icons:** the five core glyphs (four tab-bar icons + the log
+  `+`) are candidates for **custom-drawn SVGs** later — at that quantity
+  a commissioned set is cheap and is the one thing no AI-built app has.
+  Until then they use Phosphor light like everything else.
 
-For a smaller inline badge — an in-flow prompt or a numbered step, where the
-`h-11` card badge is too big — use **`STEP_ICON_BADGE`** (the same amber-tint
-idiom at `h-9`). Don't hand-roll a third badge size.
-
-For the **quick-actions FAB menu's** icon-over-label tiles, use
-**`QUICK_ACTION_BADGE`** — the same amber-tint idiom made **circular** at `h-12`.
-Round is what separates a tappable action from a card's leading mark; the tint is
-unchanged, so the menu still reads as the same system. It is the only round
-badge — everywhere else stays `rounded-xl`.
+**Icon badges are retired.** The amber `CARD_ICON_BADGE` /
+`STEP_ICON_BADGE` presets are removed — cards lead with their
+`CARD_EYEBROW`, not an icon, per the one-amber-moment rule. Where an
+icon genuinely aids scanning (a trailing chevron, a status glyph, a
+tab), it renders **muted** (`text-text-subtle`, or `text-text-muted`
+on hover/active) — never amber, never in a tinted container. Numbered
+steps use a plain `DATA_MONO` numeral, not a badge.
 
 ## States
 
@@ -276,10 +348,12 @@ A tracker *lives* in these (first run, empty days, mid-sync) — they are
 part of the design, not a fallback.
 
 - **Empty / first-run** — never a blank or a missing card. Keep the
-  card's normal frame (surface + `CARD_TITLE` + `CARD_ICON_BADGE`) with
-  one line of `text-text-muted` explanation in-voice and a single clear
-  action. The first-run empty is the first thing a new user sees — a
-  designed surface, not an absence.
+  card's normal frame (surface + `CARD_EYEBROW`) with one line of
+  `text-text-muted` explanation in-voice and a single clear action
+  rendered in `--text-primary`. With no icon badge carrying meaning,
+  **the copy does all the work** — empty-state lines are written and
+  reviewed, never placeholder. The first-run empty is the first thing
+  a new user sees — a designed surface, not an absence.
 - **Loading** — shaped **skeletons** on `--bg-surface-raised` that match
   the final layout (no layout shift). No spinners for content areas; a
   spinner is only for a discrete in-flight action (e.g. a button).
@@ -290,58 +364,27 @@ part of the design, not a fallback.
 - **Partial** — a card with some data shows what it has plus a muted
   placeholder for the rest, not a full empty state.
 
-## Z-index scale
-
-Fixed chrome stacks in one documented ladder — defined here, in
-`app/globals.css` order of intent. Tailwind has no z-index theme namespace, so
-these are **documented values**, not CSS-variable tokens; use the class shown.
-
-| Layer                                  | Class     |
-| -------------------------------------- | --------- |
-| In-page layering (sticky rows, badges) | `z-10`–`z-30` |
-| Bottom nav, `PageScrollTitle` bar      | `z-40`    |
-| Quick-actions scrim                    | `z-[45]`  |
-| Quick-actions FAB + menu card          | `z-[46]`  |
-| Sheets / dialogs (shadcn)              | `z-50`    |
-| Confirm modals (sign out, delete)      | `z-[60]`  |
-| Amber pop-down notice                  | `z-[70]`  |
-
-The FAB sits **above the nav and below the sheets** deliberately: it must clear
-the bar it floats over, but any flow it opens must cover it. Anything new goes
-**on** this ladder — never a fresh `z-[99]`.
-
 ## Motion & Interaction
 
 Motion **reinforces meaning, never decorates.** The keyframes live once
 in `app/globals.css`; use the named `animate-*` classes rather than
 hand-rolling animation per screen.
 
-**Durations and easing are tokens** (`app/globals.css` `:root`) — read off the
-as-built screens, so existing motion already sits on the scale. Reach for these
-rather than a per-screen literal; that drift is what the scale prevents.
-
-| Role                                            | Token           | Value                          |
-| ----------------------------------------------- | --------------- | ------------------------------ |
-| Fast — scrim fades, icon rotations, menu cards  | `--motion-fast` | `180ms`                        |
-| Base — cross-fades, colour / state changes      | `--motion-base` | `240ms`                        |
-| Slow — staggered entrances                      | `--motion-slow` | `320ms`                        |
-| House ease-out                                  | `--motion-ease` | `cubic-bezier(0.16, 1, 0.3, 1)` |
-
-The easing is exposed as the Tailwind utility **`ease-motion`**. Durations have
-no Tailwind theme namespace, so use `duration-[var(--motion-fast)]`. Longer
-one-off entrances that predate the scale (`animate-home-up` 520ms,
-`animate-shortcut-in` 320ms) keep their tuned values — the scale governs new
-motion, it isn't a retrofit mandate.
-
 - **Entrance** — tab screens stagger their cards in with `animate-home-up`
   (fade + rise) via a per-card inline `animation-delay`. Same idiom on
-  Home and Progress.
+  Home and Progress. `METRIC_VALUE` numbers **count up** (~400ms,
+  ease-out) as part of the same stagger — one shared hook, not
+  per-card timing — and render instantly under `prefers-reduced-motion`.
 - **The log action gets a moment.** Logging a dose is the app's
   heartbeat: the tick pops in (`animate-home-tick-pop` + one
-  `animate-home-tick-ring` pulse), the affected state updates, and the
-  sheet dismisses. This is the line between "entered data" and "tracked".
-- **Feedback** — a blocked tap shakes (`animate-card-shake`); a notice
-  slides down from the top edge (`animate-notice-in`).
+  `animate-home-tick-ring` pulse) as the amber due-ring resolves to the
+  white tick, the affected state updates, and the sheet dismisses. This
+  is the line between "entered data" and "tracked".
+- **Touch feedback** — borderless cards need it: interactive cards and
+  rows compress on press (`active:scale-[0.98]` + a slight opacity dip),
+  so touches land even without borders. A blocked tap shakes
+  (`animate-card-shake`); a notice slides down from the top edge
+  (`animate-notice-in`).
 - **Banned** — ambient / decorative motion: floating particles, meteor
   or hero effects, cursor-follow, scroll-triggered decorative lines.
   These are the clearest "AI-built" tell and steal attention from the data.
@@ -351,11 +394,12 @@ motion, it isn't a retrofit mandate.
 
 ## Voice & Microcopy
 
-The visual system is "clinical journal"; the words must match, or the app
+The visual system is premium-minimal; the words must match, or the app
 feels off even when it looks right.
 
 - Terse, exact, confident. No exclamation marks, no emoji, no chirp
   ("Nice work!", "Oops!").
 - Empty and error copy state the fact and the next action — nothing more.
 - Numbers and units are formatted consistently app-wide (doses, mg / mcg,
-  dates) — define the format once and reuse it.
+  dates) — define the format once and reuse it. Units render demoted
+  (`UNIT_SUFFIX`), never at value size.

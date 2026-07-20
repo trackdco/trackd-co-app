@@ -21,11 +21,17 @@ extend it — not a greenfield checklist.
 - [x] Colour tokens defined once in `app/globals.css` (`:root` +
       `@theme inline`).
 - [x] Fonts wired in `app/layout.tsx` via `next/font`
-      (Geist, Geist Mono, Playfair Display).
+      (Geist, Geist Mono). **The Playfair display serif is being
+      retired** — hierarchy now comes from Geist weight + size (see
+      `ui-context.md` → Typography); the loader is removed once the last
+      `font-display` usage is migrated.
 - [x] shadcn/ui installed and configured (`components.json`,
       `lib/utils.ts` `cn()` helper).
 - [x] shadcn semantic tokens mapped onto the Trackd palette.
-- [x] Lucide React installed.
+- [x] `hairline` 0.5px divider utility + `tabular-nums` on `body` added
+      to `globals.css`.
+- [x] Phosphor icons installed (`@phosphor-icons/react`), global light
+      weight via `IconContext.Provider` in the app root. (Lucide retired.)
 - [x] First primitive added: `button`.
 - [ ] Further primitives — added incrementally as features need them.
 
@@ -44,13 +50,19 @@ each token is usable both as `var(--token)` and as a utility (e.g.
 
 Load via `next/font/google` and expose as CSS variables on `<html>`:
 
-- Geist → `--font-geist-sans` (UI text, default body)
-- Geist Mono → `--font-geist-mono` (code/mono)
-- Playfair Display → `--font-display` (serif headings + wordmark)
+- Geist → `--font-geist-sans` (UI text, default body, and — post-restyle
+  — every heading, via weight + size contrast rather than a second face)
+- Geist Mono → `--font-geist-mono` (all data figures; `tabular-nums` is
+  set on `body` so every numeral aligns app-wide)
 
-Map them to `--font-sans` / `--font-mono` / `--font-display` in the
-`@theme inline` block so `font-sans` / `font-mono` / `font-display`
-utilities resolve.
+Map them to `--font-sans` / `--font-mono` in the `@theme inline` block so
+the `font-sans` / `font-mono` utilities resolve.
+
+**The display serif (Playfair Display / `--font-display`) is being
+retired** (see `ui-context.md` → Typography). The serif `trackd` wordmark
+survives only as a static PNG asset (`public/trackd-wordmark.png`), not a
+live font. The `Playfair_Display` loader and the `--font-display` mapping
+are removed once the last `font-display` usage has been migrated.
 
 ### 3. shadcn/ui
 
@@ -99,13 +111,21 @@ scale via `@theme inline`.
 
 ### 5. Icons
 
-Install Lucide React (shadcn's default). Stroke-based only; sizes
-per `ui-context.md` (`h-4 w-4` inline, `h-5 w-5` in buttons).
+**Phosphor** (`@phosphor-icons/react`), **light weight**, set once
+globally via `<IconContext.Provider value={{ weight: "light" }}>` in the
+app root (`components/providers/icon-provider.tsx`) — never per-icon, so
+stroke weight cannot drift. Sizes per `ui-context.md` (`h-4 w-4` inline,
+`h-5 w-5` in buttons). **All icons import from the barrel
+`@/components/icons`, never from `@phosphor-icons/react` directly** — the
+barrel is a `"use client"` re-export so Server Components can render icons
+without evaluating `createContext` on the server (see `ui-context.md` →
+Icons for the full rationale). Lucide is retired; the generated
+`components/ui/*` primitives were repointed to the barrel (import only).
 
 ### 6. Dependencies
 
 `class-variance-authority`, `clsx`, `tailwind-merge`,
-`lucide-react`, `tw-animate-css`, `radix-ui`.
+`@phosphor-icons/react`, `tw-animate-css`, `radix-ui`.
 
 ## Rules
 

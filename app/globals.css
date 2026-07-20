@@ -210,6 +210,35 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Hairline dividers — true 0.5px rules (see ui-context.md → "cards are
+   borderless; hairlines live inside"). A CSS 1px divider reads chunky on a
+   phone; 0.5px renders as a crisp ~1 physical pixel on the high-DPI screens
+   this phone-only PWA targets. Use these for every divider instead of raw
+   `border-t` / `divide-y` widths. Border COLOUR comes from the base layer's
+   `border-border` (= --border-default); override by adding any `border-*`
+   colour utility alongside. Plain (unlayered) classes so the 0.5px width wins
+   over Tailwind's layered 1px border utilities.
+   --------------------------------------------------------------------------- */
+.hairline {
+  border-width: 0.5px;
+}
+.hairline-t {
+  border-top-width: 0.5px;
+}
+.hairline-b {
+  border-bottom-width: 0.5px;
+}
+.hairline-x {
+  border-left-width: 0.5px;
+  border-right-width: 0.5px;
+}
+/* Row groups: a 0.5px rule between adjacent children (the borderless-card
+   replacement for `divide-y divide-border-default`). */
+.divide-hairline > :not([hidden]) ~ :not([hidden]) {
+  border-top-width: 0.5px;
+}
+
+/* ---------------------------------------------------------------------------
    Injection-site muscle regions (Spec 19) — each injectable muscle is a
    selectable SVG <path>. Plain (unlayered) classes so they win over Tailwind's
    layered utilities. The focus ring uses non-scaling-stroke so it stays a crisp
@@ -443,5 +472,8 @@
   }
   body {
     @apply bg-background text-foreground font-sans;
+    /* Every numeral in the app aligns — no per-component opt-in
+       (see ui-context.md → Typography / Styling Notes). */
+    font-variant-numeric: tabular-nums;
   }
 }

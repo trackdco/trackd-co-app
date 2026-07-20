@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronRight, MessageSquarePlus } from "lucide-react"
+import { CaretRight, ChatCircleDots } from "@/components/icons"
 
 import { FeedbackSheet } from "@/components/feedback/FeedbackSheet"
 
@@ -22,9 +22,9 @@ export function ProfileFeedbackRow({ userId }: { userId: string }) {
         onClick={() => setOpen(true)}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        <MessageSquarePlus className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+        <ChatCircleDots className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
         <span className="flex-1 text-sm text-foreground">Send feedback</span>
-        <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+        <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
       </button>
 
       <FeedbackSheet

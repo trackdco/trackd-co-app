@@ -4,14 +4,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
-  ChevronDown,
-  Loader2,
+  CaretDown,
+  CircleNotch,
   Minus,
   Plus,
-  Search,
-  Trash2,
+  MagnifyingGlass,
+  Trash,
   X,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import {
@@ -306,7 +306,7 @@ export function MarkerDialer({
             <Plus className="h-4 w-4" aria-hidden />
             {order.length === 0 ? "Add a marker to track" : "Add another marker"}
           </span>
-          <ChevronDown
+          <CaretDown
             className={cn("h-4 w-4 transition-transform", addOpen && "rotate-180")}
             aria-hidden
           />
@@ -323,7 +323,7 @@ export function MarkerDialer({
               <>
                 {/* Search — every marker is one tap away, without overload. */}
                 <div className="relative mb-1">
-                  <Search
+                  <MagnifyingGlass
                     className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-text-muted"
                     aria-hidden
                   />
@@ -387,7 +387,7 @@ export function MarkerDialer({
                                 aria-label={`Remove ${m.name}`}
                                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-subtle transition-colors hover:text-accent-destructive"
                               >
-                                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                                <Trash className="h-3.5 w-3.5" aria-hidden />
                               </button>
                             </div>
                           ),
@@ -600,7 +600,7 @@ function CreateMarkerForm({
         disabled={busy}
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent-primary py-2.5 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
+        {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
         {busy ? "Creating…" : "Create marker"}
       </button>
     </div>

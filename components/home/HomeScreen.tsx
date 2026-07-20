@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { CalendarDays } from "lucide-react"
+import { CalendarDots } from "@/components/icons"
 
 import { useMounted } from "@/components/home/useMounted"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
@@ -484,7 +484,7 @@ export function HomeScreen({
                 aria-label="Open calendar"
                 className="-mr-1 flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <CalendarDays className="h-5 w-5" aria-hidden />
+                <CalendarDots className="h-5 w-5" aria-hidden />
               </Link>
             }
           />

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { CaretLeft } from "@/components/icons";
 
 import { ArchiveManager } from "@/components/home/ArchiveManager";
 import { PAGE_TITLE } from "@/lib/ui-presets";
@@ -29,7 +29,7 @@ export default async function ArchivePage() {
         href="/profile"
         className="-ml-1 inline-flex items-center gap-1 rounded-md py-1 pr-2 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
       >
-        <ChevronLeft className="h-4 w-4" aria-hidden />
+        <CaretLeft className="h-4 w-4" aria-hidden />
         Profile
       </Link>
 

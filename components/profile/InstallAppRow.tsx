@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Smartphone } from "lucide-react";
+import { CaretRight, DeviceMobile } from "@/components/icons";
 
 import {
   Sheet,
@@ -62,9 +62,9 @@ export function InstallAppRow() {
         onClick={onClick}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        <Smartphone className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+        <DeviceMobile className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
         <span className="flex-1 text-sm text-foreground">Add to Home Screen</span>
-        <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+        <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
       </button>
 
       {(mode === "ios" || mode === "ios-other") && (

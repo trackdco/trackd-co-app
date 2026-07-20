@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { TriangleAlert } from "lucide-react"
+import { Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -186,7 +186,7 @@ export function ReconCalculator() {
 
       {/* Always-on disclaimer (information, not advice). */}
       <div className="flex gap-3 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
-        <TriangleAlert
+        <Warning
           className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
           aria-hidden
         />

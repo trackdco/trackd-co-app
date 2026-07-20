@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Compass, Download, Plus, Share, X } from "lucide-react";
+import { Compass, Download, Plus, Share, X } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 

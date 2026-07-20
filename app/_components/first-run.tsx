@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays, Mail } from "lucide-react";
+import { CalendarDots, EnvelopeSimple } from "@/components/icons";
 
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 
@@ -297,7 +297,7 @@ export function FirstRun() {
           href="/login"
           className="flex h-12 w-full touch-manipulation select-none items-center justify-center gap-2 rounded-xl border border-input bg-transparent text-[0.95rem] font-medium text-foreground transition-transform duration-100 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:bg-bg-surface active:scale-[0.98] motion-reduce:active:scale-100"
         >
-          <Mail className="size-5" strokeWidth={1.75} aria-hidden />
+          <EnvelopeSimple className="size-5" aria-hidden />
           Continue with email
         </Link>
 
@@ -357,7 +357,7 @@ function InventoryMock() {
         <div className="h-full rounded-full bg-text-muted" style={{ width: "64%" }} />
       </div>
       <div className="mt-3 flex items-center gap-1.5 text-[12px] text-text-muted">
-        <CalendarDays className="size-3.5 text-accent-amber" strokeWidth={1.5} />
+        <CalendarDots className="size-3.5 text-accent-amber" />
         Runs dry ~ 18 Jul
       </div>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { CaretDown, CaretLeft, CaretRight } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { monthTitle } from "@/lib/calendar/calendar";
@@ -44,7 +44,7 @@ export function MonthYearPicker({ year, month0, onChange }: MonthYearPickerProps
         <span className="font-display text-3xl font-medium tracking-[-0.01em] text-foreground">
           {monthTitle(year, month0)}
         </span>
-        <ChevronDown
+        <CaretDown
           className={cn(
             "h-5 w-5 text-text-muted transition-transform duration-200",
             open && "rotate-180",
@@ -67,11 +67,11 @@ export function MonthYearPicker({ year, month0, onChange }: MonthYearPickerProps
             {/* Year stepper. */}
             <div className="flex items-center justify-between pb-2">
               <StepButton label="Previous year" onClick={() => setBrowseYear((y) => y - 1)}>
-                <ChevronLeft className="h-4 w-4" aria-hidden />
+                <CaretLeft className="h-4 w-4" aria-hidden />
               </StepButton>
               <span className="font-mono text-sm font-medium text-foreground">{browseYear}</span>
               <StepButton label="Next year" onClick={() => setBrowseYear((y) => y + 1)}>
-                <ChevronRight className="h-4 w-4" aria-hidden />
+                <CaretRight className="h-4 w-4" aria-hidden />
               </StepButton>
             </div>
 

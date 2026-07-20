@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRight, Camera, Pencil, Plus } from "lucide-react";
+import { ArrowsLeftRight, Camera, PencilSimple, Plus } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -85,7 +85,7 @@ export function ProgressPhotoGallerySheet({
                 onClick={onCompare}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-surface-raised py-3 text-sm font-medium text-text-primary transition-colors hover:bg-bg-input/60"
               >
-                <ArrowLeftRight className="h-4 w-4" aria-hidden />
+                <ArrowsLeftRight className="h-4 w-4" aria-hidden />
                 Compare before &amp; after
               </button>
             )}
@@ -176,7 +176,7 @@ function DayRow({
         aria-label={`Edit ${formatPhotoDateRow(day.date)}`}
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-input text-text-muted transition-colors hover:text-foreground"
       >
-        <Pencil className="h-4 w-4" aria-hidden />
+        <PencilSimple className="h-4 w-4" aria-hidden />
       </button>
     </div>
   );

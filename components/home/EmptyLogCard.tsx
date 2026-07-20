@@ -1,8 +1,8 @@
 "use client"
 
-import { CalendarClock, Plus, Syringe } from "lucide-react"
+import { CalendarDot, Plus, Syringe } from "@/components/icons"
 
-import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
 
 /**
  * The Home empty state — shown when the user has no compounds in their log yet
@@ -12,15 +12,9 @@ import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
  */
 export function EmptyLogCard() {
   return (
-    <section className="rounded-2xl border border-border-default bg-bg-surface p-5">
-      <span className={CARD_ICON_BADGE}>
-        <Syringe className="h-5 w-5" aria-hidden />
-      </span>
-
-      <h2 className={`mt-4 ${CARD_TITLE}`}>
-        Start your log
-      </h2>
-      <p className="mt-1 text-sm text-text-muted">
+    <section className="rounded-2xl bg-bg-surface p-5">
+      <h2 className={CARD_EYEBROW}>Start your log</h2>
+      <p className="mt-2 text-sm text-text-muted">
         You haven&apos;t added any compounds yet. Here&apos;s how it works:
       </p>
 
@@ -33,7 +27,7 @@ export function EmptyLogCard() {
         />
         <Step
           n={2}
-          icon={<CalendarClock className="h-4 w-4" aria-hidden />}
+          icon={<CalendarDot className="h-4 w-4" aria-hidden />}
           title="Set the dose & schedule"
           body="Enter the dose, choose how often and when it starts. For injectables you'll pick the site when you log each dose, from the body map."
         />
@@ -45,7 +39,7 @@ export function EmptyLogCard() {
         />
       </ol>
 
-      <p className="mt-5 border-t border-border-default pt-4 text-xs text-text-subtle">
+      <p className="mt-5 hairline-t pt-4 text-xs text-text-subtle">
         Everything is saved on this device for you only.
       </p>
     </section>
@@ -65,7 +59,7 @@ function Step({
 }) {
   return (
     <li className="flex gap-3">
-      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-surface-raised font-mono text-xs text-accent-amber">
+      <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
         {n}
       </span>
       <div className="min-w-0">

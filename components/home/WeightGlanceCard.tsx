@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronRight, Scale } from "lucide-react"
+import { CaretRight } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets"
 import type { DateKey } from "@/lib/home/mockHomeData"
 import { kgToUnit, type WeightUnit } from "@/lib/weight"
 
@@ -78,14 +78,11 @@ export function WeightGlanceCard({ series, unit, onOpenDetail }: WeightGlanceCar
   const trendStat = stat(trendW)
 
   return (
-    <div className="rounded-2xl border border-border-default bg-bg-surface">
+    <div className="rounded-2xl bg-bg-surface">
       {/* Header — label + the Trend/Scale toggle. */}
       <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-1.5">
-        <div className="flex min-w-0 items-center gap-3.5">
-          <span aria-hidden className={CARD_ICON_BADGE}>
-            <Scale className="h-5 w-5" />
-          </span>
-          <p className={`${CARD_TITLE} truncate`}>Weight</p>
+        <div className="flex min-w-0 items-center">
+          <p className={cn(CARD_EYEBROW, "truncate")}>Weight</p>
         </div>
 
         {!empty && (
@@ -140,7 +137,7 @@ export function WeightGlanceCard({ series, unit, onOpenDetail }: WeightGlanceCar
               <SparkLine vals={trendW} color="var(--chart-trend)" active={mode === "trend"} />
             </svg>
 
-            <ChevronRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+            <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
           </>
         )}
       </button>
@@ -167,10 +164,10 @@ function ValueBlock({
       )}
     >
       <span className="flex items-baseline gap-1.5">
-        <span className="font-mono text-3xl font-semibold text-foreground">
+        <span className={METRIC_VALUE}>
           {s.last == null ? "—" : s.last.toFixed(1)}
         </span>
-        <span className="text-sm text-text-muted">{unit}</span>
+        <span className={UNIT_SUFFIX}>{unit}</span>
       </span>
       <span className="mt-1 block font-mono text-sm text-text-muted">
         {s.deltaText} {unit} <span className="font-sans">{kind}</span>
@@ -190,18 +187,27 @@ function SparkLine({
 }) {
   const cls = cn("transition-opacity duration-300 ease-out", active ? "opacity-100" : "opacity-0")
   if (vals.length <= 1) {
-    return <circle cx={SPARK_W} cy={SPARK_H / 2} r={3} fill={color} className={cls} />
+    // Single reading — just the white latest-point marker (spec).
+    return <circle cx={SPARK_W} cy={SPARK_H / 2} r={3} fill="var(--accent-primary)" className={cls} />
   }
+  // Latest-point marker: a small white dot on the most recent reading, so the
+  // sparkline teases "here's where you are now" (spec → Charts / glance sparkline).
+  const min = Math.min(...vals)
+  const max = Math.max(...vals)
+  const range = max - min || 1
+  const lastY = SPARK_H - ((vals[vals.length - 1] - min) / range) * (SPARK_H - 4) - 2
   return (
-    <polyline
-      points={sparkPoints(vals)}
-      fill="none"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinejoin="round"
-      strokeLinecap="round"
-      vectorEffect="non-scaling-stroke"
-      className={cls}
-    />
+    <g className={cls}>
+      <polyline
+        points={sparkPoints(vals)}
+        fill="none"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <circle cx={SPARK_W} cy={lastY} r={2.5} fill="var(--accent-primary)" />
+    </g>
   )
 }

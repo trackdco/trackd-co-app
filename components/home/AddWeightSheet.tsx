@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Camera, Check, Plus, X } from "lucide-react"
+import { Camera, Check, Plus, X } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -412,7 +412,7 @@ function AddWeightBody({
               className="animate-home-tick-ring absolute inset-0 rounded-full border-2 border-bg-base/40"
             />
             <span className="animate-home-tick-pop flex h-16 w-16 items-center justify-center rounded-full bg-bg-base/15">
-              <Check className="h-9 w-9" strokeWidth={2.5} aria-hidden />
+              <Check className="h-9 w-9" aria-hidden />
             </span>
           </span>
           <span className="animate-shortcut-fade text-base font-semibold">Logged</span>

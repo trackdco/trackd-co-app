@@ -1,13 +1,13 @@
 import {
   Pill,
   ListChecks,
-  Scale,
-  NotebookPen,
-  ClipboardList,
-  CalendarDays,
-  MessageSquarePlus,
-  type LucideIcon,
-} from "lucide-react"
+  Scales,
+  NotePencil,
+  ClipboardText,
+  CalendarDots,
+  ChatCircleDots,
+  type Icon,
+} from "@/components/icons"
 
 /**
  * Single source of truth for the quick-actions menu the bottom-right FAB opens
@@ -52,7 +52,7 @@ export interface ShortcutItem {
   id: string
   title: string
   subtitle: string
-  icon: LucideIcon
+  icon: Icon
   action: ShortcutAction
   /** Destination for `route` items. */
   href?: string
@@ -82,7 +82,7 @@ export const QUICK_ACTIONS: ShortcutItem[] = [
     id: "journal",
     title: "Journal",
     subtitle: "Free-write and track how you feel",
-    icon: NotebookPen,
+    icon: NotePencil,
     action: "journal",
     shortLabel: "Journal",
   },
@@ -90,7 +90,7 @@ export const QUICK_ACTIONS: ShortcutItem[] = [
     id: "weight",
     title: "Weight",
     subtitle: "Log today's bodyweight",
-    icon: Scale,
+    icon: Scales,
     action: "weight",
     shortLabel: "Weight",
   },
@@ -98,7 +98,7 @@ export const QUICK_ACTIONS: ShortcutItem[] = [
     id: "blood-work",
     title: "Blood work",
     subtitle: "View and add your bloods",
-    icon: ClipboardList,
+    icon: ClipboardText,
     action: "bloodwork",
     shortLabel: "Blood work",
   },
@@ -106,7 +106,7 @@ export const QUICK_ACTIONS: ShortcutItem[] = [
     id: "calendar",
     title: "Calendar",
     subtitle: "View your logged history",
-    icon: CalendarDays,
+    icon: CalendarDots,
     action: "route",
     href: "/calendar",
     shortLabel: "Calendar",
@@ -122,6 +122,6 @@ export const FEEDBACK_ACTION: ShortcutItem = {
   id: "feedback",
   title: "Beta notes & feedback",
   subtitle: "Found a bug or have an idea? Tell us",
-  icon: MessageSquarePlus,
+  icon: ChatCircleDots,
   action: "feedback",
 }

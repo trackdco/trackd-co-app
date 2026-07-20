@@ -4,14 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
-  ImagePlus,
-  Loader2,
-  NotebookPen,
-  Pencil,
-  Tags,
-  Trash2,
+  CircleNotch,
+  ImageSquare,
+  NotePencil,
+  PencilSimple,
+  Tag,
+  Trash,
   X,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -157,7 +157,7 @@ export function JournalEntrySheet({
   const canSave =
     (bodyVisible && body.trim().length > 0) || markers.length > 0 || hasPhotos;
   const title = mode === "edit" ? "Edit entry" : mode === "markers" ? "Log markers" : "Write";
-  const Icon = mode === "markers" ? Tags : mode === "edit" ? Pencil : NotebookPen;
+  const Icon = mode === "markers" ? Tag : mode === "edit" ? PencilSimple : NotePencil;
 
   async function rollbackPending() {
     // uploadedRef is a superset of pendingAdds — it includes any upload that finished
@@ -355,7 +355,7 @@ export function JournalEntrySheet({
                   }}
                   className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-default py-3 text-sm text-text-muted transition-colors hover:border-border-strong hover:text-foreground"
                 >
-                  <Tags className="h-4 w-4" aria-hidden />
+                  <Tag className="h-4 w-4" aria-hidden />
                   Add markers
                 </button>
               ) : (
@@ -411,9 +411,9 @@ export function JournalEntrySheet({
                 className="flex items-center gap-1.5 rounded-lg px-1 py-1 text-xs text-text-muted transition-colors hover:text-foreground disabled:opacity-50"
               >
                 {uploading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  <CircleNotch className="h-3.5 w-3.5 animate-spin" aria-hidden />
                 ) : (
-                  <ImagePlus className="h-3.5 w-3.5" aria-hidden />
+                  <ImageSquare className="h-3.5 w-3.5" aria-hidden />
                 )}
                 {uploading ? "Adding…" : keptAttachments.length + pendingAdds.length > 0 ? "Add another photo" : "Add a photo"}
               </button>
@@ -447,7 +447,7 @@ export function JournalEntrySheet({
                   disabled={busy}
                   className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent-destructive py-2.5 text-sm font-medium text-text-primary transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
+                  {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Trash className="h-4 w-4" aria-hidden />}
                   Delete
                 </button>
               </div>
@@ -461,7 +461,7 @@ export function JournalEntrySheet({
                   aria-label="Delete entry"
                   className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border-strong text-text-muted transition-colors hover:text-accent-destructive"
                 >
-                  <Trash2 className="h-4 w-4" aria-hidden />
+                  <Trash className="h-4 w-4" aria-hidden />
                 </button>
               )}
               <button
@@ -470,7 +470,7 @@ export function JournalEntrySheet({
                 disabled={busy || !canSave}
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
               >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
+                {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
                 {busy ? "Saving…" : "Save"}
               </button>
             </div>

@@ -53,21 +53,33 @@ export function routesOf(c: Compound): RouteForm[] {
   return [{ route: c.defaultRoute, inventoryType: c.defaultInventoryType }]
 }
 
+/** The physical form a compound is taken as — drives the little type icon next to
+ *  a compound (vial = injectable, tablet = oral, tub = supplement), rendered by
+ *  `<CategoryIcon>`. See Context/ui-context.md → "Compound type icons". */
+export type CompoundForm = "injectable" | "oral" | "supplement"
+
 interface CategoryMeta {
   label: string
+  /** `bg-cat-*` legend-dot colour (the older per-category dot; being replaced by
+   *  the type icon below, kept until every surface is migrated). */
   dot: string
+  /** Typical form of this category — picks the type icon. */
+  form: CompoundForm
+  /** `text-cat-*` colour for the type icon (the text-colour twin of `dot`). */
+  tint: string
 }
 
-// One distinct, muted hue per category (tokens defined in globals.css).
+// One distinct, muted hue per category (tokens defined in globals.css). `form`
+// picks the type icon (vial / tablet / tub); `tint` colours it per category.
 export const CATEGORY_META: Record<CompoundCategory, CategoryMeta> = {
-  anabolic: { label: "Anabolics", dot: "bg-cat-anabolic" },
-  oral: { label: "Orals", dot: "bg-cat-oral" },
-  sarm: { label: "SARMs", dot: "bg-cat-sarm" },
-  peptide: { label: "Peptides", dot: "bg-cat-peptide" },
-  ancillary: { label: "Ancillaries", dot: "bg-cat-ancillary" },
-  thyroid: { label: "Thyroid", dot: "bg-cat-thyroid" },
-  supplement: { label: "Supplements", dot: "bg-cat-supplement" },
-  stimulant: { label: "Stimulants", dot: "bg-cat-stimulant" },
+  anabolic: { label: "Anabolics", dot: "bg-cat-anabolic", form: "injectable", tint: "text-cat-anabolic" },
+  oral: { label: "Orals", dot: "bg-cat-oral", form: "oral", tint: "text-cat-oral" },
+  sarm: { label: "SARMs", dot: "bg-cat-sarm", form: "oral", tint: "text-cat-sarm" },
+  peptide: { label: "Peptides", dot: "bg-cat-peptide", form: "injectable", tint: "text-cat-peptide" },
+  ancillary: { label: "Ancillaries", dot: "bg-cat-ancillary", form: "oral", tint: "text-cat-ancillary" },
+  thyroid: { label: "Thyroid", dot: "bg-cat-thyroid", form: "oral", tint: "text-cat-thyroid" },
+  supplement: { label: "Supplements", dot: "bg-cat-supplement", form: "supplement", tint: "text-cat-supplement" },
+  stimulant: { label: "Stimulants", dot: "bg-cat-stimulant", form: "oral", tint: "text-cat-stimulant" },
 }
 
 // Neutral fallback for a missing/unknown category (e.g. a hand-edited or stale
@@ -75,6 +87,8 @@ export const CATEGORY_META: Record<CompoundCategory, CategoryMeta> = {
 export const FALLBACK_CATEGORY_META: CategoryMeta = {
   label: "Other",
   dot: "bg-text-muted",
+  form: "oral",
+  tint: "text-text-muted",
 }
 
 // Option lists for the "Make your own" form — mirror the catalogue's own enums.

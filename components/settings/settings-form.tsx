@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -150,7 +150,7 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
         className="h-12 w-full touch-manipulation select-none rounded-xl text-[0.95rem] transition-transform duration-100 active:scale-[0.98] motion-reduce:active:scale-100"
       >
         {isPending ? (
-          <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+          <CircleNotch className="size-5 animate-spin" aria-hidden="true" />
         ) : null}
         {isPending ? "Saving…" : "Save changes"}
       </Button>

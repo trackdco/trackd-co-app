@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Plus } from "lucide-react"
+import { Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { QUICK_ACTION_BADGE } from "@/lib/ui-presets"
@@ -282,7 +282,6 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
               "h-6 w-6 transition-transform duration-[var(--motion-fast)] ease-motion",
               open && "rotate-45",
             )}
-            strokeWidth={2.5}
             aria-hidden
           />
         </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, NotebookPen } from "lucide-react";
+import { CaretRight, NotePencil } from "@/components/icons";
 
 import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets";
 import { formatJournalDate, type JournalEntry } from "@/lib/progress/journal";
@@ -33,7 +33,7 @@ export function JournalCard({
       className="flex w-full items-start gap-3.5 rounded-2xl border border-border-default bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
     >
       <span className={CARD_ICON_BADGE} aria-hidden>
-        <NotebookPen className="h-5 w-5" />
+        <NotePencil className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
         <span className={`block ${CARD_TITLE}`}>Journal</span>
@@ -85,7 +85,7 @@ export function JournalCard({
           )}
         </span>
       )}
-      <ChevronRight className="mt-0.5 h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+      <CaretRight className="mt-0.5 h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
     </button>
   );
 }

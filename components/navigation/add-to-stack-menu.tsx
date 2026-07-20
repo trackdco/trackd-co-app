@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Check, Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react"
+import { Check, PencilSimple, Plus, ArrowCounterClockwise, MagnifyingGlass, Trash } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -657,7 +657,7 @@ function BrowseBody({
       {/* Search bar */}
       <div className="shrink-0 px-4 pb-4">
         <div className="relative">
-          <Search
+          <MagnifyingGlass
             aria-hidden
             className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-text-muted"
           />
@@ -831,7 +831,7 @@ function CompoundList({
                       aria-label={`Reactivate ${compound.name}`}
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent-amber/60 text-accent-amber transition-all duration-200 ease-out hover:bg-accent-amber/10 active:scale-95"
                     >
-                      <RotateCcw className="h-4 w-4" aria-hidden />
+                      <ArrowCounterClockwise className="h-4 w-4" aria-hidden />
                     </button>
                   ) : inLogNames.has(compound.name.toLowerCase()) ? (
                     <button
@@ -859,7 +859,7 @@ function CompoundList({
                     aria-label={`Edit ${compound.name}`}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-input hover:text-text-primary"
                   >
-                    <Pencil className="h-4 w-4" aria-hidden />
+                    <PencilSimple className="h-4 w-4" aria-hidden />
                   </button>
                   {/* Delete — same confirm + delete as the edit menu. */}
                   <button
@@ -868,7 +868,7 @@ function CompoundList({
                     aria-label={`Delete ${compound.name}`}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-state-error transition-colors hover:bg-state-error/10"
                   >
-                    <Trash2 className="h-4 w-4" aria-hidden />
+                    <Trash className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
               </div>
@@ -892,7 +892,7 @@ function CompoundList({
                   aria-label={`Reactivate ${compound.name}`}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent-amber/60 text-accent-amber transition-all duration-200 ease-out hover:bg-accent-amber/10 active:scale-95"
                 >
-                  <RotateCcw className="h-4 w-4" aria-hidden />
+                  <ArrowCounterClockwise className="h-4 w-4" aria-hidden />
                 </button>
               </div>
             ) : inLogNames.has(lname) ? (
@@ -1085,7 +1085,7 @@ function CompoundForm({
               onClick={onAskDelete}
               className="flex items-center gap-2 text-sm text-state-error transition-opacity hover:opacity-80"
             >
-              <Trash2 className="h-4 w-4" aria-hidden />
+              <Trash className="h-4 w-4" aria-hidden />
               Delete compound
             </button>
           )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Droplet } from "lucide-react";
+import { CaretRight, Drop } from "@/components/icons";
 
 import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets";
 import { formatBloodworkDate, type BloodworkPhoto } from "@/lib/progress/bloodwork";
@@ -31,7 +31,7 @@ export function BloodworkCard({
         className="flex w-full items-center gap-3.5 rounded-2xl border border-border-default bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
       >
         <span className={CARD_ICON_BADGE} aria-hidden>
-          <Droplet className="h-5 w-5" />
+          <Drop className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
           <span className={`block ${CARD_TITLE}`}>Bloodwork</span>
@@ -39,7 +39,7 @@ export function BloodworkCard({
             Attach a screenshot of your blood work
           </span>
         </span>
-        <ChevronRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+        <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
       </button>
     );
   }
@@ -55,7 +55,7 @@ export function BloodworkCard({
         className="flex w-full items-center gap-3.5 px-5 pt-5 pb-3.5 text-left transition-colors hover:bg-bg-surface-raised/30"
       >
         <span className={CARD_ICON_BADGE} aria-hidden>
-          <Droplet className="h-5 w-5" />
+          <Drop className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
           <span className={`block ${CARD_TITLE}`}>Bloodwork</span>
@@ -63,7 +63,7 @@ export function BloodworkCard({
             {photos.length} {photos.length === 1 ? "panel" : "panels"}
           </span>
         </span>
-        <ChevronRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+        <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
       </button>
 
       {/* Latest photo — tap to grow it full. */}

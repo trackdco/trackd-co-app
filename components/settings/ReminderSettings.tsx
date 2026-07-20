@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@/components/icons";
 
 import { CARD_TITLE } from "@/lib/ui-presets";
 import {
@@ -137,7 +137,7 @@ export function ReminderSettings({
           disabled={pending}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent-primary px-5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-60"
         >
-          {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+          {pending ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : null}
           {pending ? "Saving…" : "Save reminders"}
         </button>
         {saved === "ok" && <span className="text-sm text-text-muted">Saved</span>}

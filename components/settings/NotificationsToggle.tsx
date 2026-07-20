@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Bell, Loader2 } from "lucide-react";
+import { Bell, CircleNotch } from "@/components/icons";
 
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { usePushNotifications } from "@/components/push/usePushNotifications";
@@ -159,7 +159,7 @@ function TestSend() {
         className="inline-flex items-center gap-2 text-sm text-accent-amber transition-opacity hover:opacity-80 disabled:opacity-60"
       >
         {pending ? (
-          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          <CircleNotch className="size-4 animate-spin" aria-hidden="true" />
         ) : null}
         Send a test notification
       </button>

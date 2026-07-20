@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2 } from "lucide-react";
+import { CircleNotch, Trash } from "@/components/icons";
 
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
@@ -107,7 +107,7 @@ export function ProgressPhotoViewer({
                   aria-label="Delete this photo"
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-accent-destructive"
                 >
-                  <Trash2 className="h-4 w-4" aria-hidden />
+                  <Trash className="h-4 w-4" aria-hidden />
                 </button>
               </div>
 
@@ -152,7 +152,7 @@ export function ProgressPhotoViewer({
                       disabled={busy}
                       className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent-destructive py-2.5 text-sm font-medium text-text-primary transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
+                      {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Trash className="h-4 w-4" aria-hidden />}
                       Delete
                     </button>
                   </div>

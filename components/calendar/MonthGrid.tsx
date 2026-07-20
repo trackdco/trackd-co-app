@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Info, NotebookPen, Scale, Syringe } from "lucide-react";
+import { Camera, Info, NotePencil, Scales, Syringe } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import type { DateKey } from "@/lib/home/mockHomeData";
@@ -147,7 +147,7 @@ function KindIcon({ kind }: { kind: LoggedKind }) {
   const cls = "h-2.5 w-2.5 text-text-muted";
   if (kind === "dose") return <Syringe className={cls} aria-hidden />;
   if (kind === "photo") return <Camera className={cls} aria-hidden />;
-  if (kind === "journal") return <NotebookPen className={cls} aria-hidden />;
-  if (kind === "weight") return <Scale className={cls} aria-hidden />;
+  if (kind === "journal") return <NotePencil className={cls} aria-hidden />;
+  if (kind === "weight") return <Scales className={cls} aria-hidden />;
   return null;
 }

@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Archive,
-  ChevronRight,
+  CaretRight,
   FileText,
-  Settings,
+  GearSix,
   ShieldCheck,
   Stethoscope,
-  type LucideIcon,
-} from "lucide-react";
+  type Icon,
+} from "@/components/icons";
 
 import { AvatarUploader } from "@/components/profile/AvatarUploader";
 import { InstallAppRow } from "@/components/profile/InstallAppRow";
@@ -174,7 +174,7 @@ export default async function ProfilePage() {
       <div className="animate-home-up" style={{ animationDelay: "140ms" }}>
         <Eyebrow>App</Eyebrow>
         <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
-          <LinkRow href="/settings" icon={Settings}>
+          <LinkRow href="/settings" icon={GearSix}>
             Settings
           </LinkRow>
           <Divider />
@@ -269,7 +269,7 @@ function LinkRow({
   children,
 }: {
   href: string;
-  icon: LucideIcon;
+  icon: Icon;
   children: React.ReactNode;
 }) {
   return (
@@ -279,7 +279,7 @@ function LinkRow({
     >
       <Icon className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
       <span className="flex-1 text-sm text-foreground">{children}</span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+      <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
     </Link>
   );
 }

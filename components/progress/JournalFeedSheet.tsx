@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import {
-  CalendarRange,
-  ChevronDown,
-  ChevronRight,
-  NotebookPen,
+  CalendarBlank,
+  CaretDown,
+  CaretRight,
+  NotePencil,
   Plus,
-  Tags,
-} from "lucide-react";
+  Tag,
+} from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -112,7 +112,7 @@ export function JournalFeedSheet({
             {branchOpen && (
               <div className="animate-shortcut-in mt-2 grid grid-cols-2 gap-2">
                 <BranchButton
-                  icon={<NotebookPen className="h-4 w-4" aria-hidden />}
+                  icon={<NotePencil className="h-4 w-4" aria-hidden />}
                   label="Write a note"
                   sub="Free-write + optional markers"
                   onClick={() => {
@@ -121,7 +121,7 @@ export function JournalFeedSheet({
                   }}
                 />
                 <BranchButton
-                  icon={<Tags className="h-4 w-4" aria-hidden />}
+                  icon={<Tag className="h-4 w-4" aria-hidden />}
                   label="Log markers"
                   sub="Dial how you feel"
                   onClick={() => {
@@ -147,14 +147,14 @@ export function JournalFeedSheet({
                     className="flex w-full items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3.5 py-2.5 text-sm transition-colors hover:border-border-strong"
                   >
                     <span className="flex items-center gap-2">
-                      <CalendarRange className="h-4 w-4 text-text-muted" aria-hidden />
+                      <CalendarBlank className="h-4 w-4 text-text-muted" aria-hidden />
                       <span className="font-medium text-foreground">
                         {selectedMonth === "all"
                           ? "All months"
                           : formatMonthLabel(selectedMonth)}
                       </span>
                     </span>
-                    <ChevronDown
+                    <CaretDown
                       className={cn(
                         "h-4 w-4 text-text-muted transition-transform duration-200",
                         monthMenuOpen && "rotate-180",
@@ -245,7 +245,7 @@ export function JournalFeedSheet({
                                     )}
                                   </span>
                                 )}
-                                <ChevronRight
+                                <CaretRight
                                   className="mt-0.5 h-4 w-4 shrink-0 text-text-subtle"
                                   aria-hidden
                                 />

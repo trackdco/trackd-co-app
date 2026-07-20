@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { CaretRight } from "@/components/icons";
 
 import {
   Sheet,
@@ -240,7 +240,7 @@ function DeepLink({
       className="flex w-full items-center gap-3 rounded-xl border border-border-default bg-bg-surface-raised px-4 py-3 text-left outline-none transition-colors hover:border-border-strong focus-visible:ring-2 focus-visible:ring-accent-amber/50"
     >
       {children}
-      <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+      <CaretRight className="ml-auto h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
     </button>
   );
 }

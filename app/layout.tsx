@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import Image from "next/image";
 import "./globals.css";
 
+import { IconProvider } from "@/components/providers/icon-provider";
 import { AppleSplashLinks } from "@/components/pwa/apple-splash-links";
 import { DesktopGate } from "@/components/pwa/desktop-gate";
 import { DesktopInterstitial } from "@/components/pwa/desktop-interstitial";
@@ -80,27 +81,30 @@ export default async function RootLayout({
             native one). */}
         <AppleSplashLinks />
 
-        {/* The app below lg; the "go to your phone" interstitial at ≥1024px. */}
-        <DesktopGate
-          interstitial={
-            <DesktopInterstitial
-              className="hidden lg:flex"
-              returning={Boolean(user)}
-              logo={
-                <Image
-                  src="/trackd-wordmark.png"
-                  alt="trackd co"
-                  width={1049}
-                  height={200}
-                  priority
-                  className="h-5 w-auto"
-                />
-              }
-            />
-          }
-        >
-          {children}
-        </DesktopGate>
+        {/* Phosphor stroke weight is set once here for every icon in the app. */}
+        <IconProvider>
+          {/* The app below lg; the "go to your phone" interstitial at ≥1024px. */}
+          <DesktopGate
+            interstitial={
+              <DesktopInterstitial
+                className="hidden lg:flex"
+                returning={Boolean(user)}
+                logo={
+                  <Image
+                    src="/trackd-wordmark.png"
+                    alt="trackd co"
+                    width={1049}
+                    height={200}
+                    priority
+                    className="h-5 w-auto"
+                  />
+                }
+              />
+            }
+          >
+            {children}
+          </DesktopGate>
+        </IconProvider>
       </body>
     </html>
   );

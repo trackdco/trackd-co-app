@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Activity } from "lucide-react";
+import { Pulse } from "@/components/icons";
 import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { cn } from "@/lib/utils";
@@ -134,7 +134,7 @@ export function ConsistencyGraph({ points }: { points: AdherencePoint[] }) {
     <section className="rounded-2xl border border-border-default bg-bg-surface p-5">
       <div className="flex items-center gap-3.5">
         <span className={CARD_ICON_BADGE} aria-hidden>
-          <Activity className="h-5 w-5" />
+          <Pulse className="h-5 w-5" />
         </span>
         <p className={CARD_TITLE}>Consistency</p>
       </div>

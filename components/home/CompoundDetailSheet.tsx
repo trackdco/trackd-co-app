@@ -2,12 +2,12 @@
 
 import { useState } from "react"
 import {
-  CalendarClock,
-  ChevronDown,
-  Pencil,
-  RotateCcw,
-  Trash2,
-} from "lucide-react"
+  CalendarDot,
+  CaretDown,
+  PencilSimple,
+  ArrowCounterClockwise,
+  Trash,
+} from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import {
@@ -207,7 +207,7 @@ function DetailBody({
               onClick={() => onEdit(compound)}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
-              <RotateCcw className="h-4 w-4" aria-hidden />
+              <ArrowCounterClockwise className="h-4 w-4" aria-hidden />
               Reactivate
             </button>
           ) : context === "plan" ? (
@@ -216,7 +216,7 @@ function DetailBody({
               onClick={() => onEdit(compound)}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
-              <Pencil className="h-4 w-4" aria-hidden />
+              <PencilSimple className="h-4 w-4" aria-hidden />
               Edit dose &amp; schedule
             </button>
           ) : (
@@ -225,7 +225,7 @@ function DetailBody({
               onClick={() => onEditTodaysDose?.(compound)}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
-              <Pencil className="h-4 w-4" aria-hidden />
+              <PencilSimple className="h-4 w-4" aria-hidden />
               {isToday ? "Edit today's dose" : "Edit this dose"}
             </button>
           )}
@@ -267,7 +267,7 @@ function DetailBody({
               className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary"
             >
               More
-              <ChevronDown
+              <CaretDown
                 className={cn(
                   "h-4 w-4 transition-transform",
                   moreOpen && "rotate-180"
@@ -290,7 +290,7 @@ function DetailBody({
                         the dashboard, where the primary is "Edit today's dose". */}
                     {context !== "plan" && (
                       <MenuRow
-                        icon={<CalendarClock className="h-4 w-4" aria-hidden />}
+                        icon={<CalendarDot className="h-4 w-4" aria-hidden />}
                         sub="Changes upcoming doses · today's logged dose stays as-is"
                         onClick={() => {
                           setMoreOpen(false)
@@ -301,7 +301,7 @@ function DetailBody({
                       </MenuRow>
                     )}
                     <MenuRow
-                      icon={<Trash2 className="h-4 w-4" aria-hidden />}
+                      icon={<Trash className="h-4 w-4" aria-hidden />}
                       sub="Removes it going forward · keeps all your logged history"
                       onClick={() => {
                         setMoreOpen(false)
@@ -316,7 +316,7 @@ function DetailBody({
                   // stopped (archived) compound, behind the two-step confirm below.
                   <MenuRow
                     destructive
-                    icon={<Trash2 className="h-4 w-4" aria-hidden />}
+                    icon={<Trash className="h-4 w-4" aria-hidden />}
                     sub="Erases this stopped compound and ALL its logged history"
                     onClick={() => {
                       setMoreOpen(false)

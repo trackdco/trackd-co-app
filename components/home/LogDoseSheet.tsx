@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { CalendarDays, Check } from "lucide-react"
+import { CalendarDots, Check } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -423,7 +423,7 @@ function LogDoseBody({
             today", "a future day") editorialises about a choice the user just made. */}
         {!onToday && (
           <div className="mb-4 flex items-center gap-2 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2">
-            <CalendarDays
+            <CalendarDots
               className="h-3.5 w-3.5 shrink-0 text-text-muted"
               aria-hidden
             />
@@ -818,7 +818,7 @@ function LogDoseBody({
               className="animate-home-tick-ring absolute inset-0 rounded-full border-2 border-bg-base/40"
             />
             <span className="animate-home-tick-pop flex h-16 w-16 items-center justify-center rounded-full bg-bg-base/15">
-              <Check className="h-9 w-9" strokeWidth={2.5} aria-hidden />
+              <Check className="h-9 w-9" aria-hidden />
             </span>
           </span>
           <span className="animate-shortcut-fade text-base font-semibold">

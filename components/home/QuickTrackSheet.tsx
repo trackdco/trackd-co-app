@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useSyncExternalStore } from "react"
-import { Check } from "lucide-react"
+import { Check } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import {
@@ -315,7 +315,7 @@ function QuickRow({
             : "border-border-strong text-transparent hover:border-text-primary"
         )}
       >
-        <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
+        <Check className="h-3.5 w-3.5" aria-hidden />
       </button>
 
       {/* Name + specs — tap to open the Log sheet (edit if already logged), so you

@@ -1,15 +1,15 @@
 import type { ComponentType, ReactNode } from "react";
 import {
-  CalendarDays,
+  CalendarDots,
   Camera,
   Check,
-  FlaskConical,
+  Flask,
   Flame,
   Lock,
-  Smartphone,
-  TrendingUp,
-  Zap,
-} from "lucide-react";
+  DeviceMobile,
+  TrendUp,
+  Lightning,
+} from "@/components/icons";
 import { QRCodeSVG } from "qrcode.react";
 
 import { cn } from "@/lib/utils";
@@ -62,17 +62,17 @@ type Feature = {
 // coming back to" for a returning one, so both variants share them.
 const FEATURES: Feature[] = [
   {
-    icon: Zap,
+    icon: Lightning,
     title: "See what's working",
     body: "Track weight, biomarkers and outcomes over time.",
   },
   {
-    icon: FlaskConical,
+    icon: Flask,
     title: "Stay consistent",
     body: "Log your protocol and build streaks.",
   },
   {
-    icon: TrendingUp,
+    icon: TrendUp,
     title: "Get real insights",
     body: "Outcomes over time, not just data.",
   },
@@ -155,7 +155,7 @@ export function DesktopInterstitial({
           {/* ── Primary column ───────────────────────────────────────────── */}
           <div className="flex flex-col justify-center">
             <span className="inline-flex w-fit items-center gap-2 rounded-full border border-accent-amber/25 bg-accent-amber/10 px-3.5 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-accent-amber">
-              <Smartphone className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+              <DeviceMobile className="h-3.5 w-3.5" aria-hidden />
               {copy.eyebrow}
             </span>
 
@@ -188,7 +188,7 @@ export function DesktopInterstitial({
                 {FEATURES.map(({ icon: Icon, title, body }) => (
                   <div key={title} className="flex items-start gap-4 py-4">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-accent-amber/30 bg-accent-amber/10 text-accent-amber">
-                      <Icon className="h-5 w-5" strokeWidth={1.75} />
+                      <Icon className="h-5 w-5" />
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">{title}</p>
@@ -220,7 +220,7 @@ export function DesktopInterstitial({
               />
 
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-accent-amber/30 bg-accent-amber/10 text-accent-amber">
-                <Smartphone className="h-7 w-7" strokeWidth={1.5} aria-hidden />
+                <DeviceMobile className="h-7 w-7" aria-hidden />
               </span>
 
               <h2 className="mt-6 font-display text-3xl font-medium leading-[1.12] text-foreground">
@@ -254,7 +254,7 @@ export function DesktopInterstitial({
               </div>
 
               <p className="mt-6 flex items-center justify-center gap-2 text-sm font-medium text-accent-amber">
-                <Camera className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+                <Camera className="h-4 w-4" aria-hidden />
                 Point your phone&apos;s camera at the code
               </p>
               <p className="mt-2 text-sm text-text-muted">
@@ -263,7 +263,7 @@ export function DesktopInterstitial({
               </p>
 
               <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-text-subtle">
-                <Lock className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+                <Lock className="h-3.5 w-3.5" aria-hidden />
                 Your data is private and secure.
               </p>
             </div>
@@ -272,9 +272,8 @@ export function DesktopInterstitial({
 
         {/* Bottom-left footer note. */}
         <div className="flex shrink-0 items-start gap-2.5 text-text-muted">
-          <Smartphone
+          <DeviceMobile
             className="mt-0.5 h-4 w-4 shrink-0 text-text-subtle"
-            strokeWidth={1.75}
             aria-hidden
           />
           <p className="text-xs leading-relaxed">
@@ -392,7 +391,7 @@ function InventoryCardBody() {
         <div className="h-full rounded-full bg-text-muted" style={{ width: "64%" }} />
       </div>
       <div className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
-        <CalendarDays className="h-3.5 w-3.5 text-accent-amber" strokeWidth={1.75} aria-hidden />
+        <CalendarDots className="h-3.5 w-3.5 text-accent-amber" aria-hidden />
         Runs dry ~ 18 Jul
       </div>
     </>
@@ -420,7 +419,7 @@ function LogCardBody() {
                   : "border-border-strong",
               )}
             >
-              {item.done ? <Check className="h-3 w-3" strokeWidth={2.5} aria-hidden /> : null}
+              {item.done ? <Check className="h-3 w-3" aria-hidden /> : null}
             </span>
             <span className="text-sm text-foreground">{item.name}</span>
             <span className="ml-auto font-mono text-xs text-text-muted">{item.sub}</span>
@@ -428,7 +427,7 @@ function LogCardBody() {
         ))}
       </div>
       <div className="mt-3.5 flex items-center gap-1.5 text-xs text-text-muted">
-        <Flame className="h-3.5 w-3.5 text-accent-amber" strokeWidth={1.75} aria-hidden />
+        <Flame className="h-3.5 w-3.5 text-accent-amber" aria-hidden />
         18 day streak
       </div>
     </>
