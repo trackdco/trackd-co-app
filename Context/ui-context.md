@@ -64,31 +64,35 @@ is not permitted.
 > "good." Chart colours (`--chart-line` / `--chart-fill`) are a
 > neutral blue precisely so trend visuals stay non-evaluative.
 
-### Rule: one amber moment per screen
+### Rule: amber marks what's live — one or two beats per screen
 
-Amber's job is **"this needs you now."** On any given screen, amber
-appears on **at most one element** — the due dose ring + its "due now"
-line, the active selection in a control, the pop-down notice. Everything
-else that once carried amber as decoration (icon badges, chevrons,
-secondary highlights) is muted or white. **Completion is white, not
-amber**: a logged dose resolves to a filled `--accent-primary` tick on
-the dark base — completion is *resolved*, no longer *active*, so it
-takes the primary accent. Rarity is what makes the amber read; if two
-things are amber, neither is urgent. (The injection-site recency ramp
-below is the one sanctioned multi-amber surface.)
+Amber's job is **"this needs you now / this is live."** Keep it to **one, at most
+two, purposeful beats** on a screen — never everything (the old build amber-ed
+titles, badges and chevrons; that blanket amber is exactly the vibe-coded tell
+we're leaving behind). The sanctioned amber beats are the **due signal** (Today's
+Log's "N due", a due-dose ring) and the **day's live progress pulse** (the Home
+completion **ring**, which sweeps as you log — the satisfying "tracked" feedback).
+Everything **settled** reads white or muted: a single logged-dose **tick**
+resolves to a filled `--accent-primary` (white) mark; the **active selection** in
+a control is white; the tab bar is monochrome (active white, inactive
+`--text-subtle`). Rarity is what makes amber read — if half the screen is amber,
+nothing is urgent. (The injection-site recency ramp below is the one sanctioned
+many-amber surface.)
 
-### Category legend dots
+### Category legend — compound type icons
 
-Compound **categories** (anabolic / oral / sarm / peptide /
-ancillary / thyroid / supplement / stimulant) get one muted dot
-colour each, defined as `--cat-*` tokens in `globals.css` and
-exposed as `bg-cat-*` utilities. These are an **organisational
-legend** — they label a compound's *type*, not a health value — so
-they sit outside the "categorical, never evaluative" rule above
-(which governs biomarker/marker **readings**). The hues are
-deliberately restrained and non-alarming (no pure red). Source of
-truth for the label + dot per category is
-`lib/compound-categories.ts` (`CATEGORY_META`).
+Each compound carries a small **type icon** that shows its **form** at a glance —
+a **vial** (`TestTube`) for injectables, a **tablet** (`Pill`) for orals, a **tub**
+(`Cylinder`) for supplements — **coloured by category** (anabolic / oral / sarm /
+peptide / ancillary / thyroid / supplement / stimulant), one muted `--cat-*` hue
+each. Rendered by **`<CategoryIcon>`** (`components/compounds/CategoryIcon.tsx`); the
+source of truth for a category's label, `form` and colour (`text-cat-*`) is
+`lib/compound-categories.ts` (`CATEGORY_META`). This **replaces the old plain
+category dot** (`bg-cat-*`), which is retired per surface as each is migrated — the
+shape now tells you the form, the colour the category. These are an **organisational
+legend** — they label a compound's *type*, not a health value — so they sit outside
+the "categorical, never evaluative" rule above (which governs biomarker/marker
+**readings**). The hues are deliberately restrained and non-alarming (no pure red).
 
 ### Injection-site recency ramp (Spec 19 — a sanctioned amber exception)
 
