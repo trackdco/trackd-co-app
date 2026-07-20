@@ -17,7 +17,7 @@ export const PRICE_ID: Record<Cadence, string | undefined> = {
 };
 
 /** Free-trial length in days — applies to BOTH monthly and annual. */
-export const TRIAL_DAYS = 7;
+export const TRIAL_DAYS = 5;
 
 /** Extended trial (days) unlocked by a valid beta access code — two weeks. */
 export const BETA_TRIAL_DAYS = 14;

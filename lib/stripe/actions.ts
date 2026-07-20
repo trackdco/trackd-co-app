@@ -41,7 +41,7 @@ function resolveTrial(
 
 /**
  * Start a Stripe Checkout session for a subscription. Identity comes from the
- * verified session, never the client. Both cadences start a 7-day free trial (a
+ * verified session, never the client. Both cadences start a 5-day free trial (a
  * valid beta code extends it to two weeks); the card is collected and first
  * charged when the trial ends. Returns a hosted Checkout URL, or a friendly
  * error — never throws (action convention).
