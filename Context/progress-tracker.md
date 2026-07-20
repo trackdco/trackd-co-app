@@ -165,9 +165,13 @@ dropped (`app/globals.css`) → **zero `font-display`/Playfair repo-wide**. Reti
 `npm install`; no app imports remained). Dev-preview harness serif also cleaned.
 
 **Net:** `next build` + `tsc` + `lint` all clean (42 routes). The whole premium-minimal
-restyle (Home → every in-app screen + sheet → external surfaces → cleanup) is CODE-COMPLETE
-on `feat/premium-ui-restyle`, **NOT committed** — pending Adrian's on-device review + the
-amber judgment-call sign-offs, then commit → PR → CodeRabbit → merge.
+restyle (Home → every in-app screen + sheet → external surfaces → cleanup) **SHIPPED TO PROD**
+— merged to `main` as **PR #59 (squash `d501fff`), Vercel prod deploy `success`.** CodeRabbit
+auto-skipped (108 files > its 100-file limit; no premium budget), so it was replaced with a
+clean self-review of the diff (no correctness findings — all logic-looking hunks were the 11
+` 2.tsx` cruft deletions + the build-verified Home widget move). Adrian kept the WARM palette.
+No migration — UI-only. Remaining is non-blocking: on-device eyeball + the amber judgment
+calls logged in `next-tasks.md`.
 
 ## Spec 22 — Multi-spec batch: per-dose hint, custom markers, compound soft-delete, journal photos (2026-07-18, Adrian + Claude)
 

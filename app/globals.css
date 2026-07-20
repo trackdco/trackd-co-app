@@ -303,8 +303,10 @@
   animation: shortcut-fade var(--motion-fast) ease-out reverse both;
 }
 
+/* Open on the slow entrance token so the card FLOATS up (matching the Home cards'
+   rise) rather than snapping in; close stays quick so dismissal feels responsive. */
 .animate-quick-menu-in {
-  animation: quick-menu-in var(--motion-fast) var(--motion-ease) both;
+  animation: quick-menu-in var(--motion-slow) var(--motion-ease) both;
 }
 
 .animate-quick-menu-out {
@@ -359,7 +361,7 @@
 @keyframes quick-menu-in {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.98);
+    transform: translateY(16px) scale(0.98);
   }
   to {
     opacity: 1;

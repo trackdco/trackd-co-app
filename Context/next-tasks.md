@@ -15,16 +15,19 @@ Last updated: 2026-07-20
 
 ## 🎯 Current focus
 
-**▶ 2026-07-20 · WHOLE RESTYLE CODE-COMPLETE — STEP 0 → STEP 3 all DONE.** Every in-app
-screen + sheet, every external/front-door surface, and the cleanup are finished on
-`feat/premium-ui-restyle` (off `main`). `next build` + `tsc` + `lint` all clean (42 routes);
-**zero `font-display`/Playfair repo-wide**; `lucide-react` + the ` 2.tsx` cruft removed.
-**NOT committed.** Restyle-IN-PLACE only (no feature/layout changes; PNG wordmark + injection
-SVGs untouched). Preview at PHONE WIDTH via `:3001` (`/preview/<home|progress|calendar|
-protocol|sites|recon|profile|archive-weight>`; login/welcome/waitlist/legal via their routes).
+**▶ 2026-07-20 · WHOLE RESTYLE SHIPPED TO PROD.** Merged to `main` as **PR #59 (squash
+`d501fff`) → Vercel prod deploy `success`.** STEP 0 → STEP 3 all done: every in-app screen +
+sheet, every external/front-door surface, and the cleanup. `next build` + `tsc` + `lint` clean
+(42 routes); **zero `font-display`/Playfair repo-wide**; `lucide-react` + the ` 2.tsx` cruft
+removed. Restyle-IN-PLACE only (no feature/layout changes; PNG wordmark + injection SVGs
+untouched). CodeRabbit **auto-skipped** (108 files > its 100-file limit; no premium budget) —
+substituted a **clean self-review** of the diff (no correctness findings; all logic-looking
+changes were cruft deletions + the verified Home widget move). Adrian kept the WARM palette
+(a cool-graphite sample was built at `/preview/home/sample` then removed).
 
-**▶ NEXT (human): Adrian's on-device review + sign-off on the ⚠ amber judgment calls below,
-then commit → PR → CodeRabbit → merge → prod** (the usual flow). No migration — UI-only.
+**▶ NEXT (human, non-blocking): on-device eyeball on prod + the ⚠ amber judgment calls below**
+(iOS install Share-glyph→numeral; warning-callout amber; live-clock amber; lighter buttons;
+month-header eyebrows). Adjust any in a follow-up if they don't land. No migration — UI-only.
 The RESUME STEP 0–3 detail below is kept struck-through for reference.
 
 ### ✅ DONE — RESUME STEP 0 — the 2 Home tweaks
