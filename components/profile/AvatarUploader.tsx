@@ -126,7 +126,7 @@ export function AvatarUploader({
             className="h-full w-full object-cover"
           />
         ) : (
-          <span className="flex h-full w-full items-center justify-center font-display text-2xl text-foreground">
+          <span className="flex h-full w-full items-center justify-center text-2xl text-foreground">
             {initials}
           </span>
         )}

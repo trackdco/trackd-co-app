@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Compass, Download, Plus, Share, X } from "@/components/icons";
+import { Compass, Download, X } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 
@@ -120,7 +120,7 @@ export function InstallPrompt() {
   if (!platform) return null;
 
   return (
-    <div className="relative mt-8 rounded-2xl border border-border bg-bg-surface p-5">
+    <div className="relative mt-8 rounded-2xl bg-bg-surface p-5">
       <button
         type="button"
         onClick={dismiss}
@@ -130,7 +130,9 @@ export function InstallPrompt() {
         <X className="size-4" aria-hidden="true" />
       </button>
 
-      <p className="font-display text-lg text-foreground">Install Trackd</p>
+      <p className="text-lg font-light tracking-[-0.02em] text-foreground">
+        Install Trackd
+      </p>
 
       {platform === "android" && (
         <>
@@ -158,8 +160,8 @@ export function InstallPrompt() {
           </p>
           <ol className="mt-4 space-y-3">
             <li className="flex items-start gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
-                <Share className="size-5" aria-hidden="true" />
+              <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
+                1
               </span>
               <span className="text-sm leading-snug text-text-muted">
                 Tap the{" "}
@@ -170,8 +172,8 @@ export function InstallPrompt() {
               </span>
             </li>
             <li className="flex items-start gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
-                <Plus className="size-5" aria-hidden="true" />
+              <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
+                2
               </span>
               <span className="text-sm leading-snug text-text-muted">
                 Scroll down and choose{" "}
@@ -192,7 +194,7 @@ export function InstallPrompt() {
             in Safari first.
           </p>
           <div className="mt-4 flex items-start gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
+            <span className="flex size-9 shrink-0 items-center justify-center text-text-muted">
               <Compass className="size-5" aria-hidden="true" />
             </span>
             <span className="text-sm leading-snug text-text-muted">

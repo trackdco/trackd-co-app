@@ -92,8 +92,8 @@ export function InstallHomeScreenPopup({
 
         {platform === "android" ? (
           <>
-            <div className="rounded-2xl border border-border bg-bg-surface p-5">
-              <p className="font-display text-lg text-foreground">
+            <div className="rounded-2xl bg-bg-surface p-5">
+              <p className="text-lg font-light tracking-[-0.02em] text-foreground">
                 Add Trackd to your Home Screen
               </p>
               <p className="mt-1.5 text-sm leading-relaxed text-text-muted">

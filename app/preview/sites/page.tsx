@@ -19,7 +19,7 @@ export default function PreviewSitesPage() {
       <span className="self-start rounded-full bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium tracking-wider text-text-muted uppercase">
         Preview · injection-site body maps
       </span>
-      <h1 className="mt-4 font-display text-[2rem] leading-[1.1] font-medium tracking-[-0.02em] text-foreground">
+      <h1 className="mt-4 text-[2rem] leading-[1.1] font-light tracking-[-0.02em] text-foreground">
         Male &amp; female bodies
       </h1>
       <p className="mt-3 max-w-prose text-[0.95rem] leading-relaxed text-text-muted">

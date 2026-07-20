@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getCurrentLegalDocument, type LegalDocType } from "@/lib/legal/getLegalDocument";
+import { PAGE_TITLE } from "@/lib/ui-presets";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -75,7 +76,7 @@ function renderBody(body: string, title: string): React.ReactNode[] {
     if (t.startsWith("### ")) {
       flushBullets();
       nodes.push(
-        <h3 key={i} className="pt-2 font-display text-base text-foreground">
+        <h3 key={i} className="pt-2 text-base font-medium text-foreground">
           {renderInline(t.slice(4))}
         </h3>,
       );
@@ -85,7 +86,7 @@ function renderBody(body: string, title: string): React.ReactNode[] {
     if (t.startsWith("## ") || /^\d+\.\s+\S/.test(t)) {
       flushBullets();
       nodes.push(
-        <h2 key={i} className="pt-3 font-display text-lg text-foreground">
+        <h2 key={i} className="pt-3 text-lg font-medium text-foreground">
           {renderInline(t.startsWith("## ") ? t.slice(3) : t)}
         </h2>,
       );
@@ -126,7 +127,7 @@ export async function LegalDocument({ docType }: { docType: LegalDocType }) {
         />
       </Link>
 
-      <h1 className="mt-12 font-display text-3xl tracking-[-0.02em] text-foreground">
+      <h1 className={`mt-12 ${PAGE_TITLE}`}>
         {doc.title.replace(/^Trackd Co\s*[—-]\s*/, "")}
       </h1>
       <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-subtle">

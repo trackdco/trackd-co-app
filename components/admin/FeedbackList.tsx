@@ -92,7 +92,7 @@ function FeedbackCard({
 }) {
   return (
     <div
-      className={`flex items-start gap-3 rounded-2xl border border-border-default bg-bg-surface p-4 transition-opacity ${
+      className={`flex items-start gap-3 rounded-2xl bg-bg-surface p-4 transition-opacity ${
         resolved ? "opacity-55" : ""
       }`}
     >
@@ -103,8 +103,8 @@ function FeedbackCard({
         aria-label={resolved ? "Mark as open" : "Mark as resolved"}
         className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border transition-colors ${
           resolved
-            ? "border-accent-amber bg-accent-amber text-bg-base"
-            : "border-border-strong text-transparent hover:border-accent-amber"
+            ? "border-accent-primary bg-accent-primary text-bg-base"
+            : "border-border-strong text-transparent hover:border-text-primary"
         }`}
       >
         <Check className="size-3.5" />

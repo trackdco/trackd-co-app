@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Bell, CaretRight } from "@/components/icons";
+import { CaretRight } from "@/components/icons";
 
 import { SettingsForm } from "@/components/settings/settings-form";
-import { CARD_ICON_BADGE, CARD_TITLE, PAGE_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -53,10 +53,8 @@ export default async function SettingsPage() {
       <h1 className={PAGE_TITLE}>Settings</h1>
 
       {/* Account (read-only) */}
-      <section className="mt-6 rounded-2xl border border-border bg-bg-surface p-5">
-        <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-          Account
-        </p>
+      <section className="mt-6 rounded-2xl bg-bg-surface p-5">
+        <p className={CARD_EYEBROW}>Account</p>
         <dl className="mt-3 space-y-2 text-sm">
           {fullName ? <Row label="Name" value={fullName} /> : null}
           <Row label="Email" value={user.email ?? "—"} />
@@ -72,9 +70,7 @@ export default async function SettingsPage() {
       </section>
 
       {/* Editable personalisation */}
-      <h2 className="mt-8 text-xs uppercase tracking-[0.18em] text-text-muted">
-        About you
-      </h2>
+      <h2 className={`mt-8 ${CARD_EYEBROW}`}>About you</h2>
       <SettingsForm
         initial={{
           sex: profile?.sex ?? null,
@@ -88,13 +84,10 @@ export default async function SettingsPage() {
           tappable row here keeps Settings focused on personalisation. */}
       <Link
         href="/settings/notifications"
-        className="mt-8 flex items-center gap-3 rounded-2xl border border-border bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised"
+        className="mt-8 flex items-center gap-3 rounded-2xl bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised"
       >
-        <span className={CARD_ICON_BADGE} aria-hidden="true">
-          <Bell className="size-5" />
-        </span>
         <span className="min-w-0 flex-1">
-          <span className={`block ${CARD_TITLE}`}>
+          <span className={`block ${CARD_EYEBROW}`}>
             Notifications &amp; reminders
           </span>
           <span className="block text-sm text-text-muted">

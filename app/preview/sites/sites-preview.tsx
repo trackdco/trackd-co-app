@@ -79,10 +79,10 @@ export function SitesPreview() {
           return (
             <section
               key={sex}
-              className="rounded-2xl border border-border-default bg-bg-surface p-4"
+              className="rounded-2xl bg-bg-surface p-4"
             >
               <div className="mb-3 flex items-baseline justify-between">
-                <h2 className="font-display text-lg capitalize text-foreground">
+                <h2 className="text-lg font-light capitalize text-foreground">
                   {sex}
                 </h2>
                 <p className="text-[11px] text-text-subtle">

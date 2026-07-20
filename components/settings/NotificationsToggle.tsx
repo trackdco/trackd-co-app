@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Bell, CircleNotch } from "@/components/icons";
+import { CircleNotch } from "@/components/icons";
 
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { usePushNotifications } from "@/components/push/usePushNotifications";
-import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { sendMyRemindersNow } from "@/lib/notifications/actions";
 
 /**
@@ -45,13 +45,10 @@ export function NotificationsToggle({
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-surface p-5">
+    <section className="rounded-2xl bg-bg-surface p-5">
       <div className="flex items-start gap-3">
-        <span className={CARD_ICON_BADGE} aria-hidden="true">
-          <Bell className="size-5" />
-        </span>
         <div className="min-w-0 flex-1">
-          <p className={CARD_TITLE}>Notifications</p>
+          <p className={CARD_EYEBROW}>Notifications</p>
           <p className="mt-1 text-sm leading-relaxed text-text-muted">
             Dose reminders and protocol nudges, sent to this device.
           </p>
@@ -103,7 +100,7 @@ export function NotificationsToggle({
   );
 }
 
-/** The on/off switch — amber when on (UI/active accent, not health data). */
+/** The on/off switch — white when on (UI/active accent, not health data). */
 function Toggle({
   on,
   busy,
@@ -122,7 +119,7 @@ function Toggle({
       disabled={busy}
       onClick={onClick}
       className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-60 ${
-        on ? "bg-accent-amber" : "bg-bg-input border border-border-strong"
+        on ? "bg-accent-primary" : "bg-bg-input border border-border-strong"
       }`}
     >
       {/* Knob: flex-centered vertically; travel is exact so the 4px inset is equal
@@ -151,12 +148,12 @@ function TestSend() {
   }
 
   return (
-    <div className="mt-4 border-t border-border/60 pt-4">
+    <div className="mt-4 hairline-t pt-4">
       <button
         type="button"
         onClick={send}
         disabled={pending}
-        className="inline-flex items-center gap-2 text-sm text-accent-amber transition-opacity hover:opacity-80 disabled:opacity-60"
+        className="inline-flex items-center gap-2 text-sm text-foreground transition-opacity hover:opacity-80 disabled:opacity-60"
       >
         {pending ? (
           <CircleNotch className="size-4 animate-spin" aria-hidden="true" />

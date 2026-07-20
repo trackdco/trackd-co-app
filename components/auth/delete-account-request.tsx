@@ -64,7 +64,7 @@ export function DeleteAccountRequest({ email }: { email: string }) {
             >
               <h2
                 id="delete-account-title"
-                className="text-base font-semibold text-foreground"
+                className="text-base font-medium text-foreground"
               >
                 Delete your account?
               </h2>
@@ -88,7 +88,7 @@ export function DeleteAccountRequest({ email }: { email: string }) {
                 <a
                   href={mailto}
                   onClick={() => setOpen(false)}
-                  className="flex-1 rounded-xl bg-accent-destructive py-2.5 text-center text-sm font-semibold text-text-primary transition-opacity hover:opacity-90"
+                  className="flex-1 rounded-xl bg-accent-destructive py-2.5 text-center text-sm font-medium text-text-primary transition-opacity hover:opacity-90"
                 >
                   Email request
                 </a>

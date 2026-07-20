@@ -17,6 +17,7 @@ import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { DeleteAccountRequest } from "@/components/auth/delete-account-request";
 import { StartFreshSection } from "@/components/home/StartFreshSection";
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
+import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Profile — Trackd Co" };
@@ -106,8 +107,8 @@ export default async function ProfilePage() {
         <h1
           className={
             hasName
-              ? "mt-5 text-balance font-display text-[1.75rem] font-medium leading-[1.15] tracking-[-0.02em] text-foreground"
-              : "mt-5 font-display text-xl font-medium leading-[1.2] tracking-[-0.01em] break-all text-foreground"
+              ? `mt-5 text-balance leading-[1.15] ${PAGE_TITLE}`
+              : `mt-5 break-all leading-[1.2] ${PAGE_TITLE}`
           }
         >
           {displayName}
@@ -118,8 +119,8 @@ export default async function ProfilePage() {
           </p>
         ) : null}
 
-        {/* The single amber accent on this screen. */}
-        <span className="mt-4 inline-flex items-center rounded-full border border-border-default bg-bg-surface-raised px-3 py-1 text-xs font-medium text-accent-amber">
+        {/* Plan status pill — quiet and muted (amber retired on this screen). */}
+        <span className="mt-4 inline-flex items-center rounded-full border border-border-default bg-bg-surface-raised px-3 py-1 text-xs font-medium text-text-muted">
           {planLabel}
         </span>
       </section>
@@ -127,7 +128,7 @@ export default async function ProfilePage() {
       {/* ── Account ───────────────────────────────────────────────── */}
       <div className="animate-home-up" style={{ animationDelay: "85ms" }}>
         <Eyebrow>Account</Eyebrow>
-        <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
+        <div className="overflow-hidden rounded-2xl bg-bg-surface">
           <InfoRow label="Member since" value={memberSince} />
           <Divider />
           <InfoRow label="Plan" value={planLabel} />
@@ -139,7 +140,7 @@ export default async function ProfilePage() {
       {/* ── Physical (read-only glance; editing lives in /settings) ── */}
       <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
         <div className="mb-3 flex items-baseline justify-between gap-3">
-          <p className="text-xs font-medium tracking-[0.18em] text-text-muted uppercase">
+          <p className={CARD_EYEBROW}>
             Physical
           </p>
           <Link
@@ -149,7 +150,7 @@ export default async function ProfilePage() {
             Edit in Settings
           </Link>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
+        <div className="overflow-hidden rounded-2xl bg-bg-surface">
           <InfoRow label="Sex" value={fmtCapital(profile?.sex)} />
           <Divider />
           <InfoRow label="Age" value={age != null ? `${age} yrs` : "—"} />
@@ -173,7 +174,7 @@ export default async function ProfilePage() {
       {/* ── App & legal ───────────────────────────────────────────── */}
       <div className="animate-home-up" style={{ animationDelay: "140ms" }}>
         <Eyebrow>App</Eyebrow>
-        <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface">
+        <div className="overflow-hidden rounded-2xl bg-bg-surface">
           <LinkRow href="/settings" icon={GearSix}>
             Settings
           </LinkRow>
@@ -229,14 +230,14 @@ export default async function ProfilePage() {
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-3 text-xs font-medium tracking-[0.18em] text-text-muted uppercase">
+    <p className={`mb-3 ${CARD_EYEBROW}`}>
       {children}
     </p>
   );
 }
 
 function Divider() {
-  return <div className="mx-4 border-t border-border-default" aria-hidden />;
+  return <div className="mx-4 hairline-t" aria-hidden />;
 }
 
 function InfoRow({

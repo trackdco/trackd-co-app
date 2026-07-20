@@ -1,8 +1,8 @@
 "use client";
 
-import { CaretRight, NotePencil } from "@/components/icons";
+import { CaretRight } from "@/components/icons";
 
-import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { formatJournalDate, type JournalEntry } from "@/lib/progress/journal";
 
 function bodyFirstLine(body: string | null): string | null {
@@ -10,9 +10,9 @@ function bodyFirstLine(body: string | null): string | null {
 }
 
 /**
- * Journal card on the Progress scroll (Step 5) — a leading icon badge for
- * identity and a preview of the most recent entry: its date, the note's first
- * line, and a few of the dialed marker words as neutral chips. Taps to the feed.
+ * Journal card on the Progress scroll (Step 5) — the eyebrow title and a preview of
+ * the most recent entry: its date, the note's first line, and a few of the dialed
+ * marker words as neutral chips. Taps to the feed.
  */
 export function JournalCard({
   entries,
@@ -30,16 +30,13 @@ export function JournalCard({
       type="button"
       onClick={onOpen}
       aria-label="Open journal"
-      className="flex w-full items-start gap-3.5 rounded-2xl border border-border-default bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+      className="flex w-full items-start gap-3.5 rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
     >
-      <span className={CARD_ICON_BADGE} aria-hidden>
-        <NotePencil className="h-5 w-5" />
-      </span>
       <span className="min-w-0 flex-1">
-        <span className={`block ${CARD_TITLE}`}>Journal</span>
+        <span className={`block ${CARD_EYEBROW}`}>Journal</span>
         {latest ? (
           <>
-            <span className="mt-1 block text-sm text-foreground">
+            <span className="mt-1.5 block text-sm text-foreground">
               {formatJournalDate(latest.date)}
             </span>
             {line && (
@@ -65,7 +62,7 @@ export function JournalCard({
             )}
           </>
         ) : (
-          <span className="mt-1 block text-sm text-text-muted">
+          <span className="mt-1.5 block text-sm text-text-muted">
             Write a note or log how you feel
           </span>
         )}

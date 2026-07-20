@@ -17,7 +17,8 @@ import {
   FALLBACK_CATEGORY_META,
   type CompoundCategory,
 } from "@/lib/compound-categories"
-import { CARD_TITLE } from "@/lib/ui-presets"
+import { SHEET_TITLE } from "@/lib/ui-presets"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
 import type { BodySex } from "@/lib/db/types"
 import {
@@ -51,7 +52,6 @@ const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
 interface DoseGroup {
   cat: string
   label: string
-  dot: string
   items: StackCompound[]
 }
 
@@ -75,7 +75,6 @@ function groupByCategory(items: StackCompound[]): DoseGroup[] {
       return {
         cat,
         label: meta.label,
-        dot: meta.dot,
         items: [...byCat.get(cat)!].sort((x, y) =>
           x.schedule.timeOfDay.localeCompare(y.schedule.timeOfDay)
         ),
@@ -112,7 +111,7 @@ export function QuickTrackSheet({
         className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
       >
         <SheetHeader>
-          <SheetTitle className={CARD_TITLE}>
+          <SheetTitle className={SHEET_TITLE}>
             What would you like to track?
           </SheetTitle>
         </SheetHeader>
@@ -218,14 +217,11 @@ function QuickTrackBody({
               return (
                 <div key={group.cat} className="mt-3 first:mt-1">
                   <div className="flex items-center gap-2 px-1 pb-1">
-                    <span
-                      aria-hidden
-                      className={cn("h-1.5 w-1.5 shrink-0 rounded-full", group.dot)}
-                    />
+                    <CategoryIcon category={group.cat} className="h-3.5 w-3.5" />
                     <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-text-muted">
                       {group.label}
                     </span>
-                    <span aria-hidden className="h-px flex-1 bg-border-default" />
+                    <span aria-hidden className="h-[0.5px] flex-1 bg-border-default" />
                     {pending > 0 ? (
                       <span className="font-mono text-[11px] tabular-nums text-accent-amber">
                         {pending} due
@@ -311,7 +307,7 @@ function QuickRow({
         className={cn(
           "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
           log
-            ? "border-accent-amber bg-accent-amber text-bg-base"
+            ? "border-accent-primary bg-accent-primary text-bg-base"
             : "border-border-strong text-transparent hover:border-text-primary"
         )}
       >

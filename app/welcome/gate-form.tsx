@@ -27,7 +27,7 @@ const MONTHS = [
 // Match the look of components/ui/input.tsx so the selects sit with the rest of
 // the form. color-scheme:dark renders the native dropdown + arrow dark.
 const SELECT_CLASS =
-  "h-12 w-full min-w-0 rounded-xl border border-input bg-transparent px-3 text-base text-foreground shadow-xs outline-none transition-[color,box-shadow] [color-scheme:dark] dark:bg-input/30 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  "h-12 w-full min-w-0 rounded-xl border border-input bg-transparent px-3 text-base text-foreground shadow-xs outline-none transition-colors [color-scheme:dark] dark:bg-input/30 focus-visible:border-border-strong";
 
 /**
  * The 18+/ToS gate form.
@@ -240,8 +240,8 @@ function DocLink({
 }
 
 /** One consent row: a checkbox + its label. Controlled, so the parent can gate
- *  the submit button on all three being ticked. Reuses the existing checkbox
- *  treatment (amber accent) — no new component style. */
+ *  the submit button on all three being ticked. A ticked consent is a settled
+ *  selection, so the checkbox takes the white primary accent (not amber). */
 function Consent({
   name,
   checked,
@@ -260,7 +260,7 @@ function Consent({
         name={name}
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 size-5 shrink-0 rounded accent-[var(--accent-amber)]"
+        className="mt-0.5 size-5 shrink-0 rounded accent-[var(--accent-primary)]"
       />
       <span className="text-[0.8rem] leading-relaxed text-text-muted">
         {children}

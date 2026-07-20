@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import type { CalendarDayStatus } from "@/lib/calendar/calendar";
 
 const RING: Record<CalendarDayStatus, string> = {
-  logged: "bg-text-primary text-bg-base font-semibold",
+  logged: "bg-text-primary text-bg-base font-medium",
   scheduled: "border border-dashed border-border-strong text-text-primary",
   "none-past": "border border-border-strong text-text-muted",
   "none-future": "border border-border-default text-text-subtle",

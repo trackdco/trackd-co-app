@@ -17,7 +17,7 @@ export default function NotFound() {
         height={200}
         className="h-4 w-auto opacity-80"
       />
-      <h1 className="mt-10 font-display text-3xl tracking-[-0.02em] text-foreground">
+      <h1 className="mt-10 text-3xl font-light tracking-[-0.02em] text-foreground">
         Page not found
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-text-muted">

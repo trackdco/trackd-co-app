@@ -11,6 +11,7 @@ import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { WeekStrip, type WeekDay } from "@/components/home/WeekStrip"
 import { HomeGreeting } from "@/components/home/HomeGreeting"
 import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
+import { DayStatusWidgets } from "@/components/home/DayStatusWidgets"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
 import { WeightGlanceCard } from "@/components/home/WeightGlanceCard"
 import { InjectionSitesGlanceCard } from "@/components/home/InjectionSitesGlanceCard"
@@ -502,15 +503,10 @@ export function HomeScreen({
           />
         </div>
 
-        {/* Greeting + today's completion — a "right now" status under the
-            calendar, always scoped to TODAY regardless of the selected day. */}
+        {/* Greeting — under the calendar. The day's status (completion ring +
+            next dose) lives in DayStatusWidgets, below Today's Log. */}
         <div className="animate-home-up" style={{ animationDelay: "85ms" }}>
-          <HomeGreeting
-            firstName={firstName}
-            loggedToday={loggedToday}
-            dueToday={dueToday}
-            paused={logTarget !== null}
-          />
+          <HomeGreeting firstName={firstName} />
         </div>
 
         {/* Slim, persistent "Enable notifications" prompt (brings its own
@@ -523,10 +519,7 @@ export function HomeScreen({
             <EmptyLogCard />
           ) : (
             <TodaysCycleCard
-              isToday={isToday}
               title={cycleTitle}
-              countdown={countdown}
-              nextDoseName={nextDose?.name ?? ""}
               dueDoses={dueDoses}
               onLog={(dose) =>
                 setLogTarget({ compound: dose, existing: null })
@@ -541,6 +534,21 @@ export function HomeScreen({
             />
           )}
         </div>
+
+        {/* The day's "right now" status — completion ring + next dose — below
+            Today's Log, always scoped to TODAY. Only shown when something is
+            scheduled today, so a rest day never carries an empty widget grid. */}
+        {dueToday > 0 && (
+          <div className="animate-home-up" style={{ animationDelay: "140ms" }}>
+            <DayStatusWidgets
+              loggedToday={loggedToday}
+              dueToday={dueToday}
+              countdown={countdown}
+              nextDoseName={nextDose?.name ?? ""}
+              paused={logTarget !== null}
+            />
+          </div>
+        )}
 
         {/* Weight — display only; tap to open the full Weight view (logging lives
             there + in the + menu). */}

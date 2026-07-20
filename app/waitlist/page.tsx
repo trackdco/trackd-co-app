@@ -42,13 +42,13 @@ export default async function WaitlistPage({
 
   return (
     <main className="relative isolate flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-bg-base px-6 py-12">
-      {/* Warm corner glow — decorative, matches the desktop interstitial. */}
+      {/* Soft corner glow — decorative light wash. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(60% 50% at 90% 0%, color-mix(in srgb, var(--accent-amber) 7%, transparent), transparent 72%)",
+            "radial-gradient(60% 50% at 90% 0%, color-mix(in srgb, var(--accent-primary) 7%, transparent), transparent 72%)",
         }}
       />
 
@@ -63,11 +63,11 @@ export default async function WaitlistPage({
         />
 
         <p className="mt-10 flex items-center justify-center gap-1.5 text-[0.7rem] uppercase tracking-[0.22em] text-text-muted">
-          <span className="size-1 rounded-full bg-accent-amber" aria-hidden />
+          <span className="size-1 rounded-full bg-text-muted" aria-hidden />
           Private beta · invite only
         </p>
 
-        <h1 className="mt-3 text-balance text-center font-display text-[2.5rem] font-medium leading-[1.05] tracking-[-0.02em] text-foreground">
+        <h1 className="mt-3 text-balance text-center text-[2.5rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
           Track the whole <em className="font-medium italic">protocol</em>.
         </h1>
 

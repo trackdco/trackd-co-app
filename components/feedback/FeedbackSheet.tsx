@@ -150,7 +150,7 @@ export function FeedbackSheet({
               type="button"
               onClick={() => void handleSend()}
               disabled={!canSend}
-              className="flex flex-[1.6] items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+              className="flex flex-[1.6] items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
             >
               {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : null}
               {busy ? "Sending…" : submitLabel}
@@ -168,7 +168,7 @@ export function FeedbackSheet({
               <span className="flex h-16 w-16 items-center justify-center rounded-full bg-bg-base/15">
                 <Check className="h-9 w-9" aria-hidden />
               </span>
-              <span className="text-base font-semibold">Thanks — got it</span>
+              <span className="text-base font-medium">Thanks — got it</span>
             </button>
           )}
         </div>

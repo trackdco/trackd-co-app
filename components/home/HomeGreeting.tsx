@@ -21,37 +21,15 @@ const GREETING: Record<Period, string> = {
 }
 
 /**
- * The home greeting + today's-completion line, sitting under the week strip. The
- * part-of-day word is read from the DEVICE clock, so it must not render on the
- * server (which runs in UTC and would mismatch the client on hydration): we show
- * a neutral "Hello" until mounted, then settle on the time-based greeting, and
- * keep it current on focus/visibility + a 1-minute tick so a session left open
- * rolls morning → afternoon → evening on its own.
- *
- * The completion line tracks doses LOGGED today out of what's scheduled today
- * (a rest day reads "Nothing scheduled today"). The progress bar reads WHITE
- * (--accent-primary), not amber: per ui-context's one-amber-moment rule, amber is
- * reserved for the single "this needs you now" beat on screen — Today's Log's
- * "N due" — and a completion/progress read is resolved, not urgent.
+ * The home greeting under the week strip. The part-of-day word is read from the
+ * DEVICE clock, so it must not render on the server (which runs in UTC and would
+ * mismatch the client on hydration): we show a neutral "Hello" until mounted, then
+ * settle on the time-based greeting, and keep it current on focus/visibility + a
+ * 1-minute tick so a session left open rolls morning → afternoon → evening on its
+ * own. The day's status (completion ring + next dose) lives in `DayStatusWidgets`,
+ * below Today's Log.
  */
-export function HomeGreeting({
-  firstName,
-  loggedToday,
-  dueToday,
-  paused = false,
-}: {
-  firstName: string | null
-  /** Doses logged today (of the active stack due today). */
-  loggedToday: number
-  /** Doses scheduled today across the active stack. */
-  dueToday: number
-  /**
-   * Hold the bar's slide while the log sheet covers it (the green "Tracked"
-   * confirmation). The fill catches up — visibly sliding — once the sheet drops
-   * away, so the animation is actually watched rather than playing hidden.
-   */
-  paused?: boolean
-}) {
+export function HomeGreeting({ firstName }: { firstName: string | null }) {
   const mounted = useMounted()
   const [period, setPeriod] = useState<Period>("morning")
 
@@ -79,67 +57,12 @@ export function HomeGreeting({
   // lands once mounted, no hydration drift).
   const greeting = mounted ? GREETING[period] : "Hello"
 
-  const allLogged = dueToday > 0 && loggedToday >= dueToday
-  const pct = dueToday > 0 ? Math.min(1, loggedToday / dueToday) : 0
-
-  // Slide the bar from empty → its target once the screen has settled, easing in
-  // (and re-animate whenever the count changes as doses get logged). Starts at 0
-  // each mount so the fill visibly slides rather than snapping into place. While
-  // `paused` (the log sheet is up), hold the current fill — the slide would
-  // otherwise play hidden behind the green "Tracked" screen; it advances once the
-  // sheet drops away, ~300ms later so it lands after the screen has gone down.
-  const [fill, setFill] = useState(0)
-  useEffect(() => {
-    if (paused) return
-    const id = window.setTimeout(() => setFill(pct), 300)
-    return () => window.clearTimeout(id)
-  }, [pct, paused])
-
   return (
     <section className="px-1">
       <h2 className={PAGE_TITLE}>
         {greeting}
         {name ? `, ${name}` : ""}
       </h2>
-
-      {dueToday > 0 ? (
-        <div className="mt-3">
-          <p className="text-sm text-text-muted">
-            {allLogged ? (
-              <>
-                All{" "}
-                <span className="font-medium text-foreground tabular-nums">
-                  {dueToday}
-                </span>{" "}
-                logged today
-              </>
-            ) : (
-              <>
-                <span className="font-mono font-medium tabular-nums text-foreground">
-                  {loggedToday} of {dueToday}
-                </span>{" "}
-                logged today
-              </>
-            )}
-          </p>
-          {/* Slim progress bar — fills as the day's doses are ticked off. */}
-          <div
-            className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-raised"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={dueToday}
-            aria-valuenow={loggedToday}
-            aria-label="Doses logged today"
-          >
-            <div
-              className="h-full rounded-full bg-accent-primary transition-[width] duration-700 ease-out motion-reduce:transition-none"
-              style={{ width: `${Math.round(fill * 100)}%` }}
-            />
-          </div>
-        </div>
-      ) : (
-        <p className="mt-2 text-sm text-text-muted">Nothing scheduled today.</p>
-      )}
     </section>
   )
 }

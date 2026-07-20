@@ -18,6 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -140,7 +141,7 @@ function DetailBody({
     <div
       ref={cardRef}
       style={cardStyle}
-      className="flex flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
+      className="flex flex-col overflow-hidden rounded-t-3xl hairline-t bg-bg-surface shadow-lg"
     >
       {/* Grab handle — drag down to dismiss. */}
       <div
@@ -158,7 +159,7 @@ function DetailBody({
       <div className="space-y-5 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <span aria-hidden className={cn("h-2.5 w-2.5 shrink-0 rounded-full", meta.dot)} />
+          <CategoryIcon category={compound.category} className="h-3.5 w-3.5" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-lg font-medium text-foreground">
               {compound.name}
@@ -205,7 +206,7 @@ function DetailBody({
             <button
               type="button"
               onClick={() => onEdit(compound)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
               <ArrowCounterClockwise className="h-4 w-4" aria-hidden />
               Reactivate
@@ -214,7 +215,7 @@ function DetailBody({
             <button
               type="button"
               onClick={() => onEdit(compound)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
               <PencilSimple className="h-4 w-4" aria-hidden />
               Edit dose &amp; schedule
@@ -223,7 +224,7 @@ function DetailBody({
             <button
               type="button"
               onClick={() => onEditTodaysDose?.(compound)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
             >
               <PencilSimple className="h-4 w-4" aria-hidden />
               {isToday ? "Edit today's dose" : "Edit this dose"}

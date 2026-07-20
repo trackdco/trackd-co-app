@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { CircleNotch } from "@/components/icons";
 
-import { CARD_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW } from "@/lib/ui-presets";
 import {
   saveReminderPrefs,
   saveTimezone,
@@ -74,8 +74,8 @@ export function ReminderSettings({
   }
 
   return (
-    <div className="mt-3 rounded-2xl border border-border bg-bg-surface p-5">
-      <p className={CARD_TITLE}>Reminders</p>
+    <div className="mt-3 rounded-2xl bg-bg-surface p-5">
+      <p className={CARD_EYEBROW}>Reminders</p>
       <p className="mt-1 text-sm leading-relaxed text-text-muted">
         Choose what we remind you about and when.
       </p>
@@ -101,7 +101,7 @@ export function ReminderSettings({
         />
       </div>
 
-      <div className="mt-5 space-y-4 border-t border-border/60 pt-4">
+      <div className="mt-5 space-y-4 hairline-t pt-4">
         <TimeRow label="Daily reminder time" value={reminderTime} onChange={setReminderTime} />
         <div>
           <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-text-muted">
@@ -173,7 +173,7 @@ function SwitchRow({
         aria-label={label}
         onClick={onToggle}
         className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 ${
-          on ? "bg-accent-amber" : "bg-bg-input border border-border-strong"
+          on ? "bg-accent-primary" : "bg-bg-input border border-border-strong"
         }`}
       >
         <span

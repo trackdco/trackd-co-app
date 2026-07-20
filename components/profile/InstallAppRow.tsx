@@ -56,7 +56,7 @@ export function InstallAppRow() {
     <>
       {/* Own leading divider so the row self-contains: when it returns null the page
           has no stray divider (the page drops the one that used to precede it). */}
-      <div className="mx-4 border-t border-border-default" aria-hidden />
+      <div className="mx-4 hairline-t" aria-hidden />
       <button
         type="button"
         onClick={onClick}

@@ -111,20 +111,21 @@ export function ProgressPhotoCard({
         ))}
       </div>
 
-      {/* Caption + swipe dots for the active photo. */}
+      {/* Caption + swipe dots for the active photo — pose label sits directly
+          above the date (weight · date), not railed opposite it. */}
       <div className="px-5 pb-5">
-        <div className="flex items-center justify-between gap-2">
-          <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+        <div className="min-w-0">
+          <p className="truncate text-sm text-foreground">
             {poseLabel(day.photos[active]?.pose ?? day.photos[0].pose)}
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
+          </p>
+          <p className="mt-0.5 font-mono text-xs text-text-muted">
             {day.photos[active]?.weightKg != null && (
-              <span className="font-mono text-xs text-text-muted">
-                {formatWeight(day.photos[active]!.weightKg!, unit)} {unit}
-              </span>
+              <>
+                {formatWeight(day.photos[active]!.weightKg!, unit)} {unit} ·{" "}
+              </>
             )}
-            <span className="font-mono text-xs text-text-muted">{formatPhotoDate(day.date)}</span>
-          </span>
+            {formatPhotoDate(day.date)}
+          </p>
         </div>
         {day.photos.length > 1 && (
           <div className="mt-2.5 flex justify-center gap-1.5">

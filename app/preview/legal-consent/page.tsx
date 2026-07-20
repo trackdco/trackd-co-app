@@ -16,7 +16,7 @@ export default function PreviewLegalConsentPage() {
       <span className="rounded-full bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium tracking-wider text-text-muted uppercase">
         Preview · signup consent
       </span>
-      <h1 className="mt-8 font-display text-2xl tracking-[-0.02em] text-foreground">
+      <h1 className="mt-8 text-2xl font-light tracking-[-0.02em] text-foreground">
         Welcome to Trackd
       </h1>
       <p className="mt-2 text-sm text-text-muted">

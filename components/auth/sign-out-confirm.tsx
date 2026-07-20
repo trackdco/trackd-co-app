@@ -66,7 +66,7 @@ export function SignOutConfirm({ variant }: { variant: "link" | "button" }) {
             >
               <h2
                 id="signout-title"
-                className="text-base font-semibold text-foreground"
+                className="text-base font-medium text-foreground"
               >
                 Sign out?
               </h2>
@@ -84,7 +84,7 @@ export function SignOutConfirm({ variant }: { variant: "link" | "button" }) {
                 <form action={signOut} className="flex-1">
                   <button
                     type="submit"
-                    className="w-full rounded-xl bg-accent-destructive py-2.5 text-sm font-semibold text-text-primary transition-opacity hover:opacity-90"
+                    className="w-full rounded-xl bg-accent-destructive py-2.5 text-sm font-medium text-text-primary transition-opacity hover:opacity-90"
                   >
                     Sign out
                   </button>

@@ -20,12 +20,8 @@ export type DueDose = StackCompound & {
 }
 
 interface TodaysCycleCardProps {
-  isToday: boolean
   /** Heading for the selected day — "Today's Cycle" or e.g. "Monday's Cycle". */
   title: string
-  /** "Xh Ym" once computed on mount; null hides the line (and past days). */
-  countdown: string | null
-  nextDoseName: string
   dueDoses: DueDose[]
   onLog: (dose: StackCompound) => void
   /** Untick a logged dose → remove its log. The tick is a pure toggle. */
@@ -54,7 +50,6 @@ const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
 interface DoseGroup {
   cat: string
   label: string
-  dot: string
   doses: DueDose[]
 }
 
@@ -81,7 +76,6 @@ function groupByCategory(doses: DueDose[]): DoseGroup[] {
       return {
         cat,
         label: meta.label,
-        dot: meta.dot,
         doses: [...byCat.get(cat)!].sort((x, y) =>
           x.schedule.timeOfDay.localeCompare(y.schedule.timeOfDay)
         ),
@@ -260,21 +254,17 @@ function DoseRow({
 }
 
 /**
- * The hero card: the cycle scoped to the selected day. On today's view it leads
- * with a "Next dose in {Xh Ym}" countdown (computed once on mount upstream — no
- * live timer — and hidden on past days). The day is a tick-off CHECKLIST grouped
- * by category: every due compound is one always-visible row — a tick (a pure
- * toggle: log, or untick to remove), then the name on top with dose·time below it,
- * plus a "⋯" that (like tapping the name) opens the detail where every edit lives
- * (including the injection site, chosen on the log sheet's body map). Nothing
- * collapses and nothing scrolls
+ * The hero card: the cycle scoped to the selected day. The "Next dose" countdown
+ * now lives in the greeting's widget grid (see next-tasks.md → RESUME STEP 0), so
+ * the card is purely the day's tick-off CHECKLIST grouped by category: every due
+ * compound is one always-visible row — a tick (a pure toggle: log, or untick to
+ * remove), then the name on top with dose·time below it, plus a "⋯" that (like
+ * tapping the name) opens the detail where every edit lives (including the injection
+ * site, chosen on the log sheet's body map). Nothing collapses and nothing scrolls
  * inside the card; the compact rows keep the Weight section in view.
  */
 export function TodaysCycleCard({
-  isToday,
   title,
-  countdown,
-  nextDoseName,
   dueDoses,
   onLog,
   onUnlog,
@@ -286,16 +276,6 @@ export function TodaysCycleCard({
   return (
     <section className="rounded-2xl bg-bg-surface p-5">
       <h2 className={CARD_EYEBROW}>{title}</h2>
-
-      {isToday && countdown && (
-        <p className="mt-2 text-sm text-text-muted">
-          Next dose in{" "}
-          <span className="font-mono text-base tabular-nums text-foreground">
-            {countdown}
-          </span>{" "}
-          · {nextDoseName}
-        </p>
-      )}
 
       {dueDoses.length > 0 ? (
         // A tick-off checklist grouped by category: every dose stays visible as one

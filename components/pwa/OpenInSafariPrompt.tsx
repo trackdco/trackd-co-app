@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Compass, Copy, Share } from "@/components/icons";
+import { Check, Copy } from "@/components/icons";
 
-import { CARD_TITLE } from "@/lib/ui-presets";
+import { SHEET_TITLE } from "@/lib/ui-presets";
 
 /**
  * Shown when the user is on iOS but NOT in Safari — Chrome/Firefox/Edge on iPhone,
@@ -38,16 +38,16 @@ export function OpenInSafariPrompt() {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-bg-surface p-5">
-      <p className={CARD_TITLE}>Open in Safari to install</p>
+    <div className="rounded-2xl bg-bg-surface p-5">
+      <p className={SHEET_TITLE}>Open in Safari to install</p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
         Adding Trackd to your Home Screen only works in Safari on iPhone — not this
         browser. Here&apos;s how:
       </p>
       <ol className="mt-4 space-y-3">
         <li className="flex items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
-            <Compass className="size-5" aria-hidden="true" />
+          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
+            1
           </span>
           <span className="text-sm leading-snug text-text-muted">
             Open <span className="text-foreground">Safari</span> and go to{" "}
@@ -55,8 +55,8 @@ export function OpenInSafariPrompt() {
           </span>
         </li>
         <li className="flex items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-bg-surface-raised text-accent-amber">
-            <Share className="size-5" aria-hidden="true" />
+          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
+            2
           </span>
           <span className="text-sm leading-snug text-text-muted">
             Tap the <span className="text-foreground">Share</span> button, then{" "}

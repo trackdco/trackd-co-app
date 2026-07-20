@@ -43,7 +43,7 @@ export function StockItemCard({
   if (item.estEmptyDate) runway.push(`runs dry ${formatDateKeyShort(item.estEmptyDate)}`)
 
   return (
-    <li className="rounded-xl border border-border-default bg-bg-base p-3">
+    <li className="rounded-xl bg-bg-base p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">

@@ -9,11 +9,17 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ClockCounterClockwise, Scales, Trash } from "@/components/icons";
+import { Check, Trash } from "@/components/icons";
 import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { cn } from "@/lib/utils";
-import { CARD_ICON_BADGE, CARD_TITLE, PAGE_TITLE } from "@/lib/ui-presets";
+import {
+  CARD_EYEBROW,
+  DATA_MONO,
+  METRIC_VALUE,
+  PAGE_TITLE,
+  UNIT_SUFFIX,
+} from "@/lib/ui-presets";
 import { Input } from "@/components/ui/input";
 import {
   dateKeyToDate,
@@ -162,7 +168,7 @@ function ScrubTip({
   const value = mode === "trend" ? point.trend : point.scale;
   return (
     <div className="rounded-lg border border-border-default bg-bg-surface-raised px-2.5 py-1.5 shadow-lg">
-      <p className="font-mono text-sm font-semibold text-foreground">
+      <p className="font-mono text-sm font-medium tabular-nums text-foreground">
         {value.toFixed(1)} {unit}
       </p>
       <p className="text-[11px] text-text-muted">
@@ -352,15 +358,10 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
 
       {/* ── Track your weight ─────────────────────────────────────── */}
       <section
-        className="animate-home-up relative rounded-2xl border border-border-default bg-bg-surface p-5"
+        className="animate-home-up relative rounded-2xl bg-bg-surface p-5"
         style={{ animationDelay: "70ms" }}
       >
-        <div className="flex items-center gap-3.5">
-          <span aria-hidden className={CARD_ICON_BADGE}>
-            <Scales className="h-5 w-5" />
-          </span>
-          <h2 className={CARD_TITLE}>Track your weight</h2>
-        </div>
+        <h2 className={CARD_EYEBROW}>Track your weight</h2>
         <div className="mt-4 flex gap-3">
           <label className="block flex-1 min-w-0">
             <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
@@ -406,7 +407,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="mt-4 w-full rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
+          className="mt-4 w-full rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
         >
           {saving
             ? "Saving…"
@@ -428,21 +429,19 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
 
       {/* ── Trend / Scale graph ───────────────────────────────────── */}
       <section
-        className="animate-home-up rounded-2xl border border-border-default bg-bg-surface p-5"
+        className="animate-home-up rounded-2xl bg-bg-surface p-5"
         style={{ animationDelay: "140ms" }}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
+            <p className={CARD_EYEBROW}>
               {mode === "trend" ? "Trend" : "Scale"}
             </p>
             {current != null ? (
               <>
                 <div className="mt-1.5 flex items-baseline gap-1.5">
-                  <span className="font-mono text-3xl font-semibold text-foreground">
-                    {current.toFixed(1)}
-                  </span>
-                  <span className="text-sm text-text-muted">{unit}</span>
+                  <span className={METRIC_VALUE}>{current.toFixed(1)}</span>
+                  <span className={UNIT_SUFFIX}>{unit}</span>
                 </div>
                 <p className="mt-1 font-mono text-sm text-text-muted">
                   {deltaText} {unit}{" "}
@@ -594,15 +593,10 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
 
       {/* ── Entry log ─────────────────────────────────────────────── */}
       <section
-        className="animate-home-up rounded-2xl border border-border-default bg-bg-surface p-5"
+        className="animate-home-up rounded-2xl bg-bg-surface p-5"
         style={{ animationDelay: "210ms" }}
       >
-        <div className="flex items-center gap-3.5">
-          <span aria-hidden className={CARD_ICON_BADGE}>
-            <ClockCounterClockwise className="h-5 w-5" />
-          </span>
-          <h2 className={CARD_TITLE}>Entry log</h2>
-        </div>
+        <h2 className={CARD_EYEBROW}>Entry log</h2>
         {logMonths.length === 0 ? (
           <p className="mt-3 text-sm text-text-muted">
             Nothing logged yet. Add today&apos;s weight above.
@@ -611,7 +605,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
           <div className="mt-3 space-y-5">
             {logMonths.map((group) => (
               <div key={group.key}>
-                <h3 className="px-1 pb-2 font-display text-lg font-medium text-foreground">
+                <h3 className={cn("px-1 pb-2", CARD_EYEBROW)}>
                   {group.label}
                 </h3>
                 <ul className="overflow-hidden rounded-2xl bg-bg-surface-raised">
@@ -620,7 +614,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                       key={entry.key}
                       className={cn(
                         "flex items-center",
-                        i > 0 && "border-t border-border-default",
+                        i > 0 && "hairline-t",
                       )}
                     >
                       <button
@@ -632,10 +626,10 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                         <span className="truncate text-sm text-text-muted">
                           {longDate(entry.key)}
                           {entry.key === todayKey && (
-                            <span className="ml-2 text-xs text-accent-amber">Today</span>
+                            <span className="ml-2 text-xs text-text-muted">Today</span>
                           )}
                         </span>
-                        <span className="shrink-0 font-mono text-sm font-medium text-foreground tabular-nums">
+                        <span className={cn(DATA_MONO, "shrink-0")}>
                           {formatWeight(entry.kg, unit)} {unit}
                         </span>
                       </button>

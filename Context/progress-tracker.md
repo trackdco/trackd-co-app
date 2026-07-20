@@ -90,6 +90,85 @@ EmptyLogCard,InjectionSitesGlanceCard,WeekStrip}.tsx`, `components/layout/PageSc
 `lib/ui-presets.ts` (PAGE_TITLE → sans-light), `lib/compound-categories.ts`,
 `components/compounds/CategoryIcon.tsx` (new), `components/icons.ts` (+TestTube, +Cylinder).
 
+## UI overhaul — Phase 2 CONTINUED: Home widgets + Progress reference + full in-app fan-out (2026-07-20, Adrian + Claude)
+
+Resumed the restyle from RESUME STEP 0. **All in-app screens + bottom sheets are now
+restyled.** `next build` + `tsc` + `lint` all clean (42 routes). Restyle-in-place only,
+no feature/layout changes. Adrian is reviewing on his dev server (`:3001`); a few amber
+judgment calls are flagged for his sign-off (below). NOT committed.
+
+**STEP 0.1 — Home "day status" widgets (Adrian asked, then moved them):** the greeting's
+linear completion bar became a **2-up widget grid** — an **amber completion RING** (the
+sanctioned live pulse; reuses the old `fill` animation to drive `stroke-dashoffset`, plain
+`N/M` in the centre) + a **next-dose** widget (countdown, units demoted, + compound). On
+Adrian's mid-flight note the pair was **moved BELOW Today's Log** (own component
+`DayStatusWidgets.tsx`), only shown when something's due today. `HomeGreeting` reverted to
+greeting-only; the "Next dose" countdown was removed from `TodaysCycleCard` (dropped its
+`isToday`/`countdown`/`nextDoseName` props). New `components/home/DayStatusWidgets.tsx`.
+
+**STEP 0.2 — category dot → `<CategoryIcon>`: FOLDED into the per-component restyle** (same
+files get fully restyled anyway — one edit, one review). Every rendered `meta.dot` span is
+gone; adopters: TodaysCycleCard, QuickTrackSheet, LogDoseSheet, CompoundDetailSheet,
+AddCompoundSheet, add-to-stack-menu, PlanView, ArchiveManager, DayDetailSheet.
+
+**STEP 1a — Progress = 2nd reference (hand-done):** BloodworkCard / JournalCard /
+ConsistencyGraph dropped the amber icon badges + card borders, serif `CARD_TITLE` →
+`CARD_EYEBROW`; consistency % → `METRIC_VALUE` (light) + `UNIT_SUFFIX`. **MarkerDialer**
+selection thumb + polarity picker **amber → white** (selection is white; the dialer's dark
+selected-text reads correctly on white). ProgressPhotoCard caption restacked (pose label
+directly above the date, per Adrian). WeightHero/ProgressPhotoSection were already on-pattern.
+
+**STEP 1b — every remaining in-app surface (parallel Agent-subagent fan-out, 7 disjoint
+clusters, then centrally reconciled + verified):** Protocol (Plan/Stock/StockItem/Cycle
+header/edit/AddStock), Calendar (MonthGrid/DayDetail/Legend/MonthYearPicker — selected day
+→ white per WeekStrip, grid now zero persistent amber), Home sheets (LogDose, CompoundDetail,
+AddCompound, QuickTrack incl. its **amber→white tick**, add-to-stack-menu, AddWeight,
+ReconCalculator, InjectionSitesSheet **chrome only — body map/ramp untouched**, ArchiveManager,
+StartFresh), Progress sheets (bloodwork gallery/attach/viewer, journal feed/editor, photo
+gallery/compare/add/edit/viewer, PosePicker), Settings (+ReminderSettings/NotificationsToggle,
+switches → white), Weight (`WeightView` big reading → `METRIC_VALUE`), Profile (+avatar/rows),
+FeedbackSheet, sign-out/delete confirms, and the **QuickActionsFab** (retired the amber
+`QUICK_ACTION_BADGE` tiles → muted icons). Central reconciliation: **flipped SHEET_TITLE preset
+to sans-light** (`lib/ui-presets.ts`, fixes all sheet headers at once) and normalized **all
+primary-CTA weights `font-semibold`→`font-medium`** (the approved Home ceiling; agents had split).
+
+**Amber left standing (each a real beat, flagged for Adrian):** the two "N due" counts +
+completion ring + sanctioned injection ramp/notice; **warning callouts** (AddCompound
+blend-overlap + dose-change; CompoundDetail soft-delete confirm incl. a solid-amber confirm
+button; ReconCalculator safety disclaimer) kept as `--accent-amber` cautions; and the LogDose
+**live-ticking clock** ("Logging at HH:MM:SS — live now") as the one genuine *live* beat.
+
+**STEP 1 sites tweak (Adrian):** the injection-site body-map **scrub tooltip** (the
+pointer-following "drag thing" in `InjectionSitesSheet`, `mode="recency"`) was aligned to
+the app's canonical scrub-tooltip idiom (`rounded-lg border-border-default`, matching
+ConsistencyGraph); the sanctioned amber "Pinned Nd ago" recency text stays. (`/preview/sites`
+is the *pick* harness — no scrub tooltip there.)
+
+**STEP 2 — external / front-door surfaces DONE (parallel fan-out, 4 clusters):** auth
+(login, email/google sign-in, forgot/reset — hero serif→sans-light, "check inbox" cards
+de-ambered, input focus → border-strong), onboarding (welcome/gate incl. consent checkbox
+→ white, waitlist, first-run hero — sanctioned due/ramp amber in the first-run mock kept),
+pwa/push install prompts (amber step-badges → plain mono numerals per EmptyLogCard;
+desktop-interstitial fully de-ambered), legal/admin/errors (serif→PAGE_TITLE/sans,
+admin borderless + resolve-tick → white, error/404 heroes sans, global-error inline amber
+→ white). Guardrails held: PNG wordmark + page layouts untouched. **Flags for Adrian:**
+waitlist corner-glow + first-run carousel-progress flipped amber→white (possible brand
+accents — revertable); desktop-interstitial two-tone amber emphasis words → uniform white;
+iOS install **Share/Plus glyphs dropped in favour of mono numerals** (usability call — the
+glyph helped users find the iOS Share button; one-line-per-step revert to muted glyphs).
+
+**STEP 3 — cleanup DONE.** Playfair loader removed (`app/layout.tsx`), `--font-display`
+dropped (`app/globals.css`) → **zero `font-display`/Playfair repo-wide**. Retired the unused
+`CARD_TITLE`/`CARD_ICON_BADGE`/`STEP_ICON_BADGE`/`QUICK_ACTION_BADGE` presets and the
+`CATEGORY_META.dot` field (+ its 3 dead consumers' group structs). `git rm`'d 11 ` 2.tsx`/
+` 2.ts` macOS-duplicate cruft files. Dropped `lucide-react` from `package.json` (pruned via
+`npm install`; no app imports remained). Dev-preview harness serif also cleaned.
+
+**Net:** `next build` + `tsc` + `lint` all clean (42 routes). The whole premium-minimal
+restyle (Home → every in-app screen + sheet → external surfaces → cleanup) is CODE-COMPLETE
+on `feat/premium-ui-restyle`, **NOT committed** — pending Adrian's on-device review + the
+amber judgment-call sign-offs, then commit → PR → CodeRabbit → merge.
+
 ## Spec 22 — Multi-spec batch: per-dose hint, custom markers, compound soft-delete, journal photos (2026-07-18, Adrian + Claude)
 
 Four specs from `Context/Feature Specs/22-multi-spec-fixes.md`, built in one pass.

@@ -15,7 +15,7 @@ import { cycleTotalWeeks, endDateFromLength, todayKey } from "@/lib/protocol/cyc
 import type { Cycle } from "@/lib/db/types"
 
 const FIELD =
-  "h-11 w-full min-w-0 rounded-xl border border-border-default bg-bg-input px-3 text-base text-foreground shadow-xs outline-none transition-colors [color-scheme:dark] focus-visible:border-accent-amber"
+  "h-11 w-full min-w-0 rounded-xl border border-border-default bg-bg-input px-3 text-base text-foreground shadow-xs outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong"
 const LABEL = "text-xs font-medium uppercase tracking-[0.14em] text-text-muted"
 
 /**
@@ -147,7 +147,7 @@ function CycleEditForm({
             onChange={(e) => setDescription(e.target.value.slice(0, 500))}
             rows={2}
             placeholder="e.g. 12-week cut into the June show — what this cycle is about"
-            className="w-full min-w-0 resize-none rounded-xl border border-border-default bg-bg-input px-3 py-2.5 text-base text-foreground shadow-xs outline-none transition-colors focus-visible:border-accent-amber"
+            className="w-full min-w-0 resize-none rounded-xl border border-border-default bg-bg-input px-3 py-2.5 text-base text-foreground shadow-xs outline-none transition-colors focus-visible:border-border-strong"
           />
         </label>
       </div>
@@ -164,7 +164,7 @@ function CycleEditForm({
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          className="flex-1 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="flex-1 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save"}
         </button>

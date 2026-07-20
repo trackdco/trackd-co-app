@@ -76,7 +76,7 @@ export function StartFreshSection({ userId }: { userId: string }) {
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
             >
-              <h2 id="clear-stack-title" className="text-base font-semibold text-foreground">
+              <h2 id="clear-stack-title" className="text-base font-medium text-foreground">
                 Clear your whole stack?
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
@@ -97,7 +97,7 @@ export function StartFreshSection({ userId }: { userId: string }) {
                   type="button"
                   disabled={busy}
                   onClick={() => void confirmWipe()}
-                  className="flex-1 rounded-xl bg-accent-destructive py-2.5 text-center text-sm font-semibold text-text-primary transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-accent-destructive py-2.5 text-center text-sm font-medium text-text-primary transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   {busy ? "Clearing…" : "Clear everything"}
                 </button>

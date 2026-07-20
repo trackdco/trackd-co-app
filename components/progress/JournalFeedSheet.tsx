@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
-import { SHEET_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW, SHEET_TITLE } from "@/lib/ui-presets";
 import {
   formatJournalDate,
   formatMonthLabel,
@@ -164,7 +164,7 @@ export function JournalFeedSheet({
                   </button>
 
                   {monthMenuOpen && (
-                    <div className="animate-shortcut-in mt-1.5 divide-y divide-border-default overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
+                    <div className="animate-shortcut-in mt-1.5 divide-hairline overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
                       <MonthOption
                         label="All months"
                         count={entries.length}
@@ -194,7 +194,7 @@ export function JournalFeedSheet({
                 <div className="mt-4 space-y-5">
                   {visibleMonths.map((group) => (
                     <section key={group.key}>
-                      <h3 className="px-1 pb-2 font-display text-lg font-medium text-foreground">
+                      <h3 className={`px-1 pb-2 ${CARD_EYEBROW}`}>
                         {group.label}
                       </h3>
                       <ul className="space-y-2">
@@ -284,7 +284,7 @@ function MonthOption({
       aria-pressed={active}
       className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-bg-input/60"
     >
-      <span className={cn("min-w-0 truncate font-medium", active ? "text-accent-amber" : "text-text-muted")}>
+      <span className={cn("min-w-0 truncate font-medium", active ? "text-foreground" : "text-text-muted")}>
         {label}
       </span>
       <span className="shrink-0 font-mono text-xs text-text-subtle">{count}</span>

@@ -60,33 +60,29 @@ export type CompoundForm = "injectable" | "oral" | "supplement"
 
 interface CategoryMeta {
   label: string
-  /** `bg-cat-*` legend-dot colour (the older per-category dot; being replaced by
-   *  the type icon below, kept until every surface is migrated). */
-  dot: string
   /** Typical form of this category — picks the type icon. */
   form: CompoundForm
-  /** `text-cat-*` colour for the type icon (the text-colour twin of `dot`). */
+  /** `text-cat-*` colour for the type icon, per category. */
   tint: string
 }
 
 // One distinct, muted hue per category (tokens defined in globals.css). `form`
 // picks the type icon (vial / tablet / tub); `tint` colours it per category.
 export const CATEGORY_META: Record<CompoundCategory, CategoryMeta> = {
-  anabolic: { label: "Anabolics", dot: "bg-cat-anabolic", form: "injectable", tint: "text-cat-anabolic" },
-  oral: { label: "Orals", dot: "bg-cat-oral", form: "oral", tint: "text-cat-oral" },
-  sarm: { label: "SARMs", dot: "bg-cat-sarm", form: "oral", tint: "text-cat-sarm" },
-  peptide: { label: "Peptides", dot: "bg-cat-peptide", form: "injectable", tint: "text-cat-peptide" },
-  ancillary: { label: "Ancillaries", dot: "bg-cat-ancillary", form: "oral", tint: "text-cat-ancillary" },
-  thyroid: { label: "Thyroid", dot: "bg-cat-thyroid", form: "oral", tint: "text-cat-thyroid" },
-  supplement: { label: "Supplements", dot: "bg-cat-supplement", form: "supplement", tint: "text-cat-supplement" },
-  stimulant: { label: "Stimulants", dot: "bg-cat-stimulant", form: "oral", tint: "text-cat-stimulant" },
+  anabolic: { label: "Anabolics", form: "injectable", tint: "text-cat-anabolic" },
+  oral: { label: "Orals", form: "oral", tint: "text-cat-oral" },
+  sarm: { label: "SARMs", form: "oral", tint: "text-cat-sarm" },
+  peptide: { label: "Peptides", form: "injectable", tint: "text-cat-peptide" },
+  ancillary: { label: "Ancillaries", form: "oral", tint: "text-cat-ancillary" },
+  thyroid: { label: "Thyroid", form: "oral", tint: "text-cat-thyroid" },
+  supplement: { label: "Supplements", form: "supplement", tint: "text-cat-supplement" },
+  stimulant: { label: "Stimulants", form: "oral", tint: "text-cat-stimulant" },
 }
 
 // Neutral fallback for a missing/unknown category (e.g. a hand-edited or stale
 // localStorage entry) so a row renders harmlessly instead of crashing.
 export const FALLBACK_CATEGORY_META: CategoryMeta = {
   label: "Other",
-  dot: "bg-text-muted",
   form: "oral",
   tint: "text-text-muted",
 }

@@ -133,7 +133,7 @@ export function ProgressPhotoViewer({
               </div>
 
               {confirming ? (
-                <div className="animate-shortcut-in shrink-0 border-t border-border-default px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+                <div className="animate-shortcut-in shrink-0 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
                   <p className="text-sm text-foreground">
                     Delete this photo? This can&apos;t be undone.
                   </p>
@@ -158,7 +158,7 @@ export function ProgressPhotoViewer({
                   </div>
                 </div>
               ) : (
-                <div className="shrink-0 border-t border-border-default px-6 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+                <div className="shrink-0 hairline-t px-6 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
                   <SheetClose className="w-full rounded-xl border border-border-strong py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text-primary">
                     Close
                   </SheetClose>

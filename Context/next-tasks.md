@@ -15,16 +15,19 @@ Last updated: 2026-07-20
 
 ## 🎯 Current focus
 
-**▶ 2026-07-20 · PAUSED mid-Phase-2 — RESUME IN A NEW CHAT (read this block first).**
-Branch `feat/premium-ui-restyle` off `main`. **Foundation + Home (the reference screen) +
-compound type-icons are DONE and committed**; `lint`+`tsc` clean, dev `/preview/home` 200.
-Restyle-IN-PLACE only: NO feature/layout changes, palette unchanged, injection-site body
-SVGs + PNG wordmark kept. Adrian loves the Home look ("beautiful… less vibe-coded").
-Preview any screen at PHONE WIDTH: `npm run dev` → `http://localhost:3000/preview/<home|
-progress|calendar|protocol|sites|recon|profile|archive-weight>`. Full state in
-`progress-tracker.md`.
+**▶ 2026-07-20 · WHOLE RESTYLE CODE-COMPLETE — STEP 0 → STEP 3 all DONE.** Every in-app
+screen + sheet, every external/front-door surface, and the cleanup are finished on
+`feat/premium-ui-restyle` (off `main`). `next build` + `tsc` + `lint` all clean (42 routes);
+**zero `font-display`/Playfair repo-wide**; `lucide-react` + the ` 2.tsx` cruft removed.
+**NOT committed.** Restyle-IN-PLACE only (no feature/layout changes; PNG wordmark + injection
+SVGs untouched). Preview at PHONE WIDTH via `:3001` (`/preview/<home|progress|calendar|
+protocol|sites|recon|profile|archive-weight>`; login/welcome/waitlist/legal via their routes).
 
-### ▶ RESUME STEP 0 — finish the 2 Home tweaks Adrian asked for (were mid-flight)
+**▶ NEXT (human): Adrian's on-device review + sign-off on the ⚠ amber judgment calls below,
+then commit → PR → CodeRabbit → merge → prod** (the usual flow). No migration — UI-only.
+The RESUME STEP 0–3 detail below is kept struck-through for reference.
+
+### ✅ DONE — RESUME STEP 0 — the 2 Home tweaks
 1. **Completion-ring widgets (Home "looks a little plain"):** replace `HomeGreeting`'s
    linear completion bar with a **2-up grid** — an **amber progress RING** (the day's live
    pulse, sweeps as you log; reuse the existing `fill` state to drive `stroke-dashoffset`)
@@ -38,7 +41,7 @@ progress|calendar|protocol|sites|recon|profile|archive-weight>`. Full state in
    QuickTrackSheet, CompoundDetailSheet, AddCompoundSheet, calendar DayDetailSheet,
    add-to-stack-menu, ArchiveManager.
 
-### ▶ RESUME STEP 1 — apply the PROVEN Home pattern to every other screen (Phase 2)
+### ✅ DONE — RESUME STEP 1 — the PROVEN Home pattern applied to every in-app screen + sheet (Phase 2)
 Copy Home exactly: borderless cards (drop `border border-border-default`); titles →
 `CARD_EYEBROW`; big numbers → `METRIC_VALUE` (light, NEVER ≥600 weight); dividers →
 `hairline`/`hairline-t`/`divide-hairline`; retire amber badges (`CARD_ICON_BADGE`/
@@ -53,12 +56,12 @@ QuickTrack — incl. its amber→white tick, ReconCalculator, AddWeight, Injecti
 progress/calendar/feedback sheets). This is the big fan-out — a Workflow (one agent per
 component, this exact spec) is the intended tool.
 
-### ▶ RESUME STEP 2 — external / "outside-the-app" surfaces (Phase 3)
+### ✅ DONE — RESUME STEP 2 — external / "outside-the-app" surfaces (Phase 3)
 first-run hero, login, welcome/gate, waitlist, desktop-interstitial (laptop), install
 prompts, error/404, legal, admin, forgot/reset-password. Retire the serif on headings
 (`font-display` → sans / `PAGE_TITLE`); keep the PNG wordmark + layout untouched.
 
-### ▶ RESUME STEP 3 — final cleanup (only after no `font-display` remains)
+### ✅ DONE — RESUME STEP 3 — final cleanup (only after no `font-display` remains)
 Remove the Playfair loader + `--font-display` (`app/layout.tsx`, `app/globals.css`).
 Retire the now-unused presets from `lib/ui-presets.ts` (`CARD_TITLE`, `CARD_ICON_BADGE`,
 `STEP_ICON_BADGE`, `QUICK_ACTION_BADGE`) + the `dot` field on `CATEGORY_META`. `git rm`
@@ -71,8 +74,21 @@ build` + a pass over every `/preview/*` route.
 - **Category icons are by FORM** (vial/pill/tub), coloured by category — so the 5 oral
   categories all show a pill (differ only by colour). Want a distinct icon per category?
   edit `FORM_ICON` in `CategoryIcon.tsx` + add a per-category `icon` to `CATEGORY_META`.
-- **`PAGE_TITLE` (+ pending `SHEET_TITLE`) flipped to sans-light app-wide** — standalone
-  pages/sheets already show the new sans title even before their cards are restyled.
+- **`PAGE_TITLE` + `SHEET_TITLE` both flipped to sans-light app-wide** — every standalone
+  page + bottom-sheet header now shows the new sans title.
+- **Warning callouts kept `--accent-amber`** (AddCompound blend-overlap + dose-change;
+  CompoundDetail soft-delete confirm, incl. a **solid-amber confirm button**; ReconCalculator
+  safety disclaimer). Read as genuine "pay attention" cautions, not settled/selection amber.
+  Want these switched to the `--state-warning` token, or the solid-amber confirm → white?
+- **LogDose "live clock" left amber** ("Logging at HH:MM:SS — live now") as the one genuine
+  *live* beat on that sheet. Want it settled white instead?
+- **All primary-CTA weights normalized `font-semibold`→`font-medium`** (the approved Home
+  ceiling — the fan-out agents had split on this). Buttons now read one notch lighter app-wide.
+- **Month headers demoted to `CARD_EYEBROW`** (WeightView, JournalFeed, photo galleries):
+  "June 2026" went from a serif heading to a 10px tracked eyebrow. Strong demotion — matches
+  the "titles recede" identity, but worth an eyeball.
+- **WeightView entry-log figure → `DATA_MONO`** (quieter mono row-data, per the row-figure
+  rule) — noticeably softer than before; flag if you want it back at value size.
 
 ---
 

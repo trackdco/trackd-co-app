@@ -7,12 +7,12 @@ import {
   requestPasswordReset,
   type ResetRequestState,
 } from "@/app/forgot-password/actions";
-import { CARD_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW } from "@/lib/ui-presets";
 
 const initialState: ResetRequestState = {};
 
 const INPUT_CLASS =
-  "h-12 w-full rounded-xl border border-input bg-transparent px-4 text-base text-foreground placeholder:text-text-subtle outline-none transition-[color,box-shadow] [color-scheme:dark] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  "h-12 w-full rounded-xl border border-border-default bg-transparent px-4 text-base text-foreground placeholder:text-text-subtle outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong";
 
 /**
  * Requests a password-reset email. On success we swap to a confirmation card —
@@ -29,12 +29,10 @@ export function ForgotPasswordForm() {
       <div
         role="status"
         aria-live="polite"
-        className="flex flex-col items-center gap-3 rounded-2xl border border-accent-amber/30 bg-accent-amber/5 px-6 py-8 text-center"
+        className="flex flex-col items-center gap-3 rounded-2xl bg-bg-surface px-6 py-8 text-center"
       >
-        <span className="flex h-11 w-11 items-center justify-center rounded-full border border-accent-amber/40 bg-accent-amber/10 text-accent-amber">
-          <EnvelopeSimpleOpen className="h-5 w-5" aria-hidden />
-        </span>
-        <p className={CARD_TITLE}>Check your inbox</p>
+        <EnvelopeSimpleOpen className="h-6 w-6 text-text-subtle" aria-hidden />
+        <p className={CARD_EYEBROW}>Check your inbox</p>
         <p className="text-sm text-text-muted">
           If that email has an account, we&apos;ve sent a link to reset your
           password.

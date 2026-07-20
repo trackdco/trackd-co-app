@@ -134,7 +134,7 @@ export function EditDaySheet({
                       </button>
                     </div>
                     {confirmingId === p.id && (
-                      <div className="animate-shortcut-in flex items-center justify-end gap-2 border-t border-border-default px-3 py-2">
+                      <div className="animate-shortcut-in flex items-center justify-end gap-2 hairline-t px-3 py-2">
                         <span className="mr-auto text-xs text-text-muted">Delete this photo?</span>
                         <button
                           type="button"

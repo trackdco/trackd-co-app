@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
 import { Input } from "@/components/ui/input"
 
 const DISCLAIMER =
@@ -117,10 +118,8 @@ export function ReconCalculator() {
       />
 
       {/* Results */}
-      <div className="rounded-2xl border border-border-default bg-bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
-          Result
-        </p>
+      <div className="rounded-2xl bg-bg-surface-raised p-4">
+        <p className={CARD_EYEBROW}>Result</p>
         {result ? (
           <div className="mt-3 space-y-3">
             <ResultRow
@@ -156,10 +155,8 @@ export function ReconCalculator() {
       {/* The working behind the figures — shown step by step so it can be
           re-checked by hand (Spec 12, Step 4). Display only; same maths. */}
       {result ? (
-        <div className="rounded-2xl border border-border-default bg-bg-surface p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
-            Working
-          </p>
+        <div className="rounded-2xl bg-bg-surface p-4">
+          <p className={CARD_EYEBROW}>Working</p>
           <div className="mt-2 space-y-1.5 font-mono text-xs leading-relaxed text-text-muted">
             <p>concentration = powder ÷ BAC water</p>
             <p>
@@ -264,7 +261,7 @@ function ResultRow({
         className={cn(
           "font-mono tabular-nums",
           emphasis
-            ? "text-lg font-semibold text-accent-amber"
+            ? "text-lg text-foreground"
             : "text-sm text-foreground",
         )}
       >

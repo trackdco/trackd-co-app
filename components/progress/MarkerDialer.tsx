@@ -34,11 +34,12 @@ const POLARITIES: { value: string; label: string }[] = [
 ];
 
 /**
- * A marker's word values as a single-select scale with a sliding amber thumb —
- * the amber highlight glides from the old pick to the new one. Amber marks the
- * CURRENT SELECTION (an active-state accent, uniform for any word picked), never a
- * verdict on the value. The thumb is positioned by measuring the chosen pill, so
- * variable-width words line up exactly.
+ * A marker's word values as a single-select scale with a sliding WHITE thumb —
+ * the highlight glides from the old pick to the new one. White marks the CURRENT
+ * SELECTION (the active-state accent for a control, per ui-context — never amber,
+ * which is reserved for the due/live beat, and never a verdict on the value). The
+ * thumb is positioned by measuring the chosen pill, so variable-width words line up
+ * exactly.
  */
 function WordScale({
   words,
@@ -89,7 +90,7 @@ function WordScale({
         ref={thumbRef}
         aria-hidden
         style={{ left: 0, width: 0 }}
-        className="pointer-events-none absolute top-0 bottom-0 rounded-full bg-accent-amber opacity-0 transition-[left,width,opacity] duration-300 ease-out"
+        className="pointer-events-none absolute top-0 bottom-0 rounded-full bg-accent-primary opacity-0 transition-[left,width,opacity] duration-300 ease-out"
       />
       {words.map((w, i) => {
         const sel = selectedIndex === i;
@@ -578,7 +579,7 @@ function CreateMarkerForm({
                 className={cn(
                   "flex-1 rounded-lg border px-2 py-1.5 text-xs transition-colors",
                   on
-                    ? "border-accent-amber bg-accent-amber/10 text-foreground"
+                    ? "border-transparent bg-accent-primary font-medium text-bg-base"
                     : "border-border-default text-text-muted hover:text-foreground",
                 )}
               >
@@ -598,7 +599,7 @@ function CreateMarkerForm({
         type="button"
         onClick={submit}
         disabled={busy}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent-primary py-2.5 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent-primary py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
         {busy ? "Creating…" : "Create marker"}

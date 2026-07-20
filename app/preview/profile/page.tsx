@@ -35,11 +35,11 @@ export default function PreviewProfilePage() {
       </header>
 
       <main className="mx-auto w-full max-w-md flex-1 space-y-8 px-5 py-6">
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-foreground">
+        <h1 className="text-3xl font-light tracking-[-0.01em] text-foreground">
           My Profile
         </h1>
         <section>
-          <h2 className="font-display text-xl font-medium text-foreground">
+          <h2 className="text-xl font-light text-foreground">
             Archive
           </h2>
           <p className="mt-1 mb-4 text-sm text-text-muted">

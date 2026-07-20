@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Check, CircleNotch } from "@/components/icons";
 
-import { CARD_TITLE } from "@/lib/ui-presets";
+import { SHEET_TITLE } from "@/lib/ui-presets";
 import { joinWaitlist, type WaitlistState } from "@/app/waitlist/actions";
 
 const initialState: WaitlistState = {};
@@ -24,12 +24,12 @@ export function WaitlistForm({ source }: { source?: string }) {
       <div
         role="status"
         aria-live="polite"
-        className="flex flex-col items-center gap-3 rounded-2xl border border-accent-amber/30 bg-accent-amber/5 px-6 py-8 text-center"
+        className="flex flex-col items-center gap-3 rounded-2xl bg-bg-surface px-6 py-8 text-center"
       >
-        <span className="flex h-11 w-11 items-center justify-center rounded-full border border-accent-amber/40 bg-accent-amber/10 text-accent-amber">
+        <span className="flex h-11 w-11 items-center justify-center text-text-subtle">
           <Check className="h-5 w-5" aria-hidden />
         </span>
-        <p className={CARD_TITLE}>You&apos;re on the list.</p>
+        <p className={SHEET_TITLE}>You&apos;re on the list.</p>
         <p className="text-sm text-text-muted">
           We&apos;ll email you the moment your spot opens up — keep an eye on
           your inbox.
@@ -66,7 +66,7 @@ export function WaitlistForm({ source }: { source?: string }) {
         inputMode="email"
         placeholder="you@email.com"
         aria-label="Email address"
-        className="h-12 w-full rounded-xl border border-input bg-transparent px-4 text-base text-foreground placeholder:text-text-subtle outline-none transition-[color,box-shadow] [color-scheme:dark] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="h-12 w-full rounded-xl border border-input bg-transparent px-4 text-base text-foreground placeholder:text-text-subtle outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong"
       />
 
       {state.error ? (

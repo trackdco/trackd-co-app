@@ -29,9 +29,9 @@ interface MonthGridProps {
  * The month grid (Milligram-style). Each day is a ring whose weight encodes its
  * adherence state — filled disc (logged), dotted ring (scheduled, unlogged),
  * regular stroke (past, nothing due), faint stroke (future / pre-protocol) — with
- * a tiny icon under a logged day showing what was logged. The selected day is the
- * only amber element (Context/ui-context.md → amber restraint). A "Today" button
- * and an ⓘ legend sit in the footer.
+ * a tiny icon under a logged day showing what was logged. The selected day reads
+ * white — the primary accent, matching the Home WeekStrip (Context/ui-context.md →
+ * amber restraint). A "Today" button and an ⓘ legend sit in the footer.
  */
 export function MonthGrid({
   cells,
@@ -43,7 +43,7 @@ export function MonthGrid({
   onOpenLegend,
 }: MonthGridProps) {
   return (
-    <section className="rounded-2xl border border-border-default bg-bg-surface px-3 pt-4 pb-3">
+    <section className="rounded-2xl bg-bg-surface px-3 pt-4 pb-3">
       {/* Weekday header (Mon-first). */}
       <div className="grid grid-cols-7 pb-2">
         {WEEKDAY_INITIALS.map((d, i) => (
@@ -72,7 +72,7 @@ export function MonthGrid({
       </div>
 
       {/* Footer — Today + the legend key. */}
-      <div className="mt-3 flex items-center justify-between border-t border-border-default px-1 pt-3">
+      <div className="mt-3 flex items-center justify-between hairline-t px-1 pt-3">
         <button
           type="button"
           onClick={onToday}
@@ -94,7 +94,7 @@ export function MonthGrid({
 }
 
 const RING: Record<CalendarDayStatus, string> = {
-  logged: "bg-text-primary font-semibold text-bg-base",
+  logged: "bg-text-primary font-medium text-bg-base",
   scheduled: "border border-dashed border-border-strong text-text-primary",
   "none-past": "border border-border-strong text-text-muted",
   "none-future": "border border-border-default text-text-subtle",
@@ -128,7 +128,7 @@ function DayCell({
         className={cn(
           "flex h-9 w-9 items-center justify-center rounded-full font-mono text-sm transition-colors",
           selected
-            ? "bg-accent-amber font-semibold text-bg-base"
+            ? "bg-accent-primary font-medium text-bg-base"
             : cn(RING[info.status], isToday && "ring-1 ring-border-strong"),
           isToday && !selected && "text-foreground",
         )}

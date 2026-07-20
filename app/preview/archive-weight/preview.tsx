@@ -120,7 +120,7 @@ export function ArchiveWeightPreview() {
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
             Archive → search → reactivate
           </p>
-          <h1 className="mt-2 font-display text-2xl font-medium tracking-[-0.01em] text-foreground">
+          <h1 className="mt-2 text-2xl font-light tracking-[-0.01em] text-foreground">
             Reactivate from search
           </h1>
           <ol className="mt-3 space-y-1.5 text-sm text-text-muted">

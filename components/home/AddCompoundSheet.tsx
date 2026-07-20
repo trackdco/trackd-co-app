@@ -15,6 +15,7 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -82,7 +83,7 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ]
 const SELECT_CLASS =
-  "h-11 w-full min-w-0 rounded-xl border border-border-default bg-bg-input px-2 text-base text-foreground shadow-xs outline-none transition-colors [color-scheme:dark] focus-visible:border-accent-amber"
+  "h-11 w-full min-w-0 rounded-xl border border-border-default bg-bg-input px-2 text-base text-foreground shadow-xs outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong"
 
 const ROUTES: InjectionMethod[] = ["im", "subq", "po", "nasal"]
 /** Method is taken verbatim from the compound's route — never chosen by the user. */
@@ -544,7 +545,7 @@ function AddCompoundBody({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg">
+    <div className="flex h-full flex-col overflow-hidden rounded-t-3xl hairline-t bg-bg-surface shadow-lg">
       <AmberNotice notice={notice} onDismiss={dismiss} />
 
       {/* Header */}
@@ -556,13 +557,13 @@ function AddCompoundBody({
         >
           Cancel
         </button>
-        <SheetTitle className="justify-self-center text-base font-semibold text-foreground">
+        <SheetTitle className="justify-self-center text-base font-medium text-foreground">
           {isReactivate ? "Reactivate compound" : isEdit ? "Edit compound" : "Add to log"}
         </SheetTitle>
         <button
           type="button"
           onClick={handleSave}
-          className="justify-self-end text-base font-medium text-accent-amber transition-colors hover:opacity-80"
+          className="justify-self-end text-base font-medium text-foreground transition-colors hover:opacity-80"
         >
           {isReactivate ? "Reactivate" : isEdit ? "Save" : "Add"}
         </button>
@@ -578,7 +579,7 @@ function AddCompoundBody({
           className="animate-home-up flex items-center gap-3 rounded-xl bg-bg-surface-raised px-4 py-3"
           style={{ animationDelay: "0ms" }}
         >
-          <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", meta.dot)} />
+          <CategoryIcon category={source.category} className="h-3.5 w-3.5" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-medium text-foreground">
               {source.name}
@@ -636,7 +637,7 @@ function AddCompoundBody({
                     className={cn(
                       "rounded-full border px-3 py-1.5 text-sm transition-colors",
                       active
-                        ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                        ? "border-transparent bg-accent-primary font-medium text-bg-base"
                         : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
                     )}
                   >
@@ -722,7 +723,7 @@ function AddCompoundBody({
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-sm transition-colors",
                     active
-                      ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                      ? "border-transparent bg-accent-primary font-medium text-bg-base"
                       : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
                   )}
                 >
@@ -773,7 +774,7 @@ function AddCompoundBody({
                         "flex h-9 w-9 items-center justify-center rounded-full border text-sm transition-colors",
                         daysLocked && "cursor-not-allowed",
                         active
-                          ? "border-accent-amber bg-accent-amber/15 text-foreground"
+                          ? "border-transparent bg-accent-primary font-medium text-bg-base"
                           : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
                       )}
                     >
@@ -797,7 +798,7 @@ function AddCompoundBody({
                     type="button"
                     onClick={() => days.length > 0 && setDaysLocked(true)}
                     disabled={days.length === 0}
-                    className="text-xs font-medium text-accent-amber transition-opacity hover:opacity-80 disabled:text-text-subtle"
+                    className="text-xs font-medium text-foreground transition-opacity hover:opacity-80 disabled:text-text-subtle"
                   >
                     Done
                   </button>
@@ -868,7 +869,7 @@ function AddCompoundBody({
                 back-dated cycle is deliberate rather than a mis-set dropdown. Muted,
                 not amber: this is a supported thing to do, not a warning. */}
             {startsInPast && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2">
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-bg-surface-raised px-3 py-2">
                 <CalendarDots
                   className="h-3.5 w-3.5 shrink-0 text-text-muted"
                   aria-hidden
@@ -989,7 +990,7 @@ function AddCompoundBody({
                     hidden until the amounts are typed), so the part-full option is
                     discoverable straight away. The presets/bar light up once there's a
                     capacity to take a fraction of. */}
-                <div className="space-y-2 border-t border-border-default/60 pt-3">
+                <div className="space-y-2 hairline-t border-border-default/60 pt-3">
                   <FieldLabel>How much is in it?</FieldLabel>
                   {stockFill.basis ? (
                     <>
@@ -1066,7 +1067,7 @@ function amt(s: string): number {
 }
 
 const STOCK_PILL = "rounded-full border px-2.5 py-1 text-sm transition-colors"
-const STOCK_PILL_ON = "border-accent-amber bg-accent-amber/15 text-foreground"
+const STOCK_PILL_ON = "border-transparent bg-accent-primary font-medium text-bg-base"
 const STOCK_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
 
 function FieldLabel({ children }: { children: React.ReactNode }) {

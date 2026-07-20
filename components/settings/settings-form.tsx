@@ -227,7 +227,7 @@ function SexField({ initial }: { initial: string | null }) {
             >
               <h2
                 id="sex-confirm-title"
-                className="text-base font-semibold text-foreground"
+                className="text-base font-medium text-foreground"
               >
                 Change to {nextLabel}?
               </h2>
@@ -249,7 +249,7 @@ function SexField({ initial }: { initial: string | null }) {
                     setSex(pending);
                     setPending(null);
                   }}
-                  className="flex-1 rounded-xl bg-accent-amber py-2.5 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90"
+                  className="flex-1 rounded-xl bg-accent-primary py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
                 >
                   Confirm
                 </button>

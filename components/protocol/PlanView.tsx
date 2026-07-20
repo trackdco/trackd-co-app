@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useSyncExternalStore } from "react"
-import { CalendarBlank, DotsThree, Plus } from "@/components/icons"
+import { DotsThree, Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { CARD_ICON_BADGE, CARD_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -36,7 +37,6 @@ function formatDose(dose: number): string {
 interface PlanGroup {
   cat: string
   label: string
-  dot: string
   compounds: StackCompound[]
 }
 
@@ -57,7 +57,7 @@ function groupByCategory(items: StackCompound[]): PlanGroup[] {
     .sort((a, b) => rank(a) - rank(b))
     .map((cat) => {
       const meta = CATEGORY_META[cat as CompoundCategory] ?? FALLBACK_CATEGORY_META
-      return { cat, label: meta.label, dot: meta.dot, compounds: byCat.get(cat)! }
+      return { cat, label: meta.label, compounds: byCat.get(cat)! }
     })
 }
 
@@ -137,25 +137,22 @@ export function PlanView({
           onClick={() => setCycleEditOpen(true)}
           className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised"
         >
-          <span aria-hidden className={CARD_ICON_BADGE}>
-            <CalendarBlank className="h-5 w-5" aria-hidden />
-          </span>
           <span className="min-w-0">
-            <span className={`${CARD_TITLE} block`}>Set up your cycle</span>
-            <span className="mt-0.5 block text-sm text-text-muted">
+            <span className={cn(CARD_EYEBROW, "block")}>Set up your cycle</span>
+            <span className="mt-1.5 block text-sm text-text-muted">
               Name it and set a start date + length to track “Week X of N”.
             </span>
           </span>
         </button>
       )}
 
-      <section className="rounded-2xl border border-border-default bg-bg-surface p-5">
+      <section className="rounded-2xl bg-bg-surface p-5">
         <div className="flex items-center justify-between gap-2">
-          <h2 className={CARD_TITLE}>Compounds</h2>
+          <h2 className={CARD_EYEBROW}>Compounds</h2>
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent-amber/30 bg-accent-amber/10 px-3 py-1.5 text-sm font-medium text-accent-amber transition-colors hover:bg-accent-amber/20"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-primary px-3 py-1.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
           >
             <Plus className="h-4 w-4" aria-hidden /> Add
           </button>
@@ -166,11 +163,11 @@ export function PlanView({
             {groupByCategory(active).map((group) => (
               <div key={group.cat} className="mt-3 first:mt-2">
                 <div className="flex items-center gap-2 px-1 pb-1">
-                  <span aria-hidden className={cn("h-1.5 w-1.5 shrink-0 rounded-full", group.dot)} />
+                  <CategoryIcon category={group.cat} className="h-3.5 w-3.5" />
                   <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-text-muted">
                     {group.label}
                   </span>
-                  <span aria-hidden className="h-px flex-1 bg-border-default" />
+                  <span aria-hidden className="h-[0.5px] flex-1 bg-border-default" />
                 </div>
                 <ul className="px-1">
                   {group.compounds.map((c) => (
@@ -182,7 +179,7 @@ export function PlanView({
           </div>
         ) : (
           <p className="mt-4 rounded-2xl bg-bg-surface-raised px-4 py-6 text-center text-sm text-text-muted">
-            No compounds yet. Tap <span className="text-accent-amber">Add</span> to build your cycle.
+            No compounds yet. Tap <span className="text-foreground">Add</span> to build your cycle.
           </p>
         )}
       </section>

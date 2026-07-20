@@ -11,7 +11,7 @@ import {
 const initialState: UpdatePasswordState = {};
 
 const INPUT_CLASS =
-  "h-12 w-full rounded-xl border border-input bg-transparent px-4 text-base text-foreground placeholder:text-text-subtle outline-none transition-[color,box-shadow] [color-scheme:dark] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  "h-12 w-full rounded-xl border border-border-default bg-transparent px-4 text-base text-foreground placeholder:text-text-subtle outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong";
 
 /** Sets a new password on the recovery session, then redirects into the app. */
 export function ResetPasswordForm() {

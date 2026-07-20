@@ -226,7 +226,7 @@ export function AttachBloodworkSheet({
           </div>
 
           {/* Action bar */}
-          <div className="flex shrink-0 gap-3 border-t border-border-default px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+          <div className="flex shrink-0 gap-3 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -239,7 +239,7 @@ export function AttachBloodworkSheet({
               type="button"
               onClick={handleSave}
               disabled={busy || !file}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
             >
               {busy ? (
                 <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />

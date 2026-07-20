@@ -6,8 +6,6 @@ import {
   Check,
   CircleNotch,
   ImageSquare,
-  NotePencil,
-  PencilSimple,
   Tag,
   Trash,
   X,
@@ -157,7 +155,6 @@ export function JournalEntrySheet({
   const canSave =
     (bodyVisible && body.trim().length > 0) || markers.length > 0 || hasPhotos;
   const title = mode === "edit" ? "Edit entry" : mode === "markers" ? "Log markers" : "Write";
-  const Icon = mode === "markers" ? Tag : mode === "edit" ? PencilSimple : NotePencil;
 
   async function rollbackPending() {
     // uploadedRef is a superset of pendingAdds — it includes any upload that finished
@@ -298,12 +295,7 @@ export function JournalEntrySheet({
 
           <div className="flex-1 overflow-y-auto px-6">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-surface-raised text-text-muted">
-                  <Icon className="h-4 w-4" aria-hidden />
-                </span>
-                <h2 className={SHEET_TITLE}>{title}</h2>
-              </div>
+              <h2 className={SHEET_TITLE}>{title}</h2>
               {mode === "edit" && (
                 <span className="font-mono text-sm text-text-muted">
                   {formatJournalDate(date)}
@@ -428,7 +420,7 @@ export function JournalEntrySheet({
 
           {/* Action bar */}
           {confirmingDelete ? (
-            <div className="shrink-0 border-t border-border-default px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+            <div className="shrink-0 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
               <p className="text-sm text-foreground">
                 Delete this entry? This can&apos;t be undone.
               </p>
@@ -453,7 +445,7 @@ export function JournalEntrySheet({
               </div>
             </div>
           ) : (
-            <div className="flex shrink-0 gap-3 border-t border-border-default px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+            <div className="flex shrink-0 gap-3 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
               {entryForDate && (
                 <button
                   type="button"
@@ -468,7 +460,7 @@ export function JournalEntrySheet({
                 type="button"
                 onClick={handleSave}
                 disabled={busy || !canSave}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-semibold text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
               >
                 {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
                 {busy ? "Saving…" : "Save"}
