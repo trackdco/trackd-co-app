@@ -29,6 +29,7 @@ import {
   pullProtocolStackAndLogs,
   pushProtocolCompound,
 } from "@/lib/home/protocolSync"
+import { awaitCriticalSyncs, trackSync } from "@/lib/home/syncStatus"
 import { injectionSiteToLocal } from "@/lib/db/types"
 import type { DoseRow, InjectionSite } from "@/lib/db/types"
 import { isCatalogueName } from "@/lib/compound-lookup"
@@ -37,6 +38,11 @@ import { isCatalogueName } from "@/lib/compound-lookup"
  *  merged set back into the device-local caches. */
 export async function hydrateFromPostgres(userId: string): Promise<void> {
   if (!userId || userId === "anon") return
+  // Let any in-flight delete / archive commit BEFORE reading. This pull overwrites
+  // the local cache, so reading mid-delete brings the compound back — and the
+  // merge's flush then re-pushes it, making the resurrection permanent. See
+  // `awaitCriticalSyncs`.
+  await awaitCriticalSyncs()
   const [pg, cloud] = await Promise.all([
     pullProtocolStackAndLogs(),
     pullStackAndLogs(),
@@ -64,6 +70,10 @@ function doseRowsToDayLogs(
     )
     const log: DoseLog = {
       amount: r.amount,
+      // `dose_logs.dose_unit` is per-log in the schema, so the unit a dose was
+      // recorded in survives the round-trip and the row can't be relabelled with
+      // the compound's current unit (see DoseLog.unit).
+      ...(r.doseUnit ? { unit: r.doseUnit } : {}),
       siteId,
       time24,
       inventoryItemId: r.inventoryItemId,
@@ -73,6 +83,12 @@ function doseRowsToDayLogs(
   return out
 }
 
+/** One compound per name — the identity the app itself enforces (the add flow
+ *  refuses a duplicate by name), so it's the right key when ids disagree. */
+function nameKey(name: string): string {
+  return name.trim().toLowerCase()
+}
+
 function mergeAndSave(
   userId: string,
   pg: { stack: StackCompound[]; doseRows: DoseRow[] },
@@ -80,6 +96,7 @@ function mergeAndSave(
 ): void {
   const local = loadStack(userId) ?? []
   const localLogs = loadDoseLogs(userId)
+  const pgIds = new Set(pg.stack.map((c) => c.id))
 
   // STACK: Postgres is canonical for MEMBERSHIP, but the local `archived` flag
   // wins when it diverges. An archive / reactivate done OFFLINE never reached
@@ -88,11 +105,35 @@ function mergeAndSave(
   // local intent and push it up so Postgres converges (idempotent; a no-op for
   // customs). Single-device assumption — a true cross-device archive conflict
   // would need an offline outbox / tombstones, which is out of beta scope.
+  //
+  // Matched by id FIRST, then by NAME. The name fallback is the other half of the
+  // ghost-compound fix (Spec 01 · steps 2–3): a compound's Postgres id can drift
+  // from its client id (`pushProtocolCompound` reuses an existing row's id), and
+  // an id-only join then finds no local counterpart for the pulled row — so the
+  // local "archived" record was treated as an unrelated extra, dropped by the
+  // name de-dupe below, and the compound came back ACTIVE. Matching by name keeps
+  // the user's intent and re-pushes it, and records the id change so the
+  // compound's logs follow it instead of orphaning.
   const localById = new Map(local.map((c) => [c.id, c]))
+  const localByName = new Map<string, StackCompound>()
+  for (const c of local) {
+    if (!localByName.has(nameKey(c.name))) localByName.set(nameKey(c.name), c)
+  }
+  /** local id → Postgres id, for compounds matched by name rather than by id. */
+  const idRemap = new Map<string, string>()
+
   const reconciledPgRaw = pg.stack.map((c) => {
-    const loc = localById.get(c.id)
+    let loc = localById.get(c.id)
+    if (!loc) {
+      const byName = localByName.get(nameKey(c.name))
+      // Only adopt a local record that isn't itself a distinct Postgres row.
+      if (byName && !pgIds.has(byName.id)) {
+        loc = byName
+        idRemap.set(byName.id, c.id)
+      }
+    }
     if (loc && Boolean(loc.archived) !== Boolean(c.archived)) {
-      void archiveProtocolCompound(c.id, Boolean(loc.archived))
+      void trackSync(archiveProtocolCompound(c.id, c.name, Boolean(loc.archived)))
       return { ...c, archived: loc.archived }
     }
     return c
@@ -119,14 +160,16 @@ function mergeAndSave(
   //    but Postgres doesn't is a stale leftover (deleted here, or a failed sync on
   //    another device) and must NOT resurrect — that was the reinstall "deleted
   //    compounds came back" bug (the mirror outlives a PWA delete; Postgres is truth).
-  const pgIds = new Set(pg.stack.map((c) => c.id))
   const seen = new Set(pgIds)
-  const seenNames = new Set(reconciledPg.map((c) => c.name.trim().toLowerCase()))
+  const seenNames = new Set(reconciledPg.map((c) => nameKey(c.name)))
   const extras: StackCompound[] = []
   const pushExtra = (c: StackCompound, dropStaleCatalogue: boolean): void => {
     if (seen.has(c.id)) return
+    // A local record that was matched to a Postgres row by name is already
+    // represented by that row (under the Postgres id) — it is not an extra.
+    if (idRemap.has(c.id)) return
     seen.add(c.id)
-    const name = c.name.trim().toLowerCase()
+    const name = nameKey(c.name)
     if (seenNames.has(name)) return // a same-name compound is already canonical
     if (dropStaleCatalogue && isCatalogueName(c.name)) return // stale mirror leftover
     seenNames.add(name)
@@ -148,6 +191,9 @@ function mergeAndSave(
   const cloudIds = new Set(cloud.stack.map((c) => c.id))
   for (const c of local) {
     if (pgIds.has(c.id)) continue
+    // Already reconciled onto a Postgres row under a different id — re-pushing it
+    // would mint a SECOND row for the same compound.
+    if (idRemap.has(c.id)) continue
     if (isCatalogueName(c.name)) {
       void pushProtocolCompound(c)
     } else if (!cloudIds.has(c.id)) {
@@ -157,12 +203,34 @@ function mergeAndSave(
 
   // LOGS: Postgres logs (re-keyed to local days) + cloud ∪ local entries not
   // already present (custom compounds' logs, offline logs).
+  //
+  // Device-side logs are re-keyed through `idRemap` first. A compound's logs are
+  // keyed by its compound id, so when the stack entry adopts the Postgres id its
+  // history has to follow — otherwise the logs are stranded under an id no
+  // compound has any more: invisible in Today's Log, but still counted by the
+  // week strip's "something was logged that day". Same-key collisions keep the
+  // entry already under the Postgres id (it came from the canonical store).
+  const remapLogs = (src: DayLogs): DayLogs => {
+    if (idRemap.size === 0) return src
+    const out: DayLogs = {}
+    for (const [day, entries] of Object.entries(src)) {
+      const dayOut: Record<string, DoseLog> = {}
+      for (const [compoundId, log] of Object.entries(entries)) {
+        const key = idRemap.get(compoundId) ?? compoundId
+        if (dayOut[key] && key !== compoundId) continue
+        dayOut[key] = log
+      }
+      out[day] = dayOut
+    }
+    return out
+  }
+
   const methodById = new Map(mergedStack.map((c) => [c.id, c.method]))
   const merged: DayLogs = {}
   for (const [day, entries] of Object.entries(doseRowsToDayLogs(pg.doseRows, methodById))) {
     merged[day] = { ...entries }
   }
-  for (const src of [cloud.doseLogs, localLogs]) {
+  for (const src of [remapLogs(cloud.doseLogs), remapLogs(localLogs)]) {
     for (const [day, entries] of Object.entries(src)) {
       for (const [compoundId, log] of Object.entries(entries)) {
         if (merged[day]?.[compoundId]) continue

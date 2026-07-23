@@ -402,6 +402,57 @@ stored.)
   reconstitution calculator holds the centre bottom-nav slot and `/calculator` is its
   entry point (Spec 20 → D4/D6), so a tile would only duplicate it.
 
+## Dose & Schedule Integrity (Spec 01, wave 2 — 2026-07-23)
+
+**A schedule is a rule; a logged dose is an event. Editing intent never mutates
+history.** The model already split them; what was missing was that the *rendering*
+and the *deletion path* didn't honour the split.
+
+- **Deletion is resolved and verified, not derived.** THE GHOST-COMPOUND ROOT
+  CAUSE: `protocol_compounds.id` can legitimately diverge from the local
+  `StackCompound.id` (`pushProtocolCompound` REUSES an existing row's id for a
+  `(cycle, compound)` that already exists). Archive and delete derived the Postgres
+  id from the client id, so once diverged they targeted a row that doesn't exist —
+  and a PostgREST `UPDATE`/`DELETE` matching **zero rows returns no error**, so both
+  reported success. Postgres kept the compound `is_active = true`, the next
+  hydration pulled it back, and because the merge joined on **id only** it couldn't
+  match the local "archived" record either — so the local intent was dropped by the
+  name de-dupe and the compound returned, **active, with its dose logs**. Fixed in
+  four places: `findProtocolCompoundId` (`protocolSync.ts`) RESOLVES the row by id
+  then by **name**; delete re-reads the row to confirm it's gone and reports a
+  zero-row delete as a FAILURE (so `trackSync` surfaces it); the hydration merge
+  matches local↔Postgres by **name as well as id**, keeping the user's intent and
+  recording the id change; and device dose logs are **re-keyed** through that id
+  change so history follows the compound instead of orphaning.
+- **Hydration waits for destructive writes.** The pull overwrites the local cache
+  and fires on mount/focus/visibility/reconnect, so a pull overlapping an in-flight
+  delete read the compound as still present, wrote it back, and the merge's flush
+  re-pushed it — a self-resurrecting compound, most likely exactly when you close
+  the app after deleting. `trackCriticalSync` / `awaitCriticalSyncs`
+  (`lib/home/syncStatus.ts`) order the pull after any pending delete/archive. Adds
+  are deliberately NOT tracked — an overlapping add is already handled by the
+  offline-add path.
+- **A logged dose carries its own unit and time.** `DoseLog.unit` is stamped at log
+  time (`dose_logs.dose_unit` was already per-log in the schema, so no migration),
+  and the row renders `log.unit`/`log.time24` rather than the compound's current
+  ones. Previously an mg→mcg switch kept the figure and restated every past dose as
+  mcg — a thousandfold change in meaning applied retroactively.
+- **Next Dose reads the real stack.** `computeNextDose` (`lib/home/nextDose.ts`,
+  extracted from `HomeScreen` so it is testable) resolves the soonest **unlogged**
+  dose for the **selected** day, skipping archived compounds, re-derived every
+  render. It was being handed `seedStack` — the empty first-run fixture — so it
+  returned null for every user forever and the card showed a dash while doses were
+  due. The countdown no longer rolls a passed time to tomorrow (that hid overdue
+  doses); it reads `0h 0m`.
+- **Still open:** true schedule **versioning** (an alteration applying from a chosen
+  day forward, resolved per-date) is NOT built — it needs a migration and is awaiting
+  sign-off. Today an edit still mutates the single schedule row in place, so past
+  *due-sets* (week-strip dots, calendar cells) re-derive from the new rule. Past
+  logged doses are safe; what's outstanding is what the app says **was due**.
+- **Tests:** `lib/home/doseIntegrity.test.ts` (Vitest, `npm test`) pins each
+  reproduction. `vitest.config.ts` scopes the suite to `lib/**` — pure by house
+  rule, so it needs no DOM, renderer or Supabase.
+
 ## Back-dating (2026-07-17)
 
 Life doesn't happen at the phone: you take a shot on Tuesday night and open the app
@@ -411,22 +462,35 @@ on Wednesday. **The day the dashboard is parked on is the day you write to** —
 - **The selected day IS the target.** `HomeScreen`'s `selectedKey` (the week strip's
   day, local `useState`, unbounded in both directions) is what `logDose` /`unlogDose`
   already wrote to; the log sheet now receives it as `dateKey` + `todayKey` so
-  everything date-dependent agrees with where the dose actually lands. The
-  **quick-actions menu**'s "Log a dose" (`QuickTrackSheet`, on the FAB since Spec 20)
-  has no day context of its own and is **always today** — back-dating lives on the week
-  strip. The **Calendar is still read-only** (no log
-  path); wiring one up is deferred.
+  everything date-dependent agrees with where the dose actually lands. **The
+  quick-actions FAB now writes to the selected day too (Spec 01 · wave 2).** It is
+  rendered by the `(app)` shell, so it can't receive the strip's day as a prop and
+  used to hardcode today — park the strip on Tuesday, log from the FAB, and the dose
+  silently landed on today. `HomeScreen` now PUBLISHES its selected day to a tiny
+  in-memory store (`lib/home/selectedDay.ts`, the same `useSyncExternalStore` shape as
+  the other stores) and `QuickTrackSheet` reads it via `getSelectedDayOrToday`. The
+  screen clears it on unmount, so on every other tab the FAB resolves to today —
+  which is the correct DEFAULT, not a fallback that overrides a supplied day. The
+  **Calendar is still read-only** (no log path); wiring one up is deferred.
 - **No limit, by design.** Nothing clamps how far back a dose or a start date may go.
   `dose_logs.taken_at` has a `now()` *default*, never a temporal CHECK, and RLS carries
   no date predicate — the DB has always accepted this (Invariant 5: don't
   re-implement in TS what the DB enforces, and don't invent a rule it doesn't have).
   The `AddCompoundSheet` year dropdown offers current − 5 … current + 2, a **picker
   bound, not a rule**.
-- **Time-of-day is the part that makes late-logged data wrong**, so it's day-aware:
-  on today the field live-tracks the clock (evaluated at submit); on any other day it
-  defaults to **the compound's own `schedule.timeOfDay`** — the best guess available —
-  because stamping "now" onto yesterday's dose is exactly the corruption to avoid.
-  Either way the user can override it.
+- **Time-of-day is the part that makes late-logged data wrong**, so as of **Spec 01
+  (wave 2) it is never pre-filled at all** — on the add form OR the log form. It
+  starts **empty** and the user chooses it. It previously live-tracked the clock on
+  today and fell back to the compound's `schedule.timeOfDay` when back-dating; both
+  are guesses, and a guess written into a logged dose is indistinguishable from a
+  fact the user entered. **An unset time is a first-class state**: `Schedule.timeOfDay`
+  and `DoseLog.time24` may be `""`, rendered as **"Not set"** by `formatTimeLabel`
+  (the single place the app words it) and tested by `hasTime`. In Postgres it is
+  stored as `dose_times = ARRAY[NULL]` — the array is non-null (satisfying `NOT NULL`)
+  and still length 1 (satisfying the `dose_times_match` CHECK), so **no migration was
+  needed** and no invented time is ever written. `dose_logs.taken_at` for an unset
+  time falls back to **local noon** (`combineLocalDateTime`), deliberately mid-day so
+  the day can't slide across midnight under any timezone offset.
 - **A past start date is allowed and confirmed, not blocked.** `AddCompoundSheet`
   previously rejected `startDate < today` (and forced a same-day time later than now).
   Both are gone: you usually add a compound to the app *after* you've started running

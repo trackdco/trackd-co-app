@@ -5,9 +5,9 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-07-20
+Last updated: 2026-07-23
 
-## Current state (2026-07-20)
+## Current state (2026-07-23)
 
 The app is **fully built and live on prod** (`trackdco.app`), in beta. Stack:
 Next.js 16 + Supabase (Postgres / RLS / Auth / Storage) on Vercel (`syd1`). Live:
@@ -54,8 +54,33 @@ One line each; full detail in git + `Context/Feature Specs/`.
 - **Other** — waitlist + founder dashboard, desktop interstitial (phone-only gate),
   beta feedback, archive/reactivation, splash animation, install prompts.
 
+### Wave 2 (in progress — branch only, NOT merged, NOT deployed)
+
+- **Spec 01 · Dose & Schedule Integrity — steps 1–4, 6–8 built; step 5 blocked.**
+  Ghost compound root-caused and fixed (Postgres id ⇄ client id divergence made
+  archive/delete silently no-op, and a zero-row PostgREST write reports success —
+  see `architecture.md` → Dose & Schedule Integrity); hydration now waits for
+  in-flight deletes; the quick-actions FAB writes to the selected day instead of
+  today; the dose time no longer pre-fills from the clock (unset is a real state,
+  stored as `dose_times = ARRAY[NULL]`, no migration); Next Dose reads the real
+  stack instead of the empty `seedStack` fixture; logged doses keep their own unit
+  and time so an alteration can't restate history. **Vitest added** (`npm test`,
+  26 tests, `lib/home/doseIntegrity.test.ts`) — the repo had no test framework at
+  all before this. Step 5 (schedule versioning) needs a migration + sign-off.
+
 ## Open Questions
 
+- **Schedule versioning (Spec 01 · step 5) — migration plan awaiting Adrian.**
+  An alteration still mutates the single `protocol_compounds` schedule row, so past
+  due-sets re-derive from the new rule. A correct fix needs a
+  `protocol_compound_schedules` table (effective-from versions) + a per-date
+  resolver, touching the week strip, calendar, consistency, Plan and the reminder
+  engine. Deliberately not run — the spec says present the plan first.
+- **"Not set"** is the current wording for an unset dose time (worded once, in
+  `formatTimeLabel`). Spec 01 requires Adrian to confirm the placeholder.
+- **Testing scope** — Vitest covers `lib/**` only (pure by house rule). The
+  `seedStack` wiring bug that caused the Next Dose dash was a *wiring* error, which
+  a logic-only suite cannot catch; component coverage is not set up.
 - **Legal copy — parked Privacy Policy edits (stored verbatim, awaiting Adrian).**
   (1) §7 data retention — the backup-retention window is still unconfirmed;
   (2) §9 your rights — a "comply with the user's regional data-protection law"

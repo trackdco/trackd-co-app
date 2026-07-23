@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { CalendarDots, PencilSimple, Plus, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
@@ -31,6 +31,7 @@ import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
 import {
   formatDateKeyShort,
   formatTimeLabel,
+  hasTime,
   loadStack,
   methodLabel,
   sanitizeDoseInput,
@@ -170,7 +171,10 @@ function initSchedule(schedule: Schedule | null, now: Date) {
       sDay: String(now.getDate()),
       sMonth: String(now.getMonth() + 1),
       sYear: String(now.getFullYear()),
-      timeOfDay: hhmm(now),
+      // Unset, deliberately — the time field no longer pre-fills from the clock
+      // (Spec 01 → Dose time). The start DATE still defaults to today; a date is
+      // structural (it anchors the cadence) whereas a time is a user fact.
+      timeOfDay: "",
     }
   }
   const cad = schedule.cadence
@@ -346,19 +350,13 @@ function AddCompoundBody({
   const [sDay, setSDay] = useState(initial.sDay)
   const [sMonth, setSMonth] = useState(initial.sMonth)
   const [sYear, setSYear] = useState(initial.sYear)
-  // The default dose time live-tracks the clock (ticking each minute) for a NEW
-  // compound until the user sets one; an edit starts frozen at its saved time.
-  // `manualTime === null` ⇒ live. Picking a time freezes it; clearing resumes.
-  const [manualTime, setManualTime] = useState<string | null>(
-    isEdit || isReactivate ? initial.timeOfDay : null
-  )
-  const [clock, setClock] = useState(() => now)
-  useEffect(() => {
-    if (manualTime !== null) return
-    const id = window.setInterval(() => setClock(new Date()), 1000)
-    return () => window.clearInterval(id)
-  }, [manualTime])
-  const timeOfDay = manualTime ?? hhmm(clock)
+  // The dose time starts EMPTY and the user chooses it (Spec 01 → Dose time). It
+  // used to live-track the clock, which meant every compound silently acquired
+  // "whatever time I happened to add it" as its scheduled dose time — a guess
+  // that then drove reminders and the back-dated log default as though the user
+  // had chosen it. An edit starts at its saved time (which may itself be unset).
+  const [manualTime, setManualTime] = useState<string>(initial.timeOfDay)
+  const timeOfDay = manualTime
 
   const todayKey = toDateKey(now)
   // Past years are offered because a compound can start in the past (you add it to
@@ -379,11 +377,12 @@ function AddCompoundBody({
   const startDate = `${sYear}-${String(sMonth).padStart(2, "0")}-${safeStartDay.padStart(2, "0")}`
   // Both are "YYYY-MM-DD", so a string compare is a date compare. A cycle starting
   // EARLIER TODAY is a past start too — its first dose has already been and gone —
-  // so it gets the same confirmation (the "time must be later than now" rule that
-  // used to make this unreachable is gone). While the time is still live-tracking,
-  // timeOfDay IS hhmm(clock), so this can't fire on its own as the clock ticks; it
-  // takes a deliberate earlier time.
-  const startedEarlierToday = startDate === todayKey && timeOfDay < hhmm(clock)
+  // so it gets the same confirmation. Only a time the user actually SET can make
+  // this true: an unset time ("") makes no claim about when today's dose was, so
+  // it can't put the start in the past (and `"" < anything` would otherwise fire
+  // this notice on every same-day add).
+  const startedEarlierToday =
+    startDate === todayKey && hasTime(timeOfDay) && timeOfDay < hhmm(now)
   const startsInPast = startDate < todayKey || startedEarlierToday
 
   function toggleDay(day: number) {
@@ -485,10 +484,9 @@ function AddCompoundBody({
       show("Enter a dose greater than 0.")
       return
     }
-    // When the time is still live-tracking, resolve it at SAVE (a fresh now), so
-    // the saved default matches what the field last showed.
-    const nowAtSave = new Date()
-    const effectiveTime = manualTime ?? hhmm(nowAtSave)
+    // Whatever the user set, or unset. Nothing is substituted at save — the field
+    // showed empty, so empty is what gets stored.
+    const effectiveTime = manualTime
     // A start date in the past is allowed, deliberately. You often only add a
     // compound to the app AFTER you've started running it, and the doses you
     // already took need somewhere to land — a compound that didn't exist on Tuesday
@@ -857,9 +855,9 @@ function AddCompoundBody({
                 type="time"
                 value={timeOfDay}
                 // No `min`: a cycle can start earlier today (or on a past day), so
-                // the time isn't forced later than now.
-                // Empty resumes live tracking; any value freezes it.
-                onChange={(e) => setManualTime(e.target.value || null)}
+                // the time isn't forced later than now. Empty is a valid state —
+                // it means no dose time has been chosen, not "use the clock".
+                onChange={(e) => setManualTime(e.target.value)}
                 aria-label="Default dose time"
                 className="h-11 w-32 max-w-[45%] rounded-xl border-border-default bg-bg-input px-4 font-mono text-base dark:bg-bg-input"
               />

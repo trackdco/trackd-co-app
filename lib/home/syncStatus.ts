@@ -55,3 +55,39 @@ export async function trackSync(
     if (looksOnline()) notifySyncFailed()
   }
 }
+
+/* ------------------------------------------------- in-flight critical writes */
+
+/**
+ * Destructive writes currently in flight (delete / archive).
+ *
+ * Hydration re-pulls Postgres on mount, focus, visibility change and reconnect,
+ * and OVERWRITES the local cache with what it gets. A pull that overlaps a
+ * delete therefore reads the compound as still present — the delete simply
+ * hadn't committed yet — writes it back into localStorage, and the merge's flush
+ * then re-pushes it to Postgres. The compound resurrects itself, and closing the
+ * app right after deleting (the natural thing to do) is exactly when the overlap
+ * is most likely. So hydration waits for these to settle first.
+ *
+ * Only destructive writes are tracked. An overlapping ADD is harmless — the pull
+ * missing it just means the merge keeps the local copy and re-pushes it, which is
+ * already the offline-add path.
+ */
+const inFlightCritical = new Set<Promise<unknown>>()
+
+/** Run a destructive cloud write, tracked so hydration can wait for it. */
+export function trackCriticalSync(
+  op: Promise<{ ok: boolean; skipped?: boolean }>
+): Promise<void> {
+  const tracked = trackSync(op).finally(() => inFlightCritical.delete(tracked))
+  inFlightCritical.add(tracked)
+  return tracked
+}
+
+/** Settle every in-flight destructive write. Never rejects — `trackSync` already
+ *  swallows and reports failures; this only orders the pull after them. */
+export async function awaitCriticalSyncs(): Promise<void> {
+  while (inFlightCritical.size > 0) {
+    await Promise.allSettled([...inFlightCritical])
+  }
+}

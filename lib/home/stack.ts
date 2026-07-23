@@ -21,7 +21,7 @@ import {
   deleteProtocolCompoundForStack,
   pushProtocolCompound,
 } from "@/lib/home/protocolSync"
-import { trackSync } from "@/lib/home/syncStatus"
+import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
 
 /**
  * How a compound is administered. Defaults to the compound's primary `route`;
@@ -39,10 +39,23 @@ export type Cadence =
 
 export interface Schedule {
   cadence: Cadence
-  /** Default log time, 24h "HH:mm". */
+  /**
+   * Default log time, 24h "HH:mm", or `""` when the user hasn't set one.
+   *
+   * UNSET IS A REAL STATE, not a missing value (Spec 01 → Dose time). The field
+   * no longer pre-fills from the clock, so an empty time means "no time chosen"
+   * rather than "we guessed and the guess is now indistinguishable from a fact".
+   * Render it through {@link formatTimeLabel}, which words it once for the whole
+   * app; never substitute a default at the call site.
+   */
   timeOfDay: string
   /** Cycle start, "YYYY-MM-DD". Anchors EOD / every-N-days and gates due dates. */
   startDate: string
+}
+
+/** Whether a schedule / log time has actually been set by the user. */
+export function hasTime(time24: string | null | undefined): boolean {
+  return typeof time24 === "string" && /^\d{1,2}:\d{2}$/.test(time24)
 }
 
 /** Display label for a method (e.g. for the locked method on the add sheet). */
@@ -191,7 +204,12 @@ export function archiveInStack(
     // Custom archive state lives in the mirror (no Postgres row); catalogue archive
     // state lives in Postgres (is_active), so only customs write to the mirror.
     if (updated && isCustomName(updated.name)) void pushStackCompound({ ...updated, archived })
-    void trackSync(archiveProtocolCompound(id, archived)) // Postgres (no-op for customs)
+    // The NAME is passed so the server can RESOLVE the row rather than derive its
+    // id from this one: the two diverge, and a derived id that matches nothing
+    // used to make this a silent no-op — leaving Postgres holding the compound as
+    // active, ready for the next hydration to bring it back (see protocolSync's
+    // `findProtocolCompoundId`).
+    void trackCriticalSync(archiveProtocolCompound(id, updated?.name ?? null, archived))
   }
   return ok
 }
@@ -200,6 +218,9 @@ export function archiveInStack(
  *  + notifies. Its logged history is cleared separately (see doseLog). */
 export function removeFromStack(userId: string, id: string): boolean {
   const cur = loadStack(userId) ?? []
+  // Read the record BEFORE removing it — the server needs its name to resolve the
+  // Postgres row, and after the filter there's nothing left to read it from.
+  const removed = cur.find((c) => c.id === id) ?? null
   const ok = saveStack(
     userId,
     cur.filter((c) => c.id !== id)
@@ -207,7 +228,11 @@ export function removeFromStack(userId: string, id: string): boolean {
   if (ok) {
     notifyStackChanged()
     void deleteStackCompound(id)
-    void trackSync(deleteProtocolCompoundForStack(id)) // Postgres (cascades its dose logs)
+    // Postgres (cascades its dose logs). Resolved + verified server-side: a delete
+    // that matches no row is reported as a FAILURE rather than silently succeeding,
+    // so `trackSync` surfaces it instead of leaving a row behind for the next
+    // hydration to resurrect.
+    void trackCriticalSync(deleteProtocolCompoundForStack(id, removed?.name ?? null))
   }
   return ok
 }
@@ -420,8 +445,13 @@ export function sanitizeDoseInput(raw: string): string {
   return v.includes(".") ? `${clampedInt}.${(dec ?? "").slice(0, 3)}` : clampedInt
 }
 
-/** "07:30" → "7:30 AM". Falls back to the raw string if it isn't HH:mm. */
+/**
+ * "07:30" → "7:30 AM". An UNSET time (`""`) reads "Not set" — the single place
+ * the app words that state, so every surface says it identically. Falls back to
+ * the raw string for anything else that isn't HH:mm.
+ */
 export function formatTimeLabel(time24: string): string {
+  if (!time24) return "Not set"
   const m = /^(\d{1,2}):(\d{2})$/.exec(time24)
   if (!m) return time24
   let h = Number(m[1])
@@ -492,7 +522,10 @@ function normalizeCompound(item: unknown): StackCompound | null {
 
 function normalizeSchedule(raw: unknown): Schedule {
   const s = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>
-  const timeOfDay = typeof s.timeOfDay === "string" ? s.timeOfDay : "09:00"
+  // `""` round-trips as the deliberate "unset" state and must be preserved — a
+  // stored empty string is a choice, not a missing field. Only a genuinely absent
+  // or non-string value falls through to unset.
+  const timeOfDay = typeof s.timeOfDay === "string" ? s.timeOfDay : ""
   // Legacy records have no start date; "1970-01-01" reads as "already started"
   // (always due) and keeps EOD/every-N anchored consistently.
   const startDate =

@@ -49,6 +49,9 @@ export function loadDoseLogs(userId: string): DayLogs {
         if (isDoseLog(log)) {
           dayOut[id] = {
             amount: log.amount,
+            // The unit the dose was recorded in, preserved so history isn't
+            // relabelled when the compound's unit changes (see DoseLog.unit).
+            ...(typeof log.unit === "string" && log.unit ? { unit: log.unit } : {}),
             siteId: typeof log.siteId === "string" ? log.siteId : null,
             time24: log.time24,
             // `undefined` is a MEANINGFUL third state here, not just "missing" (see
