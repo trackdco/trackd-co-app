@@ -47,3 +47,4 @@ next-env.d.ts
 
 # Dev cache symlinked from .next, kept off iCloud (ends in .nosync)
 .next.nosync
+condensed_GLBX-*
