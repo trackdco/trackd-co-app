@@ -702,6 +702,24 @@ Email list**. Title is "Admin".
   already existed and is unchanged — `components/admin/FeedbackList.tsx` with the
   founder-only, column-scoped `resolved_at` UPDATE grant.
 
+## Portrait Lock (Spec 07, wave 2 — 2026-07-29)
+
+The app is portrait-only, locked wherever a lock genuinely exists and **silently
+not locked where none does**.
+
+- **`app/manifest.ts` declares `orientation: "portrait"`** — this is the real
+  lock, and it already existed. It governs an **installed** PWA on Android and on
+  iOS 16.4+.
+- **`ServiceWorkerRegistrar` also calls `screen.orientation.lock("portrait")`** —
+  the Screen Orientation API, the only lock a browser itself offers. It is a
+  guarded best-effort: it rejects unless the page is installed/standalone or
+  fullscreen, and **iOS Safari does not implement it at all**.
+- **On an uninstalled iPhone the app WILL still rotate**, and that is accepted
+  (Adrian's call, 2026-07-29). There is deliberately **no "rotate your phone"
+  overlay**: a hard overlay would also trap anyone whose device is locked to
+  landscape for accessibility reasons, which Spec 07 explicitly warns against.
+  Installing to the home screen is what makes it stick.
+
 ## Back-dating (2026-07-17)
 
 Life doesn't happen at the phone: you take a shot on Tuesday night and open the app

@@ -54,7 +54,24 @@ One line each; full detail in git + `Context/Feature Specs/`.
 - **Other** — waitlist + founder dashboard, desktop interstitial (phone-only gate),
   beta feedback, archive/reactivation, splash animation, install prompts.
 
-### Wave 2 (in progress — branch only, NOT merged, NOT deployed)
+### Wave 2 · part one — SPECS 01–07 BUILT AND MERGED TO MAIN (2026-07-29)
+
+Merged straight to `main` (Adrian's call) rather than held behind the PR: the app
+is in beta with few users, everything verified green (`tsc`, lint, 68 tests,
+production build, a structured self-review and a security pass), and merging was
+the only way to device-test — the Vercel preview link wasn't reachable for him.
+
+**Still outstanding after the merge:**
+- **Device testing.** Nothing on this branch has been used on a real phone. The
+  riskiest is pinch-zoom in the photo adjust step (Spec 05 step 9) and rotation
+  (Spec 07 step 7).
+- **Two migrations remain unapplied** (`supabase/protocol/005` schedule versions,
+  `supabase/markers/001` marker rename). Both degrade quietly: versions stay
+  device-only, and the marker still reads "Cycle Changes". `supabase/legal/011`
+  (support@ address) WAS applied by Adrian on 2026-07-29.
+- **The re-add consistency decision** is deferred to part two (see below).
+- **Spec 06's blocked paths** were verified by reading code and RLS policies, not
+  by executing them as a non-founder.
 
 - **Spec 01 · Dose & Schedule Integrity — all 8 steps built; migration unapplied.**
   Ghost compound root-caused and fixed (Postgres id ⇄ client id divergence made
