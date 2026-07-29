@@ -30,7 +30,6 @@ import { createClient } from "@/lib/supabase/server"
 import { guard } from "@/lib/resilience/circuitBreaker"
 import { ensureActiveCycle } from "@/lib/db/cycles"
 import {
-  deleteProtocolCompound,
   setProtocolCompoundActive,
   upsertProtocolCompound,
   upsertProtocolCompounds,
@@ -358,8 +357,10 @@ export async function pushProtocolBatch(
 }
 
 /**
- * Archive (stop dosing, keep history) or reactivate — the "Delete" the UI actually
- * performs. The row is RESOLVED rather than derived (see `findProtocolCompoundId`),
+ * Set `is_active` — `archived: true` is the app's Delete (stop future doses, keep
+ * every logged dose); `false` is reached only by a re-add or by the offline-state
+ * reconciliation in `hydrateProtocol`, never by a user-facing "reactivate".
+ * The row is RESOLVED rather than derived (see `findProtocolCompoundId`),
  * so a compound whose Postgres id has drifted from its client id is still stopped
  * instead of silently skipped.
  *
@@ -388,42 +389,10 @@ export async function archiveProtocolCompound(
   }
 }
 
-/**
- * Hard-delete a protocol compound (cascades its dose logs) — the permanent-delete
- * escape hatch on an already-stopped compound.
- *
- * Resolved, then VERIFIED. A PostgREST delete that matches zero rows returns no
- * error, so the old derive-the-id version reported success while leaving the row
- * (and every dose log under it) in place, ready for the next hydration to pull
- * back. Here a delete that matched nothing when a row was found is reported as a
- * failure, and the row is re-read afterwards to confirm it is actually gone.
- */
-export async function deleteProtocolCompoundForStack(
-  clientId: string,
-  name: string | null
-): Promise<Ok> {
-  try {
-    const cx = await ctx()
-    if (!cx) return { ok: false }
-    const pcId = await findProtocolCompoundId(cx, clientId, name)
-    if (!pcId) return { ok: true, skipped: true } // nothing in Postgres to delete
-    const res = await deleteProtocolCompound(pcId)
-    if (!res.ok) return { ok: false }
-    // Confirm it's gone. Without this the caller can't distinguish "deleted" from
-    // "matched nothing", which is exactly how a delete came to be reported as
-    // successful while the row survived.
-    const { data: still } = await cx.supabase
-      .from("protocol_compounds")
-      .select("id")
-      .eq("id", pcId)
-      .eq("user_id", cx.userId)
-      .maybeSingle()
-    return { ok: !still }
-  } catch (e) {
-    console.error("deleteProtocolCompoundForStack failed", e)
-    return { ok: false }
-  }
-}
+// A hard delete of a protocol compound (which would cascade its dose logs) is NOT
+// reachable from the app (Spec 02): "Delete" is `archiveProtocolCompound` above,
+// which stops future doses and keeps every log. The DB cascade remains only so a
+// full account deletion still erases a user on request (Invariant 8).
 
 /* --------------------------------------------------------------- dose logs */
 

@@ -15,7 +15,7 @@
  */
 
 /** Standalone screen page title + the Home greeting — sans, light, tightly tracked.
- *  Settings, Weight, Billing, Archive, Profile `<h1>`, and "Good morning, …". */
+ *  Settings, Weight, Billing, Profile `<h1>`, and "Good morning, …". */
 export const PAGE_TITLE =
   "text-2xl font-light tracking-[-0.02em] text-foreground"
 

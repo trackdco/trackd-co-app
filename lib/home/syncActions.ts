@@ -57,23 +57,6 @@ export async function pushStackCompound(compound: StackCompound): Promise<Ok> {
   }
 }
 
-export async function deleteStackCompound(compoundId: string): Promise<Ok> {
-  try {
-    const ctx = await sessionCtx()
-    if (!ctx) return { ok: false }
-    const { error } = await ctx.supabase
-      .from("user_stack_compounds")
-      .delete()
-      .eq("profile_id", ctx.userId)
-      .eq("compound_id", compoundId)
-    if (error) console.error("deleteStackCompound: cloud write failed", error)
-    return { ok: !error }
-  } catch (e) {
-    console.error("deleteStackCompound failed", e)
-    return { ok: false }
-  }
-}
-
 /* --------------------------------------------------------------- dose logs */
 
 export async function pushDoseLog(
@@ -113,24 +96,6 @@ export async function deleteDoseLog(
     return { ok: !error }
   } catch (e) {
     console.error("deleteDoseLog failed", e)
-    return { ok: false }
-  }
-}
-
-/** Erase every logged dose for a compound across all days (the hard-delete path). */
-export async function deleteCompoundLogs(compoundId: string): Promise<Ok> {
-  try {
-    const ctx = await sessionCtx()
-    if (!ctx) return { ok: false }
-    const { error } = await ctx.supabase
-      .from("user_dose_logs")
-      .delete()
-      .eq("profile_id", ctx.userId)
-      .eq("compound_id", compoundId)
-    if (error) console.error("deleteCompoundLogs: cloud write failed", error)
-    return { ok: !error }
-  } catch (e) {
-    console.error("deleteCompoundLogs failed", e)
     return { ok: false }
   }
 }

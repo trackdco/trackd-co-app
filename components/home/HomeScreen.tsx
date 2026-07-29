@@ -40,7 +40,6 @@ import {
   loadStack,
   majorityInjectionRoute,
   notifyStackChanged,
-  removeFromStack,
   saveStack,
   subscribeStack,
   type StackCompound,
@@ -48,7 +47,6 @@ import {
 import {
   getDoseLogsSnapshot,
   logDose,
-  removeCompoundLogs,
   subscribeDoseLogs,
   unlogDose,
   type DayLogs,
@@ -625,8 +623,8 @@ export function HomeScreen({
       />
 
       {/* Tap a compound → its detail; Edit there opens the add sheet pre-filled.
-          "Stop logging" archives it (history kept, reversible); "Delete all" is the
-          destructive path (removes the compound + every logged dose, two-step confirm). */}
+          "Delete" stops future doses and keeps every logged dose — the only
+          lifecycle verb there is (Spec 02). */}
       <CompoundDetailSheet
         open={detailTarget !== null}
         compound={detailTarget}
@@ -648,10 +646,6 @@ export function HomeScreen({
           setEditTarget(c)
         }}
         onArchive={(id) => archiveInStack(userId, id, true)}
-        onDelete={(id) => {
-          removeFromStack(userId, id)
-          removeCompoundLogs(userId, id)
-        }}
       />
 
       <AddCompoundSheet

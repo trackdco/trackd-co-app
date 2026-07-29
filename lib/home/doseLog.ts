@@ -10,11 +10,7 @@
  * Pure data + pure helpers + guarded storage only; no React (Context/code-standards.md).
  */
 import { combineLocalDateTime, type DoseLog } from "@/lib/home/mockHomeData"
-import {
-  pushDoseLog,
-  deleteDoseLog,
-  deleteCompoundLogs,
-} from "@/lib/home/syncActions"
+import { pushDoseLog, deleteDoseLog } from "@/lib/home/syncActions"
 import { loadStack } from "@/lib/home/stack"
 import {
   pushProtocolDoseLog,
@@ -182,16 +178,6 @@ export function unlogDose(userId: string, dateKey: string, compoundId: string) {
   void trackSync(deleteProtocolDoseLog(compoundId, dateKey)) // Postgres (no-op for customs)
 }
 
-/** Erase every logged dose for a compound across all days (hard delete only). */
-export function removeCompoundLogs(userId: string, compoundId: string) {
-  const cur = loadDoseLogs(userId)
-  const next: DayLogs = {}
-  for (const [dateKey, day] of Object.entries(cur)) {
-    const rest = { ...day }
-    delete rest[compoundId]
-    if (Object.keys(rest).length > 0) next[dateKey] = rest
-  }
-  saveDoseLogs(userId, next)
-  notify()
-  void deleteCompoundLogs(compoundId)
-}
+// There is deliberately NO "erase every logged dose for a compound" here (Spec 02):
+// a compound has two states, active and deleted, and deleting keeps every logged
+// dose. The only verb that touches a single day's entry is `unlogDose` above.

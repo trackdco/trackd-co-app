@@ -15,10 +15,9 @@
  */
 import type { CompoundCategory } from "@/lib/compound-categories"
 import { isCustomName } from "@/lib/compound-lookup"
-import { pushStackCompound, deleteStackCompound } from "@/lib/home/syncActions"
+import { pushStackCompound } from "@/lib/home/syncActions"
 import {
   archiveProtocolCompound,
-  deleteProtocolCompoundForStack,
   pushProtocolCompound,
   pushScheduleVersions,
 } from "@/lib/home/protocolSync"
@@ -376,7 +375,12 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
   return ok
 }
 
-/** Archive (stop dosing, keep history) or reactivate a compound. */
+/**
+ * Set a compound's deleted flag. `archived: true` IS the app's Delete (Spec 02 —
+ * two states, active or deleted): future doses stop, every logged dose is kept.
+ * The `false` direction is not a user action any more — re-adding a deleted
+ * compound goes through the normal add, which rewrites the record active.
+ */
 export function archiveInStack(
   userId: string,
   id: string,
@@ -403,28 +407,11 @@ export function archiveInStack(
   return ok
 }
 
-/** Permanently remove a compound from the stack (the hard-delete path). Persists
- *  + notifies. Its logged history is cleared separately (see doseLog). */
-export function removeFromStack(userId: string, id: string): boolean {
-  const cur = loadStack(userId) ?? []
-  // Read the record BEFORE removing it — the server needs its name to resolve the
-  // Postgres row, and after the filter there's nothing left to read it from.
-  const removed = cur.find((c) => c.id === id) ?? null
-  const ok = saveStack(
-    userId,
-    cur.filter((c) => c.id !== id)
-  )
-  if (ok) {
-    notifyStackChanged()
-    void deleteStackCompound(id)
-    // Postgres (cascades its dose logs). Resolved + verified server-side: a delete
-    // that matches no row is reported as a FAILURE rather than silently succeeding,
-    // so `trackSync` surfaces it instead of leaving a row behind for the next
-    // hydration to resurrect.
-    void trackCriticalSync(deleteProtocolCompoundForStack(id, removed?.name ?? null))
-  }
-  return ok
-}
+// There is deliberately NO hard delete here (Spec 02): a compound has two states,
+// active and deleted, and `archiveInStack` IS the delete — it stops future doses
+// and keeps every logged dose. Erasing a compound and its history outright is not
+// offered anywhere in the app, which is also Invariant 8 (archive, never
+// hard-delete user history). Adding one back is a normal add onto the same record.
 
 /**
  * A same-tab signal that the stack changed, so a sibling (the Home screen) can

@@ -9,8 +9,8 @@ import { wipeMyProtocol } from "@/lib/db/resetProtocol"
  * "Clear all compounds & stock" — the nuclear reset for the compound stack. Clears
  * every compound, vial and logged dose from BOTH the cloud (`wipeMyProtocol`) and
  * this device's localStorage caches, then hard-reloads to an empty Home. Distinct
- * from Archive (reversible) and from deleting one compound — it empties the whole
- * stack so you can rebuild from scratch.
+ * from deleting one compound (which keeps that compound's logged history) — this
+ * empties the whole stack so you can rebuild from scratch.
  *
  * Deliberately styled to MATCH "Delete my account" (a quiet, muted underline link →
  * a portaled confirm modal, NOT a loud red button) and placed beside it in Profile,
@@ -77,11 +77,11 @@ export function StartFreshSection({ userId }: { userId: string }) {
               className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
             >
               <h2 id="clear-stack-title" className="text-base font-medium text-foreground">
-                Clear your whole stack?
+                Clear your whole log?
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
                 This removes every compound, vial and logged dose and starts you from an
-                empty stack — on this device and in the cloud. Your weight, progress photos
+                empty log — on this device and in the cloud. Your weight, progress photos
                 and bloodwork are kept. This can&apos;t be undone.
               </p>
               <div className="mt-5 flex gap-3">

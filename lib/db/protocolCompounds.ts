@@ -111,8 +111,9 @@ export async function upsertProtocolCompounds(
 }
 
 /**
- * Archive (stop dosing, keep history) or reactivate a protocol compound — the
- * archive-never-delete invariant. Returns the updated row, or null on failure.
+ * Flip `is_active` — the archive-never-delete invariant. `false` is the app's
+ * Delete (stop dosing, keep history); `true` is reached by re-adding a deleted
+ * compound. Returns the updated row, or null on failure.
  */
 export async function setProtocolCompoundActive(
   id: string,
@@ -139,24 +140,7 @@ export async function setProtocolCompoundActive(
   }
 }
 
-/**
- * Hard-delete a protocol compound (cascades its dose logs). The everyday UX uses
- * {@link setProtocolCompoundActive}; this exists only for the deliberate
- * hard-delete path (architecture invariant 8). Returns ok.
- */
-export async function deleteProtocolCompound(id: string): Promise<{ ok: boolean }> {
-  try {
-    const ctx = await sessionCtx()
-    if (!ctx) return { ok: false }
-    const { error } = await ctx.supabase
-      .from("protocol_compounds")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", ctx.userId)
-    if (error) console.error("deleteProtocolCompound: cloud write failed", error)
-    return { ok: !error }
-  } catch (e) {
-    console.error("deleteProtocolCompound failed", e)
-    return { ok: false }
-  }
-}
+// No hard delete of a protocol compound exists (Spec 02 + Invariant 8): deleting a
+// compound is {@link setProtocolCompoundActive} with `false` — future doses stop,
+// every logged dose survives. Erasing a user's rows outright is account deletion's
+// job, which runs through the DB cascade, not through the app.

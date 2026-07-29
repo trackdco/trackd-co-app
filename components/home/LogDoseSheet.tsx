@@ -18,7 +18,6 @@ import type { DoseLog } from "@/lib/home/mockHomeData"
 import {
   formatDateKeyShort,
   formatTimeLabel,
-  hasTime,
   isInjectable,
   sanitizeDoseInput,
   type StackCompound,
@@ -129,6 +128,18 @@ export function LogDoseSheet({
 // Re-using a spot sooner than this (days) gets a gentle amber rest flag.
 const REST_DAYS = 7
 
+/** Local "HH:MM" for the time field / committed log. */
+function toHHMM(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(
+    d.getMinutes()
+  ).padStart(2, "0")}`
+}
+
+/** Local "HH:MM:SS" for the ticking live indicator. */
+function toHHMMSS(d: Date): string {
+  return `${toHHMM(d)}:${String(d.getSeconds()).padStart(2, "0")}`
+}
+
 function LogDoseBody({
   compound,
   existing,
@@ -167,14 +178,32 @@ function LogDoseBody({
   const [amount, setAmount] = useState(existing?.amount ?? String(compound.dose))
   const [editingAmount, setEditingAmount] = useState(false)
 
-  // The time the dose was taken. It starts EMPTY and the user MUST choose one
-  // (Spec 01 → Dose time; Adrian's call that a time is required to log). It used
-  // to live-track the clock on today and fall back to the compound's scheduled
-  // time when back-dating — both are guesses, and a guess stamped on a logged dose
-  // is indistinguishable from a fact the user entered. Requiring it is what makes
-  // every recorded time real. Editing an existing dose starts at its logged time.
-  const [manualTime, setManualTime] = useState<string>(existing?.time24 ?? "")
-  const timeMissing = !hasTime(manualTime)
+  // `manualTime === null` ⇒ take the day's default; any value ⇒ the user's own,
+  // frozen. Editing an existing dose starts frozen at its logged time.
+  //
+  // What the default IS depends on the day. On TODAY it live-tracks the clock
+  // (ticking each second) and is evaluated at SUBMIT, never captured at open. On a
+  // BACK-DATED day the clock is meaningless — stamping "now" onto yesterday's dose
+  // would be a plain lie — so it defaults to the compound's own scheduled time for
+  // that day, which is the best guess available.
+  //
+  // Spec 01 briefly made this start empty and required; reverted at Adrian's
+  // request (2026-07-29) — a pre-filled, overridable time is the faster log, and
+  // leaving it unset stays allowed.
+  const [manualTime, setManualTime] = useState<string | null>(
+    existing?.time24 ?? null
+  )
+  const [now, setNow] = useState<Date>(() => new Date())
+  useEffect(() => {
+    if (manualTime !== null || !onToday) return
+    const tick = () => setNow(new Date())
+    tick()
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [manualTime, onToday])
+  const liveTracking = manualTime === null && onToday
+  const defaultTime = onToday ? toHHMM(now) : compound.schedule.timeOfDay
+  const displayTime = manualTime ?? defaultTime
 
   const [siteId, setSiteId] = useState<string | null>(existing?.siteId ?? null)
 
@@ -306,16 +335,17 @@ function LogDoseBody({
       siteId == null ||
       catalogue.length === 0 ||
       sitesToShow.some((s) => s.id === siteId)
-    // The time is whatever the user set, or empty. Nothing is substituted at
-    // submit — an unset time stays unset rather than becoming the clock reading at
-    // the moment Track was tapped.
+    // Evaluate the time at SUBMIT: a manual override wins, otherwise the day's
+    // default — the live clock right now on today, or the compound's scheduled
+    // time when back-dating (the clock says nothing about a dose taken yesterday).
     return {
       amount,
       // Stamped at log time so this dose keeps the unit it was recorded in, even
       // if the compound's unit is changed later (see DoseLog.unit).
       unit: compound.unit,
       siteId: injectable && siteOnRoute ? siteId : null,
-      time24: manualTime,
+      time24:
+        manualTime ?? (onToday ? toHHMM(new Date()) : compound.schedule.timeOfDay),
       inventoryItemId,
     }
   }
@@ -464,8 +494,11 @@ function LogDoseBody({
             </span>
             <Input
               type="time"
-              value={manualTime}
-              onChange={(e) => setManualTime(e.target.value)}
+              value={displayTime}
+              onChange={(e) =>
+                // Empty ⇒ resume the day's default; any value ⇒ a manual override.
+                setManualTime(e.target.value === "" ? null : e.target.value)
+              }
               aria-label="Time taken"
               className="h-12 w-full min-w-0 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm dark:bg-bg-input"
             />
@@ -476,14 +509,23 @@ function LogDoseBody({
             — the amount is one dose. Not a warning; blocks nothing. */}
         <p className="mt-1.5 px-1 text-xs text-text-subtle">per dose</p>
 
-        {/* Time hint. The field starts empty and stays empty until the user sets
-            it — nothing is pre-filled from the clock, so the line says what the
-            state is rather than which guess was substituted. */}
+        {/* Time hint — on today the clock ticks each second until you set a value;
+            on a back-dated day it says which default it fell back to, since "live
+            now" would be a lie about a dose taken days ago. */}
         <p className="mt-1.5 px-1 text-xs text-text-subtle">
-          {timeMissing ? (
-            <>Set the time this dose was taken.</>
+          {liveTracking ? (
+            <>
+              Logging at{" "}
+              <span className="font-mono text-accent-amber">{toHHMMSS(now)}</span>{" "}
+              — live now. Tap the time to set it yourself.
+            </>
+          ) : manualTime === null ? (
+            <>
+              Using this compound&apos;s scheduled time. Tap the time to set it
+              yourself.
+            </>
           ) : (
-            <>Tap the time to change it.</>
+            <>Time set manually. Clear it to use the default again.</>
           )}
         </p>
 
@@ -732,12 +774,7 @@ function LogDoseBody({
           </SheetClose>
           <button
             type="button"
-            // A time is REQUIRED to log. Disabled rather than validated-on-tap so
-            // the requirement is visible before the reach, and the hint above the
-            // button already says what's missing.
-            disabled={timeMissing}
             onClick={() => {
-              if (timeMissing) return
               // Commit immediately, THEN show the success tick — so nothing about
               // dismissing the tick can undo the log.
               onTracked(compound.id, buildLog())
