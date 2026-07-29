@@ -6,6 +6,8 @@ import { Camera, CircleNotch, Trash } from "@/components/icons";
 
 import { createClient } from "@/lib/supabase/client";
 import { clearAvatar, setAvatarPath } from "@/app/(app)/profile/actions";
+import { PhotoAdjustSheet } from "@/components/media/PhotoAdjustSheet";
+import { AVATAR_ASPECT } from "@/lib/media/framing";
 
 interface AvatarUploaderProps {
   /** Code-point-safe initials, shown when there's no photo. */
@@ -71,8 +73,12 @@ export function AvatarUploader({
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The photo being framed before upload. Null = no adjust step open. There's no
+  // re-adjust here: an avatar is one slot that's replaced outright, and the
+  // original isn't kept (storage is adjusted-only).
+  const [adjusting, setAdjusting] = useState<File | null>(null);
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file
     if (!file) return;
@@ -80,6 +86,14 @@ export function AvatarUploader({
       setError("Choose an image file.");
       return;
     }
+    setError(null);
+    // Frame it first (Spec 05). The avatar renders as a circle, so the frame is
+    // square — a centre crop used to decide what was in it, and a head off to one
+    // side of a photo simply lost.
+    setAdjusting(file);
+  }
+
+  async function upload(file: File) {
     setBusy(true);
     setError(null);
     try {
@@ -150,6 +164,19 @@ export function AvatarUploader({
         accept="image/png,image/jpeg,image/webp"
         onChange={handleFile}
         className="hidden"
+      />
+
+      {/* Square frame — the avatar renders as a circle. The adjusted result is
+          already 1:1, so `cropResizeToWebp` below only resizes and re-encodes it. */}
+      <PhotoAdjustSheet
+        open={adjusting !== null}
+        file={adjusting}
+        aspect={AVATAR_ASPECT}
+        onCancel={() => setAdjusting(null)}
+        onConfirm={(result) => {
+          setAdjusting(null);
+          void upload(result.file);
+        }}
       />
 
       <div className="mt-2 flex items-center gap-3">

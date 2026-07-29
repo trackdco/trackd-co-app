@@ -128,6 +128,26 @@ One line each; full detail in git + `Context/Feature Specs/`.
   - **Needs Adrian to run:** `supabase/markers/001_rename_cycle_changes.sql` (one
     UPDATE, idempotent). Until then the marker still reads "Cycle Changes" in the
     app; the applicability map covers both names so filtering is right either way.
+- **Spec 05 · Photo Adjust — built across all five photo surfaces.** One shared
+  `PhotoAdjustSheet` + pure `lib/media/framing.ts` (22 tests): pinch/drag inside a
+  fixed frame, zoom clamped so letterboxing is unreachable, faint rule-of-thirds
+  guides, adjusted-only storage with the original kept in memory for in-session
+  re-framing. See `architecture.md` → Photo Adjust.
+  - **Adrian's calls (2026-07-29):** apply it to bloodwork and journal photos too
+    (I flagged that a fixed frame can crop information off a lab report); faint
+    rule-of-thirds grid; adjusted-only storage; shared component approved.
+  - **Not yet done:** step 9, device testing on iOS Safari + Android Chrome. Pinch
+    inside an installed PWA is the likeliest place this breaks and it cannot be
+    verified from here.
+- **Contact email — `legal@trackdco.app` → `support@trackdco.app`** (Adrian,
+  2026-07-29; the legal@ mailbox is gone). The account-deletion request in
+  `components/auth/delete-account-request.tsx` is updated. The LIVE legal documents
+  are text rows in Postgres, so they need
+  `supabase/legal/011_support_email.sql` — a targeted `replace()` on the current
+  rows only, no version bump (the substance is unchanged; bumping would make every
+  existing `consent_records` row read as consent to a superseded version).
+  Superseded v1.0/v0.x rows keep the old address as the historical record; they are
+  never rendered.
 - **Dose-time pre-fill RESTORED (Adrian, 2026-07-29) — reverses Spec 01 step 6.**
   The log form live-tracks the clock on today and falls back to the compound's
   scheduled time when back-dating; the add form live-tracks the clock; a time is no

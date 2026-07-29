@@ -605,6 +605,54 @@ delete anything already logged.**
   36-marker split, the three shared judgement calls, the no-sex-set case and the
   pre/post-rename equivalence.
 
+## Photo Adjust (Spec 05, wave 2 — 2026-07-29)
+
+Every photo in the app is framed before it is saved: zoom and reposition inside a
+**fixed** frame, so successive progress shots line up instead of relying on
+perfect in-camera framing. Zoom + pan only — no rotation, no filters, no free crop.
+
+- **One implementation, five surfaces.** `components/media/PhotoAdjustSheet.tsx`
+  takes an image and a target ratio; each surface passes its own. The ratios are
+  declared together in `lib/media/framing.ts` so a surface and the card it later
+  renders in cannot drift apart:
+
+  | Surface | File | Ratio |
+  | --- | --- | --- |
+  | Progress photos (every pose) | `AddProgressPhotoSheet` | `PROGRESS_PHOTO_ASPECT` 3:4 |
+  | Weight sheet photos | `AddWeightSheet` | 3:4 — same `progress_photos` store |
+  | Profile picture | `AvatarUploader` | `AVATAR_ASPECT` 1:1 (renders as a circle) |
+  | Bloodwork | `AttachBloodworkSheet` | `DOCUMENT_ASPECT` 3:4 |
+  | Journal photos | `JournalEntrySheet` | `DOCUMENT_ASPECT` 3:4 |
+
+  The **weight sheet** and **journal** surfaces were not in the spec's list; both
+  accept photos and the weight sheet writes to the *same* `progress_photos` store,
+  so a shot added from Home would otherwise not line up with one added from
+  Progress. Adrian's call (2026-07-29) was to apply it to all five including the
+  two document surfaces, over a raised concern that a fixed frame can crop
+  information off a lab report.
+- **The maths is pure and tested** (`lib/media/framing.ts`, 22 tests). Zoom is a
+  multiplier over "just covers the frame" and is clamped to `[1, MAX_SCALE]`, and
+  offsets are clamped to the point where an edge would enter the frame — so
+  **letterboxing is unreachable rather than merely discouraged**. `cropRect`
+  converts a framing into the source rectangle to draw, and the tests pin that it
+  always stays inside the image and matches the frame's aspect.
+- **Clamping is DERIVED on render, not stored.** A framing restored from an
+  earlier session was legal against *that* frame size, and the frame depends on the
+  viewport — so clamping in an effect would leave one paint where the image
+  doesn't cover. `scaleAbout` keeps the pinch midpoint still, so the subject stays
+  under the fingers instead of sliding out.
+- **Storage is ADJUSTED-ONLY** (Adrian's call). The original is held in memory for
+  the session so re-opening a filled slot re-frames the *full* photo rather than a
+  crop of a crop, and the framing rides alongside so it resumes where it left off —
+  but only the adjusted image is ever uploaded. Re-adjustment therefore applies
+  within a session, not to a photo saved in an earlier one.
+- **It degrades rather than blocks.** If the browser can't decode the file (HEIC
+  outside Safari is the real case), the sheet says so and Confirm passes the
+  ORIGINAL through untouched. The same fallback covers any canvas failure — the
+  photo matters more than the framing.
+- **Guides:** a faint rule-of-thirds grid (hairlines at 25% on `--accent-primary`),
+  Adrian's pick over a centre line or horizon. Purely visual; never captured.
+
 ## Back-dating (2026-07-17)
 
 Life doesn't happen at the phone: you take a shot on Tuesday night and open the app

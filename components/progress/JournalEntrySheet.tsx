@@ -17,6 +17,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { MarkerDialer } from "@/components/progress/MarkerDialer";
+import {
+  PhotoAdjustSheet,
+  type PhotoAdjustResult,
+} from "@/components/media/PhotoAdjustSheet";
+import { DOCUMENT_ASPECT } from "@/lib/media/framing";
 import { SHEET_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -96,6 +101,10 @@ export function JournalEntrySheet({
   const [uploading, setUploading] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
+  // Photos waiting to be framed, in pick order — the head is the one on screen.
+  // Multi-select is supported here, so the adjust step is a queue rather than a
+  // single file.
+  const [adjustQueue, setAdjustQueue] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const savedRef = useRef(false);
   // Every path uploaded this session; rollback/commit consult it so an upload still
@@ -185,13 +194,37 @@ export function JournalEntrySheet({
     open,
   );
 
-  async function uploadFiles(files: FileList | null) {
+  /**
+   * Queue the picked photos for the adjust step (Spec 05). They're framed one at
+   * a time, in order, and each uploads as it's confirmed — nothing reaches the
+   * bucket unadjusted.
+   */
+  function queueForAdjust(files: FileList | null) {
     if (!files || files.length === 0) return;
+    setAttachError(null);
+    const valid: File[] = [];
+    for (const file of Array.from(files)) {
+      if (!EXT[file.type]) {
+        setAttachError("Photos only — JPG, PNG, WebP or HEIC.");
+        continue;
+      }
+      if (file.size > MAX_BYTES) {
+        setAttachError("Each photo must be under 10 MB.");
+        continue;
+      }
+      valid.push(file);
+    }
+    if (valid.length > 0) setAdjustQueue(valid);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  async function uploadFiles(files: File[]) {
+    if (files.length === 0) return;
     setAttachError(null);
     setUploading(true);
     const added: { path: string; url: string }[] = [];
     try {
-      for (const file of Array.from(files)) {
+      for (const file of files) {
         const ext = EXT[file.type];
         if (!ext) throw new Error("Photos only — JPG, PNG, WebP or HEIC.");
         if (file.size > MAX_BYTES) throw new Error("Each photo must be under 10 MB.");
@@ -218,6 +251,12 @@ export function JournalEntrySheet({
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
     }
+  }
+
+  /** One framed photo confirmed: upload it and move to the next in the queue. */
+  function onAdjusted(result: PhotoAdjustResult) {
+    setAdjustQueue((prev) => prev.slice(1));
+    void uploadFiles([result.file]);
   }
 
   function removeExisting(id: string) {
@@ -394,7 +433,7 @@ export function JournalEntrySheet({
                 accept="image/jpeg,image/png,image/webp,image/heic"
                 multiple
                 className="hidden"
-                onChange={(e) => uploadFiles(e.target.files)}
+                onChange={(e) => queueForAdjust(e.target.files)}
               />
               <button
                 type="button"
@@ -495,6 +534,17 @@ export function JournalEntrySheet({
           </button>
         </div>
       )}
+
+      {/* Adjust — one photo at a time, in pick order. Journal photos are usually
+          screenshots or snaps of something, so they take the document ratio and
+          open fully zoomed out; Cancel abandons the rest of the batch. */}
+      <PhotoAdjustSheet
+        open={adjustQueue.length > 0}
+        file={adjustQueue[0] ?? null}
+        aspect={DOCUMENT_ASPECT}
+        onCancel={() => setAdjustQueue([])}
+        onConfirm={onAdjusted}
+      />
     </Sheet>
   );
 }

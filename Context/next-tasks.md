@@ -11,12 +11,16 @@ Last updated: 2026-07-29
 ## 🎯 Current focus
 
 **Wave 2 · part one.** Working the seven refinement specs in order, one at a time,
-on `spec-01-dose-integrity` (not merged, not pushed). **Specs 01–04 are BUILT** —
-typecheck, lint and 46 tests green. Reviewed on **localhost** (`npm run dev`), not a
+on `spec-01-dose-integrity` (PR #61, not merged). **Specs 01–05 are BUILT** —
+typecheck, lint and 64 tests green; CodeRabbit round 1 findings fixed. Reviewed on **localhost** (`npm run dev`), not a
 Vercel preview — there's no CLI/token in this repo and pushing the branch is the only
-other preview path. Next up: `05-photo-adjust.md`.
+other preview path. Next up: `06-admin.md`.
 
 ### Blocked on Adrian
+00. **Run `supabase/legal/011_support_email.sql`** — swaps `legal@trackdco.app` for
+   `support@trackdco.app` in the CURRENT legal documents (their text lives in
+   Postgres, not the repo). The in-app account-deletion request is already updated;
+   until this runs, /terms and /privacy still print the dead address.
 0. **Run `supabase/markers/001_rename_cycle_changes.sql`** — one idempotent UPDATE
    renaming the "Cycle Changes" marker to "Menstrual Changes" (Spec 04). No data
    migration: readings reference markers by id. Until it runs, that marker still
@@ -39,14 +43,21 @@ other preview path. Next up: `05-photo-adjust.md`.
    forbids copy changes. One line for spec 07.
 
 ### Then
-- Commit the working tree (spec 02 is uncommitted).
-- Deploy to a Vercel **preview** subdomain and device-test.
+- **Spec 05 · step 9 — device-test the adjust step on iOS Safari and Android
+  Chrome.** Pinch-zoom inside an installed PWA is the likeliest place it breaks and
+  can't be verified from here. The preview on PR #61 is the surface to test on.
+- **Decide the re-add consistency question** (raised by CodeRabbit, deliberately
+  unfixed): `resolveScheduleOn` gives every historical version the compound's
+  CURRENT `startDate`, so after a re-add the pre-deletion run stops counting as
+  "due" and drops out of consistency. Three options — leave it, anchor to the
+  earliest version's `effectiveFrom` (which makes the deleted gap read as missed
+  doses), or record a stopped/restarted marker (accurate, a few hours). Pre-existing
+  behaviour: the old Reactivate re-anchored the start date the same way.
 - Verify against the real DB once the MCP session is authorised: the
   `dose_times = ARRAY[NULL]` round-trip, and a version round-trip after 005 runs.
 - Device-check the spec-02 re-add on a compound with real history (delete → search →
   plus → fresh dose/schedule → old logged doses still in the calendar).
-- CodeRabbit review, then STAND BY. Do not merge to main until every wave-2 spec is
-  done and approved.
+- STAND BY. Do not merge to main until every wave-2 spec is done and approved.
 
 ---
 

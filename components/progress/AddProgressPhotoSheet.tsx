@@ -17,6 +17,11 @@ import { addProgressPhotos } from "@/app/(app)/progress/actions";
 import { logWeight } from "@/app/(app)/weight/actions";
 import { DEFAULT_POSES, poseLabel, poseShape } from "@/lib/progress/photos";
 import {
+  PhotoAdjustSheet,
+  type PhotoAdjustResult,
+} from "@/components/media/PhotoAdjustSheet";
+import { PROGRESS_PHOTO_ASPECT, type Framing } from "@/lib/media/framing";
+import {
   formatWeight,
   sanitizeWeightInput,
   unitToKg,
@@ -42,8 +47,14 @@ function randomId(): string {
 
 interface Attachment {
   pose: string;
+  /** The ADJUSTED image — what gets uploaded (storage is adjusted-only). */
   file: File;
   previewUrl: string;
+  /** The untouched pick, kept in memory for this session only, so re-opening the
+   *  slot re-adjusts the full photo instead of a crop of a crop. */
+  original: File;
+  /** The framing that produced `file`, so re-opening resumes where it left off. */
+  framing: Framing;
 }
 
 /**
@@ -84,6 +95,13 @@ export function AddProgressPhotoSheet({
   const [weight, setWeight] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The pose whose photo is mid-adjustment, with the image being framed. Null =
+  // no adjust step open.
+  const [adjusting, setAdjusting] = useState<{
+    pose: string;
+    file: File;
+    framing?: Framing;
+  } | null>(null);
 
   const [prevOpen, setPrevOpen] = useState(open);
   if (open !== prevOpen) {
@@ -125,9 +143,35 @@ export function AddProgressPhotoSheet({
       return;
     }
     setError(null);
+    // Adjust BEFORE it lands in the slot (Spec 05) — successive shots are only
+    // comparable if they're framed the same, and that can't be fixed after upload.
+    setAdjusting({ pose, file: f, framing: undefined });
+  }
+
+  /** Re-open a filled slot on its ORIGINAL image with its previous framing, so
+   *  adjusting twice doesn't compound crops. */
+  function readjust(pose: string) {
+    const att = attachments[pose];
+    if (!att) return;
+    setAdjusting({ pose, file: att.original, framing: att.framing });
+  }
+
+  function onAdjusted(result: PhotoAdjustResult) {
+    const pose = adjusting?.pose;
+    setAdjusting(null);
+    if (!pose) return;
     setAttachments((prev) => {
       if (prev[pose]) URL.revokeObjectURL(prev[pose].previewUrl);
-      return { ...prev, [pose]: { pose, file: f, previewUrl: URL.createObjectURL(f) } };
+      return {
+        ...prev,
+        [pose]: {
+          pose,
+          file: result.file,
+          previewUrl: URL.createObjectURL(result.file),
+          original: result.original,
+          framing: result.framing,
+        },
+      };
     });
   }
 
@@ -248,8 +292,11 @@ export function AddProgressPhotoSheet({
                     <div className="relative">
                       <button
                         type="button"
-                        onClick={() => pickFor(pose)}
-                        aria-label={`${att ? "Replace" : "Add"} ${poseLabel(pose)} photo`}
+                        // A FILLED slot re-opens the adjust step on the original
+                        // with its framing intact (Spec 05) — re-framing is the
+                        // common intent; swapping the photo entirely is the X.
+                        onClick={() => (att ? readjust(pose) : pickFor(pose))}
+                        aria-label={`${att ? "Adjust" : "Add"} ${poseLabel(pose)} photo`}
                         className={cn(
                           "flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border transition-colors",
                           att
@@ -398,6 +445,18 @@ export function AddProgressPhotoSheet({
           </div>
         </div>
       </SheetContent>
+
+      {/* Adjust — sits between choosing the photo and it landing in the slot.
+          Progress photos frame at 3:4, the ratio the card and the compare sheet
+          already render at, so what you frame is what you later see. */}
+      <PhotoAdjustSheet
+        open={adjusting !== null}
+        file={adjusting?.file ?? null}
+        aspect={PROGRESS_PHOTO_ASPECT}
+        initialFraming={adjusting?.framing}
+        onCancel={() => setAdjusting(null)}
+        onConfirm={onAdjusted}
+      />
     </Sheet>
   );
 }
