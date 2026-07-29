@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { SHEET_TITLE } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
+import { Plus } from "@/components/icons"
 import {
   PALETTE_COLOURS,
   PALETTE_LABELS,
@@ -45,6 +46,8 @@ export function StackEditSheet({
   unavailableIds,
   onSave,
   onDelete,
+  onAddCompound,
+  pendingMemberId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -56,6 +59,11 @@ export function StackEditSheet({
   unavailableIds: Set<string>
   onSave: (stack: Stack) => void
   onDelete?: () => void
+  /** Open the compound picker so a NEW compound can be created without leaving
+   *  the stack being built. */
+  onAddCompound?: () => void
+  /** A compound just created through that flow — ticked into the draft. */
+  pendingMemberId?: string | null
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -78,6 +86,8 @@ export function StackEditSheet({
             onClose={() => onOpenChange(false)}
             onSave={onSave}
             onDelete={onDelete}
+            onAddCompound={onAddCompound}
+            pendingMemberId={pendingMemberId}
           />
         )}
       </SheetContent>
@@ -92,6 +102,8 @@ function StackForm({
   onClose,
   onSave,
   onDelete,
+  onAddCompound,
+  pendingMemberId,
 }: {
   stack: Stack | null
   compounds: StackCompound[]
@@ -99,6 +111,8 @@ function StackForm({
   onClose: () => void
   onSave: (stack: Stack) => void
   onDelete?: () => void
+  onAddCompound?: () => void
+  pendingMemberId?: string | null
 }) {
   const [name, setName] = useState(stack?.name ?? "")
   const [colour, setColour] = useState<PaletteColour>(
@@ -106,6 +120,21 @@ function StackForm({
   )
   const [members, setMembers] = useState<string[]>(stack?.memberIds ?? [])
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // A compound created from inside this sheet is ticked in automatically — the
+  // whole point of adding from here is not having to go and find it afterwards.
+  //
+  // Adjusted DURING RENDER rather than in an effect (React's documented pattern
+  // for reacting to a changed prop): an effect would paint once without the new
+  // member and then again with it. Tracking the last handled id means a member
+  // the user then unticks stays unticked, instead of being re-added every render.
+  const [lastHandled, setLastHandled] = useState<string | null>(null)
+  if (pendingMemberId && pendingMemberId !== lastHandled) {
+    setLastHandled(pendingMemberId)
+    setMembers((cur) =>
+      cur.includes(pendingMemberId) ? cur : [...cur, pendingMemberId]
+    )
+  }
 
   // A member of THIS stack is always offerable (so it can be removed); one in
   // another stack is not.
@@ -171,7 +200,7 @@ function StackForm({
         <p className={LABEL}>Compounds</p>
         {offerable.length === 0 ? (
           <p className="text-sm text-text-muted">
-            Every compound is already in a stack.
+            Every compound is already in a stack. Add a new one below.
           </p>
         ) : (
           <div className="divide-y divide-border-default rounded-2xl bg-bg-surface-raised">
@@ -207,6 +236,19 @@ function StackForm({
               )
             })}
           </div>
+        )}
+
+        {/* Create a compound without leaving the stack. It is still a NORMAL
+            compound with its own schedule and history — the stack just includes
+            it — so this opens the same add flow, then ticks the result in. */}
+        {onAddCompound && (
+          <button
+            type="button"
+            onClick={onAddCompound}
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border-strong py-3 text-sm text-text-muted transition-colors hover:text-foreground"
+          >
+            <Plus className="h-4 w-4" aria-hidden /> Add a new compound
+          </button>
         )}
       </div>
 

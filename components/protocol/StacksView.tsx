@@ -7,6 +7,7 @@ import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
 import { Container } from "@/components/containers"
 import { StackEditSheet } from "@/components/protocol/StackEditSheet"
 import { StackDetailSheet } from "@/components/protocol/StackDetailSheet"
+import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { paletteColourVar } from "@/lib/palette"
 import {
   deleteStack,
@@ -51,6 +52,11 @@ export function StacksView({ userId }: { userId: string }) {
   const [viewing, setViewing] = useState<Stack | null>(null)
   const [editing, setEditing] = useState<Stack | null>(null)
   const [creating, setCreating] = useState(false)
+  // Creating a compound from inside the stack editor. The editor stays MOUNTED
+  // underneath so its half-filled draft survives; the new compound's id is
+  // handed back and ticked in.
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pendingMemberId, setPendingMemberId] = useState<string | null>(null)
 
   const active = useMemo(() => compounds.filter((c) => !c.archived), [compounds])
   const byId = useMemo(() => new Map(active.map((c) => [c.id, c])), [active])
@@ -146,6 +152,8 @@ export function StacksView({ userId }: { userId: string }) {
           setCreating(false)
           setEditing(null)
         }}
+        onAddCompound={() => setPickerOpen(true)}
+        pendingMemberId={pendingMemberId}
         onDelete={
           editing
             ? () => {
@@ -154,6 +162,19 @@ export function StacksView({ userId }: { userId: string }) {
               }
             : undefined
         }
+      />
+      <AddToStackMenu
+        open={pickerOpen}
+        onOpenChange={(o) => {
+          setPickerOpen(o)
+          // Cleared on OPEN, not on close. The picker fires onOpenChange(false)
+          // before onAdded, so clearing on close would depend on that ordering
+          // holding — and if it ever flipped, the new compound would be dropped
+          // silently. Clearing on open is order-independent.
+          if (o) setPendingMemberId(null)
+        }}
+        userId={userId}
+        onAdded={(saved) => setPendingMemberId(saved.id)}
       />
     </div>
   )

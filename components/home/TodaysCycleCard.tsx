@@ -465,41 +465,31 @@ function StackDoseRow({
       </div>
 
       <div className="flex items-center gap-3 px-1 py-2">
-        {/* One tap logs every unlogged member. */}
-        <button
-          type="button"
-          onClick={toggleAll}
-          aria-label={
-            complete
-              ? `${stack.name} is fully logged — open it to change a dose`
-              : `Log all of ${stack.name}`
-          }
-          className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
-            complete
-              ? "border-accent-primary bg-accent-primary text-bg-base"
-              : "border-border-strong text-transparent hover:border-text-primary"
-          )}
-        >
-          {complete ? (
-            <Check className="h-3.5 w-3.5" aria-hidden />
-          ) : partial ? (
-            // Part-way: a small solid mark, so the row can never read as done.
-            <span
-              className="h-2 w-2 rounded-full bg-accent-primary"
-              aria-hidden
-            />
-          ) : (
-            <Check className="h-3.5 w-3.5" aria-hidden />
-          )}
-        </button>
-
-        {/* The whole row expands, with a caret spelling out that it does. */}
+        {/* The CARET takes the slot a dose row's tick occupies, because that is
+            what a stack row does first: it opens. The members inside are what
+            get ticked. "Log all" is the trailing shortcut, so the destructive-
+            adjacent bulk action is never the thing under your thumb by default. */}
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-label={`${open ? "Hide" : "Show"} the compounds in ${stack.name}`}
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-text-primary active:scale-90"
+        >
+          <CaretDown
+            aria-hidden
+            className={cn(
+              "h-4 w-4 transition-transform duration-300 ease-out motion-reduce:transition-none",
+              open && "rotate-180"
+            )}
+          />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          tabIndex={-1}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
           <span className="flex items-end gap-1">
@@ -523,14 +513,35 @@ function StackDoseRow({
               {logged} of {total} logged
             </span>
           </span>
-          <CaretDown
-            aria-hidden
-            className={cn(
-              "h-4 w-4 shrink-0 text-text-subtle transition-transform duration-300 ease-out motion-reduce:transition-none",
-              open && "rotate-180"
-            )}
-          />
         </button>
+
+        {/* Log every unlogged member at once (Spec 05). Hidden once complete —
+            there is nothing left to log, and un-logging in bulk would destroy
+            each dose's own amount, time and site. */}
+        {!complete && (
+          <button
+            type="button"
+            onClick={toggleAll}
+            aria-label={
+              partial
+                ? `Log the remaining ${total - logged} in ${stack.name}`
+                : `Log all of ${stack.name}`
+            }
+            className="shrink-0 text-xs text-text-muted transition-colors hover:text-text-primary active:text-text-primary"
+          >
+            {/* "Log all" would be a lie once one member is ticked — it logs what
+                is LEFT. Saying so is also the row's partial state in words. */}
+            {partial ? "Log rest" : "Log all"}
+          </button>
+        )}
+        {complete && (
+          <span
+            aria-hidden
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-primary text-bg-base"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </span>
+        )}
       </div>
 
       {/* Kept MOUNTED so it can animate both ways — the grid-rows 0fr↔1fr
