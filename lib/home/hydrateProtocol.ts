@@ -144,7 +144,12 @@ function mergeAndSave(
     // Without this the local history is replaced by a row that has none, and an
     // alteration recorded before the migration is silently lost on next load.
     const history = loc?.scheduleHistory
-    const merged = history?.length ? { ...c, scheduleHistory: history } : c
+    let merged = history?.length ? { ...c, scheduleHistory: history } : c
+    // Same reasoning for the CYCLE: a pull from a database without the 006
+    // columns returns a row carrying none, so overwriting with it would erase a
+    // cycle the user just set. Postgres wins when it actually knows one; the
+    // device's own cycle survives when it does not.
+    if (!merged.cycle && loc?.cycle) merged = { ...merged, cycle: loc.cycle }
     if (loc && Boolean(loc.archived) !== Boolean(c.archived)) {
       // CRITICAL, not plain: this push converges Postgres onto the local delete
       // intent, so the NEXT hydration must wait for it (`awaitCriticalSyncs` at the

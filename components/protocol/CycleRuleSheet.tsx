@@ -134,8 +134,13 @@ function CycleRuleForm({
   const effectiveEndType = offerable.includes(endType) ? endType : "never"
 
   const valid =
-    (effectiveEndType !== "onDate" || endDate !== "") &&
-    (effectiveEndType !== "afterRounds" || Number(rounds) > 0)
+    // A cleared date input yields "", which `dayNumber` can't parse — the cycle
+    // would then be OFF on every date and the compound would vanish from the log,
+    // the week strip and the calendar with nothing to explain it.
+    /^\d{4}-\d{2}-\d{2}$/.test(anchor) &&
+    (effectiveEndType !== "onDate" || /^\d{4}-\d{2}-\d{2}$/.test(endDate)) &&
+    (effectiveEndType !== "afterRounds" || Number(rounds) > 0) &&
+    (!repeats || Number(onDays) > 0)
 
   function buildEnd(): CycleEnd {
     switch (effectiveEndType) {

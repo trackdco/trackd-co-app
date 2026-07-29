@@ -218,12 +218,22 @@ export function cycleRuleFromColumns(r: Partial<CycleColumns>): CycleRule | unde
 
 /* --------------------------------------------------------------- resolution */
 
-/** Whole local days since the Unix epoch for a "YYYY-MM-DD" key (DST-safe). */
+/**
+ * Whole days since the epoch for a "YYYY-MM-DD" key.
+ *
+ * Built through `Date.UTC`, NOT a local `new Date(y, m, d)`. Dividing a LOCAL
+ * midnight by a UTC day length only holds where the offset never crosses zero:
+ * in Europe/London two calendar days collapse onto one number on 29–30 March,
+ * and a number is skipped on 26 October — so a cycle's on/off phase flips a day
+ * early and an on-period runs eight days. The key is a calendar date with no
+ * time in it, so UTC is the correct frame to count it in.
+ */
 function dayNumber(key: string): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key)
   if (!m) return null
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-  return Math.floor(d.getTime() / 86_400_000)
+  return Math.floor(
+    Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000
+  )
 }
 
 /** Length of one round: an on-period plus its off-period. */
@@ -380,6 +390,27 @@ export function availableCycleEnds(
   const ends: CycleEnd["type"][] = ["never", "onDate"]
   // A round is one on-period plus one off-period — meaningless without both.
   if (pattern.type === "onOff") ends.push("afterRounds")
-  if (opts.vialTracked) ends.push("whenVialEmpty")
+  if (opts.vialTracked && VIAL_END_SUPPORTED) ends.push("whenVialEmpty")
   return ends
 }
+
+/**
+ * **"Ends when the vial runs out" is NOT offered yet.**
+ *
+ * The rule itself is implemented and tested (`hasEndedBy` → `when_vial_empty`),
+ * and it resolves correctly the moment a caller supplies
+ * {@link CycleContext.vialEmptyOn}. What does not exist is the PRODUCER of that
+ * date: nothing derives "the day this compound's vial actually ran dry" from
+ * `dose_logs` + `v_inventory_math` and threads it into the gate.
+ *
+ * Until it does, `ctx` is always undefined at every call site, so the condition
+ * would resolve as "never ends" — a user could pick it and it would silently do
+ * nothing. Offering a control that does nothing is worse than not offering it,
+ * so the option is withheld rather than left dead.
+ *
+ * Wiring it is not a small change: `isDueOnFor` is a pure SYNCHRONOUS function
+ * called by the week strip, the calendar grid, consistency and Next Dose, and
+ * the empty date needs a Postgres read. It wants a per-compound map resolved
+ * once per screen and threaded down, which is its own pass.
+ */
+export const VIAL_END_SUPPORTED = false

@@ -77,12 +77,31 @@ ALTER TABLE protocol_compounds
             AND cycle_end_type IS NOT NULL
             AND cycle_colour IS NOT NULL
             -- on/off is all-or-nothing, and an on-period must be a real period.
+            -- Every branch must be explicitly NOT NULL: a CHECK passes on NULL, so
+            -- `cycle_on_days > 0 AND cycle_off_days >= 0` with a NULL off_days
+            -- evaluates to NULL and is ACCEPTED — the row then reads back as a
+            -- continuous cycle and the runway projection silently stops scaling.
             AND ((cycle_on_days IS NULL AND cycle_off_days IS NULL)
-                 OR (cycle_on_days > 0 AND cycle_off_days >= 0))
-            -- Each end condition carries its own field and no other.
-            AND (cycle_end_type <> 'on_date'      OR cycle_end_date IS NOT NULL)
-            AND (cycle_end_type <> 'after_rounds' OR (cycle_end_rounds > 0
-                                                      AND cycle_on_days IS NOT NULL))
+                 OR (cycle_on_days IS NOT NULL AND cycle_on_days > 0
+                     AND cycle_off_days IS NOT NULL AND cycle_off_days >= 0))
+            -- Each end condition carries its own field, and NOT the others — so a
+            -- stale end_date can't survive a switch to after_rounds and reappear
+            -- if the type is ever switched back.
+            AND (CASE cycle_end_type
+                   WHEN 'on_date' THEN
+                     cycle_end_date IS NOT NULL AND cycle_end_rounds IS NULL
+                   WHEN 'after_rounds' THEN
+                     cycle_end_rounds IS NOT NULL AND cycle_end_rounds > 0
+                     AND cycle_on_days IS NOT NULL
+                     AND cycle_end_date IS NULL
+                   ELSE
+                     cycle_end_date IS NULL AND cycle_end_rounds IS NULL
+                 END)
+            -- The colour is one of the twelve palette NAMES (ui-context.md).
+            AND cycle_colour IN (
+                'slate','steel','teal','moss','olive','bronze',
+                'clay','rosewood','mauve','plum','indigo','stone'
+            )
         )
     );
 

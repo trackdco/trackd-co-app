@@ -11,14 +11,22 @@ import { createClient } from "@/lib/supabase/server"
 import { CYCLE_COLUMNS } from "@/lib/db/types"
 import type { ProtocolCompound, ProtocolCompoundInsert } from "@/lib/db/types"
 
-/** Postgres "column does not exist" — the 006 cycle columns before it is applied. */
+/**
+ * "That column doesn't exist" — the 006 cycle columns before the migration runs.
+ *
+ * TWO codes, and the distinction matters: PostgREST validates a WRITE payload
+ * against its own schema cache and returns `PGRST204` before the statement ever
+ * reaches Postgres, so a write never sees `42703`. Reads (select lists, filters)
+ * do reach Postgres and return `42703`. Checking only one of them means the
+ * fallback silently never fires on the path that needs it most.
+ */
 function isUndefinedColumn(error: { code?: string } | null): boolean {
-  return error?.code === "42703"
+  return error?.code === "42703" || error?.code === "PGRST204"
 }
 
 /** The same row without its cycle columns, for the pre-006 retry. */
-function stripCycleColumns(row: ProtocolCompoundInsert): ProtocolCompoundInsert {
-  const out: ProtocolCompoundInsert = { ...row }
+function stripCycleColumns<T extends ProtocolCompoundInsert>(row: T): T {
+  const out: T = { ...row }
   for (const key of CYCLE_COLUMNS) delete out[key]
   return out
 }
@@ -125,9 +133,17 @@ export async function upsertProtocolCompounds(
     let count = 0
     for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
       const chunk = rows.slice(i, i + UPSERT_CHUNK).map((r) => ({ ...r, user_id: ctx.userId }))
-      const { error } = await ctx.supabase
+      let { error } = await ctx.supabase
         .from("protocol_compounds")
         .upsert(chunk, { onConflict: "id" })
+      // Same pre-006 retry as the single upsert. Without it the one-time
+      // device→Postgres backfill fails on every login until the migration lands,
+      // and `migrateDeviceState` never marks itself complete.
+      if (error && isUndefinedColumn(error)) {
+        ;({ error } = await ctx.supabase
+          .from("protocol_compounds")
+          .upsert(chunk.map(stripCycleColumns), { onConflict: "id" }))
+      }
       if (error) {
         console.error("upsertProtocolCompounds failed", error)
         return { ok: false, count }

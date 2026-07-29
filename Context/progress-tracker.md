@@ -50,8 +50,16 @@ compounds (`est_doses_per_week` didn't know about off periods — the view now
 scales by the on-fraction). Writes degrade rather than fail: both compound and
 version writes catch `42703` and retry without the cycle columns.
 
-**⚠️ `app/preview/containers/` must be deleted before merge** (spec 01's own
-checklist). It is still present so the artwork can be reviewed.
+The containers review page (`app/preview/containers/`) was reviewed and then
+**deleted**, per spec 01's checklist.
+
+**Deferred: cycle end condition 3, "ends when the vial runs out."** The rule is
+implemented and tested, but nothing derives the day a vial actually ran dry from
+dose logs, so it is withheld behind `VIAL_END_SUPPORTED = false` rather than
+shipped as a control that does nothing. Wiring it means threading a Postgres read
+into `isDueOnFor`, which is pure and synchronous and called by the week strip,
+calendar, consistency and Next Dose — its own pass. Spec 06 asks for five
+conditions; four are live.
 
 **Two bugs found and fixed in already-merged code**, both the same class — a
 field silently dropped in a round-trip, causing a deliberate break to read back

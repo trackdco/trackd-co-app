@@ -12,7 +12,6 @@ import { CycleRuleSheet } from "@/components/protocol/CycleRuleSheet"
 import {
   cycleColourVar,
   formatCyclePattern,
-  sameCycle,
   type CycleRule,
 } from "@/lib/protocol/cycleRule"
 import { newId } from "@/lib/home/id"
@@ -45,7 +44,6 @@ import {
   recordScheduleVersion,
   methodLabel,
   sanitizeDoseInput,
-  setCompoundCycle,
   upcomingDoseDates,
   upsertStack,
   type Cadence,
@@ -374,8 +372,12 @@ function AddCompoundBody({
   const canStock = !isEdit && isVialForm(stockType)
   // The cycle being built here. Held in form state until the compound exists,
   // then written through the same `setCompoundCycle` Protocol → Cycles uses.
+  // A RE-ADD presents as a first-time add in every visible respect (Spec 02), so
+  // it starts with no cycle — carrying the old one over would restore a rule that
+  // has usually already ended, and the compound would read "Ended" the moment it
+  // was added back.
   const [cycleDraft, setCycleDraft] = useState<CycleRule | null>(
-    source.prior?.cycle ?? null
+    source.readd ? null : (source.prior?.cycle ?? null)
   )
   const [cycleSheetOpen, setCycleSheetOpen] = useState(false)
   const [addStockOn, setAddStockOn] = useState(false)
@@ -607,6 +609,13 @@ function AddCompoundBody({
               timeOfDay: effectiveTime,
               dose: doseValue,
               unit,
+              // The cycle MUST ride this version. `resolveScheduleOn` reads the
+              // cycle off the version in force, so a version written without one
+              // switches the gate off from that day forward — an edit that only
+              // changed the dose would silently un-cycle the compound, putting it
+              // back in Today's Log on every off-day and marking those days
+              // missed, while the Cycles tab still showed the cycle.
+              ...(cycleDraft ? { cycle: cycleDraft } : {}),
             },
             versionedFrom
           )
@@ -626,21 +635,15 @@ function AddCompoundBody({
       rotationSites: [],
       rotationIndex: 0,
       ...(history ? { scheduleHistory: history } : {}),
-      // A NEW compound carries its cycle directly — there is no earlier rule to
-      // version against, so an empty history still means "current values are the
-      // whole truth". An EDIT keeps the existing cycle here and routes any CHANGE
-      // through setCompoundCycle below, so it is versioned from today forward.
-      ...(cycleDraft && !isEdit ? { cycle: cycleDraft } : {}),
-      ...(isEdit && source.prior?.cycle ? { cycle: source.prior.cycle } : {}),
+      // The compound's CURRENT cycle. On an edit the version above carries the
+      // same rule from `versionedFrom`, so the two agree and the change lands on
+      // the day being edited — not on today, which would leave the days between
+      // ungated and read them back as missed.
+      ...(cycleDraft ? { cycle: cycleDraft } : {}),
     }
     if (!upsertStack(userId, saved)) {
       show("Couldn't save to this device. Storage may be full or off.")
       return
-    }
-    // A cycle CHANGED on an edit is an alteration like any other: effective from
-    // today forward, never rewriting a past on- or off-period.
-    if (isEdit && !sameCycle(source.prior?.cycle ?? null, cycleDraft)) {
-      setCompoundCycle(userId, saved.id, cycleDraft)
     }
     // Remember the unit for this compound and put it at the head of "Recently
     // used" (Spec 03). Both are conveniences layered over the save — neither is

@@ -806,9 +806,13 @@ function isMissingTable(error: { code?: string } | null): boolean {
   return error?.code === "42P01"
 }
 
-/** Postgres "column does not exist" — the 006 cycle columns before it is applied. */
+/**
+ * "That column doesn't exist" — the 006 cycle columns before the migration runs.
+ * `PGRST204` is what a WRITE gets (PostgREST rejects the payload against its
+ * schema cache first); `42703` is what a READ gets from Postgres itself.
+ */
 function isUndefinedColumn(error: { code?: string } | null): boolean {
-  return error?.code === "42703"
+  return error?.code === "42703" || error?.code === "PGRST204"
 }
 
 /** Just the cycle columns off a version row, for the insert payload. */

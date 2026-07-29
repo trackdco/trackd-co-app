@@ -134,6 +134,9 @@ function daysBetween(from: string, to: string): number | null {
 function parse(key: string): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key)
   if (!m) return null
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-  return Math.floor(d.getTime() / 86_400_000)
+  // UTC, for the same reason as `dayNumber` in cycleRule.ts — a local midnight
+  // divided by a UTC day drifts by one across a UTC+0 DST boundary.
+  return Math.floor(
+    Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000
+  )
 }

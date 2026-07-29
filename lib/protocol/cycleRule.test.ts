@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   CYCLE_COLOURS,
+  VIAL_END_SUPPORTED,
   availableCycleEnds,
   cyclePeriod,
   cycleStatusOn,
@@ -56,6 +57,20 @@ describe("on/off resolution", () => {
     expect(cycleStatusOn(cycle, "2026-01-01").daysLeftInPhase).toBe(7)
     expect(cycleStatusOn(cycle, "2026-01-07").daysLeftInPhase).toBe(1)
     expect(cycleStatusOn(cycle, "2026-01-08").daysLeftInPhase).toBe(7)
+  })
+
+  it("counts days in UTC, so a UTC+0 DST zone can't drop or duplicate one", () => {
+    // Europe/London: 29 Mar and 26 Oct 2026 are the transitions. Under the old
+    // local-midnight maths those two calendar days collapsed onto one day number
+    // (and another was skipped), flipping the on/off phase a day early.
+    const c: CycleRule = { ...sevenOnSevenOff(), anchor: "2026-03-01" }
+    const days = ["2026-03-27", "2026-03-28", "2026-03-29", "2026-03-30", "2026-03-31"]
+    const states = days.map((d) => cycleStatusOn(c, d))
+    // 26 elapsed days on 27 Mar → phase 12 of 14 (off, 2 left). Each following
+    // day advances by exactly one, with no repeat across the 29 Mar transition,
+    // so the new on-period starts on the 29th and not the 28th.
+    expect(states.map((s) => s.daysLeftInPhase)).toEqual([2, 1, 7, 6, 5])
+    expect(states.map((s) => s.on)).toEqual([false, false, true, true, true])
   })
 
   it("survives a DST boundary — phase is counted in local days", () => {
@@ -153,10 +168,16 @@ describe("offerable end conditions", () => {
     expect(continuous).not.toContain("afterRounds")
   })
 
-  it("offers the vial condition only where storage is tracked", () => {
+  it("withholds the vial condition until a vial-empty date can be produced", () => {
+    // The RULE works (see the end-condition tests above); nothing yet derives the
+    // day a vial ran dry, so offering it would give the user a control that
+    // silently does nothing. Flip VIAL_END_SUPPORTED when the producer lands.
+    expect(VIAL_END_SUPPORTED).toBe(false)
     const tracked = availableCycleEnds({ type: "continuous" }, { vialTracked: true })
-    expect(tracked).toContain("whenVialEmpty")
+    expect(tracked).not.toContain("whenVialEmpty")
+  })
 
+  it("never offers the vial condition where storage isn't tracked", () => {
     const untracked = availableCycleEnds({ type: "continuous" }, { vialTracked: false })
     expect(untracked).not.toContain("whenVialEmpty")
   })
@@ -166,9 +187,7 @@ describe("offerable end conditions", () => {
       { type: "onOff", onDays: 5, offDays: 2 },
       { vialTracked: true }
     )
-    expect(all.sort()).toEqual(
-      ["afterRounds", "never", "onDate", "whenVialEmpty"].sort()
-    )
+    expect(all.every((e) => ["never", "onDate", "afterRounds"].includes(e))).toBe(true)
   })
 })
 

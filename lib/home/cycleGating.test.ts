@@ -237,17 +237,7 @@ describe("a version's cycle survives a Postgres round-trip", () => {
 
     // Without this the trail comes back cycle-less after a PWA reinstall, so a
     // past off-period resolves as always-on and reads as missed doses.
-    const back = scheduleVersionFromRow({
-      effectiveFrom: row.effectiveFrom,
-      dose: row.dose,
-      unit: row.unit,
-      scheduleType: row.scheduleType,
-      daysOfWeek: row.daysOfWeek,
-      intervalDays: row.intervalDays,
-      time: row.time,
-      stopped: row.stopped,
-      ...row,
-    })
+    const back = scheduleVersionFromRow(row)
     expect(back.cycle).toEqual(cycle7on7off)
   })
 
@@ -266,16 +256,7 @@ describe("a version's cycle survives a Postgres round-trip", () => {
         unit: "mg",
         cycle: { ...cycle7on7off, end },
       })
-      const back = scheduleVersionFromRow({
-        effectiveFrom: row.effectiveFrom,
-        dose: row.dose,
-        unit: row.unit,
-        scheduleType: row.scheduleType,
-        daysOfWeek: row.daysOfWeek,
-        intervalDays: row.intervalDays,
-        time: row.time,
-        ...row,
-      })
+      const back = scheduleVersionFromRow(row)
       expect(back.cycle?.end).toEqual(end)
     }
   })

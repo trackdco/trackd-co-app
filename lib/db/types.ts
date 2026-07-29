@@ -14,7 +14,7 @@
 import { hasTime, isInjectable } from "@/lib/home/stack"
 import type { Cadence, InjectionMethod, StackCompound } from "@/lib/home/stack"
 import type { CompoundCategory } from "@/lib/compound-categories"
-import { cycleRuleToColumns } from "@/lib/protocol/cycleRule"
+import { cycleRuleFromColumns, cycleRuleToColumns } from "@/lib/protocol/cycleRule"
 
 // The cycle column mapping lives in `cycleRule.ts`, not here: `stack.ts` needs it
 // for schedule VERSION rows and this file already imports `stack.ts`, so defining
@@ -145,6 +145,15 @@ export interface ProtocolCompound {
   rotation_sites: string[]
   /** Pointer to the NEXT rotation site; advanced only by logging a dose. */
   rotation_index: number
+  /** On/off cycle columns (Spec 06, `supabase/protocol/006`). All NULL = no
+   *  cycle. Optional because a pre-006 row does not carry them at all. */
+  cycle_anchor?: string | null
+  cycle_on_days?: number | null
+  cycle_off_days?: number | null
+  cycle_end_type?: string | null
+  cycle_end_date?: string | null
+  cycle_end_rounds?: number | null
+  cycle_colour?: string | null
   created_at: string
   updated_at: string
 }
@@ -429,6 +438,7 @@ export function protocolCompoundToStack(
   pc: ProtocolCompound,
   catalogue: { name: string; category: CompoundCategory }
 ): StackCompound {
+  const cycle = cycleRuleFromColumns(pc)
   return {
     id: pc.id,
     name: catalogue.name,
@@ -451,6 +461,10 @@ export function protocolCompoundToStack(
     rotationSites: pc.rotation_sites ?? [],
     rotationIndex: pc.rotation_index ?? 0,
     archived: !pc.is_active,
+    // The cycle must come BACK as well as go out. Without this the pulled row has
+    // no cycle, hydration overwrites the local record with it, and a cycle the
+    // user just set disappears on the next mount/focus.
+    ...(cycle ? { cycle } : {}),
   }
 }
 

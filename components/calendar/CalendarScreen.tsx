@@ -21,6 +21,7 @@ import {
 import {
   getStackSnapshot,
   isDueOnFor,
+  resolveScheduleOn,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack";
@@ -173,15 +174,21 @@ export function CalendarScreen({
    *  there rather than on the grid, which would clutter every on-day. */
   const cyclesOnSelected = useMemo(
     () =>
-      (cycleBands.get(selectedKey) ?? []).map((seg) => {
-        const cycle = stackById.get(seg.compoundId)?.cycle;
-        return {
+      (cycleBands.get(selectedKey) ?? []).flatMap((seg) => {
+        const compound = stackById.get(seg.compoundId);
+        if (!compound) return [];
+        // The cycle in force ON THAT DAY, not the compound's current one — the
+        // grid resolves per day, so reading `compound.cycle` here would describe
+        // a past band with a rule the user only adopted later.
+        const cycle = resolveScheduleOn(compound, selectedKey).cycle;
+        if (!cycle) return [];
+        return [{
           compoundId: seg.compoundId,
           compoundName: seg.compoundName,
           colour: seg.colour,
-          pattern: cycle ? formatCyclePattern(cycle.pattern) : "",
-          end: cycle ? describeCycleEnd(cycle) : "",
-        };
+          pattern: formatCyclePattern(cycle.pattern),
+          end: describeCycleEnd(cycle),
+        }];
       }),
     [cycleBands, selectedKey, stackById],
   );
