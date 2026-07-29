@@ -14,6 +14,17 @@
 import { hasTime, isInjectable } from "@/lib/home/stack"
 import type { Cadence, InjectionMethod, StackCompound } from "@/lib/home/stack"
 import type { CompoundCategory } from "@/lib/compound-categories"
+import { cycleRuleToColumns } from "@/lib/protocol/cycleRule"
+
+// The cycle column mapping lives in `cycleRule.ts`, not here: `stack.ts` needs it
+// for schedule VERSION rows and this file already imports `stack.ts`, so defining
+// it here would close an import cycle. Re-exported for existing callers.
+export {
+  CYCLE_COLUMNS,
+  cycleRuleToColumns,
+  cycleRuleFromColumns,
+  type CycleColumns,
+} from "@/lib/protocol/cycleRule"
 
 /* ----------------------------------------------------------------- enums */
 // Each union mirrors a Postgres ENUM in the schema (byte-for-byte values).
@@ -189,6 +200,15 @@ export interface ProtocolCompoundInsert {
   is_active?: boolean
   rotation_sites?: string[]
   rotation_index?: number
+  /** On/off cycle columns (Spec 06, `supabase/protocol/006`). All NULL = no
+   *  cycle. Stripped and retried if the migration has not been applied yet. */
+  cycle_anchor?: string | null
+  cycle_on_days?: number | null
+  cycle_off_days?: number | null
+  cycle_end_type?: string | null
+  cycle_end_date?: string | null
+  cycle_end_rounds?: number | null
+  cycle_colour?: string | null
 }
 
 export interface DoseLogInsert {
@@ -359,6 +379,7 @@ export function stackCompoundToProtocolInsert(
       rotation.length > 0
         ? ((c.rotationIndex % rotation.length) + rotation.length) % rotation.length
         : 0,
+    ...cycleRuleToColumns(c.cycle),
   }
 }
 

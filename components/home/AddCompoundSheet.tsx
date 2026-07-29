@@ -7,6 +7,14 @@ import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
 import { resolveFill, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
+import { isVialForm } from "@/lib/containers/form"
+import { CycleRuleSheet } from "@/components/protocol/CycleRuleSheet"
+import {
+  cycleColourVar,
+  formatCyclePattern,
+  sameCycle,
+  type CycleRule,
+} from "@/lib/protocol/cycleRule"
 import { newId } from "@/lib/home/id"
 import { pushProtocolCompound } from "@/lib/home/protocolSync"
 import {
@@ -37,6 +45,7 @@ import {
   recordScheduleVersion,
   methodLabel,
   sanitizeDoseInput,
+  setCompoundCycle,
   upcomingDoseDates,
   upsertStack,
   type Cadence,
@@ -362,8 +371,13 @@ function AddCompoundBody({
   // compound in any category behaves correctly, and Creatine or Berberine (po →
   // oral_solid) never get asked "how much is left in the vial?". Tabs/caps stock
   // still exists in the Protocol → Stock tab; it is only dropped from this form.
-  const canStock =
-    !isEdit && (stockType === "reconstituted" || stockType === "preconcentrated")
+  const canStock = !isEdit && isVialForm(stockType)
+  // The cycle being built here. Held in form state until the compound exists,
+  // then written through the same `setCompoundCycle` Protocol → Cycles uses.
+  const [cycleDraft, setCycleDraft] = useState<CycleRule | null>(
+    source.prior?.cycle ?? null
+  )
+  const [cycleSheetOpen, setCycleSheetOpen] = useState(false)
   const [addStockOn, setAddStockOn] = useState(false)
   const [stPowder, setStPowder] = useState("")
   const [stPowderUnit, setStPowderUnit] = useState<"mg" | "iu">("mg")
@@ -483,7 +497,7 @@ function AddCompoundBody({
   const upcoming =
     cadenceType === "daysOfWeek" && days.length === 0
       ? []
-      : upcomingDoseDates(previewSchedule, dateKeyToDate(startDate), 4)
+      : upcomingDoseDates(previewSchedule, dateKeyToDate(startDate), 4, cycleDraft)
 
   // The part-used estimate for the inline vial (mirrors the Stock tab). When the
   // compound isn't stockable (stockType ""), the control is hidden and the insert is
@@ -612,10 +626,21 @@ function AddCompoundBody({
       rotationSites: [],
       rotationIndex: 0,
       ...(history ? { scheduleHistory: history } : {}),
+      // A NEW compound carries its cycle directly — there is no earlier rule to
+      // version against, so an empty history still means "current values are the
+      // whole truth". An EDIT keeps the existing cycle here and routes any CHANGE
+      // through setCompoundCycle below, so it is versioned from today forward.
+      ...(cycleDraft && !isEdit ? { cycle: cycleDraft } : {}),
+      ...(isEdit && source.prior?.cycle ? { cycle: source.prior.cycle } : {}),
     }
     if (!upsertStack(userId, saved)) {
       show("Couldn't save to this device. Storage may be full or off.")
       return
+    }
+    // A cycle CHANGED on an edit is an alteration like any other: effective from
+    // today forward, never rewriting a past on- or off-period.
+    if (isEdit && !sameCycle(source.prior?.cycle ?? null, cycleDraft)) {
+      setCompoundCycle(userId, saved.id, cycleDraft)
     }
     // Remember the unit for this compound and put it at the head of "Recently
     // used" (Spec 03). Both are conveniences layered over the save — neither is
@@ -1007,6 +1032,42 @@ function AddCompoundBody({
           )}
         </div>
 
+        {/* Cycle — optional (Spec 06 · part two). The SECOND entry point for
+            creating a cycle, so a compound can be set up as one from the start.
+            The sheet is the same component Protocol → Cycles uses, and the write
+            goes through the same `setCompoundCycle`. */}
+        <div className="animate-home-up" style={{ animationDelay: "205ms" }}>
+          <FieldLabel>Cycle (optional)</FieldLabel>
+          <button
+            type="button"
+            onClick={() => setCycleSheetOpen(true)}
+            className={cn(
+              "flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-3 text-sm transition-colors",
+              cycleDraft
+                ? "border-border-default bg-bg-input text-foreground"
+                : "border-dashed border-border-strong bg-bg-input text-text-muted hover:text-foreground"
+            )}
+          >
+            {cycleDraft ? (
+              <>
+                <span className="flex items-center gap-2">
+                  <span
+                    className="h-3 w-3 rounded-full"
+                    style={{ background: cycleColourVar(cycleDraft.colour) }}
+                    aria-hidden
+                  />
+                  {formatCyclePattern(cycleDraft.pattern)}
+                </span>
+                <PencilSimple className="h-4 w-4 text-text-subtle" aria-hidden />
+              </>
+            ) : (
+              <span className="flex w-full items-center justify-center gap-1.5">
+                <Plus className="h-4 w-4" aria-hidden /> Run this on a cycle
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* Stock on hand — optional. Type comes from the compound's route, so we
             show just that vial's fields. Starts full; counts down as doses log. */}
         {canStock && (
@@ -1125,6 +1186,15 @@ function AddCompoundBody({
           Saved to this device for you only.
         </p>
       </div>
+
+      <CycleRuleSheet
+        open={cycleSheetOpen}
+        onOpenChange={setCycleSheetOpen}
+        compoundName={source.name}
+        cycle={cycleDraft}
+        vialTracked={isVialForm(stockType)}
+        onSave={setCycleDraft}
+      />
     </div>
   )
 }

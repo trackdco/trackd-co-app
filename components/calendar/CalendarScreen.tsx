@@ -36,6 +36,13 @@ import {
   type DoseLog,
 } from "@/lib/home/mockHomeData";
 import { requestProgressAction } from "@/lib/progress/progressAction";
+import {
+  cycleBandsForDays,
+  cycleKeyRows,
+  describeCycleEnd,
+} from "@/lib/calendar/cycleBands";
+import { cycleColourVar, formatCyclePattern } from "@/lib/protocol/cycleRule";
+import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets";
 import { LogDoseSheet } from "@/components/home/LogDoseSheet";
 import { setSelectedDay } from "@/lib/home/selectedDay";
 import { logDose, unlogDose } from "@/lib/home/doseLog";
@@ -153,6 +160,32 @@ export function CalendarScreen({
   const stackById = useMemo(() => new Map(stack.map((c) => [c.id, c])), [stack]);
   const activeStack = useMemo(() => stack.filter((c) => !c.archived), [stack]);
 
+  // Cycle bands behind the grid (Spec 03 · part two). Only repeating on/off
+  // cycles render; a month with none produces an empty map and the grid is
+  // byte-for-byte what it was before cycles existed.
+  const cycleBands = useMemo(
+    () => cycleBandsForDays(stack, cells.map((c) => c.key), todayKey),
+    [stack, cells, todayKey],
+  );
+  /** One row per cycle for the key below the grid, in the same stable order. */
+  const cycleKey = useMemo(() => cycleKeyRows(stack), [stack]);
+  /** The cycles covering the open day, for the day-detail sheet. End dates live
+   *  there rather than on the grid, which would clutter every on-day. */
+  const cyclesOnSelected = useMemo(
+    () =>
+      (cycleBands.get(selectedKey) ?? []).map((seg) => {
+        const cycle = stackById.get(seg.compoundId)?.cycle;
+        return {
+          compoundId: seg.compoundId,
+          compoundName: seg.compoundName,
+          colour: seg.colour,
+          pattern: cycle ? formatCyclePattern(cycle.pattern) : "",
+          end: cycle ? describeCycleEnd(cycle) : "",
+        };
+      }),
+    [cycleBands, selectedKey, stackById],
+  );
+
   // Per-day ring state + icon for the grid.
   function infoFor(key: DateKey): DayInfo {
     const j = journalByDate[key];
@@ -261,8 +294,32 @@ export function CalendarScreen({
           onSelect={handleSelect}
           onToday={goToday}
           onOpenLegend={() => setLegendOpen(true)}
+          cycleBands={cycleBands}
         />
       </div>
+
+      {/* The cycle key — one row per drawn cycle. Omitted entirely when nothing
+          is cycled, so a user without cycles sees the calendar unchanged. */}
+      {cycleKey.length > 0 && (
+        <section className="mt-5 rounded-2xl bg-bg-surface px-5 py-4">
+          <h2 className={CARD_EYEBROW}>Cycles</h2>
+          <ul className="mt-3 space-y-2">
+            {cycleKey.map((row) => (
+              <li key={row.compoundId} className="flex items-center gap-3">
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ background: cycleColourVar(row.colour) }}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  {row.compoundName}
+                </span>
+                <span className={DATA_MONO}>{row.summary}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <DayDetailSheet
         open={sheetOpen}
@@ -275,6 +332,7 @@ export function CalendarScreen({
         journalBody={selJournal?.body ?? null}
         hasJournalEntry={Boolean(selJournal)}
         photos={photosByDate[selectedKey] ?? []}
+        cycles={cyclesOnSelected}
         dueToLog={dueOnSelected}
         onLogDose={(c) => {
           setSheetOpen(false);

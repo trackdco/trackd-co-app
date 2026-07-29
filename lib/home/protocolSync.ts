@@ -50,6 +50,7 @@ import {
 import type { CompoundCategory } from "@/lib/compound-categories"
 import type { DrawSource } from "@/lib/home/draw"
 import type { StackCompound } from "@/lib/home/stack"
+import { CYCLE_COLUMNS, type CycleColumns } from "@/lib/protocol/cycleRule"
 import type { DoseLog } from "@/lib/home/mockHomeData"
 
 type Ok = { ok: boolean; skipped?: boolean }
@@ -805,10 +806,24 @@ function isMissingTable(error: { code?: string } | null): boolean {
   return error?.code === "42P01"
 }
 
+/** Postgres "column does not exist" — the 006 cycle columns before it is applied. */
+function isUndefinedColumn(error: { code?: string } | null): boolean {
+  return error?.code === "42703"
+}
+
+/** Just the cycle columns off a version row, for the insert payload. */
+function pickCycleColumns(v: Partial<CycleColumns>): Partial<CycleColumns> {
+  const out: Record<string, unknown> = {}
+  for (const key of CYCLE_COLUMNS) {
+    if (v[key] !== undefined) out[key] = v[key]
+  }
+  return out as Partial<CycleColumns>
+}
+
 export async function pushScheduleVersions(
   clientId: string,
   name: string | null,
-  versions: {
+  versions: ({
     effectiveFrom: string
     dose: number
     unit: string
@@ -817,7 +832,7 @@ export async function pushScheduleVersions(
     intervalDays: number | null
     time: string | null
     stopped: boolean
-  }[]
+  } & Partial<CycleColumns>)[]
 ): Promise<Ok> {
   try {
     const cx = await ctx()
@@ -837,11 +852,39 @@ export async function pushScheduleVersions(
         interval_days: v.intervalDays,
         dose_times: [v.time],
         stopped: v.stopped,
+        // The cycle in force under this version — see `scheduleVersionToRow`.
+        ...pickCycleColumns(v),
       })),
       { onConflict: "protocol_compound_id,effective_from" }
     )
     if (error) {
       if (isMissingTable(error)) return { ok: true, skipped: true }
+      // Pre-006 environments have no cycle columns. Retry without them so the
+      // rest of the version trail still persists.
+      if (isUndefinedColumn(error)) {
+        const { error: retry } = await cx.supabase
+          .from("protocol_compound_schedules")
+          .upsert(
+            versions.map((v) => ({
+              user_id: cx.userId,
+              protocol_compound_id: pcId,
+              effective_from: v.effectiveFrom,
+              dose_amount: v.dose > 0 ? v.dose : 0.001,
+              dose_unit: v.unit,
+              schedule_type: v.scheduleType,
+              days_of_week: v.daysOfWeek,
+              interval_days: v.intervalDays,
+              dose_times: [v.time],
+              stopped: v.stopped,
+            })),
+            { onConflict: "protocol_compound_id,effective_from" }
+          )
+        if (retry) {
+          console.error("pushScheduleVersions failed", retry)
+          return { ok: false }
+        }
+        return { ok: true }
+      }
       console.error("pushScheduleVersions failed", error)
       return { ok: false }
     }
@@ -869,17 +912,25 @@ export async function pullScheduleVersions(): Promise<
   try {
     const cx = await ctx()
     if (!cx) return {}
-    const { data, error } = await cx.supabase
-      .from("protocol_compound_schedules")
-      .select("protocol_compound_id, effective_from, dose_amount, dose_unit, schedule_type, days_of_week, interval_days, dose_times, stopped")
-      .eq("user_id", cx.userId)
-      .order("effective_from", { ascending: true })
+    const read = (columns: string) =>
+      cx.supabase
+        .from("protocol_compound_schedules")
+        .select(columns)
+        .eq("user_id", cx.userId)
+        .order("effective_from", { ascending: true })
+
+    let { data, error } = await read(`${VERSION_COLUMNS}, ${CYCLE_COLUMNS.join(", ")}`)
+    // Pre-006 environments have no cycle columns; re-read without them rather
+    // than returning nothing, which would drop the whole version trail.
+    if (error && isUndefinedColumn(error)) {
+      ;({ data, error } = await read(VERSION_COLUMNS))
+    }
     if (error) {
       if (!isMissingTable(error)) console.error("pullScheduleVersions failed", error)
       return {}
     }
     const out: Record<string, ReturnType<typeof mapVersion>[]> = {}
-    for (const r of data ?? []) {
+    for (const r of (data ?? []) as unknown as Record<string, unknown>[]) {
       const key = r.protocol_compound_id as string
       ;(out[key] ??= []).push(mapVersion(r))
     }
@@ -889,6 +940,9 @@ export async function pullScheduleVersions(): Promise<
     return {}
   }
 }
+
+const VERSION_COLUMNS =
+  "protocol_compound_id, effective_from, dose_amount, dose_unit, schedule_type, days_of_week, interval_days, dose_times, stopped"
 
 function mapVersion(r: Record<string, unknown>) {
   const times = r.dose_times as (string | null)[] | null
@@ -901,6 +955,13 @@ function mapVersion(r: Record<string, unknown>) {
     intervalDays: (r.interval_days as number | null) ?? null,
     time: (times?.[0] ?? null) as string | null,
     stopped: r.stopped === true,
+    cycle_anchor: (r.cycle_anchor as string | null) ?? null,
+    cycle_on_days: (r.cycle_on_days as number | null) ?? null,
+    cycle_off_days: (r.cycle_off_days as number | null) ?? null,
+    cycle_end_type: (r.cycle_end_type as string | null) ?? null,
+    cycle_end_date: (r.cycle_end_date as string | null) ?? null,
+    cycle_end_rounds: (r.cycle_end_rounds as number | null) ?? null,
+    cycle_colour: (r.cycle_colour as string | null) ?? null,
   }
 }
 

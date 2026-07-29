@@ -33,7 +33,8 @@ import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { newId } from "@/lib/home/id"
-import { loadStack } from "@/lib/home/stack"
+import { isRunning, loadStack } from "@/lib/home/stack"
+import { toDateKey } from "@/lib/home/mockHomeData"
 import {
   loadRecentCompounds,
   recordRecentCompound,
@@ -463,13 +464,20 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
       recents = loadRecentCompounds(userId)
     }
     setRecentNames(recents)
+    // A compound whose CYCLE has ended is offered back exactly like a deleted one
+    // (Spec 06 → Ending a cycle): it stops producing doses, keeps its history, and
+    // reappears here with a normal plus. `isRunning` is the single test for both,
+    // which is what keeps the two paths consistent.
+    const today = toDateKey(new Date())
     setInLogNames(
-      new Set(stackNow.filter((c) => !c.archived).map((c) => c.name.toLowerCase()))
+      new Set(
+        stackNow.filter((c) => isRunning(c, today)).map((c) => c.name.toLowerCase())
+      )
     )
     setDeletedIds(
       new Map(
         stackNow
-          .filter((c) => c.archived)
+          .filter((c) => !isRunning(c, today))
           .map((c) => [c.name.toLowerCase(), c.id] as const)
       )
     )

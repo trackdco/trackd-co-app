@@ -11,6 +11,8 @@ import {
   type LoggedKind,
   type MonthCell,
 } from "@/lib/calendar/calendar";
+import type { CycleSegment } from "@/lib/calendar/cycleBands";
+import { cycleColourVar } from "@/lib/protocol/cycleRule";
 
 interface MonthGridProps {
   cells: MonthCell[];
@@ -23,6 +25,9 @@ interface MonthGridProps {
   onToday: () => void;
   /** Open the Calendar key legend. */
   onOpenLegend: () => void;
+  /** Cycles on each day (Spec 03 · part two). Absent = no cycles, and the grid
+   *  then renders exactly as it did before cycles existed. */
+  cycleBands?: Map<DateKey, CycleSegment[]>;
 }
 
 /**
@@ -41,6 +46,7 @@ export function MonthGrid({
   onSelect,
   onToday,
   onOpenLegend,
+  cycleBands,
 }: MonthGridProps) {
   return (
     <section className="rounded-2xl bg-bg-surface px-3 pt-4 pb-3">
@@ -67,6 +73,7 @@ export function MonthGrid({
             isToday={cell.key === todayKey}
             info={infoFor(cell.key)}
             onSelect={onSelect}
+            segments={cycleBands?.get(cell.key)}
           />
         ))}
       </div>
@@ -106,12 +113,14 @@ function DayCell({
   isToday,
   info,
   onSelect,
+  segments,
 }: {
   cell: MonthCell;
   selected: boolean;
   isToday: boolean;
   info: DayInfo;
   onSelect: (cell: MonthCell) => void;
+  segments?: CycleSegment[];
 }) {
   return (
     <button
@@ -120,13 +129,16 @@ function DayCell({
       aria-pressed={selected}
       aria-label={`${cell.date.toDateString()}`}
       className={cn(
-        "flex flex-col items-center gap-1 py-0.5 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50",
+        "relative flex flex-col items-center gap-1 py-0.5 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50",
         !cell.inMonth && "opacity-40",
       )}
     >
+      {/* Cycle fill — the BOTTOM layer. Everything below renders above it, so the
+          logged disc, today's ring and the kind icon are all untouched. */}
+      {segments && segments.length > 0 && <CycleFill segments={segments} />}
       <span
         className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-full font-mono text-sm transition-colors",
+          "relative z-10 flex h-9 w-9 items-center justify-center rounded-full font-mono text-sm transition-colors",
           selected
             ? "bg-accent-primary font-medium text-bg-base"
             : cn(RING[info.status], isToday && "ring-1 ring-border-strong"),
@@ -136,10 +148,62 @@ function DayCell({
         {cell.date.getDate()}
       </span>
       {/* The "what was logged" mark — only under logged days. */}
-      <span className="flex h-3 items-center justify-center" aria-hidden>
+      <span className="relative z-10 flex h-3 items-center justify-center" aria-hidden>
         {!selected && info.status === "logged" && <KindIcon kind={info.kind} />}
       </span>
     </button>
+  );
+}
+
+/** Opacity the fill sits at, so the indicators above it still read clearly. */
+const FILL_OPACITY = 0.28;
+
+/**
+ * The cycle fill behind a day (Spec 03 · part two → Rendering / Overlaps).
+ *
+ *  - **One cycle** — fills the cell width, so consecutive on-days touch and read
+ *    as a single band. Only the run's first and last days are rounded.
+ *  - **Two** — the cell splits vertically, first cycle left, second right.
+ *  - **Three or more** — thin stacked bars beneath the date instead, because a
+ *    three-way split of a 40px cell is unreadable. Order is by cycle start date
+ *    (fixed upstream), so bars never reshuffle between months.
+ */
+function CycleFill({ segments }: { segments: CycleSegment[] }) {
+  if (segments.length >= 3) {
+    return (
+      <span
+        className="pointer-events-none absolute inset-x-1 bottom-0 flex flex-col gap-px"
+        aria-hidden
+      >
+        {segments.map((s) => (
+          <span
+            key={s.compoundId}
+            className="h-[2px] rounded-full"
+            style={{ background: cycleColourVar(s.colour), opacity: FILL_OPACITY + 0.3 }}
+          />
+        ))}
+      </span>
+    );
+  }
+
+  const split = segments.length === 2;
+  return (
+    <span className="pointer-events-none absolute inset-x-0 top-0.5 flex h-9" aria-hidden>
+      {segments.map((s, i) => (
+        <span
+          key={s.compoundId}
+          className={cn(
+            "h-full",
+            split ? "w-1/2" : "w-full",
+            // Round only where the run actually begins and ends. A split cell
+            // rounds on its own outer edge so the two halves still meet flush.
+            s.runStart && (!split || i === 0) && "rounded-l-full",
+            s.runEnd && (!split || i === 1) && "rounded-r-full",
+          )}
+          style={{ background: cycleColourVar(s.colour), opacity: FILL_OPACITY }}
+        />
+      ))}
+    </span>
   );
 }
 

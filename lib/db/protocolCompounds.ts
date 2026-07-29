@@ -8,7 +8,20 @@
  * here touches inventory.
  */
 import { createClient } from "@/lib/supabase/server"
+import { CYCLE_COLUMNS } from "@/lib/db/types"
 import type { ProtocolCompound, ProtocolCompoundInsert } from "@/lib/db/types"
+
+/** Postgres "column does not exist" — the 006 cycle columns before it is applied. */
+function isUndefinedColumn(error: { code?: string } | null): boolean {
+  return error?.code === "42703"
+}
+
+/** The same row without its cycle columns, for the pre-006 retry. */
+function stripCycleColumns(row: ProtocolCompoundInsert): ProtocolCompoundInsert {
+  const out: ProtocolCompoundInsert = { ...row }
+  for (const key of CYCLE_COLUMNS) delete out[key]
+  return out
+}
 
 async function sessionCtx() {
   const supabase = await createClient()
@@ -62,6 +75,24 @@ export async function upsertProtocolCompound(
       .select("*")
       .single()
     if (error) {
+      // The 006 cycle columns may not exist yet. Retry without them rather than
+      // losing the whole write — the device store keeps the cycle meanwhile, so
+      // no intent is lost, and the columns start persisting once 006 is applied.
+      if (isUndefinedColumn(error)) {
+        const { data: retry, error: retryError } = await ctx.supabase
+          .from("protocol_compounds")
+          .upsert(
+            { ...stripCycleColumns(row), user_id: ctx.userId },
+            { onConflict: "id" }
+          )
+          .select("*")
+          .single()
+        if (retryError) {
+          console.error("upsertProtocolCompound failed", retryError)
+          return null
+        }
+        return retry as ProtocolCompound
+      }
       console.error("upsertProtocolCompound failed", error)
       return null
     }

@@ -6,6 +6,7 @@ import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { PlanView } from "@/components/protocol/PlanView"
+import { CyclesView } from "@/components/protocol/CyclesView"
 import { StockView } from "@/components/protocol/StockView"
 import { getActiveCycle } from "@/lib/db/cycles"
 import type { StockItem } from "@/lib/db/inventory"
@@ -66,13 +67,20 @@ export function ProtocolScreen({
 
       <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="plan">Plan</TabsTrigger>
+            <TabsTrigger value="cycles">Cycles</TabsTrigger>
             <TabsTrigger value="stock">Stock</TabsTrigger>
           </TabsList>
 
           <TabsContent value="plan" className="mt-5">
             <PlanView userId={userId} cycle={cycle} onCycleSaved={setCycle} />
+          </TabsContent>
+
+          {/* Spec 06 · part two. `04-protocol.md` restructures this page into one
+              merged view; until then Cycles is its own tab beside Plan and Stock. */}
+          <TabsContent value="cycles" className="mt-5">
+            <CyclesView userId={userId} />
           </TabsContent>
 
           <TabsContent value="stock" className="mt-5">

@@ -25,6 +25,40 @@ disciplined amber (due/live beats only), and the retired display serif (Playfair
 near-black + gold amber — a cooler sample was trialled and rejected). Non-urgent
 follow-ups (amber judgment calls, etc.) are in `next-tasks.md`.
 
+**Wave 2 part two — IN PROGRESS on branch `wave2/containers-cycles-calendar`**
+(built 2026-07-29, **not merged, not deployed**). Three specs done, in the
+readme's dependency order (build order, not numeric order):
+
+- **01 · Containers** — drawn `Vial` / `Bottle` / `Tub` SVGs + the `Container`
+  resolver (`components/containers/`), form and colour resolvers
+  (`lib/containers/`). Form-driven, never category-driven, except the
+  bottle-vs-tub split among orals, which has no data to key on (Adrian's call:
+  the catalogue's `supplement` form picks the tub). Four structural greys had no
+  token and were snapped to the nearest existing ones (Adrian's call).
+- **06 · Cycles** — an on/off rule ABOVE the schedule, riding on
+  `ScheduleVersion` so a mid-cycle edit is the existing "effective from today
+  forward" write. Five end conditions; one gate in `isDueOnFor`, which every
+  retrospective caller already routes through. Named `CycleRule` in code because
+  the `cycles` TABLE is a different concept (the protocol run / "Week 3 of 12").
+- **03 · Calendar** — soft cycle fills as continuous bands behind on-days, the
+  key below the grid, the cycle in the day sheet. Only repeating on/off cycles
+  render; indefinite ones stop at a twelve-month horizon.
+
+**⚠️ `supabase/protocol/006_compound_cycles.sql` is NOT applied.** Until it is,
+cycles persist device-side only and the runs-dry projection is wrong for cycled
+compounds (`est_doses_per_week` didn't know about off periods — the view now
+scales by the on-fraction). Writes degrade rather than fail: both compound and
+version writes catch `42703` and retry without the cycle columns.
+
+**⚠️ `app/preview/containers/` must be deleted before merge** (spec 01's own
+checklist). It is still present so the artwork can be reviewed.
+
+**Two bugs found and fixed in already-merged code**, both the same class — a
+field silently dropped in a round-trip, causing a deliberate break to read back
+as missed doses: `normalizeHistory` was discarding spec 02's `stopped` flag on
+every localStorage read, and `scheduleVersionToRow`/`pullScheduleVersions` never
+carried a version's cycle to or from Postgres.
+
 ## Shipped feature ledger
 
 One line each; full detail in git + `Context/Feature Specs/`.

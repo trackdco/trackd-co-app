@@ -23,6 +23,19 @@ import {
   pushScheduleVersions,
 } from "@/lib/home/protocolSync"
 import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
+import {
+  cycleRuleFromColumns,
+  cycleRuleToColumns,
+  cycleStatusOn,
+  DEFAULT_CYCLE_COLOUR,
+  isCycleColour,
+  isOnCycle,
+  type CycleColumns,
+  type CycleContext,
+  type CycleEnd,
+  type CyclePattern,
+  type CycleRule,
+} from "@/lib/protocol/cycleRule"
 
 /**
  * How a compound is administered. Defaults to the compound's primary `route`;
@@ -94,6 +107,15 @@ export interface ScheduleVersion {
    * carried so the row round-trips, but nothing reads them while `stopped`.
    */
   stopped?: boolean
+  /**
+   * The on/off cycle in force under this version, if any (Spec 06 · part two).
+   *
+   * The cycle rides the VERSION rather than the compound so a mid-cycle edit is
+   * the same "effective from today forward" write every other alteration is —
+   * past on- and off-periods keep the rule they were actually run under, with no
+   * rewriting and no back-fill. Absent = no cycle, i.e. always on.
+   */
+  cycle?: CycleRule
 }
 
 /** The dose + schedule that were in force on `dateKey`. */
@@ -103,6 +125,8 @@ export interface ResolvedSchedule {
   unit: string
   /** True when the compound was deleted on this date and not yet re-added. */
   stopped: boolean
+  /** The cycle governing this date, or undefined when the compound has none. */
+  cycle?: CycleRule
 }
 
 /**
@@ -121,6 +145,7 @@ export function resolveScheduleOn(
     dose: c.dose,
     unit: c.unit,
     stopped: false,
+    cycle: c.cycle,
   }
   const versions = c.scheduleHistory
   if (!versions || versions.length === 0) return current
@@ -163,15 +188,32 @@ export function resolveScheduleOn(
     dose: version.dose,
     unit: version.unit,
     stopped: version.stopped === true,
+    cycle: version.cycle,
   }
 }
 
-/** Whether the compound was due on a date, judged by the rule in force THEN. */
-export function isDueOnFor(c: StackCompound, date: Date): boolean {
-  const resolved = resolveScheduleOn(c, toDateKeyLocal(date))
+/**
+ * Whether the compound was due on a date, judged by the rule in force THEN.
+ *
+ * Three gates, in order: the compound was being run at all, its cycle was in an
+ * ON period, and its schedule put a dose on that day. The cycle sits ABOVE the
+ * schedule — it never changes which days the cadence picks, only whether the
+ * compound is being run at all — so an off-period day is not a rest day within a
+ * schedule and cannot be missed.
+ */
+export function isDueOnFor(
+  c: StackCompound,
+  date: Date,
+  ctx?: CycleContext
+): boolean {
+  const dateKey = toDateKeyLocal(date)
+  const resolved = resolveScheduleOn(c, dateKey)
   // A stopped stretch is not a rest day within a schedule — the compound wasn't
   // being run at all, so nothing was due and nothing can be missed.
   if (resolved.stopped) return false
+  // Off-cycle means the user is not taking it: there is nothing to track, and
+  // nothing to miss.
+  if (!isOnCycle(resolved.cycle, dateKey, ctx)) return false
   return isDueOn(resolved.schedule, date)
 }
 
@@ -194,6 +236,7 @@ export function recordScheduleVersion(
     dose: number
     unit: string
     stopped?: boolean
+    cycle?: CycleRule
   },
   effectiveFrom: string
 ): ScheduleVersion[] {
@@ -205,6 +248,9 @@ export function recordScheduleVersion(
       timeOfDay: previous.schedule.timeOfDay,
       dose: previous.dose,
       unit: previous.unit,
+      // The baseline carries the OUTGOING cycle too, so the stretch before a
+      // cycle edit keeps the pattern it was actually run under.
+      ...(previous.cycle ? { cycle: previous.cycle } : {}),
     })
   }
   const version: ScheduleVersion = { effectiveFrom, ...next }
@@ -265,20 +311,28 @@ export function scheduleVersionToRow(v: ScheduleVersion) {
       cad.type === "everyOtherDay" ? 2 : cad.type === "everyNDays" ? cad.n : null,
     time: hasTime(v.timeOfDay) ? `${v.timeOfDay}:00` : null,
     stopped: v.stopped === true,
+    // The cycle in force under THIS version. Without it a Postgres round-trip
+    // (a PWA reinstall, say) returns the trail with every cycle stripped, so a
+    // past off-period resolves as always-on and a break the user chose to take
+    // reads back as a run of missed doses — the exact retroactive rewrite
+    // versioning exists to prevent.
+    ...cycleRuleToColumns(v.cycle),
   }
 }
 
 /** The inverse — a stored version row back into the local shape. */
-export function scheduleVersionFromRow(r: {
-  effectiveFrom: string
-  dose: number
-  unit: string
-  scheduleType: string
-  daysOfWeek: number[] | null
-  intervalDays: number | null
-  time: string | null
-  stopped?: boolean | null
-}): ScheduleVersion {
+export function scheduleVersionFromRow(
+  r: {
+    effectiveFrom: string
+    dose: number
+    unit: string
+    scheduleType: string
+    daysOfWeek: number[] | null
+    intervalDays: number | null
+    time: string | null
+    stopped?: boolean | null
+  } & Partial<CycleColumns>
+): ScheduleVersion {
   let cadence: Cadence = { type: "daily" }
   if (r.scheduleType === "specific_days") {
     cadence = {
@@ -291,6 +345,7 @@ export function scheduleVersionFromRow(r: {
         ? { type: "everyOtherDay" }
         : { type: "everyNDays", n: r.intervalDays ?? 1 }
   }
+  const cycle = cycleRuleFromColumns(r)
   return {
     effectiveFrom: r.effectiveFrom,
     cadence,
@@ -298,6 +353,7 @@ export function scheduleVersionFromRow(r: {
     dose: r.dose,
     unit: r.unit,
     ...(r.stopped ? { stopped: true } : {}),
+    ...(cycle ? { cycle } : {}),
   }
 }
 
@@ -368,6 +424,10 @@ export interface StackCompound {
    *  {@link ScheduleVersion}). Absent/empty on a compound never edited, in which
    *  case the fields above ARE the whole history. */
   scheduleHistory?: ScheduleVersion[]
+  /** The compound's CURRENT on/off cycle (Spec 06 · part two), or absent when it
+   *  runs uncycled. Forward-looking UI reads this; {@link resolveScheduleOn}
+   *  answers what the cycle was on any past day. One cycle, one compound. */
+  cycle?: CycleRule
 }
 
 // `v2` bump: abandons any earlier-seeded device data so the app starts as a
@@ -495,6 +555,84 @@ export function archiveInStack(
     void trackCriticalSync(archiveProtocolCompound(id, updated?.name ?? null, archived))
   }
   return ok
+}
+
+/**
+ * Set (or clear) a compound's cycle — **the single write path both entry points
+ * use** (Spec 06 · part two). Protocol → Cycles and the add-compound form both
+ * call this; there is deliberately not a second implementation.
+ *
+ * The cycle is recorded as a schedule VERSION effective from `effectiveFrom`
+ * (today, unless a screen owns a selected day), reusing the effective-from
+ * machinery from Spec 01 rather than reimplementing it. So a mid-cycle change
+ * takes effect from that day forward and never rewrites a past on- or
+ * off-period — the same rule as altering a dose, and nothing is back-filled.
+ *
+ * Pass `cycle: null` to take the compound off cycles entirely; it then runs on
+ * its schedule alone from that day forward, with past periods untouched.
+ */
+export function setCompoundCycle(
+  userId: string,
+  id: string,
+  cycle: CycleRule | null,
+  effectiveFrom?: string
+): boolean {
+  const cur = loadStack(userId) ?? []
+  const previous = cur.find((c) => c.id === id)
+  if (!previous) return false
+
+  const from = effectiveFrom ?? toDateKeyLocal(new Date())
+  const scheduleHistory = recordScheduleVersion(
+    previous,
+    {
+      cadence: previous.schedule.cadence,
+      timeOfDay: previous.schedule.timeOfDay,
+      dose: previous.dose,
+      unit: previous.unit,
+      ...(cycle ? { cycle } : {}),
+    },
+    from
+  )
+
+  const next: StackCompound = {
+    ...previous,
+    scheduleHistory,
+    ...(cycle ? { cycle } : {}),
+  }
+  // A cleared cycle must be genuinely absent, not an undefined key that
+  // `JSON.stringify` would drop inconsistently.
+  if (!cycle) delete next.cycle
+
+  return upsertStack(userId, next)
+}
+
+/**
+ * Has this compound's cycle finished by `dateKey`? **Derived, never stored**
+ * (Invariant 1) — an end condition is a rule, and asking it on a date is the
+ * only honest way to answer, since no background job exists to flip a flag the
+ * moment a date passes or a vial empties.
+ *
+ * An ended compound stops producing doses but keeps every logged dose, and is
+ * offered back in the picker with a normal plus — exactly like a deleted
+ * compound (Spec 02), which is the consistency Spec 06 asks for.
+ */
+export function isCycleEnded(
+  c: StackCompound,
+  dateKey: string,
+  ctx?: CycleContext
+): boolean {
+  const resolved = resolveScheduleOn(c, dateKey)
+  if (!resolved.cycle) return false
+  return cycleStatusOn(resolved.cycle, dateKey, ctx).ended
+}
+
+/** Active = not deleted and not finished. What the log and pickers filter on. */
+export function isRunning(
+  c: StackCompound,
+  dateKey: string,
+  ctx?: CycleContext
+): boolean {
+  return !c.archived && !isCycleEnded(c, dateKey, ctx)
 }
 
 // There is deliberately NO hard delete here (Spec 02): a compound has two states,
@@ -650,7 +788,10 @@ export function isDueOn(schedule: Schedule, date: Date): boolean {
 export function upcomingDoseDates(
   schedule: Schedule,
   from: Date,
-  count: number
+  count: number,
+  /** The cycle to respect, if any. Without it the preview would list dates that
+   *  fall inside an off-period — days the user is deliberately not dosing. */
+  cycle?: CycleRule | null
 ): string[] {
   const out: string[] = []
   const start = parseDateKey(schedule.startDate)
@@ -659,7 +800,8 @@ export function upcomingDoseDates(
     cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
   }
   for (let i = 0; i < 400 && out.length < count; i++) {
-    if (isDueOn(schedule, cursor)) out.push(toDateKeyLocal(cursor))
+    const key = toDateKeyLocal(cursor)
+    if (isDueOn(schedule, cursor) && isOnCycle(cycle, key)) out.push(key)
     cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1)
   }
   return out
@@ -770,6 +912,7 @@ function normalizeCompound(item: unknown): StackCompound | null {
     ? c.rotationSites.filter((s): s is string => typeof s === "string")
     : []
   const rawIndex = typeof c.rotationIndex === "number" ? c.rotationIndex : 0
+  const cycle = normalizeCycle(c.cycle)
   return clampIndex({
     id: c.id,
     name: c.name,
@@ -784,7 +927,58 @@ function normalizeCompound(item: unknown): StackCompound | null {
     rotationIndex: rawIndex,
     archived: c.archived === true,
     ...(normalizeHistory(c.scheduleHistory) ?? {}),
+    ...(cycle ? { cycle } : {}),
   })
+}
+
+/**
+ * Harden a stored cycle. Anything malformed drops the cycle entirely rather than
+ * half-applying it — a compound with no cycle is always on, which is the safe
+ * failure (it shows doses) rather than silently hiding a compound from the log.
+ */
+function normalizeCycle(raw: unknown): CycleRule | undefined {
+  if (!raw || typeof raw !== "object") return undefined
+  const c = raw as Record<string, unknown>
+  if (typeof c.anchor !== "string" || parseDateKey(c.anchor) === null) return undefined
+
+  const p = c.pattern as Record<string, unknown> | undefined
+  let pattern: CyclePattern = { type: "continuous" }
+  if (
+    p?.type === "onOff" &&
+    typeof p.onDays === "number" &&
+    typeof p.offDays === "number" &&
+    p.onDays > 0 &&
+    p.offDays >= 0
+  ) {
+    pattern = {
+      type: "onOff",
+      onDays: Math.floor(p.onDays),
+      offDays: Math.floor(p.offDays),
+    }
+  }
+
+  const e = c.end as Record<string, unknown> | undefined
+  let end: CycleEnd = { type: "never" }
+  if (e?.type === "onDate" && typeof e.date === "string" && parseDateKey(e.date)) {
+    end = { type: "onDate", date: e.date }
+  } else if (
+    e?.type === "afterRounds" &&
+    typeof e.rounds === "number" &&
+    e.rounds > 0 &&
+    // A round needs an off-period to exist; without one this is meaningless.
+    pattern.type === "onOff"
+  ) {
+    end = { type: "afterRounds", rounds: Math.floor(e.rounds) }
+  } else if (e?.type === "whenVialEmpty") {
+    end = { type: "whenVialEmpty" }
+  }
+
+  return {
+    pattern,
+    end,
+    colour: isCycleColour(c.colour) ? c.colour : DEFAULT_CYCLE_COLOUR,
+    anchor: c.anchor,
+  }
 }
 
 /** Harden a stored version list; drops anything malformed rather than crashing. */
@@ -796,12 +990,17 @@ function normalizeHistory(raw: unknown): { scheduleHistory: ScheduleVersion[] } 
     const v = item as Record<string, unknown>
     if (typeof v.effectiveFrom !== "string") continue
     const s = normalizeSchedule({ cadence: v.cadence, timeOfDay: v.timeOfDay })
+    const cycle = normalizeCycle(v.cycle)
     out.push({
       effectiveFrom: v.effectiveFrom,
       cadence: s.cadence,
       timeOfDay: s.timeOfDay,
       dose: typeof v.dose === "number" ? v.dose : 0,
       unit: typeof v.unit === "string" ? v.unit : "mg",
+      // `stopped` must survive the round-trip or the deleted-compound gap
+      // (Spec 02) is lost on every reload and the break reads as missed doses.
+      ...(v.stopped === true ? { stopped: true as const } : {}),
+      ...(cycle ? { cycle } : {}),
     })
   }
   if (out.length === 0) return null

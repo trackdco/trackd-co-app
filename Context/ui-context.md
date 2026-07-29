@@ -111,6 +111,34 @@ rested), so it stays token-based with **no hardcoded hex**. The feature
 **reports, it does not recommend**: never a suggested-next-site, ranking, risk
 score, or warning icon.
 
+### Cycle palette — twelve colours a user picks from
+
+A **cycle** (an on/off pattern over a compound, Spec 06 · part two) carries a
+colour the user chooses when they create it. It drives the calendar's on-day
+fill and that cycle's containers in cycle contexts. Defined as `--cycle-*`
+tokens in `app/globals.css` and exposed as Tailwind utilities
+(`bg-cycle-teal`, …); reference them as tokens — **never paste these hex
+values into a component**.
+
+| Name     | Token             | Value     | | Name     | Token             | Value     |
+| -------- | ----------------- | --------- |-| -------- | ----------------- | --------- |
+| Slate    | `--cycle-slate`   | `#56687F` | | Clay     | `--cycle-clay`    | `#8B6050` |
+| Steel    | `--cycle-steel`   | `#4C7285` | | Rosewood | `--cycle-rosewood`| `#7E4E54` |
+| Teal     | `--cycle-teal`    | `#3D6B63` | | Mauve    | `--cycle-mauve`   | `#7B5570` |
+| Moss     | `--cycle-moss`    | `#4C6A4E` | | Plum     | `--cycle-plum`    | `#654C7C` |
+| Olive    | `--cycle-olive`   | `#616B41` | | Indigo   | `--cycle-indigo`  | `#55568C` |
+| Bronze   | `--cycle-bronze`  | `#7A6440` | | Stone    | `--cycle-stone`   | `#6D6A62` |
+
+They are deliberately **deep rather than pastel**, none implies good or bad
+(so the "categorical, never evaluative" rule is untouched — a cycle colour is
+an organisational label, like the category legend), and none clashes with
+amber or the `--cat-*` hues. The colour is stored on the **cycle**, not the
+compound, as its palette **name** — the hex lives once in `globals.css`, so a
+retune never needs a data migration.
+
+On the calendar the fill renders at **reduced opacity** so the logged-day
+circle, today's ring and the dose/journal indicators still read above it.
+
 ## Typography
 
 Two faces, exposed as CSS variables and mapped to Tailwind

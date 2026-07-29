@@ -124,7 +124,8 @@ function DetailBody({
   const upcoming = upcomingDoseDates(
     compound.schedule,
     dateKeyToDate(compound.schedule.startDate),
-    3
+    3,
+    compound.cycle
   )
 
   return (

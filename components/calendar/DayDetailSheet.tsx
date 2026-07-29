@@ -17,6 +17,7 @@ import { formatJournalDate, type EntryMarker } from "@/lib/progress/journal";
 import { formatWeight, type WeightUnit } from "@/lib/weight";
 import type { DateKey } from "@/lib/home/mockHomeData";
 import type { CalendarPhoto, LoggedCompound } from "@/lib/calendar/calendar";
+import { cycleColourVar, type CycleColour } from "@/lib/protocol/cycleRule";
 
 interface DayDetailSheetProps {
   open: boolean;
@@ -47,6 +48,20 @@ interface DayDetailSheetProps {
   dueToLog: StackCompound[];
   /** Log one of them. The caller writes to THIS sheet's day, not to today. */
   onLogDose: (compound: StackCompound) => void;
+  /** Cycles covering this day (Spec 03 · part two). End dates live here rather
+   *  than on the grid, where they would clutter every single on-day. */
+  cycles?: CycleDayDetail[];
+}
+
+/** A cycle covering the open day, with the end it is heading for. */
+export interface CycleDayDetail {
+  compoundId: string;
+  compoundName: string;
+  colour: CycleColour;
+  /** "7 on / 7 off" — the pattern. */
+  pattern: string;
+  /** "Ends 26 Jul" / "No end set" / "Ends when the vial runs out". */
+  end: string;
 }
 
 /**
@@ -72,6 +87,7 @@ export function DayDetailSheet({
   onOpenWeight,
   onOpenJournal,
   onOpenPhotos,
+  cycles,
 }: DayDetailSheetProps) {
   const { cardRef, handleProps, cardStyle } = useSheetDrag(
     () => onOpenChange(false),
@@ -115,6 +131,32 @@ export function DayDetailSheet({
             </h2>
 
             <div className="space-y-5">
+              {/* 0 — Cycles covering this day. Only shown when the day is inside
+                  one, so an uncycled day's sheet is unchanged. */}
+              {cycles && cycles.length > 0 && (
+                <Row label="Cycle">
+                  <ul className="space-y-2">
+                    {cycles.map((c) => (
+                      <li key={c.compoundId} className="flex items-center gap-3">
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full"
+                          style={{ background: cycleColourVar(c.colour) }}
+                          aria-hidden
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm text-foreground">
+                            {c.compoundName}
+                          </span>
+                          <span className="block text-xs text-text-muted">
+                            {c.pattern} · {c.end}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </Row>
+              )}
+
               {/* 1 — Running (what was logged that day). */}
               <Row label="Running">
                 {running.length === 0 ? (
