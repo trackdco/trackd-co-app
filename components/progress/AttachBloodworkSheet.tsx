@@ -107,7 +107,7 @@ export function AttachBloodworkSheet({
       return;
     }
     if (f.size > MAX_BYTES) {
-      setError("That image is over 10 MB — choose a smaller one.");
+      setError("That image is over 10 MB. Choose a smaller one.");
       return;
     }
     setError(null);

@@ -155,7 +155,7 @@ export function lowStockMessage(items: LowStockItem[]): PushMessage | null {
     items.length === 1
       ? `${items[0].name} is running low${
           items[0].dosesRemaining != null
-            ? ` — about ${Math.floor(items[0].dosesRemaining)} doses left.`
+            ? `. About ${Math.floor(items[0].dosesRemaining)} doses left.`
             : "."
         }`
       : `${items.length} vials are running low: ${items.map((i) => i.name).join(", ")}.`;

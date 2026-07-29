@@ -25,7 +25,7 @@ export function FeedbackSheet({
   onOpenChange,
   userId,
   title = "Beta notes & feedback",
-  description = "Found a bug, or have an idea? Tell us — it comes straight to the founders.",
+  description = "Found a bug, or have an idea? Tell us. It comes straight to the founders.",
   placeholder = "What happened, or what would make this better?",
   submitLabel = "Send to founders",
 }: {
@@ -168,7 +168,7 @@ export function FeedbackSheet({
               <span className="flex h-16 w-16 items-center justify-center rounded-full bg-bg-base/15">
                 <Check className="h-9 w-9" aria-hidden />
               </span>
-              <span className="text-base font-medium">Thanks — got it</span>
+              <span className="text-base font-medium">Thanks, got it</span>
             </button>
           )}
         </div>

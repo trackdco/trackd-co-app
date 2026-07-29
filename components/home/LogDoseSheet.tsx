@@ -516,8 +516,8 @@ function LogDoseBody({
           {liveTracking ? (
             <>
               Logging at{" "}
-              <span className="font-mono text-accent-amber">{toHHMMSS(now)}</span>{" "}
-              — live now. Tap the time to set it yourself.
+              <span className="font-mono text-accent-amber">{toHHMMSS(now)}</span>
+              , live now. Tap the time to set it yourself.
             </>
           ) : manualTime === null ? (
             <>
@@ -549,7 +549,7 @@ function LogDoseBody({
               <p className="px-1 text-xs text-text-subtle">Loading sites…</p>
             ) : sitesToShow.length === 0 ? (
               <p className="rounded-xl border border-border-default bg-bg-input px-3 py-3 text-xs text-text-muted">
-                Couldn&apos;t load the body map — you can still log the dose.
+                Couldn&apos;t load the body map. You can still log the dose.
               </p>
             ) : (
               <BodyMap

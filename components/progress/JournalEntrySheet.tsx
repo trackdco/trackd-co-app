@@ -208,7 +208,7 @@ export function JournalEntrySheet({
     const valid: File[] = [];
     for (const file of Array.from(files)) {
       if (!EXT[file.type]) {
-        setAttachError("Photos only — JPG, PNG, WebP or HEIC.");
+        setAttachError("Photos only: JPG, PNG, WebP or HEIC.");
         continue;
       }
       if (file.size > MAX_BYTES) {
@@ -229,7 +229,7 @@ export function JournalEntrySheet({
     try {
       for (const file of files) {
         const ext = EXT[file.type];
-        if (!ext) throw new Error("Photos only — JPG, PNG, WebP or HEIC.");
+        if (!ext) throw new Error("Photos only: JPG, PNG, WebP or HEIC.");
         if (file.size > MAX_BYTES) throw new Error("Each photo must be under 10 MB.");
         const path = `${userId}/${randomId()}/photo.${ext}`;
         const up = await supabase.storage
@@ -332,7 +332,7 @@ export function JournalEntrySheet({
 
           <SheetTitle className="sr-only">{title}</SheetTitle>
           <SheetDescription className="sr-only">
-            Journal entry — a free-write note and/or dialed markers for the day, with optional photos.
+            Journal entry: a free-write note and/or dialed markers for the day, with optional photos.
           </SheetDescription>
 
           <div className="flex-1 overflow-y-auto px-6">

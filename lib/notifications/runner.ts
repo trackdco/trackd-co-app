@@ -307,7 +307,7 @@ export async function runForUser(
     if (messages.length === 0) {
       messages.push({
         title: "Trackd",
-        body: "Notifications are working — nothing's due right now.",
+        body: "Notifications are working. Nothing's due right now.",
         url: "/dashboard",
         tag: "trackd-test",
       });

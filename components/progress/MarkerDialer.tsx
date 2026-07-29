@@ -523,7 +523,7 @@ function CreateMarkerForm({
 
       <div>
         <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
-          Scale — low to high
+          Scale, low to high
         </p>
         <div className="space-y-1.5">
           {labels.map((l, i) => (
@@ -589,7 +589,7 @@ function CreateMarkerForm({
           })}
         </div>
         <p className="mt-1.5 text-[11px] text-text-subtle">
-          Only orients this marker on future charts — never a score.
+          Only orients this marker on future charts. Never a score.
         </p>
       </div>
 

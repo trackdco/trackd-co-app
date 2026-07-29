@@ -82,7 +82,7 @@ export function ProgressPhotoViewer({
           </div>
 
           <SheetTitle className="sr-only">
-            {shown ? `${poseLabel(shown.pose)} — ${formatPhotoDate(shown.date)}` : "Progress photo"}
+            {shown ? `${poseLabel(shown.pose)} · ${formatPhotoDate(shown.date)}` : "Progress photo"}
           </SheetTitle>
           <SheetDescription className="sr-only">Your progress photo.</SheetDescription>
 
@@ -116,7 +116,7 @@ export function ProgressPhotoViewer({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={shown.url}
-                    alt={`${poseLabel(shown.pose)} — ${formatPhotoDate(shown.date)}`}
+                    alt={`${poseLabel(shown.pose)} · ${formatPhotoDate(shown.date)}`}
                     className="mx-auto w-full rounded-xl object-contain"
                   />
                 ) : (

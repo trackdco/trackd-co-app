@@ -278,7 +278,7 @@ export function AddProgressPhotoSheet({
           <div className="flex-1 overflow-y-auto px-6">
             <h2 className={SHEET_TITLE}>Add photos</h2>
             <p className="mt-0.5 text-xs text-text-muted">
-              Tap a pose to take or choose a photo — fill any or all, then submit.
+              Tap a pose to add a photo. Fill any or all, then submit.
             </p>
 
             {/* Pose circles — tap to take or choose a photo for each. Compact so
@@ -415,7 +415,7 @@ export function AddProgressPhotoSheet({
               <Textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="How the physique's looking — conditioning, pumps, anything worth noting…"
+                placeholder="How the physique's looking: conditioning, pumps, anything worth noting…"
                 rows={3}
                 maxLength={2000}
                 className="rounded-xl border-border-default bg-bg-input text-sm dark:bg-bg-input"

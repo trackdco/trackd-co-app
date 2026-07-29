@@ -27,12 +27,12 @@ const KEY: { status: CalendarDayStatus; title: string; body: string }[] = [
   {
     status: "scheduled",
     title: "Not yet logged",
-    body: "Dotted ring. A dose was scheduled that day but isn't logged yet — past days you missed and upcoming days you haven't logged both land here.",
+    body: "Dotted ring. A dose was scheduled that day but isn't logged yet. Past days you missed and upcoming days you haven't logged both land here.",
   },
   {
     status: "none-past",
     title: "No dose that day",
-    body: "Regular stroke. A past day with no scheduled dose — a rest day or off-cycle day.",
+    body: "Regular stroke. A past day with no scheduled dose: a rest day or off-cycle day.",
   },
   {
     status: "none-future",

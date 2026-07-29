@@ -783,7 +783,7 @@ function AddCompoundBody({
               <span className="font-mono text-accent-amber">
                 {dose || "0"} {unit}
               </span>
-              . This applies to your upcoming doses — anything already logged stays
+              . This applies to your upcoming doses. Anything already logged stays
               as it was.{" "}
               <span className="text-text-muted">
                 For personal tracking only, not medical or dosing advice.
@@ -965,7 +965,7 @@ function AddCompoundBody({
                       <span className="font-mono text-foreground">
                         {formatTimeLabel(timeOfDay)}
                       </span>
-                      , already passed — so you can log the dose you&apos;ve already
+                      , already passed, so you can log the dose you&apos;ve already
                       taken.
                     </>
                   ) : (
@@ -974,7 +974,7 @@ function AddCompoundBody({
                       <span className="font-mono text-foreground">
                         {formatDateKeyShort(startDate)}
                       </span>
-                      , in the past — so you can log the doses you&apos;ve already
+                      , in the past, so you can log the doses you&apos;ve already
                       taken.
                     </>
                   )}
@@ -1011,7 +1011,7 @@ function AddCompoundBody({
             show just that vial's fields. Starts full; counts down as doses log. */}
         {canStock && (
           <div className="animate-home-up" style={{ animationDelay: "210ms" }}>
-            <FieldLabel>Stock on hand — optional</FieldLabel>
+            <FieldLabel>Stock on hand (optional)</FieldLabel>
             {!addStockOn ? (
               <button
                 type="button"
@@ -1112,7 +1112,7 @@ function AddCompoundBody({
                     </>
                   ) : (
                     <p className="text-xs text-text-subtle">
-                      Enter the vial’s details above, then set how full it is — defaults to full.
+                      Enter the vial’s details above, then set how full it is. Defaults to full.
                     </p>
                   )}
                 </div>

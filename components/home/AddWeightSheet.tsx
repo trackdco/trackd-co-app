@@ -348,7 +348,7 @@ function AddWeightBody({
             Add a progress photo
           </p>
           <p className="mt-0.5 text-xs text-text-subtle">
-            Optional — lands under the right pose, dated today.
+            Optional. Lands under the right pose, dated today.
           </p>
 
           <div className="mt-3 flex flex-wrap gap-3">

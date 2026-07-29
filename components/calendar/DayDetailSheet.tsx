@@ -106,7 +106,7 @@ export function DayDetailSheet({
             {dateKey ? formatJournalDate(dateKey) : "Day detail"}
           </SheetTitle>
           <SheetDescription className="sr-only">
-            What you logged on this day — running, weight, markers, and journal.
+            What you logged on this day: running, weight, markers, and journal.
           </SheetDescription>
 
           <div className="flex-1 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">

@@ -141,12 +141,12 @@ function CycleEditForm({
         </p>
 
         <label className="block space-y-1.5">
-          <span className={LABEL}>Description — optional</span>
+          <span className={LABEL}>Description (optional)</span>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value.slice(0, 500))}
             rows={2}
-            placeholder="e.g. 12-week cut into the June show — what this cycle is about"
+            placeholder="e.g. 12-week cut into the June show: what this cycle is about"
             className="w-full min-w-0 resize-none rounded-xl border border-border-default bg-bg-input px-3 py-2.5 text-base text-foreground shadow-xs outline-none transition-colors focus-visible:border-border-strong"
           />
         </label>

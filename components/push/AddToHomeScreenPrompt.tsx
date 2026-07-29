@@ -18,7 +18,7 @@ export function AddToHomeScreenPrompt() {
     <div className="rounded-2xl bg-bg-surface p-5">
       <p className={SHEET_TITLE}>Add Trackd to your Home Screen</p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-        Get the full app, not a Safari tab — here&apos;s how:
+        Get the full app, not a Safari tab. Here&apos;s how:
       </p>
       <ol className="mt-4 space-y-3">
         <li className="flex items-start gap-3">
@@ -27,7 +27,7 @@ export function AddToHomeScreenPrompt() {
           </span>
           <span className="text-sm leading-snug text-text-muted">
             Tap the <span className="text-foreground">Share</span>{" "}
-            button — on newer iPhones it&apos;s inside the{" "}
+            button. On newer iPhones it&apos;s inside the{" "}
             <span className="text-foreground">•••</span> menu.
           </span>
         </li>
