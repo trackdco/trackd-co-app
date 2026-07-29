@@ -69,8 +69,7 @@ export function DeleteAccountRequest({ email }: { email: string }) {
                 Delete your account?
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-                During the beta, account deletion is handled by request. Tap
-                below to email us at{" "}
+                Account deletion is handled by request during the beta. Email us at{" "}
                 <span className="whitespace-nowrap text-foreground">
                   {SUPPORT_EMAIL}
                 </span>

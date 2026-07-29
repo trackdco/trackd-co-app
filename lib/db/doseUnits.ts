@@ -28,5 +28,13 @@ export const DOSE_UNITS: readonly DoseUnit[] = [
  *  so this is a defensive normaliser — but it must accept EVERY valid unit, or a
  *  tablet/capsule/mL/g compound silently writes its doses as `mg`. */
 export function coerceDoseUnit(unit: string): DoseUnit {
-  return (DOSE_UNITS as readonly string[]).includes(unit) ? (unit as DoseUnit) : "mg"
+  if ((DOSE_UNITS as readonly string[]).includes(unit)) return unit as DoseUnit
+  // Say so in dev. This fallback is defensive, so it should never fire in
+  // practice — and silently relabelling a dose's unit is exactly the class of bug
+  // this PR already had to fix twice. A warning turns the next one into something
+  // visible rather than something a user notices in their history.
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(`coerceDoseUnit: unrecognised unit "${unit}", falling back to "mg"`)
+  }
+  return "mg"
 }

@@ -247,8 +247,7 @@ export default async function AdminPage({
           <Stat label="Running now" value={metrics.usersWithActiveCompound} />
         </div>
         <p className="mt-2 px-1 text-xs text-text-subtle">
-          Compounds and doses are all-time totals across every account. Running now
-          counts accounts holding at least one active compound.
+          All-time totals. Running now = accounts with at least one active compound.
         </p>
 
         {/* ── 4. Feedback queue ─────────────────────────────────────────── */}

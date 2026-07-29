@@ -15,7 +15,7 @@ export function EmptyLogCard() {
     <section className="rounded-2xl bg-bg-surface p-5">
       <h2 className={CARD_EYEBROW}>Start your log</h2>
       <p className="mt-2 text-sm text-text-muted">
-        You haven&apos;t added any compounds yet. Here&apos;s how it works:
+        Here&apos;s how it works:
       </p>
 
       <ol className="mt-5 space-y-4">
@@ -23,13 +23,13 @@ export function EmptyLogCard() {
           n={1}
           icon={<Plus className="h-4 w-4" aria-hidden />}
           title="Add a compound"
-          body="Tap the white + below → Add a compound. Search the catalogue or make your own. The method and unit come straight from the compound, no guessing."
+          body="Tap the white + below → Add a compound. Search the catalogue or make your own."
         />
         <Step
           n={2}
           icon={<CalendarDot className="h-4 w-4" aria-hidden />}
           title="Set the dose & schedule"
-          body="Enter the dose, choose how often and when it starts. For injectables you'll pick the site when you log each dose, from the body map."
+          body="Enter the dose, choose how often and when it starts."
         />
         <Step
           n={3}

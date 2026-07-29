@@ -1112,7 +1112,7 @@ function AddCompoundBody({
                     </>
                   ) : (
                     <p className="text-xs text-text-subtle">
-                      Enter the vial’s details above, then set how full it is. Defaults to full.
+                      Set how full it is. Defaults to full.
                     </p>
                   )}
                 </div>

@@ -278,7 +278,7 @@ export function AddProgressPhotoSheet({
           <div className="flex-1 overflow-y-auto px-6">
             <h2 className={SHEET_TITLE}>Add photos</h2>
             <p className="mt-0.5 text-xs text-text-muted">
-              Tap a pose to add a photo. Fill any or all, then submit.
+              Tap a pose to add a photo. Fill any or all.
             </p>
 
             {/* Pose circles — tap to take or choose a photo for each. Compact so

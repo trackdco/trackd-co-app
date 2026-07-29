@@ -25,7 +25,7 @@ export function FeedbackSheet({
   onOpenChange,
   userId,
   title = "Beta notes & feedback",
-  description = "Found a bug, or have an idea? Tell us. It comes straight to the founders.",
+  description = "Found a bug, or have an idea? It comes straight to the founders.",
   placeholder = "What happened, or what would make this better?",
   submitLabel = "Send to founders",
 }: {

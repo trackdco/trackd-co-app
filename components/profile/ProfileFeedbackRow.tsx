@@ -32,7 +32,7 @@ export function ProfileFeedbackRow({ userId }: { userId: string }) {
         onOpenChange={setOpen}
         userId={userId}
         title="Send feedback"
-        description="Spotted a bug or have an idea? We read every message. Thanks for helping make Trackd better."
+        description="Spotted a bug or have an idea? We read every message."
         placeholder="What's on your mind?"
         submitLabel="Send feedback"
       />

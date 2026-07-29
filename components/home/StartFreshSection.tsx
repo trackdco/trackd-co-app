@@ -80,9 +80,9 @@ export function StartFreshSection({ userId }: { userId: string }) {
                 Clear your whole log?
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-                This removes every compound, vial and logged dose and starts you from an
-                empty log, on this device and in the cloud. Your weight, progress photos
-                and bloodwork are kept. This can&apos;t be undone.
+                Removes every compound, vial and logged dose, on this device and in
+                the cloud. Your weight, progress photos and bloodwork are kept.
+                This can&apos;t be undone.
               </p>
               <div className="mt-5 flex gap-3">
                 <button
