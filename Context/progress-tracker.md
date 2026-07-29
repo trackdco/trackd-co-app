@@ -139,6 +139,19 @@ One line each; full detail in git + `Context/Feature Specs/`.
   - **Not yet done:** step 9, device testing on iOS Safari + Android Chrome. Pinch
     inside an installed PWA is the likeliest place this breaks and it cannot be
     verified from here.
+- **Spec 06 · Admin Page — all 9 steps built.** `/admin` is now an operational
+  dashboard (Users → Signups over time + by-channel → Usage → Feedback → Emails),
+  renamed from "Waitlist". **The access audit came back clean:** the founder gate
+  was already enforced server-side in a Server Component before any query runs,
+  with RLS as an independent second layer on both `waitlist` and `beta_feedback` —
+  no fix was needed. Cross-user aggregates run as the service role in
+  `lib/db/adminMetrics.ts`, which is aggregate-only by construction and re-checks
+  the caller. See `architecture.md` → Admin Dashboard.
+  - **Adrian's calls (2026-07-29):** active = "wrote something" (dose/weight/
+    journal/photo/compound), stated on the page; signups range 30D/90D/All.
+  - **Flagged:** the distinct-user counts de-duplicate in TS (PostgREST can't do
+    `count(distinct)`) — fine at beta size, wants a SQL view past ~10k writes/week.
+    The founder email list is duplicated in `lib/admin.ts` and both SQL policies.
 - **Contact email — `legal@trackdco.app` → `support@trackdco.app`** (Adrian,
   2026-07-29; the legal@ mailbox is gone). The account-deletion request in
   `components/auth/delete-account-request.tsx` is updated. The LIVE legal documents

@@ -653,6 +653,55 @@ perfect in-camera framing. Zoom + pan only — no rotation, no filters, no free 
 - **Guides:** a faint rule-of-thirds grid (hairlines at 25% on `--accent-primary`),
   Adrian's pick over a centre line or horizon. Purely visual; never captured.
 
+## Admin Dashboard (Spec 06, wave 2 — 2026-07-29)
+
+`/admin` was a waitlist view; it is now an operational view of the running app.
+Order: **Users → Signups over time (by-channel beneath) → Usage → Feedback queue →
+Email list**. Title is "Admin".
+
+- **Access was ALREADY enforced server-side** — the audit's finding, not a fix.
+  `app/admin/page.tsx` is a Server Component that calls the verified `getUser()`
+  and returns a blocked view **before any query runs**, so a non-founder's request
+  never fetches and nothing reaches the client bundle. Underneath it, RLS gates the
+  data independently: `waitlist` SELECT is founder-only
+  (`supabase/waitlist/002_founder_read.sql`), `v_waitlist_by_source` is
+  `security_invoker` so it inherits that, and `beta_feedback` SELECT is
+  "own OR founder". Remove the page check entirely and a non-founder still reads
+  **zero rows**.
+- **Cross-user aggregates run as the SERVICE ROLE** (`lib/db/adminMetrics.ts`,
+  `"use server"`). Every user table is RLS'd to own-rows, so a founder's own client
+  can see exactly one user's data — correct, and precisely why these counts can't
+  be read normally. The alternative, granting founders SELECT on `dose_logs` /
+  `weight_logs` / …, would hand two accounts permanent read access to every user's
+  health data to render five numbers. **The rule that keeps the service role safe:
+  nothing in that file may RETURN a row.** It returns counts and dates only; where
+  a distinct-user count needs ids, they're counted into a `Set` and discarded
+  inside the function. No message, dose, weight, marker, photo or journal text is
+  ever selected. `getAdminMetrics` **re-checks the caller is a founder against the
+  session**, because a `"use server"` export is independently reachable and must
+  not trust the page's gate.
+- **"Active" = wrote something** that period — a dose, weight, journal entry, photo
+  or compound (Adrian's call, 2026-07-29). The app has no session tracking, so
+  "opened the app" isn't answerable without a write on every page load. The
+  definition is **stated on the page** so the number is read the same way every
+  time, and it deliberately understates a user who only looked.
+- **Small-number discipline** (we have very few users): no percentage changes, no
+  trend arrows, no divide-by-zero. Every section has a zero state, and the signups
+  bar chart guards its own scale (`peak > 0`) with a 2% floor so a zero day still
+  draws a hairline rather than vanishing.
+- **⚠️ Scale flag:** `activeUsers` and `usersWithActiveCompound` read one `user_id`
+  per qualifying row and de-duplicate in TS, because PostgREST cannot express
+  `count(distinct …)`. Fine at beta size; past roughly ten thousand writes a week
+  these should become a SQL view or RPC. Deliberately not pre-optimised — the view
+  is trivial to add and no caller changes.
+- **The founder list is duplicated in three places** — `lib/admin.ts` plus both SQL
+  policies, which hardcode the emails. Adding a founder means editing three files
+  across two systems; forgetting the SQL half fails closed, forgetting the TS half
+  fails open-ish. Known maintenance hazard, not a hole.
+- The feedback queue (open by default, resolved behind a toggle, state changeable)
+  already existed and is unchanged — `components/admin/FeedbackList.tsx` with the
+  founder-only, column-scoped `resolved_at` UPDATE grant.
+
 ## Back-dating (2026-07-17)
 
 Life doesn't happen at the phone: you take a shot on Tuesday night and open the app

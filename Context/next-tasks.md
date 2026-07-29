@@ -11,10 +11,10 @@ Last updated: 2026-07-29
 ## 🎯 Current focus
 
 **Wave 2 · part one.** Working the seven refinement specs in order, one at a time,
-on `spec-01-dose-integrity` (PR #61, not merged). **Specs 01–05 are BUILT** —
-typecheck, lint and 64 tests green; CodeRabbit round 1 findings fixed. Reviewed on **localhost** (`npm run dev`), not a
-Vercel preview — there's no CLI/token in this repo and pushing the branch is the only
-other preview path. Next up: `06-admin.md`.
+on `spec-01-dose-integrity` (PR #61, not merged). **Specs 01–06 are BUILT** —
+typecheck, lint, `next build` and 68 tests green; CodeRabbit round 1 fixed plus a
+self-review round. Reviewed on **localhost** (`npm run dev`) and the PR's Vercel
+preview. Next up: `07-global-sweep.md` — the last of part one.
 
 ### Blocked on Adrian
 00. **Run `supabase/legal/011_support_email.sql`** — swaps `legal@trackdco.app` for
