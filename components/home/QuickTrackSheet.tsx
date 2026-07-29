@@ -24,7 +24,7 @@ import type { BodySex } from "@/lib/db/types"
 import {
   formatTimeLabel,
   getStackSnapshot,
-  isDueOn,
+  isDueOnFor,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack"
@@ -180,7 +180,7 @@ function QuickTrackBody({
   // The day's list: due compounds, plus anything already logged that day (kept
   // even if since archived). Same selection rule as the dashboard's Today's Log.
   const dueCompounds = stack.filter((c) =>
-    targetLogs[c.id] ? true : !c.archived && isDueOn(c.schedule, targetDate)
+    targetLogs[c.id] ? true : !c.archived && isDueOnFor(c, targetDate)
   )
 
   const [logTarget, setLogTarget] = useState<LogTarget | null>(null)

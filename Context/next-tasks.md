@@ -4,36 +4,38 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-07-23
+Last updated: 2026-07-29
 
 ---
 
 ## 🎯 Current focus
 
-**Wave 2 · Spec 01 — Dose & Schedule Integrity.** Steps 1–4 and 6–8 are BUILT on a
-branch (not merged, not deployed). Step 5 (schedule versioning) is blocked on a
-migration decision.
+**Wave 2 · Spec 01 — Dose & Schedule Integrity.** All 8 steps are now BUILT on a
+branch (not merged, not deployed). Typecheck, lint and 37 tests are green. The one
+thing standing between this and "done" is running the migration.
 
 ### Blocked on Adrian
-1. **Schedule versioning (step 5) — needs a migration and sign-off.** Altering a
-   compound still mutates its single schedule row, so past due-sets (week-strip
-   dots, calendar cells) re-derive from the new rule. Fixing it properly means a
-   `protocol_compound_schedules` table + a per-date resolver. The spec itself says
-   to present the plan before running the migration. Past logged doses are already
-   safe — the outstanding half is what the app says *was due*.
-2. **Placeholder wording for an unset time** — currently **"Not set"**, worded once
-   in `formatTimeLabel`. Confirm or change.
-3. **Calendar logging** — the checklist wants a past-day log from the calendar, but
-   the Calendar is read-only by design. The date plumbing is ready; the flow is not
-   built (reads like spec 09/10 work).
-4. **`QuickTrackSheet` empty-state copy** still says "Nothing scheduled for today"
+1. **Run `supabase/protocol/005_protocol_compound_schedules.sql` — needs sign-off.**
+   The migration plan the spec asked for, in one line: a `protocol_compound_schedules`
+   table holding each version of a compound's dose + schedule with the day it took
+   effect. **Strictly additive** — nothing existing is altered, moved or deleted, and
+   there is NO backfill (a compound with no versions resolves exactly as it does
+   today). Cascades from `protocol_compounds`, ships its own RLS + grants. The app
+   already runs correctly without it: every sync call swallows `42P01` and keeps
+   versions in the device store, so applying it only starts backing them up. Say go
+   and it runs via the Supabase MCP.
+2. **Placeholder wording for a legacy unset time** — currently **"Not set"**, worded
+   once in `formatTimeLabel`. A time is now required at both entry points, so this
+   only renders for records written before that. Confirm or change.
+3. **`QuickTrackSheet` empty-state copy** still says "Nothing scheduled for today"
    while the sheet can now be parked on another day. Left alone on purpose — spec 01
    forbids copy changes. One line for spec 07.
 
 ### Then
+- Commit the working tree (step 5 + calendar logging are uncommitted).
 - Deploy to a Vercel **preview** subdomain and device-test (spec 01's last step).
-- Verify the unset-time path against the real DB — `dose_times = ARRAY[NULL]`
-  round-trip couldn't be checked locally (Supabase MCP token expired).
+- Verify against the real DB once the MCP session is authorised: the
+  `dose_times = ARRAY[NULL]` round-trip, and a version round-trip after 005 runs.
 - CodeRabbit review, then STAND BY. Do not merge to main until every wave-2 spec is
   done and approved.
 

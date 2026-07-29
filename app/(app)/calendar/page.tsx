@@ -13,6 +13,7 @@ import {
   type MarkerCatalogueItem,
 } from "@/lib/progress/journal";
 import type { CalendarPhoto } from "@/lib/calendar/calendar";
+import { bodySexFor } from "@/lib/db/types";
 
 export const metadata: Metadata = { title: "Calendar — Trackd Co" };
 
@@ -45,7 +46,7 @@ export default async function CalendarPage() {
   ] = await Promise.all([
     supabase
       .from("profiles")
-      .select("units_preference")
+      .select("units_preference, sex")
       .eq("id", user.id)
       .maybeSingle(),
     supabase
@@ -178,6 +179,7 @@ export default async function CalendarPage() {
       userId={user.id}
       todayKey={toDateKey(new Date())}
       unitPreference={profile?.units_preference ?? "metric"}
+      bodySex={bodySexFor(profile?.sex ?? null)}
     />
   );
 }

@@ -20,6 +20,7 @@ import {
   archiveProtocolCompound,
   deleteProtocolCompoundForStack,
   pushProtocolCompound,
+  pushScheduleVersions,
 } from "@/lib/home/protocolSync"
 import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
 
@@ -40,22 +41,195 @@ export type Cadence =
 export interface Schedule {
   cadence: Cadence
   /**
-   * Default log time, 24h "HH:mm", or `""` when the user hasn't set one.
+   * Dose time, 24h "HH:mm". REQUIRED on every new compound and every new log —
+   * the forms don't pre-fill it from the clock (Spec 01 → Dose time) and don't
+   * let you past them without one, so it is always a time the user actually
+   * chose rather than one the app guessed.
    *
-   * UNSET IS A REAL STATE, not a missing value (Spec 01 → Dose time). The field
-   * no longer pre-fills from the clock, so an empty time means "no time chosen"
-   * rather than "we guessed and the guess is now indistinguishable from a fact".
-   * Render it through {@link formatTimeLabel}, which words it once for the whole
-   * app; never substitute a default at the call site.
+   * May still be `""` on LEGACY records written before it was required, and on a
+   * Postgres row whose `dose_times` holds NULL. Display those through
+   * {@link formatTimeLabel} (which words it once, as "Not set") and test with
+   * {@link hasTime}; never substitute a default at the call site.
    */
   timeOfDay: string
   /** Cycle start, "YYYY-MM-DD". Anchors EOD / every-N-days and gates due dates. */
   startDate: string
 }
 
-/** Whether a schedule / log time has actually been set by the user. */
+/** Whether a schedule / log time has actually been set. A required field at every
+ *  entry point, so a false here means legacy data, not a fresh omission. */
 export function hasTime(time24: string | null | undefined): boolean {
   return typeof time24 === "string" && /^\d{1,2}:\d{2}$/.test(time24)
+}
+
+/* --------------------------------------------------- schedule versioning */
+
+/**
+ * One version of a compound's dose + schedule, effective from a given day.
+ *
+ * **An alteration applies from the chosen day FORWARD and never earlier**
+ * (Spec 01 → Altering a dose or schedule). Editing used to mutate the single
+ * schedule in place, so changing a cadence retroactively rewrote what had been
+ * due on every past day — a Tuesday you correctly rested could become "missed"
+ * because of a change you made in August. Versions make "what was due on date D"
+ * answerable: find the version active on D.
+ *
+ * Nothing is back-filled or compensated. Raising a dose adds no catch-up dose for
+ * the days before the change; it simply doesn't apply to them.
+ */
+export interface ScheduleVersion {
+  /** Local "YYYY-MM-DD". This version governs days >= this, until the next one. */
+  effectiveFrom: string
+  cadence: Cadence
+  timeOfDay: string
+  dose: number
+  unit: string
+}
+
+/** The dose + schedule that were in force on `dateKey`. */
+export interface ResolvedSchedule {
+  schedule: Schedule
+  dose: number
+  unit: string
+}
+
+/**
+ * What this compound's rule ACTUALLY was on `dateKey`.
+ *
+ * With no version history (every compound until one is edited) this returns the
+ * compound's current values unchanged — so behaviour is identical to before
+ * versioning existed, and the feature costs nothing until it's used.
+ */
+export function resolveScheduleOn(
+  c: StackCompound,
+  dateKey: string
+): ResolvedSchedule {
+  const current: ResolvedSchedule = {
+    schedule: c.schedule,
+    dose: c.dose,
+    unit: c.unit,
+  }
+  const versions = c.scheduleHistory
+  if (!versions || versions.length === 0) return current
+  let best: ScheduleVersion | null = null
+  for (const v of versions) {
+    if (v.effectiveFrom > dateKey) continue
+    if (!best || v.effectiveFrom > best.effectiveFrom) best = v
+  }
+  if (!best) {
+    // The day predates every recorded version. The EARLIEST version is the oldest
+    // rule we know of, so it's the honest answer — never the current one, which is
+    // precisely the retroactive rewrite versioning exists to stop.
+    const earliest = [...versions].sort((a, b) =>
+      a.effectiveFrom.localeCompare(b.effectiveFrom)
+    )[0]
+    return {
+      schedule: { cadence: earliest.cadence, timeOfDay: earliest.timeOfDay, startDate: c.schedule.startDate },
+      dose: earliest.dose,
+      unit: earliest.unit,
+    }
+  }
+  return {
+    schedule: {
+      cadence: best.cadence,
+      timeOfDay: best.timeOfDay,
+      startDate: c.schedule.startDate,
+    },
+    dose: best.dose,
+    unit: best.unit,
+  }
+}
+
+/** Whether the compound was due on a date, judged by the rule in force THEN. */
+export function isDueOnFor(c: StackCompound, date: Date): boolean {
+  return isDueOn(resolveScheduleOn(c, toDateKeyLocal(date)).schedule, date)
+}
+
+/**
+ * Record an alteration effective from `effectiveFrom`, returning the new version
+ * list. The compound's own `schedule`/`dose`/`unit` still carry the CURRENT rule
+ * (forward-looking UI is unchanged); this is the trail behind it.
+ *
+ * Seeds a baseline from the OUTGOING values the first time a compound is edited —
+ * without it the days before the change would have no recorded rule and would
+ * fall through to the new one, which is the exact retroactive rewrite being
+ * fixed. Re-editing on the same day replaces that day's version rather than
+ * stacking duplicates.
+ */
+export function recordScheduleVersion(
+  previous: StackCompound,
+  next: { cadence: Cadence; timeOfDay: string; dose: number; unit: string },
+  effectiveFrom: string
+): ScheduleVersion[] {
+  const history = [...(previous.scheduleHistory ?? [])]
+  if (history.length === 0) {
+    history.push({
+      effectiveFrom: previous.schedule.startDate,
+      cadence: previous.schedule.cadence,
+      timeOfDay: previous.schedule.timeOfDay,
+      dose: previous.dose,
+      unit: previous.unit,
+    })
+  }
+  const version: ScheduleVersion = { effectiveFrom, ...next }
+  const at = history.findIndex((v) => v.effectiveFrom === effectiveFrom)
+  if (at >= 0) history[at] = version
+  else history.push(version)
+  return history.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+}
+
+/** A version in the shape `protocol_compound_schedules` stores (ISO weekdays,
+ *  `HH:mm:ss`), so the local↔Postgres mapping lives in ONE place. */
+export function scheduleVersionToRow(v: ScheduleVersion) {
+  const cad = v.cadence
+  return {
+    effectiveFrom: v.effectiveFrom,
+    dose: v.dose,
+    unit: v.unit === "mcg" || v.unit === "iu" ? v.unit : "mg",
+    scheduleType:
+      cad.type === "daysOfWeek"
+        ? "specific_days"
+        : cad.type === "daily"
+          ? "every_day"
+          : "every_n_days",
+    // Local 0=Sun..6=Sat → ISO Mon=1..Sun=7, matching protocol_compounds.
+    daysOfWeek:
+      cad.type === "daysOfWeek" ? cad.days.map((d) => (d === 0 ? 7 : d)) : null,
+    intervalDays:
+      cad.type === "everyOtherDay" ? 2 : cad.type === "everyNDays" ? cad.n : null,
+    time: hasTime(v.timeOfDay) ? `${v.timeOfDay}:00` : null,
+  }
+}
+
+/** The inverse — a stored version row back into the local shape. */
+export function scheduleVersionFromRow(r: {
+  effectiveFrom: string
+  dose: number
+  unit: string
+  scheduleType: string
+  daysOfWeek: number[] | null
+  intervalDays: number | null
+  time: string | null
+}): ScheduleVersion {
+  let cadence: Cadence = { type: "daily" }
+  if (r.scheduleType === "specific_days") {
+    cadence = {
+      type: "daysOfWeek",
+      days: (r.daysOfWeek ?? []).map((d) => (d === 7 ? 0 : d)),
+    }
+  } else if (r.scheduleType === "every_n_days") {
+    cadence =
+      r.intervalDays === 2
+        ? { type: "everyOtherDay" }
+        : { type: "everyNDays", n: r.intervalDays ?? 1 }
+  }
+  return {
+    effectiveFrom: r.effectiveFrom,
+    cadence,
+    timeOfDay: r.time ? r.time.slice(0, 5) : "",
+    dose: r.dose,
+    unit: r.unit,
+  }
 }
 
 /** Display label for a method (e.g. for the locked method on the add sheet). */
@@ -121,6 +295,10 @@ export interface StackCompound {
   /** Archived = no longer dosed (hidden from present/future) but history kept.
    *  Reversible. Absent/false = active. */
   archived?: boolean
+  /** Past + current dose/schedule versions, each effective from a day (see
+   *  {@link ScheduleVersion}). Absent/empty on a compound never edited, in which
+   *  case the fields above ARE the whole history. */
+  scheduleHistory?: ScheduleVersion[]
 }
 
 // `v2` bump: abandons any earlier-seeded device data so the app starts as a
@@ -183,6 +361,17 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
     // + stock runway exactly like a catalogue compound.
     if (isCustomName(compound.name)) void pushStackCompound(compound)
     void trackSync(pushProtocolCompound(compound)) // Postgres (custom or catalogue)
+    // Schedule versions (Spec 01). Skipped silently until supabase/protocol/005 is
+    // applied — the device store keeps them meanwhile, so no intent is lost.
+    if (compound.scheduleHistory?.length) {
+      void trackSync(
+        pushScheduleVersions(
+          compound.id,
+          compound.name,
+          compound.scheduleHistory.map(scheduleVersionToRow)
+        )
+      )
+    }
   }
   return ok
 }
@@ -517,7 +706,30 @@ function normalizeCompound(item: unknown): StackCompound | null {
     rotationSites: isInjectable(method) ? rotationSites : [],
     rotationIndex: rawIndex,
     archived: c.archived === true,
+    ...(normalizeHistory(c.scheduleHistory) ?? {}),
   })
+}
+
+/** Harden a stored version list; drops anything malformed rather than crashing. */
+function normalizeHistory(raw: unknown): { scheduleHistory: ScheduleVersion[] } | null {
+  if (!Array.isArray(raw)) return null
+  const out: ScheduleVersion[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue
+    const v = item as Record<string, unknown>
+    if (typeof v.effectiveFrom !== "string") continue
+    const s = normalizeSchedule({ cadence: v.cadence, timeOfDay: v.timeOfDay })
+    out.push({
+      effectiveFrom: v.effectiveFrom,
+      cadence: s.cadence,
+      timeOfDay: s.timeOfDay,
+      dose: typeof v.dose === "number" ? v.dose : 0,
+      unit: typeof v.unit === "string" ? v.unit : "mg",
+    })
+  }
+  if (out.length === 0) return null
+  out.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+  return { scheduleHistory: out }
 }
 
 function normalizeSchedule(raw: unknown): Schedule {

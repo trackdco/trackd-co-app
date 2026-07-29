@@ -816,6 +816,118 @@ export async function deleteProtocolDoseLog(
   }
 }
 
+/* ------------------------------------------------- schedule versions (Spec 01) */
+
+/**
+ * Persist a compound's schedule VERSIONS (`supabase/protocol/005`).
+ *
+ * TOLERANT OF THE TABLE NOT EXISTING YET. The migration is additive and pending
+ * sign-off, so until it is applied every call here fails with `42P01`
+ * (undefined_table) and is treated as `skipped` — identical to the pre-versioning
+ * behaviour, and NOT reported to the user as a sync failure, because nothing is
+ * wrong. Versions still live in the device store meanwhile, so no user intent is
+ * lost; applying the migration simply starts backing them up.
+ */
+function isMissingTable(error: { code?: string } | null): boolean {
+  return error?.code === "42P01"
+}
+
+export async function pushScheduleVersions(
+  clientId: string,
+  name: string | null,
+  versions: {
+    effectiveFrom: string
+    dose: number
+    unit: string
+    scheduleType: string
+    daysOfWeek: number[] | null
+    intervalDays: number | null
+    time: string | null
+  }[]
+): Promise<Ok> {
+  try {
+    const cx = await ctx()
+    if (!cx) return { ok: false }
+    if (versions.length === 0) return { ok: true, skipped: true }
+    const pcId = await findProtocolCompoundId(cx, clientId, name)
+    if (!pcId) return { ok: true, skipped: true } // custom / unmigrated compound
+    const { error } = await cx.supabase.from("protocol_compound_schedules").upsert(
+      versions.map((v) => ({
+        user_id: cx.userId,
+        protocol_compound_id: pcId,
+        effective_from: v.effectiveFrom,
+        dose_amount: v.dose > 0 ? v.dose : 0.001,
+        dose_unit: v.unit,
+        schedule_type: v.scheduleType,
+        days_of_week: v.daysOfWeek,
+        interval_days: v.intervalDays,
+        dose_times: [v.time],
+      })),
+      { onConflict: "protocol_compound_id,effective_from" }
+    )
+    if (error) {
+      if (isMissingTable(error)) return { ok: true, skipped: true }
+      console.error("pushScheduleVersions failed", error)
+      return { ok: false }
+    }
+    return { ok: true }
+  } catch (e) {
+    console.error("pushScheduleVersions failed", e)
+    return { ok: false }
+  }
+}
+
+/** Every schedule version the user owns, keyed by `protocol_compound_id`. Empty
+ *  when the table doesn't exist yet — the caller then keeps whatever the device
+ *  already holds, so a pending migration degrades to today's behaviour. */
+export async function pullScheduleVersions(): Promise<
+  Record<string, {
+    effectiveFrom: string
+    dose: number
+    unit: string
+    scheduleType: string
+    daysOfWeek: number[] | null
+    intervalDays: number | null
+    time: string | null
+  }[]>
+> {
+  try {
+    const cx = await ctx()
+    if (!cx) return {}
+    const { data, error } = await cx.supabase
+      .from("protocol_compound_schedules")
+      .select("protocol_compound_id, effective_from, dose_amount, dose_unit, schedule_type, days_of_week, interval_days, dose_times")
+      .eq("user_id", cx.userId)
+      .order("effective_from", { ascending: true })
+    if (error) {
+      if (!isMissingTable(error)) console.error("pullScheduleVersions failed", error)
+      return {}
+    }
+    const out: Record<string, ReturnType<typeof mapVersion>[]> = {}
+    for (const r of data ?? []) {
+      const key = r.protocol_compound_id as string
+      ;(out[key] ??= []).push(mapVersion(r))
+    }
+    return out
+  } catch (e) {
+    console.error("pullScheduleVersions failed", e)
+    return {}
+  }
+}
+
+function mapVersion(r: Record<string, unknown>) {
+  const times = r.dose_times as (string | null)[] | null
+  return {
+    effectiveFrom: r.effective_from as string,
+    dose: Number(r.dose_amount),
+    unit: String(r.dose_unit),
+    scheduleType: String(r.schedule_type),
+    daysOfWeek: (r.days_of_week as number[] | null) ?? null,
+    intervalDays: (r.interval_days as number | null) ?? null,
+    time: (times?.[0] ?? null) as string | null,
+  }
+}
+
 /* ------------------------------------------------------------------- pull */
 
 /**

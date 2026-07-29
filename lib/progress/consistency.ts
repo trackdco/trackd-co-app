@@ -14,7 +14,7 @@ import {
   resolveDateKey,
   type DateKey,
 } from "@/lib/home/mockHomeData";
-import { isDueOn, type StackCompound } from "@/lib/home/stack";
+import { isDueOnFor, type StackCompound } from "@/lib/home/stack";
 import type { DayLogs } from "@/lib/home/doseLog";
 
 export interface AdherencePoint {
@@ -53,7 +53,9 @@ export function computeAdherence(
   for (let i = days - 1; i >= 0; i--) {
     const key = resolveDateKey(today, i);
     const date = dateKeyToDate(key);
-    const dueIds = active.filter((c) => isDueOn(c.schedule, date)).map((c) => c.id);
+    // Judged by the rule in force on that day — consistency must not be
+    // recomputed against a schedule the user only adopted later.
+    const dueIds = active.filter((c) => isDueOnFor(c, date)).map((c) => c.id);
     const due = dueIds.length;
     if (due === 0) {
       points.push({ key, due: 0, logged: 0, pct: null });

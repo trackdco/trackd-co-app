@@ -11,7 +11,7 @@ import {
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { CategoryIcon } from "@/components/compounds/CategoryIcon";
 import { SHEET_TITLE } from "@/lib/ui-presets";
-import { formatTimeLabel } from "@/lib/home/stack";
+import { formatTimeLabel, type StackCompound } from "@/lib/home/stack";
 import { siteLabel } from "@/lib/home/siteCatalog";
 import { formatJournalDate, type EntryMarker } from "@/lib/progress/journal";
 import { formatWeight, type WeightUnit } from "@/lib/weight";
@@ -42,6 +42,11 @@ interface DayDetailSheetProps {
   onOpenJournal: () => void;
   /** Deep-link to the progress-photo gallery. */
   onOpenPhotos: () => void;
+  /** Compounds due on this day that aren't logged yet — the calendar's log path.
+   *  Empty means nothing outstanding, so the section doesn't render. */
+  dueToLog: StackCompound[];
+  /** Log one of them. The caller writes to THIS sheet's day, not to today. */
+  onLogDose: (compound: StackCompound) => void;
 }
 
 /**
@@ -62,6 +67,8 @@ export function DayDetailSheet({
   journalBody,
   hasJournalEntry,
   photos,
+  dueToLog,
+  onLogDose,
   onOpenWeight,
   onOpenJournal,
   onOpenPhotos,
@@ -120,6 +127,37 @@ export function DayDetailSheet({
                   </ul>
                 )}
               </Row>
+
+              {/* 1b — Due but not logged. The calendar used to be strictly
+                  read-only, so a day you'd missed could be reviewed but not
+                  filled in. Tapping one opens the same Log sheet the dashboard
+                  uses, writing to THIS day (Spec 01 → date context on logging).
+                  Muted like the rest of the sheet — no amber; the day being
+                  incomplete isn't an alarm. */}
+              {dueToLog.length > 0 && (
+                <Row label="Due">
+                  <ul className="space-y-2">
+                    {dueToLog.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => onLogDose(c)}
+                          className="flex w-full items-center gap-2.5 rounded-lg py-1 text-left transition-opacity active:scale-[0.99] hover:opacity-80"
+                        >
+                          <CategoryIcon category={c.category} className="h-3.5 w-3.5" />
+                          <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                            {c.name}
+                          </span>
+                          <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
+                            Log
+                          </span>
+                          <CaretRight className="h-3.5 w-3.5 shrink-0 text-text-subtle" aria-hidden />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </Row>
+              )}
 
               {/* 2 — Weight (deep-links to the canonical weight view). */}
               <Row label="Weight">

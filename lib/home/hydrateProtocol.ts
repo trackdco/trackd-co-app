@@ -14,6 +14,8 @@ import {
   loadStack,
   saveStack,
   notifyStackChanged,
+  scheduleVersionFromRow,
+  type ScheduleVersion,
   type StackCompound,
 } from "@/lib/home/stack"
 import {
@@ -27,6 +29,7 @@ import { pushStackCompound, pullStackAndLogs } from "@/lib/home/syncActions"
 import {
   archiveProtocolCompound,
   pullProtocolStackAndLogs,
+  pullScheduleVersions,
   pushProtocolCompound,
 } from "@/lib/home/protocolSync"
 import { awaitCriticalSyncs, trackSync } from "@/lib/home/syncStatus"
@@ -43,11 +46,12 @@ export async function hydrateFromPostgres(userId: string): Promise<void> {
   // merge's flush then re-pushes it, making the resurrection permanent. See
   // `awaitCriticalSyncs`.
   await awaitCriticalSyncs()
-  const [pg, cloud] = await Promise.all([
+  const [pg, cloud, versions] = await Promise.all([
     pullProtocolStackAndLogs(),
     pullStackAndLogs(),
+    pullScheduleVersions(),
   ])
-  mergeAndSave(userId, pg, cloud)
+  mergeAndSave(userId, pg, cloud, versions)
 }
 
 /** Fold raw Postgres dose rows into `DayLogs`, keyed by the DEVICE's local day +
@@ -92,7 +96,8 @@ function nameKey(name: string): string {
 function mergeAndSave(
   userId: string,
   pg: { stack: StackCompound[]; doseRows: DoseRow[] },
-  cloud: { stack: StackCompound[]; doseLogs: DayLogs }
+  cloud: { stack: StackCompound[]; doseLogs: DayLogs },
+  versionRows: Awaited<ReturnType<typeof pullScheduleVersions>> = {}
 ): void {
   const local = loadStack(userId) ?? []
   const localLogs = loadDoseLogs(userId)
@@ -132,11 +137,19 @@ function mergeAndSave(
         idRemap.set(byName.id, c.id)
       }
     }
+    // The pulled row carries NO schedule history — `protocol_compounds` holds one
+    // current rule, and versions live in their own table (pulled separately). Carry
+    // the device's trail across so it survives a hydration that returns no
+    // versions, which is every hydration until supabase/protocol/005 is applied.
+    // Without this the local history is replaced by a row that has none, and an
+    // alteration recorded before the migration is silently lost on next load.
+    const history = loc?.scheduleHistory
+    const merged = history?.length ? { ...c, scheduleHistory: history } : c
     if (loc && Boolean(loc.archived) !== Boolean(c.archived)) {
       void trackSync(archiveProtocolCompound(c.id, c.name, Boolean(loc.archived)))
-      return { ...c, archived: loc.archived }
+      return { ...merged, archived: loc.archived }
     }
-    return c
+    return merged
   })
 
   // Defence in depth against the duplicate-compound bug: the Postgres pull is
@@ -177,7 +190,28 @@ function mergeAndSave(
   }
   for (const c of local) pushExtra(c, false)
   for (const c of cloud.stack) pushExtra(c, true)
-  const mergedStack = [...reconciledPg, ...extras]
+  // Schedule versions (Spec 01). Postgres is canonical for a day it has a version
+  // for; a day only the device knows about is KEPT rather than dropped. Both
+  // halves matter: supabase/protocol/005 may not be applied yet (every pull then
+  // returns nothing, and clobbering would discard the user's alteration history),
+  // and an alteration made offline hasn't reached Postgres either. Versions are
+  // only ever added or replaced, never deleted, so a union can't resurrect
+  // anything the user removed.
+  const mergedStack = [...reconciledPg, ...extras].map((c) => {
+    const rows = versionRows[c.id] ?? []
+    const local = c.scheduleHistory ?? []
+    if (rows.length === 0 && local.length === 0) return c
+    const byDay = new Map<string, ScheduleVersion>()
+    for (const v of local) byDay.set(v.effectiveFrom, v)
+    for (const r of rows) {
+      const v = scheduleVersionFromRow(r)
+      byDay.set(v.effectiveFrom, v) // Postgres wins the day it knows about
+    }
+    const scheduleHistory = [...byDay.values()].sort((a, b) =>
+      a.effectiveFrom.localeCompare(b.effectiveFrom)
+    )
+    return { ...c, scheduleHistory }
+  })
   saveStack(userId, mergedStack)
   notifyStackChanged()
 

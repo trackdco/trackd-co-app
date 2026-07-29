@@ -36,7 +36,7 @@ import {
   formatTimeLabel,
   getStackSnapshot,
   hasTime,
-  isDueOn,
+  isDueOnFor,
   loadStack,
   majorityInjectionRoute,
   notifyStackChanged,
@@ -275,8 +275,10 @@ export function HomeScreen({
   const statusOf = (key: DateKey): DayStatus => {
     if (key > todayKey) return "future"
     const date = dateKeyToDate(key)
+    // Judged by the rule that was in force on THAT day, not the current one — an
+    // alteration applies forward only, so a past rest day stays a rest day.
     const dueIds = activeStack
-      .filter((c) => isDueOn(c.schedule, date))
+      .filter((c) => isDueOnFor(c, date))
       .map((c) => c.id)
     const dayLogs = logs[key] ?? {}
     if (dueIds.length === 0) {
@@ -290,7 +292,7 @@ export function HomeScreen({
 
   // Today's completion for the greeting line — always TODAY (not the selected
   // day): active compounds due today vs how many already have a log today.
-  const todayDue = activeStack.filter((c) => isDueOn(c.schedule, today))
+  const todayDue = activeStack.filter((c) => isDueOnFor(c, today))
   const todayLogs = logs[todayKey] ?? {}
   const dueToday = todayDue.length
   const loggedToday = todayDue.filter((c) => todayLogs[c.id]).length
@@ -304,7 +306,7 @@ export function HomeScreen({
   const dueCompounds = stack.filter((c) =>
     selectedRows[c.id]
       ? true
-      : !c.archived && isDueOn(c.schedule, selectedDate)
+      : !c.archived && isDueOnFor(c, selectedDate)
   )
   const dueDoses = dueCompounds.map((c) => ({
     ...c,

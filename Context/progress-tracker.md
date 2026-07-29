@@ -56,28 +56,45 @@ One line each; full detail in git + `Context/Feature Specs/`.
 
 ### Wave 2 (in progress — branch only, NOT merged, NOT deployed)
 
-- **Spec 01 · Dose & Schedule Integrity — steps 1–4, 6–8 built; step 5 blocked.**
+- **Spec 01 · Dose & Schedule Integrity — all 8 steps built; migration unapplied.**
   Ghost compound root-caused and fixed (Postgres id ⇄ client id divergence made
   archive/delete silently no-op, and a zero-row PostgREST write reports success —
   see `architecture.md` → Dose & Schedule Integrity); hydration now waits for
   in-flight deletes; the quick-actions FAB writes to the selected day instead of
-  today; the dose time no longer pre-fills from the clock (unset is a real state,
-  stored as `dose_times = ARRAY[NULL]`, no migration); Next Dose reads the real
+  today; the dose time no longer pre-fills from the clock and is now REQUIRED at
+  both entry points (Adrian's call — an unset time stays displayable as "Not set"
+  for legacy rows, stored as `dose_times = ARRAY[NULL]`); Next Dose reads the real
   stack instead of the empty `seedStack` fixture; logged doses keep their own unit
   and time so an alteration can't restate history. **Vitest added** (`npm test`,
-  26 tests, `lib/home/doseIntegrity.test.ts`) — the repo had no test framework at
-  all before this. Step 5 (schedule versioning) needs a migration + sign-off.
+  37 tests, `lib/home/doseIntegrity.test.ts`) — the repo had no test framework at
+  all before this.
+- **Spec 01 · step 5 — schedule versioning BUILT (uncommitted, migration pending).**
+  A schedule is now a series of effective-from versions rather than one mutable
+  row, so "what was due on 12 June" resolves against the rule in force *then*.
+  `resolveScheduleOn` / `isDueOnFor` (`lib/home/stack.ts`) replace every past-date
+  `isDueOn` call — week strip, calendar, consistency, Next Dose. Editing a compound
+  seeds a baseline version from the OUTGOING values, so days before the edit keep
+  the old rule and nothing is back-filled. `supabase/protocol/005_protocol_compound_schedules.sql`
+  is written but NOT applied; every sync call tolerates `42P01` and degrades to the
+  device store, so the branch runs correctly either way. Forward-looking UI
+  (`upcomingDoseDates`) still reads the current rule, which is correct.
+- **Calendar can log a past day.** `DayDetailSheet` lists compounds due-but-unlogged
+  on the selected day and opens the dashboard's `LogDoseSheet` against that date —
+  the last unbuilt half of step 4. The calendar also publishes its selected day via
+  `selectedDay.ts`, so the FAB writes there too.
 
 ## Open Questions
 
-- **Schedule versioning (Spec 01 · step 5) — migration plan awaiting Adrian.**
-  An alteration still mutates the single `protocol_compounds` schedule row, so past
-  due-sets re-derive from the new rule. A correct fix needs a
-  `protocol_compound_schedules` table (effective-from versions) + a per-date
-  resolver, touching the week strip, calendar, consistency, Plan and the reminder
-  engine. Deliberately not run — the spec says present the plan first.
-- **"Not set"** is the current wording for an unset dose time (worded once, in
-  `formatTimeLabel`). Spec 01 requires Adrian to confirm the placeholder.
+- **Schedule versioning (Spec 01 · step 5) — migration awaiting Adrian.**
+  The code is built and the SQL is written
+  (`supabase/protocol/005_protocol_compound_schedules.sql`): strictly additive, no
+  backfill, cascades from `protocol_compounds`, its own RLS + grants. Not run — the
+  spec says present the plan first. Until it is applied, versions live only in the
+  device store (sync calls swallow `42P01`), so a user who alters a schedule and
+  then switches device loses the trail, not the logs.
+- **"Not set"** is the current wording for a dose time on LEGACY records (worded
+  once, in `formatTimeLabel`). A time is now required at every entry point, so this
+  can no longer be produced fresh. Spec 01 requires Adrian to confirm the wording.
 - **Testing scope** — Vitest covers `lib/**` only (pure by house rule). The
   `seedStack` wiring bug that caused the Next Dose dash was a *wiring* error, which
   a logic-only suite cannot catch; component coverage is not set up.

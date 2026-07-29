@@ -18,6 +18,7 @@ import type { DoseLog } from "@/lib/home/mockHomeData"
 import {
   formatDateKeyShort,
   formatTimeLabel,
+  hasTime,
   isInjectable,
   sanitizeDoseInput,
   type StackCompound,
@@ -166,13 +167,14 @@ function LogDoseBody({
   const [amount, setAmount] = useState(existing?.amount ?? String(compound.dose))
   const [editingAmount, setEditingAmount] = useState(false)
 
-  // The time the dose was taken. It starts EMPTY and the user chooses it (Spec 01
-  // → Dose time). It used to live-track the clock on today and fall back to the
-  // compound's scheduled time when back-dating — both are guesses, and a guess
-  // stamped on a logged dose is indistinguishable from a fact the user entered.
-  // An unset time is a valid state: it records "this happened on this day" without
-  // inventing an hour. Editing an existing dose starts at its logged time.
+  // The time the dose was taken. It starts EMPTY and the user MUST choose one
+  // (Spec 01 → Dose time; Adrian's call that a time is required to log). It used
+  // to live-track the clock on today and fall back to the compound's scheduled
+  // time when back-dating — both are guesses, and a guess stamped on a logged dose
+  // is indistinguishable from a fact the user entered. Requiring it is what makes
+  // every recorded time real. Editing an existing dose starts at its logged time.
   const [manualTime, setManualTime] = useState<string>(existing?.time24 ?? "")
+  const timeMissing = !hasTime(manualTime)
 
   const [siteId, setSiteId] = useState<string | null>(existing?.siteId ?? null)
 
@@ -478,10 +480,10 @@ function LogDoseBody({
             it — nothing is pre-filled from the clock, so the line says what the
             state is rather than which guess was substituted. */}
         <p className="mt-1.5 px-1 text-xs text-text-subtle">
-          {manualTime === "" ? (
-            <>Time not set. Tap the time to add one.</>
+          {timeMissing ? (
+            <>Set the time this dose was taken.</>
           ) : (
-            <>Clear the time to leave it unset.</>
+            <>Tap the time to change it.</>
           )}
         </p>
 
@@ -730,13 +732,18 @@ function LogDoseBody({
           </SheetClose>
           <button
             type="button"
+            // A time is REQUIRED to log. Disabled rather than validated-on-tap so
+            // the requirement is visible before the reach, and the hint above the
+            // button already says what's missing.
+            disabled={timeMissing}
             onClick={() => {
+              if (timeMissing) return
               // Commit immediately, THEN show the success tick — so nothing about
               // dismissing the tick can undo the log.
               onTracked(compound.id, buildLog())
               setTracked(true)
             }}
-            className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
+            className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-40"
           >
             {editing ? "Update" : "Track"}
           </button>

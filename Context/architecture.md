@@ -444,11 +444,30 @@ and the *deletion path* didn't honour the split.
   returned null for every user forever and the card showed a dash while doses were
   due. The countdown no longer rolls a passed time to tomorrow (that hid overdue
   doses); it reads `0h 0m`.
-- **Still open:** true schedule **versioning** (an alteration applying from a chosen
-  day forward, resolved per-date) is NOT built — it needs a migration and is awaiting
-  sign-off. Today an edit still mutates the single schedule row in place, so past
-  *due-sets* (week-strip dots, calendar cells) re-derive from the new rule. Past
-  logged doses are safe; what's outstanding is what the app says **was due**.
+- **A schedule is VERSIONED, not overwritten.** An edit used to mutate the single
+  schedule row in place, so past *due-sets* (week-strip dots, calendar cells)
+  re-derived from the new rule — a Tuesday you correctly rested became "missed"
+  because of a decision made in August. A compound now carries
+  `scheduleHistory: ScheduleVersion[]`, each version effective from a day, and
+  `resolveScheduleOn(compound, dateKey)` answers what the rule ACTUALLY was then.
+  `isDueOnFor(compound, date)` is the past-date form of `isDueOn` and every
+  retrospective caller uses it (week strip, calendar cells, consistency, Next Dose).
+  Forward-looking callers (`upcomingDoseDates`) keep reading the current rule —
+  that is what "upcoming" means.
+  - **The first edit seeds a baseline** from the OUTGOING values, effective from the
+    compound's start date. Without it the days before the change have no recorded
+    rule and fall through to the new one, which is the exact rewrite being fixed.
+  - **No backfill, ever.** Raising a dose schedules no catch-up for earlier days.
+  - **Empty history ⇒ current values.** A compound never edited behaves exactly as
+    before versioning existed, so the feature costs nothing until it's used.
+  - **Storage:** `supabase/protocol/005_protocol_compound_schedules.sql` — one row
+    per (compound, effective_from), mirroring the `protocol_compounds` dose/schedule
+    columns 1:1 so no translation layer can drift. Strictly additive, no backfill,
+    cascades from `protocol_compounds`, own RLS + grants. **Not yet applied**: the
+    sync calls treat `42P01` as `skipped`, so versions live in the device store and
+    the app degrades to pre-versioning behaviour rather than reporting a failure.
+    Hydration UNIONS the pulled versions over the device's, Postgres winning any day
+    it knows about — a pull that returns nothing must never wipe the local trail.
 - **Tests:** `lib/home/doseIntegrity.test.ts` (Vitest, `npm test`) pins each
   reproduction. `vitest.config.ts` scopes the suite to `lib/**` — pure by house
   rule, so it needs no DOM, renderer or Supabase.
@@ -470,8 +489,12 @@ on Wednesday. **The day the dashboard is parked on is the day you write to** —
   in-memory store (`lib/home/selectedDay.ts`, the same `useSyncExternalStore` shape as
   the other stores) and `QuickTrackSheet` reads it via `getSelectedDayOrToday`. The
   screen clears it on unmount, so on every other tab the FAB resolves to today —
-  which is the correct DEFAULT, not a fallback that overrides a supplied day. The
-  **Calendar is still read-only** (no log path); wiring one up is deferred.
+  which is the correct DEFAULT, not a fallback that overrides a supplied day. **The
+  Calendar now logs too (Spec 01 · wave 2):** `DayDetailSheet` lists the compounds
+  due-but-unlogged on the open day and hands the compound to the dashboard's own
+  `LogDoseSheet` with `dateKey = selectedKey`, so nothing can fall back to "now".
+  `CalendarScreen` publishes its selected day to the same store, so the FAB writes
+  there as well.
 - **No limit, by design.** Nothing clamps how far back a dose or a start date may go.
   `dose_logs.taken_at` has a `now()` *default*, never a temporal CHECK, and RLS carries
   no date predicate — the DB has always accepted this (Invariant 5: don't

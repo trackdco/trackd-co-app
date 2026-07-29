@@ -18,6 +18,11 @@ import {
   formatTimeLabel,
   hasTime,
   isDueOn,
+  isDueOnFor,
+  recordScheduleVersion,
+  resolveScheduleOn,
+  scheduleVersionFromRow,
+  scheduleVersionToRow,
   upcomingDoseDates,
   type Schedule,
   type StackCompound,
@@ -181,8 +186,14 @@ describe("dose time is not pre-filled", () => {
     expect(hasTime(undefined)).toBe(false)
   })
 
-  it("words an unset time the same way everywhere", () => {
+  it("words a legacy unset time the same way everywhere", () => {
+    // A time is REQUIRED at every entry point now, so this only ever renders for
+    // records written before that — never for something a user just skipped.
     expect(formatTimeLabel("")).toBe("Not set")
+  })
+
+  it("rejects an empty time as not-set, which is what blocks the log", () => {
+    expect(hasTime("")).toBe(false)
   })
 
   it("still formats a real time normally", () => {
@@ -240,6 +251,115 @@ describe("altering a dose or schedule leaves logged doses alone", () => {
     const legacy = log({ amount: "250" })
     delete (legacy as { unit?: string }).unit
     expect(shownDose(compound({ unit: "mg" }), legacy).unit).toBe("mg")
+  })
+})
+
+/* ------------------------------------------------------ schedule versioning */
+
+describe("an alteration applies from the chosen day forward", () => {
+  // Daily from 1 Jul; on 20 Jul the user switches it to Mondays only.
+  const original = compound({
+    dose: 250,
+    unit: "mg",
+    schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-07-01" }),
+  })
+  const history = recordScheduleVersion(
+    original,
+    { cadence: { type: "daysOfWeek", days: [1] }, timeOfDay: "20:00", dose: 500, unit: "mg" },
+    "2026-07-20"
+  )
+  const altered: StackCompound = {
+    ...original,
+    dose: 500,
+    schedule: schedule({
+      cadence: { type: "daysOfWeek", days: [1] },
+      timeOfDay: "20:00",
+      startDate: "2026-07-01",
+    }),
+    scheduleHistory: history,
+  }
+
+  it("seeds a baseline so days before the change keep the OLD rule", () => {
+    expect(history[0].effectiveFrom).toBe("2026-07-01")
+    expect(history[0].cadence).toEqual({ type: "daily" })
+    expect(history[0].dose).toBe(250)
+  })
+
+  it("still says a pre-change Wednesday was due", () => {
+    // 15 Jul 2026 is a Wednesday. Under the OLD daily rule it was due; under the
+    // new Mondays-only rule it wouldn't be. Before versioning, the alteration
+    // rewrote that day and a correctly-rested Wednesday became "missed".
+    expect(isDueOnFor(altered, dateKeyToDate("2026-07-15"))).toBe(true)
+  })
+
+  it("applies the new rule from the change day onward", () => {
+    // 22 Jul 2026 is a Wednesday — not due under Mondays-only.
+    expect(isDueOnFor(altered, dateKeyToDate("2026-07-22"))).toBe(false)
+    // 20 Jul 2026 is the Monday the change took effect.
+    expect(isDueOnFor(altered, dateKeyToDate("2026-07-20"))).toBe(true)
+  })
+
+  it("resolves the dose that was in force on a past day", () => {
+    expect(resolveScheduleOn(altered, "2026-07-15").dose).toBe(250)
+    expect(resolveScheduleOn(altered, "2026-07-20").dose).toBe(500)
+  })
+
+  it("adds no catch-up dose for the days before the change", () => {
+    // Raising 250 → 500 must not retroactively make earlier days owe 500.
+    expect(resolveScheduleOn(altered, "2026-07-02").dose).toBe(250)
+    expect(altered.scheduleHistory).toHaveLength(2)
+  })
+
+  it("replaces same-day re-edits instead of stacking versions", () => {
+    const again = recordScheduleVersion(
+      altered,
+      { cadence: { type: "daily" }, timeOfDay: "08:00", dose: 300, unit: "mg" },
+      "2026-07-20"
+    )
+    expect(again).toHaveLength(2)
+    expect(again[1].dose).toBe(300)
+  })
+
+  it("behaves exactly as before for a compound never edited", () => {
+    // No history ⇒ current values, so versioning costs nothing until it's used.
+    const plain = compound()
+    expect(resolveScheduleOn(plain, "2020-01-01").dose).toBe(plain.dose)
+    expect(isDueOnFor(plain, dateKeyToDate("2026-07-15"))).toBe(
+      isDueOn(plain.schedule, dateKeyToDate("2026-07-15"))
+    )
+  })
+
+  it("answers a day older than every version with the OLDEST rule", () => {
+    // A history pulled from Postgres need not reach back to the compound's start
+    // (versions are written from the first edit onward). Falling through to the
+    // CURRENT rule there would be the retroactive rewrite this exists to stop, so
+    // the earliest recorded rule is the honest answer.
+    const late: StackCompound = {
+      ...original,
+      dose: 500,
+      scheduleHistory: [
+        { effectiveFrom: "2026-07-20", cadence: { type: "daily" }, timeOfDay: "20:00", dose: 400, unit: "mg" },
+      ],
+    }
+    expect(resolveScheduleOn(late, "2026-07-05").dose).toBe(400)
+  })
+
+  it("round-trips a version through the Postgres row shape", () => {
+    const v = history[1]
+    expect(scheduleVersionFromRow(scheduleVersionToRow(v))).toEqual(v)
+  })
+
+  it("round-trips every cadence shape", () => {
+    const cadences: Schedule["cadence"][] = [
+      { type: "daily" },
+      { type: "everyOtherDay" },
+      { type: "everyNDays", n: 5 },
+      { type: "daysOfWeek", days: [0, 3, 6] },
+    ]
+    for (const cadence of cadences) {
+      const v = { effectiveFrom: "2026-07-20", cadence, timeOfDay: "09:00", dose: 1, unit: "mg" }
+      expect(scheduleVersionFromRow(scheduleVersionToRow(v))).toEqual(v)
+    }
   })
 })
 

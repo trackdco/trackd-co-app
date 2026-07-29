@@ -28,11 +28,13 @@ import {
 } from "@/lib/compound-categories"
 import { AmberNotice, useAmberNotice } from "@/components/notifications/amber-notice"
 import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
+import { getSelectedDayOrToday } from "@/lib/home/selectedDay"
 import {
   formatDateKeyShort,
   formatTimeLabel,
   hasTime,
   loadStack,
+  recordScheduleVersion,
   methodLabel,
   sanitizeDoseInput,
   upcomingDoseDates,
@@ -106,6 +108,9 @@ function hhmm(d: Date): string {
 interface Source {
   /** null = creating a new entry; set = editing this id. */
   id: string | null
+  /** The record being edited, verbatim — needed to seed the schedule-version
+   *  trail from the OUTGOING values. Null when creating. */
+  prior: StackCompound | null
   /** Reactivating an archived compound: resume from today + relabel "Reactivate". */
   reactivate: boolean
   name: string
@@ -128,6 +133,7 @@ function toSource(
   if (editCompound) {
     return {
       id: editCompound.id,
+      prior: editCompound,
       // An archived compound being edited IS a reactivation (resume from today).
       reactivate: editCompound.archived === true,
       name: editCompound.name,
@@ -145,6 +151,7 @@ function toSource(
   if (compound) {
     return {
       id: null,
+      prior: null,
       reactivate: false,
       name: compound.name,
       category: compound.category,
@@ -359,6 +366,16 @@ function AddCompoundBody({
   const timeOfDay = manualTime
 
   const todayKey = toDateKey(now)
+  // The day an alteration takes effect FROM. The spec's rule is "from the selected
+  // day onward", and the only screen with a day selection (the dashboard week
+  // strip, and now the calendar) publishes it — everywhere else there is no day
+  // context, so today is the right answer. Clamped to the compound's own start:
+  // a version can't take effect before the compound existed.
+  const selectedDayKey = getSelectedDayOrToday(todayKey)
+  const alterFrom =
+    source.schedule && selectedDayKey < source.schedule.startDate
+      ? source.schedule.startDate
+      : selectedDayKey
   // Past years are offered because a compound can start in the past (you add it to
   // the app after you've already been running it). PAST_START_YEARS is a dropdown
   // bound, not a rule — nothing rejects an older date, it's just how far back the
@@ -484,8 +501,13 @@ function AddCompoundBody({
       show("Enter a dose greater than 0.")
       return
     }
-    // Whatever the user set, or unset. Nothing is substituted at save — the field
-    // showed empty, so empty is what gets stored.
+    // A dose time is REQUIRED (Adrian's call). Nothing is substituted at save —
+    // the clock never fills this in, so a stored time is always one the user
+    // actually chose.
+    if (!hasTime(manualTime)) {
+      show("Set the time this compound is dosed.")
+      return
+    }
     const effectiveTime = manualTime
     // A start date in the past is allowed, deliberately. You often only add a
     // compound to the app AFTER you've started running it, and the doses you
@@ -509,6 +531,26 @@ function AddCompoundBody({
         return
       }
     }
+    // ALTERING an existing compound versions the schedule instead of overwriting
+    // it: the new dose/cadence/time apply from `alterFrom` FORWARD, and every day
+    // before that keeps the rule that was actually in force then (Spec 01 →
+    // Altering a dose or schedule). Without this, changing a cadence rewrote what
+    // had been due on every past day — turning correct rest days into "missed".
+    // A fresh add and a reactivation start clean: there is no earlier rule to keep.
+    const history =
+      isEdit && source.prior
+        ? recordScheduleVersion(
+            source.prior,
+            {
+              cadence: previewSchedule.cadence,
+              timeOfDay: effectiveTime,
+              dose: doseValue,
+              unit,
+            },
+            alterFrom
+          )
+        : undefined
+
     const saved: StackCompound = {
       id: source.id ?? newId(),
       name: source.name,
@@ -522,6 +564,7 @@ function AddCompoundBody({
       // cleared on save. These fields remain vestigial on the model/sync.
       rotationSites: [],
       rotationIndex: 0,
+      ...(history ? { scheduleHistory: history } : {}),
     }
     if (!upsertStack(userId, saved)) {
       show("Couldn't save to this device. Storage may be full or off.")

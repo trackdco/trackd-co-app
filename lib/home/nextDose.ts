@@ -13,7 +13,12 @@
  * Pure helpers only; no React, no side effects (code-standards.md).
  */
 import type { DateKey } from "@/lib/home/mockHomeData"
-import { hasTime, isDueOn, type StackCompound } from "@/lib/home/stack"
+import {
+  hasTime,
+  isDueOnFor,
+  resolveScheduleOn,
+  type StackCompound,
+} from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
 
 export interface NextDose {
@@ -61,16 +66,15 @@ export function computeNextDose(
   date: Date
 ): NextDose | null {
   const dayLogs = logs[dateKey] ?? {}
-  const due = stack.filter(
-    (c) => !c.archived && !dayLogs[c.id] && isDueOn(c.schedule, date)
-  )
+  const due = stack
+    .filter((c) => !c.archived && !dayLogs[c.id] && isDueOnFor(c, date))
+    // The time to show is the one scheduled for THAT day, which an alteration made
+    // later must not restate (Spec 01 → alterations apply forward only).
+    .map((c) => ({ name: c.name, time24: resolveScheduleOn(c, dateKey).schedule.timeOfDay }))
   if (due.length === 0) return null
-  const sorted = [...due].sort((a, b) => {
-    const at = a.schedule.timeOfDay
-    const bt = b.schedule.timeOfDay
-    if (hasTime(at) !== hasTime(bt)) return hasTime(at) ? -1 : 1
-    return at.localeCompare(bt)
+  const sorted = due.sort((a, b) => {
+    if (hasTime(a.time24) !== hasTime(b.time24)) return hasTime(a.time24) ? -1 : 1
+    return a.time24.localeCompare(b.time24)
   })
-  const next = sorted[0]
-  return { name: next.name, time24: next.schedule.timeOfDay }
+  return sorted[0]
 }
