@@ -166,6 +166,48 @@ function unitFamilyOk(base: string, dose: string): boolean {
 /* --------------------------------------------------------------- compounds */
 
 /**
+ * Map client `StackCompound.id`s to their `protocol_compounds.id`s, in one read.
+ *
+ * The two are usually identical (`newId()` yields a uuid and `resolvePcId`
+ * returns it unchanged), but not always — `pushProtocolCompound` REUSES an
+ * existing row's id for a (cycle, compound) that already has one. Stack
+ * membership is a foreign key, so a derived-but-wrong id would violate it or
+ * point at nothing; this verifies each id actually exists before it is used.
+ *
+ * Ids with no row are OMITTED rather than guessed at — the caller keeps the
+ * membership device-side and it syncs once the compound reaches Postgres.
+ */
+export async function resolveProtocolCompoundIds(
+  clientIds: string[]
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {}
+  try {
+    const cx = await ctx()
+    if (!cx || clientIds.length === 0) return out
+    const derived = new Map(clientIds.map((id) => [resolvePcId(cx.userId, id), id]))
+    const { data, error } = await cx.supabase
+      .from("protocol_compounds")
+      .select("id")
+      .eq("user_id", cx.userId)
+      .in("id", [...derived.keys()])
+    if (error) {
+      console.error("resolveProtocolCompoundIds failed", error)
+      return out
+    }
+    for (const row of data ?? []) {
+      const pcId = row.id as string
+      const clientId = derived.get(pcId)
+      if (clientId) out[clientId] = pcId
+    }
+    return out
+  } catch (e) {
+    console.error("resolveProtocolCompoundIds failed", e)
+    return out
+  }
+}
+
+
+/**
  * Upsert a stack compound into `protocol_compounds` under the active cycle.
  * Resolves the catalogue uuid by name; a name NOT in the catalogue is a custom
  * "Make your own" compound and is stored as a custom row (compound_id NULL +

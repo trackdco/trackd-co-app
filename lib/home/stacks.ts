@@ -20,6 +20,8 @@
  * Pure data + pure helpers + guarded storage only; no React (`code-standards.md`).
  */
 import { DEFAULT_PALETTE_COLOUR, isPaletteColour, type PaletteColour } from "@/lib/palette"
+import { pushStacks } from "@/lib/home/stackSync"
+import { trackSync } from "@/lib/home/syncStatus"
 
 /** Stack names reuse the compound picker's existing limit — not a new one. */
 export const STACK_NAME_MAX = 80
@@ -158,6 +160,88 @@ export function removeMemberEverywhere(
 /** Delete the stack itself. Ungroups its members; nothing else changes. */
 export function removeStack(stacks: Stack[], stackId: string): Stack[] {
   return stacks.filter((s) => s.id !== stackId)
+}
+
+/* ----------------------------------------- useSyncExternalStore integration */
+
+export const STACKS_CHANGED_EVENT = "trackd:stacks-changed"
+
+export function notifyStacksChanged() {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent(STACKS_CHANGED_EVENT))
+}
+
+/** Same-tab (our event) + cross-tab (native `storage`), mirroring `subscribeStack`. */
+export function subscribeStacks(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {}
+  window.addEventListener(STACKS_CHANGED_EVENT, callback)
+  window.addEventListener("storage", callback)
+  return () => {
+    window.removeEventListener(STACKS_CHANGED_EVENT, callback)
+    window.removeEventListener("storage", callback)
+  }
+}
+
+export const EMPTY_STACKS: Stack[] = []
+
+// `useSyncExternalStore` needs a STABLE reference between reads when nothing
+// changed, or it loops. Cache by the raw stored string, same as the stack store.
+let snapshotCache: { userId: string; raw: string | null; value: Stack[] } | null = null
+
+export function getStacksSnapshot(userId: string): Stack[] {
+  if (typeof window === "undefined") return EMPTY_STACKS
+  let raw: string | null = null
+  try {
+    raw = window.localStorage.getItem(storageKey(userId))
+  } catch {
+    raw = null
+  }
+  if (snapshotCache && snapshotCache.userId === userId && snapshotCache.raw === raw) {
+    return snapshotCache.value
+  }
+  const loaded = loadStacks(userId)
+  const value = loaded.length > 0 ? loaded : EMPTY_STACKS
+  snapshotCache = { userId, raw, value }
+  return value
+}
+
+/* ------------------------------------------------- persisting mutations */
+
+/**
+ * Write a stack list, notify subscribers, and mirror to Postgres best-effort.
+ * The synchronous local write is the read path — a network blip can never block
+ * or undo it (`architecture.md` → Storage Model).
+ */
+function commit(userId: string, next: Stack[]): boolean {
+  const ok = saveStacks(userId, next)
+  if (ok) {
+    notifyStacksChanged()
+    void trackSync(pushStacks(next))
+  }
+  return ok
+}
+
+/** Create or update a stack (name, colour, members). Enforces one-stack-per-
+ *  compound through {@link setStackMembers}. */
+export function upsertStack(userId: string, stack: Stack): boolean {
+  const cur = loadStacks(userId)
+  const exists = cur.some((s) => s.id === stack.id)
+  const base = exists
+    ? cur.map((s) => (s.id === stack.id ? stack : s))
+    : [...cur, stack]
+  return commit(userId, setStackMembers(base, stack.id, stack.memberIds))
+}
+
+/** Delete a stack. Ungroups its members; every compound keeps running. */
+export function deleteStack(userId: string, stackId: string): boolean {
+  return commit(userId, removeStack(loadStacks(userId), stackId))
+}
+
+/** Drop a compound from whichever stack holds it — called when it is deleted. */
+export function dropMember(userId: string, compoundId: string): boolean {
+  const cur = loadStacks(userId)
+  if (!stackOf(cur, compoundId)) return true // nothing to do
+  return commit(userId, removeMemberEverywhere(cur, compoundId))
 }
 
 /* ---------------------------------------------------------------- internals */

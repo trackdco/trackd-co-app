@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { PlanView } from "@/components/protocol/PlanView"
 import { CyclesView } from "@/components/protocol/CyclesView"
+import { StacksView } from "@/components/protocol/StacksView"
 import { StockView } from "@/components/protocol/StockView"
 import { getActiveCycle } from "@/lib/db/cycles"
 import type { StockItem } from "@/lib/db/inventory"
@@ -33,7 +34,7 @@ export function ProtocolScreen({
   /** Which tab to open on. Plan by default; `?tab=stock` lands on Stock, so the
    *  Home draw slot's "add stock" tap (Spec 21) arrives at the add-flow rather than
    *  at Plan. The tab stays local state after mount — this only seeds it. */
-  initialTab?: "plan" | "stock"
+  initialTab?: "plan" | "cycles" | "stacks" | "stock"
 }) {
   useCloudHydration(userId)
   const [cycle, setCycle] = useState<Cycle | null>(initialCycle)
@@ -67,9 +68,10 @@ export function ProtocolScreen({
 
       <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="plan">Plan</TabsTrigger>
             <TabsTrigger value="cycles">Cycles</TabsTrigger>
+            <TabsTrigger value="stacks">Stacks</TabsTrigger>
             <TabsTrigger value="stock">Stock</TabsTrigger>
           </TabsList>
 
@@ -81,6 +83,12 @@ export function ProtocolScreen({
               merged view; until then Cycles is its own tab beside Plan and Stock. */}
           <TabsContent value="cycles" className="mt-5">
             <CyclesView userId={userId} />
+          </TabsContent>
+
+          {/* Spec 05 · part two. Creation and editing only — logging a stack
+              happens on the dashboard, never here. */}
+          <TabsContent value="stacks" className="mt-5">
+            <StacksView userId={userId} />
           </TabsContent>
 
           <TabsContent value="stock" className="mt-5">
