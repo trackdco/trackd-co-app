@@ -780,7 +780,7 @@ function LogDoseBody({
               onTracked(compound.id, buildLog())
               setTracked(true)
             }}
-            className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-40"
+            className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
           >
             {editing ? "Update" : "Track"}
           </button>

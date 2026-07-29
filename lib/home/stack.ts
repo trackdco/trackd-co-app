@@ -15,6 +15,7 @@
  */
 import type { CompoundCategory } from "@/lib/compound-categories"
 import { isCustomName } from "@/lib/compound-lookup"
+import { coerceDoseUnit } from "@/lib/db/doseUnits"
 import { pushStackCompound } from "@/lib/home/syncActions"
 import {
   archiveProtocolCompound,
@@ -40,23 +41,23 @@ export type Cadence =
 export interface Schedule {
   cadence: Cadence
   /**
-   * Dose time, 24h "HH:mm". REQUIRED on every new compound and every new log —
-   * the forms don't pre-fill it from the clock (Spec 01 → Dose time) and don't
-   * let you past them without one, so it is always a time the user actually
-   * chose rather than one the app guessed.
+   * Dose time, 24h "HH:mm". **Pre-filled and optional** (Adrian, 2026-07-29):
+   * the add form opens on the clock and the log form on the clock (today) or the
+   * compound's scheduled time (back-dated), and neither blocks a save without one.
+   * Spec 01 briefly made it start empty and be mandatory; that was reverted.
    *
-   * May still be `""` on LEGACY records written before it was required, and on a
-   * Postgres row whose `dose_times` holds NULL. Display those through
-   * {@link formatTimeLabel} (which words it once, as "Not set") and test with
-   * {@link hasTime}; never substitute a default at the call site.
+   * May be `""` — on records written while it was optional, on anything the user
+   * cleared, and on a Postgres row whose `dose_times` holds NULL. Display those
+   * through {@link formatTimeLabel} (which words it once, as "Not set") and test
+   * with {@link hasTime}; never substitute a default at the call site.
    */
   timeOfDay: string
   /** Cycle start, "YYYY-MM-DD". Anchors EOD / every-N-days and gates due dates. */
   startDate: string
 }
 
-/** Whether a schedule / log time has actually been set. A required field at every
- *  entry point, so a false here means legacy data, not a fresh omission. */
+/** Whether a schedule / log time has actually been set. The field is optional, so
+ *  a false here is a legitimate "no time chosen", not corrupt data. */
 export function hasTime(time24: string | null | undefined): boolean {
   return typeof time24 === "string" && /^\d{1,2}:\d{2}$/.test(time24)
 }
@@ -184,7 +185,10 @@ export function scheduleVersionToRow(v: ScheduleVersion) {
   return {
     effectiveFrom: v.effectiveFrom,
     dose: v.dose,
-    unit: v.unit === "mcg" || v.unit === "iu" ? v.unit : "mg",
+    // The SAME coercion `protocol_compounds` rows get, so a version row can't
+    // disagree with the compound it belongs to. A hand-rolled mcg/iu-or-mg check
+    // here silently rewrote every tablet, capsule, mL and gram dose as mg.
+    unit: coerceDoseUnit(v.unit),
     scheduleType:
       cad.type === "daysOfWeek"
         ? "specific_days"

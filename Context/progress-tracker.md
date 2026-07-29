@@ -61,13 +61,14 @@ One line each; full detail in git + `Context/Feature Specs/`.
   archive/delete silently no-op, and a zero-row PostgREST write reports success —
   see `architecture.md` → Dose & Schedule Integrity); hydration now waits for
   in-flight deletes; the quick-actions FAB writes to the selected day instead of
-  today; the dose time no longer pre-fills from the clock and is now REQUIRED at
-  both entry points (Adrian's call — an unset time stays displayable as "Not set"
-  for legacy rows, stored as `dose_times = ARRAY[NULL]`); Next Dose reads the real
-  stack instead of the empty `seedStack` fixture; logged doses keep their own unit
-  and time so an alteration can't restate history. **Vitest added** (`npm test`,
-  37 tests, `lib/home/doseIntegrity.test.ts`) — the repo had no test framework at
-  all before this.
+  today; ~~the dose time no longer pre-fills and is REQUIRED at both entry
+  points~~ — **SUPERSEDED 2026-07-29, see the pre-fill entry below; the current
+  contract is: pre-filled, optional**; an unset time is still displayable as "Not
+  set" and stored as `dose_times = ARRAY[NULL]`. Next Dose reads the real stack
+  instead of the empty `seedStack` fixture; logged doses keep their own unit and
+  time so an alteration can't restate history. **Vitest added** (`npm test`,
+  `lib/home/doseIntegrity.test.ts`) — the repo had no test framework at all
+  before this.
 - **Spec 01 · step 5 — schedule versioning BUILT (uncommitted, migration pending).**
   A schedule is now a series of effective-from versions rather than one mutable
   row, so "what was due on 12 June" resolves against the rule in force *then*.

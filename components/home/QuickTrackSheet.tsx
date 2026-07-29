@@ -340,9 +340,13 @@ function QuickRow({
         <span className="block truncate text-sm font-medium text-foreground">
           {compound.name}
         </span>
+        {/* A LOGGED dose renders the unit it was recorded in, not the compound's
+            current one (Spec 01): switching a compound mg→mcg must not restate a
+            past dose as a thousandth of what was taken. `log.unit` is absent only
+            on records written before it was stamped, which fall back. */}
         <span className="mt-0.5 block truncate font-mono text-xs tabular-nums text-text-muted">
           {log
-            ? `${log.amount}${compound.unit}`
+            ? `${log.amount}${log.unit ?? compound.unit}`
             : `${fmtDose(compound.dose)}${compound.unit}`}{" "}
           · {formatTimeLabel(log?.time24 ?? compound.schedule.timeOfDay)}
         </span>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { CalendarDots, PencilSimple, Plus, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
@@ -260,9 +260,15 @@ export function AddCompoundSheet({
 }: AddCompoundSheetProps) {
   // The deleted record a re-add writes back to. Read from the device stack here so
   // the picker only has to pass an id (it has no reason to hold the whole record).
-  const reAdded = reuseId
-    ? ((loadStack(userId) ?? []).find((c) => c.id === reuseId) ?? null)
-    : null
+  // Memoised: this is a synchronous localStorage read + JSON.parse, and the parent
+  // re-renders on a timer.
+  const reAdded = useMemo(
+    () =>
+      reuseId
+        ? ((loadStack(userId) ?? []).find((c) => c.id === reuseId) ?? null)
+        : null,
+    [reuseId, userId]
+  )
   // Retain the source through the close animation so the body doesn't blank.
   const [shown, setShown] = useState<Source | null>(() =>
     toSource(compound, editCompound, reAdded)
@@ -370,9 +376,10 @@ function AddCompoundBody({
   const [stExactLeft, setStExactLeft] = useState("")
 
   const [now] = useState(() => new Date())
-  // A re-add carries NOTHING over (`source.schedule` is already null for it), so it
-  // opens on the same blank defaults as a first-time add — daily, starting today,
-  // no time, no dose.
+  // A re-add carries NOTHING over from the deleted record (`source.schedule` is
+  // already null for it), so it opens on the same defaults as a first-time add —
+  // daily, starting today, empty dose, and the clock-tracking time every new
+  // compound gets.
   const [initial] = useState(() => initSchedule(source.schedule, now))
 
   const [dose, setDose] = useState(source.dose)

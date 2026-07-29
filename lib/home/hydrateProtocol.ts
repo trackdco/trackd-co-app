@@ -32,7 +32,7 @@ import {
   pullScheduleVersions,
   pushProtocolCompound,
 } from "@/lib/home/protocolSync"
-import { awaitCriticalSyncs, trackSync } from "@/lib/home/syncStatus"
+import { awaitCriticalSyncs, trackCriticalSync } from "@/lib/home/syncStatus"
 import { injectionSiteToLocal } from "@/lib/db/types"
 import type { DoseRow, InjectionSite } from "@/lib/db/types"
 import { isCatalogueName } from "@/lib/compound-lookup"
@@ -146,7 +146,15 @@ function mergeAndSave(
     const history = loc?.scheduleHistory
     const merged = history?.length ? { ...c, scheduleHistory: history } : c
     if (loc && Boolean(loc.archived) !== Boolean(c.archived)) {
-      void trackSync(archiveProtocolCompound(c.id, c.name, Boolean(loc.archived)))
+      // CRITICAL, not plain: this push converges Postgres onto the local delete
+      // intent, so the NEXT hydration must wait for it (`awaitCriticalSyncs` at the
+      // top). Tracked as ordinary it isn't in `inFlightCritical`, so a hydration
+      // fired moments later on focus/reconnect reads the pre-push state and writes
+      // the compound back active — the exact resurrection this file's own gating
+      // exists to prevent. `archiveInStack` wraps the identical call the same way.
+      void trackCriticalSync(
+        archiveProtocolCompound(c.id, c.name, Boolean(loc.archived))
+      )
       return { ...merged, archived: loc.archived }
     }
     return merged

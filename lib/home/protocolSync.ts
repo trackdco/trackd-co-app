@@ -36,6 +36,7 @@ import {
 } from "@/lib/db/protocolCompounds"
 import { deleteDoseLog, upsertDoseLog, upsertDoseLogs } from "@/lib/db/doseLogs"
 import {
+  coerceDoseUnit,
   localSiteToInjectionSite,
   protocolCompoundToStack,
   stackCompoundToProtocolInsert,
@@ -755,7 +756,10 @@ export async function pushProtocolDoseLog(
       dose_amount: parseAmount(log.amount, Number(pc.dose_amount)),
       // The unit the dose was RECORDED in wins over the compound's current one, so
       // re-saving an old dose can't relabel it with a unit it was never taken in.
-      dose_unit: (log.unit ?? pc.dose_unit) as DoseUnit,
+      // Coerced rather than cast: `DoseLog.unit` is a free string from the device
+      // store, so an old or hand-edited record could otherwise send Postgres a
+      // value its `dose_unit` enum has no cast for and fail the whole write.
+      dose_unit: coerceDoseUnit(log.unit ?? pc.dose_unit),
       injection_site: method === "im" || method === "subq"
         ? localSiteToInjectionSite(log.siteId)
         : null,

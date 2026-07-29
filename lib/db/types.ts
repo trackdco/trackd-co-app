@@ -21,10 +21,13 @@ import type { CompoundCategory } from "@/lib/compound-categories"
 /** `schedule_type` enum. */
 export type ScheduleType = "every_day" | "specific_days" | "every_n_days"
 
-/** `dose_unit` enum. (`g` was appended to the live enum during catalogue
- *  seeding — the live DB is the source of truth for shape, so it's mirrored here
- *  even though the base `trackd_schema_v0_4_2.sql` predates it.) */
-export type DoseUnit = "mg" | "mcg" | "iu" | "ml" | "tab" | "capsule" | "g"
+/** `dose_unit` enum + its normaliser. (`g` was appended to the live enum during
+ *  catalogue seeding — the live DB is the source of truth for shape, so it's
+ *  mirrored even though the base `trackd_schema_v0_4_2.sql` predates it.)
+ *  Declared in `doseUnits.ts` and re-exported here so `lib/home/stack.ts` can use
+ *  the SAME coercion without closing an import cycle back through this file. */
+export { coerceDoseUnit, DOSE_UNITS, type DoseUnit } from "@/lib/db/doseUnits"
+import { coerceDoseUnit, type DoseUnit } from "@/lib/db/doseUnits"
 
 /** `admin_route` enum. */
 export type AdminRoute = "po" | "subq" | "im" | "nasal" | "topical"
@@ -479,11 +482,3 @@ export interface InjectionSiteRow {
   sort_order: number
 }
 
-const DOSE_UNITS: readonly DoseUnit[] = ["mg", "mcg", "iu", "ml", "tab", "capsule", "g"]
-
-/** Coerce the live store's free-string `unit` to a valid `dose_unit` (fallback
- *  `mg`). The Add flow already locks the unit to the compound's catalogue value,
- *  so this is a defensive normaliser for the migration. */
-export function coerceDoseUnit(unit: string): DoseUnit {
-  return (DOSE_UNITS as readonly string[]).includes(unit) ? (unit as DoseUnit) : "mg"
-}
