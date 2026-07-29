@@ -140,3 +140,18 @@ describe("deletion leaves compounds alone", () => {
     expect(stackOf(after, "a")).toBeNull()
   })
 })
+
+describe("a stack is dissolved only when it empties", () => {
+  it("keeps a stack that still has one member", () => {
+    const after = removeMemberEverywhere([stack({ memberIds: ["a", "b"] })], "a")
+      .filter((s) => s.memberIds.length > 0)
+    expect(after).toHaveLength(1)
+    expect(after[0].memberIds).toEqual(["b"])
+  })
+
+  it("drops a stack whose last member is gone, rather than leaving an empty card", () => {
+    const after = removeMemberEverywhere([stack({ memberIds: ["a"] })], "a")
+      .filter((s) => s.memberIds.length > 0)
+    expect(after).toHaveLength(0)
+  })
+})

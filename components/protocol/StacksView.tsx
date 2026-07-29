@@ -6,6 +6,7 @@ import { Plus } from "@/components/icons"
 import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
 import { Container } from "@/components/containers"
 import { StackEditSheet } from "@/components/protocol/StackEditSheet"
+import { StackDetailSheet } from "@/components/protocol/StackDetailSheet"
 import { paletteColourVar } from "@/lib/palette"
 import {
   deleteStack,
@@ -46,6 +47,8 @@ export function StacksView({ userId }: { userId: string }) {
     () => EMPTY_STACKS
   )
 
+  // Tapping a stack VIEWS it; editing is a deliberate second step from there.
+  const [viewing, setViewing] = useState<Stack | null>(null)
   const [editing, setEditing] = useState<Stack | null>(null)
   const [creating, setCreating] = useState(false)
 
@@ -89,7 +92,7 @@ export function StacksView({ userId }: { userId: string }) {
                 members={s.memberIds
                   .map((id) => byId.get(id))
                   .filter((c): c is StackCompound => Boolean(c))}
-                onEdit={() => setEditing(s)}
+                onOpen={() => setViewing(s)}
               />
             ))}
           </div>
@@ -103,6 +106,24 @@ export function StacksView({ userId }: { userId: string }) {
         </>
       )}
 
+      <StackDetailSheet
+        open={viewing !== null}
+        onOpenChange={(o) => !o && setViewing(null)}
+        stack={viewing}
+        members={
+          viewing
+            ? viewing.memberIds
+                .map((id) => byId.get(id))
+                .filter((c): c is StackCompound => Boolean(c))
+            : []
+        }
+        inventoryTypeOf={inventoryTypeOf}
+        onEdit={() => {
+          setEditing(viewing)
+          setViewing(null)
+        }}
+      />
+
       <StackEditSheet
         open={open}
         onOpenChange={(o) => {
@@ -115,7 +136,13 @@ export function StacksView({ userId }: { userId: string }) {
         compounds={active}
         unavailableIds={unavailable}
         onSave={(s) => {
-          upsertStack(userId, s)
+          // Names let the mirror resolve a member whose Postgres row id has
+          // diverged from its client id; without them it would be dropped.
+          upsertStack(
+            userId,
+            s,
+            Object.fromEntries(active.map((c) => [c.id, c.name]))
+          )
           setCreating(false)
           setEditing(null)
         }}
@@ -136,11 +163,11 @@ export function StacksView({ userId }: { userId: string }) {
 function StackCard({
   stack,
   members,
-  onEdit,
+  onOpen,
 }: {
   stack: Stack
   members: StackCompound[]
-  onEdit: () => void
+  onOpen: () => void
 }) {
   const colour = paletteColourVar(stack.colour)
   // The "shared time" the stack is taken at — the members' common scheduled
@@ -151,7 +178,7 @@ function StackCard({
   return (
     <button
       type="button"
-      onClick={onEdit}
+      onClick={onOpen}
       className="w-full rounded-2xl bg-bg-surface p-5 text-left transition active:scale-[0.98]"
     >
       <div className="flex items-center justify-between gap-3">
@@ -190,11 +217,13 @@ function StackCard({
         ))}
       </ul>
 
-      <p className="mt-3 text-xs text-text-muted">
-        {sharedTime !== null
-          ? formatTimeLabel(sharedTime)
-          : "Members have different times"}
-      </p>
+      {/* The shared time, when there is genuinely one. Where members disagree the
+          line is simply omitted — a stack does not own a time (that would make it
+          a container, which the spec forbids), and naming one member's time for
+          the group would be inventing a fact. */}
+      {sharedTime !== null && (
+        <p className="mt-3 text-xs text-text-muted">{formatTimeLabel(sharedTime)}</p>
+      )}
     </button>
   )
 }

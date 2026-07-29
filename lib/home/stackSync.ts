@@ -39,21 +39,40 @@ function isMissingTable(error: { code?: string } | null): boolean {
  * the list is tiny, and a replace is idempotent, so a re-run after an offline
  * gap converges instead of accumulating.
  */
-export async function pushStacks(stacks: Stack[]): Promise<Ok> {
+export async function pushStacks(
+  stacks: Stack[],
+  /** Client compound id → its NAME. Needed because a client id can diverge from
+   *  its `protocol_compounds` row id, and NAME is the only key that still
+   *  resolves it (see `resolveProtocolCompoundIds`). Absent names fall back to
+   *  id-only resolution, which is correct in the common case. */
+  names: Record<string, string> = {}
+): Promise<Ok> {
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
 
     // Resolve every client compound id to its protocol_compounds row up front.
     const clientIds = [...new Set(stacks.flatMap((s) => s.memberIds))]
-    const idMap = await resolveProtocolCompoundIds(clientIds)
+    const idMap = await resolveProtocolCompoundIds(
+      clientIds.map((id) => ({ id, name: names[id] ?? null }))
+    )
 
-    const { error: delErr } = await cx.supabase
-      .from("stacks")
-      .delete()
-      .eq("user_id", cx.userId)
-      .not("id", "in", `(${stacks.map((s) => `"${s.id}"`).join(",") || '""'})`)
-    if (delErr && isMissingTable(delErr)) return { ok: true, skipped: true }
+    // Drop stacks the device no longer has. With an EMPTY list this must be a
+    // plain delete-all, not `NOT IN ('')` — Postgres cannot cast '' to uuid, so
+    // the filtered form errors (22P02) and deleting your last stack would fail
+    // server-side while reporting success.
+    const keep = stacks.map((s) => s.id)
+    const del = cx.supabase.from("stacks").delete().eq("user_id", cx.userId)
+    const { error: delErr } = await (keep.length > 0
+      ? del.not("id", "in", `(${keep.join(",")})`)
+      : del)
+    if (delErr) {
+      if (isMissingTable(delErr)) return { ok: true, skipped: true }
+      // Any other failure is real: the mirror is now wrong, so say so rather
+      // than carrying on and reporting success.
+      console.error("pushStacks failed", delErr)
+      return { ok: false }
+    }
 
     if (stacks.length === 0) return { ok: true }
 
@@ -93,7 +112,11 @@ export async function pushStacks(stacks: Stack[]): Promise<Ok> {
         })
         .filter((r): r is NonNullable<typeof r> => r !== null)
     )
-    if (rows.length === 0) return { ok: true }
+    // If members were dropped because their Postgres row could not be resolved,
+    // the mirror is INCOMPLETE — report that rather than a clean success, so the
+    // sync indicator reflects reality and the next mutation retries.
+    const expected = stacks.reduce((n, s) => n + s.memberIds.length, 0)
+    if (rows.length === 0) return { ok: expected === 0 }
 
     const { error: memErr } = await cx.supabase.from("stack_members").insert(rows)
     if (memErr) {
@@ -101,7 +124,7 @@ export async function pushStacks(stacks: Stack[]): Promise<Ok> {
       console.error("pushStacks failed", memErr)
       return { ok: false }
     }
-    return { ok: true }
+    return { ok: rows.length === expected }
   } catch (e) {
     console.error("pushStacks failed", e)
     return { ok: false }

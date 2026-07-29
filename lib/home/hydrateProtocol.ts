@@ -36,6 +36,13 @@ import { awaitCriticalSyncs, trackCriticalSync } from "@/lib/home/syncStatus"
 import { injectionSiteToLocal } from "@/lib/db/types"
 import type { DoseRow, InjectionSite } from "@/lib/db/types"
 import { isCatalogueName } from "@/lib/compound-lookup"
+import { pullStacks } from "@/lib/home/stackSync"
+import {
+  loadStacks,
+  notifyStacksChanged,
+  saveStacks,
+  type Stack,
+} from "@/lib/home/stacks"
 
 /** Pull Postgres (canonical) + the jsonb mirror, merge with local, and write the
  *  merged set back into the device-local caches. */
@@ -46,12 +53,14 @@ export async function hydrateFromPostgres(userId: string): Promise<void> {
   // merge's flush then re-pushes it, making the resurrection permanent. See
   // `awaitCriticalSyncs`.
   await awaitCriticalSyncs()
-  const [pg, cloud, versions] = await Promise.all([
+  const [pg, cloud, versions, stacks] = await Promise.all([
     pullProtocolStackAndLogs(),
     pullStackAndLogs(),
     pullScheduleVersions(),
+    pullStacks(),
   ])
   mergeAndSave(userId, pg, cloud, versions)
+  hydrateStacks(userId, pg.stack, stacks)
 }
 
 /** Fold raw Postgres dose rows into `DayLogs`, keyed by the DEVICE's local day +
@@ -287,4 +296,50 @@ function mergeAndSave(
   }
   saveDoseLogs(userId, merged)
   notifyDoseLogsChanged()
+}
+
+
+/**
+ * Fold the pulled stacks into the device store — the half that was missing, and
+ * why a stack did not survive a reinstall: `pushStacks` wrote them and nothing
+ * ever read them back.
+ *
+ * **A stack the device already has always wins on membership.** Postgres stores
+ * membership as `protocol_compounds.id`, which can differ from the client's
+ * `StackCompound.id`, so a pulled membership list is only usable once every id
+ * maps back to a local compound. Where it does, the pulled stack is adopted;
+ * where it doesn't, the local one is kept rather than replaced by a stack whose
+ * members would render as nothing.
+ *
+ * An empty pull is treated as NO NEWS, never as "the user deleted everything" —
+ * the same rule the rest of hydration follows, so an offline or failed read can
+ * never wipe a stack.
+ */
+function hydrateStacks(
+  userId: string,
+  pgStack: { id: string }[],
+  pulled: Stack[]
+): void {
+  if (pulled.length === 0) return
+  const local = loadStacks(userId)
+  const localById = new Map(local.map((s) => [s.id, s]))
+  const knownCompound = new Set(pgStack.map((c) => c.id))
+
+  const merged: Stack[] = []
+  for (const p of pulled) {
+    const resolvable = p.memberIds.filter((id) => knownCompound.has(id))
+    const loc = localById.get(p.id)
+    // Adopt the pulled stack only when its membership actually resolves; a stack
+    // whose members can't be mapped locally would render empty, which is worse
+    // than keeping what the device has.
+    merged.push(
+      resolvable.length > 0 || !loc ? { ...p, memberIds: resolvable } : loc
+    )
+    localById.delete(p.id)
+  }
+  // Stacks the device has that Postgres hasn't seen yet (an offline create).
+  for (const leftover of localById.values()) merged.push(leftover)
+
+  saveStacks(userId, merged)
+  notifyStacksChanged()
 }

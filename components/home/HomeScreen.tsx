@@ -15,6 +15,7 @@ import {
   EMPTY_STACKS,
   getStacksSnapshot,
   subscribeStacks,
+  type Stack,
 } from "@/lib/home/stacks"
 import { DayStatusWidgets } from "@/components/home/DayStatusWidgets"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
@@ -96,6 +97,12 @@ function dayLabel(key: DateKey): string {
  * midnight, never UTC's. The stack is read from storage AFTER mount (SSR is
  * deterministic), and only the countdown reads the live clock.
  */
+/** Local 24h "HH:mm" right now — the time a dose is actually being logged at. */
+function hhmmNow(): string {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
 export function HomeScreen({
   todayKey: serverTodayKey,
   userId,
@@ -106,6 +113,9 @@ export function HomeScreen({
   injectionCatalogue,
   bodySex,
   notificationsBanner,
+  previewStack,
+  previewStacks,
+  previewLogs,
 }: {
   todayKey: DateKey
   /** Scopes the device-local stack in localStorage. */
@@ -126,6 +136,12 @@ export function HomeScreen({
   /** Slim "Enable notifications" prompt, rendered above Today's Log. Self-hides
    *  (renders null) when there's nothing to do, so it never leaves a gap. */
   notificationsBanner?: ReactNode
+  /** Dev-preview-only: inject the device-local compounds / stacks / dose log, so
+   *  `/preview/home` can render a populated dashboard without signing in. The
+   *  real screen reads all three from the device store. */
+  previewStack?: StackCompound[]
+  previewStacks?: Stack[]
+  previewLogs?: DayLogs
 }) {
   const router = useRouter()
 
@@ -157,18 +173,20 @@ export function HomeScreen({
   // survives reloads and a sibling (the add flow) can update it. `useSyncExternal-
   // Store` reads it: the seed stack on the server + during hydration (deterministic),
   // the stored stack on the client, re-reading whenever it changes.
-  const stack = useSyncExternalStore(
+  const liveStack = useSyncExternalStore(
     subscribeStack,
     () => getStackSnapshot(userId, seedStack),
     () => seedStack
   )
+  const stack = previewStack ?? liveStack
   const activeStack = stack.filter((c) => !c.archived)
   // The user's stacks (Spec 05) — a display grouping over the same compounds.
-  const stacks = useSyncExternalStore(
+  const liveStacks = useSyncExternalStore(
     subscribeStacks,
     () => getStacksSnapshot(userId),
     () => EMPTY_STACKS
   )
+  const stacks = previewStacks ?? liveStacks
 
   // Open the injection-site views on whichever route the protocol actually uses
   // most (by compound count) — a mostly-Sub-Q stack shouldn't land on an empty IM
@@ -177,11 +195,12 @@ export function HomeScreen({
 
   // Logged doses, persisted device-local so history survives reloads — same store
   // pattern as the stack. Shape: { dateKey: { compoundId: DoseLog } }.
-  const logs = useSyncExternalStore(
+  const liveLogs = useSyncExternalStore(
     subscribeDoseLogs,
     () => getDoseLogsSnapshot(userId),
     () => EMPTY_LOGS
   )
+  const logs = previewLogs ?? liveLogs
 
   // Restore the stack + dose logs from the user's Supabase account on load (and
   // migrate any local-only data up), so the protocol survives a PWA reinstall —
@@ -554,11 +573,22 @@ export function HomeScreen({
               // dose log through the same path a single tick uses, to the
               // SELECTED day — a stack is a grouping, never a shared entry.
               onLogStack={(members) => {
+                // The time a stack is logged is the time it was TAKEN, not the
+                // time it was scheduled for. Using `schedule.timeOfDay` stamped
+                // an 08:00 stack as 08:00 even when tapped at 22:00 — and where
+                // a member has no set time at all it fell through to noon. On the
+                // selected day's "today" that means the clock; back-dating has no
+                // clock to read, so it falls back to the scheduled time, which is
+                // the same rule the single-dose log sheet uses.
+                const time24 = selectedKey === todayKey ? hhmmNow() : ""
                 for (const m of members) {
                   logDose(userId, selectedKey, m.id, {
                     amount: String(m.dose),
                     unit: m.unit,
-                    time24: m.schedule.timeOfDay,
+                    time24: time24 || m.schedule.timeOfDay,
+                    // No site: a stack tick has no body map, and inventing one
+                    // would corrupt the rotation view. Members needing a site are
+                    // ticked individually, where the map is offered.
                     siteId: null,
                   })
                 }

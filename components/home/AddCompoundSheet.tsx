@@ -72,8 +72,10 @@ interface AddCompoundSheetProps {
   /** Scopes the device-local stack in localStorage. */
   userId: string
   onOpenChange: (open: boolean) => void
-  /** Called after the compound is saved (created or edited). */
-  onAdded: () => void
+  /** Called after the compound is saved (created or edited), with the saved
+   *  record — so a caller that opened this flow for a reason (adding straight
+   *  into a stack) knows which compound to act on. */
+  onAdded: (saved: StackCompound) => void
 }
 
 type CadenceType = Cadence["type"]
@@ -321,7 +323,7 @@ function AddCompoundBody({
   source: Source
   userId: string
   onCancel: () => void
-  onAdded: () => void
+  onAdded: (saved: StackCompound) => void
 }) {
   // Re-adding a deleted compound: an in-place upsert (keeps the id, drops the
   // deleted flag → active) presented as a first-time add — empty dose, default
@@ -654,7 +656,7 @@ function AddCompoundBody({
     // exists in Postgres first (idempotent) so the inventory FK resolves, then add
     // it. Best-effort + backgrounded so the user isn't kept waiting.
     const stock = canStock && addStockOn ? buildStockInsert() : null
-    onAdded()
+    onAdded(saved)
     if (stock) {
       // Use the RESOLVED protocol_compound id (it can differ from saved.id for a
       // non-uuid client id) so the inventory FK always resolves.

@@ -178,13 +178,15 @@ function unitFamilyOk(base: string, dose: string): boolean {
  * membership device-side and it syncs once the compound reaches Postgres.
  */
 export async function resolveProtocolCompoundIds(
-  clientIds: string[]
+  members: { id: string; name: string | null }[]
 ): Promise<Record<string, string>> {
   const out: Record<string, string> = {}
   try {
     const cx = await ctx()
-    if (!cx || clientIds.length === 0) return out
-    const derived = new Map(clientIds.map((id) => [resolvePcId(cx.userId, id), id]))
+    if (!cx || members.length === 0) return out
+
+    // 1. The derived id, where such a row exists — the common case.
+    const derived = new Map(members.map((m) => [resolvePcId(cx.userId, m.id), m.id]))
     const { data, error } = await cx.supabase
       .from("protocol_compounds")
       .select("id")
@@ -195,9 +197,20 @@ export async function resolveProtocolCompoundIds(
       return out
     }
     for (const row of data ?? []) {
-      const pcId = row.id as string
-      const clientId = derived.get(pcId)
-      if (clientId) out[clientId] = pcId
+      const clientId = derived.get(row.id as string)
+      if (clientId) out[clientId] = row.id as string
+    }
+
+    // 2. Anything still unresolved goes through the SAME name lookup that archive
+    //    and delete use. This is the whole reason this function exists: the ids
+    //    legitimately diverge (`pushProtocolCompound` REUSES an existing row's id
+    //    for a (cycle, compound) that already has one), and checking only the
+    //    derived id silently drops exactly those members — the stack would then
+    //    save with fewer members than the user picked, reporting success.
+    for (const m of members) {
+      if (out[m.id] || !m.name) continue
+      const found = await findProtocolCompoundId(cx, m.id, m.name)
+      if (found) out[m.id] = found
     }
     return out
   } catch (e) {

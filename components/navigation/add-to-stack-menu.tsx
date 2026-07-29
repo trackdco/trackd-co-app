@@ -33,7 +33,7 @@ import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { newId } from "@/lib/home/id"
-import { isRunning, loadStack } from "@/lib/home/stack"
+import { isRunning, loadStack, type StackCompound } from "@/lib/home/stack"
 import { loadStacks, type Stack } from "@/lib/home/stacks"
 import { paletteColourVar } from "@/lib/palette"
 import { toDateKey } from "@/lib/home/mockHomeData"
@@ -53,6 +53,9 @@ interface AddToStackMenuProps {
   onOpenChange: (open: boolean) => void
   /** Scopes the user's "Make your own" compounds in local storage. */
   userId: string
+  /** Called with the compound that was just added. The stack editor uses it to
+   *  tick the new compound straight into the stack being built. */
+  onAdded?: (saved: StackCompound) => void
 }
 
 // A user-created compound, stored locally on the device for that user only.
@@ -187,7 +190,12 @@ function isCustom(c: Compound): c is CustomCompound {
  * edited or deleted (delete asks first). The grab handle is drag-to-dismiss.
  * The per-row "+" is visual for now — adding to a real stack needs the cycle feature.
  */
-export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuProps) {
+export function AddToStackMenu({
+  open,
+  onOpenChange,
+  userId,
+  onAdded: onAddedProp,
+}: AddToStackMenuProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startY: number; height: number } | null>(null)
   const offsetRef = useRef(0)
@@ -629,9 +637,10 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
       onOpenChange={(o) => {
         if (!o) setPendingCompound(null)
       }}
-      onAdded={() => {
+      onAdded={(saved) => {
         setPendingCompound(null)
         onOpenChange(false)
+        onAddedProp?.(saved)
       }}
     />
     </>

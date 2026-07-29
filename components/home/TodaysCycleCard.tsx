@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, DotsThree } from "@/components/icons"
+import { CaretDown, Check, DotsThree } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
@@ -429,9 +429,13 @@ function StackDoseRow({
   const partial = logged > 0 && !complete
 
   function toggleAll() {
+    // A complete stack does NOT untick wholesale. Each member's log carries its
+    // own edited amount, real time and injection site, and one mis-tap would
+    // delete all of it with nothing to undo. Spec 05 asks for logging in one
+    // tap; un-logging in one tap is the direction that destroys data, so it is
+    // deliberately not offered — expand the row and untick a member instead.
     if (complete) {
-      // A complete stack unticks wholesale, mirroring the single-dose toggle.
-      for (const m of members) if (m.log) onUnlog(m)
+      setOpen(true)
       return
     }
     const unlogged = members.filter((m) => m.log == null)
@@ -466,7 +470,9 @@ function StackDoseRow({
           type="button"
           onClick={toggleAll}
           aria-label={
-            complete ? `Untick ${stack.name}` : `Log all of ${stack.name}`
+            complete
+              ? `${stack.name} is fully logged — open it to change a dose`
+              : `Log all of ${stack.name}`
           }
           className={cn(
             "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
@@ -488,10 +494,12 @@ function StackDoseRow({
           )}
         </button>
 
+        {/* The whole row expands, with a caret spelling out that it does. */}
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
+          aria-label={`${open ? "Hide" : "Show"} the compounds in ${stack.name}`}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
           <span className="flex items-end gap-1">
@@ -515,25 +523,40 @@ function StackDoseRow({
               {logged} of {total} logged
             </span>
           </span>
+          <CaretDown
+            aria-hidden
+            className={cn(
+              "h-4 w-4 shrink-0 text-text-subtle transition-transform duration-300 ease-out motion-reduce:transition-none",
+              open && "rotate-180"
+            )}
+          />
         </button>
       </div>
 
-      {open && (
-        <ul className="px-1 pl-4">
-          {members.map((dose) => (
-            <DoseRow
-              key={dose.id}
-              dose={dose}
-              onLog={onLog}
-              onUnlog={onUnlog}
-              onOpenDetail={onOpenDetail}
-              drawSource={drawSources[dose.id]}
-              showAddStock={noVialIds.has(dose.id)}
-              onAddStock={onAddStock}
-            />
-          ))}
-        </ul>
-      )}
+      {/* Kept MOUNTED so it can animate both ways — the grid-rows 0fr↔1fr
+          transition is what slides the members open and shut. Same idiom as the
+          week strip, rather than a second expand mechanic. */}
+      <div
+        className="grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+        style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
+      >
+        <div className="overflow-hidden">
+          <ul className="px-1 pl-4">
+            {members.map((dose) => (
+              <DoseRow
+                key={dose.id}
+                dose={dose}
+                onLog={onLog}
+                onUnlog={onUnlog}
+                onOpenDetail={onOpenDetail}
+                drawSource={drawSources[dose.id]}
+                showAddStock={noVialIds.has(dose.id)}
+                onAddStock={onAddStock}
+              />
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   )
 }

@@ -27,7 +27,9 @@ export default async function ProtocolPage({
     <ProtocolScreen
       userId={user?.id ?? "anon"}
       initialCycle={cycle}
-      initialTab={tab === "stock" ? "stock" : "plan"}
+      initialTab={
+        tab === "stock" || tab === "cycles" || tab === "stacks" ? tab : "plan"
+      }
     />
   );
 }

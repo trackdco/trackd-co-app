@@ -7,6 +7,7 @@ import { CARD_EYEBROW } from "@/lib/ui-presets"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { CycleCard } from "@/components/protocol/CycleCard"
 import { CycleRuleSheet } from "@/components/protocol/CycleRuleSheet"
+import { CycleDetailSheet } from "@/components/protocol/CycleDetailSheet"
 import {
   getStackSnapshot,
   setCompoundCycle,
@@ -41,6 +42,8 @@ export function CyclesView({ userId }: { userId: string }) {
     () => getStackSnapshot(userId, EMPTY_STACK),
     () => EMPTY_STACK
   )
+  // Tapping a cycle VIEWS it; editing is a deliberate second step from there.
+  const [viewing, setViewing] = useState<StackCompound | null>(null)
   const [editing, setEditing] = useState<StackCompound | null>(null)
   const today = todayKey()
 
@@ -90,7 +93,7 @@ export function CyclesView({ userId }: { userId: string }) {
                 cycle={c.cycle!}
                 todayKey={today}
                 inventoryType={inventoryTypeOf(c)}
-                onEdit={() => setEditing(c)}
+                onEdit={() => setViewing(c)}
               />
             ))}
           </div>
@@ -118,6 +121,19 @@ export function CyclesView({ userId }: { userId: string }) {
           </div>
         </section>
       )}
+
+      <CycleDetailSheet
+        open={viewing !== null}
+        onOpenChange={(o) => !o && setViewing(null)}
+        compound={viewing}
+        cycle={viewing?.cycle ?? null}
+        todayKey={today}
+        inventoryType={viewing ? inventoryTypeOf(viewing) : null}
+        onEdit={() => {
+          setEditing(viewing)
+          setViewing(null)
+        }}
+      />
 
       <CycleRuleSheet
         open={editing !== null}

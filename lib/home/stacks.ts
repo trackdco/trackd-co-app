@@ -212,24 +212,33 @@ export function getStacksSnapshot(userId: string): Stack[] {
  * The synchronous local write is the read path — a network blip can never block
  * or undo it (`architecture.md` → Storage Model).
  */
-function commit(userId: string, next: Stack[]): boolean {
+function commit(
+  userId: string,
+  next: Stack[],
+  names?: Record<string, string>
+): boolean {
   const ok = saveStacks(userId, next)
   if (ok) {
     notifyStacksChanged()
-    void trackSync(pushStacks(next))
+    void trackSync(pushStacks(next, names))
   }
   return ok
 }
 
 /** Create or update a stack (name, colour, members). Enforces one-stack-per-
  *  compound through {@link setStackMembers}. */
-export function upsertStack(userId: string, stack: Stack): boolean {
+export function upsertStack(
+  userId: string,
+  stack: Stack,
+  /** Member id → compound name, so the mirror can resolve a diverged id. */
+  names?: Record<string, string>
+): boolean {
   const cur = loadStacks(userId)
   const exists = cur.some((s) => s.id === stack.id)
   const base = exists
     ? cur.map((s) => (s.id === stack.id ? stack : s))
     : [...cur, stack]
-  return commit(userId, setStackMembers(base, stack.id, stack.memberIds))
+  return commit(userId, setStackMembers(base, stack.id, stack.memberIds), names)
 }
 
 /** Delete a stack. Ungroups its members; every compound keeps running. */
@@ -241,7 +250,13 @@ export function deleteStack(userId: string, stackId: string): boolean {
 export function dropMember(userId: string, compoundId: string): boolean {
   const cur = loadStacks(userId)
   if (!stackOf(cur, compoundId)) return true // nothing to do
-  return commit(userId, removeMemberEverywhere(cur, compoundId))
+  // A stack whose LAST member is deleted is dissolved rather than left as an
+  // empty card the user can only escape by deleting it. A stack reduced to ONE
+  // member is left alone — the spec says that stays a stack.
+  const next = removeMemberEverywhere(cur, compoundId).filter(
+    (s) => s.memberIds.length > 0
+  )
+  return commit(userId, next)
 }
 
 /* ---------------------------------------------------------------- internals */
