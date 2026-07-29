@@ -44,11 +44,16 @@ readme's dependency order (build order, not numeric order):
   key below the grid, the cycle in the day sheet. Only repeating on/off cycles
   render; indefinite ones stop at a twelve-month horizon.
 
-**⚠️ `supabase/protocol/006_compound_cycles.sql` is NOT applied.** Until it is,
-cycles persist device-side only and the runs-dry projection is wrong for cycled
-compounds (`est_doses_per_week` didn't know about off periods — the view now
-scales by the on-fraction). Writes degrade rather than fail: both compound and
-version writes catch `42703` and retry without the cycle columns.
+- **05 · Stacks** — a display grouping over compounds that stay fully
+  independent (see `architecture.md` → Stacks). Protocol → Stacks creates and
+  edits; the dashboard renders one expandable row that logs every unlogged member
+  in a tap. The dashboard uses a PARTITION so a member can never appear both in
+  its stack row and its category section.
+
+**All three migrations APPLIED (2026-07-29):** `supabase/protocol/006`
+(compound cycles + the runs-dry fix), `007` (stacks), and `008` (stack_members
+ownership hardening — 007 shipped an RLS hole where the one-stack index was
+global across users; 008 makes ownership structural via composite FKs).
 
 The containers review page (`app/preview/containers/`) was reviewed and then
 **deleted**, per spec 01's checklist.
@@ -60,6 +65,12 @@ shipped as a control that does nothing. Wiring it means threading a Postgres rea
 into `isDueOnFor`, which is pure and synchronous and called by the week strip,
 calendar, consistency and Next Dose — its own pass. Spec 06 asks for five
 conditions; four are live.
+
+**Three review rounds were run by independent agents** (not the author), and each
+found real defects the author had missed — including a live security hole, stacks
+being write-only to Postgres, custom compounds being silently dropped from stacks
+on every hydration, and one-tap logging stamping the scheduled time rather than
+the actual one. All fixed. Worth continuing the practice.
 
 **Two bugs found and fixed in already-merged code**, both the same class — a
 field silently dropped in a round-trip, causing a deliberate break to read back

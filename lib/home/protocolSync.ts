@@ -185,32 +185,58 @@ export async function resolveProtocolCompoundIds(
     const cx = await ctx()
     if (!cx || members.length === 0) return out
 
-    // 1. The derived id, where such a row exists — the common case.
-    const derived = new Map(members.map((m) => [resolvePcId(cx.userId, m.id), m.id]))
+    // ONE read of the user's rows, then all matching in memory. The obvious
+    // shape — call `findProtocolCompoundId` per unresolved member — costs two
+    // round-trips each, and its first (by-derived-id) lookup provably cannot hit
+    // here because we already know that id has no row.
     const { data, error } = await cx.supabase
       .from("protocol_compounds")
-      .select("id")
+      .select("id, custom_name, is_active, updated_at, created_at, compounds(name)")
       .eq("user_id", cx.userId)
-      .in("id", [...derived.keys()])
     if (error) {
       console.error("resolveProtocolCompoundIds failed", error)
       return out
     }
-    for (const row of data ?? []) {
-      const clientId = derived.get(row.id as string)
-      if (clientId) out[clientId] = row.id as string
+
+    type Row = {
+      id: string
+      custom_name: string | null
+      is_active: boolean
+      updated_at: string | null
+      created_at: string | null
+      compounds?: { name: string } | null
+    }
+    const rows = (data ?? []) as unknown as Row[]
+    const byId = new Set(rows.map((r) => r.id))
+
+    // Best row per NAME: active first, then most recently touched — the same
+    // ranking `findProtocolCompoundId` uses, so a leftover row from an older
+    // cycle can never shadow the live one.
+    const rank = (r: Row) =>
+      (r.is_active === false ? 0 : 1) * 1e15 +
+      (Date.parse((r.updated_at ?? r.created_at ?? "") as string) || 0)
+    const byName = new Map<string, Row>()
+    for (const r of rows) {
+      const name = (r.compounds?.name ?? r.custom_name ?? "").trim().toLowerCase()
+      if (!name) continue
+      const best = byName.get(name)
+      if (!best || rank(r) > rank(best)) byName.set(name, r)
     }
 
-    // 2. Anything still unresolved goes through the SAME name lookup that archive
-    //    and delete use. This is the whole reason this function exists: the ids
-    //    legitimately diverge (`pushProtocolCompound` REUSES an existing row's id
-    //    for a (cycle, compound) that already has one), and checking only the
-    //    derived id silently drops exactly those members — the stack would then
-    //    save with fewer members than the user picked, reporting success.
     for (const m of members) {
-      if (out[m.id] || !m.name) continue
-      const found = await findProtocolCompoundId(cx, m.id, m.name)
-      if (found) out[m.id] = found
+      // 1. The derived id, where such a row exists — the common case.
+      const derived = resolvePcId(cx.userId, m.id)
+      if (byId.has(derived)) {
+        out[m.id] = derived
+        continue
+      }
+      // 2. Otherwise by NAME. This is the whole reason this function exists: the
+      //    ids legitimately diverge (`pushProtocolCompound` REUSES an existing
+      //    row's id for a (cycle, compound) that already has one), and checking
+      //    only the derived id silently drops exactly those members — the stack
+      //    would save with fewer members than the user picked, reporting success.
+      const hit = m.name ? byName.get(m.name.trim().toLowerCase()) : undefined
+      if (hit) out[m.id] = hit.id
     }
     return out
   } catch (e) {
@@ -218,7 +244,6 @@ export async function resolveProtocolCompoundIds(
     return out
   }
 }
-
 
 /**
  * Upsert a stack compound into `protocol_compounds` under the active cycle.

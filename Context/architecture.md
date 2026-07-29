@@ -232,11 +232,12 @@ stored.)
   user data and derived values still come from Postgres/views. Swap to a live
   Supabase read if the catalogue ever needs to update without a redeploy.
 - **Browser `localStorage` (device cache) + Supabase mirror (durable source)** —
-  The three home stores — the protocol **stack** (`trackd.stack.v2.<auth.uid()>`,
+  The four home stores — the protocol **stack** (`trackd.stack.v2.<auth.uid()>`,
   `lib/home/stack.ts`), the **dose log** (`trackd.doselog.v1.<auth.uid()>`,
   `lib/home/doseLog.ts`), and the user-created "Make your own" **custom compounds**
-  (`trackd.customCompounds.<auth.uid()>`, `components/navigation/add-to-stack-menu.tsx`)
-  — keep `localStorage` as the synchronous, offline-capable read path the UI uses,
+  (`trackd.customCompounds.<auth.uid()>`, `components/navigation/add-to-stack-menu.tsx`),
+  and **stacks** (`trackd.stacks.v1.<auth.uid()>`, `lib/home/stacks.ts` — see
+  **Stacks** below) — keep `localStorage` as the synchronous, offline-capable read path the UI uses,
   but are now **mirrored to Supabase** so they survive a PWA delete/reinstall (which
   wipes the installed app's `localStorage`). The cloud tables live in
   `supabase/home/001_device_state_sync.sql` (`user_stack_compounds`,
@@ -401,6 +402,57 @@ stored.)
   removed as the menu was reworked). It carries **no calculator action**: the
   reconstitution calculator holds the centre bottom-nav slot and `/calculator` is its
   entry point (Spec 20 → D4/D6), so a tile would only duplicate it.
+
+## Stacks (Spec 05, wave 2 part two — 2026-07-29)
+
+**A stack is a DISPLAY GROUPING, never a container.** Every member keeps its own
+schedule, dose, `dose_logs` and history; removing a compound from a stack changes
+nothing about that compound. That is structural rather than a convention: a
+`Stack` is `{ id, name, colour, memberIds }` and has nowhere to put a dose, a
+schedule, a time or a log, and **`protocol_compounds` gains no column**. A
+`stack_id` there would enforce one-stack-per-compound just as well and query
+faster, but it would put a stack-owned field on the member — the one thing the
+spec forbids.
+
+A stack means compounds **injected at the same time**, not compounds combined
+into one substance. Blends (several peptides genuinely sharing a vial) already
+exist as single catalogue compounds and are untouched.
+
+- **Storage** — `supabase/protocol/007_stacks.sql`: `stacks` (name + one of the
+  twelve palette NAMES) and `stack_members` (the pairing + an order), bringing the
+  live DB to **25 tables**. Mirrored into `trackd.stacks.v1.<auth.uid()>` as the
+  synchronous offline read path, the same shape as the rest of the protocol data.
+  `lib/home/stackSync.ts` pushes/pulls; `hydrateProtocol.ts` `hydrateStacks` folds
+  the pull in.
+- **One compound, one stack** is enforced three ways: `setStackMembers` strips an
+  incoming id from every other stack in the same pass, `dedupeMembership` runs on
+  both read and write, and a UNIQUE index backs it in Postgres.
+- **Ownership is structural** (`supabase/protocol/008_stack_members_ownership.sql`).
+  007 shipped a hole: `stack_members` RLS checked only `user_id`, and the
+  one-stack index was GLOBAL across users — so a user could claim another user's
+  `protocol_compound_id`, taking their slot and breaking that user's membership
+  sync permanently with no repair path. 008 replaces the single-column FKs with
+  **composite** ones carrying the owner (`(stack_id, user_id) → stacks(id,
+  user_id)` and the same for `protocol_compounds`) and scopes the unique index to
+  `(user_id, protocol_compound_id)`. A policy can be reasoned around; a foreign
+  key cannot.
+- **The dashboard renders a PARTITION**, not two filters — `partitionByStack`
+  claims member ids into a `Set` and returns the remainder, so a member can
+  neither appear in both its stack row and its category section nor vanish from
+  both. A stack shows only the members due THAT day, so mixed cadences work
+  without special-casing: four members on Monday, three on Tuesday.
+- **Logging is dashboard-only** (never Protocol). One tap logs every UNLOGGED
+  member, each writing its own `dose_logs` row to the SELECTED day with the
+  wall-clock time. There is deliberately **no bulk untick** — each log carries its
+  own edited amount, time and site, and one mis-tap would destroy all of it.
+  `siteId` is null on a bulk tick: a stack tick has no body map, and inventing a
+  site would corrupt the injection-site recency view.
+- **Membership syncs as `protocol_compounds.id`**, which can diverge from the
+  client `StackCompound.id`, so `resolveProtocolCompoundIds` resolves by derived
+  id then by NAME (one read, matched in memory). Hydration judges membership
+  against the **merged local stack**, not the Postgres pull — the pull skips rows
+  with a NULL `compound_id`, which is every CUSTOM compound, so judging against it
+  silently dropped customs from stacks.
 
 ## Dose & Schedule Integrity (Spec 01, wave 2 — 2026-07-23)
 
