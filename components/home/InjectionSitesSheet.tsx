@@ -312,7 +312,7 @@ export function InjectionSitesSheet({
                 </ul>
               ) : (
                 <p className="text-sm text-text-muted">
-                  Nothing logged yet — pick any site when you log a dose.
+                  Nothing logged yet. Pick any site when you log a dose.
                 </p>
               )}
             </div>
@@ -325,7 +325,7 @@ export function InjectionSitesSheet({
 
             {showMirrorTip && (
               <p className="px-1 text-center text-[0.65rem] leading-relaxed text-text-subtle">
-                The front view is mirrored (like a selfie) — your left is on the
+                The front view is mirrored, like a selfie: your left is on the
                 left.
               </p>
             )}

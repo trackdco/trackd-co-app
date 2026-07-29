@@ -50,7 +50,7 @@ export function FeedbackList({ items }: { items: AdminFeedback[] }) {
   return (
     <div className="space-y-4">
       {open.length === 0 ? (
-        <p className="text-sm text-text-muted">All caught up — nothing open.</p>
+        <p className="text-sm text-text-muted">Nothing open.</p>
       ) : (
         <div className="space-y-2">
           {open.map((f) => (

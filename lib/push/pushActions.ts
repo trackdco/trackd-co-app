@@ -169,7 +169,7 @@ export async function sendTestNotification(): Promise<Ok> {
 
     const body = JSON.stringify({
       title: "Trackd",
-      body: "Test notification — push is working.",
+      body: "Test notification. Push is working.",
       url: "/dashboard",
       tag: "trackd-test",
     });

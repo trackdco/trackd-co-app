@@ -41,9 +41,22 @@ export const seedStack: StackCompound[] = []
 export interface DoseLog {
   /** Amount as typed (kept as a string so a half-typed edit round-trips). */
   amount: string
+  /**
+   * The unit the amount was RECORDED in ("mg" / "mcg" / "iu"), captured at log
+   * time. Absent on logs written before this was stored — those fall back to the
+   * compound's current unit at the render site.
+   *
+   * A logged dose is an event and carries its own facts (Spec 01 → "a schedule is
+   * a rule, a logged dose is an event"). Without this the row rendered the
+   * compound's CURRENT unit beside the historical amount, so switching a compound
+   * from mg to mcg silently relabelled every dose ever logged for it — a real
+   * rewrite of history, and a dangerous one, since the number stayed the same
+   * while its meaning changed by a factor of a thousand.
+   */
+  unit?: string
   /** Injection site id (injectables only); null for orals. */
   siteId: string | null
-  /** Time the dose was taken, 24h "HH:MM". */
+  /** Time the dose was taken, 24h "HH:MM", or "" when the user left it unset. */
   time24: string
   /** The inventory item (vial) this dose drew from, so its runway decrements in
    *  `v_inventory_math`.

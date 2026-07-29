@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  Archive,
   CaretRight,
   FileText,
   GearSix,
@@ -27,8 +26,7 @@ export const metadata: Metadata = { title: "Profile — Trackd Co" };
  * hub, NOT an editor: every edit affordance points at /settings. Reads only the
  * caller's own profiles row (RLS-scoped). The (app) layout has already enforced
  * auth + the 18+/ToS gate, so `user` is guaranteed here; user_metadata is used
- * for display only, never for access decisions. The Archive section manages the
- * device-local compound stack (stop logging / reactivate; history kept).
+ * for display only, never for access decisions.
  */
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -177,10 +175,6 @@ export default async function ProfilePage() {
         <div className="overflow-hidden rounded-2xl bg-bg-surface">
           <LinkRow href="/settings" icon={GearSix}>
             Settings
-          </LinkRow>
-          <Divider />
-          <LinkRow href="/archive" icon={Archive}>
-            Archive
           </LinkRow>
           {/* InstallAppRow renders its own leading divider and self-hides when the
               app is already on the Home Screen, so no stray divider is left. */}

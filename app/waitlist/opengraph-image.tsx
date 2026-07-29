@@ -77,7 +77,7 @@ export default function OpengraphImage() {
               display: "flex",
             }}
           >
-            Gear, peptides, supps, bloodwork, outcomes — one private place.
+            Gear, peptides, supps, bloodwork, outcomes. One private place.
           </div>
         </div>
 

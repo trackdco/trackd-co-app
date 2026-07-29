@@ -1,7 +1,14 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Check, PencilSimple, Plus, ArrowCounterClockwise, MagnifyingGlass, Trash } from "@/components/icons"
+import {
+  CaretDown,
+  Check,
+  PencilSimple,
+  Plus,
+  MagnifyingGlass,
+  Trash,
+} from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -26,7 +33,12 @@ import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { newId } from "@/lib/home/id"
-import { loadStack, type StackCompound } from "@/lib/home/stack"
+import { loadStack } from "@/lib/home/stack"
+import {
+  loadRecentCompounds,
+  recordRecentCompound,
+  RECENT_LIMIT,
+} from "@/lib/home/recentCompounds"
 import { pullCustoms, pushCustom, deleteCustom } from "@/lib/home/syncActions"
 import {
   AmberNotice,
@@ -43,21 +55,16 @@ interface AddToStackMenuProps {
 // A user-created compound, stored locally on the device for that user only.
 type CustomCompound = Compound & { id: string; isCustom: true }
 
-// Curated "popular" set — resolved against the catalogue so the category/dot
-// stays accurate (these all exist in compounds.csv).
-const POPULAR_NAMES = [
-  "Testosterone Cypionate",
-  "Nandrolone Phenylpropionate",
-  "Trenbolone Acetate",
-  "Retatrutide",
-  "TB-500",
-  "Exemestane",
-  "Berberine",
-  "Ashwagandha",
-]
-const POPULAR: Compound[] = POPULAR_NAMES.map((n) =>
-  COMPOUNDS.find((c) => c.name === n)
-).filter((c): c is Compound => Boolean(c))
+// The library grouped by its EXISTING categories (Spec 03) — one section per
+// category, in `CATEGORY_META` order, so nothing is reclassified and each group
+// keeps its own icon and colour. This replaced the flat "Popular in comp prep"
+// list, which was doing all the browsing work for 205 compounds.
+const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
+const BY_CATEGORY: { category: CompoundCategory; items: Compound[] }[] =
+  CATEGORY_ORDER.map((category) => ({
+    category,
+    items: COMPOUNDS.filter((c) => c.category === category),
+  })).filter((g) => g.items.length > 0)
 
 const NAME_MAX = 80
 
@@ -188,14 +195,16 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
   const [customs, setCustoms] = useState<CustomCompound[]>([])
   // The compound whose "+" was tapped — opens the "Add to protocol" sheet.
   const [pendingCompound, setPendingCompound] = useState<Compound | null>(null)
-  // An archived compound being reactivated — opens the SAME sheet pre-filled, in
-  // reactivate mode (re-tune dose / schedule / sites, then resume from today).
-  const [reactivateTarget, setReactivateTarget] = useState<StackCompound | null>(null)
-  // Names already in the user's log (lowercased) — those rows dim + block.
+  // Names ACTIVE in the user's log (lowercased) — those rows dim + block.
   const [inLogNames, setInLogNames] = useState<Set<string>>(new Set())
-  // Lowercased name → stack id for ARCHIVED compounds. Those rows still dim, but
-  // show a Reactivate control (resumes from today) instead of the blocked check.
-  const [archivedIds, setArchivedIds] = useState<Map<string, string>>(new Map())
+  // Lowercased name → stack id for DELETED compounds (Spec 02). A deleted compound
+  // is offered exactly like one never added — standard "+", full opacity — but the
+  // add reuses its existing record id so the compound keeps ONE identity and its
+  // logged history stays attached (see `reuseId` on AddCompoundSheet).
+  const [deletedIds, setDeletedIds] = useState<Map<string, string>>(new Map())
+  // Lowercased names of the compounds this user added most recently, newest first
+  // (Spec 03). Re-read on every open so an add made since is reflected.
+  const [recentNames, setRecentNames] = useState<string[]>([])
   const [shakingName, setShakingName] = useState<string | null>(null)
   const blockedTapsRef = useRef<Record<string, number>>({})
   // Guards the once-per-user cloud hydration of custom compounds (see the open
@@ -240,6 +249,19 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
       }
     }
   }, [open, userId])
+
+  // The recents, resolved to real compounds: a name that no longer matches
+  // anything (a custom the user has since deleted) simply drops out.
+  const recent = useMemo(() => {
+    const byName = new Map<string, Compound>()
+    for (const c of [...customs, ...COMPOUNDS]) {
+      const key = c.name.toLowerCase()
+      if (!byName.has(key)) byName.set(key, c)
+    }
+    return recentNames
+      .map((n) => byName.get(n))
+      .filter((c): c is Compound => Boolean(c))
+  }, [recentNames, customs])
 
   const q = query.trim().toLowerCase()
   const results = useMemo(() => {
@@ -424,28 +446,33 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
 
   const nameValid = form.name.trim().length > 0
 
-  // Re-read the device stack into the in-log + archived lookups (on open, and after
-  // a reactivate so the row flips from "Reactivate" to the active "in your log" check).
+  // Re-read the device stack into the in-log + deleted lookups (on open, and after
+  // an add so the row flips to the active "in your log" check). Only ACTIVE
+  // compounds block a re-add: a deleted one is offered like any other compound.
   function refreshStackState() {
     const stackNow = loadStack(userId) ?? []
-    setInLogNames(new Set(stackNow.map((c) => c.name.toLowerCase())))
-    setArchivedIds(
+    // Recents are recorded on add, so an existing user has none until their next
+    // one. Seed the store from the stack (last added last) the first time, so the
+    // row isn't empty for someone who has been using the app for months. A user
+    // with no compounds at all still gets nothing, which is the point.
+    let recents = loadRecentCompounds(userId)
+    if (recents.length === 0 && stackNow.length > 0) {
+      for (const c of stackNow.slice(-RECENT_LIMIT)) {
+        recordRecentCompound(userId, c.name)
+      }
+      recents = loadRecentCompounds(userId)
+    }
+    setRecentNames(recents)
+    setInLogNames(
+      new Set(stackNow.filter((c) => !c.archived).map((c) => c.name.toLowerCase()))
+    )
+    setDeletedIds(
       new Map(
         stackNow
           .filter((c) => c.archived)
           .map((c) => [c.name.toLowerCase(), c.id] as const)
       )
     )
-  }
-
-  // Reactivate an archived compound straight from search. Opens the pre-filled
-  // config sheet (reactivate mode) so the user can re-tune the dose / schedule /
-  // injection sites before it resumes from today (no backfill of the archived gap).
-  function handleReactivate(compound: Compound) {
-    const id = archivedIds.get(compound.name.toLowerCase())
-    if (!id) return
-    const sc = (loadStack(userId) ?? []).find((c) => c.id === id)
-    if (sc) setReactivateTarget(sc)
   }
 
   // A compound already in the log is dimmed + unclickable. Tapping it shakes the
@@ -511,7 +538,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
                 ? formMode === "edit"
                   ? "Edit compound"
                   : "Make your own"
-                : "Add to stack"}
+                : "Add compound"}
             </SheetTitle>
 
             {mode === "form" ? (
@@ -529,7 +556,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
           </div>
 
           <SheetDescription className="sr-only">
-            Search the compounds catalogue, or make your own, to add to your stack.
+            Search the compounds catalogue, or make your own, to add to your log.
           </SheetDescription>
 
           {mode === "form" ? (
@@ -556,8 +583,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
               onMakeYourOwn={openCreate}
               onAdd={setPendingCompound}
               inLogNames={inLogNames}
-              archivedNames={new Set(archivedIds.keys())}
-              onReactivate={handleReactivate}
+              recent={recent}
               onBlockedTap={handleBlockedTap}
               shakingName={shakingName}
               confirmingDeleteId={confirmingDeleteId}
@@ -573,21 +599,23 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
 
     {/* "Add to protocol" — opened from a compound's "+". On save it closes the
         whole Add-to-Stack flow so the user lands back on the home with the new
-        compound in their log. */}
+        compound in their log. A compound the user previously DELETED takes the
+        identical path; `reuseId` only tells the sheet which record to write back
+        to, so the re-add is a fresh schedule on the same compound. */}
     <AddCompoundSheet
-      open={pendingCompound !== null || reactivateTarget !== null}
+      open={pendingCompound !== null}
       compound={pendingCompound}
-      editCompound={reactivateTarget}
+      reuseId={
+        pendingCompound
+          ? (deletedIds.get(pendingCompound.name.toLowerCase()) ?? null)
+          : null
+      }
       userId={userId}
       onOpenChange={(o) => {
-        if (!o) {
-          setPendingCompound(null)
-          setReactivateTarget(null)
-        }
+        if (!o) setPendingCompound(null)
       }}
       onAdded={() => {
         setPendingCompound(null)
-        setReactivateTarget(null)
         onOpenChange(false)
       }}
     />
@@ -607,8 +635,7 @@ function BrowseBody({
   onMakeYourOwn,
   onAdd,
   inLogNames,
-  archivedNames,
-  onReactivate,
+  recent,
   onBlockedTap,
   shakingName,
   confirmingDeleteId,
@@ -626,8 +653,8 @@ function BrowseBody({
   onMakeYourOwn: () => void
   onAdd: (c: Compound) => void
   inLogNames: Set<string>
-  archivedNames: Set<string>
-  onReactivate: (c: Compound) => void
+  /** The user's most recently added compounds, newest first (capped). */
+  recent: Compound[]
   onBlockedTap: (c: Compound) => void
   shakingName: string | null
   confirmingDeleteId: string | null
@@ -642,8 +669,6 @@ function BrowseBody({
     onEditCustom,
     onAdd,
     inLogNames,
-    archivedNames,
-    onReactivate,
     onBlockedTap,
     shakingName,
     confirmingDeleteId,
@@ -685,6 +710,21 @@ function BrowseBody({
           )
         ) : (
           <>
+            {/* Recently used — omitted ENTIRELY when there's no history, rather
+                than shown as an empty state (Spec 03). */}
+            {recent.length > 0 && (
+              <>
+                <SectionLabel>Recently used</SectionLabel>
+                <RecentRow
+                  items={recent}
+                  inLogNames={inLogNames}
+                  onAdd={onAdd}
+                  onBlockedTap={onBlockedTap}
+                  shakingName={shakingName}
+                />
+                <div className="h-4" />
+              </>
+            )}
             {customs.length > 0 && (
               <>
                 <SectionLabel>Your compounds</SectionLabel>
@@ -692,8 +732,8 @@ function BrowseBody({
                 <div className="h-4" />
               </>
             )}
-            <SectionLabel>Popular in comp prep</SectionLabel>
-            <CompoundList items={POPULAR} {...listProps} />
+            <SectionLabel>Browse by category</SectionLabel>
+            <CategoryBrowser listProps={listProps} />
           </>
         )}
 
@@ -701,6 +741,126 @@ function BrowseBody({
         <MakeYourOwnRow query={query} onClick={onMakeYourOwn} />
       </div>
     </>
+  )
+}
+
+/**
+ * "Recently used" — a horizontal row of the compounds the user added most
+ * recently (Spec 03), capped at {@link RECENT_LIMIT}. One tap adds, exactly like
+ * the "+" on a list row; a compound already in the log shows the same blocked
+ * check the rows do, so the two treatments can't disagree.
+ */
+function RecentRow({
+  items,
+  inLogNames,
+  onAdd,
+  onBlockedTap,
+  shakingName,
+}: {
+  items: Compound[]
+  inLogNames: Set<string>
+  onAdd: (c: Compound) => void
+  onBlockedTap: (c: Compound) => void
+  shakingName: string | null
+}) {
+  return (
+    <div className="-mx-4 overflow-x-auto px-4 pb-1">
+      <div className="flex w-max gap-2">
+        {items.map((compound) => {
+          const inLog = inLogNames.has(compound.name.toLowerCase())
+          return (
+            <button
+              key={compound.name}
+              type="button"
+              onClick={() => (inLog ? onBlockedTap(compound) : onAdd(compound))}
+              aria-label={
+                inLog
+                  ? `${compound.name} is already in your log`
+                  : `Add ${compound.name} to log`
+              }
+              className={cn(
+                "flex w-32 shrink-0 flex-col gap-2 rounded-2xl bg-bg-surface-raised px-3 py-3 text-left transition-transform active:scale-[0.98]",
+                inLog && "opacity-50",
+                shakingName === compound.name && "animate-card-shake"
+              )}
+            >
+              <span className="flex items-center justify-between">
+                <CategoryIcon category={compound.category} className="h-3.5 w-3.5" />
+                {inLog ? (
+                  <Check className="h-3.5 w-3.5 text-text-subtle" aria-hidden />
+                ) : (
+                  <Plus className="h-3.5 w-3.5 text-text-primary" aria-hidden />
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-foreground">
+                  {compound.name}
+                </span>
+                <span className="block truncate text-xs text-text-muted">
+                  {(CATEGORY_META[compound.category] ?? FALLBACK_CATEGORY_META).label}
+                </span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * "Browse by category" — the full library under its EXISTING categories, one
+ * collapsible group each (205 compounds in a flat list is not browsable on a
+ * phone). Categories, icons and colours are untouched; only the grouping is new.
+ *
+ * Structurally this sits INSIDE the scrolling content, below the search field, so
+ * a Compounds / Stacks segmented control can later be dropped in above it without
+ * touching any of this (Spec 03 → Room for stacks).
+ */
+function CategoryBrowser({
+  listProps,
+}: {
+  listProps: Omit<React.ComponentProps<typeof CompoundList>, "items" | "query">
+}) {
+  const [openCategory, setOpenCategory] = useState<CompoundCategory | null>(null)
+
+  return (
+    <div className="space-y-2">
+      {BY_CATEGORY.map(({ category, items }) => {
+        const meta = CATEGORY_META[category] ?? FALLBACK_CATEGORY_META
+        const isOpen = openCategory === category
+        return (
+          <div key={category}>
+            <button
+              type="button"
+              onClick={() => setOpenCategory(isOpen ? null : category)}
+              aria-expanded={isOpen}
+              className="flex w-full items-center gap-3 rounded-2xl bg-bg-surface-raised px-4 py-3.5 text-left transition-transform active:scale-[0.99]"
+            >
+              <CategoryIcon category={category} className="h-3.5 w-3.5" />
+              <span className="min-w-0 flex-1 truncate text-base font-medium text-foreground">
+                {meta.label}
+              </span>
+              <span className="shrink-0 font-mono text-xs tabular-nums text-text-subtle">
+                {items.length}
+              </span>
+              <CaretDown
+                className={cn(
+                  "h-4 w-4 shrink-0 text-text-subtle transition-transform",
+                  isOpen && "rotate-180"
+                )}
+                aria-hidden
+              />
+            </button>
+            {isOpen && (
+              <div className="mt-2">
+                <CompoundList items={items} {...listProps} />
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -736,8 +896,6 @@ function CompoundList({
   onEditCustom,
   onAdd,
   inLogNames,
-  archivedNames,
-  onReactivate,
   onBlockedTap,
   shakingName,
   confirmingDeleteId,
@@ -751,8 +909,6 @@ function CompoundList({
   onEditCustom: (c: CustomCompound) => void
   onAdd: (c: Compound) => void
   inLogNames: Set<string>
-  archivedNames: Set<string>
-  onReactivate: (c: Compound) => void
   onBlockedTap: (c: Compound) => void
   shakingName: string | null
   confirmingDeleteId: string | null
@@ -820,18 +976,10 @@ function CompoundList({
               >
                 <RowMain compound={compound} query={query} />
                 <div className="flex shrink-0 items-center gap-1">
-                  {/* Archived → Reactivate (resumes from today); else add-to-log, or
-                      a blocked Check when it's already active in the log. */}
-                  {archivedNames.has(compound.name.toLowerCase()) ? (
-                    <button
-                      type="button"
-                      onClick={() => onReactivate(compound)}
-                      aria-label={`Reactivate ${compound.name}`}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
-                    >
-                      <ArrowCounterClockwise className="h-4 w-4" aria-hidden />
-                    </button>
-                  ) : inLogNames.has(compound.name.toLowerCase()) ? (
+                  {/* Add-to-log, or a blocked Check when it's already active in the
+                      log. A previously DELETED compound falls through to the plus,
+                      exactly like one never added (Spec 02). */}
+                  {inLogNames.has(compound.name.toLowerCase()) ? (
                     <button
                       type="button"
                       onClick={() => onBlockedTap(compound)}
@@ -876,24 +1024,10 @@ function CompoundList({
         const lname = compound.name.toLowerCase()
         return (
           <li key={compound.name}>
-            {archivedNames.has(lname) ? (
-              // Archived — content reads dimmed ("dark opacity"), with a prominent
-              // Reactivate control on the right. Reactivating resumes the compound
-              // from TODAY (it doesn't backfill the days it sat archived).
-              <div className={cn("flex items-center gap-3 px-4 py-3.5", divider)}>
-                <div className="flex min-w-0 flex-1 items-center gap-3 opacity-50">
-                  <RowMain compound={compound} query={query} />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onReactivate(compound)}
-                  aria-label={`Reactivate ${compound.name}`}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
-                >
-                  <ArrowCounterClockwise className="h-4 w-4" aria-hidden />
-                </button>
-              </div>
-            ) : inLogNames.has(lname) ? (
+            {/* A previously DELETED compound is offered like any compound the user
+                has never added — standard plus, full opacity, no marker that it
+                was once deleted (Spec 02). Only an ACTIVE one blocks. */}
+            {inLogNames.has(lname) ? (
               // Already in the log — dimmed + unclickable. Taps shake the row;
               // the 3rd tap fires the amber "already in your log" notice.
               <button

@@ -42,7 +42,7 @@ export async function joinWaitlist(
   if (error) {
     // 23505 = unique violation = already on the list → idempotent success.
     if (error.code === "23505") return { ok: true };
-    return { error: "Something went wrong — please try again." };
+    return { error: "Something went wrong. Please try again." };
   }
 
   return { ok: true };

@@ -84,7 +84,7 @@ export function NotificationsToggle({
       {status === "denied" && (
         <p className="mt-3 text-sm leading-relaxed text-text-muted">
           Notifications are blocked. To turn them on, allow notifications for
-          Trackd in your browser or phone settings — we can&apos;t ask again from
+          Trackd in your browser or phone settings. We can&apos;t ask again from
           here.
         </p>
       )}
@@ -162,7 +162,7 @@ function TestSend() {
       </button>
       {result === "sent" && (
         <p className="mt-2 text-sm text-text-muted">
-          Sent — it should arrive on this device shortly.
+          Sent. It should arrive on this device shortly.
         </p>
       )}
       {result === "failed" && (

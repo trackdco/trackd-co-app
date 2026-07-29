@@ -31,7 +31,7 @@ export function WaitlistForm({ source }: { source?: string }) {
         </span>
         <p className={SHEET_TITLE}>You&apos;re on the list.</p>
         <p className="text-sm text-text-muted">
-          We&apos;ll email you the moment your spot opens up — keep an eye on
+          We&apos;ll email you the moment your spot opens up. Keep an eye on
           your inbox.
         </p>
       </div>

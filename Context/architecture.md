@@ -387,7 +387,7 @@ stored.)
   - **Offline-first** is preserved: reads come from the cache; writes are optimistic to
     the cache and dual-written to Postgres, with a reconnect/focus re-sync that re-pushes
     anything written offline (idempotent). A failed/empty pull never wipes the cache.
-    **Offline _state changes_ (archive/reactivate) win over a stale Postgres pull**
+    **Offline _state changes_ (delete / re-add) win over a stale Postgres pull**
     (`hydrateProtocol.ts` reconciles the local `archived` flag and converges Postgres) —
     so an archive done offline is no longer resurrected on reconnect. A robust offline
     outbox (covering offline dose un-logging + multi-device conflicts) is post-beta work.
@@ -402,6 +402,324 @@ stored.)
   reconstitution calculator holds the centre bottom-nav slot and `/calculator` is its
   entry point (Spec 20 → D4/D6), so a tile would only duplicate it.
 
+## Dose & Schedule Integrity (Spec 01, wave 2 — 2026-07-23)
+
+**A schedule is a rule; a logged dose is an event. Editing intent never mutates
+history.** The model already split them; what was missing was that the *rendering*
+and the *deletion path* didn't honour the split.
+
+- **Deletion is resolved and verified, not derived.** THE GHOST-COMPOUND ROOT
+  CAUSE: `protocol_compounds.id` can legitimately diverge from the local
+  `StackCompound.id` (`pushProtocolCompound` REUSES an existing row's id for a
+  `(cycle, compound)` that already exists). Archive and delete derived the Postgres
+  id from the client id, so once diverged they targeted a row that doesn't exist —
+  and a PostgREST `UPDATE`/`DELETE` matching **zero rows returns no error**, so both
+  reported success. Postgres kept the compound `is_active = true`, the next
+  hydration pulled it back, and because the merge joined on **id only** it couldn't
+  match the local "archived" record either — so the local intent was dropped by the
+  name de-dupe and the compound returned, **active, with its dose logs**. Fixed in
+  four places: `findProtocolCompoundId` (`protocolSync.ts`) RESOLVES the row by id
+  then by **name**; delete re-reads the row to confirm it's gone and reports a
+  zero-row delete as a FAILURE (so `trackSync` surfaces it); the hydration merge
+  matches local↔Postgres by **name as well as id**, keeping the user's intent and
+  recording the id change; and device dose logs are **re-keyed** through that id
+  change so history follows the compound instead of orphaning.
+- **Hydration waits for destructive writes.** The pull overwrites the local cache
+  and fires on mount/focus/visibility/reconnect, so a pull overlapping an in-flight
+  delete read the compound as still present, wrote it back, and the merge's flush
+  re-pushed it — a self-resurrecting compound, most likely exactly when you close
+  the app after deleting. `trackCriticalSync` / `awaitCriticalSyncs`
+  (`lib/home/syncStatus.ts`) order the pull after any pending delete/archive. Adds
+  are deliberately NOT tracked — an overlapping add is already handled by the
+  offline-add path.
+- **A logged dose carries its own unit and time.** `DoseLog.unit` is stamped at log
+  time (`dose_logs.dose_unit` was already per-log in the schema, so no migration),
+  and the row renders `log.unit`/`log.time24` rather than the compound's current
+  ones. Previously an mg→mcg switch kept the figure and restated every past dose as
+  mcg — a thousandfold change in meaning applied retroactively.
+- **Next Dose reads the real stack.** `computeNextDose` (`lib/home/nextDose.ts`,
+  extracted from `HomeScreen` so it is testable) resolves the soonest **unlogged**
+  dose for the **selected** day, skipping archived compounds, re-derived every
+  render. It was being handed `seedStack` — the empty first-run fixture — so it
+  returned null for every user forever and the card showed a dash while doses were
+  due. The countdown no longer rolls a passed time to tomorrow (that hid overdue
+  doses); it reads `0h 0m`.
+- **A schedule is VERSIONED, not overwritten.** An edit used to mutate the single
+  schedule row in place, so past *due-sets* (week-strip dots, calendar cells)
+  re-derived from the new rule — a Tuesday you correctly rested became "missed"
+  because of a decision made in August. A compound now carries
+  `scheduleHistory: ScheduleVersion[]`, each version effective from a day, and
+  `resolveScheduleOn(compound, dateKey)` answers what the rule ACTUALLY was then.
+  `isDueOnFor(compound, date)` is the past-date form of `isDueOn` and every
+  retrospective caller uses it (week strip, calendar cells, consistency, Next Dose).
+  Forward-looking callers (`upcomingDoseDates`) keep reading the current rule —
+  that is what "upcoming" means.
+  - **The first edit seeds a baseline** from the OUTGOING values, effective from the
+    compound's start date. Without it the days before the change have no recorded
+    rule and fall through to the new one, which is the exact rewrite being fixed.
+  - **No backfill, ever.** Raising a dose schedules no catch-up for earlier days.
+  - **Empty history ⇒ current values.** A compound never edited behaves exactly as
+    before versioning existed, so the feature costs nothing until it's used.
+  - **Storage:** `supabase/protocol/005_protocol_compound_schedules.sql` — one row
+    per (compound, effective_from), mirroring the `protocol_compounds` dose/schedule
+    columns 1:1 so no translation layer can drift. Strictly additive, no backfill,
+    cascades from `protocol_compounds`, own RLS + grants. **Not yet applied**: the
+    sync calls treat `42P01` as `skipped`, so versions live in the device store and
+    the app degrades to pre-versioning behaviour rather than reporting a failure.
+    Hydration UNIONS the pulled versions over the device's, Postgres winning any day
+    it knows about — a pull that returns nothing must never wipe the local trail.
+- **Tests:** `lib/home/doseIntegrity.test.ts` (Vitest, `npm test`) pins each
+  reproduction. `vitest.config.ts` scopes the suite to `lib/**` — pure by house
+  rule, so it needs no DOM, renderer or Supabase.
+
+## Compound Lifecycle (Spec 02, wave 2 — 2026-07-29)
+
+**A compound has TWO states: active or deleted.** The third state (archived, with
+its own page and a Reactivate arrow) and the fourth (permanently erased) are gone.
+There is one verb, **Delete** — it ends the schedule and keeps every logged dose —
+and bringing a compound back is the same action as adding any other: find it in the
+picker and press the plus.
+
+- **Storage is unchanged.** "Deleted" *is* the existing `StackCompound.archived` /
+  `protocol_compounds.is_active = false` flag, so nothing migrated and no logged
+  dose moved. Only the UI around it collapsed.
+- **Re-adding reuses the record.** The picker passes the deleted record's id to
+  `AddCompoundSheet` as **`reuseId`**; the form is a first-time add in every visible
+  respect (nothing pre-filled, dose/schedule/start set fresh) but saves onto that id.
+  A second record would collide with `UNIQUE (cycle_id, compound_id)` and with the
+  hydration name de-dupe, so one identity is also the only implementable option —
+  and it is what keeps the compound's logged history attached instead of orphaned.
+- **The re-add versions the schedule** (Spec 01's trail) effective from its new start
+  date, so the run *before* the deletion keeps the rule it was actually run under.
+  Nothing is back-filled: the days it sat deleted are covered by no rule, and because
+  `isDueOn` gates on the current `startDate`, a re-add starting today leaves every
+  earlier day un-due while its logged doses still render.
+- **Nothing in the app hard-deletes a compound.** `removeFromStack`,
+  `removeCompoundLogs`, `deleteProtocolCompoundForStack`, `deleteProtocolCompound`
+  and `deleteStackCompound`/`deleteCompoundLogs` are **deleted, not just unwired** —
+  Invariant 8 is now structural rather than a convention. The DB cascade remains for
+  account deletion only. (`StartFreshSection`'s "Clear all compounds & stock" is a
+  separate whole-account reset via `wipeMyProtocol` and is untouched.)
+- **Removed:** the `/archive` route + page, `ArchiveManager`, the Profile → Archive
+  row, the Reactivate control in the picker and in `CompoundDetailSheet`, the
+  `reactivate` mode in `AddCompoundSheet`, and the dev-only `/preview/archive-weight`
+  + `/preview/profile` harnesses (both existed to demo the retired flow).
+- **The delete confirmation is red, not amber** — a `--accent-destructive` outline
+  card with a solid `--accent-destructive` confirm, matching the Sign out treatment.
+  Amber is the app's accent and reads as emphasis, not danger. This is destructive
+  **confirmation only**; red is not a general accent and `ui-context.md` already
+  scopes `--accent-destructive` to deliberate destructive actions.
+
+## Add Compound Flow (Spec 03, wave 2 — 2026-07-29)
+
+The picker is **"Add compound"**; the form it opens is still **"Add to log"**. The
+word **"stack" is reserved for the future Stacks feature** and is gone from every
+user-facing string (Adrian's call: rename the visible copy only — the internals
+`lib/home/stack.ts` / `StackCompound` / `user_stack_compounds` / the
+`trackd.stack.v2` key keep their names, since renaming a live table for a word
+nobody sees buys nothing).
+
+- **Picker structure** (`components/navigation/add-to-stack-menu.tsx`, filename
+  unchanged): search → **Recently used** → **Your compounds** (customs) → **Browse
+  by category** → **Make your own**. The flat "Popular in comp prep" list is gone.
+  - **Recently used** — `lib/home/recentCompounds.ts`, device-local, lowercased
+    names newest-first, capped at `RECENT_LIMIT` (**5**). Recorded on a successful
+    add; seeded once from the device stack so a long-standing user isn't shown an
+    empty row. **Omitted entirely** when there is no history — never an empty state.
+  - **Browse by category** — one collapsible group per **existing** category, in
+    `CATEGORY_META` order (all eight: Anabolics, Orals, SARMs, Peptides,
+    Ancillaries, Thyroid, Supplements, Stimulants). Nothing is reclassified and the
+    per-category icon/colour is untouched. Collapsed by default because 205
+    compounds do not browse flat on a phone.
+  - **Room for stacks:** the sections are a flat composition below the search field,
+    so a Compounds / Stacks segmented control drops in above them later without
+    rebuilding anything.
+- **Stock is vials only on this form.** `canStock` now gates on the selected
+  route's **inventory form** (`reconstituted` / `preconcentrated`), never on
+  category — so Creatine, Berberine and any future oral compound in any category
+  are never asked "how much is left in the vial?". The `oral_solid` branch was
+  removed from **this form only**; **tabs/caps stock still exists in full** in
+  Protocol → Stock (`AddStockSheet`, `INVENTORY_TYPE_OPTIONS`, `inventory_items`,
+  `v_inventory_math.units_per_dose_oral`).
+- **Per-compound unit defaults already existed** — `compounds.csv` carries
+  `default_unit` per compound and the form reads it (BPC-157 opens in mcg,
+  anabolics in mg). Adrian's call (2026-07-29): **leave the catalogue data alone
+  for now** rather than forcing all peptides to mcg, which would render Tirzepatide
+  as `2400 mcg`. What is new is the **override memory**: `lib/home/unitPrefs.ts`
+  remembers the unit the user picks per compound (device-local, keyed by lowercased
+  name) and pre-selects it next time. An EDIT always shows the unit the record is
+  stored in — a preference never restates existing data — and a remembered unit
+  outside the compound's unit family is ignored.
+
+**Dose time — Spec 01's "no pre-fill" was REVERTED (Adrian, 2026-07-29).** The log
+form again live-tracks the clock on today and falls back to the compound's
+scheduled time when back-dating; the add form again live-tracks the clock; and a
+time is **no longer required** at either entry point. Clearing the field still
+stores an unset time, which `formatTimeLabel` renders as "Not set", so the
+first-class-unset-time work from Spec 01 stays — only the pre-fill and the
+required-field guard came back.
+
+## Sex-Specific Markers (Spec 04, wave 2 — 2026-07-29)
+
+Five of the 36 catalogue markers only apply to one sex, so the picker now offers
+**shared + the profile's own sex**. The rule that shapes the implementation:
+**filtering governs what can be logged GOING FORWARD and must never hide, alter or
+delete anything already logged.**
+
+- **`lib/progress/markerApplicability.ts`** — the split, keyed by catalogue NAME
+  (the one identifier the CSV, the DB row and the app agree on; `markers.id` is a
+  per-environment uuid). Only the exceptions are listed — male: Erection Quality,
+  Gyno Symptoms; female: Clitoral Enlargement, Voice Deepening, Menstrual Changes —
+  so everything else, including every custom marker, is shared by default and the
+  catalogue can grow without touching this file. Hair Shedding, Facial / Body Hair
+  and Hot Flushes stay **deliberately shared**: both sexes track them for opposite
+  reasons.
+- **Sex comes from `profiles.sex`**, read on the Progress page's existing profile
+  query — the same column the body map uses, not a second source. It is read
+  **raw**, NOT through `bodySexFor`, whose male fallback is correct for drawing a
+  body and wrong for deciding what to offer: **a profile with no sex set sees shared
+  markers only** and is never guessed at.
+- **`addable: false`, not omission — this is the load-bearing detail.** The dialer
+  resolves an entry's *existing* readings by id **from the same options list it
+  offers from** (`byId` in `MarkerDialer`), so dropping a non-applicable marker
+  would blank a logged reading for anyone who changed their profile sex. Instead the
+  option is kept and marked un-addable: every add path (Common / More / search)
+  already filters on `addable`, so the marker is genuinely **absent** — never greyed
+  out, never listed as unavailable — while an entry that already uses it still
+  renders. This is the same mechanic a soft-removed custom marker uses (Spec 22 · 1).
+- **History is filtered nowhere.** `markersByEntry` (Progress) and the Calendar's
+  own catalogue read resolve `marker_readings` → `user_markers` independently of the
+  offer list, so a sex change cannot touch a logged entry on any surface — feed,
+  day, calendar day sheet, or chart.
+- **"Cycle Changes" → "Menstrual Changes"** (Adrian's call), because "cycle" already
+  means a compound run. **No data migration**: readings reach their marker by id, so
+  every logged entry follows the row and simply renders under the new label. The
+  rename is DB-side — `supabase/markers/001_rename_cycle_changes.sql` (idempotent,
+  service-role, guarded against the `name` UNIQUE) plus the updated
+  `supabase/seed/markers.csv` so a re-seed agrees. **Not yet applied**; the
+  applicability map lists both names so filtering is correct either side of it.
+- **No prompt was added** to the sex change, per the spec. Note the Settings sex
+  field already has a confirm step (from Spec 19, about the body map) — it is
+  untouched and now describes only part of what changes.
+- **Tests:** `lib/progress/markerApplicability.test.ts` (9 tests) pins the full
+  36-marker split, the three shared judgement calls, the no-sex-set case and the
+  pre/post-rename equivalence.
+
+## Photo Adjust (Spec 05, wave 2 — 2026-07-29)
+
+Every photo in the app is framed before it is saved: zoom and reposition inside a
+**fixed** frame, so successive progress shots line up instead of relying on
+perfect in-camera framing. Zoom + pan only — no rotation, no filters, no free crop.
+
+- **One implementation, five surfaces.** `components/media/PhotoAdjustSheet.tsx`
+  takes an image and a target ratio; each surface passes its own. The ratios are
+  declared together in `lib/media/framing.ts` so a surface and the card it later
+  renders in cannot drift apart:
+
+  | Surface | File | Ratio |
+  | --- | --- | --- |
+  | Progress photos (every pose) | `AddProgressPhotoSheet` | `PROGRESS_PHOTO_ASPECT` 3:4 |
+  | Weight sheet photos | `AddWeightSheet` | 3:4 — same `progress_photos` store |
+  | Profile picture | `AvatarUploader` | `AVATAR_ASPECT` 1:1 (renders as a circle) |
+  | Bloodwork | `AttachBloodworkSheet` | `DOCUMENT_ASPECT` 3:4 |
+  | Journal photos | `JournalEntrySheet` | `DOCUMENT_ASPECT` 3:4 |
+
+  The **weight sheet** and **journal** surfaces were not in the spec's list; both
+  accept photos and the weight sheet writes to the *same* `progress_photos` store,
+  so a shot added from Home would otherwise not line up with one added from
+  Progress. Adrian's call (2026-07-29) was to apply it to all five including the
+  two document surfaces, over a raised concern that a fixed frame can crop
+  information off a lab report.
+- **The maths is pure and tested** (`lib/media/framing.ts`, 22 tests). Zoom is a
+  multiplier over "just covers the frame" and is clamped to `[1, MAX_SCALE]`, and
+  offsets are clamped to the point where an edge would enter the frame — so
+  **letterboxing is unreachable rather than merely discouraged**. `cropRect`
+  converts a framing into the source rectangle to draw, and the tests pin that it
+  always stays inside the image and matches the frame's aspect.
+- **Clamping is DERIVED on render, not stored.** A framing restored from an
+  earlier session was legal against *that* frame size, and the frame depends on the
+  viewport — so clamping in an effect would leave one paint where the image
+  doesn't cover. `scaleAbout` keeps the pinch midpoint still, so the subject stays
+  under the fingers instead of sliding out.
+- **Storage is ADJUSTED-ONLY** (Adrian's call). The original is held in memory for
+  the session so re-opening a filled slot re-frames the *full* photo rather than a
+  crop of a crop, and the framing rides alongside so it resumes where it left off —
+  but only the adjusted image is ever uploaded. Re-adjustment therefore applies
+  within a session, not to a photo saved in an earlier one.
+- **It degrades rather than blocks.** If the browser can't decode the file (HEIC
+  outside Safari is the real case), the sheet says so and Confirm passes the
+  ORIGINAL through untouched. The same fallback covers any canvas failure — the
+  photo matters more than the framing.
+- **Guides:** a faint rule-of-thirds grid (hairlines at 25% on `--accent-primary`),
+  Adrian's pick over a centre line or horizon. Purely visual; never captured.
+
+## Admin Dashboard (Spec 06, wave 2 — 2026-07-29)
+
+`/admin` was a waitlist view; it is now an operational view of the running app.
+Order: **Users → Signups over time (by-channel beneath) → Usage → Feedback queue →
+Email list**. Title is "Admin".
+
+- **Access was ALREADY enforced server-side** — the audit's finding, not a fix.
+  `app/admin/page.tsx` is a Server Component that calls the verified `getUser()`
+  and returns a blocked view **before any query runs**, so a non-founder's request
+  never fetches and nothing reaches the client bundle. Underneath it, RLS gates the
+  data independently: `waitlist` SELECT is founder-only
+  (`supabase/waitlist/002_founder_read.sql`), `v_waitlist_by_source` is
+  `security_invoker` so it inherits that, and `beta_feedback` SELECT is
+  "own OR founder". Remove the page check entirely and a non-founder still reads
+  **zero rows**.
+- **Cross-user aggregates run as the SERVICE ROLE** (`lib/db/adminMetrics.ts`,
+  `"use server"`). Every user table is RLS'd to own-rows, so a founder's own client
+  can see exactly one user's data — correct, and precisely why these counts can't
+  be read normally. The alternative, granting founders SELECT on `dose_logs` /
+  `weight_logs` / …, would hand two accounts permanent read access to every user's
+  health data to render five numbers. **The rule that keeps the service role safe:
+  nothing in that file may RETURN a row.** It returns counts and dates only; where
+  a distinct-user count needs ids, they're counted into a `Set` and discarded
+  inside the function. No message, dose, weight, marker, photo or journal text is
+  ever selected. `getAdminMetrics` **re-checks the caller is a founder against the
+  session**, because a `"use server"` export is independently reachable and must
+  not trust the page's gate.
+- **"Active" = wrote something** that period — a dose, weight, journal entry, photo
+  or compound (Adrian's call, 2026-07-29). The app has no session tracking, so
+  "opened the app" isn't answerable without a write on every page load. The
+  definition is **stated on the page** so the number is read the same way every
+  time, and it deliberately understates a user who only looked.
+- **Small-number discipline** (we have very few users): no percentage changes, no
+  trend arrows, no divide-by-zero. Every section has a zero state, and the signups
+  bar chart guards its own scale (`peak > 0`) with a 2% floor so a zero day still
+  draws a hairline rather than vanishing.
+- **⚠️ Scale flag:** `activeUsers` and `usersWithActiveCompound` read one `user_id`
+  per qualifying row and de-duplicate in TS, because PostgREST cannot express
+  `count(distinct …)`. Fine at beta size; past roughly ten thousand writes a week
+  these should become a SQL view or RPC. Deliberately not pre-optimised — the view
+  is trivial to add and no caller changes.
+- **The founder list is duplicated in three places** — `lib/admin.ts` plus both SQL
+  policies, which hardcode the emails. Adding a founder means editing three files
+  across two systems; forgetting the SQL half fails closed, forgetting the TS half
+  fails open-ish. Known maintenance hazard, not a hole.
+- The feedback queue (open by default, resolved behind a toggle, state changeable)
+  already existed and is unchanged — `components/admin/FeedbackList.tsx` with the
+  founder-only, column-scoped `resolved_at` UPDATE grant.
+
+## Portrait Lock (Spec 07, wave 2 — 2026-07-29)
+
+The app is portrait-only, locked wherever a lock genuinely exists and **silently
+not locked where none does**.
+
+- **`app/manifest.ts` declares `orientation: "portrait"`** — this is the real
+  lock, and it already existed. It governs an **installed** PWA on Android and on
+  iOS 16.4+.
+- **`ServiceWorkerRegistrar` also calls `screen.orientation.lock("portrait")`** —
+  the Screen Orientation API, the only lock a browser itself offers. It is a
+  guarded best-effort: it rejects unless the page is installed/standalone or
+  fullscreen, and **iOS Safari does not implement it at all**.
+- **On an uninstalled iPhone the app WILL still rotate**, and that is accepted
+  (Adrian's call, 2026-07-29). There is deliberately **no "rotate your phone"
+  overlay**: a hard overlay would also trap anyone whose device is locked to
+  landscape for accessibility reasons, which Spec 07 explicitly warns against.
+  Installing to the home screen is what makes it stick.
+
 ## Back-dating (2026-07-17)
 
 Life doesn't happen at the phone: you take a shot on Tuesday night and open the app
@@ -411,22 +729,41 @@ on Wednesday. **The day the dashboard is parked on is the day you write to** —
 - **The selected day IS the target.** `HomeScreen`'s `selectedKey` (the week strip's
   day, local `useState`, unbounded in both directions) is what `logDose` /`unlogDose`
   already wrote to; the log sheet now receives it as `dateKey` + `todayKey` so
-  everything date-dependent agrees with where the dose actually lands. The
-  **quick-actions menu**'s "Log a dose" (`QuickTrackSheet`, on the FAB since Spec 20)
-  has no day context of its own and is **always today** — back-dating lives on the week
-  strip. The **Calendar is still read-only** (no log
-  path); wiring one up is deferred.
+  everything date-dependent agrees with where the dose actually lands. **The
+  quick-actions FAB now writes to the selected day too (Spec 01 · wave 2).** It is
+  rendered by the `(app)` shell, so it can't receive the strip's day as a prop and
+  used to hardcode today — park the strip on Tuesday, log from the FAB, and the dose
+  silently landed on today. `HomeScreen` now PUBLISHES its selected day to a tiny
+  in-memory store (`lib/home/selectedDay.ts`, the same `useSyncExternalStore` shape as
+  the other stores) and `QuickTrackSheet` reads it via `getSelectedDayOrToday`. The
+  screen clears it on unmount, so on every other tab the FAB resolves to today —
+  which is the correct DEFAULT, not a fallback that overrides a supplied day. **The
+  Calendar now logs too (Spec 01 · wave 2):** `DayDetailSheet` lists the compounds
+  due-but-unlogged on the open day and hands the compound to the dashboard's own
+  `LogDoseSheet` with `dateKey = selectedKey`, so nothing can fall back to "now".
+  `CalendarScreen` publishes its selected day to the same store, so the FAB writes
+  there as well.
 - **No limit, by design.** Nothing clamps how far back a dose or a start date may go.
   `dose_logs.taken_at` has a `now()` *default*, never a temporal CHECK, and RLS carries
   no date predicate — the DB has always accepted this (Invariant 5: don't
   re-implement in TS what the DB enforces, and don't invent a rule it doesn't have).
   The `AddCompoundSheet` year dropdown offers current − 5 … current + 2, a **picker
   bound, not a rule**.
-- **Time-of-day is the part that makes late-logged data wrong**, so it's day-aware:
-  on today the field live-tracks the clock (evaluated at submit); on any other day it
-  defaults to **the compound's own `schedule.timeOfDay`** — the best guess available —
-  because stamping "now" onto yesterday's dose is exactly the corruption to avoid.
-  Either way the user can override it.
+- **Time-of-day pre-fills again (Adrian, 2026-07-29 — Spec 01's removal reverted).**
+  The log form live-tracks the clock on today and falls back to the compound's
+  `schedule.timeOfDay` when back-dating; the add form live-tracks the clock; and a
+  time is **not required** to save at either entry point. Spec 01 had made the field
+  start empty and be mandatory, on the reasoning that a guessed time is
+  indistinguishable from a fact the user entered — overruled in favour of the faster
+  log, with the field editable in place. **An unset time remains a first-class
+  state** (clear the field and it saves unset): `Schedule.timeOfDay`
+  and `DoseLog.time24` may be `""`, rendered as **"Not set"** by `formatTimeLabel`
+  (the single place the app words it) and tested by `hasTime`. In Postgres it is
+  stored as `dose_times = ARRAY[NULL]` — the array is non-null (satisfying `NOT NULL`)
+  and still length 1 (satisfying the `dose_times_match` CHECK), so **no migration was
+  needed** and no invented time is ever written. `dose_logs.taken_at` for an unset
+  time falls back to **local noon** (`combineLocalDateTime`), deliberately mid-day so
+  the day can't slide across midnight under any timezone offset.
 - **A past start date is allowed and confirmed, not blocked.** `AddCompoundSheet`
   previously rejected `startDate < today` (and forced a same-day time later than now).
   Both are gone: you usually add a compound to the app *after* you've started running

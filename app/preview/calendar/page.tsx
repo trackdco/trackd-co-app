@@ -167,6 +167,7 @@ export default function PreviewCalendarPage() {
           userId="preview-local"
           todayKey={toDateKey(today)}
           unitPreference="metric"
+          bodySex="male"
           sampleStack={sampleStack}
           sampleLogs={sampleLogs}
         />

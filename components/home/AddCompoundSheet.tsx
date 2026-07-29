@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { CalendarDots, PencilSimple, Plus, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
@@ -28,10 +28,13 @@ import {
 } from "@/lib/compound-categories"
 import { AmberNotice, useAmberNotice } from "@/components/notifications/amber-notice"
 import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
+import { getSelectedDayOrToday } from "@/lib/home/selectedDay"
 import {
   formatDateKeyShort,
   formatTimeLabel,
+  hasTime,
   loadStack,
+  recordScheduleVersion,
   methodLabel,
   sanitizeDoseInput,
   upcomingDoseDates,
@@ -42,6 +45,8 @@ import {
   type StackCompound,
 } from "@/lib/home/stack"
 import { describeBlendOverlap, findBlendOverlaps } from "@/lib/compound-blends"
+import { recordRecentCompound } from "@/lib/home/recentCompounds"
+import { loadUnitPref, recordUnitPref } from "@/lib/home/unitPrefs"
 
 interface AddCompoundSheetProps {
   open: boolean
@@ -49,6 +54,14 @@ interface AddCompoundSheetProps {
   compound: Compound | null
   /** An existing stack compound (edit) — pre-fills everything and saves by id. */
   editCompound?: StackCompound | null
+  /**
+   * Re-adding a compound the user previously DELETED (Spec 02). The form is a
+   * first-time add in every visible respect — nothing pre-filled, dose, schedule
+   * and start date all set fresh — but the save writes back to THIS record id, so
+   * the compound keeps one identity and its logged history stays attached rather
+   * than being orphaned behind a second record with the same name.
+   */
+  reuseId?: string | null
   /** Scopes the device-local stack in localStorage. */
   userId: string
   onOpenChange: (open: boolean) => void
@@ -105,8 +118,14 @@ function hhmm(d: Date): string {
 interface Source {
   /** null = creating a new entry; set = editing this id. */
   id: string | null
-  /** Reactivating an archived compound: resume from today + relabel "Reactivate". */
-  reactivate: boolean
+  /** The record being edited — or, on a re-add, the deleted record being written
+   *  back to. Needed to seed the schedule-version trail from the OUTGOING values,
+   *  so days before this change keep the rule that was in force then. Null when
+   *  creating a compound the user has never added. */
+  prior: StackCompound | null
+  /** Re-adding a previously deleted compound: presents as a first-time add, but
+   *  saves onto the existing record id (Spec 02). */
+  readd: boolean
   name: string
   category: CompoundCategory
   /** Selectable routes, default first. >1 ⇒ the Add sheet shows a route picker. */
@@ -122,13 +141,33 @@ interface Source {
 
 function toSource(
   compound: Compound | null,
-  editCompound: StackCompound | null | undefined
+  editCompound: StackCompound | null | undefined,
+  reAdded: StackCompound | null
 ): Source | null {
+  // A re-add reads from the CATALOGUE pick, not the deleted record — the user sets
+  // dose, schedule and start date fresh — and carries the old record only as the id
+  // to save onto and the prior rule to version behind the new one.
+  if (compound && reAdded) {
+    return {
+      id: reAdded.id,
+      prior: reAdded,
+      readd: true,
+      name: compound.name,
+      category: compound.category,
+      routeForms: routesOf(compound),
+      unitDefault: compound.defaultUnit || "mg",
+      dose: "",
+      unit: compound.defaultUnit || "mg",
+      schedule: null,
+      rotationSites: [],
+      rotationIndex: 0,
+    }
+  }
   if (editCompound) {
     return {
       id: editCompound.id,
-      // An archived compound being edited IS a reactivation (resume from today).
-      reactivate: editCompound.archived === true,
+      prior: editCompound,
+      readd: false,
       name: editCompound.name,
       category: editCompound.category,
       // An edit keeps its saved route — the route picker is a create-time choice.
@@ -144,7 +183,8 @@ function toSource(
   if (compound) {
     return {
       id: null,
-      reactivate: false,
+      prior: null,
+      readd: false,
       name: compound.name,
       category: compound.category,
       routeForms: routesOf(compound),
@@ -213,15 +253,27 @@ export function AddCompoundSheet({
   open,
   compound,
   editCompound,
+  reuseId,
   userId,
   onOpenChange,
   onAdded,
 }: AddCompoundSheetProps) {
+  // The deleted record a re-add writes back to. Read from the device stack here so
+  // the picker only has to pass an id (it has no reason to hold the whole record).
+  // Memoised: this is a synchronous localStorage read + JSON.parse, and the parent
+  // re-renders on a timer.
+  const reAdded = useMemo(
+    () =>
+      reuseId
+        ? ((loadStack(userId) ?? []).find((c) => c.id === reuseId) ?? null)
+        : null,
+    [reuseId, userId]
+  )
   // Retain the source through the close animation so the body doesn't blank.
   const [shown, setShown] = useState<Source | null>(() =>
-    toSource(compound, editCompound)
+    toSource(compound, editCompound, reAdded)
   )
-  const next = toSource(compound, editCompound)
+  const next = toSource(compound, editCompound, reAdded)
   if (
     next !== null &&
     (next.id !== shown?.id || next.name !== shown?.name)
@@ -264,11 +316,11 @@ function AddCompoundBody({
   onCancel: () => void
   onAdded: () => void
 }) {
-  // Reactivating an archived compound: an in-place upsert (keeps the id, drops the
-  // archived flag → active) that defaults the start to TODAY. It's NOT a plain
-  // "edit" — it resumes a stopped compound, so it takes the create-style start.
-  const isReactivate = source.reactivate
-  const isEdit = source.id !== null && !isReactivate
+  // Re-adding a deleted compound: an in-place upsert (keeps the id, drops the
+  // deleted flag → active) presented as a first-time add — empty dose, default
+  // schedule, start date today. It is NOT an "edit": nothing carries over.
+  const isReadd = source.readd
+  const isEdit = source.id !== null && !isReadd
   const meta = CATEGORY_META[source.category] ?? FALLBACK_CATEGORY_META
   const routeForms = source.routeForms
   // Compounds with more than one route (e.g. Glutathione: subQ or oral) let the
@@ -280,13 +332,13 @@ function AddCompoundBody({
   // already contains — or a blend covering something you already track — gets a
   // non-blocking note (Adrian's call: stacking another dose on purpose is fine).
   const [overlapNote] = useState<string | null>(() =>
-    isEdit || isReactivate
+    isEdit
       ? null
       : describeBlendOverlap(
           source.name,
           findBlendOverlaps(
             source.name,
-            // Archived compounds aren't tracked any more — don't flag them.
+            // Deleted compounds aren't tracked any more — don't flag them.
             (loadStack(userId) ?? [])
               .filter((c) => c.archived !== true)
               .map((c) => c.name)
@@ -305,40 +357,41 @@ function AddCompoundBody({
   // selected catalogue route, so we show just that type's fields.
   const stockType = (routeForms.find((f) => toMethod(f.route) === method)?.inventoryType ??
     "") as "" | "reconstituted" | "preconcentrated" | "oral_solid"
+  // Only compounds that come in a VIAL get the stock step (Spec 03). The test is
+  // the selected route's inventory FORM, never the category — so a future oral
+  // compound in any category behaves correctly, and Creatine or Berberine (po →
+  // oral_solid) never get asked "how much is left in the vial?". Tabs/caps stock
+  // still exists in the Protocol → Stock tab; it is only dropped from this form.
   const canStock =
-    !isEdit &&
-    !isReactivate &&
-    (stockType === "reconstituted" ||
-      stockType === "preconcentrated" ||
-      stockType === "oral_solid")
+    !isEdit && (stockType === "reconstituted" || stockType === "preconcentrated")
   const [addStockOn, setAddStockOn] = useState(false)
   const [stPowder, setStPowder] = useState("")
   const [stPowderUnit, setStPowderUnit] = useState<"mg" | "iu">("mg")
   const [stBac, setStBac] = useState("")
   const [stMl, setStMl] = useState("")
   const [stConc, setStConc] = useState("")
-  const [stCount, setStCount] = useState("")
-  const [stForm, setStForm] = useState<"tab" | "capsule">("tab")
-  const [stStrength, setStStrength] = useState("")
   // "How much is in it?" — same part-used estimate as the Stock tab (Full/¾/½/¼ or an
   // exact amount-left). Default Full = no offset, the prior full-vial behaviour.
   const [stFillPreset, setStFillPreset] = useState(1)
   const [stExactLeft, setStExactLeft] = useState("")
 
   const [now] = useState(() => new Date())
-  // Reactivation keeps the old cadence/sites but RE-ANCHORS the start to today, so
-  // the days it sat archived aren't back-filled. The user can still change it below.
-  const [initial] = useState(() =>
-    initSchedule(
-      isReactivate && source.schedule
-        ? { ...source.schedule, startDate: toDateKey(now) }
-        : source.schedule,
-      now
-    )
-  )
+  // A re-add carries NOTHING over from the deleted record (`source.schedule` is
+  // already null for it), so it opens on the same defaults as a first-time add —
+  // daily, starting today, empty dose, and the clock-tracking time every new
+  // compound gets.
+  const [initial] = useState(() => initSchedule(source.schedule, now))
 
   const [dose, setDose] = useState(source.dose)
-  const [unit, setUnit] = useState(source.unit)
+  // The unit starts at the compound's own catalogue default (peptides in mcg,
+  // anabolics in mg, …), UNLESS the user has overridden it for this compound
+  // before — then their choice is the default (Spec 03). An edit always shows the
+  // unit the record is actually stored in; a preference must never restate it.
+  const [unit, setUnit] = useState(() =>
+    isEdit
+      ? source.unit
+      : (loadUnitPref(userId, source.name, unitOptions) ?? source.unit)
+  )
   const [cadenceType, setCadenceType] = useState<CadenceType>(initial.cadenceType)
   const [everyN, setEveryN] = useState(initial.everyN)
   const [days, setDays] = useState<number[]>(initial.days)
@@ -349,8 +402,10 @@ function AddCompoundBody({
   // The default dose time live-tracks the clock (ticking each minute) for a NEW
   // compound until the user sets one; an edit starts frozen at its saved time.
   // `manualTime === null` ⇒ live. Picking a time freezes it; clearing resumes.
+  // (Spec 01 made this start empty and required; reverted at Adrian's request,
+  // 2026-07-29 — a pre-filled, overridable time is the faster add.)
   const [manualTime, setManualTime] = useState<string | null>(
-    isEdit || isReactivate ? initial.timeOfDay : null
+    isEdit ? initial.timeOfDay : null
   )
   const [clock, setClock] = useState(() => now)
   useEffect(() => {
@@ -361,6 +416,16 @@ function AddCompoundBody({
   const timeOfDay = manualTime ?? hhmm(clock)
 
   const todayKey = toDateKey(now)
+  // The day an alteration takes effect FROM. The spec's rule is "from the selected
+  // day onward", and the only screen with a day selection (the dashboard week
+  // strip, and now the calendar) publishes it — everywhere else there is no day
+  // context, so today is the right answer. Clamped to the compound's own start:
+  // a version can't take effect before the compound existed.
+  const selectedDayKey = getSelectedDayOrToday(todayKey)
+  const alterFrom =
+    source.schedule && selectedDayKey < source.schedule.startDate
+      ? source.schedule.startDate
+      : selectedDayKey
   // Past years are offered because a compound can start in the past (you add it to
   // the app after you've already been running it). PAST_START_YEARS is a dropdown
   // bound, not a rule — nothing rejects an older date, it's just how far back the
@@ -379,11 +444,12 @@ function AddCompoundBody({
   const startDate = `${sYear}-${String(sMonth).padStart(2, "0")}-${safeStartDay.padStart(2, "0")}`
   // Both are "YYYY-MM-DD", so a string compare is a date compare. A cycle starting
   // EARLIER TODAY is a past start too — its first dose has already been and gone —
-  // so it gets the same confirmation (the "time must be later than now" rule that
-  // used to make this unreachable is gone). While the time is still live-tracking,
-  // timeOfDay IS hhmm(clock), so this can't fire on its own as the clock ticks; it
-  // takes a deliberate earlier time.
-  const startedEarlierToday = startDate === todayKey && timeOfDay < hhmm(clock)
+  // so it gets the same confirmation. While the time is still live-tracking,
+  // `timeOfDay` IS hhmm(clock), so this can't fire on its own as the clock ticks;
+  // it takes a deliberate earlier time. An unset time makes no claim about when
+  // today's dose was, so it can't put the start in the past either.
+  const startedEarlierToday =
+    startDate === todayKey && hasTime(timeOfDay) && timeOfDay < hhmm(clock)
   const startsInPast = startDate < todayKey || startedEarlierToday
 
   function toggleDay(day: number) {
@@ -429,13 +495,16 @@ function AddCompoundBody({
       bacWater: amt(stBac),
       oilMl: amt(stMl),
       concentration: amt(stConc),
-      count: amt(stCount),
-      strength: amt(stStrength),
+      // Tabs/caps can't be reached from this form (vials only, Spec 03), but the
+      // shared helper's shape covers every inventory type.
+      count: 0,
+      strength: 0,
     },
     stExactLeft,
     stFillPreset,
   )
-  const stFillUnit = stockType === "oral_solid" ? stForm : "mL"
+  // Vials only on this form (Spec 03), so the part-used amount is always in mL.
+  const stFillUnit = "mL"
 
   function buildStockInsert():
     | Omit<StockInsert, "id" | "protocol_compound_id">
@@ -465,17 +534,8 @@ function AddCompoundBody({
         prior_used_base,
       }
     }
-    if (stockType === "oral_solid") {
-      if (n(stCount) <= 0 || n(stStrength) <= 0) return null
-      return {
-        inventory_type: "oral_solid",
-        base_unit: "mg",
-        total_amount: n(stCount),
-        total_amount_unit: stForm,
-        strength_per_unit_mg: n(stStrength),
-        prior_used_base,
-      }
-    }
+    // No `oral_solid` branch: the step is gated to vials (see `canStock`). Tabs and
+    // caps are still fully supported by Protocol → Stock's own sheet.
     return null
   }
 
@@ -486,9 +546,10 @@ function AddCompoundBody({
       return
     }
     // When the time is still live-tracking, resolve it at SAVE (a fresh now), so
-    // the saved default matches what the field last showed.
-    const nowAtSave = new Date()
-    const effectiveTime = manualTime ?? hhmm(nowAtSave)
+    // the saved default matches what the field last showed. A time is NOT required
+    // (Adrian's call, 2026-07-29) — clearing the field stores an unset time, which
+    // `formatTimeLabel` renders as "Not set".
+    const effectiveTime = manualTime ?? hhmm(new Date())
     // A start date in the past is allowed, deliberately. You often only add a
     // compound to the app AFTER you've started running it, and the doses you
     // already took need somewhere to land — a compound that didn't exist on Tuesday
@@ -501,16 +562,42 @@ function AddCompoundBody({
       return
     }
     // No duplicates: a compound can only be in the log once. Adding one that's
-    // already there (by name) just clutters the log — block it (an edit, which
-    // keeps the same id, is exempt). To change its dose/schedule, edit the existing
-    // one; to re-run a stopped compound, reactivate it from the Archive.
-    if (!isEdit && !isReactivate) {
+    // already there (by name) just clutters the log — block it. An edit and a
+    // re-add both keep the SAME id, so the name they'd collide with is their own
+    // record; only a genuinely new add is checked.
+    if (!isEdit && !isReadd) {
       const name = source.name.trim().toLowerCase()
       if ((loadStack(userId) ?? []).some((c) => c.name.trim().toLowerCase() === name)) {
         show(`${source.name} is already in your log.`)
         return
       }
     }
+    // ALTERING an existing compound versions the schedule instead of overwriting
+    // it: the new dose/cadence/time apply from `alterFrom` FORWARD, and every day
+    // before that keeps the rule that was actually in force then (Spec 01 →
+    // Altering a dose or schedule). Without this, changing a cadence rewrote what
+    // had been due on every past day — turning correct rest days into "missed".
+    //
+    // A RE-ADD versions the same way, effective from its new start date: the run
+    // before the deletion keeps the rule it was actually run under, and the new
+    // schedule governs from the start date forward. Nothing is back-filled — the
+    // days it sat deleted are simply not covered by either rule.
+    // A first-time add starts clean: there is no earlier rule to keep.
+    const versionedFrom = isReadd ? previewSchedule.startDate : alterFrom
+    const history =
+      (isEdit || isReadd) && source.prior
+        ? recordScheduleVersion(
+            source.prior,
+            {
+              cadence: previewSchedule.cadence,
+              timeOfDay: effectiveTime,
+              dose: doseValue,
+              unit,
+            },
+            versionedFrom
+          )
+        : undefined
+
     const saved: StackCompound = {
       id: source.id ?? newId(),
       name: source.name,
@@ -524,11 +611,17 @@ function AddCompoundBody({
       // cleared on save. These fields remain vestigial on the model/sync.
       rotationSites: [],
       rotationIndex: 0,
+      ...(history ? { scheduleHistory: history } : {}),
     }
     if (!upsertStack(userId, saved)) {
       show("Couldn't save to this device. Storage may be full or off.")
       return
     }
+    // Remember the unit for this compound and put it at the head of "Recently
+    // used" (Spec 03). Both are conveniences layered over the save — neither is
+    // allowed to fail it, so they run after the write has already succeeded.
+    recordUnitPref(userId, saved.name, unit)
+    recordRecentCompound(userId, saved.name)
     // Optionally record the vial they have on hand. Ensure the protocol_compound
     // exists in Postgres first (idempotent) so the inventory FK resolves, then add
     // it. Best-effort + backgrounded so the user isn't kept waiting.
@@ -558,14 +651,14 @@ function AddCompoundBody({
           Cancel
         </button>
         <SheetTitle className="justify-self-center text-base font-medium text-foreground">
-          {isReactivate ? "Reactivate compound" : isEdit ? "Edit compound" : "Add to log"}
+          {isEdit ? "Edit compound" : "Add to log"}
         </SheetTitle>
         <button
           type="button"
           onClick={handleSave}
           className="justify-self-end text-base font-medium text-foreground transition-colors hover:opacity-80"
         >
-          {isReactivate ? "Reactivate" : isEdit ? "Save" : "Add"}
+          {isEdit ? "Save" : "Add"}
         </button>
       </div>
       <SheetDescription className="sr-only">
@@ -590,15 +683,6 @@ function AddCompoundBody({
             </p>
           </div>
         </div>
-
-        {/* Reactivation heads-up — you can re-tune everything before it resumes. */}
-        {isReactivate && (
-          <p className="animate-home-up -mt-2 px-1 text-xs leading-relaxed text-text-subtle">
-            Reactivating — adjust the dose or schedule, then save. It resumes from
-            the start date below (today by default); the days it sat archived stay
-            empty and your past entries are kept.
-          </p>
-        )}
 
         {/* Blend overlap — a non-blocking heads-up that this compound is already
             covered by a blend you track (or vice versa). Add it anyway only if you
@@ -699,7 +783,7 @@ function AddCompoundBody({
               <span className="font-mono text-accent-amber">
                 {dose || "0"} {unit}
               </span>
-              . This applies to your upcoming doses — anything already logged stays
+              . This applies to your upcoming doses. Anything already logged stays
               as it was.{" "}
               <span className="text-text-muted">
                 For personal tracking only, not medical or dosing advice.
@@ -881,7 +965,7 @@ function AddCompoundBody({
                       <span className="font-mono text-foreground">
                         {formatTimeLabel(timeOfDay)}
                       </span>
-                      , already passed — so you can log the dose you&apos;ve already
+                      , already passed, so you can log the dose you&apos;ve already
                       taken.
                     </>
                   ) : (
@@ -890,7 +974,7 @@ function AddCompoundBody({
                       <span className="font-mono text-foreground">
                         {formatDateKeyShort(startDate)}
                       </span>
-                      , in the past — so you can log the doses you&apos;ve already
+                      , in the past, so you can log the doses you&apos;ve already
                       taken.
                     </>
                   )}
@@ -927,7 +1011,7 @@ function AddCompoundBody({
             show just that vial's fields. Starts full; counts down as doses log. */}
         {canStock && (
           <div className="animate-home-up" style={{ animationDelay: "210ms" }}>
-            <FieldLabel>Stock on hand — optional</FieldLabel>
+            <FieldLabel>Stock on hand (optional)</FieldLabel>
             {!addStockOn ? (
               <button
                 type="button"
@@ -968,25 +1052,10 @@ function AddCompoundBody({
                     </label>
                   </div>
                 )}
-                {stockType === "oral_solid" && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className="mb-1 block text-xs text-text-muted">Count</span>
-                      <div className="flex gap-1.5">
-                        <Input inputMode="numeric" value={stCount} onChange={(e) => setStCount(sanitizeDoseInput(e.target.value))} placeholder="100" className="h-11 min-w-0 flex-1 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => setStForm("tab")} className={cn(STOCK_PILL, stForm === "tab" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>tab</button>
-                          <button type="button" onClick={() => setStForm("capsule")} className={cn(STOCK_PILL, stForm === "capsule" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>cap</button>
-                        </div>
-                      </div>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs text-text-muted">Strength (mg each)</span>
-                      <Input inputMode="decimal" value={stStrength} onChange={(e) => setStStrength(sanitizeDoseInput(e.target.value))} placeholder="25" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
-                    </label>
-                  </div>
-                )}
-                {/* How much is in it? — always shown when the vial panel is open (not
+                {/* No tabs/caps fields here: this step is gated to vials (Spec 03),
+                    so `stockType` can only be reconstituted or preconcentrated. Oral
+                    solids still have full stock support in Protocol → Stock. */}
+                {/* How much is in it?— always shown when the vial panel is open (not
                     hidden until the amounts are typed), so the part-full option is
                     discoverable straight away. The presets/bar light up once there's a
                     capacity to take a fraction of. */}
@@ -1043,7 +1112,7 @@ function AddCompoundBody({
                     </>
                   ) : (
                     <p className="text-xs text-text-subtle">
-                      Enter the vial’s details above, then set how full it is — defaults to full.
+                      Set how full it is. Defaults to full.
                     </p>
                   )}
                 </div>

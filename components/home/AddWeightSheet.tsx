@@ -22,6 +22,11 @@ import { addProgressPhoto } from "@/app/(app)/progress/actions"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import { DEFAULT_POSES, poseLabel, poseShape } from "@/lib/progress/photos"
 import {
+  PhotoAdjustSheet,
+  type PhotoAdjustResult,
+} from "@/components/media/PhotoAdjustSheet"
+import { PROGRESS_PHOTO_ASPECT, type Framing } from "@/lib/media/framing"
+import {
   formatWeight,
   sanitizeWeightInput,
   unitToKg,
@@ -61,8 +66,14 @@ interface AddWeightSheetProps {
 
 interface Attachment {
   pose: string
+  /** The ADJUSTED image — what gets uploaded (storage is adjusted-only). */
   file: File
   previewUrl: string
+  /** The untouched pick, in memory for this session only, so re-adjusting works
+   *  on the full photo rather than on a crop of a crop. */
+  original: File
+  /** The framing that produced `file`, so re-opening resumes where it left off. */
+  framing: Framing
 }
 
 /**
@@ -113,6 +124,12 @@ function AddWeightBody({
   const [attachments, setAttachments] = useState<Record<string, Attachment>>({})
   const [extraPoses, setExtraPoses] = useState<string[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
+  // The pose whose photo is mid-adjustment. Null = no adjust step open.
+  const [adjusting, setAdjusting] = useState<{
+    pose: string
+    file: File
+    framing?: Framing
+  } | null>(null)
 
   // Auto-close after the success tick. The log is already committed server-side.
   useEffect(() => {
@@ -149,9 +166,36 @@ function AddWeightBody({
       return
     }
     setError(null)
+    // Adjust BEFORE it lands in the slot (Spec 05). These write to the same
+    // `progress_photos` store as the Progress screen, so they get the identical
+    // 3:4 treatment — otherwise a shot added from Home wouldn't line up with one
+    // added from Progress.
+    setAdjusting({ pose, file: f, framing: undefined })
+  }
+
+  /** Re-open a filled slot on its ORIGINAL image with its previous framing. */
+  function readjust(pose: string) {
+    const att = attachments[pose]
+    if (!att) return
+    setAdjusting({ pose, file: att.original, framing: att.framing })
+  }
+
+  function onAdjusted(result: PhotoAdjustResult) {
+    const pose = adjusting?.pose
+    setAdjusting(null)
+    if (!pose) return
     setAttachments((prev) => {
       if (prev[pose]) URL.revokeObjectURL(prev[pose].previewUrl)
-      return { ...prev, [pose]: { pose, file: f, previewUrl: URL.createObjectURL(f) } }
+      return {
+        ...prev,
+        [pose]: {
+          pose,
+          file: result.file,
+          previewUrl: URL.createObjectURL(result.file),
+          original: result.original,
+          framing: result.framing,
+        },
+      }
     })
   }
 
@@ -304,7 +348,7 @@ function AddWeightBody({
             Add a progress photo
           </p>
           <p className="mt-0.5 text-xs text-text-subtle">
-            Optional — lands under the right pose, dated today.
+            Optional. Dated today.
           </p>
 
           <div className="mt-3 flex flex-wrap gap-3">
@@ -312,31 +356,42 @@ function AddWeightBody({
               const att = attachments[slot.pose]
               return (
                 <div key={slot.pose} className="animate-shortcut-in flex w-[4.5rem] flex-col items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => (att ? removeAttachment(slot.pose) : pickFor(slot.pose))}
-                    aria-label={att ? `Remove ${slot.label} photo` : `Add ${slot.label} photo`}
-                    className={cn(
-                      "relative flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border transition-colors",
-                      att
-                        ? "border-border-strong"
-                        : "border-dashed border-border-strong bg-bg-input/40 text-text-muted hover:bg-bg-input/70",
-                    )}
-                  >
-                    {att ? (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {/* The tile and the X are separate controls (Spec 05): tapping a
+                      FILLED tile re-opens the adjust step on the original with its
+                      framing intact, while the X still removes. Nesting them, as
+                      this did, left no way to re-frame without starting over. */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => (att ? readjust(slot.pose) : pickFor(slot.pose))}
+                      aria-label={att ? `Adjust ${slot.label} photo` : `Add ${slot.label} photo`}
+                      className={cn(
+                        "flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border transition-colors",
+                        att
+                          ? "border-border-strong"
+                          : "border-dashed border-border-strong bg-bg-input/40 text-text-muted hover:bg-bg-input/70",
+                      )}
+                    >
+                      {att ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={att.previewUrl} alt="" className="h-full w-full object-cover object-top" />
-                        <span className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-bg-base/80 text-text-primary">
-                          <X className="h-3 w-3" aria-hidden />
-                        </span>
-                      </>
-                    ) : slot.shape ? (
-                      <PoseIcon shape={slot.shape} className="h-9 w-7" />
-                    ) : (
-                      <Camera className="h-6 w-6" aria-hidden />
+                      ) : slot.shape ? (
+                        <PoseIcon shape={slot.shape} className="h-9 w-7" />
+                      ) : (
+                        <Camera className="h-6 w-6" aria-hidden />
+                      )}
+                    </button>
+                    {att && (
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(slot.pose)}
+                        aria-label={`Remove ${slot.label} photo`}
+                        className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-bg-base/80 text-text-primary"
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden />
+                      </button>
                     )}
-                  </button>
+                  </div>
                   <span className="text-center text-[11px] leading-tight text-text-muted">
                     {slot.label}
                   </span>
@@ -379,6 +434,17 @@ function AddWeightBody({
           accept="image/png,image/jpeg,image/webp,image/heic"
           onChange={onFile}
           className="hidden"
+        />
+
+        {/* Adjust — same 3:4 frame as the Progress screen, since these land in the
+            same `progress_photos` store and the same cards. */}
+        <PhotoAdjustSheet
+          open={adjusting !== null}
+          file={adjusting?.file ?? null}
+          aspect={PROGRESS_PHOTO_ASPECT}
+          initialFraming={adjusting?.framing}
+          onCancel={() => setAdjusting(null)}
+          onConfirm={onAdjusted}
         />
 
         <div className="h-3" />

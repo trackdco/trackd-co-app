@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "@/components/icons";
@@ -20,7 +20,7 @@ import {
 } from "@/lib/calendar/calendar";
 import {
   getStackSnapshot,
-  isDueOn,
+  isDueOnFor,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack";
@@ -36,8 +36,12 @@ import {
   type DoseLog,
 } from "@/lib/home/mockHomeData";
 import { requestProgressAction } from "@/lib/progress/progressAction";
+import { LogDoseSheet } from "@/components/home/LogDoseSheet";
+import { setSelectedDay } from "@/lib/home/selectedDay";
+import { logDose, unlogDose } from "@/lib/home/doseLog";
 import type { EntryMarker } from "@/lib/progress/journal";
 import { unitForPreference } from "@/lib/weight";
+import type { BodySex } from "@/lib/db/types";
 
 const EMPTY_LOGS: DayLogs = {};
 
@@ -60,6 +64,8 @@ interface CalendarScreenProps {
   todayKey: DateKey;
   /** "metric" | "imperial" from the profile. */
   unitPreference: string;
+  /** Which figure the log-dose body map draws (from the user's profile). */
+  bodySex: BodySex;
   /** Dev-preview-only: inject the device-local stack + dose log. */
   sampleStack?: StackCompound[];
   sampleLogs?: DayLogs;
@@ -108,6 +114,7 @@ export function CalendarScreen({
   userId,
   todayKey,
   unitPreference,
+  bodySex,
   sampleStack,
   sampleLogs,
 }: CalendarScreenProps) {
@@ -123,6 +130,8 @@ export function CalendarScreen({
   const [selectedKey, setSelectedKey] = useState<DateKey>(todayKey);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
+  // The compound being logged from the calendar, if any.
+  const [logTarget, setLogTarget] = useState<StackCompound | null>(null);
 
   const liveStack = useSyncExternalStore(
     subscribeStack,
@@ -153,7 +162,7 @@ export function CalendarScreen({
     const hasWeight = weightByDate[key] != null;
     const scheduled =
       deviceReady &&
-      activeStack.some((c) => isDueOn(c.schedule, dateKeyToDate(key)));
+      activeStack.some((c) => isDueOnFor(c, dateKeyToDate(key)));
     const logged = loggedDose || hasPhoto || hasJournal || hasWeight;
     const status = resolveDayStatus(logged, scheduled, key > todayKey);
     const kind = loggedDose
@@ -174,6 +183,47 @@ export function CalendarScreen({
     () => buildRunning(deviceReady ? logs[selectedKey] : undefined, stackById),
     [deviceReady, logs, selectedKey, stackById],
   );
+
+  // Compounds due on the selected day that aren't logged yet — the calendar's
+  // log path (Spec 01 → "any screen that has a selected date passes that date
+  // into the logging action"). The calendar was read-only, so picking a past day
+  // and logging simply wasn't possible from here.
+  const dueOnSelected = useMemo(
+    () =>
+      deviceReady
+        ? activeStack.filter(
+            (c) =>
+              !logs[selectedKey]?.[c.id] &&
+              isDueOnFor(c, dateKeyToDate(selectedKey)),
+          )
+        : [],
+    [deviceReady, activeStack, logs, selectedKey],
+  );
+
+  // Days since each site was last used, relative to the SELECTED day — the log
+  // sheet's "last used here" rest hint. Same computation as the dashboard's.
+  const siteLastUsedDays = useMemo(() => {
+    const out: Record<string, number> = {};
+    const selN = Math.floor(dateKeyToDate(selectedKey).getTime() / 86_400_000);
+    for (const [key, dayLogObj] of Object.entries(logs)) {
+      if (key > selectedKey) continue;
+      const ago = selN - Math.floor(dateKeyToDate(key).getTime() / 86_400_000);
+      if (ago < 0) continue;
+      for (const [compoundId, dayLog] of Object.entries(dayLogObj)) {
+        if (key === selectedKey && compoundId === logTarget?.id) continue;
+        const sid = dayLog.siteId;
+        if (sid && (out[sid] === undefined || ago < out[sid])) out[sid] = ago;
+      }
+    }
+    return out;
+  }, [logs, selectedKey, logTarget]);
+
+  // Publish the day the calendar is parked on, so the quick-actions FAB writes
+  // here too rather than to today. Cleared on unmount (see selectedDay.ts).
+  useEffect(() => {
+    setSelectedDay(selectedKey);
+    return () => setSelectedDay(null);
+  }, [selectedKey]);
 
   function handleSelect(cell: MonthCell) {
     if (!cell.inMonth) {
@@ -225,6 +275,11 @@ export function CalendarScreen({
         journalBody={selJournal?.body ?? null}
         hasJournalEntry={Boolean(selJournal)}
         photos={photosByDate[selectedKey] ?? []}
+        dueToLog={dueOnSelected}
+        onLogDose={(c) => {
+          setSheetOpen(false);
+          setLogTarget(c);
+        }}
         onOpenWeight={() => {
           setSheetOpen(false);
           router.push("/weight");
@@ -239,6 +294,24 @@ export function CalendarScreen({
           requestProgressAction("photos-gallery");
           router.push("/progress");
         }}
+      />
+
+      {/* Logging from the calendar writes to the SELECTED day — the same
+          LogDoseSheet the dashboard uses, handed `selectedKey` as its dateKey so
+          nothing can fall back to "now". */}
+      <LogDoseSheet
+        open={logTarget !== null}
+        compound={logTarget}
+        existing={logTarget ? (logs[selectedKey]?.[logTarget.id] ?? null) : null}
+        dateKey={selectedKey}
+        todayKey={todayKey}
+        siteLastUsedDays={siteLastUsedDays}
+        bodySex={bodySex}
+        onOpenChange={(o) => {
+          if (!o) setLogTarget(null);
+        }}
+        onTracked={(compoundId, log) => logDose(userId, selectedKey, compoundId, log)}
+        onRemove={(compoundId) => unlogDose(userId, selectedKey, compoundId)}
       />
 
       <LegendSheet open={legendOpen} onOpenChange={setLegendOpen} />

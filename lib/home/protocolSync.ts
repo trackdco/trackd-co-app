@@ -30,13 +30,13 @@ import { createClient } from "@/lib/supabase/server"
 import { guard } from "@/lib/resilience/circuitBreaker"
 import { ensureActiveCycle } from "@/lib/db/cycles"
 import {
-  deleteProtocolCompound,
   setProtocolCompoundActive,
   upsertProtocolCompound,
   upsertProtocolCompounds,
 } from "@/lib/db/protocolCompounds"
 import { deleteDoseLog, upsertDoseLog, upsertDoseLogs } from "@/lib/db/doseLogs"
 import {
+  coerceDoseUnit,
   localSiteToInjectionSite,
   protocolCompoundToStack,
   stackCompoundToProtocolInsert,
@@ -76,6 +76,78 @@ function deterministicUuid(seed: string): string {
 /** The canonical `protocol_compounds.id` for a client `StackCompound.id`. */
 function resolvePcId(userId: string, clientId: string): string {
   return UUID_RE.test(clientId) ? clientId : deterministicUuid(`pc:${userId}:${clientId}`)
+}
+
+/**
+ * The `protocol_compounds.id` that a client compound ACTUALLY maps to — looked up,
+ * not derived.
+ *
+ * This is the fix for the ghost-compound bug (Spec 01 · steps 2–3). `resolvePcId`
+ * is a pure function of the client id, and the two can legitimately diverge:
+ * `pushProtocolCompound` REUSES the existing row's id when this (cycle, compound)
+ * already has one, so a compound re-added against a drifted local cache ends up
+ * with a Postgres row whose id is not the client's. Archive and delete used to
+ * derive the id, so once diverged they targeted a row that does not exist —
+ * `UPDATE … WHERE id = <nothing>` and `DELETE … WHERE id = <nothing>` both affect
+ * zero rows, and PostgREST reports neither as an error. Postgres therefore kept
+ * the compound `is_active = true` (or kept it at all), the next hydration pulled
+ * it back, and because the merge joins on id it could not match the local
+ * "archived" record either — so the local intent was dropped and the compound
+ * returned, active, with its dose logs. That is the reported bug.
+ *
+ * Resolution order, most to least specific:
+ *  1. the derived id, if such a row exists (the overwhelmingly common case);
+ *  2. the compound's NAME within this user's rows — catalogue compounds via the
+ *     joined `compounds.name`, customs via `custom_name`. Name is the right
+ *     fallback key because it is what the app itself treats as the compound's
+ *     identity (the add flow refuses a duplicate by name, and the hydration merge
+ *     de-dupes by name).
+ *
+ * Prefers an ACTIVE row, then the most recently updated, so a leftover row from
+ * an older cycle can never shadow the live one. Returns null when the user
+ * genuinely has no row for this compound — a real answer, not a failure.
+ */
+async function findProtocolCompoundId(
+  cx: { supabase: Awaited<ReturnType<typeof createClient>>; userId: string },
+  clientId: string,
+  name: string | null
+): Promise<string | null> {
+  const derived = resolvePcId(cx.userId, clientId)
+  const { data: byId } = await cx.supabase
+    .from("protocol_compounds")
+    .select("id")
+    .eq("id", derived)
+    .eq("user_id", cx.userId)
+    .maybeSingle()
+  if (byId?.id) return byId.id as string
+  if (!name) return null
+
+  const { data: rows, error } = await cx.supabase
+    .from("protocol_compounds")
+    .select("id, custom_name, is_active, updated_at, created_at, compounds(name)")
+    .eq("user_id", cx.userId)
+  if (error) {
+    console.error("findProtocolCompoundId failed", error)
+    return null
+  }
+  const target = name.trim().toLowerCase()
+  type Row = {
+    id: string
+    custom_name: string | null
+    is_active: boolean
+    updated_at: string | null
+    created_at: string | null
+    compounds?: { name: string } | null
+  }
+  const matches = ((rows ?? []) as unknown as Row[]).filter((r) => {
+    const rowName = r.compounds?.name ?? r.custom_name ?? ""
+    return rowName.trim().toLowerCase() === target
+  })
+  if (matches.length === 0) return null
+  const rank = (r: Row) =>
+    (r.is_active === false ? 0 : 1) * 1e15 +
+    (Date.parse((r.updated_at ?? r.created_at ?? "") as string) || 0)
+  return matches.reduce((best, r) => (rank(r) > rank(best) ? r : best)).id
 }
 
 function parseAmount(raw: string, fallback: number): number {
@@ -285,16 +357,32 @@ export async function pushProtocolBatch(
   }
 }
 
-/** Archive (stop dosing, keep history) or reactivate. No-op for a custom compound
- *  (no `protocol_compound` exists). */
+/**
+ * Set `is_active` — `archived: true` is the app's Delete (stop future doses, keep
+ * every logged dose); `false` is reached only by a re-add or by the offline-state
+ * reconciliation in `hydrateProtocol`, never by a user-facing "reactivate".
+ * The row is RESOLVED rather than derived (see `findProtocolCompoundId`),
+ * so a compound whose Postgres id has drifted from its client id is still stopped
+ * instead of silently skipped.
+ *
+ * No row at all ⇒ `skipped`, not a failure: a custom compound that has never
+ * needed a `protocol_compounds` row has nothing to deactivate, and the device-local
+ * archive flag is the whole truth for it. Anything else that fails returns
+ * `ok: false` so `trackSync` surfaces it — deletion is the one operation where
+ * "we think it worked" is not good enough, because the cost of being wrong is the
+ * compound coming back.
+ */
 export async function archiveProtocolCompound(
   clientId: string,
+  name: string | null,
   archived: boolean
 ): Promise<Ok> {
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    const saved = await setProtocolCompoundActive(resolvePcId(cx.userId, clientId), !archived)
+    const pcId = await findProtocolCompoundId(cx, clientId, name)
+    if (!pcId) return { ok: true, skipped: true }
+    const saved = await setProtocolCompoundActive(pcId, !archived)
     return { ok: saved !== null }
   } catch (e) {
     console.error("archiveProtocolCompound failed", e)
@@ -302,18 +390,10 @@ export async function archiveProtocolCompound(
   }
 }
 
-/** Hard-delete a protocol compound (cascades its dose logs) — the Archive screen's
- *  permanent delete. No-op for a custom compound. */
-export async function deleteProtocolCompoundForStack(clientId: string): Promise<Ok> {
-  try {
-    const cx = await ctx()
-    if (!cx) return { ok: false }
-    return await deleteProtocolCompound(resolvePcId(cx.userId, clientId))
-  } catch (e) {
-    console.error("deleteProtocolCompoundForStack failed", e)
-    return { ok: false }
-  }
-}
+// A hard delete of a protocol compound (which would cascade its dose logs) is NOT
+// reachable from the app (Spec 02): "Delete" is `archiveProtocolCompound` above,
+// which stops future doses and keeps every log. The DB cascade remains only so a
+// full account deletion still erases a user on request (Invariant 8).
 
 /* --------------------------------------------------------------- dose logs */
 
@@ -674,7 +754,12 @@ export async function pushProtocolDoseLog(
       inventory_item_id: inventoryItemId,
       status: "taken",
       dose_amount: parseAmount(log.amount, Number(pc.dose_amount)),
-      dose_unit: pc.dose_unit as DoseUnit,
+      // The unit the dose was RECORDED in wins over the compound's current one, so
+      // re-saving an old dose can't relabel it with a unit it was never taken in.
+      // Coerced rather than cast: `DoseLog.unit` is a free string from the device
+      // store, so an old or hand-edited record could otherwise send Postgres a
+      // value its `dose_unit` enum has no cast for and fail the whole write.
+      dose_unit: coerceDoseUnit(log.unit ?? pc.dose_unit),
       injection_site: method === "im" || method === "subq"
         ? localSiteToInjectionSite(log.siteId)
         : null,
@@ -701,6 +786,118 @@ export async function deleteProtocolDoseLog(
   } catch (e) {
     console.error("deleteProtocolDoseLog failed", e)
     return { ok: false }
+  }
+}
+
+/* ------------------------------------------------- schedule versions (Spec 01) */
+
+/**
+ * Persist a compound's schedule VERSIONS (`supabase/protocol/005`).
+ *
+ * TOLERANT OF THE TABLE NOT EXISTING YET. The migration is additive and pending
+ * sign-off, so until it is applied every call here fails with `42P01`
+ * (undefined_table) and is treated as `skipped` — identical to the pre-versioning
+ * behaviour, and NOT reported to the user as a sync failure, because nothing is
+ * wrong. Versions still live in the device store meanwhile, so no user intent is
+ * lost; applying the migration simply starts backing them up.
+ */
+function isMissingTable(error: { code?: string } | null): boolean {
+  return error?.code === "42P01"
+}
+
+export async function pushScheduleVersions(
+  clientId: string,
+  name: string | null,
+  versions: {
+    effectiveFrom: string
+    dose: number
+    unit: string
+    scheduleType: string
+    daysOfWeek: number[] | null
+    intervalDays: number | null
+    time: string | null
+  }[]
+): Promise<Ok> {
+  try {
+    const cx = await ctx()
+    if (!cx) return { ok: false }
+    if (versions.length === 0) return { ok: true, skipped: true }
+    const pcId = await findProtocolCompoundId(cx, clientId, name)
+    if (!pcId) return { ok: true, skipped: true } // custom / unmigrated compound
+    const { error } = await cx.supabase.from("protocol_compound_schedules").upsert(
+      versions.map((v) => ({
+        user_id: cx.userId,
+        protocol_compound_id: pcId,
+        effective_from: v.effectiveFrom,
+        dose_amount: v.dose > 0 ? v.dose : 0.001,
+        dose_unit: v.unit,
+        schedule_type: v.scheduleType,
+        days_of_week: v.daysOfWeek,
+        interval_days: v.intervalDays,
+        dose_times: [v.time],
+      })),
+      { onConflict: "protocol_compound_id,effective_from" }
+    )
+    if (error) {
+      if (isMissingTable(error)) return { ok: true, skipped: true }
+      console.error("pushScheduleVersions failed", error)
+      return { ok: false }
+    }
+    return { ok: true }
+  } catch (e) {
+    console.error("pushScheduleVersions failed", e)
+    return { ok: false }
+  }
+}
+
+/** Every schedule version the user owns, keyed by `protocol_compound_id`. Empty
+ *  when the table doesn't exist yet — the caller then keeps whatever the device
+ *  already holds, so a pending migration degrades to today's behaviour. */
+export async function pullScheduleVersions(): Promise<
+  Record<string, {
+    effectiveFrom: string
+    dose: number
+    unit: string
+    scheduleType: string
+    daysOfWeek: number[] | null
+    intervalDays: number | null
+    time: string | null
+  }[]>
+> {
+  try {
+    const cx = await ctx()
+    if (!cx) return {}
+    const { data, error } = await cx.supabase
+      .from("protocol_compound_schedules")
+      .select("protocol_compound_id, effective_from, dose_amount, dose_unit, schedule_type, days_of_week, interval_days, dose_times")
+      .eq("user_id", cx.userId)
+      .order("effective_from", { ascending: true })
+    if (error) {
+      if (!isMissingTable(error)) console.error("pullScheduleVersions failed", error)
+      return {}
+    }
+    const out: Record<string, ReturnType<typeof mapVersion>[]> = {}
+    for (const r of data ?? []) {
+      const key = r.protocol_compound_id as string
+      ;(out[key] ??= []).push(mapVersion(r))
+    }
+    return out
+  } catch (e) {
+    console.error("pullScheduleVersions failed", e)
+    return {}
+  }
+}
+
+function mapVersion(r: Record<string, unknown>) {
+  const times = r.dose_times as (string | null)[] | null
+  return {
+    effectiveFrom: r.effective_from as string,
+    dose: Number(r.dose_amount),
+    unit: String(r.dose_unit),
+    scheduleType: String(r.schedule_type),
+    daysOfWeek: (r.days_of_week as number[] | null) ?? null,
+    intervalDays: (r.interval_days as number | null) ?? null,
+    time: (times?.[0] ?? null) as string | null,
   }
 }
 
@@ -731,7 +928,7 @@ export async function pullProtocolStackAndLogs(): Promise<{
           .eq("user_id", cx.userId),
         cx.supabase
           .from("dose_logs")
-          .select("protocol_compound_id, taken_at, dose_amount, injection_site, inventory_item_id")
+          .select("protocol_compound_id, taken_at, dose_amount, dose_unit, injection_site, inventory_item_id")
           .eq("user_id", cx.userId),
       ])
       // Surface Supabase errors (they don't throw) so the breaker counts a real
@@ -776,6 +973,9 @@ export async function pullProtocolStackAndLogs(): Promise<{
         compoundId: r.protocol_compound_id as string,
         takenAt: r.taken_at as string,
         amount: String(r.dose_amount),
+        // The unit this dose was LOGGED in — per-log in the schema, so history
+        // survives a change to the compound's unit (see DoseLog.unit).
+        doseUnit: (r.dose_unit as string | null) ?? null,
         injectionSite: (r.injection_site as string | null) ?? null,
         inventoryItemId: (r.inventory_item_id as string | null) ?? null,
       }))

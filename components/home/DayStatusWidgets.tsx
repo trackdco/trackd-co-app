@@ -67,15 +67,29 @@ function CompletionRing({
  *  (never at value size). Falls back to the raw string on any other shape. */
 function CountdownValue({ text }: { text: string }) {
   const m = /^(\d+)h\s*(\d+)m$/.exec(text)
-  if (!m) return <span className={METRIC_VALUE}>{text}</span>
-  return (
-    <span className="flex items-baseline">
-      <span className={METRIC_VALUE}>{m[1]}</span>
-      <span className={UNIT_SUFFIX}>h</span>
-      <span className={cn(METRIC_VALUE, "ml-1.5")}>{m[2]}</span>
-      <span className={UNIT_SUFFIX}>m</span>
-    </span>
-  )
+  if (m) {
+    return (
+      <span className="flex items-baseline">
+        <span className={METRIC_VALUE}>{m[1]}</span>
+        <span className={UNIT_SUFFIX}>h</span>
+        <span className={cn(METRIC_VALUE, "ml-1.5")}>{m[2]}</span>
+        <span className={UNIT_SUFFIX}>m</span>
+      </span>
+    )
+  }
+  // A clock time ("8:00 PM") — shown instead of a countdown when the selected day
+  // isn't today, since "in Xh Ym" says nothing about another day's dose. The
+  // meridiem demotes exactly like a unit does (ui-context: `8:00`▸` pm`).
+  const t = /^(\d{1,2}:\d{2})\s*([AaPp][Mm])$/.exec(text)
+  if (t) {
+    return (
+      <span className="flex items-baseline">
+        <span className={METRIC_VALUE}>{t[1]}</span>
+        <span className={cn(UNIT_SUFFIX, "ml-1")}>{t[2].toLowerCase()}</span>
+      </span>
+    )
+  }
+  return <span className={METRIC_VALUE}>{text}</span>
 }
 
 /** The next scheduled dose today — countdown + the compound it's for (moved off the

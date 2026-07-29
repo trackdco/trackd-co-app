@@ -15,13 +15,14 @@
  */
 import type { CompoundCategory } from "@/lib/compound-categories"
 import { isCustomName } from "@/lib/compound-lookup"
-import { pushStackCompound, deleteStackCompound } from "@/lib/home/syncActions"
+import { coerceDoseUnit } from "@/lib/db/doseUnits"
+import { pushStackCompound } from "@/lib/home/syncActions"
 import {
   archiveProtocolCompound,
-  deleteProtocolCompoundForStack,
   pushProtocolCompound,
+  pushScheduleVersions,
 } from "@/lib/home/protocolSync"
-import { trackSync } from "@/lib/home/syncStatus"
+import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
 
 /**
  * How a compound is administered. Defaults to the compound's primary `route`;
@@ -39,10 +40,199 @@ export type Cadence =
 
 export interface Schedule {
   cadence: Cadence
-  /** Default log time, 24h "HH:mm". */
+  /**
+   * Dose time, 24h "HH:mm". **Pre-filled and optional** (Adrian, 2026-07-29):
+   * the add form opens on the clock and the log form on the clock (today) or the
+   * compound's scheduled time (back-dated), and neither blocks a save without one.
+   * Spec 01 briefly made it start empty and be mandatory; that was reverted.
+   *
+   * May be `""` — on records written while it was optional, on anything the user
+   * cleared, and on a Postgres row whose `dose_times` holds NULL. Display those
+   * through {@link formatTimeLabel} (which words it once, as "Not set") and test
+   * with {@link hasTime}; never substitute a default at the call site.
+   */
   timeOfDay: string
   /** Cycle start, "YYYY-MM-DD". Anchors EOD / every-N-days and gates due dates. */
   startDate: string
+}
+
+/** Whether a schedule / log time has actually been set. The field is optional, so
+ *  a false here is a legitimate "no time chosen", not corrupt data. */
+export function hasTime(time24: string | null | undefined): boolean {
+  return typeof time24 === "string" && /^\d{1,2}:\d{2}$/.test(time24)
+}
+
+/* --------------------------------------------------- schedule versioning */
+
+/**
+ * One version of a compound's dose + schedule, effective from a given day.
+ *
+ * **An alteration applies from the chosen day FORWARD and never earlier**
+ * (Spec 01 → Altering a dose or schedule). Editing used to mutate the single
+ * schedule in place, so changing a cadence retroactively rewrote what had been
+ * due on every past day — a Tuesday you correctly rested could become "missed"
+ * because of a change you made in August. Versions make "what was due on date D"
+ * answerable: find the version active on D.
+ *
+ * Nothing is back-filled or compensated. Raising a dose adds no catch-up dose for
+ * the days before the change; it simply doesn't apply to them.
+ */
+export interface ScheduleVersion {
+  /** Local "YYYY-MM-DD". This version governs days >= this, until the next one. */
+  effectiveFrom: string
+  cadence: Cadence
+  timeOfDay: string
+  dose: number
+  unit: string
+}
+
+/** The dose + schedule that were in force on `dateKey`. */
+export interface ResolvedSchedule {
+  schedule: Schedule
+  dose: number
+  unit: string
+}
+
+/**
+ * What this compound's rule ACTUALLY was on `dateKey`.
+ *
+ * With no version history (every compound until one is edited) this returns the
+ * compound's current values unchanged — so behaviour is identical to before
+ * versioning existed, and the feature costs nothing until it's used.
+ */
+export function resolveScheduleOn(
+  c: StackCompound,
+  dateKey: string
+): ResolvedSchedule {
+  const current: ResolvedSchedule = {
+    schedule: c.schedule,
+    dose: c.dose,
+    unit: c.unit,
+  }
+  const versions = c.scheduleHistory
+  if (!versions || versions.length === 0) return current
+  let best: ScheduleVersion | null = null
+  for (const v of versions) {
+    if (v.effectiveFrom > dateKey) continue
+    if (!best || v.effectiveFrom > best.effectiveFrom) best = v
+  }
+  if (!best) {
+    // The day predates every recorded version. The EARLIEST version is the oldest
+    // rule we know of, so it's the honest answer — never the current one, which is
+    // precisely the retroactive rewrite versioning exists to stop.
+    const earliest = [...versions].sort((a, b) =>
+      a.effectiveFrom.localeCompare(b.effectiveFrom)
+    )[0]
+    return {
+      schedule: { cadence: earliest.cadence, timeOfDay: earliest.timeOfDay, startDate: c.schedule.startDate },
+      dose: earliest.dose,
+      unit: earliest.unit,
+    }
+  }
+  return {
+    schedule: {
+      cadence: best.cadence,
+      timeOfDay: best.timeOfDay,
+      startDate: c.schedule.startDate,
+    },
+    dose: best.dose,
+    unit: best.unit,
+  }
+}
+
+/** Whether the compound was due on a date, judged by the rule in force THEN. */
+export function isDueOnFor(c: StackCompound, date: Date): boolean {
+  return isDueOn(resolveScheduleOn(c, toDateKeyLocal(date)).schedule, date)
+}
+
+/**
+ * Record an alteration effective from `effectiveFrom`, returning the new version
+ * list. The compound's own `schedule`/`dose`/`unit` still carry the CURRENT rule
+ * (forward-looking UI is unchanged); this is the trail behind it.
+ *
+ * Seeds a baseline from the OUTGOING values the first time a compound is edited —
+ * without it the days before the change would have no recorded rule and would
+ * fall through to the new one, which is the exact retroactive rewrite being
+ * fixed. Re-editing on the same day replaces that day's version rather than
+ * stacking duplicates.
+ */
+export function recordScheduleVersion(
+  previous: StackCompound,
+  next: { cadence: Cadence; timeOfDay: string; dose: number; unit: string },
+  effectiveFrom: string
+): ScheduleVersion[] {
+  const history = [...(previous.scheduleHistory ?? [])]
+  if (history.length === 0) {
+    history.push({
+      effectiveFrom: previous.schedule.startDate,
+      cadence: previous.schedule.cadence,
+      timeOfDay: previous.schedule.timeOfDay,
+      dose: previous.dose,
+      unit: previous.unit,
+    })
+  }
+  const version: ScheduleVersion = { effectiveFrom, ...next }
+  const at = history.findIndex((v) => v.effectiveFrom === effectiveFrom)
+  if (at >= 0) history[at] = version
+  else history.push(version)
+  return history.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+}
+
+/** A version in the shape `protocol_compound_schedules` stores (ISO weekdays,
+ *  `HH:mm:ss`), so the local↔Postgres mapping lives in ONE place. */
+export function scheduleVersionToRow(v: ScheduleVersion) {
+  const cad = v.cadence
+  return {
+    effectiveFrom: v.effectiveFrom,
+    dose: v.dose,
+    // The SAME coercion `protocol_compounds` rows get, so a version row can't
+    // disagree with the compound it belongs to. A hand-rolled mcg/iu-or-mg check
+    // here silently rewrote every tablet, capsule, mL and gram dose as mg.
+    unit: coerceDoseUnit(v.unit),
+    scheduleType:
+      cad.type === "daysOfWeek"
+        ? "specific_days"
+        : cad.type === "daily"
+          ? "every_day"
+          : "every_n_days",
+    // Local 0=Sun..6=Sat → ISO Mon=1..Sun=7, matching protocol_compounds.
+    daysOfWeek:
+      cad.type === "daysOfWeek" ? cad.days.map((d) => (d === 0 ? 7 : d)) : null,
+    intervalDays:
+      cad.type === "everyOtherDay" ? 2 : cad.type === "everyNDays" ? cad.n : null,
+    time: hasTime(v.timeOfDay) ? `${v.timeOfDay}:00` : null,
+  }
+}
+
+/** The inverse — a stored version row back into the local shape. */
+export function scheduleVersionFromRow(r: {
+  effectiveFrom: string
+  dose: number
+  unit: string
+  scheduleType: string
+  daysOfWeek: number[] | null
+  intervalDays: number | null
+  time: string | null
+}): ScheduleVersion {
+  let cadence: Cadence = { type: "daily" }
+  if (r.scheduleType === "specific_days") {
+    cadence = {
+      type: "daysOfWeek",
+      days: (r.daysOfWeek ?? []).map((d) => (d === 7 ? 0 : d)),
+    }
+  } else if (r.scheduleType === "every_n_days") {
+    cadence =
+      r.intervalDays === 2
+        ? { type: "everyOtherDay" }
+        : { type: "everyNDays", n: r.intervalDays ?? 1 }
+  }
+  return {
+    effectiveFrom: r.effectiveFrom,
+    cadence,
+    timeOfDay: r.time ? r.time.slice(0, 5) : "",
+    dose: r.dose,
+    unit: r.unit,
+  }
 }
 
 /** Display label for a method (e.g. for the locked method on the add sheet). */
@@ -108,6 +298,10 @@ export interface StackCompound {
   /** Archived = no longer dosed (hidden from present/future) but history kept.
    *  Reversible. Absent/false = active. */
   archived?: boolean
+  /** Past + current dose/schedule versions, each effective from a day (see
+   *  {@link ScheduleVersion}). Absent/empty on a compound never edited, in which
+   *  case the fields above ARE the whole history. */
+  scheduleHistory?: ScheduleVersion[]
 }
 
 // `v2` bump: abandons any earlier-seeded device data so the app starts as a
@@ -170,11 +364,27 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
     // + stock runway exactly like a catalogue compound.
     if (isCustomName(compound.name)) void pushStackCompound(compound)
     void trackSync(pushProtocolCompound(compound)) // Postgres (custom or catalogue)
+    // Schedule versions (Spec 01). Skipped silently until supabase/protocol/005 is
+    // applied — the device store keeps them meanwhile, so no intent is lost.
+    if (compound.scheduleHistory?.length) {
+      void trackSync(
+        pushScheduleVersions(
+          compound.id,
+          compound.name,
+          compound.scheduleHistory.map(scheduleVersionToRow)
+        )
+      )
+    }
   }
   return ok
 }
 
-/** Archive (stop dosing, keep history) or reactivate a compound. */
+/**
+ * Set a compound's deleted flag. `archived: true` IS the app's Delete (Spec 02 —
+ * two states, active or deleted): future doses stop, every logged dose is kept.
+ * The `false` direction is not a user action any more — re-adding a deleted
+ * compound goes through the normal add, which rewrites the record active.
+ */
 export function archiveInStack(
   userId: string,
   id: string,
@@ -191,26 +401,21 @@ export function archiveInStack(
     // Custom archive state lives in the mirror (no Postgres row); catalogue archive
     // state lives in Postgres (is_active), so only customs write to the mirror.
     if (updated && isCustomName(updated.name)) void pushStackCompound({ ...updated, archived })
-    void trackSync(archiveProtocolCompound(id, archived)) // Postgres (no-op for customs)
+    // The NAME is passed so the server can RESOLVE the row rather than derive its
+    // id from this one: the two diverge, and a derived id that matches nothing
+    // used to make this a silent no-op — leaving Postgres holding the compound as
+    // active, ready for the next hydration to bring it back (see protocolSync's
+    // `findProtocolCompoundId`).
+    void trackCriticalSync(archiveProtocolCompound(id, updated?.name ?? null, archived))
   }
   return ok
 }
 
-/** Permanently remove a compound from the stack (the hard-delete path). Persists
- *  + notifies. Its logged history is cleared separately (see doseLog). */
-export function removeFromStack(userId: string, id: string): boolean {
-  const cur = loadStack(userId) ?? []
-  const ok = saveStack(
-    userId,
-    cur.filter((c) => c.id !== id)
-  )
-  if (ok) {
-    notifyStackChanged()
-    void deleteStackCompound(id)
-    void trackSync(deleteProtocolCompoundForStack(id)) // Postgres (cascades its dose logs)
-  }
-  return ok
-}
+// There is deliberately NO hard delete here (Spec 02): a compound has two states,
+// active and deleted, and `archiveInStack` IS the delete — it stops future doses
+// and keeps every logged dose. Erasing a compound and its history outright is not
+// offered anywhere in the app, which is also Invariant 8 (archive, never
+// hard-delete user history). Adding one back is a normal add onto the same record.
 
 /**
  * A same-tab signal that the stack changed, so a sibling (the Home screen) can
@@ -420,8 +625,13 @@ export function sanitizeDoseInput(raw: string): string {
   return v.includes(".") ? `${clampedInt}.${(dec ?? "").slice(0, 3)}` : clampedInt
 }
 
-/** "07:30" → "7:30 AM". Falls back to the raw string if it isn't HH:mm. */
+/**
+ * "07:30" → "7:30 AM". An UNSET time (`""`) reads "Not set" — the single place
+ * the app words that state, so every surface says it identically. Falls back to
+ * the raw string for anything else that isn't HH:mm.
+ */
 export function formatTimeLabel(time24: string): string {
+  if (!time24) return "Not set"
   const m = /^(\d{1,2}):(\d{2})$/.exec(time24)
   if (!m) return time24
   let h = Number(m[1])
@@ -487,12 +697,38 @@ function normalizeCompound(item: unknown): StackCompound | null {
     rotationSites: isInjectable(method) ? rotationSites : [],
     rotationIndex: rawIndex,
     archived: c.archived === true,
+    ...(normalizeHistory(c.scheduleHistory) ?? {}),
   })
+}
+
+/** Harden a stored version list; drops anything malformed rather than crashing. */
+function normalizeHistory(raw: unknown): { scheduleHistory: ScheduleVersion[] } | null {
+  if (!Array.isArray(raw)) return null
+  const out: ScheduleVersion[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue
+    const v = item as Record<string, unknown>
+    if (typeof v.effectiveFrom !== "string") continue
+    const s = normalizeSchedule({ cadence: v.cadence, timeOfDay: v.timeOfDay })
+    out.push({
+      effectiveFrom: v.effectiveFrom,
+      cadence: s.cadence,
+      timeOfDay: s.timeOfDay,
+      dose: typeof v.dose === "number" ? v.dose : 0,
+      unit: typeof v.unit === "string" ? v.unit : "mg",
+    })
+  }
+  if (out.length === 0) return null
+  out.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+  return { scheduleHistory: out }
 }
 
 function normalizeSchedule(raw: unknown): Schedule {
   const s = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>
-  const timeOfDay = typeof s.timeOfDay === "string" ? s.timeOfDay : "09:00"
+  // `""` round-trips as the deliberate "unset" state and must be preserved — a
+  // stored empty string is a choice, not a missing field. Only a genuinely absent
+  // or non-string value falls through to unset.
+  const timeOfDay = typeof s.timeOfDay === "string" ? s.timeOfDay : ""
   // Legacy records have no start date; "1970-01-01" reads as "already started"
   // (always due) and keeps EOD/every-N anchored consistently.
   const startDate =

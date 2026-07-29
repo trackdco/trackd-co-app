@@ -5,7 +5,6 @@ import {
   CalendarDot,
   CaretDown,
   PencilSimple,
-  ArrowCounterClockwise,
   Trash,
 } from "@/components/icons"
 
@@ -49,10 +48,8 @@ interface CompoundDetailSheetProps {
   onEditTodaysDose?: (compound: StackCompound) => void
   /** Edit the compound GOING FORWARD — opens the add sheet pre-filled (under More). */
   onEdit: (compound: StackCompound) => void
-  /** Archive — stop dosing, keep history (reversible). */
+  /** Delete — stop future doses, keep every logged dose (Spec 02: the one verb). */
   onArchive: (id: string) => void
-  /** Permanently delete the compound + all its logged history. */
-  onDelete: (id: string) => void
 }
 
 function formatDose(dose: number): string {
@@ -73,7 +70,6 @@ export function CompoundDetailSheet({
   onEditTodaysDose,
   onEdit,
   onArchive,
-  onDelete,
 }: CompoundDetailSheetProps) {
   // Retain through the close animation so the body doesn't blank.
   const [shown, setShown] = useState<StackCompound | null>(compound)
@@ -96,7 +92,6 @@ export function CompoundDetailSheet({
             onEditTodaysDose={onEditTodaysDose}
             onEdit={onEdit}
             onArchive={onArchive}
-            onDelete={onDelete}
           />
         ) : null}
       </SheetContent>
@@ -112,7 +107,6 @@ function DetailBody({
   onEditTodaysDose,
   onEdit,
   onArchive,
-  onDelete,
 }: {
   compound: StackCompound
   onClose: () => void
@@ -121,15 +115,11 @@ function DetailBody({
   onEditTodaysDose?: (compound: StackCompound) => void
   onEdit: (compound: StackCompound) => void
   onArchive: (id: string) => void
-  onDelete: (id: string) => void
 }) {
   const { cardRef, handleProps, cardStyle } = useSheetDrag(onClose)
   const [moreOpen, setMoreOpen] = useState(false)
-  // A pending ARCHIVE confirmation (drops down before it happens). Reactivation no
-  // longer confirms here — it opens the pre-filled config sheet via onEdit.
+  // A pending DELETE confirmation (drops down before it happens).
   const [confirmArchive, setConfirmArchive] = useState(false)
-  // 0 = not started, 1 = first confirm, 2 = final confirm (the destructive path).
-  const [deleteStep, setDeleteStep] = useState(0)
   const meta = CATEGORY_META[compound.category] ?? FALLBACK_CATEGORY_META
   const upcoming = upcomingDoseDates(
     compound.schedule,
@@ -197,21 +187,12 @@ function DetailBody({
 
         {/* Primary actions. The white button is the day-to-day action — edit
             TODAY'S logged dose (opens the Log sheet); editing the dose going
-            forward lives under More. For an archived compound it's Reactivate. */}
+            forward lives under More. */}
         <div className="flex gap-3 pt-1">
           <SheetClose className="flex-1 rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary">
             Close
           </SheetClose>
-          {compound.archived ? (
-            <button
-              type="button"
-              onClick={() => onEdit(compound)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
-            >
-              <ArrowCounterClockwise className="h-4 w-4" aria-hidden />
-              Reactivate
-            </button>
-          ) : context === "plan" ? (
+          {context === "plan" ? (
             <button
               type="button"
               onClick={() => onEdit(compound)}
@@ -232,12 +213,17 @@ function DetailBody({
           )}
         </div>
 
-        {/* Delete (soft, forward-only) confirm — drops down before it happens. */}
-        {confirmArchive && deleteStep === 0 ? (
-          <div className="animate-shortcut-in rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
+        {/* Delete confirm — drops down before it happens. Styled to match the
+            Sign out treatment in Profile: a red OUTLINE on the card and a solid
+            red confirm. Amber is the app's accent and reads as emphasis, not
+            danger; `--accent-destructive` is the token reserved for deliberate
+            destructive actions (Spec 02 → Warning styling). This override is for
+            destructive confirmation ONLY — red is not a general accent. */}
+        {confirmArchive ? (
+          <div className="animate-shortcut-in rounded-xl border border-accent-destructive/50 bg-accent-destructive/10 p-3">
             <p className="text-sm text-foreground">
-              Delete “{compound.name}”? It stops being dosed from here on, but every
-              logged dose is kept — you can bring it back any time from your Profile.
+              Delete “{compound.name}”? It stops being dosed from here on, every
+              logged dose is kept, and you can add it back from search any time.
             </p>
             <div className="mt-3 flex gap-2">
               <button
@@ -253,13 +239,13 @@ function DetailBody({
                   onArchive(compound.id)
                   onClose()
                 }}
-                className="flex-1 rounded-lg bg-accent-amber py-2 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+                className="flex-1 rounded-lg bg-accent-destructive py-2 text-sm font-medium text-text-primary transition-opacity hover:opacity-90"
               >
                 Delete
               </button>
             </div>
           </div>
-        ) : deleteStep === 0 ? (
+        ) : (
           <div>
             <button
               type="button"
@@ -278,88 +264,36 @@ function DetailBody({
             </button>
             {moreOpen && (
               <div className="animate-shortcut-in mt-2 overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
-                {!compound.archived ? (
-                  <>
-                    {/* Forward-only soft delete (Spec 22 · 2): a LIVE compound's
-                        "Delete" only STOPS it (is_active=false) — every logged dose is
-                        kept, so one tap can't destroy history (competitors' behaviour;
-                        Adrian's call). The hard "delete all history" is the guarded
-                        escape hatch, offered ONLY once a compound is already deleted
-                        (the else branch), behind a two-step typed confirm. */}
-                    {/* In the plan context the primary button already edits dose &
-                        schedule, so this row would be redundant — show it only on
-                        the dashboard, where the primary is "Edit today's dose". */}
-                    {context !== "plan" && (
-                      <MenuRow
-                        icon={<CalendarDot className="h-4 w-4" aria-hidden />}
-                        sub="Changes upcoming doses · today's logged dose stays as-is"
-                        onClick={() => {
-                          setMoreOpen(false)
-                          onEdit(compound)
-                        }}
-                      >
-                        Alter dose &amp; schedule
-                      </MenuRow>
-                    )}
-                    <MenuRow
-                      icon={<Trash className="h-4 w-4" aria-hidden />}
-                      sub="Removes it going forward · keeps all your logged history"
-                      onClick={() => {
-                        setMoreOpen(false)
-                        setConfirmArchive(true)
-                      }}
-                    >
-                      Delete
-                    </MenuRow>
-                  </>
-                ) : (
-                  // Escape hatch — a permanent delete, offered ONLY on an already-
-                  // stopped (archived) compound, behind the two-step confirm below.
+                {/* In the plan context the primary button already edits dose &
+                    schedule, so this row would be redundant — show it only on
+                    the dashboard, where the primary is "Edit today's dose". */}
+                {context !== "plan" && (
                   <MenuRow
-                    destructive
-                    icon={<Trash className="h-4 w-4" aria-hidden />}
-                    sub="Erases this stopped compound and ALL its logged history"
+                    icon={<CalendarDot className="h-4 w-4" aria-hidden />}
+                    sub="Changes upcoming doses · today's logged dose stays as-is"
                     onClick={() => {
                       setMoreOpen(false)
-                      setDeleteStep(1)
+                      onEdit(compound)
                     }}
                   >
-                    Delete permanently
+                    Alter dose &amp; schedule
                   </MenuRow>
                 )}
+                {/* Delete is the ONLY lifecycle verb (Spec 02): it stops future
+                    doses and keeps every logged dose. There is no permanent erase
+                    anywhere in the app, and no separate archived state to leave. */}
+                <MenuRow
+                  icon={<Trash className="h-4 w-4" aria-hidden />}
+                  sub="Removes it going forward · keeps all your logged history"
+                  onClick={() => {
+                    setMoreOpen(false)
+                    setConfirmArchive(true)
+                  }}
+                >
+                  Delete
+                </MenuRow>
               </div>
             )}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-state-error/40 bg-state-error/10 p-3">
-            <p className="text-sm text-foreground">
-              {deleteStep === 1
-                ? `Delete “${compound.name}” and ALL of its logged history? It's already stopped, so its past doses stay unless you erase them here — and this can't be undone.`
-                : `Last check. This permanently erases every logged dose for “${compound.name}”.`}
-            </p>
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteStep(0)}
-                className="flex-1 rounded-lg border border-border-strong py-2 text-sm text-text-muted transition-colors hover:text-text-primary"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (deleteStep === 1) {
-                    setDeleteStep(2)
-                  } else {
-                    onDelete(compound.id)
-                    onClose()
-                  }
-                }}
-                className="flex-1 rounded-lg bg-state-error py-2 text-sm font-medium text-text-primary transition-opacity hover:opacity-90"
-              >
-                {deleteStep === 1 ? "Continue" : "Delete forever"}
-              </button>
-            </div>
           </div>
         )}
       </div>
@@ -372,26 +306,19 @@ function MenuRow({
   sub,
   icon,
   onClick,
-  destructive,
 }: {
   children: React.ReactNode
   sub?: string
   icon: React.ReactNode
   onClick: () => void
-  destructive?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-bg-input/50",
-        destructive ? "text-state-error" : "text-foreground"
-      )}
+      className="flex w-full items-center gap-3 px-4 py-3 text-left text-foreground transition-colors hover:bg-bg-input/50"
     >
-      <span className={cn("shrink-0", destructive ? "text-state-error" : "text-text-muted")}>
-        {icon}
-      </span>
+      <span className="shrink-0 text-text-muted">{icon}</span>
       <span className="min-w-0">
         <span className="block text-sm font-medium">{children}</span>
         {sub && <span className="block text-xs text-text-subtle">{sub}</span>}

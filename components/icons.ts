@@ -21,8 +21,6 @@
  * Add an icon here the first time a feature needs it (keep the list sorted).
  */
 export {
-  Archive,
-  ArrowCounterClockwise,
   ArrowLeft,
   ArrowsClockwise,
   ArrowsLeftRight,

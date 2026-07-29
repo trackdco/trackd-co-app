@@ -178,14 +178,18 @@ function LogDoseBody({
   const [amount, setAmount] = useState(existing?.amount ?? String(compound.dose))
   const [editingAmount, setEditingAmount] = useState(false)
 
-  // A4: `manualTime === null` ⇒ take the day's default; any value ⇒ the user's own,
+  // `manualTime === null` ⇒ take the day's default; any value ⇒ the user's own,
   // frozen. Editing an existing dose starts frozen at its logged time.
   //
   // What the default IS depends on the day. On TODAY it live-tracks the clock
   // (ticking each second) and is evaluated at SUBMIT, never captured at open. On a
   // BACK-DATED day the clock is meaningless — stamping "now" onto yesterday's dose
-  // is exactly the thing that makes late-logged data wrong — so it defaults to the
-  // compound's own scheduled time for that day, which is the best guess available.
+  // would be a plain lie — so it defaults to the compound's own scheduled time for
+  // that day, which is the best guess available.
+  //
+  // Spec 01 briefly made this start empty and required; reverted at Adrian's
+  // request (2026-07-29) — a pre-filled, overridable time is the faster log, and
+  // leaving it unset stays allowed.
   const [manualTime, setManualTime] = useState<string | null>(
     existing?.time24 ?? null
   )
@@ -332,10 +336,13 @@ function LogDoseBody({
       catalogue.length === 0 ||
       sitesToShow.some((s) => s.id === siteId)
     // Evaluate the time at SUBMIT: a manual override wins, otherwise the day's
-    // default — the live clock right now on today (A4), or the compound's scheduled
+    // default — the live clock right now on today, or the compound's scheduled
     // time when back-dating (the clock says nothing about a dose taken yesterday).
     return {
       amount,
+      // Stamped at log time so this dose keeps the unit it was recorded in, even
+      // if the compound's unit is changed later (see DoseLog.unit).
+      unit: compound.unit,
       siteId: injectable && siteOnRoute ? siteId : null,
       time24:
         manualTime ?? (onToday ? toHHMM(new Date()) : compound.schedule.timeOfDay),
@@ -489,7 +496,7 @@ function LogDoseBody({
               type="time"
               value={displayTime}
               onChange={(e) =>
-                // Empty ⇒ resume live tracking; any value ⇒ a manual override.
+                // Empty ⇒ resume the day's default; any value ⇒ a manual override.
                 setManualTime(e.target.value === "" ? null : e.target.value)
               }
               aria-label="Time taken"
@@ -502,17 +509,15 @@ function LogDoseBody({
             — the amount is one dose. Not a warning; blocks nothing. */}
         <p className="mt-1.5 px-1 text-xs text-text-subtle">per dose</p>
 
-        {/* Time hint — on today the clock ticks each second until you set a value
-            (A4); on a back-dated day it says which default it fell back to, since
-            "live now" would be a lie about a dose taken days ago. */}
+        {/* Time hint — on today the clock ticks each second until you set a value;
+            on a back-dated day it says which default it fell back to, since "live
+            now" would be a lie about a dose taken days ago. */}
         <p className="mt-1.5 px-1 text-xs text-text-subtle">
           {liveTracking ? (
             <>
               Logging at{" "}
-              <span className="font-mono text-accent-amber">
-                {toHHMMSS(now)}
-              </span>{" "}
-              — live now. Tap the time to set it yourself.
+              <span className="font-mono text-accent-amber">{toHHMMSS(now)}</span>
+              , live now. Tap the time to set it yourself.
             </>
           ) : manualTime === null ? (
             <>
@@ -544,7 +549,7 @@ function LogDoseBody({
               <p className="px-1 text-xs text-text-subtle">Loading sites…</p>
             ) : sitesToShow.length === 0 ? (
               <p className="rounded-xl border border-border-default bg-bg-input px-3 py-3 text-xs text-text-muted">
-                Couldn&apos;t load the body map — you can still log the dose.
+                Couldn&apos;t load the body map. You can still log the dose.
               </p>
             ) : (
               <BodyMap

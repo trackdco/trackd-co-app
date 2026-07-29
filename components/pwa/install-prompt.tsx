@@ -166,7 +166,7 @@ export function InstallPrompt() {
               <span className="text-sm leading-snug text-text-muted">
                 Tap the{" "}
                 <span className="text-foreground">Share</span>{" "}
-                button — on newer iPhones it&apos;s inside the{" "}
+                button. On newer iPhones it&apos;s inside the{" "}
                 <span className="text-foreground">•••</span>{" "}
                 menu
               </span>
@@ -177,8 +177,7 @@ export function InstallPrompt() {
               </span>
               <span className="text-sm leading-snug text-text-muted">
                 Scroll down and choose{" "}
-                <span className="text-foreground">Add to Home Screen</span>{" "}
-                — tap{" "}
+                <span className="text-foreground">Add to Home Screen</span>. Tap{" "}
                 <span className="text-foreground">View More</span>{" "}
                 if you don&apos;t see it
               </span>
@@ -201,8 +200,8 @@ export function InstallPrompt() {
               Tap this app&apos;s{" "}
               <span className="text-foreground">•••</span>{" "}
               (or share) menu and choose{" "}
-              <span className="text-foreground">Open in Safari</span>{" "}
-              — then add Trackd to your home screen from there.
+              <span className="text-foreground">Open in Safari</span>. Then add
+              Trackd to your home screen from there.
             </span>
           </div>
         </>

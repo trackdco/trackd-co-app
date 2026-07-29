@@ -15,11 +15,9 @@ import {
   archiveInStack,
   cadenceLabel,
   getStackSnapshot,
-  removeFromStack,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack"
-import { removeCompoundLogs } from "@/lib/home/doseLog"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
@@ -187,9 +185,9 @@ export function PlanView({
       <AddToStackMenu open={addOpen} onOpenChange={setAddOpen} userId={userId} />
 
       {/* The compound detail / "more" menu — same sheet the dashboard uses, in the
-          plan context (primary action is "Edit dose & schedule"; "More" holds Stop
-          logging + Delete all). Archiving/deleting writes the same device-local +
-          Postgres dual-write stores as Home, so both screens stay in sync. */}
+          plan context (primary action is "Edit dose & schedule"; "More" holds
+          Delete). Deleting writes the same device-local + Postgres dual-write
+          stores as Home, so both screens stay in sync. */}
       <CompoundDetailSheet
         open={detailTarget !== null}
         compound={detailTarget}
@@ -202,10 +200,6 @@ export function PlanView({
           setEditTarget(c)
         }}
         onArchive={(id) => archiveInStack(userId, id, true)}
-        onDelete={(id) => {
-          removeFromStack(userId, id)
-          removeCompoundLogs(userId, id)
-        }}
       />
 
       <AddCompoundSheet

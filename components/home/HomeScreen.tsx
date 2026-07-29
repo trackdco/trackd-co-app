@@ -33,12 +33,13 @@ import {
 } from "@/lib/home/mockHomeData"
 import {
   archiveInStack,
+  formatTimeLabel,
   getStackSnapshot,
-  isDueOn,
+  hasTime,
+  isDueOnFor,
   loadStack,
   majorityInjectionRoute,
   notifyStackChanged,
-  removeFromStack,
   saveStack,
   subscribeStack,
   type StackCompound,
@@ -46,13 +47,14 @@ import {
 import {
   getDoseLogsSnapshot,
   logDose,
-  removeCompoundLogs,
   subscribeDoseLogs,
   unlogDose,
   type DayLogs,
 } from "@/lib/home/doseLog"
 import { resolveDrawSources, type DrawSourcesResult } from "@/lib/home/protocolSync"
 import { siteDaysSince } from "@/lib/home/siteRecency"
+import { setSelectedDay } from "@/lib/home/selectedDay"
+import { computeNextDose, formatCountdown } from "@/lib/home/nextDose"
 
 const WEEKDAYS = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
@@ -71,32 +73,6 @@ const EMPTY_DRAW_RESULT: DrawSourcesResult = { sources: {}, noVial: [] }
 function dayLabel(key: DateKey): string {
   const d = dateKeyToDate(key)
   return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`
-}
-
-/** Time until the next occurrence of a "HH:MM" clock time, as "Xh Ym". */
-function formatCountdown(now: Date, time24: string): string {
-  const [h, m] = time24.split(":").map(Number)
-  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0)
-  if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1)
-  const mins = Math.max(0, Math.round((target.getTime() - now.getTime()) / 60000))
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`
-}
-
-/** The next upcoming dose today (earliest time after now, else earliest overall). */
-function computeNextDose(
-  stack: StackCompound[],
-  now: Date
-): { name: string; time24: string } | null {
-  const due = stack.filter((c) => isDueOn(c.schedule, now))
-  if (due.length === 0) return null
-  const sorted = [...due].sort((a, b) =>
-    a.schedule.timeOfDay.localeCompare(b.schedule.timeOfDay)
-  )
-  const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(
-    now.getMinutes()
-  ).padStart(2, "0")}`
-  const upcoming = sorted.find((c) => c.schedule.timeOfDay > hhmm) ?? sorted[0]
-  return { name: upcoming.name, time24: upcoming.schedule.timeOfDay }
 }
 
 /**
@@ -244,15 +220,28 @@ export function HomeScreen({
     }
   }, [])
 
-  // Countdown: captured once from the live clock by the useState initializer
-  // (no ticking timer), and only revealed after mount so the server-rendered
-  // HTML omits it and there's no hydration drift.
+  // Publish the day the strip is parked on so logging actions rendered OUTSIDE
+  // this tree write to it too — the quick-actions FAB lives in the (app) shell
+  // and used to hardcode "today", so back-scrolling the strip and logging from
+  // the FAB silently landed the dose on today. Cleared on unmount so the
+  // selection can never outlive this screen (see lib/home/selectedDay.ts).
+  useEffect(() => {
+    setSelectedDay(selectedKey)
+    return () => setSelectedDay(null)
+  }, [selectedKey])
+
+  // The countdown needs the wall clock, which the server doesn't share with the
+  // device — so it's only revealed after mount (`mounted`) and the clock itself
+  // starts null and is filled in on the client. Ticking every 30s keeps the
+  // minute-resolution figure honest without a per-second timer.
   const mounted = useMounted()
-  const [nextDose] = useState(() => computeNextDose(seedStack, new Date()))
-  const [computedCountdown] = useState(() =>
-    nextDose ? formatCountdown(new Date(), nextDose.time24) : null
-  )
-  const countdown = mounted ? computedCountdown : null
+  const [clockNow, setClockNow] = useState<Date | null>(null)
+  useEffect(() => {
+    const tick = () => setClockNow(new Date())
+    tick()
+    const id = window.setInterval(tick, 30_000)
+    return () => window.clearInterval(id)
+  }, [])
 
   // Build any week's 7 days from an offset (0 = current). The strip renders the
   // current week plus its neighbours so it can slide smoothly between them.
@@ -284,8 +273,10 @@ export function HomeScreen({
   const statusOf = (key: DateKey): DayStatus => {
     if (key > todayKey) return "future"
     const date = dateKeyToDate(key)
+    // Judged by the rule that was in force on THAT day, not the current one — an
+    // alteration applies forward only, so a past rest day stays a rest day.
     const dueIds = activeStack
-      .filter((c) => isDueOn(c.schedule, date))
+      .filter((c) => isDueOnFor(c, date))
       .map((c) => c.id)
     const dayLogs = logs[key] ?? {}
     if (dueIds.length === 0) {
@@ -299,7 +290,7 @@ export function HomeScreen({
 
   // Today's completion for the greeting line — always TODAY (not the selected
   // day): active compounds due today vs how many already have a log today.
-  const todayDue = activeStack.filter((c) => isDueOn(c.schedule, today))
+  const todayDue = activeStack.filter((c) => isDueOnFor(c, today))
   const todayLogs = logs[todayKey] ?? {}
   const dueToday = todayDue.length
   const loggedToday = todayDue.filter((c) => todayLogs[c.id]).length
@@ -313,12 +304,28 @@ export function HomeScreen({
   const dueCompounds = stack.filter((c) =>
     selectedRows[c.id]
       ? true
-      : !c.archived && isDueOn(c.schedule, selectedDate)
+      : !c.archived && isDueOnFor(c, selectedDate)
   )
   const dueDoses = dueCompounds.map((c) => ({
     ...c,
     log: selectedRows[c.id] ?? null,
   }))
+
+  // Next dose — the soonest UNLOGGED scheduled dose on the selected day. Derived
+  // every render from the live stack + logs (never frozen in a useState, which is
+  // why it used to never update once mounted). On today the widget counts down to
+  // it; on any other day a countdown is meaningless, so it shows the scheduled
+  // time itself instead — both render through the same slot.
+  const nextDose = computeNextDose(stack, logs, selectedKey, selectedDate)
+  const countdown =
+    mounted && nextDose
+      ? // A countdown only means something for a dose that has a time, on today.
+        // Otherwise show the time itself — which for an unset one reads "Not set"
+        // via the single formatter, rather than a fabricated 0h 0m.
+        isToday && hasTime(nextDose.time24)
+        ? formatCountdown(clockNow ?? new Date(), nextDose.time24)
+        : formatTimeLabel(nextDose.time24)
+      : null
 
   // Per-Dose Draw (Spec 21) — the backing vial per due compound, for the selected
   // day. Its own read because the today's-log is computed from the device stack +
@@ -616,8 +623,8 @@ export function HomeScreen({
       />
 
       {/* Tap a compound → its detail; Edit there opens the add sheet pre-filled.
-          "Stop logging" archives it (history kept, reversible); "Delete all" is the
-          destructive path (removes the compound + every logged dose, two-step confirm). */}
+          "Delete" stops future doses and keeps every logged dose — the only
+          lifecycle verb there is (Spec 02). */}
       <CompoundDetailSheet
         open={detailTarget !== null}
         compound={detailTarget}
@@ -639,10 +646,6 @@ export function HomeScreen({
           setEditTarget(c)
         }}
         onArchive={(id) => archiveInStack(userId, id, true)}
-        onDelete={(id) => {
-          removeFromStack(userId, id)
-          removeCompoundLogs(userId, id)
-        }}
       />
 
       <AddCompoundSheet

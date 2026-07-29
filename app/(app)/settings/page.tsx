@@ -61,7 +61,7 @@ export default async function SettingsPage() {
           <Row
             label="Plan"
             value={
-              profile?.tier === "free" ? "Free" : "Beta — all features"
+              profile?.tier === "free" ? "Free" : "Beta · all features"
             }
           />
           {age !== null ? <Row label="Age" value={`${age}`} /> : null}

@@ -95,7 +95,7 @@ export function DesktopInterstitial({
     ? {
         eyebrow: "Welcome back",
         subcopy:
-          "Trackd is phone-only — open it on your phone to pick your tracking back up.",
+          "Trackd is phone-only. Open it on your phone to pick your tracking back up.",
         heroHeading: (
           <>
             Open Trackd
@@ -103,7 +103,7 @@ export function DesktopInterstitial({
             on your phone
           </>
         ),
-        heroSub: "You're signed in — just open Trackd on your phone to keep tracking.",
+        heroSub: "You're signed in. Just open Trackd on your phone to keep tracking.",
       }
     : {
         eyebrow: "Trackd runs on your phone",
@@ -116,7 +116,7 @@ export function DesktopInterstitial({
             to use Trackd
           </>
         ),
-        heroSub: "Trackd is built for mobile — it doesn't run on desktop.",
+        heroSub: "Trackd is built for mobile. It doesn't run on desktop.",
       };
 
   return (

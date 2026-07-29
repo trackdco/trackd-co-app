@@ -41,7 +41,7 @@ export function OpenInSafariPrompt() {
     <div className="rounded-2xl bg-bg-surface p-5">
       <p className={SHEET_TITLE}>Open in Safari to install</p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-        Adding Trackd to your Home Screen only works in Safari on iPhone — not this
+        Adding Trackd to your Home Screen only works in Safari on iPhone, not this
         browser. Here&apos;s how:
       </p>
       <ol className="mt-4 space-y-3">

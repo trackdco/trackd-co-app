@@ -11,6 +11,11 @@ import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { SHEET_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/client";
 import { addBloodworkPhoto } from "@/app/(app)/progress/actions";
+import {
+  PhotoAdjustSheet,
+  type PhotoAdjustResult,
+} from "@/components/media/PhotoAdjustSheet";
+import { DOCUMENT_ASPECT, type Framing } from "@/lib/media/framing";
 
 const MAX_BYTES = 10 * 1024 * 1024; // bucket cap
 
@@ -60,11 +65,27 @@ export function AttachBloodworkSheet({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The image being framed, plus the untouched original + its framing so the
+  // attached report can be re-framed without re-picking (in-session only —
+  // storage stays adjusted-only).
+  const [adjusting, setAdjusting] = useState<{
+    file: File;
+    framing?: Framing;
+  } | null>(null);
+  const [original, setOriginal] = useState<File | null>(null);
+  const [framing, setFraming] = useState<Framing | undefined>(undefined);
 
-  // Reset the form whenever the sheet closes.
+  // Reset the form whenever the sheet closes. `adjusting` is part of the guard,
+  // not just the body: a photo picked but not yet confirmed leaves `file` null,
+  // so without it the condition reads as "nothing to reset" and the adjust step
+  // would still be pending the next time the sheet opens.
   if (
     !open &&
-    (file !== null || error !== null || drawnOn !== todayKey || note !== "")
+    (file !== null ||
+      error !== null ||
+      adjusting !== null ||
+      drawnOn !== todayKey ||
+      note !== "")
   ) {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(null);
@@ -72,6 +93,9 @@ export function AttachBloodworkSheet({
     setDrawnOn(todayKey);
     setNote("");
     setError(null);
+    setOriginal(null);
+    setFraming(undefined);
+    setAdjusting(null);
   }
 
   function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -83,13 +107,26 @@ export function AttachBloodworkSheet({
       return;
     }
     if (f.size > MAX_BYTES) {
-      setError("That image is over 10 MB — choose a smaller one.");
+      setError("That image is over 10 MB. Choose a smaller one.");
       return;
     }
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setFile(f);
-    setPreviewUrl(URL.createObjectURL(f));
     setError(null);
+    setAdjusting({ file: f, framing: undefined });
+  }
+
+  /** Re-open the adjust step on the ORIGINAL, with its framing intact. */
+  function readjust() {
+    if (!original) return;
+    setAdjusting({ file: original, framing });
+  }
+
+  function onAdjusted(result: PhotoAdjustResult) {
+    setAdjusting(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFile(result.file);
+    setPreviewUrl(URL.createObjectURL(result.file));
+    setOriginal(result.original);
+    setFraming(result.framing);
   }
 
   async function handleSave() {
@@ -151,7 +188,9 @@ export function AttachBloodworkSheet({
             {/* Image picker / preview */}
             <button
               type="button"
-              onClick={() => fileRef.current?.click()}
+              // Once chosen, tapping the preview RE-FRAMES it (Spec 05); the link
+              // below still swaps the image entirely.
+              onClick={() => (previewUrl ? readjust() : fileRef.current?.click())}
               className="mt-4 flex w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-8 text-center transition-colors hover:bg-bg-input/70"
             >
               {previewUrl ? (
@@ -251,6 +290,18 @@ export function AttachBloodworkSheet({
           </div>
         </div>
       </SheetContent>
+
+      {/* Adjust. A lab report is a DOCUMENT, so the frame is the tallest ratio the
+          app uses and the step opens fully zoomed out — the user can pan to the
+          part that matters, and nothing is cropped unless they choose to. */}
+      <PhotoAdjustSheet
+        open={adjusting !== null}
+        file={adjusting?.file ?? null}
+        aspect={DOCUMENT_ASPECT}
+        initialFraming={adjusting?.framing}
+        onCancel={() => setAdjusting(null)}
+        onConfirm={onAdjusted}
+      />
     </Sheet>
   );
 }

@@ -19,7 +19,7 @@ export function SyncStatusNotice() {
   useEffect(
     () =>
       subscribeSyncFailed(() =>
-        show("Saved on your device — still syncing to your account. We'll keep trying.")
+        show("Saved on your device. Still syncing to your account. We'll keep trying.")
       ),
     [show]
   )

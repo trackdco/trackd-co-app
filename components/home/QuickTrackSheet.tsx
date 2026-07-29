@@ -24,7 +24,7 @@ import type { BodySex } from "@/lib/db/types"
 import {
   formatTimeLabel,
   getStackSnapshot,
-  isDueOn,
+  isDueOnFor,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack"
@@ -36,6 +36,10 @@ import {
   type DayLogs,
 } from "@/lib/home/doseLog"
 import { dateKeyToDate, toDateKey, type DoseLog } from "@/lib/home/mockHomeData"
+import {
+  getSelectedDayOrToday,
+  subscribeSelectedDay,
+} from "@/lib/home/selectedDay"
 
 // Stable references for useSyncExternalStore's server snapshot.
 const EMPTY_STACK: StackCompound[] = []
@@ -157,13 +161,26 @@ function QuickTrackBody({
 
   // "Today" captured once from the device clock when the sheet opens.
   const [todayKey] = useState(() => toDateKey(new Date()))
-  const todayDate = dateKeyToDate(todayKey)
-  const todayLogs = logs[todayKey] ?? {}
 
-  // Today's list: due compounds, plus anything already logged today (kept even if
-  // since archived). Same selection rule as the dashboard's Today's Log.
+  // The day this sheet WRITES to. The FAB is rendered by the (app) shell, so it
+  // has no date context of its own — but the dashboard's week strip publishes
+  // the day it is parked on, and a dose must land on the day the user is looking
+  // at, not on today (Spec 01 → "the logging action uses the passed date; it must
+  // never fall back to 'now' when a date was supplied"). With no screen owning a
+  // selection (any tab other than the dashboard) this resolves to today, which is
+  // the correct default — not a fallback that overrides a supplied day.
+  const targetKey = useSyncExternalStore(
+    subscribeSelectedDay,
+    () => getSelectedDayOrToday(todayKey),
+    () => todayKey
+  )
+  const targetDate = dateKeyToDate(targetKey)
+  const targetLogs = logs[targetKey] ?? {}
+
+  // The day's list: due compounds, plus anything already logged that day (kept
+  // even if since archived). Same selection rule as the dashboard's Today's Log.
   const dueCompounds = stack.filter((c) =>
-    todayLogs[c.id] ? true : !c.archived && isDueOn(c.schedule, todayDate)
+    targetLogs[c.id] ? true : !c.archived && isDueOnFor(c, targetDate)
   )
 
   const [logTarget, setLogTarget] = useState<LogTarget | null>(null)
@@ -174,14 +191,14 @@ function QuickTrackBody({
   // you), but leaves out the dose being logged right now (the active compound's own
   // log) so it never counts itself. Same computation as the dashboard.
   const activeLogCompoundId = logTarget?.compound.id
-  const todayN = Math.floor(todayDate.getTime() / 86_400_000)
+  const targetN = Math.floor(targetDate.getTime() / 86_400_000)
   const siteLastUsedDays: Record<string, number> = {}
   for (const [key, dayLogObj] of Object.entries(logs)) {
-    if (key > todayKey) continue
-    const ago = todayN - Math.floor(dateKeyToDate(key).getTime() / 86_400_000)
+    if (key > targetKey) continue
+    const ago = targetN - Math.floor(dateKeyToDate(key).getTime() / 86_400_000)
     if (ago < 0) continue
     for (const [compoundId, dayLog] of Object.entries(dayLogObj)) {
-      if (key === todayKey && compoundId === activeLogCompoundId) continue
+      if (key === targetKey && compoundId === activeLogCompoundId) continue
       const sid = dayLog.siteId
       if (sid && (siteLastUsedDays[sid] === undefined || ago < siteLastUsedDays[sid])) {
         siteLastUsedDays[sid] = ago
@@ -190,15 +207,16 @@ function QuickTrackBody({
   }
 
   function openLog(c: StackCompound) {
-    setLogTarget({ compound: c, existing: todayLogs[c.id] ?? null })
+    setLogTarget({ compound: c, existing: targetLogs[c.id] ?? null })
   }
 
-  // Commit a dose (fresh or edited) — the exact same handler the dashboard uses.
+  // Commit a dose (fresh or edited) — the exact same handler the dashboard uses,
+  // writing to the day the user is parked on rather than to the clock.
   function handleTracked(compoundId: string, log: DoseLog) {
-    logDose(userId, todayKey, compoundId, log)
+    logDose(userId, targetKey, compoundId, log)
   }
   function handleRemove(compoundId: string) {
-    unlogDose(userId, todayKey, compoundId)
+    unlogDose(userId, targetKey, compoundId)
   }
 
   return (
@@ -213,7 +231,7 @@ function QuickTrackBody({
           // a slim divider (dot · label · "N due"/"Logged"), not a container.
           <div>
             {groupByCategory(dueCompounds).map((group) => {
-              const pending = group.items.filter((c) => !todayLogs[c.id]).length
+              const pending = group.items.filter((c) => !targetLogs[c.id]).length
               return (
                 <div key={group.cat} className="mt-3 first:mt-1">
                   <div className="flex items-center gap-2 px-1 pb-1">
@@ -235,7 +253,7 @@ function QuickTrackBody({
                       <QuickRow
                         key={c.id}
                         compound={c}
-                        log={todayLogs[c.id] ?? null}
+                        log={targetLogs[c.id] ?? null}
                         onOpen={() => openLog(c)}
                         onUnlog={() => handleRemove(c.id)}
                       />
@@ -264,9 +282,11 @@ function QuickTrackBody({
         open={logTarget !== null}
         compound={logTarget?.compound ?? null}
         existing={logTarget?.existing ?? null}
-        // The + menu is a "log it now" shortcut with no day context of its own, so
-        // it's always today — back-dating lives on the dashboard's week strip.
-        dateKey={todayKey}
+        // The + menu has no day context of its own, so it adopts the day the
+        // dashboard's week strip is parked on (today everywhere else). The sheet
+        // compares the two itself to decide the default time and to show its
+        // "Logging to {date}" notice, so a back-dated write is always named.
+        dateKey={targetKey}
         todayKey={todayKey}
         siteLastUsedDays={siteLastUsedDays}
         bodySex={bodySex}
@@ -320,9 +340,13 @@ function QuickRow({
         <span className="block truncate text-sm font-medium text-foreground">
           {compound.name}
         </span>
+        {/* A LOGGED dose renders the unit it was recorded in, not the compound's
+            current one (Spec 01): switching a compound mg→mcg must not restate a
+            past dose as a thousandth of what was taken. `log.unit` is absent only
+            on records written before it was stamped, which fall back. */}
         <span className="mt-0.5 block truncate font-mono text-xs tabular-nums text-text-muted">
           {log
-            ? `${log.amount}${compound.unit}`
+            ? `${log.amount}${log.unit ?? compound.unit}`
             : `${fmtDose(compound.dose)}${compound.unit}`}{" "}
           · {formatTimeLabel(log?.time24 ?? compound.schedule.timeOfDay)}
         </span>

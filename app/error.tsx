@@ -36,7 +36,7 @@ export default function Error({
         Something went wrong
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-text-muted">
-        Something broke on our end. Your data is safe — try again, and if it
+        Something broke on our end. Your data is safe. Try again, and if it
         keeps happening, let us know.
       </p>
       <Button

@@ -165,9 +165,16 @@ function DoseRow({
 }) {
   const log = dose.log
   const amount = shownAmount(dose)
-  // `dose.unit` is the unit the amount is shown in; `formatDraw` bails if it doesn't
-  // match the unit the vial was matched on, rather than print a wrong draw.
-  const draw = amount == null ? null : formatDraw(amount, dose.unit, drawSource ?? null)
+  // The unit the shown amount is IN: for a logged dose that's the unit it was
+  // recorded in, not whatever the compound's unit happens to be now — otherwise
+  // changing a compound from mg to mcg relabels every dose already logged,
+  // keeping the figure and silently changing what it means (Spec 01 → "past
+  // logged doses are never rewritten"). Older logs carry no unit, so they fall
+  // back to the compound's, which is what they were written with anyway.
+  const shownUnit = (log?.unit ?? dose.unit) || dose.unit
+  // `formatDraw` bails if this doesn't match the unit the vial was matched on,
+  // rather than print a wrong draw.
+  const draw = amount == null ? null : formatDraw(amount, shownUnit, drawSource ?? null)
 
   return (
     <li
@@ -217,12 +224,14 @@ function DoseRow({
             onClick={() => onOpenDetail(dose)}
             className="min-w-0 shrink truncate text-left font-mono text-xs tabular-nums text-text-muted"
           >
-            {/* Once logged, show the amount you ACTUALLY logged — not the scheduled
-                dose — so an edited dose reads back correctly. */}
+            {/* Once logged, show the amount, unit and time you ACTUALLY logged —
+                not the current plan — so an edited or historical dose reads back
+                as what happened. Altering the schedule changes what is DUE from
+                here on; it must never restate a dose already taken. */}
             {log
-              ? `${log.amount}${dose.unit}`
+              ? `${log.amount}${shownUnit}`
               : `${formatDose(dose.dose)}${dose.unit}`}{" "}
-            · {formatTimeLabel(dose.schedule.timeOfDay)}
+            · {formatTimeLabel(log ? log.time24 : dose.schedule.timeOfDay)}
           </button>
 
           {/* The draw — how much to pull from the vial for THIS dose (Spec 21),

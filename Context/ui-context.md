@@ -159,7 +159,7 @@ than re-deriving classes per card:
   sizes is the "instrument panel" detail; default spacing reads generic.
 - **`PAGE_TITLE`** — `text-2xl font-light tracking-[-0.02em]
   text-foreground` — the greeting and the `<h1>` on standalone screens
-  (Settings, Weight, Billing, Archive).
+  (Settings, Weight, Billing).
 - **`SHEET_TITLE`** — `text-xl font-light tracking-[-0.01em]
   text-foreground` — bottom-sheet headers.
 

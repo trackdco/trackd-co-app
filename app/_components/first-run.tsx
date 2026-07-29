@@ -41,9 +41,9 @@ const SLIDES: Slide[] = [
     body: "Everything you're running, in one place.",
   },
   {
-    eyebrow: "Your stack",
-    title: "Your whole stack, together",
-    heading: <>Your whole stack, together</>,
+    eyebrow: "Your compounds",
+    title: "Every compound, together",
+    heading: <>Every compound, together</>,
     body: "Gear, peptides, supps, ancillaries. Stop scattering it across notes and spreadsheets.",
     visual: <StackMock />,
   },

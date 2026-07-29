@@ -97,7 +97,7 @@ export function InstallHomeScreenPopup({
                 Add Trackd to your Home Screen
               </p>
               <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-                Get the full app, not a browser tab — full-screen and one tap away.
+                Get the full app, not a browser tab. Full-screen and one tap away.
               </p>
             </div>
             <div className="mt-4 flex items-center gap-3">

@@ -11,7 +11,7 @@
  *
  * Pure types + pure helpers only; no React, no side effects (code-standards.md).
  */
-import { isInjectable } from "@/lib/home/stack"
+import { hasTime, isInjectable } from "@/lib/home/stack"
 import type { Cadence, InjectionMethod, StackCompound } from "@/lib/home/stack"
 import type { CompoundCategory } from "@/lib/compound-categories"
 
@@ -21,10 +21,13 @@ import type { CompoundCategory } from "@/lib/compound-categories"
 /** `schedule_type` enum. */
 export type ScheduleType = "every_day" | "specific_days" | "every_n_days"
 
-/** `dose_unit` enum. (`g` was appended to the live enum during catalogue
- *  seeding — the live DB is the source of truth for shape, so it's mirrored here
- *  even though the base `trackd_schema_v0_4_2.sql` predates it.) */
-export type DoseUnit = "mg" | "mcg" | "iu" | "ml" | "tab" | "capsule" | "g"
+/** `dose_unit` enum + its normaliser. (`g` was appended to the live enum during
+ *  catalogue seeding — the live DB is the source of truth for shape, so it's
+ *  mirrored even though the base `trackd_schema_v0_4_2.sql` predates it.)
+ *  Declared in `doseUnits.ts` and re-exported here so `lib/home/stack.ts` can use
+ *  the SAME coercion without closing an import cycle back through this file. */
+export { coerceDoseUnit, DOSE_UNITS, type DoseUnit } from "@/lib/db/doseUnits"
+import { coerceDoseUnit, type DoseUnit } from "@/lib/db/doseUnits"
 
 /** `admin_route` enum. */
 export type AdminRoute = "po" | "subq" | "im" | "nasal" | "topical"
@@ -61,6 +64,9 @@ export interface DoseRow {
   compoundId: string
   takenAt: string
   amount: string
+  /** The unit this dose was logged in (`dose_logs.dose_unit`) — per-log, so it
+   *  survives a later change to the compound's unit. Null on rows that predate it. */
+  doseUnit: string | null
   injectionSite: string | null
   /** The vial this dose was logged against, so the "From vial" link survives a
    *  Postgres round-trip (the runway in v_inventory_math always uses it). */
@@ -117,7 +123,9 @@ export interface ProtocolCompound {
   days_of_week: number[] | null
   interval_days: number | null
   times_per_day: number
-  dose_times: string[]
+  /** One time per `times_per_day`. An element may be NULL — that is the stored
+   *  "no dose time set" state (see `stackCompoundToProtocolInsert`). */
+  dose_times: (string | null)[]
   first_dose_on: string
   end_date: string | null
   is_active: boolean
@@ -175,7 +183,7 @@ export interface ProtocolCompoundInsert {
   days_of_week?: number[] | null
   interval_days?: number | null
   times_per_day?: number
-  dose_times?: string[]
+  dose_times?: (string | null)[]
   first_dose_on: string
   end_date?: string | null
   is_active?: boolean
@@ -333,7 +341,16 @@ export function stackCompoundToProtocolInsert(
     days_of_week: schedule.days_of_week,
     interval_days: schedule.interval_days,
     times_per_day: 1,
-    dose_times: [`${c.schedule.timeOfDay}:00`],
+    // An UNSET dose time is stored as a one-element array holding NULL, not as a
+    // substituted default (Spec 01 → Dose time). That satisfies both DB rules
+    // without a migration: `dose_times` is NOT NULL (the ARRAY itself isn't null)
+    // and `dose_times_match` counts array LENGTH (1), which a NULL element still
+    // has. Writing a placeholder time here instead would put a number in the DB
+    // that the user never chose, and nothing downstream could tell it apart from
+    // a real one.
+    dose_times: hasTime(c.schedule.timeOfDay)
+      ? [`${c.schedule.timeOfDay}:00`]
+      : [null],
     first_dose_on: c.schedule.startDate,
     end_date: null,
     is_active: !c.archived,
@@ -404,7 +421,10 @@ export function protocolCompoundToStack(
         days_of_week: pc.days_of_week,
         interval_days: pc.interval_days,
       }),
-      timeOfDay: (pc.dose_times[0] ?? "08:00:00").slice(0, 5),
+      // A NULL element (or an absent array) is the stored "unset" state and must
+      // round-trip as unset — substituting a default here would silently hand the
+      // user a dose time they never set, on every rehydrate.
+      timeOfDay: (pc.dose_times?.[0] ?? "").slice(0, 5),
       startDate: pc.first_dose_on,
     },
     rotationSites: pc.rotation_sites ?? [],
@@ -462,11 +482,3 @@ export interface InjectionSiteRow {
   sort_order: number
 }
 
-const DOSE_UNITS: readonly DoseUnit[] = ["mg", "mcg", "iu", "ml", "tab", "capsule", "g"]
-
-/** Coerce the live store's free-string `unit` to a valid `dose_unit` (fallback
- *  `mg`). The Add flow already locks the unit to the compound's catalogue value,
- *  so this is a defensive normaliser for the migration. */
-export function coerceDoseUnit(unit: string): DoseUnit {
-  return (DOSE_UNITS as readonly string[]).includes(unit) ? (unit as DoseUnit) : "mg"
-}

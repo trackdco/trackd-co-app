@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 /**
  * Account-deletion request (the in-app "deletion control" the Privacy Policy
  * refers to). During the beta there is no self-serve delete — tapping this opens
- * a pre-filled email to legal@trackdco.app, and we erase the account + all its
+ * a pre-filled email to the support address, and we erase the account + all its
  * data on request (within 30 days). The full self-serve flow — a SECURITY
  * DEFINER delete of the caller's auth.users row (which cascades every user-owned
  * table) plus a storage-file sweep — is post-beta work.
@@ -15,7 +15,7 @@ import { createPortal } from "react-dom";
  * loud button. The modal is portaled to <body> so it clears the fixed bottom nav
  * (same reason as SignOutConfirm).
  */
-const LEGAL_EMAIL = "legal@trackdco.app";
+const SUPPORT_EMAIL = "support@trackdco.app";
 
 export function DeleteAccountRequest({ email }: { email: string }) {
   const [open, setOpen] = useState(false);
@@ -30,7 +30,7 @@ export function DeleteAccountRequest({ email }: { email: string }) {
   }, [open]);
 
   const mailto =
-    `mailto:${LEGAL_EMAIL}` +
+    `mailto:${SUPPORT_EMAIL}` +
     `?subject=${encodeURIComponent("Account deletion request")}` +
     `&body=${encodeURIComponent(
       "Please permanently delete my Trackd account and all of my data.\n\n" +
@@ -69,10 +69,9 @@ export function DeleteAccountRequest({ email }: { email: string }) {
                 Delete your account?
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-                During the beta, account deletion is handled by request. Tap
-                below to email us at{" "}
+                Account deletion is handled by request during the beta. Email us at{" "}
                 <span className="whitespace-nowrap text-foreground">
-                  {LEGAL_EMAIL}
+                  {SUPPORT_EMAIL}
                 </span>
                 , and we&apos;ll permanently erase your account and all your data
                 within 30 days. This can&apos;t be undone.
