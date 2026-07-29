@@ -36,17 +36,28 @@ const EMPTY_STACK: StackCompound[] = []
  * A stack card shows its members' containers in the STACK's colour, each member
  * with its dose, and the shared time below.
  */
-export function StacksView({ userId }: { userId: string }) {
-  const compounds = useSyncExternalStore(
+export function StacksView({
+  userId,
+  previewCompounds,
+  previewStacks,
+}: {
+  userId: string
+  /** Dev-preview-only: render without the device store (see /preview/protocol). */
+  previewCompounds?: StackCompound[]
+  previewStacks?: Stack[]
+}) {
+  const liveCompounds = useSyncExternalStore(
     subscribeStack,
     () => getStackSnapshot(userId, EMPTY_STACK),
     () => EMPTY_STACK
   )
-  const stacks = useSyncExternalStore(
+  const liveStacks = useSyncExternalStore(
     subscribeStacks,
     () => getStacksSnapshot(userId),
     () => EMPTY_STACKS
   )
+  const compounds = previewCompounds ?? liveCompounds
+  const stacks = previewStacks ?? liveStacks
 
   // Tapping a stack VIEWS it; editing is a deliberate second step from there.
   const [viewing, setViewing] = useState<Stack | null>(null)

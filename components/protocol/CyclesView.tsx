@@ -36,12 +36,20 @@ function todayKey(): string {
  * Cycled compounds render as cycle cards; the rest are offered a plus. Cycles are
  * never named, so nothing here asks for one.
  */
-export function CyclesView({ userId }: { userId: string }) {
-  const stack = useSyncExternalStore(
+export function CyclesView({
+  userId,
+  previewStack,
+}: {
+  userId: string
+  /** Dev-preview-only: render without the device store. */
+  previewStack?: StackCompound[]
+}) {
+  const liveStack = useSyncExternalStore(
     subscribeStack,
     () => getStackSnapshot(userId, EMPTY_STACK),
     () => EMPTY_STACK
   )
+  const stack = previewStack ?? liveStack
   // Tapping a cycle VIEWS it; editing is a deliberate second step from there.
   const [viewing, setViewing] = useState<StackCompound | null>(null)
   const [editing, setEditing] = useState<StackCompound | null>(null)

@@ -12,6 +12,8 @@ import { StockView } from "@/components/protocol/StockView"
 import { getActiveCycle } from "@/lib/db/cycles"
 import type { StockItem } from "@/lib/db/inventory"
 import type { Cycle } from "@/lib/db/types"
+import type { StackCompound } from "@/lib/home/stack"
+import type { Stack } from "@/lib/home/stacks"
 
 /**
  * The Protocol tab (Protocol Cutover, Step 4): ONE screen with an in-page Plan /
@@ -25,12 +27,17 @@ export function ProtocolScreen({
   userId,
   initialCycle,
   previewStock,
+  previewCompounds,
+  previewStacks,
   initialTab = "plan",
 }: {
   userId: string
   initialCycle: Cycle | null
   /** Dev-only: mock stock for the `/preview/protocol` harness. */
   previewStock?: StockItem[]
+  /** Dev-only: mock compounds + stacks so the Cycles / Stacks tabs render. */
+  previewCompounds?: StackCompound[]
+  previewStacks?: Stack[]
   /** Which tab to open on. Plan by default; `?tab=stock` lands on Stock, so the
    *  Home draw slot's "add stock" tap (Spec 21) arrives at the add-flow rather than
    *  at Plan. The tab stays local state after mount — this only seeds it. */
@@ -82,13 +89,17 @@ export function ProtocolScreen({
           {/* Spec 06 · part two. `04-protocol.md` restructures this page into one
               merged view; until then Cycles is its own tab beside Plan and Stock. */}
           <TabsContent value="cycles" className="mt-5">
-            <CyclesView userId={userId} />
+            <CyclesView userId={userId} previewStack={previewCompounds} />
           </TabsContent>
 
           {/* Spec 05 · part two. Creation and editing only — logging a stack
               happens on the dashboard, never here. */}
           <TabsContent value="stacks" className="mt-5">
-            <StacksView userId={userId} />
+            <StacksView
+              userId={userId}
+              previewCompounds={previewCompounds}
+              previewStacks={previewStacks}
+            />
           </TabsContent>
 
           <TabsContent value="stock" className="mt-5">
