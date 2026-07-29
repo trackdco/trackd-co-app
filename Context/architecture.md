@@ -387,7 +387,7 @@ stored.)
   - **Offline-first** is preserved: reads come from the cache; writes are optimistic to
     the cache and dual-written to Postgres, with a reconnect/focus re-sync that re-pushes
     anything written offline (idempotent). A failed/empty pull never wipes the cache.
-    **Offline _state changes_ (archive/reactivate) win over a stale Postgres pull**
+    **Offline _state changes_ (delete / re-add) win over a stale Postgres pull**
     (`hydrateProtocol.ts` reconciles the local `archived` flag and converges Postgres) —
     so an archive done offline is no longer resurrected on reconnect. A robust offline
     outbox (covering offline dose un-logging + multi-device conflicts) is post-beta work.
@@ -472,6 +472,139 @@ and the *deletion path* didn't honour the split.
   reproduction. `vitest.config.ts` scopes the suite to `lib/**` — pure by house
   rule, so it needs no DOM, renderer or Supabase.
 
+## Compound Lifecycle (Spec 02, wave 2 — 2026-07-29)
+
+**A compound has TWO states: active or deleted.** The third state (archived, with
+its own page and a Reactivate arrow) and the fourth (permanently erased) are gone.
+There is one verb, **Delete** — it ends the schedule and keeps every logged dose —
+and bringing a compound back is the same action as adding any other: find it in the
+picker and press the plus.
+
+- **Storage is unchanged.** "Deleted" *is* the existing `StackCompound.archived` /
+  `protocol_compounds.is_active = false` flag, so nothing migrated and no logged
+  dose moved. Only the UI around it collapsed.
+- **Re-adding reuses the record.** The picker passes the deleted record's id to
+  `AddCompoundSheet` as **`reuseId`**; the form is a first-time add in every visible
+  respect (nothing pre-filled, dose/schedule/start set fresh) but saves onto that id.
+  A second record would collide with `UNIQUE (cycle_id, compound_id)` and with the
+  hydration name de-dupe, so one identity is also the only implementable option —
+  and it is what keeps the compound's logged history attached instead of orphaned.
+- **The re-add versions the schedule** (Spec 01's trail) effective from its new start
+  date, so the run *before* the deletion keeps the rule it was actually run under.
+  Nothing is back-filled: the days it sat deleted are covered by no rule, and because
+  `isDueOn` gates on the current `startDate`, a re-add starting today leaves every
+  earlier day un-due while its logged doses still render.
+- **Nothing in the app hard-deletes a compound.** `removeFromStack`,
+  `removeCompoundLogs`, `deleteProtocolCompoundForStack`, `deleteProtocolCompound`
+  and `deleteStackCompound`/`deleteCompoundLogs` are **deleted, not just unwired** —
+  Invariant 8 is now structural rather than a convention. The DB cascade remains for
+  account deletion only. (`StartFreshSection`'s "Clear all compounds & stock" is a
+  separate whole-account reset via `wipeMyProtocol` and is untouched.)
+- **Removed:** the `/archive` route + page, `ArchiveManager`, the Profile → Archive
+  row, the Reactivate control in the picker and in `CompoundDetailSheet`, the
+  `reactivate` mode in `AddCompoundSheet`, and the dev-only `/preview/archive-weight`
+  + `/preview/profile` harnesses (both existed to demo the retired flow).
+- **The delete confirmation is red, not amber** — a `--accent-destructive` outline
+  card with a solid `--accent-destructive` confirm, matching the Sign out treatment.
+  Amber is the app's accent and reads as emphasis, not danger. This is destructive
+  **confirmation only**; red is not a general accent and `ui-context.md` already
+  scopes `--accent-destructive` to deliberate destructive actions.
+
+## Add Compound Flow (Spec 03, wave 2 — 2026-07-29)
+
+The picker is **"Add compound"**; the form it opens is still **"Add to log"**. The
+word **"stack" is reserved for the future Stacks feature** and is gone from every
+user-facing string (Adrian's call: rename the visible copy only — the internals
+`lib/home/stack.ts` / `StackCompound` / `user_stack_compounds` / the
+`trackd.stack.v2` key keep their names, since renaming a live table for a word
+nobody sees buys nothing).
+
+- **Picker structure** (`components/navigation/add-to-stack-menu.tsx`, filename
+  unchanged): search → **Recently used** → **Your compounds** (customs) → **Browse
+  by category** → **Make your own**. The flat "Popular in comp prep" list is gone.
+  - **Recently used** — `lib/home/recentCompounds.ts`, device-local, lowercased
+    names newest-first, capped at `RECENT_LIMIT` (**5**). Recorded on a successful
+    add; seeded once from the device stack so a long-standing user isn't shown an
+    empty row. **Omitted entirely** when there is no history — never an empty state.
+  - **Browse by category** — one collapsible group per **existing** category, in
+    `CATEGORY_META` order (all eight: Anabolics, Orals, SARMs, Peptides,
+    Ancillaries, Thyroid, Supplements, Stimulants). Nothing is reclassified and the
+    per-category icon/colour is untouched. Collapsed by default because 205
+    compounds do not browse flat on a phone.
+  - **Room for stacks:** the sections are a flat composition below the search field,
+    so a Compounds / Stacks segmented control drops in above them later without
+    rebuilding anything.
+- **Stock is vials only on this form.** `canStock` now gates on the selected
+  route's **inventory form** (`reconstituted` / `preconcentrated`), never on
+  category — so Creatine, Berberine and any future oral compound in any category
+  are never asked "how much is left in the vial?". The `oral_solid` branch was
+  removed from **this form only**; **tabs/caps stock still exists in full** in
+  Protocol → Stock (`AddStockSheet`, `INVENTORY_TYPE_OPTIONS`, `inventory_items`,
+  `v_inventory_math.units_per_dose_oral`).
+- **Per-compound unit defaults already existed** — `compounds.csv` carries
+  `default_unit` per compound and the form reads it (BPC-157 opens in mcg,
+  anabolics in mg). Adrian's call (2026-07-29): **leave the catalogue data alone
+  for now** rather than forcing all peptides to mcg, which would render Tirzepatide
+  as `2400 mcg`. What is new is the **override memory**: `lib/home/unitPrefs.ts`
+  remembers the unit the user picks per compound (device-local, keyed by lowercased
+  name) and pre-selects it next time. An EDIT always shows the unit the record is
+  stored in — a preference never restates existing data — and a remembered unit
+  outside the compound's unit family is ignored.
+
+**Dose time — Spec 01's "no pre-fill" was REVERTED (Adrian, 2026-07-29).** The log
+form again live-tracks the clock on today and falls back to the compound's
+scheduled time when back-dating; the add form again live-tracks the clock; and a
+time is **no longer required** at either entry point. Clearing the field still
+stores an unset time, which `formatTimeLabel` renders as "Not set", so the
+first-class-unset-time work from Spec 01 stays — only the pre-fill and the
+required-field guard came back.
+
+## Sex-Specific Markers (Spec 04, wave 2 — 2026-07-29)
+
+Five of the 36 catalogue markers only apply to one sex, so the picker now offers
+**shared + the profile's own sex**. The rule that shapes the implementation:
+**filtering governs what can be logged GOING FORWARD and must never hide, alter or
+delete anything already logged.**
+
+- **`lib/progress/markerApplicability.ts`** — the split, keyed by catalogue NAME
+  (the one identifier the CSV, the DB row and the app agree on; `markers.id` is a
+  per-environment uuid). Only the exceptions are listed — male: Erection Quality,
+  Gyno Symptoms; female: Clitoral Enlargement, Voice Deepening, Menstrual Changes —
+  so everything else, including every custom marker, is shared by default and the
+  catalogue can grow without touching this file. Hair Shedding, Facial / Body Hair
+  and Hot Flushes stay **deliberately shared**: both sexes track them for opposite
+  reasons.
+- **Sex comes from `profiles.sex`**, read on the Progress page's existing profile
+  query — the same column the body map uses, not a second source. It is read
+  **raw**, NOT through `bodySexFor`, whose male fallback is correct for drawing a
+  body and wrong for deciding what to offer: **a profile with no sex set sees shared
+  markers only** and is never guessed at.
+- **`addable: false`, not omission — this is the load-bearing detail.** The dialer
+  resolves an entry's *existing* readings by id **from the same options list it
+  offers from** (`byId` in `MarkerDialer`), so dropping a non-applicable marker
+  would blank a logged reading for anyone who changed their profile sex. Instead the
+  option is kept and marked un-addable: every add path (Common / More / search)
+  already filters on `addable`, so the marker is genuinely **absent** — never greyed
+  out, never listed as unavailable — while an entry that already uses it still
+  renders. This is the same mechanic a soft-removed custom marker uses (Spec 22 · 1).
+- **History is filtered nowhere.** `markersByEntry` (Progress) and the Calendar's
+  own catalogue read resolve `marker_readings` → `user_markers` independently of the
+  offer list, so a sex change cannot touch a logged entry on any surface — feed,
+  day, calendar day sheet, or chart.
+- **"Cycle Changes" → "Menstrual Changes"** (Adrian's call), because "cycle" already
+  means a compound run. **No data migration**: readings reach their marker by id, so
+  every logged entry follows the row and simply renders under the new label. The
+  rename is DB-side — `supabase/markers/001_rename_cycle_changes.sql` (idempotent,
+  service-role, guarded against the `name` UNIQUE) plus the updated
+  `supabase/seed/markers.csv` so a re-seed agrees. **Not yet applied**; the
+  applicability map lists both names so filtering is correct either side of it.
+- **No prompt was added** to the sex change, per the spec. Note the Settings sex
+  field already has a confirm step (from Spec 19, about the body map) — it is
+  untouched and now describes only part of what changes.
+- **Tests:** `lib/progress/markerApplicability.test.ts` (9 tests) pins the full
+  36-marker split, the three shared judgement calls, the no-sex-set case and the
+  pre/post-rename equivalence.
+
 ## Back-dating (2026-07-17)
 
 Life doesn't happen at the phone: you take a shot on Tuesday night and open the app
@@ -501,12 +634,14 @@ on Wednesday. **The day the dashboard is parked on is the day you write to** —
   re-implement in TS what the DB enforces, and don't invent a rule it doesn't have).
   The `AddCompoundSheet` year dropdown offers current − 5 … current + 2, a **picker
   bound, not a rule**.
-- **Time-of-day is the part that makes late-logged data wrong**, so as of **Spec 01
-  (wave 2) it is never pre-filled at all** — on the add form OR the log form. It
-  starts **empty** and the user chooses it. It previously live-tracked the clock on
-  today and fell back to the compound's `schedule.timeOfDay` when back-dating; both
-  are guesses, and a guess written into a logged dose is indistinguishable from a
-  fact the user entered. **An unset time is a first-class state**: `Schedule.timeOfDay`
+- **Time-of-day pre-fills again (Adrian, 2026-07-29 — Spec 01's removal reverted).**
+  The log form live-tracks the clock on today and falls back to the compound's
+  `schedule.timeOfDay` when back-dating; the add form live-tracks the clock; and a
+  time is **not required** to save at either entry point. Spec 01 had made the field
+  start empty and be mandatory, on the reasoning that a guessed time is
+  indistinguishable from a fact the user entered — overruled in favour of the faster
+  log, with the field editable in place. **An unset time remains a first-class
+  state** (clear the field and it saves unset): `Schedule.timeOfDay`
   and `DoseLog.time24` may be `""`, rendered as **"Not set"** by `formatTimeLabel`
   (the single place the app words it) and tested by `hasTime`. In Postgres it is
   stored as `dose_times = ARRAY[NULL]` — the array is non-null (satisfying `NOT NULL`)

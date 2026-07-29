@@ -5,7 +5,7 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-07-23
+Last updated: 2026-07-29
 
 ## Current state (2026-07-23)
 
@@ -82,6 +82,58 @@ One line each; full detail in git + `Context/Feature Specs/`.
   on the selected day and opens the dashboard's `LogDoseSheet` against that date —
   the last unbuilt half of step 4. The calendar also publishes its selected day via
   `selectedDay.ts`, so the FAB writes there too.
+- **Spec 02 · Compound Lifecycle — all 7 steps built.** Three states collapsed to
+  two: active or deleted, one verb (Delete), no Archive page and no permanent erase
+  anywhere. A deleted compound now shows the standard plus at full opacity in the
+  picker and re-adds through the normal add flow, writing back to the SAME record id
+  (`reuseId`) so its logged history stays attached; the re-add versions the schedule
+  from its new start date so the pre-deletion run keeps the rule it was run under.
+  The delete confirm moved from amber to the `--accent-destructive` Sign-out
+  treatment, with Adrian's approved copy. Deleted outright (not just unwired):
+  `/archive` + `ArchiveManager`, the Profile row, every Reactivate control, the
+  `reactivate` mode, `removeFromStack` / `removeCompoundLogs` /
+  `deleteProtocolCompound{,ForStack}` / `deleteStackCompound` / `deleteCompoundLogs`,
+  and the `/preview/archive-weight` + `/preview/profile` harnesses. Storage unchanged
+  — "deleted" is the existing `archived` / `is_active=false` flag, so no migration
+  and no user data touched. See `architecture.md` → Compound Lifecycle.
+  - **Adrian's calls (2026-07-29):** the deleted-period gap is left open rather than
+    recorded as a "stopped" schedule version (no change to what deletion writes);
+    confirm copy = "It stops being dosed from here on, every logged dose is kept, and
+    you can add it back from search any time."
+- **Spec 03 · Add Compound Flow — all 7 steps built.** Picker is now "Add compound"
+  (form still "Add to log"); structure is search → Recently used (cap 5) → Your
+  compounds → Browse by category (all 8 existing categories, collapsible) → Make
+  your own, with "Popular in comp prep" gone. Stock on the add form is gated to
+  VIALS by inventory form (`reconstituted`/`preconcentrated`), never by category —
+  tabs/caps stock is untouched in Protocol → Stock. Two new device-local stores:
+  `lib/home/recentCompounds.ts` and `lib/home/unitPrefs.ts` (per-compound unit
+  override memory). See `architecture.md` → Add Compound Flow.
+  - **Adrian's calls (2026-07-29):** rename user-facing "stack" strings only (4 of
+    them), leave every internal identifier and the `user_stack_compounds` table;
+    Recently used = 5; browse by all 8 existing categories, not the spec's 4;
+    **make no catalogue unit changes yet** (the per-compound `default_unit` data is
+    already differentiated — forcing every peptide to mcg would render Tirzepatide
+    as 2400 mcg), so only the override memory shipped.
+- **Spec 04 · Sex-Specific Markers — all 6 steps built.** The picker offers shared
+  markers + the profile's own sex; five sex-specific markers are silently absent for
+  the other sex (Adrian: no labelling of which markers belong to whom). Sex is read
+  raw from `profiles.sex` — no sex set ⇒ shared only, never a male guess. Filtering
+  is done with `addable: false` rather than omission, because the dialer resolves an
+  entry's existing readings from the same list it offers from; dropping the option
+  would blank a logged reading after a sex change. History is filtered nowhere.
+  "Cycle Changes" → **"Menstrual Changes"** (Adrian's pick) needs no data migration —
+  readings reference markers by id. 9 new tests. See `architecture.md` →
+  Sex-Specific Markers.
+  - **Needs Adrian to run:** `supabase/markers/001_rename_cycle_changes.sql` (one
+    UPDATE, idempotent). Until then the marker still reads "Cycle Changes" in the
+    app; the applicability map covers both names so filtering is right either way.
+- **Dose-time pre-fill RESTORED (Adrian, 2026-07-29) — reverses Spec 01 step 6.**
+  The log form live-tracks the clock on today and falls back to the compound's
+  scheduled time when back-dating; the add form live-tracks the clock; a time is no
+  longer required to save. An unset time is still a valid, displayable state
+  ("Not set"), so only the pre-fill and the required-field guard came back. Spec
+  01's checklist items "time field does not pre-fill" are therefore deliberately
+  no longer true.
 
 ## Open Questions
 

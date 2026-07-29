@@ -10,11 +10,17 @@ Last updated: 2026-07-29
 
 ## 🎯 Current focus
 
-**Wave 2 · Spec 01 — Dose & Schedule Integrity.** All 8 steps are now BUILT on a
-branch (not merged, not deployed). Typecheck, lint and 37 tests are green. The one
-thing standing between this and "done" is running the migration.
+**Wave 2 · part one.** Working the seven refinement specs in order, one at a time,
+on `spec-01-dose-integrity` (not merged, not pushed). **Specs 01–04 are BUILT** —
+typecheck, lint and 46 tests green. Reviewed on **localhost** (`npm run dev`), not a
+Vercel preview — there's no CLI/token in this repo and pushing the branch is the only
+other preview path. Next up: `05-photo-adjust.md`.
 
 ### Blocked on Adrian
+0. **Run `supabase/markers/001_rename_cycle_changes.sql`** — one idempotent UPDATE
+   renaming the "Cycle Changes" marker to "Menstrual Changes" (Spec 04). No data
+   migration: readings reference markers by id. Until it runs, that marker still
+   reads "Cycle Changes" in the app; filtering is correct either way.
 1. **Run `supabase/protocol/005_protocol_compound_schedules.sql` — needs sign-off.**
    The migration plan the spec asked for, in one line: a `protocol_compound_schedules`
    table holding each version of a compound's dose + schedule with the day it took
@@ -24,18 +30,21 @@ thing standing between this and "done" is running the migration.
    already runs correctly without it: every sync call swallows `42P01` and keeps
    versions in the device store, so applying it only starts backing them up. Say go
    and it runs via the Supabase MCP.
-2. **Placeholder wording for a legacy unset time** — currently **"Not set"**, worded
-   once in `formatTimeLabel`. A time is now required at both entry points, so this
-   only renders for records written before that. Confirm or change.
+2. **Placeholder wording for an unset time** — currently **"Not set"**, worded once
+   in `formatTimeLabel`. Since the time pre-fill was restored (2026-07-29) this
+   renders whenever someone clears the field, not just for legacy records. Confirm
+   or change.
 3. **`QuickTrackSheet` empty-state copy** still says "Nothing scheduled for today"
    while the sheet can now be parked on another day. Left alone on purpose — spec 01
    forbids copy changes. One line for spec 07.
 
 ### Then
-- Commit the working tree (step 5 + calendar logging are uncommitted).
-- Deploy to a Vercel **preview** subdomain and device-test (spec 01's last step).
+- Commit the working tree (spec 02 is uncommitted).
+- Deploy to a Vercel **preview** subdomain and device-test.
 - Verify against the real DB once the MCP session is authorised: the
   `dose_times = ARRAY[NULL]` round-trip, and a version round-trip after 005 runs.
+- Device-check the spec-02 re-add on a compound with real history (delete → search →
+  plus → fresh dose/schedule → old logged doses still in the calendar).
 - CodeRabbit review, then STAND BY. Do not merge to main until every wave-2 spec is
   done and approved.
 
