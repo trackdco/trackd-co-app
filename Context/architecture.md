@@ -489,11 +489,25 @@ picker and press the plus.
   A second record would collide with `UNIQUE (cycle_id, compound_id)` and with the
   hydration name de-dupe, so one identity is also the only implementable option —
   and it is what keeps the compound's logged history attached instead of orphaned.
-- **The re-add versions the schedule** (Spec 01's trail) effective from its new start
-  date, so the run *before* the deletion keeps the rule it was actually run under.
-  Nothing is back-filled: the days it sat deleted are covered by no rule, and because
-  `isDueOn` gates on the current `startDate`, a re-add starting today leaves every
-  earlier day un-due while its logged doses still render.
+- **The gap is RECORDED, not inferred (2026-07-29).** Deleting writes a
+  `stopped: true` schedule version effective from the day of the delete
+  (`recordScheduleStop`), and the re-add writes a normal version from its new start
+  date. `isDueOnFor` returns false for any day resolving to a stopped version, so
+  the deleted stretch is neither due nor missed. Two bugs made this necessary and
+  they only show up together:
+  - `resolveScheduleOn` handed every historical version the compound's **current**
+    `startDate`, and `isDueOn` hard-gates on it — so a re-add moving the start
+    forward dropped the whole original run out of "due", quietly removing a
+    completed run from consistency. It now anchors on the **earliest version's**
+    `effectiveFrom`, which `recordScheduleVersion` seeds from the original start.
+    That fixes the gate *and* preserves cadence phase (every-N-day maths anchors on
+    the same date), so neither shifts under a re-add.
+  - Fixing that alone would then make the deleted gap resolve against the
+    pre-delete rule, i.e. a break the user chose to take would read back as a run
+    of missed doses. Hence the stop marker.
+  - **Costs nothing when unused:** a compound never deleted has no history and
+    resolves exactly as before. Storage is `protocol_compound_schedules.stopped`,
+    added to the still-unapplied migration 005 rather than stacked as a second one.
 - **Nothing in the app hard-deletes a compound.** `removeFromStack`,
   `removeCompoundLogs`, `deleteProtocolCompoundForStack`, `deleteProtocolCompound`
   and `deleteStackCompound`/`deleteCompoundLogs` are **deleted, not just unwired** —

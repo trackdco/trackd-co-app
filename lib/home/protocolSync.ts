@@ -816,6 +816,7 @@ export async function pushScheduleVersions(
     daysOfWeek: number[] | null
     intervalDays: number | null
     time: string | null
+    stopped: boolean
   }[]
 ): Promise<Ok> {
   try {
@@ -835,6 +836,7 @@ export async function pushScheduleVersions(
         days_of_week: v.daysOfWeek,
         interval_days: v.intervalDays,
         dose_times: [v.time],
+        stopped: v.stopped,
       })),
       { onConflict: "protocol_compound_id,effective_from" }
     )
@@ -869,7 +871,7 @@ export async function pullScheduleVersions(): Promise<
     if (!cx) return {}
     const { data, error } = await cx.supabase
       .from("protocol_compound_schedules")
-      .select("protocol_compound_id, effective_from, dose_amount, dose_unit, schedule_type, days_of_week, interval_days, dose_times")
+      .select("protocol_compound_id, effective_from, dose_amount, dose_unit, schedule_type, days_of_week, interval_days, dose_times, stopped")
       .eq("user_id", cx.userId)
       .order("effective_from", { ascending: true })
     if (error) {
@@ -898,6 +900,7 @@ function mapVersion(r: Record<string, unknown>) {
     daysOfWeek: (r.days_of_week as number[] | null) ?? null,
     intervalDays: (r.interval_days as number | null) ?? null,
     time: (times?.[0] ?? null) as string | null,
+    stopped: r.stopped === true,
   }
 }
 

@@ -1,0 +1,29 @@
+<!-- TRACKD calculator syringe. Approved artwork.
+     Barrel interior runs x=57 to x=247 (190 units wide).
+     FILL_W = 190 * (units / syringeCapacityUnits)
+     Gradation marks and labels must be regenerated per syringe size,
+     dense enough to read a value between 10 and 40 units off the barrel.
+     Example below is a 0.5 mL (50u) barrel filled to 10u.
+-->
+<svg viewBox="0 0 300 56" xmlns="http://www.w3.org/2000/svg" width="300" height="56">
+  <line x1="3" y1="28" x2="42" y2="28" stroke="#5a5a56" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M42 21 L56 24 L56 32 L42 35 Z" fill="#3d3d39"/>
+  <rect x="56" y="14" width="192" height="28" rx="3" fill="#1a1a18" stroke="#3a3a37" stroke-width="1"/>
+  <rect x="57" y="15" width="{FILL_W}" height="26" rx="2" fill="#C9871F"/>
+  <g stroke="#4a4a47" stroke-width="1">
+    <line x1="76"  y1="14" x2="76"  y2="21"/>
+    <line x1="95"  y1="14" x2="95"  y2="24"/>
+    <line x1="114" y1="14" x2="114" y2="21"/>
+    <line x1="133" y1="14" x2="133" y2="21"/>
+    <line x1="152" y1="14" x2="152" y2="24"/>
+    <line x1="171" y1="14" x2="171" y2="21"/>
+    <line x1="190" y1="14" x2="190" y2="21"/>
+    <line x1="209" y1="14" x2="209" y2="24"/>
+    <line x1="228" y1="14" x2="228" y2="21"/>
+  </g>
+  <text x="95"  y="53" text-anchor="middle" font-size="9" fill="#575653">10</text>
+  <text x="152" y="53" text-anchor="middle" font-size="9" fill="#575653">25</text>
+  <text x="209" y="53" text-anchor="middle" font-size="9" fill="#575653">40</text>
+  <rect x="248" y="18" width="34" height="20" rx="2" fill="#2e2e2b"/>
+  <rect x="282" y="12" width="6"  height="32" rx="2" fill="#3d3d39"/>
+</svg>

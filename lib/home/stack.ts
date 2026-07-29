@@ -84,6 +84,16 @@ export interface ScheduleVersion {
   timeOfDay: string
   dose: number
   unit: string
+  /**
+   * This version records a STOP, not a rule: the compound was deleted on this day
+   * and dosed nothing until the next version resumes it (Spec 02 → the gap).
+   *
+   * Without it, deleting and later re-adding a compound left the days in between
+   * covered by the rule that was in force before the delete, so a break the user
+   * deliberately took read as a run of missed doses. The cadence values are still
+   * carried so the row round-trips, but nothing reads them while `stopped`.
+   */
+  stopped?: boolean
 }
 
 /** The dose + schedule that were in force on `dateKey`. */
@@ -91,6 +101,8 @@ export interface ResolvedSchedule {
   schedule: Schedule
   dose: number
   unit: string
+  /** True when the compound was deleted on this date and not yet re-added. */
+  stopped: boolean
 }
 
 /**
@@ -108,41 +120,59 @@ export function resolveScheduleOn(
     schedule: c.schedule,
     dose: c.dose,
     unit: c.unit,
+    stopped: false,
   }
   const versions = c.scheduleHistory
   if (!versions || versions.length === 0) return current
+
+  const sorted = [...versions].sort((a, b) =>
+    a.effectiveFrom.localeCompare(b.effectiveFrom)
+  )
+  /**
+   * The run's REAL beginning: the earliest recorded version, which
+   * `recordScheduleVersion` seeds from the compound's start date at the first
+   * edit. The compound's CURRENT `startDate` can be later than that — re-adding a
+   * deleted compound sets a new one, and an edit can move it forward — and
+   * `isDueOn` hard-gates on whatever start it is given. Handing it the current
+   * start would drop every day of the original run out of "due", quietly removing
+   * a completed run from consistency. Using the earliest version keeps the gate
+   * AND the cadence phase (`isDueOn` anchors every-N-day maths on this date), so
+   * neither shifts under a re-add.
+   */
+  const origin = sorted[0].effectiveFrom
+  const startDate =
+    origin < c.schedule.startDate ? origin : c.schedule.startDate
+
+  // The version in force on this day: the latest one that had taken effect. A day
+  // that predates every version falls back to the earliest, because that is the
+  // oldest rule we know of — never the current one, which is exactly the
+  // retroactive rewrite versioning exists to stop.
   let best: ScheduleVersion | null = null
-  for (const v of versions) {
+  for (const v of sorted) {
     if (v.effectiveFrom > dateKey) continue
     if (!best || v.effectiveFrom > best.effectiveFrom) best = v
   }
-  if (!best) {
-    // The day predates every recorded version. The EARLIEST version is the oldest
-    // rule we know of, so it's the honest answer — never the current one, which is
-    // precisely the retroactive rewrite versioning exists to stop.
-    const earliest = [...versions].sort((a, b) =>
-      a.effectiveFrom.localeCompare(b.effectiveFrom)
-    )[0]
-    return {
-      schedule: { cadence: earliest.cadence, timeOfDay: earliest.timeOfDay, startDate: c.schedule.startDate },
-      dose: earliest.dose,
-      unit: earliest.unit,
-    }
-  }
+  const version = best ?? sorted[0]
+
   return {
     schedule: {
-      cadence: best.cadence,
-      timeOfDay: best.timeOfDay,
-      startDate: c.schedule.startDate,
+      cadence: version.cadence,
+      timeOfDay: version.timeOfDay,
+      startDate,
     },
-    dose: best.dose,
-    unit: best.unit,
+    dose: version.dose,
+    unit: version.unit,
+    stopped: version.stopped === true,
   }
 }
 
 /** Whether the compound was due on a date, judged by the rule in force THEN. */
 export function isDueOnFor(c: StackCompound, date: Date): boolean {
-  return isDueOn(resolveScheduleOn(c, toDateKeyLocal(date)).schedule, date)
+  const resolved = resolveScheduleOn(c, toDateKeyLocal(date))
+  // A stopped stretch is not a rest day within a schedule — the compound wasn't
+  // being run at all, so nothing was due and nothing can be missed.
+  if (resolved.stopped) return false
+  return isDueOn(resolved.schedule, date)
 }
 
 /**
@@ -158,7 +188,13 @@ export function isDueOnFor(c: StackCompound, date: Date): boolean {
  */
 export function recordScheduleVersion(
   previous: StackCompound,
-  next: { cadence: Cadence; timeOfDay: string; dose: number; unit: string },
+  next: {
+    cadence: Cadence
+    timeOfDay: string
+    dose: number
+    unit: string
+    stopped?: boolean
+  },
   effectiveFrom: string
 ): ScheduleVersion[] {
   const history = [...(previous.scheduleHistory ?? [])]
@@ -176,6 +212,33 @@ export function recordScheduleVersion(
   if (at >= 0) history[at] = version
   else history.push(version)
   return history.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+}
+
+/**
+ * Record that the compound STOPPED on `effectiveFrom` — what Delete writes
+ * (Spec 02 → the gap). Everything from that day until a later version resumes it
+ * is not dosed, so those days are neither due nor missed.
+ *
+ * Carries the outgoing cadence values so the version round-trips through storage
+ * unchanged; nothing reads them while `stopped` is set. Deleting a compound that
+ * has never been edited seeds the baseline first, exactly like an alteration, so
+ * the run BEFORE the delete keeps the rule it was actually run under.
+ */
+export function recordScheduleStop(
+  previous: StackCompound,
+  effectiveFrom: string
+): ScheduleVersion[] {
+  return recordScheduleVersion(
+    previous,
+    {
+      cadence: previous.schedule.cadence,
+      timeOfDay: previous.schedule.timeOfDay,
+      dose: previous.dose,
+      unit: previous.unit,
+      stopped: true,
+    },
+    effectiveFrom
+  )
 }
 
 /** A version in the shape `protocol_compound_schedules` stores (ISO weekdays,
@@ -201,6 +264,7 @@ export function scheduleVersionToRow(v: ScheduleVersion) {
     intervalDays:
       cad.type === "everyOtherDay" ? 2 : cad.type === "everyNDays" ? cad.n : null,
     time: hasTime(v.timeOfDay) ? `${v.timeOfDay}:00` : null,
+    stopped: v.stopped === true,
   }
 }
 
@@ -213,6 +277,7 @@ export function scheduleVersionFromRow(r: {
   daysOfWeek: number[] | null
   intervalDays: number | null
   time: string | null
+  stopped?: boolean | null
 }): ScheduleVersion {
   let cadence: Cadence = { type: "daily" }
   if (r.scheduleType === "specific_days") {
@@ -232,6 +297,7 @@ export function scheduleVersionFromRow(r: {
     timeOfDay: r.time ? r.time.slice(0, 5) : "",
     dose: r.dose,
     unit: r.unit,
+    ...(r.stopped ? { stopped: true } : {}),
   }
 }
 
@@ -388,19 +454,39 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
 export function archiveInStack(
   userId: string,
   id: string,
-  archived: boolean
+  archived: boolean,
+  /** The day the delete takes effect. Defaults to today; the caller passes the
+   *  selected day where a screen owns one, so deleting while parked on another
+   *  day stops it there rather than here. */
+  effectiveFrom?: string
 ): boolean {
   const cur = loadStack(userId) ?? []
   const updated = cur.find((c) => c.id === id)
+  // Deleting RECORDS THE STOP (Spec 02 → the gap): without it, re-adding later
+  // leaves the days in between governed by the rule in force before the delete,
+  // so a break the user chose to take reads back as missed doses.
+  const stopFrom = effectiveFrom ?? toDateKeyLocal(new Date())
+  const history =
+    archived && updated ? recordScheduleStop(updated, stopFrom) : null
   const ok = saveStack(
     userId,
-    cur.map((c) => (c.id === id ? { ...c, archived } : c))
+    cur.map((c) =>
+      c.id === id
+        ? { ...c, archived, ...(history ? { scheduleHistory: history } : {}) }
+        : c
+    )
   )
   if (ok) {
     notifyStackChanged()
     // Custom archive state lives in the mirror (no Postgres row); catalogue archive
     // state lives in Postgres (is_active), so only customs write to the mirror.
     if (updated && isCustomName(updated.name)) void pushStackCompound({ ...updated, archived })
+    if (history) {
+      // Same skipped-until-005 treatment as an alteration's versions.
+      void trackSync(
+        pushScheduleVersions(id, updated?.name ?? null, history.map(scheduleVersionToRow))
+      )
+    }
     // The NAME is passed so the server can RESOLVE the row rather than derive its
     // id from this one: the two diverge, and a derived id that matches nothing
     // used to make this a silent no-op — leaving Postgres holding the compound as

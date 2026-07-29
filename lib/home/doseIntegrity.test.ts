@@ -27,6 +27,7 @@ import {
   type Schedule,
   type StackCompound,
 } from "@/lib/home/stack"
+import { recordScheduleStop } from "@/lib/home/stack"
 import { computeNextDose, formatCountdown } from "@/lib/home/nextDose"
 import {
   getSelectedDay,
@@ -396,5 +397,71 @@ describe("schedule resolution", () => {
     const upcoming = upcomingDoseDates(s, dateKeyToDate("2026-07-01"), 3)
     expect(upcoming.every((d) => d >= "2026-07-20")).toBe(true)
     expect(upcoming[0]).toBe("2026-07-20")
+  })
+})
+
+/* ------------------------------------------------- the delete / re-add gap */
+
+describe("deleting a compound records a stop (Spec 02)", () => {
+  // The reported shape: run a compound, delete it, add it back weeks later. The
+  // logged doses always survived, but the run BEFORE the delete stopped counting
+  // as "due" (the re-add moved `startDate` forward, and `isDueOn` gates on it), so
+  // a completed run silently dropped out of consistency. Anchoring on the earliest
+  // version fixes that — and would then make the deleted GAP read as missed doses,
+  // which is why the stop marker has to exist as well.
+  const ran = compound({
+    schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-01-01" }),
+  })
+
+  it("keeps the pre-delete run due after a re-add moves the start date", () => {
+    const stopped = { ...ran, scheduleHistory: recordScheduleStop(ran, "2026-03-01") }
+    // Re-added in June with a fresh start date, exactly what AddCompoundSheet writes.
+    const readded: StackCompound = {
+      ...stopped,
+      schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-06-01" }),
+      scheduleHistory: recordScheduleVersion(
+        stopped,
+        { cadence: { type: "daily" }, timeOfDay: "09:00", dose: 250, unit: "mg" },
+        "2026-06-01"
+      ),
+    }
+    // The original run still counts.
+    expect(isDueOnFor(readded, dateKeyToDate("2026-02-10"))).toBe(true)
+    // The deleted stretch does not.
+    expect(isDueOnFor(readded, dateKeyToDate("2026-04-10"))).toBe(false)
+    // The new run does.
+    expect(isDueOnFor(readded, dateKeyToDate("2026-06-10"))).toBe(true)
+  })
+
+  it("treats every day from the stop until a resume as not due", () => {
+    const stopped = { ...ran, scheduleHistory: recordScheduleStop(ran, "2026-03-01") }
+    expect(isDueOnFor(stopped, dateKeyToDate("2026-02-28"))).toBe(true)
+    expect(isDueOnFor(stopped, dateKeyToDate("2026-03-01"))).toBe(false)
+    expect(isDueOnFor(stopped, dateKeyToDate("2027-01-01"))).toBe(false)
+  })
+
+  it("seeds the outgoing rule so the run before the delete keeps its own cadence", () => {
+    const stopped = recordScheduleStop(ran, "2026-03-01")
+    expect(stopped).toHaveLength(2)
+    expect(stopped[0].effectiveFrom).toBe("2026-01-01")
+    expect(stopped[0].stopped).toBeFalsy()
+    expect(stopped[1].effectiveFrom).toBe("2026-03-01")
+    expect(stopped[1].stopped).toBe(true)
+  })
+
+  it("round-trips the stop through the Postgres row shape", () => {
+    const [, stop] = recordScheduleStop(ran, "2026-03-01")
+    const back = scheduleVersionFromRow(scheduleVersionToRow(stop))
+    expect(back.stopped).toBe(true)
+    expect(scheduleVersionFromRow(scheduleVersionToRow(ran.scheduleHistory?.[0] ?? {
+      effectiveFrom: "2026-01-01", cadence: { type: "daily" }, timeOfDay: "09:00",
+      dose: 250, unit: "mg",
+    })).stopped).toBeUndefined()
+  })
+
+  it("costs nothing for a compound that was never deleted", () => {
+    // No history ⇒ unchanged behaviour, the guarantee the whole feature rests on.
+    expect(isDueOnFor(ran, dateKeyToDate("2026-02-10"))).toBe(true)
+    expect(resolveScheduleOn(ran, "2026-02-10").stopped).toBe(false)
   })
 })

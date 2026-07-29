@@ -48,6 +48,15 @@ CREATE TABLE IF NOT EXISTS protocol_compound_schedules (
     -- something different from the other.
     dose_times           time[] NOT NULL DEFAULT '{09:00}',
 
+    -- This version records a STOP rather than a rule: the compound was DELETED on
+    -- `effective_from` and dosed nothing until a later version resumes it
+    -- (Spec 02 → the gap). Without it, deleting and re-adding a compound leaves
+    -- the days in between governed by the rule in force before the delete, so a
+    -- break the user chose to take reads back as a run of missed doses. The
+    -- dose/schedule columns above are still populated so the row round-trips, but
+    -- nothing reads them while this is true.
+    stopped              boolean NOT NULL DEFAULT false,
+
     created_at           timestamptz NOT NULL DEFAULT now(),
 
     -- One version per compound per day. Re-editing on the same day REPLACES that

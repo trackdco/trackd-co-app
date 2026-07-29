@@ -645,7 +645,9 @@ export function HomeScreen({
           setDetailTarget(null)
           setEditTarget(c)
         }}
-        onArchive={(id) => archiveInStack(userId, id, true)}
+        // Stops it from the day the strip is parked on, not from today — the same
+        // rule every other write on this screen follows.
+        onArchive={(id) => archiveInStack(userId, id, true, selectedKey)}
       />
 
       <AddCompoundSheet
