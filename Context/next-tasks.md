@@ -10,54 +10,36 @@ Last updated: 2026-07-29
 
 ## 🎯 Current focus
 
-**Wave 2 · part one.** Working the seven refinement specs in order, one at a time,
-on `spec-01-dose-integrity` (PR #61, not merged). **Specs 01–06 are BUILT** —
-typecheck, lint, `next build` and 68 tests green; CodeRabbit round 1 fixed plus a
-self-review round. Reviewed on **localhost** (`npm run dev`) and the PR's Vercel
-preview. Next up: `07-global-sweep.md` — the last of part one.
+**Wave 2 part one is DONE and LIVE on prod.** Specs 01-07 plus the delete-gap fix
+are merged to `main` (PR #61, merged 2026-07-29) and deployed. All three migrations
+applied. Typecheck, lint, `next build` and 73 tests green; reviewed by CodeRabbit
+(2 rounds) plus a structured self-review and a security pass.
 
-### Blocked on Adrian
-00. **Run `supabase/legal/011_support_email.sql`** — swaps `legal@trackdco.app` for
-   `support@trackdco.app` in the CURRENT legal documents (their text lives in
-   Postgres, not the repo). The in-app account-deletion request is already updated;
-   until this runs, /terms and /privacy still print the dead address.
-0. **Run `supabase/markers/001_rename_cycle_changes.sql`** — one idempotent UPDATE
-   renaming the "Cycle Changes" marker to "Menstrual Changes" (Spec 04). No data
-   migration: readings reference markers by id. Until it runs, that marker still
-   reads "Cycle Changes" in the app; filtering is correct either way.
-1. **Run `supabase/protocol/005_protocol_compound_schedules.sql` — needs sign-off.**
-   The migration plan the spec asked for, in one line: a `protocol_compound_schedules`
-   table holding each version of a compound's dose + schedule with the day it took
-   effect. **Strictly additive** — nothing existing is altered, moved or deleted, and
-   there is NO backfill (a compound with no versions resolves exactly as it does
-   today). Cascades from `protocol_compounds`, ships its own RLS + grants. The app
-   already runs correctly without it: every sync call swallows `42P01` and keeps
-   versions in the device store, so applying it only starts backing them up. Say go
-   and it runs via the Supabase MCP.
-2. **Placeholder wording for an unset time** — currently **"Not set"**, worded once
-   in `formatTimeLabel`. Since the time pre-fill was restored (2026-07-29) this
-   renders whenever someone clears the field, not just for legacy records. Confirm
-   or change.
-3. **`QuickTrackSheet` empty-state copy** still says "Nothing scheduled for today"
-   while the sheet can now be parked on another day. Left alone on purpose — spec 01
-   forbids copy changes. One line for spec 07.
+**Next: wave 2 part two** — eleven specs in `Context/Feature Specs/wave 2 -
+refinement/part two/`, starting with `00-readme-pt2.md` to work out the sequencing.
+Not started; Adrian will say when.
 
-### Then
-- **Spec 05 · step 9 — device-test the adjust step on iOS Safari and Android
-  Chrome.** Pinch-zoom inside an installed PWA is the likeliest place it breaks and
-  can't be verified from here. The preview on PR #61 is the surface to test on.
-- **Decide the re-add consistency question** (raised by CodeRabbit, deliberately
-  unfixed): `resolveScheduleOn` gives every historical version the compound's
-  CURRENT `startDate`, so after a re-add the pre-deletion run stops counting as
-  "due" and drops out of consistency. Three options — leave it, anchor to the
-  earliest version's `effectiveFrom` (which makes the deleted gap read as missed
-  doses), or record a stopped/restarted marker (accurate, a few hours). Pre-existing
-  behaviour: the old Reactivate re-anchored the start date the same way.
-- Verify against the real DB once the MCP session is authorised: the
-  `dose_times = ARRAY[NULL]` round-trip, and a version round-trip after 005 runs.
-- Device-check the spec-02 re-add on a compound with real history (delete → search →
-  plus → fresh dose/schedule → old logged doses still in the calendar).
-- STAND BY. Do not merge to main until every wave-2 spec is done and approved.
+### Verified on device by Adrian (2026-07-29)
+Everything works EXCEPT rotation lock, which is the documented iOS limitation:
+WebKit exposes no orientation-lock API to web pages, and the manifest's
+`orientation` is not honoured for iOS home-screen apps. Accepted — the alternatives
+were a rotate-message overlay (rejected: would trap anyone whose device is locked
+to landscape for accessibility) or a CSS transform hack that breaks scrolling and
+input focus. Android installed is genuinely locked.
+
+### Still open (nothing blocking)
+1. **Placeholder wording for an unset time** — currently **"Not set"**, worded once
+   in `formatTimeLabel`. Since the pre-fill was restored this renders whenever
+   someone clears the field, not just for legacy records. Confirm or change.
+2. **`QuickTrackSheet` empty-state copy** still says "Nothing scheduled for today"
+   while the sheet can be parked on another day. Missed by the spec-07 sweep
+   because it reads correctly in isolation; it's the date-awareness that's wrong.
+3. **Spec 06's blocked paths** were verified by reading the code and RLS policies,
+   not by executing them. Two minutes with a throwaway account: `/admin` signed in
+   as a non-founder should say "Founders only" with no data; signed out should show
+   the sign-in screen.
+4. **The `iu` per-dose-draw path (Spec 21)** still has zero production coverage —
+   all live inventory is `mg`. Test when a real HGH/hCG vial exists.
 
 ---
 

@@ -65,15 +65,16 @@ the only way to device-test — the Vercel preview link wasn't reachable for him
 - **Device testing.** Nothing on this branch has been used on a real phone. The
   riskiest is pinch-zoom in the photo adjust step (Spec 05 step 9) and rotation
   (Spec 07 step 7).
-- **Two migrations remain unapplied** (`supabase/protocol/005` schedule versions,
-  `supabase/markers/001` marker rename). Both degrade quietly: versions stay
-  device-only, and the marker still reads "Cycle Changes". `supabase/legal/011`
-  (support@ address) WAS applied by Adrian on 2026-07-29.
-- **The re-add consistency decision** is deferred to part two (see below).
+- ~~Two migrations remain unapplied~~ — **ALL THREE APPLIED by Adrian, 2026-07-29**:
+  `supabase/legal/011` (support@ address), `supabase/markers/001` (marker rename),
+  and `supabase/protocol/005` (schedule versions + the `stopped` column). Wave 2
+  part one has no outstanding schema work.
+- ~~The re-add consistency decision~~ — **RESOLVED and shipped 2026-07-29**: the
+  delete gap is now recorded rather than inferred (see the entry below).
 - **Spec 06's blocked paths** were verified by reading code and RLS policies, not
   by executing them as a non-founder.
 
-- **Spec 01 · Dose & Schedule Integrity — all 8 steps built; migration unapplied.**
+- **Spec 01 · Dose & Schedule Integrity — all 8 steps built; migration applied.**
   Ghost compound root-caused and fixed (Postgres id ⇄ client id divergence made
   archive/delete silently no-op, and a zero-row PostgREST write reports success —
   see `architecture.md` → Dose & Schedule Integrity); hydration now waits for
@@ -188,13 +189,10 @@ the only way to device-test — the Vercel preview link wasn't reachable for him
 
 ## Open Questions
 
-- **Schedule versioning (Spec 01 · step 5) — migration awaiting Adrian.**
-  The code is built and the SQL is written
-  (`supabase/protocol/005_protocol_compound_schedules.sql`): strictly additive, no
-  backfill, cascades from `protocol_compounds`, its own RLS + grants. Not run — the
-  spec says present the plan first. Until it is applied, versions live only in the
-  device store (sync calls swallow `42P01`), so a user who alters a schedule and
-  then switches device loses the trail, not the logs.
+- ~~**Schedule versioning — migration awaiting Adrian.**~~ **RESOLVED 2026-07-29.**
+  `supabase/protocol/005` is applied, so schedule versions (and the Spec 02 delete
+  `stopped` markers) now persist server-side instead of living only on the device
+  that made them.
 - **"Not set"** is the current wording for a dose time on LEGACY records (worded
   once, in `formatTimeLabel`). A time is now required at every entry point, so this
   can no longer be produced fresh. Spec 01 requires Adrian to confirm the wording.

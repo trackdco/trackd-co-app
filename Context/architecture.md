@@ -463,9 +463,9 @@ and the *deletion path* didn't honour the split.
   - **Storage:** `supabase/protocol/005_protocol_compound_schedules.sql` — one row
     per (compound, effective_from), mirroring the `protocol_compounds` dose/schedule
     columns 1:1 so no translation layer can drift. Strictly additive, no backfill,
-    cascades from `protocol_compounds`, own RLS + grants. **Not yet applied**: the
-    sync calls treat `42P01` as `skipped`, so versions live in the device store and
-    the app degrades to pre-versioning behaviour rather than reporting a failure.
+    cascades from `protocol_compounds`, own RLS + grants. **APPLIED 2026-07-29.**
+    The sync calls still treat `42P01` as `skipped`, which is now only a safety net
+    for an environment where the table is missing rather than the normal path.
     Hydration UNIONS the pulled versions over the device's, Postgres winning any day
     it knows about — a pull that returns nothing must never wipe the local trail.
 - **Tests:** `lib/home/doseIntegrity.test.ts` (Vitest, `npm test`) pins each
@@ -507,7 +507,8 @@ picker and press the plus.
     of missed doses. Hence the stop marker.
   - **Costs nothing when unused:** a compound never deleted has no history and
     resolves exactly as before. Storage is `protocol_compound_schedules.stopped`,
-    added to the still-unapplied migration 005 rather than stacked as a second one.
+    added to migration 005 before it was ever run, rather than stacked as a second
+    one (applied 2026-07-29).
 - **Nothing in the app hard-deletes a compound.** `removeFromStack`,
   `removeCompoundLogs`, `deleteProtocolCompoundForStack`, `deleteProtocolCompound`
   and `deleteStackCompound`/`deleteCompoundLogs` are **deleted, not just unwired** —
@@ -610,8 +611,9 @@ delete anything already logged.**
   every logged entry follows the row and simply renders under the new label. The
   rename is DB-side — `supabase/markers/001_rename_cycle_changes.sql` (idempotent,
   service-role, guarded against the `name` UNIQUE) plus the updated
-  `supabase/seed/markers.csv` so a re-seed agrees. **Not yet applied**; the
-  applicability map lists both names so filtering is correct either side of it.
+  `supabase/seed/markers.csv` so a re-seed agrees. **APPLIED 2026-07-29.** The
+  applicability map still lists both names, which costs nothing and keeps any
+  environment seeded before the rename correct.
 - **No prompt was added** to the sex change, per the spec. Note the Settings sex
   field already has a confirm step (from Spec 19, about the body map) — it is
   untouched and now describes only part of what changes.
