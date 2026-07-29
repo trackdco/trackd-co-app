@@ -59,8 +59,8 @@ export async function hydrateFromPostgres(userId: string): Promise<void> {
     pullScheduleVersions(),
     pullStacks(),
   ])
-  mergeAndSave(userId, pg, cloud, versions)
-  hydrateStacks(userId, pg.stack, stacks)
+  const idRemap = mergeAndSave(userId, pg, cloud, versions)
+  hydrateStacks(userId, stacks, idRemap)
 }
 
 /** Fold raw Postgres dose rows into `DayLogs`, keyed by the DEVICE's local day +
@@ -107,7 +107,7 @@ function mergeAndSave(
   pg: { stack: StackCompound[]; doseRows: DoseRow[] },
   cloud: { stack: StackCompound[]; doseLogs: DayLogs },
   versionRows: Awaited<ReturnType<typeof pullScheduleVersions>> = {}
-): void {
+): Map<string, string> {
   const local = loadStack(userId) ?? []
   const localLogs = loadDoseLogs(userId)
   const pgIds = new Set(pg.stack.map((c) => c.id))
@@ -296,48 +296,72 @@ function mergeAndSave(
   }
   saveDoseLogs(userId, merged)
   notifyDoseLogsChanged()
+  return idRemap
 }
 
 
 /**
  * Fold the pulled stacks into the device store — the half that was missing, and
- * why a stack did not survive a reinstall: `pushStacks` wrote them and nothing
- * ever read them back.
+ * why a stack did not survive a reinstall.
  *
- * **A stack the device already has always wins on membership.** Postgres stores
- * membership as `protocol_compounds.id`, which can differ from the client's
- * `StackCompound.id`, so a pulled membership list is only usable once every id
- * maps back to a local compound. Where it does, the pulled stack is adopted;
- * where it doesn't, the local one is kept rather than replaced by a stack whose
- * members would render as nothing.
+ * Three rules, each of which was a bug first:
  *
- * An empty pull is treated as NO NEWS, never as "the user deleted everything" —
- * the same rule the rest of hydration follows, so an offline or failed read can
- * never wipe a stack.
+ *  - **Membership is judged against the MERGED LOCAL stack, not the Postgres
+ *    pull.** `pullProtocolStackAndLogs` skips rows with a NULL `compound_id`,
+ *    which is every CUSTOM compound — yet customs do have `protocol_compounds`
+ *    rows and do get `stack_members` rows. Judging against the pull therefore
+ *    declared every custom member unresolvable and quietly dropped it from the
+ *    stack on the next focus event, then pushed the truncated list up.
+ *  - **A stack is only adopted when its membership FULLY resolves.** Partial
+ *    adoption silently discards whatever didn't map; an empty adoption (on a
+ *    fresh device, where there is no local stack to fall back to) leaves a card
+ *    with nothing in it and no way to tell what it held.
+ *  - **Local member ids follow `idRemap`.** `mergeAndSave` can re-point a
+ *    compound's local id at its Postgres row; a stack still holding the old id
+ *    would render with no members.
+ *
+ * An empty pull is NO NEWS, never "the user deleted everything".
  */
 function hydrateStacks(
   userId: string,
-  pgStack: { id: string }[],
-  pulled: Stack[]
+  pulled: Stack[],
+  idRemap: Map<string, string>
 ): void {
-  if (pulled.length === 0) return
   const local = loadStacks(userId)
-  const localById = new Map(local.map((s) => [s.id, s]))
-  const knownCompound = new Set(pgStack.map((c) => c.id))
+  // Follow any id change first, so a local stack keeps pointing at its members.
+  const remapped = local.map((s) =>
+    idRemap.size === 0
+      ? s
+      : { ...s, memberIds: s.memberIds.map((id) => idRemap.get(id) ?? id) }
+  )
+  if (pulled.length === 0) {
+    // No news from the server — but a remap may still have moved ids locally.
+    if (idRemap.size > 0) {
+      saveStacks(userId, remapped)
+      notifyStacksChanged()
+    }
+    return
+  }
+
+  // Every compound the DEVICE knows after the merge — catalogue and custom.
+  const known = new Set((loadStack(userId) ?? []).map((c) => c.id))
+  const localById = new Map(remapped.map((s) => [s.id, s]))
 
   const merged: Stack[] = []
   for (const p of pulled) {
-    const resolvable = p.memberIds.filter((id) => knownCompound.has(id))
     const loc = localById.get(p.id)
-    // Adopt the pulled stack only when its membership actually resolves; a stack
-    // whose members can't be mapped locally would render empty, which is worse
-    // than keeping what the device has.
-    merged.push(
-      resolvable.length > 0 || !loc ? { ...p, memberIds: resolvable } : loc
-    )
     localById.delete(p.id)
+    const resolves = p.memberIds.every((id) => known.has(id))
+    if (resolves && p.memberIds.length > 0) {
+      merged.push(p)
+    } else if (loc) {
+      // Keep what the device has rather than replacing it with a stack whose
+      // members would render as nothing.
+      merged.push(loc)
+    }
+    // Neither resolvable nor local ⇒ skipped entirely. An empty card tells the
+    // user less than no card, and the next successful push will re-create it.
   }
-  // Stacks the device has that Postgres hasn't seen yet (an offline create).
   for (const leftover of localById.values()) merged.push(leftover)
 
   saveStacks(userId, merged)

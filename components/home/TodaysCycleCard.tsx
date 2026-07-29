@@ -428,16 +428,17 @@ function StackDoseRow({
   const complete = logged === total && total > 0
   const partial = logged > 0 && !complete
 
-  function toggleAll() {
-    // A complete stack does NOT untick wholesale. Each member's log carries its
-    // own edited amount, real time and injection site, and one mis-tap would
-    // delete all of it with nothing to undo. Spec 05 asks for logging in one
-    // tap; un-logging in one tap is the direction that destroys data, so it is
-    // deliberately not offered — expand the row and untick a member instead.
-    if (complete) {
-      setOpen(true)
-      return
-    }
+  /**
+   * Log every member that isn't logged yet.
+   *
+   * There is deliberately NO bulk untick. Each member's log carries its own
+   * edited amount, real time and injection site, and one mis-tap would delete
+   * all of it with nothing to undo. Spec 05 asks for logging in one tap;
+   * un-logging in one tap is the direction that destroys data. The button that
+   * calls this is hidden once the stack is complete, so there is nothing to
+   * guard against here.
+   */
+  function logRemaining() {
     const unlogged = members.filter((m) => m.log == null)
     if (onLogStack) onLogStack(unlogged)
     else for (const m of unlogged) onLog(m)
@@ -521,7 +522,7 @@ function StackDoseRow({
         {!complete && (
           <button
             type="button"
-            onClick={toggleAll}
+            onClick={logRemaining}
             aria-label={
               partial
                 ? `Log the remaining ${total - logged} in ${stack.name}`
@@ -551,7 +552,11 @@ function StackDoseRow({
         className="grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
         style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
       >
-        <div className="overflow-hidden">
+        {/* `inert` while collapsed. `overflow-hidden` clips the members visually
+            but leaves them focusable and announced — a keyboard user could tab
+            into a collapsed stack and log a dose they cannot see, and
+            `aria-expanded={false}` would be lying about exposed content. */}
+        <div className="overflow-hidden" inert={!open}>
           <ul className="px-1 pl-4">
             {members.map((dose) => (
               <DoseRow

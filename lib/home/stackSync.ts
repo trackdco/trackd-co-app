@@ -102,21 +102,30 @@ export async function pushStacks(
       return { ok: false }
     }
 
+    // Two client ids can resolve to the SAME protocol_compounds row (an offline
+    // add of a name Postgres already has, before hydration de-dupes). Inserting
+    // both violates the unique index, and because the delete has already run
+    // that one collision would wipe EVERY stack's membership — so collapse them
+    // here. First occurrence wins, matching `dedupeMembership` on the read side.
+    const claimed = new Set<string>()
     const rows = stacks.flatMap((s) =>
       s.memberIds
         .map((clientId, position) => {
           const pcId = idMap[clientId]
           // A member with no Postgres row yet (an unmigrated custom) is skipped
           // rather than faked — the device store still holds the membership.
-          return pcId ? { stack_id: s.id, protocol_compound_id: pcId, user_id: cx.userId, position } : null
+          if (!pcId || claimed.has(pcId)) return null
+          claimed.add(pcId)
+          return { stack_id: s.id, protocol_compound_id: pcId, user_id: cx.userId, position }
         })
         .filter((r): r is NonNullable<typeof r> => r !== null)
     )
-    // If members were dropped because their Postgres row could not be resolved,
-    // the mirror is INCOMPLETE — report that rather than a clean success, so the
-    // sync indicator reflects reality and the next mutation retries.
-    const expected = stacks.reduce((n, s) => n + s.memberIds.length, 0)
-    if (rows.length === 0) return { ok: expected === 0 }
+    // The honest success signal is "did every member RESOLVE", not "did every
+    // member produce a row" — a duplicate collapsed just above is correct
+    // behaviour, whereas a member whose Postgres row we could not find means the
+    // mirror is incomplete and the next mutation should retry.
+    const unresolved = clientIds.filter((id) => !idMap[id]).length
+    if (rows.length === 0) return { ok: unresolved === 0 }
 
     const { error: memErr } = await cx.supabase.from("stack_members").insert(rows)
     if (memErr) {
@@ -124,7 +133,7 @@ export async function pushStacks(
       console.error("pushStacks failed", memErr)
       return { ok: false }
     }
-    return { ok: rows.length === expected }
+    return { ok: unresolved === 0 }
   } catch (e) {
     console.error("pushStacks failed", e)
     return { ok: false }

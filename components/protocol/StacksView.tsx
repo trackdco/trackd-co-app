@@ -136,6 +136,11 @@ export function StacksView({ userId }: { userId: string }) {
           if (!o) {
             setCreating(false)
             setEditing(null)
+            // The hand-off must die with the sheet. `StackForm` unmounts on
+            // close, taking its "already handled" guard with it — so a leftover
+            // id would be auto-ticked into the NEXT stack the user opens, and
+            // saving that stack would steal the compound out of the first one.
+            setPendingMemberId(null)
           }
         }}
         stack={editing}
