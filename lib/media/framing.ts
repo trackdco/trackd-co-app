@@ -57,6 +57,11 @@ export interface Size {
  */
 export function coverScale(image: Size, frame: Size): number {
   if (image.width <= 0 || image.height <= 0) return 1
+  // An UNMEASURED frame (0×0, before the layout settles) would otherwise return
+  // scale 0, and every later division by it yields NaN — which a canvas silently
+  // turns into a blank image rather than an error. 1 is a harmless stand-in; the
+  // caller shouldn't be cropping against an unmeasured frame at all.
+  if (frame.width <= 0 || frame.height <= 0) return 1
   return Math.max(frame.width / image.width, frame.height / image.height)
 }
 
@@ -178,6 +183,16 @@ export function cropRect(
  * the crop actually contains.
  */
 export function outputSize(crop: CropRect, maxEdge: number): Size {
+  // A non-finite crop must not become a non-finite canvas size — `canvas.width =
+  // NaN` coerces to 0 and encodes a blank image instead of failing loudly.
+  if (
+    !Number.isFinite(crop.sWidth) ||
+    !Number.isFinite(crop.sHeight) ||
+    crop.sWidth <= 0 ||
+    crop.sHeight <= 0
+  ) {
+    return { width: 1, height: 1 }
+  }
   const ratio = crop.sWidth / crop.sHeight
   let width = crop.sWidth
   let height = crop.sHeight

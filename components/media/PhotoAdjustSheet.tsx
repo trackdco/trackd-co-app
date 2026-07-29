@@ -243,7 +243,13 @@ function AdjustBody({
   async function handleConfirm() {
     // Undecodable (HEIC outside Safari): pass the original through rather than
     // trapping the user in a step they can't complete.
-    if (!image || decodeFailed || !objectUrl) {
+    //
+    // `frame.width` is in the guard for a reason: confirming before the
+    // ResizeObserver has measured makes `coverScale` zero, which propagates NaN
+    // through the crop into `canvas.width` — and a NaN width silently becomes a
+    // 0×0 canvas, so `toBlob` can hand back a BLANK image that we'd then upload
+    // as the user's photo. Falling back to the original is the only safe answer.
+    if (!image || decodeFailed || !objectUrl || frame.width <= 0 || frame.height <= 0) {
       onConfirm({ file, framing, original: file })
       return
     }
@@ -251,6 +257,12 @@ function AdjustBody({
     try {
       const crop = cropRect(framing, image, frame)
       const out = outputSize(crop, MAX_OUTPUT_EDGE)
+      // Belt and braces on the same failure mode: never hand the canvas a
+      // non-finite size, because it coerces to 0 and encodes a blank image
+      // instead of throwing.
+      if (!Number.isFinite(out.width) || !Number.isFinite(out.height)) {
+        throw new Error("bad output size")
+      }
       const canvas = document.createElement("canvas")
       canvas.width = out.width
       canvas.height = out.height

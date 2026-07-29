@@ -115,6 +115,9 @@ export function AddProgressPhotoSheet({
       setNote("");
       setWeight("");
       setError(null);
+      // Otherwise closing the sheet mid-adjust and reopening it would land you
+      // straight back in the adjust step, on a photo from the previous session.
+      setAdjusting(null);
     }
   }
 

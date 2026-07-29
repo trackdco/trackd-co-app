@@ -75,10 +75,17 @@ export function AttachBloodworkSheet({
   const [original, setOriginal] = useState<File | null>(null);
   const [framing, setFraming] = useState<Framing | undefined>(undefined);
 
-  // Reset the form whenever the sheet closes.
+  // Reset the form whenever the sheet closes. `adjusting` is part of the guard,
+  // not just the body: a photo picked but not yet confirmed leaves `file` null,
+  // so without it the condition reads as "nothing to reset" and the adjust step
+  // would still be pending the next time the sheet opens.
   if (
     !open &&
-    (file !== null || error !== null || drawnOn !== todayKey || note !== "")
+    (file !== null ||
+      error !== null ||
+      adjusting !== null ||
+      drawnOn !== todayKey ||
+      note !== "")
   ) {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(null);

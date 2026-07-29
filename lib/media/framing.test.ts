@@ -167,6 +167,38 @@ describe("the saved crop", () => {
   })
 })
 
+describe("an unmeasured frame", () => {
+  // The real failure: confirm tapped before the ResizeObserver has measured. A
+  // zero frame used to make coverScale 0, which propagated NaN into the canvas
+  // size — and canvas.width = NaN coerces to 0, so toBlob returns a BLANK image
+  // that would be uploaded as the user's photo. Nothing here may be non-finite.
+  const ZERO = { width: 0, height: 0 }
+
+  it("never yields a non-finite scale", () => {
+    expect(Number.isFinite(coverScale(LANDSCAPE, ZERO))).toBe(true)
+  })
+
+  it("never yields a non-finite crop", () => {
+    const crop = cropRect(DEFAULT_FRAMING, LANDSCAPE, ZERO)
+    for (const v of [crop.sx, crop.sy, crop.sWidth, crop.sHeight]) {
+      expect(Number.isFinite(v)).toBe(true)
+    }
+  })
+
+  it("never yields a non-finite output size", () => {
+    const out = outputSize(cropRect(DEFAULT_FRAMING, LANDSCAPE, ZERO), 1600)
+    expect(Number.isFinite(out.width)).toBe(true)
+    expect(Number.isFinite(out.height)).toBe(true)
+    expect(out.width).toBeGreaterThan(0)
+    expect(out.height).toBeGreaterThan(0)
+  })
+
+  it("rejects a garbage crop outright", () => {
+    const out = outputSize({ sx: 0, sy: 0, sWidth: NaN, sHeight: NaN }, 1600)
+    expect(out).toEqual({ width: 1, height: 1 })
+  })
+})
+
 describe("output size", () => {
   it("keeps the frame's aspect", () => {
     const crop = cropRect(DEFAULT_FRAMING, LANDSCAPE, FRAME)

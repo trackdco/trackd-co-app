@@ -153,6 +153,9 @@ export function JournalEntrySheet({
       setRemovedIds([]);
       setPendingAdds([]);
       setViewingUrl(null);
+      // A queue left over from a sheet closed mid-adjust would otherwise reopen
+      // the adjust step on the previous session's photos.
+      setAdjustQueue([]);
     }
   }
 
