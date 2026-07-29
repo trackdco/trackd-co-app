@@ -20,56 +20,23 @@
 
 /* ------------------------------------------------------------------ palette */
 
-/**
- * The twelve approved cycle colours. Deep rather than pastel, none implying good
- * or bad, none clashing with amber or the category hues. Values live as
- * `--cycle-*` tokens in `globals.css` (the only place hex may appear) and are
- * documented in `ui-context.md`.
- */
-export const CYCLE_COLOURS = [
-  "slate",
-  "steel",
-  "teal",
-  "moss",
-  "olive",
-  "bronze",
-  "clay",
-  "rosewood",
-  "mauve",
-  "plum",
-  "indigo",
-  "stone",
-] as const
+// The twelve colours are shared with stacks (Spec 05), so they live in
+// `lib/palette.ts` under neutral names. Re-exported here under the cycle-facing
+// aliases so existing call sites keep reading naturally.
+export {
+  PALETTE_COLOURS as CYCLE_COLOURS,
+  PALETTE_LABELS as CYCLE_COLOUR_LABELS,
+  DEFAULT_PALETTE_COLOUR as DEFAULT_CYCLE_COLOUR,
+  paletteColourVar as cycleColourVar,
+  isPaletteColour as isCycleColour,
+  type PaletteColour as CycleColour,
+} from "@/lib/palette"
 
-export type CycleColour = (typeof CYCLE_COLOURS)[number]
-
-export const CYCLE_COLOUR_LABELS: Record<CycleColour, string> = {
-  slate: "Slate",
-  steel: "Steel",
-  teal: "Teal",
-  moss: "Moss",
-  olive: "Olive",
-  bronze: "Bronze",
-  clay: "Clay",
-  rosewood: "Rosewood",
-  mauve: "Mauve",
-  plum: "Plum",
-  indigo: "Indigo",
-  stone: "Stone",
-}
-
-export const DEFAULT_CYCLE_COLOUR: CycleColour = "slate"
-
-/** The CSS value for a cycle colour — a token reference, never a literal. */
-export function cycleColourVar(colour: CycleColour): string {
-  return `var(--cycle-${colour})`
-}
-
-export function isCycleColour(value: unknown): value is CycleColour {
-  return (
-    typeof value === "string" && (CYCLE_COLOURS as readonly string[]).includes(value)
-  )
-}
+import {
+  DEFAULT_PALETTE_COLOUR,
+  isPaletteColour,
+  type PaletteColour,
+} from "@/lib/palette"
 
 /* -------------------------------------------------------------------- model */
 
@@ -99,7 +66,7 @@ export type CycleEnd =
 export interface CycleRule {
   pattern: CyclePattern
   end: CycleEnd
-  colour: CycleColour
+  colour: PaletteColour
   /** Local "YYYY-MM-DD" the on/off phase counts from. Before this, nothing is on. */
   anchor: string
 }
@@ -211,7 +178,7 @@ export function cycleRuleFromColumns(r: Partial<CycleColumns>): CycleRule | unde
   return {
     pattern,
     end,
-    colour: isCycleColour(r.cycle_colour) ? r.cycle_colour : DEFAULT_CYCLE_COLOUR,
+    colour: isPaletteColour(r.cycle_colour) ? r.cycle_colour : DEFAULT_PALETTE_COLOUR,
     anchor: r.cycle_anchor,
   }
 }

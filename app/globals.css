@@ -53,22 +53,22 @@
   --cat-supplement: #6fae6f;
   --cat-stimulant: #cb7a5c;
 
-  /* Cycle palette (Spec 06 · part two) — twelve approved colours a user picks
-     from when creating a cycle. Deep rather than pastel, none implying good or
-     bad, none clashing with amber or the category hues. Stored on the cycle, not
-     the compound; drives the calendar fill and that cycle's containers. */
-  --cycle-slate: #56687f;
-  --cycle-steel: #4c7285;
-  --cycle-teal: #3d6b63;
-  --cycle-moss: #4c6a4e;
-  --cycle-olive: #616b41;
-  --cycle-bronze: #7a6440;
-  --cycle-clay: #8b6050;
-  --cycle-rosewood: #7e4e54;
-  --cycle-mauve: #7b5570;
-  --cycle-plum: #654c7c;
-  --cycle-indigo: #55568c;
-  --cycle-stone: #6d6a62;
+  /* User palette — twelve approved colours a user picks from for a CYCLE
+     (Spec 06) or a STACK (Spec 05). Deep rather than pastel, none implying good
+     or bad, none clashing with amber or the category hues. Stored by NAME on the
+     cycle / stack, never on the compound, so a retune needs no data migration. */
+  --palette-slate: #56687f;
+  --palette-steel: #4c7285;
+  --palette-teal: #3d6b63;
+  --palette-moss: #4c6a4e;
+  --palette-olive: #616b41;
+  --palette-bronze: #7a6440;
+  --palette-clay: #8b6050;
+  --palette-rosewood: #7e4e54;
+  --palette-mauve: #7b5570;
+  --palette-plum: #654c7c;
+  --palette-indigo: #55568c;
+  --palette-stone: #6d6a62;
 
   /* System/UI state — NEVER for health-data semantics (see ui-context.md) */
   --state-error: #ef4444;
@@ -168,19 +168,19 @@
   --color-cat-supplement: var(--cat-supplement);
   --color-cat-stimulant: var(--cat-stimulant);
 
-  /* Cycle palette → utilities (bg-cycle-slate, text-cycle-teal, …) */
-  --color-cycle-slate: var(--cycle-slate);
-  --color-cycle-steel: var(--cycle-steel);
-  --color-cycle-teal: var(--cycle-teal);
-  --color-cycle-moss: var(--cycle-moss);
-  --color-cycle-olive: var(--cycle-olive);
-  --color-cycle-bronze: var(--cycle-bronze);
-  --color-cycle-clay: var(--cycle-clay);
-  --color-cycle-rosewood: var(--cycle-rosewood);
-  --color-cycle-mauve: var(--cycle-mauve);
-  --color-cycle-plum: var(--cycle-plum);
-  --color-cycle-indigo: var(--cycle-indigo);
-  --color-cycle-stone: var(--cycle-stone);
+  /* User palette → utilities (bg-palette-slate, text-palette-teal, …) */
+  --color-palette-slate: var(--palette-slate);
+  --color-palette-steel: var(--palette-steel);
+  --color-palette-teal: var(--palette-teal);
+  --color-palette-moss: var(--palette-moss);
+  --color-palette-olive: var(--palette-olive);
+  --color-palette-bronze: var(--palette-bronze);
+  --color-palette-clay: var(--palette-clay);
+  --color-palette-rosewood: var(--palette-rosewood);
+  --color-palette-mauve: var(--palette-mauve);
+  --color-palette-plum: var(--palette-plum);
+  --color-palette-indigo: var(--palette-indigo);
+  --color-palette-stone: var(--palette-stone);
 
   /* shadcn semantic colours → utilities (bg-background, bg-card, …) */
   --color-background: var(--background);
