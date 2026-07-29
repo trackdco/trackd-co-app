@@ -23,6 +23,7 @@ import {
   pushScheduleVersions,
 } from "@/lib/home/protocolSync"
 import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
+import { dropMember } from "@/lib/home/stacks"
 import {
   cycleRuleFromColumns,
   cycleRuleToColumns,
@@ -553,6 +554,10 @@ export function archiveInStack(
     // active, ready for the next hydration to bring it back (see protocolSync's
     // `findProtocolCompoundId`).
     void trackCriticalSync(archiveProtocolCompound(id, updated?.name ?? null, archived))
+    // A deleted compound leaves its stack, but the STACK SURVIVES with one fewer
+    // member and every logged dose is untouched (Spec 05). Done here rather than
+    // at each call site so no delete path can forget it.
+    if (archived) dropMember(userId, id)
   }
   return ok
 }

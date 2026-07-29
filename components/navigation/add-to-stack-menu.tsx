@@ -34,6 +34,8 @@ import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { newId } from "@/lib/home/id"
 import { isRunning, loadStack } from "@/lib/home/stack"
+import { loadStacks, type Stack } from "@/lib/home/stacks"
+import { paletteColourVar } from "@/lib/palette"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import {
   loadRecentCompounds,
@@ -203,6 +205,9 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
   // add reuses its existing record id so the compound keeps ONE identity and its
   // logged history stays attached (see `reuseId` on AddCompoundSheet).
   const [deletedIds, setDeletedIds] = useState<Map<string, string>>(new Map())
+  // The user's stacks — listed for reference on the Stacks side of the segmented
+  // control. Read here rather than subscribed: the sheet re-reads on every open.
+  const [stacks, setStacks] = useState<Stack[]>([])
   // Lowercased names of the compounds this user added most recently, newest first
   // (Spec 03). Re-read on every open so an add made since is reflected.
   const [recentNames, setRecentNames] = useState<string[]>([])
@@ -481,6 +486,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
           .map((c) => [c.name.toLowerCase(), c.id] as const)
       )
     )
+    setStacks(loadStacks(userId))
   }
 
   // A compound already in the log is dimmed + unclickable. Tapping it shakes the
@@ -599,6 +605,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
               onCancelDeleteCustom={cancelDeleteCustom}
               onConfirmDeleteCustom={confirmDeleteCustom}
               deleteFailed={saveFailed}
+              stacks={stacks}
             />
           )}
         </div>
@@ -651,6 +658,7 @@ function BrowseBody({
   onCancelDeleteCustom,
   onConfirmDeleteCustom,
   deleteFailed,
+  stacks,
 }: {
   query: string
   setQuery: (v: string) => void
@@ -670,7 +678,13 @@ function BrowseBody({
   onCancelDeleteCustom: () => void
   onConfirmDeleteCustom: (id: string) => void
   deleteFailed: boolean
+  /** The user's stacks, for the reference-only Stacks side of the segmented
+   *  control. Empty ⇒ no control at all (Spec 05). */
+  stacks: Stack[]
 }) {
+  // Which side of the Compounds / Stacks control is showing. Stacks are LISTED
+  // here for reference only — they are created in Protocol, never from here.
+  const [side, setSide] = useState<"compounds" | "stacks">("compounds")
   // Props shared by every CompoundList instance (custom rows can appear both in
   // search results and under "Your compounds").
   const listProps = {
@@ -706,9 +720,37 @@ function BrowseBody({
         </div>
       </div>
 
+      {/* Compounds / Stacks — only once the user actually has a stack, so the
+          picker is unchanged for everyone else (Spec 05). Sits above the flat
+          section composition exactly where Spec 03 left room for it. */}
+      {stacks.length > 0 && !q && (
+        <div className="shrink-0 px-4 pb-4">
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-bg-input p-1">
+            {(["compounds", "stacks"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setSide(v)}
+                aria-pressed={side === v}
+                className={cn(
+                  "rounded-lg py-2 text-sm capitalize transition-colors",
+                  side === v
+                    ? "bg-bg-surface-raised text-foreground"
+                    : "text-text-muted"
+                )}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Scrolling content */}
       <div className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-        {q ? (
+        {!q && stacks.length > 0 && side === "stacks" ? (
+          <StackReferenceList stacks={stacks} />
+        ) : q ? (
           results.length > 0 ? (
             <CompoundList items={results} {...listProps} query={q} />
           ) : (
@@ -745,8 +787,11 @@ function BrowseBody({
           </>
         )}
 
-        {/* Make your own — always at the bottom */}
-        <MakeYourOwnRow query={query} onClick={onMakeYourOwn} />
+        {/* Make your own — always at the bottom, except on the Stacks side,
+            where creating a compound would be out of place. */}
+        {!(!q && stacks.length > 0 && side === "stacks") && (
+          <MakeYourOwnRow query={query} onClick={onMakeYourOwn} />
+        )}
       </div>
     </>
   )
@@ -1284,5 +1329,40 @@ function PillGroup({
         })}
       </div>
     </div>
+  )
+}
+
+/**
+ * The Stacks side of the picker's segmented control (Spec 05, step 10).
+ *
+ * **Reference only** — stacks are created and edited in Protocol, never here, so
+ * there is deliberately no plus, no tap target and no create affordance. It
+ * exists so someone browsing compounds can see what they have already grouped.
+ */
+function StackReferenceList({ stacks }: { stacks: Stack[] }) {
+  return (
+    <ul className="space-y-2 py-1">
+      {stacks.map((s) => (
+        <li
+          key={s.id}
+          className="flex items-center gap-3 rounded-2xl bg-bg-surface-raised px-4 py-3"
+        >
+          <span
+            className="h-3 w-3 shrink-0 rounded-full"
+            style={{ background: paletteColourVar(s.colour) }}
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1 truncate text-base text-foreground">
+            {s.name}
+          </span>
+          <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
+            {s.memberIds.length}
+          </span>
+        </li>
+      ))}
+      <li className="px-1 pt-2 text-xs text-text-muted">
+        Stacks are created in Protocol.
+      </li>
+    </ul>
   )
 }

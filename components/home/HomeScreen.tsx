@@ -11,6 +11,11 @@ import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { WeekStrip, type WeekDay } from "@/components/home/WeekStrip"
 import { HomeGreeting } from "@/components/home/HomeGreeting"
 import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
+import {
+  EMPTY_STACKS,
+  getStacksSnapshot,
+  subscribeStacks,
+} from "@/lib/home/stacks"
 import { DayStatusWidgets } from "@/components/home/DayStatusWidgets"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
 import { WeightGlanceCard } from "@/components/home/WeightGlanceCard"
@@ -158,6 +163,12 @@ export function HomeScreen({
     () => seedStack
   )
   const activeStack = stack.filter((c) => !c.archived)
+  // The user's stacks (Spec 05) — a display grouping over the same compounds.
+  const stacks = useSyncExternalStore(
+    subscribeStacks,
+    () => getStacksSnapshot(userId),
+    () => EMPTY_STACKS
+  )
 
   // Open the injection-site views on whichever route the protocol actually uses
   // most (by compound count) — a mostly-Sub-Q stack shouldn't land on an empty IM
@@ -538,6 +549,20 @@ export function HomeScreen({
               // No vial → the draw slot's "add stock" tap lands on the Stock tab's
               // add-flow, not the Plan tab you'd otherwise get from /protocol.
               onAddStock={() => router.push("/protocol?tab=stock")}
+              stacks={stacks}
+              // One tap logs every unlogged member. Each still writes its OWN
+              // dose log through the same path a single tick uses, to the
+              // SELECTED day — a stack is a grouping, never a shared entry.
+              onLogStack={(members) => {
+                for (const m of members) {
+                  logDose(userId, selectedKey, m.id, {
+                    amount: String(m.dose),
+                    unit: m.unit,
+                    time24: m.schedule.timeOfDay,
+                    siteId: null,
+                  })
+                }
+              }}
             />
           )}
         </div>
