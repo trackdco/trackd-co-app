@@ -2,8 +2,6 @@
 
 import { useId } from "react"
 
-import { ArrowsLeftRight } from "@/components/icons"
-
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
 import { equivalentAmount, type MgUnit } from "@/lib/calculator/recon"
@@ -16,21 +14,19 @@ const FIELD_LABEL =
 /**
  * The mg/mcg switch, sitting INSIDE the field's own surface at its right edge
  * (Adrian, 2026-07-30: "drop the button down into it so it's part of the little
- * tablet thing").
+ * tablet thing", and "I should be able to still see both measurements").
  *
- * It is a single tap-to-flip chip, not a two-segment pill. The pill was tried
- * both ways and neither worked here: inside a half-width field it left the input
- * 9px wide at 320px, and outside on the label row it read as a stray control
- * floating above the box it governs. One chip is half the width, so it fits
- * inside the field even in a paired column.
+ * So: a two-segment pill, not a tap-to-flip chip. Seeing BOTH units at once is
+ * the point when the two differ by 1000x — a flip control hides the alternative
+ * behind a tap, and the alternative is exactly the thing a user needs to notice
+ * they picked wrong.
  *
- * The cost of a flip control is that you cannot see the alternative, which
- * matters more than usual when the two units differ by 1000x. Three things pay
- * that back: the `ArrowsLeftRight` glyph says it changes, the accessible name
- * spells out both states, and the live conversion under the field always shows
- * the figure in the OTHER unit, so the alternative is on screen regardless.
+ * Sized tightly on purpose. A full-size pill in here left the powder input 9px
+ * wide at a 320px viewport, so a typed "12.5" rendered as "1". This one is
+ * 10px text on 1.5-unit padding, and the paired row unpairs below 360px, which
+ * together keep the number legible on the narrowest phone in use.
  */
-function UnitChip({
+function UnitPill({
   unit,
   onChange,
   label,
@@ -39,29 +35,41 @@ function UnitChip({
   onChange: (u: MgUnit) => void
   label: string
 }) {
-  const next: MgUnit = unit === "mg" ? "mcg" : "mg"
   return (
-    <button
-      type="button"
-      onClick={() => onChange(next)}
-      aria-label={`${label} unit: ${unit}. Switch to ${next}.`}
-      className="flex shrink-0 items-center gap-1 rounded-lg bg-bg-surface-raised px-2 py-1 text-[11px] font-medium text-foreground transition-transform active:scale-95"
+    <div
+      role="group"
+      aria-label={`${label} unit`}
+      className="flex shrink-0 rounded-lg bg-bg-surface-raised p-0.5 text-[10px] leading-none"
     >
-      {unit}
-      <ArrowsLeftRight className="h-3 w-3 text-text-subtle" aria-hidden />
-    </button>
+      {(["mg", "mcg"] as const).map((u) => (
+        <button
+          key={u}
+          type="button"
+          aria-pressed={unit === u}
+          onClick={() => onChange(u)}
+          className={cn(
+            "rounded-[5px] px-1.5 py-1.5 font-medium transition-colors",
+            unit === u
+              ? "bg-bg-input text-foreground"
+              : "text-text-subtle hover:text-text-muted",
+          )}
+        >
+          {u}
+        </button>
+      ))}
+    </div>
   )
 }
 
 /**
  * One field.
  *
- * The unit sits inside the field, at its right edge: the flip chip where there
- * are two units, plain text where there is only one (mL). Watch the width when
- * changing this — a two-segment pill here left the powder input 9px wide at a
+ * The unit sits inside the field, at its right edge: the two-segment pill where
+ * there are two units, plain text where there is only one (mL). Watch the width
+ * when changing this — a full-size pill here left the powder input 9px wide at a
  * 320px viewport, so a typed "12.5" rendered as "1", which is a plausible-
  * looking wrong number on a screen whose whole argument is that you can see what
- * you entered. `unitWidth` below is what keeps that honest.
+ * you entered.
  *
  * The unit is NOT folded into the label text: the label is `uppercase`, which
  * would render "mL" as "ML", and a unit's casing is not cosmetic.
@@ -104,7 +112,7 @@ function Field({
           className="w-full min-w-0 flex-1 bg-transparent font-mono text-base tabular-nums text-foreground outline-none placeholder:text-text-subtle"
         />
         {unit && onUnitChange ? (
-          <UnitChip unit={unit} onChange={onUnitChange} label={label} />
+          <UnitPill unit={unit} onChange={onUnitChange} label={label} />
         ) : (
           <span className="shrink-0 pr-1.5 text-[11px] text-text-muted">
             {staticUnit}
@@ -211,7 +219,9 @@ export function CalculatorInputs({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* Paired above 360px, stacked below it: two columns and an in-field
+            unit pill cannot both fit on the narrowest phones still in use. */}
+        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
           <Field
             label="Powder"
             value={powder}

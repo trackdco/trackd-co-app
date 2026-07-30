@@ -49,6 +49,23 @@ const DISCLAIMER =
 const NO_VALUE = "—"
 
 /**
+ * The two amber panels: the transient misuse warning and the standing legal
+ * disclaimer. Both lost their border (Adrian, 2026-07-30 — it was the only
+ * bordered surface in an app whose cards separate by surface alone), and a
+ * tinted panel with no outline needs more room than a boxed one or the copy
+ * reads as loose text on a stain rather than as a panel.
+ *
+ * `p-4` rather than `p-3`; the icon optically centred on the first line's cap
+ * height rather than nudged with `mt-0.5`; and `text-pretty` so a four-line
+ * paragraph does not end on a one-word line.
+ */
+const AMBER_PANEL =
+  "animate-home-up flex items-start gap-3 rounded-2xl bg-accent-amber/15 p-4"
+const AMBER_PANEL_ICON = "mt-[3px] h-4 w-4 shrink-0 text-accent-amber"
+const AMBER_PANEL_TEXT =
+  "text-sm leading-relaxed text-pretty text-accent-amber"
+
+/**
  * The dose field starts in mcg while the powder field starts in mg. That looks
  * inconsistent and is not: vials are LABELLED in mg (5 mg, 10 mg, 2 mg
  * semaglutide) and doses are WRITTEN in mcg (250 mcg, 500 mcg), so each field
@@ -321,15 +338,9 @@ export function ReconCalculator() {
       </section>
 
       {/* ---- Permanent disclaimer. Legal copy, unchanged. ---- */}
-      <div
-        className="animate-home-up flex gap-3 rounded-xl bg-accent-amber/15 p-3"
-        style={{ animationDelay: "160ms" }}
-      >
-        <Warning
-          className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
-          aria-hidden
-        />
-        <p className="text-sm leading-relaxed text-accent-amber">{DISCLAIMER}</p>
+      <div className={AMBER_PANEL} style={{ animationDelay: "160ms" }}>
+        <Warning className={AMBER_PANEL_ICON} aria-hidden />
+        <p className={AMBER_PANEL_TEXT}>{DISCLAIMER}</p>
       </div>
     </div>
   )
