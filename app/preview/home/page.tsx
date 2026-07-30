@@ -64,29 +64,7 @@ export default function PreviewHomePage() {
     },
   };
 
-  // A gentle ~4-week trend so the Weight card's Trend/Scale toggle has data.
-  const today = new Date();
-  const sampleWeight = Array.from({ length: 28 }, (_, i) => {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (27 - i));
-    const noise = i % 3 === 0 ? 0.5 : i % 2 === 0 ? -0.4 : 0.1;
-    return { key: toDateKey(d), kg: Math.round((92 - i * 0.12 + noise) * 10) / 10 };
-  });
 
-  // A latest session for the Progress-photos glance (mock portraits so the
-  // compact card size is reviewable; the real app uses signed URLs).
-  const mockPhoto = (label: string) =>
-    `data:image/svg+xml;utf8,${encodeURIComponent(
-      `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='400'>` +
-        `<rect width='100%' height='100%' fill='#242422'/>` +
-        `<circle cx='150' cy='150' r='90' fill='#2A2A28'/>` +
-        `<text x='150' y='380' fill='#7A7A74' font-family='sans-serif' font-size='16' text-anchor='middle'>${label}</text>` +
-        `</svg>`,
-    )}`;
-  const sampleProgressPhotos = [
-    { id: "p1", pose: "front-relaxed", date: todayKey, url: mockPhoto("Front"), weightKg: null, note: null },
-    { id: "p2", pose: "side-relaxed", date: todayKey, url: mockPhoto("Side"), weightKg: null, note: null },
-    { id: "p3", pose: "back-relaxed", date: todayKey, url: mockPhoto("Back"), weightKg: null, note: null },
-  ];
 
   return (
     <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom))]">
@@ -116,10 +94,7 @@ export default function PreviewHomePage() {
           previewLogs={sampleLogs}
           todayKey={todayKey}
           userId="preview-local"
-          weight={sampleWeight}
-          unit="kg"
           firstName="Adrian"
-          progressPhotos={sampleProgressPhotos}
           injectionCatalogue={[]}
         bodySex="male"
         />

@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { CalendarDots } from "@/components/icons"
+import { CalendarDots, CaretDown, NotePencil, User } from "@/components/icons"
+import { requestProgressAction } from "@/lib/progress/progressAction"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { cn } from "@/lib/utils"
 
-import { useMounted } from "@/components/home/useMounted"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { WeekStrip, type WeekDay } from "@/components/home/WeekStrip"
@@ -17,17 +19,17 @@ import {
   subscribeStacks,
   type Stack,
 } from "@/lib/home/stacks"
-import { DayStatusWidgets } from "@/components/home/DayStatusWidgets"
+import {
+  DayStatusWidgets,
+  type DayDot,
+  type NextDoseInfo,
+} from "@/components/home/DayStatusWidgets"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
-import { WeightGlanceCard } from "@/components/home/WeightGlanceCard"
 import { InjectionSitesGlanceCard } from "@/components/home/InjectionSitesGlanceCard"
 import { InjectionSitesSheet } from "@/components/home/InjectionSitesSheet"
-import { ProgressPhotoSection } from "@/components/progress/ProgressPhotoSection"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
-import type { WeightUnit } from "@/lib/weight"
-import type { ProgressPhoto } from "@/lib/progress/photos"
 import type { BodySex, InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
 import {
   dateKeyToDate,
@@ -39,9 +41,7 @@ import {
 } from "@/lib/home/mockHomeData"
 import {
   archiveInStack,
-  formatTimeLabel,
   getStackSnapshot,
-  hasTime,
   isDueOnFor,
   loadStack,
   majorityInjectionRoute,
@@ -60,7 +60,6 @@ import {
 import { resolveDrawSources, type DrawSourcesResult } from "@/lib/home/protocolSync"
 import { siteDaysSince } from "@/lib/home/siteRecency"
 import { setSelectedDay } from "@/lib/home/selectedDay"
-import { computeNextDose, formatCountdown } from "@/lib/home/nextDose"
 
 const WEEKDAYS = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
@@ -103,13 +102,52 @@ function hhmmNow(): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
 }
 
+/* ------------------------------------------------ week-strip open/closed state */
+/**
+ * Whether the week strip is expanded, remembered between sessions and defaulting
+ * to OPEN (Spec 02).
+ *
+ * A `useSyncExternalStore` rather than state synced in an effect: localStorage is
+ * an external store, the server has no access to it, and an effect that reads it
+ * on mount both trips the set-state-in-effect rule and paints once with the wrong
+ * state before correcting itself. The server snapshot is the documented default,
+ * so hydration matches whenever the user hasn't changed it.
+ */
+const STRIP_OPEN_KEY = "trackd.home.weekStripOpen"
+const STRIP_OPEN_EVENT = "trackd:week-strip-open"
+
+function getStripOpen(): boolean {
+  if (typeof window === "undefined") return true
+  try {
+    return window.localStorage.getItem(STRIP_OPEN_KEY) !== "0"
+  } catch {
+    return true // storage off — the default stands
+  }
+}
+
+function writeStripOpen(open: boolean): void {
+  try {
+    window.localStorage.setItem(STRIP_OPEN_KEY, open ? "1" : "0")
+  } catch {
+    /* storage full / off — the strip still works, it just won't be remembered */
+  }
+  window.dispatchEvent(new CustomEvent(STRIP_OPEN_EVENT))
+}
+
+function subscribeStripOpen(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => {}
+  window.addEventListener(STRIP_OPEN_EVENT, cb)
+  window.addEventListener("storage", cb)
+  return () => {
+    window.removeEventListener(STRIP_OPEN_EVENT, cb)
+    window.removeEventListener("storage", cb)
+  }
+}
+
 export function HomeScreen({
   todayKey: serverTodayKey,
   userId,
-  weight,
-  unit,
   firstName,
-  progressPhotos,
   injectionCatalogue,
   bodySex,
   notificationsBanner,
@@ -120,14 +158,8 @@ export function HomeScreen({
   todayKey: DateKey
   /** Scopes the device-local stack in localStorage. */
   userId: string
-  /** Bodyweight points from `weight_logs` (oldest → newest) for the glance card. */
-  weight: { key: DateKey; kg: number }[]
-  /** The user's display weight unit. */
-  unit: WeightUnit
   /** First name for the greeting (from auth metadata; null = greet without a name). */
   firstName: string | null
-  /** Latest progress photos (newest first) for the Home glance peek. */
-  progressPhotos: ProgressPhoto[]
   /** Injection-site catalogue (both routes) for the glance card + menu. Already
    *  narrowed to the sites that exist on `bodySex`'s body by the server. */
   injectionCatalogue: InjectionSiteRow[]
@@ -152,6 +184,16 @@ export function HomeScreen({
   const today = useMemo(() => dateKeyToDate(todayKey), [todayKey])
 
   const [selectedKey, setSelectedKey] = useState<DateKey>(serverTodayKey)
+  // The week strip is collapsible and DEFAULTS TO OPEN, with the choice kept
+  // between sessions (Spec 02). Read lazily so SSR stays deterministic and the
+  // first paint doesn't flash the wrong state.
+  const stripOpen = useSyncExternalStore(
+    subscribeStripOpen,
+    getStripOpen,
+    () => true // server: always open, so SSR is deterministic
+  )
+  const setStripOpen = (next: boolean | ((cur: boolean) => boolean)) =>
+    writeStripOpen(typeof next === "function" ? next(getStripOpen()) : next)
   // Which week the strip shows: 0 = current, -1 = last week, … Swipe to change,
   // capped at 0 so it stays a "look back" (never a future week).
   const [weekOffset, setWeekOffset] = useState(0)
@@ -260,19 +302,6 @@ export function HomeScreen({
     return () => setSelectedDay(null)
   }, [selectedKey])
 
-  // The countdown needs the wall clock, which the server doesn't share with the
-  // device — so it's only revealed after mount (`mounted`) and the clock itself
-  // starts null and is filled in on the client. Ticking every 30s keeps the
-  // minute-resolution figure honest without a per-second timer.
-  const mounted = useMounted()
-  const [clockNow, setClockNow] = useState<Date | null>(null)
-  useEffect(() => {
-    const tick = () => setClockNow(new Date())
-    tick()
-    const id = window.setInterval(tick, 30_000)
-    return () => window.clearInterval(id)
-  }, [])
-
   // Build any week's 7 days from an offset (0 = current). The strip renders the
   // current week plus its neighbours so it can slide smoothly between them.
   const daysForOffset = useCallback(
@@ -318,13 +347,6 @@ export function HomeScreen({
     return "partial"
   }
 
-  // Today's completion for the greeting line — always TODAY (not the selected
-  // day): active compounds due today vs how many already have a log today.
-  const todayDue = activeStack.filter((c) => isDueOnFor(c, today))
-  const todayLogs = logs[todayKey] ?? {}
-  const dueToday = todayDue.length
-  const loggedToday = todayDue.filter((c) => todayLogs[c.id]).length
-
   // Selected day's list: anything LOGGED that day (history — kept even after a
   // compound is archived) plus active compounds due that day. The injection site
   // is chosen in the log sheet's body map (Spec 19), not per compound here.
@@ -341,22 +363,7 @@ export function HomeScreen({
     log: selectedRows[c.id] ?? null,
   }))
 
-  // Next dose — the soonest UNLOGGED scheduled dose on the selected day. Derived
   // every render from the live stack + logs (never frozen in a useState, which is
-  // why it used to never update once mounted). On today the widget counts down to
-  // it; on any other day a countdown is meaningless, so it shows the scheduled
-  // time itself instead — both render through the same slot.
-  const nextDose = computeNextDose(stack, logs, selectedKey, selectedDate)
-  const countdown =
-    mounted && nextDose
-      ? // A countdown only means something for a dose that has a time, on today.
-        // Otherwise show the time itself — which for an unset one reads "Not set"
-        // via the single formatter, rather than a fabricated 0h 0m.
-        isToday && hasTime(nextDose.time24)
-        ? formatCountdown(clockNow ?? new Date(), nextDose.time24)
-        : formatTimeLabel(nextDose.time24)
-      : null
-
   // Per-Dose Draw (Spec 21) — the backing vial per due compound, for the selected
   // day. Its own read because the today's-log is computed from the device stack +
   // logs and carries no inventory data. Resolved for `selectedKey`, not today, so a
@@ -370,6 +377,26 @@ export function HomeScreen({
     key: string
     result: DrawSourcesResult
   }>({ key: "", result: EMPTY_DRAW_RESULT })
+  // Ring + dots for the SELECTED day, from the same `dueDoses` the log renders,
+  // so the two can never disagree about what is due.
+  const selectedLogged = dueDoses.filter((d) => d.log != null).length
+  const dayDots: DayDot[] = dueDoses.map((d) => ({
+    id: d.id,
+    category: d.category,
+    logged: d.log != null,
+  }))
+  // The soonest UNLOGGED dose on the selected day. `scheduledAny` distinguishes
+  // "everything is logged" from "nothing was ever scheduled" — different facts
+  // that need different words.
+  const nextUnlogged = dueDoses
+    .filter((d) => d.log == null)
+    .sort((a, b) =>
+      a.schedule.timeOfDay.localeCompare(b.schedule.timeOfDay)
+    )[0]
+  const nextDoseInfo: NextDoseInfo = nextUnlogged
+    ? { kind: "due", compound: nextUnlogged }
+    : { kind: "none", scheduledAny: dueDoses.length > 0 }
+
   const dueIdsKey = dueDoses.map((d) => d.id).sort().join(",")
   const drawKey = `${selectedKey}|${dueIdsKey}`
   useEffect(() => {
@@ -517,18 +544,49 @@ export function HomeScreen({
             title="Dashboard"
             eyebrow={dayLabel(selectedKey)}
             action={
-              <Link
-                href="/calendar"
-                aria-label="Open calendar"
-                className="-mr-1 flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <CalendarDots className="h-5 w-5" aria-hidden />
-              </Link>
+              // Collapse, calendar, profile — left to right (Spec 02).
+              <div className="-mr-1 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setStripOpen((o) => !o)}
+                  aria-expanded={stripOpen}
+                  aria-label={stripOpen ? "Collapse the week" : "Expand the week"}
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <CaretDown
+                    aria-hidden
+                    className={cn(
+                      "h-5 w-5 transition-transform duration-300 ease-out motion-reduce:transition-none",
+                      !stripOpen && "-rotate-90"
+                    )}
+                  />
+                </button>
+                <Link
+                  href="/calendar"
+                  aria-label="Open calendar"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <CalendarDots className="h-5 w-5" aria-hidden />
+                </Link>
+                <Link
+                  href="/profile"
+                  aria-label="Open profile"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <User className="h-5 w-5" aria-hidden />
+                </Link>
+              </div>
             }
           />
         </div>
 
-        <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
+        {/* Collapsible (Spec 02). Kept MOUNTED so it animates both ways; `inert`
+            while closed so its day buttons leave the tab order. */}
+        <div
+          className="grid animate-home-up transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+          style={{ animationDelay: "55ms", gridTemplateRows: stripOpen ? "1fr" : "0fr" }}
+        >
+          <div className="overflow-hidden" inert={!stripOpen}>
           <WeekStrip
             weekOffset={weekOffset}
             daysForOffset={daysForOffset}
@@ -538,13 +596,9 @@ export function HomeScreen({
             onSelect={setSelectedKey}
             onWeekChange={handleWeekChange}
           />
+          </div>
         </div>
 
-        {/* Greeting — under the calendar. The day's status (completion ring +
-            next dose) lives in DayStatusWidgets, below Today's Log. */}
-        <div className="animate-home-up" style={{ animationDelay: "85ms" }}>
-          <HomeGreeting firstName={firstName} />
-        </div>
 
         {/* Slim, persistent "Enable notifications" prompt (brings its own
             animate-home-up wrapper; renders null when there's nothing to do, so
@@ -556,6 +610,7 @@ export function HomeScreen({
             <EmptyLogCard />
           ) : (
             <TodaysCycleCard
+              greeting={<HomeGreeting firstName={firstName} />}
               title={cycleTitle}
               dueDoses={dueDoses}
               onLog={(dose) =>
@@ -600,27 +655,19 @@ export function HomeScreen({
         {/* The day's "right now" status — completion ring + next dose — below
             Today's Log, always scoped to TODAY. Only shown when something is
             scheduled today, so a rest day never carries an empty widget grid. */}
-        {dueToday > 0 && (
-          <div className="animate-home-up" style={{ animationDelay: "140ms" }}>
-            <DayStatusWidgets
-              loggedToday={loggedToday}
-              dueToday={dueToday}
-              countdown={countdown}
-              nextDoseName={nextDose?.name ?? ""}
-              paused={logTarget !== null}
-            />
-          </div>
-        )}
-
-        {/* Weight — display only; tap to open the full Weight view (logging lives
-            there + in the + menu). */}
-        <div className="animate-home-up" style={{ animationDelay: "165ms" }}>
-          <WeightGlanceCard
-            series={weight}
-            unit={unit}
-            onOpenDetail={() => router.push("/weight")}
+        {/* The day's status — ring + next dose, both scoped to the SELECTED day
+            (Spec 02). Always rendered: on a day with nothing scheduled the cards
+            say so, which is information; a missing card is not. */}
+        <div className="animate-home-up" style={{ animationDelay: "140ms" }}>
+          <DayStatusWidgets
+            logged={selectedLogged}
+            due={dueDoses.length}
+            dots={dayDots}
+            next={nextDoseInfo}
+            paused={logTarget !== null}
           />
         </div>
+
 
         {/* Injection sites — the muscle map at a glance (IM / Sub-Q); tap to choose
             your sites or see where you last pinned. */}
@@ -644,18 +691,24 @@ export function HomeScreen({
           />
         </div>
 
-        {/* Progress photos — the SAME menu as the Progress tab's photo section
-            (card → gallery → add / edit / view / compare), opened inline. Tapping
-            opens the gallery here instead of routing to /progress and hunting for
-            it, so there's no navigation friction. */}
-        <div className="animate-home-up" style={{ animationDelay: "185ms" }}>
-          <ProgressPhotoSection
-            photos={progressPhotos}
-            userId={userId}
-            todayKey={todayKey}
-            unit={unit}
-            compact
-          />
+        {/* Journal — the last card (Spec 02). One tappable input that opens the
+            existing journal surface for the SELECTED day, never today. The entry
+            flow itself is unchanged. */}
+        <div className="animate-home-up" style={{ animationDelay: "195ms" }}>
+          <section className="rounded-2xl bg-bg-surface p-5">
+            <h2 className={CARD_EYEBROW}>Journal</h2>
+            <button
+              type="button"
+              onClick={() => {
+                requestProgressAction("journal-open", selectedKey)
+                router.push("/progress")
+              }}
+              className="mt-3 flex w-full items-center gap-3 rounded-xl bg-bg-input px-4 py-3 text-left transition active:scale-[0.99]"
+            >
+              <NotePencil className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+              <span className="text-sm text-text-muted">How did today go?</span>
+            </button>
+          </section>
         </div>
       </div>
 

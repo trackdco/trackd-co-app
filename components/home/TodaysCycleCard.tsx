@@ -18,7 +18,7 @@ import { Container } from "@/components/containers"
 import { paletteColourVar } from "@/lib/palette"
 import { routesOf } from "@/lib/compound-categories"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 
 /** A due compound plus its log state. */
 export type DueDose = StackCompound & {
@@ -28,6 +28,10 @@ export type DueDose = StackCompound & {
 interface TodaysCycleCardProps {
   /** Heading for the selected day — "Today's Cycle" or e.g. "Monday's Cycle". */
   title: string
+  /** The greeting, rendered ABOVE the eyebrow (Spec 02). As a standalone row it
+   *  was a full-width line doing no work between two things that do; inside the
+   *  card it introduces the content. */
+  greeting?: ReactNode
   dueDoses: DueDose[]
   onLog: (dose: StackCompound) => void
   /** Untick a logged dose → remove its log. The tick is a pure toggle. */
@@ -295,6 +299,7 @@ export function TodaysCycleCard({
   onAddStock,
   stacks,
   onLogStack,
+  greeting,
 }: TodaysCycleCardProps) {
   // ONE partition: a member appears in its stack row and therefore cannot also
   // appear in a category section. Two independent filters could drift; a
@@ -310,7 +315,8 @@ export function TodaysCycleCard({
 
   return (
     <section className="rounded-2xl bg-bg-surface p-5">
-      <h2 className={CARD_EYEBROW}>{title}</h2>
+      {greeting}
+      <h2 className={cn(CARD_EYEBROW, greeting && "mt-3")}>{title}</h2>
 
       {dueDoses.length > 0 ? (
         // A tick-off checklist grouped by category: every dose stays visible as one
