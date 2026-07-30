@@ -185,6 +185,10 @@ than re-deriving classes per card:
   this is the same eyebrow one notch down in size and tracking. Use it **only**
   where the column is genuinely too narrow; a full-width card title stays
   `CARD_EYEBROW`. (Added for the calculator's three result cards, Spec 07.)
+  **Below 360px it may be stepped down to `text-[8px]`** — "CONCENTRATION" is the
+  longest label in the app and overruns a third of a 320px phone even at 9px
+  (measured: 2.69px into the next column). That step-down is the only sanctioned
+  use of 8px type; do not reach for it anywhere else.
   In a 3-up row the value beneath it is `font-mono text-base tabular-nums` with
   the unit inline at `text-[11px] text-text-muted`, and `[overflow-wrap:anywhere]`
   so a pathological figure wraps rather than overflowing the column.

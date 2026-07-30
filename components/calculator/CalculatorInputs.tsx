@@ -48,7 +48,12 @@ function UnitPill({
           aria-pressed={unit === u}
           onClick={() => onChange(u)}
           className={cn(
-            "rounded-[5px] px-1 py-1.5 font-medium transition-colors",
+            // min-w/min-h 24px: WCAG 2.5.8 (AA) target size. These were 22.8 x
+            // 22 and touching, and the spacing exception does not apply when the
+            // 24px circles intersect. This is the control that guards the 1000x
+            // mg/mcg slip the whole screen is built around, so it is the last
+            // one that should be hard to hit.
+            "min-h-6 min-w-6 rounded-[5px] px-1 font-medium transition-colors",
             unit === u
               ? "bg-bg-input text-foreground"
               : "text-text-subtle hover:text-text-muted",
@@ -102,7 +107,12 @@ function Field({
         {/* The two-unit fields announce their unit through the pill's labelled
             group; this one has no control, so without this its "mL" is a loose
             text node that assistive tech never ties to the field. */}
-        {staticUnit ? <span className="sr-only"> in {staticUnit}</span> : null}
+        {staticUnit ? (
+          // `normal-case`: this span sits inside the `uppercase` label, which
+          // was announcing "BAC WATER IN ML" — the very casing bug the comment
+          // above says a unit must not suffer.
+          <span className="sr-only normal-case"> in {staticUnit}</span>
+        ) : null}
       </label>
       {/* The field is the surface; the input and the unit share it. */}
       {/* `pl-2.5` + `gap-1` rather than the roomier defaults: the paired

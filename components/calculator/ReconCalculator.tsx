@@ -114,8 +114,8 @@ export function ReconCalculator() {
   // server has no localStorage, so the server snapshot is "nothing remembered"
   // and the hydration render agrees with it, with no set-state-in-effect and no
   // hydration warning. It does NOT avoid a flash: a device that remembers a
-  // non-default barrel paints the default one for a frame or two before the
-  // store is read. Nothing can be misread in that window (the fill is 0 until
+  // non-default barrel paints the DEFAULT one for roughly 250ms before the
+  // store is read (measured in dev). Nothing can be misread in that window (the fill is 0 until
   // figures are entered), and the alternative is not rendering the screen at
   // all until the client catches up.
   const remembered = useSyncExternalStore(
@@ -143,6 +143,16 @@ export function ReconCalculator() {
   const units = result?.unitsPerDose ?? null
   const fill = fillFraction(units, size)
   const misuse = misuseKind(units, size)
+  // Hold the last warning text through the collapse. The panel is always
+  // mounted so it can animate, but the copy is derived — so on the frame the
+  // user CORRECTS the figure, the text emptied while the panel was still 51px
+  // tall, leaving a wordless amber stripe for about 183ms. That fires on the
+  // most common transition on this screen: fixing the thing the warning asked
+  // you to fix. Adjust-state-during-render, not an effect, which would paint
+  // the empty frame first.
+  const nextCopy = misuse ? misuseCopy(misuse, units, size.label, sizeId) : null
+  const [warning, setWarning] = useState<string | null>(nextCopy)
+  if (nextCopy && nextCopy !== warning) setWarning(nextCopy)
 
   const resettable =
     powder !== "" ||
@@ -217,13 +227,7 @@ export function ReconCalculator() {
         <div className="overflow-hidden">
           <div role="status" className={AMBER_PANEL}>
             <Warning className={AMBER_PANEL_ICON} aria-hidden />
-            <p className={AMBER_PANEL_TEXT}>
-              {misuse === "under"
-                ? `That is under ${MIN_READABLE_UNITS} units, too little to read off a syringe accurately. Check the figures you entered.`
-                : misuse === "over"
-                  ? `${units != null ? `${trim(units, 1)} units` : "That"} will not fit a ${size.label} syringe. Check the figures you entered${sizeId === "1" ? "" : ", or pick a larger syringe"}.`
-                  : ""}
-            </p>
+            <p className={AMBER_PANEL_TEXT}>{warning}</p>
           </div>
         </div>
       </div>
@@ -391,4 +395,23 @@ function Figure({
       </p>
     </div>
   )
+}
+
+/**
+ * Both conditions say the same thing: re-check the figures. Neither blocks, and
+ * neither judges the dose — they judge whether the number can be drawn off the
+ * barrel that is selected.
+ */
+function misuseCopy(
+  kind: "under" | "over",
+  units: number | null,
+  sizeLabel: string,
+  sizeId: string,
+): string {
+  if (kind === "under") {
+    return `That is under ${MIN_READABLE_UNITS} units, too little to read off a syringe accurately. Check the figures you entered.`
+  }
+  const drawn = units != null ? `${trim(units, 1)} units` : "That"
+  const larger = sizeId === "1" ? "" : ", or pick a larger syringe"
+  return `${drawn} will not fit a ${sizeLabel} syringe. Check the figures you entered${larger}.`
 }

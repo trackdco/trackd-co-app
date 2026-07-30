@@ -186,7 +186,7 @@ tap-to-flip chip was tried in between and rejected: it hides the alternative
 behind a tap, and with two units 1000x apart the alternative is exactly what
 someone needs to see to notice they picked wrong. The pill fits because it is
 10px text and the powder/BAC row unpairs below 360px; measured, the powder input
-is never under 61px against the ~42px a five-character value needs. The live
+is never under 61px against the 48px a five-character value needs. The live
 conversion under each field stays regardless: it is what actually catches the
 slip.
 
@@ -208,8 +208,8 @@ slip.
    the barrel fill, the insulin-units figure, the warning, and the permanent
    disclaimer. Three of the four are spec-mandated, so spec 07 and
    `ui-context.md`'s "one or two amber beats per screen" rule are in genuine
-   tension. The warning and the disclaimer no longer share identical chrome, so
-   they at least read as different things. Worth a decision before the global
+   tension. The warning and the disclaimer now share one set of classes and
+   measure identically. Worth a decision before the global
    sweep.
 4. **The pre-existing open bugs below (items 4 to 7) are still open.** This
    file's older note says to clear them before starting another spec; your

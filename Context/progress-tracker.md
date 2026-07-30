@@ -69,7 +69,7 @@ log-a-dose, then part one's global sweep. Blocks is new scope on top.
   his review of a phone preview: readout and barrel BARE (no card, not sticky),
   three figures as one divided strip beneath, inputs as a grid with powder and
   BAC water paired. The whole form clears the fold on a 390x844 phone
-  in its normal state (Reset ends at ~724px, against ~906px before the rework).
+  in its normal state (Reset ends at ~744px, against ~906px before the rework).
   With a misuse warning showing it does not, which is accepted: that state means
   a figure needs re-checking, and the warning is the thing worth seeing. Powder defaults to mg and dose to mcg, with a
   live conversion under each, because vials are labelled in mg while doses are
