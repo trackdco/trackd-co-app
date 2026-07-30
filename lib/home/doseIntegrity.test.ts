@@ -465,3 +465,25 @@ describe("deleting a compound records a stop (Spec 02)", () => {
     expect(resolveScheduleOn(ran, "2026-02-10").stopped).toBe(false)
   })
 })
+
+describe("Spec 02 · the Next Dose card resolves through the shared helper", () => {
+  it("carries the compound and the dose AS IT WAS on the day", () => {
+    const c = compound({ schedule: schedule({ timeOfDay: "08:00" }) })
+    const next = computeNextDose([c], {}, "2026-01-05", dateKeyToDate("2026-01-05"))
+    // Home draws the container from `compound`, so it must come back with it —
+    // a local re-implementation of the ordering got the untimed case wrong.
+    expect(next?.compound.id).toBe(c.id)
+    expect(next?.dose).toBe(c.dose)
+    expect(next?.unit).toBe(c.unit)
+  })
+
+  it("still sorts an untimed compound LAST when it carries the compound", () => {
+    const timed = compound({ id: "timed", name: "Test E", schedule: schedule({ timeOfDay: "08:00" }) })
+    const untimed = compound({ id: "untimed", name: "Anastrozole", schedule: schedule({ timeOfDay: "" }) })
+    const next = computeNextDose([untimed, timed], {}, "2026-01-05", dateKeyToDate("2026-01-05"))
+    // "" string-compares below every real time, so a naive sort puts the untimed
+    // compound first and it sits in the card permanently, hiding real doses.
+    expect(next?.name).toBe("Test E")
+    expect(next?.compound.id).toBe("timed")
+  })
+})

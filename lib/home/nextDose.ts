@@ -25,6 +25,12 @@ export interface NextDose {
   name: string
   /** 24h "HH:mm", or `""` when this compound has no dose time set. */
   time24: string
+  /** The compound itself, so a caller can draw its container (Spec 02). */
+  compound: StackCompound
+  /** Dose + unit AS THEY WERE on that day — an alteration made later must not
+   *  restate a past day (Spec 01 → alterations apply forward only). */
+  dose: number
+  unit: string
 }
 
 /**
@@ -70,7 +76,18 @@ export function computeNextDose(
     .filter((c) => !c.archived && !dayLogs[c.id] && isDueOnFor(c, date))
     // The time to show is the one scheduled for THAT day, which an alteration made
     // later must not restate (Spec 01 → alterations apply forward only).
-    .map((c) => ({ name: c.name, time24: resolveScheduleOn(c, dateKey).schedule.timeOfDay }))
+    .map((c) => {
+      const on = resolveScheduleOn(c, dateKey)
+      return {
+        name: c.name,
+        time24: on.schedule.timeOfDay,
+        // The compound itself, so a caller can draw its container — and the dose
+        // AS IT WAS on that day, which an alteration made later must not restate.
+        compound: c,
+        dose: on.dose,
+        unit: on.unit,
+      }
+    })
   if (due.length === 0) return null
   const sorted = due.sort((a, b) => {
     if (hasTime(a.time24) !== hasTime(b.time24)) return hasTime(a.time24) ? -1 : 1

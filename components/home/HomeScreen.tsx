@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { CalendarDots, CaretDown, NotePencil, User } from "@/components/icons"
 import { requestProgressAction } from "@/lib/progress/progressAction"
+import { computeNextDose } from "@/lib/home/nextDose"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 
@@ -94,7 +95,7 @@ function dayLabel(key: DateKey): string {
  * clock (the server runs in UTC and can be a day off) and keep it current across
  * local midnight + app foreground — so the date always rolls over at the user's
  * midnight, never UTC's. The stack is read from storage AFTER mount (SSR is
- * deterministic), and only the countdown reads the live clock.
+ * deterministic), and the greeting reads the live clock.
  */
 /** Local 24h "HH:mm" right now — the time a dose is actually being logged at. */
 function hhmmNow(): string {
@@ -194,6 +195,14 @@ export function HomeScreen({
   )
   const setStripOpen = (next: boolean | ((cur: boolean) => boolean)) =>
     writeStripOpen(typeof next === "function" ? next(getStripOpen()) : next)
+  // False on the server and on the very first client render, true from the next
+  // one — which is exactly when the stored state has been applied, so the strip
+  // settles into place silently and only animates from a real user tap.
+  const stripReady = useSyncExternalStore(
+    subscribeStripOpen,
+    () => true,
+    () => false
+  )
   // Which week the strip shows: 0 = current, -1 = last week, … Swipe to change,
   // capped at 0 so it stays a "look back" (never a future week).
   const [weekOffset, setWeekOffset] = useState(0)
@@ -347,6 +356,14 @@ export function HomeScreen({
     return "partial"
   }
 
+  /** Is anything scheduled on this day at all? Separate from `statusOf`, which
+   *  reports POSITION (a future day is always "future"), so the strip can dim a
+   *  rest day whether it has happened yet or not. */
+  const hasDoseOn = (key: DateKey): boolean => {
+    const date = dateKeyToDate(key)
+    return activeStack.some((c) => isDueOnFor(c, date))
+  }
+
   // Selected day's list: anything LOGGED that day (history — kept even after a
   // compound is archived) plus active compounds due that day. The injection site
   // is chosen in the log sheet's body map (Spec 19), not per compound here.
@@ -362,8 +379,6 @@ export function HomeScreen({
     ...c,
     log: selectedRows[c.id] ?? null,
   }))
-
-  // every render from the live stack + logs (never frozen in a useState, which is
   // Per-Dose Draw (Spec 21) — the backing vial per due compound, for the selected
   // day. Its own read because the today's-log is computed from the device stack +
   // logs and carries no inventory data. Resolved for `selectedKey`, not today, so a
@@ -385,17 +400,23 @@ export function HomeScreen({
     category: d.category,
     logged: d.log != null,
   }))
-  // The soonest UNLOGGED dose on the selected day. `scheduledAny` distinguishes
-  // "everything is logged" from "nothing was ever scheduled" — different facts
-  // that need different words.
-  const nextUnlogged = dueDoses
-    .filter((d) => d.log == null)
-    .sort((a, b) =>
-      a.schedule.timeOfDay.localeCompare(b.schedule.timeOfDay)
-    )[0]
-  const nextDoseInfo: NextDoseInfo = nextUnlogged
-    ? { kind: "due", compound: nextUnlogged }
-    : { kind: "none", scheduledAny: dueDoses.length > 0 }
+  // The soonest UNLOGGED dose on the selected day, through the SHARED resolver.
+  // A local sort here got this wrong: `timeOfDay` may legitimately be `""`, which
+  // string-compares below every real time, so an untimed compound sorted FIRST and
+  // sat permanently in the slot hiding every dose that did have a time.
+  // `computeNextDose` already handles that (and resolves the dose as it was on the
+  // day), and is pinned by a regression test.
+  const next = computeNextDose(stack, logs, selectedKey, selectedDate)
+  // "Everything is logged" and "nothing was ever scheduled" need different words,
+  // so they are told apart by whether anything is DUE that day — not by whether a
+  // log exists. `dueDoses` also contains compounds that merely have a log (kept as
+  // history after a schedule change), which would otherwise read as "you're clear".
+  const anyScheduled = dueCompounds.some(
+    (c) => !c.archived && isDueOnFor(c, selectedDate)
+  )
+  const nextDoseInfo: NextDoseInfo = next
+    ? { kind: "due", next }
+    : { kind: "none", scheduledAny: anyScheduled }
 
   const dueIdsKey = dueDoses.map((d) => d.id).sort().join(",")
   const drawKey = `${selectedKey}|${dueIdsKey}`
@@ -583,7 +604,16 @@ export function HomeScreen({
         {/* Collapsible (Spec 02). Kept MOUNTED so it animates both ways; `inert`
             while closed so its day buttons leave the tab order. */}
         <div
-          className="grid animate-home-up transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+          className={cn(
+            "grid animate-home-up",
+            // The transition is suppressed until the store's first CLIENT read.
+            // `useSyncExternalStore` prevents a hydration MISMATCH, not a wrong
+            // first paint: the server snapshot is "open", so a user who collapsed
+            // the strip would watch it render open and then animate shut on every
+            // single load, shoving the page below it upward.
+            stripReady &&
+              "transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+          )}
           style={{ animationDelay: "55ms", gridTemplateRows: stripOpen ? "1fr" : "0fr" }}
         >
           <div className="overflow-hidden" inert={!stripOpen}>
@@ -593,6 +623,7 @@ export function HomeScreen({
             selectedKey={selectedKey}
             todayKey={todayKey}
             statusOf={statusOf}
+            hasDoseOn={hasDoseOn}
             onSelect={setSelectedKey}
             onWeekChange={handleWeekChange}
           />
@@ -607,7 +638,13 @@ export function HomeScreen({
 
         <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
           {stack.length === 0 ? (
-            <EmptyLogCard />
+            // First run has no Today's Log card to host the greeting, and that
+            // is the one session where the greeting matters most — so it sits
+            // above the empty card instead of vanishing.
+            <div className="space-y-3">
+              <HomeGreeting firstName={firstName} />
+              <EmptyLogCard />
+            </div>
           ) : (
             <TodaysCycleCard
               greeting={<HomeGreeting firstName={firstName} />}
@@ -652,14 +689,15 @@ export function HomeScreen({
           )}
         </div>
 
-        {/* The day's "right now" status — completion ring + next dose — below
-            Today's Log, always scoped to TODAY. Only shown when something is
-            scheduled today, so a rest day never carries an empty widget grid. */}
+        {/* */}
         {/* The day's status — ring + next dose, both scoped to the SELECTED day
             (Spec 02). Always rendered: on a day with nothing scheduled the cards
             say so, which is information; a missing card is not. */}
         <div className="animate-home-up" style={{ animationDelay: "140ms" }}>
           <DayStatusWidgets
+            // The card is selected-day scoped, so it names the day it is showing
+            // rather than always saying "Today".
+            title={isToday ? "Today" : WEEKDAYS[selectedDate.getDay()]}
             logged={selectedLogged}
             due={dueDoses.length}
             dots={dayDots}

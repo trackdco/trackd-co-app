@@ -4,8 +4,11 @@ import { useEffect, useState } from "react"
 
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
+
 import { Container } from "@/components/containers"
 import { formatTimeLabel, type StackCompound } from "@/lib/home/stack"
+import type { NextDose } from "@/lib/home/nextDose"
+import { DATA_MONO } from "@/lib/ui-presets"
 import { CATEGORY_META, FALLBACK_CATEGORY_META, routesOf } from "@/lib/compound-categories"
 import type { CompoundCategory } from "@/lib/compound-categories"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
@@ -40,11 +43,13 @@ export interface DayDot {
  * *organisational* legend the app already uses, not a health value.
  */
 function CompletionRing({
+  title,
   logged,
   due,
   fill,
   dots,
 }: {
+  title: string
   logged: number
   due: number
   /** 0 → 1 target, animated upstream so the sweep is actually watched. */
@@ -56,7 +61,7 @@ function CompletionRing({
 
   return (
     <div className="flex flex-col rounded-2xl bg-bg-surface p-5">
-      <p className={CARD_EYEBROW}>Today</p>
+      <p className={CARD_EYEBROW}>{title}</p>
       <div className="mt-3 flex flex-1 flex-col items-center justify-center gap-3">
         <div className="relative h-24 w-24">
           <svg viewBox="0 0 36 36" className="h-24 w-24 -rotate-90" aria-hidden>
@@ -146,31 +151,39 @@ function NextDoseWidget({ next }: { next: NextDoseInfo }) {
     )
   }
 
+  const d = next.next
   return (
     <div className="flex flex-col rounded-2xl bg-bg-surface p-5">
       <p className={CARD_EYEBROW}>Next dose</p>
       <div className="mt-3 flex flex-1 flex-col items-center justify-center gap-2">
         <Container
-          inventoryType={inventoryTypeOf(next.compound)}
-          category={next.compound.category}
+          inventoryType={inventoryTypeOf(d.compound)}
+          category={d.compound.category}
           fill={0.7}
           size={56}
         />
         <span className="w-full truncate text-center text-sm text-foreground">
-          {next.compound.name}
+          {d.name}
         </span>
-        <span className="font-mono text-xs tabular-nums text-text-muted">
-          {formatTimeLabel(next.compound.schedule.timeOfDay)} ·{" "}
-          {next.compound.dose}
-          {next.compound.unit}
+        {/* Time and dose AS THEY WERE on the selected day, and formatted through
+            the same helper the log row uses so the two can't print 0.13 and 0.125
+            for the same dose side by side. */}
+        <span className={DATA_MONO}>
+          {formatTimeLabel(d.time24)} · {formatDose(d.dose)}
+          {d.unit}
         </span>
       </div>
     </div>
   )
 }
 
+/** Same rounding as the log row's, so a dose never renders two ways at once. */
+function formatDose(dose: number): string {
+  return Number.isInteger(dose) ? String(dose) : dose.toFixed(2).replace(/0$/, "")
+}
+
 export type NextDoseInfo =
-  | { kind: "due"; compound: StackCompound }
+  | { kind: "due"; next: NextDose }
   /** Nothing left to take. `scheduledAny` separates "you finished the day" from
    *  "this day never had anything on it", which need different words. */
   | { kind: "none"; scheduledAny: boolean }
@@ -181,12 +194,16 @@ export type NextDoseInfo =
  * page, so a card that silently ignored it contradicted the day you were looking at.
  */
 export function DayStatusWidgets({
+  title,
   logged,
   due,
   dots,
   next,
   paused = false,
 }: {
+  /** Names the day the card is showing — it is selected-day scoped, so a
+   *  hardcoded "Today" contradicted the strip whenever you scrolled back. */
+  title: string
   /** Doses logged on the selected day. */
   logged: number
   /** Doses scheduled on the selected day. */
@@ -212,7 +229,7 @@ export function DayStatusWidgets({
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      <CompletionRing logged={logged} due={due} fill={fill} dots={dots} />
+      <CompletionRing title={title} logged={logged} due={due} fill={fill} dots={dots} />
       <NextDoseWidget next={next} />
     </div>
   )

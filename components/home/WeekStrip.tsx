@@ -18,6 +18,11 @@ interface WeekStripProps {
   selectedKey: DateKey
   todayKey: DateKey
   statusOf: (key: DateKey) => DayStatus
+  /** Whether ANYTHING is scheduled that day, independent of past/future.
+   *  `statusOf` can't answer this — it short-circuits every future day to
+   *  "future", so a future rest day and a future dose day were indistinguishable
+   *  and six of the seven visible days carried no schedule information. */
+  hasDoseOn: (key: DateKey) => boolean
   onSelect: (key: DateKey) => void
   /** Commit a week change (absolute offset) after the slide animation lands. */
   onWeekChange: (offset: number) => void
@@ -100,6 +105,7 @@ export function WeekStrip({
   selectedKey,
   todayKey,
   statusOf,
+  hasDoseOn,
   onSelect,
   onWeekChange,
 }: WeekStripProps) {
@@ -230,9 +236,9 @@ export function WeekStrip({
                     const selected = key === selectedKey
                     const isToday = key === todayKey
                     const status = statusOf(key)
-                    // "none" = nothing was scheduled that day (as opposed to
-                    // missed / logged / future), which the spec dims a step further.
-                    const nothingScheduled = status === "none"
+                    // Dimmed a step further when nothing is scheduled — asked of
+                    // the schedule directly, so it holds for future days too.
+                    const nothingScheduled = !hasDoseOn(key)
                     return (
                       <button
                         key={key}
