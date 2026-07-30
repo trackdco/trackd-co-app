@@ -65,10 +65,24 @@ add-compound, log-a-dose, then part one's global sweep.
   no later refactor can quietly move a figure. Barrel scale and fill are in
   `lib/calculator/syringe.ts`; the same dose fills a fifth of a 0.5 mL barrel and
   a tenth of a 1 mL one, which is the whole point. Gradations labelled every 5 U
-  on 0.3 and 0.5 mL, every 10 U on 1 mL (Adrian, 2026-07-30). Still stateless: no
-  presets, no history, no compound data. `COLUMN_EYEBROW` and `COLUMN_VALUE` were
-  added to `ui-presets` + `ui-context.md` because "CONCENTRATION" at the 10px
-  eyebrow's tracking overruns a third of a phone's width.
+  on 0.3 and 0.5 mL, every 10 U on 1 mL (Adrian, 2026-07-30). Layout reworked on
+  his review of a phone preview: readout and barrel BARE (no card, not sticky),
+  three figures as one divided strip beneath, inputs as a grid with powder and
+  BAC water paired. The whole form now clears the fold on a 390x844 phone (Reset
+  ends at ~707px; it was 906px). Powder defaults to mg and dose to mcg, with a
+  live conversion under each, because vials are labelled in mg while doses are
+  written in mcg and that 1000x slip is the most common error in this space. The
+  syringe size opens at 0.5 mL and STICKS once changed; Reset does not clear it.
+  `COLUMN_EYEBROW` was added to `ui-presets` + `ui-context.md` because
+  "CONCENTRATION" at the 10px eyebrow's tracking overruns a third of a phone.
+
+  A blocking "which syringe?" gate was built and then dropped once Adrian pointed
+  out the units figure is identical on every barrel, so the size only moves the
+  fill proportion and the over-capacity threshold. Worth remembering: the review
+  of that build found the gate had made a refused `localStorage` write brick the
+  screen, because the UI read the choice back out of storage instead of holding
+  it. Dropping the gate removed the hazard; the rule it produced is in
+  `architecture.md` under the localStorage preferences note.
 
 **All migrations APPLIED:** `supabase/protocol/006` (compound cycles + the
 runs-dry fix), `007` (stacks), and `008` (stack_members ownership hardening —

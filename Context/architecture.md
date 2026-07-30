@@ -70,9 +70,12 @@ stored.)
   it out of `components/home/`: the arithmetic now lives in `lib/calculator/recon.ts`
   and the barrel's scale/fill in `lib/calculator/syringe.ts`, both pure and tested,
   with `recon.test.ts` **pinning the outputs to the pre-rebuild figures** so a later
-  refactor cannot silently move a number. Still stateless (no presets, no history,
-  no compound data); the one persisted thing is the first-run notice's per-device
-  dismissal in localStorage. **Phone-only by intent:** at ≥1024px the
+  refactor cannot silently move a number. Still stateless in the sense the spec means (no
+  presets, no saved calculations, no history, no compound data), with TWO device-
+  local preferences: the first-run notice's dismissal, and the chosen syringe
+  size (`trackd.calculator.syringeSize`), which is picked once and sticks until
+  changed rather than being re-asked every visit (Adrian, 2026-07-30). Reset
+  clears the inputs, not the syringe. **Phone-only by intent:** at ≥1024px the
   root layout hides the whole app shell (`lg:hidden`) and renders
   `DesktopInterstitial` in its place — a pure CSS-width gate (no UA sniffing, no
   hydration flash), wired through the small client `DesktopGate` so the dev-only
@@ -251,6 +254,15 @@ stored.)
   `user_dose_logs`, `user_custom_compounds`): one row per entity, each holding the
   verbatim client object in a `jsonb` `data` payload. The stores' own
   read-normalisers harden the shape on the way back into `localStorage`.
+  Separately, a handful of `localStorage` keys are **device PREFERENCES, never
+  mirrored and never records**: `trackd.home.weekStripOpen`, `trackd.unitPrefs.*`,
+  `trackd:install-prompt-dismissed`, `trackd.calculator.disclaimerSeen` and
+  `trackd.calculator.syringeSize`. Every one of them must be **best-effort**: the
+  UI holds its own state and storage only remembers it, so a full quota or blocked
+  storage costs the user the memory of a choice and never the ability to make one.
+  (Spec 07 shipped the inverse briefly — the calculator read the syringe size back
+  out of storage to learn what had just been tapped, which made a refused write
+  look like dead controls.)
   Writes go through best-effort **server actions** in `lib/home/syncActions.ts`
   (identity from the verified session, RLS the backstop — mirrors
   `weight/actions.ts`). A network blip never blocks the UI — the synchronous local

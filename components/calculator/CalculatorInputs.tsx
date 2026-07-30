@@ -52,9 +52,17 @@ function UnitToggle({
 }
 
 /**
- * One field. The unit sits INSIDE the field's surface rather than beside it, so
- * the number and the unit that governs it read as one control, and the live
- * conversion hangs directly beneath in the same column.
+ * One field.
+ *
+ * The unit control sits on the LABEL row, not inside the field. It used to live
+ * inside, which looked tidier and was wrong: paired in a two-column grid, the
+ * `shrink-0` toggle left the powder input 9px wide at a 320px viewport, so a
+ * typed "12.5" displayed as "1" — a plausible-looking wrong number on a screen
+ * whose entire argument is that you can see what you entered. On the label row
+ * it competes with a 10px eyebrow instead of with the figure.
+ *
+ * A static unit (mL) goes in the label text, matching `AddStockSheet`'s
+ * "BAC water (mL)".
  */
 function Field({
   label,
@@ -79,25 +87,23 @@ function Field({
 
   return (
     <div className="min-w-0">
-      <label htmlFor={id} className={FIELD_LABEL}>
-        {label}
-      </label>
-      <div className="mt-1.5 flex h-11 items-center gap-1.5 rounded-xl bg-bg-input px-3">
-        <input
-          id={id}
-          inputMode="decimal"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          aria-describedby={hint ? hintId : undefined}
-          className="min-w-0 flex-1 bg-transparent font-mono text-base tabular-nums text-foreground outline-none placeholder:text-text-subtle"
-        />
+      <div className="flex min-h-[22px] items-center justify-between gap-2">
+        <label htmlFor={id} className={FIELD_LABEL}>
+          {staticUnit ? `${label} (${staticUnit})` : label}
+        </label>
         {unit && onUnitChange ? (
           <UnitToggle unit={unit} onChange={onUnitChange} label={label} />
-        ) : (
-          <span className="text-sm text-text-muted">{staticUnit}</span>
-        )}
+        ) : null}
       </div>
+      <input
+        id={id}
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-describedby={hint ? hintId : undefined}
+        className="mt-1.5 h-11 w-full min-w-0 rounded-xl bg-bg-input px-3 font-mono text-base tabular-nums text-foreground outline-none placeholder:text-text-subtle"
+      />
       {/* Height reserved on the two-unit fields so a row never jumps as you
           type. The mL field has no second unit, so it reserves nothing. */}
       {unit ? (
@@ -109,24 +115,22 @@ function Field({
   )
 }
 
+/**
+ * The barrel picker. The choice sticks across visits, so this is a standing
+ * preference, not a per-calculation input (see `lib/calculator/syringeChoice`).
+ */
 export function SyringePills({
   sizeId,
   onChange,
-  emphasis,
 }: {
-  sizeId: SyringeSizeId | null
+  sizeId: SyringeSizeId
   onChange: (id: SyringeSizeId) => void
-  /** Amber outline while the choice is still outstanding. */
-  emphasis?: boolean
 }) {
   return (
     <div
       role="group"
       aria-label="Syringe size"
-      className={cn(
-        "grid grid-cols-3 gap-1 rounded-full border bg-bg-input p-0.5",
-        emphasis ? "border-accent-amber/50" : "border-border-default",
-      )}
+      className="grid grid-cols-3 gap-1 rounded-full border border-border-default bg-bg-input p-0.5"
     >
       {SYRINGE_SIZES.map((s) => (
         <button
@@ -153,8 +157,8 @@ export function SyringePills({
  *
  * Powder and BAC water pair on one row because they are the two halves of a
  * single question (the concentration); the dose stands alone because it is a
- * different one. The syringe pills lead, since nothing calculates until a barrel
- * is named, and they stay here so the choice remains changeable afterwards.
+ * different one. The syringe pills lead the sheet, and Reset does not touch
+ * them: the barrel is a standing preference that sticks until changed.
  */
 export function CalculatorInputs({
   sizeId,
@@ -172,7 +176,7 @@ export function CalculatorInputs({
   onReset,
   resettable,
 }: {
-  sizeId: SyringeSizeId | null
+  sizeId: SyringeSizeId
   onSizeChange: (id: SyringeSizeId) => void
   powder: string
   onPowderChange: (v: string) => void
@@ -191,17 +195,12 @@ export function CalculatorInputs({
     <section className="space-y-4 rounded-2xl bg-bg-surface p-5">
       <p className={CARD_EYEBROW}>Inputs</p>
 
-      {/* Hidden while the choice is still outstanding: the gate above already
-          puts this same control on screen, and one control rendered twice on one
-          screen is just noise. */}
-      {sizeId != null ? (
-        <div>
-          <span className={FIELD_LABEL}>Syringe</span>
-          <div className="mt-1.5">
-            <SyringePills sizeId={sizeId} onChange={onSizeChange} />
-          </div>
+      <div>
+        <span className={FIELD_LABEL}>Syringe</span>
+        <div className="mt-1.5">
+          <SyringePills sizeId={sizeId} onChange={onSizeChange} />
         </div>
-      ) : null}
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <Field

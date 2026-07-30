@@ -40,11 +40,19 @@ export const SYRINGE_SIZES: readonly SyringeSize[] = [
 ]
 
 /**
- * There is deliberately NO default size, and this file must not grow one
- * (Adrian, 2026-07-30). The figure is barrel-independent but the GRAPHIC is not,
- * so a guessed barrel would make the one element people actually read into the
- * one element that can mislead. See `syringeChoice.ts` for the gate.
+ * The barrel the calculator opens on, until the user picks another (which then
+ * sticks; see `syringeChoice.ts`).
+ *
+ * 0.5 mL because the equipment guides call it the best all-round size for
+ * subcutaneous peptide injection: 0.3 mL is for 2 to 10 unit draws, and 1 mL
+ * trades away precision at the small end of its range.
+ *
+ * Getting this wrong is a cosmetic problem, not a safety one: the UNITS figure
+ * is identical on every barrel (10 units is 10 units), and only the fill
+ * PROPORTION and the over-capacity threshold move with the size (Adrian,
+ * 2026-07-30).
  */
+export const DEFAULT_SYRINGE_SIZE: SyringeSizeId = "0.5"
 
 /** Narrows an unknown string (a stored preference, a URL param) to a real id. */
 export function isSyringeSizeId(v: string | null | undefined): v is SyringeSizeId {

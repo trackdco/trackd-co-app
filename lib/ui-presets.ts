@@ -49,11 +49,6 @@ export const METRIC_LABEL =
 export const COLUMN_EYEBROW =
   "text-[9px] font-sans uppercase tracking-[0.12em] text-text-muted"
 
-/** The value in a narrow column — METRIC_VALUE's job at a third of the width, so
- *  mono rather than light sans and sized to survive a long figure. Pair with
- *  COLUMN_EYEBROW above it and a `text-[11px] text-text-muted` unit beneath. */
-export const COLUMN_VALUE = "font-mono text-lg tabular-nums [overflow-wrap:anywhere]"
-
 /** The big number on metric / glance cards — the display layer. Light-weight
  *  mono, tightly tracked, tabular. Units/suffixes demote inline via UNIT_SUFFIX
  *  (e.g. 92▸%, 8:00▸pm) — never at value size. */

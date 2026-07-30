@@ -49,9 +49,11 @@ export function equivalentAmount(value: string, unit: MgUnit): string | null {
   const n = parseFloat(value)
   if (!Number.isFinite(n) || n <= 0) return null
   const mg = toMg(n, unit)
-  // 4dp on the mg side: 1 mcg is 0.001 mg, and a sub-mcg entry should still
-  // read as something rather than collapsing to "0 mg".
-  return unit === "mcg" ? `${trim(mg, 4)} mg` : `${trim(mg * 1000, 1)} mcg`
+  // 6dp on the mg side, not 4. The field accepts 3 decimals, so 0.001 mcg is
+  // enterable and is 0.000001 mg: at 4dp that and everything below 0.05 mcg
+  // rendered "= 0 mg", which is both wrong and the one output a conversion line
+  // must never produce, since it reads as "this is nothing".
+  return unit === "mcg" ? `${trim(mg, 6)} mg` : `${trim(mg * 1000, 1)} mcg`
 }
 
 export interface ReconInput {

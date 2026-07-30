@@ -18,10 +18,12 @@ import {
   type MgUnit,
 } from "@/lib/calculator/recon"
 import {
+  DEFAULT_SYRINGE_SIZE,
   MIN_READABLE_UNITS,
   fillFraction,
   misuseKind,
   syringeSize,
+  type SyringeSizeId,
 } from "@/lib/calculator/syringe"
 import {
   loadSyringeChoice,
@@ -29,9 +31,9 @@ import {
   subscribeSyringeChoice,
 } from "@/lib/calculator/syringeChoice"
 
-import { CalculatorInputs, SyringePills } from "./CalculatorInputs"
+import { CalculatorInputs } from "./CalculatorInputs"
 import { FirstRunDisclaimer } from "./FirstRunDisclaimer"
-import { SyringeGhost, SyringeGraphic } from "./SyringeGraphic"
+import { SyringeGraphic } from "./SyringeGraphic"
 
 /**
  * PERMANENT disclaimer. Legal copy: do not reword without asking Adrian first
@@ -68,13 +70,18 @@ const DEFAULT_DOSE_UNIT: MgUnit = "mcg"
  * point. A number in a text field is easy to misread; a barrel filled to a fifth
  * is not.
  *
- * THE BARREL IS A GATE, NOT A DEFAULT (Adrian, 2026-07-30). Nothing calculates
- * until the user says which syringe they are holding, because the figure is
- * barrel-independent while the picture is not: the same draw is a third of a
- * 0.3 mL barrel and a fifth of a 0.5 mL one. Guessing a barrel would make the
- * one element people actually read into the one element that could mislead. The
- * choice is remembered per device, so the gate asks once; Reset clears it, which
- * is also how you re-choose after switching barrels.
+ * The barrel size is PICKED ONCE AND STICKS (Adrian, 2026-07-30): it opens on
+ * `DEFAULT_SYRINGE_SIZE`, and whatever the user picks is theirs until they pick
+ * again, across visits. Reset leaves it alone, because it is a standing fact
+ * about their equipment rather than part of a calculation. An earlier build made
+ * it a blocking gate; that was dropped once it was clear the UNITS figure is the
+ * same on every barrel, so the size only moves the fill proportion in the
+ * picture and the over-capacity threshold.
+ *
+ * The chosen size lives in component state AND in localStorage, and the state is
+ * what renders. Reading back from storage to learn what was just tapped would
+ * mean a full quota (this app fills localStorage with the device stack and dose
+ * log) leaves the pills doing nothing at all.
  *
  * Otherwise stateless (spec 07, Out of Scope): no presets, no saved
  * calculations, no history, and nothing here reads or writes a compound.
@@ -88,27 +95,34 @@ export function ReconCalculator() {
   const [workingOpen, setWorkingOpen] = useState(false)
   const workingId = useId()
 
-  // Read through the store rather than an effect: the server has no
-  // localStorage, so the server snapshot is "not yet chosen" and the hydration
-  // render agrees with it, with no set-state-in-effect and no flash.
-  const sizeId = useSyncExternalStore(
+  // Read the remembered choice through the store rather than an effect: the
+  // server has no localStorage, so the server snapshot is "nothing remembered"
+  // and the hydration render agrees with it, with no set-state-in-effect.
+  const remembered = useSyncExternalStore(
     subscribeSyringeChoice,
     loadSyringeChoice,
     () => null,
   )
-  const size = sizeId ? syringeSize(sizeId) : null
+  // This session's explicit pick wins over both, so the pills respond instantly
+  // even if the write that should have remembered it was refused.
+  const [picked, setPicked] = useState<SyringeSizeId | null>(null)
+  const sizeId = picked ?? remembered ?? DEFAULT_SYRINGE_SIZE
+  const size = syringeSize(sizeId)
+
+  function chooseSize(id: SyringeSizeId) {
+    setPicked(id)
+    recordSyringeChoice(id)
+  }
 
   const computed = useMemo(
     () => computeRecon({ powder, powderUnit, bac, dose, doseUnit }),
     [powder, powderUnit, bac, dose, doseUnit],
   )
 
-  // THE GATE. Held back rather than never computed, so the whole screen fills in
-  // the instant a barrel is named.
-  const result = size ? computed : null
+  const result = computed
   const units = result?.unitsPerDose ?? null
-  const fill = size ? fillFraction(units, size) : 0
-  const misuse = size ? misuseKind(units, size) : null
+  const fill = fillFraction(units, size)
+  const misuse = misuseKind(units, size)
 
   const resettable =
     powder !== "" ||
@@ -116,7 +130,6 @@ export function ReconCalculator() {
     dose !== "" ||
     powderUnit !== "mg" ||
     doseUnit !== DEFAULT_DOSE_UNIT ||
-    sizeId !== null ||
     workingOpen
 
   function reset() {
@@ -127,8 +140,8 @@ export function ReconCalculator() {
     setDoseUnit(DEFAULT_DOSE_UNIT)
     // Closing it here is what animates the panel shut (spec 07, step 8).
     setWorkingOpen(false)
-    // Clears the remembered barrel too, so Reset is also how you re-choose.
-    recordSyringeChoice(null)
+    // The syringe is deliberately NOT cleared: it is a standing preference, not
+    // an input to this calculation, and it sticks until the user picks another.
   }
 
   return (
@@ -136,61 +149,37 @@ export function ReconCalculator() {
       <FirstRunDisclaimer />
 
       {/* ---- The reading. Bare, outside any card, so the syringe is the screen
-              rather than a thing on the screen. ---- */}
+              rather than a thing on the screen. Not sticky: it scrolls away with
+              the page (Adrian, 2026-07-30). ---- */}
       <section>
-        {size == null ? (
-          <>
+        <div className="flex items-baseline justify-between gap-3">
+          {units != null ? (
+            <p className="flex items-baseline gap-2">
+              <span className={METRIC_VALUE}>{trim(units, 1)}</span>
+              <span className={UNIT_SUFFIX}>units</span>
+            </p>
+          ) : (
             <p className="text-sm text-text-muted">
-              Which syringe are you using?
+              {result == null ? "Enter powder and BAC water" : "Add a dose"}
             </p>
-            <div className="mt-2">
-              <SyringePills
-                sizeId={null}
-                onChange={recordSyringeChoice}
-                emphasis
-              />
-            </div>
-            <div className="-mx-2 mt-2">
-              <SyringeGhost />
-            </div>
-            <p className="text-center text-xs text-text-subtle">
-              The size printed on the barrel you are holding.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="flex items-baseline justify-between gap-3">
-              {units != null ? (
-                <p className="flex items-baseline gap-2">
-                  <span className={METRIC_VALUE}>{trim(units, 1)}</span>
-                  <span className={UNIT_SUFFIX}>units</span>
-                </p>
-              ) : (
-                <p className="text-sm text-text-muted">
-                  {result == null
-                    ? "Enter powder and BAC water"
-                    : "Add a dose"}
-                </p>
-              )}
-              <span className={DATA_MONO}>{size.label}</span>
-            </div>
-            <div className="-mx-2 mt-2">
-              <SyringeGraphic
-                size={size}
-                fill={fill}
-                label={
-                  units != null
-                    ? `${trim(units, 1)} units drawn on a ${size.label} syringe`
-                    : `An empty ${size.label} syringe`
-                }
-              />
-            </div>
-          </>
-        )}
+          )}
+          <span className={DATA_MONO}>{size.label}</span>
+        </div>
+        <div className="-mx-2 mt-2">
+          <SyringeGraphic
+            size={size}
+            fill={fill}
+            label={
+              units != null
+                ? `${trim(units, 1)} units drawn on a ${size.label} syringe`
+                : `An empty ${size.label} syringe`
+            }
+          />
+        </div>
       </section>
 
       {/* Sits directly under the barrel it is about, and only when it fires. */}
-      {misuse && size ? (
+      {misuse ? (
         <div role="alert" className="flex gap-3 rounded-xl bg-accent-amber/15 p-3">
           <Warning
             className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
@@ -229,7 +218,7 @@ export function ReconCalculator() {
       {/* ---- Inputs ---- */}
       <CalculatorInputs
         sizeId={sizeId}
-        onSizeChange={recordSyringeChoice}
+        onSizeChange={chooseSize}
         powder={powder}
         onPowderChange={(v) => setPowder(sanitizeAmount(v))}
         powderUnit={powderUnit}
@@ -293,7 +282,9 @@ export function ReconCalculator() {
                           {trim(result.mlPerDose, 3)} mL
                         </span>
                       </p>
-                      <p className="pt-1.5">insulin units = volume × 100</p>
+                      <p className="pt-1.5">
+                        insulin units = volume × 100 (U-100 barrel)
+                      </p>
                       <p>
                         = {trim(result.mlPerDose, 3)} mL × 100 ={" "}
                         <span className="text-foreground">
@@ -305,9 +296,7 @@ export function ReconCalculator() {
                 </div>
               ) : (
                 <p className="text-sm text-text-muted">
-                  {size == null
-                    ? "Choose your syringe to see the working."
-                    : "Enter the powder and BAC water to see the working."}
+                  Enter the powder and BAC water to see the working.
                 </p>
               )}
             </div>

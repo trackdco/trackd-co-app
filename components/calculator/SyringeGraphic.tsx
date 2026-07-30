@@ -2,7 +2,6 @@
 
 import { useId } from "react"
 
-import { cn } from "@/lib/utils"
 import {
   AXIS_Y,
   BARREL_H,
@@ -24,9 +23,9 @@ import {
 
 /** The needle, hub, flange, rod and thumb rest. Fixed geometry, shared by the
  *  real syringe and the ghost, so the two are the same object in two states. */
-function Chrome({ className }: { className?: string }) {
+function Chrome() {
   return (
-    <g className={className} fill="var(--bg-surface-raised)">
+    <g fill="var(--bg-surface-raised)">
       <path
         d={`M4 ${AXIS_Y + 1} L10 ${AXIS_Y - 1} L46 ${AXIS_Y - 1} L46 ${AXIS_Y + 1} Z`}
         fill="var(--border-strong)"
@@ -50,39 +49,6 @@ function Chrome({ className }: { className?: string }) {
         rx={2}
       />
     </g>
-  )
-}
-
-/**
- * The syringe before a size has been chosen. Same silhouette as the real one, so
- * it reads as a syringe awaiting an answer rather than an empty box, but the
- * barrel is dashed and carries NO ticks and NO numbers.
- *
- * That absence is the point, not a shortcut: a printed scale here would be the
- * scale of a syringe the user has not said they are holding, which is exactly
- * what the choice exists to establish (`lib/calculator/syringeChoice.ts`).
- */
-export function SyringeGhost({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      className={cn("w-full", className)}
-      role="img"
-      aria-label="A syringe, waiting for you to choose its size"
-    >
-      <Chrome className="opacity-45" />
-      <rect
-        x={BARREL_X}
-        y={BARREL_Y}
-        width={BARREL_W}
-        height={BARREL_H}
-        rx={BARREL_R}
-        fill="none"
-        stroke="var(--border-strong)"
-        strokeWidth={1}
-        strokeDasharray="5 4"
-      />
-    </svg>
   )
 }
 

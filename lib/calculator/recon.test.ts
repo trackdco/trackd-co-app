@@ -203,9 +203,25 @@ describe("equivalentAmount — the live line that catches a 1000x slip", () => {
   })
 
   it("keeps a sub-mcg entry visible rather than collapsing it to 0 mg", () => {
-    // 4dp on the mg side: 1 mcg is 0.001 mg, so 2dp would read "0 mg" here.
     expect(equivalentAmount("1", "mcg")).toBe("0.001 mg")
     expect(equivalentAmount("2.5", "mcg")).toBe("0.0025 mg")
+  })
+
+  it("NEVER renders 0 for anything the field will accept", () => {
+    // The field allows 3 decimals, so these are all reachable by typing. At 4dp
+    // every one of them read "= 0 mg", which says "this is nothing".
+    for (const v of ["0.001", "0.004", "0.01", "0.049", "0.05", "0.5"]) {
+      const out = equivalentAmount(v, "mcg")
+      expect(out).not.toBe("0 mg")
+      expect(out).not.toBeNull()
+    }
+    expect(equivalentAmount("0.001", "mcg")).toBe("0.000001 mg")
+  })
+
+  it("does not collapse two different entries onto the same reading", () => {
+    expect(equivalentAmount("0.001", "mcg")).not.toBe(
+      equivalentAmount("0.004", "mcg"),
+    )
   })
 
   it("says nothing when there is no usable figure", () => {

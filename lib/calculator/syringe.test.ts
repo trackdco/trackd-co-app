@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   BARREL_W,
   BARREL_X,
+  DEFAULT_SYRINGE_SIZE,
   MIN_READABLE_UNITS,
   SYRINGE_SIZES,
   barrelX,
@@ -146,9 +147,14 @@ describe("isSyringeSizeId", () => {
   })
 })
 
-describe("no default size", () => {
-  it("is not exported — the barrel is a gate, not a default (Adrian, 2026-07-30)", async () => {
-    const mod = await import("./syringe")
-    expect(Object.keys(mod)).not.toContain("DEFAULT_SYRINGE_SIZE")
+describe("DEFAULT_SYRINGE_SIZE", () => {
+  it("is a real size, and the all-round 0.5 mL one", () => {
+    expect(isSyringeSizeId(DEFAULT_SYRINGE_SIZE)).toBe(true)
+    expect(DEFAULT_SYRINGE_SIZE).toBe("0.5")
+  })
+
+  it("cannot raise a misuse warning on a draw that fits every barrel", () => {
+    const d = syringeSize(DEFAULT_SYRINGE_SIZE)
+    for (const u of [2, 10, 25, 30]) expect(misuseKind(u, d)).toBeNull()
   })
 })

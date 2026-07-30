@@ -35,7 +35,7 @@ forward out of order (Adrian's call) because cycles are invisible without it.
 | 05 Stacks | `05-stacks.md` | Done, reviewed twice. |
 | 02 Homepage | `02-homepage.md` | Done, reviewed. |
 | 04 Protocol | `04-protocol.md` | Done, reviewed. |
-| 07 Calculator | `07-calculator.md` | Done, reviewed. See "Awaiting Adrian" below. |
+| 07 Calculator | `07-calculator.md` | Done, reviewed twice, then reworked on Adrian's phone review and re-reviewed. See "Awaiting Adrian" below. |
 
 ### ⚠️ OPEN BUGS FOUND BY THREE BREAKAGE AGENTS (2026-07-30). FIX BEFORE NEW SPECS.
 
@@ -128,12 +128,14 @@ gone, re-run the agents: they reproduce these by executing the real code.
    branch has no remote, so no preview URL exists for the calculator. The two
    instructions collide and yours wins for now. Say the word and it goes up on a
    preview subdomain without touching `main`.
-2. **Two new shared presets were added, which spec 07 says to flag first.**
-   `COLUMN_EYEBROW` and `COLUMN_VALUE` in `lib/ui-presets.ts`, both documented in
-   `ui-context.md`. They exist because "CONCENTRATION" at the 10px eyebrow's
-   0.18em tracking is ~109px and overruns a third of a phone's width with no
-   space to wrap on. `ui-context.md`'s own rule says add the preset rather than
-   invent a one-off, so that is what happened, but it is your call to keep.
+2. **One new shared preset was added, which spec 07 says to flag first.**
+   `COLUMN_EYEBROW` in `lib/ui-presets.ts`, documented in `ui-context.md`. It
+   exists because "CONCENTRATION" at the 10px eyebrow's 0.18em tracking is ~109px
+   and overruns a third of a phone's width with no space to wrap on.
+   `ui-context.md`'s own rule says add the preset rather than invent a one-off,
+   so that is what happened, but it is your call to keep. (`COLUMN_VALUE` was
+   added at the same time and has since been removed: the figures row became a
+   divided strip, which orphaned it.)
 3. **The calculator now shows four amber elements at once** in the misuse state:
    the barrel fill, the insulin-units figure, the warning, and the permanent
    disclaimer. Three of the four are spec-mandated, so spec 07 and
@@ -141,10 +143,21 @@ gone, re-run the agents: they reproduce these by executing the real code.
    tension. The warning and the disclaimer no longer share identical chrome, so
    they at least read as different things. Worth a decision before the global
    sweep.
-4. **The pre-existing open bugs below (items 4 to 8) are still open.** This
+4. **The pre-existing open bugs below (items 4 to 7) are still open.** This
    file's older note says to clear them before starting another spec; your
-   instruction on 2026-07-30 was to run 07 next, so 07 ran. They are unchanged
-   and still marked CRITICAL/HIGH.
+   instruction on 2026-07-30 was to run 07 next, so 07 ran. They are unchanged.
+
+5. **Spec 07 says "this stays a stateless calculator"; the syringe size now
+   persists.** It is a preference about equipment, not a saved calculation, and
+   you asked for it explicitly, so it is not a violation in spirit. Recorded here
+   rather than silently done, and noted in `architecture.md`.
+
+6. **The spec's page order and its "three result cards" both changed** on your
+   phone review: the readout and barrel are now bare rather than carded, and the
+   three figures are one divided strip with the unit inline rather than three
+   cards with the unit beneath. The spec file itself has not been amended, so its
+   "Check When Done" list reads as unmet on those two lines. Say the word and I
+   will amend the spec so a future session does not "fix" it back.
 
 ### The working loop Adrian asked for
 
