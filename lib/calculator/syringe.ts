@@ -40,10 +40,16 @@ export const SYRINGE_SIZES: readonly SyringeSize[] = [
 ]
 
 /**
- * The 1 mL barrel is the default because it is the only size that cannot raise
- * the over-capacity warning on a first, correct calculation.
+ * There is deliberately NO default size, and this file must not grow one
+ * (Adrian, 2026-07-30). The figure is barrel-independent but the GRAPHIC is not,
+ * so a guessed barrel would make the one element people actually read into the
+ * one element that can mislead. See `syringeChoice.ts` for the gate.
  */
-export const DEFAULT_SYRINGE_SIZE: SyringeSizeId = "1"
+
+/** Narrows an unknown string (a stored preference, a URL param) to a real id. */
+export function isSyringeSizeId(v: string | null | undefined): v is SyringeSizeId {
+  return v != null && SYRINGE_SIZES.some((s) => s.id === v)
+}
 
 export function syringeSize(id: SyringeSizeId): SyringeSize {
   const found = SYRINGE_SIZES.find((s) => s.id === id)

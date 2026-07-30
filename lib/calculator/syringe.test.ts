@@ -8,6 +8,7 @@ import {
   barrelX,
   fillFraction,
   graduations,
+  isSyringeSizeId,
   misuseKind,
   syringeSize,
 } from "./syringe"
@@ -127,5 +128,27 @@ describe("barrelX", () => {
 describe("syringeSize", () => {
   it("resolves each id", () => {
     for (const s of SYRINGE_SIZES) expect(syringeSize(s.id)).toBe(s)
+  })
+})
+
+describe("isSyringeSizeId", () => {
+  it("accepts every real id", () => {
+    for (const s of SYRINGE_SIZES) expect(isSyringeSizeId(s.id)).toBe(true)
+  })
+
+  it("rejects anything else, so a stale stored preference cannot select a barrel", () => {
+    expect(isSyringeSizeId(null)).toBe(false)
+    expect(isSyringeSizeId(undefined)).toBe(false)
+    expect(isSyringeSizeId("")).toBe(false)
+    expect(isSyringeSizeId("0.4")).toBe(false)
+    expect(isSyringeSizeId("1 mL")).toBe(false)
+    expect(isSyringeSizeId("__proto__")).toBe(false)
+  })
+})
+
+describe("no default size", () => {
+  it("is not exported — the barrel is a gate, not a default (Adrian, 2026-07-30)", async () => {
+    const mod = await import("./syringe")
+    expect(Object.keys(mod)).not.toContain("DEFAULT_SYRINGE_SIZE")
   })
 })

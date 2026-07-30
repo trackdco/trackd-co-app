@@ -34,6 +34,26 @@ export function trim(n: number, dp: number): string {
   return String(Number(n.toFixed(dp)))
 }
 
+/**
+ * The same figure in the OTHER mass unit, for the live line under an amount
+ * field. Returns `null` when there is no usable number to convert.
+ *
+ * This exists because of a specific, documented hazard: vials are labelled in mg
+ * (5 mg, 10 mg, 2 mg semaglutide) while doses are written in mcg (250 mcg, 500
+ * mcg), and the 1000x slip between them is the most common error in this space.
+ * A sensible default cannot catch it, because the slip is a wrong TAP, not a
+ * wrong default. Showing "250 mcg" as "0.25 mg" underneath makes it visible at
+ * the moment it is made, in whichever direction it was made.
+ */
+export function equivalentAmount(value: string, unit: MgUnit): string | null {
+  const n = parseFloat(value)
+  if (!Number.isFinite(n) || n <= 0) return null
+  const mg = toMg(n, unit)
+  // 4dp on the mg side: 1 mcg is 0.001 mg, and a sub-mcg entry should still
+  // read as something rather than collapsing to "0 mg".
+  return unit === "mcg" ? `${trim(mg, 4)} mg` : `${trim(mg * 1000, 1)} mcg`
+}
+
 export interface ReconInput {
   powder: string
   powderUnit: MgUnit

@@ -2,6 +2,7 @@
 
 import { useId } from "react"
 
+import { cn } from "@/lib/utils"
 import {
   AXIS_Y,
   BARREL_H,
@@ -20,6 +21,70 @@ import {
   graduations,
   type SyringeSize,
 } from "@/lib/calculator/syringe"
+
+/** The needle, hub, flange, rod and thumb rest. Fixed geometry, shared by the
+ *  real syringe and the ghost, so the two are the same object in two states. */
+function Chrome({ className }: { className?: string }) {
+  return (
+    <g className={className} fill="var(--bg-surface-raised)">
+      <path
+        d={`M4 ${AXIS_Y + 1} L10 ${AXIS_Y - 1} L46 ${AXIS_Y - 1} L46 ${AXIS_Y + 1} Z`}
+        fill="var(--border-strong)"
+      />
+      <path
+        d={`M46 ${AXIS_Y - 4} L62 ${AXIS_Y - 9} L62 ${AXIS_Y + 9} L46 ${AXIS_Y + 4} Z`}
+      />
+      <rect
+        x={BARREL_X + BARREL_W}
+        y={AXIS_Y - 22}
+        width={6}
+        height={44}
+        rx={1.5}
+      />
+      <rect x={BARREL_X + BARREL_W + 6} y={AXIS_Y - 3} width={32} height={6} />
+      <rect
+        x={BARREL_X + BARREL_W + 38}
+        y={AXIS_Y - 16}
+        width={8}
+        height={32}
+        rx={2}
+      />
+    </g>
+  )
+}
+
+/**
+ * The syringe before a size has been chosen. Same silhouette as the real one, so
+ * it reads as a syringe awaiting an answer rather than an empty box, but the
+ * barrel is dashed and carries NO ticks and NO numbers.
+ *
+ * That absence is the point, not a shortcut: a printed scale here would be the
+ * scale of a syringe the user has not said they are holding, which is exactly
+ * what the choice exists to establish (`lib/calculator/syringeChoice.ts`).
+ */
+export function SyringeGhost({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      className={cn("w-full", className)}
+      role="img"
+      aria-label="A syringe, waiting for you to choose its size"
+    >
+      <Chrome className="opacity-45" />
+      <rect
+        x={BARREL_X}
+        y={BARREL_Y}
+        width={BARREL_W}
+        height={BARREL_H}
+        rx={BARREL_R}
+        fill="none"
+        stroke="var(--border-strong)"
+        strokeWidth={1}
+        strokeDasharray="5 4"
+      />
+    </svg>
+  )
+}
 
 /**
  * The syringe (spec 07). A number in a text field is easy to misread; a filled
@@ -74,17 +139,6 @@ export function SyringeGraphic({
           />
         </clipPath>
       </defs>
-
-      {/* Needle — a bevelled tip, then the shaft into the hub. */}
-      <path
-        d={`M4 ${AXIS_Y + 1} L10 ${AXIS_Y - 1} L46 ${AXIS_Y - 1} L46 ${AXIS_Y + 1} Z`}
-        fill="var(--border-strong)"
-      />
-      {/* Hub — the collar that widens from the needle to the barrel. */}
-      <path
-        d={`M46 ${AXIS_Y - 4} L62 ${AXIS_Y - 9} L62 ${AXIS_Y + 9} L46 ${AXIS_Y + 4} Z`}
-        fill="var(--bg-surface-raised)"
-      />
 
       {/* Barrel wall. */}
       <rect
@@ -143,32 +197,10 @@ export function SyringeGraphic({
         strokeWidth={1}
       />
 
-      {/* Flange, rod and thumb rest — fixed geometry. The graphic is a gauge,
-          not a simulation: a plunger that travelled with the fill would double
-          the syringe's drawn length between empty and full. */}
-      <rect
-        x={BARREL_X + BARREL_W}
-        y={AXIS_Y - 22}
-        width={6}
-        height={44}
-        rx={1.5}
-        fill="var(--bg-surface-raised)"
-      />
-      <rect
-        x={BARREL_X + BARREL_W + 6}
-        y={AXIS_Y - 3}
-        width={32}
-        height={6}
-        fill="var(--bg-surface-raised)"
-      />
-      <rect
-        x={BARREL_X + BARREL_W + 38}
-        y={AXIS_Y - 16}
-        width={8}
-        height={32}
-        rx={2}
-        fill="var(--bg-surface-raised)"
-      />
+      {/* Needle, hub, flange, rod and thumb rest — fixed geometry. The graphic
+          is a gauge, not a simulation: a plunger that travelled with the fill
+          would double the syringe's drawn length between empty and full. */}
+      <Chrome />
 
       {/* Printed numbers. */}
       <g

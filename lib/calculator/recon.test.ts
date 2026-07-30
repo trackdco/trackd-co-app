@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   computeRecon,
+  equivalentAmount,
   sanitizeAmount,
   toMg,
   trim,
@@ -186,5 +187,40 @@ describe("sanitizeAmount — pinned to the pre-rebuild field behaviour", () => {
 
   it("strips a minus sign, so a negative can never be typed", () => {
     expect(sanitizeAmount("-5")).toBe("5")
+  })
+})
+
+describe("equivalentAmount — the live line that catches a 1000x slip", () => {
+  it("shows a mcg figure in mg", () => {
+    expect(equivalentAmount("250", "mcg")).toBe("0.25 mg")
+    expect(equivalentAmount("500", "mcg")).toBe("0.5 mg")
+    expect(equivalentAmount("2500", "mcg")).toBe("2.5 mg")
+  })
+
+  it("shows a mg figure in mcg", () => {
+    expect(equivalentAmount("5", "mg")).toBe("5000 mcg")
+    expect(equivalentAmount("0.25", "mg")).toBe("250 mcg")
+  })
+
+  it("keeps a sub-mcg entry visible rather than collapsing it to 0 mg", () => {
+    // 4dp on the mg side: 1 mcg is 0.001 mg, so 2dp would read "0 mg" here.
+    expect(equivalentAmount("1", "mcg")).toBe("0.001 mg")
+    expect(equivalentAmount("2.5", "mcg")).toBe("0.0025 mg")
+  })
+
+  it("says nothing when there is no usable figure", () => {
+    expect(equivalentAmount("", "mcg")).toBeNull()
+    expect(equivalentAmount("0", "mcg")).toBeNull()
+    expect(equivalentAmount(".", "mg")).toBeNull()
+    expect(equivalentAmount("abc", "mg")).toBeNull()
+  })
+
+  it("round-trips: converting back lands on the figure you started from", () => {
+    for (const v of ["250", "5", "0.5", "1000"]) {
+      const asMg = equivalentAmount(v, "mcg")
+      expect(asMg).not.toBeNull()
+      const back = equivalentAmount(asMg!.replace(" mg", ""), "mg")
+      expect(back).toBe(`${v} mcg`)
+    }
   })
 })
