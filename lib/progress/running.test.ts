@@ -121,12 +121,4 @@ describe("compoundsRunningOn", () => {
       "Zinc",
     ])
   })
-
-  it("marks which of them actually had a dose due, when asked", () => {
-    const running = compoundsRunningOn([base()], "2026-01-04", {
-      dueOn: () => true,
-    })
-    expect(running[0].dueThatDay).toBe(true)
-    expect(compoundsRunningOn([base()], "2026-01-04")[0].dueThatDay).toBe(false)
-  })
 })

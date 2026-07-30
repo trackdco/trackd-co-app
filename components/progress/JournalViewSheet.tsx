@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { NotePencil } from "@/components/icons"
 
 import {
@@ -37,13 +38,22 @@ export function JournalViewSheet({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** The entry being read; null between closing and the next open. */
+  /** The entry being read. Null while closed; the sheet holds the last one
+   *  through its exit animation so it does not empty as it slides away. */
   entry: JournalEntry | null
   onEdit: (entry: JournalEntry) => void
 }) {
   const { cardRef, cardStyle, handleProps } = useSheetDrag(() =>
     onOpenChange(false),
   )
+
+  // The caller clears `entry` the instant it closes, but the sheet keeps
+  // animating out for another 300ms — so it emptied and collapsed in front of
+  // you on every close and on every hand-off to the editor. Hold the last one
+  // through the exit, using React's documented adjust-state-during-render
+  // pattern rather than an effect (which would just paint the empty frame first).
+  const [shown, setShown] = useState<JournalEntry | null>(entry)
+  if (entry && entry !== shown) setShown(entry)
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -65,7 +75,7 @@ export function JournalViewSheet({
           </div>
 
           <SheetTitle className="sr-only">
-            {entry ? formatJournalDate(entry.date) : "Journal entry"}
+            {shown ? formatJournalDate(shown.date) : "Journal entry"}
           </SheetTitle>
           <SheetDescription className="sr-only">
             Your journal entry for this day. Read it here; edit it if you want to
@@ -75,12 +85,12 @@ export function JournalViewSheet({
           <div className="flex-1 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
             <div className="flex items-center justify-between gap-3 pb-1">
               <h2 className={SHEET_TITLE}>
-                {entry ? formatJournalDate(entry.date) : ""}
+                {shown ? formatJournalDate(shown.date) : ""}
               </h2>
-              {entry ? (
+              {shown ? (
                 <button
                   type="button"
-                  onClick={() => onEdit(entry)}
+                  onClick={() => onEdit(shown)}
                   className="flex items-center gap-1.5 rounded-full border border-border-strong px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
                 >
                   <NotePencil className="h-4 w-4" aria-hidden />
@@ -89,13 +99,13 @@ export function JournalViewSheet({
               ) : null}
             </div>
 
-            {entry ? (
+            {shown ? (
               <div className="mt-5 space-y-5">
-                {entry.markers.length > 0 ? (
+                {shown.markers.length > 0 ? (
                   <section>
                     <p className={CARD_EYEBROW}>How you felt</p>
                     <ul className="mt-2 flex flex-wrap gap-1.5">
-                      {entry.markers.map((m) => (
+                      {shown.markers.map((m) => (
                         <li
                           key={m.markerId}
                           className="rounded-full bg-bg-input px-2.5 py-1 text-[13px]"
@@ -108,23 +118,23 @@ export function JournalViewSheet({
                   </section>
                 ) : null}
 
-                {entry.body ? (
+                {shown.body ? (
                   <section>
                     <p className={CARD_EYEBROW}>Note</p>
                     {/* `whitespace-pre-wrap`: the note is stored with the line
                         breaks the user typed, and this is where they read it
                         back. Collapsing them would silently reformat it. */}
                     <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
-                      {entry.body}
+                      {shown.body}
                     </p>
                   </section>
                 ) : null}
 
-                {entry.attachments.length > 0 ? (
+                {shown.attachments.length > 0 ? (
                   <section>
                     <p className={CARD_EYEBROW}>Photos</p>
                     <div className="mt-2 grid grid-cols-3 gap-2">
-                      {entry.attachments.map((a) =>
+                      {shown.attachments.map((a) =>
                         a.url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
@@ -139,9 +149,9 @@ export function JournalViewSheet({
                   </section>
                 ) : null}
 
-                {!entry.body &&
-                entry.markers.length === 0 &&
-                entry.attachments.length === 0 ? (
+                {!shown.body &&
+                shown.markers.length === 0 &&
+                shown.attachments.length === 0 ? (
                   <p className="text-sm text-text-muted">
                     This entry is empty. Edit it to add a note.
                   </p>

@@ -3,6 +3,7 @@
 import { useMemo, useState, useSyncExternalStore } from "react"
 import { NewItemCard } from "@/components/protocol/NewItemCard"
 import { Container } from "@/components/containers"
+import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { paletteColourVar } from "@/lib/palette"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
@@ -23,8 +24,6 @@ import {
   type StackCompound,
 } from "@/lib/home/stack"
 import { isVialForm } from "@/lib/containers/form"
-import { routesOf } from "@/lib/compound-categories"
-import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import type { CycleRule } from "@/lib/protocol/cycleRule"
 
 const EMPTY_STACK: StackCompound[] = []
@@ -72,16 +71,6 @@ export function CyclesView({
 
   /** The compound's inventory form — drives its container and gates the
    *  vial-runs-out end condition. */
-  const inventoryTypeOf = (c: StackCompound): string | null => {
-    const lower = c.name.toLowerCase()
-    const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
-    if (!cat) return null
-    // The form for the route this compound is actually taken by, falling back to
-    // the catalogue default — the same signal `canStock` reads.
-    const forms = routesOf(cat)
-    const match = forms.find((f) => f.route === c.method)
-    return (match ?? forms[0])?.inventoryType ?? null
-  }
 
   function save(compound: StackCompound, cycle: CycleRule | null) {
     setCompoundCycle(userId, compound.id, cycle)
@@ -99,7 +88,7 @@ export function CyclesView({
               compound={c}
               cycle={c.cycle!}
               todayKey={today}
-              inventoryType={inventoryTypeOf(c)}
+              inventoryType={inventoryTypeForCompound(c.name, c.method)}
               onEdit={() => setViewing(c)}
             />
           ))}
@@ -195,7 +184,7 @@ export function CyclesView({
         compound={viewing}
         cycle={viewing?.cycle ?? null}
         todayKey={today}
-        inventoryType={viewing ? inventoryTypeOf(viewing) : null}
+        inventoryType={viewing ? inventoryTypeForCompound(viewing.name, viewing.method) : null}
         onEdit={() => {
           setEditing(viewing)
           setViewing(null)
@@ -207,7 +196,7 @@ export function CyclesView({
         onOpenChange={(o) => !o && setEditing(null)}
         compoundName={editing?.name ?? ""}
         cycle={editing?.cycle ?? null}
-        vialTracked={editing ? isVialForm(inventoryTypeOf(editing)) : false}
+        vialTracked={editing ? isVialForm(inventoryTypeForCompound(editing.name, editing.method)) : false}
         onSave={(cycle) => {
           if (editing) save(editing, cycle)
           setEditing(null)

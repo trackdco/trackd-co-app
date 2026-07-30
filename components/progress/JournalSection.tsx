@@ -13,7 +13,7 @@ type EditorConfig = { mode: "write" | "markers" | "edit"; initialDate: string };
 
 /**
  * The Progress journal section (Step 5). Card → feed (the journal page). The
- * feed's "+" branches into Write / Markers; tapping an entry opens it to edit.
+ * feed's "+" branches into Write / Markers; tapping an entry opens it READ-ONLY, and Edit is a second, deliberate tap from there.
  * Only one surface is open at a time (feed ⇄ editor) so the sheets never stack;
  * closing the editor returns to the feed.
  */
@@ -37,6 +37,9 @@ export function JournalSection({
   // Reading an entry is its own surface now (spec 08 · part two): tapping one
   // opens it read-only, and Edit is a deliberate second action from there.
   const [viewing, setViewing] = useState<JournalEntry | null>(null);
+  // Where the viewer was opened FROM. A Calendar deep-link opens it with no feed
+  // behind it, and closing used to open a feed the user never asked for.
+  const [viewerFromFeed, setViewerFromFeed] = useState(false);
   const [editor, setEditor] = useState<EditorConfig>({
     mode: "write",
     initialDate: todayKey,
@@ -56,7 +59,7 @@ export function JournalSection({
     const entry = signal.date
       ? entries.find((e) => e.date === signal.date)
       : undefined;
-    if (entry) openViewer(entry);
+    if (entry) openViewer(entry, false);
     else if (signal.date) openEditor({ mode: "write", initialDate: signal.date });
   });
 
@@ -65,7 +68,8 @@ export function JournalSection({
     if (signal.date) openEditor({ mode: "write", initialDate: signal.date });
   });
 
-  function openViewer(entry: JournalEntry) {
+  function openViewer(entry: JournalEntry, fromFeed = true) {
+    setViewerFromFeed(fromFeed);
     setFeedOpen(false);
     setViewing(entry);
   }
@@ -98,7 +102,8 @@ export function JournalSection({
         onOpenChange={(o) => {
           if (!o) {
             setViewing(null);
-            setFeedOpen(true); // back to where it was opened from
+            // Back to where it was opened from, which is not always the feed.
+            if (viewerFromFeed) setFeedOpen(true);
           }
         }}
         entry={viewing}

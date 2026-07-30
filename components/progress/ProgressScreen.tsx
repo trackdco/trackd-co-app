@@ -18,11 +18,14 @@ import type { Block } from "@/lib/blocks/block";
  * The Progress tab — the "look back" screen (spec 08 · part two). Everything that
  * came off the dashboard lives here.
  *
- * Two blocks: the photo card at the top, then a two-by-two grid of Weight,
- * Journal, Bloods and Consistency. The widgets are the dashboard's Today /
- * Next Dose cards' footprint exactly (`grid-cols-2 gap-3`, `p-5`, eyebrow then
- * content), because a screen that invents its own grid is how two tabs stop
- * looking like one app.
+ * The live block, the photo card, then a two-by-two grid of Weight, Journal,
+ * Bloods and Consistency. The widgets share the dashboard's grid and card chrome
+ * (`grid-cols-2 gap-3`, `p-5`, eyebrow then content) so the two tabs read as one
+ * app. They are TALLER than the dashboard's Today / Next Dose cards — about 228px
+ * against 183px — because a sparkline plus a toggle, or a graph plus a range
+ * selector, does not fit in 183. The width and the chrome match; the height is
+ * what the content needs. Whether they should be forced square is Adrian's call
+ * and is parked in next-tasks.
  *
  * The photo card carries a "Running" list resolved against the PHOTO'S date, so
  * scrolling back tells you what you were on when the shot was taken.

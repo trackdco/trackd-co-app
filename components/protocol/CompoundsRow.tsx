@@ -8,10 +8,9 @@ import {
   CompoundStorageCard,
 } from "@/components/protocol/CompoundStorageCard"
 import { cn } from "@/lib/utils"
+import { inventoryTypeForCompound } from "@/lib/containers/form"
 import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
-import { routesOf } from "@/lib/compound-categories"
-import { COMPOUNDS } from "@/lib/compounds-catalogue"
 
 /**
  * Every compound in ONE horizontal side-scrolling row (Spec 04) — deliberately
@@ -104,23 +103,13 @@ export function orderByCategoryVolume(compounds: StackCompound[]): StackCompound
   })
 }
 
+/**
+ * Kept as a thin wrapper so the several callers that import it from here need no
+ * change. The logic is `inventoryTypeForCompound` in `lib/containers/form`,
+ * which every surface now shares — this file used to hold its own copy with a
+ * DIFFERENT off-catalogue fallback, so a custom subQ compound drew a vial here
+ * and a bottle on Home.
+ */
 export function inventoryTypeOf(c: StackCompound): string | null {
-  const lower = c.name.toLowerCase()
-  const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
-  if (cat) {
-    const forms = routesOf(cat)
-    return (
-      (forms.find((f) => f.route === c.method) ?? forms[0])?.inventoryType ?? null
-    )
-  }
-  // CUSTOM compound: not in the catalogue, so there is no route table to read.
-  // Fall back to its METHOD, which is the same rule AddStockSheet uses. Returning
-  // null here made every custom untrackable, and `supabase/protocol/004` exists
-  // precisely so customs can carry vials.
-  return methodToInventoryType(c.method)
-}
-
-/** A route's default inventory form, for compounds with no catalogue row. */
-function methodToInventoryType(method: StackCompound["method"]): string {
-  return method === "po" ? "oral_solid" : "preconcentrated"
+  return inventoryTypeForCompound(c.name, c.method)
 }

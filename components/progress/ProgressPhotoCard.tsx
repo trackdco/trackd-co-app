@@ -15,7 +15,7 @@ import { formatWeight, type WeightUnit } from "@/lib/weight";
 
 /**
  * Progress photos card on the Progress scroll (Spec 09 addendum). The latest
- * session shown big — Front relaxed first — as a swipeable carousel. Swipe to the
+ * session shown big, in catalogue order (Front first), as a swipeable carousel. Swipe to the
  * other poses; tap a photo to preview it; tap the header to open the gallery
  * (where you add / edit). Each photo carries the weight logged that day.
  */
@@ -36,8 +36,8 @@ export function ProgressPhotoCard({
   /**
    * Rendered inside the card below the caption — the "Running" list on Progress
    * (spec 08 · part two). Passed in rather than resolved here so the card stays
-   * a photo card: it knows nothing about the dose log, and the list can render
-   * null on a day with nothing logged without this card knowing that either.
+   * a photo card: it knows nothing about the protocol, and the list can render
+   * null on a day with nothing running without this card knowing that either.
    */
   footer?: ReactNode;
 }) {

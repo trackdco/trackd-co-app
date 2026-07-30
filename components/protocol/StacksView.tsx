@@ -5,6 +5,7 @@ import { NewItemCard } from "@/components/protocol/NewItemCard"
 
 import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
 import { Container } from "@/components/containers"
+import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { StackEditSheet } from "@/components/protocol/StackEditSheet"
 import { StackDetailSheet } from "@/components/protocol/StackDetailSheet"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
@@ -25,8 +26,6 @@ import {
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack"
-import { routesOf } from "@/lib/compound-categories"
-import { COMPOUNDS } from "@/lib/compounds-catalogue"
 
 const EMPTY_STACK: StackCompound[] = []
 
@@ -133,7 +132,7 @@ export function StacksView({
                 .filter((c): c is StackCompound => Boolean(c))
             : []
         }
-        inventoryTypeOf={inventoryTypeOf}
+        inventoryTypeOf={(c) => inventoryTypeForCompound(c.name, c.method)}
         onEdit={() => {
           setEditing(viewing)
           setViewing(null)
@@ -232,7 +231,7 @@ function StackCard({
         {members.map((m) => (
           <Container
             key={m.id}
-            inventoryType={inventoryTypeOf(m)}
+            inventoryType={inventoryTypeForCompound(m.name, m.method)}
             category={m.category}
             stackColour={colour}
             fill={0.7}
@@ -265,10 +264,3 @@ function StackCard({
   )
 }
 
-function inventoryTypeOf(c: StackCompound): string | null {
-  const lower = c.name.toLowerCase()
-  const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
-  if (!cat) return null
-  const forms = routesOf(cat)
-  return (forms.find((f) => f.route === c.method) ?? forms[0])?.inventoryType ?? null
-}

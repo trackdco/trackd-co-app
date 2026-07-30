@@ -67,13 +67,18 @@ export function containerFormFor({
  * catalogue by name + route.
  *
  * The device stack records what the user takes, not how it is packaged, so the
- * container artwork has to look the form up. Lives here rather than beside one
- * caller because three screens now need it (the dashboard's stack row, the
- * Progress photo Running list, and Protocol) and three private copies is how
- * two of them end up drawing a different container for the same compound.
+ * container artwork has to look the form up. This lives here because FIVE
+ * surfaces need it — the dashboard's stack row and day widgets, Protocol's
+ * compound row, stacks and cycles views, the compound detail sheet, and the
+ * Progress photo Running list — and private copies are exactly how two of them
+ * end up drawing a different container for the same compound. That was not
+ * hypothetical: Protocol's copy fell back to the ROUTE for an off-catalogue
+ * compound while the others returned null, so a custom subQ blend drew a vial on
+ * Protocol and a bottle on Home.
  *
- * `null` for a custom compound the catalogue has never heard of, which
- * `containerFormFor` then resolves by category.
+ * Protocol's fallback was the better one and is now everyone's: a custom
+ * injectable is a vial because it is injected, not because the catalogue happens
+ * to list it.
  */
 export function inventoryTypeForCompound(
   name: string,
@@ -81,7 +86,13 @@ export function inventoryTypeForCompound(
 ): string | null {
   const lower = name.trim().toLowerCase()
   const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
-  if (!cat) return null
-  const forms = routesOf(cat)
-  return (forms.find((f) => f.route === method) ?? forms[0])?.inventoryType ?? null
+  if (cat) {
+    const forms = routesOf(cat)
+    const found =
+      (forms.find((f) => f.route === method) ?? forms[0])?.inventoryType ?? null
+    if (found) return found
+  }
+  // Off-catalogue (a "make your own" compound): the route is the only signal,
+  // and it is a good one.
+  return method === "po" ? "oral_solid" : "preconcentrated"
 }

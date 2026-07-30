@@ -36,6 +36,7 @@ forward out of order (Adrian's call) because cycles are invisible without it.
 | 02 Homepage | `02-homepage.md` | Done, reviewed. |
 | 04 Protocol | `04-protocol.md` | Done, reviewed. |
 | 07 Calculator | `07-calculator.md` | Done, reviewed twice, then reworked on Adrian's phone review and re-reviewed. See "Awaiting Adrian" below. |
+| 08 Progress | `08-progress.md` | Done, reviewed, findings fixed. Journal widget + widget height need Adrian's eye. |
 
 ### ⚠️ OPEN BUGS FOUND BY THREE BREAKAGE AGENTS (2026-07-30). FIX BEFORE NEW SPECS.
 
@@ -119,8 +120,19 @@ gone, re-run the agents: they reproduce these by executing the real code.
 
 ### NEXT UP
 
-`08-progress.md`, then `09-profile.md`, `10-add-compound-item.md`,
-`11-log-a-dose.md`. Then part one's `07-global-sweep.md`, which runs last.
+`09-profile.md`, then `10-add-compound-item.md`, `11-log-a-dose.md`. Then part
+one's `07-global-sweep.md`, which runs last. BLOCKS is new scope and slots in
+wherever Adrian wants it.
+
+**Two spec 08 items need Adrian's eye rather than a fix:**
+- The widgets are ~228px tall against the dashboard's 183px. The width and card
+  chrome match; the height is what a sparkline plus a toggle actually needs. The
+  spec said "condensed to a square" and they are not square. Forcing it would
+  clip content.
+- The journal widget now shows two preview lines, marker word-chips and an entry
+  count, which is MORE than the spec describes ("one-line preview", chips
+  dropped). That was Adrian's call after seeing it read thin; the spec file still
+  says the opposite and has not been amended.
 
 ### PARKED DECISIONS (coded around, nothing blocked)
 

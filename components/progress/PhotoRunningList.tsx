@@ -4,7 +4,7 @@ import { useMemo, useSyncExternalStore } from "react"
 
 import { Container } from "@/components/containers/Container"
 import { useMounted } from "@/components/home/useMounted"
-import { COLUMN_EYEBROW } from "@/lib/ui-presets"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { compoundsRunningOn } from "@/lib/progress/running"
 import {
@@ -67,7 +67,7 @@ export function PhotoRunningList({
 
   return (
     <div className="px-5 pb-5">
-      <p className={COLUMN_EYEBROW}>Running</p>
+      <p className={CARD_EYEBROW}>Running</p>
       <ul className="mt-2 space-y-1.5">
         {running.map((c) => (
           <li

@@ -34,29 +34,34 @@ export interface RunningCompound {
   category: string
   /** The route, for resolving which container to draw. */
   method: string
-  /** The dose in force on that day, already trimmed of trailing zeros. */
+  /** The dose in force on that day. */
   amount: string
   unit: string
-  /** True when a dose actually fell due that day — the caller may mark it. */
-  dueThatDay: boolean
 }
 
 /** `dateKey` is a local "YYYY-MM-DD". */
 export function compoundsRunningOn(
   stack: StackCompound[],
   dateKey: string,
-  opts?: { dueOn?: (c: StackCompound, dateKey: string) => boolean },
 ): RunningCompound[] {
   const out: RunningCompound[] = []
   for (const c of stack) {
     // `archived` carries no date, so it can only be read as "not running now".
     // Applying it to a past day would erase a compound from history the moment
     // it was archived, which is the retroactive rewrite spec 01 exists to stop.
+    //
+    // KNOWN LIMIT: deleting normally writes a `stopped` version, which bounds
+    // the compound in time properly. A legacy record or a failed stop-write has
+    // no such bound, so it reads as running for every past day. Preferred over
+    // the alternative, which is erasing it from days it genuinely covered.
     if (c.archived && dateKey >= todayish()) continue
 
     const resolved = resolveScheduleOn(c, dateKey)
     if (resolved.stopped) continue
     if (resolved.schedule.startDate && dateKey < resolved.schedule.startDate) continue
+    // No CycleContext: the only end condition that needs one is "until the vial
+    // empties", which is withheld behind VIAL_END_SUPPORTED and cannot be set.
+    // If that ships, this call needs the vial-empty date threading through it.
     if (!isOnCycle(resolved.cycle, dateKey)) continue
 
     out.push({
@@ -66,7 +71,6 @@ export function compoundsRunningOn(
       method: c.method,
       amount: String(resolved.dose),
       unit: resolved.unit,
-      dueThatDay: opts?.dueOn?.(c, dateKey) ?? false,
     })
   }
   return out.sort((a, b) => a.name.localeCompare(b.name))

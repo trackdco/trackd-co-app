@@ -26,10 +26,10 @@ near-black + gold amber — a cooler sample was trialled and rejected). Non-urge
 follow-ups (amber judgment calls, etc.) are in `next-tasks.md`.
 
 **Wave 2 part two — IN PROGRESS on branch `wave2/containers-cycles-calendar`**
-(started 2026-07-29, **not merged, not deployed**). Seven specs done, in the
+(started 2026-07-29, **not merged, not deployed**). Eight specs done, in the
 readme's dependency order (build order, not numeric order): containers, cycles,
-calendar, stacks, homepage, protocol, calculator. Remaining: progress, profile,
-add-compound, log-a-dose, then part one's global sweep.
+calendar, stacks, homepage, protocol, calculator, progress. Remaining: profile, add-compound,
+log-a-dose, then part one's global sweep. Blocks is new scope on top.
 
 - **01 · Containers** — drawn `Vial` / `Bottle` / `Tub` SVGs + the `Container`
   resolver (`components/containers/`), form and colour resolvers

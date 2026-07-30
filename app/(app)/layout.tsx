@@ -65,7 +65,12 @@ export default async function AppLayout({
       </header>
 
       {/* Bottom padding clears the fixed nav (height + safe-area inset). */}
-      <main className="flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))]">
+      {/* Bottom padding clears the nav AND the FAB above it. Nav is 4rem; the
+          FAB sits 1rem above that and is 3.5rem tall. Without the extra 4.5rem
+          the last thing on a page rests UNDER the FAB at max scroll, which is
+          not cosmetic: it made the Consistency widget's "All" button untappable
+          on Progress — a real tap opened the quick-actions menu instead. */}
+      <main className="flex-1 pb-[calc(4rem+env(safe-area-inset-bottom)+4.5rem)]">
         {children}
       </main>
 

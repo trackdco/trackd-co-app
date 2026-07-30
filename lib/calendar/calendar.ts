@@ -86,13 +86,14 @@ export interface LoggedCompound {
 }
 
 /**
- * Resolve the compounds logged on one day, newest-first by time.
+ * Resolve the compounds LOGGED on one day, oldest-first by time.
  *
- * Pure, so it is safe inside a memo or a render. Shared by the Calendar's
- * day-detail sheet and the Progress photo card's "Running" list (spec 08 · part
- * two) — those two answer the same question about the same device data, and one
- * of them silently drifting from the other is the kind of bug nobody notices
- * until the two screens disagree in front of a user.
+ * Pure, so it is safe inside a memo or a render. The Calendar's day-detail sheet
+ * is the only caller: the Progress photo card briefly used this too, until it
+ * turned out to be asking a different question — "what was I RUNNING", which
+ * includes compounds no dose fell on that day. That lives in
+ * `lib/progress/running.ts`. Logged and running are not the same set and this
+ * one is the smaller.
  *
  * A log whose compound has since been deleted still renders: the dose happened,
  * and the row degrades to "Logged dose" with no unit rather than vanishing.
