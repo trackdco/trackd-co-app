@@ -1,6 +1,7 @@
 "use client"
 
 import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { Plus } from "@/components/icons"
 import { CompoundStorageCard } from "@/components/protocol/CompoundStorageCard"
 import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
@@ -25,6 +26,7 @@ export function CompoundsRow({
   todayKey,
   onOpen,
   onAddStock,
+  onAddCompound,
 }: {
   compounds: StackCompound[]
   /** The backing vial per compound id, from `v_inventory_math`. */
@@ -35,24 +37,20 @@ export function CompoundsRow({
   todayKey: string
   onOpen: (c: StackCompound) => void
   onAddStock: (c: StackCompound) => void
+  onAddCompound: () => void
 }) {
   const ordered = orderByCategoryVolume(compounds)
 
   return (
     <section className="space-y-3">
       <h2 className={`${CARD_EYEBROW} px-1`}>Compounds</h2>
-      {ordered.length === 0 ? (
-        <div className="rounded-2xl bg-bg-surface p-5">
-          <p className="text-sm text-text-muted">
-            Nothing here yet. Add a compound and it will show up with its stock.
-          </p>
-        </div>
-      ) : (
-        // Bleeds to the screen edges so the row reads as scrollable, while the
-        // page keeps its px-5 column.
-        <div className="-mx-5 overflow-x-auto px-5">
-          <div className="flex items-stretch gap-3 pb-1">
-            {ordered.map((c) => (
+      {/* Bleeds to the screen edges so the row reads as scrollable, while the
+          page keeps its px-5 column. The "Add compound" card is ALWAYS the last
+          item, so an empty Protocol has a working control rather than copy that
+          tells the user to do something the page offers no way to do. */}
+      <div className="-mx-5 overflow-x-auto px-5">
+        <div className="flex items-stretch gap-3 pb-1">
+          {ordered.map((c) => (
               <CompoundStorageCard
                 key={c.id}
                 compound={c}
@@ -64,9 +62,20 @@ export function CompoundsRow({
                 onAddStock={() => onAddStock(c)}
               />
             ))}
-          </div>
+
+            {/* Same hairline treatment as "New stack" and "New cycle", so the
+                three affordances read as one family. No preview: a compound needs
+                no explaining. */}
+            <button
+              type="button"
+              onClick={onAddCompound}
+              className="hairline flex w-[208px] shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border-border-default text-text-muted transition hover:text-foreground active:scale-[0.98]"
+            >
+              <Plus className="h-5 w-5" aria-hidden />
+              <span className="text-sm">Add compound</span>
+            </button>
         </div>
-      )}
+      </div>
     </section>
   )
 }

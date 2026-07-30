@@ -10,6 +10,7 @@ import { StacksView } from "@/components/protocol/StacksView"
 import { CyclesView } from "@/components/protocol/CyclesView"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
+import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
 import { StockActionsSheet } from "@/components/protocol/StockActionsSheet"
 import { listStock, type StockItem } from "@/lib/db/inventory"
@@ -48,12 +49,17 @@ const EMPTY_LOGS: DayLogs = {}
  */
 export function ProtocolScreen({
   userId,
+  /** A compound id from `?stock=` — opens straight onto its add-stock sheet, so
+   *  the dashboard's "add stock" tap lands on the compound the user tapped rather
+   *  than at the top of the page. */
+  initialStockFor,
   previewStock,
   previewCompounds,
   previewStacks,
   previewLogs,
 }: {
   userId: string
+  initialStockFor?: string | null
   /** Dev-only: mock data so `/preview/protocol` renders without a session. */
   previewStock?: StockItem[]
   previewCompounds?: StackCompound[]
@@ -69,6 +75,7 @@ export function ProtocolScreen({
   const [stockTarget, setStockTarget] = useState<StackCompound | null>(null)
   const [stockActionsFor, setStockActionsFor] = useState<StackCompound | null>(null)
   const [stockEditItem, setStockEditItem] = useState<StockItem | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const liveStack = useSyncExternalStore(
     subscribeStack,
@@ -83,6 +90,16 @@ export function ProtocolScreen({
   const compounds = previewCompounds ?? liveStack
   const logs = previewLogs ?? liveLogs
   const active = useMemo(() => compounds.filter((c) => !c.archived), [compounds])
+  // Honour `?stock=` once the compound list is available. Adjusted during render
+  // rather than in an effect (React's documented pattern for reacting to a
+  // changed input) so there is no paint without the sheet.
+  const [stockDeepLinkDone, setStockDeepLinkDone] = useState(false)
+  if (!stockDeepLinkDone && initialStockFor && active.length > 0) {
+    setStockDeepLinkDone(true)
+    const target = active.find((c) => c.id === initialStockFor)
+    if (target) setStockTarget(target)
+  }
+
 
   const todayKey = toDateKey(new Date())
   /** This week, Monday first — what the Schedule grid shows. */
@@ -175,6 +192,7 @@ export function ProtocolScreen({
           stockKnown={stockKnown}
           todayKey={todayKey}
           onOpen={setDetailTarget}
+          onAddCompound={() => setPickerOpen(true)}
           onAddStock={(c) => {
             // A compound that already has a vial gets the actions sheet (refill /
             // correct / discard); one that does not goes straight to adding.
@@ -283,6 +301,15 @@ export function ProtocolScreen({
         }}
       />
 
+
+      {/* Protocol's own add-compound entry. Without it every control on the page
+          was dead for a new account — including the empty copy that told the user
+          to add one. */}
+      <AddToStackMenu
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        userId={userId}
+      />
 
       <AddCompoundSheet
         open={editTarget !== null}

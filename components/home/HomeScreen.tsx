@@ -657,10 +657,12 @@ export function HomeScreen({
               onOpenDetail={(dose) => setDetailTarget(dose)}
               drawSources={drawResult.sources}
               noVialIds={noVialIds}
-              // No vial → the draw slot's "add stock" tap lands on Protocol,
-              // which is now one scroll with the compounds and their stock at
-              // the top (Spec 04 removed the Stock tab).
-              onAddStock={() => router.push("/protocol")}
+              // Carries WHICH compound, so Protocol opens straight onto its
+              // add-stock sheet. Dropping the argument left the user at the top
+              // of a scrolling row having to recognise the card again.
+              onAddStock={(dose) =>
+                router.push(`/protocol?stock=${encodeURIComponent(dose.id)}`)
+              }
               stacks={stacks}
               // One tap logs every unlogged member. Each still writes its OWN
               // dose log through the same path a single tick uses, to the
