@@ -349,6 +349,35 @@ export function formatCyclePattern(pattern: CyclePattern): string {
   return `${pattern.onDays} on / ${pattern.offDays} off`
 }
 
+const CYCLE_END_MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
+
+/**
+ * An end condition as one short phrase, for a row that has to show it without
+ * opening the editor. Lives beside {@link formatCyclePattern} so the two ways of
+ * wording a cycle stay in one file rather than drifting apart on two screens.
+ *
+ * States the condition and nothing else — no countdown, no "ends soon", nothing
+ * that would need a colour.
+ */
+export function formatCycleEnd(end: CycleEnd): string {
+  switch (end.type) {
+    case "onDate": {
+      const [y, m, d] = end.date.split("-").map(Number)
+      if (!y || !m || !d) return end.date
+      return `Ends ${d} ${CYCLE_END_MONTHS[m - 1] ?? ""}`
+    }
+    case "afterRounds":
+      return `Ends after ${end.rounds} ${end.rounds === 1 ? "round" : "rounds"}`
+    case "whenVialEmpty":
+      return "Ends when the vial runs out"
+    default:
+      return "No end date"
+  }
+}
+
 /** Whether an end condition is offerable for a given pattern and compound. */
 export function availableCycleEnds(
   pattern: CyclePattern,

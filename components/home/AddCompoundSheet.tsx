@@ -1,16 +1,18 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CalendarDots, PencilSimple, Plus, Warning } from "@/components/icons"
+import { CalendarDots, CaretDown, PencilSimple, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { Container } from "@/components/containers"
+import { inventoryTypeForCompound, isVialForm } from "@/lib/containers/form"
 import { Input } from "@/components/ui/input"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
 import { resolveFill, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
-import { isVialForm } from "@/lib/containers/form"
 import { CycleRuleSheet } from "@/components/protocol/CycleRuleSheet"
 import {
   cycleColourVar,
+  formatCycleEnd,
   formatCyclePattern,
   type CycleRule,
 } from "@/lib/protocol/cycleRule"
@@ -22,7 +24,6 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -104,8 +105,6 @@ const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ]
-const SELECT_CLASS =
-  "h-11 w-full min-w-0 rounded-xl border border-border-default bg-bg-input px-2 text-base text-foreground shadow-xs outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong"
 
 const ROUTES: InjectionMethod[] = ["im", "subq", "po", "nasal"]
 /** Method is taken verbatim from the compound's route — never chosen by the user. */
@@ -383,6 +382,14 @@ function AddCompoundBody({
   )
   const [cycleSheetOpen, setCycleSheetOpen] = useState(false)
   const [addStockOn, setAddStockOn] = useState(false)
+  // Validation messages, keyed by the ROW they belong to (spec 10 step 9). They
+  // used to land as a block at the bottom of the sheet, a long scroll away from
+  // the field that caused them. Cleared as soon as the user touches that field,
+  // so an error never outlives the mistake.
+  const [errors, setErrors] = useState<{ dose?: string; days?: string }>({})
+  // The Starts row's expansion. Collapsed by default: the date is usually today
+  // and three dropdowns to confirm that is three too many.
+  const [startOpen, setStartOpen] = useState(false)
   const [stPowder, setStPowder] = useState("")
   const [stPowderUnit, setStPowderUnit] = useState<"mg" | "iu">("mg")
   const [stBac, setStBac] = useState("")
@@ -560,7 +567,7 @@ function AddCompoundBody({
   async function handleSave() {
     const doseValue = Number(dose)
     if (dose.trim() === "" || !Number.isFinite(doseValue) || doseValue <= 0) {
-      show("Enter a dose greater than 0.")
+      setErrors((p) => ({ ...p, dose: "Enter a dose greater than 0." }))
       return
     }
     // When the time is still live-tracking, resolve it at SAVE (a fresh now), so
@@ -576,7 +583,7 @@ function AddCompoundBody({
     // the date picker), so back-dating stays a choice you can see rather than a
     // silent one. Same reason the time is no longer forced later than now.
     if (cadenceType === "daysOfWeek" && days.length === 0) {
-      show("Select at least one day for the schedule.")
+      setErrors((p) => ({ ...p, days: "Pick at least one day." }))
       return
     }
     // No duplicates: a compound can only be in the log once. Adding one that's
@@ -697,12 +704,21 @@ function AddCompoundBody({
       </SheetDescription>
 
       <div className="flex-1 space-y-5 overflow-y-auto px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-        {/* Compound — method + unit are locked, shown here. */}
+        {/* Compound header — the container, the name, and one detail line.
+            Replaces the bordered name card (spec 10). The container is the thing
+            that identifies a compound at a glance, and it is the same header
+            spec 11 reuses on the log form. */}
         <div
-          className="animate-home-up flex items-center gap-3 rounded-xl bg-bg-surface-raised px-4 py-3"
+          className="animate-home-up flex items-center gap-4"
           style={{ animationDelay: "0ms" }}
         >
-          <CategoryIcon category={source.category} className="h-3.5 w-3.5" />
+          <Container
+            inventoryType={inventoryTypeForCompound(source.name, method)}
+            category={source.category}
+            fill={0.7}
+            size={52}
+            className="shrink-0"
+          />
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-medium text-foreground">
               {source.name}
@@ -732,73 +748,290 @@ function AddCompoundBody({
           </div>
         )}
 
-        {/* Route — only when the compound supports more than one. Picking a route
-            sets the method and shows/hides the injection-site rotation below. */}
-        {multiRoute && (
-          <div className="animate-home-up" style={{ animationDelay: "30ms" }}>
-            <FieldLabel>Route</FieldLabel>
-            <div className="flex flex-wrap gap-2">
-              {routeForms.map((f) => {
-                const active = toMethod(f.route) === method
-                const label =
-                  ROUTE_OPTIONS.find((o) => o.value === f.route)?.label ?? f.route
+        {/* ── Card one: the dose ─────────────────────────────────────
+            Rows, not labelled sections. Label left, control right, one height
+            and one divider throughout. A control that genuinely cannot fit on a
+            row (the day-of-week picker, the date selects) expands BENEATH its
+            row rather than being pulled out into its own section, so the rhythm
+            holds and nothing about the field changes. */}
+        <div
+          className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface-raised"
+          style={{ animationDelay: "40ms" }}
+        >
+          {/* Route — only when the compound supports more than one. */}
+          {multiRoute && (
+            <>
+              <FormRow label="Route">
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  {routeForms.map((f) => {
+                    const active = toMethod(f.route) === method
+                    const label =
+                      ROUTE_OPTIONS.find((o) => o.value === f.route)?.label ?? f.route
+                    return (
+                      <button
+                        key={f.route}
+                        type="button"
+                        onClick={() => handleRouteChange(f.route)}
+                        aria-pressed={active}
+                        className={cn(ROW_PILL, active ? ROW_PILL_ON : ROW_PILL_OFF)}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </FormRow>
+              <RowDivider />
+            </>
+          )}
+
+          {/* Dose. The "per dose" hint is gone: the row label says Dose, and the
+              annotation was restating it (spec 10 → remove helper text the row
+              label already carries). */}
+          <FormRow label="Dose" error={errors.dose}>
+            <div className="flex items-center justify-end gap-2">
+              <Input
+                inputMode="decimal"
+                value={dose}
+                onChange={(e) => {
+                  setDose(sanitizeDoseInput(e.target.value))
+                  if (errors.dose) setErrors((p) => ({ ...p, dose: undefined }))
+                }}
+                placeholder="100"
+                aria-label={`Dose in ${unit}`}
+                aria-invalid={errors.dose ? true : undefined}
+                className={cn(
+                  "h-10 w-20 rounded-lg border-border-default bg-bg-input text-right font-mono text-base dark:bg-bg-input",
+                  errors.dose && "border-state-error",
+                )}
+              />
+              {unitOptions.length > 1 ? (
+                <select
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  aria-label="Dose unit"
+                  className={cn(ROW_SELECT, "w-[4.5rem] font-mono")}
+                >
+                  {unitOptions.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="w-[4.5rem] shrink-0 text-right font-mono text-sm text-text-muted">
+                  {unit}
+                </span>
+              )}
+            </div>
+          </FormRow>
+          <RowDivider />
+
+          {/* Schedule. The cadence pills sit on the row; the two cadences that
+              need more (every N days, specific days) expand beneath it. */}
+          <FormRow label="Schedule" error={errors.days}>
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {CADENCE_OPTIONS.map((o) => {
+                const active = o.value === cadenceType
                 return (
                   <button
-                    key={f.route}
+                    key={o.value}
                     type="button"
-                    onClick={() => handleRouteChange(f.route)}
+                    onClick={() => {
+                      setCadenceType(o.value)
+                      if (errors.days) setErrors((p) => ({ ...p, days: undefined }))
+                    }}
                     aria-pressed={active}
-                    className={cn(
-                      "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                      active
-                        ? "border-transparent bg-accent-primary font-medium text-bg-base"
-                        : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
-                    )}
+                    className={cn(ROW_PILL, active ? ROW_PILL_ON : ROW_PILL_OFF)}
                   >
-                    {label}
+                    {o.label}
                   </button>
                 )
               })}
             </div>
-          </div>
-        )}
+          </FormRow>
 
-        {/* Dose — the unit is fixed to the compound's measurement family; if it can
-            be measured more than one way (e.g. mg ↔ mcg) a dropdown lets you switch. */}
-        <div className="animate-home-up" style={{ animationDelay: "60ms" }}>
-          <FieldLabel>Dose</FieldLabel>
-          <div className="flex gap-2">
-            <Input
-              inputMode="decimal"
-              value={dose}
-              onChange={(e) => setDose(sanitizeDoseInput(e.target.value))}
-              placeholder="e.g. 100"
-              aria-label={`Dose in ${unit}`}
-              className="h-12 flex-1 rounded-xl border-border-default bg-bg-input font-mono text-base dark:bg-bg-input"
-            />
-            {unitOptions.length > 1 ? (
-              <select
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                aria-label="Dose unit"
-                className={cn(SELECT_CLASS, "w-24 shrink-0 font-mono")}
+          {cadenceType === "everyNDays" && (
+            <label className="flex items-center justify-end gap-2 px-4 pb-3">
+              <span className="text-sm text-text-muted">Every</span>
+              <Input
+                inputMode="numeric"
+                value={everyN}
+                onChange={(e) => setEveryN(e.target.value)}
+                aria-label="Number of days between doses"
+                className="h-10 w-16 rounded-lg border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
+              />
+              <span className="text-sm text-text-muted">days</span>
+            </label>
+          )}
+
+          {cadenceType === "daysOfWeek" && (
+            <div className="px-4 pb-3">
+              <div
+                className={cn(
+                  "flex justify-end gap-1.5 transition-opacity",
+                  daysLocked && "opacity-50",
+                )}
               >
-                {unitOptions.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
+                {DOW.map((d, i) => {
+                  const active = days.includes(d.day)
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={daysLocked}
+                      onClick={() => {
+                        toggleDay(d.day)
+                        if (errors.days) setErrors((p) => ({ ...p, days: undefined }))
+                      }}
+                      aria-pressed={active}
+                      aria-label={`Toggle day ${d.day}`}
+                      className={cn(
+                        "flex h-9 w-9 items-center justify-center rounded-full border text-sm transition-colors",
+                        daysLocked && "cursor-not-allowed",
+                        active
+                          ? "border-transparent bg-accent-primary font-medium text-bg-base"
+                          : "border-border-default bg-bg-input text-text-muted hover:text-text-primary",
+                      )}
+                    >
+                      {d.letter}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-2 flex justify-end">
+                {daysLocked ? (
+                  <button
+                    type="button"
+                    onClick={() => setDaysLocked(false)}
+                    className="flex items-center gap-1.5 text-xs text-text-muted transition-colors hover:text-text-primary"
+                  >
+                    <PencilSimple className="h-3.5 w-3.5" aria-hidden />
+                    Edit days
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => days.length > 0 && setDaysLocked(true)}
+                    disabled={days.length === 0}
+                    className="text-xs font-medium text-foreground transition-opacity hover:opacity-80 disabled:text-text-subtle"
+                  >
+                    Done
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          <RowDivider />
+
+          {/* Starts. The row shows the date; tapping it reveals the SAME
+              day/month/year selects the sign-up picker uses. The control is
+              unchanged on purpose — spec 10 restructures the layout and says
+              explicitly not to change what a field does. */}
+          <FormRow
+            label="Starts"
+            onPress={() => setStartOpen((o) => !o)}
+            value={formatDateKeyShort(startDate)}
+            expanded={startOpen}
+          />
+          {startOpen && (
+            <div className="grid grid-cols-[1fr_1.5fr_1.1fr] gap-2 px-4 pb-3">
+              <select
+                aria-label="Start day"
+                value={safeStartDay}
+                onChange={(e) => setSDay(e.target.value)}
+                className={ROW_SELECT}
+              >
+                {Array.from({ length: startDaysInMonth }, (_, i) => i + 1).map((d) => (
+                  <option key={d} value={d}>
+                    {d}
                   </option>
                 ))}
               </select>
-            ) : (
-              <span className="flex h-12 w-16 shrink-0 items-center justify-center rounded-xl border border-border-default bg-bg-input font-mono text-sm text-text-muted">
-                {unit}
-              </span>
-            )}
-          </div>
-          {/* Per-dose entry hint (Spec 22 · 4): a minimal, neutral field
-              annotation — the amount is one dose. Not a warning; blocks nothing. */}
-          <p className="mt-1.5 px-1 text-xs text-text-subtle">per dose</p>
+              <select
+                aria-label="Start month"
+                value={sMonth}
+                onChange={(e) => setSMonth(e.target.value)}
+                className={ROW_SELECT}
+              >
+                {MONTHS.map((m, i) => (
+                  <option key={m} value={i + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Start year"
+                value={sYear}
+                onChange={(e) => setSYear(e.target.value)}
+                className={ROW_SELECT}
+              >
+                {startYears.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <RowDivider />
+
+          {/* Time. Reads "Set time" only when it is genuinely unset — clearing
+              the field is what gets you there. It still PRE-FILLS and tracks the
+              clock (Adrian, 2026-07-29, reverting spec 01), which is why the
+              placeholder is rarely what you see. Flagged: spec 10's Out of Scope
+              still describes the reverted behaviour. */}
+          <FormRow label="Time">
+            <div className="flex items-center justify-end gap-2">
+              {!hasTime(timeOfDay) && (
+                <span className="text-sm text-text-subtle">Set time</span>
+              )}
+              <Input
+                type="time"
+                value={timeOfDay}
+                // No `min`: a cycle can start earlier today (or on a past day), so
+                // the time isn't forced later than now.
+                // Empty resumes live tracking; any value freezes it.
+                onChange={(e) => setManualTime(e.target.value || null)}
+                aria-label="Default dose time"
+                className="h-10 w-28 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+              />
+            </div>
+          </FormRow>
         </div>
+
+        {/* Past start — a quiet confirmation of the date it's landing on, so a
+            back-dated cycle is deliberate rather than a mis-set dropdown. Muted,
+            not amber: this is a supported thing to do, not a warning. */}
+        {startsInPast && (
+          <div className="animate-home-up flex items-center gap-2 rounded-xl bg-bg-surface-raised px-3 py-2">
+            <CalendarDots
+              className="h-3.5 w-3.5 shrink-0 text-text-muted"
+              aria-hidden
+            />
+            <p className="text-xs text-text-muted">
+              {startedEarlierToday ? (
+                <>
+                  Starting today at{" "}
+                  <span className="font-mono text-foreground">
+                    {formatTimeLabel(timeOfDay)}
+                  </span>
+                  , already passed, so you can log the dose you&apos;ve already
+                  taken.
+                </>
+              ) : (
+                <>
+                  Starting on{" "}
+                  <span className="font-mono text-foreground">
+                    {formatDateKeyShort(startDate)}
+                  </span>
+                  , in the past, so you can log the doses you&apos;ve already
+                  taken.
+                </>
+              )}
+            </p>
+          </div>
+        )}
 
         {/* Changing the dose (amount or unit) while EDITING — a non-alarming
             heads-up that the change applies going forward, with the disclaimer. */}
@@ -822,272 +1055,119 @@ function AddCompoundBody({
           </div>
         )}
 
-        {/* Schedule */}
-        <div className="animate-home-up" style={{ animationDelay: "120ms" }}>
-          <FieldLabel>Schedule</FieldLabel>
-          <div className="flex flex-wrap gap-2">
-            {CADENCE_OPTIONS.map((o) => {
-              const active = o.value === cadenceType
-              return (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => setCadenceType(o.value)}
-                  aria-pressed={active}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                    active
-                      ? "border-transparent bg-accent-primary font-medium text-bg-base"
-                      : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
-                  )}
-                >
-                  {o.label}
-                </button>
-              )
-            })}
-          </div>
-
-          {cadenceType === "everyNDays" && (
-            <label className="mt-3 flex items-center gap-3">
-              <span className="text-sm text-text-muted">Every</span>
-              <Input
-                inputMode="numeric"
-                value={everyN}
-                onChange={(e) => setEveryN(e.target.value)}
-                aria-label="Number of days between doses"
-                className="h-11 w-20 rounded-xl border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
-              />
-              <span className="text-sm text-text-muted">days</span>
-            </label>
-          )}
-
-          {cadenceType === "daysOfWeek" && (
-            <div className="mt-3">
-              {!daysLocked && (
-                <p className="animate-shortcut-fade mb-2 text-xs text-text-muted">
-                  Select all days that apply
-                </p>
-              )}
-              <div
-                className={cn(
-                  "flex gap-2 transition-opacity",
-                  daysLocked && "opacity-50"
-                )}
-              >
-                {DOW.map((d, i) => {
-                  const active = days.includes(d.day)
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      disabled={daysLocked}
-                      onClick={() => toggleDay(d.day)}
-                      aria-pressed={active}
-                      aria-label={`Toggle day ${d.day}`}
-                      className={cn(
-                        "flex h-9 w-9 items-center justify-center rounded-full border text-sm transition-colors",
-                        daysLocked && "cursor-not-allowed",
-                        active
-                          ? "border-transparent bg-accent-primary font-medium text-bg-base"
-                          : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
-                      )}
-                    >
-                      {d.letter}
-                    </button>
-                  )
-                })}
-              </div>
-              <div className="mt-2">
-                {daysLocked ? (
-                  <button
-                    type="button"
-                    onClick={() => setDaysLocked(false)}
-                    className="flex items-center gap-1.5 text-xs text-text-muted transition-colors hover:text-text-primary"
-                  >
-                    <PencilSimple className="h-3.5 w-3.5" aria-hidden />
-                    Edit days
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => days.length > 0 && setDaysLocked(true)}
-                    disabled={days.length === 0}
-                    className="text-xs font-medium text-foreground transition-opacity hover:opacity-80 disabled:text-text-subtle"
-                  >
-                    Done
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Start date — Day / Month / Year dropdowns (same as the sign-up DOB
-              picker). Past dates are allowed and confirmed below, not blocked. */}
-          <div className="mt-3">
-            <span className="mb-1.5 block text-xs text-text-muted">Starts on</span>
-            <div className="grid grid-cols-[1fr_1.5fr_1.1fr] gap-2">
-              <select
-                aria-label="Start day"
-                value={safeStartDay}
-                onChange={(e) => setSDay(e.target.value)}
-                className={SELECT_CLASS}
-              >
-                {Array.from({ length: startDaysInMonth }, (_, i) => i + 1).map(
-                  (d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  )
-                )}
-              </select>
-              <select
-                aria-label="Start month"
-                value={sMonth}
-                onChange={(e) => setSMonth(e.target.value)}
-                className={SELECT_CLASS}
-              >
-                {MONTHS.map((m, i) => (
-                  <option key={m} value={i + 1}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label="Start year"
-                value={sYear}
-                onChange={(e) => setSYear(e.target.value)}
-                className={SELECT_CLASS}
-              >
-                {startYears.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <label className="mt-3 flex items-center gap-2">
-              <span className="text-sm text-text-muted">at</span>
-              <Input
-                type="time"
-                value={timeOfDay}
-                // No `min`: a cycle can start earlier today (or on a past day), so
-                // the time isn't forced later than now.
-                // Empty resumes live tracking; any value freezes it.
-                onChange={(e) => setManualTime(e.target.value || null)}
-                aria-label="Default dose time"
-                className="h-11 w-32 max-w-[45%] rounded-xl border-border-default bg-bg-input px-4 font-mono text-base dark:bg-bg-input"
-              />
-            </label>
-
-            {/* Past start — a quiet confirmation of the date it's landing on, so a
-                back-dated cycle is deliberate rather than a mis-set dropdown. Muted,
-                not amber: this is a supported thing to do, not a warning. */}
-            {startsInPast && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-bg-surface-raised px-3 py-2">
-                <CalendarDots
-                  className="h-3.5 w-3.5 shrink-0 text-text-muted"
-                  aria-hidden
-                />
-                <p className="text-xs text-text-muted">
-                  {startedEarlierToday ? (
-                    <>
-                      Starting today at{" "}
-                      <span className="font-mono text-foreground">
-                        {formatTimeLabel(timeOfDay)}
-                      </span>
-                      , already passed, so you can log the dose you&apos;ve already
-                      taken.
-                    </>
-                  ) : (
-                    <>
-                      Starting on{" "}
-                      <span className="font-mono text-foreground">
-                        {formatDateKeyShort(startDate)}
-                      </span>
-                      , in the past, so you can log the doses you&apos;ve already
-                      taken.
-                    </>
-                  )}
-                </p>
-              </div>
+        {/* Date preview — SHORTENED (spec 10 · step 5). It was
+            "Starts Thu 23 Jul · then Fri 24 Jul, Sat 25 Jul, Sun 26 Jul", the
+            largest block of text on the sheet. The four dates were answering a
+            question one date and the pattern already answer, and the cadence
+            pills above say the pattern. Proposed wording, flagged for approval:
+            the first date, then the next one, and nothing else. */}
+        {upcoming.length > 0 ? (
+          <p className="animate-home-up px-1 text-xs text-text-subtle">
+            First dose{" "}
+            <span className="font-mono text-text-muted">
+              {formatDateKeyShort(upcoming[0])}
+            </span>
+            {upcoming.length > 1 && (
+              <>
+                , then{" "}
+                <span className="font-mono text-text-muted">
+                  {formatDateKeyShort(upcoming[1])}
+                </span>
+              </>
             )}
-          </div>
+          </p>
+        ) : (
+          <p className="animate-home-up px-1 text-xs text-text-subtle">
+            Pick days above to preview the dates.
+          </p>
+        )}
 
-          {/* Date preview — what days this actually lands on. */}
-          {upcoming.length > 0 ? (
-            <p className="mt-2 px-1 text-xs text-text-subtle">
-              Starts{" "}
-              <span className="font-mono text-text-muted">
-                {formatDateKeyShort(upcoming[0])}
-              </span>
-              {upcoming.length > 1 && (
-                <>
-                  {" "}
-                  · then{" "}
-                  <span className="font-mono text-text-muted">
-                    {upcoming.slice(1).map(formatDateKeyShort).join(", ")}
-                  </span>
-                </>
-              )}
-            </p>
-          ) : (
-            <p className="mt-2 px-1 text-xs text-text-subtle">
-              Pick days above to preview the dates.
-            </p>
-          )}
-        </div>
+        {/* ── Card two: the cycle ────────────────────────────────────
+            Collapsed to ONE row by default. Someone who does not cycle sees one
+            extra row and nothing more, which is the entire point of collapsing
+            it. Turning it on expands to Pattern and Ends.
 
-        {/* Cycle — optional (Spec 06 · part two). The SECOND entry point for
-            creating a cycle, so a compound can be set up as one from the start.
-            The sheet is the same component Protocol → Cycles uses, and the write
+            There is no second cycle implementation here: both rows open the
+            shared `CycleRuleSheet` that Protocol → Cycles uses, and the write
             goes through the same `setCompoundCycle`. */}
-        <div className="animate-home-up" style={{ animationDelay: "205ms" }}>
-          <FieldLabel>Cycle (optional)</FieldLabel>
-          <button
-            type="button"
-            onClick={() => setCycleSheetOpen(true)}
+        <div
+          className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface-raised"
+          style={{ animationDelay: "80ms" }}
+        >
+          <FormRow label="Cycle this">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={cycleDraft !== null}
+              aria-label="Run this compound on a cycle"
+              onClick={() => {
+                if (cycleDraft) setCycleDraft(null)
+                // Nothing to configure until it is on, so turning it on opens the
+                // editor rather than leaving two empty rows to discover.
+                else setCycleSheetOpen(true)
+              }}
+              className={cn(
+                "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                cycleDraft ? "bg-accent-primary" : "bg-bg-input",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 h-5 w-5 rounded-full bg-foreground transition-[left] duration-200 ease-out motion-reduce:transition-none",
+                  cycleDraft ? "left-[1.375rem]" : "left-0.5",
+                )}
+                aria-hidden
+              />
+            </button>
+          </FormRow>
+
+          {/* The expansion. Grid-rows rather than height, so it animates from
+              nothing to its own content height without a magic number. */}
+          <div
             className={cn(
-              "flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-3 text-sm transition-colors",
-              cycleDraft
-                ? "border-border-default bg-bg-input text-foreground"
-                : "border-dashed border-border-strong bg-bg-input text-text-muted hover:text-foreground"
+              "grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none",
+              cycleDraft ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
             )}
           >
-            {cycleDraft ? (
-              <>
-                <span className="flex items-center gap-2">
-                  <span
-                    className="h-3 w-3 rounded-full"
-                    style={{ background: cycleColourVar(cycleDraft.colour) }}
-                    aria-hidden
+            <div className="overflow-hidden">
+              {cycleDraft && (
+                <>
+                  <RowDivider />
+                  <FormRow
+                    label="Pattern"
+                    onPress={() => setCycleSheetOpen(true)}
+                    value={formatCyclePattern(cycleDraft.pattern)}
+                    swatch={cycleColourVar(cycleDraft.colour)}
                   />
-                  {formatCyclePattern(cycleDraft.pattern)}
-                </span>
-                <PencilSimple className="h-4 w-4 text-text-subtle" aria-hidden />
-              </>
-            ) : (
-              <span className="flex w-full items-center justify-center gap-1.5">
-                <Plus className="h-4 w-4" aria-hidden /> Run this on a cycle
-              </span>
-            )}
-          </button>
+                  <RowDivider />
+                  <FormRow
+                    label="Ends"
+                    onPress={() => setCycleSheetOpen(true)}
+                    value={formatCycleEnd(cycleDraft.end)}
+                  />
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Stock on hand — optional. Type comes from the compound's route, so we
-            show just that vial's fields. Starts full; counts down as doses log. */}
+        {/* ── Card three: stock ──────────────────────────────────────
+            Injectables only (Spec 03's gate, unchanged) — absent entirely
+            otherwise rather than shown disabled. */}
         {canStock && (
-          <div className="animate-home-up" style={{ animationDelay: "210ms" }}>
-            <FieldLabel>Stock on hand (optional)</FieldLabel>
-            {!addStockOn ? (
-              <button
-                type="button"
-                onClick={() => setAddStockOn(true)}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border-strong bg-bg-input py-3 text-sm text-text-muted transition-colors hover:text-foreground"
-              >
-                <Plus className="h-4 w-4" aria-hidden /> Got a vial? Log how much you have left
-              </button>
-            ) : (
-              <div className="space-y-3 rounded-xl border border-border-default bg-bg-input/40 p-3">
+          <div
+            className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface-raised"
+            style={{ animationDelay: "120ms" }}
+          >
+            <FormRow
+              label="Stock on hand"
+              hint="Optional"
+              onPress={() => setAddStockOn((o) => !o)}
+              expanded={addStockOn}
+              value={addStockOn ? "" : "Add"}
+            />
+            {addStockOn && (
+              <div className="space-y-3 px-4 pb-4">
                 {stockType === "reconstituted" && (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
@@ -1121,7 +1201,7 @@ function AddCompoundBody({
                 {/* No tabs/caps fields here: this step is gated to vials (Spec 03),
                     so `stockType` can only be reconstituted or preconcentrated. Oral
                     solids still have full stock support in Protocol → Stock. */}
-                {/* How much is in it?— always shown when the vial panel is open (not
+                {/* How much is in it? — always shown when the vial panel is open (not
                     hidden until the amounts are typed), so the part-full option is
                     discoverable straight away. The presets/bar light up once there's a
                     capacity to take a fraction of. */}
@@ -1213,6 +1293,107 @@ function amt(s: string): number {
 const STOCK_PILL = "rounded-full border px-2.5 py-1 text-sm transition-colors"
 const STOCK_PILL_ON = "border-transparent bg-accent-primary font-medium text-bg-base"
 const STOCK_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+
+/* ── The row language of the restructured form (spec 10) ────────────
+   Label on the left, value or control on the right, ONE height and ONE divider
+   throughout. Co-located rather than shared: spec 10 says not to create shared
+   components without asking, and spec 11 will decide for itself whether it wants
+   the same rows on the log form. */
+
+/** Every row is at least 52px tall, so the card reads as one rhythm even when a
+ *  row holds nothing but text. */
+const ROW_BASE = "flex w-full min-h-[3.25rem] items-center justify-between gap-3 px-4 py-2.5 text-left"
+
+const ROW_PILL = "rounded-full border px-2.5 py-1 text-xs transition-colors"
+const ROW_PILL_ON = "border-transparent bg-accent-primary font-medium text-bg-base"
+const ROW_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+const ROW_SELECT =
+  "h-10 min-w-0 rounded-lg border border-border-default bg-bg-input px-2 text-sm text-foreground outline-none transition-[color,box-shadow] [color-scheme:dark] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+
+function RowDivider() {
+  return <div className="mx-4 hairline-t" aria-hidden />
+}
+
+/**
+ * One row of the form.
+ *
+ * `onPress` makes the whole row the control (used where the real control is an
+ * expansion beneath it), `children` puts a control on the right, and `value`
+ * renders a read-only right-hand value. `error` puts the message ON THE ROW,
+ * which is spec 10 step 9 — errors used to appear as a block at the bottom of
+ * the sheet, a long scroll away from the field that caused them.
+ */
+function FormRow({
+  label,
+  hint,
+  value,
+  swatch,
+  error,
+  expanded,
+  onPress,
+  children,
+}: {
+  label: string
+  /** A quiet qualifier beside the label, e.g. "Optional". */
+  hint?: string
+  value?: string
+  /** A cycle colour dot before the value. */
+  swatch?: string
+  error?: string
+  /** Rotates the caret when the row owns an expansion. */
+  expanded?: boolean
+  onPress?: () => void
+  children?: React.ReactNode
+}) {
+  const inner = (
+    <>
+      <span className="flex min-w-0 shrink-0 items-baseline gap-1.5">
+        <span className="text-sm text-text-muted">{label}</span>
+        {hint && <span className="text-xs text-text-subtle">{hint}</span>}
+      </span>
+      {children ?? (
+        <span className="flex min-w-0 items-center gap-2">
+          {swatch && (
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ background: swatch }}
+              aria-hidden
+            />
+          )}
+          {value && (
+            <span className="truncate text-sm text-foreground">{value}</span>
+          )}
+          {onPress && (
+            <CaretDown
+              className={cn(
+                "h-4 w-4 shrink-0 text-text-subtle transition-transform duration-200 motion-reduce:transition-none",
+                expanded && "rotate-180",
+              )}
+              aria-hidden
+            />
+          )}
+        </span>
+      )}
+    </>
+  )
+
+  return (
+    <>
+      {onPress ? (
+        <button type="button" onClick={onPress} className={ROW_BASE}>
+          {inner}
+        </button>
+      ) : (
+        <div className={ROW_BASE}>{inner}</div>
+      )}
+      {error && (
+        <p role="alert" className="-mt-1 px-4 pb-2.5 text-xs text-state-error">
+          {error}
+        </p>
+      )}
+    </>
+  )
+}
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
