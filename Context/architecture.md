@@ -334,11 +334,12 @@ stored.)
     `total_base` stays the TRUE full capacity, so the fullness bar and runway stay honest.
     Stock can also be logged **inline when adding a compound** (`AddCompoundSheet` has an
     optional "Got a vial?" step — this inline path still starts full). Runway is shown **neutrally**, with ONE exception (Adrian, 2026-07-30, Spec 04):
-    the Protocol compound card's **runs-dry date reads amber at 7 days or fewer**.
-    Stock runway is inventory, not a health value, so the
-    categorical-never-evaluative invariant does not apply, and at a week out the
-    date genuinely needs action. Everything else about stock stays neutral,
-    including the fullness bar. The cycle carries an optional free-text **description**
+    the Protocol compound card's **fullness BAR turns amber at 7 days or fewer**
+    from empty. Stock runway is inventory, not a health value, so the
+    categorical-never-evaluative invariant does not apply, and at a week out it
+    genuinely needs action. The signal sits on the GAUGE rather than on the
+    runs-dry text, which stays white in every state: that keeps one amber beat per
+    card and puts the colour on the thing that measures. The cycle carries an optional free-text **description**
     (`cycles.notes`) shown under the Plan header. The dose-plan is never labelled "protocol" in
     UI (it's "Plan"/"Cycle").
     A dev-only `/preview/protocol` (mock data, 404 in prod) renders the screen without auth.

@@ -113,27 +113,17 @@ export function CompoundStorageCard({
           <span className={cn(DATA_MONO, "w-full text-center")}>
             {formatDoses(stock)}
           </span>
-          {/* Label on its own line, the value LIGHTER beneath it. As one string
-              ("Runs dry Wed 16 Sep") it wrapped mid-date and broke the month onto
-              its own line, which read like two facts. Amber, when it applies,
-              takes both lines so it reads as one signal.
-              Stock runway is inventory rather than health data, so amber here sits
-              outside the categorical-never-evaluative rule. */}
+          {/* A dim lowercase label over a BRIGHT date. The label is the least
+              interesting part of the line, so it recedes and the value it
+              introduces is what you actually read. As one string ("Runs dry Wed
+              16 Sep") it wrapped mid-date and broke the month onto its own line,
+              which read like two separate facts.
+              The date stays white in every state: the low-stock signal lives on
+              the BAR below instead, which keeps amber to one beat per card and
+              puts it on the gauge rather than on a piece of text. */}
           <span className="mt-0.5 flex w-full flex-col items-center leading-tight">
-            <span
-              className={cn(
-                "text-[10px] uppercase tracking-[0.14em]",
-                runningOut ? "text-accent-amber" : "text-text-muted"
-              )}
-            >
-              Runs dry
-            </span>
-            <span
-              className={cn(
-                "font-mono text-[11px] tabular-nums",
-                runningOut ? "text-accent-amber/80" : "text-text-subtle"
-              )}
-            >
+            <span className="text-[10px] lowercase text-text-subtle">runs dry</span>
+            <span className="font-mono text-[11px] tabular-nums text-foreground">
               {formatRunsDry(stock?.estEmptyDate ?? null, daysLeft)}
             </span>
           </span>
@@ -148,7 +138,14 @@ export function CompoundStorageCard({
                 className="h-1 flex-1 overflow-hidden rounded-full bg-bg-surface-raised"
               >
                 <span
-                  className="block h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
+                  className={cn(
+                    "block h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none",
+                    // THE gauge is where low stock reads (Adrian's call): amber on
+                    // the bar rather than on the date, so the signal sits on the
+                    // thing that measures rather than on a label, and the card
+                    // keeps a single amber beat.
+                    runningOut ? "bg-accent-amber" : "bg-accent-primary"
+                  )}
                   style={{ width: `${Math.round(fill * 100)}%` }}
                 />
               </span>
