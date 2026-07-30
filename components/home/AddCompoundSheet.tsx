@@ -9,11 +9,14 @@ import { isVialForm } from "@/lib/containers/form"
 import { Input } from "@/components/ui/input"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
 import { resolveFill, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
-import { CycleRuleSheet } from "@/components/protocol/CycleRuleSheet"
 import {
+  availableCycleEnds,
+  CYCLE_COLOURS,
+  CYCLE_COLOUR_LABELS,
   cycleColourVar,
-  formatCycleEnd,
-  formatCyclePattern,
+  DEFAULT_CYCLE_COLOUR,
+  type CycleColour,
+  type CycleEnd,
   type CycleRule,
 } from "@/lib/protocol/cycleRule"
 import { newId } from "@/lib/home/id"
@@ -376,7 +379,6 @@ function AddCompoundBody({
   const [cycleDraft, setCycleDraft] = useState<CycleRule | null>(
     source.readd ? null : (source.prior?.cycle ?? null)
   )
-  const [cycleSheetOpen, setCycleSheetOpen] = useState(false)
   const [addStockOn, setAddStockOn] = useState(false)
   // Validation messages, keyed by the ROW they belong to (spec 10 step 9). They
   // used to land as a block at the bottom of the sheet, a long scroll away from
@@ -1116,11 +1118,16 @@ function AddCompoundBody({
         {/* ── Card two: the cycle ────────────────────────────────────
             Collapsed to ONE row by default. Someone who does not cycle sees one
             extra row and nothing more, which is the entire point of collapsing
-            it. Turning it on expands to Pattern and Ends.
+            it.
 
-            There is no second cycle implementation here: both rows open the
-            shared `CycleRuleSheet` that Protocol → Cycles uses, and the write
-            goes through the same `setCompoundCycle`. */}
+            Turning it on DROPS THE WHOLE THING DOWN, in place (Adrian,
+            2026-07-30). It used to open a separate sheet — a second surface, on
+            top of the one you were already filling in, for four fields. Every
+            variable is here now, condensed into the same row language as the
+            rest of the form: pattern, the on/off lengths, when it starts, how it
+            ends, and its colour. Nothing about the RULE changed, only where you
+            set it: the draft is a `CycleRule` exactly as before, and Protocol →
+            Cycles still uses `CycleRuleSheet` for editing one after the fact. */}
         <div
           className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface-raised"
           style={{ animationDelay: "80ms" }}
@@ -1131,12 +1138,21 @@ function AddCompoundBody({
               role="switch"
               aria-checked={cycleDraft !== null}
               aria-label="Run this compound on a cycle"
-              onClick={() => {
-                if (cycleDraft) setCycleDraft(null)
-                // Nothing to configure until it is on, so turning it on opens the
-                // editor rather than leaving two empty rows to discover.
-                else setCycleSheetOpen(true)
-              }}
+              onClick={() =>
+                setCycleDraft((cur) =>
+                  cur
+                    ? null
+                    : // A sensible cycle, immediately valid, rather than an empty
+                      // form: 7 on / 7 off from today, no end, the default colour.
+                      // Everything is visible below and can be changed in a tap.
+                      {
+                        pattern: { type: "onOff", onDays: 7, offDays: 7 },
+                        end: { type: "never" },
+                        colour: DEFAULT_CYCLE_COLOUR,
+                        anchor: todayKey,
+                      },
+                )
+              }
               className={cn(
                 "relative h-6 w-11 shrink-0 rounded-full transition-colors",
                 cycleDraft ? "bg-accent-primary" : "bg-bg-input",
@@ -1162,21 +1178,11 @@ function AddCompoundBody({
           >
             <div className="overflow-hidden">
               {cycleDraft && (
-                <>
-                  <RowDivider />
-                  <FormRow
-                    label="Pattern"
-                    onPress={() => setCycleSheetOpen(true)}
-                    value={formatCyclePattern(cycleDraft.pattern)}
-                    swatch={cycleColourVar(cycleDraft.colour)}
-                  />
-                  <RowDivider />
-                  <FormRow
-                    label="Ends"
-                    onPress={() => setCycleSheetOpen(true)}
-                    value={formatCycleEnd(cycleDraft.end)}
-                  />
-                </>
+                <CycleFields
+                  cycle={cycleDraft}
+                  vialTracked={canStock}
+                  onChange={setCycleDraft}
+                />
               )}
             </div>
           </div>
@@ -1307,14 +1313,6 @@ function AddCompoundBody({
         </p>
       </div>
 
-      <CycleRuleSheet
-        open={cycleSheetOpen}
-        onOpenChange={setCycleSheetOpen}
-        compoundName={source.name}
-        cycle={cycleDraft}
-        vialTracked={isVialForm(stockType)}
-        onSave={setCycleDraft}
-      />
     </div>
   )
 }
@@ -1452,4 +1450,225 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
       {children}
     </span>
   )
+}
+
+/* ── The cycle, inline ─────────────────────────────────────────────
+   Every variable the old `CycleRuleSheet` asked for, in this form's own row
+   language, editing the draft LIVE (Adrian, 2026-07-30 — "it drops down and has
+   all of the variables… in the same sheet"). There is no save button because
+   there is nothing to save to: the draft is the value, and Add commits it with
+   the rest of the compound.
+
+   The RULE is unchanged — same `CycleRule`, same validity conditions, same
+   `availableCycleEnds` gate — so nothing downstream can tell where it was set. */
+
+function CycleFields({
+  cycle,
+  vialTracked,
+  onChange,
+}: {
+  cycle: CycleRule
+  /** Gates the "when the vial runs out" end condition. */
+  vialTracked: boolean
+  onChange: (next: CycleRule) => void
+}) {
+  // Narrowed once, so the fields below read the lengths without re-testing the
+  // union on every line. A continuous cycle keeps sensible defaults in the
+  // inputs, so flipping to on/off does not start from zero.
+  const onOff = cycle.pattern.type === "onOff" ? cycle.pattern : null
+  const repeats = onOff !== null
+  const onDays = onOff?.onDays ?? 7
+  const offDays = onOff?.offDays ?? 7
+  const offerable = availableCycleEnds(cycle.pattern, { vialTracked })
+  // Turning the repeat off takes "after rounds" with it — a round needs an
+  // off-period to exist — so an impossible rule falls back rather than saving.
+  const endType = offerable.includes(cycle.end.type) ? cycle.end.type : "never"
+
+  const setPattern = (next: boolean) =>
+    onChange({
+      ...cycle,
+      pattern: next
+        ? { type: "onOff", onDays: Math.max(1, onDays), offDays: Math.max(0, offDays) }
+        : { type: "continuous" },
+      // Continuous has no rounds to count.
+      end: next || cycle.end.type !== "afterRounds" ? cycle.end : { type: "never" },
+    })
+
+  const setEnd = (next: CycleEnd) => onChange({ ...cycle, end: next })
+
+  return (
+    <>
+      <RowDivider />
+      <FormRow label="Pattern">
+        <div className="flex gap-1.5">
+          {[
+            { on: false, label: "Continuous" },
+            { on: true, label: "On / off" },
+          ].map((o) => (
+            <button
+              key={o.label}
+              type="button"
+              onClick={() => setPattern(o.on)}
+              aria-pressed={repeats === o.on}
+              className={cn(ROW_PILL, repeats === o.on ? ROW_PILL_ON : ROW_PILL_OFF)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </FormRow>
+
+      {repeats && (
+        <>
+          <RowDivider />
+          <FormRow label="Days on / off">
+            <div className="flex items-center gap-1.5">
+              <Input
+                inputMode="numeric"
+                value={String(onDays)}
+                onChange={(e) =>
+                  onChange({
+                    ...cycle,
+                    pattern: {
+                      type: "onOff",
+                      onDays: Math.max(1, Number(e.target.value.replace(/[^0-9]/g, "")) || 1),
+                      offDays,
+                    },
+                  })
+                }
+                aria-label="Days on"
+                className="h-11 w-14 rounded-lg border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
+              />
+              <span className="text-sm text-text-subtle">/</span>
+              <Input
+                inputMode="numeric"
+                value={String(offDays)}
+                onChange={(e) =>
+                  onChange({
+                    ...cycle,
+                    pattern: {
+                      type: "onOff",
+                      onDays,
+                      offDays: Math.max(0, Number(e.target.value.replace(/[^0-9]/g, "")) || 0),
+                    },
+                  })
+                }
+                aria-label="Days off"
+                className="h-11 w-14 rounded-lg border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
+              />
+            </div>
+          </FormRow>
+        </>
+      )}
+
+      {/* The day the on/off phase counts FROM. A cleared date would make the
+          cycle off on every day and the compound would vanish from the log with
+          nothing to explain it, so an empty input falls back to what it was. */}
+      <RowDivider />
+      <FormRow label="Cycle starts">
+        <Input
+          type="date"
+          value={cycle.anchor}
+          onChange={(e) =>
+            onChange({ ...cycle, anchor: e.target.value || cycle.anchor })
+          }
+          aria-label="Cycle starts on"
+          className="h-11 w-44 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+        />
+      </FormRow>
+
+      <RowDivider />
+      <FormRow label="Ends">
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {offerable.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() =>
+                setEnd(
+                  t === "onDate"
+                    ? { type: "onDate", date: cycle.anchor }
+                    : t === "afterRounds"
+                      ? { type: "afterRounds", rounds: 4 }
+                      : t === "whenVialEmpty"
+                        ? { type: "whenVialEmpty" }
+                        : { type: "never" },
+                )
+              }
+              aria-pressed={endType === t}
+              className={cn(ROW_PILL, endType === t ? ROW_PILL_ON : ROW_PILL_OFF)}
+            >
+              {END_LABELS[t]}
+            </button>
+          ))}
+        </div>
+      </FormRow>
+
+      {endType === "onDate" && (
+        <>
+          <RowDivider />
+          <FormRow label="End date">
+            <Input
+              type="date"
+              value={cycle.end.type === "onDate" ? cycle.end.date : ""}
+              min={cycle.anchor}
+              onChange={(e) =>
+                setEnd({ type: "onDate", date: e.target.value || cycle.anchor })
+              }
+              aria-label="Cycle end date"
+              className="h-11 w-44 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+            />
+          </FormRow>
+        </>
+      )}
+
+      {endType === "afterRounds" && (
+        <>
+          <RowDivider />
+          <FormRow label="Rounds">
+            <Input
+              inputMode="numeric"
+              value={cycle.end.type === "afterRounds" ? String(cycle.end.rounds) : "4"}
+              onChange={(e) =>
+                setEnd({
+                  type: "afterRounds",
+                  rounds: Math.max(1, Number(e.target.value.replace(/[^0-9]/g, "")) || 1),
+                })
+              }
+              aria-label="Number of rounds"
+              className="h-11 w-14 rounded-lg border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
+            />
+          </FormRow>
+        </>
+      )}
+
+      {/* The colour the calendar draws this cycle in. */}
+      <RowDivider />
+      <FormRow label="Colour">
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {CYCLE_COLOURS.map((c: CycleColour) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onChange({ ...cycle, colour: c })}
+              aria-pressed={cycle.colour === c}
+              aria-label={CYCLE_COLOUR_LABELS[c]}
+              className={cn(
+                "h-7 w-7 rounded-full border-2 transition-transform active:scale-90",
+                cycle.colour === c ? "border-foreground" : "border-transparent",
+              )}
+              style={{ background: cycleColourVar(c) }}
+            />
+          ))}
+        </div>
+      </FormRow>
+    </>
+  )
+}
+
+const END_LABELS: Record<CycleEnd["type"], string> = {
+  never: "No end",
+  onDate: "On a date",
+  afterRounds: "After rounds",
+  whenVialEmpty: "Vial runs out",
 }

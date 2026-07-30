@@ -745,7 +745,7 @@ function LogDoseBody({
                   setLogDate(e.target.value || dateKey)
                 }}
                 aria-label="Date this dose was taken"
-                className="h-11 w-36 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+                className="h-11 w-44 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
               />
             </div>
           </LogRow>
