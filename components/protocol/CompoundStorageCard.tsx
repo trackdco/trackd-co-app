@@ -27,9 +27,14 @@ export const RUNS_DRY_AMBER_DAYS = 7
  * all. Letting them size themselves made a horizontally-scrolling row of ragged
  * cards. The height fits the tallest case (container, a two-line name, remaining,
  * doses, the runs-dry label and value, and the gauge) so nothing is ever clipped.
+ *
+ * 136px is the original width (Adrian's call): the earlier truncation that made a
+ * wider card seem necessary was really the runs-dry line being one long string.
+ * Splitting it into a label over a value, and dropping the weekday, made it fit
+ * again — so the row stays compact and more cards are visible at once.
  */
-export const CARD_W = "w-[208px]"
-export const CARD_H = "h-[268px]"
+export const CARD_W = "w-[136px]"
+export const CARD_H = "h-[252px]"
 
 /**
  * One compound in the Protocol row: its container, its name, and — for vials
