@@ -5,6 +5,16 @@ questions on 2026-07-30; three questions are still open at the bottom.
 
 ## SETTLED (Adrian, 2026-07-30)
 
+- **An end date and a target are independent, and both are optional.** A block
+  always has a START; everything else is opt-in. A cut has both. A comp prep has
+  a hard date and often no weight target. An off-season has neither and is still
+  worth having, because the retrospective is the point. Forcing a target on an
+  off-season would make people invent a number they do not believe.
+- **On the end date, ASK.** No auto-complete: it would silently decide the block
+  is still running, and you would never get the reflection. A dot on the Blocks
+  banner, tapped, offers **Extend / Close / Leave running**. Extend lets the user
+  pick the new end date.
+
 - **It is called a BLOCK** (a training block), not a goal. This was the right
   call and it changes the feature: a goal is a target you hit or miss, a block is
   a period of time you ran. The retrospective is the natural centre of a block
@@ -155,11 +165,4 @@ optional target weight.
    `architecture.md`'s categorical-never-evaluative invariant forbids. My
    recommendation is weight and consistency in v1, and NO biomarker targets ever.
    Needs your call.
-2. **Can a block have no end date?** An open-ended off-season has no deadline,
-   and then there is no "week 7 of 16", only "week 7". Everything still works;
-   the card just reads differently.
-3. **What happens on the end date?** Auto-complete it, or leave it live and
-   prompt them to close it? I lean prompt, because the retrospective wants their
-   reflection and an auto-close gets none.
-4. **Sequencing.** Before or after the remaining wave 2 specs (profile,
-   add-compound, log-a-dose, global sweep)?
+2. **Sequencing.** Blocks finishes before profile / add-compound / log-a-dose.
