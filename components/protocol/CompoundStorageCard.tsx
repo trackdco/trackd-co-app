@@ -68,7 +68,7 @@ export function CompoundStorageCard({
           inventoryType={inventoryType}
           category={compound.category}
           fill={fill ?? 0.62}
-          size={64}
+          size={80}
         />
         <span className="w-full truncate text-center text-sm text-foreground">
           {compound.name}
@@ -85,29 +85,15 @@ export function CompoundStorageCard({
           aria-label={
             stock ? `Refill ${compound.name}` : `Add stock for ${compound.name}`
           }
-          className="flex w-full flex-col items-center gap-2 transition active:scale-[0.98]"
+          className="flex w-full flex-col items-center gap-1 transition active:scale-[0.98]"
         >
+          {/* No separate fill bar: the CONTAINER above already shows the level,
+              and a bar beside it stated the same fact twice. Dropping it left
+              room for a bigger vial and two clean lines. Still the spec's five
+              pieces of information — just not one of them duplicated. */}
           <span className={cn(DATA_MONO, "w-full truncate text-center")}>
-            {formatRemaining(stock)}
+            {summaryLine(stock)}
           </span>
-
-          {/* Neutral fullness bar — white on a track, no good/bad colour. */}
-          <span
-            aria-hidden
-            className="h-1 w-full overflow-hidden rounded-full bg-bg-surface-raised"
-          >
-            <span
-              className="block h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
-              style={{ width: `${Math.round((fill ?? 0) * 100)}%` }}
-            />
-          </span>
-
-          <span className={cn(DATA_MONO, "w-full truncate text-center")}>
-            {stock?.dosesRemaining != null
-              ? `${stock.dosesRemaining} left`
-              : "—"}
-          </span>
-
           <span
             className={cn(
               "w-full truncate text-center font-mono text-[10px] tabular-nums",
@@ -134,10 +120,14 @@ function fillOf(stock: StockItem | null): number | null {
   return Math.max(0, Math.min(1, stock.remainingBase / stock.totalBase))
 }
 
-function formatRemaining(stock: StockItem | null): string {
-  if (!stock || stock.remainingDisplay == null) return "No vial"
+/** Remaining and doses-left on one line — "8 mL · 12 left". */
+function summaryLine(stock: StockItem | null): string {
+  if (!stock || stock.remainingDisplay == null) return "Add stock"
   const unit = stock.inventoryType === "oral_solid" ? "" : " mL"
-  return `${stock.remainingDisplay}${unit} left`
+  const left = `${stock.remainingDisplay}${unit}`
+  return stock.dosesRemaining != null
+    ? `${left} · ${stock.dosesRemaining} left`
+    : left
 }
 
 function formatRunsDry(estEmptyDate: string | null, daysLeft: number | null): string {

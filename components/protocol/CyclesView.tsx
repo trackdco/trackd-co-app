@@ -1,10 +1,16 @@
 "use client"
 
 import { useMemo, useState, useSyncExternalStore } from "react"
-import { Plus } from "@/components/icons"
-
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { NewItemCard } from "@/components/protocol/NewItemCard"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+
+import { CARD_EYEBROW, SHEET_TITLE } from "@/lib/ui-presets"
 import { CycleCard } from "@/components/protocol/CycleCard"
 import { CycleRuleSheet } from "@/components/protocol/CycleRuleSheet"
 import { CycleDetailSheet } from "@/components/protocol/CycleDetailSheet"
@@ -53,6 +59,9 @@ export function CyclesView({
   // Tapping a cycle VIEWS it; editing is a deliberate second step from there.
   const [viewing, setViewing] = useState<StackCompound | null>(null)
   const [editing, setEditing] = useState<StackCompound | null>(null)
+  // "New cycle" asks WHICH compound first — the old flow listed every uncycled
+  // compound permanently on the page instead.
+  const [picking, setPicking] = useState(false)
   const today = todayKey()
 
   const active = useMemo(() => stack.filter((c) => !c.archived), [stack])
@@ -76,59 +85,76 @@ export function CyclesView({
     setCompoundCycle(userId, compound.id, cycle)
   }
 
-  if (active.length === 0) {
-    return (
-      <div className="rounded-2xl bg-bg-surface p-5">
-        <p className={CARD_EYEBROW}>Cycles</p>
-        <p className="mt-3 text-sm text-text-muted">
-          Add a compound first. A cycle sits on top of its schedule and switches
-          it on and off.
-        </p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-5">
+      <h2 className={`${CARD_EYEBROW} px-1`}>Cycles</h2>
+
       {cycled.length > 0 && (
-        <section className="space-y-3">
-          <h2 className={CARD_EYEBROW}>Running on a cycle</h2>
-          <div className="space-y-3">
-            {cycled.map((c) => (
-              <CycleCard
-                key={c.id}
-                compound={c}
-                cycle={c.cycle!}
-                todayKey={today}
-                inventoryType={inventoryTypeOf(c)}
-                onEdit={() => setViewing(c)}
-              />
-            ))}
-          </div>
-        </section>
+        <div className="space-y-3">
+          {cycled.map((c) => (
+            <CycleCard
+              key={c.id}
+              compound={c}
+              cycle={c.cycle!}
+              todayKey={today}
+              inventoryType={inventoryTypeOf(c)}
+              onEdit={() => setViewing(c)}
+            />
+          ))}
+        </div>
       )}
 
-      {uncycled.length > 0 && (
-        <section className="space-y-3">
-          <h2 className={CARD_EYEBROW}>No cycle</h2>
-          <div className="divide-y divide-border-default rounded-2xl bg-bg-surface px-5">
+      {/* Mirrors Stacks exactly. The old "No cycle" list of every uncycled
+          compound had no equivalent in Stacks and made this section far taller
+          than it earned; picking a compound now happens inside the flow. */}
+      <NewItemCard
+        label="New cycle"
+        onClick={() => setPicking(true)}
+        disabled={uncycled.length === 0}
+        hint={
+          active.length === 0
+            ? "Add a compound first"
+            : "Every compound is on a cycle"
+        }
+      />
+
+      {/* Choose the compound, then the rule. Only compounds not already on a
+          cycle are offered — one cycle governs exactly one compound. */}
+      <Sheet open={picking} onOpenChange={setPicking}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
+        >
+          <SheetHeader>
+            <SheetTitle className={SHEET_TITLE}>New cycle</SheetTitle>
+            <p className="text-sm text-text-muted">
+              Which compound should run on a cycle?
+            </p>
+          </SheetHeader>
+          <ul className="divide-y divide-border-default px-4 pb-4">
             {uncycled.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setEditing(c)}
-                className="flex w-full items-center gap-3 py-3 text-left transition active:scale-[0.98]"
-              >
-                <CategoryIcon category={c.category} />
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                  {c.name}
-                </span>
-                <Plus className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
-              </button>
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPicking(false)
+                    setEditing(c)
+                  }}
+                  className="flex w-full items-center gap-3 py-3 text-left transition active:scale-[0.99]"
+                >
+                  <CategoryIcon category={c.category} />
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {c.name}
+                  </span>
+                  <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
+                    {c.dose} {c.unit}
+                  </span>
+                </button>
+              </li>
             ))}
-          </div>
-        </section>
-      )}
+          </ul>
+        </SheetContent>
+      </Sheet>
 
       <CycleDetailSheet
         open={viewing !== null}

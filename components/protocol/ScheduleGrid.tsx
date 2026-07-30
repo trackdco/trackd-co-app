@@ -12,28 +12,32 @@ import type { DayLogs } from "@/lib/home/doseLog"
 import { toDateKey } from "@/lib/home/mockHomeData"
 
 /**
- * Rows before the grid starts scrolling with a sticky day header.
+ * Rows before the list starts scrolling with a sticky day header.
  *
  * Eight rows plus the header and the key is roughly half a phone viewport; past
- * that the grid pushes the Cycles section off-screen entirely and the page stops
- * reading as one scroll.
+ * that it pushes the Cycles section off-screen and the page stops reading as one
+ * scroll.
  */
 export const SCHEDULE_SCROLL_AFTER_ROWS = 8
 
 const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"]
 
-/** What a single day/compound cell is showing. */
+/** What a single day/compound mark is showing. */
 type CellState = "none" | "due" | "logged" | "missed"
 
 /**
- * The week at a glance: days across, compounds down, grouped by category.
+ * The week at a glance: one row per compound, seven marks across, grouped by
+ * category.
  *
- * **Display only** — the whole page is for viewing and editing, and logging
- * needs a selected date, which Protocol does not have. Tapping a cell here would
- * have to assume today, which is exactly the bug Spec 01 exists to remove.
+ * Deliberately **not a table** (Adrian's call) — a grid of cells read as a
+ * spreadsheet. These are the same status DOTS the week strip already uses, so
+ * the section reads as part of the app rather than a data export.
  *
- * A due dose becomes MISSED at the end of its scheduled day, so today's
- * outstanding doses read as due (not missed) right up until midnight.
+ * **Display only.** The page has no selected date, so a tap here would have to
+ * assume today — exactly the bug Spec 01 exists to remove.
+ *
+ * A due dose becomes MISSED only at the end of its scheduled day, so today's
+ * outstanding doses read as due right up until midnight.
  */
 export function ScheduleGrid({
   compounds,
@@ -48,50 +52,64 @@ export function ScheduleGrid({
   weekDays: Date[]
 }) {
   const groups = groupByCategory(compounds)
-  const rowCount = compounds.length
-  const scrolls = rowCount > SCHEDULE_SCROLL_AFTER_ROWS
+  const scrolls = compounds.length > SCHEDULE_SCROLL_AFTER_ROWS
 
-  if (rowCount === 0) return null
+  if (compounds.length === 0) return null
 
   return (
     <section className="rounded-2xl bg-bg-surface p-5">
       <h2 className={CARD_EYEBROW}>Schedule</h2>
 
-      <div
-        className={cn(
-          "mt-4",
-          // Past the threshold the grid scrolls inside itself with the day header
-          // pinned, rather than growing without bound and pushing Cycles away.
-          scrolls && "max-h-[19rem] overflow-y-auto"
-        )}
-      >
-        <table className="w-full border-separate border-spacing-0">
-          <thead className={cn(scrolls && "sticky top-0 z-10 bg-bg-surface")}>
-            <tr>
-              <th className="w-[42%]" />
-              {weekDays.map((d, i) => (
-                <th
-                  key={d.toISOString()}
-                  scope="col"
-                  className="pb-2 text-center text-[10px] font-medium uppercase tracking-wide text-text-subtle"
-                >
-                  {DAY_INITIALS[i]}
-                </th>
+      {/* Day header — aligned to the same 7-column track the rows use. */}
+      <div className="mt-4 flex items-center gap-3">
+        <span className="w-[38%] shrink-0" />
+        <div className="grid flex-1 grid-cols-7 gap-1">
+          {weekDays.map((d, i) => (
+            <span
+              key={d.toISOString()}
+              className={cn(
+                "text-center text-[10px] font-medium uppercase tracking-wide",
+                toDateKey(d) === todayKey ? "text-text-muted" : "text-text-subtle"
+              )}
+            >
+              {DAY_INITIALS[i]}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className={cn("mt-2", scrolls && "max-h-64 overflow-y-auto")}>
+        {groups.map((g) => {
+          const meta =
+            CATEGORY_META[g.cat as CompoundCategory] ?? FALLBACK_CATEGORY_META
+          return (
+            <div key={g.cat} className="mt-3 first:mt-0">
+              <span
+                className={cn(
+                  "block px-0.5 pb-1 text-[10px] font-medium uppercase tracking-[0.14em]",
+                  meta.tint
+                )}
+              >
+                {meta.label}
+              </span>
+              {g.compounds.map((c) => (
+                <div key={c.id} className="flex items-center gap-3 py-1.5">
+                  <span className="w-[38%] shrink-0 truncate text-xs text-text-muted">
+                    {c.name}
+                  </span>
+                  <div className="grid flex-1 grid-cols-7 gap-1">
+                    {weekDays.map((d) => (
+                      <Mark
+                        key={d.toISOString()}
+                        state={cellState(c, d, logs, todayKey)}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((g) => (
-              <CategoryRows
-                key={g.cat}
-                group={g}
-                weekDays={weekDays}
-                logs={logs}
-                todayKey={todayKey}
-              />
-            ))}
-          </tbody>
-        </table>
+            </div>
+          )
+        })}
       </div>
 
       <Key />
@@ -99,67 +117,26 @@ export function ScheduleGrid({
   )
 }
 
-function CategoryRows({
-  group,
-  weekDays,
-  logs,
-  todayKey,
-}: {
-  group: Group
-  weekDays: Date[]
-  logs: DayLogs
-  todayKey: string
-}) {
-  const meta = CATEGORY_META[group.cat as CompoundCategory] ?? FALLBACK_CATEGORY_META
+/** Logged is a filled white dot, due a hollow ring, missed a fainter ring, and a
+ *  day with nothing due is a bare tick of a dot so the row still reads as seven. */
+function Mark({ state }: { state: CellState }) {
   return (
-    <>
-      <tr>
-        {/* The category label, in that category's own colour — a divider between
-            groups rather than a nested box. */}
-        <td colSpan={8} className="pt-3 pb-1">
-          <span
-            className={cn(
-              "text-[10px] font-medium uppercase tracking-[0.14em]",
-              meta.tint
-            )}
-          >
-            {meta.label}
-          </span>
-        </td>
-      </tr>
-      {group.compounds.map((c) => (
-        <tr key={c.id}>
-          <td className="py-1 pr-2">
-            <span className="block truncate text-xs text-text-muted">{c.name}</span>
-          </td>
-          {weekDays.map((d) => (
-            <td key={d.toISOString()} className="px-0.5 py-1">
-              <Cell state={cellState(c, d, logs, todayKey)} />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
+    <span className="flex h-5 items-center justify-center" aria-hidden>
+      <span
+        className={cn(
+          "rounded-full",
+          state === "logged" && "h-2.5 w-2.5 bg-accent-primary",
+          state === "due" && "h-2.5 w-2.5 border border-text-muted",
+          // Missed is hollow with a thin border — never a slash.
+          state === "missed" && "h-2.5 w-2.5 border border-border-strong",
+          state === "none" && "h-1 w-1 bg-border-default"
+        )}
+      />
+    </span>
   )
 }
 
-function Cell({ state }: { state: CellState }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "mx-auto block h-4 w-full max-w-6 rounded-[3px]",
-        state === "none" && "bg-bg-base",
-        state === "due" && "bg-border-strong",
-        state === "logged" && "bg-accent-primary",
-        // Hollow with a thin border — deliberately NOT a diagonal slash.
-        state === "missed" && "border border-border-strong"
-      )}
-    />
-  )
-}
-
-/** The key, mirroring the injection-site rotation key: swatch + label, inline. */
+/** The key, following the injection-site rotation key's pattern. */
 function Key() {
   const items: { state: CellState; label: string }[] = [
     { state: "logged", label: "Logged" },
@@ -171,16 +148,7 @@ function Key() {
     <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 hairline-t pt-3">
       {items.map((i) => (
         <li key={i.state} className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className={cn(
-              "h-2.5 w-2.5 rounded-[2px]",
-              i.state === "none" && "bg-bg-base",
-              i.state === "due" && "bg-border-strong",
-              i.state === "logged" && "bg-accent-primary",
-              i.state === "missed" && "border border-border-strong"
-            )}
-          />
+          <Mark state={i.state} />
           <span className="text-[10px] text-text-muted">{i.label}</span>
         </li>
       ))}
@@ -189,11 +157,8 @@ function Key() {
 }
 
 /**
- * A cell's state, judged by the rule in force ON THAT DAY (`isDueOnFor`), so a
+ * A mark's state, judged by the rule in force ON THAT DAY (`isDueOnFor`), so a
  * schedule changed since does not restate the past.
- *
- * A due-but-unlogged day only becomes MISSED once the day is over — today's
- * outstanding doses are still due, not failures.
  */
 function cellState(
   c: StackCompound,

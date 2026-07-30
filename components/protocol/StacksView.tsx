@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, useSyncExternalStore } from "react"
-import { Plus } from "@/components/icons"
+import { NewItemCard } from "@/components/protocol/NewItemCard"
 
 import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
 import { Container } from "@/components/containers"
@@ -83,45 +83,29 @@ export function StacksView({
 
   return (
     <div className="space-y-5">
-      {stacks.length === 0 ? (
-        <div className="rounded-2xl bg-bg-surface p-5">
-          <p className={CARD_EYEBROW}>Stacks</p>
-          <p className="mt-3 text-sm text-text-muted">
-            Group compounds you take at the same time so they log in one tap.
-            Each one keeps its own schedule and history.
-          </p>
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            disabled={active.length === 0}
-            className="mt-4 text-sm text-foreground transition-colors disabled:text-text-subtle"
-          >
-            {active.length === 0 ? "Add a compound first" : "New stack"}
-          </button>
+      <h2 className={`${CARD_EYEBROW} px-1`}>Stacks</h2>
+
+      {stacks.length > 0 && (
+        <div className="space-y-3">
+          {stacks.map((s) => (
+            <StackCard
+              key={s.id}
+              stack={s}
+              members={s.memberIds
+                .map((id) => byId.get(id))
+                .filter((c): c is StackCompound => Boolean(c))}
+              onOpen={() => setViewing(s)}
+            />
+          ))}
         </div>
-      ) : (
-        <>
-          <div className="space-y-3">
-            {stacks.map((s) => (
-              <StackCard
-                key={s.id}
-                stack={s}
-                members={s.memberIds
-                  .map((id) => byId.get(id))
-                  .filter((c): c is StackCompound => Boolean(c))}
-                onOpen={() => setViewing(s)}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-border-strong py-3 text-sm text-text-muted transition-colors hover:text-foreground"
-          >
-            <Plus className="h-4 w-4" aria-hidden /> New stack
-          </button>
-        </>
       )}
+
+      <NewItemCard
+        label="New stack"
+        onClick={() => setCreating(true)}
+        disabled={active.length === 0}
+        hint="Add a compound first"
+      />
 
       <StackDetailSheet
         open={viewing !== null}
