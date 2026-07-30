@@ -124,6 +124,17 @@ gone, re-run the agents: they reproduce these by executing the real code.
 
 ### PARKED DECISIONS (coded around, nothing blocked)
 
+**GOALS — a proposal is written and waiting on you.**
+`Context/Feature Specs/proposals/goals.md`. Adrian asked for the idea plus
+questions on 2026-07-30; nothing is built. Short version: a goal is a DATE RANGE
+WITH A NAME, every screen of it is a query over data Trackd already holds, and
+the look-back is the feature rather than the progress ring. Seven open questions
+at the bottom of that file, the load-bearing ones being what it is called, whether
+one goal is live at a time, and whether progress is time-only or time plus an
+optional weight target. New scope: not one of the eighteen wave 2 specs, so its
+sequencing is also a question.
+
+
 **The mg/mcg control's look — SETTLED, kept here for the record.** Adrian asked
 for it "dropped into the input area so it's part of the little tablet thing", and
 then for both units to stay visible. Shipped as a two-segment `mg | mcg` pill

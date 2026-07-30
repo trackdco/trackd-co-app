@@ -80,10 +80,10 @@ export function ProgressPhotoCard({
         className="flex w-full items-center gap-3.5 px-5 pt-5 pb-3.5 text-left transition-colors hover:bg-bg-surface-raised/30"
       >
         <span className="min-w-0 flex-1">
+          {/* No count line (Adrian, 2026-07-30). "14 photos" is a fact about
+              the database, not about the user: the photo is right below it, the
+              date is under that, and the number told them nothing they wanted. */}
           <span className={`block ${CARD_EYEBROW}`}>Progress photos</span>
-          <span className="mt-1 block text-xs text-text-muted">
-            {photos.length} {photos.length === 1 ? "photo" : "photos"}
-          </span>
         </span>
         <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
       </button>
