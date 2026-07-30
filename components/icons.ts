@@ -24,6 +24,7 @@ export {
   ArrowLeft,
   ArrowsClockwise,
   ArrowsLeftRight,
+  Backspace,
   Bell,
   Calculator,
   CalendarBlank,

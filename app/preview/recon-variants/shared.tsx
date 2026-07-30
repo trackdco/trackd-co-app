@@ -1,10 +1,17 @@
 "use client"
 
-import { useId, useMemo, useState } from "react"
+import { useId, useMemo, useState, useSyncExternalStore } from "react"
 import { CaretDown, Warning } from "@/components/icons"
 
+import { SyringeGraphic } from "@/components/calculator/SyringeGraphic"
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW, COLUMN_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
+import {
+  CARD_EYEBROW,
+  COLUMN_EYEBROW,
+  DATA_MONO,
+  METRIC_VALUE,
+  UNIT_SUFFIX,
+} from "@/lib/ui-presets"
 import {
   computeRecon,
   sanitizeAmount,
@@ -14,8 +21,16 @@ import {
   type ReconResult,
 } from "@/lib/calculator/recon"
 import {
+  AXIS_Y,
+  BARREL_H,
+  BARREL_R,
+  BARREL_W,
+  BARREL_X,
+  BARREL_Y,
   MIN_READABLE_UNITS,
   SYRINGE_SIZES,
+  VIEW_H,
+  VIEW_W,
   fillFraction,
   misuseKind,
   syringeSize,
@@ -25,32 +40,72 @@ import {
 } from "@/lib/calculator/syringe"
 
 /**
- * DEV-ONLY. Shared pieces for the spec 07 layout alternatives at
- * `/preview/recon-variants`. Nothing here is imported by the shipped calculator
- * — the point is to try layouts on a real phone WITHOUT touching what is already
- * reviewed and committed. Delete this folder once a direction is picked.
+ * DEV-ONLY. Shared pieces for the spec 07 layout exploration at
+ * `/preview/recon-variants`. Nothing here is imported by the shipped calculator.
+ * Delete the folder once a direction is picked.
  *
- * Every variant runs the identical maths (`lib/calculator/recon`) and the
- * identical barrel (`lib/calculator/syringe`), so what is being compared is
- * layout and chrome, nothing else.
+ * Settled by Adrian, 2026-07-30, and built in below:
+ *  - The readout and the syringe sit BARE, outside any card.
+ *  - Concentration / per dose / insulin sit directly under the syringe.
+ *  - The syringe size is a HARD GATE. Nothing calculates until one is chosen.
+ *  - The choice is remembered on the device, so the gate only bites once.
+ *
+ * The gate exists because the FIGURE is barrel-independent but the PICTURE is
+ * not: 10 units is 10 units on any syringe, but it is a third of a 0.3 mL barrel
+ * and a fifth of a 0.5 mL one. Someone matching the fill they can see rather
+ * than reading the number would draw the wrong amount, and the whole argument
+ * for the graphic is that people read the picture.
  */
 
 const NO_VALUE = "—"
 
 /**
- * Two defaults differ from the shipped calculator, both from the 2026-07-30
- * research rather than taste:
- *
- * - Dose starts in **mcg**. Vials are labelled in mg (5mg, 10mg, 2mg semaglutide)
- *   but doses are overwhelmingly written in mcg (250mcg, 500mcg), and the mg/mcg
- *   mix-up is documented as the single most common dosing error in this space.
- * - The barrel starts at **0.5 mL**, the size the equipment guides call the best
- *   all-round default for subcutaneous peptide injection. The shipped calculator
- *   starts at 1 mL, which was picked only because it cannot raise an
- *   over-capacity warning.
+ * Vials are labelled in mg but doses are written in mcg, and the 1000x slip
+ * between them is the most common error in this space, so the two amount fields
+ * deliberately start in DIFFERENT units.
  */
 const DEFAULT_DOSE_UNIT: MgUnit = "mcg"
-const DEFAULT_SIZE: SyringeSizeId = "0.5"
+
+/* ---------------------------------------------------- remembered barrel size */
+
+const SIZE_KEY = "trackd.calculator.syringeSize"
+const SIZE_EVENT = "trackd:calculator-syringe-size-changed"
+
+function isSizeId(v: string | null): v is SyringeSizeId {
+  return SYRINGE_SIZES.some((s) => s.id === v)
+}
+
+function getStoredSize(): SyringeSizeId | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = window.localStorage.getItem(SIZE_KEY)
+    return isSizeId(raw) ? raw : null
+  } catch {
+    return null
+  }
+}
+
+function writeStoredSize(id: SyringeSizeId | null): void {
+  try {
+    if (id) window.localStorage.setItem(SIZE_KEY, id)
+    else window.localStorage.removeItem(SIZE_KEY)
+  } catch {
+    /* storage off — the gate just asks again next visit */
+  }
+  window.dispatchEvent(new CustomEvent(SIZE_EVENT))
+}
+
+function subscribeSize(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => {}
+  window.addEventListener(SIZE_EVENT, cb)
+  window.addEventListener("storage", cb)
+  return () => {
+    window.removeEventListener(SIZE_EVENT, cb)
+    window.removeEventListener("storage", cb)
+  }
+}
+
+/* ------------------------------------------------------------------- state */
 
 export interface CalcState {
   powder: string
@@ -63,12 +118,13 @@ export interface CalcState {
   setDose: (v: string) => void
   doseUnit: MgUnit
   setDoseUnit: (u: MgUnit) => void
-  sizeId: SyringeSizeId
+  /** `null` until the user has chosen. The gate. */
+  sizeId: SyringeSizeId | null
   setSizeId: (id: SyringeSizeId) => void
+  size: SyringeSize | null
   workingOpen: boolean
   setWorkingOpen: (v: boolean | ((o: boolean) => boolean)) => void
   result: ReconResult | null
-  size: SyringeSize
   units: number | null
   fill: number
   misuse: MisuseKind
@@ -76,21 +132,27 @@ export interface CalcState {
   reset: () => void
 }
 
-/** One state hook every variant shares, so they cannot drift in behaviour. */
 export function useCalcState(): CalcState {
   const [powder, setPowder] = useState("")
   const [powderUnit, setPowderUnit] = useState<MgUnit>("mg")
   const [bac, setBac] = useState("")
   const [dose, setDose] = useState("")
   const [doseUnit, setDoseUnit] = useState<MgUnit>(DEFAULT_DOSE_UNIT)
-  const [sizeId, setSizeId] = useState<SyringeSizeId>(DEFAULT_SIZE)
   const [workingOpen, setWorkingOpen] = useState(false)
 
-  const result = useMemo(
+  // Read through the store rather than an effect: the server has no
+  // localStorage, so the server snapshot is "unchosen" and hydration agrees.
+  const sizeId = useSyncExternalStore(subscribeSize, getStoredSize, () => null)
+  const size = sizeId ? syringeSize(sizeId) : null
+
+  const raw = useMemo(
     () => computeRecon({ powder, powderUnit, bac, dose, doseUnit }),
     [powder, powderUnit, bac, dose, doseUnit],
   )
-  const size = syringeSize(sizeId)
+
+  // THE GATE. Everything downstream of the barrel choice stays null until one is
+  // made, so no figure can be read off a barrel the user never confirmed.
+  const result = size ? raw : null
   const units = result?.unitsPerDose ?? null
 
   return {
@@ -105,21 +167,21 @@ export function useCalcState(): CalcState {
     doseUnit,
     setDoseUnit,
     sizeId,
-    setSizeId,
+    setSizeId: writeStoredSize,
+    size,
     workingOpen,
     setWorkingOpen,
     result,
-    size,
     units,
-    fill: fillFraction(units, size),
-    misuse: misuseKind(units, size),
+    fill: size ? fillFraction(units, size) : 0,
+    misuse: size ? misuseKind(units, size) : null,
     dirty:
       powder !== "" ||
       bac !== "" ||
       dose !== "" ||
       powderUnit !== "mg" ||
       doseUnit !== DEFAULT_DOSE_UNIT ||
-      sizeId !== DEFAULT_SIZE ||
+      sizeId !== null ||
       workingOpen,
     reset: () => {
       setPowder("")
@@ -127,17 +189,14 @@ export function useCalcState(): CalcState {
       setBac("")
       setDose("")
       setDoseUnit(DEFAULT_DOSE_UNIT)
-      setSizeId(DEFAULT_SIZE)
       setWorkingOpen(false)
+      // Clears the remembered barrel too, so Reset is also how you re-choose.
+      writeStoredSize(null)
     },
   }
 }
 
-/**
- * The other half of the mg/mcg fix: show the figure in the OTHER unit, live,
- * right under the one being typed. "250 mcg" reading "0.25 mg" beneath it makes
- * a 1000x slip visible at the moment it is made, which a default cannot do.
- */
+/** The figure in the other unit, live, so a 1000x slip is visible as it is made. */
 export function equivalentHint(value: string, unit: MgUnit): string | null {
   const n = parseFloat(value)
   if (!Number.isFinite(n) || n <= 0) return null
@@ -145,107 +204,74 @@ export function equivalentHint(value: string, unit: MgUnit): string | null {
   return unit === "mcg" ? `${trim(mg, 4)} mg` : `${trim(mg * 1000, 1)} mcg`
 }
 
-/* ------------------------------------------------------------------ inputs */
-
-export function UnitToggle({
-  unit,
-  onChange,
-}: {
-  unit: MgUnit
-  onChange: (u: MgUnit) => void
-}) {
-  return (
-    <div className="inline-flex shrink-0 rounded-lg bg-bg-input p-0.5 text-[11px]">
-      {(["mg", "mcg"] as const).map((u) => (
-        <button
-          key={u}
-          type="button"
-          aria-pressed={unit === u}
-          onClick={() => onChange(u)}
-          className={cn(
-            "rounded-md px-2 py-1 font-medium transition-colors",
-            unit === u
-              ? "bg-bg-surface-raised text-foreground"
-              : "text-text-subtle",
-          )}
-        >
-          {u}
-        </button>
-      ))}
-    </div>
-  )
-}
+/* ------------------------------------------------------------ the gate + top */
 
 /**
- * A field as a LIST ROW, not a boxed form input: label left, figure right-railed
- * in mono, hairline between rows. This is the app's documented list-row pattern
- * (`ui-context.md` → Layout Patterns) and it is most of what makes the compact
- * variants read as an app rather than a web form. Three stacked bordered boxes
- * is the single most form-like thing on the shipped screen.
+ * The syringe as a GHOST, awaiting a size. Same silhouette as the real one so it
+ * reads as a syringe rather than an empty box, but the barrel is dashed and
+ * carries no ticks and no numbers: a printed scale here would be the scale of a
+ * syringe the user has not said they are holding, which is the exact thing the
+ * gate exists to prevent.
  */
-export function InputRow({
-  label,
-  value,
-  onChange,
-  placeholder,
-  unit,
-  onUnitChange,
-  staticUnit,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder: string
-  unit?: MgUnit
-  onUnitChange?: (u: MgUnit) => void
-  staticUnit?: string
-}) {
-  const id = useId()
-  const hint = unit ? equivalentHint(value, unit) : null
-
+function EmptyBarrel() {
   return (
-    <div className="py-1">
-      <div className="flex items-center gap-3 py-2.5">
-        <label htmlFor={id} className="min-w-0 flex-1 text-sm text-text-muted">
-          {label}
-        </label>
-        <input
-          id={id}
-          inputMode="decimal"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-[4.5rem] min-w-0 bg-transparent text-right font-mono text-base text-foreground outline-none placeholder:text-text-subtle"
+    <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="w-full" aria-hidden>
+      <g opacity={0.45} fill="var(--border-strong)">
+        <path
+          d={`M4 ${AXIS_Y + 1} L10 ${AXIS_Y - 1} L46 ${AXIS_Y - 1} L46 ${AXIS_Y + 1} Z`}
         />
-        {unit && onUnitChange ? (
-          <UnitToggle unit={unit} onChange={onUnitChange} />
-        ) : (
-          <span className="w-[3.25rem] shrink-0 text-sm text-text-muted">
-            {staticUnit}
-          </span>
-        )}
-      </div>
-      {/* The live conversion, on the rows that HAVE two units. Height is reserved
-          so the row never jumps as you type, but only where a hint can appear:
-          reserving it on the mL row just leaves a hole. */}
-      {unit ? (
-        <p className="h-4 pr-[3.25rem] text-right text-[11px] text-text-subtle">
-          {hint ? `= ${hint}` : ""}
-        </p>
-      ) : null}
-    </div>
+        <path
+          d={`M46 ${AXIS_Y - 4} L62 ${AXIS_Y - 9} L62 ${AXIS_Y + 9} L46 ${AXIS_Y + 4} Z`}
+        />
+        <rect
+          x={BARREL_X + BARREL_W}
+          y={AXIS_Y - 22}
+          width={6}
+          height={44}
+          rx={1.5}
+        />
+        <rect x={BARREL_X + BARREL_W + 6} y={AXIS_Y - 3} width={32} height={6} />
+        <rect
+          x={BARREL_X + BARREL_W + 38}
+          y={AXIS_Y - 16}
+          width={8}
+          height={32}
+          rx={2}
+        />
+      </g>
+      <rect
+        x={BARREL_X}
+        y={BARREL_Y}
+        width={BARREL_W}
+        height={BARREL_H}
+        rx={BARREL_R}
+        fill="none"
+        stroke="var(--border-strong)"
+        strokeWidth={1}
+        strokeDasharray="5 4"
+      />
+    </svg>
   )
 }
 
 export function SyringePills({
   sizeId,
   onChange,
+  emphasis,
 }: {
-  sizeId: SyringeSizeId
+  sizeId: SyringeSizeId | null
   onChange: (id: SyringeSizeId) => void
+  emphasis?: boolean
 }) {
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-full border border-border-default bg-bg-input p-0.5">
+    <div
+      className={cn(
+        "grid grid-cols-3 gap-1 rounded-full border p-0.5",
+        emphasis
+          ? "border-accent-amber/50 bg-bg-input"
+          : "border-border-default bg-bg-input",
+      )}
+    >
       {SYRINGE_SIZES.map((s) => (
         <button
           key={s.id}
@@ -266,59 +292,67 @@ export function SyringePills({
   )
 }
 
-export function InputCard({ s }: { s: CalcState }) {
+/**
+ * The readout and the barrel, bare (Adrian: "I like the focus, how it's outside
+ * of a card"). Sticky, so the barrel stays on screen once the working panel is
+ * open and the page is long enough to scroll.
+ */
+export function Readout({ s }: { s: CalcState }) {
+  // Pulled into a local so TypeScript narrows it inside the branch below.
+  const size = s.size
   return (
-    <section className="rounded-2xl bg-bg-surface p-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className={CARD_EYEBROW}>Inputs</p>
-        <button
-          type="button"
-          onClick={s.reset}
-          disabled={!s.dirty}
-          className="text-xs font-medium text-text-muted transition-colors hover:text-text-primary disabled:opacity-30"
-        >
-          Reset
-        </button>
-      </div>
-
-      <div className="mt-3">
-        <SyringePills sizeId={s.sizeId} onChange={s.setSizeId} />
-      </div>
-
-      <div className="mt-1 divide-y divide-border-default">
-        <InputRow
-          label="Powder in vial"
-          value={s.powder}
-          onChange={s.setPowder}
-          placeholder="5"
-          unit={s.powderUnit}
-          onUnitChange={s.setPowderUnit}
-        />
-        <InputRow
-          label="BAC water added"
-          value={s.bac}
-          onChange={s.setBac}
-          placeholder="2"
-          staticUnit="mL"
-        />
-        <InputRow
-          label="Dose"
-          value={s.dose}
-          onChange={s.setDose}
-          placeholder="250"
-          unit={s.doseUnit}
-          onUnitChange={s.setDoseUnit}
-        />
-      </div>
-    </section>
+    <div className="sticky top-0 z-10 -mx-5 bg-bg-base/85 px-5 pt-1 pb-3 backdrop-blur">
+      {size == null ? (
+        <>
+          <p className="text-sm text-text-muted">
+            Which syringe are you using?
+          </p>
+          <div className="mt-2">
+            <SyringePills sizeId={null} onChange={s.setSizeId} emphasis />
+          </div>
+          <div className="-mx-2 mt-2">
+            <EmptyBarrel />
+          </div>
+          <p className="text-center text-xs text-text-subtle">
+            The size printed on the barrel you are holding.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="flex items-baseline justify-between gap-3">
+            {s.units != null ? (
+              <p className="flex items-baseline gap-2">
+                <span className={METRIC_VALUE}>{trim(s.units, 1)}</span>
+                <span className={UNIT_SUFFIX}>units</span>
+              </p>
+            ) : (
+              <p className="text-sm text-text-muted">
+                {s.result == null ? "Enter powder and BAC water" : "Add a dose"}
+              </p>
+            )}
+            <span className={DATA_MONO}>{size.label}</span>
+          </div>
+          <div className="-mx-2 mt-2">
+            <SyringeGraphic
+              size={size}
+              fill={s.fill}
+              label={
+                s.units != null
+                  ? `${trim(s.units, 1)} units drawn on a ${size.label} syringe`
+                  : `An empty ${size.label} syringe`
+              }
+            />
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
-/* ------------------------------------------------------------------ output */
+/* ----------------------------------------------------------------- outputs */
 
-/** The three figures as ONE hairline-divided strip rather than three cards. */
 export function FiguresStrip({ s }: { s: CalcState }) {
-  const cells: Array<{ label: string; value: string; unit: string; accent?: boolean }> = [
+  const cells = [
     {
       label: "Concentration",
       value: s.result ? trim(s.result.concentration, 3) : NO_VALUE,
@@ -354,7 +388,7 @@ export function FiguresStrip({ s }: { s: CalcState }) {
 }
 
 export function MisuseNotice({ s }: { s: CalcState }) {
-  if (!s.misuse) return null
+  if (!s.misuse || !s.size) return null
   const copy =
     s.misuse === "under"
       ? `That is under ${MIN_READABLE_UNITS} units, too little to read off a syringe accurately. Check the figures you entered.`
@@ -364,14 +398,6 @@ export function MisuseNotice({ s }: { s: CalcState }) {
       <Warning className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber" aria-hidden />
       <p className="text-sm leading-relaxed text-accent-amber">{copy}</p>
     </div>
-  )
-}
-
-export function BarrelCaption({ s }: { s: CalcState }) {
-  return (
-    <p className={cn(DATA_MONO, "text-center")}>
-      {s.size.label} barrel · {s.size.units} units
-    </p>
   )
 }
 
@@ -433,7 +459,9 @@ export function WorkingPanel({ s }: { s: CalcState }) {
               </div>
             ) : (
               <p className="text-sm text-text-muted">
-                Enter the powder and BAC water to see the working.
+                {s.size == null
+                  ? "Choose your syringe to see the working."
+                  : "Enter the powder and BAC water to see the working."}
               </p>
             )}
           </div>
@@ -458,4 +486,17 @@ export function PermanentDisclaimer() {
   )
 }
 
-export { NO_VALUE, trim }
+export function ResetRow({ s }: { s: CalcState }) {
+  return (
+    <button
+      type="button"
+      onClick={s.reset}
+      disabled={!s.dirty}
+      className="w-full rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary disabled:pointer-events-none disabled:opacity-40"
+    >
+      Reset
+    </button>
+  )
+}
+
+export { CARD_EYEBROW, NO_VALUE, sanitizeAmount, trim }
