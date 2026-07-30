@@ -4,7 +4,7 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 ---
 
@@ -34,7 +34,8 @@ forward out of order (Adrian's call) because cycles are invisible without it.
 | 03 Calendar | `03-calendar.md` | Done, reviewed. |
 | 05 Stacks | `05-stacks.md` | Done, reviewed twice. |
 | 02 Homepage | `02-homepage.md` | Done, reviewed. |
-| 04 Protocol | `04-protocol.md` | Done. Review was IN FLIGHT when this was written; check for unaddressed findings. |
+| 04 Protocol | `04-protocol.md` | Done, reviewed. |
+| 07 Calculator | `07-calculator.md` | Done, reviewed. See "Awaiting Adrian" below. |
 
 ### ⚠️ OPEN BUGS FOUND BY THREE BREAKAGE AGENTS (2026-07-30). FIX BEFORE NEW SPECS.
 
@@ -119,9 +120,32 @@ gone, re-run the agents: they reproduce these by executing the real code.
 
 ### NEXT UP
 
-`07-calculator.md`, then `08-progress.md`, `09-profile.md`,
-`10-add-compound-item.md`, `11-log-a-dose.md`. Then part one's
-`07-global-sweep.md`, which runs last.
+`08-progress.md`, then `09-profile.md`, `10-add-compound-item.md`,
+`11-log-a-dose.md`. Then part one's `07-global-sweep.md`, which runs last.
+
+### Awaiting Adrian (from spec 07, none of it blocking the next spec)
+
+1. **Spec 07 asks for a Vercel preview deployment; you asked for no pushes.** The
+   branch has no remote, so no preview URL exists for the calculator. The two
+   instructions collide and yours wins for now. Say the word and it goes up on a
+   preview subdomain without touching `main`.
+2. **Two new shared presets were added, which spec 07 says to flag first.**
+   `COLUMN_EYEBROW` and `COLUMN_VALUE` in `lib/ui-presets.ts`, both documented in
+   `ui-context.md`. They exist because "CONCENTRATION" at the 10px eyebrow's
+   0.18em tracking is ~109px and overruns a third of a phone's width with no
+   space to wrap on. `ui-context.md`'s own rule says add the preset rather than
+   invent a one-off, so that is what happened, but it is your call to keep.
+3. **The calculator now shows four amber elements at once** in the misuse state:
+   the barrel fill, the insulin-units figure, the warning, and the permanent
+   disclaimer. Three of the four are spec-mandated, so spec 07 and
+   `ui-context.md`'s "one or two amber beats per screen" rule are in genuine
+   tension. The warning and the disclaimer no longer share identical chrome, so
+   they at least read as different things. Worth a decision before the global
+   sweep.
+4. **The pre-existing open bugs below (items 4 to 8) are still open.** This
+   file's older note says to clear them before starting another spec; your
+   instruction on 2026-07-30 was to run 07 next, so 07 ran. They are unchanged
+   and still marked CRITICAL/HIGH.
 
 ### The working loop Adrian asked for
 

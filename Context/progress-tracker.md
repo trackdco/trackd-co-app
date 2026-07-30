@@ -5,7 +5,7 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 ## Current state (2026-07-23)
 
@@ -26,8 +26,10 @@ near-black + gold amber — a cooler sample was trialled and rejected). Non-urge
 follow-ups (amber judgment calls, etc.) are in `next-tasks.md`.
 
 **Wave 2 part two — IN PROGRESS on branch `wave2/containers-cycles-calendar`**
-(built 2026-07-29, **not merged, not deployed**). Three specs done, in the
-readme's dependency order (build order, not numeric order):
+(started 2026-07-29, **not merged, not deployed**). Seven specs done, in the
+readme's dependency order (build order, not numeric order): containers, cycles,
+calendar, stacks, homepage, protocol, calculator. Remaining: progress, profile,
+add-compound, log-a-dose, then part one's global sweep.
 
 - **01 · Containers** — drawn `Vial` / `Bottle` / `Tub` SVGs + the `Container`
   resolver (`components/containers/`), form and colour resolvers
@@ -50,10 +52,31 @@ readme's dependency order (build order, not numeric order):
   in a tap. The dashboard uses a PARTITION so a member can never appear both in
   its stack row and its category section.
 
-**All three migrations APPLIED (2026-07-29):** `supabase/protocol/006`
-(compound cycles + the runs-dry fix), `007` (stacks), and `008` (stack_members
-ownership hardening — 007 shipped an RLS hole where the one-stack index was
-global across users; 008 makes ownership structural via composite FKs).
+- **02 · Homepage** — the dashboard stripped back to what people open it for.
+  Week strip with a soft raised block for the selected day (Adrian's call, not
+  the spec's amber underline) and the status dot inside the block.
+
+- **04 · Protocol** — one scrolling page, no tabs: Plan, Cycles, Stacks, Stock.
+  Leads with the container, hairline affordance cards, auto-named stacks.
+
+- **07 · Calculator** — a presentation rebuild around a **proportional syringe**.
+  The arithmetic moved verbatim to `lib/calculator/recon.ts` and is PINNED by
+  `recon.test.ts` to 21 input cases captured from the pre-rebuild component, so
+  no later refactor can quietly move a figure. Barrel scale and fill are in
+  `lib/calculator/syringe.ts`; the same dose fills a fifth of a 0.5 mL barrel and
+  a tenth of a 1 mL one, which is the whole point. Gradations labelled every 5 U
+  on 0.3 and 0.5 mL, every 10 U on 1 mL (Adrian, 2026-07-30). Still stateless: no
+  presets, no history, no compound data. `COLUMN_EYEBROW` and `COLUMN_VALUE` were
+  added to `ui-presets` + `ui-context.md` because "CONCENTRATION" at the 10px
+  eyebrow's tracking overruns a third of a phone's width.
+
+**All migrations APPLIED:** `supabase/protocol/006` (compound cycles + the
+runs-dry fix), `007` (stacks), and `008` (stack_members ownership hardening —
+007 shipped an RLS hole where the one-stack index was global across users; 008
+makes ownership structural via composite FKs) on 2026-07-29; `009`
+(ownership hardening on three sibling constraints) and
+`supabase/sites/011_injection_site_enum.sql` (26 new enum values so all 36
+catalogue sites survive a Postgres round-trip) on 2026-07-30. Nothing pending.
 
 The containers review page (`app/preview/containers/`) was reviewed and then
 **deleted**, per spec 01's checklist.
@@ -66,11 +89,15 @@ into `isDueOnFor`, which is pure and synchronous and called by the week strip,
 calendar, consistency and Next Dose — its own pass. Spec 06 asks for five
 conditions; four are live.
 
-**Three review rounds were run by independent agents** (not the author), and each
-found real defects the author had missed — including a live security hole, stacks
-being write-only to Postgres, custom compounds being silently dropped from stacks
-on every hydration, and one-tap logging stamping the scheduled time rather than
-the actual one. All fixed. Worth continuing the practice.
+**An independent review agent (never the author) has been run on every spec in
+this wave, and has found real defects on every single one** — including a live
+security hole, stacks being write-only to Postgres, custom compounds silently
+dropped from stacks on every hydration, one-tap logging stamping the scheduled
+time rather than the actual one, and on spec 07 a `prefers-reduced-motion`
+opt-out that could never fire because an inline `transition` outranked the
+utility class meant to disable it. All fixed. The recurring lesson is that the
+author's own claim that something works is not evidence: the reviews that caught
+the most were the ones that measured the running page instead of reading it.
 
 **Two bugs found and fixed in already-merged code**, both the same class — a
 field silently dropped in a round-trip, causing a deliberate break to read back
