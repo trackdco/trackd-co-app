@@ -259,7 +259,7 @@ export function WeekStrip({
                             shape before you read a single number. */}
                         <span
                           className={cn(
-                            "flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 transition-colors",
+                            "flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 transition-colors",
                             selected && "bg-bg-input"
                           )}
                         >
@@ -288,8 +288,14 @@ export function WeekStrip({
                           >
                             {DAY_SHORT[date.getDay()]}
                           </span>
+                          {/* The status dot is the cell's THIRD LINE, inside the
+                              block. Outside it read as something that had fallen
+                              off the bottom; in here it belongs to the day it
+                              describes and rides the raised surface with it.
+                              Always rendered — a blank day reserves the same
+                              space, so the row never shifts as statuses change. */}
+                          <StatusDot status={status} />
                         </span>
-                        <StatusDot status={status} />
                       </button>
                     )
                   })}
