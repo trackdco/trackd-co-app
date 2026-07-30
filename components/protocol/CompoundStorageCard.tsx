@@ -123,7 +123,11 @@ export function CompoundStorageCard({
               puts it on the gauge rather than on a piece of text. */}
           <span className="mt-0.5 flex w-full flex-col items-center leading-tight">
             <span className="text-[10px] lowercase text-text-subtle">runs dry</span>
-            <span className="font-mono text-[11px] tabular-nums text-foreground">
+            {/* Same weight as the "8.5 mL left" line above it (`--text-muted`,
+                what DATA_MONO uses) rather than full white. The card's figures are
+                one family and should read as one; white made the date the loudest
+                thing on the card, which it is not. */}
+            <span className="font-mono text-[11px] tabular-nums text-text-muted">
               {formatRunsDry(stock?.estEmptyDate ?? null, daysLeft)}
             </span>
           </span>
