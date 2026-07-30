@@ -61,8 +61,10 @@ function UnitToggle({
  * whose entire argument is that you can see what you entered. On the label row
  * it competes with a 10px eyebrow instead of with the figure.
  *
- * A static unit (mL) goes in the label text, matching `AddStockSheet`'s
- * "BAC water (mL)".
+ * A static unit (mL) sits in the same right-hand slot as the toggle, so the two
+ * columns of a paired row keep identical label heights and their inputs line up.
+ * It is NOT folded into the label text: the label is `uppercase`, which would
+ * render "mL" as "ML", and a unit's casing is not cosmetic.
  */
 function Field({
   label,
@@ -87,12 +89,18 @@ function Field({
 
   return (
     <div className="min-w-0">
-      <div className="flex min-h-[22px] items-center justify-between gap-2">
+      {/* Fixed height, sized to the toggle, so a paired row's two label rows
+          match and the inputs beneath them rail. */}
+      <div className="flex h-7 items-center justify-between gap-2">
         <label htmlFor={id} className={FIELD_LABEL}>
-          {staticUnit ? `${label} (${staticUnit})` : label}
+          {label}
         </label>
         {unit && onUnitChange ? (
           <UnitToggle unit={unit} onChange={onUnitChange} label={label} />
+        ) : staticUnit ? (
+          <span className="shrink-0 text-[11px] text-text-muted">
+            {staticUnit}
+          </span>
         ) : null}
       </div>
       <input
@@ -192,51 +200,54 @@ export function CalculatorInputs({
   resettable: boolean
 }) {
   return (
-    <section className="space-y-4 rounded-2xl bg-bg-surface p-5">
-      <p className={CARD_EYEBROW}>Inputs</p>
-
-      <div>
-        <span className={FIELD_LABEL}>Syringe</span>
-        <div className="mt-1.5">
-          <SyringePills sizeId={sizeId} onChange={onSizeChange} />
+    // Heading above the surface at `px-1`, matching Protocol's `CompoundsRow` /
+    // `ScheduleGrid`, so the calculator's sections read like the rest of the app.
+    <section className="space-y-3">
+      <h2 className={cn(CARD_EYEBROW, "px-1")}>Inputs</h2>
+      <div className="space-y-4 rounded-2xl bg-bg-surface p-5">
+        <div>
+          <span className={FIELD_LABEL}>Syringe</span>
+          <div className="mt-1.5">
+            <SyringePills sizeId={sizeId} onChange={onSizeChange} />
+          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field
+            label="Powder"
+            value={powder}
+            onChange={onPowderChange}
+            placeholder="5"
+            unit={powderUnit}
+            onUnitChange={onPowderUnitChange}
+          />
+          <Field
+            label="BAC water"
+            value={bac}
+            onChange={onBacChange}
+            placeholder="2"
+            staticUnit="mL"
+          />
+        </div>
+
         <Field
-          label="Powder"
-          value={powder}
-          onChange={onPowderChange}
-          placeholder="5"
-          unit={powderUnit}
-          onUnitChange={onPowderUnitChange}
+          label="Dose"
+          value={dose}
+          onChange={onDoseChange}
+          placeholder="250"
+          unit={doseUnit}
+          onUnitChange={onDoseUnitChange}
         />
-        <Field
-          label="BAC water"
-          value={bac}
-          onChange={onBacChange}
-          placeholder="2"
-          staticUnit="mL"
-        />
+
+        <button
+          type="button"
+          onClick={onReset}
+          disabled={!resettable}
+          className="w-full rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary disabled:pointer-events-none disabled:opacity-40"
+        >
+          Reset
+        </button>
       </div>
-
-      <Field
-        label="Dose"
-        value={dose}
-        onChange={onDoseChange}
-        placeholder="250"
-        unit={doseUnit}
-        onUnitChange={onDoseUnitChange}
-      />
-
-      <button
-        type="button"
-        onClick={onReset}
-        disabled={!resettable}
-        className="w-full rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary disabled:pointer-events-none disabled:opacity-40"
-      >
-        Reset
-      </button>
     </section>
   )
 }

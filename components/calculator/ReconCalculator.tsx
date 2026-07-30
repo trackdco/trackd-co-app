@@ -145,13 +145,18 @@ export function ReconCalculator() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <FirstRunDisclaimer />
 
       {/* ---- The reading. Bare, outside any card, so the syringe is the screen
               rather than a thing on the screen. Not sticky: it scrolls away with
-              the page (Adrian, 2026-07-30). ---- */}
-      <section>
+              the page (Adrian, 2026-07-30).
+
+              Section heading ABOVE the content at `px-1`, which is Protocol's
+              idiom (`CompoundsRow`, `ScheduleGrid`) and what makes a standalone
+              tab screen read as one page rather than a stack of boxes. ---- */}
+      <section className="animate-home-up space-y-3" style={{ animationDelay: "0ms" }}>
+        <h2 className={cn(CARD_EYEBROW, "px-1")}>Draw</h2>
         <div className="flex items-baseline justify-between gap-3">
           {units != null ? (
             <p className="flex items-baseline gap-2">
@@ -165,7 +170,7 @@ export function ReconCalculator() {
           )}
           <span className={DATA_MONO}>{size.label}</span>
         </div>
-        <div className="-mx-2 mt-2">
+        <div className="-mx-2">
           <SyringeGraphic
             size={size}
             fill={fill}
@@ -180,7 +185,10 @@ export function ReconCalculator() {
 
       {/* Sits directly under the barrel it is about, and only when it fires. */}
       {misuse ? (
-        <div role="alert" className="flex gap-3 rounded-xl bg-accent-amber/15 p-3">
+        <div
+          role="alert"
+          className="animate-home-up flex gap-3 rounded-xl bg-accent-amber/15 p-3"
+        >
           <Warning
             className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
             aria-hidden
@@ -193,8 +201,12 @@ export function ReconCalculator() {
         </div>
       ) : null}
 
-      {/* ---- The three figures behind it ---- */}
-      <section className="grid grid-cols-3 divide-x divide-border-default rounded-2xl bg-bg-surface py-3">
+      {/* ---- The three figures behind it. No heading of its own: the columns
+              are labelled, and it belongs to "Draw" above. ---- */}
+      <section
+        className="animate-home-up grid grid-cols-3 divide-x divide-border-default rounded-2xl bg-bg-surface py-3"
+        style={{ animationDelay: "40ms" }}
+      >
         <Figure
           label="Concentration"
           value={result ? trim(result.concentration, 3) : NO_VALUE}
@@ -216,25 +228,30 @@ export function ReconCalculator() {
       </section>
 
       {/* ---- Inputs ---- */}
-      <CalculatorInputs
-        sizeId={sizeId}
-        onSizeChange={chooseSize}
-        powder={powder}
-        onPowderChange={(v) => setPowder(sanitizeAmount(v))}
-        powderUnit={powderUnit}
-        onPowderUnitChange={setPowderUnit}
-        bac={bac}
-        onBacChange={(v) => setBac(sanitizeAmount(v))}
-        dose={dose}
-        onDoseChange={(v) => setDose(sanitizeAmount(v))}
-        doseUnit={doseUnit}
-        onDoseUnitChange={setDoseUnit}
-        onReset={reset}
-        resettable={resettable}
-      />
+      <div className="animate-home-up" style={{ animationDelay: "80ms" }}>
+        <CalculatorInputs
+          sizeId={sizeId}
+          onSizeChange={chooseSize}
+          powder={powder}
+          onPowderChange={(v) => setPowder(sanitizeAmount(v))}
+          powderUnit={powderUnit}
+          onPowderUnitChange={setPowderUnit}
+          bac={bac}
+          onBacChange={(v) => setBac(sanitizeAmount(v))}
+          dose={dose}
+          onDoseChange={(v) => setDose(sanitizeAmount(v))}
+          doseUnit={doseUnit}
+          onDoseUnitChange={setDoseUnit}
+          onReset={reset}
+          resettable={resettable}
+        />
+      </div>
 
       {/* ---- The working, collapsed by default ---- */}
-      <section className="overflow-hidden rounded-2xl bg-bg-surface">
+      <section
+        className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface"
+        style={{ animationDelay: "120ms" }}
+      >
         <button
           type="button"
           onClick={() => setWorkingOpen((o) => !o)}
@@ -305,7 +322,10 @@ export function ReconCalculator() {
       </section>
 
       {/* ---- Permanent disclaimer. Legal copy, unchanged. ---- */}
-      <div className="flex gap-3 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
+      <div
+        className="animate-home-up flex gap-3 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3"
+        style={{ animationDelay: "160ms" }}
+      >
         <Warning
           className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
           aria-hidden

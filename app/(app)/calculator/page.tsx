@@ -24,9 +24,9 @@ export default function CalculatorPage() {
         </h1>
       </header>
 
-      <div className="animate-home-up" style={{ animationDelay: "60ms" }}>
-        <ReconCalculator />
-      </div>
+      {/* No wrapper animation: the calculator staggers its own sections in with
+          `animate-home-up`, the way Home and Protocol stagger their cards. */}
+      <ReconCalculator />
     </div>
   );
 }
