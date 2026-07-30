@@ -69,7 +69,7 @@ to match. Applying one without the other breaks every schedule-version write.
    `lib/db/injectionSiteRoundTrip.test.ts` proves all 36 survive a round-trip and
    fails loudly if a site is ever added without an enum member. Hydration also
    still prefers a local siteId where the pulled row has none, which covers rows
-   written before 011. **011 needs applying.** Original description: or erased by the Postgres
+   written before 011. **APPLIED by Adrian, 2026-07-30.** Original description: or erased by the Postgres
    round-trip.** `LOCAL_SITE_TO_ENUM` (`lib/db/types.ts`) covers 18 ids; the rest
    collapse to `other` and return as `null`. "Trap - Left" is erased; "Front Quad
    - Left" comes back as "Outer Quad - Left", a different muscle. The verbatim
@@ -133,11 +133,14 @@ files. Do not merge, do not push. Adrian merges everything at the end, in one go
 critical regression the author missed.** This is not ceremony. Keep doing it, with
 a FRESH agent rather than self-review.
 
-### Migrations: ALL THREE APPLIED by Adrian
+### Migrations: ALL APPLIED by Adrian (006, 007, 008, 009, sites/011)
 
 `supabase/protocol/006_compound_cycles.sql` (cycle columns + runs-dry fix),
 `007_stacks.sql` (stack tables), `008_stack_members_ownership.sql` (closes an RLS
-hole 007 shipped; ownership is now structural via composite FKs). Nothing pending.
+hole 007 shipped), `009_ownership_hardening.sql` (the same hole on three more
+constraints, plus the version trail's missing shape CHECK), and
+`supabase/sites/011_injection_site_enum.sql` (26 new enum values so all 36 sites
+round-trip). **Nothing pending.**
 
 ### KNOWN GAPS, carried deliberately
 
