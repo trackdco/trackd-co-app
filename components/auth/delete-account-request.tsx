@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { DANGER_ROW } from "@/lib/ui-presets";
+
 /**
  * Account-deletion request (the in-app "deletion control" the Privacy Policy
  * refers to). During the beta there is no self-serve delete — tapping this opens
@@ -17,7 +19,14 @@ import { createPortal } from "react-dom";
  */
 const SUPPORT_EMAIL = "support@trackdco.app";
 
-export function DeleteAccountRequest({ email }: { email: string }) {
+export function DeleteAccountRequest({
+  email,
+  variant = "link",
+}: {
+  email: string;
+  /** `row` places it in Profile's danger zone (spec 09 · part two). */
+  variant?: "link" | "row";
+}) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -43,7 +52,11 @@ export function DeleteAccountRequest({ email }: { email: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mx-auto block rounded-md px-2 py-2 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-text-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
+        className={
+          variant === "row"
+            ? DANGER_ROW
+            : "mx-auto block rounded-md px-2 py-2 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-text-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
+        }
       >
         Delete my account
       </button>

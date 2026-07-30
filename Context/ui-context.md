@@ -203,9 +203,17 @@ than re-deriving classes per card:
   sizes is the "instrument panel" detail; default spacing reads generic.
 - **`PAGE_TITLE`** — `text-2xl font-light tracking-[-0.02em]
   text-foreground` — the greeting and the `<h1>` on standalone screens
-  (Settings, Weight, Billing).
+  (Profile, Weight, Blocks, Notifications, Billing).
 - **`SHEET_TITLE`** — `text-xl font-light tracking-[-0.01em]
   text-foreground` — bottom-sheet headers.
+- **`DANGER_ROW`** — a row inside Profile's **danger zone** (spec 09 · part
+  two): Sign out, Clear all compounds, Delete my account. Red **label** on an
+  unfilled row, with the boundary carried by the section's own
+  `border-accent-destructive/40` outline. Outlined rather than filled so it
+  reads as a place you enter deliberately rather than an alarm sitting on the
+  page. **Scoped to a bounded destructive section only** —
+  `--accent-destructive` is not a general accent (see Colour), and a red row
+  loose on a page is exactly the misuse that scoping exists to prevent.
 
 Never hand-roll these classes per screen, and never promote an eyebrow to
 a heading size — the inversion (small titles, large values) **is** the

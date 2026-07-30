@@ -509,6 +509,67 @@ A GOAL is a target you hit or miss; a BLOCK is a period you ran. That makes the
   that means good or bad, and no verdict on whether a target was met. A delta of
   minus four kilograms with no comment attached is the shape everything takes.
 
+## Profile, and the end of Settings (Spec 09, wave 2 part two — 2026-07-30)
+
+**There is no Settings route.** `app/(app)/settings/` — its page, its
+`updateSettings` action and `components/settings/settings-form.tsx` — is deleted,
+and everything it held moved onto Profile. Sending someone to a second screen to
+change their height was the thing spec 09 set out to stop.
+
+- **Physical details are edited IN PLACE** (`components/profile/PhysicalCard.tsx`).
+  The card has two states and ONE layout: read is dimmed and inert, Edit fades
+  the same rows into inputs where they already sit. No layout swap and no
+  navigation, which is the spec's wording and the whole point. The Edit control
+  sits on the section header, not inside the card. Saving returns it to the
+  dimmed read state.
+  - **Sex, Height, Goal and Units are editable. Age and Weight are not**, in
+    either state. Age is derived from the date of birth the 18+ gate captured;
+    Weight is the latest `weight_logs` reading, which the Weight view owns
+    (`profiles.weight_kg` is a legacy onboarding snapshot). A second place to
+    type a bodyweight would be a second source of truth for the one number the
+    app is most careful about. Both still render as rows: a gap where a fact
+    should be is worse than a fact you cannot edit here.
+  - **The sex CONFIRM from Spec 19 stays.** Spec 09 says "no warning, no
+    confirmation" about the MARKER filtering — do not add a second prompt for
+    that — and spec 04 recorded this one as untouched. It exists because sex
+    changes what the app DRAWS (the injection-site body map switches figure).
+    Flagged for Adrian rather than silently removed.
+  - `updatePhysical` (`app/(app)/profile/actions.ts`) is the old
+    `updateSettings` with its validation unchanged, minus the redirect to the
+    dashboard: the card is edited in place, so the user stays put. It
+    revalidates `/profile`, `/progress` (sex drives the marker dialer, Spec 04)
+    and `/dashboard` (the body map).
+- **Notifications moved to its own top-level route, `/notifications`.** A child
+  route of a removed parent would have kept the word alive in the URL bar. The
+  `revalidatePath("/settings")` calls in `lib/push/pushActions.ts` and
+  `lib/notifications/prefsActions.ts` were repointed with it.
+  `components/settings/` still holds `NotificationsToggle` and
+  `ReminderSettings`; the FOLDER name is stale but renaming it moves working
+  files for a word nobody sees.
+- **The App card is one row treatment throughout**: Billing, Notifications,
+  Terms, Privacy, Medical Disclaimer, Send feedback, then Install (which
+  self-hides). Notifications is no longer a visually heavier card than the legal
+  links beside it. **Billing states the plan and goes nowhere** — it is not
+  greyed out, because it reads as information, which is what it is. When
+  RevenueCat lands it gains a destination and nothing else changes.
+- **The danger zone is bounded and OUTLINED, not filled** — a red section label
+  and a `border-accent-destructive/40` card holding Sign out, Clear all
+  compounds and Delete my account, each keeping its existing portaled
+  confirmation. Outlined so it reads as a place you enter deliberately rather
+  than an alarm. The three components gained a `variant="row"` sharing the
+  `DANGER_ROW` preset (`ui-context.md`) rather than three copies of a
+  destructive treatment, which is how one of them quietly stops matching.
+- **The avatar is 112px and is the whole control.** The "Change photo" and
+  "Remove" text links are gone. With no photo a tap opens the file picker
+  directly; with one it opens a two-choice sheet, because "removing a photo
+  moves inside that flow" and there is nowhere else left for Remove to live.
+  Judgement call, flagged. Framing still routes through `PhotoAdjustSheet` at
+  `AVATAR_ASPECT` (1:1).
+- `ProfileScreen` is presentational and the page is the data wrapper, so the
+  dev-only `/preview/profile` (`?state=bare` for a fresh signup) renders the
+  whole screen unauthed. Writes fail there by design — every one of them
+  resolves identity from a verified session.
+
 ## Stacks (Spec 05, wave 2 part two — 2026-07-29)
 
 **A stack is a DISPLAY GROUPING, never a container.** Every member keeps its own

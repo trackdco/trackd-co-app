@@ -63,3 +63,13 @@ export const UNIT_SUFFIX = "text-sm text-text-muted"
  *  `tracking-[0.08em]`: tracked-out mono at small sizes is the instrument-panel
  *  detail; default spacing reads generic. */
 export const DATA_MONO = "font-mono text-xs tabular-nums text-text-muted"
+
+/** A row inside the Profile danger zone (spec 09 · part two) — Sign out, Clear
+ *  all compounds, Delete my account. Red LABEL on an unfilled row; the boundary
+ *  is the section's own outline, so the rows themselves stay quiet. A preset
+ *  rather than three copies, because three copies of a destructive treatment is
+ *  how one of them quietly stops matching the others. Never use it outside a
+ *  bounded destructive section: `--accent-destructive` is scoped to deliberate
+ *  destructive actions, not a general accent. */
+export const DANGER_ROW =
+  "flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-accent-destructive outline-none transition-colors hover:bg-accent-destructive/10 active:bg-accent-destructive/10 focus-visible:bg-accent-destructive/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
+import { DANGER_ROW } from "@/lib/ui-presets";
 import { signOut } from "@/app/(app)/actions";
 
 /**
@@ -15,9 +16,16 @@ import { signOut } from "@/app/(app)/actions";
  *
  * `variant`:
  *  - `link`   — the quiet header text link.
- *  - `button` — the Profile bottom button, styled deep red (destructive token).
+ *  - `button` — a standalone deep-red button (destructive token).
+ *  - `row`    — a row inside Profile's danger zone (spec 09 · part two). The
+ *               section's outline carries the boundary, so the row is unfilled
+ *               and only its label is red.
  */
-export function SignOutConfirm({ variant }: { variant: "link" | "button" }) {
+export function SignOutConfirm({
+  variant,
+}: {
+  variant: "link" | "button" | "row";
+}) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -34,12 +42,16 @@ export function SignOutConfirm({ variant }: { variant: "link" | "button" }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cn(
-          "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
-          variant === "link"
-            ? "-mr-2 rounded-md px-2 py-2 text-sm text-text-muted hover:text-foreground"
-            : "flex w-full items-center justify-center rounded-2xl border border-accent-destructive/50 bg-accent-destructive/10 py-3.5 text-sm font-medium text-accent-destructive hover:bg-accent-destructive/15",
-        )}
+        className={
+          variant === "row"
+            ? DANGER_ROW
+            : cn(
+                "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
+                variant === "link"
+                  ? "-mr-2 rounded-md px-2 py-2 text-sm text-text-muted hover:text-foreground"
+                  : "flex w-full items-center justify-center rounded-2xl border border-accent-destructive/50 bg-accent-destructive/10 py-3.5 text-sm font-medium text-accent-destructive hover:bg-accent-destructive/15",
+              )
+        }
       >
         Sign out
       </button>

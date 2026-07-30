@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 
+import { DANGER_ROW } from "@/lib/ui-presets"
 import { wipeMyProtocol } from "@/lib/db/resetProtocol"
 
 /**
@@ -21,7 +22,14 @@ import { wipeMyProtocol } from "@/lib/db/resetProtocol"
  * alone never sticks while the device still holds a copy. Does NOT touch weight,
  * progress photos, bloodwork or journal — only the compound stack.
  */
-export function StartFreshSection({ userId }: { userId: string }) {
+export function StartFreshSection({
+  userId,
+  variant = "link",
+}: {
+  userId: string
+  /** `row` places it in Profile's danger zone (spec 09 · part two). */
+  variant?: "link" | "row"
+}) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -57,7 +65,11 @@ export function StartFreshSection({ userId }: { userId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mx-auto block rounded-md px-2 py-2 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-text-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
+        className={
+          variant === "row"
+            ? DANGER_ROW
+            : "mx-auto block rounded-md px-2 py-2 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-text-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
+        }
       >
         Clear all compounds &amp; stock
       </button>

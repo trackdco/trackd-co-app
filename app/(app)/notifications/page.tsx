@@ -12,10 +12,16 @@ export const metadata: Metadata = {
 };
 
 /**
- * Notifications & reminders — the dedicated screen, opened from a row on Settings
- * so it has room to grow (Spec 14). The enable toggle + test send, then the
- * reminder preferences (types, daily time, quiet hours). The (app) layout enforces
- * auth + the gate; all reads/writes are RLS-scoped to the user's own rows.
+ * Notifications & reminders — the dedicated screen, opened from the App card on
+ * Profile (Spec 14, re-homed by spec 09 · part two). The enable toggle + test
+ * send, then the reminder preferences (types, daily time, quiet hours). The
+ * (app) layout enforces auth + the gate; all reads/writes are RLS-scoped to the
+ * user's own rows.
+ *
+ * It lives at `/notifications` rather than under `/settings` because Settings is
+ * gone: spec 09 dissolved it into Profile, route and all. A child route of a
+ * removed parent would have kept the word alive in the URL bar and in every
+ * future reader's mental model.
  */
 export default async function NotificationsSettingsPage() {
   const supabase = await createClient();
@@ -69,8 +75,8 @@ export default async function NotificationsSettingsPage() {
       />
 
       <div className="mt-10 text-sm text-text-muted">
-        <Link href="/settings" className="hover:text-foreground">
-          ← Back to settings
+        <Link href="/profile" className="hover:text-foreground">
+          ← Back to profile
         </Link>
       </div>
     </div>
