@@ -137,11 +137,15 @@ wherever Adrian wants it.
 ### PARKED DECISIONS (coded around, nothing blocked)
 
 **BLOCKS — SETTLED and STARTED. Two things must land before it ships.**
-1. **No Postgres mirror yet.** `lib/blocks/blockStore.ts` is device-local only.
-   Losing a sixteen-week prep to a PWA reinstall would be the worst possible bug
-   in a feature whose whole point is looking back, so a `blocks` table + mirror
-   is REQUIRED before this is user-visible. The store's shape is already the one
-   that table would take, so it is a sync layer rather than a rewrite.
+1. **MIGRATION READY TO APPLY: `supabase/blocks/001_blocks.sql`.**
+   Two tables, `blocks` and `block_targets`. Ownership is structural (composite
+   FK, per 008/009), one-live-block-per-user is a PARTIAL UNIQUE INDEX rather
+   than a trigger so it cannot be raced, and `block_targets.variable` is
+   CHECK-constrained to weight and consistency with bloodwork deliberately
+   excluded. Apply it via the Supabase MCP, then say so and the sync layer goes
+   in — `lib/blocks/blockStore.ts` is device-local until then, and losing a
+   sixteen-week prep to a PWA reinstall would be the worst possible bug in a
+   feature whose whole point is looking back.
 2. **`/blocks` is a scaffold.** The banner links to it and reads a live block
    correctly; the live detail, the retrospective, and the create flow are next.
 

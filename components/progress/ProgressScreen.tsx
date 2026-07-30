@@ -72,6 +72,7 @@ export function ProgressScreen({
 }) {
   const unit = unitForPreference(unitPreference);
 
+
   return (
     <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
       <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
@@ -85,6 +86,7 @@ export function ProgressScreen({
           userId={userId}
           todayKey={todayKey}
           sampleBlocks={previewBlocks}
+          weight={weight}
         />
       </div>
 

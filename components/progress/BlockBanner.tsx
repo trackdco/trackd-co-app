@@ -2,11 +2,21 @@
 
 import { useSyncExternalStore } from "react"
 import Link from "next/link"
-import { CaretRight } from "@/components/icons"
+import { CaretRight, Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
-import { activeBlock, blockProgress, type Block } from "@/lib/blocks/block"
+import {
+  CARD_EYEBROW,
+  DATA_MONO,
+  METRIC_VALUE,
+  UNIT_SUFFIX,
+} from "@/lib/ui-presets"
+import {
+  activeBlock,
+  blockProgress,
+  targetProgress,
+  type Block,
+} from "@/lib/blocks/block"
 import {
   EMPTY_BLOCKS,
   getBlocksSnapshot,
@@ -31,11 +41,18 @@ import {
 export function BlockBanner({
   userId,
   todayKey,
+  weight,
   /** Dev-preview-only: render without a device store. */
   sampleBlocks,
 }: {
   userId: string
   todayKey: string
+  /**
+   * Bodyweight points, oldest first. The start reading is resolved HERE rather
+   * than by the caller because only this component knows which block is live,
+   * and the server that renders the page cannot read the device store at all.
+   */
+  weight?: { key: string; kg: number }[]
   sampleBlocks?: Block[]
 }) {
   const live = useSyncExternalStore(
@@ -46,28 +63,46 @@ export function BlockBanner({
   const blocks = sampleBlocks ?? live
   const block = activeBlock(blocks)
 
-  // Nothing live: an invitation, not an empty state with a hole in it. This is
-  // also where the word "block" gets taught, which is the answer to "will people
-  // know what that means" without reaching for a mushier word.
+  // Nothing live: the same hairline affordance Protocol uses for a new stack or
+  // cycle (Adrian), so an empty slot looks the same wherever you meet one. Also
+  // where the word gets taught, in one line.
   if (!block) {
     return (
       <Link
         href="/blocks"
-        className="flex items-center gap-3 rounded-2xl bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised/40"
+        className="hairline flex w-full flex-col items-center gap-1.5 rounded-2xl border-border-default px-6 py-5 text-center text-text-muted transition hover:text-foreground active:scale-[0.98]"
       >
-        <span className="min-w-0 flex-1">
-          <span className={cn(CARD_EYEBROW, "block")}>Blocks</span>
-          <span className="mt-1.5 block text-sm text-text-muted">
-            A block is a stretch of training with a start and an end. A prep, an
-            off-season, a cut.
-          </span>
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <Plus className="h-4 w-4" aria-hidden />
+          New block
         </span>
-        <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+        <span className="text-xs text-text-subtle">
+          A prep, an off-season, a cut. Start and end dates, and what you ran.
+        </span>
       </Link>
     )
   }
 
   const p = blockProgress(block, todayKey)
+  const t = block.targets[0]
+  // Against the reading on (or last before) the block's start date, so the
+  // target measures from where the user actually began rather than from their
+  // earliest ever weigh-in.
+  // The last reading before the block began, or failing that the FIRST one
+  // inside it. Someone who started logging weight after starting the block still
+  // gets a target reading, anchored to their first weigh-in of it rather than to
+  // nothing at all.
+  const startValue =
+    t?.variable === "weight"
+      ? (weight?.filter((w) => w.key <= block.startedOn).at(-1)?.kg ??
+        weight?.find((w) => w.key >= block.startedOn)?.kg ??
+        null)
+      : null
+  const currentValue = t?.variable === "weight" ? (weight?.at(-1)?.kg ?? null) : null
+  const target =
+    t && startValue != null && currentValue != null
+      ? targetProgress(t, startValue, currentValue)
+      : null
 
   return (
     <Link
@@ -75,14 +110,19 @@ export function BlockBanner({
       className="block rounded-2xl bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised/40"
     >
       <div className="flex items-center gap-3">
-        <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>
-          {block.name}
-        </span>
-        <span className={DATA_MONO}>
-          {p.totalWeeks != null ? `Week ${p.week} of ${p.totalWeeks}` : `Week ${p.week}`}
-        </span>
+        <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Block</span>
         <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
       </div>
+
+      <p className="mt-1.5 flex items-baseline gap-2">
+        <span className={METRIC_VALUE}>
+          {p.totalWeeks != null ? `${p.week}` : `${p.week}`}
+        </span>
+        <span className={UNIT_SUFFIX}>
+          {p.totalWeeks != null ? `of ${p.totalWeeks} weeks` : "weeks in"}
+        </span>
+      </p>
+      <p className="mt-0.5 truncate text-sm text-text-muted">{block.name}</p>
 
       {/* A bar, not a ring. It is one figure and it is a length of time, which
           is what a bar already looks like. Open-ended blocks get no bar at all
@@ -100,6 +140,23 @@ export function BlockBanner({
             className="h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
             style={{ width: `${p.fraction * 100}%` }}
           />
+        </div>
+      ) : null}
+
+      {/* The target, when there is one. A SECOND reading beside the time, never
+          folded into it: a combined percentage across two unrelated measures
+          would be a number nobody could act on. */}
+      {target ? (
+        <div className="mt-3 flex items-baseline justify-between gap-3">
+          <span className={DATA_MONO}>
+            {target.variable === "weight" ? "Weight" : "Consistency"}
+          </span>
+          <span className={DATA_MONO}>
+            {target.fraction != null ? `${Math.round(target.fraction * 100)}%` : ""}
+            {target.remaining > 0
+              ? ` · ${trimNum(target.remaining)}${target.variable === "weight" ? " kg" : "%"} to go`
+              : " · reached"}
+          </span>
         </div>
       ) : null}
 
@@ -133,4 +190,9 @@ function formatDate(key: string | null): string {
   const [y, m, d] = key.split("-").map(Number)
   if (!y || !m || !d) return key
   return `${d} ${MONTHS_SHORT[m - 1] ?? ""}`
+}
+
+/** One decimal at most, trailing zero dropped: "4", "3.5". */
+function trimNum(n: number): string {
+  return String(Number(n.toFixed(1)))
 }
