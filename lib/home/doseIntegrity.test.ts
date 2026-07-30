@@ -487,3 +487,31 @@ describe("Spec 02 · the Next Dose card resolves through the shared helper", () 
     expect(next?.compound.id).toBe("timed")
   })
 })
+
+describe("schedule day-counting is DST-safe (proven bug, Europe/London)", () => {
+  it("does not collapse or skip a day across a UTC+0 DST transition", () => {
+    // 2026-03-29 and 2026-03-30 previously shared one day number in London, and
+    // 25 -> 26 October skipped one. An every-other-day protocol therefore showed
+    // a 3-day gap in March, two consecutive due days in October, and its phase
+    // inverted permanently after each transition.
+    const c = compound({
+      schedule: schedule({ cadence: { type: "everyOtherDay" }, startDate: "2026-03-02" }),
+    })
+    const due = (k: string) => isDueOnFor(c, dateKeyToDate(k))
+    // Strict alternation across the March boundary.
+    expect([
+      due("2026-03-26"), due("2026-03-27"), due("2026-03-28"),
+      due("2026-03-29"), due("2026-03-30"), due("2026-03-31"),
+    ]).toEqual([true, false, true, false, true, false])
+    // And across the October one.
+    expect([
+      due("2026-10-24"), due("2026-10-25"), due("2026-10-26"), due("2026-10-27"),
+    ]).toEqual([true, false, true, false])
+  })
+
+  it("is never due the day BEFORE its own start date", () => {
+    const c = compound({ schedule: schedule({ startDate: "2026-03-30" }) })
+    expect(isDueOnFor(c, dateKeyToDate("2026-03-29"))).toBe(false)
+    expect(isDueOnFor(c, dateKeyToDate("2026-03-30"))).toBe(true)
+  })
+})

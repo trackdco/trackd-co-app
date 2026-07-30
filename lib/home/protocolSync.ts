@@ -883,7 +883,11 @@ export async function deleteProtocolDoseLog(
  * lost; applying the migration simply starts backing them up.
  */
 function isMissingTable(error: { code?: string } | null): boolean {
-  return error?.code === "42P01"
+  // PostgREST resolves the table from its schema cache and answers PGRST205
+  // BEFORE reaching Postgres, so a genuinely absent table never surfaces 42P01.
+  // Checking only the latter made the documented "tolerant of the table not
+  // existing yet" path dead code.
+  return error?.code === "42P01" || error?.code === "PGRST205"
 }
 
 /**

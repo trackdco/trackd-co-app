@@ -20,6 +20,9 @@ import type { Stack } from "@/lib/home/stacks"
 
 type Ok = { ok: boolean; skipped?: boolean }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 async function ctx() {
   const supabase = await createClient()
   const {
@@ -61,7 +64,10 @@ export async function pushStacks(
     // plain delete-all, not `NOT IN ('')` — Postgres cannot cast '' to uuid, so
     // the filtered form errors (22P02) and deleting your last stack would fail
     // server-side while reporting success.
-    const keep = stacks.map((s) => s.id)
+    // Only uuid-shaped ids reach the filter string. A legacy `s_…` id, or one
+    // carrying a comma or quote, would otherwise break the PostgREST parse and
+    // permanently fail the mirror.
+    const keep = stacks.map((s) => s.id).filter((id) => UUID_RE.test(id))
     const del = cx.supabase.from("stacks").delete().eq("user_id", cx.userId)
     const { error: delErr } = await (keep.length > 0
       ? del.not("id", "in", `(${keep.join(",")})`)
@@ -111,7 +117,12 @@ export async function pushStacks(
     const rows = stacks.flatMap((s) =>
       s.memberIds
         .map((clientId, position) => {
-          const pcId = idMap[clientId]
+          // `Object.hasOwn`, not `idMap[clientId]`: a member id of "__proto__"
+          // reads Object.prototype off an EMPTY map, which is truthy, so it was
+          // counted as resolved and sent as `protocol_compound_id: {}`. The
+          // membership delete runs first, so that one bad id wiped every stack's
+          // membership in Postgres and then failed the insert.
+          const pcId = Object.hasOwn(idMap, clientId) ? idMap[clientId] : undefined
           // A member with no Postgres row yet (an unmigrated custom) is skipped
           // rather than faked — the device store still holds the membership.
           if (!pcId || claimed.has(pcId)) return null
@@ -124,7 +135,7 @@ export async function pushStacks(
     // member produce a row" — a duplicate collapsed just above is correct
     // behaviour, whereas a member whose Postgres row we could not find means the
     // mirror is incomplete and the next mutation should retry.
-    const unresolved = clientIds.filter((id) => !idMap[id]).length
+    const unresolved = clientIds.filter((id) => !Object.hasOwn(idMap, id)).length
     if (rows.length === 0) return { ok: unresolved === 0 }
 
     const { error: memErr } = await cx.supabase.from("stack_members").insert(rows)

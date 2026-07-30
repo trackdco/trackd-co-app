@@ -881,10 +881,25 @@ function mod(a: number, n: number): number {
   return ((a % n) + n) % n
 }
 
-/** Whole local days since the Unix epoch (DST-safe — uses the local midnight). */
+/**
+ * Whole days since the epoch for a date, counted in UTC.
+ *
+ * Dividing a LOCAL midnight by a UTC day length only holds where the offset never
+ * crosses zero. In Europe/London 29 and 30 March 2026 collapse onto the SAME day
+ * number and 26 October skips one, so an every-other-day protocol showed a 3-day
+ * gap across the March transition, two consecutive due days across the October
+ * one, and its phase permanently inverted after each. A compound could also read
+ * as due the day BEFORE its own start date.
+ *
+ * `cycleRule.ts` already fixed this on the cycle layer and named the same zones;
+ * the schedule layer underneath it was missed, so `isDueOnFor` had a UTC-correct
+ * gate sitting on top of a drifting one. The date carries no meaningful
+ * time-of-day here, so UTC is the right frame to count it in.
+ */
 function daysSinceEpoch(date: Date): number {
-  const midnight = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  return Math.floor(midnight.getTime() / 86_400_000)
+  return Math.floor(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000
+  )
 }
 
 /** Parse a "YYYY-MM-DD" key to a local-midnight Date, or null if malformed. */
