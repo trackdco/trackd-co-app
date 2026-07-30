@@ -10,64 +10,92 @@ Last updated: 2026-07-29
 
 ## 🎯 Current focus
 
-**Wave 2 part one is DONE and LIVE on prod.** Specs 01-07 plus the delete-gap fix
-are merged to `main` (PR #61, merged 2026-07-29) and deployed. All three migrations
-applied. Typecheck, lint, `next build` and 73 tests green; reviewed by CodeRabbit
-(2 rounds) plus a structured self-review and a security pass.
+# WAVE 2 PART TWO IS IN PROGRESS ON A BRANCH. READ THIS BEFORE ANYTHING ELSE.
 
-**Next: wave 2 part two** — eleven specs in `Context/Feature Specs/wave 2 -
-refinement/part two/`, starting with `00-readme-pt2.md` to work out the sequencing.
-Not started; Adrian will say when.
+**Branch: `wave2/containers-cycles-calendar`. NOT merged, NOT pushed. `main` is
+untouched.** Everything below is committed on that branch, so nothing is at risk;
+a new session picks up by reading this file and `git log d26034a..HEAD`.
 
-### Verified on device by Adrian (2026-07-29)
-Everything works EXCEPT rotation lock, which is the documented iOS limitation:
-WebKit exposes no orientation-lock API to web pages, and the manifest's
-`orientation` is not honoured for iOS home-screen apps. Accepted — the alternatives
-were a rotate-message overlay (rejected: would trap anyone whose device is locked
-to landscape for accessibility) or a CSS transform hack that breaks scrolling and
-input focus. Android installed is genuinely locked.
+Last updated: 2026-07-30
 
-### Still open (nothing blocking)
-1. **Placeholder wording for an unset time** — currently **"Not set"**, worded once
-   in `formatTimeLabel`. Since the pre-fill was restored this renders whenever
-   someone clears the field, not just for legacy records. Confirm or change.
-2. **`QuickTrackSheet` empty-state copy** still says "Nothing scheduled for today"
-   while the sheet can be parked on another day. Missed by the spec-07 sweep
-   because it reads correctly in isolation; it's the date-awareness that's wrong.
-3. **Spec 06's blocked paths** were verified by reading the code and RLS policies,
-   not by executing them. Two minutes with a throwaway account: `/admin` signed in
-   as a non-founder should say "Founders only" with no data; signed out should show
-   the sign-in screen.
-4. **The `iu` per-dose-draw path (Spec 21)** still has zero production coverage —
-   all live inventory is `mg`. Test when a real HGH/hCG vial exists.
+### Sequencing
+
+The readme's table is BUILD order, not numeric order. Part two runs:
+containers -> cycles -> stacks -> homepage -> calendar -> protocol -> calculator
+-> progress -> profile -> add-compound -> log-a-dose. The calendar was pulled
+forward out of order (Adrian's call) because cycles are invisible without it.
+
+### DONE and reviewed
+
+| Spec | File | State |
+| --- | --- | --- |
+| 01 Containers | `01-containers.md` | Done, reviewed. Demo page at `/preview/containers`. |
+| 06 Cycles | `06-cycles.md` | Done, reviewed twice. FOUR of five end conditions live. |
+| 03 Calendar | `03-calendar.md` | Done, reviewed. |
+| 05 Stacks | `05-stacks.md` | Done, reviewed twice. |
+| 02 Homepage | `02-homepage.md` | Done, reviewed. |
+| 04 Protocol | `04-protocol.md` | Done. Review was IN FLIGHT when this was written; check for unaddressed findings. |
+
+### NEXT UP
+
+`07-calculator.md`, then `08-progress.md`, `09-profile.md`,
+`10-add-compound-item.md`, `11-log-a-dose.md`. Then part one's
+`07-global-sweep.md`, which runs last.
+
+### The working loop Adrian asked for
+
+Per spec: implement -> verify (tsc, lint, `npm test`, `next build`) -> commit ->
+run an INDEPENDENT review agent -> fix findings -> commit -> update these context
+files. Do not merge, do not push. Adrian merges everything at the end, in one go.
+
+**Review agents have found real defects on every spec so far, including one
+critical regression the author missed.** This is not ceremony. Keep doing it, with
+a FRESH agent rather than self-review.
+
+### Migrations: ALL THREE APPLIED by Adrian
+
+`supabase/protocol/006_compound_cycles.sql` (cycle columns + runs-dry fix),
+`007_stacks.sql` (stack tables), `008_stack_members_ownership.sql` (closes an RLS
+hole 007 shipped; ownership is now structural via composite FKs). Nothing pending.
+
+### KNOWN GAPS, carried deliberately
+
+**Cycle end condition 3, "ends when the vial runs out", is WITHHELD.** The rule is
+implemented and tested; nothing derives the day a vial actually ran dry, so it is
+gated behind `VIAL_END_SUPPORTED = false` in `lib/protocol/cycleRule.ts` rather
+than shipped as a control that silently does nothing. Wiring it means threading a
+Postgres read into `isDueOnFor`, which is pure and synchronous and called by the
+week strip, calendar, consistency and Next Dose. Its own pass.
+
+**Injection sites are not captured when a stack is logged in one tap.** A stack
+tick has no body map, and inventing a site would corrupt the recency view.
+
+### Decisions Adrian has SETTLED - do not re-litigate
+
+- Week strip: soft raised block for the selected day, NOT the amber underline the
+  spec specified. Status dot sits INSIDE the block.
+- "Nothing scheduled / No doses planned for this day." for a day with no doses.
+- Today card dot cap: 9, then "+N".
+- Runs-dry: amber on the BAR at 7 days or fewer, never on the text. The date takes
+  `--text-muted` to match the other figures; the "runs dry" label is lowercase and
+  dimmer. Recorded as a scoped exception in `architecture.md`.
+- Cycle countdown-versus-date crossover: 14 days.
+- Schedule: rows of dots, NOT a table. Icon-led headings, white labels.
+- New stack / new cycle: hairline outline card, ghost preview, ONE line of copy
+  when empty.
+- Unnamed stacks auto-name "Stack N", lowest free number. Relaxes Spec 05's
+  "name required".
+- Tabs and caps DO show stock (it already existed and was merely hidden). Powders
+  genuinely have none and say so.
+- Compound detail sheet leads with the CONTAINER. Specs 10 and 11 reuse that header.
+- **NO EM DASHES in any user-facing string.** Hard rule, `ui-context.md` under
+  Voice and Microcopy.
+
+### Merging, when Adrian says so
+
+`main` deploys straight to Vercel prod, so merge ONLY on his word. Before it:
+tsc, lint, `npm test` and `next build` all clean; decide whether the `/preview/*`
+demo pages ship; do not rewrite the migration files.
 
 ---
 
-## ▶ Open / non-urgent
-
-- **Restyle — on-device eyeball of the amber judgment calls** (all shipped, each
-  reversible in a follow-up if it doesn't land):
-  - iOS install-prompt steps now use plain **mono numerals** — the Share/Plus
-    glyphs were dropped. The one most worth a look (the Share glyph helps people
-    find the iOS Share button).
-  - **Warning callouts** kept amber (blend-overlap, dose-change, recon safety
-    disclaimer, the soft-delete confirm's solid-amber button) + the LogDose
-    **live clock** — keep, or move to `--state-warning` / white?
-  - Buttons one notch lighter app-wide (`font-semibold`→`font-medium`); month
-    headers demoted to eyebrows (Weight / journal / photo galleries).
-
-- **Pre-launch legal copy** — 3 items parked verbatim in the Privacy Policy,
-  awaiting Adrian's direction (see progress-tracker → Open Questions): §7
-  backup-retention window (unconfirmed), §9 regional-law compliance clause (needs
-  legal sign-off), §5/§10 name the Supabase + Vercel regions.
-
-- **Supabase dashboard — leaked-password protection** (HaveIBeenPwned) + min
-  password length ≥ 8 (Authentication → Attack Protection / Email). Small hardening
-  toggle flagged across earlier specs; confirm it's on.
-
-- **Known QA gap (non-blocking):** the per-dose-draw `iu` path (Spec 21) has zero
-  production coverage — all live inventory is `mg`. Test once a real HGH/hCG (`iu`)
-  vial exists (`2iu @ 20iu/mL → 10u (0.1 mL)`).
-
-Device QA for the other shipped features (Spec 19 female bodies, Spec 21 draw,
-Spec 22 markers/photos) is non-blocking — they're live and working.
