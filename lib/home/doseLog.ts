@@ -16,7 +16,7 @@ import {
   pushProtocolDoseLog,
   deleteProtocolDoseLog,
 } from "@/lib/home/protocolSync"
-import { trackSync } from "@/lib/home/syncStatus"
+import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
 
 export type DayLogs = Record<string, Record<string, DoseLog>>
 
@@ -175,7 +175,11 @@ export function unlogDose(userId: string, dateKey: string, compoundId: string) {
   saveDoseLogs(userId, next)
   notify()
   void deleteDoseLog(dateKey, compoundId)
-  void trackSync(deleteProtocolDoseLog(compoundId, dateKey)) // Postgres (no-op for customs)
+  // CRITICAL, not ordinary: `hydrateFromPostgres` awaits only critical syncs, so
+  // an un-log tracked as ordinary let a pull that overlapped it read the row as
+  // still present and write it straight back. Unticking then backgrounding the app
+  // refilled the tick, with its original amount, time and site.
+  void trackCriticalSync(deleteProtocolDoseLog(compoundId, dateKey))
 }
 
 // There is deliberately NO "erase every logged dose for a compound" here (Spec 02):

@@ -19,6 +19,7 @@ import {
   formatDateKeyShort,
   formatTimeLabel,
   isInjectable,
+  resolveScheduleOn,
   sanitizeDoseInput,
   type StackCompound,
 } from "@/lib/home/stack"
@@ -175,7 +176,11 @@ function LogDoseBody({
 
   // A1: the preset dose shows as a VALUE; tapping it reveals the keypad-bound
   // input. So there's no keypad on open and the preset reads as a figure.
-  const [amount, setAmount] = useState(existing?.amount ?? String(compound.dose))
+  // The dose AS IT WAS on the day being logged, not the compound's current one.
+  // `resolveScheduleOn` is what every retrospective READ already uses; the write
+  // was reading the live compound, so back-dating a day recorded today's dose.
+  const onDay = resolveScheduleOn(compound, dateKey)
+  const [amount, setAmount] = useState(existing?.amount ?? String(onDay.dose))
   const [editingAmount, setEditingAmount] = useState(false)
 
   // `manualTime === null` ⇒ take the day's default; any value ⇒ the user's own,
@@ -340,12 +345,23 @@ function LogDoseBody({
     // time when back-dating (the clock says nothing about a dose taken yesterday).
     return {
       amount,
-      // Stamped at log time so this dose keeps the unit it was recorded in, even
-      // if the compound's unit is changed later (see DoseLog.unit).
-      unit: compound.unit,
+      /**
+       * The unit this dose is RECORDED in, and the comment above used to be a
+       * lie: reading `compound.unit` meant editing an existing dose re-stamped it
+       * with whatever the compound's unit happens to be NOW. Log 500 mcg, later
+       * switch the compound to mg, then edit that dose's time, and it became
+       * 500 mg in both stores. The figure survived and its meaning changed
+       * thousandfold, which is the exact regression `DoseLog.unit` was introduced
+       * to prevent, reopened through the edit path.
+       *
+       * Order: the unit it was already logged in wins; otherwise the unit that was
+       * in force ON THAT DAY (a back-dated log must not be stamped with today's
+       * rule); the compound's current unit is the last resort.
+       */
+      unit: existing?.unit ?? onDay.unit ?? compound.unit,
       siteId: injectable && siteOnRoute ? siteId : null,
       time24:
-        manualTime ?? (onToday ? toHHMM(new Date()) : compound.schedule.timeOfDay),
+        manualTime ?? (onToday ? toHHMM(new Date()) : onDay.schedule.timeOfDay),
       inventoryItemId,
     }
   }

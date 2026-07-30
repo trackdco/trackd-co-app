@@ -36,6 +36,64 @@ forward out of order (Adrian's call) because cycles are invisible without it.
 | 02 Homepage | `02-homepage.md` | Done, reviewed. |
 | 04 Protocol | `04-protocol.md` | Done. Review was IN FLIGHT when this was written; check for unaddressed findings. |
 
+### ⚠️ OPEN BUGS FOUND BY THREE BREAKAGE AGENTS (2026-07-30). FIX BEFORE NEW SPECS.
+
+Adrian's instruction: fix these before starting another spec. Several are in code
+that predates this wave and is LIVE ON PROD, which makes them more urgent, not
+less. Fixed so far: the DST drift, the `__proto__` mirror wipe, the dose-unit
+rewrite, and the un-log resurrection race.
+
+**CRITICAL / HIGH, still open:**
+
+1. **Offline doses never reach Postgres.** `migrateDeviceState` checks
+   `hasMigratedInCloud()` BEFORE honouring its own `force` flag, so the
+   `online`-event re-push in `useCloudHydration` is a no-op for every existing
+   user. `hydrateFromPostgres` re-pushes compounds only, never dose logs, and
+   there is no outbox. Log offline, reconnect, reinstall: those doses are gone.
+2. **22 of the 36 injection sites are corrupted or erased by the Postgres
+   round-trip.** `LOCAL_SITE_TO_ENUM` (`lib/db/types.ts`) covers 18 ids; the rest
+   collapse to `other` and return as `null`. "Trap - Left" is erased; "Front Quad
+   - Left" comes back as "Outer Quad - Left", a different muscle. The verbatim
+   siteId IS in `user_dose_logs` but Postgres wins the merge. Fix: extend the enum
+   or prefer the mirror's siteId.
+3. **Un-log has no TOMBSTONE.** The critical-sync fix closes the race, but an
+   un-log performed OFFLINE is still resurrected by the next pull, because
+   hydration seeds from `pg.doseRows` unconditionally and there is no
+   local-wins reconciliation for logs (compounds have one).
+4. **Dose writes derive the Postgres id instead of resolving it.**
+   `pushProtocolDoseLog` / `deleteProtocolDoseLog` use `resolvePcId`, not
+   `findProtocolCompoundId`. When ids diverge the write returns
+   `{ok:false, skipped:true}` and `trackSync` suppresses the warning, so it is
+   silently lost.
+5. **Protocol has NO add-compound affordance** and its own empty copy tells the
+   user to add one. Every control on the page is dead for a new account.
+6. **"add stock" on a dose row discards the compound** - it pushes `/protocol`
+   and drops the argument, so the user must find the card again themselves.
+7. **The journal card opens the EDIT editor, not Write**, with the marker dialer
+   force-expanded, and dismissing it opens the feed sheet nobody asked for. On a
+   FUTURE day the save is rejected and the date field is hidden in edit mode, so
+   the entry cannot be saved or corrected, only abandoned.
+8. **Three sibling tables share the RLS hole 008 fixed:**
+   `protocol_compound_schedules` (005), and `protocol_compounds`' uniques from
+   003/004. Same shape: RLS checks only `user_id`, single-column FK, globally
+   unique index. Squatting a slot permanently breaks a victim's sync with no
+   repair path. `protocol_compounds_id_user_key` already exists from 008, so the
+   fix is ~3 lines per table.
+
+**MEDIUM, still open:** first-ever add of stock writes the client id as the FK;
+custom-compound form guessed two different ways (card vs sheet); the Today ring's
+denominator counts logged-but-not-due doses so it can contradict Next Dose;
+CompoundDetailSheet's "Next:" lists the FIRST doses of the run, not upcoming ones;
+back-dated deletes retro-erase a completed run; the Calendar's todayKey is never
+corrected to the device clock; a timezone change moves logged doses a day;
+`wipeMyProtocol` misses stacks; `est_empty_date` is a day out for any non-UTC
+user; `interval_days` clamped on one write path and raw on the other;
+`protocol_compound_schedules` has no cycle CHECK so negative rounds can mark a
+cycle permanently ended; PGRST204 retries drop a cycle and report ok.
+
+Full detail is in the three agent reports in this conversation. If that context is
+gone, re-run the agents: they reproduce these by executing the real code.
+
 ### NEXT UP
 
 `07-calculator.md`, then `08-progress.md`, `09-profile.md`,
