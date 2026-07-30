@@ -122,6 +122,26 @@ gone, re-run the agents: they reproduce these by executing the real code.
 `08-progress.md`, then `09-profile.md`, `10-add-compound-item.md`,
 `11-log-a-dose.md`. Then part one's `07-global-sweep.md`, which runs last.
 
+### PARKED DECISIONS (coded around, nothing blocked)
+
+**The mg/mcg control's look.** Adrian likes the FUNCTION, not the look, and asked
+for it "dropped into the input area so it's part of the little tablet thing".
+Shipped as a single tap-to-flip chip inside the field's right edge
+(`UnitChip` in `CalculatorInputs.tsx`), because it is the only treatment that
+fits inside a half-width field at a 320px viewport. Alternatives if he wants a
+different one, all swappable inside `UnitChip` alone:
+  a. Two-segment `mg|mcg` pill inside the field. Prettier and shows both states,
+     but leaves the powder input ~9px at 320px unless the paired row is dropped
+     and powder/BAC water go full-width (costs ~60px of height, still clears the
+     fold at ~790px).
+  b. The chip without the swap glyph, just the word. Cleaner, less obviously
+     interactive.
+  c. Unit as plain text in the field with a tap opening a small picker sheet.
+     Most room for the number, most taps.
+  d. Full-width rows with the two-segment pill (a, laid out differently).
+The live conversion under each field stays regardless: it is what actually
+catches the 1000x slip, and it shows the other unit no matter which control wins.
+
 ### Awaiting Adrian (from spec 07, none of it blocking the next spec)
 
 1. **Spec 07 asks for a Vercel preview deployment; you asked for no pushes.** The

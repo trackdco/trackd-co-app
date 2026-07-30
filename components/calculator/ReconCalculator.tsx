@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils"
 import {
   CARD_EYEBROW,
   COLUMN_EYEBROW,
-  DATA_MONO,
   METRIC_VALUE,
   UNIT_SUFFIX,
 } from "@/lib/ui-presets"
@@ -157,18 +156,18 @@ export function ReconCalculator() {
               tab screen read as one page rather than a stack of boxes. ---- */}
       <section className="animate-home-up space-y-3" style={{ animationDelay: "0ms" }}>
         <h2 className={cn(CARD_EYEBROW, "px-1")}>Draw</h2>
-        <div className="flex items-baseline justify-between gap-3">
+        {/* Height reserved so the syringe does not jump when the figure
+            arrives. Nothing stands in for the figure when there is none:
+            the empty barrel below already says "nothing entered yet", and the
+            selected size is printed on that barrel's own scale (Adrian,
+            2026-07-30). */}
+        <div className="flex h-[34px] items-baseline gap-2">
           {units != null ? (
-            <p className="flex items-baseline gap-2">
+            <>
               <span className={METRIC_VALUE}>{trim(units, 1)}</span>
               <span className={UNIT_SUFFIX}>units</span>
-            </p>
-          ) : (
-            <p className="text-sm text-text-muted">
-              {result == null ? "Enter powder and BAC water" : "Add a dose"}
-            </p>
-          )}
-          <span className={DATA_MONO}>{size.label}</span>
+            </>
+          ) : null}
         </div>
         <div className="-mx-2">
           <SyringeGraphic
@@ -323,7 +322,7 @@ export function ReconCalculator() {
 
       {/* ---- Permanent disclaimer. Legal copy, unchanged. ---- */}
       <div
-        className="animate-home-up flex gap-3 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3"
+        className="animate-home-up flex gap-3 rounded-xl bg-accent-amber/15 p-3"
         style={{ animationDelay: "160ms" }}
       >
         <Warning
