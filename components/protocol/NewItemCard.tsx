@@ -1,15 +1,20 @@
 "use client"
 
 import { Plus } from "@/components/icons"
+import { cn } from "@/lib/utils"
 
 /**
- * The "New stack" / "New cycle" affordance: a normal surface card holding a
- * DARKER INSET panel with a centred plus (Adrian's call, replacing a dashed
- * text button).
+ * The "New stack" / "New cycle" affordance: the same card shape as the ones
+ * above it, drawn as a HAIRLINE OUTLINE rather than a filled surface (Adrian's
+ * call — a dashed border reads as a placeholder, and a filled inset panel read
+ * as a card inside a card).
  *
- * It matches the rhythm of the cards above it and reads as an empty slot waiting
- * to be filled, rather than a link that happens to sit under some cards. Both
- * sections use it so Stacks and Cycles end up identical.
+ * The hairline is the app's structural line everywhere else, so an empty slot
+ * drawn with it belongs to the same system. It renders at true 0.5px via the
+ * shared `hairline` utility rather than a 1px border, which reads chunky on a
+ * phone.
+ *
+ * Used by both sections, so Stacks and Cycles are identical by construction.
  */
 export function NewItemCard({
   label,
@@ -28,21 +33,15 @@ export function NewItemCard({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="w-full rounded-2xl bg-bg-surface p-3 text-left transition active:scale-[0.98] disabled:active:scale-100"
+      className={cn(
+        "hairline flex w-full items-center justify-center gap-2 rounded-2xl border-border-default py-5 transition",
+        disabled
+          ? "text-text-subtle"
+          : "text-text-muted active:scale-[0.98] hover:text-foreground"
+      )}
     >
-      <span className="flex flex-col items-center justify-center gap-1.5 rounded-xl bg-bg-base py-6">
-        <Plus
-          className={disabled ? "h-5 w-5 text-text-subtle" : "h-5 w-5 text-text-muted"}
-          aria-hidden
-        />
-        <span
-          className={
-            disabled ? "text-sm text-text-subtle" : "text-sm text-text-muted"
-          }
-        >
-          {disabled && hint ? hint : label}
-        </span>
-      </span>
+      <Plus className="h-4 w-4" aria-hidden />
+      <span className="text-sm">{disabled && hint ? hint : label}</span>
     </button>
   )
 }

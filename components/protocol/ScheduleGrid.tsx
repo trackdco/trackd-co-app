@@ -57,11 +57,12 @@ export function ScheduleGrid({
   if (compounds.length === 0) return null
 
   return (
-    <section className="rounded-2xl bg-bg-surface p-5">
-      <h2 className={CARD_EYEBROW}>Schedule</h2>
+    <section className="space-y-3">
+      <h2 className={`${CARD_EYEBROW} px-1`}>Schedule</h2>
 
+      <div className="rounded-2xl bg-bg-surface p-5">
       {/* Day header — aligned to the same 7-column track the rows use. */}
-      <div className="mt-4 flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <span className="w-[38%] shrink-0" />
         <div className="grid flex-1 grid-cols-7 gap-1">
           {weekDays.map((d, i) => (
@@ -113,6 +114,7 @@ export function ScheduleGrid({
       </div>
 
       <Key />
+      </div>
     </section>
   )
 }

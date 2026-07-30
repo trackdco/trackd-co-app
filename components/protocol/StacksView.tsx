@@ -15,6 +15,7 @@ import {
   stackedIds,
   subscribeStacks,
   upsertStack,
+  nextStackName,
   EMPTY_STACKS,
   type Stack,
 } from "@/lib/home/stacks"
@@ -152,6 +153,7 @@ export function StacksView({
           setCreating(false)
           setEditing(null)
         }}
+        fallbackName={nextStackName(stacks)}
         onAddCompound={() => setPickerOpen(true)}
         pendingMemberId={pendingMemberId}
         onDelete={

@@ -46,6 +46,7 @@ export function StackEditSheet({
   unavailableIds,
   onSave,
   onDelete,
+  fallbackName,
   onAddCompound,
   pendingMemberId,
 }: {
@@ -59,6 +60,8 @@ export function StackEditSheet({
   unavailableIds: Set<string>
   onSave: (stack: Stack) => void
   onDelete?: () => void
+  /** The name to use when the field is left blank — "Stack 3". */
+  fallbackName: string
   /** Open the compound picker so a NEW compound can be created without leaving
    *  the stack being built. */
   onAddCompound?: () => void
@@ -86,6 +89,7 @@ export function StackEditSheet({
             onClose={() => onOpenChange(false)}
             onSave={onSave}
             onDelete={onDelete}
+            fallbackName={fallbackName}
             onAddCompound={onAddCompound}
             pendingMemberId={pendingMemberId}
           />
@@ -102,6 +106,7 @@ function StackForm({
   onClose,
   onSave,
   onDelete,
+  fallbackName,
   onAddCompound,
   pendingMemberId,
 }: {
@@ -111,6 +116,7 @@ function StackForm({
   onClose: () => void
   onSave: (stack: Stack) => void
   onDelete?: () => void
+  fallbackName: string
   onAddCompound?: () => void
   pendingMemberId?: string | null
 }) {
@@ -142,8 +148,10 @@ function StackForm({
     (c) => members.includes(c.id) || !unavailableIds.has(c.id)
   )
 
+  // A blank name is allowed — it falls back to "Stack N" rather than blocking
+  // the save. Only the membership genuinely has to be chosen.
   const trimmed = name.trim()
-  const valid = trimmed.length > 0 && members.length > 0
+  const valid = members.length > 0
 
   function toggle(id: string) {
     setMembers((cur) =>
@@ -155,7 +163,7 @@ function StackForm({
     if (!valid) return
     onSave({
       id: stack?.id ?? crypto.randomUUID(),
-      name: trimmed.slice(0, STACK_NAME_MAX),
+      name: (trimmed || fallbackName).slice(0, STACK_NAME_MAX),
       colour,
       memberIds: members,
     })
@@ -170,7 +178,7 @@ function StackForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={STACK_NAME_MAX}
-          placeholder="Morning shot"
+          placeholder={fallbackName}
           className="h-11 rounded-xl border-border-default bg-bg-input dark:bg-bg-input"
         />
       </label>
@@ -266,8 +274,7 @@ function StackForm({
           ) : (
             <div className="space-y-3 rounded-2xl border border-accent-destructive p-4">
               <p className="text-sm text-foreground">
-                Delete this stack? The compounds in it keep running, ungrouped —
-                nothing is removed and no dose is lost.
+                Delete this stack? The compounds keep running.
               </p>
               <div className="flex gap-2">
                 <button

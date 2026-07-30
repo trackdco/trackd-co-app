@@ -74,6 +74,26 @@ export function saveStacks(userId: string, stacks: Stack[]): boolean {
   }
 }
 
+/**
+ * The name an unnamed stack gets: "Stack 1", "Stack 2", … (Adrian's call — Spec
+ * 05 made the name required; a blank one now falls back rather than blocking).
+ *
+ * Picks the LOWEST free number rather than `count + 1`, so deleting "Stack 2" of
+ * three and adding another reuses 2 instead of minting "Stack 4" beside an
+ * existing one. Only auto-generated names are considered, so a stack the user
+ * genuinely called "Stack 3" is respected and skipped over.
+ */
+export function nextStackName(stacks: Stack[]): string {
+  const taken = new Set<number>()
+  for (const s of stacks) {
+    const m = /^Stack (\d+)$/.exec(s.name.trim())
+    if (m) taken.add(Number(m[1]))
+  }
+  let n = 1
+  while (taken.has(n)) n += 1
+  return `Stack ${n}`
+}
+
 /* ------------------------------------------------------------------ queries */
 
 /** The stack a compound belongs to, or null. A compound has at most one. */

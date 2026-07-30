@@ -15,6 +15,7 @@ import {
   setStackMembers,
   stackOf,
   stackedIds,
+  nextStackName,
   type Stack,
 } from "./stacks"
 
@@ -153,5 +154,26 @@ describe("a stack is dissolved only when it empties", () => {
     const after = removeMemberEverywhere([stack({ memberIds: ["a"] })], "a")
       .filter((s) => s.memberIds.length > 0)
     expect(after).toHaveLength(0)
+  })
+})
+
+describe("auto-naming an unnamed stack", () => {
+  it("starts at Stack 1", () => {
+    expect(nextStackName([])).toBe("Stack 1")
+  })
+
+  it("reuses the lowest FREE number, not count + 1", () => {
+    // Delete "Stack 2" of three and the next one should fill the gap rather
+    // than mint "Stack 4" alongside an existing "Stack 3".
+    const stacks = [stack({ id: "a", name: "Stack 1" }), stack({ id: "c", name: "Stack 3" })]
+    expect(nextStackName(stacks)).toBe("Stack 2")
+  })
+
+  it("skips a number the user typed themselves", () => {
+    expect(nextStackName([stack({ name: "Stack 1" })])).toBe("Stack 2")
+  })
+
+  it("ignores names that merely contain a number", () => {
+    expect(nextStackName([stack({ name: "Morning shot 1" })])).toBe("Stack 1")
   })
 })

@@ -179,19 +179,19 @@ export function ProtocolScreen({
       </div>
 
       <div className="animate-home-up" style={delay(85)}>
-        <StacksView
-          userId={userId}
-          previewCompounds={previewCompounds}
-          previewStacks={previewStacks}
-        />
-      </div>
-
-      <div className="animate-home-up" style={delay(115)}>
         <ScheduleGrid
           compounds={active}
           logs={logs}
           todayKey={todayKey}
           weekDays={weekDays}
+        />
+      </div>
+
+      <div className="animate-home-up" style={delay(115)}>
+        <StacksView
+          userId={userId}
+          previewCompounds={previewCompounds}
+          previewStacks={previewStacks}
         />
       </div>
 
