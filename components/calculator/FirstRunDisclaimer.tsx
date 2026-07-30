@@ -107,8 +107,12 @@ export function FirstRunDisclaimer() {
     const opener = document.activeElement as HTMLElement | null
     buttonRef.current?.focus()
 
+    // BOTH elements: on this layout the document element is the scrolling box,
+    // so locking only `body` leaves the page scrollable behind the scrim.
     const bodyOverflow = document.body.style.overflow
+    const rootOverflow = document.documentElement.style.overflow
     document.body.style.overflow = "hidden"
+    document.documentElement.style.overflow = "hidden"
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -137,6 +141,7 @@ export function FirstRunDisclaimer() {
     return () => {
       window.removeEventListener("keydown", onKey)
       document.body.style.overflow = bodyOverflow
+      document.documentElement.style.overflow = rootOverflow
       if (opener && opener.isConnected) opener.focus()
     }
   }, [open, dismiss])

@@ -48,7 +48,7 @@ function UnitPill({
           aria-pressed={unit === u}
           onClick={() => onChange(u)}
           className={cn(
-            "rounded-[5px] px-1.5 py-1.5 font-medium transition-colors",
+            "rounded-[5px] px-1 py-1.5 font-medium transition-colors",
             unit === u
               ? "bg-bg-input text-foreground"
               : "text-text-subtle hover:text-text-muted",
@@ -99,9 +99,16 @@ function Field({
     <div className="min-w-0">
       <label htmlFor={id} className={FIELD_LABEL}>
         {label}
+        {/* The two-unit fields announce their unit through the pill's labelled
+            group; this one has no control, so without this its "mL" is a loose
+            text node that assistive tech never ties to the field. */}
+        {staticUnit ? <span className="sr-only"> in {staticUnit}</span> : null}
       </label>
       {/* The field is the surface; the input and the unit share it. */}
-      <div className="mt-1.5 flex h-11 items-center gap-1.5 rounded-xl bg-bg-input pr-1.5 pl-3">
+      {/* `pl-2.5` + `gap-1` rather than the roomier defaults: the paired
+          columns are tightest at 360-390px, where the pill and the number are
+          competing for about 110px of field. */}
+      <div className="mt-1.5 flex h-11 items-center gap-1 rounded-xl bg-bg-input pr-1 pl-2.5">
         <input
           id={id}
           inputMode="decimal"

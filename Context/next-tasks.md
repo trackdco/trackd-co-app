@@ -124,23 +124,17 @@ gone, re-run the agents: they reproduce these by executing the real code.
 
 ### PARKED DECISIONS (coded around, nothing blocked)
 
-**The mg/mcg control's look.** Adrian likes the FUNCTION, not the look, and asked
-for it "dropped into the input area so it's part of the little tablet thing".
-Shipped as a single tap-to-flip chip inside the field's right edge
-(`UnitChip` in `CalculatorInputs.tsx`), because it is the only treatment that
-fits inside a half-width field at a 320px viewport. Alternatives if he wants a
-different one, all swappable inside `UnitChip` alone:
-  a. Two-segment `mg|mcg` pill inside the field. Prettier and shows both states,
-     but leaves the powder input ~9px at 320px unless the paired row is dropped
-     and powder/BAC water go full-width (costs ~60px of height, still clears the
-     fold at ~790px).
-  b. The chip without the swap glyph, just the word. Cleaner, less obviously
-     interactive.
-  c. Unit as plain text in the field with a tap opening a small picker sheet.
-     Most room for the number, most taps.
-  d. Full-width rows with the two-segment pill (a, laid out differently).
-The live conversion under each field stays regardless: it is what actually
-catches the 1000x slip, and it shows the other unit no matter which control wins.
+**The mg/mcg control's look — SETTLED, kept here for the record.** Adrian asked
+for it "dropped into the input area so it's part of the little tablet thing", and
+then for both units to stay visible. Shipped as a two-segment `mg | mcg` pill
+INSIDE the field's right edge (`UnitPill` in `CalculatorInputs.tsx`). A
+tap-to-flip chip was tried in between and rejected: it hides the alternative
+behind a tap, and with two units 1000x apart the alternative is exactly what
+someone needs to see to notice they picked wrong. The pill fits because it is
+10px text and the powder/BAC row unpairs below 360px; measured, the powder input
+is never under 61px against the ~42px a five-character value needs. The live
+conversion under each field stays regardless: it is what actually catches the
+slip.
 
 ### Awaiting Adrian (from spec 07, none of it blocking the next spec)
 

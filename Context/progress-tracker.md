@@ -68,8 +68,10 @@ add-compound, log-a-dose, then part one's global sweep.
   on 0.3 and 0.5 mL, every 10 U on 1 mL (Adrian, 2026-07-30). Layout reworked on
   his review of a phone preview: readout and barrel BARE (no card, not sticky),
   three figures as one divided strip beneath, inputs as a grid with powder and
-  BAC water paired. The whole form now clears the fold on a 390x844 phone (Reset
-  ends at ~707px; it was 906px). Powder defaults to mg and dose to mcg, with a
+  BAC water paired. The whole form clears the fold on a 390x844 phone
+  in its normal state (Reset ends at ~724px, against ~906px before the rework).
+  With a misuse warning showing it does not, which is accepted: that state means
+  a figure needs re-checking, and the warning is the thing worth seeing. Powder defaults to mg and dose to mcg, with a
   live conversion under each, because vials are labelled in mg while doses are
   written in mcg and that 1000x slip is the most common error in this space. The
   syringe size opens at 0.5 mL and STICKS once changed; Reset does not clear it.

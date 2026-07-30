@@ -59,8 +59,7 @@ const NO_VALUE = "—"
  * height rather than nudged with `mt-0.5`; and `text-pretty` so a four-line
  * paragraph does not end on a one-word line.
  */
-const AMBER_PANEL =
-  "animate-home-up flex items-start gap-3 rounded-2xl bg-accent-amber/15 p-4"
+const AMBER_PANEL = "flex items-start gap-3 rounded-2xl bg-accent-amber/15 p-4"
 const AMBER_PANEL_ICON = "mt-[3px] h-4 w-4 shrink-0 text-accent-amber"
 const AMBER_PANEL_TEXT =
   "text-sm leading-relaxed text-pretty text-accent-amber"
@@ -113,7 +112,12 @@ export function ReconCalculator() {
 
   // Read the remembered choice through the store rather than an effect: the
   // server has no localStorage, so the server snapshot is "nothing remembered"
-  // and the hydration render agrees with it, with no set-state-in-effect.
+  // and the hydration render agrees with it, with no set-state-in-effect and no
+  // hydration warning. It does NOT avoid a flash: a device that remembers a
+  // non-default barrel paints the default one for a frame or two before the
+  // store is read. Nothing can be misread in that window (the fill is 0 until
+  // figures are entered), and the alternative is not rendering the screen at
+  // all until the client catches up.
   const remembered = useSyncExternalStore(
     subscribeSyringeChoice,
     loadSyringeChoice,
@@ -200,22 +204,29 @@ export function ReconCalculator() {
       </section>
 
       {/* Sits directly under the barrel it is about, and only when it fires. */}
-      {misuse ? (
-        <div
-          role="alert"
-          className="animate-home-up flex gap-3 rounded-xl bg-accent-amber/15 p-3"
-        >
-          <Warning
-            className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
-            aria-hidden
-          />
-          <p className="text-sm leading-relaxed text-accent-amber">
-            {misuse === "under"
-              ? `That is under ${MIN_READABLE_UNITS} units, too little to read off a syringe accurately. Check the figures you entered.`
-              : `${units != null ? `${trim(units, 1)} units` : "That"} will not fit a ${size.label} syringe. Check the figures you entered${sizeId === "1" ? "" : ", or pick a larger syringe"}.`}
-          </p>
+      {/* Kept MOUNTED and expanded with the house grid-rows idiom rather than
+          inserted: appearing outright shoved the input sheet down 112px between
+          two keystrokes, which on a phone can drop the field you are typing in
+          behind the keyboard. `role="status"` not `alert`: the text carries the
+          live figure and changes on every digit, and an assertive region
+          re-announces the whole sentence each time. */}
+      <div
+        className="animate-home-up grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+        style={{ gridTemplateRows: misuse ? "1fr" : "0fr" }}
+      >
+        <div className="overflow-hidden">
+          <div role="status" className={AMBER_PANEL}>
+            <Warning className={AMBER_PANEL_ICON} aria-hidden />
+            <p className={AMBER_PANEL_TEXT}>
+              {misuse === "under"
+                ? `That is under ${MIN_READABLE_UNITS} units, too little to read off a syringe accurately. Check the figures you entered.`
+                : misuse === "over"
+                  ? `${units != null ? `${trim(units, 1)} units` : "That"} will not fit a ${size.label} syringe. Check the figures you entered${sizeId === "1" ? "" : ", or pick a larger syringe"}.`
+                  : ""}
+            </p>
+          </div>
         </div>
-      ) : null}
+      </div>
 
       {/* ---- The three figures behind it. No heading of its own: the columns
               are labelled, and it belongs to "Draw" above. ---- */}
@@ -338,7 +349,10 @@ export function ReconCalculator() {
       </section>
 
       {/* ---- Permanent disclaimer. Legal copy, unchanged. ---- */}
-      <div className={AMBER_PANEL} style={{ animationDelay: "160ms" }}>
+      <div
+        className={cn("animate-home-up", AMBER_PANEL)}
+        style={{ animationDelay: "160ms" }}
+      >
         <Warning className={AMBER_PANEL_ICON} aria-hidden />
         <p className={AMBER_PANEL_TEXT}>{DISCLAIMER}</p>
       </div>
@@ -364,7 +378,11 @@ function Figure({
 }) {
   return (
     <div className="px-2 text-center">
-      <p className={COLUMN_EYEBROW}>{label}</p>
+      {/* One notch smaller below 360px: "CONCENTRATION" is the longest label
+          in the app and still overruns a third of a 320px phone at 9px. */}
+      <p className={cn(COLUMN_EYEBROW, "text-[8px] min-[360px]:text-[9px]")}>
+        {label}
+      </p>
       <p className="mt-1 font-mono text-base tabular-nums [overflow-wrap:anywhere]">
         <span className={accent ? "text-accent-amber" : "text-foreground"}>
           {value}

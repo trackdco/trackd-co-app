@@ -119,6 +119,16 @@ export function SyringeGraphic({
       {/* The draw. Scaled from the needle end, clipped to the barrel's radius. */}
       <g clipPath={`url(#${clipId})`}>
         <rect
+          // KEYED BY SIZE, which remounts the rect whenever the barrel changes.
+          // Without it the printed scale swaps synchronously while the amber
+          // eases from its old fraction to its new one, and for ~150ms the
+          // graphic reads a draw that is not the one entered — measured at 2x
+          // the true value on the first painted frame of a 0.5 -> 1 mL swap.
+          // The spec distinguishes these two cases in so many words: the fill
+          // ANIMATES when the result changes, the graphic REDRAWS when the size
+          // changes. A remounted element has no previous value to transition
+          // from, so it paints at its final length.
+          key={size.id}
           x={BARREL_X}
           y={BARREL_Y}
           width={BARREL_W}
