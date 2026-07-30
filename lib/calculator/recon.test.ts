@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   computeRecon,
   equivalentAmount,
+  formatConcentration,
   sanitizeAmount,
   toMg,
   trim,
@@ -11,14 +12,18 @@ import {
 } from "./recon"
 
 /**
- * The spec 07 rebuild is a PRESENTATION change: "Do NOT change any calculation.
- * The arithmetic is correct and must produce identical results before and after."
+ * These pin the DISPLAYED figures — what a user actually reads off the screen —
+ * captured from the pre-rebuild component (commit 0f3d0d2). Every one of them
+ * still holds after the rounding fix below, which is the point: the fix moved
+ * nothing a real user would have seen.
  *
- * Every expectation below was captured by running the pre-rebuild component's
- * inline maths (commit 0f3d0d2) over this table, not by re-deriving what the
- * answer ought to be. That is deliberate: if a future refactor makes the
- * calculator *more* correct, this suite fails, and that is the point. Changing a
- * figure here is changing the product, and needs Adrian, not a passing build.
+ * Originally this file pinned the RAW numbers and the spec forbade changing any
+ * calculation. Adrian overrode that on 2026-07-30 ("make sure you fix the
+ * calculations, but make sure that they're accurate") once it emerged that the
+ * old maths rounded the concentration to 3dp and then DIVIDED BY THE ROUNDED
+ * VALUE. Pinning the display rather than the raw value is also the more honest
+ * contract: intermediate precision is an implementation detail, and the figure
+ * on screen is the product.
  */
 
 type Case = [powder: string, powderUnit: MgUnit, bac: string, dose: string, doseUnit: MgUnit]
@@ -32,95 +37,112 @@ const run = (c: Case) =>
     doseUnit: c[4],
   })
 
-const BASELINE: Array<[Case, ReconResult | null]> = [
-  [
-    ["5", "mg", "2", "250", "mcg"],
-    { concentration: 2.5, mlPerDose: 0.1, unitsPerDose: 10, powderMg: 5, doseMg: 0.25 },
-  ],
-  [
-    ["10", "mg", "2", "500", "mcg"],
-    { concentration: 5, mlPerDose: 0.1, unitsPerDose: 10, powderMg: 10, doseMg: 0.5 },
-  ],
-  [
-    ["200", "mg", "1", "50", "mg"],
-    { concentration: 200, mlPerDose: 0.25, unitsPerDose: 25, powderMg: 200, doseMg: 50 },
-  ],
-  [
-    ["250", "mg", "2.5", "100", "mg"],
-    { concentration: 100, mlPerDose: 1, unitsPerDose: 100, powderMg: 250, doseMg: 100 },
-  ],
-  [
-    // 5000 mcg powder — the mcg path, and a concentration that does not divide
-    // evenly, so the 3dp rounding shows.
-    ["5000", "mcg", "3", "0.25", "mg"],
-    { concentration: 1.667, mlPerDose: 0.15, unitsPerDose: 15, powderMg: 5, doseMg: 0.25 },
-  ],
-  [
-    ["2", "mg", "1", "100", "mcg"],
-    { concentration: 2, mlPerDose: 0.05, unitsPerDose: 5, powderMg: 2, doseMg: 0.1 },
-  ],
-  [
-    ["15", "mg", "1.5", "2.5", "mg"],
-    { concentration: 10, mlPerDose: 0.25, unitsPerDose: 25, powderMg: 15, doseMg: 2.5 },
-  ],
-  [
-    // Lands on a repeating decimal: 0.0833… → 0.083 mL → 8.3 U.
-    ["30", "mg", "0.5", "5", "mg"],
-    { concentration: 60, mlPerDose: 0.083, unitsPerDose: 8.3, powderMg: 30, doseMg: 5 },
-  ],
-  [
-    ["1", "mg", "3", "100", "mcg"],
-    { concentration: 0.333, mlPerDose: 0.3, unitsPerDose: 30, powderMg: 1, doseMg: 0.1 },
-  ],
-  [
-    ["100", "mg", "10", "10", "mg"],
-    { concentration: 10, mlPerDose: 1, unitsPerDose: 100, powderMg: 100, doseMg: 10 },
-  ],
-  [
-    ["6", "mg", "2", "1", "mg"],
-    { concentration: 3, mlPerDose: 0.333, unitsPerDose: 33.3, powderMg: 6, doseMg: 1 },
-  ],
-  [
-    ["3", "mg", "1", "300", "mcg"],
-    { concentration: 3, mlPerDose: 0.1, unitsPerDose: 10, powderMg: 3, doseMg: 0.3 },
-  ],
-  [
-    ["0.5", "mg", "2", "50", "mcg"],
-    { concentration: 0.25, mlPerDose: 0.2, unitsPerDose: 20, powderMg: 0.5, doseMg: 0.05 },
-  ],
-  [
-    // Absurd but reachable: the 3dp rounding floors the volume to 0.
-    ["999999", "mg", "1", "1", "mg"],
-    { concentration: 999999, mlPerDose: 0, unitsPerDose: 0, powderMg: 999999, doseMg: 1 },
-  ],
-  [
-    ["7", "mg", "0.001", "1", "mg"],
-    { concentration: 7000, mlPerDose: 0, unitsPerDose: 0, powderMg: 7, doseMg: 1 },
-  ],
-  // Concentration only — no dose yet, and a zero dose, both leave the
-  // dose-dependent figures null rather than zero.
-  [
-    ["5", "mg", "2", "", "mg"],
-    { concentration: 2.5, mlPerDose: null, unitsPerDose: null, powderMg: 5, doseMg: null },
-  ],
-  [
-    ["5", "mg", "2", "0", "mg"],
-    { concentration: 2.5, mlPerDose: null, unitsPerDose: null, powderMg: 5, doseMg: null },
-  ],
-  // No result at all: either half of the concentration is missing or non-positive.
+/** Exactly what the screen renders for a result. */
+function displayed(r: ReconResult | null) {
+  if (!r) return null
+  return {
+    concentration: formatConcentration(r.concentration),
+    mlPerDose: r.mlPerDose != null ? trim(r.mlPerDose, 3) : null,
+    units: r.unitsPerDose != null ? trim(r.unitsPerDose, 1) : null,
+  }
+}
+
+type Display = { concentration: string; mlPerDose: string | null; units: string | null }
+
+const BASELINE: Array<[Case, Display | null]> = [
+  [["5", "mg", "2", "250", "mcg"], { concentration: "2.5", mlPerDose: "0.1", units: "10" }],
+  [["10", "mg", "2", "500", "mcg"], { concentration: "5", mlPerDose: "0.1", units: "10" }],
+  [["200", "mg", "1", "50", "mg"], { concentration: "200", mlPerDose: "0.25", units: "25" }],
+  [["250", "mg", "2.5", "100", "mg"], { concentration: "100", mlPerDose: "1", units: "100" }],
+  // A concentration that does not divide evenly, so the rounding shows.
+  [["5000", "mcg", "3", "0.25", "mg"], { concentration: "1.667", mlPerDose: "0.15", units: "15" }],
+  [["2", "mg", "1", "100", "mcg"], { concentration: "2", mlPerDose: "0.05", units: "5" }],
+  [["15", "mg", "1.5", "2.5", "mg"], { concentration: "10", mlPerDose: "0.25", units: "25" }],
+  // Repeating decimal: 0.0833… mL, 8.33… U.
+  [["30", "mg", "0.5", "5", "mg"], { concentration: "60", mlPerDose: "0.083", units: "8.3" }],
+  [["1", "mg", "3", "100", "mcg"], { concentration: "0.333", mlPerDose: "0.3", units: "30" }],
+  [["100", "mg", "10", "10", "mg"], { concentration: "10", mlPerDose: "1", units: "100" }],
+  [["6", "mg", "2", "1", "mg"], { concentration: "3", mlPerDose: "0.333", units: "33.3" }],
+  [["3", "mg", "1", "300", "mcg"], { concentration: "3", mlPerDose: "0.1", units: "10" }],
+  [["0.5", "mg", "2", "50", "mcg"], { concentration: "0.25", mlPerDose: "0.2", units: "20" }],
+  // Absurd but reachable: the volume floors to 0 at 3dp.
+  [["999999", "mg", "1", "1", "mg"], { concentration: "999999", mlPerDose: "0", units: "0" }],
+  [["7", "mg", "0.001", "1", "mg"], { concentration: "7000", mlPerDose: "0", units: "0" }],
+  // Concentration only.
+  [["5", "mg", "2", "", "mg"], { concentration: "2.5", mlPerDose: null, units: null }],
+  [["5", "mg", "2", "0", "mg"], { concentration: "2.5", mlPerDose: null, units: null }],
+  // No result at all.
   [["", "mg", "2", "250", "mcg"], null],
   [["5", "mg", "", "250", "mcg"], null],
   [["0", "mg", "2", "250", "mcg"], null],
   [["5", "mg", "0", "250", "mcg"], null],
 ]
 
-describe("computeRecon — pinned to the pre-rebuild outputs", () => {
+describe("computeRecon — the figures on screen, pinned", () => {
   for (const [input, expected] of BASELINE) {
     const label = `${input[0]}${input[1]} in ${input[2]}mL, dose ${input[3] || "(none)"}${input[4]}`
     it(label, () => {
-      expect(run(input)).toEqual(expected)
+      expect(displayed(run(input))).toEqual(expected)
     })
   }
+})
+
+describe("the rounding fix (Adrian, 2026-07-30)", () => {
+  it("no longer divides by a rounded concentration", () => {
+    // 5 mcg in 2 mL is 0.0025 mg/mL. The old maths rounded that to 0.003 and
+    // divided by it, giving 83.333 mL — 20% short of the real answer.
+    const r = run(["5", "mcg", "2", "250", "mcg"])
+    expect(r?.concentration).toBeCloseTo(0.0025, 12)
+    expect(r?.mlPerDose).toBeCloseTo(100, 9)
+    expect(r?.unitsPerDose).toBeCloseTo(10000, 6)
+  })
+
+  it("holds volume x concentration = dose, which the old maths did not", () => {
+    const cases: Case[] = [
+      ["5", "mcg", "2", "250", "mcg"],
+      ["1", "mg", "3", "100", "mcg"],
+      ["5000", "mcg", "3", "0.25", "mg"],
+      ["7", "mg", "3", "1", "mg"],
+      ["2", "mg", "7", "150", "mcg"],
+    ]
+    for (const c of cases) {
+      const r = run(c)
+      const doseMg = toMg(parseFloat(c[3]), c[4])
+      expect(r!.mlPerDose! * r!.concentration).toBeCloseTo(doseMg, 12)
+    }
+  })
+
+  it("keeps units and volume in step: units are always volume x 100", () => {
+    for (const c of BASELINE.map(([i]) => i)) {
+      const r = run(c)
+      if (r?.mlPerDose == null) continue
+      expect(r.unitsPerDose).toBeCloseTo(r.mlPerDose * 100, 9)
+    }
+  })
+})
+
+describe("formatConcentration", () => {
+  it("stays at 3dp for ordinary strengths", () => {
+    expect(formatConcentration(2.5)).toBe("2.5")
+    expect(formatConcentration(200)).toBe("200")
+    expect(formatConcentration(5 / 3)).toBe("1.667")
+  })
+
+  it("adds decimals for a weak solution rather than rounding it away", () => {
+    // At 3dp this read "0.003", and the working panel then showed a division
+    // that did not check out by hand.
+    expect(formatConcentration(0.0025)).toBe("0.0025")
+    expect(formatConcentration(0.000333)).toBe("0.000333")
+  })
+
+  it("caps the decimals so it never becomes unreadable", () => {
+    expect(formatConcentration(0.0000001).length).toBeLessThanOrEqual(9)
+  })
+
+  it("handles nothing gracefully", () => {
+    expect(formatConcentration(0)).toBe("0")
+    expect(formatConcentration(Number.NaN)).toBe("0")
+  })
 })
 
 describe("computeRecon — the gates that decide whether there is a result", () => {
@@ -139,7 +161,7 @@ describe("computeRecon — the gates that decide whether there is a result", () 
 
   it("keeps the concentration when only the dose is unusable", () => {
     const r = run(["5", "mg", "2", "-1", "mg"])
-    expect(r?.concentration).toBe(2.5)
+    expect(r?.concentration).toBeCloseTo(2.5, 12)
     expect(r?.mlPerDose).toBeNull()
     expect(r?.unitsPerDose).toBeNull()
   })

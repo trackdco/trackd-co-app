@@ -39,7 +39,7 @@ function UnitPill({
     <div
       role="group"
       aria-label={`${label} unit`}
-      className="flex shrink-0 rounded-lg bg-bg-surface-raised p-0.5 text-[10px] leading-none"
+      className="flex shrink-0 gap-0.5 rounded-lg bg-bg-surface-raised p-1 text-[11px] leading-none"
     >
       {(["mg", "mcg"] as const).map((u) => (
         <button
@@ -53,7 +53,10 @@ function UnitPill({
             // 24px circles intersect. This is the control that guards the 1000x
             // mg/mcg slip the whole screen is built around, so it is the last
             // one that should be hard to hit.
-            "min-h-6 min-w-6 rounded-[5px] px-1 font-medium transition-colors",
+            // 28px tall and at least 28 wide, with a gap between them. WCAG
+            // 2.5.8 asks for 24; these were 22.8 x 22 and touching, on the one
+            // control that guards the 1000x mg/mcg slip.
+            "min-h-7 min-w-7 rounded-md px-1.5 font-medium transition-colors",
             unit === u
               ? "bg-bg-input text-foreground"
               : "text-text-subtle hover:text-text-muted",

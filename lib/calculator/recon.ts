@@ -8,9 +8,24 @@
  * `recon.test.ts` pins the outputs captured from the pre-rebuild component, so a
  * later "tidy-up" of this file that shifts a figure fails the suite.
  *
- * The maths match `v_inventory_math`'s reconstituted case: concentration =
- * powder / BAC water, mL per dose = dose / concentration, both rounded to 3dp
- * the way the view rounds. Insulin units are a U-100 draw aid (1 mL = 100 U).
+ * The maths: concentration = powder / BAC water, mL per dose = dose /
+ * concentration, insulin units = mL x 100 (a U-100 draw aid).
+ *
+ * NOTHING IS ROUNDED UNTIL DISPLAY (Adrian, 2026-07-30: "make sure you fix the
+ * calculations, but make sure that they're accurate"). The original rounded the
+ * concentration to 3dp and then DIVIDED BY THE ROUNDED VALUE, which compounds
+ * badly wherever the concentration is small: 5 mcg in 2 mL for a 250 mcg dose
+ * displayed 83.333 mL when the answer is 100 mL, a 20% error. That was carried
+ * verbatim through spec 07's rebuild because the spec said not to change any
+ * calculation; Adrian has since overridden that, because a calculator being
+ * right matters more than a calculator being unchanged.
+ *
+ * This is a DELIBERATE divergence from `v_inventory_math`, which still rounds.
+ * Nothing here feeds the view or is written anywhere — the calculator is a
+ * standalone arithmetic surface — so the two cannot disagree about stored data.
+ *
+ * `recon.test.ts` pins the DISPLAYED figures, which is what a user reads and
+ * what must not drift.
  */
 
 /** The two mass units the amount fields accept. Everything computes in mg. */
@@ -32,6 +47,21 @@ export const toMg = (value: number, unit: MgUnit) =>
 /** Trim trailing zeros after fixing to `dp` places. */
 export function trim(n: number, dp: number): string {
   return String(Number(n.toFixed(dp)))
+}
+
+/**
+ * Concentration, with enough decimals to stay meaningful.
+ *
+ * Three decimals is right for the ordinary case (2.5, 200, 1.667) and wrong for
+ * a weak solution: 0.0025 mg/mL would display "0.003", and the working panel
+ * would then show a division that does not check out by hand — which defeats the
+ * entire point of showing the working. Three significant figures, floored at
+ * 3dp and capped at 6, keeps both readable and true.
+ */
+export function formatConcentration(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0"
+  const magnitude = Math.floor(Math.log10(n))
+  return trim(n, Math.min(6, Math.max(3, 2 - magnitude)))
 }
 
 /**
@@ -65,11 +95,11 @@ export interface ReconInput {
 }
 
 export interface ReconResult {
-  /** mg per mL, rounded to 3dp. */
+  /** mg per mL, EXACT. Rounded only at the point of display. */
   concentration: number
-  /** Volume to draw, 3dp. `null` until a usable dose is entered. */
+  /** Volume to draw, exact. `null` until a usable dose is entered. */
   mlPerDose: number | null
-  /** U-100 insulin units for that volume, 1dp. `null` alongside `mlPerDose`. */
+  /** U-100 insulin units for that volume, exact. `null` alongside `mlPerDose`. */
   unitsPerDose: number | null
   /** Echoed back in mg for the step-by-step working. */
   powderMg: number
@@ -87,13 +117,12 @@ export function computeRecon(input: ReconInput): ReconResult | null {
   const doseMg = toMg(parseFloat(input.dose), input.doseUnit)
   if (!Number.isFinite(powderMg) || powderMg <= 0) return null
   if (!Number.isFinite(bacMl) || bacMl <= 0) return null
-  // concentration: round(powder / bac, 3) — matches the view's reconstituted case.
-  const concentration = Math.round((powderMg / bacMl) * 1000) / 1000
+  const concentration = powderMg / bacMl
   let mlPerDose: number | null = null
   let unitsPerDose: number | null = null
   if (Number.isFinite(doseMg) && doseMg > 0 && concentration > 0) {
-    mlPerDose = Math.round((doseMg / concentration) * 1000) / 1000
-    unitsPerDose = Math.round(mlPerDose * 100 * 10) / 10
+    mlPerDose = doseMg / concentration
+    unitsPerDose = mlPerDose * 100
   }
   return {
     concentration,

@@ -64,7 +64,7 @@ stored.)
   (`ReconCalcCard`) and its bottom-sheet frame (`ReconCalculatorSheet`) were both
   **deleted** once the nav tab landed (Adrian's call — the tab replaces them, so they
   only duplicated it). The calculator reads nothing — the maths are pure arithmetic on
-  what the user types (and mirror `v_inventory_math`; see Invariant 1). The dev-only
+  what the user types (and DELIBERATELY no longer mirror `v_inventory_math`'s rounding: the view rounds concentration to 3dp, the calculator does not, because dividing by a rounded concentration was giving a 20% error on weak solutions. Adrian, 2026-07-30. Nothing here is stored or feeds the view, so the two cannot disagree about data). The dev-only
   `/preview/recon` harness mounts the same component unauthed. Spec 07 (wave 2 pt
   two) rebuilt its presentation around a **proportional syringe graphic** and moved
   it out of `components/home/`: the arithmetic now lives in `lib/calculator/recon.ts`

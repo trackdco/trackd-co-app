@@ -12,6 +12,7 @@ import {
 } from "@/lib/ui-presets"
 import {
   computeRecon,
+  formatConcentration,
   sanitizeAmount,
   trim,
   type MgUnit,
@@ -240,7 +241,7 @@ export function ReconCalculator() {
       >
         <Figure
           label="Concentration"
-          value={result ? trim(result.concentration, 3) : NO_VALUE}
+          value={result ? formatConcentration(result.concentration) : NO_VALUE}
           unit="mg/mL"
         />
         <Figure
@@ -317,7 +318,7 @@ export function ReconCalculator() {
                   <p>
                     = {trim(result.powderMg, 3)} mg ÷ {bac || NO_VALUE} mL ={" "}
                     <span className="text-foreground">
-                      {trim(result.concentration, 3)} mg/mL
+                      {formatConcentration(result.concentration)} mg/mL
                     </span>
                   </p>
                   {result.doseMg != null && result.mlPerDose != null ? (
@@ -325,7 +326,7 @@ export function ReconCalculator() {
                       <p className="pt-1.5">volume to draw = dose ÷ concentration</p>
                       <p>
                         = {trim(result.doseMg, 3)} mg ÷{" "}
-                        {trim(result.concentration, 3)} mg/mL ={" "}
+                        {formatConcentration(result.concentration)} mg/mL ={" "}
                         <span className="text-foreground">
                           {trim(result.mlPerDose, 3)} mL
                         </span>
