@@ -223,8 +223,12 @@ describe("weekLabel — the headline reading", () => {
   it("DROPS the denominator once the block runs past its end", () => {
     // "Week 31 of 9" is not a reading, it is a broken one — and it is the state
     // "leave running" exists to produce, so it is not an edge case either.
+    //
+    // 211 days elapsed. The reading is 30 COMPLETED weeks, not the week INDEX
+    // 31: past the end the sentence is how long the block has actually run, and
+    // an index read out as a duration overstates it by up to six days.
     expect(weekLabel(blockProgress(b(), "2026-07-30"))).toEqual({
-      value: 31,
+      value: 30,
       suffix: "weeks in",
     })
   })
@@ -237,15 +241,27 @@ describe("weekLabel — the headline reading", () => {
   })
 
   it("has no denominator for an open-ended block", () => {
+    // 60 days in: eight completed weeks, not the ninth week's index.
     expect(weekLabel(blockProgress(b({ endsOn: null }), "2026-03-01"))).toEqual({
-      value: 9,
+      value: 8,
       suffix: "weeks in",
     })
   })
 
-  it("says 'week in', singular, in the first week of an open-ended block", () => {
-    expect(weekLabel(blockProgress(b({ endsOn: null }), "2026-01-01")).suffix).toBe(
-      "week in",
-    )
+  it("counts DAYS under a week, rather than claiming a week that has not passed", () => {
+    // Day one used to read "1 week in". Two days in read the same. Both were
+    // wrong by nearly a week, on the one figure the banner leads with.
+    expect(weekLabel(blockProgress(b({ endsOn: null }), "2026-01-01"))).toEqual({
+      value: 1,
+      suffix: "day in",
+    })
+    expect(weekLabel(blockProgress(b({ endsOn: null }), "2026-01-03"))).toEqual({
+      value: 3,
+      suffix: "days in",
+    })
+    expect(weekLabel(blockProgress(b({ endsOn: null }), "2026-01-08"))).toEqual({
+      value: 1,
+      suffix: "week in",
+    })
   })
 })

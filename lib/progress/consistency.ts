@@ -29,14 +29,60 @@ export interface AdherencePoint {
 
 const MAX_DAYS = 365;
 
+/**
+ * Whole days between two date keys.
+ *
+ * Via UTC, deliberately. Subtracting two LOCAL midnights and dividing by 86.4M
+ * loses an hour across a spring-forward transition, so the span came out one day
+ * short and the walk never reached its final day: every user in a DST zone lost
+ * the last day of any window crossing the change — including a block's close
+ * date, the day most likely to carry a dose. UTC has no such transitions, and
+ * these are calendar days, not durations.
+ */
+function daysBetween(from: DateKey, to: DateKey): number {
+  const at = (key: DateKey) => {
+    const [y, m, d] = key.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((at(to) - at(from)) / 86_400_000);
+}
+
+/**
+ * Whether a compound may contribute to a day's due count at all.
+ *
+ * `archived` carries no date. Deleting a compound normally ALSO writes a
+ * `stopped` schedule version, which bounds it in time properly — `isDueOnFor`
+ * then returns false from that day on, and the run before it is counted exactly
+ * as it happened. A legacy record, or one whose stop-write failed, has no such
+ * bound, and counting it would make it due every single day from its start to
+ * the present: a compound stopped in April manufactured three months of missed
+ * doses, and printed them as a percentage at the user.
+ *
+ * So an unbounded archived compound is left out entirely. That loses the days it
+ * genuinely covered, which is the lesser harm here: consistency is behavioural
+ * and reads as a statement ABOUT the user, so inventing failures is worse than
+ * omitting history. `compoundsRunningOn` makes the opposite trade for the same
+ * ambiguity, and correctly: a list of what you were on names things, and naming
+ * one extra is not an accusation.
+ */
+function countsTowardConsistency(c: StackCompound): boolean {
+  if (!c.archived) return true;
+  return (c.scheduleHistory ?? []).some((v) => v.stopped === true);
+}
+
 /** One point per calendar day from day one (earliest start) → today, oldest first. */
 export function computeAdherence(
   stack: StackCompound[],
   logs: DayLogs,
   todayKey: DateKey,
 ): AdherencePoint[] {
-  const active = stack.filter((c) => !c.archived);
-  if (active.length === 0) return [];
+  // Nothing running NOW means no widget — a display guard, not a rule about which
+  // days count. Which compounds count is `countsTowardConsistency`, shared with
+  // the window walk below so the two can never disagree about a day they both
+  // cover.
+  if (stack.every((c) => c.archived)) return [];
+  const eligible = stack.filter(countsTowardConsistency);
+  if (eligible.length === 0) return [];
 
   const starts = stack
     .map((c) => c.schedule.startDate)
@@ -44,15 +90,12 @@ export function computeAdherence(
   const earliest = starts.length ? starts.reduce((a, b) => (a < b ? a : b)) : todayKey;
 
   const today = dateKeyToDate(todayKey);
-  const span = Math.floor(
-    (today.getTime() - dateKeyToDate(earliest).getTime()) / 86_400_000,
-  );
-  const days = Math.min(Math.max(span + 1, 1), MAX_DAYS);
+  const days = Math.min(Math.max(daysBetween(earliest, todayKey) + 1, 1), MAX_DAYS);
 
   const points: AdherencePoint[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const key = resolveDateKey(today, i);
-    points.push(adherenceOn(active, logs, key));
+    points.push(adherenceOn(eligible, logs, key));
   }
   return points;
 }
@@ -67,33 +110,29 @@ export function computeAdherence(
  * retrospective printed a headline **0%** directly beneath its own list of the
  * doses logged inside that same window.
  *
- * The per-day maths is `adherenceOn` in both cases, so the two can still never
- * disagree about a day they both cover — which is the property
- * `architecture.md` claims and the clipping approach did not actually deliver.
- *
- * Archived compounds are INCLUDED for days before today, for the same reason
- * `compoundsRunningOn` includes them: `archived` carries no date, so applying it
- * to a past day erases a compound from history the moment it is archived. From
- * today forward it is honoured, because that is what archived means now.
+ * The per-day maths is `adherenceOn` and the eligible set is
+ * `countsTowardConsistency` in BOTH cases, so the two cannot disagree about a
+ * day they both cover — which is the property `architecture.md` claims. The
+ * first attempt at this shared only the maths and carved out archived compounds
+ * here alone, which made the retrospective and the Progress widget contradict
+ * each other on the same day and the same compound.
  */
 export function computeAdherenceOver(
   stack: StackCompound[],
   logs: DayLogs,
   from: DateKey,
   to: DateKey,
-  todayKey: DateKey,
 ): AdherencePoint[] {
   if (stack.length === 0 || to < from) return [];
   const start = dateKeyToDate(from);
-  const span = Math.floor(
-    (dateKeyToDate(to).getTime() - start.getTime()) / 86_400_000,
-  );
-  const days = Math.min(Math.max(span + 1, 1), MAX_WINDOW_DAYS);
+  const days = Math.min(Math.max(daysBetween(from, to) + 1, 1), MAX_WINDOW_DAYS);
+
+  const eligible = stack.filter(countsTowardConsistency);
+  if (eligible.length === 0) return [];
 
   const points: AdherencePoint[] = [];
   for (let i = 0; i < days; i++) {
     const key = resolveDateKey(start, -i);
-    const eligible = stack.filter((c) => !(c.archived && key >= todayKey));
     points.push(adherenceOn(eligible, logs, key));
   }
   return points;

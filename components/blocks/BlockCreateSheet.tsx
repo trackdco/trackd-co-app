@@ -113,7 +113,8 @@ export function BlockCreateSheet({
     targetValid
 
   function pickTarget(kind: BlockTargetVariable | "none") {
-    if (kind !== targetKind) {
+    const changed = kind !== targetKind
+    if (changed) {
       // Kilograms and percent are not the same number. Carrying the value across
       // turned a 90% consistency target into a 90 kg weight target, or a 500%
       // one into 500 kg.
@@ -125,7 +126,21 @@ export function BlockCreateSheet({
       // There is no such thing as targeting LOWER consistency, so the control
       // that would ask is not shown and the direction is simply up.
       setDirection("up")
-    } else if (kind === "weight" && currentWeightKg != null && targetValue !== "") {
+      return
+    }
+    // Infer the direction from the number only when there is a number that is
+    // STAYING, and only while the user has not chosen a direction themselves.
+    // Neither guard was here: re-tapping the already-selected "Weight" chip fell
+    // straight through and overwrote an explicit Lose or Gain, and switching TO
+    // weight inferred a direction from the value it was in the middle of
+    // clearing.
+    if (
+      kind === "weight" &&
+      !changed &&
+      !directionTouched &&
+      currentWeightKg != null &&
+      targetValue !== ""
+    ) {
       setDirection(numericTarget < currentWeightKg ? "down" : "up")
     }
   }

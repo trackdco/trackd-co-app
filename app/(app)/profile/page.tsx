@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ProfileScreen } from "@/components/profile/ProfileScreen";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Profile — Trackd Co" };
+export const metadata: Metadata = { title: "Profile · Trackd Co" };
 
 /**
  * Profile tab — the data wrapper. Reads only the caller's own profiles row

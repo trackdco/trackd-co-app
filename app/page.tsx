@@ -5,11 +5,11 @@ import { getSessionContext } from "@/lib/auth";
 import { FirstRun } from "./_components/first-run";
 
 export const metadata: Metadata = {
-  title: "Trackd Co — Track the whole protocol",
+  title: "Trackd Co · Track the whole protocol",
   description:
     "Everything you're running, in one place you'll actually open. A private, founder-led app built by people who run real protocols.",
   openGraph: {
-    title: "Trackd Co — Track the whole protocol",
+    title: "Trackd Co · Track the whole protocol",
     description: "Everything you're running, in one place you'll actually open.",
     type: "website",
     url: "https://trackdco.app",

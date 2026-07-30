@@ -12,7 +12,7 @@ import { sitesForSex } from "@/lib/home/siteCatalog";
 
 
 export const metadata: Metadata = {
-  title: "Home — Trackd Co",
+  title: "Home · Trackd Co",
 };
 
 /**

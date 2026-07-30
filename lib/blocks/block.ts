@@ -203,9 +203,40 @@ export function targetProgress(
  */
 export function weekLabel(p: BlockProgress): { value: number; suffix: string } {
   if (p.totalWeeks == null || p.overrun) {
-    return { value: p.week, suffix: p.week === 1 ? "week in" : "weeks in" }
+    // "Week N of M" is an INDEX — day one is week 1 — and an index cannot be
+    // read out as a duration. Doing so said "1 week in" on a block two days old
+    // and "31 weeks in" at thirty weeks elapsed. Past the end the sentence is
+    // how long it has actually run, so it counts COMPLETED time, and under a
+    // week it counts days rather than reporting a confident "0 weeks in".
+    const weeks = Math.floor(p.daysElapsed / 7)
+    if (weeks < 1) {
+      return {
+        value: p.daysElapsed,
+        suffix: p.daysElapsed === 1 ? "day in" : "days in",
+      }
+    }
+    return { value: weeks, suffix: weeks === 1 ? "week in" : "weeks in" }
   }
   return { value: p.week, suffix: `of ${p.totalWeeks} weeks` }
+}
+
+/** One decimal at most, trailing zero dropped: "4", "3.5". */
+function trimNum(n: number): string {
+  return String(Number(n.toFixed(1)))
+}
+
+/**
+ * A weight target's reading: how far along, and what is left.
+ *
+ * Shared so the banner and the Blocks page cannot word it differently, and
+ * because both had the same bug — the percentage and the remainder were
+ * concatenated with a hard-coded " · " on the SECOND half, so a target with no
+ * distance to cover (already at it when the block began) rendered an empty
+ * percentage and left the separator dangling: "Weight    · reached".
+ */
+export function targetReading(p: TargetProgress): string {
+  const rest = p.remaining > 0 ? `${trimNum(p.remaining)} kg to go` : "reached"
+  return p.fraction != null ? `${Math.round(p.fraction * 100)}% · ${rest}` : rest
 }
 
 export interface BlockWindow {

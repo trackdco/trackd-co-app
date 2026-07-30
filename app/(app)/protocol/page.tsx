@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { ProtocolScreen } from "@/components/protocol/ProtocolScreen";
 
-export const metadata: Metadata = { title: "Protocol — Trackd Co" };
+export const metadata: Metadata = { title: "Protocol · Trackd Co" };
 
 /**
  * Protocol tab — ONE scrolling page (Spec 04): Compounds, Stacks, Schedule,

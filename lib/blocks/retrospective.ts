@@ -329,7 +329,10 @@ export function consistencyAcross(
     if (p.due > 0) doseDays += 1
   }
   return {
-    pct: due > 0 ? Math.round((logged / due) * 100) : null,
+    // Clamped. `logged` cannot exceed `due` by any path the app has today, but
+    // this figure is a percentage printed at the user and a "500%" would be a
+    // more alarming way to learn about a future bug than a 100% would.
+    pct: due > 0 ? Math.min(100, Math.round((logged / due) * 100)) : null,
     logged,
     due,
     doseDays,

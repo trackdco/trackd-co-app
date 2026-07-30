@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
 
 export const metadata: Metadata = {
-  title: "Admin — Trackd Co",
+  title: "Admin · Trackd Co",
   robots: { index: false, follow: false },
 };
 

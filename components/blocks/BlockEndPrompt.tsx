@@ -85,7 +85,12 @@ export function BlockEndPrompt({
       // cannot be an extension, so pre-filling it would offer a value that is
       // never right.
       setNewEnd("")
-      setReflection("")
+      // Seeded from what the user has ALREADY written on this block, not blank.
+      // A note can be written while a block runs, and opening this sheet on an
+      // empty box read as "you have written nothing" about a block you had
+      // written about. `closeBlock` separately refuses to null an existing
+      // reflection, so the note survives even if this sheet is never opened.
+      setReflection(block.reflection ?? "")
       setBusy(false)
       setError(null)
     }

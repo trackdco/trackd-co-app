@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
 import { ReconCalculator } from "@/components/calculator/ReconCalculator";
 
-export const metadata: Metadata = { title: "Calculator — Trackd Co" };
+export const metadata: Metadata = { title: "Calculator · Trackd Co" };
 
 /**
  * The reconstitution calculator's own screen — the centre bottom-nav slot's

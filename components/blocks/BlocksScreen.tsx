@@ -6,6 +6,7 @@ import { ArrowLeft, CaretRight, Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
+import { useDeviceToday } from "@/components/home/useDeviceToday"
 import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
 import { BlockEndPrompt } from "@/components/blocks/BlockEndPrompt"
 import { BlockRetrospective } from "@/components/blocks/BlockRetrospective"
@@ -17,6 +18,7 @@ import {
   formatDuration,
   pastBlocks,
   targetProgress,
+  targetReading,
   weekLabel,
   type Block,
 } from "@/lib/blocks/block"
@@ -49,7 +51,7 @@ import type { DayLogs } from "@/lib/home/doseLog"
 export function BlocksScreen({
   blocks,
   selectedId,
-  todayKey,
+  todayKey: serverTodayKey,
   userId,
   weight,
   photos,
@@ -72,6 +74,13 @@ export function BlocksScreen({
 }) {
   const [creating, setCreating] = useState(false)
   const [ending, setEnding] = useState(false)
+
+  // The page hands down the SERVER's date, which is UTC. Every date judgement on
+  // this screen and in the sheets below it — the default start, the `max` on the
+  // date input, "days left", the retrospective's window — has to be the user's
+  // own day or it is wrong by one for most of the world, in one direction or the
+  // other. Corrected once, here, so a single value flows to all of them.
+  const todayKey = useDeviceToday(serverTodayKey)
 
   const live = activeBlock(blocks)
   const past = pastBlocks(blocks)
@@ -252,7 +261,7 @@ function LiveBlockCard({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(p.fraction * 100)}
-          aria-label={`${block.name}, week ${week.value} ${week.suffix}`}
+          aria-label={`${block.name}, ${week.value} ${week.suffix}`}
         >
           <div
             className="h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
@@ -265,10 +274,7 @@ function LiveBlockCard({
         <div className="mt-3 flex items-baseline justify-between gap-3">
           <span className={DATA_MONO}>Weight</span>
           <span className={DATA_MONO}>
-            {target.fraction != null ? `${Math.round(target.fraction * 100)}%` : ""}
-            {target.remaining > 0
-              ? ` · ${trimNum(target.remaining)} kg to go`
-              : " · reached"}
+            {targetReading(target)}
           </span>
         </div>
       ) : consistencyTarget ? (

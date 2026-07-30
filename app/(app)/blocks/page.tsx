@@ -8,7 +8,8 @@ import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
 import type { JournalEntry } from "@/lib/progress/journal";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 
-export const metadata: Metadata = { title: "Blocks — Trackd Co" };
+// A tab title is a user-facing string, so the no-em-dash rule applies to it too.
+export const metadata: Metadata = { title: "Blocks · Trackd Co" };
 
 const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every page load
 
@@ -65,10 +66,14 @@ export default async function BlocksPage({
     { data: userMarkerData },
     { data: markerData },
   ] = await Promise.all([
+    // NEWEST first, like every other read here, then reversed below. Oldest-first
+    // with a cap meant the ceiling threw away the RECENT end: past ~5.5 years of
+    // daily weighing, the weight section of every current block silently emptied
+    // and the target reading anchored to a five-year-old number.
     supabase
       .from("weight_logs")
       .select("logged_for, weight")
-      .order("logged_for", { ascending: true })
+      .order("logged_for", { ascending: false })
       .limit(2000),
     supabase
       .from("lab_panels")
@@ -98,10 +103,15 @@ export default async function BlocksPage({
     supabase.from("markers").select("id, name, tier_labels"),
   ]);
 
-  const weight = (weightData ?? []).map((r) => ({
-    key: r.logged_for as string,
-    kg: Number(r.weight),
-  }));
+  // Back to oldest-first, which is the order every consumer expects (the target
+  // anchor takes the last reading before the block's start, the sparkline walks
+  // forwards).
+  const weight = (weightData ?? [])
+    .map((r) => ({
+      key: r.logged_for as string,
+      kg: Number(r.weight),
+    }))
+    .reverse();
 
   // ── Bloodwork panels (private bucket → short-lived signed URLs) ──
   const panels = panelData ?? [];

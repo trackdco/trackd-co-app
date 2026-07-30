@@ -6,6 +6,7 @@ import { CaretRight, Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { useMounted } from "@/components/home/useMounted"
+import { useDeviceToday } from "@/components/home/useDeviceToday"
 import {
   CARD_EYEBROW,
   DATA_MONO,
@@ -24,6 +25,7 @@ import {
   blockProgress,
   pastBlocks,
   targetProgress,
+  targetReading,
   weekLabel,
   type Block,
   type BlockTarget,
@@ -45,7 +47,7 @@ import {
  * territory. Week N of M, days left, a date.
  */
 export function BlockBanner({
-  todayKey,
+  todayKey: serverTodayKey,
   userId,
   weight,
   blocks,
@@ -63,6 +65,12 @@ export function BlockBanner({
   blocks: Block[]
 }) {
   const mounted = useMounted()
+  // The page renders on the server, whose date is UTC. That is the user's
+  // yesterday for the first ten hours of an Australian day and their tomorrow for
+  // the last seven of a Californian one. Uncorrected it fed the default start
+  // date on the create sheet, the `max` that decides whether "today" is even
+  // selectable, "days left", and the end-date dot.
+  const todayKey = useDeviceToday(serverTodayKey)
   const [creating, setCreating] = useState(false)
   const [ending, setEnding] = useState(false)
   /**
@@ -115,7 +123,11 @@ export function BlockBanner({
         {past.length > 0 && (
           <Link
             href="/blocks"
-            className="mt-2 flex items-center justify-center gap-1.5 text-xs text-text-muted transition-colors hover:text-foreground"
+            /* 44px tall, not the 16px the text alone gave it. With no block live
+               this link is the ONLY way into the retrospectives — /blocks is not
+               in the bottom nav — so it is the one target on the screen that
+               cannot be fiddly. */
+            className="mt-1 flex min-h-11 items-center justify-center gap-1.5 text-xs text-text-muted transition-colors hover:text-foreground"
           >
             Look back on {past.length} finished{" "}
             {past.length === 1 ? "block" : "blocks"}
@@ -199,7 +211,7 @@ export function BlockBanner({
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(p.fraction * 100)}
-            aria-label={`${block.name}, week ${week.value} ${week.suffix}`}
+            aria-label={`${block.name}, ${week.value} ${week.suffix}`}
           >
             <div
               className="h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
@@ -215,10 +227,7 @@ export function BlockBanner({
           <div className="mt-3 flex items-baseline justify-between gap-3">
             <span className={DATA_MONO}>Weight</span>
             <span className={DATA_MONO}>
-              {target.fraction != null ? `${Math.round(target.fraction * 100)}%` : ""}
-              {target.remaining > 0
-                ? ` · ${trimNum(target.remaining)} kg to go`
-                : " · reached"}
+              {targetReading(target)}
             </span>
           </div>
         ) : consistencyTarget ? (

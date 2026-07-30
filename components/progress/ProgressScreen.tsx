@@ -40,7 +40,7 @@ import type { Block } from "@/lib/blocks/block";
 export function ProgressScreen({
   weight,
   unitPreference,
-  todayKey,
+  todayKey: serverTodayKey,
   userId,
   bloodworkPhotos,
   journalEntries,
@@ -78,7 +78,12 @@ export function ProgressScreen({
   previewBlocks?: Block[];
 }) {
   const unit = unitForPreference(unitPreference);
-
+  // This component is NOT a client component, so the correction cannot happen
+  // here: `todayKey` arrives as the SERVER's date (UTC on Vercel, a day out for
+  // most of the world for part of every day) and each client child corrects it.
+  // `BlockBanner` does, since a block turns the date into "days left" and a
+  // target reading.
+  const todayKey = serverTodayKey;
 
   return (
     <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">

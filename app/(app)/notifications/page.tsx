@@ -8,7 +8,7 @@ import { PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Notifications — Trackd Co",
+  title: "Notifications · Trackd Co",
 };
 
 /**

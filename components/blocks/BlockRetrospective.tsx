@@ -98,7 +98,7 @@ export function BlockRetrospective({
     // beneath its own list of the doses logged in that window.
     const w = blockWindow(block, todayKey)
     const adherence = deviceReady
-      ? computeAdherenceOver(stack, logs, w.from, w.to, todayKey)
+      ? computeAdherenceOver(stack, logs, w.from, w.to)
       : []
     return buildRetrospective(block, todayKey, {
       weight,
@@ -141,7 +141,12 @@ export function BlockRetrospective({
         </p>
       </section>
 
-      {!hasAnything && (
+      {/* Only once the device stores are readable. Doses and consistency come
+          from localStorage, which the first paint cannot see, so a block whose
+          content is doses and nothing else asserted that nothing had been logged
+          in it and then contradicted itself a frame later. Saying nothing for
+          one frame is the honest version of not knowing yet. */}
+      {deviceReady && !hasAnything && (
         <p className="px-1 text-sm text-text-muted">
           Nothing has been logged inside this block yet. Weight, photos, doses,
           bloods and journal entries all show up here on their own as you go.

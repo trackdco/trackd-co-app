@@ -50,9 +50,15 @@ export function isEndPromptDismissed(userId: string, blockId: string): boolean {
 export function pruneEndPromptDismissals(userId: string, liveIds: string[]): void {
   if (typeof window === "undefined") return
   try {
+    const raw = window.localStorage.getItem(key(userId))
+    if (raw === null) return
     const current = load(userId)
     const next = current.filter((id) => liveIds.includes(id))
-    if (next.length === current.length) return
+    // Compared against what is actually STORED, not against the parsed list.
+    // `load` already drops non-strings, so a stored `["a", 1, {}]` parsed to
+    // `["a"]` and matched the filtered length — the junk was declared clean and
+    // left in place forever.
+    if (JSON.stringify(next) === raw) return
     window.localStorage.setItem(key(userId), JSON.stringify(next))
   } catch {
     /* storage full or blocked — an unpruned entry is harmless */

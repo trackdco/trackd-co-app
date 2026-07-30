@@ -419,13 +419,7 @@ describe("computeAdherenceOver — the window, not the last 365 days", () => {
       "2024-06-01": { c1: {} as never },
       "2024-06-02": { c1: {} as never },
     }
-    const pts = computeAdherenceOver(
-      [daily],
-      logs,
-      "2024-06-01",
-      "2024-06-04",
-      "2026-07-30",
-    )
+    const pts = computeAdherenceOver([daily], logs, "2024-06-01", "2024-06-04")
     expect(pts.map((p) => p.key)).toEqual([
       "2024-06-01",
       "2024-06-02",
@@ -440,10 +434,47 @@ describe("computeAdherenceOver — the window, not the last 365 days", () => {
     })
   })
 
-  it("counts an ARCHIVED compound for past days and stops at today", () => {
-    // `archived` carries no date, so applying it backwards erases a compound
-    // from history the moment it is archived.
-    const archived = compound({
+  it("counts a STOPPED compound up to the day it stopped, and not after", () => {
+    // Deleting a compound writes a `stopped` schedule version, which is what
+    // bounds it in time. Before the stop it was genuinely due; from the stop on,
+    // nothing was due and nothing can be missed.
+    const stopped = compound({
+      id: "c1",
+      archived: true,
+      schedule: {
+        cadence: { type: "daily" },
+        startDate: "2024-06-01",
+        timeOfDay: "08:00",
+      },
+      scheduleHistory: [
+        {
+          effectiveFrom: "2024-06-01",
+          cadence: { type: "daily" },
+          timeOfDay: "08:00",
+          dose: 250,
+          unit: "mg",
+        },
+        {
+          effectiveFrom: "2024-06-03",
+          cadence: { type: "daily" },
+          timeOfDay: "08:00",
+          dose: 250,
+          unit: "mg",
+          stopped: true,
+        },
+      ],
+    })
+    const pts = computeAdherenceOver([stopped], {}, "2024-06-01", "2024-06-04")
+    expect(pts.map((p) => p.due)).toEqual([1, 1, 0, 0])
+  })
+
+  it("leaves out an archived compound with NO stop marker rather than inventing misses", () => {
+    // The regression this replaced: `archived` carries no date, so an unbounded
+    // archived compound was due EVERY day to the end of the window. A compound
+    // run for four weeks of a sixteen-week block reported "25%, 28 of 112" —
+    // eighty-four missed doses that never existed, printed at the user on a
+    // figure that reads as a statement about them.
+    const orphan = compound({
       id: "c1",
       archived: true,
       schedule: {
@@ -452,14 +483,19 @@ describe("computeAdherenceOver — the window, not the last 365 days", () => {
         timeOfDay: "08:00",
       },
     })
-    const past = computeAdherenceOver([archived], {}, "2024-06-01", "2024-06-02", "2026-07-30")
-    expect(past.every((p) => p.due === 1)).toBe(true)
+    expect(computeAdherenceOver([orphan], {}, "2024-06-01", "2024-06-04")).toEqual([])
+  })
 
-    const nowOn = computeAdherenceOver([archived], {}, "2026-07-30", "2026-07-31", "2026-07-30")
-    expect(nowOn.every((p) => p.due === 0)).toBe(true)
+  it("does not lose the last day of a window that crosses spring forward", () => {
+    // Local midnights an hour apart across the transition made the span come out
+    // a day short, so the final day of the window was never walked — and for a
+    // block that is its close date.
+    const pts = computeAdherenceOver([daily], {}, "2024-09-25", "2024-10-10")
+    expect(pts.length).toBe(16)
+    expect(pts[pts.length - 1].key).toBe("2024-10-10")
   })
 
   it("is empty for an inverted range rather than throwing", () => {
-    expect(computeAdherenceOver([daily], {}, "2026-02-01", "2026-01-01", "2026-07-30")).toEqual([])
+    expect(computeAdherenceOver([daily], {}, "2026-02-01", "2026-01-01")).toEqual([])
   })
 })

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { WaitlistForm } from "@/components/waitlist/waitlist-form";
 
 export const metadata: Metadata = {
-  title: "Join the waitlist — Trackd Co",
+  title: "Join the waitlist · Trackd Co",
   description:
     "Trackd is the private app for tracking your whole protocol: gear, peptides, supps, bloodwork, outcomes. Join the waitlist for early access.",
   openGraph: {
