@@ -943,7 +943,7 @@ export async function pushScheduleVersions(
         // The cycle in force under this version — see `scheduleVersionToRow`.
         ...pickCycleColumns(v),
       })),
-      { onConflict: "protocol_compound_id,effective_from" }
+      { onConflict: "user_id,protocol_compound_id,effective_from" }
     )
     if (error) {
       if (isMissingTable(error)) return { ok: true, skipped: true }
@@ -965,7 +965,7 @@ export async function pushScheduleVersions(
               dose_times: [v.time],
               stopped: v.stopped,
             })),
-            { onConflict: "protocol_compound_id,effective_from" }
+            { onConflict: "user_id,protocol_compound_id,effective_from" }
           )
         if (retry) {
           console.error("pushScheduleVersions failed", retry)

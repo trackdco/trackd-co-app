@@ -289,7 +289,28 @@ function mergeAndSave(
   for (const src of [remapLogs(cloud.doseLogs), remapLogs(localLogs)]) {
     for (const [day, entries] of Object.entries(src)) {
       for (const [compoundId, log] of Object.entries(entries)) {
-        if (merged[day]?.[compoundId]) continue
+        const already = merged[day]?.[compoundId]
+        if (already) {
+          /**
+           * The Postgres row wins the dose itself, but NOT the injection site.
+           *
+           * `dose_logs.injection_site` is a coarse 13-value enum: 22 of the 36
+           * pickable sites have no member and collapse to `other`, which reads
+           * back as `null`. So a dose logged into "Trap - Left" came back with no
+           * site at all, and "Front Quad - Left" came back as "Outer Quad - Left"
+           * — a different muscle, silently, within seconds of logging.
+           *
+           * The GRANULAR siteId is preserved verbatim in the device store and its
+           * jsonb mirror, which is exactly what the injection-site recency view
+           * reads. So where the pulled row has no site and a local/mirror record
+           * for the same dose does, the local one is kept. It is strictly more
+           * information about the same event, never a conflicting fact.
+           */
+          if (already.siteId == null && log.siteId != null) {
+            merged[day]![compoundId] = { ...already, siteId: log.siteId }
+          }
+          continue
+        }
         ;(merged[day] ??= {})[compoundId] = log
       }
     }

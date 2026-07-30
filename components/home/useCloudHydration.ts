@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react"
 
 import { hydrateFromPostgres } from "@/lib/home/hydrateProtocol"
 import { migrateDeviceState } from "@/lib/migration/migrateDeviceState"
+import { repushDoseLogs } from "@/lib/home/repushDoseLogs"
 
 /**
  * Home flip (Protocol Cutover, Step 3): hydrate the device-local stack + dose-log
@@ -31,11 +32,18 @@ export function useCloudHydration(userId: string): void {
       if (!cancelled) await hydrateFromPostgres(userId)
     })()
 
-    // Reconnect: re-push the whole local set to Postgres (idempotent) so anything
-    // mutated offline — including dose logs — lands, then pull. Focus just re-reads.
+    // Reconnect: push anything written offline, then pull.
+    //
+    // `migrateDeviceState(force)` was doing this and silently doing NOTHING: it
+    // checks the durable cloud flag before honouring `force`, and that flag is set
+    // in every user's first session, so a dose logged offline never reached
+    // Postgres and died with the next reinstall. The flag is load-bearing — a full
+    // re-migration re-seeds from the stale jsonb mirror and resurrects deleted
+    // compounds — so instead of bypassing it we re-push the DOSE LOGS narrowly.
+    // Idempotent (deterministic ids), so this is safe on every reconnect.
     const onOnline = () => {
       void (async () => {
-        await migrateDeviceState(userId, { force: true })
+        await repushDoseLogs(userId)
         if (!cancelled) await hydrateFromPostgres(userId)
       })()
     }

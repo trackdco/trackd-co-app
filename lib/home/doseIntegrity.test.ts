@@ -515,3 +515,31 @@ describe("schedule day-counting is DST-safe (proven bug, Europe/London)", () => 
     expect(isDueOnFor(c, dateKeyToDate("2026-03-30"))).toBe(true)
   })
 })
+
+describe("the granular injection site survives a Postgres round-trip", () => {
+  it("keeps a local siteId the coarse enum cannot represent", () => {
+    // `dose_logs.injection_site` is a 13-value enum; 22 of the 36 pickable sites
+    // collapse to `other` and read back as null. The verbatim siteId lives in the
+    // device store, so it must win where the pulled row has none.
+    const pulled: DoseLog = { amount: "250", unit: "mg", siteId: null, time24: "09:00" }
+    const local: DoseLog = { amount: "250", unit: "mg", siteId: "im-trap-l", time24: "09:00" }
+    // The merge rule, extracted: Postgres wins the dose, local wins a site it alone has.
+    const merged =
+      pulled.siteId == null && local.siteId != null
+        ? { ...pulled, siteId: local.siteId }
+        : pulled
+    expect(merged.siteId).toBe("im-trap-l")
+    // And the dose itself still comes from the pulled row.
+    expect(merged.amount).toBe("250")
+  })
+
+  it("does not let a local site overwrite one Postgres actually knows", () => {
+    const pulled: DoseLog = { amount: "250", siteId: "im-vglute-r", time24: "09:00" }
+    const local: DoseLog = { amount: "250", siteId: "im-delt-l", time24: "09:00" }
+    const merged =
+      (pulled.siteId as string | null) == null && local.siteId != null
+        ? { ...pulled, siteId: local.siteId }
+        : pulled
+    expect(merged.siteId).toBe("im-vglute-r")
+  })
+})

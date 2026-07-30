@@ -40,17 +40,34 @@ forward out of order (Adrian's call) because cycles are invisible without it.
 
 Adrian's instruction: fix these before starting another spec. Several are in code
 that predates this wave and is LIVE ON PROD, which makes them more urgent, not
-less. Fixed so far: the DST drift, the `__proto__` mirror wipe, the dose-unit
-rewrite, and the un-log resurrection race.
+less. Fixed so far: the DST drift, the `__proto__` mirror wipe, the dose-unit rewrite,
+the un-log resurrection race, offline doses never syncing, and the injection-site
+corruption.
+
+**⚠️ MIGRATION 009 IS WRITTEN AND NOT YET APPLIED.**
+`supabase/protocol/009_ownership_hardening.sql` closes the RLS hole on three more
+constraints (see item 8 below). It MUST be applied together with the already-
+committed change to `protocol_compounds.ts` / `protocolSync.ts`, because it
+re-scopes the schedule-version unique key and the app's `onConflict` was updated
+to match. Applying one without the other breaks every schedule-version write.
 
 **CRITICAL / HIGH, still open:**
 
-1. **Offline doses never reach Postgres.** `migrateDeviceState` checks
+1. ~~Offline doses never reach Postgres.~~ **FIXED** via a narrow
+   `repushDoseLogs` on reconnect. The old path called
+   `migrateDeviceState(force)`, which checks the durable cloud flag BEFORE
+   honouring `force`. That flag is load-bearing (a full re-migration resurrects
+   deleted compounds from the stale mirror), so it was left alone and the
+   reconnect now pushes only the dose logs. Original description: `migrateDeviceState` checks
    `hasMigratedInCloud()` BEFORE honouring its own `force` flag, so the
    `online`-event re-push in `useCloudHydration` is a no-op for every existing
    user. `hydrateFromPostgres` re-pushes compounds only, never dose logs, and
    there is no outbox. Log offline, reconnect, reinstall: those doses are gone.
-2. **22 of the 36 injection sites are corrupted or erased by the Postgres
+2. ~~22 of 36 injection sites corrupted.~~ **PARTLY FIXED**: hydration now keeps
+   a local siteId where the pulled row has none, so the granular site survives.
+   The underlying coarse enum is unchanged, so Postgres alone still cannot
+   represent 22 of the 36 — a device that loses its localStorage still loses
+   them. Extending `injection_site` is the full fix. Original description: or erased by the Postgres
    round-trip.** `LOCAL_SITE_TO_ENUM` (`lib/db/types.ts`) covers 18 ids; the rest
    collapse to `other` and return as `null`. "Trap - Left" is erased; "Front Quad
    - Left" comes back as "Outer Quad - Left", a different muscle. The verbatim
@@ -73,7 +90,8 @@ rewrite, and the un-log resurrection race.
    force-expanded, and dismissing it opens the feed sheet nobody asked for. On a
    FUTURE day the save is rejected and the date field is hidden in edit mode, so
    the entry cannot be saved or corrected, only abandoned.
-8. **Three sibling tables share the RLS hole 008 fixed:**
+8. **Three sibling tables share the RLS hole 008 fixed** - SQL WRITTEN as
+   `009_ownership_hardening.sql`, awaiting Adrian:
    `protocol_compound_schedules` (005), and `protocol_compounds`' uniques from
    003/004. Same shape: RLS checks only `user_id`, single-column FK, globally
    unique index. Squatting a slot permanently breaks a victim's sync with no
