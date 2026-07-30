@@ -1,0 +1,345 @@
+"use client"
+
+import { useState } from "react"
+import Link from "next/link"
+import { ArrowLeft, CaretRight, Plus } from "@/components/icons"
+
+import { cn } from "@/lib/utils"
+import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
+import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
+import { BlockEndPrompt } from "@/components/blocks/BlockEndPrompt"
+import { BlockRetrospective } from "@/components/blocks/BlockRetrospective"
+import { dismissEndPrompt } from "@/lib/blocks/endPromptDismissal"
+import {
+  activeBlock,
+  blockProgress,
+  blockWindow,
+  formatDuration,
+  pastBlocks,
+  targetProgress,
+  type Block,
+} from "@/lib/blocks/block"
+import {
+  CARD_EYEBROW,
+  DATA_MONO,
+  METRIC_VALUE,
+  UNIT_SUFFIX,
+} from "@/lib/ui-presets"
+import { formatPhotoDateShort } from "@/lib/progress/photos"
+import type { BloodworkPhoto } from "@/lib/progress/bloodwork"
+import type { JournalEntry } from "@/lib/progress/journal"
+import type { ProgressPhoto } from "@/lib/progress/photos"
+import type { StackCompound } from "@/lib/home/stack"
+import type { DayLogs } from "@/lib/home/doseLog"
+
+/**
+ * `/blocks` — the live block, and the look-back list.
+ *
+ * Its own route rather than a sheet (following `/weight`): a retrospective is
+ * long enough to want a page it can scroll rather than a sheet's height to
+ * fight, and it is a canonical view someone returns to rather than a step in a
+ * flow.
+ *
+ * Which block is open lives in the URL (`?block=<id>`) rather than in component
+ * state, so the phone's back button walks back to the list instead of leaving
+ * the app's Blocks section entirely. Everything is already loaded, so the switch
+ * costs no fetch.
+ */
+export function BlocksScreen({
+  blocks,
+  selectedId,
+  todayKey,
+  userId,
+  weight,
+  photos,
+  bloods,
+  journal,
+  /** Dev-preview-only: inject the device stores without signing in. */
+  sampleStack,
+  sampleLogs,
+}: {
+  blocks: Block[]
+  selectedId?: string
+  todayKey: string
+  userId: string
+  weight: { key: string; kg: number }[]
+  photos: ProgressPhoto[]
+  bloods: BloodworkPhoto[]
+  journal: JournalEntry[]
+  sampleStack?: StackCompound[]
+  sampleLogs?: DayLogs
+}) {
+  const [creating, setCreating] = useState(false)
+  const [ending, setEnding] = useState(false)
+
+  const live = activeBlock(blocks)
+  const past = pastBlocks(blocks)
+  const selected = selectedId ? blocks.find((b) => b.id === selectedId) : undefined
+  const latestWeight = weight.length > 0 ? weight[weight.length - 1].kg : null
+
+  const shared = {
+    todayKey,
+    userId,
+    weight,
+    photos,
+    bloods,
+    journal,
+    sampleStack,
+    sampleLogs,
+  }
+
+  // ── One block's look-back ────────────────────────────────────────────────
+  if (selected) {
+    const window = blockWindow(selected, todayKey)
+    return (
+      <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
+        <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+          <Link
+            href="/blocks"
+            className="inline-flex items-center gap-2 text-sm text-text-muted transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Blocks
+          </Link>
+          <h1 className="mt-3 text-2xl font-light tracking-[-0.02em] text-foreground">
+            {selected.name}
+          </h1>
+          <p className="mt-1 text-sm text-text-muted">
+            {selected.status === "active" ? "Running" : "Closed"}
+            {selected.status !== "active" &&
+              selected.closedOn &&
+              ` ${formatPhotoDateShort(selected.closedOn)}`}
+            {" · "}
+            {formatDuration(window.days)}
+          </p>
+        </div>
+
+        <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
+          <BlockRetrospective block={selected} {...shared} />
+        </div>
+      </div>
+    )
+  }
+
+  // ── The list ─────────────────────────────────────────────────────────────
+  return (
+    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
+      <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+        <PageScrollTitle title="Blocks" />
+      </div>
+
+      <div className="animate-home-up" style={{ animationDelay: "40ms" }}>
+        {live ? (
+          <LiveBlockCard
+            block={live}
+            todayKey={todayKey}
+            latestWeight={latestWeight}
+            startWeight={startWeightFor(live, weight)}
+            onEnd={() => setEnding(true)}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="hairline flex w-full flex-col items-center gap-1.5 rounded-2xl border-border-default px-6 py-8 text-center text-text-muted transition hover:text-foreground active:scale-[0.98]"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <Plus className="h-4 w-4" aria-hidden />
+              New block
+            </span>
+            <span className="text-xs text-text-subtle">
+              A prep, an off-season, a cut. Start and end dates, and what you ran.
+            </span>
+          </button>
+        )}
+      </div>
+
+      {live && (
+        <div className="animate-home-up" style={{ animationDelay: "70ms" }}>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="hairline flex w-full items-center justify-center gap-2 rounded-2xl border-border-default px-6 py-4 text-sm font-medium text-text-muted transition hover:text-foreground active:scale-[0.98]"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            New block
+          </button>
+        </div>
+      )}
+
+      {past.length > 0 && (
+        <div className="animate-home-up space-y-2" style={{ animationDelay: "100ms" }}>
+          <p className={CARD_EYEBROW}>Look back</p>
+          {past.map((b) => (
+            <PastBlockRow key={b.id} block={b} todayKey={todayKey} />
+          ))}
+        </div>
+      )}
+
+      {!live && past.length === 0 && (
+        <p className="animate-home-up px-1 text-sm text-text-muted" style={{ animationDelay: "100ms" }}>
+          A block is a named stretch of training. While one runs, everything you
+          already log stays exactly the same; when it ends you get the whole
+          period back in one place.
+        </p>
+      )}
+
+      <BlockCreateSheet
+        open={creating}
+        onOpenChange={setCreating}
+        todayKey={todayKey}
+        liveBlockName={live?.name ?? null}
+        currentWeightKg={latestWeight}
+      />
+
+      {live && (
+        <BlockEndPrompt
+          open={ending}
+          onOpenChange={setEnding}
+          block={live}
+          todayKey={todayKey}
+          reachedEnd={blockProgress(live, todayKey).daysRemaining === 0}
+          onResolved={(outcome) =>
+            dismissEndPrompt(userId, live.id, outcome === "left-running")
+          }
+        />
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ pieces */
+
+function LiveBlockCard({
+  block,
+  todayKey,
+  latestWeight,
+  startWeight,
+  onEnd,
+}: {
+  block: Block
+  todayKey: string
+  latestWeight: number | null
+  startWeight: number | null
+  onEnd: () => void
+}) {
+  const p = blockProgress(block, todayKey)
+  const t = block.targets[0]
+  const target =
+    t?.variable === "weight" && startWeight != null && latestWeight != null
+      ? targetProgress(t, startWeight, latestWeight)
+      : null
+
+  return (
+    <section className="rounded-2xl bg-bg-surface p-5">
+      <div className="flex items-center gap-3">
+        <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Running now</span>
+      </div>
+
+      <p className="mt-1.5 flex items-baseline gap-2">
+        <span className={METRIC_VALUE}>{p.week}</span>
+        <span className={UNIT_SUFFIX}>
+          {p.totalWeeks != null ? `of ${p.totalWeeks} weeks` : "weeks in"}
+        </span>
+      </p>
+      <p className="mt-0.5 text-sm text-foreground">{block.name}</p>
+
+      {p.fraction != null && (
+        <div
+          className="mt-3 h-1 w-full overflow-hidden rounded-full bg-bg-input"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(p.fraction * 100)}
+          aria-label={`${block.name}, week ${p.week} of ${p.totalWeeks}`}
+        >
+          <div
+            className="h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
+            style={{ width: `${p.fraction * 100}%` }}
+          />
+        </div>
+      )}
+
+      {target && (
+        <div className="mt-3 flex items-baseline justify-between gap-3">
+          <span className={DATA_MONO}>Weight</span>
+          <span className={DATA_MONO}>
+            {target.fraction != null ? `${Math.round(target.fraction * 100)}%` : ""}
+            {target.remaining > 0
+              ? ` · ${trimNum(target.remaining)} kg to go`
+              : " · reached"}
+          </span>
+        </div>
+      )}
+
+      <p className="mt-2 text-xs text-text-muted">
+        {p.overrun
+          ? `Ran past ${formatPhotoDateShort(block.endsOn ?? "")}`
+          : p.daysRemaining != null
+            ? `${p.daysRemaining} ${p.daysRemaining === 1 ? "day" : "days"} left, ends ${formatPhotoDateShort(block.endsOn ?? "")}`
+            : `Started ${formatPhotoDateShort(block.startedOn)}`}
+      </p>
+
+      <div className="mt-4 flex gap-3">
+        <Link
+          href={`/blocks?block=${block.id}`}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border-strong px-4 py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
+        >
+          Look back
+        </Link>
+        <button
+          type="button"
+          onClick={onEnd}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border-strong px-4 py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
+        >
+          End or extend
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function PastBlockRow({ block, todayKey }: { block: Block; todayKey: string }) {
+  const window = blockWindow(block, todayKey)
+  return (
+    <Link
+      href={`/blocks?block=${block.id}`}
+      className="flex items-center gap-3 rounded-2xl bg-bg-surface px-5 py-4 transition-colors hover:bg-bg-surface-raised/40"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm text-foreground">{block.name}</span>
+        <span className="mt-0.5 block text-xs text-text-muted">
+          {formatDuration(window.days)} · {formatPhotoDateShort(window.from)} to{" "}
+          {formatPhotoDateShort(window.to)}
+        </span>
+      </span>
+      <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+    </Link>
+  )
+}
+
+/**
+ * The weight a target measures FROM: the last reading on or before the block
+ * started, or failing that the first one inside it.
+ *
+ * The fallback matters. Someone who starts logging weight a week into a prep
+ * still gets a reading, anchored to their first weigh-in of the block rather
+ * than to nothing at all — and anchoring to their earliest ever weigh-in
+ * instead would credit the block with change that happened before it.
+ */
+function startWeightFor(
+  block: Block,
+  weight: { key: string; kg: number }[],
+): number | null {
+  const sorted = weight.slice().sort((a, b) => a.key.localeCompare(b.key))
+  return (
+    sorted.filter((w) => w.key <= block.startedOn).at(-1)?.kg ??
+    sorted.find((w) => w.key >= block.startedOn)?.kg ??
+    null
+  )
+}
+
+/** One decimal at most, trailing zero dropped: "4", "3.5". */
+function trimNum(n: number): string {
+  return String(Number(n.toFixed(1)))
+}

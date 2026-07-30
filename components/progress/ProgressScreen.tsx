@@ -87,6 +87,7 @@ export function ProgressScreen({
       <div className="animate-home-up" style={{ animationDelay: "40ms" }}>
         <BlockBanner
           todayKey={todayKey}
+          userId={userId}
           blocks={previewBlocks ?? blocks ?? []}
           weight={weight}
         />

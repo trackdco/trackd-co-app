@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   activeBlock,
   blockProgress,
+  blockWindow,
   formatDuration,
-  isWithinBlock,
+  isWithinWindow,
   pastBlocks,
   targetProgress,
   type Block,
@@ -114,26 +115,53 @@ describe("targetProgress", () => {
   })
 })
 
-describe("isWithinBlock — the window every look-back query uses", () => {
+describe("blockWindow — the window every look-back query uses", () => {
+  it("runs from the start to TODAY while the block is live", () => {
+    // Not to `endsOn`: the planned end is an intention, and a block in week two
+    // must not read as though it had already spanned fifteen.
+    const w = blockWindow(block(), "2026-01-15")
+    expect(w).toEqual({ from: "2026-01-01", to: "2026-01-15", days: 15 })
+  })
+
+  it("uses the CLOSE date over the planned end once it is closed", () => {
+    // Closed early: the days after the close are not part of what you ran, and
+    // the days before the planned end that never happened are not either.
+    const closed = block({ status: "completed", closedOn: "2026-02-01" })
+    const w = blockWindow(closed, "2026-06-01")
+    expect(w).toEqual({ from: "2026-01-01", to: "2026-02-01", days: 32 })
+  })
+
+  it("counts a single day as one day, not zero", () => {
+    expect(blockWindow(block(), "2026-01-01").days).toBe(1)
+  })
+
+  it("clamps a block that starts in the future rather than going negative", () => {
+    const w = blockWindow(block({ startedOn: "2026-03-01" }), "2026-01-01")
+    expect(w).toEqual({ from: "2026-03-01", to: "2026-03-01", days: 1 })
+  })
+
+  it("is open ended in the sense that today keeps moving, not that it is unbounded", () => {
+    const open = block({ endsOn: null })
+    expect(blockWindow(open, "2030-01-01").to).toBe("2030-01-01")
+  })
+
+  it("survives a malformed date rather than throwing", () => {
+    const w = blockWindow(block({ startedOn: "not-a-date" }), "2026-01-01")
+    expect(w).toEqual({ from: "not-a-date", to: "not-a-date", days: 1 })
+  })
+})
+
+describe("isWithinWindow", () => {
+  const w = { from: "2026-01-01", to: "2026-04-15", days: 105 }
+
   it("includes both ends", () => {
-    expect(isWithinBlock(block(), "2026-01-01")).toBe(true)
-    expect(isWithinBlock(block(), "2026-04-15")).toBe(true)
+    expect(isWithinWindow(w, "2026-01-01")).toBe(true)
+    expect(isWithinWindow(w, "2026-04-15")).toBe(true)
   })
 
   it("excludes outside", () => {
-    expect(isWithinBlock(block(), "2025-12-31")).toBe(false)
-    expect(isWithinBlock(block(), "2026-04-16")).toBe(false)
-  })
-
-  it("uses the CLOSE date over the planned end when one exists", () => {
-    // Closed early: days after the close are not part of what you ran.
-    const closed = block({ status: "completed", closedOn: "2026-02-01" })
-    expect(isWithinBlock(closed, "2026-02-01")).toBe(true)
-    expect(isWithinBlock(closed, "2026-02-02")).toBe(false)
-  })
-
-  it("has no upper bound while open ended and unclosed", () => {
-    expect(isWithinBlock(block({ endsOn: null }), "2030-01-01")).toBe(true)
+    expect(isWithinWindow(w, "2025-12-31")).toBe(false)
+    expect(isWithinWindow(w, "2026-04-16")).toBe(false)
   })
 })
 

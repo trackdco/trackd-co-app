@@ -186,14 +186,42 @@ export function targetProgress(
   }
 }
 
-/** Is `dateKey` inside the block's window? Used to scope every look-back query. */
-export function isWithinBlock(block: Block, dateKey: string): boolean {
-  const d = dayNumber(dateKey)
-  const start = dayNumber(block.startedOn)
-  if (d == null || start == null || d < start) return false
-  const endKey = block.closedOn ?? block.endsOn
-  const end = endKey ? dayNumber(endKey) : null
-  return end == null || d <= end
+export interface BlockWindow {
+  /** Local "YYYY-MM-DD", inclusive. */
+  from: string
+  /** Local "YYYY-MM-DD", inclusive. */
+  to: string
+  /** Whole days the window covers, both ends included. Never below 1. */
+  days: number
+}
+
+/**
+ * The window every look-back query is scoped to. ONE rule, so no two sections of
+ * the retrospective can disagree about which days belong to a block.
+ *
+ * A finished block ends on the day it was CLOSED, not the day it was planned to
+ * end: a prep cut short covers the days it actually ran. A live block ends
+ * TODAY, because `endsOn` is an intention and nothing after today has happened
+ * yet — reading a live block's retrospective as if it already spanned sixteen
+ * weeks would state a fact that is not true until it is.
+ *
+ * `to` is clamped to `from`, so a block someone starts tomorrow reads as one day
+ * rather than as a negative span.
+ */
+export function blockWindow(block: Block, todayKey: string): BlockWindow {
+  const from = block.startedOn
+  const rawTo = block.closedOn ?? todayKey
+  const start = dayNumber(from)
+  const end = dayNumber(rawTo)
+  if (start == null || end == null) return { from, to: from, days: 1 }
+  if (end < start) return { from, to: from, days: 1 }
+  return { from, to: rawTo, days: end - start + 1 }
+}
+
+/** Is `dateKey` inside `window`? Keys are zero-padded, so a string compare is a
+ *  date compare and needs no parsing. */
+export function isWithinWindow(window: BlockWindow, dateKey: string): boolean {
+  return dateKey >= window.from && dateKey <= window.to
 }
 
 /**

@@ -1,18 +1,27 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { CaretRight, Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { useMounted } from "@/components/home/useMounted"
 import {
   CARD_EYEBROW,
   DATA_MONO,
   METRIC_VALUE,
   UNIT_SUFFIX,
 } from "@/lib/ui-presets"
+import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
+import { BlockEndPrompt } from "@/components/blocks/BlockEndPrompt"
+import {
+  dismissEndPrompt,
+  isEndPromptDismissed,
+} from "@/lib/blocks/endPromptDismissal"
 import {
   activeBlock,
   blockProgress,
+  pastBlocks,
   targetProgress,
   type Block,
 } from "@/lib/blocks/block"
@@ -34,10 +43,13 @@ import {
  */
 export function BlockBanner({
   todayKey,
+  userId,
   weight,
   blocks,
 }: {
   todayKey: string
+  /** Scopes the "leave running" memory to the signed-in user. */
+  userId: string
   /**
    * Bodyweight points, oldest first. The start reading is resolved HERE rather
    * than by the caller because only this component knows which block is live,
@@ -47,25 +59,70 @@ export function BlockBanner({
   /** Every block the user has, from Postgres. */
   blocks: Block[]
 }) {
+  const mounted = useMounted()
+  const [creating, setCreating] = useState(false)
+  const [ending, setEnding] = useState(false)
+  /**
+   * Whether the dot has been answered with "leave running" on this device.
+   *
+   * The component owns this and storage only remembers it. Reading storage back
+   * to learn what was just tapped is the regression spec 07 shipped briefly: a
+   * refused write then reads as a dead control. Here the tap hides the dot
+   * whether or not the write lands.
+   */
+  const [dismissed, setDismissed] = useState(false)
   const block = activeBlock(blocks)
+  const past = pastBlocks(blocks)
+
+  // Read the remembered dismissal once the device store is readable. Before
+  // mount it is false, which errs toward SHOWING the dot — a dot that appears a
+  // frame late is a smaller failure than a prompt that never appears at all.
+  const [checkedFor, setCheckedFor] = useState<string | null>(null)
+  if (mounted && block && checkedFor !== block.id) {
+    setCheckedFor(block.id)
+    setDismissed(isEndPromptDismissed(userId, block.id))
+  }
 
   // Nothing live: the same hairline affordance Protocol uses for a new stack or
   // cycle (Adrian), so an empty slot looks the same wherever you meet one. Also
   // where the word gets taught, in one line.
   if (!block) {
     return (
-      <Link
-        href="/blocks"
-        className="hairline flex w-full flex-col items-center gap-1.5 rounded-2xl border-border-default px-6 py-5 text-center text-text-muted transition hover:text-foreground active:scale-[0.98]"
-      >
-        <span className="flex items-center gap-2 text-sm font-medium">
-          <Plus className="h-4 w-4" aria-hidden />
-          New block
-        </span>
-        <span className="text-xs text-text-subtle">
-          A prep, an off-season, a cut. Start and end dates, and what you ran.
-        </span>
-      </Link>
+      <>
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="hairline flex w-full flex-col items-center gap-1.5 rounded-2xl border-border-default px-6 py-5 text-center text-text-muted transition hover:text-foreground active:scale-[0.98]"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <Plus className="h-4 w-4" aria-hidden />
+            New block
+          </span>
+          <span className="text-xs text-text-subtle">
+            A prep, an off-season, a cut. Start and end dates, and what you ran.
+          </span>
+        </button>
+
+        {/* Only when there is something to look back on. A link to an empty
+            page is worse than no link. */}
+        {past.length > 0 && (
+          <Link
+            href="/blocks"
+            className="mt-2 flex items-center justify-center gap-1.5 text-xs text-text-muted transition-colors hover:text-foreground"
+          >
+            Look back on {past.length} finished{" "}
+            {past.length === 1 ? "block" : "blocks"}
+            <CaretRight className="h-3 w-3" aria-hidden />
+          </Link>
+        )}
+
+        <BlockCreateSheet
+          open={creating}
+          onOpenChange={setCreating}
+          todayKey={todayKey}
+          currentWeightKg={weight?.at(-1)?.kg ?? null}
+        />
+      </>
     )
   }
 
@@ -90,70 +147,109 @@ export function BlockBanner({
       ? targetProgress(t, startValue, currentValue)
       : null
 
+  // `daysRemaining === 0` is exactly "today is on or past the end date" — it is
+  // clamped at zero, so it cannot mean anything else. ON the end date counts:
+  // Adrian's rule is to ask on the end date, not after it.
+  const atEnd = p.daysRemaining === 0 && !dismissed
+
   return (
-    <Link
-      href="/blocks"
-      className="block rounded-2xl bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised/40"
-    >
-      <div className="flex items-center gap-3">
-        <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Block</span>
-        <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
-      </div>
-
-      <p className="mt-1.5 flex items-baseline gap-2">
-        <span className={METRIC_VALUE}>
-          {p.totalWeeks != null ? `${p.week}` : `${p.week}`}
-        </span>
-        <span className={UNIT_SUFFIX}>
-          {p.totalWeeks != null ? `of ${p.totalWeeks} weeks` : "weeks in"}
-        </span>
-      </p>
-      <p className="mt-0.5 truncate text-sm text-text-muted">{block.name}</p>
-
-      {/* A bar, not a ring. It is one figure and it is a length of time, which
-          is what a bar already looks like. Open-ended blocks get no bar at all
-          rather than a fake one: there is no denominator. */}
-      {p.fraction != null ? (
-        <div
-          className="mt-3 h-1 w-full overflow-hidden rounded-full bg-bg-input"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(p.fraction * 100)}
-          aria-label={`${block.name}, week ${p.week} of ${p.totalWeeks}`}
-        >
-          <div
-            className="h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
-            style={{ width: `${p.fraction * 100}%` }}
+    <div className="relative">
+      <Link
+        href="/blocks"
+        className="block rounded-2xl bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised/40"
+      >
+        <div className="flex items-center gap-3">
+          <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Block</span>
+          <CaretRight
+            className={cn("h-4 w-4 shrink-0 text-text-subtle", atEnd && "mr-9")}
+            aria-hidden
           />
         </div>
-      ) : null}
 
-      {/* The target, when there is one. A SECOND reading beside the time, never
-          folded into it: a combined percentage across two unrelated measures
-          would be a number nobody could act on. */}
-      {target ? (
-        <div className="mt-3 flex items-baseline justify-between gap-3">
-          <span className={DATA_MONO}>
-            {target.variable === "weight" ? "Weight" : "Consistency"}
+        <p className="mt-1.5 flex items-baseline gap-2">
+          <span className={METRIC_VALUE}>{p.week}</span>
+          <span className={UNIT_SUFFIX}>
+            {p.totalWeeks != null ? `of ${p.totalWeeks} weeks` : "weeks in"}
           </span>
-          <span className={DATA_MONO}>
-            {target.fraction != null ? `${Math.round(target.fraction * 100)}%` : ""}
-            {target.remaining > 0
-              ? ` · ${trimNum(target.remaining)}${target.variable === "weight" ? " kg" : "%"} to go`
-              : " · reached"}
-          </span>
-        </div>
-      ) : null}
+        </p>
+        <p className="mt-0.5 truncate text-sm text-text-muted">{block.name}</p>
 
-      <p className="mt-2 text-xs text-text-muted">
-        {p.overrun
-          ? `Ran past ${formatDate(block.endsOn)}. Close it to look back on it.`
-          : p.daysRemaining != null
-            ? `${p.daysRemaining} ${p.daysRemaining === 1 ? "day" : "days"} left, ends ${formatDate(block.endsOn)}`
-            : `Started ${formatDate(block.startedOn)}`}
-      </p>
-    </Link>
+        {/* A bar, not a ring. It is one figure and it is a length of time, which
+            is what a bar already looks like. Open-ended blocks get no bar at all
+            rather than a fake one: there is no denominator. */}
+        {p.fraction != null ? (
+          <div
+            className="mt-3 h-1 w-full overflow-hidden rounded-full bg-bg-input"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(p.fraction * 100)}
+            aria-label={`${block.name}, week ${p.week} of ${p.totalWeeks}`}
+          >
+            <div
+              className="h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
+              style={{ width: `${p.fraction * 100}%` }}
+            />
+          </div>
+        ) : null}
+
+        {/* The target, when there is one. A SECOND reading beside the time, never
+            folded into it: a combined percentage across two unrelated measures
+            would be a number nobody could act on. */}
+        {target ? (
+          <div className="mt-3 flex items-baseline justify-between gap-3">
+            <span className={DATA_MONO}>
+              {target.variable === "weight" ? "Weight" : "Consistency"}
+            </span>
+            <span className={DATA_MONO}>
+              {target.fraction != null ? `${Math.round(target.fraction * 100)}%` : ""}
+              {target.remaining > 0
+                ? ` · ${trimNum(target.remaining)}${target.variable === "weight" ? " kg" : "%"} to go`
+                : " · reached"}
+            </span>
+          </div>
+        ) : null}
+
+        <p className="mt-2 text-xs text-text-muted">
+          {p.overrun
+            ? `Ran past ${formatDate(block.endsOn)}. Close it to look back on it.`
+            : p.daysRemaining != null
+              ? `${p.daysRemaining} ${p.daysRemaining === 1 ? "day" : "days"} left, ends ${formatDate(block.endsOn)}`
+              : `Started ${formatDate(block.startedOn)}`}
+        </p>
+      </Link>
+
+      {/* The end-date prompt's dot (Adrian: "a dot on the Blocks banner,
+          tapped"). A sibling of the link rather than a child of it, because a
+          button inside a link is neither valid nor tappable in the way anyone
+          expects. It sits ABOVE the link in the stacking order with a 44px tap
+          target, so the tap that looks like it hits the dot does hit the dot.
+
+          Amber because it is an interactive prompt, which is what amber means in
+          this app. It is not a warning and there is nothing wrong. */}
+      {atEnd && (
+        <button
+          type="button"
+          onClick={() => setEnding(true)}
+          aria-label={`${block.name} has reached its end date. Extend, close, or leave it running.`}
+          className="absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full"
+        >
+          <span className="h-2.5 w-2.5 rounded-full bg-accent-primary" aria-hidden />
+        </button>
+      )}
+
+      <BlockEndPrompt
+        open={ending}
+        onOpenChange={setEnding}
+        block={block}
+        todayKey={todayKey}
+        onResolved={(outcome) => {
+          const left = outcome === "left-running"
+          setDismissed(left)
+          dismissEndPrompt(userId, block.id, left)
+        }}
+      />
+    </div>
   )
 }
 

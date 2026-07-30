@@ -256,8 +256,11 @@ stored.)
   read-normalisers harden the shape on the way back into `localStorage`.
   Separately, a handful of `localStorage` keys are **device PREFERENCES, never
   mirrored and never records**: `trackd.home.weekStripOpen`, `trackd.unitPrefs.*`,
-  `trackd:install-prompt-dismissed`, `trackd.calculator.disclaimerSeen` and
-  `trackd.calculator.syringeSize`. Every one of them must be **best-effort**: the
+  `trackd:install-prompt-dismissed`, `trackd.calculator.disclaimerSeen`,
+  `trackd.calculator.syringeSize` and
+  `trackd.blocks.endPromptDismissed.v1.<uid>` (the block ids whose end-date
+  prompt was answered "leave running" — see **Blocks** below).
+  Every one of them must be **best-effort**: the
   UI holds its own state and storage only remembers it, so a full quota or blocked
   storage costs the user the memory of a choice and never the ability to make one.
   (Spec 07 shipped the inverse briefly — the calculator read the syringe size back
@@ -427,6 +430,84 @@ stored.)
   removed as the menu was reworked). It carries **no calculator action**: the
   reconstitution calculator holds the centre bottom-nav slot and `/calculator` is its
   entry point (Spec 20 → D4/D6), so a tile would only duplicate it.
+
+## Blocks (new scope, not one of the eighteen specs — 2026-07-30)
+
+**A block is a NAMED STRETCH OF TRAINING with a start and an end.** A prep, an
+off-season, a cut. It is not a new kind of data: every screen of it is a query
+over dated things Trackd already stores, which is what makes it cheap to build
+and impossible for a competitor to copy without having held the data for sixteen
+weeks.
+
+The naming was Adrian's call and it changed the feature rather than renaming it.
+A GOAL is a target you hit or miss; a BLOCK is a period you ran. That makes the
+**retrospective the centre** and the progress figure a secondary reading.
+
+- **Storage** — `supabase/blocks/001_blocks.sql`: `blocks` (name, `started_on`,
+  nullable `ends_on`, status, `closed_on`, `reflection`) and `block_targets` (a
+  LIST, because any tracked variable should be targetable and one nullable
+  column per variable does not scale), bringing the live DB to **27 tables**.
+  **APPLIED by Adrian, 2026-07-30.** Postgres is the source of truth with **no
+  device mirror**: a block is a RECORD, there is no offline capture path for one,
+  and losing a sixteen-week prep to a PWA reinstall would be the worst possible
+  bug in a feature whose whole point is looking back. Ownership is structural
+  (composite FK per 008/009) and **one live block per user** is a partial unique
+  index rather than a trigger, so it cannot be raced.
+- **Targets cover weight and consistency, and NEVER bloodwork** (Adrian: "I'm not
+  doing targets for blood work. No way."). A target turns a reading into a pass
+  or a fail, and a biomarker is exactly the reading the
+  categorical-never-evaluative invariant protects. Both permitted variables are
+  facts about the user's own behaviour instead. The CHECK constraint enforces it
+  at the database, not just in TypeScript.
+- **Time is the primary measure; a target is a SECOND, separate figure.**
+  MacroFactor can show a percentage because its goals are numeric; "prepping for
+  a comp" has no number to divide. Time always exists, so it leads, and the two
+  are never blended into one number because a combined "68% complete" would be
+  inventing a fact. `lib/blocks/block.ts` is pure and tested.
+- **One window rule** — `blockWindow(block, todayKey)` (`lib/blocks/block.ts`) is
+  the single definition of which days belong to a block, so no two sections of
+  the retrospective can disagree. A finished block ends on the day it was
+  **CLOSED**, not the day it was planned to end (a prep cut short covers the days
+  it actually ran); a live block ends **today**, because `endsOn` is an intention
+  and a block in week two must not read as though it had already spanned fifteen.
+  The earlier `isWithinBlock` was removed rather than left beside it: it had no
+  production caller and would have been a second, subtly different rule.
+- **The retrospective is a set of queries** (`lib/blocks/retrospective.ts`, pure +
+  tested): duration, weight (start / end / delta / graph clipped to the window),
+  first and last photo SESSION side by side, what was run with dose counts,
+  bloods, consistency, journal count + the markers noted most often, and the
+  user's own note. Nothing is stored and nothing is cached — per the
+  no-stored-derived-values invariant, which is also what keeps the figures true
+  when a user back-dates a dose months later.
+  - **"What you ran" reuses `compoundsRunningOn`**, so a compound taken every
+    third day counts for the whole block rather than a third of it. A compound
+    with logged doses that never resolves as running is included anyway: a legacy
+    record should not erase a dose the user can see they took.
+  - **Consistency is the existing series, CLIPPED, never recomputed**, so Progress
+    and the retrospective cannot report different numbers for the same days.
+  - The dosing model is still device-local, so `what you ran` and consistency
+    resolve **client-side** from `lib/home/stack.ts` + `doseLog.ts`, exactly as
+    Progress's own consistency and running list do. Everything else is
+    server-fetched from Postgres.
+- **On the end date, ASK — never auto-close.** An auto-close would silently
+  decide the block finished on schedule and, more importantly, you would never
+  get the reflection, which is the one thing in the retrospective the data cannot
+  produce. A **dot on the Progress banner** opens **Extend / Close / Leave
+  running**; Extend lets the user pick the new date. "Leave running" is
+  remembered per block on the device
+  (`trackd.blocks.endPromptDismissed.v1.<uid>`) so a supported answer is not
+  turned into a nag, and is **cleared on extend** because a new end date is a new
+  question. The component owns the dot's visibility and storage only remembers
+  it — reading storage back to learn what was just tapped is the regression spec
+  07 shipped briefly.
+- **`/blocks` is a real route**, following `/weight`: a retrospective is long
+  enough to want a page it can scroll rather than a sheet's height to fight.
+  Which block is open lives in the URL (`?block=<id>`) so the phone's back button
+  walks back to the list. Dev-only harness at `/preview/blocks`
+  (`?state=ended|empty|past`, `&block=<id>`).
+- **Nothing here judges.** No "on track", no "behind", no projection, no colour
+  that means good or bad, and no verdict on whether a target was met. A delta of
+  minus four kilograms with no comment attached is the shape everything takes.
 
 ## Stacks (Spec 05, wave 2 part two — 2026-07-29)
 
