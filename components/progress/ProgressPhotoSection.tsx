@@ -12,7 +12,6 @@ import { useProgressAction } from "@/components/progress/useProgressAction";
 import { PhotoRunningList } from "@/components/progress/PhotoRunningList";
 import { customPosesIn, latestDay, type ProgressPhoto } from "@/lib/progress/photos";
 import type { WeightUnit } from "@/lib/weight";
-import type { DayLogs } from "@/lib/home/doseLog";
 import type { StackCompound } from "@/lib/home/stack";
 
 type Return = "none" | "gallery" | "edit";
@@ -30,7 +29,6 @@ export function ProgressPhotoSection({
   unit,
   compact = false,
   previewStack,
-  previewLogs,
 }: {
   photos: ProgressPhoto[];
   userId: string;
@@ -40,7 +38,6 @@ export function ProgressPhotoSection({
   compact?: boolean;
   /** Dev-preview-only device data for the Running list. */
   previewStack?: StackCompound[];
-  previewLogs?: DayLogs;
 }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -89,7 +86,6 @@ export function ProgressPhotoSection({
               date={shownDate}
               userId={userId}
               sampleStack={previewStack}
-              sampleLogs={previewLogs}
             />
           ) : null
         }

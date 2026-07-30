@@ -10,7 +10,6 @@ import type { AdherencePoint } from "@/lib/progress/consistency";
 import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { unitForPreference } from "@/lib/weight";
-import type { DayLogs } from "@/lib/home/doseLog";
 import type { StackCompound } from "@/lib/home/stack";
 
 /**
@@ -40,7 +39,6 @@ export function ProgressScreen({
   consistencySample,
   progressPhotos,
   previewStack,
-  previewLogs,
 }: {
   /** Bodyweight points from `weight_logs`, oldest → newest. */
   weight: { key: DateKey; kg: number }[];
@@ -63,7 +61,6 @@ export function ProgressScreen({
    *  can exercise the photo card's Running list without signing in. The real
    *  screen reads both from the device store. */
   previewStack?: StackCompound[];
-  previewLogs?: DayLogs;
 }) {
   const unit = unitForPreference(unitPreference);
 
@@ -81,7 +78,6 @@ export function ProgressScreen({
           todayKey={todayKey}
           unit={unit}
           previewStack={previewStack}
-          previewLogs={previewLogs}
         />
       </div>
 

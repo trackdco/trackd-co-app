@@ -22,10 +22,13 @@ export function JournalCard({
   entries: JournalEntry[];
   onOpen: () => void;
   /**
-   * Progress's two-up grid (spec 08 · part two): date and a one-line preview
-   * only. The marker chips do not fit a half-width square and are dropped HERE
-   * ONLY — they are untouched inside the journal itself, which is where they
-   * carry meaning.
+   * Progress's two-up grid (spec 08 · part two). The spec dropped the marker
+   * chips at this size and invited us to say if that read too thin. It did
+   * (Adrian, 2026-07-30), so they are back — as compact word-only chips rather
+   * than the full "name value" pairs, which is what actually did not fit. The
+   * marker WORD is the part worth glancing at; the marker's name is already
+   * implied by the word ("Sleep · Good" reads fine as just "Good" in context,
+   * and the full pairing is one tap away inside the journal).
    */
   compact?: boolean;
 }) {
@@ -51,11 +54,29 @@ export function JournalCard({
               <span className="mt-1 line-clamp-2 text-xs leading-relaxed text-text-muted">
                 {line}
               </span>
-            ) : (
-              <span className="mt-1 text-xs text-text-subtle">
-                Markers only
+            ) : null}
+            {latest.markers.length > 0 ? (
+              <span className="mt-2 flex flex-wrap gap-1">
+                {latest.markers.slice(0, 4).map((m) => (
+                  <span
+                    key={m.markerId}
+                    className="rounded-full bg-bg-input px-1.5 py-0.5 text-[10px] text-foreground"
+                  >
+                    {m.word}
+                  </span>
+                ))}
+                {latest.markers.length > 4 ? (
+                  <span className="self-center text-[10px] text-text-subtle">
+                    +{latest.markers.length - 4}
+                  </span>
+                ) : null}
               </span>
-            )}
+            ) : null}
+            {/* Entry count fills the card's foot with something true rather than
+                whitespace, and is the one number a journal glance wants. */}
+            <span className="mt-auto pt-2 text-[11px] text-text-subtle">
+              {entries.length} {entries.length === 1 ? "entry" : "entries"}
+            </span>
           </span>
         ) : (
           <span className="mt-3 flex-1 text-sm text-text-muted">

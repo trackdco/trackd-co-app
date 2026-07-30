@@ -124,15 +124,23 @@ gone, re-run the agents: they reproduce these by executing the real code.
 
 ### PARKED DECISIONS (coded around, nothing blocked)
 
-**GOALS — a proposal is written and waiting on you.**
-`Context/Feature Specs/proposals/goals.md`. Adrian asked for the idea plus
-questions on 2026-07-30; nothing is built. Short version: a goal is a DATE RANGE
-WITH A NAME, every screen of it is a query over data Trackd already holds, and
-the look-back is the feature rather than the progress ring. Seven open questions
-at the bottom of that file, the load-bearing ones being what it is called, whether
-one goal is live at a time, and whether progress is time-only or time plus an
-optional weight target. New scope: not one of the eighteen wave 2 specs, so its
-sequencing is also a question.
+**BLOCKS — proposal written, partly settled, nothing built.**
+`Context/Feature Specs/proposals/blocks.md`. Settled by Adrian 2026-07-30: it is
+called a BLOCK (a training block), one is live at a time, targets are in and are
+not limited to weight, and a block is bounded by real DATES rather than a week
+count. Still open: which tracked variables may be targets (I recommend weight and
+consistency, and never a biomarker, since a target on a reading turns it
+pass/fail against the categorical-never-evaluative invariant), whether a block
+may be open-ended, what happens on the end date, and where it sits in the build
+order. New scope: not one of the eighteen wave 2 specs.
+
+**Does a compound that is not taken daily count as "running" under a photo?**
+Adrian raised creatine: in the protocol, not taken every day. The shipped rule is
+"in the protocol, started, not stopped, on-cycle" — so it DOES show, regardless
+of whether a dose fell that day. I think that is right (it is what you were on,
+which is what the photo is asking) but he flagged it to discuss, so it is
+recorded rather than assumed. `lib/progress/running.ts` is the one place to
+change if he disagrees.
 
 
 **The mg/mcg control's look — SETTLED, kept here for the record.** Adrian asked

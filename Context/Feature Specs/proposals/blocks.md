@@ -1,8 +1,20 @@
-# PROPOSAL — Goals
+# PROPOSAL — Blocks
 
-**Status: proposed, not approved. Nothing built.** Adrian asked for an idea and
-questions, 2026-07-30. The open questions at the bottom need answers before any
-code.
+**Status: partly settled, nothing built.** Adrian answered the naming and shape
+questions on 2026-07-30; three questions are still open at the bottom.
+
+## SETTLED (Adrian, 2026-07-30)
+
+- **It is called a BLOCK** (a training block), not a goal. This was the right
+  call and it changes the feature: a goal is a target you hit or miss, a block is
+  a period of time you ran. The retrospective is the natural centre of a block
+  and only a bolt-on to a goal.
+- **One block live at a time.** Past blocks archive into the look-back list.
+- **Targets are in, and are not limited to weight.** "There are variables that we
+  track, so they could be targets." Weight is the obvious first one; the shape
+  should not assume it is the only one.
+- **Dates, not just weeks.** A block has real start and end DATES. Weeks are a
+  derived reading of them, not the model. It should be functional, not simplistic.
 
 New scope: this is NOT one of the eighteen wave 2 specs. Sequencing is a question.
 
@@ -79,7 +91,9 @@ goals
   name          text  ("First bodybuilding prep")
   started_on    date
   ends_on       date  NULL = open ended
-  target_weight_kg  numeric NULL
+  -- Targets are a LIST, not a column, because Adrian wants any tracked
+  -- variable to be targetable and one nullable column per variable does not
+  -- scale. `block_targets(block_id, variable, target_value, direction)`.
   status        active | completed | abandoned
   closed_on     date  NULL
   reflection    text  NULL   -- written when they close it
@@ -133,22 +147,19 @@ optional target weight.
 
 ## Open questions — need answers before building
 
-1. **One active goal at a time, or several at once?** I lean one, matching
-   "one compound, one stack". It keeps "Week 7 of 16" unambiguous on the Progress
-   card. Several would need the card to pick one anyway.
-2. **Can a goal have no end date?** An open-ended bulk has no deadline, but then
-   there is no "week 7 of 16" — only "week 7". Happy either way, but it changes
-   the card.
-3. **What happens on the end date?** Auto-complete it, or leave it live and prompt
-   them to close it? I lean prompt, because the retrospective wants their
+1. **Which tracked variables can be targets, beyond weight?** Weight is
+   unambiguous (one number, one direction, already graphed). The other candidates
+   are consistency percent, bodyweight change rather than absolute, and a
+   bloodwork marker. My worry is the last one: a target on a biomarker turns a
+   reading into a pass/fail, which is exactly what
+   `architecture.md`'s categorical-never-evaluative invariant forbids. My
+   recommendation is weight and consistency in v1, and NO biomarker targets ever.
+   Needs your call.
+2. **Can a block have no end date?** An open-ended off-season has no deadline,
+   and then there is no "week 7 of 16", only "week 7". Everything still works;
+   the card just reads differently.
+3. **What happens on the end date?** Auto-complete it, or leave it live and
+   prompt them to close it? I lean prompt, because the retrospective wants their
    reflection and an auto-close gets none.
-4. **Optional target weight in v1, or time only?** Time only is simpler and
-   honest; a target adds a second real number for the people who have one.
-5. **Where does it sit on Progress?** Above the photo card as its own card, a
-   fifth tile in the grid, or a row inside the grid? I lean above the photo card:
-   while a goal is live it is the frame for everything under it.
-6. **What do you want it called?** "Goal" reads like a target. "Prep", "Block",
-   "Phase" and "Run" all read like a period of time, which is closer to what it
-   is. This changes every string in the feature, so it is worth deciding first.
-7. **Sequencing.** Does this go before or after the remaining wave 2 specs
-   (profile, add-compound, log-a-dose, global sweep)?
+4. **Sequencing.** Before or after the remaining wave 2 specs (profile,
+   add-compound, log-a-dose, global sweep)?
