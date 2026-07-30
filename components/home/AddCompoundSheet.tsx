@@ -382,7 +382,7 @@ function AddCompoundBody({
   // used to land as a block at the bottom of the sheet, a long scroll away from
   // the field that caused them. Cleared as soon as the user touches that field,
   // so an error never outlives the mistake.
-  const [errors, setErrors] = useState<{ dose?: string; days?: string }>({})
+  const [errors, setErrors] = useState<{ dose?: string; days?: string; stock?: string }>({})
   // The Starts row's expansion. Collapsed by default: the date is usually today
   // and three dropdowns to confirm that is three too many.
   const [startOpen, setStartOpen] = useState(false)
@@ -560,10 +560,40 @@ function AddCompoundBody({
     return null
   }
 
+  /**
+   * The stock step is optional, but a HALF-filled one is not the same as an
+   * empty one. `buildStockInsert` returns null for both, so typing a powder
+   * amount and leaving BAC water blank saved the compound, closed the sheet, and
+   * threw the vial away without a word — the user believed they had recorded
+   * their stock and had not.
+   */
+  function stockError(): string | undefined {
+    if (!canStock || !addStockOn) return undefined
+    if (stockType === "reconstituted") {
+      const started = stPowder.trim() !== "" || stBac.trim() !== ""
+      if (started && buildStockInsert() === null) {
+        return "Enter both the powder amount and the BAC water, or clear them."
+      }
+    }
+    if (stockType === "preconcentrated") {
+      const started = stMl.trim() !== "" || stConc.trim() !== ""
+      if (started && buildStockInsert() === null) {
+        return "Enter both the volume and the concentration, or clear them."
+      }
+    }
+    return undefined
+  }
+
   async function handleSave() {
     const doseValue = Number(dose)
     if (dose.trim() === "" || !Number.isFinite(doseValue) || doseValue <= 0) {
       setErrors((p) => ({ ...p, dose: "Enter a dose greater than 0." }))
+      return
+    }
+    const stockMsg = stockError()
+    if (stockMsg) {
+      setErrors((p) => ({ ...p, stock: stockMsg }))
+      setAddStockOn(true)
       return
     }
     // When the time is still live-tracking, resolve it at SAVE (a fresh now), so
@@ -622,7 +652,12 @@ function AddCompoundBody({
               // missed, while the Cycles tab still showed the cycle.
               ...(cycleDraft ? { cycle: cycleDraft } : {}),
             },
-            versionedFrom
+            versionedFrom,
+            // A re-add RESUMES the compound, so the delete's `stopped` marker
+            // must not survive after the new start date. Without this, re-adding
+            // with a back-dated start left the stop as the latest version and the
+            // compound was never due again.
+            isReadd
           )
         : undefined
 
@@ -768,10 +803,14 @@ function AddCompoundBody({
             </>
           )}
 
-          {/* Dose. The "per dose" hint is gone: the row label says Dose, and the
-              annotation was restating it (spec 10 → remove helper text the row
-              label already carries). */}
-          <FormRow label="Dose" error={errors.dose}>
+          {/* Dose. The "per dose" qualifier STAYS. Spec 10 says to drop helper
+              text a row label already carries, and this one does not: "Dose"
+              does not say "per single administration, not your weekly total",
+              which is the exact confusion spec 22 added it for ("the error is
+              silent and costly, so keep the hint always visible"). Carried as a
+              hint on the label rather than a line under the row, so it obeys
+              both specs at once. */}
+          <FormRow label="Dose" hint="per dose" error={errors.dose}>
             <div className="flex items-center justify-end gap-2">
               <Input
                 inputMode="decimal"
@@ -784,7 +823,10 @@ function AddCompoundBody({
                 aria-label={`Dose in ${unit}`}
                 aria-invalid={errors.dose ? true : undefined}
                 className={cn(
-                  "h-10 w-20 rounded-lg border-border-default bg-bg-input text-right font-mono text-base dark:bg-bg-input",
+                  // 44px tall and wide enough for the five characters the
+                  // sanitiser permits. It was 40x80, which failed the tap target
+                  // AND clipped "99999.999" by 29px.
+                  "h-11 w-24 rounded-lg border-border-default bg-bg-input text-right font-mono text-base dark:bg-bg-input",
                   errors.dose && "border-state-error",
                 )}
               />
@@ -840,9 +882,12 @@ function AddCompoundBody({
               <Input
                 inputMode="numeric"
                 value={everyN}
-                onChange={(e) => setEveryN(e.target.value)}
+                // Digits only. It took anything: "0", "-4" and "abc" were all
+                // kept in the field and all silently became DAILY, with no error
+                // and no clue that the schedule was not what had been typed.
+                onChange={(e) => setEveryN(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
                 aria-label="Number of days between doses"
-                className="h-10 w-16 rounded-lg border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
+                className="h-11 w-16 rounded-lg border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
               />
               <span className="text-sm text-text-muted">days</span>
             </label>
@@ -977,7 +1022,11 @@ function AddCompoundBody({
                 // Empty resumes live tracking; any value freezes it.
                 onChange={(e) => setManualTime(e.target.value || null)}
                 aria-label="Default dose time"
-                className="h-10 w-28 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+                // w-36, not w-28. A 12-hour locale renders "08:00 am" plus the
+                // native picker glyph, which needs ~92px of content box; 112px of
+                // control with px-3 gave it 88 and cut the meridiem in half, so an
+                // Australian user could not tell AM from PM.
+                className="h-11 w-36 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
               />
             </div>
           </FormRow>
@@ -1145,9 +1194,13 @@ function AddCompoundBody({
             <FormRow
               label="Stock on hand"
               hint="Optional"
-              onPress={() => setAddStockOn((o) => !o)}
+              onPress={() => {
+                setAddStockOn((o) => !o)
+                if (errors.stock) setErrors((p) => ({ ...p, stock: undefined }))
+              }}
               expanded={addStockOn}
               value={addStockOn ? "" : "Add"}
+              error={errors.stock}
             />
             {addStockOn && (
               <div className="space-y-3 px-4 pb-4">
@@ -1285,13 +1338,21 @@ const STOCK_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:
 
 /** Every row is at least 52px tall, so the card reads as one rhythm even when a
  *  row holds nothing but text. */
-const ROW_BASE = "flex w-full min-h-[3.25rem] items-center justify-between gap-3 px-4 py-2.5 text-left"
+const ROW_BASE = "flex w-full min-h-[3.5rem] items-center justify-between gap-3 px-4 py-2 text-left"
+/** Rows that ARE the control get the press compression `ui-context.md` requires
+ *  of a borderless row, since there is no border to say they are tappable. */
+const ROW_PRESSABLE =
+  "transition-transform duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none"
 
-const ROW_PILL = "rounded-full border px-2.5 py-1 text-xs transition-colors"
+// px-3 py-2, not px-2.5 py-1: spec 10 shrank these to 26px tall, below both the
+// 44px guideline and the ~34px they had been. 36px is what fits four cadence
+// pills across a 360px row without a third line.
+const ROW_PILL =
+  "rounded-full border px-3 py-2 text-xs transition-colors active:scale-[0.98]"
 const ROW_PILL_ON = "border-transparent bg-accent-primary font-medium text-bg-base"
 const ROW_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
 const ROW_SELECT =
-  "h-10 min-w-0 rounded-lg border border-border-default bg-bg-input px-2 text-sm text-foreground outline-none transition-[color,box-shadow] [color-scheme:dark] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+  "h-11 min-w-0 rounded-lg border border-border-default bg-bg-input px-2 text-sm text-foreground outline-none transition-[color,box-shadow] [color-scheme:dark] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 
 function RowDivider() {
   return <div className="mx-4 hairline-t" aria-hidden />
@@ -1363,7 +1424,15 @@ function FormRow({
   return (
     <>
       {onPress ? (
-        <button type="button" onClick={onPress} className={ROW_BASE}>
+        <button
+          type="button"
+          onClick={onPress}
+          // A rotating caret is not an announcement. Without these a screen
+          // reader was told nothing about a row that opens an expansion, or
+          // about whether it is currently open.
+          aria-expanded={expanded === undefined ? undefined : expanded}
+          className={cn(ROW_BASE, ROW_PRESSABLE)}
+        >
           {inner}
         </button>
       ) : (

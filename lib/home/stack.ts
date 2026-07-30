@@ -239,7 +239,22 @@ export function recordScheduleVersion(
     stopped?: boolean
     cycle?: CycleRule
   },
-  effectiveFrom: string
+  effectiveFrom: string,
+  /**
+   * RESUMING the compound: drop any `stopped` marker at or after
+   * `effectiveFrom`.
+   *
+   * Deleting writes a `stopped: true` version at the delete date. Re-adding
+   * with a BACK-DATED start left that marker in place and LATER in the trail,
+   * so `resolveScheduleOn` kept picking it: the compound saved, the sheet
+   * closed, it looked added, and it was never due again on any day, forever.
+   * A re-add is the user saying they are running it from this date, so a stop
+   * recorded after that date is no longer true.
+   *
+   * A stop BEFORE the new start is left alone — it correctly describes the gap
+   * between the old run and this one.
+   */
+  resume = false
 ): ScheduleVersion[] {
   const history = [...(previous.scheduleHistory ?? [])]
   if (history.length === 0) {
@@ -258,7 +273,17 @@ export function recordScheduleVersion(
   const at = history.findIndex((v) => v.effectiveFrom === effectiveFrom)
   if (at >= 0) history[at] = version
   else history.push(version)
-  return history.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+  const kept = resume
+    ? history.filter(
+        (v) => !(v.stopped === true && v.effectiveFrom >= effectiveFrom)
+      )
+    : history
+  // The new version itself must survive the filter even if it is somehow marked
+  // stopped, which a resume never is.
+  if (resume && !kept.some((v) => v.effectiveFrom === effectiveFrom)) {
+    kept.push(version)
+  }
+  return kept.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
 }
 
 /**

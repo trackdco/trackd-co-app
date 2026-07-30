@@ -460,6 +460,49 @@ describe("deleting a compound records a stop (Spec 02)", () => {
     })).stopped).toBeUndefined()
   })
 
+  it("a BACK-DATED re-add drops the stop, instead of killing the compound forever", () => {
+    // The reported shape, and it was silent: delete a compound (a stop is written
+    // at the delete date), then re-add it and back-date the start — which the form
+    // explicitly invites, so you can log the doses you already took. The stop was
+    // still the LATEST version, so `resolveScheduleOn` kept choosing it: the
+    // compound saved, the sheet closed, it looked added, and it was never due
+    // again on any day, forever.
+    const stopped = { ...ran, scheduleHistory: recordScheduleStop(ran, "2026-06-01") }
+    const readded: StackCompound = {
+      ...stopped,
+      schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-03-30" }),
+      scheduleHistory: recordScheduleVersion(
+        stopped,
+        { cadence: { type: "daily" }, timeOfDay: "09:00", dose: 250, unit: "mg" },
+        "2026-03-30",
+        true,
+      ),
+    }
+    expect(readded.scheduleHistory?.some((v) => v.stopped)).toBe(false)
+    expect(isDueOnFor(readded, dateKeyToDate("2026-04-10"))).toBe(true)
+    expect(isDueOnFor(readded, dateKeyToDate("2026-06-02"))).toBe(true)
+    expect(isDueOnFor(readded, dateKeyToDate("2027-01-01"))).toBe(true)
+  })
+
+  it("a re-add does NOT erase a stop that predates its own start date", () => {
+    // That stop describes the gap between the old run and this one, which is a
+    // true fact about days the compound was not being taken.
+    const stopped = { ...ran, scheduleHistory: recordScheduleStop(ran, "2026-03-01") }
+    const readded: StackCompound = {
+      ...stopped,
+      schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-06-01" }),
+      scheduleHistory: recordScheduleVersion(
+        stopped,
+        { cadence: { type: "daily" }, timeOfDay: "09:00", dose: 250, unit: "mg" },
+        "2026-06-01",
+        true,
+      ),
+    }
+    expect(isDueOnFor(readded, dateKeyToDate("2026-02-10"))).toBe(true)
+    expect(isDueOnFor(readded, dateKeyToDate("2026-04-10"))).toBe(false)
+    expect(isDueOnFor(readded, dateKeyToDate("2026-06-10"))).toBe(true)
+  })
+
   it("costs nothing for a compound that was never deleted", () => {
     // No history ⇒ unchanged behaviour, the guarantee the whole feature rests on.
     expect(isDueOnFor(ran, dateKeyToDate("2026-02-10"))).toBe(true)

@@ -362,17 +362,28 @@ const CYCLE_END_MONTHS = [
  * States the condition and nothing else — no countdown, no "ends soon", nothing
  * that would need a colour.
  */
-export function formatCycleEnd(end: CycleEnd): string {
+export function formatCycleEnd(
+  end: CycleEnd,
+  /**
+   * The year this is being read IN. A date in a different year prints its year;
+   * one in the current year does not. Without it an end date of 5 Aug 2027 read
+   * as "5 Aug" on 30 Jul 2026 — six days away rather than a year away.
+   */
+  currentYear = new Date().getFullYear()
+): string {
   switch (end.type) {
     case "onDate": {
       const [y, m, d] = end.date.split("-").map(Number)
-      if (!y || !m || !d) return end.date
-      return `Ends ${d} ${CYCLE_END_MONTHS[m - 1] ?? ""}`
+      const month = m ? CYCLE_END_MONTHS[m - 1] : undefined
+      // A month outside 1..12 has no name, and printing "5 " with a trailing
+      // space is worse than printing the raw key.
+      if (!y || !m || !d || !month) return end.date
+      return y === currentYear ? `${d} ${month}` : `${d} ${month} ${y}`
     }
     case "afterRounds":
-      return `Ends after ${end.rounds} ${end.rounds === 1 ? "round" : "rounds"}`
+      return `After ${end.rounds} ${end.rounds === 1 ? "round" : "rounds"}`
     case "whenVialEmpty":
-      return "Ends when the vial runs out"
+      return "When the vial runs out"
     default:
       return "No end date"
   }
