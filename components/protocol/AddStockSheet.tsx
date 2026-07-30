@@ -328,14 +328,24 @@ function AddStockForm({
       // (catalogue AND custom alike now resolve to a row, supabase/protocol/004)
       // instead of failing silently (which left the compound absent from Stock).
       const compound = compounds.find((c) => c.id === compoundId)
+      let pcId: string | null = null
       if (compound) {
         const pushed = await pushProtocolCompound(compound)
         if (!pushed.ok) {
           setError("Couldn’t sync this compound. Check your connection and try again.")
           return
         }
+        pcId = pushed.protocolCompoundId ?? null
       }
-      const r = await addStockItem(insert)
+      // The FK is the id the push actually WROTE, not the client id. The two
+      // diverge whenever `pushProtocolCompound` reuses an existing row for this
+      // (cycle, compound) — and then this insert pointed at a row that does not
+      // exist, so the first vial a user ever added failed its foreign key and the
+      // sheet said "Couldn't save this stock" with nothing wrong at their end.
+      // The add-compound sheet already used the returned id; this path did not.
+      const r = await addStockItem(
+        pcId ? { ...insert, protocol_compound_id: pcId } : insert
+      )
       if (!r.ok) {
         setError("Couldn’t save this stock. Please try again.")
         return // keep the sheet open so the input isn't lost on a failed save
