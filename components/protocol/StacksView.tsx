@@ -108,8 +108,17 @@ export function StacksView({
         hint="Add a compound first"
         description={
           stacks.length === 0
-            ? "Group compounds you take at the same time so they log in one tap. Each keeps its own schedule and history."
+            ? "Compounds you take together, logged in one tap. Each keeps its own schedule and history."
             : undefined
+        }
+        preview={
+          stacks.length === 0 ? (
+            <span className="flex items-end -space-x-3">
+              <Container inventoryType="preconcentrated" category="anabolic" stackColour={paletteColourVar("steel")} fill={0.7} size={40} />
+              <Container inventoryType="reconstituted" category="peptide" stackColour={paletteColourVar("steel")} fill={0.55} size={40} />
+              <Container inventoryType="reconstituted" category="peptide" stackColour={paletteColourVar("steel")} fill={0.8} size={40} />
+            </span>
+          ) : undefined
         }
       />
 

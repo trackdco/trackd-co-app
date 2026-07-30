@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react"
 import { NewItemCard } from "@/components/protocol/NewItemCard"
+import { Container } from "@/components/containers"
+import { paletteColourVar } from "@/lib/palette"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
   Sheet,
@@ -118,8 +120,34 @@ export function CyclesView({
         }
         description={
           cycled.length === 0
-            ? "Run a compound on and off. Seven days on, seven off, or until a date. Off days disappear from your log."
+            ? "Run a compound on and off. Off days disappear from your log."
             : undefined
+        }
+        preview={
+          cycled.length === 0 ? (
+            <span className="flex items-center gap-3">
+              <Container
+                inventoryType="oral_solid"
+                category="sarm"
+                stackColour={paletteColourVar("moss")}
+                fill={0.7}
+                size={40}
+              />
+              {/* The rhythm a cycle makes: on days filled, off days hollow. */}
+              <span className="flex items-center gap-1">
+                {[1, 1, 1, 0, 0, 1, 1, 1, 0, 0].map((on, i) => (
+                  <span
+                    key={i}
+                    className={
+                      on
+                        ? "h-2 w-2 rounded-full bg-accent-primary"
+                        : "h-2 w-2 rounded-full border border-border-strong"
+                    }
+                  />
+                ))}
+              </span>
+            </span>
+          ) : undefined
         }
       />
 

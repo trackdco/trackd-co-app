@@ -1,5 +1,7 @@
 "use client"
 
+import type { ReactNode } from "react"
+
 import { Plus } from "@/components/icons"
 import { cn } from "@/lib/utils"
 
@@ -22,6 +24,7 @@ export function NewItemCard({
   disabled,
   hint,
   description,
+  preview,
 }: {
   label: string
   onClick: () => void
@@ -36,6 +39,13 @@ export function NewItemCard({
    * in-voice, and a single clear action.
    */
   description?: string
+  /**
+   * A dimmed, non-interactive mock of the real thing, shown above the copy when
+   * the section is empty. Seeing what you are about to make lands faster than
+   * reading about it, and it makes a first-run section look designed rather than
+   * unfinished.
+   */
+  preview?: ReactNode
 }) {
   return (
     <button
@@ -49,7 +59,15 @@ export function NewItemCard({
           : "text-text-muted active:scale-[0.98] hover:text-foreground"
       )}
     >
-      <span className="flex flex-col items-center gap-1.5 px-6">
+      <span className="flex flex-col items-center gap-3 px-6">
+        {preview && (
+          // Purely illustrative: dimmed, and aria-hidden so it is never read out
+          // as if it were something the user already has.
+          <span aria-hidden className="pointer-events-none block opacity-40">
+            {preview}
+          </span>
+        )}
+        <span className="flex flex-col items-center gap-1.5">
         <span className="flex items-center gap-2">
           <Plus className="h-4 w-4" aria-hidden />
           <span className="text-sm">{disabled && hint ? hint : label}</span>
@@ -59,6 +77,7 @@ export function NewItemCard({
             {description}
           </span>
         )}
+        </span>
       </span>
     </button>
   )
