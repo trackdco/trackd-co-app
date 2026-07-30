@@ -128,10 +128,21 @@ makes ownership structural via composite FKs) on 2026-07-29; `009`
 catalogue sites survive a Postgres round-trip) on 2026-07-30, plus
 `supabase/blocks/001_blocks.sql`.
 
-**PENDING: `supabase/protocol/010_inventory_days_to_empty.sql`** (written
-2026-07-30, NOT applied). Adds `days_to_empty` to `v_inventory_math`. The app
-already asks for the column and retries without it, so it runs unchanged either
-way and simply starts being right once applied. See next-tasks.
+**010, 011 and 012 APPLIED (Adrian, 2026-07-30/31). Nothing pending.**
+`010_inventory_days_to_empty` (a timezone-free runway), `011_dose_logs_logged_for`
+(the day a dose belongs to, stored rather than re-derived) and
+`012_logged_for_undo_backfill`.
+
+**012 exists because 011 shipped a wrong backfill, and it reached prod.** 011
+filled `logged_for` with the UTC date of `taken_at` on the claim that this
+reproduced what the app already showed; it does not, because `toDateKey` uses the
+DEVICE's local date. For any dose whose local and UTC days differ — in Sydney
+everything logged before 10am — it wrote a day the app had never shown, and since
+hydration prefers `logged_for` while the device mirror keeps the original local
+day, the same dose rendered on two days and the ghost could not be deleted. 012
+nulls the column. **The rule that came out of it: `logged_for` is written by the
+device at log time and by nothing else, ever. A backfill cannot know a past
+dose's timezone, which is the entire reason the column exists.**
 
 The containers review page (`app/preview/containers/`) was reviewed and then
 **deleted**, per spec 01's checklist.
