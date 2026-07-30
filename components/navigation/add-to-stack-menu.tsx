@@ -545,12 +545,12 @@ export function AddToStackMenu({
               <button
                 type="button"
                 onClick={backToBrowse}
-                className="justify-self-start text-base text-text-muted transition-colors hover:text-text-primary"
+                className="-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary"
               >
                 Cancel
               </button>
             ) : (
-              <SheetClose className="justify-self-start text-base text-text-muted transition-colors hover:text-text-primary">
+              <SheetClose className="-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary">
                 Cancel
               </SheetClose>
             )}

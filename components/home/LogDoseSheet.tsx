@@ -8,7 +8,6 @@ import { SHEET_TITLE } from "@/lib/ui-presets"
 import { Input } from "@/components/ui/input"
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
   SheetTitle,
@@ -239,9 +238,21 @@ function LogDoseBody({
   // Against the amount ACTUALLY in the field, so editing the dose moves the draw
   // with it. `formatDraw` returns null rather than a plausible-but-wrong figure
   // when the units disagree, which is why this can simply be rendered or not.
+  // THE UNIT IN FORCE ON THE DOSE'S OWN DAY, not the compound's current one.
+  // The amount already comes from `onDay`, and `buildLog` already stamps the
+  // record with `onDay.unit` — the draw was the one place still reading
+  // `compound.unit`. Change a compound from mcg to mg, then open a dose from
+  // before the change: the amount was the historic 250, the unit handed to
+  // `formatDraw` was the current mg, and `formatDraw`'s own mismatch guard could
+  // not fire because it compares against `protocol_compounds.dose_unit`, which is
+  // also current. The row then printed "5000u (50 mL)" for a 5u dose — a
+  // thousandfold error, in amber, on the figure the spec calls the one the user
+  // acts on. With the historic unit the guard fires and the row is simply absent,
+  // which is the right answer: no figure beats a wrong one.
+  const loggedUnit = existing?.unit ?? onDay.unit ?? compound.unit
   const drawAmount = Number(amount)
   const draw = Number.isFinite(drawAmount)
-    ? formatDraw(drawAmount, compound.unit, drawSource)
+    ? formatDraw(drawAmount, loggedUnit, drawSource)
     : null
 
   // Injection-site body map (Spec 19): this compound's site catalogue, lazily
@@ -352,6 +363,96 @@ function LogDoseBody({
 
   const [tracked, setTracked] = useState(false)
 
+  /**
+   * What the vial card says, if anything.
+   *
+   * One model for three situations that used to be three separate blocks of
+   * markup: a BACK-DATED dose links to the vial resolved for its own day, TODAY
+   * links to the compound's single active vial, and 2+ active vials get an
+   * explicit chooser. `null` means there is nothing honest to say — no vial
+   * resolved, or the read has not landed — and the card is absent rather than
+   * naming a vial that does not exist.
+   */
+  const vialCard: {
+    value: string
+    note?: string
+    choices?: { key: string; label: string; active: boolean; onPick: () => void }[]
+    toggle?: { label: string; onPress: () => void }
+  } | null = (() => {
+    const stockLabel = (v: StockItem) =>
+      v.remainingDisplay == null
+        ? "Vial"
+        : v.inventoryType === "oral_solid"
+          ? `${v.remainingDisplay} left`
+          : `${v.remainingDisplay} mL left`
+
+    if (!onToday) {
+      if (dateVialId == null) return null
+      return inventoryItemId === null
+        ? {
+            value: "Not counted",
+            note: "This dose will not come off your stock.",
+            toggle: {
+              label: "Count it against your stock",
+              onPress: () => setInventoryItemId(dateVialId),
+            },
+          }
+        : {
+            value: "Counted",
+            note: `Comes off the vial you were using on ${formatDateKeyShort(dateKey)}.`,
+            toggle: {
+              label: "Don't count this one",
+              onPress: () => setInventoryItemId(null),
+            },
+          }
+    }
+
+    if (vials.length === 1) {
+      const v = vials[0]
+      return inventoryItemId === null
+        ? {
+            value: "Not counted",
+            note: "This dose will not come off your stock.",
+            toggle: {
+              label: "Count it against your stock",
+              onPress: () => setInventoryItemId(v.id),
+            },
+          }
+        : {
+            // The remaining figure is the WHOLE point of this line, so it is the
+            // row's value rather than the tail of a sentence that truncated it.
+            value: stockLabel(v),
+            note: "Comes off your stock.",
+            toggle: {
+              label: "Don't count this one",
+              onPress: () => setInventoryItemId(null),
+            },
+          }
+    }
+
+    if (vials.length > 1) {
+      return {
+        value: inventoryItemId === null ? "Not counted" : "Counted",
+        note: "Which vial this dose comes off.",
+        choices: [
+          ...vials.map((v) => ({
+            key: v.id,
+            label: stockLabel(v),
+            active: v.id === inventoryItemId,
+            onPick: () => setInventoryItemId(v.id),
+          })),
+          {
+            key: "none",
+            label: "Not tracked",
+            active: inventoryItemId === null,
+            onPick: () => setInventoryItemId(null),
+          },
+        ],
+      }
+    }
+    return null
+  })()
+
   // Sites to show on the map: this compound's route only — pick any site on it.
   // The day-count for the picked spot is shown in the caption below (never on the
   // muscle itself). Narrowed to the sites that exist on this user's body too (the
@@ -455,9 +556,35 @@ function LogDoseBody({
         <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
       </div>
 
-      <SheetTitle className={cn(SHEET_TITLE, "shrink-0 px-6")}>
-        {editing ? "Edit dose" : "Log dose"}
-      </SheetTitle>
+      {/* Header — Cancel left, title centred, the confirm verb right (spec 11 ·
+          Design Decision 1). The same three-column grid the add form uses, so
+          the two sheets are laid out identically as well as worded identically.
+          The confirm used to be a wide button at the FOOT of a scrolling sheet,
+          which is the one place the spec says it should not be. */}
+      <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 pt-1 pb-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary"
+        >
+          Cancel
+        </button>
+        <SheetTitle className="justify-self-center text-base font-medium text-foreground">
+          {editing ? "Edit dose" : "Log dose"}
+        </SheetTitle>
+        <button
+          type="button"
+          onClick={() => {
+            // Commit immediately, THEN show the success tick — so nothing about
+            // dismissing the tick can undo the log.
+            onTracked(compound.id, buildLog())
+            setTracked(true)
+          }}
+          className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80"
+        >
+          {editing ? "Update" : "Track"}
+        </button>
+      </div>
       <SheetDescription className="sr-only">
         {editing
           ? "Adjust the amount, time or site, then update or remove this dose."
@@ -474,7 +601,13 @@ function LogDoseBody({
           category={compound.category}
           method={compound.method}
           unit={compound.unit}
-          detail={`Scheduled ${formatTimeLabel(compound.schedule.timeOfDay)}`}
+          // A compound may legitimately have no time, and "Scheduled Not set"
+          // is not a sentence. No time means no second fact worth stating.
+          detail={
+            hasTime(compound.schedule.timeOfDay)
+              ? `Scheduled ${formatTimeLabel(compound.schedule.timeOfDay)}`
+              : undefined
+          }
         />
 
         {/* ── Card one: the dose ─────────────────────────────────────
@@ -492,21 +625,24 @@ function LogDoseBody({
                   value={amount}
                   onChange={(e) => setAmount(sanitizeDoseInput(e.target.value))}
                   onBlur={() => setEditingAmount(false)}
-                  aria-label={`Amount in ${compound.unit}`}
-                  className="h-10 w-24 rounded-lg border-border-default bg-bg-input text-right font-mono text-base dark:bg-bg-input"
+                  aria-label={`Amount in ${loggedUnit}`}
+                  className="h-11 w-24 rounded-lg border-border-default bg-bg-input text-right font-mono text-base dark:bg-bg-input"
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => setEditingAmount(true)}
-                  aria-label={`Amount ${amount} ${compound.unit}. Tap to edit.`}
-                  className="h-10 w-24 rounded-lg border border-border-default bg-bg-input px-3 text-right font-mono text-base text-foreground"
+                  aria-label={`Amount ${amount} ${loggedUnit}. Tap to edit.`}
+                  className="h-11 w-24 rounded-lg border border-border-default bg-bg-input px-3 text-right font-mono text-base text-foreground"
                 >
                   {amount || "0"}
                 </button>
               )}
               <span className="w-10 shrink-0 text-right font-mono text-sm text-text-muted">
-                {compound.unit}
+                {/* The unit the AMOUNT is in. It read the compound's current
+                    unit beside a historic dose, so a mcg-era dose was labelled
+                    mg. Cosmetic until the Draw row turned it into arithmetic. */}
+                {loggedUnit}
               </span>
             </div>
           </LogRow>
@@ -514,15 +650,22 @@ function LogDoseBody({
           {/* Draw — the figure the user actually acts on, which is why it takes
               the amber accent (spec 11). READ-ONLY: it is arithmetic on their own
               dose and their own vial, and the calculation is `formatDraw`
-              unchanged. Absent for non-injectables, and absent while the vial
-              read is in flight or when no vial resolved — a wrong draw is worse
-              than no draw. */}
-          {injectable && draw && (
+              unchanged. Absent for non-injectables, and absent when no vial
+              resolved at all — a wrong draw is worse than no draw.
+              
+              Once a vial IS known the row STAYS, showing a dash while the figure
+              is unavailable rather than unmounting. It used to appear when the
+              vial read landed and vanish again the moment the dose field was
+              cleared, resizing the card by 53px each way — so anyone replacing a
+              dose by select-all-delete watched the sheet jump twice. */}
+          {injectable && drawSource && (
             <>
               <LogRowDivider />
               <LogRow label="Draw">
                 <span className="font-mono text-sm text-accent-amber">
-                  {draw.kind === "count" ? (
+                  {draw == null ? (
+                    <span className="text-text-subtle">—</span>
+                  ) : draw.kind === "count" ? (
                     draw.label
                   ) : (
                     <>
@@ -544,7 +687,15 @@ function LogDoseBody({
           <LogRow label="Date">
             <span className="font-mono text-sm text-foreground">
               {formatDateKeyShort(dateKey)}
-              {onToday && <span className="ml-1.5 font-sans text-text-subtle">today</span>}
+              {/* The comma is for the screen reader: `ml-1.5` is a visual gap
+                  only, so the accessible text ran the two together as
+                  "Thu 30 Jultoday". */}
+              {onToday && (
+                <span className="font-sans text-text-subtle">
+                  <span className="sr-only">, </span>
+                  <span aria-hidden> </span>today
+                </span>
+              )}
             </span>
           </LogRow>
 
@@ -567,7 +718,11 @@ function LogDoseBody({
                   setManualTime(e.target.value === "" ? null : e.target.value)
                 }
                 aria-label="Time taken"
-                className="h-10 w-28 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+                // w-36 and h-11. At 112px a 12-hour locale rendered "08:14 pm"
+                // clipped to "08:14" — so a 20:14 dose displayed as 8:14, right
+                // above a hint reading "Live now, 20:35". Two contradictory times
+                // eight pixels apart, on a dosing screen.
+                className="h-11 w-36 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
               />
             </div>
           </LogRow>
@@ -606,6 +761,27 @@ function LogDoseBody({
                     : "Choose"
               }
             />
+            {/* How long since this spot was last used, ON THE ROW.
+                It used to live inside the body-map sheet, where picking a site
+                closed the sheet in the same handler — so the observation could
+                only ever exist in the frames where its own container was
+                dismissing. Measured at 60ms after a tap it was already sliding
+                off screen. It is the app's one categorical rotation signal, so
+                it belongs where it can actually be read. */}
+            {siteId != null && siteLastUsedDays[siteId] !== undefined && (
+              <p
+                className={cn(
+                  "px-4 pb-3 text-xs",
+                  siteLastUsedDays[siteId] < REST_DAYS
+                    ? "text-accent-amber"
+                    : "text-text-subtle",
+                )}
+              >
+                {siteLastUsedDays[siteId] < REST_DAYS
+                  ? `You last used this spot ${siteLastUsedDays[siteId]}d ago. Just an observation, your choice.`
+                  : `Last used here ${siteLastUsedDays[siteId]}d ago.`}
+              </p>
+            )}
           </div>
         )}
 
@@ -618,8 +794,22 @@ function LogDoseBody({
             <SheetContent
               side="bottom"
               showCloseButton={false}
-              className="max-h-[92dvh] gap-0 overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
+              // px-6, matching the parent. It had NO padding at all, so the
+              // title sat four pixels from the edge of the phone.
+              className="max-h-[92dvh] gap-0 overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
             >
+              {/* A grab handle, because this sheet had neither one nor a close
+                  button: the only ways out were tapping the strip of backdrop
+                  above it or committing to a site. */}
+              <button
+                type="button"
+                onClick={() => setSiteSheetOpen(false)}
+                aria-label="Close the injection site picker"
+                className="flex h-11 w-full shrink-0 items-center justify-center"
+              >
+                <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
+              </button>
+
               <SheetTitle className={cn(SHEET_TITLE, "px-1")}>
                 Injection site
               </SheetTitle>
@@ -648,22 +838,6 @@ function LogDoseBody({
                   />
                 )}
 
-                {siteId != null && siteLastUsedDays[siteId] !== undefined && (
-                  /* Site rest hint — how long since this spot was last used. An
-                     observation, never an instruction. */
-                  <p
-                    className={cn(
-                      "mt-2 px-1 text-xs",
-                      siteLastUsedDays[siteId] < REST_DAYS
-                        ? "text-accent-amber"
-                        : "text-text-subtle",
-                    )}
-                  >
-                    {siteLastUsedDays[siteId] < REST_DAYS
-                      ? `You last used this spot ${siteLastUsedDays[siteId]}d ago. Just an observation, your choice.`
-                      : `Last used here ${siteLastUsedDays[siteId]}d ago.`}
-                  </p>
-                )}
               </div>
             </SheetContent>
           </Sheet>
@@ -690,182 +864,72 @@ function LogDoseBody({
               </p>
             )}
 
-        {/* From vial, BACK-DATED — keyed off the vial resolved for THIS DAY, not the
-            active-now list (which needn't contain it: adding or refilling archives
-            the prior vial, so the vial in use back then is often archived today).
-            Shown exactly when a vial WILL be linked — so the opt-out is always
-            reachable for a dose that's about to draw down stock, including an
-            archived vial with nothing active today, and a compound that had no vial
-            back then shows nothing rather than naming one that doesn't exist. */}
-        {!onToday && dateVialId != null && (
-          <div className="mt-5">
-            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-              From vial
-            </span>
-            {inventoryItemId === null ? (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3 py-2.5">
-                <span className="min-w-0 text-xs text-text-muted">
-                  Not counting this dose against your stock.
-                </span>
+        {/* ── Card four: the vial ─────────────────────────────────────
+            Brought into the SAME row language as the cards above it (spec 11).
+            These three blocks were left as bordered pills with uppercase
+            eyebrows and inline underlined links — the exact vocabulary specs 10
+            and 11 replaced — sitting twelve pixels below three borderless row
+            cards. The single-vial line also truncated, so "7.5 mL left" rendered
+            as "7…" and the one figure the block exists to show was cut off.
+
+            The rules are unchanged: a BACK-DATED dose links to the vial resolved
+            for its own day, TODAY links to the active one, and 2+ active vials
+            keep an explicit chooser. Only the presentation moved. */}
+        {vialCard && (
+          <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
+            <LogRow label="From vial" value={vialCard.value} />
+            {vialCard.note && (
+              <p className="px-4 pb-3 text-xs text-text-subtle">{vialCard.note}</p>
+            )}
+            {vialCard.choices && (
+              <>
+                <LogRowDivider />
+                <div className="flex flex-wrap gap-2 px-4 py-3">
+                  {vialCard.choices.map((c) => (
+                    <button
+                      key={c.key}
+                      type="button"
+                      onClick={c.onPick}
+                      aria-pressed={c.active}
+                      className={cn(
+                        "min-h-9 rounded-full border px-3 py-2 font-mono text-xs transition-colors duration-200 ease-out active:scale-[0.98]",
+                        c.active
+                          ? "border-transparent bg-accent-primary font-medium text-bg-base"
+                          : "border-border-default bg-bg-input text-text-muted hover:text-text-primary",
+                      )}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {vialCard.toggle && (
+              <>
+                <LogRowDivider />
                 <button
                   type="button"
-                  onClick={() => setInventoryItemId(dateVialId)}
-                  className="shrink-0 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
+                  onClick={vialCard.toggle.onPress}
+                  className="flex min-h-11 w-full items-center px-4 py-2.5 text-left text-sm text-text-muted transition-transform duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none"
                 >
-                  Count it
+                  {vialCard.toggle.label}
                 </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3 py-2.5">
-                <span className="min-w-0 text-xs text-text-muted">
-                  Counts against the vial you were using on{" "}
-                  <span className="font-mono text-foreground">
-                    {formatDateKeyShort(dateKey)}
-                  </span>
-                  .
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setInventoryItemId(null)}
-                  className="shrink-0 text-xs text-text-subtle underline underline-offset-2 transition-colors hover:text-foreground"
-                >
-                  Don&apos;t count this one
-                </button>
-              </div>
+              </>
             )}
           </div>
         )}
 
-        {/* From vial — the dose AUTO-LINKS to this compound's active vial so its
-            "stock left" counts down (v_inventory_math); no manual picking. The
-            usual case (one active vial per compound) shows a calm confirmation with
-            a quiet opt-out. The rare 2+ vials case keeps an explicit chooser. */}
-        {onToday &&
-          vials.length === 1 &&
-          (() => {
-            const v = vials[0]
-            const left =
-              v.remainingDisplay == null
-                ? null
-                : v.inventoryType === "oral_solid"
-                  ? `${v.remainingDisplay} left`
-                  : `${v.remainingDisplay} mL left`
-            return (
-              <div className="mt-5">
-                <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-                  From vial
-                </span>
-                {inventoryItemId === null ? (
-                  <div className="flex items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3 py-2.5">
-                    <span className="min-w-0 text-xs text-text-muted">
-                      Not counting this dose against your stock.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setInventoryItemId(v.id)}
-                      className="shrink-0 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
-                    >
-                      Count it
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3 py-2.5">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <Check className="h-4 w-4 shrink-0 text-accent-primary" aria-hidden />
-                      <span className="truncate text-xs text-text-muted">
-                        Drawing from your stock
-                        {left && <span className="font-mono text-foreground">{` · ${left}`}</span>}
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setInventoryItemId(null)}
-                      className="shrink-0 text-xs text-text-subtle underline underline-offset-2 transition-colors hover:text-foreground"
-                    >
-                      Don&apos;t count this one
-                    </button>
-                  </div>
-                )}
-              </div>
-            )
-          })()}
-
-        {onToday && vials.length > 1 && (
-          <div className="mt-5">
-            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-              From vial
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {vials.map((v) => {
-                const active = v.id === inventoryItemId
-                const label =
-                  v.remainingDisplay == null
-                    ? "Vial"
-                    : v.inventoryType === "oral_solid"
-                      ? `${v.remainingDisplay} left`
-                      : `${v.remainingDisplay} mL left`
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setInventoryItemId(v.id)}
-                    aria-pressed={active}
-                    className={cn(
-                      "rounded-full border px-3 py-1.5 font-mono text-sm transition-colors duration-200 ease-out",
-                      active
-                        ? "border-transparent bg-accent-primary font-medium text-bg-base"
-                        : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
-                    )}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-              <button
-                type="button"
-                onClick={() => setInventoryItemId(null)}
-                aria-pressed={inventoryItemId === null}
-                className={cn(
-                  "rounded-full border px-3 py-1.5 text-sm transition-colors duration-200 ease-out",
-                  inventoryItemId === null
-                    ? "border-transparent bg-accent-primary font-medium text-bg-base"
-                    : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
-                )}
-              >
-                Not tracked
-              </button>
-            </div>
-            <p className="mt-2 px-1 text-xs text-text-subtle">
-              Counts this dose against that vial&apos;s “stock left”.
-            </p>
-          </div>
-        )}
-
-        {/* The footer spec 11 says stays. It was missing from this sheet
-            entirely — the add form has always carried it and the log sheet
-            never did, so this is an addition rather than a retention. */}
+        {/* The footer spec 11 says stays — but not the sentence it used to be.
+            "Saved to this device for you only" is FALSE of a dose: every one
+            logged here is pushed to Postgres by `logDose`. On a health app, on
+            the screen where the health data is entered, that is a privacy claim
+            rather than a small imprecision. What IS true is that the row is
+            yours alone: RLS scopes every read to the signed-in user. Flagged for
+            Adrian; the same sentence is on two other screens. */}
         <p className="mt-5 px-1 text-xs leading-relaxed text-text-subtle">
-          Saved to this device for you only.
+          Saved to your account. Only you can see it.
         </p>
 
-        {/* Actions */}
-        <div className="mt-6 flex gap-3">
-          <SheetClose className="flex-1 rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary">
-            Cancel
-          </SheetClose>
-          <button
-            type="button"
-            onClick={() => {
-              // Commit immediately, THEN show the success tick — so nothing about
-              // dismissing the tick can undo the log.
-              onTracked(compound.id, buildLog())
-              setTracked(true)
-            }}
-            className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
-          >
-            {editing ? "Update" : "Track"}
-          </button>
-        </div>
 
         {/* Undo — edit mode only. */}
         {editing && (
@@ -913,8 +977,11 @@ function LogDoseBody({
    Co-located rather than shared, exactly as `AddCompoundSheet`'s are: the two
    forms are meant to READ the same, and a shared primitive was not asked for. */
 
+// The SAME rhythm as the add form's `ROW_BASE` (spec 11: the two must read the
+// same). 56px minimum with py-1.5, so a 44px control sits in a row exactly as
+// tall as a text-only one — the heights used to vary 52 / 60 / 78.
 const LOG_ROW_BASE =
-  "flex w-full min-h-[3.25rem] items-center justify-between gap-3 px-4 py-2.5 text-left"
+  "flex w-full min-h-14 items-center justify-between gap-3 px-4 py-1.5 text-left"
 
 function LogRowDivider() {
   return <div className="mx-4 hairline-t" aria-hidden />

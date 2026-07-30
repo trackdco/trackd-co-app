@@ -714,7 +714,7 @@ function AddCompoundBody({
         <button
           type="button"
           onClick={onCancel}
-          className="justify-self-start text-base text-text-muted transition-colors hover:text-text-primary"
+          className="-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary"
         >
           Cancel
         </button>
@@ -724,7 +724,7 @@ function AddCompoundBody({
         <button
           type="button"
           onClick={handleSave}
-          className="justify-self-end text-base font-medium text-foreground transition-colors hover:opacity-80"
+          className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80"
         >
           {isEdit ? "Save" : "Add"}
         </button>
@@ -1338,7 +1338,7 @@ const STOCK_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:
 
 /** Every row is at least 52px tall, so the card reads as one rhythm even when a
  *  row holds nothing but text. */
-const ROW_BASE = "flex w-full min-h-[3.5rem] items-center justify-between gap-3 px-4 py-2 text-left"
+const ROW_BASE = "flex w-full min-h-14 items-center justify-between gap-3 px-4 py-1.5 text-left"
 /** Rows that ARE the control get the press compression `ui-context.md` requires
  *  of a borderless row, since there is no border to say they are tappable. */
 const ROW_PRESSABLE =
