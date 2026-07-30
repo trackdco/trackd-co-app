@@ -243,7 +243,11 @@ export function logDose(
   // loads async, and a back-dated log deliberately leaves it undecided) — it links
   // whichever vial the compound was drawing from at `taken_at`, so the runway
   // decrements without a back-dated dose retro-linking to a vial bought since.
-  const method = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.method ?? "po"
+  // The NAME goes too: the Postgres id is resolved from it when the derived id has
+  // drifted, which is the difference between the dose syncing and being silently
+  // dropped.
+  const onDevice = (loadStack(userId) ?? []).find((c) => c.id === compoundId)
+  const method = onDevice?.method ?? "po"
   void trackSync(
     pushProtocolDoseLog(
       compoundId,
@@ -251,7 +255,8 @@ export function logDose(
       log,
       combineLocalDateTime(dateKey, log.time24),
       method,
-      true
+      true,
+      onDevice?.name ?? null
     )
   )
 }
@@ -271,8 +276,13 @@ export function unlogDose(userId: string, dateKey: string, compoundId: string) {
   // still present and write it straight back. Unticking then backgrounding the app
   // refilled the tick, with its original amount, time and site.
   addTombstone(userId, dateKey, compoundId)
+  // The name, for the same reason as `logDose` — and it matters more here: a delete
+  // aimed at a derived id that no row has still reports ok, so the tombstone would
+  // clear on a delete that removed nothing and the next pull would resurrect the
+  // dose the user just unticked.
+  const name = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.name ?? null
   void trackCriticalSync(
-    deleteProtocolDoseLog(compoundId, dateKey).then((res) => {
+    deleteProtocolDoseLog(compoundId, dateKey, name).then((res) => {
       // Only drop the tombstone once Postgres has actually forgotten the dose.
       if (res.ok && !res.skipped) clearTombstone(userId, dateKey, compoundId)
       return res

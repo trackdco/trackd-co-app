@@ -760,18 +760,51 @@ export async function pushProtocolDoseLog(
   // resolve one server-side from `takenAtIso` so the runway still decrements. The
   // migration leaves this `false` — bulk-imported history should link nothing at
   // all rather than guess.
-  autoLinkVialForDate = false
+  autoLinkVialForDate = false,
+  // The compound's name, so a diverged id can be RESOLVED rather than derived
+  // (see below). Null only where the caller genuinely doesn't know it, which
+  // costs nothing: the derived id is still tried first either way.
+  compoundName: string | null = null
 ): Promise<Ok> {
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    const pcId = resolvePcId(cx.userId, clientCompoundId)
-    const { data: pc } = await cx.supabase
-      .from("protocol_compounds")
-      .select("dose_unit, dose_amount")
-      .eq("id", pcId)
-      .eq("user_id", cx.userId)
-      .maybeSingle()
+    let pcId = resolvePcId(cx.userId, clientCompoundId)
+    let pc = (
+      await cx.supabase
+        .from("protocol_compounds")
+        .select("dose_unit, dose_amount")
+        .eq("id", pcId)
+        .eq("user_id", cx.userId)
+        .maybeSingle()
+    ).data
+    if (!pc) {
+      // The derived id is a pure function of the CLIENT id, and the two can
+      // legitimately diverge — `pushProtocolCompound` REUSES an existing row's id
+      // for a (cycle, compound) that already has one. Archive and delete were fixed
+      // to resolve rather than derive; this path was not, so a diverged compound
+      // returned `skipped` on every dose and `trackSync` says nothing about a skip.
+      // The dose stayed on the device and never reached Postgres: silent loss, and
+      // exactly the case a reinstall does not survive.
+      //
+      // A genuine skip still exists and is still correct — a CUSTOM compound has no
+      // `protocol_compounds` row at all and its logs stay device-local. That is why
+      // this resolves by name first and only then gives up.
+      const resolved = compoundName
+        ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
+        : null
+      if (resolved) {
+        pcId = resolved
+        pc = (
+          await cx.supabase
+            .from("protocol_compounds")
+            .select("dose_unit, dose_amount")
+            .eq("id", pcId)
+            .eq("user_id", cx.userId)
+            .maybeSingle()
+        ).data
+      }
+    }
     if (!pc) return { ok: false, skipped: true } // custom / unmigrated → skip
 
     // Resolve which vial (if any) this dose draws from, so its runway decrements
@@ -856,12 +889,25 @@ export async function pushProtocolDoseLog(
 /** Remove a logged dose (the untick / undo path). No-op for a custom compound. */
 export async function deleteProtocolDoseLog(
   clientCompoundId: string,
-  dateKey: string
+  dateKey: string,
+  /** As in `pushProtocolDoseLog` — the dose-log id is derived from the COMPOUND's
+   *  id, so the delete has to resolve that id exactly the way the write did or it
+   *  targets a row that doesn't exist. `DELETE … WHERE id = <nothing>` affects zero
+   *  rows and PostgREST calls that a success, so the un-log reported ok, the
+   *  tombstone cleared, and the next pull put the dose straight back. */
+  compoundName: string | null = null
 ): Promise<Ok> {
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    const pcId = resolvePcId(cx.userId, clientCompoundId)
+    // Resolved, not derived — and `findProtocolCompoundId` tries the derived id
+    // first, so the common case still costs one read. Falling back to the derived
+    // id matters for a compound whose row is gone entirely: a dose logged under it
+    // before the deletion is still keyed that way and must still be removable.
+    const pcId =
+      (compoundName
+        ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
+        : null) ?? resolvePcId(cx.userId, clientCompoundId)
     const dlId = deterministicUuid(`dl:${cx.userId}:${dateKey}:${pcId}`)
     return await deleteDoseLog(dlId)
   } catch (e) {

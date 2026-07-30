@@ -36,11 +36,11 @@ export async function repushDoseLogs(userId: string): Promise<RepushResult> {
   const logs = loadDoseLogs(userId)
   const stack = loadStack(userId) ?? []
   if (stack.length === 0) return out
-  const methodById = new Map(stack.map((c) => [c.id, c.method]))
+  const compoundById = new Map(stack.map((c) => [c.id, c]))
 
   for (const [dateKey, day] of Object.entries(logs)) {
     for (const [compoundId, log] of Object.entries(day)) {
-      const method = methodById.get(compoundId)
+      const method = compoundById.get(compoundId)?.method
       // A compound the device no longer knows about can't be resolved server-side
       // either, so skip rather than guess a route.
       if (!method) continue
@@ -54,7 +54,11 @@ export async function repushDoseLogs(userId: string): Promise<RepushResult> {
           log,
           combineLocalDateTime(dateKey, log.time24),
           method,
-          false
+          false,
+          // The name, so a compound whose Postgres id has drifted from its client
+          // id still re-pushes. This path exists to recover doses logged offline;
+          // without it the diverged ones would be dropped a second time.
+          compoundById.get(compoundId)?.name ?? null
         )
         if (res.ok) out.pushed += 1
         else out.failed += 1
