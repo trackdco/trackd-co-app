@@ -25,11 +25,13 @@ disciplined amber (due/live beats only), and the retired display serif (Playfair
 near-black + gold amber — a cooler sample was trialled and rejected). Non-urgent
 follow-ups (amber judgment calls, etc.) are in `next-tasks.md`.
 
-**Wave 2 part two — IN PROGRESS on branch `wave2/containers-cycles-calendar`**
-(started 2026-07-29, **not merged, not deployed**). Eight specs done, in the
-readme's dependency order (build order, not numeric order): containers, cycles,
-calendar, stacks, homepage, protocol, calculator, progress. Remaining: profile, add-compound,
-log-a-dose, then part one's global sweep. Blocks is new scope on top.
+**Wave 2 part two — ALL ELEVEN SPECS BUILT on branch
+`wave2/containers-cycles-calendar`** (started 2026-07-29, **not merged, not
+deployed**), in the readme's dependency order (build order, not numeric order):
+containers, cycles, calendar, stacks, homepage, protocol, calculator, progress,
+profile, add-compound, log-a-dose. Part one's global sweep has had its em-dash
+pass; its wordiness table and its portrait fallback are waiting on Adrian.
+Blocks is new scope on top and is built end to end.
 
 - **01 · Containers** — drawn `Vial` / `Bottle` / `Tub` SVGs + the `Container`
   resolver (`components/containers/`), form and colour resolvers
@@ -86,13 +88,50 @@ log-a-dose, then part one's global sweep. Blocks is new scope on top.
   it. Dropping the gate removed the hazard; the rule it produced is in
   `architecture.md` under the localStorage preferences note.
 
-**All migrations APPLIED:** `supabase/protocol/006` (compound cycles + the
+- **09 · Profile** — Settings dissolved in and its route deleted. Physical
+  details edit IN PLACE behind an Edit toggle (`PhysicalCard`), Billing and
+  Notifications became App rows, and the three destructive actions moved into a
+  bounded danger zone. The review of this one found the card could only be saved
+  ONCE: `useActionState` holds its last result, so the `success` flag the card
+  watched to close itself stayed true forever. The action returns a `savedAt`
+  token now. It also found Save and Cancel sitting underneath the FIXED bottom
+  nav on a 390-wide phone, where a tap navigated away and discarded the edit.
+
+- **10 · Add compound** — the form became a compound header plus three row
+  cards, with errors rendered ON the row rather than in a block at the foot of
+  the sheet.
+
+- **11 · Log a dose** — the same header and row language as 10, so the two
+  cannot drift: `components/compounds/CompoundHeader.tsx` is shared by both (a
+  new shared component, flagged for Adrian). Dose, Draw, Date and Time as rows;
+  the body map moved behind a Site row into its own sheet with every prop
+  unchanged. Draw is new to this sheet and prices against the vial in use on the
+  DOSE'S OWN DAY. Spec 11 also asks for a note row, which cannot be built: there
+  is no note anywhere in the dose-logging data path, and the same spec's Out of
+  Scope forbids adding what is not already on the sheet. Parked for Adrian.
+
+- **Blocks** (new scope, not one of the eighteen) — create sheet, end-date
+  prompt (Extend / Close / Leave running), `/blocks` and the retrospective, all
+  reading from Postgres via `supabase/blocks/001`. Reviewed twice. The second
+  review found that closing a block ERASED a reflection the user had already
+  written, and that two of the first round's own fixes had introduced new
+  defects: a consistency rule that manufactured missed doses for archived
+  compounds, and a client guard driven by the server's UTC date that stopped an
+  Australian starting a block dated today.
+
+**All migrations APPLIED except 010:** `supabase/protocol/006` (compound cycles + the
 runs-dry fix), `007` (stacks), and `008` (stack_members ownership hardening —
 007 shipped an RLS hole where the one-stack index was global across users; 008
 makes ownership structural via composite FKs) on 2026-07-29; `009`
 (ownership hardening on three sibling constraints) and
 `supabase/sites/011_injection_site_enum.sql` (26 new enum values so all 36
-catalogue sites survive a Postgres round-trip) on 2026-07-30. Nothing pending.
+catalogue sites survive a Postgres round-trip) on 2026-07-30, plus
+`supabase/blocks/001_blocks.sql`.
+
+**PENDING: `supabase/protocol/010_inventory_days_to_empty.sql`** (written
+2026-07-30, NOT applied). Adds `days_to_empty` to `v_inventory_math`. The app
+already asks for the column and retries without it, so it runs unchanged either
+way and simply starts being right once applied. See next-tasks.
 
 The containers review page (`app/preview/containers/`) was reviewed and then
 **deleted**, per spec 01's checklist.
