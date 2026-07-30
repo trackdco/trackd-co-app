@@ -63,6 +63,33 @@ export type InjectionSite =
   | "abdomen_right"
   | "lovehandle_left"
   | "lovehandle_right"
+  // Added by supabase/sites/011 so the enum can hold every site the body map
+  // offers. Before it, 22 of the 36 collapsed to `other` and read back as NULL —
+  // "Trap - Left" was erased and "Front Quad - Left" came back as "Outer Quad -
+  // Left", a different muscle. Sides that genuinely share a muscle still share a
+  // value (im/sq glute), because route already disambiguates them.
+  | "quad_front_left"
+  | "quad_front_right"
+  | "bicep_left"
+  | "bicep_right"
+  | "tricep_left"
+  | "tricep_right"
+  | "lat_left"
+  | "lat_right"
+  | "pec_left"
+  | "pec_right"
+  | "trap_left"
+  | "trap_right"
+  | "calf_left"
+  | "calf_right"
+  | "abdomen_lower_left"
+  | "abdomen_lower_right"
+  | "thigh_upper_left"
+  | "thigh_upper_right"
+  | "thigh_lower_left"
+  | "thigh_lower_right"
+  | "arm_left"
+  | "arm_right"
   | "other"
 
 /** ISO weekday: Mon=1 … Sun=7 (the schema's `days_of_week` convention). */
@@ -327,12 +354,23 @@ const LOCAL_SITE_TO_ENUM: Record<string, InjectionSite> = {
   "im-glute-r": "glute_right", "im-glute-l": "glute_left",
   "im-delt-r": "delt_right", "im-delt-l": "delt_left",
   "im-quad-out-r": "quad_right", "im-quad-out-l": "quad_left",
-  "im-quad-front-r": "quad_right", "im-quad-front-l": "quad_left",
   // SubQ
-  "sq-abdo-lr": "abdomen_right", "sq-abdo-ll": "abdomen_left",
+  "sq-abdo-lr": "abdomen_lower_right", "sq-abdo-ll": "abdomen_lower_left",
   "sq-abdo-r": "abdomen_right", "sq-abdo-l": "abdomen_left",
   "sq-flank-r": "lovehandle_right", "sq-flank-l": "lovehandle_left",
   "sq-glute-r": "glute_right", "sq-glute-l": "glute_left",
+  // Every remaining catalogue site now has its own enum member (011), so nothing
+  // falls through to `other` and no site is lost or renamed on a round-trip.
+  "im-quad-front-r": "quad_front_right", "im-quad-front-l": "quad_front_left",
+  "im-bicep-r": "bicep_right", "im-bicep-l": "bicep_left",
+  "im-tricep-r": "tricep_right", "im-tricep-l": "tricep_left",
+  "im-lat-r": "lat_right", "im-lat-l": "lat_left",
+  "im-pec-r": "pec_right", "im-pec-l": "pec_left",
+  "im-trap-r": "trap_right", "im-trap-l": "trap_left",
+  "im-calf-r": "calf_right", "im-calf-l": "calf_left",
+  "sq-thigh-up-r": "thigh_upper_right", "sq-thigh-up-l": "thigh_upper_left",
+  "sq-thigh-lo-r": "thigh_lower_right", "sq-thigh-lo-l": "thigh_lower_left",
+  "sq-arm-r": "arm_right", "sq-arm-l": "arm_left",
 }
 
 export function localSiteToInjectionSite(siteId: string | null): InjectionSite | null {
@@ -425,6 +463,30 @@ export function injectionSiteToLocal(
     case "abdomen_right": return sq ? "sq-abdo-r" : null
     case "lovehandle_left": return sq ? "sq-flank-l" : null
     case "lovehandle_right": return sq ? "sq-flank-r" : null
+    // 011's additions. Each is one muscle on one side, so no route test is needed
+    // beyond keeping IM sites off a Sub-Q compound and vice versa.
+    case "quad_front_left": return im ? "im-quad-front-l" : null
+    case "quad_front_right": return im ? "im-quad-front-r" : null
+    case "bicep_left": return im ? "im-bicep-l" : null
+    case "bicep_right": return im ? "im-bicep-r" : null
+    case "tricep_left": return im ? "im-tricep-l" : null
+    case "tricep_right": return im ? "im-tricep-r" : null
+    case "lat_left": return im ? "im-lat-l" : null
+    case "lat_right": return im ? "im-lat-r" : null
+    case "pec_left": return im ? "im-pec-l" : null
+    case "pec_right": return im ? "im-pec-r" : null
+    case "trap_left": return im ? "im-trap-l" : null
+    case "trap_right": return im ? "im-trap-r" : null
+    case "calf_left": return im ? "im-calf-l" : null
+    case "calf_right": return im ? "im-calf-r" : null
+    case "abdomen_lower_left": return sq ? "sq-abdo-ll" : null
+    case "abdomen_lower_right": return sq ? "sq-abdo-lr" : null
+    case "thigh_upper_left": return sq ? "sq-thigh-up-l" : null
+    case "thigh_upper_right": return sq ? "sq-thigh-up-r" : null
+    case "thigh_lower_left": return sq ? "sq-thigh-lo-l" : null
+    case "thigh_lower_right": return sq ? "sq-thigh-lo-r" : null
+    case "arm_left": return sq ? "sq-arm-l" : null
+    case "arm_right": return sq ? "sq-arm-r" : null
     default: return null
   }
 }

@@ -63,17 +63,22 @@ to match. Applying one without the other breaks every schedule-version write.
    `online`-event re-push in `useCloudHydration` is a no-op for every existing
    user. `hydrateFromPostgres` re-pushes compounds only, never dose logs, and
    there is no outbox. Log offline, reconnect, reinstall: those doses are gone.
-2. ~~22 of 36 injection sites corrupted.~~ **PARTLY FIXED**: hydration now keeps
-   a local siteId where the pulled row has none, so the granular site survives.
-   The underlying coarse enum is unchanged, so Postgres alone still cannot
-   represent 22 of the 36 — a device that loses its localStorage still loses
-   them. Extending `injection_site` is the full fix. Original description: or erased by the Postgres
+2. ~~22 of 36 injection sites corrupted.~~ **FULLY FIXED.** `supabase/sites/011`
+   extends the `injection_site` enum by 26 values so every catalogue site has its
+   own member, and both mapping directions in `lib/db/types.ts` are now 1:1.
+   `lib/db/injectionSiteRoundTrip.test.ts` proves all 36 survive a round-trip and
+   fails loudly if a site is ever added without an enum member. Hydration also
+   still prefers a local siteId where the pulled row has none, which covers rows
+   written before 011. **011 needs applying.** Original description: or erased by the Postgres
    round-trip.** `LOCAL_SITE_TO_ENUM` (`lib/db/types.ts`) covers 18 ids; the rest
    collapse to `other` and return as `null`. "Trap - Left" is erased; "Front Quad
    - Left" comes back as "Outer Quad - Left", a different muscle. The verbatim
    siteId IS in `user_dose_logs` but Postgres wins the merge. Fix: extend the enum
    or prefer the mirror's siteId.
-3. **Un-log has no TOMBSTONE.** The critical-sync fix closes the race, but an
+3. ~~Un-log has no TOMBSTONE.~~ **FIXED**: `trackd.doselog.tombstones.v1.<uid>`
+   records the intent, hydration filters every source by it, it clears only when
+   Postgres confirms the delete, drops on a re-log, and expires after 14 days.
+   Original description: The critical-sync fix closes the race, but an
    un-log performed OFFLINE is still resurrected by the next pull, because
    hydration seeds from `pg.doseRows` unconditionally and there is no
    local-wins reconciliation for logs (compounds have one).
