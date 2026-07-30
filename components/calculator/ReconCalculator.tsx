@@ -1,12 +1,13 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 import { CaretDown, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import {
   CARD_EYEBROW,
   COLUMN_EYEBROW,
+  COLUMN_VALUE,
   DATA_MONO,
   METRIC_VALUE,
   UNIT_SUFFIX,
@@ -74,6 +75,10 @@ export function ReconCalculator() {
   const [doseUnit, setDoseUnit] = useState<MgUnit>("mg")
   const [sizeId, setSizeId] = useState<SyringeSizeId>(DEFAULT_SYRINGE_SIZE)
   const [workingOpen, setWorkingOpen] = useState(false)
+  // The panel's id is generated, not a literal: nothing guarantees one
+  // calculator per page, and a duplicated `aria-controls` target points half the
+  // toggles at the wrong panel.
+  const workingId = useId()
 
   const result = useMemo(
     () => computeRecon({ powder, powderUnit, bac, dose, doseUnit }),
@@ -131,8 +136,12 @@ export function ReconCalculator() {
 
         {/* The barrel is drawn at every state, empty included: an empty syringe
             is the honest picture of "nothing entered yet", and keeping it
-            mounted is what lets the fill animate in rather than appear. */}
-        <div className="mt-4">
+            mounted is what lets the fill animate in rather than appear.
+            Drawn wider than the card's padding on purpose: the printed numbers
+            scale with the SVG, and inside `p-5` on a 320px phone they fall to
+            about 6px. The syringe has 4 units of clearance at the needle and 8
+            at the thumb rest, so it still sits inside the card's edges. */}
+        <div className="-mx-3 mt-4">
           <SyringeGraphic
             size={size}
             fill={fill}
@@ -148,8 +157,18 @@ export function ReconCalculator() {
           {size.label} barrel · {size.units} units
         </p>
 
+        {/* The warning treatment, but WITHOUT the outline the permanent
+            disclaimer carries. Identical chrome would make the transient "you
+            typed something wrong" read as the standing legal box the user has
+            already learned to skip, and a borderless tint is what in-card
+            structure is supposed to look like anyway (ui-context → cards are
+            borderless). `role="alert"` because it appears in response to typing
+            and is the only safety signal on the screen. */}
         {misuse ? (
-          <div className="mt-4 flex gap-3 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
+          <div
+            role="alert"
+            className="mt-4 flex gap-3 rounded-xl bg-accent-amber/15 p-3"
+          >
             <Warning
               className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
               aria-hidden
@@ -162,7 +181,7 @@ export function ReconCalculator() {
       </section>
 
       {/* ---- The three figures behind it ---- */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 items-stretch gap-2">
         <ResultCard
           label="Concentration"
           value={result ? trim(result.concentration, 3) : NO_VALUE}
@@ -175,10 +194,13 @@ export function ReconCalculator() {
           }
           unit="mL"
         />
+        {/* "U", not "U-100": this line is the figure's unit, the way its two
+            siblings read mg/mL and mL. U-100 is the barrel standard, and the
+            caption under the graphic already carries it. */}
         <ResultCard
           label="Insulin units"
           value={units != null ? trim(units, 1) : NO_VALUE}
-          unit="U-100"
+          unit="U"
           accent
         />
       </div>
@@ -264,7 +286,7 @@ export function ReconCalculator() {
           type="button"
           onClick={() => setWorkingOpen((o) => !o)}
           aria-expanded={workingOpen}
-          aria-controls="calc-working"
+          aria-controls={workingId}
           className="flex w-full items-center justify-between gap-3 p-5 text-left"
         >
           <span className={CARD_EYEBROW}>View calculations</span>
@@ -280,7 +302,7 @@ export function ReconCalculator() {
         {/* Kept MOUNTED so it animates both ways — the grid-rows 0fr↔1fr
             transition is the house expand idiom (week strip, stack rows). */}
         <div
-          id="calc-working"
+          id={workingId}
           className="grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
           style={{ gridTemplateRows: workingOpen ? "1fr" : "0fr" }}
         >
@@ -376,17 +398,20 @@ function ResultCard({
   accent?: boolean
 }) {
   return (
-    <div className="rounded-2xl bg-bg-surface px-2 py-3 text-center">
+    // `flex-col` + `mt-auto` on the unit so the three unit lines still rail
+    // together when one figure is long enough to wrap onto a second line.
+    <div className="flex flex-col rounded-2xl bg-bg-surface px-2 py-3 text-center">
       <p className={COLUMN_EYEBROW}>{label}</p>
       <p
         className={cn(
-          "mt-1.5 font-mono text-lg tabular-nums [overflow-wrap:anywhere]",
+          COLUMN_VALUE,
+          "mt-1.5",
           accent ? "text-accent-amber" : "text-foreground",
         )}
       >
         {value}
       </p>
-      <p className="text-[11px] text-text-muted">{unit}</p>
+      <p className="mt-auto text-[11px] text-text-muted">{unit}</p>
     </div>
   )
 }
@@ -415,7 +440,10 @@ function NumberField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          aria-label={`${label} amount`}
+          // The wrapping <label> also contains the mg/mcg buttons, so the field
+          // names itself. Just the label: appending "amount" made "Dose amount"
+          // announce as "Dose amount amount".
+          aria-label={label}
           className="h-12 min-w-0 flex-1 rounded-xl border-border-default bg-bg-input font-mono text-base dark:bg-bg-input"
         />
         <div className="inline-flex shrink-0 rounded-xl border border-border-default bg-bg-input p-0.5 text-xs">

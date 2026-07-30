@@ -1,17 +1,33 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import { createPortal } from "react-dom"
 
-/** Per device, per browser. Not per account: it is the device that shows it. */
-const SEEN_KEY = "trackd:calculator-disclaimer-seen"
+/**
+ * Per device, per browser. Not per account: it is the device that shows it.
+ * Dot-separated to match the other persisted keys (`trackd.home.weekStripOpen`,
+ * `trackd.stack.v2.<uid>`); the colon form below is a CustomEvent name.
+ */
+const SEEN_KEY = "trackd.calculator.disclaimerSeen"
 const SEEN_EVENT = "trackd:calculator-disclaimer-seen-changed"
 
 /**
- * `true` when this device has already been shown the notice. Storage being
- * unavailable (private mode, cookies off) also reads as seen: a notice we could
- * never remember dismissing would reappear on every single visit, and the
- * permanent disclaimer at the bottom of the page still carries the standing line.
+ * `true` when this device has already been shown the notice. A failed READ also
+ * reads as seen (private mode, cookies off): a notice we could never remember
+ * dismissing would reappear on every single visit, and the permanent disclaimer
+ * at the bottom of the page still carries the standing line.
+ *
+ * A failed WRITE is not recoverable the same way. If reads succeed but writes
+ * are refused (quota, some managed profiles) the notice does come back next
+ * visit, because there is nowhere left to record that it was dismissed. It still
+ * closes on this visit, via `dismissed` below.
  */
 function getSeen(): boolean {
   if (typeof window === "undefined") return true
@@ -41,6 +57,9 @@ function subscribeSeen(cb: () => void): () => void {
   }
 }
 
+const FOCUSABLE =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
 /**
  * The one-time notice on the calculator's first open (spec 07). Copy approved by
  * Adrian, 2026-07-30.
@@ -50,8 +69,11 @@ function subscribeSeen(cb: () => void): () => void {
  * standing legal line.
  *
  * Dismissal is the button or Escape, never a backdrop tap: a stray touch on the
- * scrim should not count as having read it. Escape stays because a modal with no
- * keyboard exit is a trap.
+ * scrim should not count as having read it. That makes this the app's one modal
+ * a stray tap cannot close, so unlike the sign-out confirm it also traps Tab,
+ * locks the page behind it from scrolling, and hands focus back on close. A
+ * dialog that says `aria-modal` while Tab walks out of it into the controls
+ * behind the scrim is lying to a screen reader.
  *
  * Read through `useSyncExternalStore` rather than an effect, per the house idiom
  * (`useMounted`, the week strip): the server snapshot is "seen", so SSR and the
@@ -69,7 +91,10 @@ export function FirstRunDisclaimer() {
   // dialog would have no way to close. This flag is what actually dismisses it.
   const [dismissed, setDismissed] = useState(false)
   const open = !seen && !dismissed
+  const dialogRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const titleId = useId()
+  const bodyId = useId()
 
   const dismiss = useCallback(() => {
     setDismissed(true)
@@ -78,12 +103,42 @@ export function FirstRunDisclaimer() {
 
   useEffect(() => {
     if (!open) return
+
+    const opener = document.activeElement as HTMLElement | null
     buttonRef.current?.focus()
+
+    const bodyOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") dismiss()
+      if (e.key === "Escape") {
+        dismiss()
+        return
+      }
+      if (e.key !== "Tab") return
+      const root = dialogRef.current
+      if (!root) return
+      const items = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE))
+      if (items.length === 0) {
+        e.preventDefault()
+        return
+      }
+      const first = items[0]
+      const last = items[items.length - 1]
+      const active = document.activeElement
+      const outside = !root.contains(active)
+      if (e.shiftKey ? active === first || outside : active === last || outside) {
+        e.preventDefault()
+        ;(e.shiftKey ? last : first).focus()
+      }
     }
+
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      document.body.style.overflow = bodyOverflow
+      if (opener && opener.isConnected) opener.focus()
+    }
   }, [open, dismiss])
 
   if (!open || typeof document === "undefined") return null
@@ -91,22 +146,17 @@ export function FirstRunDisclaimer() {
   return createPortal(
     <div className="fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none">
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="calc-disclaimer-title"
-        aria-describedby="calc-disclaimer-body"
+        aria-labelledby={titleId}
+        aria-describedby={bodyId}
         className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
       >
-        <h2
-          id="calc-disclaimer-title"
-          className="text-base font-medium text-foreground"
-        >
+        <h2 id={titleId} className="text-base font-medium text-foreground">
           A calculator, not advice
         </h2>
-        <p
-          id="calc-disclaimer-body"
-          className="mt-1.5 text-sm leading-relaxed text-text-muted"
-        >
+        <p id={bodyId} className="mt-1.5 text-sm leading-relaxed text-text-muted">
           This does arithmetic on the numbers you type, nothing more. It does not
           know your compound, your vial, or your dose. Check every figure against
           the product in your hand before you draw.

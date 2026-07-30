@@ -119,7 +119,7 @@ export function misuseKind(
    --------------------------------------------------------------------------- */
 
 export const VIEW_W = 320
-export const VIEW_H = 64
+export const VIEW_H = 66
 
 /** Barrel — the only part whose length carries meaning. */
 export const BARREL_X = 62
@@ -138,14 +138,21 @@ export const TICK_MAJOR = 11
 export const TICK_ANCHOR = 4
 
 /**
- * Baseline and size for the printed numbers, below the barrel. The size is set
- * by the tightest case: the 1 mL barrel prints 11 numbers, and the widest of
- * them ("100") is ~3 × 0.6em wide against a 20.4-unit label pitch. 8.5 leaves
- * about 5 units of air between neighbours and still renders around 8px on a
- * phone, which is the smallest the numbers can be and stay readable.
+ * Baseline and size for the printed numbers, below the barrel.
+ *
+ * The size is set by the tightest case, then pushed as large as that case
+ * allows, because a scale you cannot read defeats the graphic. On the 1 mL
+ * barrel 11 numbers sit at a 20.4-unit pitch and the widest ("100") is 3 ×
+ * 0.6em; at 10 that is 18 units against a 20.4 pitch, and its neighbour ("90",
+ * 12 units) leaves 5.4 units of air between the two. The SVG is drawn slightly
+ * wider than its card (see `ReconCalculator`), so 10 here lands at roughly 8px
+ * on a 320px phone and 10px on a 375px one.
+ *
+ * `LABEL_Y` clears the flange, which reaches y=53: the digits' cap height puts
+ * their top at about y=53 for a baseline of 60.
  */
-export const LABEL_Y = BARREL_Y + BARREL_H + 14
-export const LABEL_SIZE = 8.5
+export const LABEL_Y = BARREL_Y + BARREL_H + 16
+export const LABEL_SIZE = 10
 
 /** Left-to-right position of a 0…1 fraction along the barrel. */
 export function barrelX(fraction: number): number {

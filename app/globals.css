@@ -392,8 +392,24 @@
   animation: card-shake 420ms ease-in-out both;
 }
 
+/* The calculator's syringe fill easing into its new length (Spec 07). A CLASS,
+   not an inline style: the scale factor itself has to be inline (it is a live
+   value), and an inline `transition` would outrank Tailwind's
+   `motion-reduce:transition-none` utility, so the reduce opt-out would silently
+   never apply. Owning the transition here keeps both on the same specificity
+   footing and puts the opt-out below, with every other animation's. */
+.transition-syringe-fill {
+  transform-box: fill-box;
+  transform-origin: left;
+  transition: transform var(--motion-slow) var(--motion-ease);
+}
+
 /* Respect users who opt out of motion — no entrance/ripple/fade for them. */
 @media (prefers-reduced-motion: reduce) {
+  .transition-syringe-fill {
+    transition: none;
+  }
+
   .animate-shortcut-in,
   .animate-shortcut-ripple,
   .animate-shortcut-fade,

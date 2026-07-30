@@ -104,13 +104,12 @@ export function SyringeGraphic({
           width={BARREL_W}
           height={BARREL_H}
           fill="var(--accent-amber)"
-          className="motion-reduce:transition-none"
-          style={{
-            transform: `scaleX(${fill})`,
-            transformBox: "fill-box",
-            transformOrigin: "left",
-            transition: "transform var(--motion-slow) var(--motion-ease)",
-          }}
+          // The transition, transform-box and transform-origin all live in
+          // `.transition-syringe-fill` (globals.css). Only the live scale factor
+          // is inline: an inline `transition` would outrank the reduced-motion
+          // opt-out, which is a rule that fails silently.
+          className="transition-syringe-fill"
+          style={{ transform: `scaleX(${fill})` }}
         />
       </g>
 

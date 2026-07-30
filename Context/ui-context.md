@@ -185,6 +185,12 @@ than re-deriving classes per card:
   this is the same eyebrow one notch down in size and tracking. Use it **only**
   where the column is genuinely too narrow; a full-width card title stays
   `CARD_EYEBROW`. (Added for the calculator's three result cards, Spec 07.)
+- **`COLUMN_VALUE`** — `font-mono text-lg tabular-nums [overflow-wrap:anywhere]`
+  — `METRIC_VALUE`'s job at a third of the width. A 28px light sans figure does
+  not survive a narrow column, so the 3-up row uses mono at 18px, wrapping
+  rather than overflowing on a pathological figure. Pair it with
+  `COLUMN_EYEBROW` above and a `text-[11px] text-text-muted` unit beneath, and
+  lay the row out per **3-up figure row** in Spacing & Rhythm.
 - **`METRIC_VALUE`** — `text-[28px] font-light tracking-[-0.02em]
   tabular-nums text-foreground` — the big number on metric and glance
   cards. Units and suffixes are demoted inline via **`UNIT_SUFFIX`**
@@ -228,6 +234,7 @@ ad-hoc margins or padding.
 | Card internal padding     | `p-5`                                              |
 | Intra-card element gap    | `space-y-3` (tight label/value pairs `space-y-1`) |
 | Metric grid               | `grid-cols-2` + `gap-3`                            |
+| 3-up figure row           | `grid-cols-3` + `gap-2`, cards `px-2 py-3`         |
 | Inline icon / label gap   | `gap-2` / `gap-3`                                  |
 | In-card row dividers      | `divide-y divide-border-default` (rows `py-3`)     |
 
