@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { CaretRight } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ export function ProgressPhotoCard({
   onOpen,
   onView,
   compact = false,
+  footer,
 }: {
   photos: ProgressPhoto[];
   unit: WeightUnit;
@@ -32,6 +33,13 @@ export function ProgressPhotoCard({
   onView: (photo: ProgressPhoto) => void;
   /** Home glance: render the photo shorter so the card doesn't dominate. */
   compact?: boolean;
+  /**
+   * Rendered inside the card below the caption — the "Running" list on Progress
+   * (spec 08 · part two). Passed in rather than resolved here so the card stays
+   * a photo card: it knows nothing about the dose log, and the list can render
+   * null on a day with nothing logged without this card knowing that either.
+   */
+  footer?: ReactNode;
 }) {
   const day = latestDay(photos);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -142,6 +150,8 @@ export function ProgressPhotoCard({
           </div>
         )}
       </div>
+
+      {footer}
     </div>
   );
 }

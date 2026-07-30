@@ -9,8 +9,11 @@ import { EditDaySheet } from "@/components/progress/EditDaySheet";
 import { ProgressPhotoViewer } from "@/components/progress/ProgressPhotoViewer";
 import { ComparePhotosSheet } from "@/components/progress/ComparePhotosSheet";
 import { useProgressAction } from "@/components/progress/useProgressAction";
-import { customPosesIn, type ProgressPhoto } from "@/lib/progress/photos";
+import { PhotoRunningList } from "@/components/progress/PhotoRunningList";
+import { customPosesIn, latestDay, type ProgressPhoto } from "@/lib/progress/photos";
 import type { WeightUnit } from "@/lib/weight";
+import type { DayLogs } from "@/lib/home/doseLog";
+import type { StackCompound } from "@/lib/home/stack";
 
 type Return = "none" | "gallery" | "edit";
 
@@ -26,6 +29,8 @@ export function ProgressPhotoSection({
   todayKey,
   unit,
   compact = false,
+  previewStack,
+  previewLogs,
 }: {
   photos: ProgressPhoto[];
   userId: string;
@@ -33,6 +38,9 @@ export function ProgressPhotoSection({
   unit: WeightUnit;
   /** Home glance: render the photo card shorter. */
   compact?: boolean;
+  /** Dev-preview-only device data for the Running list. */
+  previewStack?: StackCompound[];
+  previewLogs?: DayLogs;
 }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -45,6 +53,9 @@ export function ProgressPhotoSection({
   const [viewReturn, setViewReturn] = useState<Return>("none");
 
   const customPoses = customPosesIn(photos);
+  // The day the card is showing. The Running list resolves against THIS date,
+  // never today, which is what makes it useful when scrolling back.
+  const shownDate = latestDay(photos)?.date ?? null;
 
   // The Calendar's Photos row deep-links here → open the photo gallery.
   useProgressAction("photos-gallery", () => setGalleryOpen(true));
@@ -70,6 +81,18 @@ export function ProgressPhotoSection({
           setViewReturn("none");
           setViewing(p);
         }}
+        footer={
+          // Not on the Home glance: that card is a teaser, and the list belongs
+          // to the Progress screen the spec put it on.
+          !compact && shownDate ? (
+            <PhotoRunningList
+              date={shownDate}
+              userId={userId}
+              sampleStack={previewStack}
+              sampleLogs={previewLogs}
+            />
+          ) : null
+        }
       />
 
       <ProgressPhotoGallerySheet

@@ -21,11 +21,14 @@ export function JournalSection({
   options,
   userId,
   todayKey,
+  compact = false,
 }: {
   entries: JournalEntry[];
   options: MarkerOption[];
   userId: string;
   todayKey: string;
+  /** Progress's two-up grid (spec 08 · part two). */
+  compact?: boolean;
 }) {
   const [feedOpen, setFeedOpen] = useState(false);
   const [feedCompose, setFeedCompose] = useState(false);
@@ -61,7 +64,7 @@ export function JournalSection({
 
   return (
     <>
-      <JournalCard entries={entries} onOpen={() => setFeedOpen(true)} />
+      <JournalCard entries={entries} onOpen={() => setFeedOpen(true)} compact={compact} />
 
       <JournalFeedSheet
         open={feedOpen}

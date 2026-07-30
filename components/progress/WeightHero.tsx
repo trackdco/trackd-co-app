@@ -18,15 +18,19 @@ import type { WeightUnit } from "@/lib/weight";
 export function WeightHero({
   series,
   unit,
+  compact = false,
 }: {
   series: { key: DateKey; kg: number }[];
   unit: WeightUnit;
+  /** Progress's two-up grid (spec 08 · part two). */
+  compact?: boolean;
 }) {
   const router = useRouter();
   return (
     <WeightGlanceCard
       series={series}
       unit={unit}
+      compact={compact}
       onOpenDetail={() => router.push("/weight")}
     />
   );

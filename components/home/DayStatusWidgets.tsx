@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
 
 import { Container } from "@/components/containers"
-import { formatTimeLabel, type StackCompound } from "@/lib/home/stack"
+import { inventoryTypeForCompound } from "@/lib/containers/form"
+import { formatTimeLabel } from "@/lib/home/stack"
 import type { NextDose } from "@/lib/home/nextDose"
 import { DATA_MONO } from "@/lib/ui-presets"
-import { CATEGORY_META, FALLBACK_CATEGORY_META, routesOf } from "@/lib/compound-categories"
+import { CATEGORY_META, FALLBACK_CATEGORY_META } from "@/lib/compound-categories"
 import type { CompoundCategory } from "@/lib/compound-categories"
-import { COMPOUNDS } from "@/lib/compounds-catalogue"
 
 // The completion ring's geometry (viewBox 0 0 36 36, r 16).
 const RING_R = 16
@@ -157,7 +157,7 @@ function NextDoseWidget({ next }: { next: NextDoseInfo }) {
       <p className={CARD_EYEBROW}>Next dose</p>
       <div className="mt-3 flex flex-1 flex-col items-center justify-center gap-2">
         <Container
-          inventoryType={inventoryTypeOf(d.compound)}
+          inventoryType={inventoryTypeForCompound(d.compound.name, d.compound.method)}
           category={d.compound.category}
           fill={0.7}
           size={56}
@@ -235,11 +235,3 @@ export function DayStatusWidgets({
   )
 }
 
-/** The compound's inventory form, so its container is a vial / bottle / tub. */
-function inventoryTypeOf(c: StackCompound): string | null {
-  const lower = c.name.toLowerCase()
-  const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
-  if (!cat) return null
-  const forms = routesOf(cat)
-  return (forms.find((f) => f.route === c.method) ?? forms[0])?.inventoryType ?? null
-}

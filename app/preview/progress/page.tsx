@@ -5,6 +5,8 @@ import { BottomNav } from "@/components/navigation/bottom-nav";
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 import { ProgressScreen } from "@/components/progress/ProgressScreen";
 import { toDateKey } from "@/lib/home/mockHomeData";
+import type { DayLogs } from "@/lib/home/doseLog";
+import type { StackCompound } from "@/lib/home/stack";
 import {
   formatBloodworkDate,
   type BloodworkPhoto,
@@ -208,6 +210,61 @@ export default async function PreviewProgressPage({
     ...session("d5", 124, ["front-relaxed", "side-relaxed", "back-relaxed"]),
   ].sort((a, b) => b.date.localeCompare(a.date)); // newest first, like the page
 
+  // Device data for the photo card's Running list. The list resolves against the
+  // PHOTO'S date, so these logs are stamped on the newest session's day (4 days
+  // ago) rather than on today — which is also what proves it is not just reading
+  // today's protocol.
+  const shotDate = progressPhotos[0]?.date ?? toDateKey(today);
+  // `seedStack` is the EMPTY first-run fixture, so it cannot exercise this.
+  const previewStack: StackCompound[] = [
+    {
+      id: "p-test",
+      name: "Testosterone E",
+      category: "anabolic",
+      method: "im",
+      dose: 250,
+      unit: "mg",
+      schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: "2026-01-01" },
+      rotationSites: [],
+      rotationIndex: 0,
+    },
+    {
+      id: "p-bpc",
+      name: "BPC-157",
+      category: "peptide",
+      method: "subq",
+      dose: 250,
+      unit: "mcg",
+      schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: "2026-01-01" },
+      rotationSites: [],
+      rotationIndex: 0,
+    },
+    {
+      id: "p-mk",
+      name: "MK-677",
+      category: "sarm",
+      method: "po",
+      dose: 12.5,
+      unit: "mg",
+      schedule: { cadence: { type: "daily" }, timeOfDay: "22:00", startDate: "2026-01-01" },
+      rotationSites: [],
+      rotationIndex: 0,
+    },
+  ];
+  const previewLogs: DayLogs = {
+    [shotDate]: Object.fromEntries(
+      previewStack.map((c, i) => [
+        c.id,
+        {
+          amount: String(c.dose),
+          time24: ["08:00", "12:30", "21:00"][i] ?? "08:00",
+          siteId: null,
+          loggedAt: `${shotDate}T08:00:00.000Z`,
+        },
+      ]),
+    ),
+  };
+
   return (
     <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom))]">
       <header
@@ -240,6 +297,8 @@ export default async function PreviewProgressPage({
           markerOptions={markerOptions}
           consistencySample={consistencySample}
           progressPhotos={progressPhotos}
+          previewStack={previewStack}
+          previewLogs={previewLogs}
         />
       </main>
 

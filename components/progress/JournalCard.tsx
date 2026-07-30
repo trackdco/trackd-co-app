@@ -17,13 +17,54 @@ function bodyFirstLine(body: string | null): string | null {
 export function JournalCard({
   entries,
   onOpen,
+  compact = false,
 }: {
   entries: JournalEntry[];
   onOpen: () => void;
+  /**
+   * Progress's two-up grid (spec 08 · part two): date and a one-line preview
+   * only. The marker chips do not fit a half-width square and are dropped HERE
+   * ONLY — they are untouched inside the journal itself, which is where they
+   * carry meaning.
+   */
+  compact?: boolean;
 }) {
   const latest = entries[0] ?? null;
   const line = latest ? bodyFirstLine(latest.body) : null;
   const latestPhotoUrl = latest?.attachments.find((a) => a.url)?.url ?? null;
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label="Open journal"
+        className="flex flex-col rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+      >
+        <span className={`block ${CARD_EYEBROW}`}>Journal</span>
+        {latest ? (
+          <span className="mt-3 flex flex-1 flex-col">
+            <span className="block text-sm text-foreground">
+              {formatJournalDate(latest.date)}
+            </span>
+            {line ? (
+              <span className="mt-1 line-clamp-2 text-xs leading-relaxed text-text-muted">
+                {line}
+              </span>
+            ) : (
+              <span className="mt-1 text-xs text-text-subtle">
+                Markers only
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="mt-3 flex-1 text-sm text-text-muted">
+            Write a note or log how you feel
+          </span>
+        )}
+      </button>
+    );
+  }
 
   return (
     <button

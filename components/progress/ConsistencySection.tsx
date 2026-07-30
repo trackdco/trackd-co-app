@@ -26,10 +26,13 @@ export function ConsistencySection({
   userId,
   todayKey,
   sample,
+  compact = false,
 }: {
   userId: string;
   todayKey: DateKey;
   sample?: AdherencePoint[];
+  /** Progress's two-up grid (spec 08 · part two). */
+  compact?: boolean;
 }) {
   const mounted = useMounted();
   const stack = useSyncExternalStore(
@@ -44,5 +47,5 @@ export function ConsistencySection({
   );
 
   const points = sample ?? (mounted ? computeAdherence(stack, logs, todayKey) : []);
-  return <ConsistencyGraph points={points} />;
+  return <ConsistencyGraph points={points} compact={compact} />;
 }

@@ -10,16 +10,24 @@ import type { AdherencePoint } from "@/lib/progress/consistency";
 import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { unitForPreference } from "@/lib/weight";
+import type { DayLogs } from "@/lib/home/doseLog";
+import type { StackCompound } from "@/lib/home/stack";
 
 /**
- * The Progress tab — the metric-first "look back" screen (Context/Feature
- * Specs/09). A single vertical scroll on the Obsidian canvas: weight is the hero,
- * followed by bloodwork (a dated photo store), the journal, and consistency. Kept
- * separate from Home ("today"), Protocol ("the schedule"), and the Calendar.
+ * The Progress tab — the "look back" screen (spec 08 · part two). Everything that
+ * came off the dashboard lives here.
  *
- * Each section fades + rises in on load (the same staggered `animate-home-up`
- * idiom as Home), top → bottom: Title → Weight (hero) → Bloodwork (a dated photo
- * store) → Journal → Consistency (adherence over time).
+ * Two blocks: the photo card at the top, then a two-by-two grid of Weight,
+ * Journal, Bloods and Consistency. The widgets are the dashboard's Today /
+ * Next Dose cards' footprint exactly (`grid-cols-2 gap-3`, `p-5`, eyebrow then
+ * content), because a screen that invents its own grid is how two tabs stop
+ * looking like one app.
+ *
+ * The photo card carries a "Running" list resolved against the PHOTO'S date, so
+ * scrolling back tells you what you were on when the shot was taken.
+ *
+ * Each block fades + rises in on load (the same staggered `animate-home-up`
+ * idiom as Home and Protocol).
  */
 export function ProgressScreen({
   weight,
@@ -31,6 +39,8 @@ export function ProgressScreen({
   markerOptions,
   consistencySample,
   progressPhotos,
+  previewStack,
+  previewLogs,
 }: {
   /** Bodyweight points from `weight_logs`, oldest → newest. */
   weight: { key: DateKey; kg: number }[];
@@ -49,6 +59,11 @@ export function ProgressScreen({
   consistencySample?: AdherencePoint[];
   /** The user's progress photos, newest first. */
   progressPhotos: ProgressPhoto[];
+  /** Dev-preview-only: inject the device stack + dose log, so `/preview/progress`
+   *  can exercise the photo card's Running list without signing in. The real
+   *  screen reads both from the device store. */
+  previewStack?: StackCompound[];
+  previewLogs?: DayLogs;
 }) {
   const unit = unitForPreference(unitPreference);
 
@@ -58,47 +73,42 @@ export function ProgressScreen({
         <PageScrollTitle title="Progress" />
       </div>
 
-      {/* Weight — the hero. A summary glance that taps into the canonical
-          /weight view (full graph, range toggle, scrubber). */}
+      {/* Photos lead: the card, then what was running on that photo's date. */}
       <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
-        <WeightHero series={weight} unit={unit} />
-      </div>
-
-      {/* Progress photos — a posed photo log (latest session carousel), below Weight. */}
-      <div className="animate-home-up" style={{ animationDelay: "100ms" }}>
         <ProgressPhotoSection
           photos={progressPhotos}
           userId={userId}
           todayKey={todayKey}
           unit={unit}
+          previewStack={previewStack}
+          previewLogs={previewLogs}
         />
       </div>
 
-      {/* Bloodwork — a dated photo store: attach a screenshot, look back by date. */}
-      <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
-        <BloodworkSection
-          photos={bloodworkPhotos}
-          userId={userId}
-          todayKey={todayKey}
-        />
-      </div>
-
-      {/* Journal — write notes and/or dial markers; one entry per day. */}
-      <div className="animate-home-up" style={{ animationDelay: "165ms" }}>
+      {/* Weight · Journal / Bloods · Consistency. */}
+      <div
+        className="animate-home-up grid grid-cols-2 items-stretch gap-3"
+        style={{ animationDelay: "100ms" }}
+      >
+        <WeightHero series={weight} unit={unit} compact />
         <JournalSection
           entries={journalEntries}
           options={markerOptions}
           userId={userId}
           todayKey={todayKey}
+          compact
         />
-      </div>
-
-      {/* Consistency — adherence to the protocol over time. */}
-      <div className="animate-home-up" style={{ animationDelay: "230ms" }}>
+        <BloodworkSection
+          photos={bloodworkPhotos}
+          userId={userId}
+          todayKey={todayKey}
+          compact
+        />
         <ConsistencySection
           userId={userId}
           todayKey={todayKey}
           sample={consistencySample}
+          compact
         />
       </div>
     </div>
