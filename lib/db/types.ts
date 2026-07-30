@@ -101,6 +101,11 @@ export type IsoWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
 export interface DoseRow {
   compoundId: string
   takenAt: string
+  /** The stored local day (`dose_logs.logged_for`). Preferred over re-deriving a
+   *  day from `takenAt`, which changes answer when the device changes timezone. */
+  loggedFor: string | null
+  /** The dose's own note (`dose_logs.note`), or null. */
+  note: string | null
   amount: string
   /** The unit this dose was logged in (`dose_logs.dose_unit`) — per-log, so it
    *  survives a later change to the compound's unit. Null on rows that predate it. */
@@ -197,6 +202,10 @@ export interface DoseLog {
   injection_site: InjectionSite | null
   taken_at: string
   scheduled_for: string | null
+  /** The user's LOCAL calendar day for this dose (`supabase/protocol/011`).
+   *  Authoritative for WHICH DAY a dose belongs to; `taken_at` stays
+   *  authoritative for the instant. Null on rows the backfill could not reach. */
+  logged_for: string | null
   note: string | null
   created_at: string
 }
@@ -256,6 +265,9 @@ export interface DoseLogInsert {
   dose_unit: DoseUnit
   injection_site?: InjectionSite | null
   taken_at?: string
+  /** The device's own local date, "YYYY-MM-DD". Sent on every write, because the
+   *  server cannot know which day the user was standing in. */
+  logged_for?: string | null
   scheduled_for?: string | null
   note?: string | null
 }

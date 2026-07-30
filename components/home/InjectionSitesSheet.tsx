@@ -192,9 +192,8 @@ export function InjectionSitesSheet({
             </button>
           </div>
           <SheetDescription className="sr-only">
-            Your injection rotation on a body map. Hover a muscle to see when you
-            last pinned it; recent pins are listed below. Drag the top down, swipe in
-            from the left edge, or tap Done to close.
+            Tap a muscle to see when you last pinned it. Recent pins are listed
+            below.
           </SheetDescription>
 
           <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 pb-10 pt-4">

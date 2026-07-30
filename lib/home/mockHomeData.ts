@@ -54,6 +54,13 @@ export interface DoseLog {
    * while its meaning changed by a factor of a thousand.
    */
   unit?: string
+  /**
+   * The user's own words about this dose — "shoulder felt tight", "took it
+   * late". Optional, and never interpreted: it is a note, not a field the app
+   * reasons about. Stored in `dose_logs.note`, which has existed since v0.4.2
+   * and had never been written to.
+   */
+  note?: string
   /** Injection site id (injectables only); null for orals. */
   siteId: string | null
   /** Time the dose was taken, 24h "HH:MM", or "" when the user left it unset. */

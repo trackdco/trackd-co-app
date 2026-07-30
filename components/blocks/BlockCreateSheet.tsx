@@ -216,10 +216,6 @@ export function BlockCreateSheet({
 
           <div className="flex-1 overflow-y-auto px-6">
             <h2 className={SHEET_TITLE}>New block</h2>
-            <p className="mt-1 text-sm text-text-muted">
-              A prep, an off-season, a cut. Everything you log while it runs
-              becomes its look-back.
-            </p>
 
             <label className="mt-5 block">
               <span className={FIELD_LABEL}>Name</span>

@@ -142,6 +142,9 @@ export function LogDoseSheet({
 // Re-using a spot sooner than this (days) gets a gentle amber rest flag.
 const REST_DAYS = 7
 
+/** Matches the cap the sync layer applies before the write. */
+const NOTE_MAX = 2000
+
 /** Local "HH:MM" for the time field / committed log. */
 function toHHMM(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(
@@ -244,6 +247,10 @@ function LogDoseBody({
   const displayTime = manualTime ?? defaultTime
 
   const [siteId, setSiteId] = useState<string | null>(existing?.siteId ?? null)
+  // The dose's own note. Optional, always last, and never interpreted by
+  // anything — `dose_logs.note` has existed since v0.4.2 and nothing had ever
+  // written to it (spec 11 · card three).
+  const [note, setNote] = useState(existing?.note ?? "")
   const [siteSheetOpen, setSiteSheetOpen] = useState(false)
 
   // How much to draw for THIS dose (Spec 21, extended to this sheet by spec 11).
@@ -525,6 +532,7 @@ function LogDoseBody({
        */
       unit: existing?.unit ?? onDay.unit ?? compound.unit,
       siteId: injectable && siteOnRoute ? siteId : null,
+      ...(note.trim() ? { note: note.trim() } : {}),
       time24:
         manualTime ?? (onToday ? toHHMM(new Date()) : onDay.schedule.timeOfDay),
       inventoryItemId,
@@ -906,6 +914,32 @@ function LogDoseBody({
                 Checking which vial you were using…
               </p>
             )}
+
+        {/* ── Card three: the note ────────────────────────────────────
+            Optional and last, as spec 11 asks. A textarea rather than a row
+            that opens something: a note is a sentence, and putting a sentence
+            behind a second tap is how a field goes unused. It grows with what
+            is typed and starts at one line, so it costs nothing when empty. */}
+        <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
+          <label className="block px-4 py-3">
+            <span className="text-sm text-text-muted">Note</span>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+              rows={1}
+              placeholder="Add a note"
+              aria-label="Note about this dose"
+              className="mt-1.5 block max-h-40 min-h-[1.75rem] w-full resize-none bg-transparent text-base text-foreground outline-none placeholder:text-text-subtle"
+              onInput={(e) => {
+                // Grow to fit, up to the max-height, then scroll. `field-sizing`
+                // is not in Safari yet, so this is the portable version.
+                const el = e.currentTarget
+                el.style.height = "auto"
+                el.style.height = `${el.scrollHeight}px`
+              }}
+            />
+          </label>
+        </div>
 
         {/* ── Card four: the vial ─────────────────────────────────────
             Brought into the SAME row language as the cards above it (spec 11).

@@ -75,7 +75,13 @@ function doseRowsToDayLogs(
   for (const r of rows) {
     const taken = new Date(r.takenAt)
     if (Number.isNaN(taken.getTime())) continue
-    const dateKey = toDateKey(taken)
+    // THE STORED DAY WINS. Deriving a day from an instant answers with whatever
+    // timezone the phone is in right now, so flying between them re-bucketed
+    // every past dose — and because the device mirror keeps the original day,
+    // the merge below could then show one dose on two adjacent days. A day is a
+    // fact about where you were standing, so it is read, not recomputed.
+    // `takenAt` is still the fallback for rows written before 011.
+    const dateKey = r.loggedFor ?? toDateKey(taken)
     const time24 = `${String(taken.getHours()).padStart(2, "0")}:${String(
       taken.getMinutes()
     ).padStart(2, "0")}`
@@ -89,6 +95,7 @@ function doseRowsToDayLogs(
       // recorded in survives the round-trip and the row can't be relabelled with
       // the compound's current unit (see DoseLog.unit).
       ...(r.doseUnit ? { unit: r.doseUnit } : {}),
+      ...(r.note ? { note: r.note } : {}),
       siteId,
       time24,
       inventoryItemId: r.inventoryItemId,

@@ -151,6 +151,9 @@ async function findProtocolCompoundId(
   return matches.reduce((best, r) => (rank(r) > rank(best) ? r : best)).id
 }
 
+/** Generous, and only here so a runaway paste cannot bloat a row. */
+const NOTE_MAX = 2000
+
 function parseAmount(raw: string, fallback: number): number {
   const n = Number.parseFloat(raw)
   if (Number.isFinite(n) && n > 0) return n
@@ -878,6 +881,13 @@ export async function pushProtocolDoseLog(
         ? localSiteToInjectionSite(log.siteId)
         : null,
       taken_at: takenAtIso,
+      // THE DAY, stored rather than inferred (`supabase/protocol/011`). The
+      // server cannot know which calendar day the user was standing in; the
+      // device does, and `dateKey` is exactly it.
+      logged_for: dateKey,
+      // The user's own words about this dose, if any. The column has existed
+      // since v0.4.2 and nothing had ever written to it.
+      note: log.note?.trim() ? log.note.trim().slice(0, NOTE_MAX) : null,
     })
     return { ok: saved !== null }
   } catch (e) {
@@ -1045,6 +1055,33 @@ export async function pushScheduleVersions(
   }
 }
 
+/** The dose-log columns as they exist before `supabase/protocol/011`. */
+const DOSE_LOG_COLUMNS =
+  "protocol_compound_id, taken_at, dose_amount, dose_unit, injection_site, inventory_item_id, note"
+
+/**
+ * Pull the user's dose logs, asking for `logged_for` and retrying without it.
+ *
+ * 011 is additive and may not be applied yet. Same tolerance the schedule
+ * versions and the inventory runway use: ask for the better shape, fall back to
+ * the old one, never fail the whole hydration over a pending migration.
+ */
+async function readDoseLogRows(cx: {
+  supabase: Awaited<ReturnType<typeof createClient>>
+  userId: string
+}) {
+  const withDay = await cx.supabase
+    .from("dose_logs")
+    .select(`${DOSE_LOG_COLUMNS}, logged_for`)
+    .eq("user_id", cx.userId)
+  if (!withDay.error) return withDay
+  if (!isUndefinedColumn(withDay.error)) return withDay
+  return await cx.supabase
+    .from("dose_logs")
+    .select(DOSE_LOG_COLUMNS)
+    .eq("user_id", cx.userId)
+}
+
 /** Every schedule version the user owns, keyed by `protocol_compound_id`. Empty
  *  when the table doesn't exist yet — the caller then keeps whatever the device
  *  already holds, so a pending migration degrades to today's behaviour. */
@@ -1140,10 +1177,7 @@ export async function pullProtocolStackAndLogs(): Promise<{
           .from("protocol_compounds")
           .select("*, compounds(name, category)")
           .eq("user_id", cx.userId),
-        cx.supabase
-          .from("dose_logs")
-          .select("protocol_compound_id, taken_at, dose_amount, dose_unit, injection_site, inventory_item_id")
-          .eq("user_id", cx.userId),
+        readDoseLogRows(cx),
       ])
       // Surface Supabase errors (they don't throw) so the breaker counts a real
       // failure and we fall back to the cache, rather than rendering empty.
@@ -1183,9 +1217,18 @@ export async function pullProtocolStackAndLogs(): Promise<{
         )
       }
 
-      const doseRows: DoseRow[] = (dlRes.data ?? []).map((r) => ({
+      // Widened at the boundary: the select is one of two shapes depending on
+      // whether 011 is applied, so the narrower one has no `logged_for` key at
+      // all. Both are read through the same optional lookups below.
+      const doseRowsRaw = (dlRes.data ?? []) as unknown as Record<string, unknown>[]
+      const doseRows: DoseRow[] = doseRowsRaw.map((r) => ({
         compoundId: r.protocol_compound_id as string,
         takenAt: r.taken_at as string,
+        // Absent entirely until `supabase/protocol/011` is applied, and null on
+        // any row its backfill could not reach — the caller falls back to
+        // deriving a day from `takenAt` in both cases.
+        loggedFor: (r.logged_for as string | null | undefined) ?? null,
+        note: (r.note as string | null | undefined) ?? null,
         amount: String(r.dose_amount),
         // The unit this dose was LOGGED in — per-log in the schema, so history
         // survives a change to the compound's unit (see DoseLog.unit).
