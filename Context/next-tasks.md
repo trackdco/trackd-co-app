@@ -45,14 +45,13 @@ less. Fixed so far: the DST drift, the `__proto__` mirror wipe, the dose-unit re
 the un-log resurrection race, offline doses never syncing, and the injection-site
 corruption.
 
-**⚠️ MIGRATION 009 IS WRITTEN AND NOT YET APPLIED.**
-`supabase/protocol/009_ownership_hardening.sql` closes the RLS hole on three more
-constraints (see item 8 below). It MUST be applied together with the already-
-committed change to `protocol_compounds.ts` / `protocolSync.ts`, because it
+**Migration 009 is APPLIED** (Adrian, 2026-07-30), together with the committed
+change to `protocol_compounds.ts` / `protocolSync.ts` it had to land with: 009
 re-scopes the schedule-version unique key and the app's `onConflict` was updated
-to match. Applying one without the other breaks every schedule-version write.
+to match, so one without the other would have broken every schedule-version
+write. Nothing is pending. See "Migrations" further down.
 
-**CRITICAL / HIGH, still open:**
+**Still open: items 4, 5, 6 and 7 below.** 1, 2, 3 and 8 are fixed.
 
 1. ~~Offline doses never reach Postgres.~~ **FIXED** via a narrow
    `repushDoseLogs` on reconnect. The old path called
@@ -96,8 +95,8 @@ to match. Applying one without the other breaks every schedule-version write.
    force-expanded, and dismissing it opens the feed sheet nobody asked for. On a
    FUTURE day the save is rejected and the date field is hidden in edit mode, so
    the entry cannot be saved or corrected, only abandoned.
-8. **Three sibling tables share the RLS hole 008 fixed** - SQL WRITTEN as
-   `009_ownership_hardening.sql`, awaiting Adrian:
+8. ~~Three sibling tables share the RLS hole 008 fixed.~~ **FIXED and APPLIED**
+   as `009_ownership_hardening.sql` (Adrian, 2026-07-30). Original description:
    `protocol_compound_schedules` (005), and `protocol_compounds`' uniques from
    003/004. Same shape: RLS checks only `user_id`, single-column FK, globally
    unique index. Squatting a slot permanently breaks a victim's sync with no
