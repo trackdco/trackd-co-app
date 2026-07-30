@@ -11,7 +11,7 @@ import { CyclesView } from "@/components/protocol/CyclesView"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
-import { getActiveCycle } from "@/lib/db/cycles"
+import { StockActionsSheet } from "@/components/protocol/StockActionsSheet"
 import { listStock, type StockItem } from "@/lib/db/inventory"
 import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
 import {
@@ -25,8 +25,7 @@ import {
   subscribeDoseLogs,
   type DayLogs,
 } from "@/lib/home/doseLog"
-import { toDateKey } from "@/lib/home/mockHomeData"
-import type { Cycle } from "@/lib/db/types"
+import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
 import type { Stack } from "@/lib/home/stacks"
 
 const EMPTY_STACK: StackCompound[] = []
@@ -34,7 +33,12 @@ const EMPTY_LOGS: DayLogs = {}
 
 /**
  * Protocol — ONE scrolling page (Spec 04), replacing the Plan / Stock segmented
- * control. Order: title, Compounds, Stacks, Schedule, Cycles.
+ * control. Order: title, Compounds, Schedule, Stacks, Cycles.
+ *
+ * There is deliberately NO overall-cycle header (name, weeks, start date,
+ * description). It was prototyped, orphaned by the tab merge, and removed on
+ * Adrian's call: a protocol-level GOAL belongs on Progress, where you track
+ * against it, not on the page that lists what you are running.
  *
  * **Logging never happens here.** The dashboard owns a selected date and this
  * page does not, so any log action from Protocol would have to assume today —
@@ -44,14 +48,12 @@ const EMPTY_LOGS: DayLogs = {}
  */
 export function ProtocolScreen({
   userId,
-  initialCycle,
   previewStock,
   previewCompounds,
   previewStacks,
   previewLogs,
 }: {
   userId: string
-  initialCycle: Cycle | null
   /** Dev-only: mock data so `/preview/protocol` renders without a session. */
   previewStock?: StockItem[]
   previewCompounds?: StackCompound[]
@@ -59,16 +61,18 @@ export function ProtocolScreen({
   previewLogs?: DayLogs
 }) {
   useCloudHydration(userId)
-  const [, setCycle] = useState<Cycle | null>(initialCycle)
+
   const [detailTarget, setDetailTarget] = useState<StackCompound | null>(null)
   const [editTarget, setEditTarget] = useState<StackCompound | null>(null)
   // Adding / refilling a vial. Merging the Stock tab away removed the only path
   // to this, so the compound card's stock block opens it instead.
   const [stockTarget, setStockTarget] = useState<StackCompound | null>(null)
+  const [stockActionsFor, setStockActionsFor] = useState<StackCompound | null>(null)
+  const [stockEditItem, setStockEditItem] = useState<StockItem | null>(null)
 
   const liveStack = useSyncExternalStore(
     subscribeStack,
-    () => getStackSnapshot(userId, EMPTY_STACK),
+    () => (userId === "anon" ? EMPTY_STACK : getStackSnapshot(userId, EMPTY_STACK)),
     () => EMPTY_STACK
   )
   const liveLogs = useSyncExternalStore(
@@ -83,7 +87,9 @@ export function ProtocolScreen({
   const todayKey = toDateKey(new Date())
   /** This week, Monday first — what the Schedule grid shows. */
   const weekDays = useMemo(() => {
-    const now = new Date()
+    // Derived FROM todayKey rather than a fresh `new Date()`, so the memo's
+    // dependency is real and the week actually follows midnight.
+    const now = dateKeyToDate(todayKey)
     const monday = new Date(
       now.getFullYear(),
       now.getMonth(),
@@ -94,12 +100,22 @@ export function ProtocolScreen({
       (_, i) =>
         new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)
     )
-  }, [])
+    // Keyed on todayKey so the week follows midnight. Frozen at mount, a page
+    // left open across midnight showed a week that no longer contained "today",
+    // and yesterday's outstanding doses flipped to missed under the user.
+  }, [todayKey])
 
   // Stock per compound, keyed by the CLIENT id. `listStock` returns rows keyed by
   // `protocol_compounds.id`, which can diverge from the client id, so it is mapped
   // back through the same resolver the stack mirror uses rather than assumed equal.
-  const [fetchedStock, setFetchedStock] = useState<Map<string, StockItem>>(new Map())
+  // `null` = NOT YET KNOWN. An empty Map is a positive claim that the user owns
+  // no vials, so initialising to one made the page assert that on every cold load
+  // and on any failed read (offline, resolver error) — the same mistake
+  // `resolveDrawSources` was written to avoid.
+  const [fetchedStock, setFetchedStock] = useState<Map<string, StockItem> | null>(
+    null
+  )
+  const [stockTick, setStockTick] = useState(0)
   // Preview data is DERIVED, not set into state from an effect — a synchronous
   // setState there cascades an extra render for no reason.
   const stockByCompound = useMemo(
@@ -109,6 +125,7 @@ export function ProtocolScreen({
         : fetchedStock,
     [previewStock, fetchedStock]
   )
+  const stockKnown = previewStock !== undefined || fetchedStock !== null
   const activeKey = active.map((c) => c.id).join(",")
   useEffect(() => {
     if (previewStock) return
@@ -139,26 +156,8 @@ export function ProtocolScreen({
     // Keyed on the compound IDS, not the array — its identity changes on every
     // store read, which would re-fetch stock on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, activeKey, previewStock])
+  }, [userId, activeKey, previewStock, stockTick])
 
-  // The cutover migration may create the active cycle just after this rendered
-  // with none; refresh shortly after mount and on focus.
-  useEffect(() => {
-    if (!userId || userId === "anon") return
-    let cancelled = false
-    const refresh = async () => {
-      const c = await getActiveCycle()
-      if (!cancelled && c) setCycle(c)
-    }
-    const t = window.setTimeout(() => void refresh(), 1500)
-    const onFocus = () => void refresh()
-    window.addEventListener("focus", onFocus)
-    return () => {
-      cancelled = true
-      window.clearTimeout(t)
-      window.removeEventListener("focus", onFocus)
-    }
-  }, [userId])
 
   const delay = (ms: number) => ({ animationDelay: `${ms}ms` })
 
@@ -168,13 +167,21 @@ export function ProtocolScreen({
         <PageScrollTitle title="Protocol" />
       </div>
 
+
       <div className="animate-home-up" style={delay(55)}>
         <CompoundsRow
           compounds={active}
-          stockByCompound={stockByCompound}
+          stockByCompound={stockByCompound ?? new Map()}
+          stockKnown={stockKnown}
           todayKey={todayKey}
           onOpen={setDetailTarget}
-          onAddStock={setStockTarget}
+          onAddStock={(c) => {
+            // A compound that already has a vial gets the actions sheet (refill /
+            // correct / discard); one that does not goes straight to adding.
+            const existing = stockByCompound?.get(c.id) ?? null
+            if (existing) setStockActionsFor(c)
+            else setStockTarget(c)
+          }}
         />
       </div>
 
@@ -213,15 +220,69 @@ export function ProtocolScreen({
         onArchive={(id) => archiveInStack(userId, id, true)}
       />
 
-      {/* Add or refill a vial. `refillFor` pre-selects the compound; the sheet
-          resolves its own type, so a refill locks the form to the existing one. */}
-      <AddStockSheet
-        open={stockTarget !== null}
-        refillFor={stockTarget?.id ?? null}
-        userId={userId}
-        onOpenChange={(o) => !o && setStockTarget(null)}
-        onAdded={() => setStockTarget(null)}
+      {/* What you can do to a vial you already have. Restores the only entry
+          points to `updateStockItem` and `setStockArchived`, both of which lost
+          their caller when StockItemCard was deleted. */}
+      <StockActionsSheet
+        open={stockActionsFor !== null}
+        onOpenChange={(o) => !o && setStockActionsFor(null)}
+        compoundName={stockActionsFor?.name ?? ""}
+        stock={
+          stockActionsFor ? (stockByCompound?.get(stockActionsFor.id) ?? null) : null
+        }
+        onRefill={() => {
+          setStockTarget(stockActionsFor)
+          setStockActionsFor(null)
+        }}
+        onEditAmounts={() => {
+          const item = stockActionsFor
+            ? (stockByCompound?.get(stockActionsFor.id) ?? null)
+            : null
+          setStockEditItem(item)
+          setStockActionsFor(null)
+        }}
+        onDiscarded={() => setStockTick((t) => t + 1)}
       />
+
+      {/* Add, refill, or correct the amounts.
+          `refillFor` takes the RESOLVED `protocol_compounds.id` from the stock row,
+          never the client id: the two legitimately diverge, and passing the client
+          id made every refill of a re-added compound fail the inventory FK.
+          `refillType` locks the form to the vial being replaced, so a refill can no
+          longer silently flip a preconcentrated vial to reconstituted. */}
+      <AddStockSheet
+        open={stockTarget !== null || stockEditItem !== null}
+        refillFor={
+          stockEditItem
+            ? null
+            : stockTarget
+              ? (stockByCompound?.get(stockTarget.id)?.protocolCompoundId ??
+                 stockTarget.id)
+              : null
+        }
+        refillType={
+          stockEditItem
+            ? null
+            : (stockTarget
+                ? (stockByCompound?.get(stockTarget.id)?.inventoryType ?? null)
+                : null)
+        }
+        editItem={stockEditItem}
+        userId={userId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setStockTarget(null)
+            setStockEditItem(null)
+          }
+        }}
+        onAdded={() => {
+          setStockTarget(null)
+          setStockEditItem(null)
+          // Refetch, or the card keeps showing "Add stock" until a route change.
+          setStockTick((t) => t + 1)
+        }}
+      />
+
 
       <AddCompoundSheet
         open={editTarget !== null}

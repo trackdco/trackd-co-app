@@ -21,6 +21,7 @@ import { COMPOUNDS } from "@/lib/compounds-catalogue"
 export function CompoundsRow({
   compounds,
   stockByCompound,
+  stockKnown,
   todayKey,
   onOpen,
   onAddStock,
@@ -28,6 +29,9 @@ export function CompoundsRow({
   compounds: StackCompound[]
   /** The backing vial per compound id, from `v_inventory_math`. */
   stockByCompound: Map<string, StockItem>
+  /** False until the stock read has LANDED. Until then the cards must not claim
+   *  the user has no vials. */
+  stockKnown: boolean
   todayKey: string
   onOpen: (c: StackCompound) => void
   onAddStock: (c: StackCompound) => void
@@ -54,6 +58,7 @@ export function CompoundsRow({
                 compound={c}
                 stock={stockByCompound.get(c.id) ?? null}
                 inventoryType={inventoryTypeOf(c)}
+                stockKnown={stockKnown}
                 todayKey={todayKey}
                 onOpen={() => onOpen(c)}
                 onAddStock={() => onAddStock(c)}
@@ -81,13 +86,23 @@ export function orderByCategoryVolume(compounds: StackCompound[]): StackCompound
   })
 }
 
-function inventoryTypeOf(c: StackCompound): string | null {
+export function inventoryTypeOf(c: StackCompound): string | null {
   const lower = c.name.toLowerCase()
   const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
-  if (!cat) return null
-  const forms = routesOf(cat)
-  return (
-    (forms.find((f) => f.route === c.method) ?? forms[0])?.inventoryType ??
-    null
-  )
+  if (cat) {
+    const forms = routesOf(cat)
+    return (
+      (forms.find((f) => f.route === c.method) ?? forms[0])?.inventoryType ?? null
+    )
+  }
+  // CUSTOM compound: not in the catalogue, so there is no route table to read.
+  // Fall back to its METHOD, which is the same rule AddStockSheet uses. Returning
+  // null here made every custom untrackable, and `supabase/protocol/004` exists
+  // precisely so customs can carry vials.
+  return methodToInventoryType(c.method)
+}
+
+/** A route's default inventory form, for compounds with no catalogue row. */
+function methodToInventoryType(method: StackCompound["method"]): string {
+  return method === "po" ? "oral_solid" : "preconcentrated"
 }

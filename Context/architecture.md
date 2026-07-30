@@ -314,13 +314,13 @@ stored.)
     compound twice. This is the durable fix for the "duplicate compounds came back"
     class of bug.
   - **Protocol screen (Step 4)** — `app/(app)/protocol/page.tsx` is now the real
-    screen (`components/protocol/`): ONE tab with an in-page **Plan / Stock** toggle
+    screen (`components/protocol/`): ONE SCROLLING PAGE (Spec 04, wave 2 pt 2 — the Plan / Stock toggle is GONE)
     (Adrian-approved consolidation of Angus's "Cycles" + "My Protocol", a change from
     Spec 11 — NOT a second nav tab). **Plan** = the cycle builder (active-cycle header
     with "Week X of N" from `lib/protocol/cycle.ts`, the compound list reusing the Home
     row treatment, add via the existing Add-to-Stack flow, edit via `AddCompoundSheet`,
     and a cycle-edit sheet → `updateCycle`). **Stock** (Step 5,
-    `components/protocol/{StockView,StockItemCard,AddStockSheet}.tsx` + `lib/db/inventory.ts`)
+    `components/protocol/{CompoundsRow,CompoundStorageCard,ScheduleGrid,StockActionsSheet,AddStockSheet}.tsx` + `lib/db/inventory.ts`)
     lists `inventory_items` with **"stock left"** — remaining / doses-remaining /
     projected-empty read ONLY from `v_inventory_math` (never recomputed); add-stock branches
     the 3-way type union (reconstituted / preconcentrated / oral_solid; refill = a NEW row,

@@ -10,7 +10,6 @@ import { ProtocolScreen } from "@/components/protocol/ProtocolScreen"
 import { saveStack, notifyStackChanged, type StackCompound } from "@/lib/home/stack"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import type { StockItem } from "@/lib/db/inventory"
-import type { Cycle } from "@/lib/db/types"
 
 /**
  * Seeds a mock cycle + stack into a throwaway "preview" store, then renders the
@@ -26,9 +25,9 @@ function dayOffset(days: number): string {
   return toDateKey(d)
 }
 
-function buildMock(): { cycle: Cycle; stack: StackCompound[]; stock: StockItem[] } {
-  const start = dayOffset(-14) // ~2 weeks in → "Week 3 of 12"
-  const end = dayOffset(70)
+function buildMock(): { stack: StackCompound[]; stock: StockItem[] } {
+  // Compounds started a fortnight ago, so the schedule grid has history to show.
+  const start = dayOffset(-14)
   const stack: StackCompound[] = [
     {
       id: "pv-test-e",
@@ -64,17 +63,6 @@ function buildMock(): { cycle: Cycle; stack: StackCompound[]; stock: StockItem[]
       rotationIndex: 0,
     },
   ]
-  const cycle: Cycle = {
-    id: "pv-cycle",
-    user_id: USER,
-    name: "Summer Cut 2026",
-    started_on: start,
-    ended_on: end,
-    is_active: true,
-    notes: "12-week cut into the June classic — lean out while holding strength on the big lifts.",
-    created_at: start,
-    updated_at: start,
-  }
   // Mock "stock left" (as v_inventory_math would derive it) for the Stock tab.
   const stock: StockItem[] = [
     {
@@ -126,12 +114,12 @@ function buildMock(): { cycle: Cycle; stack: StackCompound[]; stock: StockItem[]
       totalBase: 5, // ~30% — shows a low bar
     },
   ]
-  return { cycle, stack, stock }
+  return { stack, stock }
 }
 
 export function ProtocolPreview() {
   const mounted = useMounted()
-  const { cycle, stack, stock } = useMemo(() => buildMock(), [])
+  const { stack, stock } = useMemo(() => buildMock(), [])
 
   // Seed the throwaway preview store (no setState here → no cascading render).
   useEffect(() => {
@@ -156,7 +144,7 @@ export function ProtocolPreview() {
       </header>
 
       <main className="flex-1">
-        <ProtocolScreen userId={USER} initialCycle={cycle} previewStock={stock} />
+        <ProtocolScreen userId={USER} previewStock={stock} />
       </main>
 
       <BottomNav />

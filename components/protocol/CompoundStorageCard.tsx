@@ -5,6 +5,7 @@ import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
 import { Container } from "@/components/containers"
 import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
+import { ILLUSTRATIVE_FILL } from "@/lib/containers/geometry"
 
 /**
  * Whole days from today until a vial runs dry, at or below which the date reads
@@ -32,6 +33,7 @@ export function CompoundStorageCard({
   compound,
   stock,
   inventoryType,
+  stockKnown,
   todayKey,
   onOpen,
   onAddStock,
@@ -42,6 +44,8 @@ export function CompoundStorageCard({
   /** `reconstituted | preconcentrated | oral_solid` — decides the container AND
    *  whether storage fields exist at all. */
   inventoryType: string | null
+  /** False until the stock read has landed. */
+  stockKnown: boolean
   todayKey: string
   /** Tap the card → view / edit the compound. */
   onOpen: () => void
@@ -61,6 +65,13 @@ export function CompoundStorageCard({
     inventoryType === "reconstituted" ||
     inventoryType === "preconcentrated" ||
     inventoryType === "oral_solid"
+  // The GAUGE is vial-only. A bottle's and a tub's artwork is a fixed decorative
+  // arrangement (see components/containers) — it cannot represent a level — so a
+  // percentage bar beside it would contradict the picture on the same card. Orals
+  // still show their FIGURES, which is what was asked for; they just don't get a
+  // gauge the artwork can't back up.
+  const gauged = inventoryType === "reconstituted" || inventoryType === "preconcentrated"
+  const hasVial = stock != null && stock.remainingDisplay != null
   const fill = tracked ? fillOf(stock) : null
   const daysLeft = tracked ? daysUntil(todayKey, stock?.estEmptyDate ?? null) : null
   const runningOut = daysLeft !== null && daysLeft <= RUNS_DRY_AMBER_DAYS
@@ -76,7 +87,10 @@ export function CompoundStorageCard({
         <Container
           inventoryType={inventoryType}
           category={compound.category}
-          fill={fill ?? 0.62}
+          // A vial with NO stock is drawn EMPTY, not two-thirds full: 0.62 is the
+          // illustrative level for bottles and tubs, which have no real fill, and
+          // using it on a vial drew liquid beside the words "Add stock".
+          fill={gauged ? (fill ?? 0) : ILLUSTRATIVE_FILL}
           size={80}
         />
         {/* The name WRAPS to two lines rather than truncating: an ellipsis on a
@@ -91,7 +105,22 @@ export function CompoundStorageCard({
         </span>
       </button>
 
-      {tracked ? (
+      {!stockKnown ? (
+        // Reading. Reserve the space so the card doesn't jump, but claim nothing.
+        <span aria-hidden className="h-16" />
+      ) : tracked && !hasVial ? (
+        // No vial: ONE affordance and nothing else. The spec is explicit that a
+        // card with no storage data suppresses the figures rather than printing
+        // placeholders, which imply a number we do not have.
+        <button
+          type="button"
+          onClick={onAddStock}
+          aria-label={`Add stock for ${compound.name}`}
+          className="flex w-full items-center justify-center py-2 text-xs text-text-muted transition active:scale-[0.98]"
+        >
+          Add stock
+        </button>
+      ) : tracked ? (
         // The stock block is its own tap target: add a vial when there isn't one,
         // refill when there is. Without it, merging the Stock tab away would have
         // silently removed the only path to adding stock.
@@ -135,7 +164,7 @@ export function CompoundStorageCard({
           {/* The gauge sits at the FOOT of the card carrying its own percentage,
               so it reads as a summary line rather than restating the vial above
               it — which is what made the earlier mid-card bar redundant. */}
-          {fill !== null && (
+          {gauged && fill !== null && (
             <span className="mt-1 flex w-full items-center gap-2">
               <span
                 aria-hidden
@@ -176,7 +205,12 @@ function fillOf(stock: StockItem | null): number | null {
 /** How much is physically left — "8 mL", or a tablet count for orals. */
 function formatRemaining(stock: StockItem | null): string {
   if (!stock || stock.remainingDisplay == null) return "Add stock"
-  const unit = stock.inventoryType === "oral_solid" ? " tabs" : " mL"
+  // Orals are stored as "tab" OR "capsule"; using the stored unit stops 60
+  // capsules of NAC reading as "30 tabs left".
+  const unit =
+    stock.inventoryType === "oral_solid"
+      ? ` ${stock.totalAmountUnit === "capsule" ? "caps" : "tabs"}`
+      : " mL"
   return `${stock.remainingDisplay}${unit} left`
 }
 

@@ -22,6 +22,10 @@ import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 export const SCHEDULE_SCROLL_AFTER_ROWS = 8
 
 const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"]
+/** Spelled out for the screen-reader summary, where "T" twice says nothing. */
+const DAY_NAMES = [
+  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+]
 
 /** What a single day/compound mark is showing. */
 type CellState = "none" | "due" | "logged" | "missed"
@@ -100,7 +104,18 @@ export function ScheduleGrid({
                   <span className="w-[38%] shrink-0 truncate text-xs text-text-muted">
                     {c.name}
                   </span>
+                  {/* The marks are decorative; the row carries the meaning as
+                      text, so a screen reader gets the whole week rather than
+                      just the compound's name. */}
                   <div className="grid flex-1 grid-cols-7 gap-1">
+                    <span className="sr-only">
+                      {weekDays
+                        .map(
+                          (d, i) =>
+                            `${DAY_NAMES[i]} ${STATE_LABEL[cellState(c, d, logs, todayKey)]}`
+                        )
+                        .join(", ")}
+                    </span>
                     {weekDays.map((d) => (
                       <Mark
                         key={d.toISOString()}
@@ -121,23 +136,39 @@ export function ScheduleGrid({
   )
 }
 
-/** Logged is a filled white dot, due a hollow ring, missed a fainter ring, and a
- *  day with nothing due is a bare tick of a dot so the row still reads as seven. */
+/**
+ * Logged is solid white, DUE is a mid-grey FILL (the spec's word), missed is the
+ * hollow one, and a day with nothing due is a bare tick so the row still reads as
+ * seven days.
+ *
+ * Due and missed were both hollow rings differing only in border colour, which
+ * made MISSED the fainter of the two and nearly indistinguishable from "nothing
+ * due" — the state that most needs to be seen was the least visible. Filling due
+ * separates them by shape rather than by a shade of grey.
+ */
 function Mark({ state }: { state: CellState }) {
   return (
-    <span className="flex h-5 items-center justify-center" aria-hidden>
+    <span className="flex h-5 items-center justify-center">
       <span
+        aria-hidden
         className={cn(
           "rounded-full",
           state === "logged" && "h-2.5 w-2.5 bg-accent-primary",
-          state === "due" && "h-2.5 w-2.5 border border-text-muted",
-          // Missed is hollow with a thin border — never a slash.
-          state === "missed" && "h-2.5 w-2.5 border border-border-strong",
+          state === "due" && "h-2.5 w-2.5 bg-text-muted",
+          // Hollow with a thin border, never a slash — and now the only hollow one.
+          state === "missed" && "h-2.5 w-2.5 border border-text-muted",
           state === "none" && "h-1 w-1 bg-border-default"
         )}
       />
     </span>
   )
+}
+
+const STATE_LABEL: Record<CellState, string> = {
+  logged: "logged",
+  due: "due",
+  missed: "missed",
+  none: "nothing due",
 }
 
 /** The key, following the injection-site rotation key's pattern. */
