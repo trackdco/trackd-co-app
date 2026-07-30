@@ -475,7 +475,6 @@ describe("deleting a compound records a stop (Spec 02)", () => {
         stopped,
         { cadence: { type: "daily" }, timeOfDay: "09:00", dose: 250, unit: "mg" },
         "2026-03-30",
-        true,
       ),
     }
     expect(readded.scheduleHistory?.some((v) => v.stopped)).toBe(false)
@@ -495,12 +494,59 @@ describe("deleting a compound records a stop (Spec 02)", () => {
         stopped,
         { cadence: { type: "daily" }, timeOfDay: "09:00", dose: 250, unit: "mg" },
         "2026-06-01",
-        true,
       ),
     }
     expect(isDueOnFor(readded, dateKeyToDate("2026-02-10"))).toBe(true)
     expect(isDueOnFor(readded, dateKeyToDate("2026-04-10"))).toBe(false)
     expect(isDueOnFor(readded, dateKeyToDate("2026-06-10"))).toBe(true)
+  })
+
+  it("a LATER version never survives to govern the compound behind the card's back", () => {
+    // The critical this replaced. "Effective from D" means this is the rule from
+    // D forward, but a version already recorded AFTER D used to survive and take
+    // over on its own date, forever, while every card kept showing the new rule.
+    // Two taps reached it: add a compound starting next week, delete it today
+    // (the stop clamps to today, so the future-dated baseline sorts after it),
+    // then re-add it.
+    const future = compound({
+      schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-08-10" }),
+      dose: 100,
+    })
+    const stopped = {
+      ...future,
+      scheduleHistory: recordScheduleStop(future, "2026-07-31"),
+    }
+    const readded = recordScheduleVersion(
+      stopped,
+      { cadence: { type: "everyOtherDay" }, timeOfDay: "09:00", dose: 250, unit: "mg" },
+      "2026-07-31",
+    )
+    expect(readded).toHaveLength(1)
+    expect(resolveScheduleOn({ ...stopped, scheduleHistory: readded }, "2026-08-20").dose).toBe(250)
+    expect(resolveScheduleOn({ ...stopped, scheduleHistory: readded }, "2026-08-20").stopped).toBe(false)
+  })
+
+  it("an edit made while parked on a FUTURE day does not leave the past governed by the old rule", () => {
+    // The same root cause by the other route: the week strip allows selecting a
+    // future day, and an edit there wrote a version dated then. The card showed
+    // the new dose; today still resolved to the old one.
+    const ran = compound({
+      schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-06-01" }),
+      dose: 100,
+    })
+    const edited = recordScheduleVersion(
+      ran,
+      { cadence: { type: "everyOtherDay" }, timeOfDay: "09:00", dose: 300, unit: "mg" },
+      "2026-08-09",
+    )
+    // Then they change their mind and edit again, today.
+    const again = recordScheduleVersion(
+      { ...ran, scheduleHistory: edited },
+      { cadence: { type: "daily" }, timeOfDay: "09:00", dose: 200, unit: "mg" },
+      "2026-07-31",
+    )
+    expect(again.some((v) => v.effectiveFrom === "2026-08-09")).toBe(false)
+    expect(resolveScheduleOn({ ...ran, scheduleHistory: again }, "2026-08-20").dose).toBe(200)
   })
 
   it("costs nothing for a compound that was never deleted", () => {

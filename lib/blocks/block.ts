@@ -208,7 +208,14 @@ export function weekLabel(p: BlockProgress): { value: number; suffix: string } {
     // and "31 weeks in" at thirty weeks elapsed. Past the end the sentence is
     // how long it has actually run, so it counts COMPLETED time, and under a
     // week it counts days rather than reporting a confident "0 weeks in".
-    const weeks = Math.floor(p.daysElapsed / 7)
+    // NEVER BELOW THE LENGTH THE BLOCK ALREADY RAN. In-window the reading is a
+    // POSITION ("week 17 of 17"); past the end it is a DURATION ("17 weeks in").
+    // Those measure different things and differ by up to one, so switching
+    // between them at the end date made the headline number go BACKWARDS on the
+    // day a block overran — 17 of 17 weeks, then 16 weeks in. Measured on 145 of
+    // 204 block lengths. A block that ran its full seventeen weeks and kept
+    // going has been running for at least seventeen weeks, so that is the floor.
+    const weeks = Math.max(Math.floor(p.daysElapsed / 7), p.totalWeeks ?? 0)
     if (weeks < 1) {
       return {
         value: p.daysElapsed,

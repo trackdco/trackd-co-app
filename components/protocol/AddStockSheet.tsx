@@ -167,7 +167,16 @@ function AddStockForm({
 
   // Editing a vial and refilling both pre-select (and lock) the compound; editing
   // additionally pre-fills the amount fields from the vial's stored raw inputs.
-  const initialId = refillFor ?? editItem?.protocolCompoundId ?? compounds[0]?.id ?? ""
+  // `editItem.protocolCompoundId` is a SERVER id and these options are keyed by
+  // CLIENT id, so it is matched back through the compound list rather than used
+  // directly. Without this an edit on a diverged compound selected the first
+  // option and named the wrong compound on the form.
+  const editClientId = editItem
+    ? (compounds.find((c) => c.id === editItem.protocolCompoundId)?.id ??
+       compounds.find((c) => c.name === editItem.compoundName)?.id ??
+       null)
+    : null
+  const initialId = refillFor ?? editClientId ?? compounds[0]?.id ?? ""
   const presetType = refillType ?? editItem?.inventoryType ?? null
   const compoundLocked = refillFor != null || editItem != null
   const ei = editItem

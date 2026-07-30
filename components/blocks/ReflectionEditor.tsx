@@ -74,7 +74,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
             setDraft(block.reflection ?? "")
             setEditing(true)
           }}
-          className="mt-3 flex items-center gap-2 rounded-xl border border-border-strong px-4 py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
+          className="mt-3 flex items-center gap-2 rounded-xl border border-border-strong px-4 py-2.5 min-h-11 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
         >
           <NotePencil className="h-4 w-4" aria-hidden />
           {block.reflection ? "Edit note" : "Write a note"}
@@ -104,7 +104,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
             setEditing(false)
             setError(null)
           }}
-          className="rounded-xl border border-border-strong px-4 py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
+          className="rounded-xl border border-border-strong px-4 py-2.5 min-h-11 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
         >
           Cancel
         </button>
@@ -112,7 +112,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
           type="button"
           onClick={save}
           disabled={busy}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-2.5 min-h-11 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
         >
           {busy && <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />}
           {busy ? "Saving…" : "Save note"}

@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+import { cn } from "@/lib/utils";
 import {
   Bell,
   CaretRight,
@@ -138,7 +140,12 @@ export function ProfileScreen({
       {/* OUTLINED rather than filled, so it reads as a place you enter
           deliberately rather than an alarm sitting on the page. */}
       <div className="animate-home-up" style={{ animationDelay: "145ms" }}>
-        <p className={`mb-3 ${CARD_EYEBROW} text-accent-destructive`}>Danger zone</p>
+        {/* `cn`, not a template string: CARD_EYEBROW already carries
+            `text-text-muted`, so concatenating shipped both utilities and the
+            muted one won. The label had never been red. */}
+        <p className={cn("mb-3", CARD_EYEBROW, "text-accent-destructive")}>
+          Danger zone
+        </p>
         {/* Two rows, both in the open (Adrian, 2026-07-30 — a More/Fewer
             disclosure was tried here and rejected as fussy). "Clear all
             compounds & stock" was REMOVED entirely at the same time: deleting a

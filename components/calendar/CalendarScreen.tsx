@@ -136,22 +136,24 @@ export function CalendarScreen({
   useEffect(() => {
     todayKeyRef.current = todayKey;
   }, [todayKey]);
+  const selectedKeyRef = useRef(selectedKey);
+  useEffect(() => {
+    selectedKeyRef.current = selectedKey;
+  }, [selectedKey]);
   useEffect(() => {
     function syncToday() {
       const local = toDateKey(new Date());
       const previous = todayKeyRef.current;
       if (local === previous) return;
       const d = dateKeyToDate(local);
+      // Follow the month ONLY when the user was parked on today. Testing "is
+      // the view on today's month" instead meant that rolling over on the 31st
+      // moved the grid to September while the user's selection stayed on the
+      // 4th of August — the selection scrolled off screen, and the FAB kept
+      // writing to a day the grid was no longer showing.
+      const wasOnToday = selectedKeyRef.current === previous;
       setSelectedKey((sel) => (sel === previous ? local : sel));
-      // Follow the month too, but only while the grid is still showing the month
-      // "today" was in. Someone reading back through March does not want the view
-      // yanked to today because the clock corrected underneath them.
-      setView((v) => {
-        const was = dateKeyToDate(previous);
-        return v.year === was.getFullYear() && v.month0 === was.getMonth()
-          ? { year: d.getFullYear(), month0: d.getMonth() }
-          : v;
-      });
+      if (wasOnToday) setView({ year: d.getFullYear(), month0: d.getMonth() });
       setTodayKey(local);
     }
     syncToday();

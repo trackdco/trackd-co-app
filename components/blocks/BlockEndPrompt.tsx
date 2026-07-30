@@ -19,6 +19,13 @@ export type EndPromptOutcome = "extended" | "closed" | "left-running"
 
 const REFLECTION_MAX = 4000 // matches the CHECK on blocks.reflection
 
+/** The day after a "YYYY-MM-DD", in UTC so a DST change cannot shift it. */
+function nextDayKey(key: string): string {
+  const [y, m, d] = key.split("-").map(Number)
+  if (!y || !m || !d) return key
+  return new Date(Date.UTC(y, m - 1, d) + 86_400_000).toISOString().slice(0, 10)
+}
+
 /**
  * The end-date prompt (Adrian, 2026-07-30: "On the end date, ASK").
  *
@@ -225,7 +232,10 @@ export function BlockEndPrompt({
                 <Input
                   type="date"
                   value={newEnd}
-                  min={todayKey}
+                  /* Tomorrow, not today: `extendValid` requires a date STRICTLY
+                     after today, so offering today was offering a value the
+                     sheet then rejected. */
+                  min={nextDayKey(todayKey)}
                   onChange={(e) => setNewEnd(e.target.value)}
                   aria-label="New end date"
                   className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"

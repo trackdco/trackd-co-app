@@ -138,7 +138,15 @@ function CycleRuleForm({
     // would then be OFF on every date and the compound would vanish from the log,
     // the week strip and the calendar with nothing to explain it.
     /^\d{4}-\d{2}-\d{2}$/.test(anchor) &&
-    (effectiveEndType !== "onDate" || /^\d{4}-\d{2}-\d{2}$/.test(endDate)) &&
+    (effectiveEndType !== "onDate" ||
+      // AFTER the anchor, not merely a well-formed date. Saving an end date
+      // before the start ended the cycle the instant it was written: the card
+      // read "Ended", the schedule grid flipped every day to nothing-due, and
+      // the compound vanished from Today's Log with no warning and no way back
+      // except finding the cycle and removing it. The add form's own copy of
+      // this field already had `min={cycle.anchor}`; the two entry points that
+      // write the same rule were not validating it the same way.
+      (/^\d{4}-\d{2}-\d{2}$/.test(endDate) && endDate >= anchor)) &&
     (effectiveEndType !== "afterRounds" || Number(rounds) > 0) &&
     (!repeats || Number(onDays) > 0)
 
@@ -243,6 +251,9 @@ function CycleRuleForm({
             type="date"
             className={FIELD}
             value={endDate}
+            /* The picker cannot offer a date the rule would reject. */
+            min={anchor}
+            aria-label="Cycle end date"
             onChange={(e) => setEndDate(e.target.value)}
           />
         )}

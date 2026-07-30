@@ -239,22 +239,7 @@ export function recordScheduleVersion(
     stopped?: boolean
     cycle?: CycleRule
   },
-  effectiveFrom: string,
-  /**
-   * RESUMING the compound: drop any `stopped` marker at or after
-   * `effectiveFrom`.
-   *
-   * Deleting writes a `stopped: true` version at the delete date. Re-adding
-   * with a BACK-DATED start left that marker in place and LATER in the trail,
-   * so `resolveScheduleOn` kept picking it: the compound saved, the sheet
-   * closed, it looked added, and it was never due again on any day, forever.
-   * A re-add is the user saying they are running it from this date, so a stop
-   * recorded after that date is no longer true.
-   *
-   * A stop BEFORE the new start is left alone — it correctly describes the gap
-   * between the old run and this one.
-   */
-  resume = false
+  effectiveFrom: string
 ): ScheduleVersion[] {
   const history = [...(previous.scheduleHistory ?? [])]
   if (history.length === 0) {
@@ -270,19 +255,27 @@ export function recordScheduleVersion(
     })
   }
   const version: ScheduleVersion = { effectiveFrom, ...next }
-  const at = history.findIndex((v) => v.effectiveFrom === effectiveFrom)
-  if (at >= 0) history[at] = version
-  else history.push(version)
-  const kept = resume
-    ? history.filter(
-        (v) => !(v.stopped === true && v.effectiveFrom >= effectiveFrom)
-      )
-    : history
-  // The new version itself must survive the filter even if it is somehow marked
-  // stopped, which a resume never is.
-  if (resume && !kept.some((v) => v.effectiveFrom === effectiveFrom)) {
-    kept.push(version)
-  }
+  // EVERY LATER VERSION IS SUPERSEDED. "Effective from D" means this is the rule
+  // from D forward, so anything already recorded after D is a rule the user has
+  // just replaced.
+  //
+  // Without this, a version with a LATER `effectiveFrom` survived and silently
+  // took over on its own date, forever, while every card kept showing the new
+  // rule — the compound's own dose and schedule said one thing and
+  // `resolveScheduleOn` answered another. Two taps reached it: add a compound
+  // starting next week, delete it today (the stop clamps to today, so the
+  // future-dated baseline sorts AFTER it), re-add it. From next week onward the
+  // abandoned baseline governed. Editing while parked on a future day, or
+  // back-dating a second edit, both did the same thing.
+  //
+  // This also subsumes what a `resume` flag used to do by hand: a re-add
+  // effective from D drops the delete's stop marker if it fell after D, and
+  // keeps one that fell before D, because that older stop still correctly
+  // describes the gap between the two runs.
+  const kept = history.filter((v) => v.effectiveFrom <= effectiveFrom)
+  const at = kept.findIndex((v) => v.effectiveFrom === effectiveFrom)
+  if (at >= 0) kept[at] = version
+  else kept.push(version)
   return kept.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
 }
 
@@ -560,15 +553,18 @@ export function archiveInStack(
   // Deleting RECORDS THE STOP (Spec 02 → the gap): without it, re-adding later
   // leaves the days in between governed by the rule in force before the delete,
   // so a break the user chose to take reads back as missed doses.
-  // NEVER earlier than today. Deleting while parked on a past day used to stamp
-  // the stop on THAT day, which retroactively erased the run between it and now:
-  // weeks the user actually ran, and logged, turned into days on which nothing
-  // had been due. Spec 01's rule is that an alteration applies from the selected
-  // day FORWARD with no retroactive rewriting, and the past is not a thing you
-  // can stop. A future selected day is still honoured — that is a stop you are
-  // scheduling, not one you are backdating.
-  const today = toDateKeyLocal(new Date())
-  const stopFrom = effectiveFrom && effectiveFrom > today ? effectiveFrom : today
+  // ALWAYS TODAY. Deleting while parked on a past day used to stamp the stop on
+  // THAT day, which retroactively erased the run between it and now: weeks the
+  // user actually ran, and logged, turned into days on which nothing had been
+  // due. A FUTURE selected day was briefly honoured as a "scheduled stop", but
+  // that was incoherent — `archived` is written immediately, so the compound
+  // vanished from the app now while its trail said it was still running, and
+  // every day in between read back as due-and-unlogged, i.e. missed.
+  //
+  // Delete means now. `effectiveFrom` is kept in the signature for callers that
+  // pass the selected day, and deliberately ignored.
+  void effectiveFrom
+  const stopFrom = toDateKeyLocal(new Date())
   const history =
     archived && updated ? recordScheduleStop(updated, stopFrom) : null
   const ok = saveStack(

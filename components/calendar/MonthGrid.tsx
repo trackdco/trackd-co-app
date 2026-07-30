@@ -133,9 +133,6 @@ function DayCell({
         !cell.inMonth && "opacity-40",
       )}
     >
-      {/* Cycle fill — the BOTTOM layer. Everything below renders above it, so the
-          logged disc, today's ring and the kind icon are all untouched. */}
-      {segments && segments.length > 0 && <CycleFill segments={segments} />}
       <span
         className={cn(
           "relative z-10 flex h-9 w-9 items-center justify-center rounded-full font-mono text-sm transition-colors",
@@ -151,6 +148,15 @@ function DayCell({
       <span className="relative z-10 flex h-3 items-center justify-center" aria-hidden>
         {!selected && info.status === "logged" && <KindIcon kind={info.kind} />}
       </span>
+      {/* The cycle mark, IN FLOW beneath the icon rather than absolutely
+          positioned over the cell. Absolute placement put it straight through
+          the logged-day icon — measured on 23 of 23 logged days, a coloured bar
+          across a syringe — and a stack of them climbed into the day disc and
+          disappeared behind it from the fourth cycle on. The row is always
+          present so every cell is the same height whether or not it has one. */}
+      <span className="flex h-[2px] items-center" aria-hidden>
+        {segments && segments.length > 0 && <CycleFill segments={segments} />}
+      </span>
     </button>
   );
 }
@@ -163,30 +169,22 @@ function DayCell({
  * background noise rather than as information, and with two cycles the cell was
  * split down the middle, which made a calendar stop looking like a calendar.
  *
- * A cycle is an ANNOTATION on a day, not a property of the cell, so it is drawn
- * as a thin rule beneath the date. One cycle, one line; several cycles, several
- * lines, stacked. Order is by cycle start date (fixed upstream) so the lines
- * never reshuffle between months, and the grid underneath is byte-for-byte what
- * it was before cycles existed.
+ * ONE BAR, DIVIDED — not a stack of them. Stacking grew upward into the day disc
+ * and vanished behind it from the fourth cycle on, so five concurrent cycles
+ * silently read as three, and at eleven a stray bar escaped into the row above.
+ * A single 16px rule split into equal segments is the same width whatever the
+ * count, so it can never collide with anything or misreport how many there are.
  *
- * Full opacity: at 2px a colour needs to be itself to be seen at all, and there
- * is nothing behind it to compete with any more.
- *
- * NARROW and centred under the date, not the width of the cell. Spanning the
- * cell made a row of them read as a horizontal RULE between weeks — a divider,
- * not an annotation — which is exactly what Adrian could not see when he looked
- * for it. At 16px it belongs to the day above it.
+ * Order is by cycle start date (fixed upstream) so segments never reshuffle
+ * between months. Full opacity: at 2px a colour needs to be itself to be seen.
  */
 function CycleFill({ segments }: { segments: CycleSegment[] }) {
   return (
-    <span
-      className="pointer-events-none absolute inset-x-0 bottom-1 mx-auto flex w-4 flex-col gap-[3px]"
-      aria-hidden
-    >
+    <span className="flex h-[2px] w-4 gap-[1px] overflow-hidden rounded-full">
       {segments.map((s) => (
         <span
           key={s.compoundId}
-          className="h-[2px] rounded-full"
+          className="h-full min-w-[2px] flex-1"
           style={{ background: cycleColourVar(s.colour) }}
         />
       ))}

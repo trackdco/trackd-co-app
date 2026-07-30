@@ -438,9 +438,14 @@ describe("computeAdherenceOver — the window, not the last 365 days", () => {
     // Deleting a compound writes a `stopped` schedule version, which is what
     // bounds it in time. Before the stop it was genuinely due; from the stop on,
     // nothing was due and nothing can be missed.
+    //
+    // NOTE the compound is NOT archived here. A deleted (archived) compound is
+    // excluded from consistency entirely — Home and the calendar do not offer it
+    // on any day, so counting it would report a miss the user cannot clear. This
+    // pins the other half: a stop marker bounds a compound that is still in the
+    // stack, e.g. one paused by an edit rather than deleted.
     const stopped = compound({
       id: "c1",
-      archived: true,
       schedule: {
         cadence: { type: "daily" },
         startDate: "2024-06-01",
@@ -468,12 +473,13 @@ describe("computeAdherenceOver — the window, not the last 365 days", () => {
     expect(pts.map((p) => p.due)).toEqual([1, 1, 0, 0])
   })
 
-  it("leaves out an archived compound with NO stop marker rather than inventing misses", () => {
-    // The regression this replaced: `archived` carries no date, so an unbounded
-    // archived compound was due EVERY day to the end of the window. A compound
-    // run for four weeks of a sixteen-week block reported "25%, 28 of 112" —
-    // eighty-four missed doses that never existed, printed at the user on a
-    // figure that reads as a statement about them.
+  it("leaves out an ARCHIVED compound entirely, rather than inventing misses", () => {
+    // Two failures in one. `archived` carries no date, so an unbounded archived
+    // compound was due EVERY day to the end of the window — four weeks run
+    // inside a sixteen-week block reported "25%, 28 of 112", eighty-four missed
+    // doses that never existed. And counting an archived compound at all makes
+    // this screen disagree with the calendar, which draws those days as "nothing
+    // due" and offers no way to log them.
     const orphan = compound({
       id: "c1",
       archived: true,

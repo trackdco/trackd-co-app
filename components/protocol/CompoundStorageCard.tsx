@@ -245,9 +245,10 @@ function formatRemaining(stock: StockItem | null): string {
   if (!stock || stock.remainingDisplay == null) return "Add stock"
   // Orals are stored as "tab" OR "capsule"; using the stored unit stops 60
   // capsules of NAC reading as "30 tabs left".
+  const one = stock.remainingDisplay === 1
   const unit =
     stock.inventoryType === "oral_solid"
-      ? ` ${stock.totalAmountUnit === "capsule" ? "caps" : "tabs"}`
+      ? ` ${stock.totalAmountUnit === "capsule" ? (one ? "cap" : "caps") : one ? "tab" : "tabs"}`
       : " mL"
   return `${stock.remainingDisplay}${unit} left`
 }
@@ -255,7 +256,9 @@ function formatRemaining(stock: StockItem | null): string {
 /** How many DOSES that is — the figure people actually plan around. */
 function formatDoses(stock: StockItem | null): string {
   if (!stock || stock.dosesRemaining == null) return ""
-  return `${stock.dosesRemaining} doses`
+  // "1 doses" was rendering. `CycleCard` gets day/days right, so the app was
+  // inconsistent with itself.
+  return `${stock.dosesRemaining} ${stock.dosesRemaining === 1 ? "dose" : "doses"}`
 }
 
 /**

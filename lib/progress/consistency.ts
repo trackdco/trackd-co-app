@@ -50,24 +50,26 @@ function daysBetween(from: DateKey, to: DateKey): number {
 /**
  * Whether a compound may contribute to a day's due count at all.
  *
- * `archived` carries no date. Deleting a compound normally ALSO writes a
- * `stopped` schedule version, which bounds it in time properly — `isDueOnFor`
- * then returns false from that day on, and the run before it is counted exactly
- * as it happened. A legacy record, or one whose stop-write failed, has no such
- * bound, and counting it would make it due every single day from its start to
- * the present: a compound stopped in April manufactured three months of missed
- * doses, and printed them as a percentage at the user.
+ * THE SAME TEST HOME AND THE CALENDAR USE: not archived. Nothing else in the app
+ * agrees with any other answer — both build their due lists from
+ * `stack.filter(c => !c.archived)`, so an archived compound is invisible
+ * everywhere a dose can actually be LOGGED.
  *
- * So an unbounded archived compound is left out entirely. That loses the days it
- * genuinely covered, which is the lesser harm here: consistency is behavioural
- * and reads as a statement ABOUT the user, so inventing failures is worse than
- * omitting history. `compoundsRunningOn` makes the opposite trade for the same
- * ambiguity, and correctly: a list of what you were on names things, and naming
- * one extra is not an accusation.
+ * An earlier version of this let an archived compound back in when it carried a
+ * `stopped` schedule version, on the reasoning that its earlier run was real.
+ * The run is real, but the consequence was not: consistency counted days as
+ * missed that the calendar drew as "nothing due" and the day sheet offered no
+ * way to log. A figure that reads as a statement about the user, describing a
+ * failure they cannot clear by any action in the app, is worse than a figure
+ * that quietly covers less history.
+ *
+ * So the trade is deliberate and it is the same one made everywhere else: a
+ * deleted compound leaves consistency entirely, past days included.
+ * `compoundsRunningOn` makes the opposite trade, and correctly — a list of what
+ * you were on names things, and naming one extra is not an accusation.
  */
 function countsTowardConsistency(c: StackCompound): boolean {
-  if (!c.archived) return true;
-  return (c.scheduleHistory ?? []).some((v) => v.stopped === true);
+  return !c.archived;
 }
 
 /** One point per calendar day from day one (earliest start) → today, oldest first. */
@@ -84,8 +86,17 @@ export function computeAdherence(
   const eligible = stack.filter(countsTowardConsistency);
   if (eligible.length === 0) return [];
 
+  // The EARLIEST recorded rule, not the compound's current `startDate`.
+  // `resolveScheduleOn` deliberately anchors on the earliest schedule version
+  // for exactly this reason: re-adding a deleted compound sets a NEW start date,
+  // and bounding the walk by it threw away the run before the delete. A user who
+  // logged twenty-four consecutive days and then re-added the compound was shown
+  // 0%.
   const starts = stack
-    .map((c) => c.schedule.startDate)
+    .flatMap((c) => [
+      c.schedule.startDate,
+      ...(c.scheduleHistory ?? []).map((v) => v.effectiveFrom),
+    ])
     .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k));
   const earliest = starts.length ? starts.reduce((a, b) => (a < b ? a : b)) : todayKey;
 

@@ -107,7 +107,9 @@ export function BlocksScreen({
         <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
           <Link
             href="/blocks"
-            className="inline-flex items-center gap-2 text-sm text-text-muted transition-colors hover:text-foreground"
+            /* 44px. It is the primary way back from the page a block now opens
+               onto, and it measured 20px tall. */
+            className="-ml-2 inline-flex min-h-11 items-center gap-2 px-2 text-sm text-text-muted transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Blocks
@@ -217,18 +219,6 @@ export function BlocksScreen({
         currentWeightKg={latestWeight}
       />
 
-      {live && (
-        <BlockEndPrompt
-          open={ending}
-          onOpenChange={setEnding}
-          block={live}
-          todayKey={todayKey}
-          reachedEnd={blockProgress(live, todayKey).daysRemaining === 0}
-          onResolved={(outcome) =>
-            dismissEndPrompt(userId, live.id, outcome === "left-running")
-          }
-        />
-      )}
     </div>
   )
 }
@@ -308,7 +298,7 @@ function LiveBlockCard({
 
       <p className="mt-2 text-xs text-text-muted">
         {p.overrun
-          ? `Ran past ${formatPhotoDateShort(block.endsOn ?? "")}`
+          ? `Ran past ${formatPhotoDateShort(block.endsOn ?? "")}. Close it to look back on it.`
           : p.daysRemaining != null
             ? `${p.daysRemaining} ${p.daysRemaining === 1 ? "day" : "days"} left, ends ${formatPhotoDateShort(block.endsOn ?? "")}`
             : `Started ${formatPhotoDateShort(block.startedOn)}`}

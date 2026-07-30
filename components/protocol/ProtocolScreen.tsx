@@ -18,6 +18,7 @@ import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
 import {
   archiveInStack,
   getStackSnapshot,
+  isRunning,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack"
@@ -89,7 +90,16 @@ export function ProtocolScreen({
   )
   const compounds = previewCompounds ?? liveStack
   const logs = previewLogs ?? liveLogs
-  const active = useMemo(() => compounds.filter((c) => !c.archived), [compounds])
+  const screenToday = toDateKey(new Date())
+  // `isRunning`, not just `!archived`. Spec 06 says a compound whose cycle has
+  // ENDED behaves exactly like a deleted one, and Home drops it — but this
+  // screen filtered on the deleted flag alone, so an ended compound kept its
+  // card, its stock and a schedule row of seven "nothing due" cells here while
+  // being absent from the dashboard entirely.
+  const active = useMemo(
+    () => compounds.filter((c) => isRunning(c, screenToday)),
+    [compounds, screenToday],
+  )
   // Honour `?stock=` once the compound list is available. Adjusted during render
   // rather than in an effect (React's documented pattern for reacting to a
   // changed input) so there is no paint without the sheet.
@@ -101,7 +111,7 @@ export function ProtocolScreen({
   }
 
 
-  const todayKey = toDateKey(new Date())
+  const todayKey = screenToday
   /** This week, Monday first — what the Schedule grid shows. */
   const weekDays = useMemo(() => {
     // Derived FROM todayKey rather than a fresh `new Date()`, so the memo's
@@ -270,13 +280,23 @@ export function ProtocolScreen({
           longer silently flip a preconcentrated vial to reconstituted. */}
       <AddStockSheet
         open={stockTarget !== null || stockEditItem !== null}
+        /* Only when there IS a vial to refill. It used to fall back to the
+           compound id whenever one was targeted, so `refillFor` was never null
+           from this screen and the first vial a user ever added opened a sheet
+           headed "Refill stock" — on the very path that exists for having none. */
+        /* The CLIENT stack id, because that is what the sheet's own <option>
+           values are keyed by. It used to pass the SERVER
+           `protocol_compounds.id`, which legitimately diverges from it — the
+           whole reason the stock write resolves its own id — so on a diverged
+           compound the sheet preselected whatever happened to be first and
+           confidently named a DIFFERENT compound on a stock-correction form.
+           Null when there is no vial: the fallback made `refillFor` never null
+           from this screen, so the first vial anyone ever added opened a sheet
+           headed "Refill stock". */
         refillFor={
-          stockEditItem
+          stockEditItem || !stockTarget || !stockByCompound?.get(stockTarget.id)
             ? null
-            : stockTarget
-              ? (stockByCompound?.get(stockTarget.id)?.protocolCompoundId ??
-                 stockTarget.id)
-              : null
+            : stockTarget.id
         }
         refillType={
           stockEditItem

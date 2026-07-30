@@ -654,12 +654,7 @@ function AddCompoundBody({
               // missed, while the Cycles tab still showed the cycle.
               ...(cycleDraft ? { cycle: cycleDraft } : {}),
             },
-            versionedFrom,
-            // A re-add RESUMES the compound, so the delete's `stopped` marker
-            // must not survive after the new start date. Without this, re-adding
-            // with a back-dated start left the stop as the latest version and the
-            // compound was never due again.
-            isReadd
+            versionedFrom
           )
         : undefined
 

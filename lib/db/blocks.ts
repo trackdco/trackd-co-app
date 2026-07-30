@@ -165,8 +165,34 @@ export async function startBlock(
   // public endpoint, so the rule belongs beside the one above rather than only
   // in the form. Judged against the caller's own local date for the same reason
   // `todayKey` exists at all.
-  if (isDateKey(input.todayKey) && input.startedOn > input.todayKey) {
+  //
+  // An UNPARSEABLE `todayKey` is rejected outright rather than skipping the
+  // check. Written as `isDateKey(todayKey) && …` it did the opposite: sending
+  // any junk turned the guard off and a block starting in 2099 was accepted.
+  if (!isDateKey(input.todayKey)) {
+    return { ok: false, error: "That is not a date." }
+  }
+  if (input.startedOn > input.todayKey) {
     return { ok: false, error: "A block starts today or earlier." }
+  }
+  // The targets go straight into an insert, so they are checked here rather than
+  // left to the CHECK constraint — a rejected insert is only LOGGED below, so a
+  // bad target silently produced a block with no targets at all.
+  for (const t of input.targets) {
+    if (t.variable !== "weight" && t.variable !== "consistency") {
+      return { ok: false, error: "That is not something a block can target." }
+    }
+    if (t.direction !== "up" && t.direction !== "down") {
+      return { ok: false, error: "A target needs a direction." }
+    }
+    if (!Number.isFinite(t.value) || t.value <= 0) {
+      return { ok: false, error: "Give the target a number above zero." }
+    }
+    // Consistency is a percentage and has a real ceiling; the sheet enforces it
+    // and the endpoint must too, or "5000% target" renders on the banner.
+    if (t.variable === "consistency" && t.value > 100) {
+      return { ok: false, error: "A consistency target cannot be above 100%." }
+    }
   }
 
   // Read the live block BEFORE closing it, so a failed insert can put it back.
@@ -329,16 +355,22 @@ export async function closeBlock(
   }
   if (reflection) patch.reflection = reflection.slice(0, REFLECTION_MAX)
 
-  const { error } = await ctx.supabase
+  const { data, error } = await ctx.supabase
     .from("blocks")
     .update(patch)
     .eq("id", blockId)
     .eq("user_id", ctx.userId)
     .eq("status", "active")
+    .select("id")
+    .maybeSingle()
   if (error) {
     console.error("closeBlock failed", error)
     return { ok: false, error: "Could not close the block." }
   }
+  // A zero-row update is a success to PostgREST and is not one here — the read
+  // above narrows the race but does not close it, and `extendBlock` and
+  // `saveReflection` both check this already.
+  if (!data) return { ok: false, error: "Could not close the block." }
   return { ok: true }
 }
 

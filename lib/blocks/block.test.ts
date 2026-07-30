@@ -233,6 +233,28 @@ describe("weekLabel — the headline reading", () => {
     })
   })
 
+  it("NEVER goes backwards on the day a block passes its end", () => {
+    // The reported regression: in-window the reading is a POSITION ("17 of 17
+    // weeks"), past the end it became a DURATION ("16 weeks in") — two different
+    // measures, differing by up to one, swapped at the boundary. The headline
+    // number dropped on the day a block overran, on 145 of 204 block lengths.
+    const b17 = block({ startedOn: "2026-01-01", endsOn: "2026-04-15" })
+    const lastDay = weekLabel(blockProgress(b17, "2026-04-15"))
+    const dayAfter = weekLabel(blockProgress(b17, "2026-04-16"))
+    expect(dayAfter.value).toBeGreaterThanOrEqual(lastDay.value)
+
+    // And it holds for every length, not just this one.
+    for (let days = 7; days <= 210; days++) {
+      const end = new Date(Date.UTC(2026, 0, 1) + (days - 1) * 86_400_000)
+      const key = end.toISOString().slice(0, 10)
+      const after = new Date(end.getTime() + 86_400_000).toISOString().slice(0, 10)
+      const bl = block({ startedOn: "2026-01-01", endsOn: key })
+      expect(weekLabel(blockProgress(bl, after)).value).toBeGreaterThanOrEqual(
+        weekLabel(blockProgress(bl, key)).value,
+      )
+    }
+  })
+
   it("still reads N of M on the final day, which is not an overrun", () => {
     expect(weekLabel(blockProgress(b(), "2026-04-15"))).toEqual({
       value: 15,

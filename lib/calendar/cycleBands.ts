@@ -172,5 +172,10 @@ function onFor(c: StackCompound, key: DateKey): boolean {
   // Only repeating on/off cycles render — a continuous run drawn as a band
   // across every day carries no information.
   if (!cycle || cycle.pattern.type !== "onOff") return false
+  // `offDays: 0` is a CONTINUOUS run wearing an on/off type — every day is an
+  // on-day, so a band across all of them says nothing, which is the case spec 03
+  // explicitly excludes. The type check alone did not catch it, and both cycle
+  // editors clamp with `Math.max(0, …)` rather than refusing zero.
+  if (cycle.pattern.offDays <= 0) return false
   return cycleStatusOn(cycle, key).on
 }
