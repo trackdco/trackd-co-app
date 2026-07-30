@@ -85,6 +85,39 @@ export interface LoggedCompound {
   siteId: string | null;
 }
 
+/**
+ * Resolve the compounds logged on one day, newest-first by time.
+ *
+ * Pure, so it is safe inside a memo or a render. Shared by the Calendar's
+ * day-detail sheet and the Progress photo card's "Running" list (spec 08 · part
+ * two) — those two answer the same question about the same device data, and one
+ * of them silently drifting from the other is the kind of bug nobody notices
+ * until the two screens disagree in front of a user.
+ *
+ * A log whose compound has since been deleted still renders: the dose happened,
+ * and the row degrades to "Logged dose" with no unit rather than vanishing.
+ */
+export function buildRunning(
+  day: Record<string, { amount: string; time24: string; siteId: string | null }> | undefined,
+  stackById: Map<string, { name: string; category: string; unit: string }>,
+): LoggedCompound[] {
+  if (!day) return []
+  return Object.entries(day)
+    .map(([compoundId, log]) => {
+      const c = stackById.get(compoundId)
+      return {
+        id: compoundId,
+        name: c?.name ?? "Logged dose",
+        category: c?.category ?? "",
+        amount: log.amount,
+        unit: c?.unit ?? "",
+        time24: log.time24,
+        siteId: log.siteId,
+      }
+    })
+    .sort((a, b) => a.time24.localeCompare(b.time24))
+}
+
 /** "June 2026" for a 0-based month. */
 export function monthTitle(year: number, month0: number): string {
   return `${MONTHS[month0] ?? ""} ${year}`;

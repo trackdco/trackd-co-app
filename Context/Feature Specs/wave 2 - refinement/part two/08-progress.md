@@ -54,6 +54,8 @@ Follow the project structure and conventions in `architecture.md` and `code-stan
 9. Build the Bloods widget with the dashed empty placeholder.
 10. Condense the Consistency widget, keeping the graph and range toggle.
 
+Also, extra little note: when I'm on the journal section, for example, I'm in progress, and then I go to journal and I click today's entry, I shouldn't need to edit it. There should be a way where I can click it and view the entry, and then there's a button that says to edit it after. I don't like how, when I click my entry, it just makes me edit it, because I want to be able to actually see my entry, if that makes sense. It should be a preview, and then there is a viewing of the entry, and then you can edit later, if that makes sense. 
+
 **Deployment / preview:**
 - Deploy to a Vercel preview subdomain so we can view it from the subdomain URL. Confirm the preview deployment is live and share the link.
 

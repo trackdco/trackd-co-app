@@ -17,8 +17,10 @@
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
+  routesOf,
   type CompoundCategory,
 } from "@/lib/compound-categories"
+import { COMPOUNDS } from "@/lib/compounds-catalogue"
 
 export type ContainerForm = "vial" | "bottle" | "tub"
 
@@ -58,4 +60,28 @@ export function containerFormFor({
   // category's typical form rather than guessing a bottle.
   if (meta.form === "injectable") return "vial"
   return meta.form === "supplement" ? "tub" : "bottle"
+}
+
+/**
+ * The inventory form for a compound the device store holds, resolved from the
+ * catalogue by name + route.
+ *
+ * The device stack records what the user takes, not how it is packaged, so the
+ * container artwork has to look the form up. Lives here rather than beside one
+ * caller because three screens now need it (the dashboard's stack row, the
+ * Progress photo Running list, and Protocol) and three private copies is how
+ * two of them end up drawing a different container for the same compound.
+ *
+ * `null` for a custom compound the catalogue has never heard of, which
+ * `containerFormFor` then resolves by category.
+ */
+export function inventoryTypeForCompound(
+  name: string,
+  method: string,
+): string | null {
+  const lower = name.trim().toLowerCase()
+  const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
+  if (!cat) return null
+  const forms = routesOf(cat)
+  return (forms.find((f) => f.route === method) ?? forms[0])?.inventoryType ?? null
 }

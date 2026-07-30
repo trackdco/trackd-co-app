@@ -15,9 +15,8 @@ import { formatDraw, type Draw, type DrawSource } from "@/lib/home/draw"
 import { formatTimeLabel, type StackCompound } from "@/lib/home/stack"
 import { partitionByStack, type Stack } from "@/lib/home/stacks"
 import { Container } from "@/components/containers"
+import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { paletteColourVar } from "@/lib/palette"
-import { routesOf } from "@/lib/compound-categories"
-import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { useState, type ReactNode } from "react"
 
 /** A due compound plus its log state. */
@@ -503,7 +502,7 @@ function StackDoseRow({
             {members.map((m) => (
               <Container
                 key={m.id}
-                inventoryType={stackInventoryType(m)}
+                inventoryType={inventoryTypeForCompound(m.name, m.method)}
                 category={m.category}
                 stackColour={colour}
                 // Drops by a dose's worth when logged — all members move at once.
@@ -583,10 +582,3 @@ function StackDoseRow({
   )
 }
 
-function stackInventoryType(c: StackCompound): string | null {
-  const lower = c.name.toLowerCase()
-  const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
-  if (!cat) return null
-  const forms = routesOf(cat)
-  return (forms.find((f) => f.route === c.method) ?? forms[0])?.inventoryType ?? null
-}

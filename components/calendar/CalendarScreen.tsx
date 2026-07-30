@@ -15,7 +15,7 @@ import {
   resolveDayStatus,
   type CalendarPhoto,
   type DayInfo,
-  type LoggedCompound,
+  buildRunning,
   type MonthCell,
 } from "@/lib/calendar/calendar";
 import {
@@ -34,7 +34,6 @@ import {
   seedStack,
   dateKeyToDate,
   type DateKey,
-  type DoseLog,
 } from "@/lib/home/mockHomeData";
 import { requestProgressAction } from "@/lib/progress/progressAction";
 import {
@@ -77,28 +76,6 @@ interface CalendarScreenProps {
   /** Dev-preview-only: inject the device-local stack + dose log. */
   sampleStack?: StackCompound[];
   sampleLogs?: DayLogs;
-}
-
-/** Resolve the logged compounds for a day (pure — safe for memo + render). */
-function buildRunning(
-  day: Record<string, DoseLog> | undefined,
-  stackById: Map<string, StackCompound>,
-): LoggedCompound[] {
-  if (!day) return [];
-  return Object.entries(day)
-    .map(([compoundId, log]) => {
-      const c = stackById.get(compoundId);
-      return {
-        id: compoundId,
-        name: c?.name ?? "Logged dose",
-        category: c?.category ?? "",
-        amount: log.amount,
-        unit: c?.unit ?? "",
-        time24: log.time24,
-        siteId: log.siteId,
-      };
-    })
-    .sort((a, b) => a.time24.localeCompare(b.time24));
 }
 
 /**
