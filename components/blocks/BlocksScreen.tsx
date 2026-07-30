@@ -10,6 +10,7 @@ import { useDeviceToday } from "@/components/home/useDeviceToday"
 import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
 import { BlockEndPrompt } from "@/components/blocks/BlockEndPrompt"
 import { BlockRetrospective } from "@/components/blocks/BlockRetrospective"
+import { BlockActionsMenu } from "@/components/blocks/BlockActionsMenu"
 import { dismissEndPrompt } from "@/lib/blocks/endPromptDismissal"
 import {
   activeBlock,
@@ -111,22 +112,45 @@ export function BlocksScreen({
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Blocks
           </Link>
-          <h1 className="mt-3 text-2xl font-light tracking-[-0.02em] text-foreground">
-            {selected.name}
-          </h1>
-          <p className="mt-1 text-sm text-text-muted">
-            {selected.status === "active" ? "Running" : "Closed"}
-            {selected.status !== "active" &&
-              selected.closedOn &&
-              ` ${formatPhotoDateShort(selected.closedOn)}`}
-            {" · "}
-            {formatDuration(window.days)}
-          </p>
+          <div className="mt-3 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-light tracking-[-0.02em] text-foreground">
+                {selected.name}
+              </h1>
+              <p className="mt-1 text-sm text-text-muted">
+                {selected.status === "active" ? "Running" : "Closed"}
+                {selected.status !== "active" &&
+                  selected.closedOn &&
+                  ` ${formatPhotoDateShort(selected.closedOn)}`}
+                {" · "}
+                {formatDuration(window.days)}
+              </p>
+            </div>
+            {/* Only a LIVE block has anything to end or extend. */}
+            {selected.status === "active" && (
+              <BlockActionsMenu onEndOrExtend={() => setEnding(true)} />
+            )}
+          </div>
         </div>
 
         <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
           <BlockRetrospective block={selected} {...shared} />
         </div>
+
+        {/* The prompt lives on this page now, because the menu that opens it
+            does. Same component, same props as the list view used. */}
+        {selected.status === "active" && (
+          <BlockEndPrompt
+            open={ending}
+            onOpenChange={setEnding}
+            block={selected}
+            todayKey={todayKey}
+            reachedEnd={blockProgress(selected, todayKey).daysRemaining === 0}
+            onResolved={(outcome) =>
+              dismissEndPrompt(userId, selected.id, outcome === "left-running")
+            }
+          />
+        )}
       </div>
     )
   }
@@ -145,7 +169,6 @@ export function BlocksScreen({
             todayKey={todayKey}
             latestWeight={latestWeight}
             startWeight={startWeightFor(live, weight)}
-            onEnd={() => setEnding(true)}
           />
         ) : (
           <button
@@ -225,13 +248,11 @@ function LiveBlockCard({
   todayKey,
   latestWeight,
   startWeight,
-  onEnd,
 }: {
   block: Block
   todayKey: string
   latestWeight: number | null
   startWeight: number | null
-  onEnd: () => void
 }) {
   const p = blockProgress(block, todayKey)
   const week = weekLabel(p)
@@ -242,10 +263,19 @@ function LiveBlockCard({
       : null
   const consistencyTarget = t?.variable === "consistency" ? t : null
 
+  /* THE WHOLE CARD IS THE LINK (Adrian, 2026-07-30). It carried two buttons,
+     "Look back" and "End or extend", which is two decisions to make before you
+     can see the thing you came for. Tapping a block now opens its look-back,
+     which is what you want almost every time; ending and extending live behind
+     the menu on that page, next to the block they act on. */
   return (
-    <section className="rounded-2xl bg-bg-surface p-5">
+    <Link
+      href={`/blocks?block=${block.id}`}
+      className="block rounded-2xl bg-bg-surface p-5 transition-transform duration-150 ease-out active:scale-[0.99] motion-reduce:transition-none"
+    >
       <div className="flex items-center gap-3">
         <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Running now</span>
+        <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
       </div>
 
       <p className="mt-1.5 flex items-baseline gap-2">
@@ -292,22 +322,7 @@ function LiveBlockCard({
             : `Started ${formatPhotoDateShort(block.startedOn)}`}
       </p>
 
-      <div className="mt-4 flex gap-3">
-        <Link
-          href={`/blocks?block=${block.id}`}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border-strong px-4 py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
-        >
-          Look back
-        </Link>
-        <button
-          type="button"
-          onClick={onEnd}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border-strong px-4 py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
-        >
-          End or extend
-        </button>
-      </div>
-    </section>
+    </Link>
   )
 }
 

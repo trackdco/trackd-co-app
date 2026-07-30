@@ -6,6 +6,7 @@ import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { SyncStatusNotice } from "@/components/notifications/SyncStatusNotice";
 import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
+import { RotationNotice } from "@/components/layout/RotationNotice";
 import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { unitForPreference } from "@/lib/weight";
@@ -78,6 +79,9 @@ export default async function AppLayout({
       <QuickActionsFab userId={user.id} unit={unit} bodySex={bodySex} />
       <SyncStatusNotice />
       <ServiceWorkerRegistrar />
+      {/* Portrait fallback for the browser case the manifest cannot reach. Waits
+          for a SUSTAINED landscape and can be dismissed — see the component. */}
+      <RotationNotice />
     </div>
   );
 }

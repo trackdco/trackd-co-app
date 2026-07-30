@@ -155,52 +155,34 @@ function DayCell({
   );
 }
 
-/** Opacity the fill sits at, so the indicators above it still read clearly. */
-const FILL_OPACITY = 0.28;
-
 /**
- * The cycle fill behind a day (Spec 03 · part two → Rendering / Overlaps).
+ * The cycle mark under a day (Adrian, 2026-07-30 — replaces the coloured fill).
  *
- *  - **One cycle** — fills the cell width, so consecutive on-days touch and read
- *    as a single band. Only the run's first and last days are rounded.
- *  - **Two** — the cell splits vertically, first cycle left, second right.
- *  - **Three or more** — thin stacked bars beneath the date instead, because a
- *    three-way split of a 40px cell is unreadable. Order is by cycle start date
- *    (fixed upstream), so bars never reshuffle between months.
+ * A wash of colour behind the numbers fought everything drawn on top of it: the
+ * ring states, the selected day's white, the little type icons. It read as
+ * background noise rather than as information, and with two cycles the cell was
+ * split down the middle, which made a calendar stop looking like a calendar.
+ *
+ * A cycle is an ANNOTATION on a day, not a property of the cell, so it is drawn
+ * as a thin rule beneath the date. One cycle, one line; several cycles, several
+ * lines, stacked. Order is by cycle start date (fixed upstream) so the lines
+ * never reshuffle between months, and the grid underneath is byte-for-byte what
+ * it was before cycles existed.
+ *
+ * Full opacity: at 2px a colour needs to be itself to be seen at all, and there
+ * is nothing behind it to compete with any more.
  */
 function CycleFill({ segments }: { segments: CycleSegment[] }) {
-  if (segments.length >= 3) {
-    return (
-      <span
-        className="pointer-events-none absolute inset-x-1 bottom-0 flex flex-col gap-px"
-        aria-hidden
-      >
-        {segments.map((s) => (
-          <span
-            key={s.compoundId}
-            className="h-[2px] rounded-full"
-            style={{ background: cycleColourVar(s.colour), opacity: FILL_OPACITY + 0.3 }}
-          />
-        ))}
-      </span>
-    );
-  }
-
-  const split = segments.length === 2;
   return (
-    <span className="pointer-events-none absolute inset-x-0 top-0.5 flex h-9" aria-hidden>
-      {segments.map((s, i) => (
+    <span
+      className="pointer-events-none absolute inset-x-1.5 bottom-1 flex flex-col gap-[2px]"
+      aria-hidden
+    >
+      {segments.map((s) => (
         <span
           key={s.compoundId}
-          className={cn(
-            "h-full",
-            split ? "w-1/2" : "w-full",
-            // Round only where the run actually begins and ends. A split cell
-            // rounds on its own outer edge so the two halves still meet flush.
-            s.runStart && (!split || i === 0) && "rounded-l-full",
-            s.runEnd && (!split || i === 1) && "rounded-r-full",
-          )}
-          style={{ background: cycleColourVar(s.colour), opacity: FILL_OPACITY }}
+          className="h-[2px] rounded-full"
+          style={{ background: cycleColourVar(s.colour) }}
         />
       ))}
     </span>
