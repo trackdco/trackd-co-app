@@ -433,6 +433,13 @@ feels off even when it looks right.
 
 - Terse, exact, confident. No exclamation marks, no emoji, no chirp
   ("Nice work!", "Oops!").
+- **Never an em dash.** Not in any user-facing string, anywhere in the app
+  (Adrian, 2026-07-30). Use a full stop and a second sentence, a colon where
+  one clause introduces another, or a comma. An em dash reads as an aside the
+  writer could not be bothered to resolve, and at small sizes it is visual
+  noise. This is a hard rule, not a preference: if a line seems to need one,
+  the line needs rewriting. (Applies to copy. Prose in code comments and
+  commit messages is unaffected.)
 - Empty and error copy state the fact and the next action — nothing more.
 - Numbers and units are formatted consistently app-wide (doses, mg / mcg,
   dates) — define the format once and reuse it. Units render demoted

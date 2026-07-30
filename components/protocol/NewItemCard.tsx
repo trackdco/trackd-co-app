@@ -21,12 +21,21 @@ export function NewItemCard({
   onClick,
   disabled,
   hint,
+  description,
 }: {
   label: string
   onClick: () => void
   disabled?: boolean
   /** Shown instead of the label when the action is not yet available. */
   hint?: string
+  /**
+   * One line explaining what the thing IS. Passed only when the section is
+   * EMPTY — a bare "New stack" says nothing to someone who has never made one,
+   * and once you have some, the explanation is just noise. This is the
+   * empty-state rule from ui-context.md: the card's normal frame, one muted line
+   * in-voice, and a single clear action.
+   */
+  description?: string
 }) {
   return (
     <button
@@ -40,8 +49,17 @@ export function NewItemCard({
           : "text-text-muted active:scale-[0.98] hover:text-foreground"
       )}
     >
-      <Plus className="h-4 w-4" aria-hidden />
-      <span className="text-sm">{disabled && hint ? hint : label}</span>
+      <span className="flex flex-col items-center gap-1.5 px-6">
+        <span className="flex items-center gap-2">
+          <Plus className="h-4 w-4" aria-hidden />
+          <span className="text-sm">{disabled && hint ? hint : label}</span>
+        </span>
+        {description && (
+          <span className="text-center text-xs text-text-subtle">
+            {description}
+          </span>
+        )}
+      </span>
     </button>
   )
 }

@@ -116,6 +116,11 @@ export function CyclesView({
             ? "Add a compound first"
             : "Every compound is on a cycle"
         }
+        description={
+          cycled.length === 0
+            ? "Run a compound on and off. Seven days on, seven off, or until a date. Off days disappear from your log."
+            : undefined
+        }
       />
 
       {/* Choose the compound, then the rule. Only compounds not already on a

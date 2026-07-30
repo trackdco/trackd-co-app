@@ -10,6 +10,7 @@ import {
 import { isDueOnFor, type StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
 import { toDateKey } from "@/lib/home/mockHomeData"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 
 /**
  * Rows before the list starts scrolling with a sticky day header.
@@ -85,13 +86,14 @@ export function ScheduleGrid({
             CATEGORY_META[g.cat as CompoundCategory] ?? FALLBACK_CATEGORY_META
           return (
             <div key={g.cat} className="mt-3 first:mt-0">
-              <span
-                className={cn(
-                  "block px-0.5 pb-1 text-[10px] font-medium uppercase tracking-[0.14em]",
-                  meta.tint
-                )}
-              >
-                {meta.label}
+              {/* The compound type ICON carries the category colour; the label
+                  itself is white, so the row reads as a heading rather than as
+                  coloured text. Same treatment the dashboard's log card uses. */}
+              <span className="flex items-center gap-1.5 px-0.5 pb-1">
+                <CategoryIcon category={g.cat} className="h-3.5 w-3.5" />
+                <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-foreground">
+                  {meta.label}
+                </span>
               </span>
               {g.compounds.map((c) => (
                 <div key={c.id} className="flex items-center gap-3 py-1.5">

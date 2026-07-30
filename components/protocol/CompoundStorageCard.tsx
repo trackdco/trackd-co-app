@@ -117,6 +117,26 @@ export function CompoundStorageCard({
           >
             {formatRunsDry(stock?.estEmptyDate ?? null, daysLeft)}
           </span>
+
+          {/* The gauge sits at the FOOT of the card carrying its own percentage,
+              so it reads as a summary line rather than restating the vial above
+              it — which is what made the earlier mid-card bar redundant. */}
+          {fill !== null && (
+            <span className="mt-1 flex w-full items-center gap-2">
+              <span
+                aria-hidden
+                className="h-1 flex-1 overflow-hidden rounded-full bg-bg-surface-raised"
+              >
+                <span
+                  className="block h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
+                  style={{ width: `${Math.round(fill * 100)}%` }}
+                />
+              </span>
+              <span className="shrink-0 font-mono text-[10px] tabular-nums text-text-subtle">
+                {Math.round(fill * 100)}%
+              </span>
+            </span>
+          )}
         </button>
       ) : (
         // No storage tracking for this form — say nothing rather than zero.

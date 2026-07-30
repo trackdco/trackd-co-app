@@ -106,6 +106,11 @@ export function StacksView({
         onClick={() => setCreating(true)}
         disabled={active.length === 0}
         hint="Add a compound first"
+        description={
+          stacks.length === 0
+            ? "Group compounds you take at the same time so they log in one tap. Each keeps its own schedule and history."
+            : undefined
+        }
       />
 
       <StackDetailSheet
