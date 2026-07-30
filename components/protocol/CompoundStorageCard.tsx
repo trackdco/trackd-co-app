@@ -90,7 +90,13 @@ export function CompoundStorageCard({
   const runningOut = daysLeft !== null && daysLeft <= RUNS_DRY_AMBER_DAYS
 
   return (
-    <div className="flex w-[136px] shrink-0 flex-col items-center gap-2 rounded-2xl bg-bg-surface p-4">
+    <div
+      className={cn(
+        CARD_W,
+        CARD_H,
+        "flex shrink-0 flex-col items-center gap-2 rounded-2xl bg-bg-surface p-4"
+      )}
+    >
       <button
         type="button"
         onClick={onOpen}

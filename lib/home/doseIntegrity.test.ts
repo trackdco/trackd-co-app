@@ -34,6 +34,7 @@ import {
   getSelectedDayOrToday,
   setSelectedDay,
 } from "@/lib/home/selectedDay"
+import { isTombstoned, tombstoneId } from "@/lib/home/doseLog"
 import type { DayLogs } from "@/lib/home/doseLog"
 
 /* ------------------------------------------------------------------ fixtures */
@@ -541,5 +542,23 @@ describe("the granular injection site survives a Postgres round-trip", () => {
         ? { ...pulled, siteId: local.siteId }
         : pulled
     expect(merged.siteId).toBe("im-vglute-r")
+  })
+})
+
+describe("un-log tombstones survive a pull (offline un-log resurrection)", () => {
+  it("suppresses a pulled dose the user un-logged, then stops once cleared", () => {
+    const t = { [tombstoneId("2026-07-20", "c1")]: Date.now() }
+    // The pull still carries the row, because the delete never reached Postgres.
+    expect(isTombstoned(t, "2026-07-20", "c1")).toBe(true)
+    // A different day or compound is untouched.
+    expect(isTombstoned(t, "2026-07-21", "c1")).toBe(false)
+    expect(isTombstoned(t, "2026-07-20", "c2")).toBe(false)
+    // Once the delete confirms, the tombstone goes and the dose could return.
+    expect(isTombstoned({}, "2026-07-20", "c1")).toBe(false)
+  })
+
+  it("keys on the day AND the compound, so one un-log can't hide another dose", () => {
+    expect(tombstoneId("2026-07-20", "c1")).toBe("2026-07-20|c1")
+    expect(tombstoneId("2026-07-20", "c1")).not.toBe(tombstoneId("2026-07-20", "c2"))
   })
 })

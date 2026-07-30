@@ -19,7 +19,9 @@ import {
   type StackCompound,
 } from "@/lib/home/stack"
 import {
+  isTombstoned,
   loadDoseLogs,
+  loadTombstones,
   saveDoseLogs,
   notifyDoseLogsChanged,
   type DayLogs,
@@ -282,13 +284,23 @@ function mergeAndSave(
   }
 
   const methodById = new Map(mergedStack.map((c) => [c.id, c.method]))
+  // Doses the user UN-LOGGED whose delete may not have reached Postgres. Without
+  // this, unticking offline and reconnecting pulled the row straight back — the
+  // tick refilled with its original amount, time and site, and nothing retried the
+  // delete. The tombstone records the intent so the pull can be filtered by it.
+  const tombstones = loadTombstones(userId)
   const merged: DayLogs = {}
   for (const [day, entries] of Object.entries(doseRowsToDayLogs(pg.doseRows, methodById))) {
-    merged[day] = { ...entries }
+    for (const [compoundId, log] of Object.entries(entries)) {
+      if (isTombstoned(tombstones, day, compoundId)) continue
+      ;(merged[day] ??= {})[compoundId] = log
+    }
   }
   for (const src of [remapLogs(cloud.doseLogs), remapLogs(localLogs)]) {
     for (const [day, entries] of Object.entries(src)) {
       for (const [compoundId, log] of Object.entries(entries)) {
+        // A tombstoned dose stays gone from every source, not just the pull.
+        if (isTombstoned(tombstones, day, compoundId)) continue
         const already = merged[day]?.[compoundId]
         if (already) {
           /**
