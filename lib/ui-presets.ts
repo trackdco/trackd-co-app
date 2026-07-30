@@ -40,6 +40,15 @@ export const CARD_EYEBROW =
 export const METRIC_LABEL =
   "text-[10px] font-sans uppercase tracking-[0.2em] text-text-subtle"
 
+/** Eyebrow for a NARROW column — a third-width card in a row of three, where the
+ *  10px eyebrow's 0.18em tracking pushes a single long word ("CONCENTRATION",
+ *  ~109px) past the column and there is no space to wrap on. Same uppercase
+ *  eyebrow identity, one notch down in size and tracking so it fits. Use it only
+ *  where the column is genuinely too narrow for CARD_EYEBROW; a full-width card
+ *  title is always CARD_EYEBROW. */
+export const COLUMN_EYEBROW =
+  "text-[9px] font-sans uppercase tracking-[0.12em] text-text-muted"
+
 /** The big number on metric / glance cards — the display layer. Light-weight
  *  mono, tightly tracked, tabular. Units/suffixes demote inline via UNIT_SUFFIX
  *  (e.g. 92▸%, 8:00▸pm) — never at value size. */

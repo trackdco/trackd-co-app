@@ -59,13 +59,20 @@ stored.)
   / calendar / bloodwork / calculator flows. Calls Supabase; holds **no** business
   maths that belong in the database (see Invariants). **The five bottom-nav tabs are
   `/dashboard`, `/protocol`, `/calculator`, `/progress`, `/profile`** — `/calculator`
-  (Spec 20) mounts the reconstitution calculator (`components/home/ReconCalculator.tsx`)
+  (Spec 20) mounts the reconstitution calculator (`components/calculator/`)
   on its own screen, and is its **only** entry point: the Home glance card
   (`ReconCalcCard`) and its bottom-sheet frame (`ReconCalculatorSheet`) were both
   **deleted** once the nav tab landed (Adrian's call — the tab replaces them, so they
   only duplicated it). The calculator reads nothing — the maths are pure arithmetic on
   what the user types (and mirror `v_inventory_math`; see Invariant 1). The dev-only
-  `/preview/recon` harness mounts the same component unauthed. **Phone-only by intent:** at ≥1024px the
+  `/preview/recon` harness mounts the same component unauthed. Spec 07 (wave 2 pt
+  two) rebuilt its presentation around a **proportional syringe graphic** and moved
+  it out of `components/home/`: the arithmetic now lives in `lib/calculator/recon.ts`
+  and the barrel's scale/fill in `lib/calculator/syringe.ts`, both pure and tested,
+  with `recon.test.ts` **pinning the outputs to the pre-rebuild figures** so a later
+  refactor cannot silently move a number. Still stateless (no presets, no history,
+  no compound data); the one persisted thing is the first-run notice's per-device
+  dismissal in localStorage. **Phone-only by intent:** at ≥1024px the
   root layout hides the whole app shell (`lg:hidden`) and renders
   `DesktopInterstitial` in its place — a pure CSS-width gate (no UA sniffing, no
   hydration flash), wired through the small client `DesktopGate` so the dev-only

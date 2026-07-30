@@ -178,6 +178,13 @@ than re-deriving classes per card:
 - **`CARD_EYEBROW`** — `text-[10px] font-sans uppercase tracking-[0.18em]
   text-text-muted` — every card/section title. A dimmer variant
   (`text-text-subtle`, `tracking-[0.2em]`) labels metric values.
+- **`COLUMN_EYEBROW`** — `text-[9px] font-sans uppercase tracking-[0.12em]
+  text-text-muted` — the eyebrow for a **narrow column**, i.e. a third-width
+  card in a row of three. At 10px/0.18em a single long word ("CONCENTRATION",
+  ~109px) overruns a third of a phone's width and has no space to wrap on, so
+  this is the same eyebrow one notch down in size and tracking. Use it **only**
+  where the column is genuinely too narrow; a full-width card title stays
+  `CARD_EYEBROW`. (Added for the calculator's three result cards, Spec 07.)
 - **`METRIC_VALUE`** — `text-[28px] font-light tracking-[-0.02em]
   tabular-nums text-foreground` — the big number on metric and glance
   cards. Units and suffixes are demoted inline via **`UNIT_SUFFIX`**

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { ReconCalculator } from "@/components/home/ReconCalculator";
+import { ReconCalculator } from "@/components/calculator/ReconCalculator";
 import { PAGE_TITLE } from "@/lib/ui-presets";
 
 /**

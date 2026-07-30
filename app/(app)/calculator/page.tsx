@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { ReconCalculator } from "@/components/home/ReconCalculator";
+import { ReconCalculator } from "@/components/calculator/ReconCalculator";
 
 export const metadata: Metadata = { title: "Calculator — Trackd Co" };
 
