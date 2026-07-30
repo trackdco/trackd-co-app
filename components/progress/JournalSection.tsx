@@ -48,6 +48,11 @@ export function JournalSection({
     if (signal.date) openEditor({ mode: "edit", initialDate: signal.date });
   });
 
+  // The dashboard's journal card — the WRITE prompt it advertises, for that day.
+  useProgressAction("journal-write", (signal) => {
+    if (signal.date) openEditor({ mode: "write", initialDate: signal.date });
+  });
+
   function openEditor(config: EditorConfig) {
     setEditor(config);
     setFeedOpen(false);

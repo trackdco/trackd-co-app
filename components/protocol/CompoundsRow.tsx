@@ -2,7 +2,12 @@
 
 import { CARD_EYEBROW } from "@/lib/ui-presets"
 import { Plus } from "@/components/icons"
-import { CompoundStorageCard } from "@/components/protocol/CompoundStorageCard"
+import {
+  CARD_H,
+  CARD_W,
+  CompoundStorageCard,
+} from "@/components/protocol/CompoundStorageCard"
+import { cn } from "@/lib/utils"
 import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
 import { routesOf } from "@/lib/compound-categories"
@@ -49,7 +54,7 @@ export function CompoundsRow({
           item, so an empty Protocol has a working control rather than copy that
           tells the user to do something the page offers no way to do. */}
       <div className="-mx-5 overflow-x-auto px-5">
-        <div className="flex items-stretch gap-3 pb-1">
+        <div className="flex gap-3 pb-1">
           {ordered.map((c) => (
               <CompoundStorageCard
                 key={c.id}
@@ -69,7 +74,11 @@ export function CompoundsRow({
             <button
               type="button"
               onClick={onAddCompound}
-              className="hairline flex w-[208px] shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border-border-default text-text-muted transition hover:text-foreground active:scale-[0.98]"
+              className={cn(
+                CARD_W,
+                CARD_H,
+                "hairline flex shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border-border-default text-text-muted transition hover:text-foreground active:scale-[0.98]"
+              )}
             >
               <Plus className="h-5 w-5" aria-hidden />
               <span className="text-sm">Add compound</span>

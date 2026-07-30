@@ -19,6 +19,19 @@ import { ILLUSTRATIVE_FILL } from "@/lib/containers/geometry"
 export const RUNS_DRY_AMBER_DAYS = 7
 
 /**
+ * Every card in the compounds row is EXACTLY this size, including the trailing
+ * "Add compound" one.
+ *
+ * Fixed rather than intrinsic on purpose: a vial card carries four lines of
+ * figures, an oral card three, a stockless one a single button, and a tub none at
+ * all. Letting them size themselves made a horizontally-scrolling row of ragged
+ * cards. The height fits the tallest case (container, a two-line name, remaining,
+ * doses, the runs-dry label and value, and the gauge) so nothing is ever clipped.
+ */
+export const CARD_W = "w-[208px]"
+export const CARD_H = "h-[268px]"
+
+/**
  * One compound in the Protocol row: its container, its name, and — for vials
  * only — how much is left, a fill bar, doses remaining and the runs-dry date.
  *

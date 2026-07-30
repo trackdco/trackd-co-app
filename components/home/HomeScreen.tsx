@@ -734,14 +734,20 @@ export function HomeScreen({
 
         {/* Journal — the last card (Spec 02). One tappable input that opens the
             existing journal surface for the SELECTED day, never today. The entry
-            flow itself is unchanged. */}
+            flow itself is unchanged.
+            HIDDEN on a future day: the server refuses to journal one, and because
+            the editor hides its date field there is nothing in the sheet the user
+            could change to make the save succeed — the entry could only be
+            abandoned. Logging a DOSE on a future day stays allowed, so the strip
+            still scrolls forward; it is only journalling the server rejects. */}
+        {selectedKey <= todayKey && (
         <div className="animate-home-up" style={{ animationDelay: "195ms" }}>
           <section className="rounded-2xl bg-bg-surface p-5">
             <h2 className={CARD_EYEBROW}>Journal</h2>
             <button
               type="button"
               onClick={() => {
-                requestProgressAction("journal-open", selectedKey)
+                requestProgressAction("journal-write", selectedKey)
                 router.push("/progress")
               }}
               className="mt-3 flex w-full items-center gap-3 rounded-xl bg-bg-input px-4 py-3 text-left transition active:scale-[0.99]"
@@ -751,6 +757,7 @@ export function HomeScreen({
             </button>
           </section>
         </div>
+        )}
       </div>
 
       <LogDoseSheet
