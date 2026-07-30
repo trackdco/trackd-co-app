@@ -74,7 +74,7 @@ Follow the project structure and conventions in `architecture.md` and `code-stan
 - [x] Row ordered by category volume, most-held category first
 - [x] Within-category ordering rule stated and stable
 - [x] Compound card shows container, name, storage left, fill bar, doses remaining, runs-dry date
-- [~] Runs-dry amber DECIDED (awaiting sign-off): 7 days. Days not doses — 3 doses is a fortnight on E3D and 3 days on daily.
+- [x] Runs-dry amber APPROVED (Adrian, 2026-07-30): 7 days. Days not doses: 3 doses is a fortnight on E3D and 3 days on daily.
 - [x] Non-injectable cards suppress fill bar, doses remaining and runs-dry date
 - [x] Stack card shows name, frequency, members, and one container per member in the stack colour
 - [x] New stack affordance present
@@ -83,7 +83,7 @@ Follow the project structure and conventions in `architecture.md` and `code-stan
 - [x] Missed renders as a hollow cell with a thin border, not a slash
 - [x] Due becomes missed at end of day
 - [x] Key below the grid matches the injection site key pattern
-- [~] Sticky-scroll trigger DECIDED (awaiting sign-off): above 8 rows.
+- [x] Sticky-scroll trigger APPROVED (Adrian, 2026-07-30): above 8 rows.
 - [x] Cycle card shows container, compound name, dose and end condition
 - [~] Crossover DECIDED (awaiting sign-off): 14 days, matching the existing cycle card.
 - [x] New cycle affordance present

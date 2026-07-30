@@ -120,7 +120,7 @@ export function CyclesView({
         }
         description={
           cycled.length === 0
-            ? "Run a compound on and off. Off days disappear from your log."
+            ? "Run a compound on and off."
             : undefined
         }
         preview={

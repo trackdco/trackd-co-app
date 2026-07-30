@@ -47,7 +47,7 @@ export function CompoundsRow({
         // Bleeds to the screen edges so the row reads as scrollable, while the
         // page keeps its px-5 column.
         <div className="-mx-5 overflow-x-auto px-5">
-          <div className="flex gap-3 pb-1">
+          <div className="flex items-stretch gap-3 pb-1">
             {ordered.map((c) => (
               <CompoundStorageCard
                 key={c.id}

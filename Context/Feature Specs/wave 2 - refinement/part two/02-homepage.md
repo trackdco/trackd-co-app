@@ -95,11 +95,11 @@ Follow the project structure and conventions in `architecture.md` and `code-stan
 - [x] Next Dose shows the container image with name, time and dose
 - [x] Next Dose resolves against the selected day
 - [x] Next Dose shows "Nothing due" and "You're clear until tomorrow" once the day is complete
-- [~] Wording DECIDED (awaiting sign-off): "Nothing scheduled" / "No doses planned for this day."
+- [x] Wording APPROVED (Adrian, 2026-07-30): "Nothing scheduled" / "No doses planned for this day."
 - [x] Next Dose never renders a bare dash
 - [x] Today card ring shows completed of due for the selected day
 - [x] Category-coloured dots below the ring, outlined when outstanding, filled when logged
-- [~] Dot cap DECIDED (awaiting sign-off): 9, then "+N". Verified no overflow.
+- [x] Dot cap APPROVED (Adrian, 2026-07-30): 9, then "+N". Verified no overflow.
 - [x] Journal card present with a tappable input
 - [x] Journal writes to the selected day, not today
 - [x] No new shared components created without flagging

@@ -108,7 +108,7 @@ export function StacksView({
         hint="Add a compound first"
         description={
           stacks.length === 0
-            ? "Compounds you take together, logged in one tap. Each keeps its own schedule and history."
+            ? "Compounds you take together, logged in one tap."
             : undefined
         }
         preview={

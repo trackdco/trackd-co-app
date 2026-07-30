@@ -79,8 +79,15 @@ export function CompoundStorageCard({
           fill={fill ?? 0.62}
           size={80}
         />
-        <span className="w-full truncate text-center text-sm text-foreground">
-          {compound.name}
+        {/* The name WRAPS to two lines rather than truncating: an ellipsis on a
+            compound name is the one place a card must never be lossy, since the
+            name is what you are identifying it by. Two lines are reserved
+            whether or not they are used, so every card in the row stays the
+            same height. */}
+        <span className="flex h-9 w-full items-center justify-center">
+          <span className="line-clamp-2 text-center text-sm leading-tight text-foreground">
+            {compound.name}
+          </span>
         </span>
       </button>
 
@@ -100,15 +107,15 @@ export function CompoundStorageCard({
               and a bar beside it stated the same fact twice. Dropping it left
               room for a bigger vial and two clean lines. Still the spec's five
               pieces of information — just not one of them duplicated. */}
-          <span className={cn(DATA_MONO, "w-full truncate text-center")}>
+          <span className={cn(DATA_MONO, "w-full text-center")}>
             {formatRemaining(stock)}
           </span>
-          <span className={cn(DATA_MONO, "w-full truncate text-center")}>
+          <span className={cn(DATA_MONO, "w-full text-center")}>
             {formatDoses(stock)}
           </span>
           <span
             className={cn(
-              "w-full truncate text-center font-mono text-[10px] tabular-nums",
+              "w-full text-center font-mono text-[10px] tabular-nums",
               // Amber only when it genuinely needs action. Stock runway is
               // inventory, not health data, so this sits outside the
               // categorical-never-evaluative rule.
