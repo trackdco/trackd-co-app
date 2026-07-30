@@ -14,6 +14,7 @@ import {
 } from "./retrospective"
 import type { StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
+import { computeAdherenceOver } from "@/lib/progress/consistency"
 import type { ProgressPhoto } from "@/lib/progress/photos"
 import type { JournalEntry } from "@/lib/progress/journal"
 
@@ -396,5 +397,69 @@ describe("buildRetrospective", () => {
     expect(r.photos?.sessions).toBe(1)
     expect(r.bloods).toEqual([])
     expect(r.journal.entries).toBe(0)
+  })
+})
+
+describe("computeAdherenceOver — the window, not the last 365 days", () => {
+  const daily = compound({
+    id: "c1",
+    schedule: {
+      cadence: { type: "daily" },
+      startDate: "2024-06-01",
+      timeOfDay: "08:00",
+    },
+  })
+
+  it("covers a block that ran long before today", () => {
+    // The bug this replaced: `computeAdherence` walks back from TODAY and caps
+    // at a year, so an eighteen-month-old block fell outside the series
+    // entirely. Clipping it gave `due: 0` and the retrospective printed a
+    // headline 0% directly beneath its own list of the doses logged in it.
+    const logs: DayLogs = {
+      "2024-06-01": { c1: {} as never },
+      "2024-06-02": { c1: {} as never },
+    }
+    const pts = computeAdherenceOver(
+      [daily],
+      logs,
+      "2024-06-01",
+      "2024-06-04",
+      "2026-07-30",
+    )
+    expect(pts.map((p) => p.key)).toEqual([
+      "2024-06-01",
+      "2024-06-02",
+      "2024-06-03",
+      "2024-06-04",
+    ])
+    expect(consistencyAcross(pts, { from: "2024-06-01", to: "2024-06-04", days: 4 })).toEqual({
+      pct: 50,
+      logged: 2,
+      due: 4,
+      doseDays: 4,
+    })
+  })
+
+  it("counts an ARCHIVED compound for past days and stops at today", () => {
+    // `archived` carries no date, so applying it backwards erases a compound
+    // from history the moment it is archived.
+    const archived = compound({
+      id: "c1",
+      archived: true,
+      schedule: {
+        cadence: { type: "daily" },
+        startDate: "2024-06-01",
+        timeOfDay: "08:00",
+      },
+    })
+    const past = computeAdherenceOver([archived], {}, "2024-06-01", "2024-06-02", "2026-07-30")
+    expect(past.every((p) => p.due === 1)).toBe(true)
+
+    const nowOn = computeAdherenceOver([archived], {}, "2026-07-30", "2026-07-31", "2026-07-30")
+    expect(nowOn.every((p) => p.due === 0)).toBe(true)
+  })
+
+  it("is empty for an inverted range rather than throwing", () => {
+    expect(computeAdherenceOver([daily], {}, "2026-02-01", "2026-01-01", "2026-07-30")).toEqual([])
   })
 })

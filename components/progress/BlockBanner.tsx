@@ -17,13 +17,16 @@ import { BlockEndPrompt } from "@/components/blocks/BlockEndPrompt"
 import {
   dismissEndPrompt,
   isEndPromptDismissed,
+  pruneEndPromptDismissals,
 } from "@/lib/blocks/endPromptDismissal"
 import {
   activeBlock,
   blockProgress,
   pastBlocks,
   targetProgress,
+  weekLabel,
   type Block,
+  type BlockTarget,
 } from "@/lib/blocks/block"
 
 /**
@@ -78,9 +81,13 @@ export function BlockBanner({
   // mount it is false, which errs toward SHOWING the dot — a dot that appears a
   // frame late is a smaller failure than a prompt that never appears at all.
   const [checkedFor, setCheckedFor] = useState<string | null>(null)
-  if (mounted && block && checkedFor !== block.id) {
-    setCheckedFor(block.id)
-    setDismissed(isEndPromptDismissed(userId, block.id))
+  if (mounted && checkedFor !== (block?.id ?? "")) {
+    setCheckedFor(block?.id ?? "")
+    setDismissed(block ? isEndPromptDismissed(userId, block.id) : false)
+    // A dismissal only means anything while its block is live, so a closed one's
+    // entry is dropped here rather than left to accumulate for the life of the
+    // device.
+    pruneEndPromptDismissals(userId, block ? [block.id] : [])
   }
 
   // Nothing live: the same hairline affordance Protocol uses for a new stack or
@@ -127,7 +134,12 @@ export function BlockBanner({
   }
 
   const p = blockProgress(block, todayKey)
-  const t = block.targets[0]
+  const week = weekLabel(p)
+  // The WEIGHT target if there is one, because that is the only kind this banner
+  // can show progress for — it has weigh-ins and no adherence series. Taking
+  // `targets[0]` blindly let a consistency target sitting first hide a weight
+  // target that could have been rendered.
+  const t = pickBannerTarget(block.targets)
   // Against the reading on (or last before) the block's start date, so the
   // target measures from where the user actually began rather than from their
   // earliest ever weigh-in.
@@ -143,9 +155,14 @@ export function BlockBanner({
       : null
   const currentValue = t?.variable === "weight" ? (weight?.at(-1)?.kg ?? null) : null
   const target =
-    t && startValue != null && currentValue != null
+    t?.variable === "weight" && startValue != null && currentValue != null
       ? targetProgress(t, startValue, currentValue)
       : null
+  // A consistency target has no live figure here (adherence is device-side and
+  // this banner has none), so it is STATED rather than silently dropped. It used
+  // to vanish completely: the user set a goal and nothing in the app ever
+  // mentioned it again. Its progress lives on the block's own page.
+  const consistencyTarget = t?.variable === "consistency" ? t : null
 
   // `daysRemaining === 0` is exactly "today is on or past the end date" — it is
   // clamped at zero, so it cannot mean anything else. ON the end date counts:
@@ -167,10 +184,8 @@ export function BlockBanner({
         </div>
 
         <p className="mt-1.5 flex items-baseline gap-2">
-          <span className={METRIC_VALUE}>{p.week}</span>
-          <span className={UNIT_SUFFIX}>
-            {p.totalWeeks != null ? `of ${p.totalWeeks} weeks` : "weeks in"}
-          </span>
+          <span className={METRIC_VALUE}>{week.value}</span>
+          <span className={UNIT_SUFFIX}>{week.suffix}</span>
         </p>
         <p className="mt-0.5 truncate text-sm text-text-muted">{block.name}</p>
 
@@ -184,7 +199,7 @@ export function BlockBanner({
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(p.fraction * 100)}
-            aria-label={`${block.name}, week ${p.week} of ${p.totalWeeks}`}
+            aria-label={`${block.name}, week ${week.value} ${week.suffix}`}
           >
             <div
               className="h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
@@ -198,15 +213,18 @@ export function BlockBanner({
             would be a number nobody could act on. */}
         {target ? (
           <div className="mt-3 flex items-baseline justify-between gap-3">
-            <span className={DATA_MONO}>
-              {target.variable === "weight" ? "Weight" : "Consistency"}
-            </span>
+            <span className={DATA_MONO}>Weight</span>
             <span className={DATA_MONO}>
               {target.fraction != null ? `${Math.round(target.fraction * 100)}%` : ""}
               {target.remaining > 0
-                ? ` · ${trimNum(target.remaining)}${target.variable === "weight" ? " kg" : "%"} to go`
+                ? ` · ${trimNum(target.remaining)} kg to go`
                 : " · reached"}
             </span>
+          </div>
+        ) : consistencyTarget ? (
+          <div className="mt-3 flex items-baseline justify-between gap-3">
+            <span className={DATA_MONO}>Consistency</span>
+            <span className={DATA_MONO}>{trimNum(consistencyTarget.value)}% target</span>
           </div>
         ) : null}
 
@@ -225,8 +243,10 @@ export function BlockBanner({
           expects. It sits ABOVE the link in the stacking order with a 44px tap
           target, so the tap that looks like it hits the dot does hit the dot.
 
-          Amber because it is an interactive prompt, which is what amber means in
-          this app. It is not a warning and there is nothing wrong. */}
+          Amber (`--accent-amber`) because it is an interactive prompt, which is
+          what amber means in this app. NOT `--accent-primary`, which resolves to
+          white and put a white dot beside a white progress bar. It is not a
+          warning and there is nothing wrong. */}
       {atEnd && (
         <button
           type="button"
@@ -234,7 +254,7 @@ export function BlockBanner({
           aria-label={`${block.name} has reached its end date. Extend, close, or leave it running.`}
           className="absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full"
         >
-          <span className="h-2.5 w-2.5 rounded-full bg-accent-primary" aria-hidden />
+          <span className="h-2.5 w-2.5 rounded-full bg-accent-amber" aria-hidden />
         </button>
       )}
 
@@ -277,4 +297,9 @@ function formatDate(key: string | null): string {
 /** One decimal at most, trailing zero dropped: "4", "3.5". */
 function trimNum(n: number): string {
   return String(Number(n.toFixed(1)))
+}
+
+/** The weight target if the block has one, else whatever else it has. */
+function pickBannerTarget(targets: BlockTarget[]): BlockTarget | undefined {
+  return targets.find((t) => t.variable === "weight") ?? targets[0]
 }

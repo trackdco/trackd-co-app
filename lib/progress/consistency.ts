@@ -52,20 +52,71 @@ export function computeAdherence(
   const points: AdherencePoint[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const key = resolveDateKey(today, i);
-    const date = dateKeyToDate(key);
-    // Judged by the rule in force on that day — consistency must not be
-    // recomputed against a schedule the user only adopted later.
-    const dueIds = active.filter((c) => isDueOnFor(c, date)).map((c) => c.id);
-    const due = dueIds.length;
-    if (due === 0) {
-      points.push({ key, due: 0, logged: 0, pct: null });
-    } else {
-      const dayLogs = logs[key] ?? {};
-      const logged = dueIds.filter((id) => dayLogs[id]).length;
-      points.push({ key, due, logged, pct: Math.round((logged / due) * 100) });
-    }
+    points.push(adherenceOn(active, logs, key));
   }
   return points;
+}
+
+/**
+ * The same per-day rule over an ARBITRARY range, oldest first.
+ *
+ * Split out for the Blocks retrospective (2026-07-30). `computeAdherence` walks
+ * backwards from TODAY and caps at a year, which is right for the Progress
+ * widget and wrong for a look-back: a block that ran eighteen months ago fell
+ * entirely outside the series, so clipping it produced `due: 0` and the
+ * retrospective printed a headline **0%** directly beneath its own list of the
+ * doses logged inside that same window.
+ *
+ * The per-day maths is `adherenceOn` in both cases, so the two can still never
+ * disagree about a day they both cover — which is the property
+ * `architecture.md` claims and the clipping approach did not actually deliver.
+ *
+ * Archived compounds are INCLUDED for days before today, for the same reason
+ * `compoundsRunningOn` includes them: `archived` carries no date, so applying it
+ * to a past day erases a compound from history the moment it is archived. From
+ * today forward it is honoured, because that is what archived means now.
+ */
+export function computeAdherenceOver(
+  stack: StackCompound[],
+  logs: DayLogs,
+  from: DateKey,
+  to: DateKey,
+  todayKey: DateKey,
+): AdherencePoint[] {
+  if (stack.length === 0 || to < from) return [];
+  const start = dateKeyToDate(from);
+  const span = Math.floor(
+    (dateKeyToDate(to).getTime() - start.getTime()) / 86_400_000,
+  );
+  const days = Math.min(Math.max(span + 1, 1), MAX_WINDOW_DAYS);
+
+  const points: AdherencePoint[] = [];
+  for (let i = 0; i < days; i++) {
+    const key = resolveDateKey(start, -i);
+    const eligible = stack.filter((c) => !(c.archived && key >= todayKey));
+    points.push(adherenceOn(eligible, logs, key));
+  }
+  return points;
+}
+
+/** A generous ceiling on a single window's walk — a guard, not a product rule. */
+const MAX_WINDOW_DAYS = 3660;
+
+/** One day's adherence. The single rule both walks above share. */
+function adherenceOn(
+  compounds: StackCompound[],
+  logs: DayLogs,
+  key: DateKey,
+): AdherencePoint {
+  const date = dateKeyToDate(key);
+  // Judged by the rule in force on that day — consistency must not be
+  // recomputed against a schedule the user only adopted later.
+  const dueIds = compounds.filter((c) => isDueOnFor(c, date)).map((c) => c.id);
+  const due = dueIds.length;
+  if (due === 0) return { key, due: 0, logged: 0, pct: null };
+  const dayLogs = logs[key] ?? {};
+  const logged = dueIds.filter((id) => dayLogs[id]).length;
+  return { key, due, logged, pct: Math.round((logged / due) * 100) };
 }
 
 /** Overall adherence across a set of points (logged ÷ due), or null if no doses. */

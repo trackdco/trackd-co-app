@@ -8,6 +8,7 @@ import {
   isWithinWindow,
   pastBlocks,
   targetProgress,
+  weekLabel,
   type Block,
 } from "./block"
 
@@ -206,5 +207,45 @@ describe("formatDuration", () => {
     expect(formatDuration(17)).toBe("2 weeks, 3 days")
     expect(formatDuration(105)).toBe("15 weeks")
     expect(formatDuration(106)).toBe("15 weeks, 1 day")
+  })
+})
+
+describe("weekLabel — the headline reading", () => {
+  const b = (over: Partial<Block> = {}) => block(over)
+
+  it("reads N of M while the block is inside its window", () => {
+    expect(weekLabel(blockProgress(b(), "2026-02-01"))).toEqual({
+      value: 5,
+      suffix: "of 15 weeks",
+    })
+  })
+
+  it("DROPS the denominator once the block runs past its end", () => {
+    // "Week 31 of 9" is not a reading, it is a broken one — and it is the state
+    // "leave running" exists to produce, so it is not an edge case either.
+    expect(weekLabel(blockProgress(b(), "2026-07-30"))).toEqual({
+      value: 31,
+      suffix: "weeks in",
+    })
+  })
+
+  it("still reads N of M on the final day, which is not an overrun", () => {
+    expect(weekLabel(blockProgress(b(), "2026-04-15"))).toEqual({
+      value: 15,
+      suffix: "of 15 weeks",
+    })
+  })
+
+  it("has no denominator for an open-ended block", () => {
+    expect(weekLabel(blockProgress(b({ endsOn: null }), "2026-03-01"))).toEqual({
+      value: 9,
+      suffix: "weeks in",
+    })
+  })
+
+  it("says 'week in', singular, in the first week of an open-ended block", () => {
+    expect(weekLabel(blockProgress(b({ endsOn: null }), "2026-01-01")).suffix).toBe(
+      "week in",
+    )
   })
 })

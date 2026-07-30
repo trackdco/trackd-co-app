@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useSheetDrag } from "@/components/home/useSheetDrag"
 import { SHEET_TITLE } from "@/lib/ui-presets"
 import { closeBlockAction, extendBlockAction } from "@/app/(app)/blocks/actions"
+import { localToday } from "@/lib/blocks/block"
 import type { Block } from "@/lib/blocks/block"
 
 /** What the user answered. The caller owns what to remember about it. */
@@ -117,7 +118,7 @@ export function BlockEndPrompt({
     if (busy) return
     setBusy(true)
     setError(null)
-    const res = await closeBlockAction(block.id, { reflection })
+    const res = await closeBlockAction(block.id, localToday(), { reflection })
     if (!res.ok) {
       setError(res.error ?? "Could not close the block.")
       setBusy(false)

@@ -89,6 +89,35 @@ export interface StartBlockInput {
   startedOn: string
   endsOn: string | null
   targets: BlockTarget[]
+  /**
+   * The CALLER'S local date, "YYYY-MM-DD".
+   *
+   * Not derived here, and this is load-bearing. The server runs in UTC, so
+   * `new Date().toISOString().slice(0,10)` is the UTC date — which is yesterday
+   * for a Sydney user before 10am and tomorrow for a Californian after 5pm.
+   * That is not cosmetic here: `blocks_closed_after_start` is a CHECK, so a
+   * UTC-yesterday `closed_on` against a locally-started-today block is REJECTED,
+   * and the user is left unable to close their block or start another. The rest
+   * of the app has the same hazard documented in `lib/home/protocolSync.ts`;
+   * this table's constraints turn it into a lockout, so the local date comes
+   * from the client that knows it.
+   */
+  todayKey: string
+}
+
+/**
+ * The date to stamp as `closed_on`, never earlier than the day the block
+ * started.
+ *
+ * The clamp is the second half of the lockout fix. Even with a correct local
+ * date, a block whose start is in the FUTURE cannot be closed "today" without
+ * violating `blocks_closed_after_start` — and since only one block may be
+ * active, that user could neither close it nor start another until the start
+ * date arrived. Closing such a block on its own start date is the honest
+ * reading: it ran for no days.
+ */
+function closeDateFor(startedOn: string, todayKey: string): string {
+  return todayKey < startedOn ? startedOn : todayKey
 }
 
 /**
@@ -111,15 +140,31 @@ export async function startBlock(
     return { ok: false, error: "The end date is before the start date." }
   }
 
-  const today = new Date().toISOString().slice(0, 10)
-  const { error: closeError } = await ctx.supabase
+  // Read the live block BEFORE closing it, so a failed insert can put it back.
+  // These are two statements with no transaction between them (PostgREST has no
+  // multi-statement call), and without the restore a network blip between them
+  // would end a sixteen-week prep and replace it with nothing.
+  const { data: liveRows } = await ctx.supabase
     .from("blocks")
-    .update({ status: "completed", closed_on: today })
+    .select("id, started_on")
     .eq("user_id", ctx.userId)
     .eq("status", "active")
-  if (closeError) {
-    console.error("startBlock could not close the live block", closeError)
-    return { ok: false, error: "Could not close your current block." }
+  const live = liveRows?.[0] ?? null
+
+  if (live) {
+    const { error: closeError } = await ctx.supabase
+      .from("blocks")
+      .update({
+        status: "completed",
+        closed_on: closeDateFor(live.started_on as string, input.todayKey),
+      })
+      .eq("id", live.id)
+      .eq("user_id", ctx.userId)
+      .eq("status", "active")
+    if (closeError) {
+      console.error("startBlock could not close the live block", closeError)
+      return { ok: false, error: "Could not close your current block." }
+    }
   }
 
   const { data, error } = await ctx.supabase
@@ -134,6 +179,19 @@ export async function startBlock(
     .single()
   if (error || !data) {
     console.error("startBlock insert failed", error)
+    // Compensate: hand the user back the block we just closed on their behalf.
+    // They asked to start a new one, not to end the old one, and ending it
+    // without replacing it is the one outcome nobody wanted.
+    if (live) {
+      const { error: restoreError } = await ctx.supabase
+        .from("blocks")
+        .update({ status: "active", closed_on: null })
+        .eq("id", live.id)
+        .eq("user_id", ctx.userId)
+      if (restoreError) {
+        console.error("startBlock could not restore the live block", restoreError)
+      }
+    }
     return { ok: false, error: "Could not start the block." }
   }
 
@@ -183,15 +241,29 @@ export async function extendBlock(
  */
 export async function closeBlock(
   blockId: string,
+  /** The caller's LOCAL date — see {@link StartBlockInput.todayKey}. */
+  todayKey: string,
   opts: { reflection?: string; abandoned?: boolean } = {},
 ): Promise<{ ok: boolean; error?: string }> {
   const ctx = await sessionCtx()
   if (!ctx) return { ok: false, error: "Not signed in." }
+
+  // The start date decides the earliest legal close, so read it rather than
+  // assume today is after it (`blocks_closed_after_start` is a CHECK, and a
+  // rejected close is a block the user cannot get rid of).
+  const { data: row } = await ctx.supabase
+    .from("blocks")
+    .select("started_on")
+    .eq("id", blockId)
+    .eq("user_id", ctx.userId)
+    .maybeSingle()
+  if (!row) return { ok: false, error: "Could not close the block." }
+
   const { error } = await ctx.supabase
     .from("blocks")
     .update({
       status: opts.abandoned ? "abandoned" : "completed",
-      closed_on: new Date().toISOString().slice(0, 10),
+      closed_on: closeDateFor(row.started_on as string, todayKey),
       reflection: opts.reflection?.trim() || null,
     })
     .eq("id", blockId)

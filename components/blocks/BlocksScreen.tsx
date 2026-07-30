@@ -17,6 +17,7 @@ import {
   formatDuration,
   pastBlocks,
   targetProgress,
+  weekLabel,
   type Block,
 } from "@/lib/blocks/block"
 import {
@@ -224,11 +225,13 @@ function LiveBlockCard({
   onEnd: () => void
 }) {
   const p = blockProgress(block, todayKey)
-  const t = block.targets[0]
+  const week = weekLabel(p)
+  const t = block.targets.find((x) => x.variable === "weight") ?? block.targets[0]
   const target =
     t?.variable === "weight" && startWeight != null && latestWeight != null
       ? targetProgress(t, startWeight, latestWeight)
       : null
+  const consistencyTarget = t?.variable === "consistency" ? t : null
 
   return (
     <section className="rounded-2xl bg-bg-surface p-5">
@@ -237,10 +240,8 @@ function LiveBlockCard({
       </div>
 
       <p className="mt-1.5 flex items-baseline gap-2">
-        <span className={METRIC_VALUE}>{p.week}</span>
-        <span className={UNIT_SUFFIX}>
-          {p.totalWeeks != null ? `of ${p.totalWeeks} weeks` : "weeks in"}
-        </span>
+        <span className={METRIC_VALUE}>{week.value}</span>
+        <span className={UNIT_SUFFIX}>{week.suffix}</span>
       </p>
       <p className="mt-0.5 text-sm text-foreground">{block.name}</p>
 
@@ -251,7 +252,7 @@ function LiveBlockCard({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(p.fraction * 100)}
-          aria-label={`${block.name}, week ${p.week} of ${p.totalWeeks}`}
+          aria-label={`${block.name}, week ${week.value} ${week.suffix}`}
         >
           <div
             className="h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
@@ -260,7 +261,7 @@ function LiveBlockCard({
         </div>
       )}
 
-      {target && (
+      {target ? (
         <div className="mt-3 flex items-baseline justify-between gap-3">
           <span className={DATA_MONO}>Weight</span>
           <span className={DATA_MONO}>
@@ -270,7 +271,12 @@ function LiveBlockCard({
               : " · reached"}
           </span>
         </div>
-      )}
+      ) : consistencyTarget ? (
+        <div className="mt-3 flex items-baseline justify-between gap-3">
+          <span className={DATA_MONO}>Consistency</span>
+          <span className={DATA_MONO}>{trimNum(consistencyTarget.value)}% target</span>
+        </div>
+      ) : null}
 
       <p className="mt-2 text-xs text-text-muted">
         {p.overrun

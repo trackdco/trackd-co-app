@@ -52,9 +52,16 @@ export async function extendBlockAction(
 
 export async function closeBlockAction(
   blockId: string,
+  /**
+   * The caller's LOCAL date. Passed in rather than derived, because the server
+   * runs in UTC and `blocks_closed_after_start` is a CHECK — a UTC-yesterday
+   * close date against a locally-started-today block is rejected outright, and
+   * the user is then stuck with a block they cannot close or replace.
+   */
+  todayKey: string,
   opts: { reflection?: string; abandoned?: boolean } = {},
 ): Promise<{ ok: boolean; error?: string }> {
-  const res = await closeBlock(blockId, opts)
+  const res = await closeBlock(blockId, todayKey, opts)
   if (res.ok) revalidate()
   return res
 }

@@ -13,6 +13,16 @@ export const metadata: Metadata = { title: "Blocks — Trackd Co" };
 const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every page load
 
 /**
+ * A ceiling on every per-user read here.
+ *
+ * The look-back is bounded by a block's window, but the QUERIES were not: a user
+ * eighteen months in would have every photo, panel, entry and marker reading
+ * pulled to render a list of block names. Generous enough that no real block
+ * loses data, small enough that the page cannot grow without limit.
+ */
+const MAX_ROWS = 2000;
+
+/**
  * Blocks — the live block and the look-back list (Adrian, 2026-07-30).
  *
  * A real route rather than a sheet, following `/weight`: this is a canonical,
@@ -65,17 +75,23 @@ export default async function BlocksPage({
       .select("id, drawn_on, created_at, source_file_path, notes")
       .not("source_file_path", "is", null)
       .order("drawn_on", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(MAX_ROWS),
     supabase
       .from("progress_photos")
       .select("id, pose, taken_on, created_at, storage_path, note")
       .order("taken_on", { ascending: false })
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(MAX_ROWS),
     supabase
       .from("journal_entries")
       .select("id, entry_date, free_text")
-      .order("entry_date", { ascending: false }),
-    supabase.from("marker_readings").select("entry_id, user_marker_id, tier_value"),
+      .order("entry_date", { ascending: false })
+      .limit(MAX_ROWS),
+    supabase
+      .from("marker_readings")
+      .select("entry_id, user_marker_id, tier_value")
+      .limit(MAX_ROWS * 8),
     supabase
       .from("user_markers")
       .select("id, marker_id, custom_name, custom_tier_labels"),
@@ -89,9 +105,13 @@ export default async function BlocksPage({
 
   // ── Bloodwork panels (private bucket → short-lived signed URLs) ──
   const panels = panelData ?? [];
-  const panelPaths = panels
-    .map((p) => p.source_file_path as string | null)
-    .filter((p): p is string => Boolean(p));
+  // Signing is two storage round trips over every path the user owns, and the
+  // LIST view renders no images at all. Only the retrospective needs them.
+  const panelPaths = selectedId
+    ? panels
+        .map((p) => p.source_file_path as string | null)
+        .filter((p): p is string => Boolean(p))
+    : [];
   const panelSigned = new Map<string, string>();
   if (panelPaths.length > 0) {
     const { data: signed } = await supabase.storage
@@ -111,9 +131,11 @@ export default async function BlocksPage({
 
   // ── Progress photos (private bucket) ──
   const photoRows = photoData ?? [];
-  const photoPaths = photoRows
-    .map((p) => p.storage_path as string | null)
-    .filter((p): p is string => Boolean(p));
+  const photoPaths = selectedId
+    ? photoRows
+        .map((p) => p.storage_path as string | null)
+        .filter((p): p is string => Boolean(p))
+    : [];
   const photoSigned = new Map<string, string>();
   if (photoPaths.length > 0) {
     const { data: signed } = await supabase.storage

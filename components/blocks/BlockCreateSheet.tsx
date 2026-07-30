@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useSheetDrag } from "@/components/home/useSheetDrag"
 import { SHEET_TITLE } from "@/lib/ui-presets"
 import { startBlockAction } from "@/app/(app)/blocks/actions"
+import { localToday } from "@/lib/blocks/block"
 import type { BlockTarget, BlockTargetVariable } from "@/lib/blocks/block"
 
 const NAME_MAX = 60 // matches the CHECK on blocks.name
@@ -59,6 +60,11 @@ export function BlockCreateSheet({
   const [targetKind, setTargetKind] = useState<BlockTargetVariable | "none">("none")
   const [targetValue, setTargetValue] = useState("")
   const [direction, setDirection] = useState<"up" | "down">("down")
+  // Set once the user picks Lose/Gain themselves. After that the number stops
+  // moving it: `direction` is the one field the design says must be STORED
+  // rather than inferred, and re-deriving it on every keystroke silently undid
+  // the choice the moment they adjusted a decimal.
+  const [directionTouched, setDirectionTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -74,6 +80,7 @@ export function BlockCreateSheet({
       setEndsOn("")
       setTargetKind("none")
       setTargetValue("")
+      setDirectionTouched(false)
       // Pre-select from where they are now. STORED rather than re-derived, so
       // crossing the target later never flips the meaning of the block.
       setDirection("down")
@@ -85,12 +92,34 @@ export function BlockCreateSheet({
   const trimmedName = name.trim()
   const numericTarget = Number(targetValue)
   const targetFilled = targetKind !== "none" && targetValue.trim() !== ""
+  // Consistency is a percentage, so it has a real ceiling. The input carried a
+  // `max` that nothing read, which let "90% consistency" become a 500 kg weight
+  // target in two taps once the value survived a kind change.
+  const targetTooHigh =
+    targetFilled && targetKind === "consistency" && numericTarget > 100
   const targetValid =
-    !targetFilled || (Number.isFinite(numericTarget) && numericTarget > 0)
+    !targetFilled ||
+    (Number.isFinite(numericTarget) && numericTarget > 0 && !targetTooHigh)
+  // A start date in the future has no honest meaning here and, worse, cannot be
+  // closed: `blocks_closed_after_start` rejects it and only one block may be
+  // active, so the account is locked out of Blocks until the date arrives.
+  const startNotFuture = startedOn <= todayKey
   const datesValid = endsOn === "" || endsOn >= startedOn
-  const canSave = trimmedName.length > 0 && startedOn !== "" && datesValid && targetValid
+  const canSave =
+    trimmedName.length > 0 &&
+    startedOn !== "" &&
+    startNotFuture &&
+    datesValid &&
+    targetValid
 
   function pickTarget(kind: BlockTargetVariable | "none") {
+    if (kind !== targetKind) {
+      // Kilograms and percent are not the same number. Carrying the value across
+      // turned a 90% consistency target into a 90 kg weight target, or a 500%
+      // one into 500 kg.
+      setTargetValue("")
+      setDirectionTouched(false)
+    }
     setTargetKind(kind)
     if (kind === "consistency") {
       // There is no such thing as targeting LOWER consistency, so the control
@@ -107,7 +136,13 @@ export function BlockCreateSheet({
     // Follow the number while they type, so the common case needs no second
     // tap. They can still override it, and whatever is showing is what gets
     // stored.
-    if (targetKind === "weight" && currentWeightKg != null && Number.isFinite(n) && n > 0) {
+    if (
+      !directionTouched &&
+      targetKind === "weight" &&
+      currentWeightKg != null &&
+      Number.isFinite(n) &&
+      n > 0
+    ) {
       setDirection(n < currentWeightKg ? "down" : "up")
     }
   }
@@ -125,6 +160,9 @@ export function BlockCreateSheet({
       startedOn,
       endsOn: endsOn === "" ? null : endsOn,
       targets,
+      // Read HERE, in the browser, so it is the user's local date rather than
+      // the server's UTC one.
+      todayKey: localToday(),
     })
     if (!res.ok) {
       setError(res.error)
@@ -186,6 +224,7 @@ export function BlockCreateSheet({
                 <Input
                   type="date"
                   value={startedOn}
+                  max={todayKey}
                   onChange={(e) => setStartedOn(e.target.value || todayKey)}
                   aria-label="Start date"
                   className={DATE_FIELD}
@@ -278,7 +317,10 @@ export function BlockCreateSheet({
                         <button
                           key={opt.id}
                           type="button"
-                          onClick={() => setDirection(opt.id)}
+                          onClick={() => {
+                            setDirection(opt.id)
+                            setDirectionTouched(true)
+                          }}
                           aria-pressed={direction === opt.id}
                           className={cn(
                             "h-12 rounded-xl border px-3 text-sm transition-colors",
@@ -304,16 +346,25 @@ export function BlockCreateSheet({
               </p>
             )}
 
+            {!startNotFuture && (
+              <p className="mt-3 px-1 text-sm text-state-error">
+                A block starts today or earlier. Set the end date to plan ahead.
+              </p>
+            )}
             {!datesValid && (
               <p className="mt-3 px-1 text-sm text-state-error">
                 The end date is before the start date.
               </p>
             )}
-            {!targetValid && (
+            {targetTooHigh ? (
+              <p className="mt-3 px-1 text-sm text-state-error">
+                Consistency tops out at 100%.
+              </p>
+            ) : !targetValid ? (
               <p className="mt-3 px-1 text-sm text-state-error">
                 Give the target a number above zero, or set it to None.
               </p>
-            )}
+            ) : null}
             {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
           </div>
 

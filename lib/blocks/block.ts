@@ -80,7 +80,11 @@ export interface BlockProgress {
   totalWeeks: number | null
   /** Whole days from the start to `today`, inclusive of the first day. */
   daysElapsed: number
-  /** Days left including today, or `null` when open ended. Never negative. */
+  /**
+   * Days left AFTER today, or `null` when open ended. Never negative, so `0`
+   * means "today is the end date, or past it" — which is exactly the test the
+   * end-date prompt uses. On the final day the UI reads "0 days left".
+   */
   daysRemaining: number | null
   /** 0…1 of the window elapsed, or `null` when open ended. */
   fraction: number | null
@@ -186,6 +190,24 @@ export function targetProgress(
   }
 }
 
+/**
+ * The banner's headline reading: a number and the words after it.
+ *
+ * ONCE A BLOCK RUNS PAST ITS END, THE DENOMINATOR IS DROPPED. "Week 31 of 9" is
+ * not a reading, it is a broken one, and it is not an edge case — "leave
+ * running" is a first-class supported answer whose entire purpose is to produce
+ * exactly this state. Past the end the honest sentence is how long it has run,
+ * with the "Ran past …" line beneath carrying the rest.
+ *
+ * Shared so the Progress banner and the Blocks page cannot word it differently.
+ */
+export function weekLabel(p: BlockProgress): { value: number; suffix: string } {
+  if (p.totalWeeks == null || p.overrun) {
+    return { value: p.week, suffix: p.week === 1 ? "week in" : "weeks in" }
+  }
+  return { value: p.week, suffix: `of ${p.totalWeeks} weeks` }
+}
+
 export interface BlockWindow {
   /** Local "YYYY-MM-DD", inclusive. */
   from: string
@@ -253,4 +275,22 @@ export function formatDuration(days: number): string {
   const rem = days % 7
   const w = `${weeks} weeks`
   return rem === 0 ? w : `${w}, ${rem} ${rem === 1 ? "day" : "days"}`
+}
+
+/**
+ * TODAY, as the user's LOCAL date key — read in the browser, never on the
+ * server.
+ *
+ * This exists because `blocks` carries date CHECK constraints and the server
+ * runs in UTC. `new Date().toISOString().slice(0,10)` on the server is
+ * yesterday for a Sydney user before 10am and tomorrow for a Californian after
+ * 5pm, and `blocks_closed_after_start` rejects a `closed_on` earlier than the
+ * start — which left the user unable to close the block OR start another, since
+ * only one may be active. The same hazard is documented in
+ * `lib/home/protocolSync.ts`; here the constraints turn it into a lockout.
+ */
+export function localToday(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }

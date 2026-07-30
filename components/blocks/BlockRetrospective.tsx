@@ -7,9 +7,9 @@ import { Container } from "@/components/containers/Container"
 import { useMounted } from "@/components/home/useMounted"
 import { CARD_EYEBROW, DATA_MONO, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
-import { formatDuration, type Block } from "@/lib/blocks/block"
+import { blockWindow, formatDuration, type Block } from "@/lib/blocks/block"
 import { buildRetrospective, comparePair } from "@/lib/blocks/retrospective"
-import { computeAdherence } from "@/lib/progress/consistency"
+import { computeAdherenceOver } from "@/lib/progress/consistency"
 import { formatPhotoDateShort, poseLabel } from "@/lib/progress/photos"
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork"
 import type { JournalEntry } from "@/lib/progress/journal"
@@ -91,10 +91,15 @@ export function BlockRetrospective({
   const logs = sampleLogs ?? liveLogs
 
   const retro = useMemo(() => {
-    // The adherence series is the one Progress already computes, then clipped —
-    // never recomputed with a different rule, so the two screens cannot report
-    // different consistency for the same days.
-    const adherence = deviceReady ? computeAdherence(stack, logs, todayKey) : []
+    // Adherence is computed OVER THE BLOCK'S OWN WINDOW, using the same per-day
+    // rule Progress uses. It used to clip Progress's series, which walks back
+    // from today and caps at a year — so a block that ran eighteen months ago
+    // fell outside it entirely and this screen printed a headline 0% directly
+    // beneath its own list of the doses logged in that window.
+    const w = blockWindow(block, todayKey)
+    const adherence = deviceReady
+      ? computeAdherenceOver(stack, logs, w.from, w.to, todayKey)
+      : []
     return buildRetrospective(block, todayKey, {
       weight,
       stack: deviceReady ? stack : [],
@@ -108,6 +113,8 @@ export function BlockRetrospective({
 
   const live = block.status === "active"
   const pair = retro.photos ? comparePair(retro.photos) : null
+  const consistencyTarget =
+    block.targets.find((t) => t.variable === "consistency") ?? null
 
   const hasAnything =
     retro.weight != null ||
@@ -227,6 +234,16 @@ export function BlockRetrospective({
             {retro.consistency.doseDays}{" "}
             {retro.consistency.doseDays === 1 ? "day" : "days"} with doses due
           </p>
+          {/* The consistency TARGET, stated beside the figure. This is the one
+              screen that has both, so it is where the target the create sheet
+              offers actually means something. It states the number and stops —
+              no "met" or "missed", because a verdict on your own adherence is
+              still a verdict. */}
+          {consistencyTarget && (
+            <p className="mt-2 text-xs text-text-subtle">
+              Target {trimTarget(consistencyTarget.value)}%
+            </p>
+          )}
         </section>
       )}
 
@@ -340,6 +357,11 @@ const SPARK_H = 44
  * screen drawing weight differently from another is the kind of detail that
  * reads as sloppy without anyone being able to say why.
  *
+ * `--chart-line` is the token, not `--accent-primary`: `ui-context.md` names
+ * glance sparklines as the ONE sanctioned exception and gives them the neutral
+ * chart hues, and drawing the same user's weight white here and periwinkle on
+ * Progress is two screens disagreeing about one number.
+ *
  * No colour carries meaning here: a loss and a gain are the same line. Which of
  * them is good is not the app's call.
  */
@@ -366,7 +388,7 @@ function WindowSparkline({ values }: { values: number[] }) {
       <polyline
         points={points}
         fill="none"
-        stroke="var(--accent-primary)"
+        stroke="var(--chart-line)"
         strokeWidth={2}
         strokeLinejoin="round"
         strokeLinecap="round"
@@ -381,6 +403,11 @@ function formatKg(n: number, signed = false): string {
   const v = Number(n.toFixed(1))
   if (!signed) return String(v)
   return v > 0 ? `+${v}` : String(v)
+}
+
+/** One decimal at most, trailing zero dropped. */
+function trimTarget(n: number): string {
+  return String(Number(n.toFixed(1)))
 }
 
 function truncate(text: string, max: number): string {
