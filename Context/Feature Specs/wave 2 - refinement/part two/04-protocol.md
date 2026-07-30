@@ -69,28 +69,28 @@ Follow the project structure and conventions in `architecture.md` and `code-stan
 - Deploy to a Vercel preview subdomain so we can view it from the subdomain URL. Confirm the preview deployment is live and share the link.
 
 ## Check When Done
-- [ ] Plan and Stock tabs removed, one scrolling page remains
-- [ ] Compounds render as one horizontal side-scrolling row, not per-category sections
-- [ ] Row ordered by category volume, most-held category first
-- [ ] Within-category ordering rule stated and stable
-- [ ] Compound card shows container, name, storage left, fill bar, doses remaining, runs-dry date
-- [ ] Runs-dry amber threshold proposed and approved
-- [ ] Non-injectable cards suppress fill bar, doses remaining and runs-dry date
-- [ ] Stack card shows name, frequency, members, and one container per member in the stack colour
-- [ ] New stack affordance present
-- [ ] Schedule grid shows days across and compounds down, grouped by category with dividers
-- [ ] Nothing due, due, logged and missed states all render correctly
-- [ ] Missed renders as a hollow cell with a thin border, not a slash
-- [ ] Due becomes missed at end of day
-- [ ] Key below the grid matches the injection site key pattern
-- [ ] Grid scrolls with a sticky day header once long, trigger count approved
-- [ ] Cycle card shows container, compound name, dose and end condition
-- [ ] Countdown-versus-date crossover proposed and approved
-- [ ] New cycle affordance present
-- [ ] No logging action exists anywhere on this page
-- [ ] Category colour coding unchanged
-- [ ] No new shared components created without flagging
-- [ ] No TypeScript errors
-- [ ] No lint errors
+- [x] Plan and Stock tabs removed, one scrolling page remains
+- [x] Compounds render as one horizontal side-scrolling row, not per-category sections
+- [x] Row ordered by category volume, most-held category first
+- [x] Within-category ordering rule stated and stable
+- [x] Compound card shows container, name, storage left, fill bar, doses remaining, runs-dry date
+- [~] Runs-dry amber DECIDED (awaiting sign-off): 7 days. Days not doses — 3 doses is a fortnight on E3D and 3 days on daily.
+- [x] Non-injectable cards suppress fill bar, doses remaining and runs-dry date
+- [x] Stack card shows name, frequency, members, and one container per member in the stack colour
+- [x] New stack affordance present
+- [x] Schedule grid shows days across and compounds down, grouped by category with dividers
+- [x] Nothing due, due, logged and missed states all render correctly
+- [x] Missed renders as a hollow cell with a thin border, not a slash
+- [x] Due becomes missed at end of day
+- [x] Key below the grid matches the injection site key pattern
+- [~] Sticky-scroll trigger DECIDED (awaiting sign-off): above 8 rows.
+- [x] Cycle card shows container, compound name, dose and end condition
+- [~] Crossover DECIDED (awaiting sign-off): 14 days, matching the existing cycle card.
+- [x] New cycle affordance present
+- [x] No logging action exists anywhere on this page
+- [x] Category colour coding unchanged
+- [x] No new shared components created without flagging
+- [x] No TypeScript errors
+- [x] No lint errors
 - [ ] Deployed to a Vercel preview subdomain and viewable
-- [ ] Built step by step, each step verified before the next (per `code-standards.md`)
+- [x] Built step by step, each step verified before the next (per `code-standards.md`)

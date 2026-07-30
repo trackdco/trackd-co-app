@@ -657,9 +657,10 @@ export function HomeScreen({
               onOpenDetail={(dose) => setDetailTarget(dose)}
               drawSources={drawResult.sources}
               noVialIds={noVialIds}
-              // No vial → the draw slot's "add stock" tap lands on the Stock tab's
-              // add-flow, not the Plan tab you'd otherwise get from /protocol.
-              onAddStock={() => router.push("/protocol?tab=stock")}
+              // No vial → the draw slot's "add stock" tap lands on Protocol,
+              // which is now one scroll with the compounds and their stock at
+              // the top (Spec 04 removed the Stock tab).
+              onAddStock={() => router.push("/protocol")}
               stacks={stacks}
               // One tap logs every unlogged member. Each still writes its OWN
               // dose log through the same path a single tick uses, to the
