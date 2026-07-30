@@ -67,18 +67,27 @@ export function containerFormFor({
  * catalogue by name + route.
  *
  * The device stack records what the user takes, not how it is packaged, so the
- * container artwork has to look the form up. This lives here because FIVE
- * surfaces need it — the dashboard's stack row and day widgets, Protocol's
- * compound row, stacks and cycles views, the compound detail sheet, and the
- * Progress photo Running list — and private copies are exactly how two of them
- * end up drawing a different container for the same compound. That was not
- * hypothetical: Protocol's copy fell back to the ROUTE for an off-catalogue
- * compound while the others returned null, so a custom subQ blend drew a vial on
- * Protocol and a bottle on Home.
+ * container artwork has to look the form up. **Every surface calls THIS
+ * function; there are no private copies left.** That is the whole point of it,
+ * and it has been got wrong twice:
  *
- * Protocol's fallback was the better one and is now everyone's: a custom
- * injectable is a vial because it is injected, not because the catalogue happens
- * to list it.
+ *  1. Protocol's copy fell back to the ROUTE for an off-catalogue compound while
+ *     the others returned null, so a custom subQ blend drew a vial on Protocol
+ *     and a bottle on Home. Protocol's fallback was the better one and is now
+ *     everyone's: a custom injectable is a vial because it is injected, not
+ *     because the catalogue happens to list it.
+ *  2. Consolidating onto that fallback then made a SURVIVING copy in
+ *     `CompoundDetailSheet` disagree with it — on Home, where nothing had
+ *     disagreed before, because both had returned null together. A custom
+ *     supplement drew a vial in the row and a tub in the sheet you open from
+ *     that row, one tap apart. The copy is gone; `containersHaveOneSource` in
+ *     `geometry.test.ts` fails the build if a sixth one appears.
+ *
+ * KNOWN GAP: an off-catalogue `nasal` compound resolves as injectable and draws
+ * a vial, and the "Make your own" form's Inventory type answer is never read
+ * back. Fixing it properly means carrying the chosen form on `StackCompound`
+ * and through the Postgres mirror, so it is recorded in `next-tasks.md` rather
+ * than papered over here.
  */
 export function inventoryTypeForCompound(
   name: string,

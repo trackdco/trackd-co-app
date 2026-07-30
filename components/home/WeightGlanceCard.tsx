@@ -134,6 +134,10 @@ export function WeightGlanceCard({
                   aria-pressed={mode === m}
                   className={cn(
                     "rounded-full py-1 font-medium transition-colors duration-300 ease-out",
+                    // Touch area extended to 44px with a transparent
+                    // pseudo-element (25 + 2x10), so the pill keeps its compact
+                    // look and stops being a 25px-tall target.
+                    "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
                     mode === m ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
                   )}
                 >
@@ -165,6 +169,7 @@ export function WeightGlanceCard({
                 aria-pressed={mode === m}
                 className={cn(
                   "rounded-full px-2.5 py-1 font-medium transition-colors duration-300 ease-out",
+                  "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
                   mode === m ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
                 )}
               >

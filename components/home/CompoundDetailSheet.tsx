@@ -9,6 +9,7 @@ import {
 } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { inventoryTypeForCompound } from "@/lib/containers/form"
 import {
   Sheet,
   SheetClose,
@@ -19,8 +20,6 @@ import {
 import { useSheetDrag } from "@/components/home/useSheetDrag"
 import { Container } from "@/components/containers"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
-import { routesOf } from "@/lib/compound-categories"
-import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
@@ -159,7 +158,7 @@ function DetailBody({
             reuse rather than a one-off. */}
         <div className="flex items-center gap-4">
           <Container
-            inventoryType={detailInventoryType(compound)}
+            inventoryType={inventoryTypeForCompound(compound.name, compound.method)}
             category={compound.category}
             fill={0.7}
             size={72}
@@ -363,13 +362,3 @@ function Stat({
   )
 }
 
-/** The compound's inventory form, so the header draws the right container. */
-function detailInventoryType(c: StackCompound): string | null {
-  const lower = c.name.toLowerCase()
-  const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
-  if (!cat) return null
-  const forms = routesOf(cat)
-  return (
-    (forms.find((f) => f.route === c.method) ?? forms[0])?.inventoryType ?? null
-  )
-}

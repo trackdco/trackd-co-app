@@ -103,13 +103,12 @@ export function orderByCategoryVolume(compounds: StackCompound[]): StackCompound
   })
 }
 
-/**
- * Kept as a thin wrapper so the several callers that import it from here need no
- * change. The logic is `inventoryTypeForCompound` in `lib/containers/form`,
- * which every surface now shares — this file used to hold its own copy with a
- * DIFFERENT off-catalogue fallback, so a custom subQ compound drew a vial here
- * and a bottle on Home.
- */
-export function inventoryTypeOf(c: StackCompound): string | null {
+/** Local shorthand for the row's own use. NOT exported: nothing outside this
+ *  file imported it, and an exported wrapper with no importers is exactly the
+ *  kind of dead code that reads as load-bearing. The logic is
+ *  `inventoryTypeForCompound` in `lib/containers/form`, which every surface
+ *  shares — this file used to hold its own copy with a DIFFERENT off-catalogue
+ *  fallback, so a custom subQ compound drew a vial here and a bottle on Home. */
+function inventoryTypeOf(c: StackCompound): string | null {
   return inventoryTypeForCompound(c.name, c.method)
 }

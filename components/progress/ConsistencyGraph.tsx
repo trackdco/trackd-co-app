@@ -221,6 +221,12 @@ export function ConsistencyGraph({
             aria-pressed={rangeId === r.id}
             className={cn(
               "rounded-full py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
+              // The pill stays 28px tall because a segmented control blown up to
+              // 44 would dominate a widget that is only 228 tall. The TOUCH area
+              // is extended instead, with a transparent pseudo-element that
+              // changes no layout: 28 + 16 = 44. This is the corner where "All"
+              // already cost a HIGH once, under the FAB.
+              "relative before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']",
               rangeId === r.id ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
             )}
           >

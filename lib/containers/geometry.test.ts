@@ -100,3 +100,66 @@ describe("inventoryTypeForCompound — one answer for every surface", () => {
     )
   })
 })
+
+describe("containersHaveOneSource — the structural guard", () => {
+  /**
+   * Twice now a screen has kept its own copy of this lookup and quietly drawn a
+   * different container from the screen next to it. The second time was caused
+   * by FIXING the first: consolidating the others onto a route fallback made the
+   * one surviving copy — which still returned null off-catalogue — disagree on
+   * Home, where nothing had disagreed before.
+   *
+   * A comment saying "do not copy this" did not stop it. This does. The
+   * signature of a private copy is picking ONE inventory type out of a
+   * compound's routes — `routesOf(...)` plus a `.inventoryType ?? null` tail —
+   * which is exactly what both copies contained and what no other caller does.
+   * Offering the full LIST of routes or forms (the add-compound and add-stock
+   * sheets) is a different question and is deliberately not caught.
+   */
+  it("has no private copy of the container lookup anywhere in the app", async () => {
+    const { readdir, readFile } = await import("node:fs/promises")
+    const { join, relative } = await import("node:path")
+
+    const ROOTS = ["app", "components", "lib"]
+    const ALLOWED = [
+      "lib/containers/form.ts",
+      "lib/compound-categories.ts",
+      "lib/containers/geometry.test.ts",
+    ]
+
+    async function walk(dir: string): Promise<string[]> {
+      const entries = await readdir(dir, { withFileTypes: true })
+      const out: string[] = []
+      for (const e of entries) {
+        const full = join(dir, e.name)
+        if (e.isDirectory()) {
+          if (e.name === "node_modules" || e.name.startsWith(".")) continue
+          out.push(...(await walk(full)))
+        } else if (/\.tsx?$/.test(e.name)) {
+          out.push(full)
+        }
+      }
+      return out
+    }
+
+    const offenders: string[] = []
+    for (const root of ROOTS) {
+      for (const file of await walk(root)) {
+        const rel = relative(process.cwd(), file).split("\\").join("/")
+        if (ALLOWED.some((a) => rel.endsWith(a))) continue
+        const src = await readFile(file, "utf8")
+        // The copy's signature: walk a compound's routes, MATCH ONE by route,
+        // and take its inventory type. Reading a vial's own stored
+        // `inventoryType`, or offering the whole list of forms, is a different
+        // question and must not trip this.
+        const derivesOneFormFromRoutes =
+          src.includes("routesOf(") &&
+          /\.route === /.test(src) &&
+          /\?\.inventoryType/.test(src)
+        if (derivesOneFormFromRoutes) offenders.push(rel)
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
+})
