@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react"
 import { CalendarDots, CaretDown, PencilSimple, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { Container } from "@/components/containers"
-import { inventoryTypeForCompound, isVialForm } from "@/lib/containers/form"
+import { CompoundHeader } from "@/components/compounds/CompoundHeader"
+import { isVialForm } from "@/lib/containers/form"
 import { Input } from "@/components/ui/input"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
 import { resolveFill, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
@@ -25,8 +25,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import {
-  CATEGORY_META,
-  FALLBACK_CATEGORY_META,
   ROUTE_OPTIONS,
   routesOf,
   unitOptionsFor,
@@ -43,7 +41,6 @@ import {
   hasTime,
   loadStack,
   recordScheduleVersion,
-  methodLabel,
   sanitizeDoseInput,
   upcomingDoseDates,
   upsertStack,
@@ -329,7 +326,6 @@ function AddCompoundBody({
   // schedule, start date today. It is NOT an "edit": nothing carries over.
   const isReadd = source.readd
   const isEdit = source.id !== null && !isReadd
-  const meta = CATEGORY_META[source.category] ?? FALLBACK_CATEGORY_META
   const routeForms = source.routeForms
   // Compounds with more than one route (e.g. Glutathione: subQ or oral) let the
   // user pick at add-time; single-route compounds lock to their one route.
@@ -708,26 +704,13 @@ function AddCompoundBody({
             Replaces the bordered name card (spec 10). The container is the thing
             that identifies a compound at a glance, and it is the same header
             spec 11 reuses on the log form. */}
-        <div
-          className="animate-home-up flex items-center gap-4"
-          style={{ animationDelay: "0ms" }}
-        >
-          <Container
-            inventoryType={inventoryTypeForCompound(source.name, method)}
+        <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+          <CompoundHeader
+            name={source.name}
             category={source.category}
-            fill={0.7}
-            size={52}
-            className="shrink-0"
+            method={method}
+            unit={unit}
           />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-medium text-foreground">
-              {source.name}
-            </p>
-            <p className="truncate text-sm text-text-muted">
-              {meta.label} · {methodLabel(method)} ·{" "}
-              <span className="font-mono">{unit}</span>
-            </p>
-          </div>
         </div>
 
         {/* Blend overlap — a non-blocking heads-up that this compound is already

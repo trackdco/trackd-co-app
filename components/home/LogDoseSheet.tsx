@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { CalendarDots, Check } from "@/components/icons"
+import { CaretRight, Check } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { SHEET_TITLE } from "@/lib/ui-presets"
@@ -13,11 +13,12 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { CategoryIcon } from "@/components/compounds/CategoryIcon"
+import { CompoundHeader } from "@/components/compounds/CompoundHeader"
 import type { DoseLog } from "@/lib/home/mockHomeData"
 import {
   formatDateKeyShort,
   formatTimeLabel,
+  hasTime,
   isInjectable,
   resolveScheduleOn,
   sanitizeDoseInput,
@@ -25,7 +26,8 @@ import {
 } from "@/lib/home/stack"
 import { siteLabel, sitesForSex } from "@/lib/home/siteCatalog"
 import { listStock, type StockItem } from "@/lib/db/inventory"
-import { resolveVialForDate } from "@/lib/home/protocolSync"
+import { resolveDrawSources, resolveVialForDate } from "@/lib/home/protocolSync"
+import { formatDraw, type DrawSource } from "@/lib/home/draw"
 import { BodyMap } from "@/components/sites/BodyMap"
 import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites"
 import type {
@@ -211,6 +213,36 @@ function LogDoseBody({
   const displayTime = manualTime ?? defaultTime
 
   const [siteId, setSiteId] = useState<string | null>(existing?.siteId ?? null)
+  const [siteSheetOpen, setSiteSheetOpen] = useState(false)
+
+  // How much to draw for THIS dose (Spec 21, extended to this sheet by spec 11).
+  // The vial facts are resolved server-side for the dose's own DAY, exactly as
+  // Home's today's-log does — a back-dated log prices against the vial that was
+  // in use then, not the one in use now. The arithmetic is `formatDraw`,
+  // unchanged; nothing here recomputes a concentration.
+  const [drawSource, setDrawSource] = useState<DrawSource | null>(null)
+  useEffect(() => {
+    if (!injectable) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const result = await resolveDrawSources([compound.id], dateKey)
+        if (!cancelled) setDrawSource(result.sources[compound.id] ?? null)
+      } catch {
+        if (!cancelled) setDrawSource(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [injectable, compound.id, dateKey])
+  // Against the amount ACTUALLY in the field, so editing the dose moves the draw
+  // with it. `formatDraw` returns null rather than a plausible-but-wrong figure
+  // when the units disagree, which is why this can simply be rendered or not.
+  const drawAmount = Number(amount)
+  const draw = Number.isFinite(drawAmount)
+    ? formatDraw(drawAmount, compound.unit, drawSource)
+    : null
 
   // Injection-site body map (Spec 19): this compound's site catalogue, lazily
   // loaded like the vials below (so this stays localised to the sheet). One tap
@@ -433,49 +465,24 @@ function LogDoseBody({
       </SheetDescription>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-6 pt-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-        {/* Which day this lands on — shown ONLY when that isn't today, so nobody
-            back-fills a week of doses having forgotten they scrolled the strip back.
-            Deliberately quiet (muted, no amber): it's an orientation note, not a
-            warning, and the whole point of the week strip is that this is allowed.
-            It states the date and nothing else — past and future read identically
-            (Adrian's call). Naming the day is the whole job; qualifying it ("not
-            today", "a future day") editorialises about a choice the user just made. */}
-        {!onToday && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl bg-bg-surface-raised px-3 py-2">
-            <CalendarDots
-              className="h-3.5 w-3.5 shrink-0 text-text-muted"
-              aria-hidden
-            />
-            <p className="text-xs text-text-muted">
-              Logging to{" "}
-              <span className="font-mono text-foreground">
-                {formatDateKeyShort(dateKey)}
-              </span>
-            </p>
-          </div>
-        )}
+        {/* Compound header — the SAME component the add form uses (spec 11:
+            reuse it, do not rebuild it), so the two screens cannot drift. The
+            detail line carries the scheduled time, which is the more useful
+            second fact here than the unit alone. */}
+        <CompoundHeader
+          name={compound.name}
+          category={compound.category}
+          method={compound.method}
+          unit={compound.unit}
+          detail={`Scheduled ${formatTimeLabel(compound.schedule.timeOfDay)}`}
+        />
 
-        {/* Dose summary */}
-        <div className="flex items-center gap-3 rounded-xl bg-bg-surface-raised px-4 py-3">
-          <CategoryIcon category={compound.category} className="h-3.5 w-3.5" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-medium text-foreground">
-              {compound.name}
-            </p>
-            <p className="truncate font-mono text-sm text-text-muted">
-              Scheduled {formatTimeLabel(compound.schedule.timeOfDay)}
-            </p>
-          </div>
-        </div>
-
-        {/* Amount + time. The row is sized to never overflow at 360–390px: the
-            amount can shrink (min-w-0) and the time is width-capped (A2). */}
-        <div className="mt-5 flex gap-3">
-          <label className="block min-w-0 flex-1">
-            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-              Amount
-            </span>
-            <div className="relative">
+        {/* ── Card one: the dose ─────────────────────────────────────
+            Rows, matching the add form exactly: label left, control right, one
+            height and one divider. */}
+        <div className="mt-5 overflow-hidden rounded-2xl bg-bg-surface-raised">
+          <LogRow label="Dose">
+            <div className="flex items-center justify-end gap-2">
               {editingAmount ? (
                 <Input
                   // A1: the keypad-bound field only mounts (and focuses) once the
@@ -486,107 +493,170 @@ function LogDoseBody({
                   onChange={(e) => setAmount(sanitizeDoseInput(e.target.value))}
                   onBlur={() => setEditingAmount(false)}
                   aria-label={`Amount in ${compound.unit}`}
-                  className="h-12 rounded-xl border-border-default bg-bg-input pr-14 font-mono text-base dark:bg-bg-input"
+                  className="h-10 w-24 rounded-lg border-border-default bg-bg-input text-right font-mono text-base dark:bg-bg-input"
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => setEditingAmount(true)}
                   aria-label={`Amount ${amount} ${compound.unit}. Tap to edit.`}
-                  className="flex h-12 w-full items-center rounded-xl border border-border-default bg-bg-input px-4 pr-14 text-left font-mono text-base text-foreground"
+                  className="h-10 w-24 rounded-lg border border-border-default bg-bg-input px-3 text-right font-mono text-base text-foreground"
                 >
                   {amount || "0"}
                 </button>
               )}
-              <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sm text-text-muted">
+              <span className="w-10 shrink-0 text-right font-mono text-sm text-text-muted">
                 {compound.unit}
               </span>
             </div>
-          </label>
+          </LogRow>
 
-          <label className="block w-28 max-w-[40%] shrink-0">
-            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-              Time
+          {/* Draw — the figure the user actually acts on, which is why it takes
+              the amber accent (spec 11). READ-ONLY: it is arithmetic on their own
+              dose and their own vial, and the calculation is `formatDraw`
+              unchanged. Absent for non-injectables, and absent while the vial
+              read is in flight or when no vial resolved — a wrong draw is worse
+              than no draw. */}
+          {injectable && draw && (
+            <>
+              <LogRowDivider />
+              <LogRow label="Draw">
+                <span className="font-mono text-sm text-accent-amber">
+                  {draw.kind === "count" ? (
+                    draw.label
+                  ) : (
+                    <>
+                      {draw.units}u{" "}
+                      <span className="text-text-muted">({draw.ml} mL)</span>
+                    </>
+                  )}
+                </span>
+              </LogRow>
+            </>
+          )}
+
+          {/* Date — the SELECTED day, never today when a day is in context. It
+              states the date and does not edit it: the week strip and the
+              calendar are how you choose the day, and spec 11 says not to change
+              which date this writes to. Past and future read identically
+              (Adrian's call) — naming the day is the whole job. */}
+          <LogRowDivider />
+          <LogRow label="Date">
+            <span className="font-mono text-sm text-foreground">
+              {formatDateKeyShort(dateKey)}
+              {onToday && <span className="ml-1.5 font-sans text-text-subtle">today</span>}
             </span>
-            <Input
-              type="time"
-              value={displayTime}
-              onChange={(e) =>
-                // Empty ⇒ resume the day's default; any value ⇒ a manual override.
-                setManualTime(e.target.value === "" ? null : e.target.value)
-              }
-              aria-label="Time taken"
-              className="h-12 w-full min-w-0 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm dark:bg-bg-input"
-            />
-          </label>
+          </LogRow>
+
+          {/* Time. "Set time" shows only when it is genuinely unset — clearing
+              the field is what gets you there. It still pre-fills (Adrian,
+              2026-07-29, reverting spec 01), which is why the placeholder is
+              rarely what you see. Flagged: spec 11's checklist still describes
+              the reverted behaviour. */}
+          <LogRowDivider />
+          <LogRow label="Time">
+            <div className="flex items-center justify-end gap-2">
+              {!hasTime(displayTime) && (
+                <span className="text-sm text-text-subtle">Set time</span>
+              )}
+              <Input
+                type="time"
+                value={displayTime}
+                onChange={(e) =>
+                  // Empty ⇒ resume the day's default; any value ⇒ a manual override.
+                  setManualTime(e.target.value === "" ? null : e.target.value)
+                }
+                aria-label="Time taken"
+                className="h-10 w-28 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+              />
+            </div>
+          </LogRow>
         </div>
 
-        {/* Per-dose entry hint (Spec 22 · 4): a minimal, neutral field annotation
-            — the amount is one dose. Not a warning; blocks nothing. */}
-        <p className="mt-1.5 px-1 text-xs text-text-subtle">per dose</p>
+        {/* The one piece of time helper text worth keeping: on today the clock is
+            still ticking, and that is not something the row label implies. The
+            other two states said what the field already showed and are gone. */}
+        {liveTracking && (
+          <p className="mt-1.5 px-1 text-xs text-text-subtle">
+            Live now, <span className="font-mono text-accent-amber">{toHHMMSS(now)}</span>.
+            Tap the time to set it yourself.
+          </p>
+        )}
 
-        {/* Time hint — on today the clock ticks each second until you set a value;
-            on a back-dated day it says which default it fell back to, since "live
-            now" would be a lie about a dose taken days ago. */}
-        <p className="mt-1.5 px-1 text-xs text-text-subtle">
-          {liveTracking ? (
-            <>
-              Logging at{" "}
-              <span className="font-mono text-accent-amber">{toHHMMSS(now)}</span>
-              , live now. Tap the time to set it yourself.
-            </>
-          ) : manualTime === null ? (
-            <>
-              Using this compound&apos;s scheduled time. Tap the time to set it
-              yourself.
-            </>
-          ) : (
-            <>Time set manually. Clear it to use the default again.</>
-          )}
-        </p>
-
-        {/* Injection site — the shared body map (Spec 19), this compound's own
-            route only (IM or Sub-Q, fixed by the compound — no cross-route logging).
-            One tap picks where you injected; each carries its day-count. Oral
-            compounds show nothing; picking a site is optional (the dose logs either
-            way). */}
+        {/* ── Card two: the site ─────────────────────────────────────
+            One row showing the chosen site, opening the body map. The map itself
+            is the existing `BodyMap` in `pick` mode with the same props it always
+            had — spec 11 says it stays exactly as it is, so it moved into a sheet
+            without a single prop changing. Injectables only. */}
         {injectable && (
-          <div className="mt-5">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="text-xs font-medium uppercase tracking-wider text-text-muted">
+          <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
+            <LogRow
+              label="Site"
+              onPress={() => setSiteSheetOpen(true)}
+              value={
+                siteId
+                  ? // The catalogue's own label when it has loaded; the local
+                    // lexicon otherwise, so editing a logged dose names the site
+                    // immediately instead of reading "Loading…" over a known
+                    // answer.
+                    (catalogue.find((s) => s.id === siteId)?.label ??
+                    siteLabel(siteId))
+                  : loadingSites
+                    ? "Loading…"
+                    : "Choose"
+              }
+            />
+          </div>
+        )}
+
+        {/* The body map, in a sheet. Every prop is what it was when this was
+            inline — `sites`, `mode="pick"`, `sex`, `activeIds`, `onTapSite` — so
+            spec 11's "entirely unchanged" holds literally. Picking a site closes
+            the sheet, because one tap is the whole interaction. */}
+        {injectable && (
+          <Sheet open={siteSheetOpen} onOpenChange={setSiteSheetOpen}>
+            <SheetContent
+              side="bottom"
+              showCloseButton={false}
+              className="max-h-[92dvh] gap-0 overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
+            >
+              <SheetTitle className={cn(SHEET_TITLE, "px-1")}>
                 Injection site
-              </span>
-              <span className="text-xs text-text-subtle">
-                {route === "im" ? "Intramuscular" : "Subcutaneous"}
-              </span>
-            </div>
+              </SheetTitle>
+              <SheetDescription className="px-1 text-sm text-text-muted">
+                {route === "im" ? "Intramuscular" : "Subcutaneous"}. Tap where you
+                injected. Picking one is optional.
+              </SheetDescription>
 
-            {loadingSites ? (
-              <p className="px-1 text-xs text-text-subtle">Loading sites…</p>
-            ) : sitesToShow.length === 0 ? (
-              <p className="rounded-xl border border-border-default bg-bg-input px-3 py-3 text-xs text-text-muted">
-                Couldn&apos;t load the body map. You can still log the dose.
-              </p>
-            ) : (
-              <BodyMap
-                sites={sitesToShow}
-                mode="pick"
-                sex={bodySex}
-                activeIds={siteId ? [siteId] : []}
-                onTapSite={setSiteId}
-              />
-            )}
+              <div className="pt-3">
+                {loadingSites ? (
+                  <p className="px-1 text-xs text-text-subtle">Loading sites…</p>
+                ) : sitesToShow.length === 0 ? (
+                  <p className="rounded-xl border border-border-default bg-bg-input px-3 py-3 text-xs text-text-muted">
+                    Couldn&apos;t load the body map. You can still log the dose.
+                  </p>
+                ) : (
+                  <BodyMap
+                    sites={sitesToShow}
+                    mode="pick"
+                    sex={bodySex}
+                    activeIds={siteId ? [siteId] : []}
+                    onTapSite={(id) => {
+                      setSiteId(id)
+                      setSiteSheetOpen(false)
+                    }}
+                  />
+                )}
 
-            {siteId != null && (
-              <>
-                {/* Site rest hint — how long since this spot was last used. */}
-                {siteLastUsedDays[siteId] !== undefined && (
+                {siteId != null && siteLastUsedDays[siteId] !== undefined && (
+                  /* Site rest hint — how long since this spot was last used. An
+                     observation, never an instruction. */
                   <p
                     className={cn(
                       "mt-2 px-1 text-xs",
                       siteLastUsedDays[siteId] < REST_DAYS
                         ? "text-accent-amber"
-                        : "text-text-subtle"
+                        : "text-text-subtle",
                     )}
                   >
                     {siteLastUsedDays[siteId] < REST_DAYS
@@ -594,21 +664,9 @@ function LogDoseBody({
                       : `Last used here ${siteLastUsedDays[siteId]}d ago.`}
                   </p>
                 )}
-
-                {/* Confirmation of the chosen site. */}
-                <div
-                  key={siteId}
-                  className="animate-shortcut-fade mt-3 flex items-center gap-2 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2.5"
-                >
-                  <Check className="h-4 w-4 shrink-0 text-accent-primary" aria-hidden />
-                  <span className="text-xs text-text-muted">Logging to</span>
-                  <span className="font-mono text-sm font-medium text-foreground">
-                    {siteLabel(siteId)}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
+              </div>
+            </SheetContent>
+          </Sheet>
         )}
 
         {/* While the vial read is in flight, a brief hint so the picker doesn't pop
@@ -783,6 +841,13 @@ function LogDoseBody({
           </div>
         )}
 
+        {/* The footer spec 11 says stays. It was missing from this sheet
+            entirely — the add form has always carried it and the log sheet
+            never did, so this is an addition rather than a retention. */}
+        <p className="mt-5 px-1 text-xs leading-relaxed text-text-subtle">
+          Saved to this device for you only.
+        </p>
+
         {/* Actions */}
         <div className="mt-6 flex gap-3">
           <SheetClose className="flex-1 rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary">
@@ -841,5 +906,49 @@ function LogDoseBody({
         </button>
       )}
     </div>
+  )
+}
+
+/* ── The row language, matching the add form (spec 11) ──────────────
+   Co-located rather than shared, exactly as `AddCompoundSheet`'s are: the two
+   forms are meant to READ the same, and a shared primitive was not asked for. */
+
+const LOG_ROW_BASE =
+  "flex w-full min-h-[3.25rem] items-center justify-between gap-3 px-4 py-2.5 text-left"
+
+function LogRowDivider() {
+  return <div className="mx-4 hairline-t" aria-hidden />
+}
+
+function LogRow({
+  label,
+  value,
+  onPress,
+  children,
+}: {
+  label: string
+  value?: string
+  onPress?: () => void
+  children?: React.ReactNode
+}) {
+  const inner = (
+    <>
+      <span className="shrink-0 text-sm text-text-muted">{label}</span>
+      {children ?? (
+        <span className="flex min-w-0 items-center gap-2">
+          {value && <span className="truncate text-sm text-foreground">{value}</span>}
+          {onPress && (
+            <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+          )}
+        </span>
+      )}
+    </>
+  )
+  return onPress ? (
+    <button type="button" onClick={onPress} className={LOG_ROW_BASE}>
+      {inner}
+    </button>
+  ) : (
+    <div className={LOG_ROW_BASE}>{inner}</div>
   )
 }
