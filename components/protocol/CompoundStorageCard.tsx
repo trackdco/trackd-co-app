@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
 import { Container } from "@/components/containers"
-import { formatDateKeyShort, type StackCompound } from "@/lib/home/stack"
+import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
 
 /**
@@ -113,16 +113,29 @@ export function CompoundStorageCard({
           <span className={cn(DATA_MONO, "w-full text-center")}>
             {formatDoses(stock)}
           </span>
-          <span
-            className={cn(
-              "w-full text-center font-mono text-[10px] tabular-nums",
-              // Amber only when it genuinely needs action. Stock runway is
-              // inventory, not health data, so this sits outside the
-              // categorical-never-evaluative rule.
-              runningOut ? "text-accent-amber" : "text-text-subtle"
-            )}
-          >
-            {formatRunsDry(stock?.estEmptyDate ?? null, daysLeft)}
+          {/* Label on its own line, the value LIGHTER beneath it. As one string
+              ("Runs dry Wed 16 Sep") it wrapped mid-date and broke the month onto
+              its own line, which read like two facts. Amber, when it applies,
+              takes both lines so it reads as one signal.
+              Stock runway is inventory rather than health data, so amber here sits
+              outside the categorical-never-evaluative rule. */}
+          <span className="mt-0.5 flex w-full flex-col items-center leading-tight">
+            <span
+              className={cn(
+                "text-[10px] uppercase tracking-[0.14em]",
+                runningOut ? "text-accent-amber" : "text-text-muted"
+              )}
+            >
+              Runs dry
+            </span>
+            <span
+              className={cn(
+                "font-mono text-[11px] tabular-nums",
+                runningOut ? "text-accent-amber/80" : "text-text-subtle"
+              )}
+            >
+              {formatRunsDry(stock?.estEmptyDate ?? null, daysLeft)}
+            </span>
           </span>
 
           {/* The gauge sits at the FOOT of the card carrying its own percentage,
@@ -172,13 +185,33 @@ function formatDoses(stock: StockItem | null): string {
   return `${stock.dosesRemaining} doses`
 }
 
+/**
+ * Just the VALUE — the "Runs dry" label is rendered separately above it.
+ *
+ * A near date reads as a countdown because that is the useful form when you need
+ * to act; a far one reads as a date, because "in 47 days" is not something anyone
+ * plans around. No weekday: on a reorder date it is noise, and it was what pushed
+ * the line long enough to wrap.
+ */
 function formatRunsDry(estEmptyDate: string | null, daysLeft: number | null): string {
   if (!estEmptyDate) return "No estimate"
-  if (daysLeft === null) return formatDateKeyShort(estEmptyDate)
+  if (daysLeft === null) return shortDate(estEmptyDate)
   if (daysLeft <= 0) return "Empty"
-  if (daysLeft === 1) return "Runs dry tomorrow"
-  if (daysLeft <= RUNS_DRY_AMBER_DAYS) return `Runs dry in ${daysLeft} days`
-  return `Runs dry ${formatDateKeyShort(estEmptyDate)}`
+  if (daysLeft === 1) return "Tomorrow"
+  if (daysLeft <= RUNS_DRY_AMBER_DAYS) return `In ${daysLeft} days`
+  return shortDate(estEmptyDate)
+}
+
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
+
+/** "2026-09-16" to "16 Sep". */
+function shortDate(key: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key)
+  if (!m) return key
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}`
 }
 
 /** Whole days between two "YYYY-MM-DD" keys, counted in UTC so a DST boundary

@@ -85,7 +85,7 @@ Follow the project structure and conventions in `architecture.md` and `code-stan
 - [x] Key below the grid matches the injection site key pattern
 - [x] Sticky-scroll trigger APPROVED (Adrian, 2026-07-30): above 8 rows.
 - [x] Cycle card shows container, compound name, dose and end condition
-- [~] Crossover DECIDED (awaiting sign-off): 14 days, matching the existing cycle card.
+- [x] Crossover APPROVED (Adrian, 2026-07-30): 14 days, matching the existing cycle card.
 - [x] New cycle affordance present
 - [x] No logging action exists anywhere on this page
 - [x] Category colour coding unchanged
