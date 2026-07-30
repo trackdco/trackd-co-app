@@ -6,6 +6,7 @@ import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 import { ProgressScreen } from "@/components/progress/ProgressScreen";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import type { StackCompound } from "@/lib/home/stack";
+import type { Block } from "@/lib/blocks/block";
 import {
   formatBloodworkDate,
   type BloodworkPhoto,
@@ -248,6 +249,20 @@ export default async function PreviewProgressPage({
     },
   ];
 
+  // A live block, so the preview shows the banner in its populated state.
+  const previewBlocks: Block[] = [
+    {
+      id: "blk-1",
+      name: "First prep",
+      startedOn: toDateKey(new Date(today.getFullYear(), today.getMonth() - 1, today.getDate() - 14)),
+      endsOn: toDateKey(new Date(today.getFullYear(), today.getMonth() + 2, today.getDate())),
+      targets: [{ variable: "weight", value: 84, direction: "down" }],
+      status: "active",
+      closedOn: null,
+      reflection: null,
+    },
+  ];
+
   return (
     <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom))]">
       <header
@@ -281,6 +296,7 @@ export default async function PreviewProgressPage({
           consistencySample={consistencySample}
           progressPhotos={progressPhotos}
           previewStack={previewStack}
+          previewBlocks={previewBlocks}
         />
       </main>
 

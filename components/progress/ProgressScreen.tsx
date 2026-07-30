@@ -1,4 +1,5 @@
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
+import { BlockBanner } from "@/components/progress/BlockBanner";
 import { WeightHero } from "@/components/progress/WeightHero";
 import { BloodworkSection } from "@/components/progress/BloodworkSection";
 import { JournalSection } from "@/components/progress/JournalSection";
@@ -11,6 +12,7 @@ import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { unitForPreference } from "@/lib/weight";
 import type { StackCompound } from "@/lib/home/stack";
+import type { Block } from "@/lib/blocks/block";
 
 /**
  * The Progress tab — the "look back" screen (spec 08 · part two). Everything that
@@ -39,6 +41,7 @@ export function ProgressScreen({
   consistencySample,
   progressPhotos,
   previewStack,
+  previewBlocks,
 }: {
   /** Bodyweight points from `weight_logs`, oldest → newest. */
   weight: { key: DateKey; kg: number }[];
@@ -61,6 +64,8 @@ export function ProgressScreen({
    *  can exercise the photo card's Running list without signing in. The real
    *  screen reads both from the device store. */
   previewStack?: StackCompound[];
+  /** Dev-preview-only: render the block banner without a device store. */
+  previewBlocks?: Block[];
 }) {
   const unit = unitForPreference(unitPreference);
 
@@ -70,8 +75,18 @@ export function ProgressScreen({
         <PageScrollTitle title="Progress" />
       </div>
 
-      {/* Photos lead: the card, then what was running on that photo's date. */}
-      <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
+      {/* The live block frames everything under it, so it leads. Slim on
+          purpose: a hero card here would push the photo below the fold. */}
+      <div className="animate-home-up" style={{ animationDelay: "40ms" }}>
+        <BlockBanner
+          userId={userId}
+          todayKey={todayKey}
+          sampleBlocks={previewBlocks}
+        />
+      </div>
+
+      {/* Photos: the card, then what was running on that photo's date. */}
+      <div className="animate-home-up" style={{ animationDelay: "75ms" }}>
         <ProgressPhotoSection
           photos={progressPhotos}
           userId={userId}
