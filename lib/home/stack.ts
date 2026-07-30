@@ -526,7 +526,15 @@ export function archiveInStack(
   // Deleting RECORDS THE STOP (Spec 02 → the gap): without it, re-adding later
   // leaves the days in between governed by the rule in force before the delete,
   // so a break the user chose to take reads back as missed doses.
-  const stopFrom = effectiveFrom ?? toDateKeyLocal(new Date())
+  // NEVER earlier than today. Deleting while parked on a past day used to stamp
+  // the stop on THAT day, which retroactively erased the run between it and now:
+  // weeks the user actually ran, and logged, turned into days on which nothing
+  // had been due. Spec 01's rule is that an alteration applies from the selected
+  // day FORWARD with no retroactive rewriting, and the past is not a thing you
+  // can stop. A future selected day is still honoured — that is a stop you are
+  // scheduling, not one you are backdating.
+  const today = toDateKeyLocal(new Date())
+  const stopFrom = effectiveFrom && effectiveFrom > today ? effectiveFrom : today
   const history =
     archived && updated ? recordScheduleStop(updated, stopFrom) : null
   const ok = saveStack(

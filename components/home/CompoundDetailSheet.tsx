@@ -24,7 +24,6 @@ import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
 } from "@/lib/compound-categories"
-import { dateKeyToDate } from "@/lib/home/mockHomeData"
 import {
   cadenceLabel,
   formatDateKeyShort,
@@ -123,12 +122,12 @@ function DetailBody({
   // A pending DELETE confirmation (drops down before it happens).
   const [confirmArchive, setConfirmArchive] = useState(false)
   const meta = CATEGORY_META[compound.category] ?? FALLBACK_CATEGORY_META
-  const upcoming = upcomingDoseDates(
-    compound.schedule,
-    dateKeyToDate(compound.schedule.startDate),
-    3,
-    compound.cycle
-  )
+  // "Next" means the next doses from NOW. It walked from the schedule's START
+  // date, so a compound begun in March listed three days in March under the word
+  // "Next" and never changed. `upcomingDoseDates` clamps forward to the start
+  // date itself, so a compound that has not begun yet still lists its first
+  // doses, which is the one case where the two readings coincide.
+  const upcoming = upcomingDoseDates(compound.schedule, new Date(), 3, compound.cycle)
 
   return (
     <div
