@@ -5,6 +5,7 @@ import { useState } from "react";
 import { JournalCard } from "@/components/progress/JournalCard";
 import { JournalFeedSheet } from "@/components/progress/JournalFeedSheet";
 import { JournalEntrySheet } from "@/components/progress/JournalEntrySheet";
+import { JournalViewSheet } from "@/components/progress/JournalViewSheet";
 import { useProgressAction } from "@/components/progress/useProgressAction";
 import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
 
@@ -33,6 +34,9 @@ export function JournalSection({
   const [feedOpen, setFeedOpen] = useState(false);
   const [feedCompose, setFeedCompose] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  // Reading an entry is its own surface now (spec 08 · part two): tapping one
+  // opens it read-only, and Edit is a deliberate second action from there.
+  const [viewing, setViewing] = useState<JournalEntry | null>(null);
   const [editor, setEditor] = useState<EditorConfig>({
     mode: "write",
     initialDate: todayKey,
@@ -46,15 +50,25 @@ export function JournalSection({
   });
 
   // The Calendar's Journal row deep-links a specific day → open that day's entry
-  // for review/edit (same as tapping it in the feed).
+  // to READ. It is a "look back" link from a read-only sheet; landing in an
+  // editor was never what it advertised.
   useProgressAction("journal-open", (signal) => {
-    if (signal.date) openEditor({ mode: "edit", initialDate: signal.date });
+    const entry = signal.date
+      ? entries.find((e) => e.date === signal.date)
+      : undefined;
+    if (entry) openViewer(entry);
+    else if (signal.date) openEditor({ mode: "write", initialDate: signal.date });
   });
 
   // The dashboard's journal card — the WRITE prompt it advertises, for that day.
   useProgressAction("journal-write", (signal) => {
     if (signal.date) openEditor({ mode: "write", initialDate: signal.date });
   });
+
+  function openViewer(entry: JournalEntry) {
+    setFeedOpen(false);
+    setViewing(entry);
+  }
 
   function openEditor(config: EditorConfig) {
     setEditor(config);
@@ -76,7 +90,22 @@ export function JournalSection({
         entries={entries}
         onWrite={() => openEditor({ mode: "write", initialDate: todayKey })}
         onMarkers={() => openEditor({ mode: "markers", initialDate: todayKey })}
-        onEdit={(entry) => openEditor({ mode: "edit", initialDate: entry.date })}
+        onEdit={(entry) => openViewer(entry)}
+      />
+
+      <JournalViewSheet
+        open={viewing !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setViewing(null);
+            setFeedOpen(true); // back to where it was opened from
+          }
+        }}
+        entry={viewing}
+        onEdit={(entry) => {
+          setViewing(null);
+          openEditor({ mode: "edit", initialDate: entry.date });
+        }}
       />
 
       <JournalEntrySheet
