@@ -209,14 +209,6 @@ export function BlocksScreen({
         </div>
       )}
 
-      {!live && past.length === 0 && (
-        <p className="animate-home-up px-1 text-sm text-text-muted" style={{ animationDelay: "100ms" }}>
-          A block is a named stretch of training. While one runs, everything you
-          already log stays exactly the same; when it ends you get the whole
-          period back in one place.
-        </p>
-      )}
-
       <BlockCreateSheet
         open={creating}
         onOpenChange={setCreating}

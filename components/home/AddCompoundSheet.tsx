@@ -1153,14 +1153,17 @@ function AddCompoundBody({
                       },
                 )
               }
+              // Amber when on, white knob (Adrian, 2026-07-30). Amber is what
+              // "live / on" means everywhere else in this app; `accent-primary`
+              // resolves to white, which put a white track under a white knob.
               className={cn(
                 "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                cycleDraft ? "bg-accent-primary" : "bg-bg-input",
+                cycleDraft ? "bg-accent-amber" : "bg-bg-input",
               )}
             >
               <span
                 className={cn(
-                  "absolute top-0.5 h-5 w-5 rounded-full bg-foreground transition-[left] duration-200 ease-out motion-reduce:transition-none",
+                  "absolute top-0.5 h-5 w-5 rounded-full bg-text-primary transition-[left] duration-200 ease-out motion-reduce:transition-none",
                   cycleDraft ? "left-[1.375rem]" : "left-0.5",
                 )}
                 aria-hidden

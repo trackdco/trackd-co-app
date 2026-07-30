@@ -171,11 +171,16 @@ function DayCell({
  *
  * Full opacity: at 2px a colour needs to be itself to be seen at all, and there
  * is nothing behind it to compete with any more.
+ *
+ * NARROW and centred under the date, not the width of the cell. Spanning the
+ * cell made a row of them read as a horizontal RULE between weeks — a divider,
+ * not an annotation — which is exactly what Adrian could not see when he looked
+ * for it. At 16px it belongs to the day above it.
  */
 function CycleFill({ segments }: { segments: CycleSegment[] }) {
   return (
     <span
-      className="pointer-events-none absolute inset-x-1.5 bottom-1 flex flex-col gap-[2px]"
+      className="pointer-events-none absolute inset-x-0 bottom-1 mx-auto flex w-4 flex-col gap-[3px]"
       aria-hidden
     >
       {segments.map((s) => (
