@@ -3,7 +3,6 @@
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
 import { Container } from "@/components/containers"
-import { isVialForm } from "@/lib/containers/form"
 import { formatDateKeyShort, type StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
 
@@ -49,9 +48,19 @@ export function CompoundStorageCard({
   /** Tap the stock line → add or refill its vial. Vial-form compounds only. */
   onAddStock: () => void
 }) {
-  // Storage is a VIAL concept. Tablets and powders have no tracking yet, so the
-  // card must not imply one (Spec 01 · part two → Fill behaviour).
-  const tracked = isVialForm(inventoryType)
+  // Tracked = anything the inventory model actually knows about: vials
+  // (reconstituted / preconcentrated) AND tabs/caps (oral_solid), which have had
+  // working tracking all along — `v_inventory_math.units_per_dose_oral`, and the
+  // tabs branch of AddStockSheet. Spec 03 only removed orals from the ADD
+  // COMPOUND form, never from storage. Showing them here is un-hiding what
+  // exists, not building anything (Adrian's call).
+  //
+  // POWDERS are genuinely different: there is no inventory type for a tub, so
+  // there is nothing to show and the card says so rather than implying one.
+  const tracked =
+    inventoryType === "reconstituted" ||
+    inventoryType === "preconcentrated" ||
+    inventoryType === "oral_solid"
   const fill = tracked ? fillOf(stock) : null
   const daysLeft = tracked ? daysUntil(todayKey, stock?.estEmptyDate ?? null) : null
   const runningOut = daysLeft !== null && daysLeft <= RUNS_DRY_AMBER_DAYS
@@ -92,7 +101,10 @@ export function CompoundStorageCard({
               room for a bigger vial and two clean lines. Still the spec's five
               pieces of information — just not one of them duplicated. */}
           <span className={cn(DATA_MONO, "w-full truncate text-center")}>
-            {summaryLine(stock)}
+            {formatRemaining(stock)}
+          </span>
+          <span className={cn(DATA_MONO, "w-full truncate text-center")}>
+            {formatDoses(stock)}
           </span>
           <span
             className={cn(
@@ -120,14 +132,17 @@ function fillOf(stock: StockItem | null): number | null {
   return Math.max(0, Math.min(1, stock.remainingBase / stock.totalBase))
 }
 
-/** Remaining and doses-left on one line — "8 mL · 12 left". */
-function summaryLine(stock: StockItem | null): string {
+/** How much is physically left — "8 mL", or a tablet count for orals. */
+function formatRemaining(stock: StockItem | null): string {
   if (!stock || stock.remainingDisplay == null) return "Add stock"
-  const unit = stock.inventoryType === "oral_solid" ? "" : " mL"
-  const left = `${stock.remainingDisplay}${unit}`
-  return stock.dosesRemaining != null
-    ? `${left} · ${stock.dosesRemaining} left`
-    : left
+  const unit = stock.inventoryType === "oral_solid" ? " tabs" : " mL"
+  return `${stock.remainingDisplay}${unit} left`
+}
+
+/** How many DOSES that is — the figure people actually plan around. */
+function formatDoses(stock: StockItem | null): string {
+  if (!stock || stock.dosesRemaining == null) return ""
+  return `${stock.dosesRemaining} doses`
 }
 
 function formatRunsDry(estEmptyDate: string | null, daysLeft: number | null): string {
