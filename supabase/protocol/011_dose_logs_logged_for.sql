@@ -18,9 +18,16 @@
 -- `taken_at` is unchanged and still authoritative for the INSTANT — the vial
 -- resolution and the notification runner both key off it, correctly.
 --
--- BACKFILL. Existing rows get the UTC date of `taken_at`, which is exactly what
--- the app derives for them today, so nothing anyone is currently looking at
--- moves. Rows written after this migration carry the true local day.
+-- ⚠️ THE BACKFILL BELOW IS WRONG AND IS UNDONE BY 012. DO NOT COPY IT.
+--
+-- It claimed the UTC date of `taken_at` is "exactly what the app derives for
+-- them today". It is not: `toDateKey` uses the DEVICE's local date. For any dose
+-- whose local and UTC days differ the backfill wrote a day the app had never
+-- shown, and because hydration prefers `logged_for` while the device mirror
+-- still holds the original local day, the same dose then rendered on two days.
+-- See `012_logged_for_undo_backfill.sql`, which nulls the column: a backfill
+-- cannot know a past dose's timezone, which is the whole reason this column
+-- exists.
 --
 -- SAFETY: additive. One nullable column, one backfill, one index. No data is
 -- destroyed and no existing column changes type or meaning.

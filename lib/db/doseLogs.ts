@@ -109,20 +109,31 @@ export async function upsertDoseLogs(
   }
 }
 
-/** Remove a dose log (the untick / undo path). Returns ok. */
-export async function deleteDoseLog(id: string): Promise<{ ok: boolean }> {
+/**
+ * Remove a dose log (the untick / undo path).
+ *
+ * `matched` says whether a row was actually deleted, and it is the important
+ * part. PostgREST calls a zero-row delete a success, so "I asked to delete a row
+ * that does not exist" was indistinguishable from "I deleted it" — and the
+ * caller clears its tombstone on that success, which is what turns any
+ * id-resolution miss into a dose that comes back on the next pull. `count:
+ * "exact"` makes the difference visible instead of silent.
+ */
+export async function deleteDoseLog(
+  id: string
+): Promise<{ ok: boolean; matched: boolean }> {
   try {
     const ctx = await sessionCtx()
-    if (!ctx) return { ok: false }
-    const { error } = await ctx.supabase
+    if (!ctx) return { ok: false, matched: false }
+    const { error, count } = await ctx.supabase
       .from("dose_logs")
-      .delete()
+      .delete({ count: "exact" })
       .eq("id", id)
       .eq("user_id", ctx.userId)
     if (error) console.error("deleteDoseLog: cloud write failed", error)
-    return { ok: !error }
+    return { ok: !error, matched: (count ?? 0) > 0 }
   } catch (e) {
     console.error("deleteDoseLog failed", e)
-    return { ok: false }
+    return { ok: false, matched: false }
   }
 }

@@ -145,9 +145,16 @@ async function findProtocolCompoundId(
     return rowName.trim().toLowerCase() === target
   })
   if (matches.length === 0) return null
+  // Active first, then the OLDEST row — deliberately not the most recently
+  // updated. The dose-log id is derived from whichever row wins here, so a rank
+  // that moves over time moves the id with it: touching the losing row would
+  // flip the answer, and a later write would then create a second row for one
+  // dose while a later delete missed the first. `created_at` never changes, so
+  // the answer does not either, and "active first" already keeps a leftover row
+  // from an older cycle from shadowing the live one.
   const rank = (r: Row) =>
-    (r.is_active === false ? 0 : 1) * 1e15 +
-    (Date.parse((r.updated_at ?? r.created_at ?? "") as string) || 0)
+    (r.is_active === false ? 0 : 1) * 1e15 -
+    (Date.parse((r.created_at ?? r.updated_at ?? "") as string) || 0)
   return matches.reduce((best, r) => (rank(r) > rank(best) ? r : best)).id
 }
 
@@ -773,14 +780,22 @@ export async function pushProtocolDoseLog(
     const cx = await ctx()
     if (!cx) return { ok: false }
     let pcId = resolvePcId(cx.userId, clientCompoundId)
-    let pc = (
-      await cx.supabase
-        .from("protocol_compounds")
-        .select("dose_unit, dose_amount")
-        .eq("id", pcId)
-        .eq("user_id", cx.userId)
-        .maybeSingle()
-    ).data
+    const first = await cx.supabase
+      .from("protocol_compounds")
+      .select("dose_unit, dose_amount")
+      .eq("id", pcId)
+      .eq("user_id", cx.userId)
+      .maybeSingle()
+    // A TIMEOUT OR AN EXPIRED TOKEN IS NOT "this is a custom compound". The
+    // error used to be discarded, so a failed lookup fell through to the same
+    // `skipped: true` a legitimately absent row returns — and `trackSync` says
+    // nothing about a skip, so the dose stayed on the device and the user was
+    // told it had synced. Fail loudly instead; the reconnect re-push retries.
+    if (first.error) {
+      console.error("pushProtocolDoseLog: compound lookup failed", first.error)
+      return { ok: false }
+    }
+    let pc = first.data
     if (!pc) {
       // The derived id is a pure function of the CLIENT id, and the two can
       // legitimately diverge — `pushProtocolCompound` REUSES an existing row's id
@@ -862,6 +877,20 @@ export async function pushProtocolDoseLog(
         pc.dose_unit as string
       )
       if (vial) inventoryItemId = vial.id
+    } else if (picked === undefined) {
+      // UNDECIDED, and not allowed to resolve one (the re-push replaying
+      // history). The upsert replaces the whole row, so writing `null` here
+      // ERASED a link the server had already resolved — and the re-push runs on
+      // every `online` event, so one network flap unlinked the vial behind every
+      // dose logged before the Stock list had loaded, and the runway quietly
+      // stopped counting them. Keep whatever is already on the row.
+      const { data: prior } = await cx.supabase
+        .from("dose_logs")
+        .select("inventory_item_id")
+        .eq("id", deterministicUuid(`dl:${cx.userId}:${dateKey}:${pcId}`))
+        .eq("user_id", cx.userId)
+        .maybeSingle()
+      inventoryItemId = (prior?.inventory_item_id as string | null) ?? null
     }
 
     const dlId = deterministicUuid(`dl:${cx.userId}:${dateKey}:${pcId}`)
@@ -919,7 +948,14 @@ export async function deleteProtocolDoseLog(
         ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
         : null) ?? resolvePcId(cx.userId, clientCompoundId)
     const dlId = deterministicUuid(`dl:${cx.userId}:${dateKey}:${pcId}`)
-    return await deleteDoseLog(dlId)
+    const res = await deleteDoseLog(dlId)
+    // A delete that matched NOTHING is not a delete. Reporting it as one let the
+    // caller drop its tombstone, and the dose came back on the next pull. Treated
+    // as skipped rather than failed: the row may legitimately not exist (a custom
+    // compound, or a dose that never reached Postgres), and the tombstone is the
+    // right thing to keep in every one of those cases.
+    if (res.ok && !res.matched) return { ok: true, skipped: true }
+    return { ok: res.ok }
   } catch (e) {
     console.error("deleteProtocolDoseLog failed", e)
     return { ok: false }

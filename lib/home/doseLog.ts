@@ -136,6 +136,13 @@ export function loadDoseLogs(userId: string): DayLogs {
             // The unit the dose was recorded in, preserved so history isn't
             // relabelled when the compound's unit changes (see DoseLog.unit).
             ...(typeof log.unit === "string" && log.unit ? { unit: log.unit } : {}),
+            // The user's own note. It was missing from this list, which made the
+            // whole feature write-only: the sheet reads the logged dose back
+            // THROUGH here, so re-opening one showed an empty box, saving it
+            // again wrote `note: null` over what was in Postgres, and the
+            // reconnect re-push (which also reads through here) wiped every note
+            // in the user's history on a single network flap.
+            ...(typeof log.note === "string" && log.note ? { note: log.note } : {}),
             siteId: typeof log.siteId === "string" ? log.siteId : null,
             time24: log.time24,
             // `undefined` is a MEANINGFUL third state here, not just "missing" (see
