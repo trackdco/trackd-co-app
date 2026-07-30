@@ -1017,6 +1017,22 @@ export async function pushScheduleVersions(
           console.error("pushScheduleVersions failed", retry)
           return { ok: false }
         }
+        // The trail persisted WITHOUT its cycle, which is not the same as
+        // success: `scheduleVersionToRow`'s own comment explains why. A version
+        // with no cycle resolves as always-on, so a past off-period reads back
+        // as a run of missed doses — the retroactive rewrite versioning exists
+        // to prevent.
+        //
+        // Kept as a partial write rather than a failure, because the trail is
+        // still worth more than nothing, and the upsert key is stable, so the
+        // next push of this compound's versions overwrites these rows WITH their
+        // cycle and repairs them. Loud, though: `PGRST204` also fires when the
+        // columns exist and only PostgREST's schema CACHE is stale, and in that
+        // case this is dropping data the database would have taken.
+        console.warn(
+          "pushScheduleVersions: cycle columns rejected, trail written without them",
+          error
+        )
         return { ok: true }
       }
       console.error("pushScheduleVersions failed", error)

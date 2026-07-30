@@ -18,6 +18,18 @@
 import { createClient } from "@/lib/supabase/server"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 
+/** The math view's columns as they exist before `supabase/protocol/010`. */
+const MATH_COLUMNS =
+  "inventory_item_id, remaining_display, doses_remaining, est_empty_date, ml_per_dose, units_per_dose_oral, concentration_per_ml, remaining_base, total_base"
+/** …and with 010's timezone-free runway. */
+const MATH_COLUMNS_WITH_DAYS = `${MATH_COLUMNS}, days_to_empty`
+
+/** "That column doesn't exist" — 010 is not applied yet. `42703` from Postgres,
+ *  `PGRST204` from PostgREST's own schema cache. Mirrors `protocolSync.ts`. */
+function isUndefinedColumn(error: { code?: string } | null): boolean {
+  return error?.code === "42703" || error?.code === "PGRST204"
+}
+
 async function sessionCtx() {
   const supabase = await createClient()
   const {
@@ -50,7 +62,16 @@ export interface StockItem {
   // derived (v_inventory_math) — never recomputed in TS:
   remainingDisplay: number | null
   dosesRemaining: number | null
+  /**
+   * The view's `current_date + N`. `current_date` is the DATABASE's date, and
+   * Supabase runs UTC, so this is a day out for any user whose local date differs
+   * from UTC's at the moment they read it. Prefer `daysToEmpty`, which is the same
+   * estimate with the date anchoring removed.
+   */
   estEmptyDate: string | null
+  /** Whole days of runway left — the N above, on its own, so the client can add it
+   *  to the day IT knows it is. Null until `supabase/protocol/010` is applied. */
+  daysToEmpty: number | null
   mlPerDose: number | null
   unitsPerDoseOral: number | null
   concentrationPerMl: number | null
@@ -101,24 +122,39 @@ export async function listStock(): Promise<StockItem[]> {
         .eq("is_active", true)
         .eq("protocol_compounds.is_active", true)
         .order("created_at", { ascending: false }),
-      ctx.supabase
-        .from("v_inventory_math")
-        .select(
-          "inventory_item_id, remaining_display, doses_remaining, est_empty_date, ml_per_dose, units_per_dose_oral, concentration_per_ml, remaining_base, total_base"
-        ),
+      // `days_to_empty` arrives with `supabase/protocol/010`. Asked for
+      // optimistically and retried without it below, exactly as the schedule
+      // versions handle their own pending migration: the app must run against a
+      // database that has not had 010 applied yet.
+      ctx.supabase.from("v_inventory_math").select(MATH_COLUMNS_WITH_DAYS),
     ])
     if (itemsRes.error) {
       console.error("listStock items failed", itemsRes.error)
       return []
     }
+    let mathRows: Record<string, unknown>[] | null =
+      (mathRes.data as Record<string, unknown>[] | null) ?? null
     if (mathRes.error) {
-      // A failed math read would otherwise show items with null runway as if valid.
-      console.error("listStock math failed", mathRes.error)
-      return []
+      // Pre-010: the column does not exist yet. Read the rest rather than fail,
+      // and the runway falls back to `est_empty_date` below.
+      if (isUndefinedColumn(mathRes.error)) {
+        const retry = await ctx.supabase
+          .from("v_inventory_math")
+          .select(MATH_COLUMNS)
+        if (retry.error) {
+          console.error("listStock math failed", retry.error)
+          return []
+        }
+        mathRows = (retry.data as Record<string, unknown>[] | null) ?? null
+      } else {
+        // A failed math read would otherwise show items with null runway as if valid.
+        console.error("listStock math failed", mathRes.error)
+        return []
+      }
     }
     const math = new Map<string, Record<string, unknown>>()
-    for (const m of mathRes.data ?? []) {
-      math.set(m.inventory_item_id as string, m as Record<string, unknown>)
+    for (const m of mathRows ?? []) {
+      math.set(m.inventory_item_id as string, m)
     }
     const num = (v: unknown): number | null => (v == null ? null : Number(v))
 
@@ -151,6 +187,7 @@ export async function listStock(): Promise<StockItem[]> {
         remainingDisplay: num(m.remaining_display),
         dosesRemaining: num(m.doses_remaining),
         estEmptyDate: (m.est_empty_date as string | null) ?? null,
+        daysToEmpty: m.days_to_empty == null ? null : Number(m.days_to_empty),
         mlPerDose: num(m.ml_per_dose),
         unitsPerDoseOral: num(m.units_per_dose_oral),
         concentrationPerMl: num(m.concentration_per_ml),

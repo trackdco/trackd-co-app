@@ -91,7 +91,21 @@ export function CompoundStorageCard({
   const gauged = inventoryType === "reconstituted" || inventoryType === "preconcentrated"
   const hasVial = stock != null && stock.remainingDisplay != null
   const fill = tracked ? fillOf(stock) : null
-  const daysLeft = tracked ? daysUntil(todayKey, stock?.estEmptyDate ?? null) : null
+  // The view's own day COUNT wherever it is available (`supabase/protocol/010`),
+  // because `est_empty_date` is anchored to the DATABASE's date and Supabase runs
+  // UTC: subtracting a local today from a UTC-anchored date is a day out for most
+  // of the world for part of every day, which moved the amber flag with it. Falls
+  // back to the old subtraction until 010 is applied.
+  const daysLeft = !tracked
+    ? null
+    : (stock?.daysToEmpty ?? daysUntil(todayKey, stock?.estEmptyDate ?? null))
+  // The DATE shown for a far-off vial is derived from the local today plus that
+  // count, for the same reason — otherwise the countdown was local and the date
+  // beside it was not.
+  const emptyDate =
+    stock?.daysToEmpty != null
+      ? addDays(todayKey, stock.daysToEmpty)
+      : (stock?.estEmptyDate ?? null)
   const runningOut = daysLeft !== null && daysLeft <= RUNS_DRY_AMBER_DAYS
 
   return (
@@ -181,7 +195,7 @@ export function CompoundStorageCard({
                 one family and should read as one; white made the date the loudest
                 thing on the card, which it is not. */}
             <span className="font-mono text-[11px] tabular-nums text-text-muted">
-              {formatRunsDry(stock?.estEmptyDate ?? null, daysLeft)}
+              {formatRunsDry(emptyDate, daysLeft)}
             </span>
           </span>
 
@@ -281,6 +295,16 @@ function daysUntil(fromKey: string, toKey: string | null): number | null {
   const b = dayNumber(toKey)
   if (a === null || b === null) return null
   return b - a
+}
+
+/** "2026-09-16" + 12 → "2026-09-28". UTC arithmetic, so a DST boundary in the
+ *  span cannot move the answer. */
+function addDays(key: string, days: number): string | null {
+  const n = dayNumber(key)
+  if (n === null) return null
+  const d = new Date((n + days) * 86_400_000)
+  const p = (v: number) => String(v).padStart(2, "0")
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`
 }
 
 function dayNumber(key: string): number | null {

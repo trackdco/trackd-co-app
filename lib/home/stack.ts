@@ -308,8 +308,17 @@ export function scheduleVersionToRow(v: ScheduleVersion) {
     // Local 0=Sun..6=Sat → ISO Mon=1..Sun=7, matching protocol_compounds.
     daysOfWeek:
       cad.type === "daysOfWeek" ? cad.days.map((d) => (d === 0 ? 7 : d)) : null,
+    // Clamped exactly as `cadenceToSchedule` clamps the compound's own row. Raw
+    // here meant a malformed local `n` (0, a negative, a fraction) failed the
+    // column's `interval_days >= 1` CHECK and took the whole version write with
+    // it — so the two paths disagreed about the same cadence, and the one that
+    // records HISTORY was the one that broke.
     intervalDays:
-      cad.type === "everyOtherDay" ? 2 : cad.type === "everyNDays" ? cad.n : null,
+      cad.type === "everyOtherDay"
+        ? 2
+        : cad.type === "everyNDays"
+          ? Math.max(1, Math.floor(cad.n))
+          : null,
     time: hasTime(v.timeOfDay) ? `${v.timeOfDay}:00` : null,
     stopped: v.stopped === true,
     // The cycle in force under THIS version. Without it a Postgres round-trip
