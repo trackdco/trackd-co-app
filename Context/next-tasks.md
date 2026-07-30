@@ -29,18 +29,18 @@ all closed, and most of the medium list with them.
 | 07 Calculator | Done, reviewed 3x |
 | 08 Progress | Done, reviewed, fixed, re-reviewed |
 | 09 Profile | Done, reviewed, fixed |
-| 10 Add compound | Done. **Review outstanding** (see below) |
-| 11 Log a dose | Done. **Review outstanding** (see below) |
+| 10 Add compound | Done, reviewed, fixed |
+| 11 Log a dose | Done, reviewed, fixed |
 | Blocks | Done, reviewed twice, fixed |
 | part one 07 Global sweep | Em-dash pass done. Wordiness + portrait fallback need Adrian |
 
 ### ⚠️ WHAT NEEDS DOING NEXT
 
-1. **The spec 10 and spec 11 review agents did not report back** before the
-   session ended. They ran against a dev server that was wedged for part of
-   their run (see below). **Re-run a fresh review agent on each**, and treat
-   nothing about those two specs as verified until you do. Every other spec in
-   this wave had a real defect found by review, including two criticals.
+1. **Re-review specs 09, 10 and 11.** All three had their findings fixed in this
+   session and NONE has been re-reviewed since. That is not a formality here:
+   the Blocks round proved twice over that fixes introduce their own defects.
+   Spec 11's fixes in particular were substantial (the sheet header moved, the
+   vial blocks were rebuilt, the site hint moved).
 2. **Apply `supabase/protocol/010_inventory_days_to_empty.sql`** (Adrian, via the
    SQL Editor). Nothing breaks without it.
 3. **The parked decisions below**, which are Adrian's, not yours.
@@ -61,6 +61,17 @@ selects). **Never run `next build` and `next dev` against the same `.next`.**
 ---
 
 ## PARKED — Adrian's calls
+
+### 0. "Saved to this device for you only" is FALSE, and it is on three screens
+
+The log sheet now says "Saved to your account. Only you can see it.", which is
+what is actually true: dose logs sync to Postgres and RLS scopes every read to
+the signed-in user. The old sentence is a privacy claim, on a health app, on the
+screen where health data is entered.
+
+**The same sentence is still on `AddCompoundSheet` and `add-to-stack-menu`.**
+Left alone deliberately: it is privacy copy and it should be worded once, by
+you, not patched per file.
 
 ### 1. Spec 11 asks for a note row that cannot be built
 
