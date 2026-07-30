@@ -1,6 +1,5 @@
 "use client"
 
-import { useSyncExternalStore } from "react"
 import Link from "next/link"
 import { CaretRight, Plus } from "@/components/icons"
 
@@ -17,11 +16,6 @@ import {
   targetProgress,
   type Block,
 } from "@/lib/blocks/block"
-import {
-  EMPTY_BLOCKS,
-  getBlocksSnapshot,
-  subscribeBlocks,
-} from "@/lib/blocks/blockStore"
 
 /**
  * The live block, at the top of Progress (Adrian, 2026-07-30: slim banner, own
@@ -39,13 +33,10 @@ import {
  * territory. Week N of M, days left, a date.
  */
 export function BlockBanner({
-  userId,
   todayKey,
   weight,
-  /** Dev-preview-only: render without a device store. */
-  sampleBlocks,
+  blocks,
 }: {
-  userId: string
   todayKey: string
   /**
    * Bodyweight points, oldest first. The start reading is resolved HERE rather
@@ -53,14 +44,9 @@ export function BlockBanner({
    * and the server that renders the page cannot read the device store at all.
    */
   weight?: { key: string; kg: number }[]
-  sampleBlocks?: Block[]
+  /** Every block the user has, from Postgres. */
+  blocks: Block[]
 }) {
-  const live = useSyncExternalStore(
-    subscribeBlocks,
-    () => getBlocksSnapshot(userId),
-    () => EMPTY_BLOCKS,
-  )
-  const blocks = sampleBlocks ?? live
   const block = activeBlock(blocks)
 
   // Nothing live: the same hairline affordance Protocol uses for a new stack or

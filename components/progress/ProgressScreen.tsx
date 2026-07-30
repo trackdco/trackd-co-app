@@ -43,6 +43,7 @@ export function ProgressScreen({
   markerOptions,
   consistencySample,
   progressPhotos,
+  blocks,
   previewStack,
   previewBlocks,
 }: {
@@ -67,7 +68,9 @@ export function ProgressScreen({
    *  can exercise the photo card's Running list without signing in. The real
    *  screen reads both from the device store. */
   previewStack?: StackCompound[];
-  /** Dev-preview-only: render the block banner without a device store. */
+  /** The user's blocks from Postgres, newest start first. */
+  blocks?: Block[];
+  /** Dev-preview-only: render the block banner without a signed-in read. */
   previewBlocks?: Block[];
 }) {
   const unit = unitForPreference(unitPreference);
@@ -83,9 +86,8 @@ export function ProgressScreen({
           purpose: a hero card here would push the photo below the fold. */}
       <div className="animate-home-up" style={{ animationDelay: "40ms" }}>
         <BlockBanner
-          userId={userId}
           todayKey={todayKey}
-          sampleBlocks={previewBlocks}
+          blocks={previewBlocks ?? blocks ?? []}
           weight={weight}
         />
       </div>
