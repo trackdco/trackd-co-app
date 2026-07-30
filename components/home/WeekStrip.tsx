@@ -247,45 +247,48 @@ export function WeekStrip({
                         onClick={() => onSelect(key)}
                         aria-pressed={selected}
                         aria-label={`${date.toDateString()}, ${STATUS_LABEL[status]}`}
-                        className="flex flex-col items-center gap-1 py-1 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50"
+                        className="flex flex-col items-center outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50"
                       >
-                        {/* Number first, three-letter day beneath, and an amber
-                            UNDERLINE marking the selection (Spec 02) — the filled
-                            disc read heavier than everything around it. A day with
-                            nothing scheduled sits a step dimmer again, so the week
-                            shows its own shape before you read a single number. */}
+                        {/* Number over a three-letter day name, with the selected
+                            cell sitting on a soft raised block (Adrian's call,
+                            replacing the amber underline). Nothing is drawn ON the
+                            day — the selection reads as a surface, the way every
+                            other active control in the app does, and amber stays
+                            reserved for what's actually due. A day with nothing
+                            scheduled sits a step dimmer, so the week shows its own
+                            shape before you read a single number. */}
                         <span
                           className={cn(
-                            "font-mono text-sm transition-colors",
-                            selected
-                              ? "font-medium text-foreground"
-                              : nothingScheduled
-                                ? "text-text-subtle"
-                                : "text-text-muted",
-                            isToday && !selected && "text-foreground"
+                            "flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 transition-colors",
+                            selected && "bg-bg-input"
                           )}
                         >
-                          {date.getDate()}
+                          <span
+                            className={cn(
+                              "font-mono text-sm transition-colors",
+                              selected
+                                ? "font-medium text-foreground"
+                                : nothingScheduled
+                                  ? "text-text-subtle"
+                                  : "text-text-muted",
+                              isToday && !selected && "text-foreground"
+                            )}
+                          >
+                            {date.getDate()}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-[10px] uppercase tracking-wide transition-colors",
+                              selected
+                                ? "text-foreground"
+                                : nothingScheduled
+                                  ? "text-text-subtle/70"
+                                  : "text-text-subtle"
+                            )}
+                          >
+                            {DAY_SHORT[date.getDay()]}
+                          </span>
                         </span>
-                        <span
-                          className={cn(
-                            "text-[10px] uppercase tracking-wide transition-colors",
-                            selected
-                              ? "text-text-muted"
-                              : nothingScheduled
-                                ? "text-text-subtle/70"
-                                : "text-text-subtle"
-                          )}
-                        >
-                          {DAY_SHORT[date.getDay()]}
-                        </span>
-                        <span
-                          aria-hidden
-                          className={cn(
-                            "h-0.5 w-6 rounded-full transition-colors",
-                            selected ? "bg-accent-amber" : "bg-transparent"
-                          )}
-                        />
                         <StatusDot status={status} />
                       </button>
                     )

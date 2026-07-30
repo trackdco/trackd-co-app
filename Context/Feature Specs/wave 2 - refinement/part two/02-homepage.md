@@ -83,7 +83,7 @@ Follow the project structure and conventions in `architecture.md` and `code-stan
 - [x] Progress photos card removed from the dashboard, data intact and reachable from Progress
 - [x] Injection sites card present and unchanged
 - [x] Log list rows and category colour coding unchanged
-- [x] Week strip uses the amber underline treatment with three-letter day names
+- [x] Week strip uses three-letter day names. SELECTION TREATMENT CHANGED (Adrian, 2026-07-30): a soft raised block behind the cell, not an amber underline — amber stays reserved for what's actually due.
 - [x] Days with nothing scheduled render a step dimmer
 - [x] Week strip collapses and expands with a smooth slide
 - [x] Week strip defaults to open and its state persists between sessions
