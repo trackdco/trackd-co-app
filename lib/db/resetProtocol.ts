@@ -3,7 +3,8 @@
 /**
  * "Start fresh" — wipe the signed-in user's entire compound stack from the cloud:
  * the canonical Postgres rows (`protocol_compounds`, which cascades its
- * `inventory_items` + `dose_logs`) AND the three device-state mirror tables
+ * `inventory_items` + `dose_logs`), the user's `stacks` (which cascade their
+ * `stack_members`), AND the three device-state mirror tables
  * (`user_stack_compounds`, `user_dose_logs`, `user_custom_compounds`). The
  * migrated flag is (re)stamped so the one-time device→Postgres migration can never
  * re-seed from a stale mirror afterwards.
@@ -29,8 +30,15 @@ export async function wipeMyProtocol(): Promise<{ ok: boolean }> {
 
     // Deleting protocol_compounds cascades inventory_items + dose_logs (FKs are
     // ON DELETE CASCADE), so this one delete clears the whole canonical tree.
+    //
+    // `stacks` is NOT part of that tree and has to go explicitly. Deleting a
+    // compound cascades only its `stack_members` row — by design, since the stack
+    // survives one member leaving — so a wipe that stopped at the compounds left
+    // the user's named, coloured stacks behind, empty, on a screen whose whole
+    // promise is that nothing is left. Their membership rows cascade from here.
     const results = await Promise.all([
       supabase.from("protocol_compounds").delete().eq("user_id", uid),
+      supabase.from("stacks").delete().eq("user_id", uid),
       supabase.from("user_stack_compounds").delete().eq("profile_id", uid),
       supabase.from("user_dose_logs").delete().eq("profile_id", uid),
       supabase.from("user_custom_compounds").delete().eq("profile_id", uid),

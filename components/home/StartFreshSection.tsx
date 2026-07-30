@@ -54,6 +54,13 @@ export function StartFreshSection({
       window.localStorage.removeItem(`trackd.doselog.v1.${userId}`)
       window.localStorage.removeItem(`trackd.customCompounds.${userId}`)
       window.localStorage.removeItem(`trackd.migrated.v1.${userId}`)
+      // Stacks are a write-back mirror too (`lib/home/stacks.ts` → `pushStacks`),
+      // so leaving this behind re-pushed the user's stacks to a cloud that had
+      // just been emptied — the exact failure the paragraph above describes.
+      window.localStorage.removeItem(`trackd.stacks.v1.${userId}`)
+      // Un-log tombstones are about doses that no longer exist. Kept, they would
+      // suppress a future log on the same day and compound.
+      window.localStorage.removeItem(`trackd.doselog.tombstones.v1.${userId}`)
     } catch {
       /* storage disabled — the cloud wipe + migrated flag still hold */
     }

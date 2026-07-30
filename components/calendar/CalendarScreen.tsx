@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "@/components/icons";
@@ -33,6 +33,7 @@ import {
 import {
   seedStack,
   dateKeyToDate,
+  toDateKey,
   type DateKey,
 } from "@/lib/home/mockHomeData";
 import { requestProgressAction } from "@/lib/progress/progressAction";
@@ -97,7 +98,7 @@ export function CalendarScreen({
   journalByDate,
   photosByDate,
   userId,
-  todayKey,
+  todayKey: serverTodayKey,
   unitPreference,
   bodySex,
   sampleStack,
@@ -108,15 +109,64 @@ export function CalendarScreen({
   const unit = unitForPreference(unitPreference);
   const deviceReady = sampleStack || sampleLogs ? true : mounted;
 
+  // `serverTodayKey` is the SERVER's date. Vercel runs UTC, so for an AU user it
+  // is the previous day for ten hours of every day — the grid highlighted the
+  // wrong cell, "today" was a day behind, and every future/past judgement below
+  // (`key > todayKey`) shifted with it. Home already corrects this to the device
+  // clock and keeps ticking so an open page rolls over at LOCAL midnight; the
+  // calendar, a screen whose entire subject is which day it is, did not.
+  const [todayKey, setTodayKey] = useState<DateKey>(serverTodayKey);
+
   const [view, setView] = useState(() => {
-    const d = dateKeyToDate(todayKey);
+    const d = dateKeyToDate(serverTodayKey);
     return { year: d.getFullYear(), month0: d.getMonth() };
   });
-  const [selectedKey, setSelectedKey] = useState<DateKey>(todayKey);
+  const [selectedKey, setSelectedKey] = useState<DateKey>(serverTodayKey);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   // The compound being logged from the calendar, if any.
   const [logTarget, setLogTarget] = useState<StackCompound | null>(null);
+
+  // Correct "today" to the DEVICE clock, then keep it correct: on focus, on
+  // becoming visible again, and once a minute so a page left open overnight rolls
+  // over at local midnight. Same rule as Home — if the user is parked on today we
+  // follow the rollover, and if they have navigated to another day their selection
+  // is left alone. `setState` only fires when the day actually changes.
+  const todayKeyRef = useRef(todayKey);
+  useEffect(() => {
+    todayKeyRef.current = todayKey;
+  }, [todayKey]);
+  useEffect(() => {
+    function syncToday() {
+      const local = toDateKey(new Date());
+      const previous = todayKeyRef.current;
+      if (local === previous) return;
+      const d = dateKeyToDate(local);
+      setSelectedKey((sel) => (sel === previous ? local : sel));
+      // Follow the month too, but only while the grid is still showing the month
+      // "today" was in. Someone reading back through March does not want the view
+      // yanked to today because the clock corrected underneath them.
+      setView((v) => {
+        const was = dateKeyToDate(previous);
+        return v.year === was.getFullYear() && v.month0 === was.getMonth()
+          ? { year: d.getFullYear(), month0: d.getMonth() }
+          : v;
+      });
+      setTodayKey(local);
+    }
+    syncToday();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") syncToday();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", syncToday);
+    const id = window.setInterval(syncToday, 60_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", syncToday);
+      window.clearInterval(id);
+    };
+  }, []);
 
   const liveStack = useSyncExternalStore(
     subscribeStack,
