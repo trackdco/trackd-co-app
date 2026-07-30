@@ -5,7 +5,7 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 ## Current state (2026-07-23)
 
@@ -106,9 +106,10 @@ Blocks is new scope on top and is built end to end.
   new shared component, flagged for Adrian). Dose, Draw, Date and Time as rows;
   the body map moved behind a Site row into its own sheet with every prop
   unchanged. Draw is new to this sheet and prices against the vial in use on the
-  DOSE'S OWN DAY. Spec 11 also asks for a note row, which cannot be built: there
-  is no note anywhere in the dose-logging data path, and the same spec's Out of
-  Scope forbids adding what is not already on the sheet. Parked for Adrian.
+  DOSE'S OWN DAY. The note row spec 11 asks for SHIPPED once Adrian approved it,
+  and needed no migration: `dose_logs.note` has existed since v0.4.2 and nothing
+  had ever written to it. The date is EDITABLE (Adrian, 2026-07-30) and changing
+  it MOVES the dose rather than copying it.
 
 - **Blocks** (new scope, not one of the eighteen) — create sheet, end-date
   prompt (Extend / Close / Leave running), `/blocks` and the retrospective, all
@@ -119,7 +120,7 @@ Blocks is new scope on top and is built end to end.
   compounds, and a client guard driven by the server's UTC date that stopped an
   Australian starting a block dated today.
 
-**All migrations APPLIED except 010:** `supabase/protocol/006` (compound cycles + the
+**All migrations APPLIED:** `supabase/protocol/006` (compound cycles + the
 runs-dry fix), `007` (stacks), and `008` (stack_members ownership hardening —
 007 shipped an RLS hole where the one-stack index was global across users; 008
 makes ownership structural via composite FKs) on 2026-07-29; `009`
