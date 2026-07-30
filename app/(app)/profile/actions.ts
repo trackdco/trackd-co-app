@@ -68,7 +68,20 @@ export async function clearAvatar(): Promise<AvatarResult> {
 
 /* ── Physical details ─────────────────────────────────────────────── */
 
-export type PhysicalState = { error?: string; success?: boolean };
+export type PhysicalState = {
+  error?: string;
+  success?: boolean;
+  /**
+   * A token that CHANGES on every successful save.
+   *
+   * `useActionState` holds the last result until the next one, so `success: true`
+   * stays true forever after the first save. The card watched that boolean to
+   * return itself to read state, which therefore worked exactly once: every save
+   * after the first left the form open, with no success signal of any kind, and
+   * the only way out was Cancel or a reload.
+   */
+  savedAt?: number;
+};
 
 const SEXES = new Set(["male", "female"]);
 const GOALS = new Set([
@@ -163,8 +176,16 @@ export async function updatePhysical(
   // Every screen that reads these values. Progress is in the list because `sex`
   // decides which markers its journal dialer offers (Spec 04, wave 2 pt one),
   // and the dashboard because the injection-site map draws the matching body.
+  // Every screen that reads any of these. `units_preference` reaches the weight
+  // and calculator views, and the (app) layout itself reads `sex` for the body
+  // map, so the layout's own path is revalidated too.
   revalidatePath("/profile");
   revalidatePath("/progress");
   revalidatePath("/dashboard");
-  return { success: true };
+  revalidatePath("/weight");
+  revalidatePath("/protocol");
+  revalidatePath("/calendar");
+  revalidatePath("/calculator");
+  revalidatePath("/(app)", "layout");
+  return { success: true, savedAt: Date.now() };
 }

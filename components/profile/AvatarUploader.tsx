@@ -16,6 +16,16 @@ import {
 } from "@/components/ui/sheet";
 import { AVATAR_ASPECT } from "@/lib/media/framing";
 
+/**
+ * An error whose message was WRITTEN for the user.
+ *
+ * Everything else — a Supabase storage rejection, a canvas `IndexSizeError` —
+ * goes to the console and is reported as one plain sentence. The uploader used
+ * to print whatever it caught, so backend copy and RLS policy text could end up
+ * under someone's profile photo.
+ */
+class AvatarMessage extends Error {}
+
 interface AvatarUploaderProps {
   /** Code-point-safe initials, shown when there's no photo. */
   initials: string;
@@ -51,13 +61,13 @@ async function cropResizeToWebp(file: File): Promise<Blob> {
     canvas.width = TARGET;
     canvas.height = TARGET;
     const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Couldn't process that image.");
+    if (!ctx) throw new AvatarMessage("Couldn't process that image.");
     ctx.drawImage(img, sx, sy, side, side, 0, 0, TARGET, TARGET);
 
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob((b) => resolve(b), "image/webp", 0.9),
     );
-    if (!blob) throw new Error("Couldn't process that image.");
+    if (!blob) throw new AvatarMessage("Couldn't process that image.");
     return blob;
   } finally {
     URL.revokeObjectURL(url);
@@ -124,12 +134,21 @@ export function AvatarUploader({
       const { error: upErr } = await supabase.storage
         .from("avatars")
         .upload(path, blob, { upsert: true, contentType: "image/webp" });
-      if (upErr) throw new Error(upErr.message);
+      // The backend's own words are for the console, never the screen: a storage
+      // rejection reads "The object exceeded the maximum allowed size", or worse,
+      // quotes an RLS policy at someone editing their profile photo.
+      if (upErr) {
+        console.error("avatar upload failed", upErr);
+        throw new AvatarMessage("Couldn't upload that photo. Try a different one.");
+      }
       const res = await setAvatarPath(path);
-      if (!res.ok) throw new Error(res.error ?? "Couldn't save your photo.");
+      if (!res.ok) throw new AvatarMessage(res.error ?? "Couldn't save your photo.");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't update your photo.");
+      console.error("avatar update failed", err);
+      setError(
+        err instanceof AvatarMessage ? err.message : "Couldn't update your photo.",
+      );
     } finally {
       setBusy(false);
     }
@@ -170,19 +189,33 @@ export function AvatarUploader({
             always visible without a photo: an empty circle of initials does not
             otherwise say "tap me", and the text links that used to say so are
             gone. */}
+        {/* Over a PHOTO the badge can sit in the middle, because a photo is a
+            texture and the icon reads against it. Over INITIALS it cannot: it
+            landed square on the glyphs, so the monogram read as a letter with a
+            camera wedged through it. Without a photo the badge moves to the
+            bottom-right corner, on its own disc, which is also where every phone
+            OS puts this exact affordance. */}
         <span
           className={cn(
-            "absolute inset-0 flex items-center justify-center transition-colors",
-            signedUrl ? "bg-bg-base/0 group-hover:bg-bg-base/40" : "bg-bg-base/0",
+            "absolute transition-colors",
+            signedUrl
+              ? "inset-0 flex items-center justify-center bg-bg-base/0 group-hover:bg-bg-base/40"
+              : "right-0 bottom-0 flex h-8 w-8 items-center justify-center rounded-full bg-bg-surface-raised",
           )}
         >
           {busy ? (
-            <CircleNotch className="h-6 w-6 animate-spin text-text-primary" aria-hidden />
+            <CircleNotch
+              className={cn(
+                "animate-spin text-text-primary",
+                signedUrl ? "h-6 w-6" : "h-4 w-4",
+              )}
+              aria-hidden
+            />
           ) : (
             <Camera
               className={cn(
-                "h-6 w-6 text-text-primary transition-opacity",
-                signedUrl ? "opacity-0 group-hover:opacity-100" : "opacity-60",
+                "text-text-primary transition-opacity",
+                signedUrl ? "h-6 w-6 opacity-0 group-hover:opacity-100" : "h-4 w-4",
               )}
               aria-hidden
             />

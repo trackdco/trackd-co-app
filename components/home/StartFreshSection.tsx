@@ -32,6 +32,7 @@ export function StartFreshSection({
 }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -45,7 +46,18 @@ export function StartFreshSection({
   async function confirmWipe() {
     if (busy) return
     setBusy(true)
-    await wipeMyProtocol()
+    setError(null)
+    const res = await wipeMyProtocol()
+    // A FAILED cloud wipe must not clear the device. The return value used to be
+    // discarded, so a network drop or an RLS rejection left every compound, vial
+    // and dose in Postgres while the local caches were emptied and the app
+    // navigated to a blank Home — the user was told their data was gone when it
+    // was not, and the next hydration would have brought it back around them.
+    if (!res.ok) {
+      setBusy(false)
+      setError("Couldn't clear your data. Check your connection and try again.")
+      return
+    }
     // Clear the device-local caches (keys defined in lib/home/stack.ts, doseLog.ts,
     // the add-to-stack menu, and migrateDeviceState) so they can't re-push the old
     // stack back up. Then hard-reload to a clean Home.
@@ -103,11 +115,20 @@ export function StartFreshSection({
                 the cloud. Your weight, progress photos and bloodwork are kept.
                 This can&apos;t be undone.
               </p>
+              {error && (
+                <p role="alert" className="mt-3 text-sm text-state-error">
+                  {error}
+                </p>
+              )}
+
               <div className="mt-5 flex gap-3">
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    setError(null)
+                    setOpen(false)
+                  }}
                   className="flex-1 rounded-xl border border-border-strong py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text-primary disabled:opacity-50"
                 >
                   Cancel

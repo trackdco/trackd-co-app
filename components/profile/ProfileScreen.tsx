@@ -71,7 +71,11 @@ export function ProfileScreen({
       >
         <AvatarUploader initials={initials} signedUrl={avatarUrl} userId={userId} />
 
-        <h1
+        {/* An H2, not a second H1. `PageScrollTitle` already renders the page's
+            one H1 ("Profile"); two made the document claim two top-level
+            headings, and a screen reader's heading list read "Profile" then the
+            user's own name at the same level. The type is unchanged. */}
+        <h2
           className={
             hasName
               ? `mt-5 text-balance leading-[1.15] ${PAGE_TITLE}`
@@ -79,7 +83,7 @@ export function ProfileScreen({
           }
         >
           {displayName}
-        </h1>
+        </h2>
         {hasName ? (
           <p className="mt-1 max-w-full truncate text-sm text-text-muted">{email}</p>
         ) : null}

@@ -45,6 +45,10 @@ export default async function ProfilePage() {
   const { data: latestWeight } = await supabase
     .from("weight_logs")
     .select("weight")
+    // Scoped explicitly, like every other read on this page. RLS already answers
+    // for it; defence in depth is the house pattern and this was the one query
+    // that relied on the backstop alone.
+    .eq("profile_id", user!.id)
     .order("logged_for", { ascending: false })
     .limit(1)
     .maybeSingle();
