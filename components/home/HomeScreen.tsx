@@ -545,8 +545,26 @@ export function HomeScreen({
     ? "Today's Log"
     : `${WEEKDAYS[selectedDate.getDay()]}'s Log`
 
-  function handleTracked(compoundId: string, log: DoseLog) {
-    logDose(userId, selectedKey, compoundId, log)
+  /**
+   * Commit a dose on the day the sheet says it lands on.
+   *
+   * `landsOn` is usually `openedOn`. When the user has changed the Date row it
+   * is not, and the dose has to MOVE: writing the new day without clearing the
+   * old one would leave two entries for one dose, which is exactly the
+   * duplication the un-log path exists to prevent.
+   */
+  function handleTracked(
+    compoundId: string,
+    log: DoseLog,
+    landsOn: string,
+    openedOn: string
+  ) {
+    if (landsOn !== openedOn) unlogDose(userId, openedOn, compoundId)
+    logDose(userId, landsOn, compoundId, log)
+    // Follow the dose to its new day, so the tick the user just made is on the
+    // screen they are looking at rather than on a day they have navigated away
+    // from.
+    if (landsOn !== openedOn) setSelectedKey(landsOn as DateKey)
   }
 
   // Undo a logged dose — removes its entry.

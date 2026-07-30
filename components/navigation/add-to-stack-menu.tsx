@@ -1245,7 +1245,7 @@ function CompoundForm({
       )}
 
       <p className="px-1 text-xs leading-relaxed text-text-subtle">
-        Saved to this device for you only.
+        Saved to your account. Only you can see it.
       </p>
 
       {formMode === "edit" && (

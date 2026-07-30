@@ -15,7 +15,7 @@ import { PhysicalCard, type PhysicalInitial } from "@/components/profile/Physica
 import { ProfileFeedbackRow } from "@/components/profile/ProfileFeedbackRow";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { DeleteAccountRequest } from "@/components/auth/delete-account-request";
-import { StartFreshSection } from "@/components/home/StartFreshSection";
+import { DangerMore } from "@/components/profile/DangerMore";
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
 
@@ -139,12 +139,17 @@ export function ProfileScreen({
           deliberately rather than an alarm sitting on the page. */}
       <div className="animate-home-up" style={{ animationDelay: "145ms" }}>
         <p className={`mb-3 ${CARD_EYEBROW} text-accent-destructive`}>Danger zone</p>
+        {/* Sign out in the open; the irreversible one behind a lid (Adrian,
+            2026-07-30). "Clear all compounds & stock" was REMOVED entirely at
+            the same time — deleting a compound already keeps its history, and a
+            single button that empties the whole protocol was a hazard sitting
+            next to a sign-out someone taps weekly. */}
         <div className="overflow-hidden rounded-2xl border border-accent-destructive/40">
           <SignOutConfirm variant="row" />
           <DangerDivider />
-          <StartFreshSection userId={userId} variant="row" />
-          <DangerDivider />
-          <DeleteAccountRequest email={email} variant="row" />
+          <DangerMore>
+            <DeleteAccountRequest email={email} variant="row" />
+          </DangerMore>
         </div>
       </div>
 

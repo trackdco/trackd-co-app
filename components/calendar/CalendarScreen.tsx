@@ -402,7 +402,18 @@ export function CalendarScreen({
         onOpenChange={(o) => {
           if (!o) setLogTarget(null);
         }}
-        onTracked={(compoundId, log) => logDose(userId, selectedKey, compoundId, log)}
+        onTracked={(compoundId, log, landsOn, openedOn) => {
+          // The Date row is editable, so a dose can land on a day other than the
+          // one the sheet was opened on. Move it rather than copying it, and
+          // follow it, exactly as Home does.
+          if (landsOn !== openedOn) unlogDose(userId, openedOn, compoundId)
+          logDose(userId, landsOn, compoundId, log)
+          if (landsOn !== openedOn) {
+            const d = dateKeyToDate(landsOn as DateKey)
+            setSelectedKey(landsOn as DateKey)
+            setView({ year: d.getFullYear(), month0: d.getMonth() })
+          }
+        }}
         onRemove={(compoundId) => unlogDose(userId, selectedKey, compoundId)}
       />
 

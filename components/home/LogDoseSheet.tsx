@@ -52,8 +52,20 @@ interface LogDoseSheetProps {
   /** Which figure the pick map draws (from the user's profile). */
   bodySex: BodySex
   onOpenChange: (open: boolean) => void
-  /** Commit the log (fresh or edited) — marks the dose logged upstream. */
-  onTracked: (compoundId: string, log: DoseLog) => void
+  /**
+   * Commit the log (fresh or edited).
+   *
+   * `landsOn` is the day the dose belongs to, which is NOT always the day the
+   * sheet was opened on: the Date row is editable, so someone who took a dose a
+   * day early can say so. When it differs from `openedOn` the caller must MOVE
+   * the entry, not copy it.
+   */
+  onTracked: (
+    compoundId: string,
+    log: DoseLog,
+    landsOn: string,
+    openedOn: string
+  ) => void
   /** Undo — remove the dose's log entirely. */
   onRemove: (compoundId: string) => void
 }
@@ -160,15 +172,35 @@ function LogDoseBody({
   siteLastUsedDays: Record<string, number>
   bodySex: BodySex
   onClose: () => void
-  onTracked: (compoundId: string, log: DoseLog) => void
+  onTracked: (
+    compoundId: string,
+    log: DoseLog,
+    landsOn: string,
+    openedOn: string
+  ) => void
   onRemove: (compoundId: string) => void
 }) {
   const editing = existing !== null
   const injectable = isInjectable(compound.method)
+
+  /**
+   * The day this dose lands on, EDITABLE.
+   *
+   * Seeded from the day the sheet was opened on (the week strip's or the
+   * calendar's selection), which is right almost always. But life does not run
+   * to the schedule: a supplement taken the evening before it was due belongs to
+   * the evening it was taken, and until now the only way to record that was to
+   * close the sheet, scroll the strip and start again — which nobody does, so
+   * the dose went down on the wrong day instead.
+   *
+   * Everything date-dependent below reads THIS, not the prop: the schedule rule
+   * in force, the vial in use, the live-clock default, and what gets written.
+   */
+  const [logDate, setLogDate] = useState(dateKey)
   // Life doesn't happen at the phone: the week strip can look back, so a dose may
   // land on a day that isn't today. Everything below that depends on "when" reads
   // this rather than the clock.
-  const onToday = dateKey === todayKey
+  const onToday = logDate === todayKey
 
   const cardRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startY: number; height: number } | null>(null)
@@ -180,7 +212,7 @@ function LogDoseBody({
   // The dose AS IT WAS on the day being logged, not the compound's current one.
   // `resolveScheduleOn` is what every retrospective READ already uses; the write
   // was reading the live compound, so back-dating a day recorded today's dose.
-  const onDay = resolveScheduleOn(compound, dateKey)
+  const onDay = resolveScheduleOn(compound, logDate)
   const [amount, setAmount] = useState(existing?.amount ?? String(onDay.dose))
   const [editingAmount, setEditingAmount] = useState(false)
 
@@ -225,7 +257,7 @@ function LogDoseBody({
     let cancelled = false
     void (async () => {
       try {
-        const result = await resolveDrawSources([compound.id], dateKey)
+        const result = await resolveDrawSources([compound.id], logDate)
         if (!cancelled) setDrawSource(result.sources[compound.id] ?? null)
       } catch {
         if (!cancelled) setDrawSource(null)
@@ -234,7 +266,7 @@ function LogDoseBody({
     return () => {
       cancelled = true
     }
-  }, [injectable, compound.id, dateKey])
+  }, [injectable, compound.id, logDate])
   // Against the amount ACTUALLY in the field, so editing the dose moves the draw
   // with it. `formatDraw` returns null rather than a plausible-but-wrong figure
   // when the units disagree, which is why this can simply be rendered or not.
@@ -344,7 +376,7 @@ function LogDoseBody({
     let cancelled = false
     void (async () => {
       try {
-        const v = await resolveVialForDate(compound.id, dateKey)
+        const v = await resolveVialForDate(compound.id, logDate)
         if (cancelled) return
         setDateVialId(v?.id ?? null)
         // Only adopt it as the pick for a FRESH log, and only while the user hasn't
@@ -359,7 +391,7 @@ function LogDoseBody({
     return () => {
       cancelled = true
     }
-  }, [onToday, compound.id, dateKey, existing])
+  }, [onToday, compound.id, logDate, existing])
 
   const [tracked, setTracked] = useState(false)
 
@@ -399,7 +431,7 @@ function LogDoseBody({
           }
         : {
             value: "Counted",
-            note: `Comes off the vial you were using on ${formatDateKeyShort(dateKey)}.`,
+            note: `Comes off the vial you were using on ${formatDateKeyShort(logDate)}.`,
             toggle: {
               label: "Don't count this one",
               onPress: () => setInventoryItemId(null),
@@ -577,7 +609,7 @@ function LogDoseBody({
           onClick={() => {
             // Commit immediately, THEN show the success tick — so nothing about
             // dismissing the tick can undo the log.
-            onTracked(compound.id, buildLog())
+            onTracked(compound.id, buildLog(), logDate, dateKey)
             setTracked(true)
           }}
           className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80"
@@ -678,25 +710,36 @@ function LogDoseBody({
             </>
           )}
 
-          {/* Date — the SELECTED day, never today when a day is in context. It
-              states the date and does not edit it: the week strip and the
-              calendar are how you choose the day, and spec 11 says not to change
-              which date this writes to. Past and future read identically
-              (Adrian's call) — naming the day is the whole job. */}
+          {/* Date — EDITABLE (Adrian, 2026-07-30). It still DEFAULTS to the day
+              the sheet was opened on, so the week strip and the calendar remain
+              how you choose a day and the normal path is unchanged. What is new
+              is that a dose taken a day earlier than planned can be recorded on
+              the day it was actually taken, without closing the sheet and
+              starting again somewhere else — which nobody does, so the dose used
+              to go down on the wrong day instead.
+
+              Changing it moves everything with it: the schedule rule in force
+              that day, the vial that was in use, the live-clock default, and on
+              an edit the entry itself, which is MOVED rather than copied. */}
           <LogRowDivider />
           <LogRow label="Date">
-            <span className="font-mono text-sm text-foreground">
-              {formatDateKeyShort(dateKey)}
-              {/* The comma is for the screen reader: `ml-1.5` is a visual gap
-                  only, so the accessible text ran the two together as
-                  "Thu 30 Jultoday". */}
+            <div className="flex items-center justify-end gap-2">
               {onToday && (
-                <span className="font-sans text-text-subtle">
-                  <span className="sr-only">, </span>
-                  <span aria-hidden> </span>today
-                </span>
+                <span className="text-sm text-text-subtle">today</span>
               )}
-            </span>
+              <Input
+                type="date"
+                value={logDate}
+                onChange={(e) => {
+                  // An empty value is what a cleared native picker sends.
+                  // Falling back to the day the sheet opened on is the only sane
+                  // answer: a dose has to land somewhere.
+                  setLogDate(e.target.value || dateKey)
+                }}
+                aria-label="Date this dose was taken"
+                className="h-11 w-36 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+              />
+            </div>
           </LogRow>
 
           {/* Time. "Set time" shows only when it is genuinely unset — clearing
