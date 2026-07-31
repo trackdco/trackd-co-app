@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { track } from "@/lib/onboarding/analytics";
 import { guessPlatform } from "@/lib/onboarding/platform";
@@ -28,15 +28,32 @@ import { NotificationMock } from "../notification-mock";
 export function NotificationsScreen() {
   const { goNext } = useFlow();
   const [busy, setBusy] = useState(false);
+  // `disabled={busy}` is a render away; two synchronous clicks both get through
+  // it. A ref latches immediately, the same way the demo's log button does.
+  const fired = useRef(false);
   // Same guess the install screen made, from one helper, so the two screens
   // cannot show a user Safari's Share sheet and then an Android notification.
   const [platform] = useState(guessPlatform);
 
   const onAllow = async () => {
+    if (fired.current) return;
+    fired.current = true;
     setBusy(true);
     try {
       if (typeof Notification !== "undefined" && Notification.requestPermission) {
-        const result = await Notification.requestPermission();
+        // RACED AGAINST A TIMEOUT. `requestPermission()` is not guaranteed to
+        // settle: a browser that has blocked the prompt, or one that ignores a
+        // request it does not consider user-initiated, can leave the promise
+        // pending forever — and this screen awaits it before moving on, so the
+        // user would be stranded on it with a latched button. Measured: two
+        // rapid taps in Chrome left it hanging. Whatever happens, the flow
+        // continues; the permission itself is optional by design.
+        const result = await Promise.race([
+          Notification.requestPermission(),
+          new Promise<NotificationPermission>((resolve) =>
+            setTimeout(() => resolve("default"), 4000),
+          ),
+        ]);
         if (result === "granted") track("notifications_granted");
       }
     } catch {

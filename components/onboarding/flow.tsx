@@ -53,6 +53,23 @@ import { StepRenderer } from "./step-renderer";
 /** Never notifies: the client/server answer cannot change after hydration. */
 const subscribeNever = () => () => {};
 
+/**
+ * How long an incoming screen refuses input.
+ *
+ * Rate-limiting `goNext` was not enough on its own: an async CTA (the trial
+ * button, the notification permission request) calls it AFTER any time window
+ * has expired, so a second tap still landed on the new screen and ran it. The
+ * honest fix is that the arriving screen is not tappable until it has
+ * arrived — which is also just true, visually.
+ *
+ * 750ms, chosen from measurement rather than taste: taps were still slipping
+ * through at a 600ms gap, and 600ms is squarely inside the window where
+ * someone who thinks their first tap missed tries again. By 750ms the new
+ * screen has been on display for nearly half a second and any tap is a
+ * decision about IT.
+ */
+const SETTLE_MS = 750;
+
 export function OnboardingFlow() {
   // The session and the step both come from the browser (localStorage, the
   // URL). Rendering a guessed value on the server and correcting it on the
@@ -119,6 +136,23 @@ function OnboardingFlowClient() {
     track("onboarding_start");
   }, []);
 
+  // True while the incoming screen is arriving. See SETTLE_MS.
+  const [settling, setSettling] = useState(false);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const beginSettle = useCallback(() => {
+    setSettling(true);
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => setSettling(false), SETTLE_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+    };
+  }, []);
+
+
   // The popstate listener must read the CURRENT gate state rather than whatever
   // was captured when it was attached. Written in an effect (not during render,
   // which the refs lint rule rightly forbids) and read inside the handler.
@@ -132,6 +166,7 @@ function OnboardingFlowClient() {
     const onPop = () => {
       const requested = new URLSearchParams(window.location.search).get("step");
       setDirection("back");
+      beginSettle();
       if (!isStepId(requested)) {
         setStep(FIRST_STEP);
         return;
@@ -141,7 +176,7 @@ function OnboardingFlowClient() {
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, []);
+  }, [beginSettle]);
 
   const patch = useCallback((next: Partial<OnboardingSession>) => {
     setSession((current) => {
@@ -157,10 +192,11 @@ function OnboardingFlowClient() {
     url.searchParams.set("step", target);
     window.history.pushState({ step: target }, "", url);
     setHasPushed(true);
+    beginSettle();
     // The browser keeps the old scroll offset otherwise, and a long screen
     // opens half-way down.
     window.scrollTo({ top: 0 });
-  }, []);
+  }, [beginSettle]);
 
   const goTo = useCallback(
     (target: StepId) => {
@@ -176,6 +212,21 @@ function OnboardingFlowClient() {
   // which Next patches to update its Router: doing it in there updates the
   // Router while this component renders (React says so, loudly) and pushes two
   // history entries for one tap, so a single Back moves nowhere. Measured.
+  /**
+   * Every screen's CTA sits in the same place in the footer, and a step change
+   * remounts the screen underneath the finger. So a second tap — a deliberate
+   * one, by someone who thinks the first missed — landed on the NEW screen's
+   * button and skipped a whole screen.
+   *
+   * Measured at gaps of 0, 60, 120, 200, 350 AND 600ms: two taps on install
+   * jumped past the notification request entirely, which breaks spec §12's
+   * install-before-notifications requirement; two taps on attribution left
+   * onboarding altogether.
+   *
+   * So advancing is rate-limited. Not a disabled button (that flickers on every
+   * screen and reads as jank) — just a refusal to move twice inside one
+   * transition.
+   */
   const goNext = useCallback(() => {
     const target = nextStep(step);
     if (!target) return;
@@ -274,6 +325,11 @@ function OnboardingFlowClient() {
             className={cn(
               "flex flex-1 flex-col",
               direction === "forward" ? "animate-flow-forward" : "animate-flow-back",
+              // Not tappable until it has arrived. Every CTA sits in the same
+              // place in the footer, so without this a second tap ran the NEW
+              // screen's action and skipped it entirely — including, measured,
+              // the notification opt-in that spec §12 requires to come first.
+              settling && "pointer-events-none",
             )}
           >
             <StepRenderer step={step} />

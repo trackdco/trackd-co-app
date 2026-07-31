@@ -106,6 +106,10 @@ export function HousekeepingScreen() {
             type="file"
             accept="image/*"
             onChange={onPickPhoto}
+            // Not a tab stop: it is 1x1px with no visible focus, and the button
+            // above it already opens the picker.
+            tabIndex={-1}
+            aria-hidden
             className="sr-only"
           />
         </div>
