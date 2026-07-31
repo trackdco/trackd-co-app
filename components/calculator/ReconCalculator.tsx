@@ -103,9 +103,6 @@ const DEFAULT_DOSE_UNIT: MgUnit = "mcg"
  * calculations, no history, and nothing here reads or writes a compound.
  */
 export function ReconCalculator() {
-  // True while a field is focused, i.e. while the on-screen keyboard is up.
-  // Drives the syringe pin below, and nothing else.
-  const [typing, setTyping] = useState(false)
   const [powder, setPowder] = useState("")
   const [powderUnit, setPowderUnit] = useState<MgUnit>("mg")
   const [bac, setBac] = useState("")
@@ -179,50 +176,26 @@ export function ReconCalculator() {
   }
 
   return (
-    <div
-      className="space-y-5"
-      // Whether the on-screen keyboard is up, inferred from focus inside the
-      // form. `relatedTarget` keeps it TRUE while moving between two fields —
-      // without that check the pin dropped and re-applied on every tab, which
-      // reads as a flicker.
-      onFocusCapture={(e) => {
-        const t = e.target as HTMLElement
-        if (t.tagName === "INPUT" || t.tagName === "SELECT") setTyping(true)
-      }}
-      onBlurCapture={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setTyping(false)
-      }}
-    >
+    <div className="space-y-5">
       <FirstRunDisclaimer />
 
       {/* ---- The reading. Bare, outside any card, so the syringe is the screen
               rather than a thing on the screen.
 
-              PINNED WHILE TYPING (Adrian, 2026-07-31). It was deliberately not
-              sticky (2026-07-30), but on a phone the keyboard takes roughly half
-              the viewport and pushed the barrel off-screen — so the one thing
-              the numbers are being typed FOR could not be watched while typing
-              them. It sticks only while a field is focused, so the scroll-away
-              behaviour the earlier decision wanted is unchanged the rest of the
-              time. Offset clears the fixed compact header.
+              NOT PINNED. It was made sticky-while-typing on 2026-07-31 so the
+              keyboard could not push the barrel off-screen, and Adrian reversed
+              that the same day after using it on a real iPhone: iOS resizes the
+              visual viewport when the keyboard opens, so the pinned section
+              stayed put while everything else moved and it covered the field
+              being typed in. The cure was worse than the complaint. Back to
+              scrolling with the page, which is what the 2026-07-30 decision
+              wanted in the first place.
 
               Section heading ABOVE the content at `px-1`, which is Protocol's
               idiom (`CompoundsRow`, `ScheduleGrid`) and what makes a standalone
               tab screen read as one page rather than a stack of boxes. ---- */}
       <section
-        className={cn(
-          "animate-home-up space-y-3 pb-3",
-          // The backdrop FADES in rather than snapping (Adrian, 2026-07-31).
-          // `position` cannot be transitioned, but the visible change when the
-          // pin engages is the surface appearing behind the barrel, so that is
-          // what carries the motion. `motion-safe:` rather than an inline
-          // `transition`, which would outrank a reduced-motion opt-out — the
-          // exact mistake spec 07 shipped and had to fix.
-          "motion-safe:transition-colors motion-safe:duration-300 motion-safe:ease-out",
-          typing
-            ? "sticky top-[calc(env(safe-area-inset-top,0px)+2.75rem)] z-30 bg-bg-base/85 backdrop-blur"
-            : "bg-transparent"
-        )}
+        className="animate-home-up space-y-3 pb-3"
         style={{ animationDelay: "0ms" }}
       >
         <h2 className={cn(CARD_EYEBROW, "px-1")}>Draw</h2>
