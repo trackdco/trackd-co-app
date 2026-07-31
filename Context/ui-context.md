@@ -76,9 +76,15 @@ Everything **settled** reads white or muted: a single logged-dose **tick**
 resolves to a filled `--accent-primary` (white) mark; the **active selection** in
 a control is white; the tab bar is monochrome (active white, inactive
 `--text-subtle`). Rarity is what makes amber read — if half the screen is amber,
-nothing is urgent. **Two sanctioned many-amber surfaces**, and only two: the
-injection-site recency ramp below, and a **settings screen carrying several
-switches** (`/notifications` shows four amber tracks with everything on). The
+nothing is urgent. **Three sanctioned many-amber surfaces**, and only three: the
+injection-site recency ramp below, a **settings screen carrying several
+switches** (`/notifications` shows four amber tracks with everything on), and
+an **onboarding answer list** (a selected chip reads amber: text, icon, tick,
+and a 10% wash). All three are the same argument rather than three excuses: on
+each of those surfaces the amber thing IS the live state, and it is the thing
+the user came to the screen to see. Note the third is scoped to `/onboarding`;
+inside the app amber means "this needs you now" against real data, and a
+selected row in a list is not that (Adrian, 2026-08-01). The
 switch rule below is why, and it is consistent with rarity rather than an
 exception to it: a switch that is on IS the live state, and on a screen whose
 entire job is showing you which things are on, that is the content, not
@@ -346,6 +352,26 @@ shadcn's default border per the borderless-card rule.
   under it on scroll instead of stopping at a solid block — the last
   visible "web app" tell on scroll-heavy screens.
 
+### Surface treatment: the canvas is lit and cards have depth
+
+Introduced for `/onboarding` (Adrian, 2026-08-01: "it looks too simple"), and
+the reference the app restyle will be pointed at. Two classes in
+`globals.css`, both mixed FROM the tokens with `color-mix` so no hex escapes
+that file and a palette retune carries them:
+
+- **`.flow-canvas`** — a radial lift at the top of the page falling to
+  `--bg-base` by 62%. A full-screen dark surface with no gradient reads as a
+  void; a few percent of light at the top reads as lit.
+- **`.flow-card`** — an inset hairline of 5% white along a card's top edge
+  (where a light source would catch it) plus a soft drop shadow beneath. Both
+  are far weaker than they sound; the effect is depth, not decoration.
+
+The restraint is the point. This is one hairline and one shadow, not a glass
+morphism kit: the moment surfaces start glowing it reads as generated rather
+than designed. **Applies to `/onboarding` only for now.** Rolling it through
+the app is its own deliberate pass, not something to sprinkle screen by screen
+(that is how a design system ends up with four slightly different cards).
+
 ### Rule: new screens reuse the system
 
 Any new screen (Protocol, Calendar, Settings, …) is composed **only**
@@ -508,6 +534,12 @@ feels off even when it looks right.
 
 - Terse, exact, confident. No exclamation marks, no emoji, no chirp
   ("Nice work!", "Oops!").
+  **Two sanctioned exceptions, both in `/onboarding` and both Adrian's call
+  (2026-08-01):** the welcome line after the trial starts ("You're in,
+  {name}!") and the founder letter, which is a signed message from two people
+  rather than system copy. The ban exists so an INSTRUMENT does not chirp at
+  you about your own data; neither of those is the instrument talking. Nothing
+  inside the app gets one.
 - **Never an em dash.** Not in any user-facing string, anywhere in the app
   (Adrian, 2026-07-30). Use a full stop and a second sentence, a colon where
   one clause introduces another, or a comma. An em dash reads as an aside the

@@ -559,6 +559,47 @@ no page errors, no horizontal overflow. Gates: tsc clean, eslint clean, **458
 tests** on the onboarding branch and **421** on the fixes branch, `next build`
 green on both.
 
+## Onboarding, second and third passes (2026-08-01)
+
+Branch `wave3/onboarding-flow`, pushed, NOT merged. `main` carries the wave3
+review fixes and the calculator unpin and is otherwise untouched.
+
+**The flow is fourteen steps and the demo is one of them.** It used to be four
+routes; walking between pages broke the illusion the demo exists to create, so
+logging a dose now ticks the card, recedes it and floats the stock card in
+underneath on the same surface. Three beats with a deliberate hold, because
+rushing it read as a page swap rather than a consequence.
+
+**The surface treatment is the thing Adrian reacted to most.** `.flow-canvas`
+lights the top of the page, `.flow-card` gives every card a 5%-white top edge
+and a soft shadow, and screens slide in directionally. All token-derived via
+`color-mix`. Documented in `ui-context.md` and scoped to `/onboarding`; the
+app-wide roll-out is a separate spec (see `next-tasks.md`).
+
+**The paywall is a carousel of the real app.** Four actual captures of
+`/preview/home|protocol|recon|progress` inside one phone that never moves,
+cross-fading on a 1.1s eased fade, with four labels orbiting each and a caption
+above. The capture script strips the name from the greeting, because the
+screenshot is shown to strangers.
+
+**Kyle is in**, thumbs-up on celebrate and flexing on welcome, feathered rather
+than matted.
+
+**Three `ui-context.md` amendments, all Adrian's call:** a selected onboarding
+chip may be amber (third sanctioned many-amber surface, same argument as the
+switch rule); exclamation marks are allowed in exactly two onboarding strings
+and nowhere in the app; and the surface treatment is written down.
+
+Gates on the branch: tsc clean, eslint clean, **487 tests**, build green.
+Driven at 360/390/430 across every step: no console errors, no page errors, no
+horizontal overflow, and the demo still leaves nothing behind but
+`trackd.onboarding.v1`.
+
+Two bugs found by measuring rather than looking: the directional entrance
+created a real 408px horizontal scroll area on a 390 phone for the length of
+the animation (clipped), and "5 days on us" rendered as "5days" because JSX
+drops whitespace between an expression and text across a line break.
+
 ## Open Questions
 
 - ~~**Schedule versioning — migration awaiting Adrian.**~~ **RESOLVED 2026-07-29.**

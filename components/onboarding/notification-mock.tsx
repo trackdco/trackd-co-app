@@ -6,111 +6,110 @@ import type { Platform } from "@/lib/onboarding/platform";
 import { cn } from "@/lib/utils";
 
 /**
- * A sample push notification drawn as THE USER'S OS DRAWS IT (Adrian,
- * 2026-07-31: "it should have that exact same look to it").
+ * The OS PERMISSION PROMPT, drawn as the user's phone draws it (Adrian,
+ * 2026-08-01: "the actual, like, when it says Trackd would like to send you
+ * notifications").
  *
- * A generic card here is a wasted screen: the whole point is to show them the
- * thing they are about to say yes to, so it has to be recognisable as their
- * own notification shade. iOS and Android lay these out differently enough
- * that one card cannot pass for both.
+ * Showing a sample notification was answering a different question. What the
+ * user is about to be asked is whether to grant permission, so the screen
+ * should show them that dialog: they recognise it, they know exactly which
+ * button they are being asked to press, and the real one landing a second later
+ * is then familiar rather than a surprise.
  *
- * Both are decorative. `aria-hidden` on the chrome, with the content exposed
- * once through a label on the wrapper, so a screen reader hears the message and
- * not the furniture.
+ * iOS and Android word and lay this out differently enough that one card cannot
+ * pass for both, so there are two. Copy is Apple's and Google's own, because
+ * the whole point is recognition.
  *
- * Uses the real app icon (`/icon-192.png`), which is the same one that would
- * actually appear.
+ * Entirely decorative: `aria-hidden` chrome with one label on the wrapper, so a
+ * screen reader hears what it is and not the furniture.
  */
 
-const TITLE = "Due today: Test E";
-const BODY = "0.5 mL";
+const APP = "Trackd";
 
 export function NotificationMock({ platform }: { platform: Platform }) {
   return (
     <div
       role="img"
-      aria-label={`Example notification: Trackd, ${TITLE}, ${BODY}`}
+      aria-label={`Example of the permission prompt: ${APP} would like to send you notifications`}
+      // Fades and rises into place, which is what Adrian asked for and also
+      // roughly how the real dialog arrives.
       className="animate-flow-in"
     >
-      {platform === "ios" ? <IosNotification /> : <AndroidNotification />}
+      {platform === "ios" ? <IosPrompt /> : <AndroidPrompt />}
     </div>
   );
 }
 
 /**
- * iOS: a heavily rounded, translucent card. App icon top-left at ~20px, app
- * name in caps-ish small text beside it, timestamp right-aligned on the same
- * line, then a bold title and a regular body beneath.
+ * iOS: a centred alert, title and body stacked and centred, then two equal
+ * buttons side by side divided by hairlines. "Allow" is the emphasised one.
  */
-function IosNotification() {
+function IosPrompt() {
   return (
     <div
       aria-hidden
-      className={cn(
-        "rounded-[1.375rem] px-3.5 py-3",
-        // The frosted look, in our own tokens rather than an iOS grey.
-        "bg-bg-surface-raised/80 backdrop-blur-xl",
-        "shadow-[0_8px_28px_-12px_rgba(0,0,0,0.7)]",
-      )}
+      className="mx-auto w-full max-w-[17rem] overflow-hidden rounded-[0.875rem] bg-bg-surface-raised/95 backdrop-blur-xl shadow-[0_20px_50px_-18px_rgb(0_0_0/0.95)]"
     >
-      <div className="flex items-start gap-2.5">
+      <div className="px-4 pb-4 pt-5 text-center">
         <Image
           src="/icon-192.png"
           alt=""
           width={192}
           height={192}
           priority
-          className="mt-[1px] h-[22px] w-[22px] shrink-0 rounded-[6px]"
+          className="mx-auto mb-3 h-[42px] w-[42px] rounded-[9px]"
         />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-[13px] font-medium leading-none text-foreground">
-              Trackd
-            </span>
-            <span className="shrink-0 text-[12px] leading-none text-text-muted">
-              now
-            </span>
-          </div>
-          <p className="mt-1.5 text-[15px] font-medium leading-[1.25] text-foreground">
-            {TITLE}
-          </p>
-          <p className="text-[15px] leading-[1.25] text-text-muted">{BODY}</p>
-        </div>
+        <p className="text-[15px] font-semibold leading-tight text-foreground">
+          &ldquo;{APP}&rdquo; Would Like to Send You Notifications
+        </p>
+        <p className="mt-1.5 text-[12px] leading-[1.35] text-text-muted">
+          Notifications may include alerts, sounds and icon badges. These can be
+          configured in Settings.
+        </p>
       </div>
-    </div>
-  );
-}
 
-/**
- * Android / One UI: a squarer card, the app name and a dot-separated timestamp
- * on one header line ABOVE the title, the icon smaller and circular.
- */
-function AndroidNotification() {
-  return (
-    <div
-      aria-hidden
-      className="rounded-2xl bg-bg-surface-raised px-4 py-3.5 shadow-[0_8px_28px_-12px_rgba(0,0,0,0.7)]"
-    >
-      <div className="flex items-center gap-2">
-        <Image
-          src="/icon-192.png"
-          alt=""
-          width={192}
-          height={192}
-          priority
-          className="h-[15px] w-[15px] shrink-0 rounded-full"
-        />
-        <span className="text-[12px] leading-none text-text-muted">
-          Trackd
-          <span className="mx-1.5 text-text-subtle">&middot;</span>
-          now
+      <div className="grid grid-cols-2 border-t-[0.5px] border-border-strong">
+        <span className="border-r-[0.5px] border-border-strong py-2.5 text-center text-[15px] text-text-muted">
+          Don&apos;t Allow
+        </span>
+        <span className="py-2.5 text-center text-[15px] font-semibold text-foreground">
+          Allow
         </span>
       </div>
+    </div>
+  );
+}
 
-      <p className="mt-2 text-[15px] font-medium leading-[1.3] text-foreground">
-        {TITLE}
+/**
+ * Android / One UI: a squarer sheet, left-aligned, with the actions ranged
+ * right and no dividers.
+ */
+function AndroidPrompt() {
+  return (
+    <div
+      aria-hidden
+      className="mx-auto w-full max-w-[17rem] rounded-[1.75rem] bg-bg-surface-raised px-6 pb-4 pt-6 shadow-[0_20px_50px_-18px_rgb(0_0_0/0.95)]"
+    >
+      <Image
+        src="/icon-192.png"
+        alt=""
+        width={192}
+        height={192}
+        priority
+        className="mx-auto mb-4 h-[40px] w-[40px] rounded-full"
+      />
+      <p className="text-center text-[16px] leading-snug text-foreground">
+        Allow {APP} to send you notifications?
       </p>
-      <p className="text-[14px] leading-[1.3] text-text-muted">{BODY}</p>
+
+      <div className="mt-6 flex items-center justify-end gap-6 pb-1">
+        <span className="text-[14px] font-medium text-text-muted">
+          Don&apos;t allow
+        </span>
+        <span className={cn("text-[14px] font-medium text-accent-amber")}>
+          Allow
+        </span>
+      </div>
     </div>
   );
 }

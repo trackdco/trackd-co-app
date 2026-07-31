@@ -50,6 +50,53 @@ Verified at the last commit: `tsc` clean, `eslint` clean, **341 tests pass**,
 
 ---
 
+## 🔜 ONBOARDING: what is still open (2026-08-01)
+
+The flow is built and previewable on `wave3/onboarding-flow`. NOT merged.
+Adrian has been through it twice; these are what is left.
+
+**Assets he still owes:**
+- The gym-floor backdrop for the hook. `HOOK_BACKDROP` in `screens/hook.tsx` is
+  null and the one-shot settle is already wired; it needs a photo.
+- Signature SVGs. `SIGNATURES` in `screens/letter.tsx`, space already reserved
+  so the block will not jump. Use `fill="currentColor"`, no hardcoded colour.
+- Real progress photos to blur, if he does not want the drawn stand-in.
+
+**Decisions taken, recorded so they are not re-litigated:**
+- `ui-context.md` OVERRIDES the spec's §11 token table, which was written by a
+  different Claude session and contradicts it. Adrian, 2026-08-01.
+- The demo is ONE step with four stages, never four routes.
+- Housekeeping captures name + photo (overrides spec D-2), Welcome greets with
+  them, and the photo is not asked for twice.
+- The cost screen carries NO price. The amount charged depends on the
+  customer's region and only the billing provider knows it; $70 there and
+  AU$110 at the sheet is a broken promise at the worst moment. **Prices on the
+  PAYWALL are scaffolding** ($69.99 / $11.99) until RevenueCat is wired.
+- Kyle's background is NOT cut out. His singlet is black and within a few points
+  of the backdrop, so any automatic matte punches holes in his shirt. The image
+  edge is feathered with a radial mask instead.
+- Amber now marks a selected chip, an exclamation mark is allowed in exactly two
+  onboarding strings, and the surface treatment is documented. All three are in
+  `ui-context.md`; the app is unchanged.
+
+**Known gaps in the flow:**
+- Auth and payment are STUBBED. `startTrial()` in `screens/paywall.tsx` is the
+  single seam. There is no RevenueCat integration on this project at all.
+- The "REAL SIGN-IN" card on the paywall is honest scaffolding, not shippable
+  chrome. It goes when auth is wired.
+- The carousel PNGs in `public/onboarding/` are captures of `/preview/*`.
+  **They go stale when a screen changes.** Recapture with the harness script.
+- Analytics events fire into a `window` buffer. There is no destination wired.
+
+## 🔜 THE APP-WIDE SURFACE RESTYLE (spec not yet written)
+
+Adrian much prefers the onboarding's surface treatment to the app's current
+flat one and wants it rolled through everything, including the external pages.
+**`Context/PROMPT-app-surface-restyle.md` is the prompt to paste into a fresh
+session to get the spec written.** Deliberately not started here: it is a
+cross-cutting change that wants its own spec, and starting it mid-onboarding
+would be the distraction Adrian himself called it.
+
 ## 🔜 DECISIONS WAITING ON ADRIAN (before anything else)
 
 1. **Preview both branches, then say what merges.** Nothing goes to `main`
