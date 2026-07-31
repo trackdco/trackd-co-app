@@ -89,8 +89,15 @@ export default async function DashboardPage() {
         // Slim, persistent "Enable notifications" prompt, rendered above Today's
         // Log. Notifications are core to the app, so it stays until turned on (no
         // dismiss); self-hides when already on / not actionable.
+        // The `key` is load-bearing despite there being no list here: this
+        // element crosses the server/client boundary, so it reaches HomeScreen
+        // unvalidated and React counts it as an unkeyed list child, logging a
+        // `key` warning on every dashboard load. Keying it here is the only fix
+        // that costs no DOM — wrapping it in an element would give `space-y-5`
+        // something to space against even when the banner renders null.
         notificationsBanner={
           <EnableNotificationsStep
+            key="enable-notifications"
             initialEnabled={Boolean(profile?.notifications_enabled)}
           />
         }
