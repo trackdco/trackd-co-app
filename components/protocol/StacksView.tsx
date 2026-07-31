@@ -231,6 +231,7 @@ function StackCard({
         {members.map((m) => (
           <Container
             key={m.id}
+            name={m.name}
             inventoryType={inventoryTypeForCompound(m.name, m.method)}
             category={m.category}
             stackColour={colour}

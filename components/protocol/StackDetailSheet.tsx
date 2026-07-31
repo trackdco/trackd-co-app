@@ -77,6 +77,7 @@ export function StackDetailSheet({
             {members.map((m) => (
               <Container
                 key={m.id}
+                name={m.name}
                 inventoryType={inventoryTypeOf(m)}
                 category={m.category}
                 stackColour={colour}

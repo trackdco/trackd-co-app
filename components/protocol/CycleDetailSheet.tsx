@@ -91,6 +91,7 @@ export function CycleDetailSheet({
         <div className="space-y-5 px-4 pb-2">
           <div className="flex items-center gap-4">
             <Container
+              name={compound.name}
               inventoryType={inventoryType}
               category={compound.category}
               stackColour={colour}

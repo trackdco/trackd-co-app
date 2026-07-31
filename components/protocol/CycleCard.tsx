@@ -54,6 +54,7 @@ export function CycleCard({
     >
       <div className="flex items-center gap-4">
         <Container
+          name={compound.name}
           inventoryType={inventoryType}
           category={compound.category}
           stackColour={colour}

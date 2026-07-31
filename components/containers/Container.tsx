@@ -19,17 +19,24 @@ export interface CompoundContainerProps
   category?: string | null;
   /** The stack's colour when this compound is in one — overrides the category. */
   stackColour?: string | null;
+  /**
+   * The compound's name. Lets the form resolver read its dose unit out of the
+   * catalogue and draw a supplement as what it actually is — a tub for the
+   * powders, a bottle for the tablets. Omit it on a decorative container.
+   */
+  name?: string | null;
 }
 
 export function Container({
   inventoryType,
   category,
   stackColour,
+  name,
   ...rest
 }: CompoundContainerProps) {
   const colour = containerColour({ category, stackColour });
 
-  switch (containerFormFor({ inventoryType, category })) {
+  switch (containerFormFor({ inventoryType, category, name })) {
     case "vial":
       return <Vial colour={colour} {...rest} />;
     case "tub":

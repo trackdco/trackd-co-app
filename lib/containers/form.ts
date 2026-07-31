@@ -10,8 +10,20 @@
  * The one place category is consulted: nothing in the data model says "powder".
  * `inventory_items` only knows `reconstituted | preconcentrated | oral_solid`, so
  * the bottle/tub split among orals falls back to the catalogue's existing
- * `CompoundForm` (Adrian's call, 2026-07-29) — creatine gets a tub, an oral
- * anabolic still gets a bottle.
+ * `CompoundForm` (Adrian's call, 2026-07-29) — an oral anabolic gets a bottle.
+ *
+ * **Among SUPPLEMENTS that split was wrong for three quarters of the catalogue**
+ * (Adrian, on his own phone, 2026-07-31): every `supplement` drew a tub, so
+ * vitamin C and vitamin D3 — tablets and softgels, which is how essentially
+ * everyone buys them — were pictured as scoops of powder. Category cannot tell
+ * creatine from cholecalciferol because both are `supplement`.
+ *
+ * The catalogue already carries the signal that can: the DOSE UNIT. A supplement
+ * measured in **grams** is a powder you scoop (whey, creatine, collagen,
+ * glutamine, EAA, BCAA, taurine, citrulline, beta-alanine — 9 of the 84). One
+ * measured in mg, mcg, iu or capsules is a tablet, capsule or softgel. That is a
+ * fact already in `compounds.csv`, so this needs no migration and no new column;
+ * it just stops throwing the information away.
  */
 
 import {
@@ -41,11 +53,34 @@ export interface ContainerFormInput {
   inventoryType?: string | null
   /** Catalogue category; absent or unknown on a custom compound. */
   category?: string | null
+  /**
+   * The compound's name, used to look its dose unit up in the catalogue and so
+   * tell a scooped powder from a tablet. Optional: a decorative container (the
+   * empty-state previews) has no compound behind it, and an off-catalogue
+   * "make your own" supplement has no unit to read.
+   */
+  name?: string | null
+}
+
+/**
+ * Is this supplement a POWDER? Answered from the catalogue's dose unit: grams
+ * are scooped, everything else is counted out.
+ *
+ * An unresolvable name keeps the old answer (a tub) rather than silently
+ * reclassifying every custom supplement someone has already added.
+ */
+function isScoopedPowder(name?: string | null): boolean {
+  if (!name) return true
+  const lower = name.trim().toLowerCase()
+  const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
+  if (!cat) return true
+  return cat.defaultUnit === "g"
 }
 
 export function containerFormFor({
   inventoryType,
   category,
+  name,
 }: ContainerFormInput): ContainerForm {
   // A vial is a vial regardless of what it holds.
   if (isVialForm(inventoryType)) return "vial"
@@ -53,13 +88,15 @@ export function containerFormFor({
   const meta = CATEGORY_META[category as CompoundCategory] ?? FALLBACK_CATEGORY_META
 
   if (inventoryType === "oral_solid") {
-    return meta.form === "supplement" ? "tub" : "bottle"
+    if (meta.form !== "supplement") return "bottle"
+    return isScoopedPowder(name) ? "tub" : "bottle"
   }
 
   // No inventory form recorded (a legacy custom compound) — fall back to the
   // category's typical form rather than guessing a bottle.
   if (meta.form === "injectable") return "vial"
-  return meta.form === "supplement" ? "tub" : "bottle"
+  if (meta.form !== "supplement") return "bottle"
+  return isScoopedPowder(name) ? "tub" : "bottle"
 }
 
 /**

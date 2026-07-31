@@ -78,7 +78,12 @@ export function StockActionsSheet({
           )}
         </SheetHeader>
 
-        <div className="space-y-3 px-4 pb-2">
+        {/* The bottom inset is load-bearing, not decoration. With a flat
+            `pb-2` the last control in this sheet sat under the iPhone home
+            indicator and was clipped by the screen edge, which is exactly where
+            "Discard this vial" was (Adrian, on a real phone). Every element in
+            here now clears the safe area. */}
+        <div className="space-y-3 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <p className={CARD_EYEBROW}>Stock</p>
           <div className="divide-y divide-border-default rounded-2xl bg-bg-surface-raised">
             <Row label="Refill" hint="A new vial replaces this one" onClick={onRefill} />
@@ -93,7 +98,7 @@ export function StockActionsSheet({
             <button
               type="button"
               onClick={() => setConfirmDiscard(true)}
-              className="text-sm text-text-muted transition-colors hover:text-foreground"
+              className="w-full rounded-xl px-4 py-3 text-left text-sm text-text-muted transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
             >
               Discard this vial
             </button>

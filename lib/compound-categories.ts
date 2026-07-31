@@ -79,6 +79,37 @@ export const CATEGORY_META: Record<CompoundCategory, CategoryMeta> = {
   stimulant: { label: "Stimulants", form: "oral", tint: "text-cat-stimulant" },
 }
 
+/**
+ * The order categories are shown in, everywhere a compound list is grouped.
+ *
+ * BY CONSEQUENCE, NOT BY COUNT (Adrian, 2026-07-31): "if someone's running a lot
+ * of supplements but they're also running steroids, they're gonna want to see
+ * their steroids first". Sorting groups by how many are in each would bury one
+ * anabolic under five supplements, which is exactly backwards — so the order is
+ * fixed and the same on every screen.
+ *
+ * Anabolics and peptides lead (his call). Then the other androgen classes, then
+ * the support compounds, and supplements last: they are the least consequential
+ * thing on the list and usually the longest part of it. Anything unrecognised
+ * sorts after everything known rather than jumping the queue.
+ */
+export const CATEGORY_DISPLAY_ORDER: CompoundCategory[] = [
+  "anabolic",
+  "peptide",
+  "sarm",
+  "oral",
+  "ancillary",
+  "thyroid",
+  "stimulant",
+  "supplement",
+]
+
+/** Sort key for a category. Unknown categories sort last, in name order. */
+export function categoryRank(category: string): number {
+  const i = CATEGORY_DISPLAY_ORDER.indexOf(category as CompoundCategory)
+  return i === -1 ? CATEGORY_DISPLAY_ORDER.length : i
+}
+
 // Neutral fallback for a missing/unknown category (e.g. a hand-edited or stale
 // localStorage entry) so a row renders harmlessly instead of crashing.
 export const FALLBACK_CATEGORY_META: CategoryMeta = {

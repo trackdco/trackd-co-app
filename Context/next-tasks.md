@@ -4,7 +4,7 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-07-31, ~00:30 (the overnight session)
+Last updated: 2026-07-31, evening (the cold-review + onboarding session)
 
 ---
 
@@ -20,8 +20,19 @@ Last updated: 2026-07-31, ~00:30 (the overnight session)
 
 ## 🎯 Where we are
 
-**Branch `wave2/containers-cycles-calendar`. NOT merged, NOT pushed. `main` is
-untouched and still deploys prod.**
+**Two branches are pushed and NEITHER is merged. `main` is untouched and still
+deploys prod.**
+
+- **`wave3/fixes`** (off `wave3/progress-blocks-polish`) — the cold review's two
+  HIGH fixes, the medium/low sweep, the "Discard this vial" clipping, and the
+  supplement container fix. tsc / eslint / 421 tests / build all green.
+- **`wave3/onboarding-flow`** (off `main`) — Spec 3-01, sixteen screens at
+  `/onboarding`. tsc / eslint / 458 tests / build all green. Vercel preview is
+  live but sits behind Vercel SSO, so it opens for Adrian and nobody else.
+
+Both are waiting on Adrian's preview before anything merges.
+
+**Branch `wave2/containers-cycles-calendar`. NOT merged, NOT pushed.**
 
 All eleven part-two specs are built, plus Blocks (new scope), plus the em-dash
 pass of part one's global sweep. **Every spec has been through an independent
@@ -39,7 +50,58 @@ Verified at the last commit: `tsc` clean, `eslint` clean, **341 tests pass**,
 
 ---
 
-## 🔜 KICK OFF TOMORROW WITH THESE
+## 🔜 DECISIONS WAITING ON ADRIAN (before anything else)
+
+1. **Preview both branches, then say what merges.** Nothing goes to `main`
+   without his word and `main` is prod.
+2. **The onboarding spec's §11 token table contradicts `ui-context.md`.** The
+   spec says `#060607` / `#111113` / `#26262A` / `#F3A63C`, Playfair for the
+   founder letter, Caveat for the signature, and Lucide icons. `ui-context.md`
+   says `#111110` / `#1C1C1A` / `#2E2E2C` / `#C8861A`, retires the display serif
+   outright, and retires Lucide. **The flow was built to `ui-context.md`**,
+   because the same spec names it as binding in §2 and §17. Either the spec's
+   table gets corrected or `ui-context.md` does. It cannot be both.
+3. **A handwritten signature ASSET for the founder letter.** The spec asks for
+   Caveat; loading a fourth font for one line is the drift `ui-context.md`
+   exists to stop. An SVG signature, like the wordmark already is, would be
+   on-system. Needs Adrian's actual signature.
+4. **Kyle the vial art.** Two poses are stubbed as designed placeholders
+   (`components/onboarding/mascot.tsx`): drop files at
+   `public/onboarding/kyle-flex.png` and `kyle-happy.png` and flip the two
+   entries in `KYLE_ART` from null. **Kyle is a VIAL. The reference images for
+   this build showed a jar; that is not him.**
+5. **The gym-floor backdrop for the hook screen.** `HOOK_BACKDROP` in
+   `screens/hook.tsx` is null and the screen renders on the plain canvas.
+   Drop a photo in and set the constant; the one-shot settle is already wired.
+6. **Pricing (D-4).** $70/yr and $9.99/mo are placeholders and render from
+   `lib/onboarding/pricing.ts`. The per-week figure and the "Save 42%" badge are
+   DERIVED from those two numbers, so changing the prices moves everything and
+   nothing can contradict anything else.
+
+## 🔜 THE SUPPLEMENT FORM OVERRIDE (approved, NOT built)
+
+Adrian approved a per-user form override living on his own protocol row. **It is
+not built, because it needs a migration only he can apply** (the Supabase MCP is
+not authorised here) and shipping UI against a column that does not exist yet
+would 42501 the preview.
+
+The plan, when he is ready:
+
+- `supabase/protocol/013_compound_form_override.sql` — a nullable
+  `protocol_compounds.form_override text` with a CHECK of
+  `('tablet','capsule','powder','liquid')`. Additive, no table count change.
+- **It must also be added to BOTH grant lists** in a new `supabase/grants/00N_*`
+  migration, or the Data API 42501s on every write to `protocol_compounds`
+  (`code-standards.md` — this has bitten before).
+- The catalogue stays read-only (Invariant 6). The override is the user's, on
+  the user's row.
+- `containerFormFor` already takes the compound; it gains one more optional
+  input that wins over the unit rule when set.
+
+**The default fix has already shipped on `wave3/fixes` and needs no migration**,
+so vitamin C and D3 read correctly out of the box either way.
+
+## 🔜 CARRIED FROM THE OVERNIGHT SESSION
 
 1. **Adrian's own notes** (top of this file).
 2. **The fifth re-review agent's findings.** Four of five reported overnight and
@@ -103,6 +165,22 @@ execution on a second throwaway account:
 ---
 
 ## ⚠️ Known, judged, NOT fixed
+
+- **`/progress` still fetches and signs EVERY progress photo with no `limit`.**
+  Carried deliberately at Adrian's instruction. The review did not find it to be
+  worse than he thought, but nothing measured the real cost either, because the
+  third review agent (the cold execution pass) had not reported when this
+  session wrote up.
+- **The block start-date fix is still unverified on a real phone.** Desktop
+  Chrome does not emit the empty change events an iOS wheel picker does. The
+  onboarding date field was verified against a SIMULATED empty event
+  (dispatching a native `change` with an empty value through the React value
+  setter), which is the closest a desktop browser can get, and it holds. That is
+  evidence, not proof.
+- **The journal date fix is the same shape** and was reasoned from the code
+  path, not driven on a phone. It is a strict improvement either way: it removes
+  a coercion, so the worst case is that the event never fires.
+
 
 These were found by review and deliberately left. Each needs a decision, not a
 patch.

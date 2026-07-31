@@ -14,12 +14,13 @@ import type { ProgressPhoto } from "@/lib/progress/photos";
 import { unitForPreference } from "@/lib/weight";
 import type { StackCompound } from "@/lib/home/stack";
 import type { Block } from "@/lib/blocks/block";
+import type { DayLogs } from "@/lib/home/doseLog";
 
 /**
  * The Progress tab — the "look back" screen (spec 08 · part two). Everything that
  * came off the dashboard lives here.
  *
- * The live block, the photo card, then a two-by-two grid of Weight, Journal,
+ * The photo card, the live block, then a two-by-two grid of Weight, Journal,
  * Bloods and Consistency. The widgets share the dashboard's grid and card chrome
  * (`grid-cols-2 gap-3`, `p-5`, eyebrow then content) so the two tabs read as one
  * app. They are TALLER than the dashboard's Today / Next Dose cards — about 228px
@@ -50,6 +51,7 @@ export function ProgressScreen({
   progressPhotos,
   blocks,
   previewStack,
+  previewLogs,
   previewBlocks,
 }: {
   /** Bodyweight points from `weight_logs`, oldest → newest. */
@@ -73,6 +75,7 @@ export function ProgressScreen({
    *  can exercise the photo card's Running list without signing in. The real
    *  screen reads both from the device store. */
   previewStack?: StackCompound[];
+  previewLogs?: DayLogs;
   /** The user's blocks from Postgres, newest start first. */
   blocks?: Block[];
   /** Dev-preview-only: render the block banner without a signed-in read. */
@@ -92,13 +95,25 @@ export function ProgressScreen({
         <PageScrollTitle title="Progress" />
       </div>
 
-      {/* The live block frames everything under it, so it leads. Slim on
-          purpose: a hero card here would push the photo below the fold. */}
       {/* Fills the device stores this screen READS from (consistency, the
           running list). Renders nothing. */}
       <CloudHydration userId={userId} />
 
-      <div className="animate-home-up" style={{ animationDelay: "40ms" }}>
+      {/* Photos lead the screen (Adrian, 2026-07-31). They are the thing people
+          open Progress for, and the block used to push them down the page. */}
+      {/* Photos: the card, then what was running on that photo's date. */}
+      <div className="animate-home-up" style={{ animationDelay: "75ms" }}>
+        <ProgressPhotoSection
+          photos={progressPhotos}
+          userId={userId}
+          todayKey={todayKey}
+          unit={unit}
+          previewStack={previewStack}
+          previewLogs={previewLogs}
+        />
+      </div>
+
+      <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
         <BlockBanner
           todayKey={todayKey}
           userId={userId}
@@ -108,21 +123,10 @@ export function ProgressScreen({
         />
       </div>
 
-      {/* Photos: the card, then what was running on that photo's date. */}
-      <div className="animate-home-up" style={{ animationDelay: "75ms" }}>
-        <ProgressPhotoSection
-          photos={progressPhotos}
-          userId={userId}
-          todayKey={todayKey}
-          unit={unit}
-          previewStack={previewStack}
-        />
-      </div>
-
       {/* Weight · Journal / Bloods · Consistency. */}
       <div
         className="animate-home-up grid grid-cols-2 items-stretch gap-3"
-        style={{ animationDelay: "100ms" }}
+        style={{ animationDelay: "145ms" }}
       >
         <WeightHero series={weight} unit={unit} compact />
         <JournalSection

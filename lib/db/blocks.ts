@@ -393,6 +393,42 @@ export async function closeBlock(
 }
 
 /**
+ * Delete a block outright, and its targets with it.
+ *
+ * A HARD delete, deliberately, and the only one in the app. Compounds are soft
+ * deleted because a compound owns HISTORY — logged doses hang off it, and
+ * erasing the record would restate what the user actually did. A block owns
+ * nothing: it is a named window over data that lives in other tables, so
+ * removing it removes a label and not one recorded fact. Adrian asked for this
+ * after a mistyped block he had no way to get rid of (2026-07-31).
+ *
+ * `block_targets` goes with it through the composite FK's `on delete cascade`
+ * (`supabase/blocks/001`), so there is nothing to clean up by hand.
+ */
+export async function deleteBlock(
+  blockId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await sessionCtx()
+  if (!ctx) return { ok: false, error: "Not signed in." }
+  const { data, error } = await ctx.supabase
+    .from("blocks")
+    .delete()
+    .eq("id", blockId)
+    .eq("user_id", ctx.userId)
+    .select("id")
+    .maybeSingle()
+  if (error) {
+    console.error("deleteBlock failed", error)
+    return { ok: false, error: "Could not delete the block." }
+  }
+  // A zero-row delete raises no error in PostgREST. Reporting success on one
+  // would send the user back to a list still showing the block they just
+  // removed, which is the failure mode three of this branch's writes had.
+  if (data == null) return { ok: false, error: "Could not delete the block." }
+  return { ok: true }
+}
+
+/**
  * Rewrite a block's reflection. Unlike `closeBlock` this one MAY clear it: the
  * user is looking at the note while they empty the box.
  */

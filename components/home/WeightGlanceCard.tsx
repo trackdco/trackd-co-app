@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets"
 import type { DateKey } from "@/lib/home/mockHomeData"
 import { kgToUnit, type WeightUnit } from "@/lib/weight"
+import { sparkGeometry, sparkLastPoint } from "@/lib/progress/spark"
 
 interface WeightGlanceCardProps {
   /** Bodyweight points, oldest → newest. */
@@ -29,20 +30,6 @@ function movingAverage(values: number[], window: number): number[] {
     const slice = values.slice(Math.max(0, i - window + 1), i + 1)
     return slice.reduce((a, b) => a + b, 0) / slice.length
   })
-}
-
-function sparkPoints(vals: number[]): string {
-  if (vals.length === 0) return ""
-  const min = Math.min(...vals)
-  const max = Math.max(...vals)
-  const range = max - min || 1
-  return vals
-    .map((v, i) => {
-      const x = vals.length > 1 ? (i / (vals.length - 1)) * SPARK_W : SPARK_W
-      const y = SPARK_H - ((v - min) / range) * (SPARK_H - 4) - 2
-      return `${x.toFixed(1)},${y.toFixed(1)}`
-    })
-    .join(" ")
 }
 
 interface Stat {
@@ -133,8 +120,19 @@ export function WeightGlanceCard({
                 preserveAspectRatio="none"
                 aria-hidden
               >
-                <SparkLine vals={scaleW} color="var(--chart-line)" active={mode === "scale"} />
-                <SparkLine vals={trendW} color="var(--chart-trend)" active={mode === "trend"} />
+                <SparkLine
+                  vals={scaleW}
+                  color="var(--chart-line)"
+                  gradientId="weightSparkScaleCompact"
+                  active={mode === "scale"}
+                  emphasis="raw"
+                />
+                <SparkLine
+                  vals={trendW}
+                  color="var(--chart-trend)"
+                  gradientId="weightSparkTrendCompact"
+                  active={mode === "trend"}
+                />
               </svg>
             </button>
             {/* The toggle stays: it is the card's only control and the spec
@@ -223,8 +221,19 @@ export function WeightGlanceCard({
               preserveAspectRatio="none"
               aria-hidden
             >
-              <SparkLine vals={scaleW} color="var(--chart-line)" active={mode === "scale"} />
-              <SparkLine vals={trendW} color="var(--chart-trend)" active={mode === "trend"} />
+              <SparkLine
+                vals={scaleW}
+                color="var(--chart-line)"
+                gradientId="weightSparkScale"
+                active={mode === "scale"}
+                emphasis="raw"
+              />
+              <SparkLine
+                vals={trendW}
+                color="var(--chart-trend)"
+                gradientId="weightSparkTrend"
+                active={mode === "trend"}
+              />
             </svg>
 
             <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
@@ -273,38 +282,64 @@ function ValueBlock({
   )
 }
 
+/**
+ * One reading's line, in the SAME visual language as the consistency graph
+ * beside it on Progress (Adrian, 2026-07-31): a monotone curve at 2.5, over a
+ * gradient that fades from the line down to the baseline. It was a straight
+ * 2px polyline with no fill, so the two charts on that screen read as two
+ * different products. Only the colour differs, which is the one thing that
+ * should — scale and trend keep their own.
+ */
 function SparkLine({
   vals,
   color,
+  gradientId,
   active,
+  emphasis = "trend",
 }: {
   vals: number[]
   color: string
+  gradientId: string
   active: boolean
+  /**
+   * `trend` is the teal trend line: 2.5 stroke over a tapered fill. `raw` is the
+   * periwinkle Scale line, which `ui-context.md` → Charts requires to be
+   * "thinner, no fill" so the two never read as equals. Unifying the sparkline
+   * with the consistency graph accidentally gave BOTH series the trend
+   * treatment, so tapping from this card into `/weight` showed the Scale line
+   * change weight and lose its fill. `/weight` was right; this now matches it.
+   */
+  emphasis?: "trend" | "raw"
 }) {
   const cls = cn("transition-opacity duration-300 ease-out", active ? "opacity-100" : "opacity-0")
   if (vals.length <= 1) {
     // Single reading — just the white latest-point marker (spec).
     return <circle cx={SPARK_W} cy={SPARK_H / 2} r={3} fill="var(--accent-primary)" className={cls} />
   }
-  // Latest-point marker: a small white dot on the most recent reading, so the
-  // sparkline teases "here's where you are now" (spec → Charts / glance sparkline).
-  const min = Math.min(...vals)
-  const max = Math.max(...vals)
-  const range = max - min || 1
-  const lastY = SPARK_H - ((vals[vals.length - 1] - min) / range) * (SPARK_H - 4) - 2
+  const { line, area } = sparkGeometry(vals, SPARK_W, SPARK_H)
+  const last = sparkLastPoint(vals, SPARK_W, SPARK_H)
   return (
     <g className={cls}>
-      <polyline
-        points={sparkPoints(vals)}
+      <defs>
+        {/* Same stops as `consistencyFill`: 0.35 at the line, 0 at the base. */}
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      {emphasis === "trend" ? (
+        <path d={area} fill={`url(#${gradientId})`} stroke="none" />
+      ) : null}
+      <path
+        d={line}
         fill="none"
         stroke={color}
-        strokeWidth={2}
+        strokeWidth={emphasis === "trend" ? 2.5 : 1.5}
         strokeLinejoin="round"
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
       />
-      <circle cx={SPARK_W} cy={lastY} r={2.5} fill="var(--accent-primary)" />
+      {last && <circle cx={last.x} cy={last.y} r={2.5} fill="var(--accent-primary)" />}
     </g>
   )
 }

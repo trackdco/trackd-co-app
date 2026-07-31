@@ -5,7 +5,7 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-07-31
+Last updated: 2026-07-31 (evening session)
 
 ## Current state (2026-07-23)
 
@@ -475,6 +475,89 @@ second throwaway account:
   hook is idempotent, so this costs one reconciliation on entry.
 - **The empty Progress weight card offered no control**, so the state that most
   needs a way in was the only one without one.
+
+## Wave 3 cold review + the onboarding flow (2026-07-31, evening)
+
+**Branches: `wave3/fixes` (off `wave3/progress-blocks-polish`) and
+`wave3/onboarding-flow` (off `main`). Both PUSHED, NEITHER MERGED. `main` is
+untouched and still deploys prod.** Adrian's call: hold everything for preview.
+
+### The review found two HIGH defects the author's own pass could not
+
+Three agents attacked `097b424..50d150c` cold. Both survivors were introduced by
+the branch's own fixes, and both are now fixed and pinned:
+
+- **The block retrospective stopped reporting what you ran.** `a90815a` gave
+  `compoundsRunningOn` a third `logs` argument defaulting to `{}`;
+  `retrospective.ts` was never updated, and an omitted optional argument is not
+  a type error. With `logs = {}` every compound fails the first-dose bound on
+  every day, so "what you ran" silently became "what you logged inside the
+  window". `logs` is now REQUIRED, which turns the whole class into a compile
+  error. **410/410 tests were green throughout** — all six existing cases logged
+  a dose inside the window, so one was passing vacuously.
+- **The journal date field kept the `|| todayKey` coercion `ed3eed5` removed
+  from four others, and it is the only one with side effects**: an empty change
+  event (which an iOS wheel picker fires mid-pick) deleted photos already
+  uploaded in that session from the `journal` bucket and overwrote the note
+  being typed.
+
+Also fixed: the Scale sparkline had been given the trend treatment so it changed
+weight when you tapped through to `/weight`; the cycle switch was the exception
+to a rule that says "no exceptions"; "Delete block" hand-rolled `DANGER_ROW` and
+lost its focus ring and destructive hover; a failed progress photo was left as a
+permanently empty box; three of five category groupings had no name tiebreak, so
+unknown categories ordered differently per screen; five comments described the
+opposite of their code.
+
+**Confirmed clean by measurement** (worth not re-reviewing): `deleteBlock`'s RLS,
+its real FK cascade on `block_targets`, and its zero-row check; the bulk-log
+being structurally unable to bulk-unlog; `spark.ts`'s monotone maths (0.0000
+overshoot across 13 shapes, 201 samples per segment); and the Running list's
+pre-hydration behaviour, which omits the section rather than showing a wrong one.
+
+### Two things Adrian hit on his own phone
+
+- **"Discard this vial" was clipped by the screen edge.** `StockActionsSheet`
+  ended in a flat `pb-2` with no safe-area inset, so its last control sat under
+  the home indicator.
+- **Vitamin C and D3 were drawn as tubs of powder.** Every `supplement` got a
+  tub, because category was the only signal and category cannot tell creatine
+  from cholecalciferol. **The resolver now reads the catalogue's DOSE UNIT**: a
+  supplement priced in grams is scooped (9 of 84), one priced in mg/mcg/iu/
+  capsules is counted out. No migration, no new column. An unidentifiable custom
+  supplement keeps the tub so nothing already added changes shape.
+  `containerFormFor` takes a `name`, threaded through all 12 real `<Container>`
+  call sites. **The per-user form override Adrian approved is NOT built** — see
+  `next-tasks.md`, it needs a migration only he can apply.
+
+### Onboarding (Spec 3-01) is built, on its own branch
+
+Sixteen screens at **`/onboarding`**, public and anonymous, outside `app/(app)/`
+because that group's layout is the auth guard and the whole pre-paywall half has
+to run with no session. State lives on the device (`lib/onboarding/session.ts`);
+nothing is written to Postgres while anonymous.
+
+- **The age gate is load-bearing**: `canLeaveHousekeeping` is the only thing that
+  opens the button, and DOB is compared by CALENDAR COMPONENTS — parsing an ISO
+  date string as a `Date` reads it as UTC and moves every Australian user's
+  birthday by a day.
+- **The demo is throwaway.** Measured: after a full walk the only localStorage
+  key is `trackd.onboarding.v1`; nothing touches `trackd.stack.v2.*` or
+  `trackd.doselog.v1.*`.
+- **Auth and payment are deliberately stubbed.** There is no RevenueCat
+  integration on this project, and creating live billing objects from a preview
+  branch is not an unattended decision. `startTrial()` is the single seam; the
+  real Google button sits beside it and the screen says which is which.
+- **The spec's own §11 token table was NOT followed** (`#060607`, `#F3A63C`,
+  Playfair, Caveat, Lucide). It contradicts `ui-context.md`, which the same spec
+  names as binding. Built to `ui-context.md`; the conflict is Adrian's to
+  resolve. `FLOW_TITLE` / `FLOW_SUB` were added to `ui-presets.ts` and
+  documented before use, per the rule that a pattern goes in the doc first.
+
+Verified in Chrome at 360/390/430 across all sixteen screens: no console errors,
+no page errors, no horizontal overflow. Gates: tsc clean, eslint clean, **458
+tests** on the onboarding branch and **421** on the fixes branch, `next build`
+green on both.
 
 ## Open Questions
 

@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import {
+  CATEGORY_DISPLAY_ORDER,
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
   type CompoundCategory,
@@ -52,7 +53,10 @@ function fmtDose(d: number): string {
 
 // Stable category display order (the order they're declared in the meta) — the
 // same grouping the dashboard's Today's Log uses.
-const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
+// The order is deliberate and shared, NOT the object's key order — see
+// `CATEGORY_DISPLAY_ORDER`. Sorting by key order put orals and SARMs above
+// peptides and supplements above stimulants, which nobody chose.
+const CATEGORY_ORDER = CATEGORY_DISPLAY_ORDER
 
 interface DoseGroup {
   cat: string
@@ -74,7 +78,13 @@ function groupByCategory(items: StackCompound[]): DoseGroup[] {
     return i < 0 ? CATEGORY_ORDER.length : i
   }
   return [...byCat.keys()]
-    .sort((a, b) => rank(a) - rank(b))
+    // The name tiebreak is not cosmetic. Every UNRECOGNISED category ties at
+    // rank = CATEGORY_ORDER.length, and without it the order falls through to
+    // Map insertion order, i.e. whatever order the compounds happened to
+    // arrive. Two of the five grouping sites already sorted by name, so the
+    // same two compounds sat in one order here and the opposite order under a
+    // photo. Ranked first, named second, everywhere.
+    .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
     .map((cat) => {
       const meta = CATEGORY_META[cat as CompoundCategory] ?? FALLBACK_CATEGORY_META
       return {
