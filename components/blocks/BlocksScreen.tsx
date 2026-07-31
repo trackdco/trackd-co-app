@@ -10,6 +10,8 @@ import { useDeviceToday } from "@/components/home/useDeviceToday"
 import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
 import { BlockEndPrompt } from "@/components/blocks/BlockEndPrompt"
 import { BlockRetrospective } from "@/components/blocks/BlockRetrospective"
+import type { WeightUnit } from "@/lib/weight"
+import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { BlockActionsMenu } from "@/components/blocks/BlockActionsMenu"
 import { dismissEndPrompt } from "@/lib/blocks/endPromptDismissal"
 import {
@@ -58,6 +60,8 @@ export function BlocksScreen({
   photos,
   bloods,
   journal,
+  /** The reader's weight unit. Storage is always kg; this is display only. */
+  unit = "kg",
   /** Dev-preview-only: inject the device stores without signing in. */
   sampleStack,
   sampleLogs,
@@ -67,6 +71,7 @@ export function BlocksScreen({
   todayKey: string
   userId: string
   weight: { key: string; kg: number }[]
+  unit?: WeightUnit
   photos: ProgressPhoto[]
   bloods: BloodworkPhoto[]
   journal: JournalEntry[]
@@ -75,6 +80,11 @@ export function BlocksScreen({
 }) {
   const [creating, setCreating] = useState(false)
   const [ending, setEnding] = useState(false)
+
+  // The retrospective reads the dose log out of the DEVICE store. Without this
+  // a device that had never opened Home or Protocol reported a measured "0%"
+  // consistency for a block that has doses in it.
+  useCloudHydration(userId)
 
   // The page hands down the SERVER's date, which is UTC. Every date judgement on
   // this screen and in the sheets below it — the default start, the `max` on the
@@ -95,6 +105,7 @@ export function BlocksScreen({
     photos,
     bloods,
     journal,
+    unit,
     sampleStack,
     sampleLogs,
   }
@@ -171,6 +182,7 @@ export function BlocksScreen({
             todayKey={todayKey}
             latestWeight={latestWeight}
             startWeight={startWeightFor(live, weight)}
+            unit={unit}
           />
         ) : (
           <button
@@ -217,6 +229,7 @@ export function BlocksScreen({
         todayKey={todayKey}
         liveBlockName={live?.name ?? null}
         currentWeightKg={latestWeight}
+        unit={unit}
       />
 
     </div>
@@ -230,11 +243,13 @@ function LiveBlockCard({
   todayKey,
   latestWeight,
   startWeight,
+  unit,
 }: {
   block: Block
   todayKey: string
   latestWeight: number | null
   startWeight: number | null
+  unit: WeightUnit
 }) {
   const p = blockProgress(block, todayKey)
   const week = weekLabel(p)
@@ -286,7 +301,7 @@ function LiveBlockCard({
         <div className="mt-3 flex items-baseline justify-between gap-3">
           <span className={DATA_MONO}>Weight</span>
           <span className={DATA_MONO}>
-            {targetReading(target)}
+            {targetReading(target, unit)}
           </span>
         </div>
       ) : consistencyTarget ? (

@@ -14,6 +14,7 @@ import {
   UNIT_SUFFIX,
 } from "@/lib/ui-presets"
 import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
+import type { WeightUnit } from "@/lib/weight"
 import { BlockEndPrompt } from "@/components/blocks/BlockEndPrompt"
 import {
   dismissEndPrompt,
@@ -51,6 +52,7 @@ export function BlockBanner({
   userId,
   weight,
   blocks,
+  unit = "kg",
 }: {
   todayKey: string
   /** Scopes the "leave running" memory to the signed-in user. */
@@ -61,6 +63,8 @@ export function BlockBanner({
    * and the server that renders the page cannot read the device store at all.
    */
   weight?: { key: string; kg: number }[]
+  /** The reader's weight unit. Storage is always kg; this is display only. */
+  unit?: WeightUnit
   /** Every block the user has, from Postgres. */
   blocks: Block[]
 }) {
@@ -140,6 +144,7 @@ export function BlockBanner({
           onOpenChange={setCreating}
           todayKey={todayKey}
           currentWeightKg={weight?.at(-1)?.kg ?? null}
+          unit={unit}
         />
       </>
     )
@@ -227,7 +232,7 @@ export function BlockBanner({
           <div className="mt-3 flex items-baseline justify-between gap-3">
             <span className={DATA_MONO}>Weight</span>
             <span className={DATA_MONO}>
-              {targetReading(target)}
+              {targetReading(target, unit)}
             </span>
           </div>
         ) : consistencyTarget ? (

@@ -8,6 +8,7 @@ import {
   isWithinWindow,
   pastBlocks,
   targetProgress,
+  targetReading,
   weekLabel,
   type Block,
 } from "./block"
@@ -285,5 +286,40 @@ describe("weekLabel — the headline reading", () => {
       value: 1,
       suffix: "week in",
     })
+  })
+})
+
+describe("targetReading — the reader's unit, not the stored one", () => {
+  // Everything about a weight target is STORED in kg. The reading is the only
+  // place a unit preference exists, and it used to be hard-coded: an imperial
+  // user saw "2.9 kg to go" on the block card while Progress showed them lbs.
+  const cutting = targetProgress(
+    { variable: "weight", value: 81.6466266, direction: "down" },
+    86.18,
+    84.55
+  )
+
+  it("converts the remainder and labels it", () => {
+    expect(targetReading(cutting, "kg")).toBe("36% · 2.9 kg to go")
+    expect(targetReading(cutting, "lbs")).toBe("36% · 6.4 lbs to go")
+  })
+
+  it("keeps the percentage identical, because a fraction has no unit", () => {
+    const pct = (s: string) => s.split("%")[0]
+    expect(pct(targetReading(cutting, "kg"))).toBe(pct(targetReading(cutting, "lbs")))
+  })
+
+  it("defaults to kg, so a caller with no profile cannot mislabel a number", () => {
+    expect(targetReading(cutting)).toBe(targetReading(cutting, "kg"))
+  })
+
+  it("says 'reached' in either unit rather than converting a zero remainder", () => {
+    const done = targetProgress(
+      { variable: "weight", value: 84, direction: "down" },
+      90,
+      83
+    )
+    expect(targetReading(done, "lbs")).toBe("100% · reached")
+    expect(targetReading(done, "kg")).toBe("100% · reached")
   })
 })

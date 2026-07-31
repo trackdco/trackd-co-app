@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useSheetDrag } from "@/components/home/useSheetDrag"
 import { SHEET_TITLE } from "@/lib/ui-presets"
 import { startBlockAction } from "@/app/(app)/blocks/actions"
+import { unitToKg, type WeightUnit } from "@/lib/weight"
 import { localToday } from "@/lib/blocks/block"
 import type { BlockTarget, BlockTargetVariable } from "@/lib/blocks/block"
 
@@ -42,6 +43,7 @@ export function BlockCreateSheet({
   todayKey,
   liveBlockName,
   currentWeightKg,
+  unit = "kg",
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -50,6 +52,8 @@ export function BlockCreateSheet({
   liveBlockName?: string | null
   /** The latest weigh-in, used only to pre-select the target's direction. */
   currentWeightKg?: number | null
+  /** The unit the target is TYPED in. Storage stays kg; converted on save. */
+  unit?: WeightUnit
 }) {
   const router = useRouter()
   const { cardRef, handleProps, cardStyle } = useSheetDrag(() => onOpenChange(false), open)
@@ -91,6 +95,11 @@ export function BlockCreateSheet({
 
   const trimmedName = name.trim()
   const numericTarget = Number(targetValue)
+  // The typed weight in KILOGRAMS. Everything downstream — the direction
+  // inference below, and the value that is stored — works in kg, because that
+  // is the unit `blocks`/`block_targets` and every weigh-in are held in. A
+  // consistency target is a percentage and is never converted.
+  const targetKg = targetKind === "weight" ? unitToKg(numericTarget, unit) : numericTarget
   const targetFilled = targetKind !== "none" && targetValue.trim() !== ""
   // Consistency is a percentage, so it has a real ceiling. The input carried a
   // `max` that nothing read, which let "90% consistency" become a 500 kg weight
@@ -141,7 +150,7 @@ export function BlockCreateSheet({
       currentWeightKg != null &&
       targetValue !== ""
     ) {
-      setDirection(numericTarget < currentWeightKg ? "down" : "up")
+      setDirection(targetKg < currentWeightKg ? "down" : "up")
     }
   }
 
@@ -158,7 +167,7 @@ export function BlockCreateSheet({
       Number.isFinite(n) &&
       n > 0
     ) {
-      setDirection(n < currentWeightKg ? "down" : "up")
+      setDirection(unitToKg(n, unit) < currentWeightKg ? "down" : "up")
     }
   }
 
@@ -168,7 +177,7 @@ export function BlockCreateSheet({
     setError(null)
     // `targetFilled` already narrows `targetKind` away from "none".
     const targets: BlockTarget[] = targetFilled
-      ? [{ variable: targetKind, value: numericTarget, direction }]
+      ? [{ variable: targetKind, value: targetKg, direction }]
       : []
     const res = await startBlockAction({
       name: trimmedName,
@@ -298,7 +307,9 @@ export function BlockCreateSheet({
                 <div className="mt-3 flex items-end gap-3">
                   <label className="block flex-1">
                     <span className={FIELD_LABEL}>
-                      {targetKind === "weight" ? "Target weight (kg)" : "Target (%)"}
+                      {targetKind === "weight"
+                        ? `Target weight (${unit})`
+                        : "Target (%)"}
                     </span>
                     <Input
                       type="number"
@@ -308,9 +319,13 @@ export function BlockCreateSheet({
                       min={0}
                       max={targetKind === "consistency" ? 100 : undefined}
                       step={targetKind === "weight" ? "0.1" : "1"}
-                      placeholder={targetKind === "weight" ? "84" : "90"}
+                      placeholder={
+                        targetKind === "weight" ? (unit === "lbs" ? "185" : "84") : "90"
+                      }
                       aria-label={
-                        targetKind === "weight" ? "Target weight in kilograms" : "Target percent"
+                        targetKind === "weight"
+                          ? `Target weight in ${unit === "lbs" ? "pounds" : "kilograms"}`
+                          : "Target percent"
                       }
                       className={cn(FIELD, "font-mono")}
                     />

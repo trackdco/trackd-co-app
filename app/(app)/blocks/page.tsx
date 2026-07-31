@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { BlocksScreen } from "@/components/blocks/BlocksScreen";
 import { listBlocks } from "@/lib/db/blocks";
 import { createClient } from "@/lib/supabase/server";
+import { unitForPreference } from "@/lib/weight";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
 import type { JournalEntry } from "@/lib/progress/journal";
@@ -58,6 +59,7 @@ export default async function BlocksPage({
   const blocksPromise = listBlocks();
 
   const [
+    { data: profile },
     { data: weightData },
     { data: panelData },
     { data: photoData },
@@ -66,6 +68,14 @@ export default async function BlocksPage({
     { data: userMarkerData },
     { data: markerData },
   ] = await Promise.all([
+    // The reader's units. Weight is STORED in kg everywhere; this only decides
+    // what the retrospective and the target field are labelled in. Without it
+    // this screen read kg while Progress read lbs for the same weigh-in.
+    supabase
+      .from("profiles")
+      .select("units_preference")
+      .eq("id", user.id)
+      .maybeSingle(),
     // NEWEST first, like every other read here, then reversed below. Oldest-first
     // with a cap meant the ceiling threw away the RECENT end: past ~5.5 years of
     // daily weighing, the weight section of every current block silently emptied
@@ -219,6 +229,7 @@ export default async function BlocksPage({
       photos={photos}
       bloods={bloods}
       journal={journal}
+      unit={unitForPreference(profile?.units_preference)}
     />
   );
 }

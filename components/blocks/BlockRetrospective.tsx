@@ -11,6 +11,7 @@ import { blockWindow, formatDuration, type Block } from "@/lib/blocks/block"
 import { buildRetrospective, comparePair } from "@/lib/blocks/retrospective"
 import { computeAdherenceOver } from "@/lib/progress/consistency"
 import { formatPhotoDateShort, poseLabel } from "@/lib/progress/photos"
+import { kgToUnit, type WeightUnit } from "@/lib/weight"
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork"
 import type { JournalEntry } from "@/lib/progress/journal"
 import type { ProgressPhoto } from "@/lib/progress/photos"
@@ -60,6 +61,8 @@ export function BlockRetrospective({
   photos,
   bloods,
   journal,
+  /** The reader's weight unit. Storage is always kg; this is display only. */
+  unit = "kg",
   /** Dev-preview-only: inject the device stack + logs without signing in. */
   sampleStack,
   sampleLogs,
@@ -68,6 +71,7 @@ export function BlockRetrospective({
   todayKey: string
   userId: string
   weight: { key: string; kg: number }[]
+  unit?: WeightUnit
   photos: ProgressPhoto[]
   bloods: BloodworkPhoto[]
   journal: JournalEntry[]
@@ -162,17 +166,18 @@ export function BlockRetrospective({
           <p className="mt-1.5 flex items-baseline gap-2">
             <span className={METRIC_VALUE}>
               {retro.weight.delta === null
-                ? formatKg(retro.weight.to)
-                : formatKg(retro.weight.delta, true)}
+                ? formatReading(retro.weight.to, unit)
+                : formatReading(retro.weight.delta, unit, true)}
             </span>
-            <span className={UNIT_SUFFIX}>kg</span>
+            <span className={UNIT_SUFFIX}>{unit}</span>
           </p>
           <p className="mt-1 text-sm text-text-muted">
             {retro.weight.delta === null ? (
               <>One reading in this block</>
             ) : (
               <>
-                {formatKg(retro.weight.from)} to {formatKg(retro.weight.to)} kg, across{" "}
+                {formatReading(retro.weight.from, unit)} to{" "}
+                {formatReading(retro.weight.to, unit)} {unit}, across{" "}
                 {retro.weight.points.length} readings
               </>
             )}
@@ -414,9 +419,15 @@ function WindowSparkline({ values }: { values: number[] }) {
   )
 }
 
-/** "84.2", or "-4.2" / "+4.2" when signed. One decimal, trailing zero dropped. */
-function formatKg(n: number, signed = false): string {
-  const v = Number(n.toFixed(1))
+/**
+ * "84.2", or "-4.2" / "+4.2" when signed, in the user's unit.
+ *
+ * Takes kg (everything is STORED in kg) and converts on the way out. A signed
+ * value here is a DIFFERENCE, and kg⇄lbs is a pure scale with no offset, so the
+ * same conversion is correct for both a reading and a change.
+ */
+function formatReading(kg: number, unit: WeightUnit, signed = false): string {
+  const v = Number(kgToUnit(kg, unit).toFixed(1))
   if (!signed) return String(v)
   return v > 0 ? `+${v}` : String(v)
 }

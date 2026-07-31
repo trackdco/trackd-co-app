@@ -21,6 +21,7 @@
  *    use would be to colour something red. If a future caller wants that, the
  *    answer is no.
  */
+import { formatWeight, type WeightUnit } from "@/lib/weight"
 
 export type BlockStatus = "active" | "completed" | "abandoned"
 
@@ -227,11 +228,6 @@ export function weekLabel(p: BlockProgress): { value: number; suffix: string } {
   return { value: p.week, suffix: `of ${p.totalWeeks} weeks` }
 }
 
-/** One decimal at most, trailing zero dropped: "4", "3.5". */
-function trimNum(n: number): string {
-  return String(Number(n.toFixed(1)))
-}
-
 /**
  * A weight target's reading: how far along, and what is left.
  *
@@ -241,8 +237,13 @@ function trimNum(n: number): string {
  * distance to cover (already at it when the block began) rendered an empty
  * percentage and left the separator dangling: "Weight    · reached".
  */
-export function targetReading(p: TargetProgress): string {
-  const rest = p.remaining > 0 ? `${trimNum(p.remaining)} kg to go` : "reached"
+export function targetReading(p: TargetProgress, unit: WeightUnit = "kg"): string {
+  // `remaining` is a DIFFERENCE in kg, and kg⇄lbs is a pure scale with no
+  // offset, so converting the delta directly is correct — there is no zero to
+  // shift. Defaults to kg so a caller that has no profile to hand still reads
+  // in the stored unit rather than silently mislabelling one.
+  const rest =
+    p.remaining > 0 ? `${formatWeight(p.remaining, unit)} ${unit} to go` : "reached"
   return p.fraction != null ? `${Math.round(p.fraction * 100)}% · ${rest}` : rest
 }
 
