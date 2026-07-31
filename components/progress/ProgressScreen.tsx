@@ -1,5 +1,6 @@
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
 import { BlockBanner } from "@/components/progress/BlockBanner";
+import { CloudHydration } from "@/components/home/CloudHydration";
 import { WeightHero } from "@/components/progress/WeightHero";
 import { BloodworkSection } from "@/components/progress/BloodworkSection";
 import { JournalSection } from "@/components/progress/JournalSection";
@@ -93,12 +94,17 @@ export function ProgressScreen({
 
       {/* The live block frames everything under it, so it leads. Slim on
           purpose: a hero card here would push the photo below the fold. */}
+      {/* Fills the device stores this screen READS from (consistency, the
+          running list). Renders nothing. */}
+      <CloudHydration userId={userId} />
+
       <div className="animate-home-up" style={{ animationDelay: "40ms" }}>
         <BlockBanner
           todayKey={todayKey}
           userId={userId}
           blocks={previewBlocks ?? blocks ?? []}
           weight={weight}
+          unit={unit}
         />
       </div>
 
