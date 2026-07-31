@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
+  CATEGORY_DISPLAY_ORDER,
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
   type CompoundCategory,
@@ -64,7 +65,10 @@ function formatDose(dose: number): string {
 }
 
 // Stable category display order (the order categories are declared in the meta).
-const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
+// The order is deliberate and shared, NOT the object's key order — see
+// `CATEGORY_DISPLAY_ORDER`. Sorting by key order put orals and SARMs above
+// peptides and supplements above stimulants, which nobody chose.
+const CATEGORY_ORDER = CATEGORY_DISPLAY_ORDER
 
 interface DoseGroup {
   cat: string
@@ -488,26 +492,49 @@ function StackDoseRow({
         )}
       </div>
 
-      <div className="flex items-center gap-3 px-1 py-2">
-        {/* The CARET takes the slot a dose row's tick occupies, because that is
-            what a stack row does first: it opens. The members inside are what
-            get ticked. "Log all" is the trailing shortcut, so the destructive-
-            adjacent bulk action is never the thing under your thumb by default. */}
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          aria-label={`${open ? "Hide" : "Show"} the compounds in ${stack.name}`}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-text-primary active:scale-90"
-        >
-          <CaretDown
+      {/* A finished stack dims exactly as a finished dose row does, so "done"
+          looks the same whether it is one compound or five (Adrian,
+          2026-07-31). The filled tick stays the one bright mark. */}
+      <div
+        className={cn(
+          "flex items-center gap-3 px-1 py-2 transition-opacity duration-200",
+          complete && "opacity-60"
+        )}
+      >
+        {/* The stack's tick, in the SAME PLACE and the same size as a compound's
+            (Adrian, 2026-07-31). It was a text link on the far right while every
+            row beneath it ticked on the left, so the one control that acts on all
+            of them was the one control that did not look like the others.
+            Complete → the filled tick, and tapping it does nothing: un-logging in
+            bulk would destroy each dose's own amount, time and site. */}
+        {complete ? (
+          <span
             aria-hidden
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-bg-base"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={logRemaining}
+            aria-label={
+              partial
+                ? `Log the remaining ${total - logged} in ${stack.name}`
+                : `Log all of ${stack.name}`
+            }
             className={cn(
-              "h-4 w-4 transition-transform duration-300 ease-out motion-reduce:transition-none",
-              open && "rotate-180"
+              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
+              // Partway through reads as partway through: the ring picks up the
+              // stack's own colour rather than jumping straight to done.
+              partial
+                ? "border-accent-primary text-transparent"
+                : "border-border-strong text-transparent hover:border-text-primary"
             )}
-          />
-        </button>
+          >
+            <Check className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        )}
 
         <button
           type="button"
@@ -539,33 +566,23 @@ function StackDoseRow({
           </span>
         </button>
 
-        {/* Log every unlogged member at once (Spec 05). Hidden once complete —
-            there is nothing left to log, and un-logging in bulk would destroy
-            each dose's own amount, time and site. */}
-        {!complete && (
-          <button
-            type="button"
-            onClick={logRemaining}
-            aria-label={
-              partial
-                ? `Log the remaining ${total - logged} in ${stack.name}`
-                : `Log all of ${stack.name}`
-            }
-            className="shrink-0 text-xs text-text-muted transition-colors hover:text-text-primary active:text-text-primary"
-          >
-            {/* "Log all" would be a lie once one member is ticked — it logs what
-                is LEFT. Saying so is also the row's partial state in words. */}
-            {partial ? "Log rest" : "Log all"}
-          </button>
-        )}
-        {complete && (
-          <span
+        {/* The expand caret moved to the RIGHT, where a disclosure belongs once
+            the tick owns the left. */}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={`${open ? "Hide" : "Show"} the compounds in ${stack.name}`}
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-text-primary active:scale-90"
+        >
+          <CaretDown
             aria-hidden
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-primary text-bg-base"
-          >
-            <Check className="h-3.5 w-3.5" />
-          </span>
-        )}
+            className={cn(
+              "h-4 w-4 transition-transform duration-300 ease-out motion-reduce:transition-none",
+              open && "rotate-180"
+            )}
+          />
+        </button>
       </div>
 
       {/* Kept MOUNTED so it can animate both ways — the grid-rows 0fr↔1fr
