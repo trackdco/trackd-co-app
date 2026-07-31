@@ -398,7 +398,14 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
               type="date"
               value={dateKey}
               max={todayKey}
-              onChange={(e) => setDateKey(e.target.value || todayKey)}
+              onChange={(e) => {
+                // An EMPTY change event is not "today". iOS fires one while the
+                // picker wheels are still moving, and coercing it to today snapped
+                // the field back mid-pick — so a back-dated entry saved silently
+                // under today's date. Keep the last good value; the field is
+                // required, so there is nothing it should clear to.
+                if (e.target.value) setDateKey(e.target.value)
+              }}
               aria-label="Date logged"
               className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
             />
