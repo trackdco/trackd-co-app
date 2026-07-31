@@ -374,10 +374,19 @@ const SPARK_W = 260
 const SPARK_H = 44
 
 /**
- * The weight graph, clipped to the block. The same polyline idiom as the
- * dashboard's glance sparkline rather than a second charting approach — one
- * screen drawing weight differently from another is the kind of detail that
- * reads as sloppy without anyone being able to say why.
+ * The weight graph, clipped to the block.
+ *
+ * **This is now the ODD ONE OUT and the comment used to deny it.** It claimed
+ * "the same polyline idiom as the dashboard's glance sparkline"; 6b221b0 then
+ * moved that sparkline to a smooth monotone curve at 2.5 over a tapered
+ * gradient, and this was left as a straight 2px polyline with no fill. So one
+ * screen does draw weight differently from another, which is exactly what the
+ * old comment said must not happen.
+ *
+ * Left as-is deliberately for now rather than changed in the same breath as a
+ * production merge: `lib/progress/spark.ts` already exports the geometry, so
+ * unifying it is small, but it is a VISUAL change to a screen and belongs in
+ * its own pass with eyes on it. Recorded in `next-tasks.md`.
  *
  * `--chart-line` is the token, not `--accent-primary`: `ui-context.md` names
  * glance sparklines as the ONE sanctioned exception and gives them the neutral

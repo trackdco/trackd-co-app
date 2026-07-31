@@ -87,6 +87,14 @@ export function PhotoRunningList({
     [deviceReady, stack, date, logs],
   )
 
+  // KNOWN, NOT FIXED: on a throttled connection this returns null until the
+  // device store hydrates and then appears at ~+4.9s, shoving everything below
+  // it down 145px (measured at 390). Reserving the height was tried and backed
+  // out: it removes the jump for a user who IS running something and creates an
+  // upward collapse for one who is not, and "not running anything yet" is
+  // exactly the new user whose first impression this would cost. It needs a
+  // real answer (a server-rendered hint, or a skeleton that matches either
+  // outcome), not a swap of one shift for another. See `next-tasks.md`.
   if (running.length === 0) return null
 
   return (
