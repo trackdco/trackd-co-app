@@ -94,7 +94,7 @@ export function ProgressPhotoCard({
         onScroll={onScroll}
         className="flex snap-x snap-mandatory overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        {day.photos.map((p) => (
+        {day.photos.map((p, i) => (
           <button
             key={p.id}
             type="button"
@@ -102,15 +102,39 @@ export function ProgressPhotoCard({
             aria-label={`Preview ${poseLabel(p.pose)}`}
             className="w-full shrink-0 snap-center px-5 pb-2 text-left"
           >
-            <span className="block overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
+            <span
+              className={cn(
+                "block overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised",
+                compact ? "h-56" : "aspect-[3/4]",
+              )}
+            >
               {p.url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={p.url}
                   alt=""
+                  /* Only the photo actually on screen is fetched. The carousel
+                     used to pull every pose of the day at once, at full upload
+                     resolution, before you had swiped to any of them. */
+                  loading={i === 0 ? "eager" : "lazy"}
+                  fetchPriority={i === 0 ? "high" : "auto"}
+                  /* Decoded off the main thread, and REVEALED only once decoded.
+                     A baseline JPEG paints top-down as bytes arrive, so a slow
+                     connection showed a head and then a torn-off band of
+                     background — which reads as a corrupt photo, not a loading
+                     one (Adrian, 2026-07-31). */
+                  decoding="async"
+                  /* A cached image can be `complete` BEFORE React attaches the
+                     handler — on a back-navigation nothing would ever fire
+                     `load`, and the photo would sit at zero opacity for good. So
+                     the ref checks, and `onLoad` covers the uncached case. */
+                  ref={(el) => {
+                    if (el?.complete) el.classList.remove("opacity-0")
+                  }}
+                  onLoad={(e) => e.currentTarget.classList.remove("opacity-0")}
                   className={cn(
-                    "w-full object-cover object-top",
-                    compact ? "h-56" : "aspect-[3/4]",
+                    "h-full w-full object-cover object-top opacity-0",
+                    "transition-opacity duration-300 ease-out motion-reduce:transition-none",
                   )}
                 />
               )}
