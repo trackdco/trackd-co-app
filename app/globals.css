@@ -417,6 +417,18 @@
   animation: flow-confetti 2200ms cubic-bezier(0.2, 0.6, 0.35, 1) both;
 }
 
+/* The paywall's app fragments, drifting. THIS ONE LOOPS, and it is the only
+   thing in the app that does: "Banned - ambient / decorative motion" above is a
+   rule about the DATA screens, where movement competes with figures the user is
+   reading. The paywall is a marketing surface with no data on it, Adrian asked
+   for it specifically (2026-07-31), and the amplitude is a few pixels over
+   several seconds so it reads as depth rather than animation. It still
+   collapses entirely under prefers-reduced-motion. Do not copy this into the
+   app proper. */
+.animate-flow-drift {
+  animation: flow-drift var(--drift-ms, 9000ms) ease-in-out infinite alternate;
+}
+
 /* The calculator's syringe fill easing into its new length (Spec 07). A CLASS,
    not an inline style: the scale factor itself has to be inline (it is a live
    value), and an inline `transition` would outrank Tailwind's
@@ -449,7 +461,8 @@
   .animate-card-shake,
   .animate-flow-in,
   .animate-flow-hero,
-  .animate-flow-confetti {
+  .animate-flow-confetti,
+  .animate-flow-drift {
     animation: none;
   }
 }
@@ -495,6 +508,15 @@
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes flow-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(var(--drift-x, 0px), var(--drift-y, -6px), 0);
   }
 }
 

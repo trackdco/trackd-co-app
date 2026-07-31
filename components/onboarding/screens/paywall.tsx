@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from "react";
 
-import { Check, CircleNotch } from "@/components/icons";
+import type { ReactNode } from "react";
+
+import {
+  Calculator,
+  ChartLine,
+  CircleNotch,
+  Package,
+  Syringe,
+} from "@/components/icons";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { track } from "@/lib/onboarding/analytics";
 import { validateCode, type CodeVerdict } from "@/lib/onboarding/affiliate";
@@ -18,7 +26,7 @@ import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
-import { DeviceFrame } from "../device-frame";
+import { PaywallHero } from "../paywall-hero";
 import { useFlow } from "../flow-context";
 
 /**
@@ -45,10 +53,29 @@ import { useFlow } from "../flow-context";
  * stubbed trial for a real one.
  */
 
-const VALUE_STACK = [
-  "Unlimited cycles and inventory",
-  "Reconstitution calculator",
-  "Full journal and bloodwork history",
+/** Each row gets the icon of the thing it names, which reads as a contents
+ *  page rather than four identical ticks (Adrian: "the ticks could be better"). */
+const VALUE_STACK: { icon: ReactNode; label: string; detail: string }[] = [
+  {
+    icon: <Package className="h-4 w-4" />,
+    label: "Unlimited cycles and stock",
+    detail: "Every compound, every vial, always current",
+  },
+  {
+    icon: <Calculator className="h-4 w-4" />,
+    label: "Reconstitution calculator",
+    detail: "Powder, water and dose, drawn to scale",
+  },
+  {
+    icon: <Syringe className="h-4 w-4" />,
+    label: "Injection site record",
+    detail: "Your rotation, kept for you",
+  },
+  {
+    icon: <ChartLine className="h-4 w-4" />,
+    label: "Journal and bloodwork history",
+    detail: "Mapped to the protocol that produced it",
+  },
 ];
 
 export function PaywallScreen() {
@@ -145,37 +172,23 @@ export function PaywallScreen() {
       }
     >
       <div className="flex flex-1 flex-col gap-5">
-        {/* The hero: a phone showing the thing they just learned to use. */}
-        <DeviceFrame time="7:41">
-          <div className="px-4 pb-4">
-            <p className={CARD_EYEBROW}>Today</p>
-            <p className="mt-2 font-mono text-2xl font-light tabular-nums text-foreground">
-              8:00 <span className="text-[11px] text-text-muted">pm</span>
-            </p>
-            <div className="mt-3 divide-y divide-border-default">
-              {["Testosterone Enanthate", "Semaglutide"].map((name) => (
-                <div key={name} className="flex items-center gap-2.5 py-2">
-                  <span className="h-4 w-4 shrink-0 rounded-full border border-accent-amber" />
-                  <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">
-                    {name}
-                  </span>
-                  <span className="shrink-0 font-mono text-[10px] tabular-nums text-text-muted">
-                    0.5 mL
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </DeviceFrame>
+        <PaywallHero />
 
-        {/* Value stack */}
-        <ul className="space-y-2.5">
+        {/* What they are buying, as a contents page. */}
+        <ul className="divide-y divide-border-default rounded-2xl bg-bg-surface px-5">
           {VALUE_STACK.map((item) => (
-            <li key={item} className="flex items-center gap-3">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-primary text-bg-base">
-                <Check className="h-3 w-3" weight="bold" />
+            <li key={item.label} className="flex items-start gap-3.5 py-3.5">
+              <span className="mt-[2px] shrink-0 text-text-muted" aria-hidden>
+                {item.icon}
               </span>
-              <span className="text-[0.9rem] text-foreground">{item}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[0.9rem] leading-snug text-foreground">
+                  {item.label}
+                </span>
+                <span className="mt-0.5 block text-[0.75rem] leading-snug text-text-subtle">
+                  {item.detail}
+                </span>
+              </span>
             </li>
           ))}
         </ul>
