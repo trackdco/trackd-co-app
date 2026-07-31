@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
 import {
+  CATEGORY_DISPLAY_ORDER,
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
   type CompoundCategory,
@@ -212,7 +213,10 @@ interface Group {
   compounds: StackCompound[]
 }
 
-const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
+// The order is deliberate and shared, NOT the object's key order — see
+// `CATEGORY_DISPLAY_ORDER`. Sorting by key order put orals and SARMs above
+// peptides and supplements above stimulants, which nobody chose.
+const CATEGORY_ORDER = CATEGORY_DISPLAY_ORDER
 
 function groupByCategory(items: StackCompound[]): Group[] {
   const byCat = new Map<string, StackCompound[]>()
