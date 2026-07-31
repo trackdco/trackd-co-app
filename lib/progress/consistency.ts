@@ -170,10 +170,28 @@ function adherenceOn(
 }
 
 /** Overall adherence across a set of points (logged ÷ due), or null if no doses. */
-export function overallPct(points: AdherencePoint[]): number | null {
+export function overallPct(
+  points: AdherencePoint[],
+  /**
+   * Today's local day key. When given, doses still OUTSTANDING today are left
+   * out of the denominator: the day is not over, so they have not been missed.
+   *
+   * Without this, adding your first compound headlined Progress with a bare
+   * `0 %` — denominator 1, numerator 0, for a dose whose time had not yet come.
+   * The same arithmetic understates every user's figure every morning; it is
+   * simply most visible on day one, when today IS the whole history.
+   */
+  todayKey?: string,
+): number | null {
   let due = 0;
   let logged = 0;
   for (const p of points) {
+    if (todayKey && p.key === todayKey) {
+      // Count what has been taken today, never what is still to come.
+      due += p.logged;
+      logged += p.logged;
+      continue;
+    }
     due += p.due;
     logged += p.logged;
   }

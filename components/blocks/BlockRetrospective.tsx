@@ -157,14 +157,25 @@ export function BlockRetrospective({
       {retro.weight && (
         <section className="rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>Weight</p>
+          {/* One reading has no delta, so the reading itself is the headline.
+              Showing "0 kg" over "92.4 to 92.4 kg" read as a measured outcome. */}
           <p className="mt-1.5 flex items-baseline gap-2">
-            <span className={METRIC_VALUE}>{formatKg(retro.weight.delta, true)}</span>
+            <span className={METRIC_VALUE}>
+              {retro.weight.delta === null
+                ? formatKg(retro.weight.to)
+                : formatKg(retro.weight.delta, true)}
+            </span>
             <span className={UNIT_SUFFIX}>kg</span>
           </p>
           <p className="mt-1 text-sm text-text-muted">
-            {formatKg(retro.weight.from)} to {formatKg(retro.weight.to)} kg, across{" "}
-            {retro.weight.points.length}{" "}
-            {retro.weight.points.length === 1 ? "reading" : "readings"}
+            {retro.weight.delta === null ? (
+              <>One reading in this block</>
+            ) : (
+              <>
+                {formatKg(retro.weight.from)} to {formatKg(retro.weight.to)} kg, across{" "}
+                {retro.weight.points.length} readings
+              </>
+            )}
           </p>
           {retro.weight.points.length > 1 && (
             <WindowSparkline values={retro.weight.points.map((p) => p.kg)} />

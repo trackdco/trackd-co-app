@@ -120,6 +120,26 @@ describe("weightAcross", () => {
     expect(weightAcross([{ key: "2025-01-01", kg: 90 }], WINDOW)).toBeNull()
   })
 
+  it("reports NO delta for a single reading rather than a zero", () => {
+    // One weigh-in inside a block is a value, not a change. `to - from` on one
+    // point is 0, which headlined the retrospective as "0 kg" over "92.4 to
+    // 92.4 kg" — a measured-looking outcome that was never measured.
+    const w = weightAcross([{ key: "2026-01-02", kg: 92.4 }], WINDOW)
+    expect(w).toMatchObject({ from: 92.4, to: 92.4, delta: null })
+    expect(w?.points).toHaveLength(1)
+  })
+
+  it("reports a delta as soon as there are two", () => {
+    const w = weightAcross(
+      [
+        { key: "2026-01-02", kg: 92 },
+        { key: "2026-01-09", kg: 91.5 },
+      ],
+      WINDOW,
+    )
+    expect(w?.delta).toBeCloseTo(-0.5)
+  })
+
   it("reads a gain as a positive delta and states no verdict", () => {
     const w = weightAcross(
       [

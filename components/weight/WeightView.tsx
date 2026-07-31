@@ -244,11 +244,15 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   const hasData = windowed.length > 0;
   const focusedSeries = windowed.map((p) => (mode === "trend" ? p.trend : p.scale));
   const current = hasData ? focusedSeries[focusedSeries.length - 1] : null;
+  // Null until there are TWO readings: one weigh-in is a value, not a change,
+  // and defaulting to 0 rendered "+0.0 kg over this range" as though the user
+  // had held steady when nothing had been measured twice.
   const delta =
     focusedSeries.length > 1
       ? focusedSeries[focusedSeries.length - 1] - focusedSeries[0]
-      : 0;
-  const deltaText = `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)}`;
+      : null;
+  const deltaText =
+    delta === null ? null : `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)}`;
 
   const allVals = windowed.flatMap((p) => [p.scale, p.trend]);
   const min = hasData ? Math.min(...allVals) : 0;
@@ -444,8 +448,14 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                   <span className={UNIT_SUFFIX}>{unit}</span>
                 </div>
                 <p className="mt-1 font-mono text-sm text-text-muted">
-                  {deltaText} {unit}{" "}
-                  <span className="font-sans">over this range</span>
+                  {deltaText === null ? (
+                    <span className="font-sans">One reading in this range</span>
+                  ) : (
+                    <>
+                      {deltaText} {unit}{" "}
+                      <span className="font-sans">over this range</span>
+                    </>
+                  )}
                 </p>
               </>
             ) : (

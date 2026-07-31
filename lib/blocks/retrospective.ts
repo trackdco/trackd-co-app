@@ -63,8 +63,13 @@ export interface WeightSpan {
   from: number
   /** The last reading inside the window. */
   to: number
-  /** `to - from`. Signed: negative is a loss. Never described as good or bad. */
-  delta: number
+  /**
+   * `to - from`. Signed: negative is a loss. Never described as good or bad.
+   *
+   * NULL when the window holds a single reading: there is a weight, but no
+   * change to report, and rendering 0 would assert one.
+   */
+  delta: number | null
   /** Every reading inside the window, oldest first — the graph, clipped. */
   points: { key: string; kg: number }[]
 }
@@ -87,7 +92,15 @@ export function weightAcross(
   if (inWindow.length === 0) return null
   const from = inWindow[0].kg
   const to = inWindow[inWindow.length - 1].kg
-  return { from, to, delta: to - from, points: inWindow }
+  // A single reading has NO delta. `to - from` on one point is 0, which the
+  // retrospective then headlined as "0 kg" over "92.4 to 92.4 kg, across 1
+  // reading" — a range from a value to itself, presented as a measured outcome.
+  // `photosAcross` already refuses the same shape ("showing the same photo twice
+  // would imply a comparison that does not exist"); this is that rule applied to
+  // the number. One weigh-in inside a block is a fact worth showing, but the
+  // change across the block is genuinely unknown until there are two.
+  const delta = inWindow.length > 1 ? to - from : null
+  return { from, to, delta, points: inWindow }
 }
 
 /* --------------------------------------------------------------- compounds */

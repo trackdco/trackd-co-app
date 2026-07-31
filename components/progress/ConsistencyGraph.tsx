@@ -6,6 +6,7 @@ import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets";
 import { dateKeyToDate } from "@/lib/home/mockHomeData";
+import { todayKey } from "@/lib/protocol/cycle";
 import {
   doseDayCount,
   overallPct,
@@ -128,7 +129,9 @@ export function ConsistencyGraph({
   const range = RANGES.find((r) => r.id === rangeId) ?? RANGES[0];
   const windowed =
     range.days === Number.POSITIVE_INFINITY ? points : points.slice(-range.days);
-  const overall = overallPct(windowed);
+  // Today is excluded from the denominator until its doses are actually taken —
+  // a dose due at 8pm is not a missed dose at 8am.
+  const overall = overallPct(windowed, todayKey());
   const doseDays = doseDayCount(windowed);
 
   // Carry the last real adherence forward across rest days so the line stays flat

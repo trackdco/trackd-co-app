@@ -47,12 +47,18 @@ function sparkPoints(vals: number[]): string {
 
 interface Stat {
   last: number | null
-  deltaText: string
+  /** Null until there are TWO readings to compare. */
+  deltaText: string | null
 }
 
 function stat(vals: number[]): Stat {
   const last = vals.length ? vals[vals.length - 1] : null
-  const delta = vals.length > 1 ? vals[vals.length - 1] - vals[0] : 0
+  // A single reading has no trend. Defaulting the delta to 0 rendered a
+  // confident "+0.0 kg" on a user's first ever weigh-in, which states a
+  // measured fact ("you have not changed") that nothing measured. One reading
+  // is a value, not a change.
+  if (vals.length < 2) return { last, deltaText: null }
+  const delta = vals[vals.length - 1] - vals[0]
   return { last, deltaText: `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)}` }
 }
 
@@ -245,7 +251,14 @@ function ValueBlock({
         <span className={UNIT_SUFFIX}>{unit}</span>
       </span>
       <span className="mt-1 block font-mono text-sm text-text-muted">
-        {s.deltaText} {unit} <span className="font-sans">{kind}</span>
+        {s.deltaText === null ? (
+          // One reading: state what there is, claim no movement.
+          <span className="font-sans">First reading</span>
+        ) : (
+          <>
+            {s.deltaText} {unit} <span className="font-sans">{kind}</span>
+          </>
+        )}
       </span>
     </span>
   )
