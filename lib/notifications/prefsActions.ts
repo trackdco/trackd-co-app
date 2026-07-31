@@ -74,7 +74,7 @@ export async function saveReminderPrefs(
       .eq("user_id", user.id);
     if (error) return { ok: false };
 
-    revalidatePath("/settings");
+    revalidatePath("/notifications");
     return { ok: true };
   } catch (e) {
     console.error("saveReminderPrefs failed", e);

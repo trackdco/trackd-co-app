@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
-import { ReconCalculator } from "@/components/home/ReconCalculator";
-import { PAGE_TITLE } from "@/lib/ui-presets";
+import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
+import { ReconCalculator } from "@/components/calculator/ReconCalculator";
 
 /**
  * DEV-ONLY preview of the reconstitution calculator — the same `ReconCalculator`
@@ -17,12 +17,7 @@ export default function PreviewReconPage() {
       <span className="rounded-full bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium tracking-wider text-text-muted uppercase">
         Preview · /calculator
       </span>
-      <header className="px-1">
-        <h1 className={PAGE_TITLE}>Calculator</h1>
-        <p className="mt-0.5 text-sm text-text-muted">
-          Work out your concentration and the volume to draw.
-        </p>
-      </header>
+      <PageScrollTitle title="Calculator" />
 
       <ReconCalculator />
     </div>

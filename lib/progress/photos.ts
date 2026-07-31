@@ -1,7 +1,7 @@
 /**
  * Progress photos = a dated, posed photo log (Spec 09 addendum — founder
  * directed). MacroFactor-style: grouped by month → by day, with a thumbnail per
- * pose. Three default poses (Front / Side / Back relaxed) shown up front; the
+ * pose. Three default poses (Front / Side / Back) shown up front; the
  * rest of the standard bodybuilding poses are added via a searchable catalogue
  * (so names stay consistent and comparable), and a user can still add a fully
  * custom pose. Photos live in the private `progress-photos` bucket; each is a
@@ -32,9 +32,21 @@ export interface Pose {
   shape: PoseShape;
 }
 
-/** The standard bodybuilding poses, each with an illustration shape. The first
- *  three are the relaxed mandatories shown up front. */
+/**
+ * The standard bodybuilding poses, each with an illustration shape. The first
+ * three are the mandatories shown up front.
+ *
+ * Those three are **Front / Side / Back** (spec 08 · part two). They were
+ * previously the *relaxed* variants, which still exist immediately below and are
+ * still addable like any other pose: the defaults changed, the catalogue did not
+ * shrink. Photos already saved under a relaxed pose keep that pose and are never
+ * migrated or relabelled, which is why the relaxed ids are untouched rather than
+ * renamed — renaming them would silently rewrite existing history.
+ */
 export const POSE_CATALOGUE: Pose[] = [
+  { id: "front", label: "Front", shape: "relaxed" },
+  { id: "side", label: "Side", shape: "side" },
+  { id: "back", label: "Back", shape: "relaxed" },
   { id: "front-relaxed", label: "Front relaxed", shape: "relaxed" },
   { id: "side-relaxed", label: "Side relaxed", shape: "side" },
   { id: "back-relaxed", label: "Back relaxed", shape: "relaxed" },
@@ -141,7 +153,7 @@ export function groupByMonth(photos: ProgressPhoto[]): MonthGroup[] {
     .map(([key, ds]) => ({ key, label: monthLabel(key), days: ds }));
 }
 
-/** The latest day's photos (newest session), front-relaxed first. */
+/** The latest day's photos (newest session), in catalogue order (Front first). */
 export function latestDay(photos: ProgressPhoto[]): DayGroup | null {
   return groupByDate(photos)[0] ?? null;
 }

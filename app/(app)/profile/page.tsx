@@ -1,32 +1,19 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import {
-  CaretRight,
-  FileText,
-  GearSix,
-  ShieldCheck,
-  Stethoscope,
-  type Icon,
-} from "@/components/icons";
 
-import { AvatarUploader } from "@/components/profile/AvatarUploader";
-import { InstallAppRow } from "@/components/profile/InstallAppRow";
-import { ProfileFeedbackRow } from "@/components/profile/ProfileFeedbackRow";
-import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
-import { DeleteAccountRequest } from "@/components/auth/delete-account-request";
-import { StartFreshSection } from "@/components/home/StartFreshSection";
-import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
-import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
+import { ProfileScreen } from "@/components/profile/ProfileScreen";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Profile — Trackd Co" };
+export const metadata: Metadata = { title: "Profile · Trackd Co" };
 
 /**
- * Profile tab — the bottom-nav "Profile" destination. An identity + account
- * hub, NOT an editor: every edit affordance points at /settings. Reads only the
- * caller's own profiles row (RLS-scoped). The (app) layout has already enforced
- * auth + the 18+/ToS gate, so `user` is guaranteed here; user_metadata is used
- * for display only, never for access decisions.
+ * Profile tab — the data wrapper. Reads only the caller's own profiles row
+ * (RLS-scoped) and hands it to `ProfileScreen`. The (app) layout has already
+ * enforced auth + the 18+/ToS gate, so `user` is guaranteed here; user_metadata
+ * is used for display only, never for access decisions.
+ *
+ * Settings was dissolved into this screen by spec 09 · part two — its route,
+ * page, form and server action are gone, and `updatePhysical` in
+ * `./actions.ts` is the old `updateSettings` with its validation unchanged.
  */
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -58,6 +45,10 @@ export default async function ProfilePage() {
   const { data: latestWeight } = await supabase
     .from("weight_logs")
     .select("weight")
+    // Scoped explicitly, like every other read on this page. RLS already answers
+    // for it; defence in depth is the house pattern and this was the one query
+    // that relied on the backstop alone.
+    .eq("profile_id", user!.id)
     .order("logged_for", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -70,212 +61,29 @@ export default async function ProfilePage() {
     null;
   const hasName = Boolean(fullName?.trim());
   const email = user?.email ?? "";
-  const displayName = hasName ? fullName!.trim() : email || "Your account";
-  const initials = getInitials(fullName, email);
 
   // BETA: tier defaults to 'paid'. A missing profile row falls back to Pro and
   // renders "—" for the data rows rather than throwing.
   const isPaid = (profile?.tier ?? "paid") === "paid";
-  const planLabel = isPaid ? "Beta · Pro" : "Free";
-  const memberSince = formatMemberSince(profile?.created_at);
-  const age = ageFromDob(profile?.date_of_birth);
-  const imperial = profile?.units_preference === "imperial";
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
-      {/* Each block fades + rises in on load, staggered — the same
-          `animate-home-up` idiom as Home and Progress (per-section, not a single
-          whole-page fade), so every tab page loads in the same way. */}
-      <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
-        {/* Shared scroll-title preset (large heading → fade-in compact bar). */}
-        <PageScrollTitle title="Profile" />
-      </div>
-
-      {/* ── Identity hero ─────────────────────────────────────────── */}
-      <section
-        className="animate-home-up flex flex-col items-center text-center"
-        style={{ animationDelay: "55ms" }}
-      >
-        <AvatarUploader
-          initials={initials}
-          signedUrl={avatarUrl}
-          userId={user!.id}
-        />
-
-        <h1
-          className={
-            hasName
-              ? `mt-5 text-balance leading-[1.15] ${PAGE_TITLE}`
-              : `mt-5 break-all leading-[1.2] ${PAGE_TITLE}`
-          }
-        >
-          {displayName}
-        </h1>
-        {hasName ? (
-          <p className="mt-1 max-w-full truncate text-sm text-text-muted">
-            {email}
-          </p>
-        ) : null}
-
-        {/* Plan status pill — quiet and muted (amber retired on this screen). */}
-        <span className="mt-4 inline-flex items-center rounded-full border border-border-default bg-bg-surface-raised px-3 py-1 text-xs font-medium text-text-muted">
-          {planLabel}
-        </span>
-      </section>
-
-      {/* ── Account ───────────────────────────────────────────────── */}
-      <div className="animate-home-up" style={{ animationDelay: "85ms" }}>
-        <Eyebrow>Account</Eyebrow>
-        <div className="overflow-hidden rounded-2xl bg-bg-surface">
-          <InfoRow label="Member since" value={memberSince} />
-          <Divider />
-          <InfoRow label="Plan" value={planLabel} />
-          <Divider />
-          <InfoRow label="Email" value={email || "—"} truncate />
-        </div>
-      </div>
-
-      {/* ── Physical (read-only glance; editing lives in /settings) ── */}
-      <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
-        <div className="mb-3 flex items-baseline justify-between gap-3">
-          <p className={CARD_EYEBROW}>
-            Physical
-          </p>
-          <Link
-            href="/settings"
-            className="-m-2 shrink-0 whitespace-nowrap rounded-md p-2 text-xs text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
-          >
-            Edit in Settings
-          </Link>
-        </div>
-        <div className="overflow-hidden rounded-2xl bg-bg-surface">
-          <InfoRow label="Sex" value={fmtCapital(profile?.sex)} />
-          <Divider />
-          <InfoRow label="Age" value={age != null ? `${age} yrs` : "—"} />
-          <Divider />
-          <InfoRow
-            label="Height"
-            value={formatMeasure(profile?.height_cm, imperial, "cm", "in", CM_PER_IN)}
-          />
-          <Divider />
-          <InfoRow
-            label="Weight"
-            value={formatMeasure(displayWeightKg, imperial, "kg", "lbs", KG_PER_LB)}
-          />
-          <Divider />
-          <InfoRow label="Goal" value={fmtGoal(profile?.goal)} />
-          <Divider />
-          <InfoRow label="Units" value={fmtUnits(profile?.units_preference)} />
-        </div>
-      </div>
-
-      {/* ── App & legal ───────────────────────────────────────────── */}
-      <div className="animate-home-up" style={{ animationDelay: "140ms" }}>
-        <Eyebrow>App</Eyebrow>
-        <div className="overflow-hidden rounded-2xl bg-bg-surface">
-          <LinkRow href="/settings" icon={GearSix}>
-            Settings
-          </LinkRow>
-          {/* InstallAppRow renders its own leading divider and self-hides when the
-              app is already on the Home Screen, so no stray divider is left. */}
-          <InstallAppRow />
-          <Divider />
-          <LinkRow href="/terms" icon={FileText}>
-            Terms of Service
-          </LinkRow>
-          <Divider />
-          <LinkRow href="/privacy" icon={ShieldCheck}>
-            Privacy Policy
-          </LinkRow>
-          <Divider />
-          <LinkRow href="/medical-disclaimer" icon={Stethoscope}>
-            Medical Disclaimer
-          </LinkRow>
-          <Divider />
-          <ProfileFeedbackRow userId={user!.id} />
-        </div>
-      </div>
-
-      {/* ── Sign out (confirm step; deep-red destructive button) ───── */}
-      <div className="animate-home-up" style={{ animationDelay: "170ms" }}>
-        <SignOutConfirm variant="button" />
-      </div>
-
-      {/* Account deletion — request-based during beta (the in-app "deletion
-          control" the Privacy Policy refers to; full self-serve is post-beta).
-          The compound-stack reset sits right under it, sharing the same quiet,
-          muted treatment so it reads as the rare/irreversible action it is. */}
-      <div className="animate-home-up" style={{ animationDelay: "185ms" }}>
-        <DeleteAccountRequest email={email} />
-        <StartFreshSection userId={user!.id} />
-      </div>
-
-      <p
-        className="animate-home-up text-center text-xs text-text-subtle"
-        style={{ animationDelay: "205ms" }}
-      >
-        Trackd Co · v0.4 (Beta)
-      </p>
-    </div>
-  );
-}
-
-/* ── Co-located, server-safe presentational pieces ───────────────── */
-
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <p className={`mb-3 ${CARD_EYEBROW}`}>
-      {children}
-    </p>
-  );
-}
-
-function Divider() {
-  return <div className="mx-4 hairline-t" aria-hidden />;
-}
-
-function InfoRow({
-  label,
-  value,
-  truncate = false,
-}: {
-  label: string;
-  value: string;
-  truncate?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3.5">
-      <span className="shrink-0 text-sm text-text-muted">{label}</span>
-      <span
-        className={
-          "text-sm font-medium text-foreground tabular-nums" +
-          (truncate ? " truncate" : "")
-        }
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function LinkRow({
-  href,
-  icon: Icon,
-  children,
-}: {
-  href: string;
-  icon: Icon;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 px-4 py-3.5 outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-    >
-      <Icon className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-      <span className="flex-1 text-sm text-foreground">{children}</span>
-      <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-    </Link>
+    <ProfileScreen
+      userId={user!.id}
+      initials={getInitials(fullName, email)}
+      avatarUrl={avatarUrl}
+      displayName={hasName ? fullName!.trim() : email || "Your account"}
+      hasName={hasName}
+      email={email}
+      planLabel={isPaid ? "Beta · Pro" : "Free"}
+      physical={{
+        sex: profile?.sex ?? null,
+        goal: profile?.goal ?? null,
+        unitsPreference: profile?.units_preference ?? "metric",
+        heightCm: profile?.height_cm ?? null,
+        age: ageFromDob(profile?.date_of_birth),
+        weightKg: displayWeightKg == null ? null : Number(displayWeightKg),
+      }}
+    />
   );
 }
 
@@ -298,14 +106,6 @@ function getInitials(name: string | null, email: string): string {
   return ([...local].slice(0, 2).join("") || "?").toUpperCase();
 }
 
-function formatMemberSince(iso?: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? "—"
-    : d.toLocaleDateString("en-AU", { month: "long", year: "numeric" });
-}
-
 function ageFromDob(iso?: string | null): number | null {
   if (!iso) return null;
   const dob = new Date(iso);
@@ -319,45 +119,4 @@ function ageFromDob(iso?: string | null): number | null {
   // Guard nonsensical values (future / bad DOB) so the row falls back to "—"
   // like every other field, rather than rendering e.g. "-4 yrs".
   return age >= 0 && age < 150 ? age : null;
-}
-
-const fmtCapital = (v?: string | null) =>
-  v ? v[0].toUpperCase() + v.slice(1) : "—";
-
-const fmtUnits = (v?: string | null) =>
-  v === "imperial" ? "Imperial" : v === "metric" ? "Metric" : "—";
-
-const GOAL_LABELS: Record<string, string> = {
-  bulk: "Bulk",
-  cut: "Cut",
-  recomp: "Recomp",
-  contest_prep: "Contest prep",
-  first_cycle: "First cycle",
-  blast_cruise: "Blast & cruise",
-  trt: "TRT",
-  other: "Other",
-};
-
-const fmtGoal = (v?: string | null) =>
-  v ? (GOAL_LABELS[v] ?? fmtCapital(v)) : "—";
-
-// Storage is metric; show in the user's preferred units (imperial = display only,
-// matching the settings form). perImperialUnit = metric units per 1 imperial unit.
-const CM_PER_IN = 2.54;
-const KG_PER_LB = 0.45359237;
-
-function formatMeasure(
-  value: number | string | null | undefined,
-  imperial: boolean,
-  metricUnit: string,
-  imperialUnit: string,
-  perImperialUnit: number,
-): string {
-  if (value == null) return "—";
-  const n = Number(value);
-  if (Number.isNaN(n)) return "—";
-  const v = imperial ? n / perImperialUnit : n;
-  const rounded = Math.round(v * 10) / 10;
-  const text = rounded % 1 === 0 ? String(rounded) : rounded.toFixed(1);
-  return `${text} ${imperial ? imperialUnit : metricUnit}`;
 }

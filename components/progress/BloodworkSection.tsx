@@ -18,6 +18,7 @@ import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
  * wherever it was opened from.
  */
 export function BloodworkSection({
+  compact = false,
   photos,
   userId,
   todayKey,
@@ -25,6 +26,8 @@ export function BloodworkSection({
   photos: BloodworkPhoto[];
   userId: string;
   todayKey: string;
+  /** Progress's two-up grid (spec 08 · part two). */
+  compact?: boolean;
 }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -44,6 +47,7 @@ export function BloodworkSection({
   return (
     <>
       <BloodworkCard
+          compact={compact}
         photos={photos}
         onOpen={() => setGalleryOpen(true)}
         onViewLatest={() => {

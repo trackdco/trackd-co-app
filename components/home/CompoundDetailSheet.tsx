@@ -9,6 +9,7 @@ import {
 } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { inventoryTypeForCompound } from "@/lib/containers/form"
 import {
   Sheet,
   SheetClose,
@@ -17,12 +18,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
-import { CategoryIcon } from "@/components/compounds/CategoryIcon"
+import { Container } from "@/components/containers"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
 import {
   CATEGORY_META,
   FALLBACK_CATEGORY_META,
 } from "@/lib/compound-categories"
-import { dateKeyToDate } from "@/lib/home/mockHomeData"
 import {
   cadenceLabel,
   formatDateKeyShort,
@@ -121,11 +122,12 @@ function DetailBody({
   // A pending DELETE confirmation (drops down before it happens).
   const [confirmArchive, setConfirmArchive] = useState(false)
   const meta = CATEGORY_META[compound.category] ?? FALLBACK_CATEGORY_META
-  const upcoming = upcomingDoseDates(
-    compound.schedule,
-    dateKeyToDate(compound.schedule.startDate),
-    3
-  )
+  // "Next" means the next doses from NOW. It walked from the schedule's START
+  // date, so a compound begun in March listed three days in March under the word
+  // "Next" and never changed. `upcomingDoseDates` clamps forward to the start
+  // date itself, so a compound that has not begun yet still lists its first
+  // doses, which is the one case where the two readings coincide.
+  const upcoming = upcomingDoseDates(compound.schedule, new Date(), 3, compound.cycle)
 
   return (
     <div
@@ -147,24 +149,39 @@ function DetailBody({
       </SheetDescription>
 
       <div className="space-y-5 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <CategoryIcon category={compound.category} className="h-3.5 w-3.5" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-medium text-foreground">
+        {/* Header — the compound's CONTAINER rather than the small type icon
+            (Adrian's call). At sheet size the drawn vial / bottle / tub is the
+            thing that identifies the compound at a glance, and a 14px glyph was
+            doing nothing the name did not already do. Specs 10 and 11 call for
+            this same header on the add and log forms, so this is the pattern they
+            reuse rather than a one-off. */}
+        <div className="flex items-center gap-4">
+          <Container
+            inventoryType={inventoryTypeForCompound(compound.name, compound.method)}
+            category={compound.category}
+            fill={0.7}
+            size={72}
+          />
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <p className={CARD_EYEBROW}>
+              {meta.label} · {methodLabel(compound.method)}
+            </p>
+            <p className="text-lg leading-tight font-medium text-foreground">
               {compound.name}
             </p>
-            <p className="truncate text-sm text-text-muted">
-              {meta.label} · {methodLabel(compound.method)}
+            <p className="font-mono text-sm tabular-nums text-text-muted">
+              {formatDose(compound.dose)} {compound.unit}
             </p>
           </div>
         </div>
 
         {/* Dose + schedule */}
         <div className="grid grid-cols-2 gap-3">
-          <Stat label="Dose">
+          {/* The dose leads the header now, so repeating it here would waste the
+              slot. Started-on was previously nowhere on the sheet. */}
+          <Stat label="Started">
             <span className="font-mono">
-              {formatDose(compound.dose)} {compound.unit}
+              {formatDateKeyShort(compound.schedule.startDate)}
             </span>
           </Stat>
           <Stat label="Schedule">
@@ -343,3 +360,4 @@ function Stat({
     </div>
   )
 }
+

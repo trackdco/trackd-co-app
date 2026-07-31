@@ -1,0 +1,84 @@
+"use client"
+
+import type { ReactNode } from "react"
+
+import { Plus } from "@/components/icons"
+import { cn } from "@/lib/utils"
+
+/**
+ * The "New stack" / "New cycle" affordance: the same card shape as the ones
+ * above it, drawn as a HAIRLINE OUTLINE rather than a filled surface (Adrian's
+ * call — a dashed border reads as a placeholder, and a filled inset panel read
+ * as a card inside a card).
+ *
+ * The hairline is the app's structural line everywhere else, so an empty slot
+ * drawn with it belongs to the same system. It renders at true 0.5px via the
+ * shared `hairline` utility rather than a 1px border, which reads chunky on a
+ * phone.
+ *
+ * Used by both sections, so Stacks and Cycles are identical by construction.
+ */
+export function NewItemCard({
+  label,
+  onClick,
+  disabled,
+  hint,
+  description,
+  preview,
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  /** Shown instead of the label when the action is not yet available. */
+  hint?: string
+  /**
+   * One line explaining what the thing IS. Passed only when the section is
+   * EMPTY — a bare "New stack" says nothing to someone who has never made one,
+   * and once you have some, the explanation is just noise. This is the
+   * empty-state rule from ui-context.md: the card's normal frame, one muted line
+   * in-voice, and a single clear action.
+   */
+  description?: string
+  /**
+   * A dimmed, non-interactive mock of the real thing, shown above the copy when
+   * the section is empty. Seeing what you are about to make lands faster than
+   * reading about it, and it makes a first-run section look designed rather than
+   * unfinished.
+   */
+  preview?: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "hairline flex w-full items-center justify-center gap-2 rounded-2xl border-border-default py-5 transition",
+        disabled
+          ? "text-text-subtle"
+          : "text-text-muted active:scale-[0.98] hover:text-foreground"
+      )}
+    >
+      <span className="flex flex-col items-center gap-3 px-6">
+        {preview && (
+          // Purely illustrative: dimmed, and aria-hidden so it is never read out
+          // as if it were something the user already has.
+          <span aria-hidden className="pointer-events-none block opacity-40">
+            {preview}
+          </span>
+        )}
+        <span className="flex flex-col items-center gap-1.5">
+        <span className="flex items-center gap-2">
+          <Plus className="h-4 w-4" aria-hidden />
+          <span className="text-sm">{disabled && hint ? hint : label}</span>
+        </span>
+        {description && (
+          <span className="text-center text-xs text-text-subtle">
+            {description}
+          </span>
+        )}
+        </span>
+      </span>
+    </button>
+  )
+}

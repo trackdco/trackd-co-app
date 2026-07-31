@@ -8,9 +8,7 @@ import { cn } from "@/lib/utils"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddWeightSheet } from "@/components/home/AddWeightSheet"
 import { QuickTrackSheet } from "@/components/home/QuickTrackSheet"
-import { FeedbackSheet } from "@/components/feedback/FeedbackSheet"
 import {
-  FEEDBACK_ACTION,
   QUICK_ACTIONS,
   type ShortcutItem,
 } from "@/components/shortcuts/shortcutItems"
@@ -88,7 +86,6 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
   const [quickTrackOpen, setQuickTrackOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [weightOpen, setWeightOpen] = useState(false)
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   /**
    * `restoreFocus` is the difference between a dismissal and an action: a
@@ -197,10 +194,6 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
         requestProgressAction("bloodwork-gallery")
         router.push("/progress")
         break
-      case "feedback":
-        // The beta "Beta notes & feedback" sheet — send a note to the founders.
-        setFeedbackOpen(true)
-        break
     }
   }
 
@@ -255,13 +248,6 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
                 />
               ))}
             </div>
-
-            {/* Beta feedback — a full-width row below the grid, set apart from
-                the six core actions (beta-only). */}
-            <FeedbackRow
-              item={FEEDBACK_ACTION}
-              onPress={() => handlePress(FEEDBACK_ACTION)}
-            />
           </div>
         ) : null}
 
@@ -305,39 +291,7 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
         userId={userId}
       />
 
-      {/* "Beta notes & feedback" → send a note straight to the founders. */}
-      <FeedbackSheet
-        open={feedbackOpen}
-        onOpenChange={setFeedbackOpen}
-        userId={userId}
-      />
     </>
-  )
-}
-
-/**
- * The beta "Beta notes & feedback" row — full-width under the grid: a neutral
- * hairline-outlined panel with a bright icon + label (the amber tint was retired
- * with the premium-minimal restyle). Its full-width bordered shape — not a dimmer
- * colour — is what sets the temporary beta tool apart from the six core tiles.
- */
-function FeedbackRow({
-  item,
-  onPress,
-}: {
-  item: ShortcutItem
-  onPress: () => void
-}) {
-  const Icon = item.icon
-  return (
-    <button
-      type="button"
-      onClick={onPress}
-      className="mt-3 flex min-h-11 w-full items-center justify-center gap-2.5 rounded-2xl border border-border-default px-4 py-3 transition-colors duration-[var(--motion-base)] ease-motion hover:bg-bg-input"
-    >
-      <Icon className="h-4 w-4 shrink-0 text-foreground" aria-hidden />
-      <span className="text-sm font-medium text-foreground">{item.title}</span>
-    </button>
   )
 }
 

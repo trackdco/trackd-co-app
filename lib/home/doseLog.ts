@@ -16,11 +16,99 @@ import {
   pushProtocolDoseLog,
   deleteProtocolDoseLog,
 } from "@/lib/home/protocolSync"
-import { trackSync } from "@/lib/home/syncStatus"
+import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
 
 export type DayLogs = Record<string, Record<string, DoseLog>>
 
 const EMPTY: DayLogs = {}
+/* ------------------------------------------------------------- tombstones */
+
+/**
+ * Days+compounds the user has UN-LOGGED but whose delete may not have reached
+ * Postgres yet.
+ *
+ * Making the delete a critical sync closed the race where a pull overlapped an
+ * in-flight delete, but not the offline case: hydration seeds from the pulled
+ * rows unconditionally and there is no local-wins reconciliation for logs (there
+ * is one for compounds). So unticking a dose with no network, then reconnecting,
+ * pulled the row straight back — the tick refilled with its original amount, time
+ * and site, and nothing retried the delete.
+ *
+ * A tombstone records the user's INTENT so the pull can be filtered by it. It is
+ * removed as soon as the delete is confirmed, and expires on its own so a
+ * tombstone whose delete never lands can't suppress a legitimate re-log forever.
+ */
+const TOMBSTONE_TTL_MS = 14 * 24 * 60 * 60 * 1000
+
+const tombstoneKey = (userId: string) => `trackd.doselog.tombstones.v1.${userId}`
+
+/** `${dateKey}|${compoundId}` → epoch ms the un-log happened. */
+type Tombstones = Record<string, number>
+
+export function loadTombstones(userId: string): Tombstones {
+  if (typeof window === "undefined") return {}
+  try {
+    const raw = window.localStorage.getItem(tombstoneKey(userId))
+    const parsed: unknown = raw ? JSON.parse(raw) : {}
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {}
+    const now = Date.now()
+    const out: Tombstones = {}
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      // Drop expired and malformed entries on read, so the store self-prunes.
+      if (typeof v !== "number" || !Number.isFinite(v)) continue
+      if (now - v > TOMBSTONE_TTL_MS) continue
+      out[k] = v
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function saveTombstones(userId: string, t: Tombstones): void {
+  try {
+    window.localStorage.setItem(tombstoneKey(userId), JSON.stringify(t))
+  } catch {
+    /* storage full / off — the delete still happened locally */
+  }
+}
+
+export function tombstoneId(dateKey: string, compoundId: string): string {
+  return `${dateKey}|${compoundId}`
+}
+
+/** True when this dose was un-logged and the delete is not yet confirmed. */
+export function isTombstoned(
+  tombstones: Tombstones,
+  dateKey: string,
+  compoundId: string
+): boolean {
+  return Object.hasOwn(tombstones, tombstoneId(dateKey, compoundId))
+}
+
+function addTombstone(userId: string, dateKey: string, compoundId: string): void {
+  const t = loadTombstones(userId)
+  t[tombstoneId(dateKey, compoundId)] = Date.now()
+  saveTombstones(userId, t)
+}
+
+/** The delete landed, so the intent no longer needs recording. */
+function clearTombstone(userId: string, dateKey: string, compoundId: string): void {
+  const t = loadTombstones(userId)
+  if (!Object.hasOwn(t, tombstoneId(dateKey, compoundId))) return
+  delete t[tombstoneId(dateKey, compoundId)]
+  saveTombstones(userId, t)
+}
+
+/** Logging the same dose again cancels any pending un-log for it. */
+function dropTombstoneOnRelog(
+  userId: string,
+  dateKey: string,
+  compoundId: string
+): void {
+  clearTombstone(userId, dateKey, compoundId)
+}
+
 const storageKey = (userId: string) => `trackd.doselog.v1.${userId}`
 
 function isDoseLog(v: unknown): v is DoseLog {
@@ -48,6 +136,13 @@ export function loadDoseLogs(userId: string): DayLogs {
             // The unit the dose was recorded in, preserved so history isn't
             // relabelled when the compound's unit changes (see DoseLog.unit).
             ...(typeof log.unit === "string" && log.unit ? { unit: log.unit } : {}),
+            // The user's own note. It was missing from this list, which made the
+            // whole feature write-only: the sheet reads the logged dose back
+            // THROUGH here, so re-opening one showed an empty box, saving it
+            // again wrote `note: null` over what was in Postgres, and the
+            // reconnect re-push (which also reads through here) wiped every note
+            // in the user's history on a single network flap.
+            ...(typeof log.note === "string" && log.note ? { note: log.note } : {}),
             siteId: typeof log.siteId === "string" ? log.siteId : null,
             time24: log.time24,
             // `undefined` is a MEANINGFUL third state here, not just "missing" (see
@@ -138,6 +233,9 @@ export function logDose(
   compoundId: string,
   log: DoseLog
 ) {
+  // Re-logging the same dose cancels any pending un-log for it, or the tombstone
+  // would suppress the row the user just re-created.
+  dropTombstoneOnRelog(userId, dateKey, compoundId)
   const cur = loadDoseLogs(userId)
   const next: DayLogs = {
     ...cur,
@@ -152,7 +250,11 @@ export function logDose(
   // loads async, and a back-dated log deliberately leaves it undecided) — it links
   // whichever vial the compound was drawing from at `taken_at`, so the runway
   // decrements without a back-dated dose retro-linking to a vial bought since.
-  const method = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.method ?? "po"
+  // The NAME goes too: the Postgres id is resolved from it when the derived id has
+  // drifted, which is the difference between the dose syncing and being silently
+  // dropped.
+  const onDevice = (loadStack(userId) ?? []).find((c) => c.id === compoundId)
+  const method = onDevice?.method ?? "po"
   void trackSync(
     pushProtocolDoseLog(
       compoundId,
@@ -160,7 +262,8 @@ export function logDose(
       log,
       combineLocalDateTime(dateKey, log.time24),
       method,
-      true
+      true,
+      onDevice?.name ?? null
     )
   )
 }
@@ -175,7 +278,57 @@ export function unlogDose(userId: string, dateKey: string, compoundId: string) {
   saveDoseLogs(userId, next)
   notify()
   void deleteDoseLog(dateKey, compoundId)
-  void trackSync(deleteProtocolDoseLog(compoundId, dateKey)) // Postgres (no-op for customs)
+  // CRITICAL, not ordinary: `hydrateFromPostgres` awaits only critical syncs, so
+  // an un-log tracked as ordinary let a pull that overlapped it read the row as
+  // still present and write it straight back. Unticking then backgrounding the app
+  // refilled the tick, with its original amount, time and site.
+  addTombstone(userId, dateKey, compoundId)
+  // The name, for the same reason as `logDose` — and it matters more here: a delete
+  // aimed at a derived id that no row has still reports ok, so the tombstone would
+  // clear on a delete that removed nothing and the next pull would resurrect the
+  // dose the user just unticked.
+  const name = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.name ?? null
+  void trackCriticalSync(
+    deleteProtocolDoseLog(compoundId, dateKey, name).then((res) => {
+      // Only drop the tombstone once Postgres has actually forgotten the dose.
+      if (res.ok && !res.skipped) clearTombstone(userId, dateKey, compoundId)
+      return res
+    })
+  )
+}
+
+/**
+ * Commit a dose on the day the log sheet says it lands on.
+ *
+ * ONE implementation for all three callers — the dashboard, the calendar and
+ * the quick-track sheet. It exists because they had three copies of this and
+ * they had already drifted: quick-track's took two parameters where the sheet
+ * passes four, so the day the user had just edited was dropped on the floor and
+ * the dose landed on the day the sheet was opened on, with the confirmation tick
+ * firing normally. TypeScript cannot catch that — a shorter function is
+ * assignable to a longer signature — so the answer is to have one function.
+ *
+ * `landsOn` usually equals `openedOn`. When it does not, the dose MOVES: the old
+ * day is un-logged first, so one dose can never become two.
+ *
+ * The un-log only runs when something is actually there. Firing it for a FRESH
+ * log planted a 14-day tombstone on a day the user had never logged, and
+ * hydration filters every source by tombstone — so a dose for that day sitting
+ * in Postgres but not yet pulled (a reinstall, a second device, mid-sync) would
+ * be deleted from the cloud and suppressed for a fortnight.
+ */
+export function commitDoseOn(
+  userId: string,
+  compoundId: string,
+  log: DoseLog,
+  landsOn: string,
+  openedOn: string
+): void {
+  const moved = landsOn !== openedOn
+  if (moved && loadDoseLogs(userId)[openedOn]?.[compoundId]) {
+    unlogDose(userId, openedOn, compoundId)
+  }
+  logDose(userId, landsOn, compoundId, log)
 }
 
 // There is deliberately NO "erase every logged dose for a compound" here (Spec 02):

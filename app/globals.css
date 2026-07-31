@@ -53,6 +53,23 @@
   --cat-supplement: #6fae6f;
   --cat-stimulant: #cb7a5c;
 
+  /* User palette — twelve approved colours a user picks from for a CYCLE
+     (Spec 06) or a STACK (Spec 05). Deep rather than pastel, none implying good
+     or bad, none clashing with amber or the category hues. Stored by NAME on the
+     cycle / stack, never on the compound, so a retune needs no data migration. */
+  --palette-slate: #56687f;
+  --palette-steel: #4c7285;
+  --palette-teal: #3d6b63;
+  --palette-moss: #4c6a4e;
+  --palette-olive: #616b41;
+  --palette-bronze: #7a6440;
+  --palette-clay: #8b6050;
+  --palette-rosewood: #7e4e54;
+  --palette-mauve: #7b5570;
+  --palette-plum: #654c7c;
+  --palette-indigo: #55568c;
+  --palette-stone: #6d6a62;
+
   /* System/UI state — NEVER for health-data semantics (see ui-context.md) */
   --state-error: #ef4444;
   --state-success: #4ade80;
@@ -150,6 +167,20 @@
   --color-cat-thyroid: var(--cat-thyroid);
   --color-cat-supplement: var(--cat-supplement);
   --color-cat-stimulant: var(--cat-stimulant);
+
+  /* User palette → utilities (bg-palette-slate, text-palette-teal, …) */
+  --color-palette-slate: var(--palette-slate);
+  --color-palette-steel: var(--palette-steel);
+  --color-palette-teal: var(--palette-teal);
+  --color-palette-moss: var(--palette-moss);
+  --color-palette-olive: var(--palette-olive);
+  --color-palette-bronze: var(--palette-bronze);
+  --color-palette-clay: var(--palette-clay);
+  --color-palette-rosewood: var(--palette-rosewood);
+  --color-palette-mauve: var(--palette-mauve);
+  --color-palette-plum: var(--palette-plum);
+  --color-palette-indigo: var(--palette-indigo);
+  --color-palette-stone: var(--palette-stone);
 
   /* shadcn semantic colours → utilities (bg-background, bg-card, …) */
   --color-background: var(--background);
@@ -274,6 +305,27 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Container fill (Spec 01 · part two) — when a dose is logged the liquid level
+   drops by one dose worth over ~400ms and settles. Ease-out, no bounce, no
+   overshoot, per the restraint rules in ui-context.md. Logging a stack animates
+   every member together simply because they all transition on the same tick.
+
+   `y` and `height` are SVG geometry properties, animatable as CSS in every
+   modern browser; where they are not, the level snaps — which is also exactly
+   what we want under reduced motion.
+   --------------------------------------------------------------------------- */
+.container-fill {
+  transition:
+    y 400ms ease-out,
+    height 400ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .container-fill {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Shortcuts menu motion — staggered item entrance + the tap "light-up" ripple.
    Plain (unlayered) classes + keyframes: always emitted, win over Tailwind's
    layered utilities, and keep the keyframes referenced so the CSS optimiser
@@ -340,8 +392,24 @@
   animation: card-shake 420ms ease-in-out both;
 }
 
+/* The calculator's syringe fill easing into its new length (Spec 07). A CLASS,
+   not an inline style: the scale factor itself has to be inline (it is a live
+   value), and an inline `transition` would outrank Tailwind's
+   `motion-reduce:transition-none` utility, so the reduce opt-out would silently
+   never apply. Owning the transition here keeps both on the same specificity
+   footing and puts the opt-out below, with every other animation's. */
+.transition-syringe-fill {
+  transform-box: fill-box;
+  transform-origin: left;
+  transition: transform var(--motion-slow) var(--motion-ease);
+}
+
 /* Respect users who opt out of motion — no entrance/ripple/fade for them. */
 @media (prefers-reduced-motion: reduce) {
+  .transition-syringe-fill {
+    transition: none;
+  }
+
   .animate-shortcut-in,
   .animate-shortcut-ripple,
   .animate-shortcut-fade,

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { ProgressScreen } from "@/components/progress/ProgressScreen";
+import { listBlocks } from "@/lib/db/blocks";
 import { createClient } from "@/lib/supabase/server";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
@@ -16,7 +17,7 @@ import {
 import { markerAppliesTo } from "@/lib/progress/markerApplicability";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 
-export const metadata: Metadata = { title: "Progress — Trackd Co" };
+export const metadata: Metadata = { title: "Progress · Trackd Co" };
 
 const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every page load
 
@@ -31,6 +32,10 @@ export default async function ProgressPage() {
   // The (app) layout redirects unauthenticated users; this guards the render that
   // runs concurrently with that redirect so it never dereferences a null user.
   if (!user) return null;
+
+  // Blocks come from Postgres, not the device store: a block is a RECORD of a
+  // period trained through, and a PWA reinstall must not lose one.
+  const blocksPromise = listBlocks();
 
   const [
     { data: profile },
@@ -278,8 +283,11 @@ export default async function ProgressPage() {
     };
   });
 
+  const blocks = await blocksPromise;
+
   return (
     <ProgressScreen
+      blocks={blocks}
       weight={weight}
       unitPreference={profile?.units_preference ?? "metric"}
       todayKey={toDateKey(new Date())}

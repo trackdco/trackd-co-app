@@ -13,7 +13,7 @@ export default function PreviewPage() {
   if (process.env.NODE_ENV === "production") notFound();
 
   return (
-    <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom))]">
+    <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom)+4.5rem)]">
       <header
         className="flex items-center justify-between border-b border-border/60 px-5"
         style={{

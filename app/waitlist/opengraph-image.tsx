@@ -10,7 +10,7 @@ import { ImageResponse } from "next/og";
  * #7A7A74, amber #C8861A. Every container declares an explicit flex layout
  * (Satori requirement).
  */
-export const alt = "Trackd Co — Track the whole protocol. Join the waitlist.";
+export const alt = "Trackd Co. Track the whole protocol. Join the waitlist.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

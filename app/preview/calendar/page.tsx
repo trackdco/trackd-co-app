@@ -39,6 +39,15 @@ export default function PreviewCalendarPage() {
       schedule: { cadence: { type: "daysOfWeek", days: [1, 4] }, timeOfDay: "09:00", startDate: dk(60) },
       rotationSites: ["im-vglute-r", "im-vglute-l"],
       rotationIndex: 0,
+      // A 7-on / 7-off cycle so the calendar's bands are reviewable here
+      // (Spec 03 · part two). Sample data only — the real screen reads the
+      // user's own cycles.
+      cycle: {
+        pattern: { type: "onOff", onDays: 7, offDays: 7 },
+        end: { type: "never" },
+        colour: "steel",
+        anchor: dk(60),
+      },
     },
     {
       id: "c-tirz",
@@ -61,6 +70,13 @@ export default function PreviewCalendarPage() {
       schedule: { cadence: { type: "everyOtherDay" }, timeOfDay: "09:00", startDate: dk(60) },
       rotationSites: [],
       rotationIndex: 0,
+      // A second, offset cycle so the two-cycle vertical split is reviewable.
+      cycle: {
+        pattern: { type: "onOff", onDays: 10, offDays: 4 },
+        end: { type: "onDate", date: dk(-45) },
+        colour: "clay",
+        anchor: dk(53),
+      },
     },
   ];
 
@@ -139,7 +155,7 @@ export default function PreviewCalendarPage() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom))]">
+    <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom)+4.5rem)]">
       <header
         className="flex items-center justify-between border-b border-border/60 px-5"
         style={{

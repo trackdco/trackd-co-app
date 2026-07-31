@@ -6,6 +6,7 @@ import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { SyncStatusNotice } from "@/components/notifications/SyncStatusNotice";
 import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
+import { RotationNotice } from "@/components/layout/RotationNotice";
 import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { unitForPreference } from "@/lib/weight";
@@ -65,7 +66,12 @@ export default async function AppLayout({
       </header>
 
       {/* Bottom padding clears the fixed nav (height + safe-area inset). */}
-      <main className="flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))]">
+      {/* Bottom padding clears the nav AND the FAB above it. Nav is 4rem; the
+          FAB sits 1rem above that and is 3.5rem tall. Without the extra 4.5rem
+          the last thing on a page rests UNDER the FAB at max scroll, which is
+          not cosmetic: it made the Consistency widget's "All" button untappable
+          on Progress — a real tap opened the quick-actions menu instead. */}
+      <main className="flex-1 pb-[calc(4rem+env(safe-area-inset-bottom)+4.5rem)]">
         {children}
       </main>
 
@@ -73,6 +79,9 @@ export default async function AppLayout({
       <QuickActionsFab userId={user.id} unit={unit} bodySex={bodySex} />
       <SyncStatusNotice />
       <ServiceWorkerRegistrar />
+      {/* Portrait fallback for the browser case the manifest cannot reach. Waits
+          for a SUSTAINED landscape and can be dismissed — see the component. */}
+      <RotationNotice />
     </div>
   );
 }

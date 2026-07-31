@@ -11,6 +11,8 @@ import {
   type LoggedKind,
   type MonthCell,
 } from "@/lib/calendar/calendar";
+import type { CycleSegment } from "@/lib/calendar/cycleBands";
+import { cycleColourVar } from "@/lib/protocol/cycleRule";
 
 interface MonthGridProps {
   cells: MonthCell[];
@@ -23,6 +25,9 @@ interface MonthGridProps {
   onToday: () => void;
   /** Open the Calendar key legend. */
   onOpenLegend: () => void;
+  /** Cycles on each day (Spec 03 · part two). Absent = no cycles, and the grid
+   *  then renders exactly as it did before cycles existed. */
+  cycleBands?: Map<DateKey, CycleSegment[]>;
 }
 
 /**
@@ -41,6 +46,7 @@ export function MonthGrid({
   onSelect,
   onToday,
   onOpenLegend,
+  cycleBands,
 }: MonthGridProps) {
   return (
     <section className="rounded-2xl bg-bg-surface px-3 pt-4 pb-3">
@@ -67,6 +73,7 @@ export function MonthGrid({
             isToday={cell.key === todayKey}
             info={infoFor(cell.key)}
             onSelect={onSelect}
+            segments={cycleBands?.get(cell.key)}
           />
         ))}
       </div>
@@ -106,12 +113,14 @@ function DayCell({
   isToday,
   info,
   onSelect,
+  segments,
 }: {
   cell: MonthCell;
   selected: boolean;
   isToday: boolean;
   info: DayInfo;
   onSelect: (cell: MonthCell) => void;
+  segments?: CycleSegment[];
 }) {
   return (
     <button
@@ -120,13 +129,13 @@ function DayCell({
       aria-pressed={selected}
       aria-label={`${cell.date.toDateString()}`}
       className={cn(
-        "flex flex-col items-center gap-1 py-0.5 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50",
+        "relative flex flex-col items-center gap-1 py-0.5 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50",
         !cell.inMonth && "opacity-40",
       )}
     >
       <span
         className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-full font-mono text-sm transition-colors",
+          "relative z-10 flex h-9 w-9 items-center justify-center rounded-full font-mono text-sm transition-colors",
           selected
             ? "bg-accent-primary font-medium text-bg-base"
             : cn(RING[info.status], isToday && "ring-1 ring-border-strong"),
@@ -135,11 +144,57 @@ function DayCell({
       >
         {cell.date.getDate()}
       </span>
+      {/* The cycle mark, IN FLOW and directly BENEATH THE DAY DISC (Adrian,
+          2026-07-31). Absolute placement put it straight through the logged-day
+          icon — measured on 23 of 23 logged days, a coloured bar across a
+          syringe — and a stack of them climbed into the disc and disappeared
+          behind it from the fourth cycle on.
+
+          It sat below the icon row, which put it ~20px under the disc and moved
+          it depending on what else the day drew, so on a filled day it read as
+          belonging to nothing. Directly under the disc it is the same distance
+          from the number on EVERY day, logged or not, which is what makes a
+          column of them scannable. The row is always present, so every cell is
+          the same height whether or not it has a cycle. */}
+      <span className="flex h-[2px] items-center" aria-hidden>
+        {segments && segments.length > 0 && <CycleFill segments={segments} />}
+      </span>
       {/* The "what was logged" mark — only under logged days. */}
-      <span className="flex h-3 items-center justify-center" aria-hidden>
+      <span className="relative z-10 flex h-3 items-center justify-center" aria-hidden>
         {!selected && info.status === "logged" && <KindIcon kind={info.kind} />}
       </span>
     </button>
+  );
+}
+
+/**
+ * The cycle mark under a day (Adrian, 2026-07-30 — replaces the coloured fill).
+ *
+ * A wash of colour behind the numbers fought everything drawn on top of it: the
+ * ring states, the selected day's white, the little type icons. It read as
+ * background noise rather than as information, and with two cycles the cell was
+ * split down the middle, which made a calendar stop looking like a calendar.
+ *
+ * ONE BAR, DIVIDED — not a stack of them. Stacking grew upward into the day disc
+ * and vanished behind it from the fourth cycle on, so five concurrent cycles
+ * silently read as three, and at eleven a stray bar escaped into the row above.
+ * A single 16px rule split into equal segments is the same width whatever the
+ * count, so it can never collide with anything or misreport how many there are.
+ *
+ * Order is by cycle start date (fixed upstream) so segments never reshuffle
+ * between months. Full opacity: at 2px a colour needs to be itself to be seen.
+ */
+function CycleFill({ segments }: { segments: CycleSegment[] }) {
+  return (
+    <span className="flex h-[2px] w-4 gap-[1px] overflow-hidden rounded-full">
+      {segments.map((s) => (
+        <span
+          key={s.compoundId}
+          className="h-full min-w-[2px] flex-1"
+          style={{ background: cycleColourVar(s.colour) }}
+        />
+      ))}
+    </span>
   );
 }
 

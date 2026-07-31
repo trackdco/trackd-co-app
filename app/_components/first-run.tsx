@@ -198,7 +198,7 @@ export function FirstRun() {
         paddingBottom: "max(1rem, calc(0.5rem + env(safe-area-inset-bottom)))",
       }}
     >
-      <h1 className="sr-only">Trackd Co — Track the whole protocol</h1>
+      <h1 className="sr-only">Trackd Co. Track the whole protocol.</h1>
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-6">

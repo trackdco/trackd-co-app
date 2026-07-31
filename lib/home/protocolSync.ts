@@ -24,8 +24,6 @@
  * synchronous localStorage write has already succeeded; Postgres is the durable
  * source, not the read path, so a network blip can't break Home.
  */
-import { createHash } from "node:crypto"
-
 import { createClient } from "@/lib/supabase/server"
 import { guard } from "@/lib/resilience/circuitBreaker"
 import { ensureActiveCycle } from "@/lib/db/cycles"
@@ -50,7 +48,13 @@ import {
 import type { CompoundCategory } from "@/lib/compound-categories"
 import type { DrawSource } from "@/lib/home/draw"
 import type { StackCompound } from "@/lib/home/stack"
-import type { DoseLog } from "@/lib/home/mockHomeData"
+import { CYCLE_COLUMNS, type CycleColumns } from "@/lib/protocol/cycleRule"
+import { capNote, type DoseLog } from "@/lib/home/mockHomeData"
+import {
+  deterministicUuid,
+  doseLogRowId,
+  recoverLoggedDay,
+} from "@/lib/home/doseLogIds"
 
 type Ok = { ok: boolean; skipped?: boolean }
 
@@ -64,14 +68,6 @@ async function ctx() {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function deterministicUuid(seed: string): string {
-  const b = createHash("sha256").update(seed).digest().subarray(0, 16)
-  b[6] = (b[6] & 0x0f) | 0x40 // version 4
-  b[8] = (b[8] & 0x3f) | 0x80 // variant 10
-  const hex = b.toString("hex")
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
-}
 
 /** The canonical `protocol_compounds.id` for a client `StackCompound.id`. */
 function resolvePcId(userId: string, clientId: string): string {
@@ -144,11 +140,21 @@ async function findProtocolCompoundId(
     return rowName.trim().toLowerCase() === target
   })
   if (matches.length === 0) return null
+  // Active first, then the OLDEST row — deliberately not the most recently
+  // updated. The dose-log id is derived from whichever row wins here, so a rank
+  // that moves over time moves the id with it: touching the losing row would
+  // flip the answer, and a later write would then create a second row for one
+  // dose while a later delete missed the first. `created_at` never changes, so
+  // the answer does not either, and "active first" already keeps a leftover row
+  // from an older cycle from shadowing the live one.
   const rank = (r: Row) =>
-    (r.is_active === false ? 0 : 1) * 1e15 +
-    (Date.parse((r.updated_at ?? r.created_at ?? "") as string) || 0)
+    (r.is_active === false ? 0 : 1) * 1e15 -
+    (Date.parse((r.created_at ?? r.updated_at ?? "") as string) || 0)
   return matches.reduce((best, r) => (rank(r) > rank(best) ? r : best)).id
 }
+
+/** Generous, and only here so a runaway paste cannot bloat a row. */
+const NOTE_MAX = 2000
 
 function parseAmount(raw: string, fallback: number): number {
   const n = Number.parseFloat(raw)
@@ -163,6 +169,86 @@ function unitFamilyOk(base: string, dose: string): boolean {
 }
 
 /* --------------------------------------------------------------- compounds */
+
+/**
+ * Map client `StackCompound.id`s to their `protocol_compounds.id`s, in one read.
+ *
+ * The two are usually identical (`newId()` yields a uuid and `resolvePcId`
+ * returns it unchanged), but not always — `pushProtocolCompound` REUSES an
+ * existing row's id for a (cycle, compound) that already has one. Stack
+ * membership is a foreign key, so a derived-but-wrong id would violate it or
+ * point at nothing; this verifies each id actually exists before it is used.
+ *
+ * Ids with no row are OMITTED rather than guessed at — the caller keeps the
+ * membership device-side and it syncs once the compound reaches Postgres.
+ */
+export async function resolveProtocolCompoundIds(
+  members: { id: string; name: string | null }[]
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {}
+  try {
+    const cx = await ctx()
+    if (!cx || members.length === 0) return out
+
+    // ONE read of the user's rows, then all matching in memory. The obvious
+    // shape — call `findProtocolCompoundId` per unresolved member — costs two
+    // round-trips each, and its first (by-derived-id) lookup provably cannot hit
+    // here because we already know that id has no row.
+    const { data, error } = await cx.supabase
+      .from("protocol_compounds")
+      .select("id, custom_name, is_active, updated_at, created_at, compounds(name)")
+      .eq("user_id", cx.userId)
+    if (error) {
+      console.error("resolveProtocolCompoundIds failed", error)
+      return out
+    }
+
+    type Row = {
+      id: string
+      custom_name: string | null
+      is_active: boolean
+      updated_at: string | null
+      created_at: string | null
+      compounds?: { name: string } | null
+    }
+    const rows = (data ?? []) as unknown as Row[]
+    const byId = new Set(rows.map((r) => r.id))
+
+    // Best row per NAME: active first, then most recently touched — the same
+    // ranking `findProtocolCompoundId` uses, so a leftover row from an older
+    // cycle can never shadow the live one.
+    const rank = (r: Row) =>
+      (r.is_active === false ? 0 : 1) * 1e15 +
+      (Date.parse((r.updated_at ?? r.created_at ?? "") as string) || 0)
+    const byName = new Map<string, Row>()
+    for (const r of rows) {
+      const name = (r.compounds?.name ?? r.custom_name ?? "").trim().toLowerCase()
+      if (!name) continue
+      const best = byName.get(name)
+      if (!best || rank(r) > rank(best)) byName.set(name, r)
+    }
+
+    for (const m of members) {
+      // 1. The derived id, where such a row exists — the common case.
+      const derived = resolvePcId(cx.userId, m.id)
+      if (byId.has(derived)) {
+        out[m.id] = derived
+        continue
+      }
+      // 2. Otherwise by NAME. This is the whole reason this function exists: the
+      //    ids legitimately diverge (`pushProtocolCompound` REUSES an existing
+      //    row's id for a (cycle, compound) that already has one), and checking
+      //    only the derived id silently drops exactly those members — the stack
+      //    would save with fewer members than the user picked, reporting success.
+      const hit = m.name ? byName.get(m.name.trim().toLowerCase()) : undefined
+      if (hit) out[m.id] = hit.id
+    }
+    return out
+  } catch (e) {
+    console.error("resolveProtocolCompoundIds failed", e)
+    return out
+  }
+}
 
 /**
  * Upsert a stack compound into `protocol_compounds` under the active cycle.
@@ -339,7 +425,7 @@ export async function pushProtocolBatch(
       if (!m) continue // custom / unresolved compound — its log stays device-local
       const injectable = m.method === "im" || m.method === "subq"
       dlRows.push({
-        id: deterministicUuid(`dl:${cx.userId}:${e.dateKey}:${m.pcId}`),
+        id: doseLogRowId(cx.userId, e.dateKey, m.pcId),
         protocol_compound_id: m.pcId,
         inventory_item_id: null,
         status: "taken",
@@ -679,18 +765,72 @@ export async function pushProtocolDoseLog(
   // resolve one server-side from `takenAtIso` so the runway still decrements. The
   // migration leaves this `false` — bulk-imported history should link nothing at
   // all rather than guess.
-  autoLinkVialForDate = false
+  autoLinkVialForDate = false,
+  // The compound's name, so a diverged id can be RESOLVED rather than derived
+  // (see below). Null only where the caller genuinely doesn't know it, which
+  // costs nothing: the derived id is still tried first either way.
+  compoundName: string | null = null,
+  /**
+   * Whether `dateKey` is the DEVICE's own answer, captured at log time, and may
+   * therefore be stored in `logged_for`.
+   *
+   * True for a live log and for an edit the user just made. FALSE for a replay
+   * (`repushDoseLogs`), where the day is only as good as whatever the store
+   * happens to hold and may itself have been derived in an earlier session —
+   * `supabase/protocol/012` is explicit that a guessed day must never be written
+   * down, because storing it makes it permanent and stops the fallback ever
+   * correcting itself. When false the column is OMITTED from the payload, so an
+   * existing stored day is left exactly as it was rather than overwritten.
+   */
+  dayIsDeviceRecorded = true
 ): Promise<Ok> {
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    const pcId = resolvePcId(cx.userId, clientCompoundId)
-    const { data: pc } = await cx.supabase
+    let pcId = resolvePcId(cx.userId, clientCompoundId)
+    const first = await cx.supabase
       .from("protocol_compounds")
       .select("dose_unit, dose_amount")
       .eq("id", pcId)
       .eq("user_id", cx.userId)
       .maybeSingle()
+    // A TIMEOUT OR AN EXPIRED TOKEN IS NOT "this is a custom compound". The
+    // error used to be discarded, so a failed lookup fell through to the same
+    // `skipped: true` a legitimately absent row returns — and `trackSync` says
+    // nothing about a skip, so the dose stayed on the device and the user was
+    // told it had synced. Fail loudly instead; the reconnect re-push retries.
+    if (first.error) {
+      console.error("pushProtocolDoseLog: compound lookup failed", first.error)
+      return { ok: false }
+    }
+    let pc = first.data
+    if (!pc) {
+      // The derived id is a pure function of the CLIENT id, and the two can
+      // legitimately diverge — `pushProtocolCompound` REUSES an existing row's id
+      // for a (cycle, compound) that already has one. Archive and delete were fixed
+      // to resolve rather than derive; this path was not, so a diverged compound
+      // returned `skipped` on every dose and `trackSync` says nothing about a skip.
+      // The dose stayed on the device and never reached Postgres: silent loss, and
+      // exactly the case a reinstall does not survive.
+      //
+      // A genuine skip still exists and is still correct — a CUSTOM compound has no
+      // `protocol_compounds` row at all and its logs stay device-local. That is why
+      // this resolves by name first and only then gives up.
+      const resolved = compoundName
+        ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
+        : null
+      if (resolved) {
+        pcId = resolved
+        pc = (
+          await cx.supabase
+            .from("protocol_compounds")
+            .select("dose_unit, dose_amount")
+            .eq("id", pcId)
+            .eq("user_id", cx.userId)
+            .maybeSingle()
+        ).data
+      }
+    }
     if (!pc) return { ok: false, skipped: true } // custom / unmigrated → skip
 
     // Resolve which vial (if any) this dose draws from, so its runway decrements
@@ -745,9 +885,23 @@ export async function pushProtocolDoseLog(
         pc.dose_unit as string
       )
       if (vial) inventoryItemId = vial.id
+    } else if (picked === undefined) {
+      // UNDECIDED, and not allowed to resolve one (the re-push replaying
+      // history). The upsert replaces the whole row, so writing `null` here
+      // ERASED a link the server had already resolved — and the re-push runs on
+      // every `online` event, so one network flap unlinked the vial behind every
+      // dose logged before the Stock list had loaded, and the runway quietly
+      // stopped counting them. Keep whatever is already on the row.
+      const { data: prior } = await cx.supabase
+        .from("dose_logs")
+        .select("inventory_item_id")
+        .eq("id", doseLogRowId(cx.userId, dateKey, pcId))
+        .eq("user_id", cx.userId)
+        .maybeSingle()
+      inventoryItemId = (prior?.inventory_item_id as string | null) ?? null
     }
 
-    const dlId = deterministicUuid(`dl:${cx.userId}:${dateKey}:${pcId}`)
+    const dlId = doseLogRowId(cx.userId, dateKey, pcId)
     const saved = await upsertDoseLog({
       id: dlId,
       protocol_compound_id: pcId,
@@ -764,6 +918,15 @@ export async function pushProtocolDoseLog(
         ? localSiteToInjectionSite(log.siteId)
         : null,
       taken_at: takenAtIso,
+      // THE DAY, stored rather than inferred (`supabase/protocol/011`). The
+      // server cannot know which calendar day the user was standing in; the
+      // device does, and `dateKey` is exactly it — but only when the caller can
+      // vouch that the device recorded it. A replay omits the key entirely, so
+      // the column keeps whatever it already held.
+      ...(dayIsDeviceRecorded ? { logged_for: dateKey } : {}),
+      // The user's own words about this dose, if any. The column has existed
+      // since v0.4.2 and nothing had ever written to it.
+      note: log.note?.trim() ? capNote(log.note.trim(), NOTE_MAX) : null,
     })
     return { ok: saved !== null }
   } catch (e) {
@@ -775,14 +938,34 @@ export async function pushProtocolDoseLog(
 /** Remove a logged dose (the untick / undo path). No-op for a custom compound. */
 export async function deleteProtocolDoseLog(
   clientCompoundId: string,
-  dateKey: string
+  dateKey: string,
+  /** As in `pushProtocolDoseLog` — the dose-log id is derived from the COMPOUND's
+   *  id, so the delete has to resolve that id exactly the way the write did or it
+   *  targets a row that doesn't exist. `DELETE … WHERE id = <nothing>` affects zero
+   *  rows and PostgREST calls that a success, so the un-log reported ok, the
+   *  tombstone cleared, and the next pull put the dose straight back. */
+  compoundName: string | null = null
 ): Promise<Ok> {
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    const pcId = resolvePcId(cx.userId, clientCompoundId)
-    const dlId = deterministicUuid(`dl:${cx.userId}:${dateKey}:${pcId}`)
-    return await deleteDoseLog(dlId)
+    // Resolved, not derived — and `findProtocolCompoundId` tries the derived id
+    // first, so the common case still costs one read. Falling back to the derived
+    // id matters for a compound whose row is gone entirely: a dose logged under it
+    // before the deletion is still keyed that way and must still be removable.
+    const pcId =
+      (compoundName
+        ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
+        : null) ?? resolvePcId(cx.userId, clientCompoundId)
+    const dlId = doseLogRowId(cx.userId, dateKey, pcId)
+    const res = await deleteDoseLog(dlId)
+    // A delete that matched NOTHING is not a delete. Reporting it as one let the
+    // caller drop its tombstone, and the dose came back on the next pull. Treated
+    // as skipped rather than failed: the row may legitimately not exist (a custom
+    // compound, or a dose that never reached Postgres), and the tombstone is the
+    // right thing to keep in every one of those cases.
+    if (res.ok && !res.matched) return { ok: true, skipped: true }
+    return { ok: res.ok }
   } catch (e) {
     console.error("deleteProtocolDoseLog failed", e)
     return { ok: false }
@@ -802,13 +985,35 @@ export async function deleteProtocolDoseLog(
  * lost; applying the migration simply starts backing them up.
  */
 function isMissingTable(error: { code?: string } | null): boolean {
-  return error?.code === "42P01"
+  // PostgREST resolves the table from its schema cache and answers PGRST205
+  // BEFORE reaching Postgres, so a genuinely absent table never surfaces 42P01.
+  // Checking only the latter made the documented "tolerant of the table not
+  // existing yet" path dead code.
+  return error?.code === "42P01" || error?.code === "PGRST205"
+}
+
+/**
+ * "That column doesn't exist" — the 006 cycle columns before the migration runs.
+ * `PGRST204` is what a WRITE gets (PostgREST rejects the payload against its
+ * schema cache first); `42703` is what a READ gets from Postgres itself.
+ */
+function isUndefinedColumn(error: { code?: string } | null): boolean {
+  return error?.code === "42703" || error?.code === "PGRST204"
+}
+
+/** Just the cycle columns off a version row, for the insert payload. */
+function pickCycleColumns(v: Partial<CycleColumns>): Partial<CycleColumns> {
+  const out: Record<string, unknown> = {}
+  for (const key of CYCLE_COLUMNS) {
+    if (v[key] !== undefined) out[key] = v[key]
+  }
+  return out as Partial<CycleColumns>
 }
 
 export async function pushScheduleVersions(
   clientId: string,
   name: string | null,
-  versions: {
+  versions: ({
     effectiveFrom: string
     dose: number
     unit: string
@@ -817,7 +1022,7 @@ export async function pushScheduleVersions(
     intervalDays: number | null
     time: string | null
     stopped: boolean
-  }[]
+  } & Partial<CycleColumns>)[]
 ): Promise<Ok> {
   try {
     const cx = await ctx()
@@ -837,11 +1042,55 @@ export async function pushScheduleVersions(
         interval_days: v.intervalDays,
         dose_times: [v.time],
         stopped: v.stopped,
+        // The cycle in force under this version — see `scheduleVersionToRow`.
+        ...pickCycleColumns(v),
       })),
-      { onConflict: "protocol_compound_id,effective_from" }
+      { onConflict: "user_id,protocol_compound_id,effective_from" }
     )
     if (error) {
       if (isMissingTable(error)) return { ok: true, skipped: true }
+      // Pre-006 environments have no cycle columns. Retry without them so the
+      // rest of the version trail still persists.
+      if (isUndefinedColumn(error)) {
+        const { error: retry } = await cx.supabase
+          .from("protocol_compound_schedules")
+          .upsert(
+            versions.map((v) => ({
+              user_id: cx.userId,
+              protocol_compound_id: pcId,
+              effective_from: v.effectiveFrom,
+              dose_amount: v.dose > 0 ? v.dose : 0.001,
+              dose_unit: v.unit,
+              schedule_type: v.scheduleType,
+              days_of_week: v.daysOfWeek,
+              interval_days: v.intervalDays,
+              dose_times: [v.time],
+              stopped: v.stopped,
+            })),
+            { onConflict: "user_id,protocol_compound_id,effective_from" }
+          )
+        if (retry) {
+          console.error("pushScheduleVersions failed", retry)
+          return { ok: false }
+        }
+        // The trail persisted WITHOUT its cycle, which is not the same as
+        // success: `scheduleVersionToRow`'s own comment explains why. A version
+        // with no cycle resolves as always-on, so a past off-period reads back
+        // as a run of missed doses — the retroactive rewrite versioning exists
+        // to prevent.
+        //
+        // Kept as a partial write rather than a failure, because the trail is
+        // still worth more than nothing, and the upsert key is stable, so the
+        // next push of this compound's versions overwrites these rows WITH their
+        // cycle and repairs them. Loud, though: `PGRST204` also fires when the
+        // columns exist and only PostgREST's schema CACHE is stale, and in that
+        // case this is dropping data the database would have taken.
+        console.warn(
+          "pushScheduleVersions: cycle columns rejected, trail written without them",
+          error
+        )
+        return { ok: true }
+      }
       console.error("pushScheduleVersions failed", error)
       return { ok: false }
     }
@@ -850,6 +1099,33 @@ export async function pushScheduleVersions(
     console.error("pushScheduleVersions failed", e)
     return { ok: false }
   }
+}
+
+/** The dose-log columns as they exist before `supabase/protocol/011`. */
+const DOSE_LOG_COLUMNS =
+  "id, protocol_compound_id, taken_at, dose_amount, dose_unit, injection_site, inventory_item_id, note"
+
+/**
+ * Pull the user's dose logs, asking for `logged_for` and retrying without it.
+ *
+ * 011 is additive and may not be applied yet. Same tolerance the schedule
+ * versions and the inventory runway use: ask for the better shape, fall back to
+ * the old one, never fail the whole hydration over a pending migration.
+ */
+async function readDoseLogRows(cx: {
+  supabase: Awaited<ReturnType<typeof createClient>>
+  userId: string
+}) {
+  const withDay = await cx.supabase
+    .from("dose_logs")
+    .select(`${DOSE_LOG_COLUMNS}, logged_for`)
+    .eq("user_id", cx.userId)
+  if (!withDay.error) return withDay
+  if (!isUndefinedColumn(withDay.error)) return withDay
+  return await cx.supabase
+    .from("dose_logs")
+    .select(DOSE_LOG_COLUMNS)
+    .eq("user_id", cx.userId)
 }
 
 /** Every schedule version the user owns, keyed by `protocol_compound_id`. Empty
@@ -869,17 +1145,25 @@ export async function pullScheduleVersions(): Promise<
   try {
     const cx = await ctx()
     if (!cx) return {}
-    const { data, error } = await cx.supabase
-      .from("protocol_compound_schedules")
-      .select("protocol_compound_id, effective_from, dose_amount, dose_unit, schedule_type, days_of_week, interval_days, dose_times, stopped")
-      .eq("user_id", cx.userId)
-      .order("effective_from", { ascending: true })
+    const read = (columns: string) =>
+      cx.supabase
+        .from("protocol_compound_schedules")
+        .select(columns)
+        .eq("user_id", cx.userId)
+        .order("effective_from", { ascending: true })
+
+    let { data, error } = await read(`${VERSION_COLUMNS}, ${CYCLE_COLUMNS.join(", ")}`)
+    // Pre-006 environments have no cycle columns; re-read without them rather
+    // than returning nothing, which would drop the whole version trail.
+    if (error && isUndefinedColumn(error)) {
+      ;({ data, error } = await read(VERSION_COLUMNS))
+    }
     if (error) {
       if (!isMissingTable(error)) console.error("pullScheduleVersions failed", error)
       return {}
     }
     const out: Record<string, ReturnType<typeof mapVersion>[]> = {}
-    for (const r of data ?? []) {
+    for (const r of (data ?? []) as unknown as Record<string, unknown>[]) {
       const key = r.protocol_compound_id as string
       ;(out[key] ??= []).push(mapVersion(r))
     }
@@ -889,6 +1173,9 @@ export async function pullScheduleVersions(): Promise<
     return {}
   }
 }
+
+const VERSION_COLUMNS =
+  "protocol_compound_id, effective_from, dose_amount, dose_unit, schedule_type, days_of_week, interval_days, dose_times, stopped"
 
 function mapVersion(r: Record<string, unknown>) {
   const times = r.dose_times as (string | null)[] | null
@@ -901,6 +1188,13 @@ function mapVersion(r: Record<string, unknown>) {
     intervalDays: (r.interval_days as number | null) ?? null,
     time: (times?.[0] ?? null) as string | null,
     stopped: r.stopped === true,
+    cycle_anchor: (r.cycle_anchor as string | null) ?? null,
+    cycle_on_days: (r.cycle_on_days as number | null) ?? null,
+    cycle_off_days: (r.cycle_off_days as number | null) ?? null,
+    cycle_end_type: (r.cycle_end_type as string | null) ?? null,
+    cycle_end_date: (r.cycle_end_date as string | null) ?? null,
+    cycle_end_rounds: (r.cycle_end_rounds as number | null) ?? null,
+    cycle_colour: (r.cycle_colour as string | null) ?? null,
   }
 }
 
@@ -929,10 +1223,7 @@ export async function pullProtocolStackAndLogs(): Promise<{
           .from("protocol_compounds")
           .select("*, compounds(name, category)")
           .eq("user_id", cx.userId),
-        cx.supabase
-          .from("dose_logs")
-          .select("protocol_compound_id, taken_at, dose_amount, dose_unit, injection_site, inventory_item_id")
-          .eq("user_id", cx.userId),
+        readDoseLogRows(cx),
       ])
       // Surface Supabase errors (they don't throw) so the breaker counts a real
       // failure and we fall back to the cache, rather than rendering empty.
@@ -972,9 +1263,29 @@ export async function pullProtocolStackAndLogs(): Promise<{
         )
       }
 
-      const doseRows: DoseRow[] = (dlRes.data ?? []).map((r) => ({
+      // Widened at the boundary: the select is one of two shapes depending on
+      // whether 011 is applied, so the narrower one has no `logged_for` key at
+      // all. Both are read through the same optional lookups below.
+      const doseRowsRaw = (dlRes.data ?? []) as unknown as Record<string, unknown>[]
+      const doseRows: DoseRow[] = doseRowsRaw.map((r) => ({
+        id: r.id as string,
         compoundId: r.protocol_compound_id as string,
         takenAt: r.taken_at as string,
+        // Absent entirely until `supabase/protocol/011` is applied, and null on
+        // any row its backfill could not reach — the caller falls back to
+        // deriving a day from `takenAt` in both cases.
+        loggedFor: (r.logged_for as string | null | undefined) ?? null,
+        // Only computed when the stored day is missing, which after 012 is every
+        // pre-existing row. A stored day needs no recovery.
+        recoveredDay: (r.logged_for as string | null | undefined)
+          ? null
+          : recoverLoggedDay(
+              cx.userId,
+              r.id as string,
+              r.protocol_compound_id as string,
+              String(r.taken_at)
+            ),
+        note: (r.note as string | null | undefined) ?? null,
         amount: String(r.dose_amount),
         // The unit this dose was LOGGED in — per-log in the schema, so history
         // survives a change to the compound's unit (see DoseLog.unit).
@@ -988,3 +1299,4 @@ export async function pullProtocolStackAndLogs(): Promise<{
     { fallback: empty }
   )
 }
+

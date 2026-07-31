@@ -19,7 +19,9 @@ import {
   type StackCompound,
 } from "@/lib/home/stack"
 import {
+  isTombstoned,
   loadDoseLogs,
+  loadTombstones,
   saveDoseLogs,
   notifyDoseLogsChanged,
   type DayLogs,
@@ -36,6 +38,13 @@ import { awaitCriticalSyncs, trackCriticalSync } from "@/lib/home/syncStatus"
 import { injectionSiteToLocal } from "@/lib/db/types"
 import type { DoseRow, InjectionSite } from "@/lib/db/types"
 import { isCatalogueName } from "@/lib/compound-lookup"
+import { pullStacks } from "@/lib/home/stackSync"
+import {
+  loadStacks,
+  notifyStacksChanged,
+  saveStacks,
+  type Stack,
+} from "@/lib/home/stacks"
 
 /** Pull Postgres (canonical) + the jsonb mirror, merge with local, and write the
  *  merged set back into the device-local caches. */
@@ -46,12 +55,14 @@ export async function hydrateFromPostgres(userId: string): Promise<void> {
   // merge's flush then re-pushes it, making the resurrection permanent. See
   // `awaitCriticalSyncs`.
   await awaitCriticalSyncs()
-  const [pg, cloud, versions] = await Promise.all([
+  const [pg, cloud, versions, stacks] = await Promise.all([
     pullProtocolStackAndLogs(),
     pullStackAndLogs(),
     pullScheduleVersions(),
+    pullStacks(),
   ])
-  mergeAndSave(userId, pg, cloud, versions)
+  const idRemap = mergeAndSave(userId, pg, cloud, versions)
+  hydrateStacks(userId, stacks, idRemap)
 }
 
 /** Fold raw Postgres dose rows into `DayLogs`, keyed by the DEVICE's local day +
@@ -64,7 +75,19 @@ function doseRowsToDayLogs(
   for (const r of rows) {
     const taken = new Date(r.takenAt)
     if (Number.isNaN(taken.getTime())) continue
-    const dateKey = toDateKey(taken)
+    // THE STORED DAY WINS, then the day the DEVICE recorded, and only then a
+    // derivation. Deriving a day from an instant answers with whatever timezone
+    // the phone is in right now, so flying between them re-bucketed every past
+    // dose — and because the device mirror keeps the original day, the merge
+    // below then showed one dose on two adjacent days. A day is a fact about
+    // where you were standing, so it is read, not recomputed.
+    //
+    // After `supabase/protocol/012` nulled the column, EVERY pre-existing row
+    // takes this fallback, which is what made the re-bucketing reachable for the
+    // whole of history rather than a handful of rows. `recoveredDay` reads the
+    // original day back out of the row's own id (see `DoseRow.recoveredDay`);
+    // `takenAt` remains the last resort for a row whose id predates that scheme.
+    const dateKey = r.loggedFor ?? r.recoveredDay ?? toDateKey(taken)
     const time24 = `${String(taken.getHours()).padStart(2, "0")}:${String(
       taken.getMinutes()
     ).padStart(2, "0")}`
@@ -78,6 +101,7 @@ function doseRowsToDayLogs(
       // recorded in survives the round-trip and the row can't be relabelled with
       // the compound's current unit (see DoseLog.unit).
       ...(r.doseUnit ? { unit: r.doseUnit } : {}),
+      ...(r.note ? { note: r.note } : {}),
       siteId,
       time24,
       inventoryItemId: r.inventoryItemId,
@@ -98,7 +122,7 @@ function mergeAndSave(
   pg: { stack: StackCompound[]; doseRows: DoseRow[] },
   cloud: { stack: StackCompound[]; doseLogs: DayLogs },
   versionRows: Awaited<ReturnType<typeof pullScheduleVersions>> = {}
-): void {
+): Map<string, string> {
   const local = loadStack(userId) ?? []
   const localLogs = loadDoseLogs(userId)
   const pgIds = new Set(pg.stack.map((c) => c.id))
@@ -144,7 +168,12 @@ function mergeAndSave(
     // Without this the local history is replaced by a row that has none, and an
     // alteration recorded before the migration is silently lost on next load.
     const history = loc?.scheduleHistory
-    const merged = history?.length ? { ...c, scheduleHistory: history } : c
+    let merged = history?.length ? { ...c, scheduleHistory: history } : c
+    // Same reasoning for the CYCLE: a pull from a database without the 006
+    // columns returns a row carrying none, so overwriting with it would erase a
+    // cycle the user just set. Postgres wins when it actually knows one; the
+    // device's own cycle survives when it does not.
+    if (!merged.cycle && loc?.cycle) merged = { ...merged, cycle: loc.cycle }
     if (loc && Boolean(loc.archived) !== Boolean(c.archived)) {
       // CRITICAL, not plain: this push converges Postgres onto the local delete
       // intent, so the NEXT hydration must wait for it (`awaitCriticalSyncs` at the
@@ -268,18 +297,119 @@ function mergeAndSave(
   }
 
   const methodById = new Map(mergedStack.map((c) => [c.id, c.method]))
+  // Doses the user UN-LOGGED whose delete may not have reached Postgres. Without
+  // this, unticking offline and reconnecting pulled the row straight back — the
+  // tick refilled with its original amount, time and site, and nothing retried the
+  // delete. The tombstone records the intent so the pull can be filtered by it.
+  const tombstones = loadTombstones(userId)
   const merged: DayLogs = {}
   for (const [day, entries] of Object.entries(doseRowsToDayLogs(pg.doseRows, methodById))) {
-    merged[day] = { ...entries }
+    for (const [compoundId, log] of Object.entries(entries)) {
+      if (isTombstoned(tombstones, day, compoundId)) continue
+      ;(merged[day] ??= {})[compoundId] = log
+    }
   }
   for (const src of [remapLogs(cloud.doseLogs), remapLogs(localLogs)]) {
     for (const [day, entries] of Object.entries(src)) {
       for (const [compoundId, log] of Object.entries(entries)) {
-        if (merged[day]?.[compoundId]) continue
+        // A tombstoned dose stays gone from every source, not just the pull.
+        if (isTombstoned(tombstones, day, compoundId)) continue
+        const already = merged[day]?.[compoundId]
+        if (already) {
+          /**
+           * The Postgres row wins the dose itself, but NOT the injection site.
+           *
+           * `dose_logs.injection_site` is a coarse 13-value enum: 22 of the 36
+           * pickable sites have no member and collapse to `other`, which reads
+           * back as `null`. So a dose logged into "Trap - Left" came back with no
+           * site at all, and "Front Quad - Left" came back as "Outer Quad - Left"
+           * — a different muscle, silently, within seconds of logging.
+           *
+           * The GRANULAR siteId is preserved verbatim in the device store and its
+           * jsonb mirror, which is exactly what the injection-site recency view
+           * reads. So where the pulled row has no site and a local/mirror record
+           * for the same dose does, the local one is kept. It is strictly more
+           * information about the same event, never a conflicting fact.
+           */
+          if (already.siteId == null && log.siteId != null) {
+            merged[day]![compoundId] = { ...already, siteId: log.siteId }
+          }
+          continue
+        }
         ;(merged[day] ??= {})[compoundId] = log
       }
     }
   }
   saveDoseLogs(userId, merged)
   notifyDoseLogsChanged()
+  return idRemap
+}
+
+
+/**
+ * Fold the pulled stacks into the device store — the half that was missing, and
+ * why a stack did not survive a reinstall.
+ *
+ * Three rules, each of which was a bug first:
+ *
+ *  - **Membership is judged against the MERGED LOCAL stack, not the Postgres
+ *    pull.** `pullProtocolStackAndLogs` skips rows with a NULL `compound_id`,
+ *    which is every CUSTOM compound — yet customs do have `protocol_compounds`
+ *    rows and do get `stack_members` rows. Judging against the pull therefore
+ *    declared every custom member unresolvable and quietly dropped it from the
+ *    stack on the next focus event, then pushed the truncated list up.
+ *  - **A stack is only adopted when its membership FULLY resolves.** Partial
+ *    adoption silently discards whatever didn't map; an empty adoption (on a
+ *    fresh device, where there is no local stack to fall back to) leaves a card
+ *    with nothing in it and no way to tell what it held.
+ *  - **Local member ids follow `idRemap`.** `mergeAndSave` can re-point a
+ *    compound's local id at its Postgres row; a stack still holding the old id
+ *    would render with no members.
+ *
+ * An empty pull is NO NEWS, never "the user deleted everything".
+ */
+function hydrateStacks(
+  userId: string,
+  pulled: Stack[],
+  idRemap: Map<string, string>
+): void {
+  const local = loadStacks(userId)
+  // Follow any id change first, so a local stack keeps pointing at its members.
+  const remapped = local.map((s) =>
+    idRemap.size === 0
+      ? s
+      : { ...s, memberIds: s.memberIds.map((id) => idRemap.get(id) ?? id) }
+  )
+  if (pulled.length === 0) {
+    // No news from the server — but a remap may still have moved ids locally.
+    if (idRemap.size > 0) {
+      saveStacks(userId, remapped)
+      notifyStacksChanged()
+    }
+    return
+  }
+
+  // Every compound the DEVICE knows after the merge — catalogue and custom.
+  const known = new Set((loadStack(userId) ?? []).map((c) => c.id))
+  const localById = new Map(remapped.map((s) => [s.id, s]))
+
+  const merged: Stack[] = []
+  for (const p of pulled) {
+    const loc = localById.get(p.id)
+    localById.delete(p.id)
+    const resolves = p.memberIds.every((id) => known.has(id))
+    if (resolves && p.memberIds.length > 0) {
+      merged.push(p)
+    } else if (loc) {
+      // Keep what the device has rather than replacing it with a stack whose
+      // members would render as nothing.
+      merged.push(loc)
+    }
+    // Neither resolvable nor local ⇒ skipped entirely. An empty card tells the
+    // user less than no card, and the next successful push will re-create it.
+  }
+  for (const leftover of localById.values()) merged.push(leftover)
+
+  saveStacks(userId, merged)
+  notifyStacksChanged()
 }

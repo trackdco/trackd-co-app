@@ -5,7 +5,7 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-07-29
+Last updated: 2026-07-31
 
 ## Current state (2026-07-23)
 
@@ -24,6 +24,157 @@ disciplined amber (due/live beats only), and the retired display serif (Playfair
 `--font-display` gone repo-wide; `lucide-react` dropped). Palette unchanged (warm
 near-black + gold amber — a cooler sample was trialled and rejected). Non-urgent
 follow-ups (amber judgment calls, etc.) are in `next-tasks.md`.
+
+**Wave 2 part two — ALL ELEVEN SPECS BUILT on branch
+`wave2/containers-cycles-calendar`** (started 2026-07-29, **not merged, not
+deployed**), in the readme's dependency order (build order, not numeric order):
+containers, cycles, calendar, stacks, homepage, protocol, calculator, progress,
+profile, add-compound, log-a-dose. Part one's global sweep has had its em-dash
+pass; its wordiness table and its portrait fallback are waiting on Adrian.
+Blocks is new scope on top and is built end to end.
+
+- **01 · Containers** — drawn `Vial` / `Bottle` / `Tub` SVGs + the `Container`
+  resolver (`components/containers/`), form and colour resolvers
+  (`lib/containers/`). Form-driven, never category-driven, except the
+  bottle-vs-tub split among orals, which has no data to key on (Adrian's call:
+  the catalogue's `supplement` form picks the tub). Four structural greys had no
+  token and were snapped to the nearest existing ones (Adrian's call).
+- **06 · Cycles** — an on/off rule ABOVE the schedule, riding on
+  `ScheduleVersion` so a mid-cycle edit is the existing "effective from today
+  forward" write. Five end conditions; one gate in `isDueOnFor`, which every
+  retrospective caller already routes through. Named `CycleRule` in code because
+  the `cycles` TABLE is a different concept (the protocol run / "Week 3 of 12").
+- **03 · Calendar** — soft cycle fills as continuous bands behind on-days, the
+  key below the grid, the cycle in the day sheet. Only repeating on/off cycles
+  render; indefinite ones stop at a twelve-month horizon.
+
+- **05 · Stacks** — a display grouping over compounds that stay fully
+  independent (see `architecture.md` → Stacks). Protocol → Stacks creates and
+  edits; the dashboard renders one expandable row that logs every unlogged member
+  in a tap. The dashboard uses a PARTITION so a member can never appear both in
+  its stack row and its category section.
+
+- **02 · Homepage** — the dashboard stripped back to what people open it for.
+  Week strip with a soft raised block for the selected day (Adrian's call, not
+  the spec's amber underline) and the status dot inside the block.
+
+- **04 · Protocol** — one scrolling page, no tabs: Plan, Cycles, Stacks, Stock.
+  Leads with the container, hairline affordance cards, auto-named stacks.
+
+- **07 · Calculator** — a presentation rebuild around a **proportional syringe**.
+  The arithmetic moved verbatim to `lib/calculator/recon.ts` and is PINNED by
+  `recon.test.ts` to 21 input cases captured from the pre-rebuild component, so
+  no later refactor can quietly move a figure. Barrel scale and fill are in
+  `lib/calculator/syringe.ts`; the same dose fills a fifth of a 0.5 mL barrel and
+  a tenth of a 1 mL one, which is the whole point. Gradations labelled every 5 U
+  on 0.3 and 0.5 mL, every 10 U on 1 mL (Adrian, 2026-07-30). Layout reworked on
+  his review of a phone preview: readout and barrel BARE (no card, not sticky),
+  three figures as one divided strip beneath, inputs as a grid with powder and
+  BAC water paired. The whole form clears the fold on a 390x844 phone
+  in its normal state (Reset ends at ~744px, against ~906px before the rework).
+  With a misuse warning showing it does not, which is accepted: that state means
+  a figure needs re-checking, and the warning is the thing worth seeing. Powder defaults to mg and dose to mcg, with a
+  live conversion under each, because vials are labelled in mg while doses are
+  written in mcg and that 1000x slip is the most common error in this space. The
+  syringe size opens at 0.5 mL and STICKS once changed; Reset does not clear it.
+  `COLUMN_EYEBROW` was added to `ui-presets` + `ui-context.md` because
+  "CONCENTRATION" at the 10px eyebrow's tracking overruns a third of a phone.
+
+  A blocking "which syringe?" gate was built and then dropped once Adrian pointed
+  out the units figure is identical on every barrel, so the size only moves the
+  fill proportion and the over-capacity threshold. Worth remembering: the review
+  of that build found the gate had made a refused `localStorage` write brick the
+  screen, because the UI read the choice back out of storage instead of holding
+  it. Dropping the gate removed the hazard; the rule it produced is in
+  `architecture.md` under the localStorage preferences note.
+
+- **09 · Profile** — Settings dissolved in and its route deleted. Physical
+  details edit IN PLACE behind an Edit toggle (`PhysicalCard`), Billing and
+  Notifications became App rows, and the three destructive actions moved into a
+  bounded danger zone. The review of this one found the card could only be saved
+  ONCE: `useActionState` holds its last result, so the `success` flag the card
+  watched to close itself stayed true forever. The action returns a `savedAt`
+  token now. It also found Save and Cancel sitting underneath the FIXED bottom
+  nav on a 390-wide phone, where a tap navigated away and discarded the edit.
+
+- **10 · Add compound** — the form became a compound header plus three row
+  cards, with errors rendered ON the row rather than in a block at the foot of
+  the sheet.
+
+- **11 · Log a dose** — the same header and row language as 10, so the two
+  cannot drift: `components/compounds/CompoundHeader.tsx` is shared by both (a
+  new shared component, flagged for Adrian). Dose, Draw, Date and Time as rows;
+  the body map moved behind a Site row into its own sheet with every prop
+  unchanged. Draw is new to this sheet and prices against the vial in use on the
+  DOSE'S OWN DAY. The note row spec 11 asks for SHIPPED once Adrian approved it,
+  and needed no migration: `dose_logs.note` has existed since v0.4.2 and nothing
+  had ever written to it. The date is EDITABLE (Adrian, 2026-07-30) and changing
+  it MOVES the dose rather than copying it.
+
+- **Blocks** (new scope, not one of the eighteen) — create sheet, end-date
+  prompt (Extend / Close / Leave running), `/blocks` and the retrospective, all
+  reading from Postgres via `supabase/blocks/001`. Reviewed twice. The second
+  review found that closing a block ERASED a reflection the user had already
+  written, and that two of the first round's own fixes had introduced new
+  defects: a consistency rule that manufactured missed doses for archived
+  compounds, and a client guard driven by the server's UTC date that stopped an
+  Australian starting a block dated today.
+
+**All migrations APPLIED:** `supabase/protocol/006` (compound cycles + the
+runs-dry fix), `007` (stacks), and `008` (stack_members ownership hardening —
+007 shipped an RLS hole where the one-stack index was global across users; 008
+makes ownership structural via composite FKs) on 2026-07-29; `009`
+(ownership hardening on three sibling constraints) and
+`supabase/sites/011_injection_site_enum.sql` (26 new enum values so all 36
+catalogue sites survive a Postgres round-trip) on 2026-07-30, plus
+`supabase/blocks/001_blocks.sql`.
+
+**010, 011 and 012 APPLIED (Adrian, 2026-07-30/31). Nothing pending.**
+`010_inventory_days_to_empty` (a timezone-free runway), `011_dose_logs_logged_for`
+(the day a dose belongs to, stored rather than re-derived) and
+`012_logged_for_undo_backfill`.
+
+**012 exists because 011 shipped a wrong backfill, and it reached prod.** 011
+filled `logged_for` with the UTC date of `taken_at` on the claim that this
+reproduced what the app already showed; it does not, because `toDateKey` uses the
+DEVICE's local date. For any dose whose local and UTC days differ — in Sydney
+everything logged before 10am — it wrote a day the app had never shown, and since
+hydration prefers `logged_for` while the device mirror keeps the original local
+day, the same dose rendered on two days and the ghost could not be deleted. 012
+nulls the column. **The rule that came out of it: `logged_for` is written by the
+device at log time and by nothing else, ever. A backfill cannot know a past
+dose's timezone, which is the entire reason the column exists.**
+
+The containers review page (`app/preview/containers/`) was reviewed. It was
+recorded here as deleted; it is not — the branch ADDS it, and it is still on
+disk. Corrected 2026-07-31 by the pre-merge review. It is dev-only and safe
+(gated by `VERCEL_ENV`, the only preview page gated that way rather than by
+`NODE_ENV`, so it is also the only one visible on a Vercel preview deploy).
+Spec 01's checklist item is therefore still outstanding, not done.
+
+**Deferred: cycle end condition 3, "ends when the vial runs out."** The rule is
+implemented and tested, but nothing derives the day a vial actually ran dry from
+dose logs, so it is withheld behind `VIAL_END_SUPPORTED = false` rather than
+shipped as a control that does nothing. Wiring it means threading a Postgres read
+into `isDueOnFor`, which is pure and synchronous and called by the week strip,
+calendar, consistency and Next Dose — its own pass. Spec 06 asks for five
+conditions; four are live.
+
+**An independent review agent (never the author) has been run on every spec in
+this wave, and has found real defects on every single one** — including a live
+security hole, stacks being write-only to Postgres, custom compounds silently
+dropped from stacks on every hydration, one-tap logging stamping the scheduled
+time rather than the actual one, and on spec 07 a `prefers-reduced-motion`
+opt-out that could never fire because an inline `transition` outranked the
+utility class meant to disable it. All fixed. The recurring lesson is that the
+author's own claim that something works is not evidence: the reviews that caught
+the most were the ones that measured the running page instead of reading it.
+
+**Two bugs found and fixed in already-merged code**, both the same class — a
+field silently dropped in a round-trip, causing a deliberate break to read back
+as missed doses: `normalizeHistory` was discarding spec 02's `stopped` flag on
+every localStorage read, and `scheduleVersionToRow`/`pullScheduleVersions` never
+carried a version's cycle to or from Postgres.
 
 ## Shipped feature ledger
 
@@ -186,6 +337,144 @@ the only way to device-test — the Vercel preview link wasn't reachable for him
   ("Not set"), so only the pre-fill and the required-field guard came back. Spec
   01's checklist items "time field does not pre-fill" are therefore deliberately
   no longer true.
+
+## Pre-merge review + fixes (2026-07-31)
+
+Three parallel review passes over the whole branch (the merge diff as one change;
+data integrity + security; a cold start), then the fixes. **Two CRITICALS, both
+data defects invisible to any per-spec review, both fixed and pinned by tests.**
+
+- **Push notifications never learned about cycles.** `lib/notifications/` is the
+  server-side mirror of "what's due today" and the branch changed ONE line of it
+  (a `revalidatePath`), so no spec review ever opened it. Off-cycle days were
+  announced and then nagged about while the app itself correctly showed nothing.
+  Fixed by reusing the client's own `isOnCycle` rather than a second copy of the
+  maths, plus the seven `cycle_*` columns in the runner's select
+  (`PC_REMINDER_SELECT`, with a test asserting it covers `CYCLE_COLUMNS` — a
+  missing column does not throw, it silently stops the gate gating). The same
+  blind spot had left low-stock alerts on the timezone-broken `est_empty_date`
+  subtraction that `supabase/protocol/010` exists to replace.
+- **A device timezone change duplicated every dose and rewrote `taken_at`.** After
+  012 nulled `logged_for`, every historical row fell back to re-deriving its day
+  from the CURRENT device timezone; the row id is built from the day, so a
+  re-derived day minted a SECOND row, double-decremented the vial, and stored the
+  guess permanently. **The fix recovers the day from the row's own id** rather
+  than guessing: the id is a hash of the day it was written under, so a candidate
+  either reproduces it or does not, and no timezone shifts a calendar day by more
+  than one (`recoverLoggedDay`, `lib/home/doseLogIds.ts`). `repushDoseLogs` also
+  no longer writes `logged_for` at all — a replay cannot tell a recorded day from
+  a derived one, which is exactly what 012 forbids.
+
+Also fixed: a fabricated `+0.0 kg` "trend" on a single weight reading in three
+places (`photosAcross` already refused the same shape; `weightAcross` did not);
+Progress headlining a bare `0 %` for a dose whose time had not come; a compound
+with a future start date being invisible everywhere but one Protocol card; three
+writes reporting success on a zero-row update (`extendBlock`, `updatePhysical`,
+`startBlock`'s compensating restore); stack members silently dropped from
+Postgres then deleted locally (fixed centrally in `commit`, so a future caller
+cannot forget the names again); a cycle ending in 2027 reading as "5 Aug"; and
+`lib/db/resetProtocol.ts` deleted — a caller-less `"use server"` module that
+could still wipe five tables.
+
+**`supabase/blocks/001_blocks.sql` shipped with no `GRANT`**, which would have
+made Blocks return `42501` on every read and write the moment it merged. Applied
+by hand and written into the migration. `012` is now marked SPENT with its
+destructive `UPDATE` commented out: it was safe only while no app code wrote the
+column, and that code is now deployed.
+
+Adrian's changes on top: continuous cycles can no longer be given "No end" (it
+was measurably identical to having no cycle); the calendar's cycle bars moved to
+sit directly under the day disc; the calculator's syringe pins while the keyboard
+is up, fading in; the injection-site body map went back INLINE in the log sheet,
+reversing spec 11's move of it behind a "Site" row; and the beta feedback row
+left the quick-actions menu.
+
+## Authenticated cold-start walkthrough (2026-07-31)
+
+A throwaway account was driven through the whole app against the PRODUCTION
+Supabase, in Chrome, at 360/390/430, capturing `console` + `pageerror` on every
+step. **The four never-executed code paths all work**, so nothing here blocks the
+merge. What the walkthrough established, all MEASURED:
+
+- **Blocks is alive.** The hand-applied `GRANT` holds: start, list, retrospective,
+  extend (5 Aug → 30 Sep), reflection, and close all reach Postgres with no
+  `42501`. Closing PRE-FILLS the existing reflection and keeps it.
+- **`startBlock`'s compensating restore genuinely restores.** Forced a real
+  insert failure (a 61-character name against the 60-character CHECK, which the
+  form caps but the server action does not) while a block was live: the live
+  block came back `status=active, closed_on=null`, and the sheet reported the
+  plain "Could not start the block." rather than the may-have-ended wording.
+- **`updatePhysical` saves, and saves REPEATEDLY** — three consecutive edits in
+  one session each closed the card, which is the `savedAt` token doing its job.
+  An out-of-range height never reaches the action: `min`/`max` on the input make
+  the browser refuse the submit with its own message.
+- **Stack membership survives every operation.** Create, remove a member, re-add,
+  and delete the stack: `stack_members` tracks each one (positions renumber), and
+  deleting a stack leaves both `protocol_compounds` and the cycle untouched. A
+  full `localStorage` wipe rehydrates the stack from Postgres alone.
+
+The two CRITICALs were re-tested against real rows rather than re-read:
+
+- **`recoverLoggedDay` holds.** With `logged_for` nulled (the state 012 left every
+  production row in) and the device store wiped, loading under
+  `America/Los_Angeles` — where the device's own day is 30 Jul — put the doses
+  back on **31 Jul**, minted no second row, and left `taken_at` alone.
+  `repushDoseLogs` left `logged_for` null, as 012 requires.
+- **Coverage is total.** Across ALL 288 `dose_logs` rows (15 users), 288 are
+  recoverable from the row id and 0 are not, so there is no legacy-id population
+  taking the `toDateKey(taken_at)` fallback. 41 of those rows have a recovered
+  day that differs from their UTC day: those are the rows that would have
+  re-bucketed and duplicated.
+- **The reminder cycle gate gates.** Driving `isDueToday` through the runner's own
+  `PC_REMINDER_SELECT` against live rows: an off-cycle compound is not due, an
+  uncycled one is, and an on-cycle AND scheduled day is due again — so the gate
+  is not merely always-false. `v_inventory_math.days_to_empty` is present in prod.
+
+Also confirmed working: editing a dose's date MOVES it (old row gone, new row
+under the new day's id, note and injection site carried, no duplicate); the
+`delt_left` enum round-trip; a first weight reads "First reading" with no
+fabricated delta; first journal entry, first vial and first photo all persist;
+and the calculator's arithmetic is exact (5 mg / 2 mL / 250 mcg → 2.5 mg/mL,
+0.1 mL, 10 U) with the mg⇄mcg conversion hints live under both fields.
+
+**Two defects found and fixed**, both dev-only, neither user-facing in
+production:
+
+- **The photo adjust step could never preview a photo in `next dev`.** The object
+  URL was created in a lazy `useState` initialiser and revoked in an effect
+  cleanup; state outlives a cleanup, so React StrictMode's mount → unmount →
+  remount handed the component back a URL it had already revoked. Every photo, on
+  all five surfaces, fell to "This photo can't be previewed on this device". A
+  `useMemo` was measured and behaves identically. Creating the URL IN the effect
+  is the only arrangement that survives the remount. **This is the likely reason
+  spec 05's device testing never happened.**
+- **A React `key` warning on every dashboard load**, from `notificationsBanner`
+  crossing the RSC boundary and arriving unvalidated. Keyed at the creation site,
+  because wrapping it in an element would open a `space-y-5` gap when the banner
+  renders null.
+
+**Three follow-ups then fixed on Adrian's call**, each verified by execution on a
+second throwaway account:
+
+- **Blocks ignored `units_preference` and showed kg to everyone.** The
+  retrospective, the live block card, the Progress banner's target line and the
+  create sheet all hard-coded it, and `app/(app)/blocks/page.tsx` never read the
+  column — so an imperial user saw "186.4 lbs" on Progress and "84.5 kg" on the
+  retrospective for the SAME weigh-in. Fixed as one piece, display and the typed
+  target together, because converting only the display leaves a lbs reading
+  measured against a kg target. **The write path had a second defect the display
+  hid:** the direction inference compared the typed number against a kg
+  weigh-in, so "lose to 180 lbs" from 186.4 lbs stored `direction: "up"`.
+  Storage stays kg throughout (a 180 lbs target stored 81.6466266). Pinned by
+  four tests; a fraction is unitless, so the percentage reads identically in both.
+- **Progress and Blocks read a device store nothing filled.**
+  `useCloudHydration` ran on Home and Protocol only, so a cold entry to a
+  retrospective stated a measured "0%" consistency for a block with doses in it.
+  Blocks calls the hook directly; Progress's shell is a Server Component and gets
+  `components/home/CloudHydration.tsx`, a mount point that renders nothing. The
+  hook is idempotent, so this costs one reconciliation on entry.
+- **The empty Progress weight card offered no control**, so the state that most
+  needs a way in was the only one without one.
 
 ## Open Questions
 

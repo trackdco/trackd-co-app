@@ -85,6 +85,40 @@ export interface LoggedCompound {
   siteId: string | null;
 }
 
+/**
+ * Resolve the compounds LOGGED on one day, oldest-first by time.
+ *
+ * Pure, so it is safe inside a memo or a render. The Calendar's day-detail sheet
+ * is the only caller: the Progress photo card briefly used this too, until it
+ * turned out to be asking a different question — "what was I RUNNING", which
+ * includes compounds no dose fell on that day. That lives in
+ * `lib/progress/running.ts`. Logged and running are not the same set and this
+ * one is the smaller.
+ *
+ * A log whose compound has since been deleted still renders: the dose happened,
+ * and the row degrades to "Logged dose" with no unit rather than vanishing.
+ */
+export function buildRunning(
+  day: Record<string, { amount: string; time24: string; siteId: string | null }> | undefined,
+  stackById: Map<string, { name: string; category: string; unit: string }>,
+): LoggedCompound[] {
+  if (!day) return []
+  return Object.entries(day)
+    .map(([compoundId, log]) => {
+      const c = stackById.get(compoundId)
+      return {
+        id: compoundId,
+        name: c?.name ?? "Logged dose",
+        category: c?.category ?? "",
+        amount: log.amount,
+        unit: c?.unit ?? "",
+        time24: log.time24,
+        siteId: log.siteId,
+      }
+    })
+    .sort((a, b) => a.time24.localeCompare(b.time24))
+}
+
 /** "June 2026" for a 0-based month. */
 export function monthTitle(year: number, month0: number): string {
   return `${MONTHS[month0] ?? ""} ${year}`;

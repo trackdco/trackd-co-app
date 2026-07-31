@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useSyncExternalStore } from "react"
+import Link from "next/link"
 import { Check } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
@@ -30,7 +31,7 @@ import {
 } from "@/lib/home/stack"
 import {
   getDoseLogsSnapshot,
-  logDose,
+  commitDoseOn,
   subscribeDoseLogs,
   unlogDose,
   type DayLogs,
@@ -212,20 +213,42 @@ function QuickTrackBody({
 
   // Commit a dose (fresh or edited) — the exact same handler the dashboard uses,
   // writing to the day the user is parked on rather than to the clock.
-  function handleTracked(compoundId: string, log: DoseLog) {
-    logDose(userId, targetKey, compoundId, log)
+  //
+  // FOUR parameters, not two. It took two, and TypeScript accepts that (a
+  // shorter function is assignable to a longer signature), so the day the user
+  // had just edited in the Date row was dropped on the floor: the sheet showed
+  // the new date, the tick fired normally, and the dose landed on the day the
+  // sheet was opened on. On the fastest logging path in the app.
+  function handleTracked(
+    compoundId: string,
+    log: DoseLog,
+    landsOn: string,
+    openedOn: string
+  ) {
+    commitDoseOn(userId, compoundId, log, landsOn, openedOn)
   }
-  function handleRemove(compoundId: string) {
-    unlogDose(userId, targetKey, compoundId)
+  /** The day the SHEET is showing, not this screen's live target — see Home. */
+  function handleRemove(compoundId: string, dateKey: string) {
+    unlogDose(userId, dateKey, compoundId)
   }
 
   return (
     <>
       <div className="px-4">
         {dueCompounds.length === 0 ? (
-          <p className="rounded-2xl bg-bg-surface-raised px-4 py-8 text-center text-sm text-text-muted">
-            Nothing scheduled for today.
-          </p>
+          // A dead end on a cold start: the user came here to log a dose and the
+          // only control was "Done". Empty copy states the fact AND the next
+          // action (ui-context.md → Voice), so the way forward is on the screen
+          // rather than back out through the menu they just used.
+          <div className="rounded-2xl bg-bg-surface-raised px-4 py-8 text-center">
+            <p className="text-sm text-text-muted">Nothing scheduled for today.</p>
+            <Link
+              href="/protocol"
+              className="mt-2 inline-block text-sm text-foreground underline decoration-dotted underline-offset-4"
+            >
+              Add a compound
+            </Link>
+          </div>
         ) : (
           // Grouped by category, like the dashboard's Today's Log: each category is
           // a slim divider (dot · label · "N due"/"Logged"), not a container.
@@ -255,7 +278,8 @@ function QuickTrackBody({
                         compound={c}
                         log={targetLogs[c.id] ?? null}
                         onOpen={() => openLog(c)}
-                        onUnlog={() => handleRemove(c.id)}
+                        /* From the ROW — this sheet's own target day. */
+                        onUnlog={() => handleRemove(c.id, targetKey)}
                       />
                     ))}
                   </ul>
@@ -295,6 +319,7 @@ function QuickTrackBody({
         }}
         onTracked={handleTracked}
         onRemove={handleRemove}
+        hasLogOn={(day) => Boolean(logs[day]?.[logTarget?.compound.id ?? ""])}
       />
     </>
   )

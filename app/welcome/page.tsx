@@ -6,7 +6,7 @@ import { getSessionContext } from "@/lib/auth";
 import { GateForm } from "./gate-form";
 
 export const metadata: Metadata = {
-  title: "Welcome — Trackd Co",
+  title: "Welcome · Trackd Co",
 };
 
 /**

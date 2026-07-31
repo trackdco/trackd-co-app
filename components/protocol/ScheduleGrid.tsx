@@ -1,0 +1,234 @@
+"use client"
+
+import { cn } from "@/lib/utils"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
+import {
+  CATEGORY_META,
+  FALLBACK_CATEGORY_META,
+  type CompoundCategory,
+} from "@/lib/compound-categories"
+import { isDueOnFor, type StackCompound } from "@/lib/home/stack"
+import type { DayLogs } from "@/lib/home/doseLog"
+import { toDateKey } from "@/lib/home/mockHomeData"
+import { CategoryIcon } from "@/components/compounds/CategoryIcon"
+
+/**
+ * Rows before the list starts scrolling with a sticky day header.
+ *
+ * Eight rows plus the header and the key is roughly half a phone viewport; past
+ * that it pushes the Cycles section off-screen and the page stops reading as one
+ * scroll.
+ */
+export const SCHEDULE_SCROLL_AFTER_ROWS = 8
+
+const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"]
+/** Spelled out for the screen-reader summary, where "T" twice says nothing. */
+const DAY_NAMES = [
+  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+]
+
+/** What a single day/compound mark is showing. */
+type CellState = "none" | "due" | "logged" | "missed"
+
+/**
+ * The week at a glance: one row per compound, seven marks across, grouped by
+ * category.
+ *
+ * Deliberately **not a table** (Adrian's call) — a grid of cells read as a
+ * spreadsheet. These are the same status DOTS the week strip already uses, so
+ * the section reads as part of the app rather than a data export.
+ *
+ * **Display only.** The page has no selected date, so a tap here would have to
+ * assume today — exactly the bug Spec 01 exists to remove.
+ *
+ * A due dose becomes MISSED only at the end of its scheduled day, so today's
+ * outstanding doses read as due right up until midnight.
+ */
+export function ScheduleGrid({
+  compounds,
+  logs,
+  todayKey,
+  weekDays,
+}: {
+  compounds: StackCompound[]
+  logs: DayLogs
+  todayKey: string
+  /** The seven dates of the week being shown, Monday first. */
+  weekDays: Date[]
+}) {
+  const groups = groupByCategory(compounds)
+  const scrolls = compounds.length > SCHEDULE_SCROLL_AFTER_ROWS
+
+  if (compounds.length === 0) return null
+
+  return (
+    <section className="space-y-3">
+      <h2 className={`${CARD_EYEBROW} px-1`}>Schedule</h2>
+
+      <div className="rounded-2xl bg-bg-surface p-5">
+      {/* Day header — aligned to the same 7-column track the rows use. */}
+      <div className="flex items-center gap-3">
+        <span className="w-[38%] shrink-0" />
+        <div className="grid flex-1 grid-cols-7 gap-1">
+          {weekDays.map((d, i) => (
+            <span
+              key={d.toISOString()}
+              className={cn(
+                "text-center text-[10px] font-medium uppercase tracking-wide",
+                toDateKey(d) === todayKey ? "text-text-muted" : "text-text-subtle"
+              )}
+            >
+              {DAY_INITIALS[i]}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className={cn("mt-2", scrolls && "max-h-64 overflow-y-auto")}>
+        {groups.map((g) => {
+          const meta =
+            CATEGORY_META[g.cat as CompoundCategory] ?? FALLBACK_CATEGORY_META
+          return (
+            <div key={g.cat} className="mt-3 first:mt-0">
+              {/* The compound type ICON carries the category colour; the label
+                  itself is white, so the row reads as a heading rather than as
+                  coloured text. Same treatment the dashboard's log card uses. */}
+              <span className="flex items-center gap-1.5 px-0.5 pb-1">
+                <CategoryIcon category={g.cat} className="h-3.5 w-3.5" />
+                <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-foreground">
+                  {meta.label}
+                </span>
+              </span>
+              {g.compounds.map((c) => (
+                <div key={c.id} className="flex items-center gap-3 py-1.5">
+                  <span className="w-[38%] shrink-0 truncate text-xs text-text-muted">
+                    {c.name}
+                  </span>
+                  {/* The marks are decorative; the row carries the meaning as
+                      text, so a screen reader gets the whole week rather than
+                      just the compound's name. */}
+                  <div className="grid flex-1 grid-cols-7 gap-1">
+                    <span className="sr-only">
+                      {weekDays
+                        .map(
+                          (d, i) =>
+                            `${DAY_NAMES[i]} ${STATE_LABEL[cellState(c, d, logs, todayKey)]}`
+                        )
+                        .join(", ")}
+                    </span>
+                    {weekDays.map((d) => (
+                      <Mark
+                        key={d.toISOString()}
+                        state={cellState(c, d, logs, todayKey)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })}
+      </div>
+
+      <Key />
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Logged is solid white, DUE is a mid-grey FILL (the spec's word), missed is the
+ * hollow one, and a day with nothing due is a bare tick so the row still reads as
+ * seven days.
+ *
+ * Due and missed were both hollow rings differing only in border colour, which
+ * made MISSED the fainter of the two and nearly indistinguishable from "nothing
+ * due" — the state that most needs to be seen was the least visible. Filling due
+ * separates them by shape rather than by a shade of grey.
+ */
+function Mark({ state }: { state: CellState }) {
+  return (
+    <span className="flex h-5 items-center justify-center">
+      <span
+        aria-hidden
+        className={cn(
+          "rounded-full",
+          state === "logged" && "h-2.5 w-2.5 bg-accent-primary",
+          state === "due" && "h-2.5 w-2.5 bg-text-muted",
+          // Hollow with a thin border, never a slash — and now the only hollow one.
+          state === "missed" && "h-2.5 w-2.5 border border-text-muted",
+          state === "none" && "h-1 w-1 bg-border-default"
+        )}
+      />
+    </span>
+  )
+}
+
+const STATE_LABEL: Record<CellState, string> = {
+  logged: "logged",
+  due: "due",
+  missed: "missed",
+  none: "nothing due",
+}
+
+/** The key, following the injection-site rotation key's pattern. */
+function Key() {
+  const items: { state: CellState; label: string }[] = [
+    { state: "logged", label: "Logged" },
+    { state: "due", label: "Due" },
+    { state: "missed", label: "Missed" },
+    { state: "none", label: "Nothing due" },
+  ]
+  return (
+    <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 hairline-t pt-3">
+      {items.map((i) => (
+        <li key={i.state} className="flex items-center gap-1.5">
+          <Mark state={i.state} />
+          <span className="text-[10px] text-text-muted">{i.label}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * A mark's state, judged by the rule in force ON THAT DAY (`isDueOnFor`), so a
+ * schedule changed since does not restate the past.
+ */
+function cellState(
+  c: StackCompound,
+  date: Date,
+  logs: DayLogs,
+  todayKey: string
+): CellState {
+  const key = toDateKey(date)
+  if (!isDueOnFor(c, date)) return "none"
+  if (logs[key]?.[c.id]) return "logged"
+  return key < todayKey ? "missed" : "due"
+}
+
+interface Group {
+  cat: string
+  compounds: StackCompound[]
+}
+
+const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
+
+function groupByCategory(items: StackCompound[]): Group[] {
+  const byCat = new Map<string, StackCompound[]>()
+  for (const c of items) {
+    const arr = byCat.get(c.category)
+    if (arr) arr.push(c)
+    else byCat.set(c.category, [c])
+  }
+  const rank = (c: string) => {
+    const i = CATEGORY_ORDER.indexOf(c as CompoundCategory)
+    return i < 0 ? CATEGORY_ORDER.length : i
+  }
+  return [...byCat.keys()]
+    .sort((a, b) => rank(a) - rank(b))
+    .map((cat) => ({
+      cat,
+      compounds: [...byCat.get(cat)!].sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+}

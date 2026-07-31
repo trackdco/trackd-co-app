@@ -14,6 +14,17 @@
 import { hasTime, isInjectable } from "@/lib/home/stack"
 import type { Cadence, InjectionMethod, StackCompound } from "@/lib/home/stack"
 import type { CompoundCategory } from "@/lib/compound-categories"
+import { cycleRuleFromColumns, cycleRuleToColumns } from "@/lib/protocol/cycleRule"
+
+// The cycle column mapping lives in `cycleRule.ts`, not here: `stack.ts` needs it
+// for schedule VERSION rows and this file already imports `stack.ts`, so defining
+// it here would close an import cycle. Re-exported for existing callers.
+export {
+  CYCLE_COLUMNS,
+  cycleRuleToColumns,
+  cycleRuleFromColumns,
+  type CycleColumns,
+} from "@/lib/protocol/cycleRule"
 
 /* ----------------------------------------------------------------- enums */
 // Each union mirrors a Postgres ENUM in the schema (byte-for-byte values).
@@ -52,6 +63,33 @@ export type InjectionSite =
   | "abdomen_right"
   | "lovehandle_left"
   | "lovehandle_right"
+  // Added by supabase/sites/011 so the enum can hold every site the body map
+  // offers. Before it, 22 of the 36 collapsed to `other` and read back as NULL —
+  // "Trap - Left" was erased and "Front Quad - Left" came back as "Outer Quad -
+  // Left", a different muscle. Sides that genuinely share a muscle still share a
+  // value (im/sq glute), because route already disambiguates them.
+  | "quad_front_left"
+  | "quad_front_right"
+  | "bicep_left"
+  | "bicep_right"
+  | "tricep_left"
+  | "tricep_right"
+  | "lat_left"
+  | "lat_right"
+  | "pec_left"
+  | "pec_right"
+  | "trap_left"
+  | "trap_right"
+  | "calf_left"
+  | "calf_right"
+  | "abdomen_lower_left"
+  | "abdomen_lower_right"
+  | "thigh_upper_left"
+  | "thigh_upper_right"
+  | "thigh_lower_left"
+  | "thigh_lower_right"
+  | "arm_left"
+  | "arm_right"
   | "other"
 
 /** ISO weekday: Mon=1 … Sun=7 (the schema's `days_of_week` convention). */
@@ -61,8 +99,36 @@ export type IsoWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
  *  using its local timezone (the local day key + clock time are device-tz bound).
  *  Lives here (not the `"use server"` adapter, which may only export functions). */
 export interface DoseRow {
+  /**
+   * `dose_logs.id`. Not decoration: the id is `deterministicUuid("dl:<user>:<day>:<pc>")`,
+   * so it is a DURABLE record of the local day the row was first written under —
+   * the one piece of that fact which survives even when `logged_for` is null.
+   * Hydration uses it to recover the true day instead of re-deriving one from
+   * `takenAt` in whatever timezone the device happens to be in now.
+   */
+  id: string
   compoundId: string
   takenAt: string
+  /** The stored local day (`dose_logs.logged_for`). Preferred over re-deriving a
+   *  day from `takenAt`, which changes answer when the device changes timezone. */
+  loggedFor: string | null
+  /**
+   * The local day RECOVERED from this row's own id, when `logged_for` is null.
+   *
+   * Not a guess and not a backfill: the id is a hash of the day the row was
+   * first written under, so a candidate day either reproduces the id exactly or
+   * it does not. The server tries the instant's UTC day and the day either side
+   * (no timezone shifts a calendar day by more than one) and reports a match, or
+   * null when the row predates the scheme.
+   *
+   * This exists because `supabase/protocol/012` correctly nulled `logged_for`,
+   * which left every historical dose falling back to re-deriving a day from the
+   * CURRENT device timezone — so changing zone re-bucketed history and the same
+   * dose could be written back under two different days as two rows.
+   */
+  recoveredDay: string | null
+  /** The dose's own note (`dose_logs.note`), or null. */
+  note: string | null
   amount: string
   /** The unit this dose was logged in (`dose_logs.dose_unit`) — per-log, so it
    *  survives a later change to the compound's unit. Null on rows that predate it. */
@@ -134,6 +200,15 @@ export interface ProtocolCompound {
   rotation_sites: string[]
   /** Pointer to the NEXT rotation site; advanced only by logging a dose. */
   rotation_index: number
+  /** On/off cycle columns (Spec 06, `supabase/protocol/006`). All NULL = no
+   *  cycle. Optional because a pre-006 row does not carry them at all. */
+  cycle_anchor?: string | null
+  cycle_on_days?: number | null
+  cycle_off_days?: number | null
+  cycle_end_type?: string | null
+  cycle_end_date?: string | null
+  cycle_end_rounds?: number | null
+  cycle_colour?: string | null
   created_at: string
   updated_at: string
 }
@@ -150,6 +225,10 @@ export interface DoseLog {
   injection_site: InjectionSite | null
   taken_at: string
   scheduled_for: string | null
+  /** The user's LOCAL calendar day for this dose (`supabase/protocol/011`).
+   *  Authoritative for WHICH DAY a dose belongs to; `taken_at` stays
+   *  authoritative for the instant. Null on rows the backfill could not reach. */
+  logged_for: string | null
   note: string | null
   created_at: string
 }
@@ -189,6 +268,15 @@ export interface ProtocolCompoundInsert {
   is_active?: boolean
   rotation_sites?: string[]
   rotation_index?: number
+  /** On/off cycle columns (Spec 06, `supabase/protocol/006`). All NULL = no
+   *  cycle. Stripped and retried if the migration has not been applied yet. */
+  cycle_anchor?: string | null
+  cycle_on_days?: number | null
+  cycle_off_days?: number | null
+  cycle_end_type?: string | null
+  cycle_end_date?: string | null
+  cycle_end_rounds?: number | null
+  cycle_colour?: string | null
 }
 
 export interface DoseLogInsert {
@@ -200,6 +288,9 @@ export interface DoseLogInsert {
   dose_unit: DoseUnit
   injection_site?: InjectionSite | null
   taken_at?: string
+  /** The device's own local date, "YYYY-MM-DD". Sent on every write, because the
+   *  server cannot know which day the user was standing in. */
+  logged_for?: string | null
   scheduled_for?: string | null
   note?: string | null
 }
@@ -298,12 +389,23 @@ const LOCAL_SITE_TO_ENUM: Record<string, InjectionSite> = {
   "im-glute-r": "glute_right", "im-glute-l": "glute_left",
   "im-delt-r": "delt_right", "im-delt-l": "delt_left",
   "im-quad-out-r": "quad_right", "im-quad-out-l": "quad_left",
-  "im-quad-front-r": "quad_right", "im-quad-front-l": "quad_left",
   // SubQ
-  "sq-abdo-lr": "abdomen_right", "sq-abdo-ll": "abdomen_left",
+  "sq-abdo-lr": "abdomen_lower_right", "sq-abdo-ll": "abdomen_lower_left",
   "sq-abdo-r": "abdomen_right", "sq-abdo-l": "abdomen_left",
   "sq-flank-r": "lovehandle_right", "sq-flank-l": "lovehandle_left",
   "sq-glute-r": "glute_right", "sq-glute-l": "glute_left",
+  // Every remaining catalogue site now has its own enum member (011), so nothing
+  // falls through to `other` and no site is lost or renamed on a round-trip.
+  "im-quad-front-r": "quad_front_right", "im-quad-front-l": "quad_front_left",
+  "im-bicep-r": "bicep_right", "im-bicep-l": "bicep_left",
+  "im-tricep-r": "tricep_right", "im-tricep-l": "tricep_left",
+  "im-lat-r": "lat_right", "im-lat-l": "lat_left",
+  "im-pec-r": "pec_right", "im-pec-l": "pec_left",
+  "im-trap-r": "trap_right", "im-trap-l": "trap_left",
+  "im-calf-r": "calf_right", "im-calf-l": "calf_left",
+  "sq-thigh-up-r": "thigh_upper_right", "sq-thigh-up-l": "thigh_upper_left",
+  "sq-thigh-lo-r": "thigh_lower_right", "sq-thigh-lo-l": "thigh_lower_left",
+  "sq-arm-r": "arm_right", "sq-arm-l": "arm_left",
 }
 
 export function localSiteToInjectionSite(siteId: string | null): InjectionSite | null {
@@ -359,6 +461,7 @@ export function stackCompoundToProtocolInsert(
       rotation.length > 0
         ? ((c.rotationIndex % rotation.length) + rotation.length) % rotation.length
         : 0,
+    ...cycleRuleToColumns(c.cycle),
   }
 }
 
@@ -395,6 +498,30 @@ export function injectionSiteToLocal(
     case "abdomen_right": return sq ? "sq-abdo-r" : null
     case "lovehandle_left": return sq ? "sq-flank-l" : null
     case "lovehandle_right": return sq ? "sq-flank-r" : null
+    // 011's additions. Each is one muscle on one side, so no route test is needed
+    // beyond keeping IM sites off a Sub-Q compound and vice versa.
+    case "quad_front_left": return im ? "im-quad-front-l" : null
+    case "quad_front_right": return im ? "im-quad-front-r" : null
+    case "bicep_left": return im ? "im-bicep-l" : null
+    case "bicep_right": return im ? "im-bicep-r" : null
+    case "tricep_left": return im ? "im-tricep-l" : null
+    case "tricep_right": return im ? "im-tricep-r" : null
+    case "lat_left": return im ? "im-lat-l" : null
+    case "lat_right": return im ? "im-lat-r" : null
+    case "pec_left": return im ? "im-pec-l" : null
+    case "pec_right": return im ? "im-pec-r" : null
+    case "trap_left": return im ? "im-trap-l" : null
+    case "trap_right": return im ? "im-trap-r" : null
+    case "calf_left": return im ? "im-calf-l" : null
+    case "calf_right": return im ? "im-calf-r" : null
+    case "abdomen_lower_left": return sq ? "sq-abdo-ll" : null
+    case "abdomen_lower_right": return sq ? "sq-abdo-lr" : null
+    case "thigh_upper_left": return sq ? "sq-thigh-up-l" : null
+    case "thigh_upper_right": return sq ? "sq-thigh-up-r" : null
+    case "thigh_lower_left": return sq ? "sq-thigh-lo-l" : null
+    case "thigh_lower_right": return sq ? "sq-thigh-lo-r" : null
+    case "arm_left": return sq ? "sq-arm-l" : null
+    case "arm_right": return sq ? "sq-arm-r" : null
     default: return null
   }
 }
@@ -408,6 +535,7 @@ export function protocolCompoundToStack(
   pc: ProtocolCompound,
   catalogue: { name: string; category: CompoundCategory }
 ): StackCompound {
+  const cycle = cycleRuleFromColumns(pc)
   return {
     id: pc.id,
     name: catalogue.name,
@@ -430,6 +558,10 @@ export function protocolCompoundToStack(
     rotationSites: pc.rotation_sites ?? [],
     rotationIndex: pc.rotation_index ?? 0,
     archived: !pc.is_active,
+    // The cycle must come BACK as well as go out. Without this the pulled row has
+    // no cycle, hydration overwrites the local record with it, and a cycle the
+    // user just set disappears on the next mount/focus.
+    ...(cycle ? { cycle } : {}),
   }
 }
 

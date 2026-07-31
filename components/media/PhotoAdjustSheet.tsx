@@ -115,11 +115,29 @@ function AdjustBody({
   )
   const [busy, setBusy] = useState(false)
 
-  // One object URL per file (the body is keyed by file, so a lazy initialiser is
-  // exactly once), revoked on unmount — a leaked blob URL pins the whole decoded
-  // image in memory, and these are phone photos.
-  const [objectUrl] = useState(() => URL.createObjectURL(file))
-  useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl])
+  // One object URL per file, revoked when that file goes — a leaked blob URL
+  // pins the whole decoded image in memory, and these are phone photos.
+  //
+  // The url is created BY THE EFFECT, and this is the only arrangement that
+  // works. A value produced during render (a lazy `useState` initialiser, or a
+  // `useMemo`) outlives an effect cleanup: on mount → unmount → remount the
+  // cleanup revokes, the render-time value is NOT recomputed, and the component
+  // comes back holding a dead handle. The `<img>` then 404s on the blob and the
+  // sheet degrades to "This photo can't be previewed on this device" with every
+  // gesture disabled. React StrictMode performs exactly that remount on every
+  // mount in dev, so the adjust step could not be exercised there at all —
+  // measured on both alternatives before settling here.
+  //
+  // The lint rule guards against cascading renders. This is the case it exempts:
+  // acquiring an external resource once per `file`, one extra render on mount of
+  // a modal sheet, not a render loop.
+  const [objectUrl, setObjectUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const url = URL.createObjectURL(file)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
+    setObjectUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
 
   // Measure the frame — every clamp is in frame pixels, so nothing can be
   // computed until it has a size.

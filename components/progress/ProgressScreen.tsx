@@ -1,4 +1,6 @@
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
+import { BlockBanner } from "@/components/progress/BlockBanner";
+import { CloudHydration } from "@/components/home/CloudHydration";
 import { WeightHero } from "@/components/progress/WeightHero";
 import { BloodworkSection } from "@/components/progress/BloodworkSection";
 import { JournalSection } from "@/components/progress/JournalSection";
@@ -10,27 +12,45 @@ import type { AdherencePoint } from "@/lib/progress/consistency";
 import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { unitForPreference } from "@/lib/weight";
+import type { StackCompound } from "@/lib/home/stack";
+import type { Block } from "@/lib/blocks/block";
 
 /**
- * The Progress tab — the metric-first "look back" screen (Context/Feature
- * Specs/09). A single vertical scroll on the Obsidian canvas: weight is the hero,
- * followed by bloodwork (a dated photo store), the journal, and consistency. Kept
- * separate from Home ("today"), Protocol ("the schedule"), and the Calendar.
+ * The Progress tab — the "look back" screen (spec 08 · part two). Everything that
+ * came off the dashboard lives here.
  *
- * Each section fades + rises in on load (the same staggered `animate-home-up`
- * idiom as Home), top → bottom: Title → Weight (hero) → Bloodwork (a dated photo
- * store) → Journal → Consistency (adherence over time).
+ * The live block, the photo card, then a two-by-two grid of Weight, Journal,
+ * Bloods and Consistency. The widgets share the dashboard's grid and card chrome
+ * (`grid-cols-2 gap-3`, `p-5`, eyebrow then content) so the two tabs read as one
+ * app. They are TALLER than the dashboard's Today / Next Dose cards — about 228px
+ * against 183px — because a sparkline plus a toggle, or a graph plus a range
+ * selector, does not fit in 183. The width and the chrome match; the height is
+ * what the content needs. Whether they should be forced square is Adrian's call
+ * and is parked in next-tasks.
+ *
+ * The photo card carries a "Running" list resolved against the PHOTO'S date
+ * rather than today, so it says what you were on when that shot was taken. The
+ * card itself shows the most recent day's set and swipes between the poses in
+ * it (spec 08: the viewer and its swipe are unchanged), so the date it resolves
+ * against is that day — scrolling back through older days happens in the
+ * gallery, which has its own list.
+ *
+ * Each block fades + rises in on load (the same staggered `animate-home-up`
+ * idiom as Home and Protocol).
  */
 export function ProgressScreen({
   weight,
   unitPreference,
-  todayKey,
+  todayKey: serverTodayKey,
   userId,
   bloodworkPhotos,
   journalEntries,
   markerOptions,
   consistencySample,
   progressPhotos,
+  blocks,
+  previewStack,
+  previewBlocks,
 }: {
   /** Bodyweight points from `weight_logs`, oldest → newest. */
   weight: { key: DateKey; kg: number }[];
@@ -49,8 +69,22 @@ export function ProgressScreen({
   consistencySample?: AdherencePoint[];
   /** The user's progress photos, newest first. */
   progressPhotos: ProgressPhoto[];
+  /** Dev-preview-only: inject the device stack + dose log, so `/preview/progress`
+   *  can exercise the photo card's Running list without signing in. The real
+   *  screen reads both from the device store. */
+  previewStack?: StackCompound[];
+  /** The user's blocks from Postgres, newest start first. */
+  blocks?: Block[];
+  /** Dev-preview-only: render the block banner without a signed-in read. */
+  previewBlocks?: Block[];
 }) {
   const unit = unitForPreference(unitPreference);
+  // This component is NOT a client component, so the correction cannot happen
+  // here: `todayKey` arrives as the SERVER's date (UTC on Vercel, a day out for
+  // most of the world for part of every day) and each client child corrects it.
+  // `BlockBanner` does, since a block turns the date into "days left" and a
+  // target reading.
+  const todayKey = serverTodayKey;
 
   return (
     <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
@@ -58,47 +92,57 @@ export function ProgressScreen({
         <PageScrollTitle title="Progress" />
       </div>
 
-      {/* Weight — the hero. A summary glance that taps into the canonical
-          /weight view (full graph, range toggle, scrubber). */}
-      <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
-        <WeightHero series={weight} unit={unit} />
+      {/* The live block frames everything under it, so it leads. Slim on
+          purpose: a hero card here would push the photo below the fold. */}
+      {/* Fills the device stores this screen READS from (consistency, the
+          running list). Renders nothing. */}
+      <CloudHydration userId={userId} />
+
+      <div className="animate-home-up" style={{ animationDelay: "40ms" }}>
+        <BlockBanner
+          todayKey={todayKey}
+          userId={userId}
+          blocks={previewBlocks ?? blocks ?? []}
+          weight={weight}
+          unit={unit}
+        />
       </div>
 
-      {/* Progress photos — a posed photo log (latest session carousel), below Weight. */}
-      <div className="animate-home-up" style={{ animationDelay: "100ms" }}>
+      {/* Photos: the card, then what was running on that photo's date. */}
+      <div className="animate-home-up" style={{ animationDelay: "75ms" }}>
         <ProgressPhotoSection
           photos={progressPhotos}
           userId={userId}
           todayKey={todayKey}
           unit={unit}
+          previewStack={previewStack}
         />
       </div>
 
-      {/* Bloodwork — a dated photo store: attach a screenshot, look back by date. */}
-      <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
-        <BloodworkSection
-          photos={bloodworkPhotos}
-          userId={userId}
-          todayKey={todayKey}
-        />
-      </div>
-
-      {/* Journal — write notes and/or dial markers; one entry per day. */}
-      <div className="animate-home-up" style={{ animationDelay: "165ms" }}>
+      {/* Weight · Journal / Bloods · Consistency. */}
+      <div
+        className="animate-home-up grid grid-cols-2 items-stretch gap-3"
+        style={{ animationDelay: "100ms" }}
+      >
+        <WeightHero series={weight} unit={unit} compact />
         <JournalSection
           entries={journalEntries}
           options={markerOptions}
           userId={userId}
           todayKey={todayKey}
+          compact
         />
-      </div>
-
-      {/* Consistency — adherence to the protocol over time. */}
-      <div className="animate-home-up" style={{ animationDelay: "230ms" }}>
+        <BloodworkSection
+          photos={bloodworkPhotos}
+          userId={userId}
+          todayKey={todayKey}
+          compact
+        />
         <ConsistencySection
           userId={userId}
           todayKey={todayKey}
           sample={consistencySample}
+          compact
         />
       </div>
     </div>

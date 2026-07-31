@@ -5,6 +5,8 @@ import { BottomNav } from "@/components/navigation/bottom-nav";
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 import { ProgressScreen } from "@/components/progress/ProgressScreen";
 import { toDateKey } from "@/lib/home/mockHomeData";
+import type { StackCompound } from "@/lib/home/stack";
+import type { Block } from "@/lib/blocks/block";
 import {
   formatBloodworkDate,
   type BloodworkPhoto,
@@ -208,8 +210,61 @@ export default async function PreviewProgressPage({
     ...session("d5", 124, ["front-relaxed", "side-relaxed", "back-relaxed"]),
   ].sort((a, b) => b.date.localeCompare(a.date)); // newest first, like the page
 
+  // Device data for the photo card's Running list. The list resolves what was
+  // RUNNING on the photo's date from the protocol itself, not from the dose log,
+  // so a stack is all it needs — no logs required to exercise it.
+  const previewStack: StackCompound[] = [
+    {
+      id: "p-test",
+      name: "Testosterone E",
+      category: "anabolic",
+      method: "im",
+      dose: 250,
+      unit: "mg",
+      schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: "2026-01-01" },
+      rotationSites: [],
+      rotationIndex: 0,
+    },
+    {
+      id: "p-bpc",
+      name: "BPC-157",
+      category: "peptide",
+      method: "subq",
+      dose: 250,
+      unit: "mcg",
+      schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: "2026-01-01" },
+      rotationSites: [],
+      rotationIndex: 0,
+    },
+    {
+      id: "p-mk",
+      name: "MK-677",
+      category: "sarm",
+      method: "po",
+      dose: 12.5,
+      unit: "mg",
+      schedule: { cadence: { type: "daily" }, timeOfDay: "22:00", startDate: "2026-01-01" },
+      rotationSites: [],
+      rotationIndex: 0,
+    },
+  ];
+
+  // A live block, so the preview shows the banner in its populated state.
+  const previewBlocks: Block[] = [
+    {
+      id: "blk-1",
+      name: "First prep",
+      startedOn: toDateKey(new Date(today.getFullYear(), today.getMonth() - 1, today.getDate() - 14)),
+      endsOn: toDateKey(new Date(today.getFullYear(), today.getMonth() + 2, today.getDate())),
+      targets: [{ variable: "weight", value: 84, direction: "down" }],
+      status: "active",
+      closedOn: null,
+      reflection: null,
+    },
+  ];
+
   return (
-    <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom))]">
+    <div className="flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom)+4.5rem)]">
       <header
         className="flex items-center justify-between border-b border-border/60 px-5"
         style={{
@@ -240,6 +295,8 @@ export default async function PreviewProgressPage({
           markerOptions={markerOptions}
           consistencySample={consistencySample}
           progressPhotos={progressPhotos}
+          previewStack={previewStack}
+          previewBlocks={previewBlocks}
         />
       </main>
 

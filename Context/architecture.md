@@ -59,13 +59,23 @@ stored.)
   / calendar / bloodwork / calculator flows. Calls Supabase; holds **no** business
   maths that belong in the database (see Invariants). **The five bottom-nav tabs are
   `/dashboard`, `/protocol`, `/calculator`, `/progress`, `/profile`** — `/calculator`
-  (Spec 20) mounts the reconstitution calculator (`components/home/ReconCalculator.tsx`)
+  (Spec 20) mounts the reconstitution calculator (`components/calculator/`)
   on its own screen, and is its **only** entry point: the Home glance card
   (`ReconCalcCard`) and its bottom-sheet frame (`ReconCalculatorSheet`) were both
   **deleted** once the nav tab landed (Adrian's call — the tab replaces them, so they
   only duplicated it). The calculator reads nothing — the maths are pure arithmetic on
-  what the user types (and mirror `v_inventory_math`; see Invariant 1). The dev-only
-  `/preview/recon` harness mounts the same component unauthed. **Phone-only by intent:** at ≥1024px the
+  what the user types (and DELIBERATELY no longer mirror `v_inventory_math`'s rounding: the view rounds concentration to 3dp, the calculator does not, because dividing by a rounded concentration was giving a 20% error on weak solutions. Adrian, 2026-07-30. Nothing here is stored or feeds the view, so the two cannot disagree about data). The dev-only
+  `/preview/recon` harness mounts the same component unauthed. Spec 07 (wave 2 pt
+  two) rebuilt its presentation around a **proportional syringe graphic** and moved
+  it out of `components/home/`: the arithmetic now lives in `lib/calculator/recon.ts`
+  and the barrel's scale/fill in `lib/calculator/syringe.ts`, both pure and tested,
+  with `recon.test.ts` **pinning the outputs to the pre-rebuild figures** so a later
+  refactor cannot silently move a number. Still stateless in the sense the spec means (no
+  presets, no saved calculations, no history, no compound data), with TWO device-
+  local preferences: the first-run notice's dismissal, and the chosen syringe
+  size (`trackd.calculator.syringeSize`), which is picked once and sticks until
+  changed rather than being re-asked every visit (Adrian, 2026-07-30). Reset
+  clears the inputs, not the syringe. **Phone-only by intent:** at ≥1024px the
   root layout hides the whole app shell (`lg:hidden`) and renders
   `DesktopInterstitial` in its place — a pure CSS-width gate (no UA sniffing, no
   hydration flash), wired through the small client `DesktopGate` so the dev-only
@@ -232,17 +242,30 @@ stored.)
   user data and derived values still come from Postgres/views. Swap to a live
   Supabase read if the catalogue ever needs to update without a redeploy.
 - **Browser `localStorage` (device cache) + Supabase mirror (durable source)** —
-  The three home stores — the protocol **stack** (`trackd.stack.v2.<auth.uid()>`,
+  The four home stores — the protocol **stack** (`trackd.stack.v2.<auth.uid()>`,
   `lib/home/stack.ts`), the **dose log** (`trackd.doselog.v1.<auth.uid()>`,
   `lib/home/doseLog.ts`), and the user-created "Make your own" **custom compounds**
-  (`trackd.customCompounds.<auth.uid()>`, `components/navigation/add-to-stack-menu.tsx`)
-  — keep `localStorage` as the synchronous, offline-capable read path the UI uses,
+  (`trackd.customCompounds.<auth.uid()>`, `components/navigation/add-to-stack-menu.tsx`),
+  and **stacks** (`trackd.stacks.v1.<auth.uid()>`, `lib/home/stacks.ts` — see
+  **Stacks** below) — keep `localStorage` as the synchronous, offline-capable read path the UI uses,
   but are now **mirrored to Supabase** so they survive a PWA delete/reinstall (which
   wipes the installed app's `localStorage`). The cloud tables live in
   `supabase/home/001_device_state_sync.sql` (`user_stack_compounds`,
   `user_dose_logs`, `user_custom_compounds`): one row per entity, each holding the
   verbatim client object in a `jsonb` `data` payload. The stores' own
   read-normalisers harden the shape on the way back into `localStorage`.
+  Separately, a handful of `localStorage` keys are **device PREFERENCES, never
+  mirrored and never records**: `trackd.home.weekStripOpen`, `trackd.unitPrefs.*`,
+  `trackd:install-prompt-dismissed`, `trackd.calculator.disclaimerSeen`,
+  `trackd.calculator.syringeSize` and
+  `trackd.blocks.endPromptDismissed.v1.<uid>` (the block ids whose end-date
+  prompt was answered "leave running" — see **Blocks** below).
+  Every one of them must be **best-effort**: the
+  UI holds its own state and storage only remembers it, so a full quota or blocked
+  storage costs the user the memory of a choice and never the ability to make one.
+  (Spec 07 shipped the inverse briefly — the calculator read the syringe size back
+  out of storage to learn what had just been tapped, which made a refused write
+  look like dead controls.)
   Writes go through best-effort **server actions** in `lib/home/syncActions.ts`
   (identity from the verified session, RLS the backstop — mirrors
   `weight/actions.ts`). A network blip never blocks the UI — the synchronous local
@@ -313,13 +336,13 @@ stored.)
     compound twice. This is the durable fix for the "duplicate compounds came back"
     class of bug.
   - **Protocol screen (Step 4)** — `app/(app)/protocol/page.tsx` is now the real
-    screen (`components/protocol/`): ONE tab with an in-page **Plan / Stock** toggle
+    screen (`components/protocol/`): ONE SCROLLING PAGE (Spec 04, wave 2 pt 2 — the Plan / Stock toggle is GONE)
     (Adrian-approved consolidation of Angus's "Cycles" + "My Protocol", a change from
     Spec 11 — NOT a second nav tab). **Plan** = the cycle builder (active-cycle header
     with "Week X of N" from `lib/protocol/cycle.ts`, the compound list reusing the Home
     row treatment, add via the existing Add-to-Stack flow, edit via `AddCompoundSheet`,
     and a cycle-edit sheet → `updateCycle`). **Stock** (Step 5,
-    `components/protocol/{StockView,StockItemCard,AddStockSheet}.tsx` + `lib/db/inventory.ts`)
+    `components/protocol/{CompoundsRow,CompoundStorageCard,ScheduleGrid,StockActionsSheet,AddStockSheet}.tsx` + `lib/db/inventory.ts`)
     lists `inventory_items` with **"stock left"** — remaining / doses-remaining /
     projected-empty read ONLY from `v_inventory_math` (never recomputed); add-stock branches
     the 3-way type union (reconstituted / preconcentrated / oral_solid; refill = a NEW row,
@@ -332,7 +355,13 @@ stored.)
     `v_inventory_math` folds into remaining (`remaining = total − prior_used − consumed`).
     `total_base` stays the TRUE full capacity, so the fullness bar and runway stay honest.
     Stock can also be logged **inline when adding a compound** (`AddCompoundSheet` has an
-    optional "Got a vial?" step — this inline path still starts full). Runway is shown **neutrally**. The cycle carries an optional free-text **description**
+    optional "Got a vial?" step — this inline path still starts full). Runway is shown **neutrally**, with ONE exception (Adrian, 2026-07-30, Spec 04):
+    the Protocol compound card's **fullness BAR turns amber at 7 days or fewer**
+    from empty. Stock runway is inventory, not a health value, so the
+    categorical-never-evaluative invariant does not apply, and at a week out it
+    genuinely needs action. The signal sits on the GAUGE rather than on the
+    runs-dry text, which stays white in every state: that keeps one amber beat per
+    card and puts the colour on the thing that measures. The cycle carries an optional free-text **description**
     (`cycles.notes`) shown under the Plan header. The dose-plan is never labelled "protocol" in
     UI (it's "Plan"/"Cycle").
     A dev-only `/preview/protocol` (mock data, 404 in prod) renders the screen without auth.
@@ -395,12 +424,208 @@ stored.)
 - The **quick-actions menu** (A10) lives on a **floating action button** pinned
   bottom-right above the nav (`components/shortcuts/QuickActionsFab.tsx`, Spec 20),
   rendered once by the `(app)` shell so it tracks the bottom nav exactly. One flat
-  three-column grid of seven equal tiles (`QUICK_ACTIONS` in `shortcutItems.ts`) — it
+  three-column grid of six equal tiles (`QUICK_ACTIONS` in `shortcutItems.ts`) — it
+  **no longer carries the "Beta notes & feedback" row** (Adrian, 2026-07-31 — the
+  beta is ending, so a beta-only affordance stops being a permanent fixture of the
+  primary action menu). `FeedbackRow` and the FAB's `FeedbackSheet` mount are
+  deleted; feedback itself is untouched and still reachable from Profile via
+  `ProfileFeedbackRow` → the same `FeedbackSheet` → the same `beta_feedback`
+  table. It
   persists nothing (the earlier reorderable card order + `lib/shortcutOrder.ts`, and
   later the primary-row / six-tile / feedback-row split of `ShortcutsMenu`, were all
   removed as the menu was reworked). It carries **no calculator action**: the
   reconstitution calculator holds the centre bottom-nav slot and `/calculator` is its
   entry point (Spec 20 → D4/D6), so a tile would only duplicate it.
+
+## Blocks (new scope, not one of the eighteen specs — 2026-07-30)
+
+**A block is a NAMED STRETCH OF TRAINING with a start and an end.** A prep, an
+off-season, a cut. It is not a new kind of data: every screen of it is a query
+over dated things Trackd already stores, which is what makes it cheap to build
+and impossible for a competitor to copy without having held the data for sixteen
+weeks.
+
+The naming was Adrian's call and it changed the feature rather than renaming it.
+A GOAL is a target you hit or miss; a BLOCK is a period you ran. That makes the
+**retrospective the centre** and the progress figure a secondary reading.
+
+- **Storage** — `supabase/blocks/001_blocks.sql`: `blocks` (name, `started_on`,
+  nullable `ends_on`, status, `closed_on`, `reflection`) and `block_targets` (a
+  LIST, because any tracked variable should be targetable and one nullable
+  column per variable does not scale), bringing the live DB to **27 tables**.
+  **APPLIED by Adrian, 2026-07-30.** Postgres is the source of truth with **no
+  device mirror**: a block is a RECORD, there is no offline capture path for one,
+  and losing a sixteen-week prep to a PWA reinstall would be the worst possible
+  bug in a feature whose whole point is looking back. Ownership is structural
+  (composite FK per 008/009) and **one live block per user** is a partial unique
+  index rather than a trigger, so it cannot be raced.
+- **Targets cover weight and consistency, and NEVER bloodwork** (Adrian: "I'm not
+  doing targets for blood work. No way."). A target turns a reading into a pass
+  or a fail, and a biomarker is exactly the reading the
+  categorical-never-evaluative invariant protects. Both permitted variables are
+  facts about the user's own behaviour instead. The CHECK constraint enforces it
+  at the database, not just in TypeScript.
+- **Time is the primary measure; a target is a SECOND, separate figure.**
+  MacroFactor can show a percentage because its goals are numeric; "prepping for
+  a comp" has no number to divide. Time always exists, so it leads, and the two
+  are never blended into one number because a combined "68% complete" would be
+  inventing a fact. `lib/blocks/block.ts` is pure and tested.
+- **One window rule** — `blockWindow(block, todayKey)` (`lib/blocks/block.ts`) is
+  the single definition of which days belong to a block, so no two sections of
+  the retrospective can disagree. A finished block ends on the day it was
+  **CLOSED**, not the day it was planned to end (a prep cut short covers the days
+  it actually ran); a live block ends **today**, because `endsOn` is an intention
+  and a block in week two must not read as though it had already spanned fifteen.
+  The earlier `isWithinBlock` was removed rather than left beside it: it had no
+  production caller and would have been a second, subtly different rule.
+- **The retrospective is a set of queries** (`lib/blocks/retrospective.ts`, pure +
+  tested): duration, weight (start / end / delta / graph clipped to the window),
+  first and last photo SESSION side by side, what was run with dose counts,
+  bloods, consistency, journal count + the markers noted most often, and the
+  user's own note. Nothing is stored and nothing is cached — per the
+  no-stored-derived-values invariant, which is also what keeps the figures true
+  when a user back-dates a dose months later.
+  - **"What you ran" reuses `compoundsRunningOn`**, so a compound taken every
+    third day counts for the whole block rather than a third of it. A compound
+    with logged doses that never resolves as running is included anyway: a legacy
+    record should not erase a dose the user can see they took.
+  - **Consistency is the existing series, CLIPPED, never recomputed**, so Progress
+    and the retrospective cannot report different numbers for the same days.
+  - The dosing model is still device-local, so `what you ran` and consistency
+    resolve **client-side** from `lib/home/stack.ts` + `doseLog.ts`, exactly as
+    Progress's own consistency and running list do. Everything else is
+    server-fetched from Postgres.
+- **On the end date, ASK — never auto-close.** An auto-close would silently
+  decide the block finished on schedule and, more importantly, you would never
+  get the reflection, which is the one thing in the retrospective the data cannot
+  produce. A **dot on the Progress banner** opens **Extend / Close / Leave
+  running**; Extend lets the user pick the new date. "Leave running" is
+  remembered per block on the device
+  (`trackd.blocks.endPromptDismissed.v1.<uid>`) so a supported answer is not
+  turned into a nag, and is **cleared on extend** because a new end date is a new
+  question. The component owns the dot's visibility and storage only remembers
+  it — reading storage back to learn what was just tapped is the regression spec
+  07 shipped briefly.
+- **`/blocks` is a real route**, following `/weight`: a retrospective is long
+  enough to want a page it can scroll rather than a sheet's height to fight.
+  Which block is open lives in the URL (`?block=<id>`) so the phone's back button
+  walks back to the list. Dev-only harness at `/preview/blocks`
+  (`?state=ended|empty|past`, `&block=<id>`).
+- **Nothing here judges.** No "on track", no "behind", no projection, no colour
+  that means good or bad, and no verdict on whether a target was met. A delta of
+  minus four kilograms with no comment attached is the shape everything takes.
+
+## Profile, and the end of Settings (Spec 09, wave 2 part two — 2026-07-30)
+
+**There is no Settings route.** `app/(app)/settings/` — its page, its
+`updateSettings` action and `components/settings/settings-form.tsx` — is deleted,
+and everything it held moved onto Profile. Sending someone to a second screen to
+change their height was the thing spec 09 set out to stop.
+
+- **Physical details are edited IN PLACE** (`components/profile/PhysicalCard.tsx`).
+  The card has two states and ONE layout: read is dimmed and inert, Edit fades
+  the same rows into inputs where they already sit. No layout swap and no
+  navigation, which is the spec's wording and the whole point. The Edit control
+  sits on the section header, not inside the card. Saving returns it to the
+  dimmed read state.
+  - **Sex, Height, Goal and Units are editable. Age and Weight are not**, in
+    either state. Age is derived from the date of birth the 18+ gate captured;
+    Weight is the latest `weight_logs` reading, which the Weight view owns
+    (`profiles.weight_kg` is a legacy onboarding snapshot). A second place to
+    type a bodyweight would be a second source of truth for the one number the
+    app is most careful about. Both still render as rows: a gap where a fact
+    should be is worse than a fact you cannot edit here.
+  - **The sex CONFIRM from Spec 19 stays.** Spec 09 says "no warning, no
+    confirmation" about the MARKER filtering — do not add a second prompt for
+    that — and spec 04 recorded this one as untouched. It exists because sex
+    changes what the app DRAWS (the injection-site body map switches figure).
+    Flagged for Adrian rather than silently removed.
+  - `updatePhysical` (`app/(app)/profile/actions.ts`) is the old
+    `updateSettings` with its validation unchanged, minus the redirect to the
+    dashboard: the card is edited in place, so the user stays put. It
+    revalidates `/profile`, `/progress` (sex drives the marker dialer, Spec 04)
+    and `/dashboard` (the body map).
+- **Notifications moved to its own top-level route, `/notifications`.** A child
+  route of a removed parent would have kept the word alive in the URL bar. The
+  `revalidatePath("/settings")` calls in `lib/push/pushActions.ts` and
+  `lib/notifications/prefsActions.ts` were repointed with it.
+  `components/settings/` still holds `NotificationsToggle` and
+  `ReminderSettings`; the FOLDER name is stale but renaming it moves working
+  files for a word nobody sees.
+- **The App card is one row treatment throughout**: Billing, Notifications,
+  Terms, Privacy, Medical Disclaimer, Send feedback, then Install (which
+  self-hides). Notifications is no longer a visually heavier card than the legal
+  links beside it. **Billing states the plan and goes nowhere** — it is not
+  greyed out, because it reads as information, which is what it is. When
+  RevenueCat lands it gains a destination and nothing else changes.
+- **The danger zone is bounded and OUTLINED, not filled** — a red section label
+  and a `border-accent-destructive/40` card holding Sign out, Clear all
+  compounds and Delete my account, each keeping its existing portaled
+  confirmation. Outlined so it reads as a place you enter deliberately rather
+  than an alarm. The three components gained a `variant="row"` sharing the
+  `DANGER_ROW` preset (`ui-context.md`) rather than three copies of a
+  destructive treatment, which is how one of them quietly stops matching.
+- **The avatar is 112px and is the whole control.** The "Change photo" and
+  "Remove" text links are gone. With no photo a tap opens the file picker
+  directly; with one it opens a two-choice sheet, because "removing a photo
+  moves inside that flow" and there is nowhere else left for Remove to live.
+  Judgement call, flagged. Framing still routes through `PhotoAdjustSheet` at
+  `AVATAR_ASPECT` (1:1).
+- `ProfileScreen` is presentational and the page is the data wrapper, so the
+  dev-only `/preview/profile` (`?state=bare` for a fresh signup) renders the
+  whole screen unauthed. Writes fail there by design — every one of them
+  resolves identity from a verified session.
+
+## Stacks (Spec 05, wave 2 part two — 2026-07-29)
+
+**A stack is a DISPLAY GROUPING, never a container.** Every member keeps its own
+schedule, dose, `dose_logs` and history; removing a compound from a stack changes
+nothing about that compound. That is structural rather than a convention: a
+`Stack` is `{ id, name, colour, memberIds }` and has nowhere to put a dose, a
+schedule, a time or a log, and **`protocol_compounds` gains no column**. A
+`stack_id` there would enforce one-stack-per-compound just as well and query
+faster, but it would put a stack-owned field on the member — the one thing the
+spec forbids.
+
+A stack means compounds **injected at the same time**, not compounds combined
+into one substance. Blends (several peptides genuinely sharing a vial) already
+exist as single catalogue compounds and are untouched.
+
+- **Storage** — `supabase/protocol/007_stacks.sql`: `stacks` (name + one of the
+  twelve palette NAMES) and `stack_members` (the pairing + an order), bringing the
+  live DB to **25 tables**. Mirrored into `trackd.stacks.v1.<auth.uid()>` as the
+  synchronous offline read path, the same shape as the rest of the protocol data.
+  `lib/home/stackSync.ts` pushes/pulls; `hydrateProtocol.ts` `hydrateStacks` folds
+  the pull in.
+- **One compound, one stack** is enforced three ways: `setStackMembers` strips an
+  incoming id from every other stack in the same pass, `dedupeMembership` runs on
+  both read and write, and a UNIQUE index backs it in Postgres.
+- **Ownership is structural** (`supabase/protocol/008_stack_members_ownership.sql`).
+  007 shipped a hole: `stack_members` RLS checked only `user_id`, and the
+  one-stack index was GLOBAL across users — so a user could claim another user's
+  `protocol_compound_id`, taking their slot and breaking that user's membership
+  sync permanently with no repair path. 008 replaces the single-column FKs with
+  **composite** ones carrying the owner (`(stack_id, user_id) → stacks(id,
+  user_id)` and the same for `protocol_compounds`) and scopes the unique index to
+  `(user_id, protocol_compound_id)`. A policy can be reasoned around; a foreign
+  key cannot.
+- **The dashboard renders a PARTITION**, not two filters — `partitionByStack`
+  claims member ids into a `Set` and returns the remainder, so a member can
+  neither appear in both its stack row and its category section nor vanish from
+  both. A stack shows only the members due THAT day, so mixed cadences work
+  without special-casing: four members on Monday, three on Tuesday.
+- **Logging is dashboard-only** (never Protocol). One tap logs every UNLOGGED
+  member, each writing its own `dose_logs` row to the SELECTED day with the
+  wall-clock time. There is deliberately **no bulk untick** — each log carries its
+  own edited amount, time and site, and one mis-tap would destroy all of it.
+  `siteId` is null on a bulk tick: a stack tick has no body map, and inventing a
+  site would corrupt the injection-site recency view.
+- **Membership syncs as `protocol_compounds.id`**, which can diverge from the
+  client `StackCompound.id`, so `resolveProtocolCompoundIds` resolves by derived
+  id then by NAME (one read, matched in memory). Hydration judges membership
+  against the **merged local stack**, not the Postgres pull — the pull skips rows
+  with a NULL `compound_id`, which is every CUSTOM compound, so judging against it
+  silently dropped customs from stacks.
 
 ## Dose & Schedule Integrity (Spec 01, wave 2 — 2026-07-23)
 
@@ -513,8 +738,12 @@ picker and press the plus.
   `removeCompoundLogs`, `deleteProtocolCompoundForStack`, `deleteProtocolCompound`
   and `deleteStackCompound`/`deleteCompoundLogs` are **deleted, not just unwired** —
   Invariant 8 is now structural rather than a convention. The DB cascade remains for
-  account deletion only. (`StartFreshSection`'s "Clear all compounds & stock" is a
-  separate whole-account reset via `wipeMyProtocol` and is untouched.)
+  account deletion only. (`StartFreshSection`'s "Clear all compounds & stock" was
+  a separate whole-account reset via `wipeMyProtocol`. BOTH ARE GONE: spec 09
+  removed the control from the danger zone, which left `lib/db/resetProtocol.ts`
+  a caller-less `"use server"` module that could still delete five tables. The
+  pre-merge review deleted it, 2026-07-31 — an unreachable server action that
+  destroys data is a liability, not a spare part.)
 - **Removed:** the `/archive` route + page, `ArchiveManager`, the Profile → Archive
   row, the Reactivate control in the picker and in `CompoundDetailSheet`, the
   `reactivate` mode in `AddCompoundSheet`, and the dev-only `/preview/archive-weight`

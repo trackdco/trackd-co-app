@@ -167,7 +167,16 @@ function AddStockForm({
 
   // Editing a vial and refilling both pre-select (and lock) the compound; editing
   // additionally pre-fills the amount fields from the vial's stored raw inputs.
-  const initialId = refillFor ?? editItem?.protocolCompoundId ?? compounds[0]?.id ?? ""
+  // `editItem.protocolCompoundId` is a SERVER id and these options are keyed by
+  // CLIENT id, so it is matched back through the compound list rather than used
+  // directly. Without this an edit on a diverged compound selected the first
+  // option and named the wrong compound on the form.
+  const editClientId = editItem
+    ? (compounds.find((c) => c.id === editItem.protocolCompoundId)?.id ??
+       compounds.find((c) => c.name === editItem.compoundName)?.id ??
+       null)
+    : null
+  const initialId = refillFor ?? editClientId ?? compounds[0]?.id ?? ""
   const presetType = refillType ?? editItem?.inventoryType ?? null
   const compoundLocked = refillFor != null || editItem != null
   const ei = editItem
@@ -328,14 +337,24 @@ function AddStockForm({
       // (catalogue AND custom alike now resolve to a row, supabase/protocol/004)
       // instead of failing silently (which left the compound absent from Stock).
       const compound = compounds.find((c) => c.id === compoundId)
+      let pcId: string | null = null
       if (compound) {
         const pushed = await pushProtocolCompound(compound)
         if (!pushed.ok) {
           setError("Couldn’t sync this compound. Check your connection and try again.")
           return
         }
+        pcId = pushed.protocolCompoundId ?? null
       }
-      const r = await addStockItem(insert)
+      // The FK is the id the push actually WROTE, not the client id. The two
+      // diverge whenever `pushProtocolCompound` reuses an existing row for this
+      // (cycle, compound) — and then this insert pointed at a row that does not
+      // exist, so the first vial a user ever added failed its foreign key and the
+      // sheet said "Couldn't save this stock" with nothing wrong at their end.
+      // The add-compound sheet already used the returned id; this path did not.
+      const r = await addStockItem(
+        pcId ? { ...insert, protocol_compound_id: pcId } : insert
+      )
       if (!r.ok) {
         setError("Couldn’t save this stock. Please try again.")
         return // keep the sheet open so the input isn't lost on a failed save

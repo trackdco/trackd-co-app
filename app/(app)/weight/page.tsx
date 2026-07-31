@@ -4,7 +4,7 @@ import { WeightView } from "@/components/weight/WeightView";
 import { createClient } from "@/lib/supabase/server";
 import { toDateKey } from "@/lib/home/mockHomeData";
 
-export const metadata: Metadata = { title: "Weight — Trackd Co" };
+export const metadata: Metadata = { title: "Weight · Trackd Co" };
 
 /**
  * The Weight view — reached only from the + menu's Weight tile (A10). A full

@@ -111,6 +111,36 @@ rested), so it stays token-based with **no hardcoded hex**. The feature
 **reports, it does not recommend**: never a suggested-next-site, ranking, risk
 score, or warning icon.
 
+### User palette — twelve colours a user picks from
+
+Two features let the user pick a colour, and they share these twelve: a
+**cycle** (an on/off pattern over a compound, Spec 06) and a **stack** (a
+display grouping of compounds taken together, Spec 05). A cycle colour drives
+the calendar's on-day fill and that cycle's containers; a stack colour drives
+its members' containers wherever the stack is shown. Defined as `--palette-*`
+tokens in `app/globals.css` and exposed as Tailwind utilities
+(`bg-palette-teal`, …); reference them as tokens — **never paste these hex
+values into a component**. The shared helpers live in `lib/palette.ts`.
+
+| Name     | Token             | Value     | | Name     | Token             | Value     |
+| -------- | ----------------- | --------- |-| -------- | ----------------- | --------- |
+| Slate    | `--palette-slate`   | `#56687F` | | Clay     | `--palette-clay`    | `#8B6050` |
+| Steel    | `--palette-steel`   | `#4C7285` | | Rosewood | `--palette-rosewood`| `#7E4E54` |
+| Teal     | `--palette-teal`    | `#3D6B63` | | Mauve    | `--palette-mauve`   | `#7B5570` |
+| Moss     | `--palette-moss`    | `#4C6A4E` | | Plum     | `--palette-plum`    | `#654C7C` |
+| Olive    | `--palette-olive`   | `#616B41` | | Indigo   | `--palette-indigo`  | `#55568C` |
+| Bronze   | `--palette-bronze`  | `#7A6440` | | Stone    | `--palette-stone`   | `#6D6A62` |
+
+They are deliberately **deep rather than pastel**, none implies good or bad
+(so the "categorical, never evaluative" rule is untouched — these are
+organisational labels, like the category legend), and none clashes with amber
+or the `--cat-*` hues. The colour is stored on the **cycle or stack**, never on
+the compound, as its palette **name** — the hex lives once in `globals.css`, so
+a retune never needs a data migration.
+
+On the calendar the fill renders at **reduced opacity** so the logged-day
+circle, today's ring and the dose/journal indicators still read above it.
+
 ## Typography
 
 Two faces, exposed as CSS variables and mapped to Tailwind
@@ -148,6 +178,20 @@ than re-deriving classes per card:
 - **`CARD_EYEBROW`** — `text-[10px] font-sans uppercase tracking-[0.18em]
   text-text-muted` — every card/section title. A dimmer variant
   (`text-text-subtle`, `tracking-[0.2em]`) labels metric values.
+- **`COLUMN_EYEBROW`** — `text-[9px] font-sans uppercase tracking-[0.12em]
+  text-text-muted` — the eyebrow for a **narrow column**, i.e. a third-width
+  card in a row of three. At 10px/0.18em a single long word ("CONCENTRATION",
+  ~109px) overruns a third of a phone's width and has no space to wrap on, so
+  this is the same eyebrow one notch down in size and tracking. Use it **only**
+  where the column is genuinely too narrow; a full-width card title stays
+  `CARD_EYEBROW`. (Added for the calculator's three result cards, Spec 07.)
+  **Below 360px it may be stepped down to `text-[8px]`** — "CONCENTRATION" is the
+  longest label in the app and overruns a third of a 320px phone even at 9px
+  (measured: 2.69px into the next column). That step-down is the only sanctioned
+  use of 8px type; do not reach for it anywhere else.
+  In a 3-up row the value beneath it is `font-mono text-base tabular-nums` with
+  the unit inline at `text-[11px] text-text-muted`, and `[overflow-wrap:anywhere]`
+  so a pathological figure wraps rather than overflowing the column.
 - **`METRIC_VALUE`** — `text-[28px] font-light tracking-[-0.02em]
   tabular-nums text-foreground` — the big number on metric and glance
   cards. Units and suffixes are demoted inline via **`UNIT_SUFFIX`**
@@ -159,9 +203,17 @@ than re-deriving classes per card:
   sizes is the "instrument panel" detail; default spacing reads generic.
 - **`PAGE_TITLE`** — `text-2xl font-light tracking-[-0.02em]
   text-foreground` — the greeting and the `<h1>` on standalone screens
-  (Settings, Weight, Billing).
+  (Profile, Weight, Blocks, Notifications, Billing).
 - **`SHEET_TITLE`** — `text-xl font-light tracking-[-0.01em]
   text-foreground` — bottom-sheet headers.
+- **`DANGER_ROW`** — a row inside Profile's **danger zone** (spec 09 · part
+  two): Sign out, Clear all compounds, Delete my account. Red **label** on an
+  unfilled row, with the boundary carried by the section's own
+  `border-accent-destructive/40` outline. Outlined rather than filled so it
+  reads as a place you enter deliberately rather than an alarm sitting on the
+  page. **Scoped to a bounded destructive section only** —
+  `--accent-destructive` is not a general accent (see Colour), and a red row
+  loose on a page is exactly the misuse that scoping exists to prevent.
 
 Never hand-roll these classes per screen, and never promote an eyebrow to
 a heading size — the inversion (small titles, large values) **is** the
@@ -191,6 +243,7 @@ ad-hoc margins or padding.
 | Card internal padding     | `p-5`                                              |
 | Intra-card element gap    | `space-y-3` (tight label/value pairs `space-y-1`) |
 | Metric grid               | `grid-cols-2` + `gap-3`                            |
+| 3-up figure row           | one card, `grid-cols-3 divide-x divide-border-default py-3`, cells `px-2` |
 | Inline icon / label gap   | `gap-2` / `gap-3`                                  |
 | In-card row dividers      | `divide-y divide-border-default` (rows `py-3`)     |
 
@@ -403,6 +456,13 @@ feels off even when it looks right.
 
 - Terse, exact, confident. No exclamation marks, no emoji, no chirp
   ("Nice work!", "Oops!").
+- **Never an em dash.** Not in any user-facing string, anywhere in the app
+  (Adrian, 2026-07-30). Use a full stop and a second sentence, a colon where
+  one clause introduces another, or a comma. An em dash reads as an aside the
+  writer could not be bothered to resolve, and at small sizes it is visual
+  noise. This is a hard rule, not a preference: if a line seems to need one,
+  the line needs rewriting. (Applies to copy. Prose in code comments and
+  commit messages is unaffected.)
 - Empty and error copy state the fact and the next action — nothing more.
 - Numbers and units are formatted consistently app-wide (doses, mg / mcg,
   dates) — define the format once and reuse it. Units render demoted

@@ -18,13 +18,19 @@ interface WeekStripProps {
   selectedKey: DateKey
   todayKey: DateKey
   statusOf: (key: DateKey) => DayStatus
+  /** Whether ANYTHING is scheduled that day, independent of past/future.
+   *  `statusOf` can't answer this — it short-circuits every future day to
+   *  "future", so a future rest day and a future dose day were indistinguishable
+   *  and six of the seven visible days carried no schedule information. */
+  hasDoseOn: (key: DateKey) => boolean
   onSelect: (key: DateKey) => void
   /** Commit a week change (absolute offset) after the slide animation lands. */
   onWeekChange: (offset: number) => void
 }
 
 // Sun-first initials, indexed by Date.getDay(); the row itself runs Mon → Sun.
-const DAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"]
+/** Three-letter day names — shown beneath each date (Spec 02). */
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const MONTHS_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -99,6 +105,7 @@ export function WeekStrip({
   selectedKey,
   todayKey,
   statusOf,
+  hasDoseOn,
   onSelect,
   onWeekChange,
 }: WeekStripProps) {
@@ -229,6 +236,9 @@ export function WeekStrip({
                     const selected = key === selectedKey
                     const isToday = key === todayKey
                     const status = statusOf(key)
+                    // Dimmed a step further when nothing is scheduled — asked of
+                    // the schedule directly, so it holds for future days too.
+                    const nothingScheduled = !hasDoseOn(key)
                     return (
                       <button
                         key={key}
@@ -237,24 +247,55 @@ export function WeekStrip({
                         onClick={() => onSelect(key)}
                         aria-pressed={selected}
                         aria-label={`${date.toDateString()}, ${STATUS_LABEL[status]}`}
-                        className="flex flex-col items-center gap-1 py-1 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50"
+                        className="flex flex-col items-center outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50"
                       >
-                        <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-                          {DAY_INITIALS[date.getDay()]}
-                        </span>
+                        {/* Number over a three-letter day name, with the selected
+                            cell sitting on a soft raised block (Adrian's call,
+                            replacing the amber underline). Nothing is drawn ON the
+                            day — the selection reads as a surface, the way every
+                            other active control in the app does, and amber stays
+                            reserved for what's actually due. A day with nothing
+                            scheduled sits a step dimmer, so the week shows its own
+                            shape before you read a single number. */}
                         <span
                           className={cn(
-                            "flex h-9 w-9 items-center justify-center rounded-full font-mono text-sm transition-colors",
-                            selected
-                              ? "bg-accent-primary font-medium text-bg-base"
-                              : isToday
-                                ? "text-foreground ring-1 ring-border-strong"
-                                : "text-text-primary"
+                            "flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 transition-colors",
+                            selected && "bg-bg-input"
                           )}
                         >
-                          {date.getDate()}
+                          <span
+                            className={cn(
+                              "font-mono text-sm transition-colors",
+                              selected
+                                ? "font-medium text-foreground"
+                                : nothingScheduled
+                                  ? "text-text-subtle"
+                                  : "text-text-muted",
+                              isToday && !selected && "text-foreground"
+                            )}
+                          >
+                            {date.getDate()}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-[10px] uppercase tracking-wide transition-colors",
+                              selected
+                                ? "text-foreground"
+                                : nothingScheduled
+                                  ? "text-text-subtle/70"
+                                  : "text-text-subtle"
+                            )}
+                          >
+                            {DAY_SHORT[date.getDay()]}
+                          </span>
+                          {/* The status dot is the cell's THIRD LINE, inside the
+                              block. Outside it read as something that had fallen
+                              off the bottom; in here it belongs to the day it
+                              describes and rides the raised surface with it.
+                              Always rendered — a blank day reserves the same
+                              space, so the row never shifts as statuses change. */}
+                          <StatusDot status={status} />
                         </span>
-                        <StatusDot status={status} />
                       </button>
                     )
                   })}

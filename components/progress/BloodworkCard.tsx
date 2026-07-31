@@ -15,13 +15,53 @@ export function BloodworkCard({
   photos,
   onOpen,
   onViewLatest,
+  compact = false,
 }: {
   photos: BloodworkPhoto[];
   /** Open the bloodwork page (gallery of all panels). */
   onOpen: () => void;
   /** Grow the latest photo full-screen. */
   onViewLatest: () => void;
+  /** Progress's two-up grid (spec 08 · part two). */
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={photos.length === 0 ? onOpen : onViewLatest}
+        aria-label={photos.length === 0 ? "Attach bloodwork" : "View latest bloodwork"}
+        className="flex flex-col rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+      >
+        <span className={`block ${CARD_EYEBROW}`}>Bloods</span>
+        {photos.length === 0 ? (
+          // A DASHED placeholder rather than a line of text (spec), so the empty
+          // state reads as a slot waiting for a photo and matches the attach
+          // treatment the sheet already uses.
+          <span className="mt-3 flex flex-1 items-center justify-center rounded-xl border border-dashed border-border-strong px-3 py-6 text-center text-xs text-text-muted">
+            Attach a screenshot
+          </span>
+        ) : (
+          <>
+            <span className="mt-3 block flex-1 overflow-hidden rounded-xl bg-bg-surface-raised">
+              {photos[0].url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={photos[0].url}
+                  alt=""
+                  className="h-full min-h-24 w-full object-cover object-top"
+                />
+              )}
+            </span>
+            <span className="mt-2 block font-mono text-xs text-text-muted">
+              {formatBloodworkDate(photos[0].date)}
+            </span>
+          </>
+        )}
+      </button>
+    );
+  }
+
   if (photos.length === 0) {
     return (
       <button

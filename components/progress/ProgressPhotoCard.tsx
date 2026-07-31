@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { CaretRight } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ import { formatWeight, type WeightUnit } from "@/lib/weight";
 
 /**
  * Progress photos card on the Progress scroll (Spec 09 addendum). The latest
- * session shown big — Front relaxed first — as a swipeable carousel. Swipe to the
+ * session shown big, in catalogue order (Front first), as a swipeable carousel. Swipe to the
  * other poses; tap a photo to preview it; tap the header to open the gallery
  * (where you add / edit). Each photo carries the weight logged that day.
  */
@@ -25,6 +25,7 @@ export function ProgressPhotoCard({
   onOpen,
   onView,
   compact = false,
+  footer,
 }: {
   photos: ProgressPhoto[];
   unit: WeightUnit;
@@ -32,6 +33,13 @@ export function ProgressPhotoCard({
   onView: (photo: ProgressPhoto) => void;
   /** Home glance: render the photo shorter so the card doesn't dominate. */
   compact?: boolean;
+  /**
+   * Rendered inside the card below the caption — the "Running" list on Progress
+   * (spec 08 · part two). Passed in rather than resolved here so the card stays
+   * a photo card: it knows nothing about the protocol, and the list can render
+   * null on a day with nothing running without this card knowing that either.
+   */
+  footer?: ReactNode;
 }) {
   const day = latestDay(photos);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -72,10 +80,10 @@ export function ProgressPhotoCard({
         className="flex w-full items-center gap-3.5 px-5 pt-5 pb-3.5 text-left transition-colors hover:bg-bg-surface-raised/30"
       >
         <span className="min-w-0 flex-1">
+          {/* No count line (Adrian, 2026-07-30). "14 photos" is a fact about
+              the database, not about the user: the photo is right below it, the
+              date is under that, and the number told them nothing they wanted. */}
           <span className={`block ${CARD_EYEBROW}`}>Progress photos</span>
-          <span className="mt-1 block text-xs text-text-muted">
-            {photos.length} {photos.length === 1 ? "photo" : "photos"}
-          </span>
         </span>
         <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
       </button>
@@ -142,6 +150,8 @@ export function ProgressPhotoCard({
           </div>
         )}
       </div>
+
+      {footer}
     </div>
   );
 }

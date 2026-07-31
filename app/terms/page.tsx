@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { LegalDocument } from "@/components/legal/legal-document";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Trackd Co",
+  title: "Terms of Service · Trackd Co",
 };
 
 // Public, user-identical page — statically render + revalidate on a schedule (ISR).

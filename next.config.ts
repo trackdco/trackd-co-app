@@ -1,6 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // DEV ONLY, and ignored entirely by `next build` / `next start`. Next blocks
+  // cross-origin requests to dev assets unless the requesting host is listed
+  // here, which otherwise makes previewing on a real phone impossible: you run
+  // `next dev -H 0.0.0.0` and open the Mac's LAN address, and every HMR and
+  // dev-asset request is refused. This is a phone-first PWA, so looking at it on
+  // an actual phone is not an optional nicety.
+  //
+  // Scoped to the RFC 1918 private ranges, not a wildcard: the patterns match
+  // segment by segment, so `192.168.*.*` covers a home network without also
+  // allowing any public host. It grants nothing in production, and in dev only
+  // to machines already on the same LAN as the running dev server.
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.16.*.*", "*.local"],
+
   // Compress text/JSON responses (gzip/brotli). On Vercel this is handled at the
   // edge — verified live: HTML/RSC + JS chunks serve `content-encoding: br`
   // (~75–80% smaller), Supabase's Data API serves gzip JSON, and tiny/already-

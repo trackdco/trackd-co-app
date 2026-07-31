@@ -21,7 +21,9 @@ const GREETING: Record<Period, string> = {
 }
 
 /**
- * The home greeting under the week strip. The part-of-day word is read from the
+ * The home greeting. Lives INSIDE the Today's Log card (Spec 02), so it
+ * carries no padding of its own — the card's own p-5 aligns it with the eyebrow
+ * and every row beneath it. The part-of-day word is read from the
  * DEVICE clock, so it must not render on the server (which runs in UTC and would
  * mismatch the client on hydration): we show a neutral "Hello" until mounted, then
  * settle on the time-based greeting, and keep it current on focus/visibility + a
@@ -58,7 +60,7 @@ export function HomeGreeting({ firstName }: { firstName: string | null }) {
   const greeting = mounted ? GREETING[period] : "Hello"
 
   return (
-    <section className="px-1">
+    <section>
       <h2 className={PAGE_TITLE}>
         {greeting}
         {name ? `, ${name}` : ""}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "@/components/icons";
@@ -15,12 +15,13 @@ import {
   resolveDayStatus,
   type CalendarPhoto,
   type DayInfo,
-  type LoggedCompound,
+  buildRunning,
   type MonthCell,
 } from "@/lib/calendar/calendar";
 import {
   getStackSnapshot,
   isDueOnFor,
+  resolveScheduleOn,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack";
@@ -32,13 +33,20 @@ import {
 import {
   seedStack,
   dateKeyToDate,
+  toDateKey,
   type DateKey,
-  type DoseLog,
 } from "@/lib/home/mockHomeData";
 import { requestProgressAction } from "@/lib/progress/progressAction";
+import {
+  cycleBandsForDays,
+  cycleKeyRows,
+  describeCycleEnd,
+} from "@/lib/calendar/cycleBands";
+import { cycleColourVar, formatCyclePattern } from "@/lib/protocol/cycleRule";
+import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets";
 import { LogDoseSheet } from "@/components/home/LogDoseSheet";
 import { setSelectedDay } from "@/lib/home/selectedDay";
-import { logDose, unlogDose } from "@/lib/home/doseLog";
+import { commitDoseOn, unlogDose } from "@/lib/home/doseLog";
 import type { EntryMarker } from "@/lib/progress/journal";
 import { unitForPreference } from "@/lib/weight";
 import type { BodySex } from "@/lib/db/types";
@@ -71,28 +79,6 @@ interface CalendarScreenProps {
   sampleLogs?: DayLogs;
 }
 
-/** Resolve the logged compounds for a day (pure — safe for memo + render). */
-function buildRunning(
-  day: Record<string, DoseLog> | undefined,
-  stackById: Map<string, StackCompound>,
-): LoggedCompound[] {
-  if (!day) return [];
-  return Object.entries(day)
-    .map(([compoundId, log]) => {
-      const c = stackById.get(compoundId);
-      return {
-        id: compoundId,
-        name: c?.name ?? "Logged dose",
-        category: c?.category ?? "",
-        amount: log.amount,
-        unit: c?.unit ?? "",
-        time24: log.time24,
-        siteId: log.siteId,
-      };
-    })
-    .sort((a, b) => a.time24.localeCompare(b.time24));
-}
-
 /**
  * The Calendar screen — the date-first "look back" (Milligram-style). A month
  * grid of adherence rings: filled disc (logged: a dose, journal, or weight + a
@@ -112,7 +98,7 @@ export function CalendarScreen({
   journalByDate,
   photosByDate,
   userId,
-  todayKey,
+  todayKey: serverTodayKey,
   unitPreference,
   bodySex,
   sampleStack,
@@ -123,15 +109,68 @@ export function CalendarScreen({
   const unit = unitForPreference(unitPreference);
   const deviceReady = sampleStack || sampleLogs ? true : mounted;
 
+  // `serverTodayKey` is the SERVER's date. Vercel runs UTC, so for an AU user it
+  // is the previous day for ten hours of every day — the grid highlighted the
+  // wrong cell, "today" was a day behind, and every future/past judgement below
+  // (`key > todayKey`) shifted with it. Home already corrects this to the device
+  // clock and keeps ticking so an open page rolls over at LOCAL midnight; the
+  // calendar, a screen whose entire subject is which day it is, did not.
+  const [todayKey, setTodayKey] = useState<DateKey>(serverTodayKey);
+
   const [view, setView] = useState(() => {
-    const d = dateKeyToDate(todayKey);
+    const d = dateKeyToDate(serverTodayKey);
     return { year: d.getFullYear(), month0: d.getMonth() };
   });
-  const [selectedKey, setSelectedKey] = useState<DateKey>(todayKey);
+  const [selectedKey, setSelectedKey] = useState<DateKey>(serverTodayKey);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   // The compound being logged from the calendar, if any.
   const [logTarget, setLogTarget] = useState<StackCompound | null>(null);
+  /** A day a committed dose moved to, applied once the sheet is out of the way. */
+  const [pendingDay, setPendingDay] = useState<DateKey | null>(null);
+
+  // Correct "today" to the DEVICE clock, then keep it correct: on focus, on
+  // becoming visible again, and once a minute so a page left open overnight rolls
+  // over at local midnight. Same rule as Home — if the user is parked on today we
+  // follow the rollover, and if they have navigated to another day their selection
+  // is left alone. `setState` only fires when the day actually changes.
+  const todayKeyRef = useRef(todayKey);
+  useEffect(() => {
+    todayKeyRef.current = todayKey;
+  }, [todayKey]);
+  const selectedKeyRef = useRef(selectedKey);
+  useEffect(() => {
+    selectedKeyRef.current = selectedKey;
+  }, [selectedKey]);
+  useEffect(() => {
+    function syncToday() {
+      const local = toDateKey(new Date());
+      const previous = todayKeyRef.current;
+      if (local === previous) return;
+      const d = dateKeyToDate(local);
+      // Follow the month ONLY when the user was parked on today. Testing "is
+      // the view on today's month" instead meant that rolling over on the 31st
+      // moved the grid to September while the user's selection stayed on the
+      // 4th of August — the selection scrolled off screen, and the FAB kept
+      // writing to a day the grid was no longer showing.
+      const wasOnToday = selectedKeyRef.current === previous;
+      setSelectedKey((sel) => (sel === previous ? local : sel));
+      if (wasOnToday) setView({ year: d.getFullYear(), month0: d.getMonth() });
+      setTodayKey(local);
+    }
+    syncToday();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") syncToday();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", syncToday);
+    const id = window.setInterval(syncToday, 60_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", syncToday);
+      window.clearInterval(id);
+    };
+  }, []);
 
   const liveStack = useSyncExternalStore(
     subscribeStack,
@@ -152,6 +191,38 @@ export function CalendarScreen({
   );
   const stackById = useMemo(() => new Map(stack.map((c) => [c.id, c])), [stack]);
   const activeStack = useMemo(() => stack.filter((c) => !c.archived), [stack]);
+
+  // Cycle bands behind the grid (Spec 03 · part two). Only repeating on/off
+  // cycles render; a month with none produces an empty map and the grid is
+  // byte-for-byte what it was before cycles existed.
+  const cycleBands = useMemo(
+    () => cycleBandsForDays(stack, cells.map((c) => c.key), todayKey),
+    [stack, cells, todayKey],
+  );
+  /** One row per cycle for the key below the grid, in the same stable order. */
+  const cycleKey = useMemo(() => cycleKeyRows(stack), [stack]);
+  /** The cycles covering the open day, for the day-detail sheet. End dates live
+   *  there rather than on the grid, which would clutter every on-day. */
+  const cyclesOnSelected = useMemo(
+    () =>
+      (cycleBands.get(selectedKey) ?? []).flatMap((seg) => {
+        const compound = stackById.get(seg.compoundId);
+        if (!compound) return [];
+        // The cycle in force ON THAT DAY, not the compound's current one — the
+        // grid resolves per day, so reading `compound.cycle` here would describe
+        // a past band with a rule the user only adopted later.
+        const cycle = resolveScheduleOn(compound, selectedKey).cycle;
+        if (!cycle) return [];
+        return [{
+          compoundId: seg.compoundId,
+          compoundName: seg.compoundName,
+          colour: seg.colour,
+          pattern: formatCyclePattern(cycle.pattern),
+          end: describeCycleEnd(cycle),
+        }];
+      }),
+    [cycleBands, selectedKey, stackById],
+  );
 
   // Per-day ring state + icon for the grid.
   function infoFor(key: DateKey): DayInfo {
@@ -261,8 +332,32 @@ export function CalendarScreen({
           onSelect={handleSelect}
           onToday={goToday}
           onOpenLegend={() => setLegendOpen(true)}
+          cycleBands={cycleBands}
         />
       </div>
+
+      {/* The cycle key — one row per drawn cycle. Omitted entirely when nothing
+          is cycled, so a user without cycles sees the calendar unchanged. */}
+      {cycleKey.length > 0 && (
+        <section className="mt-5 rounded-2xl bg-bg-surface px-5 py-4">
+          <h2 className={CARD_EYEBROW}>Cycles</h2>
+          <ul className="mt-3 space-y-2">
+            {cycleKey.map((row) => (
+              <li key={row.compoundId} className="flex items-center gap-3">
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ background: cycleColourVar(row.colour) }}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  {row.compoundName}
+                </span>
+                <span className={DATA_MONO}>{row.summary}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <DayDetailSheet
         open={sheetOpen}
@@ -275,6 +370,7 @@ export function CalendarScreen({
         journalBody={selJournal?.body ?? null}
         hasJournalEntry={Boolean(selJournal)}
         photos={photosByDate[selectedKey] ?? []}
+        cycles={cyclesOnSelected}
         dueToLog={dueOnSelected}
         onLogDose={(c) => {
           setSheetOpen(false);
@@ -308,10 +404,28 @@ export function CalendarScreen({
         siteLastUsedDays={siteLastUsedDays}
         bodySex={bodySex}
         onOpenChange={(o) => {
-          if (!o) setLogTarget(null);
+          if (!o) {
+            setLogTarget(null);
+            if (pendingDay) {
+              const d = dateKeyToDate(pendingDay);
+              setSelectedKey(pendingDay);
+              setView({ year: d.getFullYear(), month0: d.getMonth() });
+              setPendingDay(null);
+            }
+          }
         }}
-        onTracked={(compoundId, log) => logDose(userId, selectedKey, compoundId, log)}
-        onRemove={(compoundId) => unlogDose(userId, selectedKey, compoundId)}
+        onTracked={(compoundId, log, landsOn, openedOn) => {
+          // ONE shared implementation with Home and quick-track — three copies
+          // of this had already drifted, and the drift silently dropped the day
+          // the user had just edited.
+          commitDoseOn(userId, compoundId, log, landsOn, openedOn)
+          // Deferred until the sheet closes, so following the dose cannot
+          // remount the sheet and wipe what is in it.
+          if (landsOn !== openedOn) setPendingDay(landsOn as DateKey)
+        }}
+        hasLogOn={(day) => Boolean(logs[day]?.[logTarget?.id ?? ""])}
+        /* The day the SHEET is showing, not the live selection — see Home. */
+        onRemove={(compoundId, day) => unlogDose(userId, day, compoundId)}
       />
 
       <LegendSheet open={legendOpen} onOpenChange={setLegendOpen} />

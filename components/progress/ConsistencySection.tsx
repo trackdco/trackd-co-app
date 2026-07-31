@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 
+import { useDeviceToday } from "@/components/home/useDeviceToday";
+
 import { useMounted } from "@/components/home/useMounted";
 import { ConsistencyGraph } from "@/components/progress/ConsistencyGraph";
 import { computeAdherence, type AdherencePoint } from "@/lib/progress/consistency";
@@ -24,12 +26,15 @@ const EMPTY_LOGS: DayLogs = {};
  */
 export function ConsistencySection({
   userId,
-  todayKey,
+  todayKey: serverTodayKey,
   sample,
+  compact = false,
 }: {
   userId: string;
   todayKey: DateKey;
   sample?: AdherencePoint[];
+  /** Progress's two-up grid (spec 08 · part two). */
+  compact?: boolean;
 }) {
   const mounted = useMounted();
   const stack = useSyncExternalStore(
@@ -43,6 +48,11 @@ export function ConsistencySection({
     () => EMPTY_LOGS,
   );
 
+  // The DEVICE's today. The page is a server component, so its date is UTC:
+  // a day ahead adds a phantom future due-day and reads as a miss, a day behind
+  // drops today's logged doses out of the window. The calendar was corrected for
+  // exactly this; the consistency widget had been left on the server's clock.
+  const todayKey = useDeviceToday(serverTodayKey);
   const points = sample ?? (mounted ? computeAdherence(stack, logs, todayKey) : []);
-  return <ConsistencyGraph points={points} />;
+  return <ConsistencyGraph points={points} compact={compact} />;
 }

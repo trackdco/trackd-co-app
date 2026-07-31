@@ -54,6 +54,13 @@ export interface DoseLog {
    * while its meaning changed by a factor of a thousand.
    */
   unit?: string
+  /**
+   * The user's own words about this dose — "shoulder felt tight", "took it
+   * late". Optional, and never interpreted: it is a note, not a field the app
+   * reasons about. Stored in `dose_logs.note`, which has existed since v0.4.2
+   * and had never been written to.
+   */
+  note?: string
   /** Injection site id (injectables only); null for orals. */
   siteId: string | null
   /** Time the dose was taken, 24h "HH:MM", or "" when the user left it unset. */
@@ -107,4 +114,27 @@ export function combineLocalDateTime(key: DateKey, time24: string): string {
   const hh = valid ? ph : 12
   const mm = valid ? pm : 0
   return new Date(y, (m ?? 1) - 1, d ?? 1, hh, mm).toISOString()
+}
+
+/**
+ * Cap a note without splitting a character in half.
+ *
+ * `slice` counts UTF-16 code units, so cutting at the limit through an emoji
+ * leaves a LONE SURROGATE. `JSON.stringify` emits it as `"\ud83d"`, and Postgres
+ * rejects an unpaired surrogate in a JSON body — which failed the whole
+ * `dose_logs` write, so the dose logged on the device and never synced.
+ *
+ * Lives here, with `DoseLog` itself, because the sheet and the sync layer both
+ * need it and two copies of one rule is how rules drift.
+ */
+export function capNote(note: string, max: number): string {
+  if (note.length <= max) return note
+  const kept: string[] = []
+  let n = 0
+  for (const ch of note) {
+    if (n + ch.length > max) break
+    kept.push(ch)
+    n += ch.length
+  }
+  return kept.join("")
 }

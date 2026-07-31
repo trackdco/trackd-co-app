@@ -17,13 +17,75 @@ function bodyFirstLine(body: string | null): string | null {
 export function JournalCard({
   entries,
   onOpen,
+  compact = false,
 }: {
   entries: JournalEntry[];
   onOpen: () => void;
+  /**
+   * Progress's two-up grid (spec 08 · part two). The spec dropped the marker
+   * chips at this size and invited us to say if that read too thin. It did
+   * (Adrian, 2026-07-30), so they are back — as compact word-only chips rather
+   * than the full "name value" pairs, which is what actually did not fit. The
+   * marker WORD is the part worth glancing at; the marker's name is already
+   * implied by the word ("Sleep · Good" reads fine as just "Good" in context,
+   * and the full pairing is one tap away inside the journal).
+   */
+  compact?: boolean;
 }) {
   const latest = entries[0] ?? null;
   const line = latest ? bodyFirstLine(latest.body) : null;
   const latestPhotoUrl = latest?.attachments.find((a) => a.url)?.url ?? null;
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label="Open journal"
+        className="flex flex-col rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+      >
+        <span className={`block ${CARD_EYEBROW}`}>Journal</span>
+        {latest ? (
+          <span className="mt-3 flex flex-1 flex-col">
+            <span className="block text-sm text-foreground">
+              {formatJournalDate(latest.date)}
+            </span>
+            {line ? (
+              <span className="mt-1 line-clamp-2 text-xs leading-relaxed text-text-muted">
+                {line}
+              </span>
+            ) : null}
+            {latest.markers.length > 0 ? (
+              <span className="mt-2 flex flex-wrap gap-1">
+                {latest.markers.slice(0, 4).map((m) => (
+                  <span
+                    key={m.markerId}
+                    className="rounded-full bg-bg-input px-1.5 py-0.5 text-[10px] text-foreground"
+                  >
+                    {m.word}
+                  </span>
+                ))}
+                {latest.markers.length > 4 ? (
+                  <span className="self-center text-[10px] text-text-subtle">
+                    +{latest.markers.length - 4}
+                  </span>
+                ) : null}
+              </span>
+            ) : null}
+            {/* Entry count fills the card's foot with something true rather than
+                whitespace, and is the one number a journal glance wants. */}
+            <span className="mt-auto pt-2 text-[11px] text-text-subtle">
+              {entries.length} {entries.length === 1 ? "entry" : "entries"}
+            </span>
+          </span>
+        ) : (
+          <span className="mt-3 flex-1 text-sm text-text-muted">
+            Write a note or log how you feel
+          </span>
+        )}
+      </button>
+    );
+  }
 
   return (
     <button

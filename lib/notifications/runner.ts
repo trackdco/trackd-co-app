@@ -19,10 +19,12 @@ import {
   doseReminderMessage,
   missedNudgeMessage,
   lowStockMessage,
+  PC_REMINDER_SELECT,
   type ReminderCompound,
   type LowStockItem,
   type PushMessage,
 } from "@/lib/notifications/reminders";
+import { cycleRuleFromColumns, type CycleColumns } from "@/lib/protocol/cycleRule";
 
 const VAPID_PUBLIC =
   process.env.VAPID_PUBLIC_KEY ?? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
@@ -31,6 +33,7 @@ const VAPID_SUBJECT = process.env.VAPID_SUBJECT ?? "mailto:notifications@trackdc
 
 /** Founders are AU; a user with no stored timezone falls back to this. */
 const DEFAULT_TZ = "Australia/Sydney";
+
 
 type Client = SupabaseClient;
 
@@ -121,9 +124,10 @@ async function collectUserData(
   const [pcRes, logRes, invRes] = await Promise.all([
     supabase
       .from("protocol_compounds")
-      .select(
-        "id, schedule_type, days_of_week, interval_days, first_dose_on, end_date, compounds(name)",
-      )
+      // The `cycle_*` columns ride along because an off-cycle day is NOT due
+      // (`supabase/protocol/006`). Without them this runner cannot know a cycle
+      // exists and announces doses the app itself is correctly hiding.
+      .select(PC_REMINDER_SELECT)
       .eq("user_id", userId)
       .eq("is_active", true),
     supabase
@@ -151,6 +155,9 @@ async function collectUserData(
       interval_days: (r.interval_days as number | null) ?? null,
       first_dose_on: r.first_dose_on as string,
       end_date: (r.end_date as string | null) ?? null,
+      // Resolved with the SAME mapper the client uses, so the two cannot read
+      // the same seven columns differently.
+      cycle: cycleRuleFromColumns(r as Partial<CycleColumns>),
     };
   });
 
@@ -171,7 +178,9 @@ async function collectUserData(
   if (ids.length > 0) {
     const { data: math } = await supabase
       .from("v_inventory_math")
-      .select("inventory_item_id, est_empty_date, doses_remaining")
+      // `days_to_empty` is the timezone-free count (`supabase/protocol/010`) the
+      // Protocol card reads; `est_empty_date` stays only as the fallback.
+      .select("inventory_item_id, est_empty_date, days_to_empty, doses_remaining")
       .in("inventory_item_id", ids);
     for (const m of math ?? []) {
       mathById.set((m as Record<string, unknown>).inventory_item_id as string, m as Record<string, unknown>);
@@ -183,6 +192,7 @@ async function collectUserData(
     return {
       name: pc?.compounds?.name ?? "a vial",
       estEmptyDate: (m.est_empty_date as string | null) ?? null,
+      daysToEmpty: m.days_to_empty == null ? null : Number(m.days_to_empty),
       dosesRemaining: m.doses_remaining == null ? null : Number(m.doses_remaining),
     };
   });

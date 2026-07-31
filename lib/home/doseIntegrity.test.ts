@@ -34,6 +34,7 @@ import {
   getSelectedDayOrToday,
   setSelectedDay,
 } from "@/lib/home/selectedDay"
+import { isTombstoned, tombstoneId } from "@/lib/home/doseLog"
 import type { DayLogs } from "@/lib/home/doseLog"
 
 /* ------------------------------------------------------------------ fixtures */
@@ -459,9 +460,194 @@ describe("deleting a compound records a stop (Spec 02)", () => {
     })).stopped).toBeUndefined()
   })
 
+  it("a BACK-DATED re-add drops the stop, instead of killing the compound forever", () => {
+    // The reported shape, and it was silent: delete a compound (a stop is written
+    // at the delete date), then re-add it and back-date the start — which the form
+    // explicitly invites, so you can log the doses you already took. The stop was
+    // still the LATEST version, so `resolveScheduleOn` kept choosing it: the
+    // compound saved, the sheet closed, it looked added, and it was never due
+    // again on any day, forever.
+    const stopped = { ...ran, scheduleHistory: recordScheduleStop(ran, "2026-06-01") }
+    const readded: StackCompound = {
+      ...stopped,
+      schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-03-30" }),
+      scheduleHistory: recordScheduleVersion(
+        stopped,
+        { cadence: { type: "daily" }, timeOfDay: "09:00", dose: 250, unit: "mg" },
+        "2026-03-30",
+      ),
+    }
+    expect(readded.scheduleHistory?.some((v) => v.stopped)).toBe(false)
+    expect(isDueOnFor(readded, dateKeyToDate("2026-04-10"))).toBe(true)
+    expect(isDueOnFor(readded, dateKeyToDate("2026-06-02"))).toBe(true)
+    expect(isDueOnFor(readded, dateKeyToDate("2027-01-01"))).toBe(true)
+  })
+
+  it("a re-add does NOT erase a stop that predates its own start date", () => {
+    // That stop describes the gap between the old run and this one, which is a
+    // true fact about days the compound was not being taken.
+    const stopped = { ...ran, scheduleHistory: recordScheduleStop(ran, "2026-03-01") }
+    const readded: StackCompound = {
+      ...stopped,
+      schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-06-01" }),
+      scheduleHistory: recordScheduleVersion(
+        stopped,
+        { cadence: { type: "daily" }, timeOfDay: "09:00", dose: 250, unit: "mg" },
+        "2026-06-01",
+      ),
+    }
+    expect(isDueOnFor(readded, dateKeyToDate("2026-02-10"))).toBe(true)
+    expect(isDueOnFor(readded, dateKeyToDate("2026-04-10"))).toBe(false)
+    expect(isDueOnFor(readded, dateKeyToDate("2026-06-10"))).toBe(true)
+  })
+
+  it("a LATER version never survives to govern the compound behind the card's back", () => {
+    // The critical this replaced. "Effective from D" means this is the rule from
+    // D forward, but a version already recorded AFTER D used to survive and take
+    // over on its own date, forever, while every card kept showing the new rule.
+    // Two taps reached it: add a compound starting next week, delete it today
+    // (the stop clamps to today, so the future-dated baseline sorts after it),
+    // then re-add it.
+    const future = compound({
+      schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-08-10" }),
+      dose: 100,
+    })
+    const stopped = {
+      ...future,
+      scheduleHistory: recordScheduleStop(future, "2026-07-31"),
+    }
+    const readded = recordScheduleVersion(
+      stopped,
+      { cadence: { type: "everyOtherDay" }, timeOfDay: "09:00", dose: 250, unit: "mg" },
+      "2026-07-31",
+    )
+    expect(readded).toHaveLength(1)
+    expect(resolveScheduleOn({ ...stopped, scheduleHistory: readded }, "2026-08-20").dose).toBe(250)
+    expect(resolveScheduleOn({ ...stopped, scheduleHistory: readded }, "2026-08-20").stopped).toBe(false)
+  })
+
+  it("an edit made while parked on a FUTURE day does not leave the past governed by the old rule", () => {
+    // The same root cause by the other route: the week strip allows selecting a
+    // future day, and an edit there wrote a version dated then. The card showed
+    // the new dose; today still resolved to the old one.
+    const ran = compound({
+      schedule: schedule({ cadence: { type: "daily" }, startDate: "2026-06-01" }),
+      dose: 100,
+    })
+    const edited = recordScheduleVersion(
+      ran,
+      { cadence: { type: "everyOtherDay" }, timeOfDay: "09:00", dose: 300, unit: "mg" },
+      "2026-08-09",
+    )
+    // Then they change their mind and edit again, today.
+    const again = recordScheduleVersion(
+      { ...ran, scheduleHistory: edited },
+      { cadence: { type: "daily" }, timeOfDay: "09:00", dose: 200, unit: "mg" },
+      "2026-07-31",
+    )
+    expect(again.some((v) => v.effectiveFrom === "2026-08-09")).toBe(false)
+    expect(resolveScheduleOn({ ...ran, scheduleHistory: again }, "2026-08-20").dose).toBe(200)
+  })
+
   it("costs nothing for a compound that was never deleted", () => {
     // No history ⇒ unchanged behaviour, the guarantee the whole feature rests on.
     expect(isDueOnFor(ran, dateKeyToDate("2026-02-10"))).toBe(true)
     expect(resolveScheduleOn(ran, "2026-02-10").stopped).toBe(false)
+  })
+})
+
+describe("Spec 02 · the Next Dose card resolves through the shared helper", () => {
+  it("carries the compound and the dose AS IT WAS on the day", () => {
+    const c = compound({ schedule: schedule({ timeOfDay: "08:00" }) })
+    const next = computeNextDose([c], {}, "2026-01-05", dateKeyToDate("2026-01-05"))
+    // Home draws the container from `compound`, so it must come back with it —
+    // a local re-implementation of the ordering got the untimed case wrong.
+    expect(next?.compound.id).toBe(c.id)
+    expect(next?.dose).toBe(c.dose)
+    expect(next?.unit).toBe(c.unit)
+  })
+
+  it("still sorts an untimed compound LAST when it carries the compound", () => {
+    const timed = compound({ id: "timed", name: "Test E", schedule: schedule({ timeOfDay: "08:00" }) })
+    const untimed = compound({ id: "untimed", name: "Anastrozole", schedule: schedule({ timeOfDay: "" }) })
+    const next = computeNextDose([untimed, timed], {}, "2026-01-05", dateKeyToDate("2026-01-05"))
+    // "" string-compares below every real time, so a naive sort puts the untimed
+    // compound first and it sits in the card permanently, hiding real doses.
+    expect(next?.name).toBe("Test E")
+    expect(next?.compound.id).toBe("timed")
+  })
+})
+
+describe("schedule day-counting is DST-safe (proven bug, Europe/London)", () => {
+  it("does not collapse or skip a day across a UTC+0 DST transition", () => {
+    // 2026-03-29 and 2026-03-30 previously shared one day number in London, and
+    // 25 -> 26 October skipped one. An every-other-day protocol therefore showed
+    // a 3-day gap in March, two consecutive due days in October, and its phase
+    // inverted permanently after each transition.
+    const c = compound({
+      schedule: schedule({ cadence: { type: "everyOtherDay" }, startDate: "2026-03-02" }),
+    })
+    const due = (k: string) => isDueOnFor(c, dateKeyToDate(k))
+    // Strict alternation across the March boundary.
+    expect([
+      due("2026-03-26"), due("2026-03-27"), due("2026-03-28"),
+      due("2026-03-29"), due("2026-03-30"), due("2026-03-31"),
+    ]).toEqual([true, false, true, false, true, false])
+    // And across the October one.
+    expect([
+      due("2026-10-24"), due("2026-10-25"), due("2026-10-26"), due("2026-10-27"),
+    ]).toEqual([true, false, true, false])
+  })
+
+  it("is never due the day BEFORE its own start date", () => {
+    const c = compound({ schedule: schedule({ startDate: "2026-03-30" }) })
+    expect(isDueOnFor(c, dateKeyToDate("2026-03-29"))).toBe(false)
+    expect(isDueOnFor(c, dateKeyToDate("2026-03-30"))).toBe(true)
+  })
+})
+
+describe("the granular injection site survives a Postgres round-trip", () => {
+  it("keeps a local siteId the coarse enum cannot represent", () => {
+    // `dose_logs.injection_site` is a 13-value enum; 22 of the 36 pickable sites
+    // collapse to `other` and read back as null. The verbatim siteId lives in the
+    // device store, so it must win where the pulled row has none.
+    const pulled: DoseLog = { amount: "250", unit: "mg", siteId: null, time24: "09:00" }
+    const local: DoseLog = { amount: "250", unit: "mg", siteId: "im-trap-l", time24: "09:00" }
+    // The merge rule, extracted: Postgres wins the dose, local wins a site it alone has.
+    const merged =
+      pulled.siteId == null && local.siteId != null
+        ? { ...pulled, siteId: local.siteId }
+        : pulled
+    expect(merged.siteId).toBe("im-trap-l")
+    // And the dose itself still comes from the pulled row.
+    expect(merged.amount).toBe("250")
+  })
+
+  it("does not let a local site overwrite one Postgres actually knows", () => {
+    const pulled: DoseLog = { amount: "250", siteId: "im-vglute-r", time24: "09:00" }
+    const local: DoseLog = { amount: "250", siteId: "im-delt-l", time24: "09:00" }
+    const merged =
+      (pulled.siteId as string | null) == null && local.siteId != null
+        ? { ...pulled, siteId: local.siteId }
+        : pulled
+    expect(merged.siteId).toBe("im-vglute-r")
+  })
+})
+
+describe("un-log tombstones survive a pull (offline un-log resurrection)", () => {
+  it("suppresses a pulled dose the user un-logged, then stops once cleared", () => {
+    const t = { [tombstoneId("2026-07-20", "c1")]: Date.now() }
+    // The pull still carries the row, because the delete never reached Postgres.
+    expect(isTombstoned(t, "2026-07-20", "c1")).toBe(true)
+    // A different day or compound is untouched.
+    expect(isTombstoned(t, "2026-07-21", "c1")).toBe(false)
+    expect(isTombstoned(t, "2026-07-20", "c2")).toBe(false)
+    // Once the delete confirms, the tombstone goes and the dose could return.
+    expect(isTombstoned({}, "2026-07-20", "c1")).toBe(false)
+  })
+
+  it("keys on the day AND the compound, so one un-log can't hide another dose", () => {
+    expect(tombstoneId("2026-07-20", "c1")).toBe("2026-07-20|c1")
+    expect(tombstoneId("2026-07-20", "c1")).not.toBe(tombstoneId("2026-07-20", "c2"))
   })
 })

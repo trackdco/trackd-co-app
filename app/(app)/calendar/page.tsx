@@ -15,7 +15,7 @@ import {
 import type { CalendarPhoto } from "@/lib/calendar/calendar";
 import { bodySexFor } from "@/lib/db/types";
 
-export const metadata: Metadata = { title: "Calendar — Trackd Co" };
+export const metadata: Metadata = { title: "Calendar · Trackd Co" };
 
 const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every page load
 

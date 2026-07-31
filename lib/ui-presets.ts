@@ -40,6 +40,15 @@ export const CARD_EYEBROW =
 export const METRIC_LABEL =
   "text-[10px] font-sans uppercase tracking-[0.2em] text-text-subtle"
 
+/** Eyebrow for a NARROW column — a third-width card in a row of three, where the
+ *  10px eyebrow's 0.18em tracking pushes a single long word ("CONCENTRATION",
+ *  ~109px) past the column and there is no space to wrap on. Same uppercase
+ *  eyebrow identity, one notch down in size and tracking so it fits. Use it only
+ *  where the column is genuinely too narrow for CARD_EYEBROW; a full-width card
+ *  title is always CARD_EYEBROW. */
+export const COLUMN_EYEBROW =
+  "text-[9px] font-sans uppercase tracking-[0.12em] text-text-muted"
+
 /** The big number on metric / glance cards — the display layer. Light-weight
  *  mono, tightly tracked, tabular. Units/suffixes demote inline via UNIT_SUFFIX
  *  (e.g. 92▸%, 8:00▸pm) — never at value size. */
@@ -54,3 +63,13 @@ export const UNIT_SUFFIX = "text-sm text-text-muted"
  *  `tracking-[0.08em]`: tracked-out mono at small sizes is the instrument-panel
  *  detail; default spacing reads generic. */
 export const DATA_MONO = "font-mono text-xs tabular-nums text-text-muted"
+
+/** A row inside the Profile danger zone (spec 09 · part two) — Sign out, Clear
+ *  all compounds, Delete my account. Red LABEL on an unfilled row; the boundary
+ *  is the section's own outline, so the rows themselves stay quiet. A preset
+ *  rather than three copies, because three copies of a destructive treatment is
+ *  how one of them quietly stops matching the others. Never use it outside a
+ *  bounded destructive section: `--accent-destructive` is scoped to deliberate
+ *  destructive actions, not a general accent. */
+export const DANGER_ROW =
+  "flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-accent-destructive outline-none transition-colors hover:bg-accent-destructive/10 active:bg-accent-destructive/10 focus-visible:bg-accent-destructive/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"

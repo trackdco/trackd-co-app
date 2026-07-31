@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ForgotPasswordForm } from "@/app/forgot-password/forgot-password-form";
 
 export const metadata: Metadata = {
-  title: "Reset your password — Trackd Co",
+  title: "Reset your password · Trackd Co",
 };
 
 /**

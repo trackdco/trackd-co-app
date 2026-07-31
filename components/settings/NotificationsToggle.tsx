@@ -83,9 +83,8 @@ export function NotificationsToggle({
 
       {status === "denied" && (
         <p className="mt-3 text-sm leading-relaxed text-text-muted">
-          Notifications are blocked. To turn them on, allow notifications for
-          Trackd in your browser or phone settings. We can&apos;t ask again from
-          here.
+          Notifications are blocked. Allow them for Trackd in your browser or
+          phone settings.
         </p>
       )}
 

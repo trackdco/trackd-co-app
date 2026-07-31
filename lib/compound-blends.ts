@@ -150,7 +150,7 @@ export function describeBlendOverlap(
   const word = names.length > 1 ? "stacks" : "stack"
   return `${adding.label} overlaps with your ${list(
     names
-  )} ${word} — both include ${list(shared)}. Only add ${adding.label} if you want to track ${
+  )} ${word}. Both include ${list(shared)}. Only add ${adding.label} if you want to track ${
     shared.length > 1 ? "those" : "it"
   } from each.`
 }

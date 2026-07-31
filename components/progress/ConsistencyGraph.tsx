@@ -6,6 +6,7 @@ import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets";
 import { dateKeyToDate } from "@/lib/home/mockHomeData";
+import { todayKey } from "@/lib/protocol/cycle";
 import {
   doseDayCount,
   overallPct,
@@ -13,6 +14,8 @@ import {
 } from "@/lib/progress/consistency";
 
 const CHART_HEIGHT = 150;
+/** The same graph in a half-width square. Short, but still reads as a trend. */
+const CHART_HEIGHT_COMPACT = 64;
 
 const MONTHS_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -106,14 +109,29 @@ function ScrubTip({
  * the line holds flat at the previous day's value (a step) — the scrubber still
  * labels them "Rest day".
  */
-export function ConsistencyGraph({ points }: { points: AdherencePoint[] }) {
+export function ConsistencyGraph({
+  points,
+  compact = false,
+}: {
+  points: AdherencePoint[];
+  /**
+   * Progress's two-up grid (spec 08 · part two). Everything survives the
+   * squeeze: the percentage, the graph and the 30D / 90D / All toggle. The
+   * spec said to propose an alternative if the toggle could not fit legibly —
+   * it fits, because the labels are already short and the pill was already
+   * three equal columns.
+   */
+  compact?: boolean;
+}) {
   const [rangeId, setRangeId] = useState("30");
   const [chartRef, chartWidth] = useChartWidth();
 
   const range = RANGES.find((r) => r.id === rangeId) ?? RANGES[0];
   const windowed =
     range.days === Number.POSITIVE_INFINITY ? points : points.slice(-range.days);
-  const overall = overallPct(windowed);
+  // Today is excluded from the denominator until its doses are actually taken —
+  // a dose due at 8pm is not a missed dose at 8am.
+  const overall = overallPct(windowed, todayKey());
   const doseDays = doseDayCount(windowed);
 
   // Carry the last real adherence forward across rest days so the line stays flat
@@ -129,13 +147,15 @@ export function ConsistencyGraph({ points }: { points: AdherencePoint[] }) {
     logged: p.logged,
   }));
 
+  const chartHeight = compact ? CHART_HEIGHT_COMPACT : CHART_HEIGHT;
+
   return (
-    <section className="rounded-2xl bg-bg-surface p-5">
+    <section className={cn("flex flex-col rounded-2xl bg-bg-surface p-5")}>
       <p className={CARD_EYEBROW}>Consistency</p>
       {overall != null ? (
         <div className="mt-3 flex items-baseline gap-1.5">
           <span className={METRIC_VALUE}>{overall}</span>
-          <span className={UNIT_SUFFIX}>% adherence</span>
+          <span className={UNIT_SUFFIX}>{compact ? "%" : "% adherence"}</span>
         </div>
       ) : (
         <p className="mt-2 text-sm text-text-muted">No doses in range.</p>
@@ -143,14 +163,14 @@ export function ConsistencyGraph({ points }: { points: AdherencePoint[] }) {
 
       <div
         ref={chartRef}
-        className="mt-3 -mx-1 select-none"
-        style={{ touchAction: "pan-y", height: CHART_HEIGHT }}
+        className="mt-3 -mx-1 flex-1 select-none"
+        style={{ touchAction: "pan-y", height: chartHeight }}
       >
         {doseDays > 0 && chartWidth > 0 ? (
           <AreaChart
             key={rangeId}
             width={chartWidth}
-            height={CHART_HEIGHT}
+            height={chartHeight}
             data={data}
             margin={{ top: 6, right: 6, bottom: 0, left: 6 }}
           >
@@ -204,6 +224,12 @@ export function ConsistencyGraph({ points }: { points: AdherencePoint[] }) {
             aria-pressed={rangeId === r.id}
             className={cn(
               "rounded-full py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
+              // The pill stays 28px tall because a segmented control blown up to
+              // 44 would dominate a widget that is only 228 tall. The TOUCH area
+              // is extended instead, with a transparent pseudo-element that
+              // changes no layout: 28 + 16 = 44. This is the corner where "All"
+              // already cost a HIGH once, under the FAB.
+              "relative before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']",
               rangeId === r.id ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
             )}
           >
@@ -212,9 +238,11 @@ export function ConsistencyGraph({ points }: { points: AdherencePoint[] }) {
         ))}
       </div>
 
-      <p className="mt-3 text-xs text-text-muted">
-        How closely you&apos;re sticking to your protocol.
-      </p>
+      {!compact && (
+        <p className="mt-3 text-xs text-text-muted">
+          How closely you&apos;re sticking to your protocol.
+        </p>
+      )}
     </section>
   );
 }

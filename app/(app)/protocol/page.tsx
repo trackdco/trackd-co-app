@@ -1,33 +1,31 @@
 import type { Metadata } from "next";
 
 import { getCurrentUser } from "@/lib/auth";
-import { getActiveCycle } from "@/lib/db/cycles";
 import { ProtocolScreen } from "@/components/protocol/ProtocolScreen";
 
-export const metadata: Metadata = { title: "Protocol — Trackd Co" };
+export const metadata: Metadata = { title: "Protocol · Trackd Co" };
 
 /**
- * Protocol tab — a single screen with an in-page Plan / Stock toggle (Protocol
- * Cutover, Step 4). Reads the active cycle server-side (RLS-scoped) for the Plan
- * header; the client screen hydrates the compound list from Postgres.
- *
- * `?tab=stock` opens on Stock — the Home draw slot's "add stock" tap (Spec 21)
- * lands on the add-flow rather than on Plan. Anything else falls back to Plan, so
- * the param can't be used to reach a state the toggle can't.
+ * Protocol tab — ONE scrolling page (Spec 04): Compounds, Stacks, Schedule,
+ * Cycles. The Plan / Stock segmented control is gone, and with it the `?tab=`
+ * param, since there is no longer a tab to land on. Reads the active cycle
+ * client screen hydrates everything from the device store and Postgres, so this
+ * route reads nothing itself.
  */
 export default async function ProtocolPage({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  // `?stock=<compoundId>` — the dashboard's "add stock" tap on a dose row with no
+  // vial. Without it the tap discarded which compound it came from and dropped the
+  // user at the top of a horizontally-scrolling row to find it again.
+  const { stock } = await searchParams;
   const user = await getCurrentUser();
-  const cycle = user ? await getActiveCycle() : null;
-  const { tab } = await searchParams;
   return (
     <ProtocolScreen
       userId={user?.id ?? "anon"}
-      initialCycle={cycle}
-      initialTab={tab === "stock" ? "stock" : "plan"}
+      initialStockFor={typeof stock === "string" ? stock : null}
     />
   );
 }

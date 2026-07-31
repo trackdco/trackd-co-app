@@ -6,7 +6,7 @@ import { ResetPasswordForm } from "@/app/reset-password/reset-password-form";
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Set a new password — Trackd Co",
+  title: "Set a new password · Trackd Co",
 };
 
 /**

@@ -47,12 +47,18 @@ function sparkPoints(vals: number[]): string {
 
 interface Stat {
   last: number | null
-  deltaText: string
+  /** Null until there are TWO readings to compare. */
+  deltaText: string | null
 }
 
 function stat(vals: number[]): Stat {
   const last = vals.length ? vals[vals.length - 1] : null
-  const delta = vals.length > 1 ? vals[vals.length - 1] - vals[0] : 0
+  // A single reading has no trend. Defaulting the delta to 0 rendered a
+  // confident "+0.0 kg" on a user's first ever weigh-in, which states a
+  // measured fact ("you have not changed") that nothing measured. One reading
+  // is a value, not a change.
+  if (vals.length < 2) return { last, deltaText: null }
+  const delta = vals[vals.length - 1] - vals[0]
   return { last, deltaText: `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)}` }
 }
 
@@ -64,7 +70,20 @@ function stat(vals: number[]): Stat {
  * the full Weight view). Tapping the card opens that view; logging happens there
  * and via the + menu. Neutral presentation — no good/bad colouring.
  */
-export function WeightGlanceCard({ series, unit, onOpenDetail }: WeightGlanceCardProps) {
+export function WeightGlanceCard({
+  series,
+  unit,
+  onOpenDetail,
+  compact = false,
+}: WeightGlanceCardProps & {
+  /**
+   * Progress's two-up grid (spec 08 · part two): the same card stacked into a
+   * square instead of laid out in a row. Same data, same Trend/Scale toggle,
+   * same tap target — a second weight card would be a second thing to keep in
+   * step, and there is exactly one weight surface by design.
+   */
+  compact?: boolean
+}) {
   // Starts on the raw SCALE reading; the user can switch to the smoothed trend
   // themselves (matches the full Weight view — never auto-selects trend).
   const [mode, setMode] = useState<WeightMode>("scale")
@@ -76,6 +95,76 @@ export function WeightGlanceCard({ series, unit, onOpenDetail }: WeightGlanceCar
   const trendW = trendAll.slice(-WINDOW)
   const scaleStat = stat(scaleW)
   const trendStat = stat(trendW)
+
+  if (compact) {
+    return (
+      <div className="flex flex-col rounded-2xl bg-bg-surface p-5">
+        <p className={cn(CARD_EYEBROW, "truncate")}>Weight</p>
+        {empty ? (
+          // Tappable in the EMPTY state too. It used to be a bare paragraph, so
+          // this was the one card on Progress that named something you could do
+          // and then gave you no way to do it — the affordance only appeared
+          // once a reading existed, which is exactly backwards.
+          <button
+            type="button"
+            onClick={onOpenDetail}
+            aria-label="Log your first weight"
+            className="mt-3 flex flex-1 flex-col items-start text-left"
+          >
+            <span className="text-sm text-text-muted">No weight logged yet.</span>
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onOpenDetail}
+              aria-label="Open the weight view"
+              className="mt-3 flex flex-1 flex-col items-start text-left"
+            >
+              <span className="relative block w-full">
+                <ValueBlock active={mode === "trend"} s={trendStat} unit={unit} kind="trend" />
+                <span className="absolute inset-0">
+                  <ValueBlock active={mode === "scale"} s={scaleStat} unit={unit} kind="scale" />
+                </span>
+              </span>
+              <svg
+                viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
+                className="mt-3 h-10 w-full"
+                preserveAspectRatio="none"
+                aria-hidden
+              >
+                <SparkLine vals={scaleW} color="var(--chart-line)" active={mode === "scale"} />
+                <SparkLine vals={trendW} color="var(--chart-trend)" active={mode === "trend"} />
+              </svg>
+            </button>
+            {/* The toggle stays: it is the card's only control and the spec
+                names it explicitly. Full width here rather than railed right,
+                because a third of a square is not enough for two labels. */}
+            <div className="mt-3 grid grid-cols-2 gap-1 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]">
+              {(["trend", "scale"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  aria-pressed={mode === m}
+                  className={cn(
+                    "rounded-full py-1 font-medium transition-colors duration-300 ease-out",
+                    // Touch area extended to 44px with a transparent
+                    // pseudo-element (25 + 2x10), so the pill keeps its compact
+                    // look and stops being a 25px-tall target.
+                    "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
+                    mode === m ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
+                  )}
+                >
+                  {m === "trend" ? "Trend" : "Scale"}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-2xl bg-bg-surface">
@@ -95,6 +184,7 @@ export function WeightGlanceCard({ series, unit, onOpenDetail }: WeightGlanceCar
                 aria-pressed={mode === m}
                 className={cn(
                   "rounded-full px-2.5 py-1 font-medium transition-colors duration-300 ease-out",
+                  "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
                   mode === m ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
                 )}
               >
@@ -170,7 +260,14 @@ function ValueBlock({
         <span className={UNIT_SUFFIX}>{unit}</span>
       </span>
       <span className="mt-1 block font-mono text-sm text-text-muted">
-        {s.deltaText} {unit} <span className="font-sans">{kind}</span>
+        {s.deltaText === null ? (
+          // One reading: state what there is, claim no movement.
+          <span className="font-sans">First reading</span>
+        ) : (
+          <>
+            {s.deltaText} {unit} <span className="font-sans">{kind}</span>
+          </>
+        )}
       </span>
     </span>
   )

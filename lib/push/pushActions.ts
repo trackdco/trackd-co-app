@@ -98,7 +98,7 @@ export async function savePushSubscription(
       .update(profileUpdate)
       .eq("id", ctx.userId);
 
-    revalidatePath("/settings");
+    revalidatePath("/notifications");
     revalidatePath("/dashboard");
     return { ok: !flagError };
   } catch (e) {
@@ -130,7 +130,7 @@ export async function removePushSubscription(endpoint: string): Promise<Ok> {
       .update({ notifications_enabled: false })
       .eq("id", ctx.userId);
 
-    revalidatePath("/settings");
+    revalidatePath("/notifications");
     revalidatePath("/dashboard");
     return { ok: !flagError };
   } catch (e) {

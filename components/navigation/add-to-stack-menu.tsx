@@ -33,7 +33,10 @@ import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { newId } from "@/lib/home/id"
-import { loadStack } from "@/lib/home/stack"
+import { isRunning, loadStack, type StackCompound } from "@/lib/home/stack"
+import { loadStacks, type Stack } from "@/lib/home/stacks"
+import { paletteColourVar } from "@/lib/palette"
+import { toDateKey } from "@/lib/home/mockHomeData"
 import {
   loadRecentCompounds,
   recordRecentCompound,
@@ -50,6 +53,9 @@ interface AddToStackMenuProps {
   onOpenChange: (open: boolean) => void
   /** Scopes the user's "Make your own" compounds in local storage. */
   userId: string
+  /** Called with the compound that was just added. The stack editor uses it to
+   *  tick the new compound straight into the stack being built. */
+  onAdded?: (saved: StackCompound) => void
 }
 
 // A user-created compound, stored locally on the device for that user only.
@@ -184,7 +190,12 @@ function isCustom(c: Compound): c is CustomCompound {
  * edited or deleted (delete asks first). The grab handle is drag-to-dismiss.
  * The per-row "+" is visual for now — adding to a real stack needs the cycle feature.
  */
-export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuProps) {
+export function AddToStackMenu({
+  open,
+  onOpenChange,
+  userId,
+  onAdded: onAddedProp,
+}: AddToStackMenuProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startY: number; height: number } | null>(null)
   const offsetRef = useRef(0)
@@ -202,6 +213,9 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
   // add reuses its existing record id so the compound keeps ONE identity and its
   // logged history stays attached (see `reuseId` on AddCompoundSheet).
   const [deletedIds, setDeletedIds] = useState<Map<string, string>>(new Map())
+  // The user's stacks — listed for reference on the Stacks side of the segmented
+  // control. Read here rather than subscribed: the sheet re-reads on every open.
+  const [stacks, setStacks] = useState<Stack[]>([])
   // Lowercased names of the compounds this user added most recently, newest first
   // (Spec 03). Re-read on every open so an add made since is reflected.
   const [recentNames, setRecentNames] = useState<string[]>([])
@@ -463,16 +477,24 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
       recents = loadRecentCompounds(userId)
     }
     setRecentNames(recents)
+    // A compound whose CYCLE has ended is offered back exactly like a deleted one
+    // (Spec 06 → Ending a cycle): it stops producing doses, keeps its history, and
+    // reappears here with a normal plus. `isRunning` is the single test for both,
+    // which is what keeps the two paths consistent.
+    const today = toDateKey(new Date())
     setInLogNames(
-      new Set(stackNow.filter((c) => !c.archived).map((c) => c.name.toLowerCase()))
+      new Set(
+        stackNow.filter((c) => isRunning(c, today)).map((c) => c.name.toLowerCase())
+      )
     )
     setDeletedIds(
       new Map(
         stackNow
-          .filter((c) => c.archived)
+          .filter((c) => !isRunning(c, today))
           .map((c) => [c.name.toLowerCase(), c.id] as const)
       )
     )
+    setStacks(loadStacks(userId))
   }
 
   // A compound already in the log is dimmed + unclickable. Tapping it shakes the
@@ -523,12 +545,12 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
               <button
                 type="button"
                 onClick={backToBrowse}
-                className="justify-self-start text-base text-text-muted transition-colors hover:text-text-primary"
+                className="-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary"
               >
                 Cancel
               </button>
             ) : (
-              <SheetClose className="justify-self-start text-base text-text-muted transition-colors hover:text-text-primary">
+              <SheetClose className="-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary">
                 Cancel
               </SheetClose>
             )}
@@ -546,7 +568,11 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
                 type="button"
                 onClick={handleSubmit}
                 disabled={!nameValid}
-                className="justify-self-end text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:text-text-subtle"
+                // Same tap treatment as the Cancel beside it. Without the
+                // padding this was a 30x24 target — the only way into the app
+                // for a compound that is not in the catalogue, and the same
+                // button that saves an edit.
+                className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:text-text-subtle"
               >
                 {formMode === "edit" ? "Save" : "Add"}
               </button>
@@ -591,6 +617,7 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
               onCancelDeleteCustom={cancelDeleteCustom}
               onConfirmDeleteCustom={confirmDeleteCustom}
               deleteFailed={saveFailed}
+              stacks={stacks}
             />
           )}
         </div>
@@ -614,9 +641,10 @@ export function AddToStackMenu({ open, onOpenChange, userId }: AddToStackMenuPro
       onOpenChange={(o) => {
         if (!o) setPendingCompound(null)
       }}
-      onAdded={() => {
+      onAdded={(saved) => {
         setPendingCompound(null)
         onOpenChange(false)
+        onAddedProp?.(saved)
       }}
     />
     </>
@@ -643,6 +671,7 @@ function BrowseBody({
   onCancelDeleteCustom,
   onConfirmDeleteCustom,
   deleteFailed,
+  stacks,
 }: {
   query: string
   setQuery: (v: string) => void
@@ -662,7 +691,13 @@ function BrowseBody({
   onCancelDeleteCustom: () => void
   onConfirmDeleteCustom: (id: string) => void
   deleteFailed: boolean
+  /** The user's stacks, for the reference-only Stacks side of the segmented
+   *  control. Empty ⇒ no control at all (Spec 05). */
+  stacks: Stack[]
 }) {
+  // Which side of the Compounds / Stacks control is showing. Stacks are LISTED
+  // here for reference only — they are created in Protocol, never from here.
+  const [side, setSide] = useState<"compounds" | "stacks">("compounds")
   // Props shared by every CompoundList instance (custom rows can appear both in
   // search results and under "Your compounds").
   const listProps = {
@@ -698,9 +733,37 @@ function BrowseBody({
         </div>
       </div>
 
+      {/* Compounds / Stacks — only once the user actually has a stack, so the
+          picker is unchanged for everyone else (Spec 05). Sits above the flat
+          section composition exactly where Spec 03 left room for it. */}
+      {stacks.length > 0 && !q && (
+        <div className="shrink-0 px-4 pb-4">
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-bg-input p-1">
+            {(["compounds", "stacks"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setSide(v)}
+                aria-pressed={side === v}
+                className={cn(
+                  "rounded-lg py-2 text-sm capitalize transition-colors",
+                  side === v
+                    ? "bg-bg-surface-raised text-foreground"
+                    : "text-text-muted"
+                )}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Scrolling content */}
       <div className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-        {q ? (
+        {!q && stacks.length > 0 && side === "stacks" ? (
+          <StackReferenceList stacks={stacks} />
+        ) : q ? (
           results.length > 0 ? (
             <CompoundList items={results} {...listProps} query={q} />
           ) : (
@@ -737,8 +800,11 @@ function BrowseBody({
           </>
         )}
 
-        {/* Make your own — always at the bottom */}
-        <MakeYourOwnRow query={query} onClick={onMakeYourOwn} />
+        {/* Make your own — always at the bottom, except on the Stacks side,
+            where creating a compound would be out of place. */}
+        {!(!q && stacks.length > 0 && side === "stacks") && (
+          <MakeYourOwnRow query={query} onClick={onMakeYourOwn} />
+        )}
       </div>
     </>
   )
@@ -1183,7 +1249,7 @@ function CompoundForm({
       )}
 
       <p className="px-1 text-xs leading-relaxed text-text-subtle">
-        Saved to this device for you only.
+        Saved to your account. Only you can see it.
       </p>
 
       {formMode === "edit" && (
@@ -1276,5 +1342,40 @@ function PillGroup({
         })}
       </div>
     </div>
+  )
+}
+
+/**
+ * The Stacks side of the picker's segmented control (Spec 05, step 10).
+ *
+ * **Reference only** — stacks are created and edited in Protocol, never here, so
+ * there is deliberately no plus, no tap target and no create affordance. It
+ * exists so someone browsing compounds can see what they have already grouped.
+ */
+function StackReferenceList({ stacks }: { stacks: Stack[] }) {
+  return (
+    <ul className="space-y-2 py-1">
+      {stacks.map((s) => (
+        <li
+          key={s.id}
+          className="flex items-center gap-3 rounded-2xl bg-bg-surface-raised px-4 py-3"
+        >
+          <span
+            className="h-3 w-3 shrink-0 rounded-full"
+            style={{ background: paletteColourVar(s.colour) }}
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1 truncate text-base text-foreground">
+            {s.name}
+          </span>
+          <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
+            {s.memberIds.length}
+          </span>
+        </li>
+      ))}
+      <li className="px-1 pt-2 text-xs text-text-muted">
+        Stacks are created in Protocol.
+      </li>
+    </ul>
   )
 }

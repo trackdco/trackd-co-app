@@ -8,7 +8,7 @@ import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { getSessionContext } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Log in — Trackd Co",
+  title: "Log in · Trackd Co",
 };
 
 /**
