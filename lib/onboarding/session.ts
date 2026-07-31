@@ -37,9 +37,12 @@ export type RunningTag =
 export type StruggleTag =
   | "whats_left"
   | "recon_maths"
+  | "units_to_draw"
   | "last_site"
-  | "spreadsheet"
-  | "no_history";
+  | "notes_app"
+  | "too_much"
+  | "no_history"
+  | "other";
 
 /** Screen 15 options. */
 export type AttributionTag =
@@ -235,9 +238,12 @@ export const RUNNING_TAGS = [
 export const STRUGGLE_TAGS = [
   "whats_left",
   "recon_maths",
+  "units_to_draw",
   "last_site",
-  "spreadsheet",
+  "notes_app",
+  "too_much",
   "no_history",
+  "other",
 ] as const satisfies readonly StruggleTag[];
 
 export const ATTRIBUTION_TAGS = [

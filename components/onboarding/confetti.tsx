@@ -17,6 +17,10 @@ import { useMemo } from "react";
 
 const PIECE_COUNT = 18;
 
+/** It waits for Kyle to land before it fires. Confetti that arrives with the
+ *  screen competes with him; confetti that arrives after him celebrates him. */
+const START_DELAY_MS = 620;
+
 /** Deterministic pseudo-random in 0…1, so the burst is identical on every
  *  render and cannot differ between the server and the client (a hydration
  *  mismatch is what `Math.random()` in render buys you). */
@@ -37,8 +41,9 @@ export function Confetti({ fire = true }: { fire?: boolean }) {
           drift: (b - 0.5) * 160,
           fall: 220 + c * 260,
           spin: 180 + b * 540,
-          delay: a * 320,
-          duration: 1800 + c * 700,
+          delay: START_DELAY_MS + a * 520,
+          // Slower, and spread wider. Adrian: "slow is premium".
+          duration: 3200 + c * 1400,
           width: 4 + b * 4,
           height: 8 + c * 8,
           // Amber is the brand beat and this is the moment it is for.

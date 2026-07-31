@@ -24,6 +24,13 @@ export interface FlowContextValue {
   goTo: (step: StepId) => void;
   /** Ends the flow and hands off to the today-dashboard. */
   finish: () => void;
+  /**
+   * Let a screen intercept BACK. The demo is one step with four stages, so
+   * backing out of stage three should land on stage two, not throw the user out
+   * of the whole demo (Adrian, 2026-08-01). Return true to say "handled";
+   * return false and the flow walks history as usual. Pass null to release it.
+   */
+  setBackHandler: (fn: (() => boolean) | null) => void;
   /** Name from auth, once the paywall has run. Null while anonymous. */
   accountName: string | null;
   setAccountName: Dispatch<SetStateAction<string | null>>;

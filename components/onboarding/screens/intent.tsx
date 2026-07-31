@@ -8,10 +8,13 @@ import {
   Calculator,
   ClipboardText,
   Compass,
+  DotsThree,
+  Drop,
   Flask,
   Lightning,
   Package,
   Pulse,
+  SquaresFour,
   Syringe,
 } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
@@ -55,9 +58,12 @@ const RUNNING_OPTIONS: { value: RunningTag; label: string; icon: ReactNode }[] =
 const STRUGGLE_OPTIONS: { value: StruggleTag; label: string; icon: ReactNode }[] = [
   { value: "whats_left", label: "Losing track of what's left", icon: <Package className={ICON} /> },
   { value: "recon_maths", label: "Reconstitution maths by hand", icon: <Calculator className={ICON} /> },
-  { value: "last_site", label: "Can't remember my last site", icon: <Syringe className={ICON} /> },
-  { value: "spreadsheet", label: "Spreadsheet's a mess", icon: <ClipboardText className={ICON} /> },
+  { value: "units_to_draw", label: "Working out units to draw", icon: <Syringe className={ICON} /> },
+  { value: "last_site", label: "Can't remember my last site", icon: <Drop className={ICON} /> },
+  { value: "notes_app", label: "Notes app is a mess", icon: <ClipboardText className={ICON} /> },
+  { value: "too_much", label: "Too many things to stay on top of", icon: <SquaresFour className={ICON} /> },
   { value: "no_history", label: "No history when I get bloods", icon: <ChartLine className={ICON} /> },
+  { value: "other", label: "Something else", icon: <DotsThree className={ICON} /> },
 ];
 
 /** Toggle a value in a multi-select list. */

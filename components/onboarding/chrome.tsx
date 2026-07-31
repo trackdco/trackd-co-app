@@ -16,24 +16,43 @@ import { CARD_EYEBROW, FLOW_SUB, FLOW_TITLE } from "@/lib/ui-presets";
  * flow imports them, which is the line the spec draws in §2.
  */
 
-/** The thin progress rail across the top of the flow. */
+/**
+ * Progress, as a short bar with its figure beside it.
+ *
+ * It used to be a full-bleed hairline across the very top, which Adrian could
+ * not see on a phone: a 2px line the width of the screen reads as part of the
+ * chrome rather than as a reading. This is deliberately small, white and
+ * slightly thick, and it sits in the header row next to the back arrow where
+ * the eye already goes.
+ *
+ * It moves SLOWLY. The bar is the only thing on screen that says "you are
+ * getting somewhere", so watching it move is the point; snapping wastes it.
+ */
 export function ProgressRail({ progress }: { progress: number }) {
   const pct = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+
+  // Nothing to report on the first screen, and a bar reading 0% is a worse
+  // first impression than no bar.
+  if (pct <= 0) return null;
+
   return (
     <div
-      className="h-[2px] w-full bg-border-default"
+      className="flex items-center gap-2"
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={pct}
       aria-label="Setup progress"
     >
-      {/* Muted rather than amber: amber is reserved for the one live beat on
-          the screen itself, and a rail that is always on would spend it. */}
-      <div
-        className="h-full bg-text-muted transition-[width] duration-[var(--motion-slow)] ease-[var(--motion-ease)] motion-reduce:transition-none"
-        style={{ width: `${pct}%` }}
-      />
+      <span className="h-[3px] w-16 overflow-hidden rounded-full bg-bg-surface-raised">
+        <span
+          className="block h-full rounded-full bg-accent-primary transition-[width] duration-[900ms] ease-[var(--motion-ease)] motion-reduce:transition-none"
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span className="font-mono text-[10px] tabular-nums text-text-muted">
+        {pct}%
+      </span>
     </div>
   );
 }

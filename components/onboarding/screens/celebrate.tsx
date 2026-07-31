@@ -26,32 +26,59 @@ import { Mascot } from "../mascot";
 const ANSWERS: Record<StruggleTag, string> = {
   whats_left: "What's left, without counting.",
   recon_maths: "Powder to units, worked out.",
+  units_to_draw: "The draw for each dose, on the row.",
   last_site: "Your last site, remembered.",
-  spreadsheet: "One place instead of a spreadsheet.",
+  notes_app: "One place instead of a notes app.",
+  too_much: "Compounds, peptides and supplements together.",
   no_history: "Bloods against the protocol you were on.",
+  other: "And plenty more besides.",
 };
 
-/** When they skipped the question, say the thing that covers all of it. */
-const FALLBACK = ["Doses, stock, sites, bloods and notes. All in one place."];
+/**
+ * ALWAYS SHOW AT LEAST THREE (Adrian, 2026-08-01). One tick is a thin reply to
+ * someone who just told you their problem, and this screen is the payoff for
+ * answering. If they picked fewer, the list is topped up from the broadest
+ * answers — the ones true for everybody — in this order.
+ *
+ * Nothing here is a promise; every line is a feature that exists. Padding with
+ * a claim would be a different thing entirely.
+ */
+const MINIMUM_ANSWERS = 3;
+const TOP_UP: StruggleTag[] = [
+  "whats_left",
+  "last_site",
+  "no_history",
+  "recon_maths",
+  "too_much",
+];
 
 export function CelebrateScreen() {
   const { goNext, session } = useFlow();
 
-  const lines = session.struggle.length
-    ? session.struggle.map((tag) => ANSWERS[tag])
-    : FALLBACK;
+  const chosen = [...session.struggle];
+  for (const tag of TOP_UP) {
+    if (chosen.length >= MINIMUM_ANSWERS) break;
+    if (!chosen.includes(tag)) chosen.push(tag);
+  }
+  const lines = chosen.map((tag) => ANSWERS[tag]);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <Confetti />
 
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-7 py-4">
-          <Mascot pose="thumbs" size={330} />
+        {/* Tighter than it was: Kyle's render carries its own padding, so the
+            gap was reading as a hole between him and the headline. */}
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 py-2">
+          <Mascot pose="thumbs" size={330} className="-mb-4" />
 
           <div className="space-y-5 text-center">
             <h1 className={cn(FLOW_DISPLAY, "text-balance")}>
-              Trackd&apos;s built to solve exactly that.
+              Trackd&apos;s built to solve{" "}
+              <strong className="font-normal text-accent-amber">
+                exactly that
+              </strong>
+              .
             </h1>
 
             {/* Staggered so the answers arrive one at a time rather than as a
@@ -77,7 +104,7 @@ export function CelebrateScreen() {
             </ul>
 
             <p className="text-[0.85rem] text-text-muted">
-              Have a look. No account needed.
+              Test it out. No account needed.
             </p>
           </div>
         </div>

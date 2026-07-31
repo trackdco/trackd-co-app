@@ -80,11 +80,13 @@ export function PayoffScreen() {
         {/* The statement sits UNDER the thing that makes it (Adrian,
             2026-08-01): the bars are the argument, so the words read as the
             conclusion rather than as a heading you have to take on trust. */}
-        <div className="mt-8 space-y-3 text-center">
+        {/* Slightly wider than the card above it, so the statement reads as a
+            caption on the whole thing rather than as more card content. */}
+        <div className="mt-8 space-y-3 px-1 text-center">
           <h1 className={cn(FLOW_TITLE, "text-balance")}>
             The longer you track, the more you see.
           </h1>
-          <p className="mx-auto max-w-[20rem] text-[0.9rem] leading-relaxed text-text-muted">
+          <p className="mx-auto max-w-[21rem] text-[0.9rem] leading-relaxed text-text-muted">
             Patterns only show up over months. Nothing gets lost, so they are
             still there when you go looking.
           </p>

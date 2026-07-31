@@ -19,8 +19,16 @@ export const DEMO_COMPOUND = {
   name: "Custom compound",
   concentrationMgPerMl: 200,
   doseMl: 0.5,
-  /** A fresh 10 mL vial. */
-  vialMl: 10,
+  /**
+   * A small vial, so five doses fills it.
+   *
+   * Not a realistic size, and deliberately so (Adrian, 2026-08-01). The demo
+   * needs a vial that STARTS FULL and EMPTIES in a handful of taps: full,
+   * because a part-used one reads as somebody else's leftovers on the very
+   * first thing you are shown; and empties, because running out is what
+   * carries the screen onward. Twenty taps is not a demo.
+   */
+  vialMl: 2.5,
   /** Every third day, which is what makes the projected-empty date move. */
   everyNDays: 3,
 } as const;
@@ -34,21 +42,10 @@ export interface DemoStock {
   logged: number;
 }
 
-/**
- * The demo opens on a PART-USED vial, not a fresh one.
- *
- * Two reasons, and neither is cosmetic. A vial with 20 doses in it takes twenty
- * taps to empty, and Adrian's note was that the user should be able to log a
- * few times and have the screen move on by itself when it runs out — twenty is
- * not "a few". And a vial that is nearly out is the situation the stock feature
- * actually exists for: "always know your stock" means nothing on a full one.
- *
- * Part-used vials are a real, modelled thing in the app
- * (`inventory_items.prior_used_base`), so this is not a fiction either.
- */
+/** Full, and five doses deep. See the note on `vialMl`. */
 export const DEMO_START: DemoStock = {
-  remainingMl: 2.5,
-  dosesLeft: Math.floor(2.5 / DEMO_COMPOUND.doseMl),
+  remainingMl: DEMO_COMPOUND.vialMl,
+  dosesLeft: Math.floor(DEMO_COMPOUND.vialMl / DEMO_COMPOUND.doseMl),
   logged: 0,
 };
 

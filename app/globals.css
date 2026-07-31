@@ -460,6 +460,10 @@
    the same reasoning as the drift below: a marketing surface with no data on
    it, and a mascot that sits dead still reads like a sticker. Slightly faster
    and taller than the fragment drift so he feels alive next to them. */
+.animate-dollar-fall {
+  animation: dollar-fall var(--fall-ms, 2400ms) ease-in both;
+}
+
 .animate-kyle {
   animation:
     kyle-in 760ms var(--motion-ease) both,
@@ -514,7 +518,8 @@
   .animate-flow-drift,
   .animate-flow-forward,
   .animate-flow-back,
-  .animate-kyle {
+  .animate-kyle,
+  .animate-dollar-fall {
     animation: none;
   }
 }
@@ -565,6 +570,24 @@
 
 /* The paywall carousel's caption: a long, eased cross-fade with a touch of
    rise, so the line changes without snapping. */
+/* The cost screen's falling money. A dollar sign lifts off the top of a bar,
+   drifts, and falls away to nothing. One per unit of spend, so the expensive
+   bar sheds a shower and Trackd sheds one. */
+@keyframes dollar-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.85);
+  }
+  18% {
+    opacity: 1;
+    transform: translate3d(calc(var(--dx, 0px) * 0.2), -10px, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--dx, 0px), var(--dy, 90px), 0) scale(0.9);
+  }
+}
+
 @keyframes flow-caption {
   from {
     opacity: 0;

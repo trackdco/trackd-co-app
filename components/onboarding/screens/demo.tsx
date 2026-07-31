@@ -84,7 +84,7 @@ const HEADINGS: Record<Stage, { title: string; sub: string }> = {
   },
   history: {
     title: "It all compounds.",
-    sub: "Progress photos, bloods and notes, kept together.",
+    sub: "Track photos, weight, bloods and notes. It is all still there in six months."
   },
 };
 
@@ -109,11 +109,18 @@ const DEMO_RUNNING = [
   { name: "Compound 2", detail: "100 mg · every 3rd day" },
   { name: "Peptide 1", detail: "250 mcg · daily" },
 ];
+/**
+ * Slow, then fast, then slow. `cubic-bezier(0.65, 0, 0.35, 1)` is a symmetric
+ * ease-in-out: it leaves gently, covers the distance, and settles rather than
+ * arriving. An ease-OUT (which this was) starts at full speed, which is what
+ * made the card look like it snapped (Adrian, 2026-08-01).
+ */
+const CARD_EASE = "cubic-bezier(0.65,0,0.35,1)";
 const CARD_MOTION =
-  "transition-all duration-[560ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
+  `transition-all duration-[760ms] ease-[${CARD_EASE}] motion-reduce:transition-none`;
 
 export function DemoScreen() {
-  const { goNext, todayKey } = useFlow();
+  const { goNext, todayKey, setBackHandler } = useFlow();
   const [stage, setStage] = useState<Stage>("log");
   const [logged, setLogged] = useState(false);
   // Set the moment the card starts receding, so the card below can wait for it
@@ -128,6 +135,18 @@ export function DemoScreen() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const index = STAGES.indexOf(stage);
+
+  // Back walks the stages before it leaves the demo. Losing the whole demo
+  // because you wanted to look at the previous card again is the wrong answer
+  // (Adrian, 2026-08-01).
+  useEffect(() => {
+    setBackHandler(() => {
+      if (index <= 0) return false;
+      setStage(STAGES[index - 1]);
+      return true;
+    });
+    return () => setBackHandler(null);
+  }, [index, setBackHandler]);
 
   useEffect(
     () => () => {
@@ -178,7 +197,18 @@ export function DemoScreen() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
-      <header className="shrink-0 space-y-3 text-center">
+      <header
+        className={cn(
+          "shrink-0 space-y-3 text-center transition-[padding-top] duration-[760ms] motion-reduce:transition-none",
+          // At the first stage the headline drops toward the card it belongs
+          // to, instead of sitting alone at the top of an empty screen.
+          // Far enough down that the headline and its card sit as one group in
+          // the middle of the screen, rather than the pair hugging the top with
+          // a hole beneath them.
+          index === 0 ? "pt-32" : "pt-0",
+        )}
+        style={{ transitionTimingFunction: CARD_EASE }}
+      >
         {/* No eyebrow. It was a label on a screen that does not need one, and
             the headline already says what this is (Adrian, 2026-08-01).
             Keyed so the headline cross-fades as the subject changes. */}
@@ -192,15 +222,19 @@ export function DemoScreen() {
         </div>
       </header>
 
+      {/* The stack EASES UP rather than jumping. Flex alignment is not
+          animatable, so the movement is carried by top padding, which is: at
+          stage one the group sits low and centred under the headline, and as
+          cards arrive the padding collapses and the whole column glides up on
+          the same slow-fast-slow curve the cards use. */}
       <div
         ref={scrollRef}
         className={cn(
-          "mt-7 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-2",
-          // One card on its own centres; once they start stacking they run
-          // from the top so each new one arrives BELOW the last rather than
-          // shoving the whole group around.
-          index === 0 ? "justify-center" : "justify-start",
+          "flex min-h-0 flex-1 flex-col justify-start gap-3 overflow-y-auto pb-2",
+          "transition-[padding-top] duration-[760ms] motion-reduce:transition-none",
+          index === 0 ? "pt-6" : "pt-4",
         )}
+        style={{ transitionTimingFunction: CARD_EASE }}
       >
         {!showHistory && (
           <>

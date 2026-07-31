@@ -147,10 +147,10 @@ describe("normaliseSession", () => {
   it("keeps only recognised tags and de-duplicates them", () => {
     const s = normaliseSession({
       running: ["trt", "trt", "nonsense", 7],
-      struggle: ["spreadsheet", "made_up"],
+      struggle: ["notes_app", "made_up"],
     });
     expect(s.running).toEqual(["trt"]);
-    expect(s.struggle).toEqual(["spreadsheet"]);
+    expect(s.struggle).toEqual(["notes_app"]);
   });
 
   it("defaults an unrecognised plan to yearly", () => {

@@ -236,7 +236,7 @@ export function PaywallHero() {
         )}
       </div>
 
-      <div className="mt-3 flex items-center justify-center gap-1.5">
+      <div className="mt-5 mb-2 flex items-center justify-center gap-1.5">
         {SLIDES.map((slide, i) => (
           <button
             key={slide.id}

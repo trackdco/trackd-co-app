@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import { formatPrice, PLANS } from "@/lib/onboarding/pricing";
 import { CARD_EYEBROW, DATA_MONO, FLOW_TITLE } from "@/lib/ui-presets";
@@ -201,6 +201,55 @@ const BARS = [
   { label: "Trackd", height: 6, accent: true },
 ];
 
+/**
+ * A shower of dollar signs lifting off the top of a bar and falling away.
+ *
+ * `count` is the whole point of the comparison: the expensive bar sheds a lot
+ * and the Trackd bar sheds one. Deterministic scatter, so it is identical on
+ * every render and cannot differ between server and client.
+ */
+function DollarFall({ count, delay }: { count: number; delay: number }) {
+  const pieces = useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => {
+        const a = Math.abs(Math.sin((i + 1) * 12.9898) * 43758.5453) % 1;
+        const b = Math.abs(Math.sin((i + 41) * 78.233) * 12345.678) % 1;
+        return {
+          left: 12 + a * 76,
+          dx: (b - 0.5) * 54,
+          dy: 70 + b * 70,
+          fall: 2000 + a * 1200,
+          delay: delay + i * 130 + b * 220,
+          size: 11 + Math.round(b * 4),
+        };
+      }),
+    [count, delay],
+  );
+
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0">
+      {pieces.map((p, i) => (
+        <span
+          key={i}
+          className="animate-dollar-fall absolute font-mono text-text-subtle"
+          style={
+            {
+              left: `${p.left}%`,
+              fontSize: p.size,
+              animationDelay: `${p.delay}ms`,
+              "--dx": `${p.dx}px`,
+              "--dy": `${p.dy}px`,
+              "--fall-ms": `${p.fall}ms`,
+            } as CSSProperties
+          }
+        >
+          $
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function CostVariantD({ onContinue }: { onContinue: () => void }) {
   const [grown, setGrown] = useState(false);
   useEffect(() => {
@@ -214,19 +263,30 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
         <div className="flow-card rounded-2xl bg-bg-surface p-5">
           <div className="flex h-56 items-end justify-center gap-10">
             {BARS.map((bar, i) => (
-              <div key={bar.label} className="flex h-full flex-1 flex-col justify-end">
+              <div key={bar.label} className="relative flex h-full flex-1 flex-col justify-end">
                 <div
                   className={cn(
-                    "w-full rounded-t-lg",
-                    "transition-[height] duration-[720ms] ease-[var(--motion-ease)]",
+                    "relative w-full rounded-t-lg",
+                    // Slower than it was. The bar climbing is the argument, so
+                    // it is worth watching (Adrian: "slow is premium").
+                    "transition-[height] duration-[1500ms] ease-[var(--motion-ease)]",
                     "motion-reduce:transition-none",
                     bar.accent ? "bg-accent-amber" : "bg-bg-surface-raised",
                   )}
                   style={{
                     height: grown ? `${bar.height}%` : "0%",
-                    transitionDelay: `${i * 140}ms`,
+                    transitionDelay: `${i * 260}ms`,
                   }}
-                />
+                >
+                  {/* The money leaving. Nine off the expensive one, one off
+                      ours, which is the comparison made without a figure. */}
+                  {grown ? (
+                    <DollarFall
+                      count={bar.accent ? 1 : 9}
+                      delay={bar.accent ? 1900 : 700}
+                    />
+                  ) : null}
+                </div>
                 <p
                   className={cn(
                     "mt-3 text-center text-[10px] font-sans uppercase tracking-[0.12em]",
@@ -249,7 +309,7 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
 
             The words sit UNDER the bars for the same reason as the payoff
             screen: the graph is the argument, the sentence is the conclusion. */}
-        <div className="mt-8 space-y-3 text-center">
+        <div className="mt-8 space-y-3 px-1 text-center">
           <h1 className={cn(FLOW_TITLE, "text-balance")}>
             The tracking is the cheap part.
           </h1>

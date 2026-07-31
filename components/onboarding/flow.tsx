@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 
 import { CaretLeft } from "@/components/icons";
@@ -150,8 +157,17 @@ function OnboardingFlowClient() {
     pushStep(target);
   }, [step, pushStep]);
 
+  // A screen may claim BACK for itself (the demo does, to step between its
+  // stages). A ref rather than state: this is a registration, and re-rendering
+  // the whole flow because a child claimed the button would be silly.
+  const backHandler = useRef<(() => boolean) | null>(null);
+  const setBackHandler = useCallback((fn: (() => boolean) | null) => {
+    backHandler.current = fn;
+  }, []);
+
   const goBack = useCallback(() => {
-    // Uses real history so the in-app control and the phone's back button
+    if (backHandler.current?.()) return;
+    // Otherwise real history, so the in-app control and the phone's back button
     // cannot disagree about where "back" is.
     window.history.back();
   }, []);
@@ -173,8 +189,20 @@ function OnboardingFlowClient() {
       accountName,
       setAccountName,
       todayKey,
+      setBackHandler,
     }),
-    [session, patch, step, goNext, goBack, goTo, finish, accountName, todayKey],
+    [
+      session,
+      patch,
+      step,
+      goNext,
+      goBack,
+      goTo,
+      finish,
+      accountName,
+      todayKey,
+      setBackHandler,
+    ],
   );
 
   const canGoBack = step !== FIRST_STEP && prevStep(step) !== null;
@@ -185,24 +213,27 @@ function OnboardingFlowClient() {
           18px off-frame, which without this creates a real horizontal scroll
           area for the length of the animation (measured: 408px on a 390 phone). */}
       <div className="flow-canvas flex min-h-dvh flex-col overflow-x-clip">
-        <ProgressRail progress={stepProgress(step)} />
-
         <div className="relative mx-auto flex w-full max-w-md flex-1 flex-col">
-          {/* The back control sits in the LAYOUT, not over it. Absolutely
-              positioned it collided with the first line of a long centred
-              headline (measured on the paywall at 390). The row is always
-              present so screens do not jump vertically when it appears. */}
-          <div className="flex h-10 shrink-0 items-center px-2 pt-2">
+          {/* Back arrow and progress on ONE row. The back control sits in the
+              LAYOUT, not over it: absolutely positioned it collided with the
+              first line of a long centred headline (measured on the paywall at
+              390). The row is always present so screens do not jump vertically
+              when either thing appears. */}
+          <div className="flex h-10 shrink-0 items-center justify-between gap-3 px-3 pt-2">
             {canGoBack ? (
               <button
                 type="button"
                 onClick={goBack}
                 aria-label="Go back"
-                className="flex h-10 w-10 items-center justify-center rounded-full text-text-subtle transition-colors duration-[var(--motion-fast)] hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+                className="-ml-1 flex h-10 w-10 items-center justify-center rounded-full text-text-subtle transition-colors duration-[var(--motion-fast)] hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
               >
                 <CaretLeft className="h-5 w-5" />
               </button>
-            ) : null}
+            ) : (
+              <span aria-hidden />
+            )}
+
+            <ProgressRail progress={stepProgress(step)} />
           </div>
 
           {/* `key` remounts on every step, which is what replays the entrance

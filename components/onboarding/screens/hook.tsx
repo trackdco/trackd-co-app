@@ -56,7 +56,9 @@ export function HookScreen() {
           />
 
           <FlowTitle className="mx-auto max-w-[19rem]">
-            Stop running your protocol out of a Notes app.
+            Stop running your protocol out of a{" "}
+            {/* The thing being replaced carries the weight of the sentence. */}
+            <strong className="font-medium">Notes app</strong>.
           </FlowTitle>
         </header>
 

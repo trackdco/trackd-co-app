@@ -52,9 +52,8 @@ describe("logDemoDose", () => {
 });
 
 describe("demoFill", () => {
-  it("runs down to empty and never leaves 0…1", () => {
-    // Not 1: the demo opens on a part-used vial (see DEMO_START).
-    expect(demoFill(DEMO_START)).toBe(0.25);
+  it("runs from full to empty and never leaves 0…1", () => {
+    expect(demoFill(DEMO_START)).toBe(1);
     let stock = DEMO_START;
     for (let i = 0; i < 40; i += 1) {
       stock = logDemoDose(stock);
@@ -108,17 +107,14 @@ describe("formatDemoDate", () => {
 });
 
 describe("the sample vial", () => {
-  it("opens PART-USED, and empties in a handful of taps", () => {
-    // The whole point: the user logs a few times and it runs out, which is what
-    // lets the screen move on by itself. Twenty taps is not a demo.
-    expect(DEMO_START.remainingMl).toBeLessThan(DEMO_COMPOUND.vialMl);
+  it("starts FULL and empties in a handful of taps", () => {
+    // Both halves matter. Full, so the first thing shown is not somebody
+    // else's leftovers; five doses, so running out is reachable and can be
+    // what carries the screen onward.
+    expect(DEMO_START.remainingMl).toBe(DEMO_COMPOUND.vialMl);
+    expect(demoFill(DEMO_START)).toBe(1);
     expect(DEMO_START.dosesLeft).toBe(5);
     expect(Number.isInteger(DEMO_START.dosesLeft)).toBe(true);
-  });
-
-  it("reads as a low vial, which is when stock tracking matters", () => {
-    expect(demoFill(DEMO_START)).toBeLessThan(0.4);
-    expect(demoFill(DEMO_START)).toBeGreaterThan(0);
   });
 });
 

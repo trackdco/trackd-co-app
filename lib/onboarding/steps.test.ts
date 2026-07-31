@@ -88,6 +88,8 @@ describe("stepProgress", () => {
   it("runs 0 to 1 and never leaves the range", () => {
     expect(stepProgress("hook")).toBe(0);
     expect(stepProgress("letter")).toBe(1);
+    // The first real step opens at 20%, not at 1/13th.
+    expect(stepProgress("housekeeping")).toBeCloseTo(0.2, 5);
     for (const step of STEP_ORDER) {
       const p = stepProgress(step.id);
       expect(p).toBeGreaterThanOrEqual(0);

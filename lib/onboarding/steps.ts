@@ -99,11 +99,23 @@ export function isStepId(value: unknown): value is StepId {
 }
 
 /**
- * Progress through the flow as 0…1, used by the hairline rail at the top of
- * every screen. The hook is 0 (nothing done yet) and the last step is 1.
+ * Progress through the flow as 0…1.
+ *
+ * The hook is 0 and shows no indicator at all: nothing has been done yet, and a
+ * bar reading 0% is a worse first impression than no bar. From the first real
+ * step it opens at **20%** and runs to 100% at the end (Adrian, 2026-08-01).
+ *
+ * The 20% floor is not decoration. A fourteen-step flow shows 7% after the
+ * first screen, which reads as "you have barely started" at the exact moment
+ * someone is deciding whether to continue. Starting the scale at 20 credits
+ * them for having turned up, and the last step is still honestly 100%.
  */
+export const PROGRESS_FLOOR = 0.2;
+
 export function stepProgress(id: StepId): number {
   const i = stepIndex(id);
   if (i <= 0) return 0;
-  return i / (STEP_ORDER.length - 1);
+  const remaining = STEP_ORDER.length - 2;
+  if (remaining <= 0) return 1;
+  return PROGRESS_FLOOR + (1 - PROGRESS_FLOOR) * ((i - 1) / remaining);
 }
