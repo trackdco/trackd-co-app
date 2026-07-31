@@ -68,6 +68,15 @@ interface LogDoseSheetProps {
   ) => void
   /** Undo — remove the dose's log entirely. */
   onRemove: (compoundId: string) => void
+  /**
+   * Whether this compound already has a dose logged on a given day.
+   *
+   * The Date row can move a dose, and `logDose` writes by `[day][compound]` — so
+   * moving one onto a day that already had one silently DESTROYED the other,
+   * with its own amount, time and site, and no undo. The sheet needs to know
+   * before it lets that happen.
+   */
+  hasLogOn?: (dateKey: string) => boolean
 }
 
 // Release the handle past this fraction of the sheet height → dismiss.
@@ -96,6 +105,7 @@ export function LogDoseSheet({
   onOpenChange,
   onTracked,
   onRemove,
+  hasLogOn,
 }: LogDoseSheetProps) {
   // Retain the target through the close animation so the sheet doesn't blank as
   // it slides away. Adjusting state during render (guarded) is the sanctioned
@@ -111,6 +121,32 @@ export function LogDoseSheet({
     setShown({ compound, existing })
   }
 
+  /**
+   * The day the sheet was OPENED on, frozen for as long as it is open.
+   *
+   * The body used to be keyed on the live `dateKey` prop, and two ordinary
+   * things change that prop underneath an open sheet: committing a dose whose
+   * date the user moved (the caller follows the dose to its new day), and local
+   * midnight arriving (`syncToday` rolls the selected day over). Either one
+   * REMOUNTED the body — which discarded the success tick and its auto-close
+   * timer, and re-seeded every field from the schedule.
+   *
+   * What the user saw after moving a dose's date and tapping Track: no
+   * confirmation, the sheet still open, the dose back at its default and the
+   * note gone. Tapping Track again — the only reasonable response — overwrote
+   * their corrected dose with the full scheduled one. Someone who had
+   * deliberately halved a dose ended up with the whole one on record.
+   *
+   * So the parent's day is read ONCE per open. Everything inside already works
+   * off `logDate`, which the Date row owns.
+   */
+  const [openedOn, setOpenedOn] = useState(dateKey)
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setOpenedOn(dateKey)
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -120,18 +156,20 @@ export function LogDoseSheet({
       >
         {shown ? (
           <LogDoseBody
-            // Keyed by day too: the default time and the vial wording both derive
-            // from it, so re-opening on another day must start fresh.
-            key={`${shown.compound.id}:${dateKey}`}
+            // Keyed by the day the sheet OPENED on, so re-opening on another day
+            // still starts fresh while the day moving under an open sheet cannot
+            // wipe what the user has typed.
+            key={`${shown.compound.id}:${openedOn}`}
             compound={shown.compound}
             existing={shown.existing}
-            dateKey={dateKey}
+            dateKey={openedOn}
             todayKey={todayKey}
             siteLastUsedDays={siteLastUsedDays}
             bodySex={bodySex}
             onClose={() => onOpenChange(false)}
             onTracked={onTracked}
             onRemove={onRemove}
+            hasLogOn={hasLogOn}
           />
         ) : null}
       </SheetContent>
@@ -144,6 +182,19 @@ const REST_DAYS = 7
 
 /** Matches the cap the sync layer applies before the write. */
 const NOTE_MAX = 2000
+
+/**
+ * Bounds on the Date row.
+ *
+ * Not a product rule — a guard against a typed year. A native date input takes
+ * digits straight into the year segment, and typing eight of them produced
+ * `275760-07-31`, which was stored verbatim as the day key. That dose lands
+ * somewhere the week strip and the calendar cannot navigate to: invisible, and
+ * unremovable. The window is deliberately generous; back-dating and logging a
+ * day or two ahead both stay allowed.
+ */
+const MIN_LOG_DATE = "2015-01-01"
+const MAX_LOG_DATE = "2100-12-31"
 
 /** Local "HH:MM" for the time field / committed log. */
 function toHHMM(d: Date): string {
@@ -167,6 +218,7 @@ function LogDoseBody({
   onClose,
   onTracked,
   onRemove,
+  hasLogOn,
 }: {
   compound: StackCompound
   existing: DoseLog | null
@@ -182,6 +234,7 @@ function LogDoseBody({
     openedOn: string
   ) => void
   onRemove: (compoundId: string) => void
+  hasLogOn?: (dateKey: string) => boolean
 }) {
   const editing = existing !== null
   const injectable = isInjectable(compound.method)
@@ -200,6 +253,15 @@ function LogDoseBody({
    * in force, the vial in use, the live-clock default, and what gets written.
    */
   const [logDate, setLogDate] = useState(dateKey)
+  /**
+   * Moving this dose onto a day that ALREADY has one for this compound would
+   * overwrite it — `logDose` writes by `[day][compound]`, so the other dose,
+   * with its own amount, time and site, would simply be gone. Blocked rather
+   * than resolved: there is no correct automatic answer to "which of these two
+   * doses did you mean", and destroying data to avoid asking is the worst one.
+   */
+  const dayTaken =
+    logDate !== dateKey && (hasLogOn?.(logDate) ?? false)
   // Life doesn't happen at the phone: the week strip can look back, so a dose may
   // land on a day that isn't today. Everything below that depends on "when" reads
   // this rather than the clock.
@@ -614,13 +676,15 @@ function LogDoseBody({
         </SheetTitle>
         <button
           type="button"
+          disabled={dayTaken}
           onClick={() => {
+            if (dayTaken) return
             // Commit immediately, THEN show the success tick — so nothing about
             // dismissing the tick can undo the log.
             onTracked(compound.id, buildLog(), logDate, dateKey)
             setTracked(true)
           }}
-          className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80"
+          className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:opacity-40"
         >
           {editing ? "Update" : "Track"}
         </button>
@@ -640,7 +704,11 @@ function LogDoseBody({
           name={compound.name}
           category={compound.category}
           method={compound.method}
-          unit={compound.unit}
+          // The unit this DOSE is in, not the compound's current one. On a
+          // compound switched from mcg to mg, the header read "mg" eight pixels
+          // above a Dose row correctly reading "250 mcg" — the row was right and
+          // the header contradicted it.
+          unit={loggedUnit}
           // A compound may legitimately have no time, and "Scheduled Not set"
           // is not a sentence. No time means no second fact worth stating.
           detail={
@@ -745,10 +813,22 @@ function LogDoseBody({
                   setLogDate(e.target.value || dateKey)
                 }}
                 aria-label="Date this dose was taken"
-                className="h-11 w-44 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+                aria-invalid={dayTaken || undefined}
+                min={MIN_LOG_DATE}
+                max={MAX_LOG_DATE}
+                className={cn(
+                  "h-11 w-44 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input",
+                  dayTaken && "border-state-error",
+                )}
               />
             </div>
           </LogRow>
+          {dayTaken && (
+            <p role="alert" className="px-4 pb-3 text-xs text-state-error">
+              {compound.name} already has a dose logged on{" "}
+              {formatDateKeyShort(logDate)}. Edit that one instead.
+            </p>
+          )}
 
           {/* Time. "Set time" shows only when it is genuinely unset — clearing
               the field is what gets you there. It still pre-fills (Adrian,
@@ -925,7 +1005,7 @@ function LogDoseBody({
             <span className="text-sm text-text-muted">Note</span>
             <textarea
               value={note}
-              onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+              onChange={(e) => setNote(capNote(e.target.value, NOTE_MAX))}
               rows={1}
               placeholder="Add a note"
               aria-label="Note about this dose"
@@ -1095,4 +1175,26 @@ function LogRow({
   ) : (
     <div className={LOG_ROW_BASE}>{inner}</div>
   )
+}
+
+/**
+ * Cap a note without splitting a character in half.
+ *
+ * `slice` counts UTF-16 code units, so cutting at 2000 through an emoji left a
+ * LONE SURROGATE. `JSON.stringify` emits it as `"\ud83d"`, and Postgres rejects
+ * an unpaired surrogate in a JSON body — which failed the entire `dose_logs`
+ * write, so the dose logged on the device and never synced. Spreading the string
+ * iterates by code point, so the cut always lands between characters.
+ */
+function capNote(note: string, max: number): string {
+  if (note.length <= max) return note
+  const out = [...note]
+  let n = 0
+  const kept: string[] = []
+  for (const ch of out) {
+    if (n + ch.length > max) break
+    kept.push(ch)
+    n += ch.length
+  }
+  return kept.join("")
 }

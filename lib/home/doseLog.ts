@@ -297,6 +297,40 @@ export function unlogDose(userId: string, dateKey: string, compoundId: string) {
   )
 }
 
+/**
+ * Commit a dose on the day the log sheet says it lands on.
+ *
+ * ONE implementation for all three callers — the dashboard, the calendar and
+ * the quick-track sheet. It exists because they had three copies of this and
+ * they had already drifted: quick-track's took two parameters where the sheet
+ * passes four, so the day the user had just edited was dropped on the floor and
+ * the dose landed on the day the sheet was opened on, with the confirmation tick
+ * firing normally. TypeScript cannot catch that — a shorter function is
+ * assignable to a longer signature — so the answer is to have one function.
+ *
+ * `landsOn` usually equals `openedOn`. When it does not, the dose MOVES: the old
+ * day is un-logged first, so one dose can never become two.
+ *
+ * The un-log only runs when something is actually there. Firing it for a FRESH
+ * log planted a 14-day tombstone on a day the user had never logged, and
+ * hydration filters every source by tombstone — so a dose for that day sitting
+ * in Postgres but not yet pulled (a reinstall, a second device, mid-sync) would
+ * be deleted from the cloud and suppressed for a fortnight.
+ */
+export function commitDoseOn(
+  userId: string,
+  compoundId: string,
+  log: DoseLog,
+  landsOn: string,
+  openedOn: string
+): void {
+  const moved = landsOn !== openedOn
+  if (moved && loadDoseLogs(userId)[openedOn]?.[compoundId]) {
+    unlogDose(userId, openedOn, compoundId)
+  }
+  logDose(userId, landsOn, compoundId, log)
+}
+
 // There is deliberately NO "erase every logged dose for a compound" here (Spec 02):
 // a compound has two states, active and deleted, and deleting keeps every logged
 // dose. The only verb that touches a single day's entry is `unlogDose` above.

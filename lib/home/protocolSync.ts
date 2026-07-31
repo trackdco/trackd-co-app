@@ -916,7 +916,7 @@ export async function pushProtocolDoseLog(
       logged_for: dateKey,
       // The user's own words about this dose, if any. The column has existed
       // since v0.4.2 and nothing had ever written to it.
-      note: log.note?.trim() ? log.note.trim().slice(0, NOTE_MAX) : null,
+      note: log.note?.trim() ? capNote(log.note.trim(), NOTE_MAX) : null,
     })
     return { ok: saved !== null }
   } catch (e) {
@@ -1277,4 +1277,26 @@ export async function pullProtocolStackAndLogs(): Promise<{
     },
     { fallback: empty }
   )
+}
+
+/**
+ * Cap a note without splitting a character in half.
+ *
+ * `slice` counts UTF-16 code units, so cutting at 2000 through an emoji left a
+ * LONE SURROGATE. `JSON.stringify` emits it as `"\ud83d"`, and Postgres rejects
+ * an unpaired surrogate in a JSON body — which failed the entire `dose_logs`
+ * write, so the dose logged on the device and never synced. Spreading the string
+ * iterates by code point, so the cut always lands between characters.
+ */
+function capNote(note: string, max: number): string {
+  if (note.length <= max) return note
+  const out = [...note]
+  let n = 0
+  const kept: string[] = []
+  for (const ch of out) {
+    if (n + ch.length > max) break
+    kept.push(ch)
+    n += ch.length
+  }
+  return kept.join("")
 }

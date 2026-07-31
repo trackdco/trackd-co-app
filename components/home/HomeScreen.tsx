@@ -53,6 +53,7 @@ import {
 } from "@/lib/home/stack"
 import {
   getDoseLogsSnapshot,
+  commitDoseOn,
   logDose,
   subscribeDoseLogs,
   unlogDose,
@@ -559,13 +560,16 @@ export function HomeScreen({
     landsOn: string,
     openedOn: string
   ) {
-    if (landsOn !== openedOn) unlogDose(userId, openedOn, compoundId)
-    logDose(userId, landsOn, compoundId, log)
-    // Follow the dose to its new day, so the tick the user just made is on the
-    // screen they are looking at rather than on a day they have navigated away
-    // from.
-    if (landsOn !== openedOn) setSelectedKey(landsOn as DateKey)
+    commitDoseOn(userId, compoundId, log, landsOn, openedOn)
+    // Follow the dose to its new day — but only AFTER the sheet has closed. The
+    // sheet freezes the day it opened on for exactly this reason: moving the
+    // selection while it is open used to remount it, wiping the success tick and
+    // re-seeding every field from the schedule.
+    if (landsOn !== openedOn) setPendingDay(landsOn as DateKey)
   }
+
+  /** A day the committed dose moved to, applied once the sheet is out of the way. */
+  const [pendingDay, setPendingDay] = useState<DateKey | null>(null)
 
   // Undo a logged dose — removes its entry.
   function handleRemove(compoundId: string) {
@@ -790,10 +794,19 @@ export function HomeScreen({
         siteLastUsedDays={siteLastUsedDays}
         bodySex={bodySex}
         onOpenChange={(open) => {
-          if (!open) setLogTarget(null)
+          if (!open) {
+            setLogTarget(null)
+            // The sheet is gone, so following a moved dose to its new day can no
+            // longer remount it out from under the user.
+            if (pendingDay) {
+              setSelectedKey(pendingDay)
+              setPendingDay(null)
+            }
+          }
         }}
         onTracked={handleTracked}
         onRemove={handleRemove}
+        hasLogOn={(day) => Boolean(logs[day]?.[logTarget?.compound.id ?? ""])}
       />
 
       {/* Tap a compound → its detail; Edit there opens the add sheet pre-filled.

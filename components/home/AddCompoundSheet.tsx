@@ -384,7 +384,12 @@ function AddCompoundBody({
   // used to land as a block at the bottom of the sheet, a long scroll away from
   // the field that caused them. Cleared as soon as the user touches that field,
   // so an error never outlives the mistake.
-  const [errors, setErrors] = useState<{ dose?: string; days?: string; stock?: string }>({})
+  const [errors, setErrors] = useState<{
+    dose?: string
+    days?: string
+    stock?: string
+    cycle?: string
+  }>({})
   // The Starts row's expansion. Collapsed by default: the date is usually today
   // and three dropdowns to confirm that is three too many.
   const [startOpen, setStartOpen] = useState(false)
@@ -596,6 +601,11 @@ function AddCompoundBody({
     if (stockMsg) {
       setErrors((p) => ({ ...p, stock: stockMsg }))
       setAddStockOn(true)
+      return
+    }
+    const cycleMsg = cycleProblem(cycleDraft)
+    if (cycleMsg) {
+      setErrors((p) => ({ ...p, cycle: cycleMsg }))
       return
     }
     // When the time is still live-tracking, resolve it at SAVE (a fresh now), so
@@ -1127,7 +1137,7 @@ function AddCompoundBody({
           className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface-raised"
           style={{ animationDelay: "80ms" }}
         >
-          <FormRow label="Cycle this">
+          <FormRow label="Cycle this" error={errors.cycle}>
             <button
               type="button"
               role="switch"
@@ -1179,7 +1189,10 @@ function AddCompoundBody({
                 <CycleFields
                   cycle={cycleDraft}
                   vialTracked={canStock}
-                  onChange={setCycleDraft}
+                  onChange={(next) => {
+                    setCycleDraft(next)
+                    if (errors.cycle) setErrors((p) => ({ ...p, cycle: undefined }))
+                  }}
                 />
               )}
             </div>
@@ -1313,6 +1326,45 @@ function AddCompoundBody({
 
     </div>
   )
+}
+
+/**
+ * What is wrong with this cycle, if anything — or null when it is fine.
+ *
+ * `min={cycle.anchor}` on the date input is ADVISORY. Nothing form-validates
+ * these fields, so the browser itself reported the input invalid while the sheet
+ * saved it anyway: an end date before the start writes a cycle that has already
+ * ended, which reads "Ended" on the card, flips every day of the schedule grid
+ * to nothing-due, and takes the compound out of Today's Log with no way back
+ * except finding the cycle and removing it. `CycleRuleSheet` has always had a
+ * real gate; this copy had none.
+ */
+function cycleProblem(cycle: CycleRule | null): string | null {
+  if (!cycle) return null
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cycle.anchor)) {
+    return "Give the cycle a start date."
+  }
+  if (cycle.pattern.type === "onOff") {
+    if (cycle.pattern.onDays < 1) return "A cycle needs at least one day on."
+    // `smallint` in `protocol_compounds`; anything larger fails the upsert with
+    // 22003, so the compound saves on the device and silently never syncs.
+    if (cycle.pattern.onDays > 999 || cycle.pattern.offDays > 999) {
+      return "Keep the on and off periods under 1000 days."
+    }
+  }
+  if (cycle.end.type === "onDate") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cycle.end.date)) {
+      return "Give the cycle an end date."
+    }
+    if (cycle.end.date < cycle.anchor) {
+      return "The cycle ends before it starts."
+    }
+  }
+  if (cycle.end.type === "afterRounds") {
+    if (cycle.end.rounds < 1) return "A cycle runs for at least one round."
+    if (cycle.end.rounds > 999) return "Keep the rounds under 1000."
+  }
+  return null
 }
 
 /** Parse a numeric input string to a finite number (0 when blank/invalid). */
@@ -1473,6 +1525,13 @@ function CycleFields({
   // Narrowed once, so the fields below read the lengths without re-testing the
   // union on every line. A continuous cycle keeps sensible defaults in the
   // inputs, so flipping to on/off does not start from zero.
+  // Remembered across end-type switches. Tapping "After rounds" and back used to
+  // reset the date to the anchor, silently discarding a date the user had
+  // chosen — and the seed for a fresh "On a date" WAS the anchor, which is a
+  // cycle that ends on the day it starts.
+  const [lastEndDate, setLastEndDate] = useState<string | null>(
+    cycle.end.type === "onDate" ? cycle.end.date : null,
+  )
   const onOff = cycle.pattern.type === "onOff" ? cycle.pattern : null
   const repeats = onOff !== null
   const onDays = onOff?.onDays ?? 7
@@ -1585,7 +1644,12 @@ function CycleFields({
               onClick={() =>
                 setEnd(
                   t === "onDate"
-                    ? { type: "onDate", date: cycle.anchor }
+                    ? {
+                        type: "onDate",
+                        // What they picked before, else a sensible span ahead of
+                        // the anchor — never the anchor itself.
+                        date: lastEndDate ?? addDaysKey(cycle.anchor, 8 * 7),
+                      }
                     : t === "afterRounds"
                       ? { type: "afterRounds", rounds: 4 }
                       : t === "whenVialEmpty"
@@ -1610,9 +1674,11 @@ function CycleFields({
               type="date"
               value={cycle.end.type === "onDate" ? cycle.end.date : ""}
               min={cycle.anchor}
-              onChange={(e) =>
-                setEnd({ type: "onDate", date: e.target.value || cycle.anchor })
-              }
+              onChange={(e) => {
+                const next = e.target.value || cycle.anchor
+                setLastEndDate(next)
+                setEnd({ type: "onDate", date: next })
+              }}
               aria-label="Cycle end date"
               className="h-11 w-44 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
             />
@@ -1662,6 +1728,15 @@ function CycleFields({
       </FormRow>
     </>
   )
+}
+
+/** A date key N days on, in UTC so a DST change cannot shift it. */
+function addDaysKey(key: string, days: number): string {
+  const [y, m, d] = key.split("-").map(Number)
+  if (!y || !m || !d) return key
+  return new Date(Date.UTC(y, m - 1, d) + days * 86_400_000)
+    .toISOString()
+    .slice(0, 10)
 }
 
 const END_LABELS: Record<CycleEnd["type"], string> = {

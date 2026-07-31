@@ -30,7 +30,7 @@ import {
 } from "@/lib/home/stack"
 import {
   getDoseLogsSnapshot,
-  logDose,
+  commitDoseOn,
   subscribeDoseLogs,
   unlogDose,
   type DayLogs,
@@ -212,8 +212,19 @@ function QuickTrackBody({
 
   // Commit a dose (fresh or edited) — the exact same handler the dashboard uses,
   // writing to the day the user is parked on rather than to the clock.
-  function handleTracked(compoundId: string, log: DoseLog) {
-    logDose(userId, targetKey, compoundId, log)
+  //
+  // FOUR parameters, not two. It took two, and TypeScript accepts that (a
+  // shorter function is assignable to a longer signature), so the day the user
+  // had just edited in the Date row was dropped on the floor: the sheet showed
+  // the new date, the tick fired normally, and the dose landed on the day the
+  // sheet was opened on. On the fastest logging path in the app.
+  function handleTracked(
+    compoundId: string,
+    log: DoseLog,
+    landsOn: string,
+    openedOn: string
+  ) {
+    commitDoseOn(userId, compoundId, log, landsOn, openedOn)
   }
   function handleRemove(compoundId: string) {
     unlogDose(userId, targetKey, compoundId)
@@ -295,6 +306,7 @@ function QuickTrackBody({
         }}
         onTracked={handleTracked}
         onRemove={handleRemove}
+        hasLogOn={(day) => Boolean(logs[day]?.[logTarget?.compound.id ?? ""])}
       />
     </>
   )

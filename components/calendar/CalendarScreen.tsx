@@ -46,7 +46,7 @@ import { cycleColourVar, formatCyclePattern } from "@/lib/protocol/cycleRule";
 import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets";
 import { LogDoseSheet } from "@/components/home/LogDoseSheet";
 import { setSelectedDay } from "@/lib/home/selectedDay";
-import { logDose, unlogDose } from "@/lib/home/doseLog";
+import { commitDoseOn, unlogDose } from "@/lib/home/doseLog";
 import type { EntryMarker } from "@/lib/progress/journal";
 import { unitForPreference } from "@/lib/weight";
 import type { BodySex } from "@/lib/db/types";
@@ -126,6 +126,8 @@ export function CalendarScreen({
   const [legendOpen, setLegendOpen] = useState(false);
   // The compound being logged from the calendar, if any.
   const [logTarget, setLogTarget] = useState<StackCompound | null>(null);
+  /** A day a committed dose moved to, applied once the sheet is out of the way. */
+  const [pendingDay, setPendingDay] = useState<DateKey | null>(null);
 
   // Correct "today" to the DEVICE clock, then keep it correct: on focus, on
   // becoming visible again, and once a minute so a page left open overnight rolls
@@ -402,20 +404,26 @@ export function CalendarScreen({
         siteLastUsedDays={siteLastUsedDays}
         bodySex={bodySex}
         onOpenChange={(o) => {
-          if (!o) setLogTarget(null);
-        }}
-        onTracked={(compoundId, log, landsOn, openedOn) => {
-          // The Date row is editable, so a dose can land on a day other than the
-          // one the sheet was opened on. Move it rather than copying it, and
-          // follow it, exactly as Home does.
-          if (landsOn !== openedOn) unlogDose(userId, openedOn, compoundId)
-          logDose(userId, landsOn, compoundId, log)
-          if (landsOn !== openedOn) {
-            const d = dateKeyToDate(landsOn as DateKey)
-            setSelectedKey(landsOn as DateKey)
-            setView({ year: d.getFullYear(), month0: d.getMonth() })
+          if (!o) {
+            setLogTarget(null);
+            if (pendingDay) {
+              const d = dateKeyToDate(pendingDay);
+              setSelectedKey(pendingDay);
+              setView({ year: d.getFullYear(), month0: d.getMonth() });
+              setPendingDay(null);
+            }
           }
         }}
+        onTracked={(compoundId, log, landsOn, openedOn) => {
+          // ONE shared implementation with Home and quick-track — three copies
+          // of this had already drifted, and the drift silently dropped the day
+          // the user had just edited.
+          commitDoseOn(userId, compoundId, log, landsOn, openedOn)
+          // Deferred until the sheet closes, so following the dose cannot
+          // remount the sheet and wipe what is in it.
+          if (landsOn !== openedOn) setPendingDay(landsOn as DateKey)
+        }}
+        hasLogOn={(day) => Boolean(logs[day]?.[logTarget?.id ?? ""])}
         onRemove={(compoundId) => unlogDose(userId, selectedKey, compoundId)}
       />
 
