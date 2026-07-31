@@ -456,6 +456,16 @@
   animation: flow-back var(--motion-slow) var(--motion-ease) both;
 }
 
+/* Kyle. He arrives rather than appearing, then floats. The float loops, under
+   the same reasoning as the drift below: a marketing surface with no data on
+   it, and a mascot that sits dead still reads like a sticker. Slightly faster
+   and taller than the fragment drift so he feels alive next to them. */
+.animate-kyle {
+  animation:
+    kyle-in 760ms var(--motion-ease) both,
+    kyle-float 3600ms 760ms ease-in-out infinite alternate;
+}
+
 /* The paywall's app fragments, drifting. THIS ONE LOOPS, and it is the only
    thing in the app that does: "Banned - ambient / decorative motion" above is a
    rule about the DATA screens, where movement competes with figures the user is
@@ -503,7 +513,8 @@
   .animate-flow-confetti,
   .animate-flow-drift,
   .animate-flow-forward,
-  .animate-flow-back {
+  .animate-flow-back,
+  .animate-kyle {
     animation: none;
   }
 }
@@ -549,6 +560,43 @@
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+/* The paywall carousel's caption: a long, eased cross-fade with a touch of
+   rise, so the line changes without snapping. */
+@keyframes flow-caption {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  20% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes kyle-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 26px, 0) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes kyle-float {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, -10px, 0);
   }
 }
 

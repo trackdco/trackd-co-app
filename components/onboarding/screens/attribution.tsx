@@ -50,6 +50,7 @@ export function AttributionScreen() {
   if (session.affiliateCode) {
     return (
       <StepFrame
+        center
         title="Last thing"
         sub="You came in on a creator link, so we already know where you heard about us."
         footer={<FlowCta onClick={goNext}>Continue</FlowCta>}
@@ -65,6 +66,7 @@ export function AttributionScreen() {
 
   return (
     <StepFrame
+      center
       title="Last thing"
       sub="Where did you hear about us? Optional."
       footer={

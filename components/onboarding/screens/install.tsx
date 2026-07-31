@@ -51,6 +51,7 @@ export function InstallScreen() {
 
   return (
     <StepFrame
+      center
       title="Add Trackd to your home screen"
       sub="It works like a normal app once it's there. Do this first, or reminders can't reach you."
       footer={

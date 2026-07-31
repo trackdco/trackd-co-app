@@ -27,8 +27,8 @@ export const CURRENCY_SYMBOL = "$";
 
 /** Placeholder figures. D-4: not final. */
 export const PLANS: Record<PlanId, Plan> = {
-  yearly: { id: "yearly", label: "Yearly", price: 70, period: "year" },
-  monthly: { id: "monthly", label: "Monthly", price: 9.99, period: "month" },
+  yearly: { id: "yearly", label: "Yearly", price: 69.99, period: "year" },
+  monthly: { id: "monthly", label: "Monthly", price: 11.99, period: "month" },
 };
 
 export const TRIAL_DAYS = 5;

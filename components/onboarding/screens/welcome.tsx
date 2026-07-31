@@ -2,7 +2,9 @@
 
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 
-import { FlowCta, StepFrame } from "../chrome";
+import { FlowCta } from "../chrome";
+import { FLOW_DISPLAY } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 import { Confetti } from "../confetti";
 import { useFlow } from "../flow-context";
 import { Mascot } from "../mascot";
@@ -27,16 +29,27 @@ export function WelcomeScreen() {
     <div className="relative flex min-h-0 flex-1 flex-col">
       <Confetti />
 
-      <StepFrame
-        center
-        title={name ? `You're in, ${name}!` : "You're in!"}
-        sub={`${TRIAL_DAYS} days on us. Let's finish setting you up.`}
-        footer={<FlowCta onClick={goNext}>Continue</FlowCta>}
-      >
-        <div className="flex items-center justify-center">
-          <Mascot pose="flex" size={190} />
+      {/* Kyle leads and the greeting sits under him (Adrian, 2026-08-01), so
+          the screen reads as him welcoming you rather than as a titled page
+          with a picture on it. Everything is centred as one block. */}
+      <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6">
+          <Mascot pose="flex" size={280} />
+
+          <div className="space-y-3 text-center">
+            <h1 className={cn(FLOW_DISPLAY, "text-balance")}>
+              {name ? `You're in, ${name}!` : "You're in!"}
+            </h1>
+            <p className="mx-auto max-w-[20rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">
+              {TRIAL_DAYS}{" "}days on us. Let&apos;s finish setting you up.
+            </p>
+          </div>
         </div>
-      </StepFrame>
+
+        <footer className="shrink-0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          <FlowCta onClick={goNext}>Continue</FlowCta>
+        </footer>
+      </div>
     </div>
   );
 }

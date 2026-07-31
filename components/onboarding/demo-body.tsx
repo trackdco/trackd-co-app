@@ -79,7 +79,7 @@ export function DemoBody({
   const transform = routeTransform("im", sex);
 
   return (
-    <div className="mx-auto w-full max-w-[15rem]">
+    <div className="mx-auto w-full max-w-[19rem]">
       <svg
         viewBox="0 0 100 100"
         className="h-auto w-full"

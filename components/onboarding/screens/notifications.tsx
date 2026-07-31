@@ -50,6 +50,7 @@ export function NotificationsScreen() {
 
   return (
     <StepFrame
+      center
       title="Turn on reminders"
       sub="A nudge on dose days. Nothing else."
       footer={

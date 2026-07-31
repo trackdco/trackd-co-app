@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { CircleNotch } from "@/components/icons";
+import { CaretDown, CircleNotch } from "@/components/icons";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { track } from "@/lib/onboarding/analytics";
 import { validateCode, type CodeVerdict } from "@/lib/onboarding/affiliate";
@@ -49,6 +49,7 @@ export function PaywallScreen() {
   const { session, patch, goNext, setAccountName } = useFlow();
   const [verdict, setVerdict] = useState<CodeVerdict>({ status: "none" });
   const [codeDraft, setCodeDraft] = useState("");
+  const [codeOpen, setCodeOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const saving = yearlySavingPercent();
@@ -84,6 +85,7 @@ export function PaywallScreen() {
     if (v.status === "applied") {
       track("affiliate_code_applied", { code: v.code });
       patch({ affiliateCode: v.code, ...(v.annualOnly ? { plan: "yearly" as const } : {}) });
+      setCodeOpen(false);
     } else if (v.status === "invalid") {
       track("affiliate_code_invalid", { code: v.code });
     }
@@ -131,7 +133,7 @@ export function PaywallScreen() {
             )}
           </FlowCta>
           <p className="text-center text-[0.75rem] text-text-muted">
-            {formatPrice(0)} today. We&apos;ll remind you before it ends.
+            Stay free for five days. We&apos;ll remind you before it ends.
           </p>
         </div>
       }
@@ -190,46 +192,74 @@ export function PaywallScreen() {
           })}
         </div>
 
-        {/* Affiliate code. A real field rather than a link that has to be
-            discovered: a creator's audience is told to use a code, and hiding
-            the box behind a tap is friction on the one action we WANT. */}
-        <div>
-          {verdict.status === "applied" ? (
-            <div className="flow-card flex items-center justify-between gap-3 rounded-xl bg-accent-amber/10 px-4 py-3">
-              <span className="text-[0.8rem] text-accent-amber">Code applied</span>
-              <span className="font-mono text-sm uppercase tracking-[0.08em] text-accent-amber">
-                {verdict.code}
-              </span>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <input
-                  value={codeDraft}
-                  onChange={(e) => setCodeDraft(e.target.value)}
-                  placeholder="Creator code (optional)"
-                  aria-label="Creator code"
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  className="h-12 min-w-0 flex-1 rounded-xl bg-bg-input px-4 font-mono text-sm uppercase text-foreground outline-none placeholder:font-sans placeholder:normal-case placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <button
-                  type="button"
-                  onClick={applyTypedCode}
-                  disabled={!codeDraft.trim()}
-                  className="h-12 shrink-0 rounded-xl bg-bg-surface-raised px-5 text-sm text-foreground transition-opacity disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  Apply
-                </button>
+        {/* Affiliate code. A card you can see, that unfolds when tapped
+            (Adrian, 2026-08-01) — a bare link was too quiet for the one action
+            a creator's audience is explicitly told to take, and a permanently
+            open field was noise for everyone else. Grid-rows rather than
+            height, so it animates from nothing to its natural size without the
+            height being known up front. */}
+        {verdict.status === "applied" ? (
+          <div className="flow-card flex items-center justify-between gap-3 rounded-2xl bg-accent-amber/10 px-5 py-4">
+            <span className="text-[0.85rem] text-accent-amber">Code applied</span>
+            <span className="font-mono text-sm uppercase tracking-[0.08em] text-accent-amber">
+              {verdict.code}
+            </span>
+          </div>
+        ) : (
+          <div className="flow-card overflow-hidden rounded-2xl bg-bg-surface">
+            <button
+              type="button"
+              onClick={() => setCodeOpen((o) => !o)}
+              aria-expanded={codeOpen}
+              className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <span className="text-[0.9rem] text-foreground">Have a code?</span>
+              <CaretDown
+                className={cn(
+                  "h-4 w-4 shrink-0 text-text-subtle transition-transform duration-[var(--motion-base)] ease-[var(--motion-ease)] motion-reduce:transition-none",
+                  codeOpen && "rotate-180",
+                )}
+                aria-hidden
+              />
+            </button>
+
+            <div
+              className={cn(
+                "grid transition-[grid-template-rows] duration-[420ms] ease-[var(--motion-ease)] motion-reduce:transition-none",
+                codeOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+              )}
+            >
+              <div className="overflow-hidden">
+                <div className="space-y-2 px-5 pb-5">
+                  <div className="flex gap-2">
+                    <input
+                      value={codeDraft}
+                      onChange={(e) => setCodeDraft(e.target.value)}
+                      placeholder="Creator code"
+                      aria-label="Creator code"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      className="h-12 min-w-0 flex-1 rounded-xl bg-bg-input px-4 font-mono text-sm uppercase text-foreground outline-none placeholder:font-sans placeholder:normal-case placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                    <button
+                      type="button"
+                      onClick={applyTypedCode}
+                      disabled={!codeDraft.trim()}
+                      className="h-12 shrink-0 rounded-xl bg-bg-surface-raised px-5 text-sm text-foreground transition-opacity disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                  {verdict.status === "invalid" ? (
+                    <p className="text-[0.75rem] text-text-muted">
+                      That code is not active. The standard price applies.
+                    </p>
+                  ) : null}
+                </div>
               </div>
-              {verdict.status === "invalid" ? (
-                <p className="text-[0.75rem] text-text-muted">
-                  That code is not active. The standard price applies.
-                </p>
-              ) : null}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* The real auth entry point, kept visible so the stub above can never
             be mistaken for the shipping path. */}

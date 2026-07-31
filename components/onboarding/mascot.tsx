@@ -70,7 +70,7 @@ export function Mascot({
         height={900}
         priority
         sizes="(max-width: 480px) 60vw, 260px"
-        className={cn("h-auto w-auto object-contain", FEATHER, className)}
+        className={cn("animate-kyle h-auto w-auto object-contain", FEATHER, className)}
         style={{ maxHeight: size }}
       />
     );

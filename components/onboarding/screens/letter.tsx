@@ -80,7 +80,9 @@ export function LetterScreen() {
           <div className="pt-2">
             <p className={cn(PARAGRAPH, "mb-2")}>Best,</p>
 
-            <div className="flex items-end gap-6">
+            {/* The signatures go in this gap. Space is RESERVED for them so
+                the block below does not jump when the art lands. */}
+            <div className="flex min-h-[4.5rem] items-end gap-8">
               {SIGNATURES.map((sig) =>
                 sig.src ? (
                   <Image
@@ -89,22 +91,18 @@ export function LetterScreen() {
                     alt={sig.name}
                     width={160}
                     height={64}
-                    className="h-12 w-auto text-accent-amber"
+                    className="h-14 w-auto text-accent-amber"
                   />
-                ) : (
-                  <span
-                    key={sig.name}
-                    // Stands in for the signature at its real size, so the
-                    // layout below it is already final.
-                    className="text-[1.75rem] font-light leading-none tracking-[0.01em] text-accent-amber"
-                  >
-                    {sig.name}
-                  </span>
-                ),
+                ) : null,
               )}
             </div>
 
-            <p className={cn(CARD_EYEBROW, "mt-4")}>Founders, Trackd Co</p>
+            {/* Same tracked-uppercase treatment as the line below it, one notch
+                bigger, in white (Adrian, 2026-08-01). */}
+            <p className="text-[13px] font-sans uppercase tracking-[0.18em] text-foreground">
+              Angus &amp; Adrian
+            </p>
+            <p className={cn(CARD_EYEBROW, "mt-1.5")}>Founders, Trackd Co</p>
           </div>
         </div>
       </div>

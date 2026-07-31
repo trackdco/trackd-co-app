@@ -51,8 +51,19 @@ import { useFlow } from "../flow-context";
 const STAGES = ["log", "stock", "site", "history"] as const;
 type Stage = (typeof STAGES)[number];
 
-/** How long the tick is allowed to land before the stock card arrives. */
-const REVEAL_MS = 560;
+/**
+ * The reveal is deliberately unhurried (Adrian, 2026-08-01: "it should be a
+ * smooth slow animation"). Three beats, not one:
+ *
+ *   0ms     the tick pops
+ *   HOLD    it just sits there, so the log registers as a thing that happened
+ *   RECEDE  the card eases up and dims
+ *   then    the next card rises, only once the one above has settled
+ *
+ * Rushing this is what made it read as a page swap rather than a consequence.
+ */
+const TICK_HOLD_MS = 620;
+const RECEDE_MS = 520;
 
 const HEADINGS: Record<Stage, { title: string; sub: string }> = {
   log: {
@@ -79,19 +90,31 @@ const RECEDED = "scale-[0.97] opacity-45";
 /** Sample weight series for the look-back graph. Fixed, so it never renders flat. */
 const DEMO_WEIGHTS = [86.4, 86.1, 85.5, 85.7, 85.0, 84.4, 84.6, 83.9];
 
-/** Three weeks of an every-third-day schedule, drawn as the app draws it. */
+/** A week of three compounds' schedules, drawn as the app draws it: one row of
+ *  dots per compound. Named generically on purpose, so the demo never looks
+ *  like a recommendation of anything in particular. */
 const DEMO_SCHEDULE = [
-  [true, false, false, true, false, false, true],
-  [false, false, true, false, false, true, false],
-  [false, true, false, false, true, false, false],
+  { name: "Compound 1", days: [true, false, false, true, false, false, true] },
+  { name: "Compound 2", days: [false, false, true, false, false, true, false] },
+  { name: "Peptide 1", days: [true, true, true, true, true, true, true] },
+];
+
+/** What was running across the window, under the photos. */
+const DEMO_RUNNING = [
+  { name: "Compound 1", detail: "250 mg · 2x a week" },
+  { name: "Compound 2", detail: "100 mg · every 3rd day" },
+  { name: "Peptide 1", detail: "250 mcg · daily" },
 ];
 const CARD_MOTION =
-  "transition-all duration-[var(--motion-slow)] ease-[var(--motion-ease)] motion-reduce:transition-none";
+  "transition-all duration-[560ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
 
 export function DemoScreen() {
   const { goNext, todayKey } = useFlow();
   const [stage, setStage] = useState<Stage>("log");
   const [logged, setLogged] = useState(false);
+  // Set the moment the card starts receding, so the card below can wait for it
+  // rather than both moving at once.
+  const [receding, setReceding] = useState(false);
   const [stock, setStock] = useState<DemoStock>(DEMO_START);
   const [view, setView] = useState<DemoView>("front");
   const [site, setSite] = useState<string | null>(null);
@@ -128,7 +151,11 @@ export function DemoScreen() {
     setLogged(true);
     setStock(logDemoDose(DEMO_START));
     track("demo_dose_logged", { stage: "log" });
-    timer.current = setTimeout(() => setStage("stock"), REVEAL_MS);
+    // Let the tick be seen, then start the card moving, then bring in the next.
+    timer.current = setTimeout(() => {
+      setReceding(true);
+      timer.current = setTimeout(() => setStage("stock"), RECEDE_MS);
+    }, TICK_HOLD_MS);
   };
 
   const advance = () => {
@@ -174,7 +201,7 @@ export function DemoScreen() {
           <>
             <CompoundCard
               logged={logged}
-              receded={index > 0}
+              receded={receding || index > 0}
               onLog={onLog}
             />
 
@@ -211,12 +238,17 @@ export function DemoScreen() {
       </div>
 
       <footer className="shrink-0 space-y-3 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-        {stage === "log" ? (
-          <p className="text-center text-xs text-text-subtle">
-            Tap the circle to log
-          </p>
+        {stage === "log" && !logged ? (
+          <p className="text-center text-xs text-text-subtle">Tap to log</p>
         ) : (
-          <FlowCta onClick={advance}>Continue</FlowCta>
+          // Appears the moment there is somewhere to go. Adrian's note was that
+          // he would not have known to press Continue, so it arrives WITH the
+          // new card rather than sitting there through the whole screen.
+          <div className="animate-flow-in">
+            <FlowCta onClick={advance}>
+              {stage === "history" ? "Continue" : "Next"}
+            </FlowCta>
+          </div>
         )}
       </footer>
     </div>
@@ -446,6 +478,23 @@ function HistoryPanel() {
         </div>
       </div>
 
+      {/* What was running across those weeks, in the app's own row language. */}
+      <div className="flow-card rounded-2xl bg-bg-surface p-5">
+        <p className={CARD_EYEBROW}>Running</p>
+        <ul className="mt-3 divide-y divide-border-default">
+          {DEMO_RUNNING.map((c) => (
+            <li key={c.name} className="flex items-center justify-between gap-3 py-2.5">
+              <span className="min-w-0 flex-1 truncate text-[0.85rem] text-foreground">
+                {c.name}
+              </span>
+              <span className={cn(DATA_MONO, "shrink-0 text-[10px]")}>
+                {c.detail}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       {/* Weight beside the schedule, the way Progress lays them out. */}
       <div className="grid grid-cols-2 gap-3">
         <div className="flow-card rounded-2xl bg-bg-surface p-4">
@@ -470,19 +519,24 @@ function HistoryPanel() {
         <div className="flow-card rounded-2xl bg-bg-surface p-4">
           <p className={CARD_EYEBROW}>Schedule</p>
           <div className="mt-3 space-y-2">
-            {DEMO_SCHEDULE.map((row, r) => (
-              <div key={r} className="flex items-center gap-1.5">
-                {row.map((on, c) => (
-                  <span
-                    key={c}
-                    className={cn(
-                      "h-2.5 w-2.5 rounded-full",
-                      on
-                        ? "bg-accent-primary/85"
-                        : "border-[0.5px] border-border-strong",
-                    )}
-                  />
-                ))}
+            {DEMO_SCHEDULE.map((row) => (
+              <div key={row.name} className="space-y-1.5">
+                <p className="text-[9px] font-sans uppercase tracking-[0.12em] text-text-subtle">
+                  {row.name}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  {row.days.map((on, c) => (
+                    <span
+                      key={c}
+                      className={cn(
+                        "h-2 w-2 rounded-full",
+                        on
+                          ? "bg-accent-primary/85"
+                          : "border-[0.5px] border-border-strong",
+                      )}
+                    />
+                  ))}
+                </div>
               </div>
             ))}
           </div>
