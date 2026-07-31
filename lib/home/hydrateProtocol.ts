@@ -75,13 +75,19 @@ function doseRowsToDayLogs(
   for (const r of rows) {
     const taken = new Date(r.takenAt)
     if (Number.isNaN(taken.getTime())) continue
-    // THE STORED DAY WINS. Deriving a day from an instant answers with whatever
-    // timezone the phone is in right now, so flying between them re-bucketed
-    // every past dose — and because the device mirror keeps the original day,
-    // the merge below could then show one dose on two adjacent days. A day is a
-    // fact about where you were standing, so it is read, not recomputed.
-    // `takenAt` is still the fallback for rows written before 011.
-    const dateKey = r.loggedFor ?? toDateKey(taken)
+    // THE STORED DAY WINS, then the day the DEVICE recorded, and only then a
+    // derivation. Deriving a day from an instant answers with whatever timezone
+    // the phone is in right now, so flying between them re-bucketed every past
+    // dose — and because the device mirror keeps the original day, the merge
+    // below then showed one dose on two adjacent days. A day is a fact about
+    // where you were standing, so it is read, not recomputed.
+    //
+    // After `supabase/protocol/012` nulled the column, EVERY pre-existing row
+    // takes this fallback, which is what made the re-bucketing reachable for the
+    // whole of history rather than a handful of rows. `recoveredDay` reads the
+    // original day back out of the row's own id (see `DoseRow.recoveredDay`);
+    // `takenAt` remains the last resort for a row whose id predates that scheme.
+    const dateKey = r.loggedFor ?? r.recoveredDay ?? toDateKey(taken)
     const time24 = `${String(taken.getHours()).padStart(2, "0")}:${String(
       taken.getMinutes()
     ).padStart(2, "0")}`

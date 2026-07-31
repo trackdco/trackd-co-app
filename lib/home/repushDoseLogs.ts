@@ -58,7 +58,13 @@ export async function repushDoseLogs(userId: string): Promise<RepushResult> {
           // The name, so a compound whose Postgres id has drifted from its client
           // id still re-pushes. This path exists to recover doses logged offline;
           // without it the diverged ones would be dropped a second time.
-          compoundById.get(compoundId)?.name ?? null
+          compoundById.get(compoundId)?.name ?? null,
+          // NOT device-recorded. A replay cannot tell a day the device captured
+          // at log time from one an earlier session derived from `taken_at`, and
+          // `supabase/protocol/012` forbids writing a guessed day: doing so makes
+          // it permanent and stops the fallback correcting itself. Live logging
+          // still stamps the day, which is the only place that legitimately can.
+          false
         )
         if (res.ok) out.pushed += 1
         else out.failed += 1

@@ -99,11 +99,34 @@ export type IsoWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
  *  using its local timezone (the local day key + clock time are device-tz bound).
  *  Lives here (not the `"use server"` adapter, which may only export functions). */
 export interface DoseRow {
+  /**
+   * `dose_logs.id`. Not decoration: the id is `deterministicUuid("dl:<user>:<day>:<pc>")`,
+   * so it is a DURABLE record of the local day the row was first written under —
+   * the one piece of that fact which survives even when `logged_for` is null.
+   * Hydration uses it to recover the true day instead of re-deriving one from
+   * `takenAt` in whatever timezone the device happens to be in now.
+   */
+  id: string
   compoundId: string
   takenAt: string
   /** The stored local day (`dose_logs.logged_for`). Preferred over re-deriving a
    *  day from `takenAt`, which changes answer when the device changes timezone. */
   loggedFor: string | null
+  /**
+   * The local day RECOVERED from this row's own id, when `logged_for` is null.
+   *
+   * Not a guess and not a backfill: the id is a hash of the day the row was
+   * first written under, so a candidate day either reproduces the id exactly or
+   * it does not. The server tries the instant's UTC day and the day either side
+   * (no timezone shifts a calendar day by more than one) and reports a match, or
+   * null when the row predates the scheme.
+   *
+   * This exists because `supabase/protocol/012` correctly nulled `logged_for`,
+   * which left every historical dose falling back to re-deriving a day from the
+   * CURRENT device timezone — so changing zone re-bucketed history and the same
+   * dose could be written back under two different days as two rows.
+   */
+  recoveredDay: string | null
   /** The dose's own note (`dose_logs.note`), or null. */
   note: string | null
   amount: string

@@ -24,8 +24,6 @@
  * synchronous localStorage write has already succeeded; Postgres is the durable
  * source, not the read path, so a network blip can't break Home.
  */
-import { createHash } from "node:crypto"
-
 import { createClient } from "@/lib/supabase/server"
 import { guard } from "@/lib/resilience/circuitBreaker"
 import { ensureActiveCycle } from "@/lib/db/cycles"
@@ -52,6 +50,11 @@ import type { DrawSource } from "@/lib/home/draw"
 import type { StackCompound } from "@/lib/home/stack"
 import { CYCLE_COLUMNS, type CycleColumns } from "@/lib/protocol/cycleRule"
 import { capNote, type DoseLog } from "@/lib/home/mockHomeData"
+import {
+  deterministicUuid,
+  doseLogRowId,
+  recoverLoggedDay,
+} from "@/lib/home/doseLogIds"
 
 type Ok = { ok: boolean; skipped?: boolean }
 
@@ -65,14 +68,6 @@ async function ctx() {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function deterministicUuid(seed: string): string {
-  const b = createHash("sha256").update(seed).digest().subarray(0, 16)
-  b[6] = (b[6] & 0x0f) | 0x40 // version 4
-  b[8] = (b[8] & 0x3f) | 0x80 // variant 10
-  const hex = b.toString("hex")
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
-}
 
 /** The canonical `protocol_compounds.id` for a client `StackCompound.id`. */
 function resolvePcId(userId: string, clientId: string): string {
@@ -430,7 +425,7 @@ export async function pushProtocolBatch(
       if (!m) continue // custom / unresolved compound — its log stays device-local
       const injectable = m.method === "im" || m.method === "subq"
       dlRows.push({
-        id: deterministicUuid(`dl:${cx.userId}:${e.dateKey}:${m.pcId}`),
+        id: doseLogRowId(cx.userId, e.dateKey, m.pcId),
         protocol_compound_id: m.pcId,
         inventory_item_id: null,
         status: "taken",
@@ -774,7 +769,20 @@ export async function pushProtocolDoseLog(
   // The compound's name, so a diverged id can be RESOLVED rather than derived
   // (see below). Null only where the caller genuinely doesn't know it, which
   // costs nothing: the derived id is still tried first either way.
-  compoundName: string | null = null
+  compoundName: string | null = null,
+  /**
+   * Whether `dateKey` is the DEVICE's own answer, captured at log time, and may
+   * therefore be stored in `logged_for`.
+   *
+   * True for a live log and for an edit the user just made. FALSE for a replay
+   * (`repushDoseLogs`), where the day is only as good as whatever the store
+   * happens to hold and may itself have been derived in an earlier session —
+   * `supabase/protocol/012` is explicit that a guessed day must never be written
+   * down, because storing it makes it permanent and stops the fallback ever
+   * correcting itself. When false the column is OMITTED from the payload, so an
+   * existing stored day is left exactly as it was rather than overwritten.
+   */
+  dayIsDeviceRecorded = true
 ): Promise<Ok> {
   try {
     const cx = await ctx()
@@ -887,13 +895,13 @@ export async function pushProtocolDoseLog(
       const { data: prior } = await cx.supabase
         .from("dose_logs")
         .select("inventory_item_id")
-        .eq("id", deterministicUuid(`dl:${cx.userId}:${dateKey}:${pcId}`))
+        .eq("id", doseLogRowId(cx.userId, dateKey, pcId))
         .eq("user_id", cx.userId)
         .maybeSingle()
       inventoryItemId = (prior?.inventory_item_id as string | null) ?? null
     }
 
-    const dlId = deterministicUuid(`dl:${cx.userId}:${dateKey}:${pcId}`)
+    const dlId = doseLogRowId(cx.userId, dateKey, pcId)
     const saved = await upsertDoseLog({
       id: dlId,
       protocol_compound_id: pcId,
@@ -912,8 +920,10 @@ export async function pushProtocolDoseLog(
       taken_at: takenAtIso,
       // THE DAY, stored rather than inferred (`supabase/protocol/011`). The
       // server cannot know which calendar day the user was standing in; the
-      // device does, and `dateKey` is exactly it.
-      logged_for: dateKey,
+      // device does, and `dateKey` is exactly it — but only when the caller can
+      // vouch that the device recorded it. A replay omits the key entirely, so
+      // the column keeps whatever it already held.
+      ...(dayIsDeviceRecorded ? { logged_for: dateKey } : {}),
       // The user's own words about this dose, if any. The column has existed
       // since v0.4.2 and nothing had ever written to it.
       note: log.note?.trim() ? capNote(log.note.trim(), NOTE_MAX) : null,
@@ -947,7 +957,7 @@ export async function deleteProtocolDoseLog(
       (compoundName
         ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
         : null) ?? resolvePcId(cx.userId, clientCompoundId)
-    const dlId = deterministicUuid(`dl:${cx.userId}:${dateKey}:${pcId}`)
+    const dlId = doseLogRowId(cx.userId, dateKey, pcId)
     const res = await deleteDoseLog(dlId)
     // A delete that matched NOTHING is not a delete. Reporting it as one let the
     // caller drop its tombstone, and the dose came back on the next pull. Treated
@@ -1093,7 +1103,7 @@ export async function pushScheduleVersions(
 
 /** The dose-log columns as they exist before `supabase/protocol/011`. */
 const DOSE_LOG_COLUMNS =
-  "protocol_compound_id, taken_at, dose_amount, dose_unit, injection_site, inventory_item_id, note"
+  "id, protocol_compound_id, taken_at, dose_amount, dose_unit, injection_site, inventory_item_id, note"
 
 /**
  * Pull the user's dose logs, asking for `logged_for` and retrying without it.
@@ -1258,12 +1268,23 @@ export async function pullProtocolStackAndLogs(): Promise<{
       // all. Both are read through the same optional lookups below.
       const doseRowsRaw = (dlRes.data ?? []) as unknown as Record<string, unknown>[]
       const doseRows: DoseRow[] = doseRowsRaw.map((r) => ({
+        id: r.id as string,
         compoundId: r.protocol_compound_id as string,
         takenAt: r.taken_at as string,
         // Absent entirely until `supabase/protocol/011` is applied, and null on
         // any row its backfill could not reach — the caller falls back to
         // deriving a day from `takenAt` in both cases.
         loggedFor: (r.logged_for as string | null | undefined) ?? null,
+        // Only computed when the stored day is missing, which after 012 is every
+        // pre-existing row. A stored day needs no recovery.
+        recoveredDay: (r.logged_for as string | null | undefined)
+          ? null
+          : recoverLoggedDay(
+              cx.userId,
+              r.id as string,
+              r.protocol_compound_id as string,
+              String(r.taken_at)
+            ),
         note: (r.note as string | null | undefined) ?? null,
         amount: String(r.dose_amount),
         // The unit this dose was LOGGED in — per-log in the schema, so history

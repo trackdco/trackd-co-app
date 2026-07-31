@@ -2,6 +2,17 @@
 -- 012 · UNDO 011's backfill. It guessed a timezone, and guessed wrong.
 -- ============================================================================
 --
+-- ***** SPENT. APPLIED 2026-07-31. DO NOT RUN THIS AGAIN. *****
+--
+-- Its safety depended on a condition that no longer holds: that no app code
+-- wrote `logged_for`. That code is now deployed, so every non-null value in this
+-- column is a real day a real device recorded at log time, and the UPDATE below
+-- would erase all of it. There is no way to get it back: the timezone a past
+-- dose was logged in is not recorded anywhere else.
+--
+-- Kept in the repo as the record of what happened, not as a runnable migration.
+--
+-- ---------------------------------------------------------------------------
 -- APPLY THIS. 011 is live and is currently showing some doses on two days.
 --
 -- WHAT WENT WRONG
@@ -42,9 +53,11 @@
 -- day the device actually recorded.
 -- ============================================================================
 
-UPDATE dose_logs
-   SET logged_for = NULL
- WHERE logged_for IS NOT NULL;
+-- SPENT — see the header. Left commented so a copy-paste of this file cannot
+-- destroy the device-written days that now legitimately live in this column.
+-- UPDATE dose_logs
+--    SET logged_for = NULL
+--  WHERE logged_for IS NOT NULL;
 
 COMMENT ON COLUMN dose_logs.logged_for IS
     'The user''s LOCAL calendar day for this dose, written by the DEVICE at log '
