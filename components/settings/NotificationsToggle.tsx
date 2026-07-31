@@ -99,7 +99,7 @@ export function NotificationsToggle({
   );
 }
 
-/** The on/off switch — white when on (UI/active accent, not health data). */
+/** The on/off switch — amber when on, white knob (ui-context.md → switches). */
 function Toggle({
   on,
   busy,

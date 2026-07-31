@@ -73,15 +73,19 @@ export function firstLoggedDays(logs: DayLogs): Map<string, string> {
 /**
  * `dateKey` is a local "YYYY-MM-DD".
  *
- * `logs` bounds each run at its first recorded dose (see the module note). It is
- * OPTIONAL only so the dev preview harnesses can render without a device store;
- * every real caller passes it, and passing nothing lists nothing, because with
- * no log there is no evidence anything was ever run.
+ * `logs` bounds each run at its first recorded dose (see the module note) and is
+ * REQUIRED. It was briefly optional, defaulting to `{}` "so the preview
+ * harnesses can render" — and because an omitted optional argument is not a
+ * type error, the block retrospective silently kept calling it with two
+ * arguments and got an empty list for every day. "What you ran" quietly became
+ * "what you logged inside the window", which is the exact distinction this
+ * module exists to make. A required parameter turns that whole class of
+ * mistake back into a compile error.
  */
 export function compoundsRunningOn(
   stack: StackCompound[],
   dateKey: string,
-  logs: DayLogs = {},
+  logs: DayLogs,
 ): RunningCompound[] {
   const firstLogged = firstLoggedDays(logs)
   const out: RunningCompound[] = []

@@ -123,6 +123,7 @@ export function CompoundStorageCard({
         className="flex w-full flex-col items-center gap-2 transition active:scale-[0.98]"
       >
         <Container
+          name={compound.name}
           inventoryType={inventoryType}
           category={compound.category}
           // A vial with NO stock is drawn EMPTY, not two-thirds full: 0.62 is the

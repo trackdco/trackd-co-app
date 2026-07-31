@@ -39,6 +39,7 @@ export function CompoundHeader({
   return (
     <div className="flex items-center gap-4">
       <Container
+        name={name}
         inventoryType={inventoryTypeForCompound(name, method)}
         category={category}
         fill={0.7}

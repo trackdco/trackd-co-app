@@ -157,6 +157,7 @@ function DetailBody({
             reuse rather than a one-off. */}
         <div className="flex items-center gap-4">
           <Container
+            name={compound.name}
             inventoryType={inventoryTypeForCompound(compound.name, compound.method)}
             category={compound.category}
             fill={0.7}

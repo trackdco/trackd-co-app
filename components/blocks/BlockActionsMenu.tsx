@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { DotsThree } from "@/components/icons"
+import { DANGER_ROW } from "@/lib/ui-presets"
+import { cn } from "@/lib/utils"
 
 /**
  * The live block's actions, on the block's own page (Adrian, 2026-07-30).
@@ -77,9 +79,11 @@ export function BlockActionsMenu({
               End or extend
             </button>
           )}
-          {/* The destructive treatment the danger zone and the compound delete
-              confirm already use, so the one irreversible action in Blocks reads
-              the same as every other irreversible action in the app. */}
+          {/* DANGER_ROW itself, not a hand-rolled copy of it. The copy had
+              drifted in every way that matters: it hovered to the same
+              --bg-surface-raised as the non-destructive row above it, so the
+              one irreversible action in this menu gave identical press feedback
+              to the reversible one, and it carried no focus ring at all. */}
           <button
             type="button"
             role="menuitem"
@@ -87,7 +91,7 @@ export function BlockActionsMenu({
               setOpen(false)
               onDelete()
             }}
-            className="flex min-h-11 w-full items-center px-4 py-3 text-left text-sm text-accent-destructive transition-colors hover:bg-bg-surface-raised"
+            className={cn(DANGER_ROW, "min-h-11")}
           >
             Delete block
           </button>

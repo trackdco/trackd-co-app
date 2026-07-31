@@ -222,6 +222,25 @@ describe("compoundsRunAcross", () => {
     ])
   })
 
+  it("counts a compound that RAN through the window but was logged only before it", () => {
+    // The regression that shipped in a90815a: `compoundsRunningOn` grew a third
+    // `logs` argument and this caller was not updated, so the membership walk
+    // returned nothing for every day and "what you ran" quietly became "what
+    // you logged INSIDE the window". A compound started in December and still
+    // running through January, whose last logged dose fell before the window,
+    // disappeared from the retrospective entirely.
+    const stack = [compound({ id: "c1", name: "Testosterone" })]
+    const logs: DayLogs = {
+      "2025-12-02": { c1: {} as never },
+      "2025-12-05": { c1: {} as never },
+    }
+    const ran = compoundsRunAcross(stack, logs, WINDOW)
+    expect(ran).toHaveLength(1)
+    // It ran, and it is named — with zero doses INSIDE the window, which is the
+    // separate, correct reading.
+    expect(ran[0]).toMatchObject({ name: "Testosterone", doses: 0 })
+  })
+
   it("does not report a compound whose protocol started after the window", () => {
     const later = compound({
       id: "c9",

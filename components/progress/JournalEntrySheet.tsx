@@ -179,11 +179,18 @@ export function JournalEntrySheet({
   }
 
   function changeDate(next: string) {
-    const d = next || todayKey;
+    // An empty change event is the picker mid-wheel, not a new date. iOS fires
+    // one while the wheels are still moving, and coercing it to today did THREE
+    // destructive things here at once: it moved the entry to today, it deleted
+    // photos already uploaded in this session from the journal bucket
+    // (rollbackPending), and it overwrote the note being typed (preload). The
+    // other four date fields were fixed in ed3eed5; this one was missed, and it
+    // is the only one of the five with side effects. Hold the last good date.
+    if (!next) return;
     void rollbackPending();
     setRemovedIds([]);
-    setDate(d);
-    preload(d);
+    setDate(next);
+    preload(next);
   }
 
   // Any close that ISN'T a successful save rolls back unsaved uploads (no orphans).

@@ -125,6 +125,7 @@ export function WeightGlanceCard({
                   color="var(--chart-line)"
                   gradientId="weightSparkScaleCompact"
                   active={mode === "scale"}
+                  emphasis="raw"
                 />
                 <SparkLine
                   vals={trendW}
@@ -225,6 +226,7 @@ export function WeightGlanceCard({
                 color="var(--chart-line)"
                 gradientId="weightSparkScale"
                 active={mode === "scale"}
+                emphasis="raw"
               />
               <SparkLine
                 vals={trendW}
@@ -293,11 +295,21 @@ function SparkLine({
   color,
   gradientId,
   active,
+  emphasis = "trend",
 }: {
   vals: number[]
   color: string
   gradientId: string
   active: boolean
+  /**
+   * `trend` is the teal trend line: 2.5 stroke over a tapered fill. `raw` is the
+   * periwinkle Scale line, which `ui-context.md` → Charts requires to be
+   * "thinner, no fill" so the two never read as equals. Unifying the sparkline
+   * with the consistency graph accidentally gave BOTH series the trend
+   * treatment, so tapping from this card into `/weight` showed the Scale line
+   * change weight and lose its fill. `/weight` was right; this now matches it.
+   */
+  emphasis?: "trend" | "raw"
 }) {
   const cls = cn("transition-opacity duration-300 ease-out", active ? "opacity-100" : "opacity-0")
   if (vals.length <= 1) {
@@ -315,12 +327,14 @@ function SparkLine({
           <stop offset="100%" stopColor={color} stopOpacity={0} />
         </linearGradient>
       </defs>
-      <path d={area} fill={`url(#${gradientId})`} stroke="none" />
+      {emphasis === "trend" ? (
+        <path d={area} fill={`url(#${gradientId})`} stroke="none" />
+      ) : null}
       <path
         d={line}
         fill="none"
         stroke={color}
-        strokeWidth={2.5}
+        strokeWidth={emphasis === "trend" ? 2.5 : 1.5}
         strokeLinejoin="round"
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"

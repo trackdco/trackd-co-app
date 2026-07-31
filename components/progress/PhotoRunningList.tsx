@@ -99,6 +99,7 @@ export function PhotoRunningList({
             className="flex items-center gap-3 rounded-xl bg-bg-surface-raised px-3 py-2.5"
           >
             <Container
+              name={c.name}
               inventoryType={inventoryTypeForCompound(c.name, c.method)}
               category={c.category}
               fill={0.7}

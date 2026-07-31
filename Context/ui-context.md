@@ -76,8 +76,13 @@ Everything **settled** reads white or muted: a single logged-dose **tick**
 resolves to a filled `--accent-primary` (white) mark; the **active selection** in
 a control is white; the tab bar is monochrome (active white, inactive
 `--text-subtle`). Rarity is what makes amber read — if half the screen is amber,
-nothing is urgent. (The injection-site recency ramp below is the one sanctioned
-many-amber surface.)
+nothing is urgent. **Two sanctioned many-amber surfaces**, and only two: the
+injection-site recency ramp below, and a **settings screen carrying several
+switches** (`/notifications` shows four amber tracks with everything on). The
+switch rule below is why, and it is consistent with rarity rather than an
+exception to it: a switch that is on IS the live state, and on a screen whose
+entire job is showing you which things are on, that is the content, not
+decoration.
 
 ### Rule: a switch that is ON is amber
 
@@ -359,11 +364,20 @@ across the app so they read as one system:
 - **No bar charts for trends** — the Weight and Consistency graphs both use the
   line+gradient style above.
 - **Glance sparklines** are the ONE sanctioned exception: a compact preview (e.g.
-  the Home Weight glance card) may draw a minimal token-coloured `<polyline>`
-  sparkline — same neutral `--chart-line` / `--chart-trend` hues, no fill / scrub /
-  range, with a small `--accent-primary` dot on the latest point — because it only
-  teases the full graph one tap away (`/weight`). It stays non-evaluative;
-  anything larger than a glance uses the full line+gradient style.
+  the Home Weight glance card) draws a minimal token-coloured sparkline — same
+  neutral `--chart-line` / `--chart-trend` hues, no scrub / range, with a small
+  `--accent-primary` dot on the latest point — because it only teases the full
+  graph one tap away (`/weight`). It stays non-evaluative.
+  **The glance TREND line carries the same tapered gradient fill as the full
+  graph** (`--chart-trend` at 0.35 opacity at the line → 0 at the base, a
+  monotone curve at 2.5): the Weight and Consistency cards sat side by side on
+  Home speaking two different visual languages, and a glance that previews a
+  graph should look like the graph (Adrian, 2026-07-31). The earlier rule said
+  "no fill" and a bare `<polyline>`; that is superseded.
+  **The raw / secondary series inside a glance is still unfilled and thinner**
+  (1.5), exactly as it is at full size — the trend/raw distinction is the one
+  thing that must NOT collapse, or the Scale line changes weight when you tap
+  through to `/weight`.
 
 Chart hues are a deliberately **neutral** teal/periwinkle (never red/green),
 because trend visuals must stay **non-evaluative** per the health-data rule

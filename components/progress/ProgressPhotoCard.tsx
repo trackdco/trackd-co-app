@@ -132,6 +132,12 @@ export function ProgressPhotoCard({
                     if (el?.complete) el.classList.remove("opacity-0")
                   }}
                   onLoad={(e) => e.currentTarget.classList.remove("opacity-0")}
+                  /* Without this, a 404 or an expired signed URL left a fully
+                     reserved, PERFECTLY EMPTY box forever: the reveal never
+                     fires, and `opacity-0` hides even the browser's own broken
+                     -image affordance. Showing it puts the failure back on
+                     screen instead of designing it away. */
+                  onError={(e) => e.currentTarget.classList.remove("opacity-0")}
                   className={cn(
                     "h-full w-full object-cover object-top opacity-0",
                     "transition-opacity duration-300 ease-out motion-reduce:transition-none",

@@ -20,7 +20,7 @@ import type { DayLogs } from "@/lib/home/doseLog";
  * The Progress tab — the "look back" screen (spec 08 · part two). Everything that
  * came off the dashboard lives here.
  *
- * The live block, the photo card, then a two-by-two grid of Weight, Journal,
+ * The photo card, the live block, then a two-by-two grid of Weight, Journal,
  * Bloods and Consistency. The widgets share the dashboard's grid and card chrome
  * (`grid-cols-2 gap-3`, `p-5`, eyebrow then content) so the two tabs read as one
  * app. They are TALLER than the dashboard's Today / Next Dose cards — about 228px

@@ -93,7 +93,13 @@ function groupByCategory(doses: DueDose[]): DoseGroup[] {
     return i < 0 ? CATEGORY_ORDER.length : i
   }
   return [...byCat.keys()]
-    .sort((a, b) => rank(a) - rank(b))
+    // The name tiebreak is not cosmetic. Every UNRECOGNISED category ties at
+    // rank = CATEGORY_ORDER.length, and without it the order falls through to
+    // Map insertion order, i.e. whatever order the compounds happened to
+    // arrive. Two of the five grouping sites already sorted by name, so the
+    // same two compounds sat in one order here and the opposite order under a
+    // photo. Ranked first, named second, everywhere.
+    .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
     .map((cat) => {
       const meta = CATEGORY_META[cat as CompoundCategory] ?? FALLBACK_CATEGORY_META
       return {
@@ -420,8 +426,9 @@ export function TodaysCycleCard({
  * three records exactly that.
  *
  * **Partial reads as partial, never as complete**: the tick only fills white
- * when every member is logged; part-way through it is an outline with a small
- * inner mark and the row states the count.
+ * when every member is logged; part-way through it is a BARE white outline (the
+ * `Check` inside is `text-transparent`, so there is no inner mark) and the row
+ * states the count in words.
  *
  * The container fills all move together simply because logging re-renders them
  * with a new fill and they share the `.container-fill` transition.
@@ -525,8 +532,11 @@ function StackDoseRow({
             }
             className={cn(
               "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
-              // Partway through reads as partway through: the ring picks up the
-              // stack's own colour rather than jumping straight to done.
+              // Partway through reads as partway through: the ring goes white
+              // (the settled accent) without filling, rather than jumping
+              // straight to done. NOT the stack's own colour — `colour` is in
+              // scope here and is deliberately not used, because a palette ring
+              // would read as decoration rather than as progress.
               partial
                 ? "border-accent-primary text-transparent"
                 : "border-border-strong text-transparent hover:border-text-primary"
@@ -547,6 +557,7 @@ function StackDoseRow({
             {members.map((m) => (
               <Container
                 key={m.id}
+                name={m.name}
                 inventoryType={inventoryTypeForCompound(m.name, m.method)}
                 category={m.category}
                 stackColour={colour}

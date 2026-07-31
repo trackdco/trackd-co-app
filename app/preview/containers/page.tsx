@@ -114,11 +114,16 @@ export default function PreviewContainersPage() {
             { label: "BPC-157", inventoryType: "reconstituted", category: "peptide" },
             { label: "Anavar", inventoryType: "oral_solid", category: "oral" },
             { label: "Oral anabolic", inventoryType: "oral_solid", category: "anabolic" },
-            { label: "Creatine", inventoryType: "oral_solid", category: "supplement" },
+            // The two supplements are the point: same category, same inventory
+            // type, different container, because the catalogue prices one in
+            // grams and the other in iu.
+            { label: "Creatine Monohydrate", inventoryType: "oral_solid", category: "supplement" },
+            { label: "Vitamin D3", inventoryType: "oral_solid", category: "supplement" },
             { label: "Custom, no category", inventoryType: null, category: null },
           ].map((c) => (
             <div key={c.label} className="flex items-center gap-4 py-3">
               <Container
+                name={c.label}
                 inventoryType={c.inventoryType}
                 category={c.category}
                 fill={0.7}

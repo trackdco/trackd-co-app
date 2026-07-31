@@ -1162,15 +1162,22 @@ function AddCompoundBody({
               // Amber when on, white knob (Adrian, 2026-07-30). Amber is what
               // "live / on" means everywhere else in this app; `accent-primary`
               // resolves to white, which put a white track under a white knob.
+              // Geometry, knob colour and the OFF hairline all match the two
+              // settings switches exactly. The rule in ui-context.md says "no
+              // exceptions and no per-screen variants", and this one was the
+              // exception: a #F0EFE9 knob where the doc says #FFFFFF, no OFF
+              // border at all, and a track 4px shorter than every other switch.
               className={cn(
-                "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                cycleDraft ? "bg-accent-amber" : "bg-bg-input",
+                "relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200",
+                cycleDraft
+                  ? "bg-accent-amber"
+                  : "border border-border-strong bg-bg-input",
               )}
             >
               <span
                 className={cn(
-                  "absolute top-0.5 h-5 w-5 rounded-full bg-text-primary transition-[left] duration-200 ease-out motion-reduce:transition-none",
-                  cycleDraft ? "left-[1.375rem]" : "left-0.5",
+                  "absolute top-1 h-5 w-5 rounded-full bg-primary transition-[left] duration-200 ease-out motion-reduce:transition-none",
+                  cycleDraft ? "left-[1.625rem]" : "left-1",
                 )}
                 aria-hidden
               />

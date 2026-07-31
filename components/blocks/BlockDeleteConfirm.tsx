@@ -89,7 +89,7 @@ export function BlockDeleteConfirm({
           Delete {blockName}?
         </h2>
         <p className="mt-1.5 text-sm text-text-muted">
-          The block and its target go for good. Every dose, weigh-in, photo and
+          The block goes for good. Every dose, weigh-in, photo and
           note you recorded while it ran is kept.
         </p>
         {error && (

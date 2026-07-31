@@ -34,13 +34,16 @@ import {
 } from "@/lib/blocks/block"
 
 /**
- * The live block, at the top of Progress (Adrian, 2026-07-30: slim banner, own
- * page).
+ * The live block on Progress (Adrian, 2026-07-30: slim banner, own page). It
+ * sits BELOW the photo card as of 50d150c, not at the top.
  *
  * Slim rather than a hero card on purpose. A block is the FRAME for everything
- * below it — the photos, the weight, the consistency all belong to the window it
- * defines — and a frame that pushed the photo below the fold would be competing
- * with the thing it frames. One number does not need a ring.
+ * around it — the photos, the weight, the consistency all belong to the window
+ * it defines — and a frame that pushed the photo below the fold would be
+ * competing with the thing it frames. Moving it under the photos serves the
+ * same argument by a shorter route: the photo is what people open Progress
+ * for, so it goes first, and the frame stays slim either way. One number does
+ * not need a ring.
  *
  * Every string states a fact. No "on track", no "behind", nothing that would
  * want a colour: `architecture.md`'s categorical-never-evaluative rule covers
