@@ -79,6 +79,27 @@ a control is white; the tab bar is monochrome (active white, inactive
 nothing is urgent. (The injection-site recency ramp below is the one sanctioned
 many-amber surface.)
 
+### Rule: a switch that is ON is amber
+
+**Every** `role="switch"` in the app uses `--accent-amber` as its ON track, with
+a white (`--accent-primary`) knob; OFF is `--bg-input` with a
+`--border-strong` hairline. No exceptions, and no per-screen variants
+(Adrian, 2026-07-31).
+
+This is consistent with the rule above rather than an exception to it: a switch
+that is on IS the "this is live" state, which is the thing amber means. It is
+also the state the user is looking for when they glance at a settings screen, so
+it has to be the thing that reads first.
+
+`--accent-primary` is **white**, so an ON track built from it put a white knob on
+a white track — the control was legible only by the knob's shadow. That is the
+mistake this rule exists to prevent; it was fixed on the cycle toggle first
+(2026-07-30) and the notification switches were left behind until they were
+caught side by side on a phone.
+
+Applies to: notifications master, each reminder row (dose / missed-dose / low
+stock), and "Run this compound on a cycle". Any new switch inherits it.
+
 ### Category legend — compound type icons
 
 Each compound carries a small **type icon** that shows its **form** at a glance —

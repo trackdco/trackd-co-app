@@ -118,7 +118,7 @@ function Toggle({
       disabled={busy}
       onClick={onClick}
       className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-60 ${
-        on ? "bg-accent-primary" : "bg-bg-input border border-border-strong"
+        on ? "bg-accent-amber" : "bg-bg-input border border-border-strong"
       }`}
     >
       {/* Knob: flex-centered vertically; travel is exact so the 4px inset is equal
