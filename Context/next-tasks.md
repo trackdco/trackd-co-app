@@ -66,6 +66,37 @@ Verified at the last commit: `tsc` clean, `eslint` clean, **341 tests pass**,
 
 ---
 
+## ✅ The authenticated cold-start walkthrough is DONE (2026-07-31)
+
+Driven end to end against PRODUCTION Supabase on a throwaway account, in Chrome,
+at 360/390/430. **All four never-executed paths work** — Blocks (the missing
+`GRANT` is applied and holds), `updatePhysical`, `extendBlock`, and `startBlock`'s
+compensating restore — and both CRITICAL fixes were re-measured against real rows
+rather than re-read. Full detail in `progress-tracker.md`. Nine routes serve clean
+at all three widths with no console or page errors.
+
+**Merge-relevant number:** all 288 production `dose_logs` rows are recoverable
+from their row id, so no user is left on the `taken_at` fallback.
+
+Two dev-only defects were found and fixed (the photo adjust step, a React `key`
+warning). One item is deliberately left for Adrian, below.
+
+### Left for Adrian to decide
+
+- **Progress and the block retrospective read an EMPTY device store on a device
+  that has never opened Home or Protocol**, because `useCloudHydration` runs only
+  on those two. The retrospective then states a measured "0%" consistency for a
+  block that has doses. Every real entry point (sign-in redirect, PWA
+  `start_url`, every push `url`) goes to `/dashboard` or `/protocol` first, so
+  this needs a typed URL or a stale bookmark — which is why it was left rather
+  than patched. The fix is either calling `useCloudHydration` on those screens
+  too, or having them say "not synced yet" instead of a figure.
+- **The Progress weight card has no control at all until a weight exists**; the
+  quick-actions FAB is the only route to logging the first one. Deliberate or
+  not, it is the one empty state on that screen that does not offer its action.
+
+---
+
 ## ⚠️ Known, judged, NOT fixed
 
 These were found by review and deliberately left. Each needs a decision, not a

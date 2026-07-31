@@ -389,6 +389,77 @@ is up, fading in; the injection-site body map went back INLINE in the log sheet,
 reversing spec 11's move of it behind a "Site" row; and the beta feedback row
 left the quick-actions menu.
 
+## Authenticated cold-start walkthrough (2026-07-31)
+
+A throwaway account was driven through the whole app against the PRODUCTION
+Supabase, in Chrome, at 360/390/430, capturing `console` + `pageerror` on every
+step. **The four never-executed code paths all work**, so nothing here blocks the
+merge. What the walkthrough established, all MEASURED:
+
+- **Blocks is alive.** The hand-applied `GRANT` holds: start, list, retrospective,
+  extend (5 Aug → 30 Sep), reflection, and close all reach Postgres with no
+  `42501`. Closing PRE-FILLS the existing reflection and keeps it.
+- **`startBlock`'s compensating restore genuinely restores.** Forced a real
+  insert failure (a 61-character name against the 60-character CHECK, which the
+  form caps but the server action does not) while a block was live: the live
+  block came back `status=active, closed_on=null`, and the sheet reported the
+  plain "Could not start the block." rather than the may-have-ended wording.
+- **`updatePhysical` saves, and saves REPEATEDLY** — three consecutive edits in
+  one session each closed the card, which is the `savedAt` token doing its job.
+  An out-of-range height never reaches the action: `min`/`max` on the input make
+  the browser refuse the submit with its own message.
+- **Stack membership survives every operation.** Create, remove a member, re-add,
+  and delete the stack: `stack_members` tracks each one (positions renumber), and
+  deleting a stack leaves both `protocol_compounds` and the cycle untouched. A
+  full `localStorage` wipe rehydrates the stack from Postgres alone.
+
+The two CRITICALs were re-tested against real rows rather than re-read:
+
+- **`recoverLoggedDay` holds.** With `logged_for` nulled (the state 012 left every
+  production row in) and the device store wiped, loading under
+  `America/Los_Angeles` — where the device's own day is 30 Jul — put the doses
+  back on **31 Jul**, minted no second row, and left `taken_at` alone.
+  `repushDoseLogs` left `logged_for` null, as 012 requires.
+- **Coverage is total.** Across ALL 288 `dose_logs` rows (15 users), 288 are
+  recoverable from the row id and 0 are not, so there is no legacy-id population
+  taking the `toDateKey(taken_at)` fallback. 41 of those rows have a recovered
+  day that differs from their UTC day: those are the rows that would have
+  re-bucketed and duplicated.
+- **The reminder cycle gate gates.** Driving `isDueToday` through the runner's own
+  `PC_REMINDER_SELECT` against live rows: an off-cycle compound is not due, an
+  uncycled one is, and an on-cycle AND scheduled day is due again — so the gate
+  is not merely always-false. `v_inventory_math.days_to_empty` is present in prod.
+
+Also confirmed working: editing a dose's date MOVES it (old row gone, new row
+under the new day's id, note and injection site carried, no duplicate); the
+`delt_left` enum round-trip; a first weight reads "First reading" with no
+fabricated delta; first journal entry, first vial and first photo all persist;
+and the calculator's arithmetic is exact (5 mg / 2 mL / 250 mcg → 2.5 mg/mL,
+0.1 mL, 10 U) with the mg⇄mcg conversion hints live under both fields.
+
+**Two defects found and fixed**, both dev-only, neither user-facing in
+production:
+
+- **The photo adjust step could never preview a photo in `next dev`.** The object
+  URL was created in a lazy `useState` initialiser and revoked in an effect
+  cleanup; state outlives a cleanup, so React StrictMode's mount → unmount →
+  remount handed the component back a URL it had already revoked. Every photo, on
+  all five surfaces, fell to "This photo can't be previewed on this device". A
+  `useMemo` was measured and behaves identically. Creating the URL IN the effect
+  is the only arrangement that survives the remount. **This is the likely reason
+  spec 05's device testing never happened.**
+- **A React `key` warning on every dashboard load**, from `notificationsBanner`
+  crossing the RSC boundary and arriving unvalidated. Keyed at the creation site,
+  because wrapping it in an element would open a `space-y-5` gap when the banner
+  renders null.
+
+**Known, not fixed:** `useCloudHydration` runs on Home and Protocol only, so a
+device that has never opened either reads Progress's consistency and a block
+retrospective off an EMPTY device store — the retrospective states a measured
+"0%". Every real entry point (sign-in redirect, PWA `start_url`, and every push
+`url`) lands on `/dashboard` or `/protocol` first, so reaching it needs a typed
+URL or an old bookmark. Left as Adrian's call rather than patched.
+
 ## Open Questions
 
 - ~~**Schedule versioning — migration awaiting Adrian.**~~ **RESOLVED 2026-07-29.**
