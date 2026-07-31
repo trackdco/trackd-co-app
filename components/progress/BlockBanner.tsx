@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { CaretRight, Plus } from "@/components/icons"
+import { CaretRight } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { useMounted } from "@/components/home/useMounted"
@@ -14,6 +14,7 @@ import {
   UNIT_SUFFIX,
 } from "@/lib/ui-presets"
 import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
+import { NewItemCard } from "@/components/protocol/NewItemCard"
 import type { WeightUnit } from "@/lib/weight"
 import { BlockEndPrompt } from "@/components/blocks/BlockEndPrompt"
 import {
@@ -33,13 +34,16 @@ import {
 } from "@/lib/blocks/block"
 
 /**
- * The live block, at the top of Progress (Adrian, 2026-07-30: slim banner, own
- * page).
+ * The live block on Progress (Adrian, 2026-07-30: slim banner, own page). It
+ * sits BELOW the photo card as of 50d150c, not at the top.
  *
  * Slim rather than a hero card on purpose. A block is the FRAME for everything
- * below it — the photos, the weight, the consistency all belong to the window it
- * defines — and a frame that pushed the photo below the fold would be competing
- * with the thing it frames. One number does not need a ring.
+ * around it — the photos, the weight, the consistency all belong to the window
+ * it defines — and a frame that pushed the photo below the fold would be
+ * competing with the thing it frames. Moving it under the photos serves the
+ * same argument by a shorter route: the photo is what people open Progress
+ * for, so it goes first, and the frame stays slim either way. One number does
+ * not need a ring.
  *
  * Every string states a fact. No "on track", no "behind", nothing that would
  * want a colour: `architecture.md`'s categorical-never-evaluative rule covers
@@ -108,19 +112,29 @@ export function BlockBanner({
   if (!block) {
     return (
       <>
-        <button
-          type="button"
+        {/* Same treatment as the Stacks and Cycles empty cards (Adrian,
+            2026-07-31): a dimmed mock of the thing above the copy, so a first
+            run shows what a block IS rather than only describing it. The mock is
+            a block's own headline — a week reading over a filling bar — because
+            that is what the card becomes the moment one is running. */}
+        <NewItemCard
+          label="New block"
           onClick={() => setCreating(true)}
-          className="hairline flex w-full flex-col items-center gap-1.5 rounded-2xl border-border-default px-6 py-5 text-center text-text-muted transition hover:text-foreground active:scale-[0.98]"
-        >
-          <span className="flex items-center gap-2 text-sm font-medium">
-            <Plus className="h-4 w-4" aria-hidden />
-            New block
-          </span>
-          <span className="text-xs text-text-subtle">
-            A prep, an off-season, a cut. Start and end dates, and what you ran.
-          </span>
-        </button>
+          description="A prep, an off-season, a cut. Start and end dates, and what you ran."
+          preview={
+            <span className="flex w-40 flex-col gap-1.5">
+              <span className="flex items-baseline gap-1.5">
+                <span className="font-mono text-2xl font-light leading-none text-text-muted">
+                  3
+                </span>
+                <span className="text-[11px] text-text-subtle">of 12 weeks</span>
+              </span>
+              <span className="block h-1 w-full overflow-hidden rounded-full bg-bg-input">
+                <span className="block h-full w-1/4 rounded-full bg-text-subtle" />
+              </span>
+            </span>
+          }
+        />
 
         {/* Only when there is something to look back on. A link to an empty
             page is worse than no link. */}

@@ -8,6 +8,7 @@ import {
   CompoundStorageCard,
 } from "@/components/protocol/CompoundStorageCard"
 import { cn } from "@/lib/utils"
+import { categoryRank } from "@/lib/compound-categories"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
@@ -43,7 +44,7 @@ export function CompoundsRow({
   onAddStock: (c: StackCompound) => void
   onAddCompound: () => void
 }) {
-  const ordered = orderByCategoryVolume(compounds)
+  const ordered = orderByCategory(compounds)
 
   return (
     <section className="space-y-3">
@@ -88,16 +89,22 @@ export function CompoundsRow({
   )
 }
 
-/** Most-held category first; alphabetical inside each. */
-export function orderByCategoryVolume(compounds: StackCompound[]): StackCompound[] {
-  const counts = new Map<string, number>()
-  for (const c of compounds) counts.set(c.category, (counts.get(c.category) ?? 0) + 1)
-
+/**
+ * Categories in the shared display order; alphabetical inside each.
+ *
+ * This used to sort by VOLUME — most-held category first — which read the list
+ * backwards (Adrian, 2026-07-31): "if someone's running a lot of supplements but
+ * they're also running steroids, they're gonna want to see their steroids
+ * first". Five supplements pushed a single anabolic to the end of the row, and
+ * adding a sixth vitamin silently reordered a screen the user had learned. The
+ * order is fixed now, and identical here, on Today's Log and under a photo.
+ */
+export function orderByCategory(compounds: StackCompound[]): StackCompound[] {
   return [...compounds].sort((a, b) => {
-    const byVolume = (counts.get(b.category) ?? 0) - (counts.get(a.category) ?? 0)
-    if (byVolume !== 0) return byVolume
-    // Same volume — settle it on the category NAME so the order is deterministic
-    // rather than whatever order the categories happened to be seen in.
+    const byCategory = categoryRank(a.category) - categoryRank(b.category)
+    if (byCategory !== 0) return byCategory
+    // Two unrecognised categories share a rank — settle on the name so the order
+    // is deterministic rather than whatever order they were seen in.
     if (a.category !== b.category) return a.category.localeCompare(b.category)
     return a.name.localeCompare(b.name)
   })

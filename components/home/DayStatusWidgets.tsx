@@ -161,6 +161,7 @@ function NextDoseWidget({ next }: { next: NextDoseInfo }) {
       <p className={CARD_EYEBROW}>Next dose</p>
       <div className="mt-3 flex flex-1 flex-col items-center justify-center gap-2">
         <Container
+          name={d.compound.name}
           inventoryType={inventoryTypeForCompound(d.compound.name, d.compound.method)}
           category={d.compound.category}
           fill={0.7}

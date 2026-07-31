@@ -374,7 +374,14 @@ export function AddProgressPhotoSheet({
                 type="date"
                 value={drawnOn}
                 max={todayKey}
-                onChange={(e) => setDrawnOn(e.target.value || todayKey)}
+                onChange={(e) => {
+                  // An EMPTY change event is not "today". iOS fires one while the
+                  // picker wheels are still moving, and coercing it to today snapped
+                  // the field back mid-pick — so a back-dated entry saved silently
+                  // under today's date. Keep the last good value; the field is
+                  // required, so there is nothing it should clear to.
+                  if (e.target.value) setDrawnOn(e.target.value)
+                }}
                 aria-label="Date taken"
                 className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
               />

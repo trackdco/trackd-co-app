@@ -146,7 +146,7 @@ export function compoundsRunAcross(
   const pending = new Set(stack.map((c) => c.id))
   for (const key of daysIn(window)) {
     if (pending.size === 0) break
-    for (const r of compoundsRunningOn(stack, key)) {
+    for (const r of compoundsRunningOn(stack, key, logs)) {
       if (!pending.has(r.id)) continue
       pending.delete(r.id)
       found.set(r.id, {

@@ -21,6 +21,7 @@ import { revalidatePath } from "next/cache"
 
 import {
   closeBlock,
+  deleteBlock,
   extendBlock,
   saveReflection,
   startBlock,
@@ -71,6 +72,14 @@ export async function saveReflectionAction(
   reflection: string,
 ): Promise<{ ok: boolean }> {
   const res = await saveReflection(blockId, reflection)
+  if (res.ok) revalidate()
+  return res
+}
+
+export async function deleteBlockAction(
+  blockId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await deleteBlock(blockId)
   if (res.ok) revalidate()
   return res
 }

@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/navigation/bottom-nav";
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 import { ProgressScreen } from "@/components/progress/ProgressScreen";
 import { toDateKey } from "@/lib/home/mockHomeData";
+import type { DayLogs } from "@/lib/home/doseLog";
 import type { StackCompound } from "@/lib/home/stack";
 import type { Block } from "@/lib/blocks/block";
 import {
@@ -211,8 +212,9 @@ export default async function PreviewProgressPage({
   ].sort((a, b) => b.date.localeCompare(a.date)); // newest first, like the page
 
   // Device data for the photo card's Running list. The list resolves what was
-  // RUNNING on the photo's date from the protocol itself, not from the dose log,
-  // so a stack is all it needs — no logs required to exercise it.
+  // RUNNING on the photo's date from the protocol AND the dose log: a run now
+  // begins at its first recorded dose, so the fixture needs one or the harness
+  // renders an empty list (which is correct, and useless to look at).
   const previewStack: StackCompound[] = [
     {
       id: "p-test",
@@ -248,6 +250,17 @@ export default async function PreviewProgressPage({
       rotationIndex: 0,
     },
   ];
+
+  // One dose each, dated well before the oldest photo, so every fixture compound
+  // reads as a run in progress across the whole gallery.
+  const previewLogs: DayLogs = {
+    "2026-01-01": Object.fromEntries(
+      previewStack.map((c) => [
+        c.id,
+        { amount: String(c.dose), unit: c.unit, time24: "08:00", siteId: null },
+      ]),
+    ),
+  };
 
   // A live block, so the preview shows the banner in its populated state.
   const previewBlocks: Block[] = [
@@ -296,6 +309,7 @@ export default async function PreviewProgressPage({
           consistencySample={consistencySample}
           progressPhotos={progressPhotos}
           previewStack={previewStack}
+          previewLogs={previewLogs}
           previewBlocks={previewBlocks}
         />
       </main>
