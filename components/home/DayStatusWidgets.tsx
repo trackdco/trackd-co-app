@@ -142,8 +142,12 @@ function NextDoseWidget({ next }: { next: NextDoseInfo }) {
             {next.scheduledAny ? "Nothing due" : "Nothing scheduled"}
           </span>
           <span className="mt-1 text-sm text-text-muted">
+            {/* "until tomorrow" was hardcoded and claimed a fact about the NEXT
+                day that this card never checks. On a weekly compound, the most
+                common first protocol there is, the next dose is seven days out
+                and the line was simply wrong. Say only what is true of today. */}
             {next.scheduledAny
-              ? "You're clear until tomorrow"
+              ? "You're all clear for today"
               : "No doses planned for this day."}
           </span>
         </div>

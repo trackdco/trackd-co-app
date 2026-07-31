@@ -46,6 +46,7 @@ import {
   isDueOnFor,
   loadStack,
   majorityInjectionRoute,
+  nextStartingCompound,
   notifyStackChanged,
   saveStack,
   subscribeStack,
@@ -356,6 +357,17 @@ export function HomeScreen({
     if (loggedCount >= dueIds.length) return "logged"
     return "partial"
   }
+
+  /**
+   * The soonest compound whose START DATE is still ahead of the selected day.
+   *
+   * A compound added with a future start is due on no day yet, so Today's Log
+   * read "nothing scheduled" while the onboarding card had already gone (it is
+   * gated on an empty stack). The compound then appeared in exactly ONE place in
+   * the app, and the only reasonable reading of that screen was that the add had
+   * failed. Naming it, and when it begins, is the whole fix.
+   */
+  const startsNext = nextStartingCompound(activeStack, selectedKey)
 
   /** Is anything scheduled on this day at all? Separate from `statusOf`, which
    *  reports POSITION (a future day is always "future"), so the strip can dim a
@@ -680,6 +692,7 @@ export function HomeScreen({
               greeting={<HomeGreeting firstName={firstName} />}
               title={cycleTitle}
               dueDoses={dueDoses}
+              startsNext={startsNext}
               onLog={(dose) =>
                 setLogTarget({ compound: dose, existing: null })
               }

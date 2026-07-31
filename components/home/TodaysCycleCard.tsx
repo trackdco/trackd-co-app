@@ -17,6 +17,7 @@ import { partitionByStack, type Stack } from "@/lib/home/stacks"
 import { Container } from "@/components/containers"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { paletteColourVar } from "@/lib/palette"
+import { formatPhotoDateShort } from "@/lib/progress/photos"
 import { useState, type ReactNode } from "react"
 
 /** A due compound plus its log state. */
@@ -32,6 +33,9 @@ interface TodaysCycleCardProps {
    *  card it introduces the content. */
   greeting?: ReactNode
   dueDoses: DueDose[]
+  /** The soonest compound whose start date is still ahead, when nothing is due
+   *  on the selected day. Null when there is none. */
+  startsNext?: { name: string; startDate: string } | null
   onLog: (dose: StackCompound) => void
   /** Untick a logged dose → remove its log. The tick is a pure toggle. */
   onUnlog: (dose: StackCompound) => void
@@ -290,6 +294,7 @@ function DoseRow({
 export function TodaysCycleCard({
   title,
   dueDoses,
+  startsNext = null,
   onLog,
   onUnlog,
   onOpenDetail,
@@ -382,7 +387,20 @@ export function TodaysCycleCard({
         </div>
       ) : (
         <p className="mt-4 rounded-2xl bg-bg-surface-raised px-4 py-6 text-center text-sm text-text-muted">
-          Nothing scheduled for this day.
+          {/* A compound with a FUTURE start date is in the stack but due on no
+              day yet, so this card said "nothing scheduled" while the onboarding
+              card (gated on an empty stack) had already gone. The compound
+              existed in exactly one place in the whole app, and a new user's
+              only reasonable reading was that the add had failed. */}
+          {startsNext ? (
+            <>
+              Nothing scheduled for this day.
+              <br />
+              {startsNext.name} starts {formatPhotoDateShort(startsNext.startDate)}.
+            </>
+          ) : (
+            <>Nothing scheduled for this day.</>
+          )}
         </p>
       )}
     </section>

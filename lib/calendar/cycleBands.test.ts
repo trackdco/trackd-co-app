@@ -168,8 +168,15 @@ describe("day detail wording", () => {
   })
 
   it("formats a date key short", () => {
-    expect(formatKeyShort("2026-07-26")).toBe("26 Jul")
-    expect(formatKeyShort("2026-01-05")).toBe("5 Jan")
-    expect(formatKeyShort("nonsense")).toBe("nonsense")
+    expect(formatKeyShort("2026-07-26", 2026)).toBe("26 Jul")
+    expect(formatKeyShort("2026-01-05", 2026)).toBe("5 Jan")
+    expect(formatKeyShort("nonsense", 2026)).toBe("nonsense")
+  })
+
+  it("prints the year for a date in another year", () => {
+    // A cycle ending 5 Aug 2027 read as "5 Aug" on 30 Jul 2026 — six days away
+    // rather than a year away, and nothing on screen told them apart.
+    expect(formatKeyShort("2027-08-05", 2026)).toBe("5 Aug 2027")
+    expect(formatKeyShort("2025-08-05", 2026)).toBe("5 Aug 2025")
   })
 })

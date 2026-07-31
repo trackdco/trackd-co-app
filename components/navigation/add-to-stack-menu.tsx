@@ -568,7 +568,11 @@ export function AddToStackMenu({
                 type="button"
                 onClick={handleSubmit}
                 disabled={!nameValid}
-                className="justify-self-end text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:text-text-subtle"
+                // Same tap treatment as the Cancel beside it. Without the
+                // padding this was a 30x24 target — the only way into the app
+                // for a compound that is not in the catalogue, and the same
+                // button that saves an edit.
+                className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:text-text-subtle"
               >
                 {formMode === "edit" ? "Save" : "Add"}
               </button>

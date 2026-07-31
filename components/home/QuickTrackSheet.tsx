@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useSyncExternalStore } from "react"
+import Link from "next/link"
 import { Check } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
@@ -235,9 +236,19 @@ function QuickTrackBody({
     <>
       <div className="px-4">
         {dueCompounds.length === 0 ? (
-          <p className="rounded-2xl bg-bg-surface-raised px-4 py-8 text-center text-sm text-text-muted">
-            Nothing scheduled for today.
-          </p>
+          // A dead end on a cold start: the user came here to log a dose and the
+          // only control was "Done". Empty copy states the fact AND the next
+          // action (ui-context.md → Voice), so the way forward is on the screen
+          // rather than back out through the menu they just used.
+          <div className="rounded-2xl bg-bg-surface-raised px-4 py-8 text-center">
+            <p className="text-sm text-text-muted">Nothing scheduled for today.</p>
+            <Link
+              href="/protocol"
+              className="mt-2 inline-block text-sm text-foreground underline decoration-dotted underline-offset-4"
+            >
+              Add a compound
+            </Link>
+          </div>
         ) : (
           // Grouped by category, like the dashboard's Today's Log: each category is
           // a slim divider (dot · label · "N due"/"Logged"), not a container.

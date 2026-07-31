@@ -159,11 +159,21 @@ const MONTHS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ]
 
-/** "2026-07-26" → "26 Jul". Falls back to the raw key if unparseable. */
-export function formatKeyShort(key: string): string {
+/**
+ * "2026-07-26" → "26 Jul", and "2027-08-05" → "5 Aug 2027". Falls back to the
+ * raw key if unparseable.
+ *
+ * A date in ANOTHER year prints its year. Without that, a cycle ending on 5 Aug
+ * 2027 read as "5 Aug" on 30 Jul 2026 — six days away rather than a year away,
+ * with nothing on screen to tell the two apart. The now-deleted `formatCycleEnd`
+ * carried this fix and had no callers, so it never reached the sheets users see.
+ */
+export function formatKeyShort(key: string, currentYear = new Date().getFullYear()): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key)
   if (!m) return key
-  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}`
+  const year = Number(m[1])
+  const stem = `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}`
+  return year === currentYear ? stem : `${stem} ${year}`
 }
 
 /** Is this compound's cycle ON for a day, and is it the kind we draw? */

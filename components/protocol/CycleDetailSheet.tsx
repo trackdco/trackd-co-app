@@ -16,6 +16,7 @@ import {
   type CycleRule,
 } from "@/lib/protocol/cycleRule"
 import { describeCycleEnd } from "@/lib/calendar/cycleBands"
+import { formatPhotoDateShort } from "@/lib/progress/photos"
 import { cadenceLabel, type StackCompound } from "@/lib/home/stack"
 
 /**
@@ -108,14 +109,17 @@ export function CycleDetailSheet({
           <ul className="divide-y divide-border-default rounded-2xl bg-bg-surface-raised">
             <Row label="Pattern" value={formatCyclePattern(cycle.pattern)} />
             <Row label="Ends" value={capitalise(describeCycleEnd(cycle))} />
-            <Row label="Started" value={cycle.anchor} mono />
+            {/* Formatted, not the raw key: the `Ends` row directly below is
+                already prose, so an ISO date here made one four-row list speak
+                two different date languages. */}
+            <Row label="Started" value={formatPhotoDateShort(cycle.anchor)} mono />
             {/* The compound's own schedule, unchanged by the cycle. */}
             <Row label="Schedule" value={cadenceLabel(compound.schedule.cadence)} />
           </ul>
 
           <p className="text-xs text-text-muted">
-            On its off days this compound disappears from the log entirely —
-            nothing is due and nothing counts as missed.
+            On its off days this compound disappears from the log entirely.
+            Nothing is due and nothing counts as missed.
           </p>
         </div>
       </SheetContent>
