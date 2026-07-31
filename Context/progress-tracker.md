@@ -453,12 +453,28 @@ production:
   because wrapping it in an element would open a `space-y-5` gap when the banner
   renders null.
 
-**Known, not fixed:** `useCloudHydration` runs on Home and Protocol only, so a
-device that has never opened either reads Progress's consistency and a block
-retrospective off an EMPTY device store — the retrospective states a measured
-"0%". Every real entry point (sign-in redirect, PWA `start_url`, and every push
-`url`) lands on `/dashboard` or `/protocol` first, so reaching it needs a typed
-URL or an old bookmark. Left as Adrian's call rather than patched.
+**Three follow-ups then fixed on Adrian's call**, each verified by execution on a
+second throwaway account:
+
+- **Blocks ignored `units_preference` and showed kg to everyone.** The
+  retrospective, the live block card, the Progress banner's target line and the
+  create sheet all hard-coded it, and `app/(app)/blocks/page.tsx` never read the
+  column — so an imperial user saw "186.4 lbs" on Progress and "84.5 kg" on the
+  retrospective for the SAME weigh-in. Fixed as one piece, display and the typed
+  target together, because converting only the display leaves a lbs reading
+  measured against a kg target. **The write path had a second defect the display
+  hid:** the direction inference compared the typed number against a kg
+  weigh-in, so "lose to 180 lbs" from 186.4 lbs stored `direction: "up"`.
+  Storage stays kg throughout (a 180 lbs target stored 81.6466266). Pinned by
+  four tests; a fraction is unitless, so the percentage reads identically in both.
+- **Progress and Blocks read a device store nothing filled.**
+  `useCloudHydration` ran on Home and Protocol only, so a cold entry to a
+  retrospective stated a measured "0%" consistency for a block with doses in it.
+  Blocks calls the hook directly; Progress's shell is a Server Component and gets
+  `components/home/CloudHydration.tsx`, a mount point that renders nothing. The
+  hook is idempotent, so this costs one reconciliation on entry.
+- **The empty Progress weight card offered no control**, so the state that most
+  needs a way in was the only one without one.
 
 ## Open Questions
 

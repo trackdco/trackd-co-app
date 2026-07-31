@@ -81,19 +81,24 @@ from their row id, so no user is left on the `taken_at` fallback.
 Two dev-only defects were found and fixed (the photo adjust step, a React `key`
 warning). One item is deliberately left for Adrian, below.
 
-### Left for Adrian to decide
+### All follow-ups FIXED (Adrian's call, same day)
 
-- **Progress and the block retrospective read an EMPTY device store on a device
-  that has never opened Home or Protocol**, because `useCloudHydration` runs only
-  on those two. The retrospective then states a measured "0%" consistency for a
-  block that has doses. Every real entry point (sign-in redirect, PWA
-  `start_url`, every push `url`) goes to `/dashboard` or `/protocol` first, so
-  this needs a typed URL or a stale bookmark — which is why it was left rather
-  than patched. The fix is either calling `useCloudHydration` on those screens
-  too, or having them say "not synced yet" instead of a figure.
-- **The Progress weight card has no control at all until a weight exists**; the
-  quick-actions FAB is the only route to logging the first one. Deliberate or
-  not, it is the one empty state on that screen that does not offer its action.
+The three items this walkthrough left open were then fixed and verified by
+execution on a second throwaway account:
+
+- **Blocks showed weight in kg regardless of `units_preference`.** Fixed as one
+  piece across the retrospective, the live block card, the Progress banner's
+  target line and the create sheet — display AND the typed target, which now
+  converts to kg on save. Half of it would have been worse than none: a lbs
+  reading against a kg target. The direction inference was also comparing a
+  typed lbs number against a kg weigh-in, so "lose to 180 lbs" from 186.4 lbs
+  read as a GAIN. Pinned by four tests in `lib/blocks/block.test.ts`.
+- **Progress and Blocks never hydrated the device store they read from.** Both
+  now do (`CloudHydration` for Progress's server shell, the hook directly in
+  `BlocksScreen`). A cold entry straight to a retrospective read "0%" before and
+  reads "100% · 1 of 1" now.
+- **The empty Progress weight card had no control**; it is now the same
+  affordance as the filled one.
 
 ---
 
