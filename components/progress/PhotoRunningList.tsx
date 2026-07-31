@@ -12,8 +12,14 @@ import {
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack"
+import {
+  getDoseLogsSnapshot,
+  subscribeDoseLogs,
+  type DayLogs,
+} from "@/lib/home/doseLog"
 
 const EMPTY_STACK: StackCompound[] = []
+const EMPTY_LOGS: DayLogs = {}
 
 /**
  * What the user was RUNNING on a PHOTO'S date (spec 08 · part two).
@@ -35,18 +41,28 @@ const EMPTY_STACK: StackCompound[] = []
  * store is not readable on the server, so a server-rendered empty state would
  * flash and then be replaced.
  *
- * Vertical list, one row per compound. Explicitly not a horizontal row — that
- * was built once and corrected.
+ * ONE FLAT LIST, ordered by category and NOT labelled (Adrian, 2026-07-31).
+ * Anabolics and peptides sit at the top and supplements at the bottom, by
+ * consequence rather than by how many of each there are — a single anabolic
+ * buried under five supplements is the wrong way round. But the grouping is the
+ * ORDER and nothing else: headings would put five labels on what is usually five
+ * rows, and the containers already carry the category in their colour.
+ *
+ * The sort lives in `compoundsRunningOn` so every consumer inherits it.
+ *
+ * Explicitly not a horizontal row — that was built once and corrected.
  */
 export function PhotoRunningList({
   date,
   userId,
-  /** Dev-preview-only: inject the device stack without signing in. */
+  /** Dev-preview-only: inject the device stores without signing in. */
   sampleStack,
+  sampleLogs,
 }: {
   date: string
   userId: string
   sampleStack?: StackCompound[]
+  sampleLogs?: DayLogs
 }) {
   const mounted = useMounted()
   const deviceReady = sampleStack ? true : mounted
@@ -56,11 +72,19 @@ export function PhotoRunningList({
     () => getStackSnapshot(userId, EMPTY_STACK),
     () => EMPTY_STACK,
   )
+  const liveLogs = useSyncExternalStore(
+    subscribeDoseLogs,
+    () => getDoseLogsSnapshot(userId),
+    () => EMPTY_LOGS,
+  )
   const stack = sampleStack ?? liveStack
+  const logs = sampleLogs ?? liveLogs
 
+  // The log bounds each run at its first recorded dose, so a compound that was
+  // added and removed without ever being taken is not claimed under a photo.
   const running = useMemo(
-    () => (deviceReady ? compoundsRunningOn(stack, date) : []),
-    [deviceReady, stack, date],
+    () => (deviceReady ? compoundsRunningOn(stack, date, logs) : []),
+    [deviceReady, stack, date, logs],
   )
 
   if (running.length === 0) return null
