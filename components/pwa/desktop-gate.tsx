@@ -9,7 +9,10 @@ import { usePathname } from "next/navigation";
  * lg:flex`; the shell is hidden at lg). It checks the pathname only to let two
  * surfaces render at every width instead of being swallowed by the phone-only
  * gate: the dev-only `/preview/*` harness, the public `/waitlist` page
- * (promoted on social), and the founder `/admin` dashboard — all of which need
+ * (promoted on social), the founder `/admin` dashboard, and `/onboarding` (the
+ * acquisition surface: a desktop visitor following a creator link should be
+ * able to watch the pitch rather than hit a "go to your phone" wall before
+ * they know what the product is — the app itself stays phone-only) — all of which need
  * to work on desktop too.
  *
  * `usePathname()` resolves during SSR too, so the server already emits the
@@ -28,7 +31,8 @@ export function DesktopGate({
   if (
     pathname?.startsWith("/preview") ||
     pathname?.startsWith("/waitlist") ||
-    pathname?.startsWith("/admin")
+    pathname?.startsWith("/admin") ||
+    pathname?.startsWith("/onboarding")
   ) {
     return <>{children}</>;
   }

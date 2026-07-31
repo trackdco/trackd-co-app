@@ -22,9 +22,11 @@
  */
 export {
   ArrowLeft,
+  ArrowRight,
   ArrowsClockwise,
   ArrowsLeftRight,
   Backspace,
+  Barbell,
   Bell,
   Calculator,
   CalendarBlank,
@@ -58,6 +60,7 @@ export {
   GearSix,
   ImageSquare,
   Info,
+  InstagramLogo,
   Lightning,
   ListChecks,
   Lock,
@@ -77,9 +80,11 @@ export {
   Syringe,
   Tag,
   TestTube,
+  TiktokLogo,
   Trash,
   TrendUp,
   User,
+  UsersThree,
   Warning,
   X,
 } from "@phosphor-icons/react";

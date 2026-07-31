@@ -204,6 +204,15 @@ than re-deriving classes per card:
 - **`PAGE_TITLE`** — `text-2xl font-light tracking-[-0.02em]
   text-foreground` — the greeting and the `<h1>` on standalone screens
   (Profile, Weight, Blocks, Notifications, Billing).
+- **`FLOW_TITLE`** — `text-[2rem] font-light leading-[1.05] tracking-[-0.02em]
+  text-foreground` — the headline on a **full-screen external flow**: `/login`
+  and `/onboarding`. One notch ABOVE `PAGE_TITLE`, because these screens carry a
+  single headline on an otherwise empty field rather than titling a page of
+  data. It codifies the treatment `/login` already shipped rather than inventing
+  one, so the onboarding flow could not drift into a second. Still Geist Light:
+  the hierarchy is size and weight, never a second typeface. Its supporting line
+  is **`FLOW_SUB`** (`text-[0.95rem] leading-relaxed text-text-muted`).
+  (Added for the onboarding flow, Spec 3-01.)
 - **`SHEET_TITLE`** — `text-xl font-light tracking-[-0.01em]
   text-foreground` — bottom-sheet headers.
 - **`DANGER_ROW`** — a row inside Profile's **danger zone** (spec 09 · part
@@ -442,6 +451,14 @@ hand-rolling animation per screen.
   so touches land even without borders. A blocked tap shakes
   (`animate-card-shake`); a notice slides down from the top edge
   (`animate-notice-in`).
+- **The onboarding flow** (Spec 3-01) adds three entrance classes and no
+  ambient ones: `animate-flow-in` (a step arriving, on the slow/ease pair, the
+  same idiom as `animate-home-up`), `animate-flow-hero` (the hook's backdrop
+  settling once out of a slight overscale), and `animate-flow-confetti` (a
+  single celebration burst at the two celebration beats). **The line against the
+  ban below is that none of them loops**: each fires once on entry and is gone.
+  A celebration overlay is always `pointer-events-none`, because a decorative
+  layer that swallows the tap underneath it has bitten this prototype before.
 - **Banned** — ambient / decorative motion: floating particles, meteor
   or hero effects, cursor-follow, scroll-triggered decorative lines.
   These are the clearest "AI-built" tell and steal attention from the data.

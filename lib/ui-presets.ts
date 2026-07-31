@@ -24,6 +24,18 @@ export const PAGE_TITLE =
 export const SHEET_TITLE =
   "text-xl font-light tracking-[-0.01em] text-foreground"
 
+/** The headline on a FULL-SCREEN EXTERNAL FLOW — sign-in and onboarding. One
+ *  notch ABOVE `PAGE_TITLE`, because these screens carry a single headline on an
+ *  otherwise empty field rather than titling a page of data. Codifies the
+ *  treatment `/login` already shipped, so the onboarding flow could not drift
+ *  into a second one. Still Geist Light: the hierarchy is size and weight, never
+ *  a second typeface (the display serif is retired). */
+export const FLOW_TITLE =
+  "text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground"
+
+/** The supporting line under a `FLOW_TITLE`. */
+export const FLOW_SUB = "text-[0.95rem] leading-relaxed text-text-muted"
+
 /* ---------------------------------------------------------------------------
    Inversion presets (see ui-context.md → Typography): card TITLES recede into
    small tracked-uppercase eyebrows, and the DATA VALUE becomes the display layer
