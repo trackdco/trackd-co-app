@@ -26,7 +26,7 @@ import { Mascot } from "../mascot";
 const ANSWERS: Record<StruggleTag, string> = {
   whats_left: "What's left, without counting.",
   recon_maths: "Powder to units, worked out.",
-  units_to_draw: "The draw for each dose, on the row.",
+  units_to_draw: "Your dose, converted to units, on the row.",
   last_site: "Your last site, remembered.",
   notes_app: "One place instead of a notes app.",
   too_much: "Compounds, peptides and supplements together.",

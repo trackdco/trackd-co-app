@@ -236,6 +236,14 @@ than re-deriving classes per card:
 - **`PAGE_TITLE`** — `text-2xl font-light tracking-[-0.02em]
   text-foreground` — the greeting and the `<h1>` on standalone screens
   (Profile, Weight, Blocks, Notifications, Billing).
+- **`FLOW_DISPLAY`** — `text-[2.5rem] font-light leading-[1.02]
+  tracking-[-0.035em] text-foreground` — the MOMENT screens in a full-screen
+  flow: celebrate, welcome, a single-sentence statement. One notch above
+  `FLOW_TITLE` and tracked tighter, so the line reads as a statement rather than
+  a page title. Reserved for a screen carrying one sentence and nothing else; a
+  screen with a form under it uses `FLOW_TITLE`. A user-supplied name inside one
+  needs `[overflow-wrap:anywhere]`, because 40px type and a long word do not
+  share a phone. (Added for the onboarding flow, Spec 3-01.)
 - **`FLOW_TITLE`** — `text-[2rem] font-light leading-[1.05] tracking-[-0.02em]
   text-foreground` — the headline on a **full-screen external flow**: `/login`
   and `/onboarding`. One notch ABOVE `PAGE_TITLE`, because these screens carry a
@@ -512,14 +520,33 @@ hand-rolling animation per screen.
   so touches land even without borders. A blocked tap shakes
   (`animate-card-shake`); a notice slides down from the top edge
   (`animate-notice-in`).
-- **The onboarding flow** (Spec 3-01) adds three entrance classes and no
-  ambient ones: `animate-flow-in` (a step arriving, on the slow/ease pair, the
-  same idiom as `animate-home-up`), `animate-flow-hero` (the hook's backdrop
-  settling once out of a slight overscale), and `animate-flow-confetti` (a
-  single celebration burst at the two celebration beats). **The line against the
-  ban below is that none of them loops**: each fires once on entry and is gone.
-  A celebration overlay is always `pointer-events-none`, because a decorative
-  layer that swallows the tap underneath it has bitten this prototype before.
+- **The onboarding flow** (Spec 3-01) carries its own motion, and it is the
+  ONLY surface allowed to. Entrances: `animate-flow-in`, `animate-flow-forward`
+  / `animate-flow-back` (directional step transitions), `animate-flow-hero`,
+  `animate-flow-caption`, `animate-kyle`'s arrival, `animate-flow-confetti` and
+  `animate-dollar-fall` (both one-shot).
+
+  **Four things in that flow DO loop, and the ban below still stands
+  everywhere else** (Adrian, 2026-08-01):
+
+  1. `animate-flow-drift` — the paywall's floating labels.
+  2. `animate-kyle`'s float — the mascot breathing on the two celebration beats.
+  3. The paywall carousel's auto-advance (a `setInterval`, not a class).
+  4. The hook's compare sweep — which is now BOUNDED to two passes and then
+     stops, so it is a demonstration rather than a loop.
+
+  The argument for the first three is that `/onboarding` is a marketing
+  surface with no data on it, and the ban exists because movement competes with
+  figures someone is reading. **Do not carry any of them into the app.** Every
+  one collapses under `prefers-reduced-motion`, and a decorative layer is always
+  `pointer-events-none`, because a layer that swallows the tap underneath it has
+  bitten this prototype before.
+
+  One trap worth naming: an **inline `animation` shorthand outranks the
+  reduced-motion block** and cannot be switched off from the stylesheet. Use a
+  class. Inline `animation-duration` / `transition-duration` longhands are safe.
+  And an animation that ends at `opacity: 0` needs `display: none` under reduce,
+  not just `animation: none`, or it strands itself visible on its first frame.
 - **Banned** — ambient / decorative motion: floating particles, meteor
   or hero effects, cursor-follow, scroll-triggered decorative lines.
   These are the clearest "AI-built" tell and steal attention from the data.

@@ -46,10 +46,10 @@ export type CodeVerdict =
  * applied and invalid states are both reachable in a preview without a
  * backend. D-6 default is applied: a code deepens the ANNUAL offer.
  */
-const KNOWN_CODES: Record<string, { annualOnly: boolean }> = {
-  TRACKD: { annualOnly: true },
-  ANGUS: { annualOnly: true },
-};
+const KNOWN_CODES = new Map<string, { annualOnly: boolean }>([
+  ["TRACKD", { annualOnly: true }],
+  ["ANGUS", { annualOnly: true }],
+]);
 
 /**
  * Validate a code. Async because the real implementation will be a network
@@ -58,7 +58,10 @@ const KNOWN_CODES: Record<string, { annualOnly: boolean }> = {
 export async function validateCode(raw: string | null): Promise<CodeVerdict> {
   const code = normaliseCode(raw);
   if (!code) return { status: "none" };
-  const hit = KNOWN_CODES[code];
+  // A Map, not a plain object: a plain-object lookup answers `Object` for a
+  // key like "CONSTRUCTOR", and only the upper-casing in `normaliseCode` was
+  // stopping that becoming a bogus "applied".
+  const hit = KNOWN_CODES.get(code);
   if (!hit) return { status: "invalid", code };
   return { status: "applied", code, annualOnly: hit.annualOnly };
 }

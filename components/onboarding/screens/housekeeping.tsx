@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Camera } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
@@ -38,6 +38,15 @@ export function HousekeepingScreen() {
 
   const verdict = ageVerdict(session.dob, todayKey);
   const canContinue = canLeaveHousekeeping(session, todayKey);
+
+  // The object URL is revoked when replaced AND when the screen goes, or the
+  // blob outlives the flow.
+  useEffect(
+    () => () => {
+      if (photo) URL.revokeObjectURL(photo);
+    },
+    [photo],
+  );
 
   const onPickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,7 +119,7 @@ export function HousekeepingScreen() {
             placeholder="First name"
             autoComplete="given-name"
             enterKeyHint="next"
-            maxLength={60}
+            maxLength={24}
             className="h-13 w-full rounded-xl bg-bg-input px-4 text-[0.95rem] text-foreground outline-none placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
           />
         </FieldRow>
@@ -160,18 +169,18 @@ export function HousekeepingScreen() {
           onToggle={() => patch({ consent: !session.consent })}
         >
           I&apos;m 18 or older and accept the{" "}
-          <Link href="/terms" className="text-text-primary underline-offset-2">
+          <Link href="/terms" className="text-text-primary underline underline-offset-2">
             Terms of Service
           </Link>
           ,{" "}
           <Link
             href="/medical-disclaimer"
-            className="text-text-primary underline-offset-2"
+            className="text-text-primary underline underline-offset-2"
           >
             Medical Disclaimer
           </Link>
           , and{" "}
-          <Link href="/privacy" className="text-text-primary underline-offset-2">
+          <Link href="/privacy" className="text-text-primary underline underline-offset-2">
             Privacy Policy
           </Link>
           .

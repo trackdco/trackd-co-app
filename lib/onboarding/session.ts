@@ -15,6 +15,8 @@
  * time it comes back out of `localStorage` (a user can edit it).
  */
 
+import { normaliseCode } from "./affiliate";
+
 export const ONBOARDING_SESSION_KEY = "trackd.onboarding.v1";
 
 export type Sex = "male" | "female";
@@ -30,7 +32,6 @@ export type RunningTag =
   | "peptides"
   | "first_cycle"
   | "blast_cruise"
-  | "recomp"
   | "nothing";
 
 /** Screen 3 options. All of these are TRACKING pains, never dosing pains. */
@@ -209,7 +210,7 @@ export function normaliseSession(raw: unknown): OnboardingSession {
   };
 
   return {
-    name: typeof o.name === "string" && o.name.trim() ? o.name.trim().slice(0, 60) : null,
+    name: typeof o.name === "string" && o.name.trim() ? o.name.trim().slice(0, 24) : null,
     dob: parseDateKey(typeof o.dob === "string" ? o.dob : null) ? (o.dob as string) : null,
     sex: o.sex === "male" || o.sex === "female" ? o.sex : null,
     consent: o.consent === true,
@@ -218,7 +219,12 @@ export function normaliseSession(raw: unknown): OnboardingSession {
     attribution: (ATTRIBUTION_TAGS as readonly string[]).includes(o.attribution as string)
       ? (o.attribution as AttributionTag)
       : null,
-    affiliateCode: typeof o.affiliateCode === "string" ? o.affiliateCode : null,
+    // Through the SAME validator the URL path uses. This was the one field
+    // that trusted whatever came out of storage, which contradicted this
+    // file's own "untrusted input by the time it comes back out" contract.
+    affiliateCode: normaliseCode(
+      typeof o.affiliateCode === "string" ? o.affiliateCode : null,
+    ),
     plan: o.plan === "monthly" ? "monthly" : "yearly",
     startedAt: typeof o.startedAt === "string" ? o.startedAt : null,
   };
@@ -231,7 +237,6 @@ export const RUNNING_TAGS = [
   "peptides",
   "first_cycle",
   "blast_cruise",
-  "recomp",
   "nothing",
 ] as const satisfies readonly RunningTag[];
 

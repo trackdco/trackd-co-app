@@ -71,7 +71,17 @@ export function NotesCompare() {
     const amp = (SWEEP_MAX - SWEEP_MIN) / 2;
 
     const tick = (now: number) => {
-      const t = ((now - start) % SWEEP_MS) / SWEEP_MS;
+      const elapsed = now - start;
+      // TWO SWEEPS, then it stops. It used to loop forever, which meant a user
+      // who parked on the first screen got a React state update and a re-render
+      // of the whole comparison every frame, indefinitely. Two passes is enough
+      // to show both panels and that the seam moves.
+      if (elapsed >= SWEEP_MS * 2) {
+        setPosition(mid);
+        setAuto(false);
+        return;
+      }
+      const t = (elapsed % SWEEP_MS) / SWEEP_MS;
       setPosition(mid + amp * Math.sin(t * Math.PI * 2));
       raf = requestAnimationFrame(tick);
     };

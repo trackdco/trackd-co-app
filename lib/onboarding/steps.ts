@@ -74,6 +74,33 @@ export function stepIndex(id: StepId): number {
   return INDEX_BY_ID.get(id) ?? -1;
 }
 
+/**
+ * THE GATE, ENFORCED.
+ *
+ * `?step=` is read straight off the URL, and for a while nothing checked it:
+ * `isStepId` is a membership test, not a permission check, so
+ * `/onboarding?step=demo` rendered the whole demo — body map, dosing UI,
+ * injection sites — with an empty session, and `?step=paywall` rendered the
+ * trial CTA. Since every screen puts its own id in the address bar, every URL a
+ * user bookmarks or shares was a bypass.
+ *
+ * Spec §3.2 is not ambiguous: "Age gate precedes all substance-adjacent content
+ * and all payment." §17 has a checkbox reading "No payment path bypasses the
+ * age gate". Both were false as built.
+ *
+ * So: anything past housekeeping is clamped BACK to housekeeping until the gate
+ * is satisfied. The predicate is `canLeaveHousekeeping` and there is deliberately
+ * no second copy of that logic here.
+ */
+export function clampStep(
+  requested: StepId,
+  gatePassed: boolean,
+): StepId {
+  if (gatePassed) return requested;
+  const gate = stepIndex("housekeeping");
+  return stepIndex(requested) > gate ? "housekeeping" : requested;
+}
+
 export function stepMeta(id: StepId): StepMeta | null {
   const i = stepIndex(id);
   return i === -1 ? null : STEP_ORDER[i];

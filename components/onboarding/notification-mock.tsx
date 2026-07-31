@@ -59,7 +59,7 @@ function IosPrompt() {
           priority
           className="mx-auto mb-3 h-[42px] w-[42px] rounded-[9px]"
         />
-        <p className="text-[15px] font-semibold leading-tight text-foreground">
+        <p className="text-[15px] font-medium leading-tight text-foreground">
           &ldquo;{APP}&rdquo; Would Like to Send You Notifications
         </p>
         <p className="mt-1.5 text-[12px] leading-[1.35] text-text-muted">
@@ -72,7 +72,7 @@ function IosPrompt() {
         <span className="border-r-[0.5px] border-border-strong py-2.5 text-center text-[15px] text-text-muted">
           Don&apos;t Allow
         </span>
-        <span className="py-2.5 text-center text-[15px] font-semibold text-foreground">
+        <span className="py-2.5 text-center text-[15px] font-medium text-foreground">
           Allow
         </span>
       </div>

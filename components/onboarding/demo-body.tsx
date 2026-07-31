@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from "react";
 
+import { siteHeat } from "@/lib/home/siteRecency";
+
 import {
   routeBasePaths,
   routeRegions,
@@ -74,18 +76,25 @@ const HISTORY: Record<DemoView, Record<string, number>> = {
     "im-vglute-l": 9,
   },
   back: {
+    // NOT `im-delt-*`: the back artwork has no delt region (it has traps,
+    // lats, triceps, glutes and calves), so a delt seeded here shaded nothing
+    // and its chip never mounted — silently, because the anchor lookup just
+    // returns nothing.
     "im-glute-r": 3,
-    "im-delt-r": 7,
+    "im-trap-r": 7,
     "im-lat-l": 11,
   },
 };
 
-/** Strength by age, mirroring the real rotation view's decay. */
+/**
+ * The app's OWN decay, not a second one. `siteHeat` is what the real rotation
+ * view uses and it fades to nothing at the end of the window (IM: 7 days), so
+ * a rested site reads as rested here exactly as it does in the app. The
+ * hand-rolled staircase this replaces never reached zero, which meant a
+ * nine-day-old site glowed in the demo and would have been blank in the app.
+ */
 function recencyMix(days: number): number {
-  if (days <= 2) return 85;
-  if (days <= 5) return 55;
-  if (days <= 8) return 34;
-  return 20;
+  return Math.round(siteHeat(days, "im") * 100);
 }
 
 export function DemoBody({
@@ -191,7 +200,10 @@ export function DemoBody({
                     onTap(region.siteId, label);
                   }
                 }}
-                className="cursor-pointer outline-none transition-[fill] duration-[var(--motion-base)] ease-[var(--motion-ease)] motion-reduce:transition-none"
+                // An SVG path cannot take a Tailwind ring, so the focus state
+                // is a real outline. `outline-none` with nothing in its place
+                // left a keyboard user tabbing blind through fourteen regions.
+                className="cursor-pointer transition-[fill] duration-[var(--motion-base)] ease-[var(--motion-ease)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary motion-reduce:transition-none"
                 style={{ fill }}
               />
             );

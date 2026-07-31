@@ -18,6 +18,7 @@ import {
   TestTube,
   type Icon,
 } from "@/components/icons";
+import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 /**
@@ -151,8 +152,8 @@ export function PaywallHero() {
       <div className="mb-5 flex h-5 items-center justify-center" aria-hidden>
         <p
           key={active.id}
-          className="text-[11px] font-sans uppercase tracking-[0.2em] text-text-muted"
-          style={{ animation: `flow-caption ${CAPTION_MS}ms var(--motion-ease) both` }}
+          className={cn(CARD_EYEBROW, "animate-flow-caption")}
+          style={{ animationDuration: `${CAPTION_MS}ms` }}
         >
           {active.caption}
         </p>
@@ -176,7 +177,7 @@ export function PaywallHero() {
             <div
               key={slide.id}
               aria-hidden
-              className="absolute left-1/2 top-1/2 w-[10.5rem] rounded-[1.75rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
+              className="pointer-events-none absolute left-1/2 top-1/2 w-[10.5rem] rounded-[1.75rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
               style={{
                 transitionDuration: `${TURN_MS}ms`,
                 transform: `translate(-50%, -50%) translateX(${pos.x}) scale(${pos.scale})`,

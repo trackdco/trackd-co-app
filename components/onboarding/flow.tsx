@@ -20,6 +20,7 @@ import {
   type OnboardingSession,
 } from "@/lib/onboarding/session";
 import {
+  clampStep,
   FIRST_STEP,
   isStepId,
   nextStep,
@@ -27,6 +28,7 @@ import {
   stepProgress,
   type StepId,
 } from "@/lib/onboarding/steps";
+import { canLeaveHousekeeping } from "@/lib/onboarding/session";
 import { todayKey as resolveTodayKey } from "@/lib/protocol/cycle";
 
 import { FlowContext, type FlowContextValue } from "./flow-context";
@@ -91,12 +93,23 @@ function OnboardingFlowClient() {
     return hydrated;
   });
 
+  const [todayKey] = useState(resolveTodayKey);
+
+  // Did THIS flow push a history entry? `prevStep` only says a step exists
+  // before this one, which is why the arrow rendered and did nothing on a deep
+  // link, and pointed back at Google after the OAuth round-trip. State rather
+  // than a ref, because it is read during render.
+  const [hasPushed, setHasPushed] = useState(false);
+  // Whether a screen has claimed BACK for itself, mirrored into state for the
+  // same reason.
+  const [backOwned, setBackOwned] = useState(false);
+
   const [step, setStep] = useState<StepId>(() => {
     const requested = new URLSearchParams(window.location.search).get("step");
-    return isStepId(requested) ? requested : FIRST_STEP;
+    if (!isStepId(requested)) return FIRST_STEP;
+    // A deep link cannot walk past the age gate. See `clampStep`.
+    return clampStep(requested, canLeaveHousekeeping(session, todayKey));
   });
-
-  const [todayKey] = useState(resolveTodayKey);
   const [accountName, setAccountName] = useState<string | null>(null);
   // Which way the last move went, so the entering screen slides in from the
   // side it came from. Forward from the right, back from the left.
@@ -106,12 +119,25 @@ function OnboardingFlowClient() {
     track("onboarding_start");
   }, []);
 
+  // The popstate listener must read the CURRENT gate state rather than whatever
+  // was captured when it was attached. Written in an effect (not during render,
+  // which the refs lint rule rightly forbids) and read inside the handler.
+  const gateRef = useRef(false);
+  useEffect(() => {
+    gateRef.current = canLeaveHousekeeping(session, todayKey);
+  }, [session, todayKey]);
+
   // The hardware/browser back button walks the flow.
   useEffect(() => {
     const onPop = () => {
       const requested = new URLSearchParams(window.location.search).get("step");
       setDirection("back");
-      setStep(isStepId(requested) ? requested : FIRST_STEP);
+      if (!isStepId(requested)) {
+        setStep(FIRST_STEP);
+        return;
+      }
+      // Same clamp as the initial read: history is user-editable too.
+      setStep(clampStep(requested, gateRef.current));
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -130,6 +156,7 @@ function OnboardingFlowClient() {
     const url = new URL(window.location.href);
     url.searchParams.set("step", target);
     window.history.pushState({ step: target }, "", url);
+    setHasPushed(true);
     // The browser keeps the old scroll offset otherwise, and a long screen
     // opens half-way down.
     window.scrollTo({ top: 0 });
@@ -163,6 +190,7 @@ function OnboardingFlowClient() {
   const backHandler = useRef<(() => boolean) | null>(null);
   const setBackHandler = useCallback((fn: (() => boolean) | null) => {
     backHandler.current = fn;
+    setBackOwned(fn !== null);
   }, []);
 
   const goBack = useCallback(() => {
@@ -205,7 +233,10 @@ function OnboardingFlowClient() {
     ],
   );
 
-  const canGoBack = step !== FIRST_STEP && prevStep(step) !== null;
+  // A screen that owns BACK always shows the arrow (the demo steps its own
+  // stages); otherwise it only shows if this flow actually pushed something.
+  const canGoBack =
+    backOwned || (hasPushed && step !== FIRST_STEP && prevStep(step) !== null);
 
   return (
     <FlowContext.Provider value={value}>

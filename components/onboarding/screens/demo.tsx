@@ -10,7 +10,6 @@ import {
   DEMO_JOURNAL,
   DEMO_PHOTO_WEEKS,
   DEMO_RECENT_SITES,
-  DEMO_SITES,
   DEMO_START,
   demoFill,
   demoProjectedEmpty,
@@ -21,11 +20,11 @@ import {
   type DemoStock,
   type DemoView,
 } from "@/lib/onboarding/demo";
-import { sparkGeometry } from "@/lib/progress/spark";
+import { sparkGeometry, sparkLastPoint } from "@/lib/progress/spark";
 import { CARD_EYEBROW, DATA_MONO, METRIC_LABEL } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
-import { FlowCta } from "../chrome";
+import { FlowCta, FlowSub, FlowTitle } from "../chrome";
 import { Segmented } from "../controls";
 import { DemoBody } from "../demo-body";
 import { useFlow } from "../flow-context";
@@ -116,8 +115,15 @@ const DEMO_RUNNING = [
  * made the card look like it snapped (Adrian, 2026-08-01).
  */
 const CARD_EASE = "cubic-bezier(0.65,0,0.35,1)";
+/**
+ * Written out in full, NOT interpolated. Tailwind extracts candidates from raw
+ * source text, so a class built by template literal is never generated and the
+ * element ends up with a class that matches no rule — which is exactly what
+ * happened: the comment above explained the easing at length while the cards
+ * quietly transitioned on the browser default.
+ */
 const CARD_MOTION =
-  `transition-all duration-[760ms] ease-[${CARD_EASE}] motion-reduce:transition-none`;
+  "transition-all duration-[760ms] ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none";
 
 export function DemoScreen() {
   const { goNext, todayKey, setBackHandler } = useFlow();
@@ -128,7 +134,9 @@ export function DemoScreen() {
   const [receding, setReceding] = useState(false);
   const [stock, setStock] = useState<DemoStock>(DEMO_START);
   const [view, setView] = useState<DemoView>("front");
-  const [site, setSite] = useState<string | null>(null);
+  // The LABEL is kept alongside the id: it arrives with the tap, and looking
+  // it up again is what made the confirmation line unreachable.
+  const [site, setSite] = useState<{ id: string; label: string } | null>(null);
   const [recent, setRecent] = useState<readonly string[]>(DEMO_RECENT_SITES);
   const fired = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -182,6 +190,15 @@ export function DemoScreen() {
   };
 
   const advance = () => {
+    // Cancel any pending auto-advance first. The tick chain and the
+    // vial-empty chain both schedule a `setStage`, and a user who taps the CTA
+    // inside that window used to be YANKED BACKWARDS when the older timer
+    // landed after their tap. Measured: tap, Next, Next lands on site then
+    // snaps to stock.
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
     const next = STAGES[index + 1];
     if (next) {
       setStage(next);
@@ -213,12 +230,8 @@ export function DemoScreen() {
             the headline already says what this is (Adrian, 2026-08-01).
             Keyed so the headline cross-fades as the subject changes. */}
         <div key={stage} className="animate-flow-in space-y-3">
-          <h1 className="text-balance text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
-            {heading.title}
-          </h1>
-          <p className="mx-auto max-w-[20rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">
-            {heading.sub}
-          </p>
+          <FlowTitle>{heading.title}</FlowTitle>
+          <FlowSub className="mx-auto max-w-[20rem]">{heading.sub}</FlowSub>
         </div>
       </header>
 
@@ -274,7 +287,7 @@ export function DemoScreen() {
                 site={site}
                 recent={recent}
                 onTap={(id, label) => {
-                  setSite(id);
+                  setSite({ id, label });
                   setRecent((r) => pushRecentSite(r, label));
                 }}
               />
@@ -471,11 +484,15 @@ function SiteCard({
 }: {
   view: DemoView;
   setView: (v: DemoView) => void;
-  site: string | null;
+  site: { id: string; label: string } | null;
   recent: readonly string[];
   onTap: (id: string, label: string) => void;
 }) {
-  const selectedLabel = DEMO_SITES.find((s) => s.id === site)?.label ?? null;
+  // The label comes straight from the tap. It used to be looked up in
+  // DEMO_SITES by id, but those ids ("l_delt") are a different scheme from the
+  // real artwork's ("im-delt-l"), so the lookup never matched and this line
+  // never rendered.
+  const selectedLabel = site?.label ?? null;
 
   return (
     <div className="animate-flow-in flow-card shrink-0 space-y-4 rounded-2xl bg-bg-surface p-5">
@@ -489,7 +506,7 @@ function SiteCard({
         ]}
       />
 
-      <DemoBody view={view} selected={site} onTap={onTap} />
+      <DemoBody view={view} selected={site?.id ?? null} onTap={onTap} />
 
       <div aria-live="polite">
         {selectedLabel ? (
@@ -509,6 +526,7 @@ function SiteCard({
 /** The look-back. A clean break: a different subject deserves its own surface. */
 function HistoryPanel() {
   const spark = sparkGeometry(DEMO_WEIGHTS, 132, 44);
+  const sparkLast = sparkLastPoint(DEMO_WEIGHTS, 132, 44);
 
   // Each card arrives on its own, in the order you would read them. A block
   // that appears all at once reads as a page; one that assembles reads as
@@ -556,7 +574,18 @@ function HistoryPanel() {
             83.9
             <span className="ml-1 text-[11px] text-text-muted">kg</span>
           </p>
+          {/* The SAME treatment the real glance card uses: tapered fill under a
+              monotone trend line, with a white dot on the latest point. A demo
+              that shows a Weight card the user will not recognise an hour later
+              is the one thing a demo must not do. */}
           <svg viewBox="0 0 132 44" className="mt-2 h-9 w-full" aria-hidden>
+            <defs>
+              <linearGradient id="demoWeightFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="var(--chart-trend)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <path d={spark.area} fill="url(#demoWeightFill)" stroke="none" />
             <path
               d={spark.line}
               fill="none"
@@ -566,6 +595,9 @@ function HistoryPanel() {
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
             />
+            {sparkLast ? (
+              <circle cx={sparkLast.x} cy={sparkLast.y} r={2.5} fill="var(--accent-primary)" />
+            ) : null}
           </svg>
         </div>
 

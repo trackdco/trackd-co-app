@@ -105,7 +105,11 @@ export function formatDemoDate(key: string | null): string {
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
-  return `${Number(m[3])} ${months[Number(m[2]) - 1]}`;
+  const month = months[Number(m[2]) - 1];
+  // A month index out of range is not reachable from `demoProjectedEmpty`, but
+  // this is exported, and "5 undefined" is a worse answer than "Empty".
+  if (!month) return "Empty";
+  return `${Number(m[3])} ${month}`;
 }
 
 /* ---------------------------------------------------------------------------

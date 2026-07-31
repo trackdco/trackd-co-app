@@ -14,7 +14,6 @@ import {
   yearlySavingPercent,
   type PlanId,
 } from "@/lib/onboarding/pricing";
-import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
@@ -80,7 +79,12 @@ export function PaywallScreen() {
   }, [session.affiliateCode, patch]);
 
   const applyTypedCode = async () => {
-    const v = await validateCode(codeDraft);
+    // A network failure here must never be an unhandled rejection or a dead
+    // Apply button: an invalid code already falls through to standard price,
+    // so an unreachable validator does the same.
+    const v = await validateCode(codeDraft).catch(
+      () => ({ status: "invalid", code: codeDraft.toUpperCase() }) as const,
+    );
     setVerdict(v);
     if (v.status === "applied") {
       track("affiliate_code_applied", { code: v.code });
@@ -133,7 +137,13 @@ export function PaywallScreen() {
             )}
           </FlowCta>
           <p className="text-center text-[0.75rem] text-text-muted">
-            Stay free for five days. We&apos;ll remind you before it ends.
+            {/* Every gap around an expression is an explicit {" "}. JSX drops
+                whitespace between an expression and text across a line break,
+                and this file has now produced "5days", "$0today" and
+                "day 5unless" that way. Explicit is the only thing that holds. */}
+            {formatPrice(0)}{" "}today. Converts to{" "}
+            {formatPrice(PLANS[session.plan].price)}{" "}on day{" "}
+            {TRIAL_DAYS}{" "}unless you cancel. We&apos;ll remind you first.
           </p>
         </div>
       }
@@ -261,17 +271,18 @@ export function PaywallScreen() {
           </div>
         )}
 
-        {/* The real auth entry point, kept visible so the stub above can never
-            be mistaken for the shipping path. */}
-        <div className="flow-card rounded-2xl bg-bg-surface p-4">
-          <p className={CARD_EYEBROW}>Real sign-in</p>
-          <p className="mt-2 text-[0.75rem] leading-relaxed text-text-muted">
-            The trial button above runs a stubbed auth and payment chain for
-            preview. This is the live Google path.
-          </p>
-          <div className="mt-3">
-            <GoogleSignInButton next="/onboarding?step=welcome" />
-          </div>
+        {/* Google is the primary auth path per the spec, so it belongs on this
+            screen as a real option rather than as a note about one.
+
+            NOTE FOR WHOEVER WIRES BILLING: the CTA above is stubbed. It fires
+            the analytics chain and advances; it does not authenticate and it
+            does not charge. `startTrial()` is the seam. This button IS live and
+            returns to `?step=welcome`. */}
+        <div>
+          <GoogleSignInButton
+            label="Continue with Google"
+            next="/onboarding?step=welcome"
+          />
         </div>
       </div>
     </StepFrame>

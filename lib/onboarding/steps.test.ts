@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clampStep,
   FIRST_STEP,
   isStepId,
   nextStep,
@@ -26,7 +27,10 @@ describe("STEP_ORDER", () => {
     expect(stepIndex("demo")).toBeLessThan(stepIndex("paywall"));
   });
 
-  it("gates the demo behind the age gate", () => {
+  it("orders the demo and the paywall after the age gate", () => {
+    // Ordering only. Enforcement is clampStep, tested below — this assertion
+    // used to be NAMED "gates the demo behind the age gate" and asserted
+    // nothing of the sort, which is how a bypass shipped under a green suite.
     expect(stepIndex("housekeeping")).toBeLessThan(stepIndex("demo"));
     expect(stepIndex("housekeeping")).toBeLessThan(stepIndex("paywall"));
   });
@@ -103,6 +107,35 @@ describe("stepProgress", () => {
       const p = stepProgress(step.id);
       expect(p).toBeGreaterThanOrEqual(last);
       last = p;
+    }
+  });
+});
+
+describe("clampStep — the age gate, enforced", () => {
+  /**
+   * A deep link is untrusted input. `?step=` appears in the address bar on
+   * every screen, so every URL a user bookmarks or shares hits this.
+   */
+  it("sends every post-gate step back to housekeeping when the gate is open", () => {
+    for (const step of STEP_ORDER.map((s) => s.id)) {
+      if (stepIndex(step) <= stepIndex("housekeeping")) continue;
+      expect(clampStep(step, false)).toBe("housekeeping");
+    }
+  });
+
+  it("blocks the two that matter most by name", () => {
+    expect(clampStep("demo", false)).toBe("housekeeping");
+    expect(clampStep("paywall", false)).toBe("housekeeping");
+  });
+
+  it("lets the hook and housekeeping through with the gate still open", () => {
+    expect(clampStep("hook", false)).toBe("hook");
+    expect(clampStep("housekeeping", false)).toBe("housekeeping");
+  });
+
+  it("lets everything through once the gate is satisfied", () => {
+    for (const step of STEP_ORDER.map((s) => s.id)) {
+      expect(clampStep(step, true)).toBe(step);
     }
   });
 });

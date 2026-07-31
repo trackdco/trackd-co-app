@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 
 import { Check } from "@/components/icons";
+import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 /**
@@ -200,7 +201,7 @@ export function FieldRow({
     <div className="space-y-2">
       <label
         htmlFor={htmlFor}
-        className="block text-[10px] font-sans uppercase tracking-[0.18em] text-text-muted"
+        className={CARD_EYEBROW + " block"}
       >
         {label}
       </label>

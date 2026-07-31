@@ -2,7 +2,7 @@
 
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 
-import { FlowCta } from "../chrome";
+import { FlowCta, FlowSub } from "../chrome";
 import { FLOW_DISPLAY } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 import { Confetti } from "../confetti";
@@ -37,12 +37,22 @@ export function WelcomeScreen() {
           <Mascot pose="flex" size={280} />
 
           <div className="space-y-3 text-center">
-            <h1 className={cn(FLOW_DISPLAY, "text-balance")}>
+            {/* A 40px headline with a user-supplied name in it. The flow
+                clips overflow, so without this a long name is silently cut in
+                half on the one screen whose job is showing we know who they
+                are. Same idiom ui-context prescribes for a pathological
+                figure. */}
+            <h1
+              className={cn(
+                FLOW_DISPLAY,
+                "text-balance [overflow-wrap:anywhere]",
+              )}
+            >
               {name ? `You're in, ${name}!` : "You're in!"}
             </h1>
-            <p className="mx-auto max-w-[20rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">
+            <FlowSub className="mx-auto max-w-[20rem]">
               {TRIAL_DAYS}{" "}days on us. Let&apos;s finish setting you up.
-            </p>
+            </FlowSub>
           </div>
         </div>
 

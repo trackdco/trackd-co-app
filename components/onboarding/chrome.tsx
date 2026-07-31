@@ -133,7 +133,11 @@ export function SkipLink({
     <button
       type="button"
       onClick={onClick}
-      className="mx-auto block rounded-md px-3 py-2 text-xs text-text-subtle transition-colors duration-[var(--motion-fast)] hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+      // --text-muted, not --text-subtle. The spec asks for a de-emphasised
+      // skip and this still is one against a full-width white CTA, but subtle
+      // measures 2.1:1 against the canvas and "de-emphasised" and "below the
+      // legibility floor" are not the same requirement.
+      className="mx-auto block rounded-md px-3 py-2 text-xs text-text-muted transition-colors duration-[var(--motion-fast)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
     >
       {children}
     </button>

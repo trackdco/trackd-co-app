@@ -464,6 +464,13 @@
   animation: dollar-fall var(--fall-ms, 2400ms) ease-in both;
 }
 
+/* A CLASS, not an inline `animation` shorthand. An inline animation outranks
+   any stylesheet rule, so the reduce block below cannot switch it off — the
+   exact mistake spec 07 shipped once already. Only the duration stays inline. */
+.animate-flow-caption {
+  animation: flow-caption 1200ms var(--motion-ease) both;
+}
+
 .animate-kyle {
   animation:
     kyle-in 760ms var(--motion-ease) both,
@@ -519,8 +526,19 @@
   .animate-flow-forward,
   .animate-flow-back,
   .animate-kyle,
-  .animate-dollar-fall {
+  .animate-dollar-fall,
+  .animate-flow-caption {
     animation: none;
+  }
+
+  /* These two animate TO invisibility, so killing the animation strands them
+     visible: 18 amber slivers pinned to the top of the celebrate screen, and a
+     stack of dollar signs sitting on the cost bars. Every other animation here
+     animates FROM opacity 0 to its natural state, so `animation: none` lands
+     on the right frame; these are the two that do not. */
+  .animate-flow-confetti,
+  .animate-dollar-fall {
+    display: none;
   }
 }
 
