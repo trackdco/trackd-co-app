@@ -11,11 +11,22 @@ import { DotsThree } from "@/components/icons"
  * you had seen anything. The card is now simply a link, and ending or extending
  * lives here, beside the block it acts on, one tap from the thing it changes.
  *
- * A finished block has nothing to end, so the caller renders this only while one
- * is running. Deliberately not a Radix menu: two items, no submenus, no typeahead
- * — a popover and an outside-click is the whole requirement.
+ * A finished block has nothing to END, so `onEndOrExtend` is omitted for one and
+ * the menu shows Delete alone — it still has to be reachable, because a block
+ * mistyped and closed is exactly the one a user wants rid of (Adrian,
+ * 2026-07-31).
+ *
+ * Deliberately not a Radix menu: two items, no submenus, no typeahead — a
+ * popover and an outside-click is the whole requirement.
  */
-export function BlockActionsMenu({ onEndOrExtend }: { onEndOrExtend: () => void }) {
+export function BlockActionsMenu({
+  onEndOrExtend,
+  onDelete,
+}: {
+  /** Omitted for a finished block: there is nothing left to end or extend. */
+  onEndOrExtend?: () => void
+  onDelete: () => void
+}) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
@@ -53,16 +64,32 @@ export function BlockActionsMenu({ onEndOrExtend }: { onEndOrExtend: () => void 
           role="menu"
           className="animate-in fade-in-0 zoom-in-95 absolute right-0 z-30 mt-1 w-48 overflow-hidden rounded-xl border border-border-default bg-bg-surface shadow-lg duration-150 motion-reduce:animate-none"
         >
+          {onEndOrExtend && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false)
+                onEndOrExtend()
+              }}
+              className="flex min-h-11 w-full items-center px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-bg-surface-raised"
+            >
+              End or extend
+            </button>
+          )}
+          {/* The destructive treatment the danger zone and the compound delete
+              confirm already use, so the one irreversible action in Blocks reads
+              the same as every other irreversible action in the app. */}
           <button
             type="button"
             role="menuitem"
             onClick={() => {
               setOpen(false)
-              onEndOrExtend()
+              onDelete()
             }}
-            className="flex min-h-11 w-full items-center px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-bg-surface-raised"
+            className="flex min-h-11 w-full items-center px-4 py-3 text-left text-sm text-accent-destructive transition-colors hover:bg-bg-surface-raised"
           >
-            End or extend
+            Delete block
           </button>
         </div>
       )}

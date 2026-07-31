@@ -13,6 +13,7 @@ import { BlockRetrospective } from "@/components/blocks/BlockRetrospective"
 import type { WeightUnit } from "@/lib/weight"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { BlockActionsMenu } from "@/components/blocks/BlockActionsMenu"
+import { BlockDeleteConfirm } from "@/components/blocks/BlockDeleteConfirm"
 import { dismissEndPrompt } from "@/lib/blocks/endPromptDismissal"
 import {
   activeBlock,
@@ -80,6 +81,7 @@ export function BlocksScreen({
 }) {
   const [creating, setCreating] = useState(false)
   const [ending, setEnding] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // The retrospective reads the dose log out of the DEVICE store. Without this
   // a device that had never opened Home or Protocol reported a measured "0%"
@@ -139,16 +141,27 @@ export function BlocksScreen({
                 {formatDuration(window.days)}
               </p>
             </div>
-            {/* Only a LIVE block has anything to end or extend. */}
-            {selected.status === "active" && (
-              <BlockActionsMenu onEndOrExtend={() => setEnding(true)} />
-            )}
+            {/* Only a LIVE block has anything to end or extend; both kinds can
+                be deleted, and a closed one is the likelier candidate. */}
+            <BlockActionsMenu
+              onEndOrExtend={
+                selected.status === "active" ? () => setEnding(true) : undefined
+              }
+              onDelete={() => setDeleting(true)}
+            />
           </div>
         </div>
 
         <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
           <BlockRetrospective block={selected} {...shared} />
         </div>
+
+        <BlockDeleteConfirm
+          open={deleting}
+          onOpenChange={setDeleting}
+          blockId={selected.id}
+          blockName={selected.name}
+        />
 
         {/* The prompt lives on this page now, because the menu that opens it
             does. Same component, same props as the list view used. */}
