@@ -424,7 +424,8 @@ export function CalendarScreen({
           if (landsOn !== openedOn) setPendingDay(landsOn as DateKey)
         }}
         hasLogOn={(day) => Boolean(logs[day]?.[logTarget?.id ?? ""])}
-        onRemove={(compoundId) => unlogDose(userId, selectedKey, compoundId)}
+        /* The day the SHEET is showing, not the live selection — see Home. */
+        onRemove={(compoundId, day) => unlogDose(userId, day, compoundId)}
       />
 
       <LegendSheet open={legendOpen} onOpenChange={setLegendOpen} />

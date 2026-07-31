@@ -51,7 +51,7 @@ import type { CompoundCategory } from "@/lib/compound-categories"
 import type { DrawSource } from "@/lib/home/draw"
 import type { StackCompound } from "@/lib/home/stack"
 import { CYCLE_COLUMNS, type CycleColumns } from "@/lib/protocol/cycleRule"
-import type { DoseLog } from "@/lib/home/mockHomeData"
+import { capNote, type DoseLog } from "@/lib/home/mockHomeData"
 
 type Ok = { ok: boolean; skipped?: boolean }
 
@@ -1279,24 +1279,3 @@ export async function pullProtocolStackAndLogs(): Promise<{
   )
 }
 
-/**
- * Cap a note without splitting a character in half.
- *
- * `slice` counts UTF-16 code units, so cutting at 2000 through an emoji left a
- * LONE SURROGATE. `JSON.stringify` emits it as `"\ud83d"`, and Postgres rejects
- * an unpaired surrogate in a JSON body — which failed the entire `dose_logs`
- * write, so the dose logged on the device and never synced. Spreading the string
- * iterates by code point, so the cut always lands between characters.
- */
-function capNote(note: string, max: number): string {
-  if (note.length <= max) return note
-  const out = [...note]
-  let n = 0
-  const kept: string[] = []
-  for (const ch of out) {
-    if (n + ch.length > max) break
-    kept.push(ch)
-    n += ch.length
-  }
-  return kept.join("")
-}

@@ -226,8 +226,9 @@ function QuickTrackBody({
   ) {
     commitDoseOn(userId, compoundId, log, landsOn, openedOn)
   }
-  function handleRemove(compoundId: string) {
-    unlogDose(userId, targetKey, compoundId)
+  /** The day the SHEET is showing, not this screen's live target — see Home. */
+  function handleRemove(compoundId: string, dateKey: string) {
+    unlogDose(userId, dateKey, compoundId)
   }
 
   return (
@@ -266,7 +267,8 @@ function QuickTrackBody({
                         compound={c}
                         log={targetLogs[c.id] ?? null}
                         onOpen={() => openLog(c)}
-                        onUnlog={() => handleRemove(c.id)}
+                        /* From the ROW — this sheet's own target day. */
+                        onUnlog={() => handleRemove(c.id, targetKey)}
                       />
                     ))}
                   </ul>

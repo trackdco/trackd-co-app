@@ -571,9 +571,17 @@ export function HomeScreen({
   /** A day the committed dose moved to, applied once the sheet is out of the way. */
   const [pendingDay, setPendingDay] = useState<DateKey | null>(null)
 
-  // Undo a logged dose — removes its entry.
-  function handleRemove(compoundId: string) {
-    unlogDose(userId, selectedKey, compoundId)
+  /**
+   * Undo a logged dose — on the day the SHEET was showing, which the sheet
+   * passes in.
+   *
+   * It used to read `selectedKey`, the live selection. Those agreed only by
+   * accident; once the sheet froze the day it opened on, leaving it open across
+   * midnight was enough to make Remove delete the NEXT day's dose and tombstone
+   * it, while the one on screen survived.
+   */
+  function handleRemove(compoundId: string, dateKey: string) {
+    unlogDose(userId, dateKey, compoundId)
   }
 
   return (
@@ -675,7 +683,8 @@ export function HomeScreen({
               onLog={(dose) =>
                 setLogTarget({ compound: dose, existing: null })
               }
-              onUnlog={(dose) => handleRemove(dose.id)}
+              /* From the ROW, so the day is the one the row is rendered for. */
+              onUnlog={(dose) => handleRemove(dose.id, selectedKey)}
               onOpenDetail={(dose) => setDetailTarget(dose)}
               drawSources={drawResult.sources}
               noVialIds={noVialIds}

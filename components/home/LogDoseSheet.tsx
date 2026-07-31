@@ -13,7 +13,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
-import type { DoseLog } from "@/lib/home/mockHomeData"
+import { capNote, type DoseLog } from "@/lib/home/mockHomeData"
 import {
   formatDateKeyShort,
   formatTimeLabel,
@@ -66,8 +66,16 @@ interface LogDoseSheetProps {
     landsOn: string,
     openedOn: string
   ) => void
-  /** Undo — remove the dose's log entirely. */
-  onRemove: (compoundId: string) => void
+  /**
+   * Undo — remove the dose's log entirely, ON THE DAY THE SHEET IS SHOWING.
+   *
+   * The day is passed explicitly and is not optional. The callers used to read
+   * their own live `selectedKey`, which agreed with the sheet only by accident:
+   * once the sheet froze the day it opened on, the two could differ, and
+   * "Remove dose" then deleted a DIFFERENT day's dose and tombstoned it. Leaving
+   * the sheet open across midnight was enough.
+   */
+  onRemove: (compoundId: string, dateKey: string) => void
   /**
    * Whether this compound already has a dose logged on a given day.
    *
@@ -75,8 +83,12 @@ interface LogDoseSheetProps {
    * moving one onto a day that already had one silently DESTROYED the other,
    * with its own amount, time and site, and no undo. The sheet needs to know
    * before it lets that happen.
+   *
+   * REQUIRED. Optional, a call site that forgot it silently got the
+   * destroy-the-other-dose behaviour back with no type error — the same shape as
+   * the two-versus-four-parameter bug this sheet already shipped once.
    */
-  hasLogOn?: (dateKey: string) => boolean
+  hasLogOn: (dateKey: string) => boolean
 }
 
 // Release the handle past this fraction of the sheet height → dismiss.
@@ -141,10 +153,23 @@ export function LogDoseSheet({
    * off `logDate`, which the Date row owns.
    */
   const [openedOn, setOpenedOn] = useState(dateKey)
+  /**
+   * "Today", frozen with it.
+   *
+   * Freezing the DAY while leaving today live meant `onToday` flipped false when
+   * midnight passed under an open sheet — and the time field, which had been
+   * live-tracking the clock, silently fell back to the compound's SCHEDULED
+   * time. A dose taken at 00:01 recorded as 08:00: a sixteen-hour error with
+   * nothing on screen to show it had happened.
+   */
+  const [openedToday, setOpenedToday] = useState(todayKey)
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (open) setOpenedOn(dateKey)
+    if (open) {
+      setOpenedOn(dateKey)
+      setOpenedToday(todayKey)
+    }
   }
 
   return (
@@ -163,7 +188,7 @@ export function LogDoseSheet({
             compound={shown.compound}
             existing={shown.existing}
             dateKey={openedOn}
-            todayKey={todayKey}
+            todayKey={openedToday}
             siteLastUsedDays={siteLastUsedDays}
             bodySex={bodySex}
             onClose={() => onOpenChange(false)}
@@ -233,8 +258,10 @@ function LogDoseBody({
     landsOn: string,
     openedOn: string
   ) => void
-  onRemove: (compoundId: string) => void
-  hasLogOn?: (dateKey: string) => boolean
+  onRemove: (compoundId: string, dateKey: string) => void
+  /** REQUIRED, not optional: a call site that forgets it silently gets back the
+   *  destroy-the-other-dose behaviour with no type error. */
+  hasLogOn: (dateKey: string) => boolean
 }) {
   const editing = existing !== null
   const injectable = isInjectable(compound.method)
@@ -260,8 +287,7 @@ function LogDoseBody({
    * than resolved: there is no correct automatic answer to "which of these two
    * doses did you mean", and destroying data to avoid asking is the worst one.
    */
-  const dayTaken =
-    logDate !== dateKey && (hasLogOn?.(logDate) ?? false)
+  const dayTaken = logDate !== dateKey && hasLogOn(logDate)
   // Life doesn't happen at the phone: the week strip can look back, so a dose may
   // land on a day that isn't today. Everything below that depends on "when" reads
   // this rather than the clock.
@@ -605,11 +631,20 @@ function LogDoseBody({
   // close — so dismissing the success tick (tapping it, the backdrop, or letting
   // it auto-dismiss) can never cancel the log. This timer only auto-closes the
   // success state; it never commits.
+  // `onClose` is a fresh arrow from every parent render, so depending on it
+  // restarted this timer on each one — a parent re-rendering faster than
+  // SUCCESS_MS would have kept the sheet open forever. It matters more now that
+  // the close is what applies a moved dose's day. Held in a ref so the effect
+  // depends only on `tracked`.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
   useEffect(() => {
     if (!tracked) return
-    const t = setTimeout(onClose, SUCCESS_MS)
+    const t = setTimeout(() => onCloseRef.current(), SUCCESS_MS)
     return () => clearTimeout(t)
-  }, [tracked, onClose])
+  }, [tracked])
 
   /* --------------------------------------------------------- drag-to-dismiss */
 
@@ -807,10 +842,22 @@ function LogDoseBody({
                 type="date"
                 value={logDate}
                 onChange={(e) => {
+                  const next = e.target.value
                   // An empty value is what a cleared native picker sends.
                   // Falling back to the day the sheet opened on is the only sane
                   // answer: a dose has to land somewhere.
-                  setLogDate(e.target.value || dateKey)
+                  if (!next) {
+                    setLogDate(dateKey)
+                    return
+                  }
+                  // ENFORCED, not advertised. `min`/`max` on a date input are
+                  // advisory — typing into the year segment sails straight past
+                  // them, and `9999-07-31` was being stored as a day key. The
+                  // dashboard then followed the dose there: parked eight thousand
+                  // years out, on a day no screen can navigate back from, with no
+                  // year shown anywhere to explain it.
+                  if (next < MIN_LOG_DATE || next > MAX_LOG_DATE) return
+                  setLogDate(next)
                 }}
                 aria-label="Date this dose was taken"
                 aria-invalid={dayTaken || undefined}
@@ -1093,7 +1140,9 @@ function LogDoseBody({
           <button
             type="button"
             onClick={() => {
-              onRemove(compound.id)
+              // `dateKey` is the frozen day this sheet opened on — the dose the
+              // user is looking at. Never the caller's live selection.
+              onRemove(compound.id, dateKey)
               onClose()
             }}
             className="mt-4 block w-full text-center text-sm text-state-error transition-opacity hover:opacity-80"
@@ -1177,24 +1226,3 @@ function LogRow({
   )
 }
 
-/**
- * Cap a note without splitting a character in half.
- *
- * `slice` counts UTF-16 code units, so cutting at 2000 through an emoji left a
- * LONE SURROGATE. `JSON.stringify` emits it as `"\ud83d"`, and Postgres rejects
- * an unpaired surrogate in a JSON body — which failed the entire `dose_logs`
- * write, so the dose logged on the device and never synced. Spreading the string
- * iterates by code point, so the cut always lands between characters.
- */
-function capNote(note: string, max: number): string {
-  if (note.length <= max) return note
-  const out = [...note]
-  let n = 0
-  const kept: string[] = []
-  for (const ch of out) {
-    if (n + ch.length > max) break
-    kept.push(ch)
-    n += ch.length
-  }
-  return kept.join("")
-}

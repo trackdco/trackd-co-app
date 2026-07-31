@@ -1143,7 +1143,8 @@ function AddCompoundBody({
               role="switch"
               aria-checked={cycleDraft !== null}
               aria-label="Run this compound on a cycle"
-              onClick={() =>
+              onClick={() => {
+                if (errors.cycle) setErrors((p) => ({ ...p, cycle: undefined }))
                 setCycleDraft((cur) =>
                   cur
                     ? null
@@ -1157,7 +1158,7 @@ function AddCompoundBody({
                         anchor: todayKey,
                       },
                 )
-              }
+              }}
               // Amber when on, white knob (Adrian, 2026-07-30). Amber is what
               // "live / on" means everywhere else in this app; `accent-primary`
               // resolves to white, which put a white track under a white knob.
@@ -1328,6 +1329,11 @@ function AddCompoundBody({
   )
 }
 
+/** Bounds on both cycle date fields. Advisory on their own — `cycleProblem` is
+ *  what actually refuses a save — but they keep the picker honest. */
+const CYCLE_MIN_DATE = "2015-01-01"
+const CYCLE_MAX_DATE = "2100-12-31"
+
 /**
  * What is wrong with this cycle, if anything — or null when it is fine.
  *
@@ -1341,8 +1347,12 @@ function AddCompoundBody({
  */
 function cycleProblem(cycle: CycleRule | null): string | null {
   if (!cycle) return null
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(cycle.anchor)) {
-    return "Give the cycle a start date."
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(cycle.anchor) ||
+    cycle.anchor < CYCLE_MIN_DATE ||
+    cycle.anchor > CYCLE_MAX_DATE
+  ) {
+    return "Give the cycle a real start date."
   }
   if (cycle.pattern.type === "onOff") {
     if (cycle.pattern.onDays < 1) return "A cycle needs at least one day on."
@@ -1358,6 +1368,9 @@ function cycleProblem(cycle: CycleRule | null): string | null {
     }
     if (cycle.end.date < cycle.anchor) {
       return "The cycle ends before it starts."
+    }
+    if (cycle.end.date > CYCLE_MAX_DATE) {
+      return "Give the cycle a real end date."
     }
   }
   if (cycle.end.type === "afterRounds") {
@@ -1532,6 +1545,7 @@ function CycleFields({
   const [lastEndDate, setLastEndDate] = useState<string | null>(
     cycle.end.type === "onDate" ? cycle.end.date : null,
   )
+  const today = toDateKey(new Date())
   const onOff = cycle.pattern.type === "onOff" ? cycle.pattern : null
   const repeats = onOff !== null
   const onDays = onOff?.onDays ?? 7
@@ -1630,6 +1644,8 @@ function CycleFields({
             onChange({ ...cycle, anchor: e.target.value || cycle.anchor })
           }
           aria-label="Cycle starts on"
+          min={CYCLE_MIN_DATE}
+          max={CYCLE_MAX_DATE}
           className="h-11 w-44 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
         />
       </FormRow>
@@ -1648,7 +1664,16 @@ function CycleFields({
                         type: "onDate",
                         // What they picked before, else a sensible span ahead of
                         // the anchor — never the anchor itself.
-                        date: lastEndDate ?? addDaysKey(cycle.anchor, 8 * 7),
+                        // Eight weeks from the anchor OR from today, whichever
+                        // is later. Anchored alone it produced a date in the
+                        // PAST for any cycle running longer than that, i.e. a
+                        // cycle that had already ended the moment it was saved.
+                        date:
+                          lastEndDate ??
+                          addDaysKey(
+                            cycle.anchor > today ? cycle.anchor : today,
+                            8 * 7,
+                          ),
                       }
                     : t === "afterRounds"
                       ? { type: "afterRounds", rounds: 4 }
@@ -1673,13 +1698,14 @@ function CycleFields({
             <Input
               type="date"
               value={cycle.end.type === "onDate" ? cycle.end.date : ""}
-              min={cycle.anchor}
               onChange={(e) => {
                 const next = e.target.value || cycle.anchor
                 setLastEndDate(next)
                 setEnd({ type: "onDate", date: next })
               }}
               aria-label="Cycle end date"
+              min={cycle.anchor}
+              max={CYCLE_MAX_DATE}
               className="h-11 w-44 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
             />
           </FormRow>
@@ -1730,13 +1756,23 @@ function CycleFields({
   )
 }
 
-/** A date key N days on, in UTC so a DST change cannot shift it. */
+/**
+ * A date key N days on, in UTC so a DST change cannot shift it.
+ *
+ * Guarded at both ends. A year typed into a date input can reach Chrome's
+ * 275760 ceiling, and `new Date(...).toISOString()` THROWS `RangeError` past the
+ * maximum date — which killed the "On a date" pill silently, leaving it a no-op
+ * that never revealed its field. Years above 9999 also serialise as `+275760-…`,
+ * so slicing ten characters yields a garbage key.
+ */
 function addDaysKey(key: string, days: number): string {
   const [y, m, d] = key.split("-").map(Number)
-  if (!y || !m || !d) return key
-  return new Date(Date.UTC(y, m - 1, d) + days * 86_400_000)
-    .toISOString()
-    .slice(0, 10)
+  if (!y || !m || !d || y < 1000 || y > 9000) return key
+  const at = Date.UTC(y, m - 1, d) + days * 86_400_000
+  if (!Number.isFinite(at)) return key
+  const out = new Date(at)
+  if (Number.isNaN(out.getTime())) return key
+  return out.toISOString().slice(0, 10)
 }
 
 const END_LABELS: Record<CycleEnd["type"], string> = {
