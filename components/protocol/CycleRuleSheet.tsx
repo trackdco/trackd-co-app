@@ -131,7 +131,10 @@ function CycleRuleForm({
   const offerable = availableCycleEnds(pattern, { vialTracked })
   // Turning off the repeat takes "after rounds" with it — a round needs an
   // off-period to exist — so fall back rather than saving an impossible rule.
-  const effectiveEndType = offerable.includes(endType) ? endType : "never"
+  // The fallback is the first OFFERABLE end, not a hardcoded "never": since
+  // "never" stopped being offered for a continuous pattern, hardcoding it here
+  // would have quietly saved the one combination we just removed.
+  const effectiveEndType = offerable.includes(endType) ? endType : offerable[0]
 
   const valid =
     // A cleared date input yields "", which `dayNumber` can't parse — the cycle

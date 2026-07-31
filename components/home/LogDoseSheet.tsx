@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { CaretRight, Check } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { SHEET_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW } from "@/lib/ui-presets"
 import { Input } from "@/components/ui/input"
 import {
   Sheet,
@@ -339,7 +339,6 @@ function LogDoseBody({
   // anything — `dose_logs.note` has existed since v0.4.2 and nothing had ever
   // written to it (spec 11 · card three).
   const [note, setNote] = useState(existing?.note ?? "")
-  const [siteSheetOpen, setSiteSheetOpen] = useState(false)
 
   // How much to draw for THIS dose (Spec 21, extended to this sheet by spec 11).
   // The vial facts are resolved server-side for the dose's own DAY, exactly as
@@ -917,17 +916,20 @@ function LogDoseBody({
         )}
 
         {/* ── Card two: the site ─────────────────────────────────────
-            One row showing the chosen site, opening the body map. The map itself
-            is the existing `BodyMap` in `pick` mode with the same props it always
-            had — spec 11 says it stays exactly as it is, so it moved into a sheet
-            without a single prop changing. Injectables only. */}
+            THE BODY MAP, INLINE (Adrian, 2026-07-31 — reverses spec 11's move of
+            it behind a "Site" row and into its own sheet). Choosing where you
+            injected is a spatial decision, and putting it two taps away behind a
+            text row asked the user to recall a body map instead of looking at
+            one. The map is the control.
+
+            The map itself is untouched: the same `BodyMap` in `pick` mode with
+            the same props it has always had. Injectables only. */}
         {injectable && (
-          <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
-            <LogRow
-              label="Site"
-              onPress={() => setSiteSheetOpen(true)}
-              value={
-                siteId
+          <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised px-4 py-3">
+            <div className="flex items-baseline justify-between">
+              <p className={CARD_EYEBROW}>Site</p>
+              <p className="font-mono text-sm text-text-muted">
+                {siteId
                   ? // The catalogue's own label when it has loaded; the local
                     // lexicon otherwise, so editing a logged dose names the site
                     // immediately instead of reading "Loading…" over a known
@@ -936,20 +938,42 @@ function LogDoseBody({
                     siteLabel(siteId))
                   : loadingSites
                     ? "Loading…"
-                    : "Choose"
-              }
-            />
-            {/* How long since this spot was last used, ON THE ROW.
-                It used to live inside the body-map sheet, where picking a site
-                closed the sheet in the same handler — so the observation could
-                only ever exist in the frames where its own container was
-                dismissing. Measured at 60ms after a tap it was already sliding
-                off screen. It is the app's one categorical rotation signal, so
-                it belongs where it can actually be read. */}
+                    : "Optional"}
+              </p>
+            </div>
+
+            <div className="pt-2">
+              {loadingSites ? (
+                <p className="text-xs text-text-subtle">Loading sites…</p>
+              ) : sitesToShow.length === 0 ? (
+                <p className="rounded-xl border border-border-default bg-bg-input px-3 py-3 text-xs text-text-muted">
+                  Couldn&apos;t load the body map. You can still log the dose.
+                </p>
+              ) : (
+                <BodyMap
+                  sites={sitesToShow}
+                  mode="pick"
+                  sex={bodySex}
+                  activeIds={siteId ? [siteId] : []}
+                  // Inline, so a tap SELECTS and nothing dismisses. Re-tapping
+                  // the chosen site clears it, which is the only way back to "no
+                  // site" now that there is no sheet to close without choosing.
+                  onTapSite={(id) => setSiteId(id === siteId ? null : id)}
+                />
+              )}
+            </div>
+
+            {/* How long since this spot was last used. It used to live inside
+                the body-map sheet, where picking a site closed the sheet in the
+                same handler — so the observation could only exist in the frames
+                where its own container was dismissing (measured at 60ms after a
+                tap it was already sliding off screen). Inline, it simply stays
+                on screen under the map that produced it. It is the app's one
+                categorical rotation signal. */}
             {siteId != null && siteLastUsedDays[siteId] !== undefined && (
               <p
                 className={cn(
-                  "px-4 pb-3 text-xs",
+                  "pt-2 text-xs",
                   siteLastUsedDays[siteId] < REST_DAYS
                     ? "text-accent-amber"
                     : "text-text-subtle",
@@ -961,64 +985,6 @@ function LogDoseBody({
               </p>
             )}
           </div>
-        )}
-
-        {/* The body map, in a sheet. Every prop is what it was when this was
-            inline — `sites`, `mode="pick"`, `sex`, `activeIds`, `onTapSite` — so
-            spec 11's "entirely unchanged" holds literally. Picking a site closes
-            the sheet, because one tap is the whole interaction. */}
-        {injectable && (
-          <Sheet open={siteSheetOpen} onOpenChange={setSiteSheetOpen}>
-            <SheetContent
-              side="bottom"
-              showCloseButton={false}
-              // px-6, matching the parent. It had NO padding at all, so the
-              // title sat four pixels from the edge of the phone.
-              className="max-h-[92dvh] gap-0 overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
-            >
-              {/* A grab handle, because this sheet had neither one nor a close
-                  button: the only ways out were tapping the strip of backdrop
-                  above it or committing to a site. */}
-              <button
-                type="button"
-                onClick={() => setSiteSheetOpen(false)}
-                aria-label="Close the injection site picker"
-                className="flex h-11 w-full shrink-0 items-center justify-center"
-              >
-                <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
-              </button>
-
-              <SheetTitle className={cn(SHEET_TITLE, "px-1")}>
-                Injection site
-              </SheetTitle>
-              <SheetDescription className="px-1 text-sm text-text-muted">
-                {route === "im" ? "Intramuscular" : "Subcutaneous"}. Tap where you
-                injected. Picking one is optional.
-              </SheetDescription>
-
-              <div className="pt-3">
-                {loadingSites ? (
-                  <p className="px-1 text-xs text-text-subtle">Loading sites…</p>
-                ) : sitesToShow.length === 0 ? (
-                  <p className="rounded-xl border border-border-default bg-bg-input px-3 py-3 text-xs text-text-muted">
-                    Couldn&apos;t load the body map. You can still log the dose.
-                  </p>
-                ) : (
-                  <BodyMap
-                    sites={sitesToShow}
-                    mode="pick"
-                    sex={bodySex}
-                    activeIds={siteId ? [siteId] : []}
-                    onTapSite={(id) => {
-                      setSiteId(id)
-                      setSiteSheetOpen(false)
-                    }}
-                  />
-                )}
-
-              </div>
-            </SheetContent>
-          </Sheet>
         )}
 
         {/* While the vial read is in flight, a brief hint so the picker doesn't pop

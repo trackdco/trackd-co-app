@@ -145,8 +145,12 @@ nulls the column. **The rule that came out of it: `logged_for` is written by the
 device at log time and by nothing else, ever. A backfill cannot know a past
 dose's timezone, which is the entire reason the column exists.**
 
-The containers review page (`app/preview/containers/`) was reviewed and then
-**deleted**, per spec 01's checklist.
+The containers review page (`app/preview/containers/`) was reviewed. It was
+recorded here as deleted; it is not — the branch ADDS it, and it is still on
+disk. Corrected 2026-07-31 by the pre-merge review. It is dev-only and safe
+(gated by `VERCEL_ENV`, the only preview page gated that way rather than by
+`NODE_ENV`, so it is also the only one visible on a Vercel preview deploy).
+Spec 01's checklist item is therefore still outstanding, not done.
 
 **Deferred: cycle end condition 3, "ends when the vial runs out."** The rule is
 implemented and tested, but nothing derives the day a vial actually ran dry from
@@ -333,6 +337,57 @@ the only way to device-test — the Vercel preview link wasn't reachable for him
   ("Not set"), so only the pre-fill and the required-field guard came back. Spec
   01's checklist items "time field does not pre-fill" are therefore deliberately
   no longer true.
+
+## Pre-merge review + fixes (2026-07-31)
+
+Three parallel review passes over the whole branch (the merge diff as one change;
+data integrity + security; a cold start), then the fixes. **Two CRITICALS, both
+data defects invisible to any per-spec review, both fixed and pinned by tests.**
+
+- **Push notifications never learned about cycles.** `lib/notifications/` is the
+  server-side mirror of "what's due today" and the branch changed ONE line of it
+  (a `revalidatePath`), so no spec review ever opened it. Off-cycle days were
+  announced and then nagged about while the app itself correctly showed nothing.
+  Fixed by reusing the client's own `isOnCycle` rather than a second copy of the
+  maths, plus the seven `cycle_*` columns in the runner's select
+  (`PC_REMINDER_SELECT`, with a test asserting it covers `CYCLE_COLUMNS` — a
+  missing column does not throw, it silently stops the gate gating). The same
+  blind spot had left low-stock alerts on the timezone-broken `est_empty_date`
+  subtraction that `supabase/protocol/010` exists to replace.
+- **A device timezone change duplicated every dose and rewrote `taken_at`.** After
+  012 nulled `logged_for`, every historical row fell back to re-deriving its day
+  from the CURRENT device timezone; the row id is built from the day, so a
+  re-derived day minted a SECOND row, double-decremented the vial, and stored the
+  guess permanently. **The fix recovers the day from the row's own id** rather
+  than guessing: the id is a hash of the day it was written under, so a candidate
+  either reproduces it or does not, and no timezone shifts a calendar day by more
+  than one (`recoverLoggedDay`, `lib/home/doseLogIds.ts`). `repushDoseLogs` also
+  no longer writes `logged_for` at all — a replay cannot tell a recorded day from
+  a derived one, which is exactly what 012 forbids.
+
+Also fixed: a fabricated `+0.0 kg` "trend" on a single weight reading in three
+places (`photosAcross` already refused the same shape; `weightAcross` did not);
+Progress headlining a bare `0 %` for a dose whose time had not come; a compound
+with a future start date being invisible everywhere but one Protocol card; three
+writes reporting success on a zero-row update (`extendBlock`, `updatePhysical`,
+`startBlock`'s compensating restore); stack members silently dropped from
+Postgres then deleted locally (fixed centrally in `commit`, so a future caller
+cannot forget the names again); a cycle ending in 2027 reading as "5 Aug"; and
+`lib/db/resetProtocol.ts` deleted — a caller-less `"use server"` module that
+could still wipe five tables.
+
+**`supabase/blocks/001_blocks.sql` shipped with no `GRANT`**, which would have
+made Blocks return `42501` on every read and write the moment it merged. Applied
+by hand and written into the migration. `012` is now marked SPENT with its
+destructive `UPDATE` commented out: it was safe only while no app code wrote the
+column, and that code is now deployed.
+
+Adrian's changes on top: continuous cycles can no longer be given "No end" (it
+was measurably identical to having no cycle); the calendar's cycle bars moved to
+sit directly under the day disc; the calculator's syringe pins while the keyboard
+is up, fading in; the injection-site body map went back INLINE in the log sheet,
+reversing spec 11's move of it behind a "Site" row; and the beta feedback row
+left the quick-actions menu.
 
 ## Open Questions
 

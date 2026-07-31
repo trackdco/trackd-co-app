@@ -349,52 +349,23 @@ export function formatCyclePattern(pattern: CyclePattern): string {
   return `${pattern.onDays} on / ${pattern.offDays} off`
 }
 
-const CYCLE_END_MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-]
 
-/**
- * An end condition as one short phrase, for a row that has to show it without
- * opening the editor. Lives beside {@link formatCyclePattern} so the two ways of
- * wording a cycle stay in one file rather than drifting apart on two screens.
- *
- * States the condition and nothing else — no countdown, no "ends soon", nothing
- * that would need a colour.
- */
-export function formatCycleEnd(
-  end: CycleEnd,
-  /**
-   * The year this is being read IN. A date in a different year prints its year;
-   * one in the current year does not. Without it an end date of 5 Aug 2027 read
-   * as "5 Aug" on 30 Jul 2026 — six days away rather than a year away.
-   */
-  currentYear = new Date().getFullYear()
-): string {
-  switch (end.type) {
-    case "onDate": {
-      const [y, m, d] = end.date.split("-").map(Number)
-      const month = m ? CYCLE_END_MONTHS[m - 1] : undefined
-      // A month outside 1..12 has no name, and printing "5 " with a trailing
-      // space is worse than printing the raw key.
-      if (!y || !m || !d || !month) return end.date
-      return y === currentYear ? `${d} ${month}` : `${d} ${month} ${y}`
-    }
-    case "afterRounds":
-      return `After ${end.rounds} ${end.rounds === 1 ? "round" : "rounds"}`
-    case "whenVialEmpty":
-      return "When the vial runs out"
-    default:
-      return "No end date"
-  }
-}
 
 /** Whether an end condition is offerable for a given pattern and compound. */
 export function availableCycleEnds(
   pattern: CyclePattern,
   opts: { vialTracked: boolean }
 ): CycleEnd["type"][] {
-  const ends: CycleEnd["type"][] = ["never", "onDate"]
+  // "No end" is offered only for an ON/OFF pattern. A CONTINUOUS cycle that
+  // never ends is measurably identical to having no cycle at all — it runs every
+  // scheduled day forever — so offering it invites the user to configure
+  // something that does nothing, and then shows them a cycle card for it. The
+  // one behaviour it does add is a second, hidden start date, which the
+  // compound's own "Starts" field already does properly. (Adrian, 2026-07-31.)
+  //
+  // Only the OFFER changes: `isOnCycle` still resolves an existing
+  // continuous + never rule exactly as before, so nothing already saved moves.
+  const ends: CycleEnd["type"][] = pattern.type === "onOff" ? ["never", "onDate"] : ["onDate"]
   // A round is one on-period plus one off-period — meaningless without both.
   if (pattern.type === "onOff") ends.push("afterRounds")
   if (opts.vialTracked && VIAL_END_SUPPORTED) ends.push("whenVialEmpty")

@@ -424,7 +424,13 @@ stored.)
 - The **quick-actions menu** (A10) lives on a **floating action button** pinned
   bottom-right above the nav (`components/shortcuts/QuickActionsFab.tsx`, Spec 20),
   rendered once by the `(app)` shell so it tracks the bottom nav exactly. One flat
-  three-column grid of seven equal tiles (`QUICK_ACTIONS` in `shortcutItems.ts`) — it
+  three-column grid of six equal tiles (`QUICK_ACTIONS` in `shortcutItems.ts`) — it
+  **no longer carries the "Beta notes & feedback" row** (Adrian, 2026-07-31 — the
+  beta is ending, so a beta-only affordance stops being a permanent fixture of the
+  primary action menu). `FeedbackRow` and the FAB's `FeedbackSheet` mount are
+  deleted; feedback itself is untouched and still reachable from Profile via
+  `ProfileFeedbackRow` → the same `FeedbackSheet` → the same `beta_feedback`
+  table. It
   persists nothing (the earlier reorderable card order + `lib/shortcutOrder.ts`, and
   later the primary-row / six-tile / feedback-row split of `ShortcutsMenu`, were all
   removed as the menu was reworked). It carries **no calculator action**: the
@@ -732,8 +738,12 @@ picker and press the plus.
   `removeCompoundLogs`, `deleteProtocolCompoundForStack`, `deleteProtocolCompound`
   and `deleteStackCompound`/`deleteCompoundLogs` are **deleted, not just unwired** —
   Invariant 8 is now structural rather than a convention. The DB cascade remains for
-  account deletion only. (`StartFreshSection`'s "Clear all compounds & stock" is a
-  separate whole-account reset via `wipeMyProtocol` and is untouched.)
+  account deletion only. (`StartFreshSection`'s "Clear all compounds & stock" was
+  a separate whole-account reset via `wipeMyProtocol`. BOTH ARE GONE: spec 09
+  removed the control from the danger zone, which left `lib/db/resetProtocol.ts`
+  a caller-less `"use server"` module that could still delete five tables. The
+  pre-merge review deleted it, 2026-07-31 — an unreachable server action that
+  destroys data is a liability, not a spare part.)
 - **Removed:** the `/archive` route + page, `ArchiveManager`, the Profile → Archive
   row, the Reactivate control in the picker and in `CompoundDetailSheet`, the
   `reactivate` mode in `AddCompoundSheet`, and the dev-only `/preview/archive-weight`

@@ -217,3 +217,35 @@ describe("display", () => {
     expect(cyclePeriod({ type: "onOff", onDays: 5, offDays: 2 })).toBe(7)
   })
 })
+
+describe("availableCycleEnds — a continuous cycle must actually end", () => {
+  it("does not offer 'no end' for a continuous pattern", () => {
+    // Continuous + never is identical to having no cycle at all (measured), so
+    // offering it lets a user configure something that does nothing.
+    const ends = availableCycleEnds({ type: "continuous" }, { vialTracked: false })
+    expect(ends).not.toContain("never")
+    expect(ends).toContain("onDate")
+  })
+
+  it("still offers 'no end' for a repeating on/off pattern", () => {
+    const ends = availableCycleEnds(
+      { type: "onOff", onDays: 7, offDays: 7 },
+      { vialTracked: false },
+    )
+    expect(ends).toContain("never")
+    expect(ends).toContain("afterRounds")
+  })
+
+  it("never returns an empty list, so the sheets always have a fallback", () => {
+    // Both sheets fall back to `offerable[0]`; an empty list would make that
+    // undefined and save a cycle with no end condition at all.
+    for (const pattern of [
+      { type: "continuous" } as const,
+      { type: "onOff", onDays: 7, offDays: 7 } as const,
+    ]) {
+      for (const vialTracked of [true, false]) {
+        expect(availableCycleEnds(pattern, { vialTracked }).length).toBeGreaterThan(0)
+      }
+    }
+  })
+})

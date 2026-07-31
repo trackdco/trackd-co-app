@@ -1553,7 +1553,10 @@ function CycleFields({
   const offerable = availableCycleEnds(cycle.pattern, { vialTracked })
   // Turning the repeat off takes "after rounds" with it — a round needs an
   // off-period to exist — so an impossible rule falls back rather than saving.
-  const endType = offerable.includes(cycle.end.type) ? cycle.end.type : "never"
+  // The fallback is the first OFFERABLE end, not a hardcoded "never": since
+  // "never" stopped being offered for a continuous pattern, hardcoding it here
+  // would have quietly saved the one combination we just removed.
+  const endType = offerable.includes(cycle.end.type) ? cycle.end.type : offerable[0]
 
   const setPattern = (next: boolean) =>
     onChange({

@@ -144,18 +144,24 @@ function DayCell({
       >
         {cell.date.getDate()}
       </span>
+      {/* The cycle mark, IN FLOW and directly BENEATH THE DAY DISC (Adrian,
+          2026-07-31). Absolute placement put it straight through the logged-day
+          icon — measured on 23 of 23 logged days, a coloured bar across a
+          syringe — and a stack of them climbed into the disc and disappeared
+          behind it from the fourth cycle on.
+
+          It sat below the icon row, which put it ~20px under the disc and moved
+          it depending on what else the day drew, so on a filled day it read as
+          belonging to nothing. Directly under the disc it is the same distance
+          from the number on EVERY day, logged or not, which is what makes a
+          column of them scannable. The row is always present, so every cell is
+          the same height whether or not it has a cycle. */}
+      <span className="flex h-[2px] items-center" aria-hidden>
+        {segments && segments.length > 0 && <CycleFill segments={segments} />}
+      </span>
       {/* The "what was logged" mark — only under logged days. */}
       <span className="relative z-10 flex h-3 items-center justify-center" aria-hidden>
         {!selected && info.status === "logged" && <KindIcon kind={info.kind} />}
-      </span>
-      {/* The cycle mark, IN FLOW beneath the icon rather than absolutely
-          positioned over the cell. Absolute placement put it straight through
-          the logged-day icon — measured on 23 of 23 logged days, a coloured bar
-          across a syringe — and a stack of them climbed into the day disc and
-          disappeared behind it from the fourth cycle on. The row is always
-          present so every cell is the same height whether or not it has one. */}
-      <span className="flex h-[2px] items-center" aria-hidden>
-        {segments && segments.length > 0 && <CycleFill segments={segments} />}
       </span>
     </button>
   );
