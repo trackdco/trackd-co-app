@@ -72,8 +72,8 @@ const RECEIPT_ROWS = [
 export function CostVariantB({ onContinue }: { onContinue: () => void }) {
   return (
     <StepFrame
-      title="You already know what this costs."
-      sub="We are not going to guess your numbers. Only ours."
+      title="The tracking is the cheap part."
+      sub="Everything above the line, you are already paying for."
       footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
@@ -109,7 +109,7 @@ export function CostVariantB({ onContinue }: { onContinue: () => void }) {
         </div>
 
         <p className="mt-4 text-center text-[0.8rem] leading-relaxed text-text-subtle">
-          Your numbers are yours. Ours is the only one we will put a figure on.
+          Only one figure on this screen is ours to know.
         </p>
       </div>
     </StepFrame>
@@ -252,9 +252,145 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
   );
 }
 
+
+/* ===========================================================================
+   E — Itemised, redacted, one real figure  (Adrian's synthesis)
+   His note: compare what things cost WITHOUT showing an amount, framed "per
+   year", with Trackd's real price at the bottom. The bars carry relative
+   magnitude, so the comparison still lands; only the numbers are withheld.
+   =========================================================================== */
+const LINE_ITEMS = [
+  { label: "Compounds", weight: 100 },
+  { label: "Pins and supplies", weight: 38 },
+  { label: "Bloodwork", weight: 62 },
+  { label: "Supplements", weight: 74 },
+];
+
+export function CostVariantE({ onContinue }: { onContinue: () => void }) {
+  const [grown, setGrown] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setGrown(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return (
+    <StepFrame
+      title="The tracking is the cheap part."
+      sub="Everything above the line, you are already paying for."
+      footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
+    >
+      <div className="flex flex-1 flex-col justify-center">
+        <div className="rounded-2xl bg-bg-surface p-5">
+          <p className={CARD_EYEBROW}>Per year</p>
+
+          <ul className="mt-5 space-y-4">
+            {LINE_ITEMS.map((item, i) => (
+              <li key={item.label} className="space-y-2">
+                <span className="block text-[0.85rem] text-text-muted">
+                  {item.label}
+                </span>
+                {/* Length without a figure: the shape of the spend, none of the
+                    detail. Nothing here claims what anyone pays. */}
+                <span className="block h-2 w-full rounded-full bg-bg-base">
+                  <span
+                    className="block h-full rounded-full bg-bg-surface-raised transition-[width] duration-[640ms] ease-[var(--motion-ease)] motion-reduce:transition-none"
+                    style={{
+                      width: grown ? `${item.weight}%` : "0%",
+                      transitionDelay: `${i * 90}ms`,
+                    }}
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-6 space-y-2 border-t-[0.5px] border-border-strong pt-5">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[0.85rem] text-foreground">Trackd</span>
+              <span className="font-mono text-lg font-light tabular-nums text-accent-amber">
+                {formatPrice(YEARLY.price)}
+              </span>
+            </div>
+            <span className="block h-2 w-full rounded-full bg-bg-base">
+              <span
+                className="block h-full rounded-full bg-accent-amber transition-[width] duration-[640ms] ease-[var(--motion-ease)] motion-reduce:transition-none"
+                style={{ width: grown ? "4%" : "0%", transitionDelay: "400ms" }}
+              />
+            </span>
+          </div>
+        </div>
+      </div>
+    </StepFrame>
+  );
+}
+
+/* ===========================================================================
+   F — Two rows. D, with the price on it.
+   Adrian picked D as the best of the first four and asked for the $70 to show.
+   This is that: one redacted bar for what a protocol costs, one amber sliver
+   for Trackd, both under "per year", and only Trackd carries a figure.
+   =========================================================================== */
+export function CostVariantF({ onContinue }: { onContinue: () => void }) {
+  const [grown, setGrown] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setGrown(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return (
+    <StepFrame
+      title="It is not the expensive part."
+      sub="Next to what a protocol costs to run, the tracking is a rounding error."
+      footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
+    >
+      <div className="flex flex-1 flex-col justify-center">
+        <div className="rounded-2xl bg-bg-surface p-5">
+          <p className={CARD_EYEBROW}>Per year</p>
+
+          <div className="mt-6 space-y-6">
+            <div className="space-y-2.5">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[0.9rem] text-foreground">What you run</span>
+                <span className={cn(DATA_MONO, "text-[11px]")}>your number</span>
+              </div>
+              <span className="block h-3 w-full rounded-full bg-bg-base">
+                <span
+                  className="block h-full rounded-full bg-bg-surface-raised transition-[width] duration-[760ms] ease-[var(--motion-ease)] motion-reduce:transition-none"
+                  style={{ width: grown ? "100%" : "0%" }}
+                />
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[0.9rem] text-foreground">Trackd</span>
+                <span className="font-mono text-lg font-light tabular-nums text-accent-amber">
+                  {formatPrice(YEARLY.price)}
+                </span>
+              </div>
+              <span className="block h-3 w-full rounded-full bg-bg-base">
+                <span
+                  className="block h-full rounded-full bg-accent-amber transition-[width] duration-[760ms] ease-[var(--motion-ease)] motion-reduce:transition-none"
+                  style={{ width: grown ? "5%" : "0%", transitionDelay: "220ms" }}
+                />
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-4 text-center text-[0.8rem] text-text-subtle">
+          We are not going to guess what you spend. We know what we charge.
+        </p>
+      </div>
+    </StepFrame>
+  );
+}
+
 export const COST_VARIANTS = [
   { id: "A", name: "Less than one vial", Component: CostVariantA },
   { id: "B", name: "The redacted receipt", Component: CostVariantB },
   { id: "C", name: "Their number, one slider", Component: CostVariantC },
   { id: "D", name: "Relative bars", Component: CostVariantD },
+  { id: "E", name: "Itemised + redacted + one figure", Component: CostVariantE },
+  { id: "F", name: "Two rows, D with the price on it", Component: CostVariantF },
 ] as const;
