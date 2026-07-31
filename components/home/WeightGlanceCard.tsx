@@ -101,9 +101,18 @@ export function WeightGlanceCard({
       <div className="flex flex-col rounded-2xl bg-bg-surface p-5">
         <p className={cn(CARD_EYEBROW, "truncate")}>Weight</p>
         {empty ? (
-          <p className="mt-3 flex-1 text-sm text-text-muted">
-            No weight logged yet.
-          </p>
+          // Tappable in the EMPTY state too. It used to be a bare paragraph, so
+          // this was the one card on Progress that named something you could do
+          // and then gave you no way to do it — the affordance only appeared
+          // once a reading existed, which is exactly backwards.
+          <button
+            type="button"
+            onClick={onOpenDetail}
+            aria-label="Log your first weight"
+            className="mt-3 flex flex-1 flex-col items-start text-left"
+          >
+            <span className="text-sm text-text-muted">No weight logged yet.</span>
+          </button>
         ) : (
           <>
             <button
