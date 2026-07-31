@@ -33,10 +33,11 @@ import { useFlow } from "../flow-context";
  * not "get lean"). The struggle options name TRACKING pains, never dosing pains
  * ("Can't remember my last site", never "not knowing when to pin").
  *
- * The question used to be "What are you running?" and Adrian killed it: to him
- * that reads as "which compounds are you on", which is not what the six answers
- * are. "Where are you at right now?" asks for the phase, which is what they
- * actually describe.
+ * The first question used to be "What are you running?" and Adrian killed it:
+ * to him that reads as "which compounds are you on", which is not what the
+ * answers are. "Where are you at right now?" replaced it and he killed that
+ * too. "What's the plan?" is what stuck, and it is the right question for a
+ * list of phases.
  */
 
 const ICON = "h-5 w-5";
@@ -69,7 +70,7 @@ export function RunningScreen() {
 
   return (
     <StepFrame
-      title="Where are you at right now?"
+      title="What's the plan?"
       sub="Pick any that fit."
       footer={
         <FlowCta
@@ -102,7 +103,7 @@ export function StruggleScreen() {
 
   return (
     <StepFrame
-      title="What do you keep losing track of?"
+      title="What keeps going wrong?"
       sub="Pick any that fit."
       footer={
         <FlowCta

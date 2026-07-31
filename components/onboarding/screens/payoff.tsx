@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { track } from "@/lib/onboarding/analytics";
-import { CARD_EYEBROW } from "@/lib/ui-presets";
+import { CARD_EYEBROW, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
@@ -43,13 +43,7 @@ export function PayoffScreen() {
   }, []);
 
   return (
-    <StepFrame
-      title="The longer you track, the more you see."
-      sub="Nothing gets lost."
-      footer={
-        <FlowCta onClick={goNext}>Continue</FlowCta>
-      }
-    >
+    <StepFrame footer={<FlowCta onClick={goNext}>Continue</FlowCta>}>
       <div className="flex flex-1 flex-col justify-center">
         <div className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>What gets kept</p>
@@ -81,8 +75,18 @@ export function PayoffScreen() {
             ))}
           </div>
 
-          <p className="mt-5 text-[0.8rem] leading-relaxed text-text-muted">
-            Doses, stock, sites, bloods, photos and notes. All in one place.
+        </div>
+
+        {/* The statement sits UNDER the thing that makes it (Adrian,
+            2026-08-01): the bars are the argument, so the words read as the
+            conclusion rather than as a heading you have to take on trust. */}
+        <div className="mt-8 space-y-3 text-center">
+          <h1 className={cn(FLOW_TITLE, "text-balance")}>
+            The longer you track, the more you see.
+          </h1>
+          <p className="mx-auto max-w-[20rem] text-[0.9rem] leading-relaxed text-text-muted">
+            Patterns only show up over months. Nothing gets lost, so they are
+            still there when you go looking.
           </p>
         </div>
       </div>

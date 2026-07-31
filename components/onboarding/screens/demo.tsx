@@ -68,19 +68,23 @@ const RECEDE_MS = 520;
 const HEADINGS: Record<Stage, { title: string; sub: string }> = {
   log: {
     title: "Log a dose.",
-    sub: "One tap. Watch what it moves.",
+    // Says which control and what it does, and nothing else. The old line
+    // ("One tap. Watch what it moves.") was telling them how to feel about it.
+    sub: "Tap the plus to log the custom compound.",
   },
   stock: {
     title: "Always know your stock.",
-    sub: "Every dose comes off the vial. You never do the maths.",
+    // "You never do the maths" is gone: for a dosing tool that reads as
+    // "do not check your work" (Adrian, 2026-08-01).
+    sub: "Every dose you log comes off the vial.",
   },
   site: {
     title: "Never lose your last site.",
-    sub: "Tap where you pinned. Trackd keeps the record, you set the rotation.",
+    sub: "Log where you pinned, and see at a glance which sites have rested.",
   },
   history: {
     title: "It all compounds.",
-    sub: "Photos, bloods and notes, against the protocol that produced them.",
+    sub: "Progress photos, bloods and notes, kept together.",
   },
 };
 
@@ -175,8 +179,9 @@ export function DemoScreen() {
   return (
     <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
       <header className="shrink-0 space-y-3 text-center">
-        <p className={cn(CARD_EYEBROW, "text-center")}>Try it</p>
-        {/* Keyed so the headline cross-fades as the subject changes. */}
+        {/* No eyebrow. It was a label on a screen that does not need one, and
+            the headline already says what this is (Adrian, 2026-08-01).
+            Keyed so the headline cross-fades as the subject changes. */}
         <div key={stage} className="animate-flow-in space-y-3">
           <h1 className="text-balance text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
             {heading.title}
@@ -213,8 +218,17 @@ export function DemoScreen() {
                 empty={empty}
                 onLogAnother={() => {
                   if (empty) return;
-                  setStock(logDemoDose(stock));
+                  const next = logDemoDose(stock);
+                  setStock(next);
                   track("demo_dose_logged", { stage: "stock" });
+                  // RUNNING OUT is what moves you on. Adrian's note was that a
+                  // Next button at the foot of the screen is not obvious enough
+                  // to be the way forward, and a vial emptying is a natural
+                  // ending: you have seen the number fall to nothing, so there
+                  // is nothing left to demonstrate here.
+                  if (isDemoEmpty(next)) {
+                    timer.current = setTimeout(() => setStage("site"), 1100);
+                  }
                 }}
               />
             )}
@@ -462,9 +476,14 @@ function SiteCard({
 function HistoryPanel() {
   const spark = sparkGeometry(DEMO_WEIGHTS, 132, 44);
 
+  // Each card arrives on its own, in the order you would read them. A block
+  // that appears all at once reads as a page; one that assembles reads as
+  // something being shown to you (Adrian, 2026-08-01).
+  const rise = (i: number) => ({ animationDelay: `${i * 160}ms` });
+
   return (
-    <div className="animate-flow-in space-y-3">
-      <div className="flow-card rounded-2xl bg-bg-surface p-5">
+    <div className="space-y-3">
+      <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-5" style={rise(0)}>
         <p className={CARD_EYEBROW}>Progress photos</p>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {DEMO_PHOTO_WEEKS.map((week, i) => (
@@ -479,7 +498,7 @@ function HistoryPanel() {
       </div>
 
       {/* What was running across those weeks, in the app's own row language. */}
-      <div className="flow-card rounded-2xl bg-bg-surface p-5">
+      <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-5" style={rise(1)}>
         <p className={CARD_EYEBROW}>Running</p>
         <ul className="mt-3 divide-y divide-border-default">
           {DEMO_RUNNING.map((c) => (
@@ -497,7 +516,7 @@ function HistoryPanel() {
 
       {/* Weight beside the schedule, the way Progress lays them out. */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="flow-card rounded-2xl bg-bg-surface p-4">
+        <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-4" style={rise(2)}>
           <p className={CARD_EYEBROW}>Weight</p>
           <p className="mt-2 font-mono text-xl font-light tabular-nums leading-none text-foreground">
             83.9
@@ -516,7 +535,7 @@ function HistoryPanel() {
           </svg>
         </div>
 
-        <div className="flow-card rounded-2xl bg-bg-surface p-4">
+        <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-4" style={rise(3)}>
           <p className={CARD_EYEBROW}>Schedule</p>
           <div className="mt-3 space-y-2">
             {DEMO_SCHEDULE.map((row) => (
@@ -543,7 +562,7 @@ function HistoryPanel() {
         </div>
       </div>
 
-      <div className="flow-card rounded-2xl bg-bg-surface p-5">
+      <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-5" style={rise(4)}>
         <p className={CARD_EYEBROW}>Journal</p>
         <p className="mt-3 text-[0.95rem] leading-relaxed text-foreground">
           &ldquo;{DEMO_JOURNAL.quote}&rdquo;

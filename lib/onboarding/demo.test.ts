@@ -22,14 +22,14 @@ import {
 describe("logDemoDose", () => {
   it("drops remaining by one dose and decrements doses left", () => {
     const next = logDemoDose(DEMO_START);
-    expect(next.remainingMl).toBe(9.5);
-    expect(next.dosesLeft).toBe(19);
+    expect(next.remainingMl).toBe(2);
+    expect(next.dosesLeft).toBe(4);
     expect(next.logged).toBe(1);
   });
 
   it("does not accumulate float dust across a whole vial", () => {
     let stock = DEMO_START;
-    for (let i = 0; i < 20; i += 1) stock = logDemoDose(stock);
+    for (let i = 0; i < 5; i += 1) stock = logDemoDose(stock);
     expect(stock.remainingMl).toBe(0);
     expect(stock.dosesLeft).toBe(0);
   });
@@ -45,15 +45,16 @@ describe("logDemoDose", () => {
   it("reports empty only once the vial is actually drained", () => {
     expect(isDemoEmpty(DEMO_START)).toBe(false);
     let stock = DEMO_START;
-    for (let i = 0; i < 19; i += 1) stock = logDemoDose(stock);
+    for (let i = 0; i < 4; i += 1) stock = logDemoDose(stock);
     expect(isDemoEmpty(stock)).toBe(false);
     expect(isDemoEmpty(logDemoDose(stock))).toBe(true);
   });
 });
 
 describe("demoFill", () => {
-  it("runs from full to empty and never leaves 0…1", () => {
-    expect(demoFill(DEMO_START)).toBe(1);
+  it("runs down to empty and never leaves 0…1", () => {
+    // Not 1: the demo opens on a part-used vial (see DEMO_START).
+    expect(demoFill(DEMO_START)).toBe(0.25);
     let stock = DEMO_START;
     for (let i = 0; i < 40; i += 1) {
       stock = logDemoDose(stock);
@@ -67,8 +68,8 @@ describe("demoFill", () => {
 
 describe("demoProjectedEmpty", () => {
   it("counts forward by the sample schedule", () => {
-    // 20 doses left, every third day → 60 days past 1 Jan 2026.
-    expect(demoProjectedEmpty(DEMO_START, "2026-01-01")).toBe("2026-03-02");
+    // 5 doses left, every third day → 15 days past 1 Jan 2026.
+    expect(demoProjectedEmpty(DEMO_START, "2026-01-01")).toBe("2026-01-16");
   });
 
   it("moves closer with every logged dose", () => {
@@ -80,7 +81,7 @@ describe("demoProjectedEmpty", () => {
 
   it("has no date once the vial is empty", () => {
     let stock = DEMO_START;
-    for (let i = 0; i < 20; i += 1) stock = logDemoDose(stock);
+    for (let i = 0; i < 5; i += 1) stock = logDemoDose(stock);
     expect(demoProjectedEmpty(stock, "2026-01-01")).toBeNull();
     expect(formatDemoDate(null)).toBe("Empty");
   });
@@ -107,10 +108,17 @@ describe("formatDemoDate", () => {
 });
 
 describe("the sample vial", () => {
-  it("starts full with a whole number of doses", () => {
-    expect(DEMO_START.remainingMl).toBe(DEMO_COMPOUND.vialMl);
-    expect(DEMO_START.dosesLeft).toBe(20);
+  it("opens PART-USED, and empties in a handful of taps", () => {
+    // The whole point: the user logs a few times and it runs out, which is what
+    // lets the screen move on by itself. Twenty taps is not a demo.
+    expect(DEMO_START.remainingMl).toBeLessThan(DEMO_COMPOUND.vialMl);
+    expect(DEMO_START.dosesLeft).toBe(5);
     expect(Number.isInteger(DEMO_START.dosesLeft)).toBe(true);
+  });
+
+  it("reads as a low vial, which is when stock tracking matters", () => {
+    expect(demoFill(DEMO_START)).toBeLessThan(0.4);
+    expect(demoFill(DEMO_START)).toBeGreaterThan(0);
   });
 });
 

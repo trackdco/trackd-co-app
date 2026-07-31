@@ -56,8 +56,8 @@ export function HousekeepingScreen() {
 
   return (
     <StepFrame
-      title="Set up your account"
-      sub="Takes about a minute."
+      title="Make Trackd yours"
+      sub="Quick housekeeping first."
       footer={
         <FlowCta onClick={onContinue} disabled={!canContinue}>
           Continue
@@ -84,9 +84,14 @@ export function HousekeepingScreen() {
               <Camera className="h-7 w-7 text-text-subtle" />
             )}
           </button>
-          <p className="text-[0.75rem] text-text-subtle">
-            {photo ? "Tap to change" : "Add a photo. Optional."}
-          </p>
+          <div className="text-center">
+            <p className="text-[0.85rem] text-foreground">
+              {photo ? "Tap to change" : "Add a photo"}
+            </p>
+            {photo ? null : (
+              <p className="mt-0.5 text-[0.75rem] text-text-subtle">(optional)</p>
+            )}
+          </div>
           <input
             ref={fileRef}
             type="file"
@@ -148,9 +153,6 @@ export function HousekeepingScreen() {
               { value: "female", label: "Female" },
             ]}
           />
-          <p className="text-[0.75rem] leading-relaxed text-text-subtle">
-            Sets the reference ranges and which body the site map draws.
-          </p>
         </FieldRow>
 
         <ConsentRow

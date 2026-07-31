@@ -34,9 +34,21 @@ export interface DemoStock {
   logged: number;
 }
 
+/**
+ * The demo opens on a PART-USED vial, not a fresh one.
+ *
+ * Two reasons, and neither is cosmetic. A vial with 20 doses in it takes twenty
+ * taps to empty, and Adrian's note was that the user should be able to log a
+ * few times and have the screen move on by itself when it runs out — twenty is
+ * not "a few". And a vial that is nearly out is the situation the stock feature
+ * actually exists for: "always know your stock" means nothing on a full one.
+ *
+ * Part-used vials are a real, modelled thing in the app
+ * (`inventory_items.prior_used_base`), so this is not a fiction either.
+ */
 export const DEMO_START: DemoStock = {
-  remainingMl: DEMO_COMPOUND.vialMl,
-  dosesLeft: Math.floor(DEMO_COMPOUND.vialMl / DEMO_COMPOUND.doseMl),
+  remainingMl: 2.5,
+  dosesLeft: Math.floor(2.5 / DEMO_COMPOUND.doseMl),
   logged: 0,
 };
 

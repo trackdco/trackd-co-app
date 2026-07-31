@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { formatPrice, PLANS } from "@/lib/onboarding/pricing";
-import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets";
+import { CARD_EYEBROW, DATA_MONO, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
@@ -209,11 +209,7 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
   }, []);
 
   return (
-    <StepFrame
-      title="The tracking is the cheap part."
-      sub="Compounds, pins, bloods, supplements. It all adds up. This is the bit that doesn't."
-      footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
-    >
+    <StepFrame footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}>
       <div className="flex flex-1 flex-col justify-center">
         <div className="flow-card rounded-2xl bg-bg-surface p-5">
           <div className="flex h-56 items-end justify-center gap-10">
@@ -249,7 +245,19 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
             depends on the customer's region and only the billing provider knows
             it. Saying $70 here and AU$110 at the sheet is a broken promise at
             the worst possible moment. The price appears once, at the paywall,
-            from whatever is really going to charge the card. */}
+            from whatever is really going to charge the card.
+
+            The words sit UNDER the bars for the same reason as the payoff
+            screen: the graph is the argument, the sentence is the conclusion. */}
+        <div className="mt-8 space-y-3 text-center">
+          <h1 className={cn(FLOW_TITLE, "text-balance")}>
+            The tracking is the cheap part.
+          </h1>
+          <p className="mx-auto max-w-[21rem] text-[0.9rem] leading-relaxed text-text-muted">
+            Compounds, pins, bloods, supplements. It all adds up. This is the
+            bit that doesn&apos;t.
+          </p>
+        </div>
       </div>
     </StepFrame>
   );
