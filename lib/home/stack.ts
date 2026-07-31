@@ -864,6 +864,33 @@ export function formatDateKeyShort(key: string): string {
 }
 
 /** A short human label for a cadence, e.g. "Every other day", "Mon · Thu". */
+/**
+ * The soonest ACTIVE compound whose start date is still ahead of `dayKey`.
+ *
+ * A compound added with a future start is due on no day yet, so Today's Log read
+ * "nothing scheduled" while the first-run onboarding card had already gone (it
+ * is gated on an empty stack). The compound then appeared in exactly one place
+ * in the whole app, and a new user's only reasonable reading was that the add
+ * had failed. Naming it, and when it begins, is the fix.
+ *
+ * Ties break on name so the answer is stable rather than dependent on insert
+ * order. Returns null when nothing is waiting.
+ */
+export function nextStartingCompound(
+  stack: StackCompound[],
+  dayKey: string
+): { name: string; startDate: string } | null {
+  const waiting = stack
+    .filter((c) => !c.archived && c.schedule.startDate > dayKey)
+    .sort(
+      (a, b) =>
+        a.schedule.startDate.localeCompare(b.schedule.startDate) ||
+        a.name.localeCompare(b.name)
+    )
+  const first = waiting[0]
+  return first ? { name: first.name, startDate: first.schedule.startDate } : null
+}
+
 export function cadenceLabel(cadence: Cadence): string {
   switch (cadence.type) {
     case "daily":
@@ -871,7 +898,11 @@ export function cadenceLabel(cadence: Cadence): string {
     case "everyOtherDay":
       return "Every other day"
     case "everyNDays":
-      return `Every ${cadence.n} days`
+      // n = 2 IS every other day, and Postgres stores both as
+      // `interval_days = 2` and cannot tell them apart — so a compound entered
+      // as "Every 2 days" came back from a hydration reading "Every other day".
+      // Same rule, one wording, and the round trip stops being visible.
+      return cadence.n === 2 ? "Every other day" : `Every ${cadence.n} days`
     case "daysOfWeek": {
       const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
       const days = [...cadence.days].sort((a, b) => a - b)

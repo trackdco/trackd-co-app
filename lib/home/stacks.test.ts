@@ -8,6 +8,8 @@
  */
 import { describe, expect, it } from "vitest"
 
+import { nextStartingCompound, type StackCompound } from "@/lib/home/stack"
+
 import {
   partitionByStack,
   removeMemberEverywhere,
@@ -175,5 +177,52 @@ describe("auto-naming an unnamed stack", () => {
 
   it("ignores names that merely contain a number", () => {
     expect(nextStackName([stack({ name: "Morning shot 1" })])).toBe("Stack 1")
+  })
+})
+
+describe("nextStartingCompound", () => {
+  const c = (
+    name: string,
+    startDate: string,
+    archived = false,
+  ): StackCompound =>
+    ({
+      id: name,
+      name,
+      category: "anabolic",
+      method: "im",
+      dose: 1,
+      unit: "mg",
+      schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate },
+      rotationSites: [],
+      rotationIndex: 0,
+      archived,
+    }) as unknown as StackCompound
+
+  it("names the compound a future start date would otherwise hide", () => {
+    // The cold-start defect: the compound is in the stack, due on no day, and
+    // the first-run card is gone because the stack is not empty.
+    expect(nextStartingCompound([c("Test E", "2026-08-10")], "2026-07-31")).toEqual({
+      name: "Test E",
+      startDate: "2026-08-10",
+    })
+  })
+
+  it("picks the soonest, and breaks ties by name so the answer is stable", () => {
+    const stack = [c("Zinc", "2026-08-10"), c("BPC", "2026-08-10"), c("Test E", "2026-09-01")]
+    expect(nextStartingCompound(stack, "2026-07-31")?.name).toBe("BPC")
+  })
+
+  it("is null once the compound has started", () => {
+    expect(nextStartingCompound([c("Test E", "2026-07-31")], "2026-07-31")).toBeNull()
+    expect(nextStartingCompound([c("Test E", "2026-07-01")], "2026-07-31")).toBeNull()
+  })
+
+  it("ignores deleted compounds", () => {
+    expect(nextStartingCompound([c("Test E", "2026-08-10", true)], "2026-07-31")).toBeNull()
+  })
+
+  it("is null for an empty stack", () => {
+    expect(nextStartingCompound([], "2026-07-31")).toBeNull()
   })
 })

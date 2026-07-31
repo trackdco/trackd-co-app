@@ -90,17 +90,28 @@ create index if not exists block_targets_block_idx
 alter table public.blocks enable row level security;
 alter table public.block_targets enable row level security;
 
+-- `(SELECT auth.uid())`, never bare: the bare call is re-evaluated once PER ROW,
+-- which is the `auth_rls_initplan` finding Spec 17's advisor pass cleared out of
+-- every other table. Same rule as `supabase/protocol/007_stacks.sql`.
 drop policy if exists "blocks_owner_all" on public.blocks;
 create policy "blocks_owner_all" on public.blocks
   for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "block_targets_owner_all" on public.block_targets;
 create policy "block_targets_owner_all" on public.block_targets
   for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+-- RLS gates which ROWS you reach; a table-level GRANT is what lets the API role
+-- reach the table AT ALL. This project's defaults do not auto-grant, so every
+-- new public table must ship its own (architecture.md → Auth and Access Model).
+-- Omitting these shipped Blocks dead: every read and write returned 42501 with
+-- RLS and the policies above all perfectly correct.
+grant select, insert, update, delete on public.blocks        to authenticated;
+grant select, insert, update, delete on public.block_targets to authenticated;
 
 -- `updated_at` maintenance, matching the other tables.
 create or replace function public.touch_blocks_updated_at()

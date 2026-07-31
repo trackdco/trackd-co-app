@@ -21,6 +21,9 @@
  */
 import { DEFAULT_PALETTE_COLOUR, isPaletteColour, type PaletteColour } from "@/lib/palette"
 import { pushStacks } from "@/lib/home/stackSync"
+// Function-level use only (inside `commit`), so the stack.ts ⇄ stacks.ts cycle
+// is resolved long before either is called.
+import { loadStack } from "@/lib/home/stack"
 import { trackSync } from "@/lib/home/syncStatus"
 
 /** Stack names reuse the compound picker's existing limit — not a new one. */
@@ -240,9 +243,28 @@ function commit(
   const ok = saveStacks(userId, next)
   if (ok) {
     notifyStacksChanged()
-    void trackSync(pushStacks(next, names))
+    // Names are how `resolveProtocolCompoundIds` matches a member whose Postgres
+    // id has DIVERGED from its client id — the exact case the resolver exists
+    // for. `pushStacks` deletes every membership row first and then skips any
+    // member it cannot resolve, so a push without names silently dropped those
+    // members from Postgres; the next pull returned a shorter but fully
+    // resolvable stack, hydration adopted it, and the member was gone from the
+    // device too.
+    //
+    // `deleteStack` and `dropMember` both used to call this with no names, so
+    // the defaulting lives HERE rather than at the call sites: a future caller
+    // that forgets cannot reintroduce the bug.
+    void trackSync(pushStacks(next, names ?? memberNames(userId)))
   }
   return ok
+}
+
+/** `{ compoundId: name }` for everything on the device, so a diverged member can
+ *  still be matched by name. Cheap: the stack store is a synchronous read. */
+function memberNames(userId: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const c of loadStack(userId) ?? []) out[c.id] = c.name
+  return out
 }
 
 /** Create or update a stack (name, colour, members). Enforces one-stack-per-

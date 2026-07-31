@@ -161,7 +161,7 @@ export async function updatePhysical(
     heightCm = Math.round(cm * 10) / 10;
   }
 
-  const { error } = await supabase
+  const { data: saved, error } = await supabase
     .from("profiles")
     .update({
       sex,
@@ -169,9 +169,16 @@ export async function updatePhysical(
       units_preference: unitsRaw,
       height_cm: heightCm,
     })
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .select("id")
+    .maybeSingle();
 
   if (error) return { error: "Couldn't save your changes. Please try again." };
+  // A zero-row update raises no error in PostgREST, so without this the card
+  // closed back to its dimmed read state reporting a save that never happened.
+  if (saved == null) {
+    return { error: "Couldn't save your changes. Please try again." };
+  }
 
   // Every screen that reads these values. Progress is in the list because `sex`
   // decides which markers its journal dialer offers (Spec 04, wave 2 pt one),

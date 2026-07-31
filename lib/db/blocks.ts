@@ -238,13 +238,22 @@ export async function startBlock(
     // They asked to start a new one, not to end the old one, and ending it
     // without replacing it is the one outcome nobody wanted.
     if (live) {
-      const { error: restoreError } = await ctx.supabase
+      const { data: restored, error: restoreError } = await ctx.supabase
         .from("blocks")
         .update({ status: "active", closed_on: null })
         .eq("id", live.id)
         .eq("user_id", ctx.userId)
-      if (restoreError) {
+        .select("id")
+        .maybeSingle()
+      // Checked, not assumed: a zero-row update raises no error, and this is the
+      // path where silence means the user's live block is closed and gone with
+      // nothing put in its place. Worth saying so rather than only logging.
+      if (restoreError || restored == null) {
         console.error("startBlock could not restore the live block", restoreError)
+        return {
+          ok: false,
+          error: "Could not start the block, and your previous block may have ended. Check your blocks.",
+        }
       }
     }
     return { ok: false, error: "Could not start the block." }
@@ -297,14 +306,23 @@ export async function extendBlock(
     return { ok: false, error: "The end date is before the start date." }
   }
 
-  const { error } = await ctx.supabase
+  const { data, error } = await ctx.supabase
     .from("blocks")
     .update({ ends_on: endsOn })
     .eq("id", blockId)
     .eq("user_id", ctx.userId)
     .eq("status", "active")
+    .select("id")
+    .maybeSingle()
   if (error) {
     console.error("extendBlock failed", error)
+    return { ok: false, error: "Could not extend the block." }
+  }
+  // A zero-row update is a success to PostgREST. It is not one here: the read
+  // above narrows the race (the block could be closed between the two) but does
+  // not close it, and the sheet would otherwise shut announcing a new end date
+  // that was never written. `saveReflection` already checks this; this did not.
+  if (data == null) {
     return { ok: false, error: "Could not extend the block." }
   }
   return { ok: true }
