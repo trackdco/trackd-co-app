@@ -77,7 +77,7 @@ export function CostVariantB({ onContinue }: { onContinue: () => void }) {
       footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
-        <div className="rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>What a protocol costs</p>
 
           <ul className="mt-4 divide-y divide-border-default">
@@ -210,12 +210,12 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
 
   return (
     <StepFrame
-      title="It is not the expensive part."
-      sub="Next to what a protocol costs to run, the tracking is a rounding error."
+      title="The tracking is the cheap part."
+      sub="Compounds, pins, bloods, supplements. It all adds up. This is the bit that doesn't."
       footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
-        <div className="rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card rounded-2xl bg-bg-surface p-5">
           <div className="flex h-56 items-end justify-center gap-10">
             {BARS.map((bar, i) => (
               <div key={bar.label} className="flex h-full flex-1 flex-col justify-end">
@@ -244,9 +244,12 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
           </div>
         </div>
 
-        <p className="mt-4 text-center text-[0.8rem] text-text-subtle">
-          {formatPrice(YEARLY.price)} a year.
-        </p>
+        {/* No figure here, deliberately. The bars make the whole argument, and
+            a price on this screen would be a GUESS: the amount actually charged
+            depends on the customer's region and only the billing provider knows
+            it. Saying $70 here and AU$110 at the sheet is a broken promise at
+            the worst possible moment. The price appears once, at the paywall,
+            from whatever is really going to charge the card. */}
       </div>
     </StepFrame>
   );
@@ -280,7 +283,7 @@ export function CostVariantE({ onContinue }: { onContinue: () => void }) {
       footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
-        <div className="rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>Per year</p>
 
           <ul className="mt-5 space-y-4">
@@ -344,7 +347,7 @@ export function CostVariantF({ onContinue }: { onContinue: () => void }) {
       footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
-        <div className="rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>Per year</p>
 
           <div className="mt-6 space-y-6">

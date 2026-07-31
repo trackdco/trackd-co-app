@@ -51,7 +51,7 @@ export function PayoffScreen() {
       }
     >
       <div className="flex flex-1 flex-col justify-center">
-        <div className="rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>What gets kept</p>
 
           <div className="mt-6 flex h-52 items-end justify-between gap-4">

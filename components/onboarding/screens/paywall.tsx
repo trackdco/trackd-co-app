@@ -2,15 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import type { ReactNode } from "react";
-
-import {
-  Calculator,
-  ChartLine,
-  CircleNotch,
-  Package,
-  Syringe,
-} from "@/components/icons";
+import { CircleNotch } from "@/components/icons";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { track } from "@/lib/onboarding/analytics";
 import { validateCode, type CodeVerdict } from "@/lib/onboarding/affiliate";
@@ -53,35 +45,9 @@ import { useFlow } from "../flow-context";
  * stubbed trial for a real one.
  */
 
-/** Each row gets the icon of the thing it names, which reads as a contents
- *  page rather than four identical ticks (Adrian: "the ticks could be better"). */
-const VALUE_STACK: { icon: ReactNode; label: string; detail: string }[] = [
-  {
-    icon: <Package className="h-4 w-4" />,
-    label: "Unlimited cycles and stock",
-    detail: "Every compound, every vial, always current",
-  },
-  {
-    icon: <Calculator className="h-4 w-4" />,
-    label: "Reconstitution calculator",
-    detail: "Powder, water and dose, drawn to scale",
-  },
-  {
-    icon: <Syringe className="h-4 w-4" />,
-    label: "Injection site record",
-    detail: "Your rotation, kept for you",
-  },
-  {
-    icon: <ChartLine className="h-4 w-4" />,
-    label: "Journal and bloodwork history",
-    detail: "Mapped to the protocol that produced it",
-  },
-];
-
 export function PaywallScreen() {
   const { session, patch, goNext, setAccountName } = useFlow();
   const [verdict, setVerdict] = useState<CodeVerdict>({ status: "none" });
-  const [codeOpen, setCodeOpen] = useState(false);
   const [codeDraft, setCodeDraft] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -118,7 +84,6 @@ export function PaywallScreen() {
     if (v.status === "applied") {
       track("affiliate_code_applied", { code: v.code });
       patch({ affiliateCode: v.code, ...(v.annualOnly ? { plan: "yearly" as const } : {}) });
-      setCodeOpen(false);
     } else if (v.status === "invalid") {
       track("affiliate_code_invalid", { code: v.code });
     }
@@ -174,25 +139,6 @@ export function PaywallScreen() {
       <div className="flex flex-1 flex-col gap-5">
         <PaywallHero />
 
-        {/* What they are buying, as a contents page. */}
-        <ul className="divide-y divide-border-default rounded-2xl bg-bg-surface px-5">
-          {VALUE_STACK.map((item) => (
-            <li key={item.label} className="flex items-start gap-3.5 py-3.5">
-              <span className="mt-[2px] shrink-0 text-text-muted" aria-hidden>
-                {item.icon}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[0.9rem] leading-snug text-foreground">
-                  {item.label}
-                </span>
-                <span className="mt-0.5 block text-[0.75rem] leading-snug text-text-subtle">
-                  {item.detail}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
-
         {/* Plan cards */}
         <div
           role="radiogroup"
@@ -244,29 +190,34 @@ export function PaywallScreen() {
           })}
         </div>
 
-        {/* Affiliate code */}
+        {/* Affiliate code. A real field rather than a link that has to be
+            discovered: a creator's audience is told to use a code, and hiding
+            the box behind a tap is friction on the one action we WANT. */}
         <div>
           {verdict.status === "applied" ? (
-            <p className="text-center text-[0.8rem] text-text-muted">
-              Code{" "}
-              <span className="font-mono text-foreground">{verdict.code}</span>{" "}
-              applied
-            </p>
-          ) : codeOpen ? (
+            <div className="flow-card flex items-center justify-between gap-3 rounded-xl bg-accent-amber/10 px-4 py-3">
+              <span className="text-[0.8rem] text-accent-amber">Code applied</span>
+              <span className="font-mono text-sm uppercase tracking-[0.08em] text-accent-amber">
+                {verdict.code}
+              </span>
+            </div>
+          ) : (
             <div className="space-y-2">
               <div className="flex gap-2">
                 <input
                   value={codeDraft}
                   onChange={(e) => setCodeDraft(e.target.value)}
-                  placeholder="Creator code"
+                  placeholder="Creator code (optional)"
                   aria-label="Creator code"
                   autoCapitalize="characters"
-                  className="h-11 min-w-0 flex-1 rounded-xl bg-bg-input px-4 font-mono text-sm uppercase text-foreground outline-none placeholder:font-sans placeholder:normal-case placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
+                  autoComplete="off"
+                  className="h-12 min-w-0 flex-1 rounded-xl bg-bg-input px-4 font-mono text-sm uppercase text-foreground outline-none placeholder:font-sans placeholder:normal-case placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <button
                   type="button"
                   onClick={applyTypedCode}
-                  className="h-11 shrink-0 rounded-xl bg-bg-surface-raised px-4 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  disabled={!codeDraft.trim()}
+                  className="h-12 shrink-0 rounded-xl bg-bg-surface-raised px-5 text-sm text-foreground transition-opacity disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Apply
                 </button>
@@ -277,20 +228,12 @@ export function PaywallScreen() {
                 </p>
               ) : null}
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setCodeOpen(true)}
-              className="mx-auto block rounded-md px-3 py-2 text-xs text-text-subtle transition-colors hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
-            >
-              Have a code?
-            </button>
           )}
         </div>
 
         {/* The real auth entry point, kept visible so the stub above can never
             be mistaken for the shipping path. */}
-        <div className="rounded-2xl bg-bg-surface p-4">
+        <div className="flow-card rounded-2xl bg-bg-surface p-4">
           <p className={CARD_EYEBROW}>Real sign-in</p>
           <p className="mt-2 text-[0.75rem] leading-relaxed text-text-muted">
             The trial button above runs a stubbed auth and payment chain for

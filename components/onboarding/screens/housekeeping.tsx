@@ -65,49 +65,50 @@ export function HousekeepingScreen() {
       }
     >
       <div className="space-y-6">
-        {/* Name and photo together: one row that reads as "this is you". */}
-        <div className="flex items-end gap-4">
-          <div className="shrink-0">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              aria-label="Add a profile photo"
-              className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-bg-surface transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
-            >
-              {photo ? (
-                // A local object URL, not an upload. next/image would want a
-                // configured loader for a blob: URL and buys nothing here.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photo} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <Camera className="h-5 w-5 text-text-subtle" />
-              )}
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              onChange={onPickPhoto}
-              className="sr-only"
-            />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <FieldRow label="Your name" htmlFor={nameId}>
-              <input
-                id={nameId}
-                type="text"
-                value={session.name ?? ""}
-                onChange={(e) => patch({ name: e.target.value || null })}
-                placeholder="First name"
-                autoComplete="given-name"
-                enterKeyHint="next"
-                maxLength={60}
-                className="h-13 w-full rounded-xl bg-bg-input px-4 text-[0.95rem] text-foreground outline-none placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </FieldRow>
-          </div>
+        {/* The photo is the centrepiece and larger than everything else
+            (Adrian, 2026-08-01) — the first thing on the screen should feel
+            like it is about them, not like a form field. */}
+        <div className="flex flex-col items-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            aria-label="Add a profile photo"
+            className="flow-card flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-bg-surface transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+          >
+            {photo ? (
+              // A local object URL, not an upload. next/image would want a
+              // configured loader for a blob: URL and buys nothing here.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photo} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <Camera className="h-7 w-7 text-text-subtle" />
+            )}
+          </button>
+          <p className="text-[0.75rem] text-text-subtle">
+            {photo ? "Tap to change" : "Add a photo. Optional."}
+          </p>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            onChange={onPickPhoto}
+            className="sr-only"
+          />
         </div>
+
+        <FieldRow label="First name" htmlFor={nameId}>
+          <input
+            id={nameId}
+            type="text"
+            value={session.name ?? ""}
+            onChange={(e) => patch({ name: e.target.value || null })}
+            placeholder="First name"
+            autoComplete="given-name"
+            enterKeyHint="next"
+            maxLength={60}
+            className="h-13 w-full rounded-xl bg-bg-input px-4 text-[0.95rem] text-foreground outline-none placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </FieldRow>
 
         <FieldRow label="Date of birth" htmlFor={dobId}>
           <input

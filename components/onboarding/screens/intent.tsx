@@ -12,7 +12,6 @@ import {
   Lightning,
   Package,
   Pulse,
-  Scales,
   Syringe,
 } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
@@ -49,7 +48,7 @@ const RUNNING_OPTIONS: { value: RunningTag; label: string; icon: ReactNode }[] =
   { value: "peptides", label: "Peptides", icon: <Flask className={ICON} /> },
   { value: "first_cycle", label: "First cycle", icon: <Compass className={ICON} /> },
   { value: "blast_cruise", label: "Blast & cruise", icon: <Lightning className={ICON} /> },
-  { value: "recomp", label: "Recomp", icon: <Scales className={ICON} /> },
+  { value: "nothing", label: "Just tracking for now", icon: <Compass className={ICON} /> },
 ];
 
 const STRUGGLE_OPTIONS: { value: StruggleTag; label: string; icon: ReactNode }[] = [
@@ -103,7 +102,7 @@ export function StruggleScreen() {
 
   return (
     <StepFrame
-      title="What's the hard part?"
+      title="What do you keep losing track of?"
       sub="Pick any that fit."
       footer={
         <FlowCta

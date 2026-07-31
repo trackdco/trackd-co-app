@@ -65,10 +65,6 @@ export function NotificationsScreen() {
         {/* Drawn the way their own phone draws it. */}
         <NotificationMock platform={platform} />
 
-        <p className="mt-5 text-center text-[0.75rem] leading-relaxed text-text-subtle">
-          Dose days, missed doses and low stock. Each one is its own switch in
-          your profile.
-        </p>
       </div>
     </StepFrame>
   );

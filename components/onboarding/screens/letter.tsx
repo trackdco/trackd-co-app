@@ -11,31 +11,29 @@ import { useFlow } from "../flow-context";
 /**
  * Screen 16 — the founder letter, then the hand-off.
  *
+ * **The copy is Adrian and Angus's, verbatim** (given 2026-08-01). It is not
+ * mine to tighten, so it has been set rather than edited. One thing to know:
+ * it opens with an exclamation mark, which `ui-context.md` → Voice bans
+ * outright. That ban is about the app's own system copy, where a chirpy tone
+ * undermines an instrument; a signed letter from two founders is the one place
+ * on the surface where a human is allowed to sound pleased. Flagged for Adrian
+ * rather than silently overruled either way.
+ *
  * ## The signatures
  *
- * Adrian wants his and Angus's real signatures here, drawn as though written
- * out, in amber. That is the right call and it is why this does NOT load a
- * handwriting font: the spec asks for Caveat, `ui-context.md` ships exactly two
- * faces and retires everything else, and a font is a poor imitation of a
- * signature anyway. A real signature is an ASSET, like the wordmark already is.
+ * Adrian wants his and Angus's real signatures here, in amber. That is why this
+ * loads no handwriting font: the spec asks for Caveat, `ui-context.md` ships
+ * exactly two faces, and a font is a poor imitation of a signature anyway. A
+ * real signature is an ASSET, like the wordmark already is.
  *
- * ART IS NOT WIRED YET. Until the files exist, the slot renders the names set
- * in Geist Light at signature scale, in amber, at the right size and position,
- * so the layout is final and nothing looks broken. Dropping the files in is the
- * only change needed:
+ * ART NOT WIRED YET. Until the files exist the slot renders the names at
+ * signature scale in amber, so the layout is final and nothing looks broken:
  *
  *     public/onboarding/signature-angus.svg
  *     public/onboarding/signature-adrian.svg
  *
- * then flip the entries in `SIGNATURES` from null to their paths. Use SVGs with
- * `fill="currentColor"` and no hardcoded colour, so the amber comes from the
- * token and a retune never needs new art.
- *
- * ## The letter itself
- *
- * Geist Light at a larger size with generous leading, which is how this design
- * system already makes something feel like a display moment. The names are the
- * one amber beat on the screen.
+ * then flip the entries in `SIGNATURES` from null. Use `fill="currentColor"`
+ * and no hardcoded colour, so the amber comes from the token.
  */
 
 const SIGNATURES: { name: string; src: string | null }[] = [
@@ -43,28 +41,45 @@ const SIGNATURES: { name: string; src: string | null }[] = [
   { name: "Adrian", src: null },
 ];
 
+const PARAGRAPH =
+  "text-[1.0625rem] font-light leading-[1.7] tracking-[-0.01em] text-foreground";
+
 export function LetterScreen() {
   const { finish } = useFlow();
 
   return (
     <StepFrame footer={<FlowCta onClick={finish}>Enter Trackd</FlowCta>}>
       <div className="flex flex-1 flex-col justify-center">
-        <div className="space-y-5">
-          <p className={cn(CARD_EYEBROW, "text-center")}>
-            A quick word from the founders
+        <div className="space-y-4">
+          <p className={cn(CARD_EYEBROW, "text-accent-amber")}>
+            To Trackd Co&apos;s newest user
           </p>
 
-          <p className="text-[1.0625rem] font-light leading-[1.7] tracking-[-0.01em] text-foreground">
-            We built Trackd because we were sick of running our own protocols
-            out of a spreadsheet and a bad memory. It&apos;s a tool, not a
-            coach. The decisions are yours. We just make sure nothing gets lost.
+          <p className={PARAGRAPH}>
+            Thank you for choosing Trackd Co! We built Trackd with one goal: to
+            get your protocol out of a messy notes app and into something
+            simple, effective, and built around how you <em>actually</em> track.
           </p>
 
-          <p className="text-[1.0625rem] font-light leading-[1.7] tracking-[-0.01em] text-foreground">
-            Thanks for backing us this early. It means the world.
+          <p className={PARAGRAPH}>
+            Log compounds, calculate reconstitution, track when stock runs out,
+            manage cycle rotations, and monitor your progress through it all.
           </p>
 
-          <div className="pt-3">
+          <p className={PARAGRAPH}>
+            Our goal is to build the best compound tracker in the world, and
+            you&apos;re actively helping us get there.
+          </p>
+
+          <p className={PARAGRAPH}>
+            We&apos;re still early. Your feedback matters more than you know.
+            We&apos;re just getting started, and we&apos;re glad to have you
+            with us.
+          </p>
+
+          <div className="pt-2">
+            <p className={cn(PARAGRAPH, "mb-2")}>Best,</p>
+
             <div className="flex items-end gap-6">
               {SIGNATURES.map((sig) =>
                 sig.src ? (
@@ -79,8 +94,8 @@ export function LetterScreen() {
                 ) : (
                   <span
                     key={sig.name}
-                    // The placeholder stands in for the signature at its real
-                    // size, so the layout below it is already final.
+                    // Stands in for the signature at its real size, so the
+                    // layout below it is already final.
                     className="text-[1.75rem] font-light leading-none tracking-[0.01em] text-accent-amber"
                   >
                     {sig.name}

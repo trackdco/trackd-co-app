@@ -58,18 +58,19 @@ export function HookScreen() {
           <FlowTitle className="mx-auto max-w-[19rem]">
             Stop running your protocol out of a Notes app.
           </FlowTitle>
-
-          <FlowSub className="mx-auto max-w-[17rem]">
-            Slide to see the difference.
-          </FlowSub>
         </header>
 
-        <div className="flex min-h-0 flex-1 items-center justify-center py-6">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 py-5">
           <DeviceFrame>
             <div className="px-2 pb-2">
               <NotesCompare />
             </div>
           </DeviceFrame>
+
+          {/* The instruction belongs UNDER the thing it is about (Adrian,
+              2026-08-01): above the phone it read as a subtitle to the
+              headline rather than as a label for the control. */}
+          <FlowSub className="text-center">Slide to see the difference.</FlowSub>
         </div>
 
         <footer className="shrink-0 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">

@@ -22,12 +22,12 @@ export function CelebrateScreen() {
 
       <StepFrame
         center
-        title="Trackd's built for exactly this."
+        title="Trackd's built to solve exactly that."
         sub="Have a look. No account needed."
         footer={<FlowCta onClick={goNext}>Try it now</FlowCta>}
       >
         <div className="flex items-center justify-center">
-          <Mascot pose="flex" size={210} />
+          <Mascot pose="thumbs" size={210} />
         </div>
       </StepFrame>
     </div>

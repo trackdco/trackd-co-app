@@ -1,143 +1,118 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
+import Image from "next/image";
 
-import { Vial } from "@/components/containers";
-import { sparkGeometry } from "@/lib/progress/spark";
-import { DATA_MONO } from "@/lib/ui-presets";
+import {
+  Calculator,
+  ChartLine,
+  Package,
+  Syringe,
+} from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 /**
- * The paywall hero: real fragments of the app, floating (Adrian, 2026-07-31).
+ * The paywall hero: the real app on a phone, with what you get floating around
+ * it (Adrian, 2026-08-01).
  *
- * A generic phone mock-up here is a wasted screen. These are the actual pieces
- * the user has just been shown and is about to pay for, drawn with the app's own
- * components and tokens: a stock vial with a real fill, a consistency grid, a
- * weight sparkline off the same geometry helper the real card uses, and a
- * dose row. Proof, arranged as decoration.
+ * The screen inside the phone is an ACTUAL SCREENSHOT of the dashboard, not a
+ * drawing of one. `public/onboarding/app-home.png` is captured from
+ * `/preview/home` (the dev harness that renders the real `HomeScreen` against
+ * mock data), so it is the genuine article and it costs nothing at runtime.
+ * **Recapture it when the dashboard changes** or this screen quietly goes
+ * stale; the capture script lives with the review harness.
  *
- * The drift is the one looping animation in the codebase; the reasoning and the
- * limits are in `globals.css` next to the keyframe. It is decorative, so the
- * whole thing is `aria-hidden` and `pointer-events-none` and cannot intercept a
- * tap meant for the CTA underneath.
+ * The drift loops, and it is the only looping animation in the codebase; the
+ * reasoning and the limits are in `globals.css` next to the keyframe. Every
+ * decorative layer is `aria-hidden` and `pointer-events-none`, so none of it
+ * can intercept a tap meant for the CTA.
  */
 
-/** A floating fragment: position, drift vector, and how slow it drifts. */
-function Fragment({
-  children,
-  className,
-  style,
-}: {
-  children: ReactNode;
-  className?: string;
-  style?: CSSProperties;
-}) {
-  return (
-    <div
-      className={cn(
-        "animate-flow-drift absolute rounded-2xl bg-bg-surface p-3 shadow-[0_10px_30px_-16px_rgba(0,0,0,0.9)]",
-        className,
-      )}
-      style={style}
-    >
-      {children}
-    </div>
-  );
-}
-
-const CONSISTENCY = [1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1];
-const WEIGHT = [86.2, 86.0, 85.4, 85.6, 84.9, 84.4, 84.6, 83.9];
+const FEATURES = [
+  {
+    label: "Unlimited cycles and stock",
+    icon: Package,
+    className: "-left-1 top-2",
+    drift: { x: "5px", y: "-6px", ms: "8600ms" },
+  },
+  {
+    label: "Reconstitution calculator",
+    icon: Calculator,
+    className: "-right-1 top-16",
+    drift: { x: "-5px", y: "7px", ms: "10200ms" },
+  },
+  {
+    label: "Injection site record",
+    icon: Syringe,
+    className: "-left-2 bottom-16",
+    drift: { x: "6px", y: "6px", ms: "11400ms" },
+  },
+  {
+    label: "Journal and bloodwork",
+    icon: ChartLine,
+    className: "-right-2 bottom-3",
+    drift: { x: "-4px", y: "-8px", ms: "9200ms" },
+  },
+] as const;
 
 export function PaywallHero() {
-  const spark = sparkGeometry(WEIGHT, 96, 34);
-
   return (
-    <div
-      aria-hidden
-      className="pointer-events-none relative h-[15.5rem] w-full select-none"
-    >
-      {/* Stock. The one with a real fill, because that is the aha screen. */}
-      <Fragment
-        className="left-0 top-2 w-[8.5rem]"
-        style={{ "--drift-x": "4px", "--drift-y": "-7px", "--drift-ms": "8200ms" } as CSSProperties}
-      >
-        <div className="flex items-center gap-2.5">
-          <Vial colour="var(--cat-anabolic)" fill={0.62} size={40} />
-          <div className="min-w-0">
-            <p className="font-mono text-base font-light tabular-nums leading-none text-foreground">
-              6.2
-              <span className="ml-0.5 text-[10px] text-text-muted">mL</span>
-            </p>
-            <p className={cn(DATA_MONO, "mt-1 text-[9px]")}>12 doses left</p>
-          </div>
-        </div>
-      </Fragment>
+    <div className="relative mx-auto h-[19rem] w-full max-w-[22rem]">
+      {/* A soft pool of light behind the phone, so it sits in space rather than
+          on a flat field. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-70 blur-3xl"
+        style={{
+          background:
+            "radial-gradient(circle, color-mix(in srgb, var(--accent-amber) 16%, transparent), transparent 70%)",
+        }}
+      />
 
-      {/* Consistency. */}
-      <Fragment
-        className="right-0 top-0 w-[7.75rem]"
-        style={{ "--drift-x": "-5px", "--drift-y": "6px", "--drift-ms": "10400ms" } as CSSProperties}
+      {/* The phone. */}
+      <div
+        aria-hidden
+        className="absolute left-1/2 top-1/2 w-[10.5rem] -translate-x-1/2 -translate-y-1/2 rounded-[1.75rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)]"
       >
-        <p className="text-[8px] font-sans uppercase tracking-[0.18em] text-text-subtle">
-          Consistency
-        </p>
-        <div className="mt-2 grid grid-cols-7 gap-1">
-          {CONSISTENCY.map((on, i) => (
-            <span
-              key={i}
-              className={cn(
-                "aspect-square rounded-[2px]",
-                on ? "bg-accent-primary/85" : "bg-bg-surface-raised",
-              )}
-            />
-          ))}
-        </div>
-      </Fragment>
-
-      {/* Weight, drawn by the same helper the real glance card uses. */}
-      <Fragment
-        className="left-3 bottom-1 w-[8.75rem]"
-        style={{ "--drift-x": "6px", "--drift-y": "5px", "--drift-ms": "11800ms" } as CSSProperties}
-      >
-        <p className="text-[8px] font-sans uppercase tracking-[0.18em] text-text-subtle">
-          Weight
-        </p>
-        <p className="mt-1 font-mono text-base font-light tabular-nums leading-none text-foreground">
-          83.9
-          <span className="ml-0.5 text-[10px] text-text-muted">kg</span>
-        </p>
-        <svg viewBox="0 0 96 34" className="mt-1.5 h-6 w-full" aria-hidden>
-          <path
-            d={spark.line}
-            fill="none"
-            stroke="var(--chart-trend)"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
+        <div className="overflow-hidden rounded-[1.6rem]">
+          <Image
+            src="/onboarding/app-home.png"
+            alt=""
+            width={1170}
+            height={2280}
+            priority
+            className="h-auto w-full"
           />
-        </svg>
-      </Fragment>
+        </div>
+      </div>
 
-      {/* A due dose, with the amber ring: the app's own heartbeat. */}
-      <Fragment
-        className="right-2 bottom-6 w-[9rem]"
-        style={{ "--drift-x": "-4px", "--drift-y": "-8px", "--drift-ms": "9400ms" } as CSSProperties}
-      >
-        <div className="flex items-center gap-2">
-          <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-accent-amber" />
-          <span className="min-w-0 flex-1 truncate text-[10px] text-foreground">
-            Test E
-          </span>
-          <span className={cn(DATA_MONO, "shrink-0 text-[9px]")}>0.5 mL</span>
-        </div>
-        <div className="mt-2 flex items-center gap-2">
-          <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-accent-primary" />
-          <span className="min-w-0 flex-1 truncate text-[10px] text-text-muted line-through decoration-text-subtle">
-            Semaglutide
-          </span>
-        </div>
-      </Fragment>
+      {/* What you get, orbiting it. */}
+      {FEATURES.map((f) => {
+        const Icon = f.icon;
+        return (
+          <div
+            key={f.label}
+            aria-hidden
+            className={cn(
+              "animate-flow-drift pointer-events-none absolute flex max-w-[8.5rem] items-center gap-2 rounded-full bg-bg-surface/90 px-3 py-2 backdrop-blur-sm",
+              "shadow-[0_10px_26px_-14px_rgb(0_0_0/0.9)]",
+              f.className,
+            )}
+            style={
+              {
+                "--drift-x": f.drift.x,
+                "--drift-y": f.drift.y,
+                "--drift-ms": f.drift.ms,
+              } as CSSProperties
+            }
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0 text-accent-amber" />
+            <span className="text-[10px] leading-tight text-foreground">
+              {f.label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

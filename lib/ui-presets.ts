@@ -36,6 +36,13 @@ export const FLOW_TITLE =
 /** The supporting line under a `FLOW_TITLE`. */
 export const FLOW_SUB = "text-[0.95rem] leading-relaxed text-text-muted"
 
+/** The MOMENT screens in a flow — celebrate, welcome, the cost statement.
+ *  One notch above `FLOW_TITLE` and tracked tighter, so the line reads as a
+ *  statement rather than a page title. Reserved for a screen carrying a single
+ *  sentence and nothing else; a screen with a form under it uses `FLOW_TITLE`. */
+export const FLOW_DISPLAY =
+  "text-[2.5rem] font-light leading-[1.02] tracking-[-0.035em] text-foreground"
+
 /* ---------------------------------------------------------------------------
    Inversion presets (see ui-context.md → Typography): card TITLES recede into
    small tracked-uppercase eyebrows, and the DATA VALUE becomes the display layer

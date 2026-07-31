@@ -138,7 +138,7 @@ export function NotesCompare() {
         ref={boxRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        className="relative h-[19rem] w-full touch-none select-none overflow-hidden rounded-2xl bg-bg-base"
+        className="relative h-[21.5rem] w-full touch-none select-none overflow-hidden rounded-2xl bg-bg-base"
       >
         {/* Panel A — the Notes app. Deliberately ugly: monospaced, unaligned,
             question marks where a figure should be. */}

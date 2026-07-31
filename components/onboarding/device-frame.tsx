@@ -26,11 +26,11 @@ export function DeviceFrame({
   return (
     <div
       className={cn(
-        "relative mx-auto w-full max-w-[17rem] rounded-[2.25rem] bg-bg-surface-raised p-[3px] shadow-lg",
+        "relative mx-auto w-full max-w-[19.5rem] rounded-[2.5rem] bg-bg-surface-raised p-[3px] shadow-[0_24px_60px_-24px_rgb(0_0_0/0.9)]",
         className,
       )}
     >
-      <div className="relative overflow-hidden rounded-[2.05rem] bg-bg-base">
+      <div className="relative overflow-hidden rounded-[2.3rem] bg-bg-base">
         {/* Status bar */}
         <div className="relative flex h-9 items-center justify-between px-5 pt-1">
           <span className="font-mono text-[10px] tabular-nums text-foreground">

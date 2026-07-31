@@ -14,9 +14,17 @@ import { cn } from "@/lib/utils";
  */
 
 /**
- * A multi-select chip. Selected reads WHITE, not amber: a set of six selected
- * chips would be six amber beats on one screen, which is exactly the blanket
- * amber `ui-context.md` retired. Amber stays for the single live moment.
+ * A multi-select chip.
+ *
+ * **Selected reads AMBER** (Adrian, 2026-08-01). This is a deliberate, narrow
+ * exception to the one-or-two-amber-beats rule, and the argument for it is the
+ * same one that carried the switch rule: on an answer screen the SELECTION is
+ * the live state, and it is the only thing on the screen the user is looking
+ * for. Unselected stays exactly as it was, so the amber still marks a change
+ * rather than coating the screen.
+ *
+ * Scoped to onboarding answer lists. It is NOT licence to amber a list in the
+ * app, where amber means "this needs you now" against real data.
  */
 export function Chip({
   label,
@@ -41,15 +49,17 @@ export function Chip({
         "active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "motion-reduce:transition-none motion-reduce:active:scale-100",
         selected
-          ? "bg-bg-surface-raised text-foreground"
-          : "bg-bg-surface text-text-muted",
+          // A wash rather than a fill: the amber reads at a glance without the
+          // row becoming a block of colour.
+          ? "bg-accent-amber/10 text-accent-amber"
+          : "flow-card bg-bg-surface text-text-muted",
       )}
     >
       {icon ? (
         <span
           className={cn(
             "shrink-0 transition-colors duration-[var(--motion-base)]",
-            selected ? "text-foreground" : "text-text-subtle",
+            selected ? "text-accent-amber" : "text-text-subtle",
           )}
           aria-hidden
         >
@@ -68,7 +78,7 @@ export function Chip({
           "transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)]",
           "motion-reduce:transition-none",
           selected
-            ? "bg-accent-primary text-bg-base"
+            ? "bg-accent-amber text-bg-base"
             : "border-[0.5px] border-border-strong bg-transparent",
         )}
       >
@@ -102,7 +112,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className="flex w-full gap-1 rounded-xl bg-bg-surface p-1"
+      className="flow-card flex w-full gap-1 rounded-xl bg-bg-surface p-1"
     >
       {options.map((option) => {
         const active = option.value === value;
@@ -146,7 +156,7 @@ export function ConsentRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-2xl bg-bg-surface p-4">
+    <div className="flow-card flex items-start gap-3 rounded-2xl bg-bg-surface p-4">
       <button
         type="button"
         role="checkbox"

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { useRouter } from "next/navigation";
 
 import { CaretLeft } from "@/components/icons";
+import { cn } from "@/lib/utils";
 import { track } from "@/lib/onboarding/analytics";
 import { codeFromSearch } from "@/lib/onboarding/affiliate";
 import {
@@ -56,7 +57,7 @@ export function OnboardingFlow() {
   );
 
   // Same near-black as the flow, so the frame this costs is invisible.
-  if (!isClient) return <div className="min-h-dvh bg-bg-base" aria-hidden />;
+  if (!isClient) return <div className="flow-canvas min-h-dvh" aria-hidden />;
 
   return <OnboardingFlowClient />;
 }
@@ -90,6 +91,9 @@ function OnboardingFlowClient() {
 
   const [todayKey] = useState(resolveTodayKey);
   const [accountName, setAccountName] = useState<string | null>(null);
+  // Which way the last move went, so the entering screen slides in from the
+  // side it came from. Forward from the right, back from the left.
+  const [direction, setDirection] = useState<"forward" | "back">("forward");
 
   useEffect(() => {
     track("onboarding_start");
@@ -99,6 +103,7 @@ function OnboardingFlowClient() {
   useEffect(() => {
     const onPop = () => {
       const requested = new URLSearchParams(window.location.search).get("step");
+      setDirection("back");
       setStep(isStepId(requested) ? requested : FIRST_STEP);
     };
     window.addEventListener("popstate", onPop);
@@ -125,6 +130,7 @@ function OnboardingFlowClient() {
 
   const goTo = useCallback(
     (target: StepId) => {
+      setDirection("forward");
       setStep(target);
       pushStep(target);
     },
@@ -139,6 +145,7 @@ function OnboardingFlowClient() {
   const goNext = useCallback(() => {
     const target = nextStep(step);
     if (!target) return;
+    setDirection("forward");
     setStep(target);
     pushStep(target);
   }, [step, pushStep]);
@@ -174,7 +181,10 @@ function OnboardingFlowClient() {
 
   return (
     <FlowContext.Provider value={value}>
-      <div className="flex min-h-dvh flex-col bg-bg-base">
+      {/* overflow-x clipped: the directional entrance starts the incoming screen
+          18px off-frame, which without this creates a real horizontal scroll
+          area for the length of the animation (measured: 408px on a 390 phone). */}
+      <div className="flow-canvas flex min-h-dvh flex-col overflow-x-clip">
         <ProgressRail progress={stepProgress(step)} />
 
         <div className="relative mx-auto flex w-full max-w-md flex-1 flex-col">
@@ -197,7 +207,13 @@ function OnboardingFlowClient() {
 
           {/* `key` remounts on every step, which is what replays the entrance
               and guarantees no screen inherits another's local state. */}
-          <div key={step} className="animate-flow-in flex flex-1 flex-col">
+          <div
+            key={step}
+            className={cn(
+              "flex flex-1 flex-col",
+              direction === "forward" ? "animate-flow-forward" : "animate-flow-back",
+            )}
+          >
             <StepRenderer step={step} />
           </div>
         </div>

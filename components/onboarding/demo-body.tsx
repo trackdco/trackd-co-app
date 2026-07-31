@@ -17,9 +17,9 @@ import { useFlow } from "./flow-context";
  * It renders Angus's actual hand-authored body and its actual region paths, so
  * the demo and the app cannot look like two different products. What it does
  * NOT do is read the database: `injection_sites` is readable only by an
- * authenticated user (RLS), and this whole flow is anonymous. The labels for
- * the handful of sites the demo offers are therefore written down here rather
- * than fetched, which keeps the demo genuinely throwaway and needs no grant.
+ * authenticated user (RLS), and this whole flow is anonymous. Labels are
+ * DERIVED from the region ids instead of fetched, which keeps the demo
+ * genuinely throwaway and needs no grant.
  *
  * Sex-aware: it draws the body matching what the user chose at housekeeping,
  * defaulting to male like the rest of the app does for a profile with no sex.
@@ -28,19 +28,38 @@ import { useFlow } from "./flow-context";
  * both views, so what you tap is what you would call it.
  */
 
-/** The sites the demo makes tappable, and what to call them. */
-const DEMO_LABELS: Record<string, string> = {
-  "im-delt-l": "L delt",
-  "im-delt-r": "R delt",
-  "im-quad-front-l": "L quad",
-  "im-quad-front-r": "R quad",
-  "im-vglute-l": "L ventroglute",
-  "im-vglute-r": "R ventroglute",
-  "im-glute-l": "L glute",
-  "im-glute-r": "R glute",
-  "im-lat-l": "L lat",
-  "im-lat-r": "R lat",
+/**
+ * Every region on the body is tappable. It used to be a list of ten named ones
+ * and the rest were inert paths, which meant Adrian tapped a muscle and nothing
+ * happened, with no way to tell which ones were live. A map you cannot tap all
+ * of is a broken map.
+ *
+ * The label is derived from the site id, so a new region in the artwork gets a
+ * sensible name without this file being touched.
+ */
+const MUSCLE_LABELS: Record<string, string> = {
+  bicep: "bicep",
+  calf: "calf",
+  delt: "delt",
+  glute: "glute",
+  lat: "lat",
+  pec: "pec",
+  "quad-front": "quad",
+  "quad-out": "outer quad",
+  trap: "trap",
+  tricep: "tricep",
+  vglute: "ventroglute",
 };
+
+/** "im-quad-front-l" -> "L quad". Mirror convention: image-left is the L site. */
+export function siteLabel(siteId: string): string {
+  const withoutRoute = siteId.replace(/^(im|subq)-/, "");
+  const match = /^(.*)-([lr])$/.exec(withoutRoute);
+  if (!match) return withoutRoute.replace(/-/g, " ");
+  const [, muscle, side] = match;
+  const name = MUSCLE_LABELS[muscle] ?? muscle.replace(/-/g, " ");
+  return `${side.toUpperCase()} ${name}`;
+}
 
 export function DemoBody({
   view,
@@ -76,24 +95,11 @@ export function DemoBody({
           </g>
         </g>
 
-        {/* The regions. Only the ones the demo names are interactive; the rest
-            are drawn a step lighter so the body still reads as a whole body. */}
+        {/* The regions. All of them interactive: see the note above. */}
         <g transform={transform}>
           {regions.map((region) => {
-            const label = DEMO_LABELS[region.siteId];
+            const label = siteLabel(region.siteId);
             const active = selected === region.siteId;
-
-            if (!label) {
-              return (
-                <path
-                  key={region.siteId}
-                  d={region.d}
-                  style={{ fill: "var(--bg-surface-raised)" }}
-                  stroke="none"
-                  aria-hidden
-                />
-              );
-            }
 
             return (
               <path
@@ -126,6 +132,7 @@ export function DemoBody({
             );
           })}
         </g>
+
       </svg>
     </div>
   );

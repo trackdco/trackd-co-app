@@ -30,7 +30,8 @@ export type RunningTag =
   | "peptides"
   | "first_cycle"
   | "blast_cruise"
-  | "recomp";
+  | "recomp"
+  | "nothing";
 
 /** Screen 3 options. All of these are TRACKING pains, never dosing pains. */
 export type StruggleTag =
@@ -228,6 +229,7 @@ export const RUNNING_TAGS = [
   "first_cycle",
   "blast_cruise",
   "recomp",
+  "nothing",
 ] as const satisfies readonly RunningTag[];
 
 export const STRUGGLE_TAGS = [

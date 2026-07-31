@@ -71,7 +71,7 @@ export function InstallScreen() {
           ]}
         />
 
-        <ol className="rounded-2xl bg-bg-surface px-5">
+        <ol className="flow-card rounded-2xl bg-bg-surface px-5">
           {STEPS[platform].map((step, i) => (
             <li
               key={step.text}

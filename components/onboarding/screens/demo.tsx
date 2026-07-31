@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Vial } from "@/components/containers";
-import { Check, ImageSquare } from "@/components/icons";
+import { Check, Plus } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
 import {
   DEMO_COMPOUND,
-  DEMO_CONSISTENCY,
   DEMO_JOURNAL,
   DEMO_PHOTO_WEEKS,
   DEMO_RECENT_SITES,
@@ -22,6 +21,7 @@ import {
   type DemoStock,
   type DemoView,
 } from "@/lib/onboarding/demo";
+import { sparkGeometry } from "@/lib/progress/spark";
 import { CARD_EYEBROW, DATA_MONO, METRIC_LABEL } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
@@ -75,6 +75,16 @@ const HEADINGS: Record<Stage, { title: string; sub: string }> = {
 
 /** A card that has been stepped past: still there, quieter, out of the way. */
 const RECEDED = "scale-[0.97] opacity-45";
+
+/** Sample weight series for the look-back graph. Fixed, so it never renders flat. */
+const DEMO_WEIGHTS = [86.4, 86.1, 85.5, 85.7, 85.0, 84.4, 84.6, 83.9];
+
+/** Three weeks of an every-third-day schedule, drawn as the app draws it. */
+const DEMO_SCHEDULE = [
+  [true, false, false, true, false, false, true],
+  [false, false, true, false, false, true, false],
+  [false, true, false, false, true, false, false],
+];
 const CARD_MOTION =
   "transition-all duration-[var(--motion-slow)] ease-[var(--motion-ease)] motion-reduce:transition-none";
 
@@ -227,7 +237,7 @@ function CompoundCard({
   return (
     <div
       className={cn(
-        "shrink-0 rounded-2xl bg-bg-surface p-5",
+        "flow-card shrink-0 rounded-2xl bg-bg-surface p-5",
         CARD_MOTION,
         receded && RECEDED,
       )}
@@ -280,9 +290,9 @@ function CompoundCard({
                 weight="bold"
               />
             ) : (
-              <span className="font-mono text-[11px] tabular-nums">
-                {DEMO_COMPOUND.doseMl.toFixed(1)}
-              </span>
+              // A plus, not the figure: the figure is already on the row, and
+              // the control should say "add one of these" (Adrian, 2026-08-01).
+              <Plus className="h-6 w-6" weight="bold" />
             )}
           </button>
         </div>
@@ -309,7 +319,7 @@ function StockCard({
   return (
     <div
       className={cn(
-        "animate-flow-in shrink-0 rounded-2xl bg-bg-surface p-5",
+        "animate-flow-in flow-card shrink-0 rounded-2xl bg-bg-surface p-5",
         CARD_MOTION,
         receded && RECEDED,
       )}
@@ -388,7 +398,7 @@ function SiteCard({
   const selectedLabel = DEMO_SITES.find((s) => s.id === site)?.label ?? null;
 
   return (
-    <div className="animate-flow-in shrink-0 space-y-4 rounded-2xl bg-bg-surface p-5">
+    <div className="animate-flow-in flow-card shrink-0 space-y-4 rounded-2xl bg-bg-surface p-5">
       <Segmented
         label="Body view"
         value={view}
@@ -418,27 +428,16 @@ function SiteCard({
 
 /** The look-back. A clean break: a different subject deserves its own surface. */
 function HistoryPanel() {
+  const spark = sparkGeometry(DEMO_WEIGHTS, 132, 44);
+
   return (
     <div className="animate-flow-in space-y-3">
-      <div className="rounded-2xl bg-bg-surface p-5">
+      <div className="flow-card rounded-2xl bg-bg-surface p-5">
         <p className={CARD_EYEBROW}>Progress photos</p>
         <div className="mt-3 grid grid-cols-3 gap-2">
-          {DEMO_PHOTO_WEEKS.map((week) => (
+          {DEMO_PHOTO_WEEKS.map((week, i) => (
             <div key={week} className="space-y-1.5">
-              {/* A deliberately unreadable stand-in: the shape of a posed photo
-                  with none of a real one. A stock body shot would be the wrong
-                  promise and a real one is not ours to show. */}
-              <div className="relative flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl bg-bg-surface-raised">
-                <div
-                  aria-hidden
-                  className="absolute inset-0 blur-[10px]"
-                  style={{
-                    background:
-                      "radial-gradient(60% 45% at 50% 32%, color-mix(in srgb, var(--text-muted) 32%, transparent), transparent 70%), radial-gradient(46% 38% at 50% 74%, color-mix(in srgb, var(--text-subtle) 42%, transparent), transparent 72%)",
-                  }}
-                />
-                <ImageSquare className="relative h-5 w-5 text-text-subtle" />
-              </div>
+              <MirrorPhoto index={i} />
               <p className="text-center text-[9px] font-sans uppercase tracking-[0.12em] text-text-subtle">
                 {week}
               </p>
@@ -447,24 +446,50 @@ function HistoryPanel() {
         </div>
       </div>
 
-      <div className="rounded-2xl bg-bg-surface p-5">
-        <p className={CARD_EYEBROW}>Consistency · 28 days</p>
-        <div className="mt-3 grid grid-cols-7 gap-1.5">
-          {DEMO_CONSISTENCY.map((day, i) => (
-            <span
-              key={i}
-              className={cn(
-                "aspect-square rounded-[3px]",
-                day === "logged" && "bg-accent-primary/85",
-                day === "missed" && "border-[0.5px] border-border-strong",
-                day === "off" && "bg-bg-surface-raised",
-              )}
+      {/* Weight beside the schedule, the way Progress lays them out. */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flow-card rounded-2xl bg-bg-surface p-4">
+          <p className={CARD_EYEBROW}>Weight</p>
+          <p className="mt-2 font-mono text-xl font-light tabular-nums leading-none text-foreground">
+            83.9
+            <span className="ml-1 text-[11px] text-text-muted">kg</span>
+          </p>
+          <svg viewBox="0 0 132 44" className="mt-2 h-9 w-full" aria-hidden>
+            <path
+              d={spark.line}
+              fill="none"
+              stroke="var(--chart-trend)"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
             />
-          ))}
+          </svg>
+        </div>
+
+        <div className="flow-card rounded-2xl bg-bg-surface p-4">
+          <p className={CARD_EYEBROW}>Schedule</p>
+          <div className="mt-3 space-y-2">
+            {DEMO_SCHEDULE.map((row, r) => (
+              <div key={r} className="flex items-center gap-1.5">
+                {row.map((on, c) => (
+                  <span
+                    key={c}
+                    className={cn(
+                      "h-2.5 w-2.5 rounded-full",
+                      on
+                        ? "bg-accent-primary/85"
+                        : "border-[0.5px] border-border-strong",
+                    )}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="rounded-2xl bg-bg-surface p-5">
+      <div className="flow-card rounded-2xl bg-bg-surface p-5">
         <p className={CARD_EYEBROW}>Journal</p>
         <p className="mt-3 text-[0.95rem] leading-relaxed text-foreground">
           &ldquo;{DEMO_JOURNAL.quote}&rdquo;
@@ -473,6 +498,42 @@ function HistoryPanel() {
           {DEMO_JOURNAL.day}
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A progress photo, unreadably blurred.
+ *
+ * Adrian asked for something that reads as "someone taking a photo in a
+ * mirror" rather than an empty tile, without shipping a picture of an actual
+ * person. So it is drawn: a bright vertical band for the mirror, a soft mass
+ * where a torso would be, a highlight where a phone would be held, and enough
+ * blur that no detail survives. It suggests the shape of the thing and nothing
+ * else.
+ */
+function MirrorPhoto({ index }: { index: number }) {
+  // Each tile leans slightly differently so three in a row do not look stamped.
+  const shift = [46, 52, 49][index % 3];
+  return (
+    <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-bg-surface-raised">
+      <div
+        aria-hidden
+        className="absolute inset-0 blur-[9px]"
+        style={{
+          background: `
+            linear-gradient(100deg, transparent 0%, color-mix(in srgb, var(--text-primary) 6%, transparent) 38%, transparent 62%),
+            radial-gradient(30% 16% at ${shift}% 20%, color-mix(in srgb, var(--text-muted) 46%, transparent), transparent 72%),
+            radial-gradient(40% 34% at ${shift}% 52%, color-mix(in srgb, var(--text-muted) 40%, transparent), transparent 76%),
+            radial-gradient(12% 8% at ${shift + 16}% 44%, color-mix(in srgb, var(--text-primary) 34%, transparent), transparent 80%),
+            radial-gradient(34% 26% at ${shift}% 86%, color-mix(in srgb, var(--text-subtle) 44%, transparent), transparent 78%)
+          `,
+        }}
+      />
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-gradient-to-t from-bg-surface-raised/70 to-transparent"
+      />
     </div>
   );
 }

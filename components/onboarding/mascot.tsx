@@ -5,56 +5,72 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /**
- * Kyle the vial (Spec 3-01 §3.3) — the mascot, at the two celebration beats.
+ * Kyle, at the two celebration beats (Spec 3-01 §3.3).
  *
- * **Kyle is a VIAL, never a jar.** The reference images for this build showed a
- * jar with arms; that is not him, and any art dropped in here has to be the
- * vial.
+ * ## Dropping the art in
  *
- * ART IS NOT WIRED YET. Until a file exists at the path below, this renders a
- * DESIGNED placeholder rather than a broken image: a surface panel carrying the
- * pose name, so a preview reads as "art goes here" instead of "this is broken".
- * Dropping the real files in is the only change needed:
+ * Save the two renders to `public/onboarding/` and the slots fill themselves:
  *
- *     public/onboarding/kyle-flex.png     (celebrate)
- *     public/onboarding/kyle-happy.png    (welcome)
+ *     kyle-thumbs.png   thumbs up, smiling   -> the celebrate screen
+ *     kyle-flex.png     flexing              -> welcome, once the trial starts
  *
- * then flip the pose's entry in `KYLE_ART` from null to its path.
+ * Until a file is there, a designed placeholder renders instead of a broken
+ * image, so a preview reads as "art goes here" rather than "this is broken".
+ *
+ * ## Why the background is NOT cut out
+ *
+ * The renders come on a near-black backdrop and Kyle wears a black singlet, a
+ * few points of luminance apart. Any automatic matte takes the singlet with the
+ * background and punches holes through his shirt. So instead of cutting him
+ * out, the image edge is FEATHERED with a radial mask: the backdrop dissolves
+ * into our canvas (which is also near-black) and the shirt is never touched.
+ * Costs nothing, cannot go wrong, and needs no export from anyone.
+ *
+ * If a true transparent PNG ever arrives, the mask is harmless on it too.
  */
 
-export type KylePose = "flex" | "happy";
+export type KylePose = "thumbs" | "flex";
 
-/** Fill these in when the art lands. null renders the placeholder. */
-const KYLE_ART: Record<KylePose, string | null> = {
-  flex: null,
-  happy: null,
+const KYLE_ART: Record<KylePose, string> = {
+  thumbs: "/onboarding/kyle-thumbs.png",
+  flex: "/onboarding/kyle-flex.png",
+};
+
+/** Both renders landed 2026-08-01 (Adrian). Downscaled from the ~8MB originals
+ *  in `public/`, which are far too heavy to put on a page. */
+const ART_PRESENT: Record<KylePose, boolean> = {
+  thumbs: true,
+  flex: true,
 };
 
 const POSE_LABEL: Record<KylePose, string> = {
-  flex: "Kyle the vial · flex",
-  happy: "Kyle the vial · happy",
+  thumbs: "Kyle, thumbs up",
+  flex: "Kyle, flexing",
 };
+
+/** Feathers the square render into the canvas so no cut-out is needed. */
+const FEATHER =
+  "[mask-image:radial-gradient(circle_at_50%_46%,black_54%,transparent_78%)] [-webkit-mask-image:radial-gradient(circle_at_50%_46%,black_54%,transparent_78%)]";
 
 export function Mascot({
   pose,
-  size = 180,
+  size = 200,
   className,
 }: {
   pose: KylePose;
   size?: number;
   className?: string;
 }) {
-  const src = KYLE_ART[pose];
-
-  if (src) {
+  if (ART_PRESENT[pose]) {
     return (
       <Image
-        src={src}
+        src={KYLE_ART[pose]}
         alt={POSE_LABEL[pose]}
-        width={size}
-        height={size}
+        width={720}
+        height={900}
         priority
-        className={cn("h-auto w-auto object-contain", className)}
+        sizes="(max-width: 480px) 60vw, 260px"
+        className={cn("h-auto w-auto object-contain", FEATHER, className)}
         style={{ maxHeight: size }}
       />
     );
@@ -63,15 +79,13 @@ export function Mascot({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-2xl bg-bg-surface",
+        "flow-card flex flex-col items-center justify-center gap-3 rounded-2xl bg-bg-surface",
         className,
       )}
       style={{ height: size, width: size * 0.78 }}
       role="img"
       aria-label={POSE_LABEL[pose]}
     >
-      {/* A vial outline, so the placeholder is at least the right silhouette
-          and nobody mistakes the slot for a jar. */}
       <svg
         viewBox="0 0 60 96"
         width={size * 0.34}
@@ -94,7 +108,7 @@ export function Mascot({
         />
       </svg>
       <p className="text-[9px] font-sans uppercase tracking-[0.18em] text-text-subtle">
-        {pose === "flex" ? "Kyle · flex" : "Kyle · happy"}
+        Kyle · {pose}
       </p>
     </div>
   );

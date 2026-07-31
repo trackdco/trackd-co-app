@@ -29,12 +29,12 @@ export function WelcomeScreen() {
 
       <StepFrame
         center
-        title={name ? `You're in, ${name}.` : "You're in."}
+        title={name ? `You're in, ${name}!` : "You're in!"}
         sub={`${TRIAL_DAYS} days on us. Let's finish setting you up.`}
         footer={<FlowCta onClick={goNext}>Continue</FlowCta>}
       >
         <div className="flex items-center justify-center">
-          <Mascot pose="happy" size={190} />
+          <Mascot pose="flex" size={190} />
         </div>
       </StepFrame>
     </div>
