@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { DotsThree, Plus, Share } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
+import { guessPlatform, type Platform } from "@/lib/onboarding/platform";
 import { DATA_MONO } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
@@ -24,8 +25,6 @@ import { useFlow } from "../flow-context";
  * manual-only").
  */
 
-type Platform = "ios" | "android";
-
 const STEPS: Record<Platform, { icon: React.ReactNode; text: string }[]> = {
   ios: [
     { icon: <Share className="h-4 w-4" />, text: "Tap Share in Safari" },
@@ -38,12 +37,6 @@ const STEPS: Record<Platform, { icon: React.ReactNode; text: string }[]> = {
     { icon: null, text: "Tap Add" },
   ],
 };
-
-/** Best-effort platform guess from the UA, with a manual toggle over the top. */
-function guessPlatform(): Platform {
-  if (typeof navigator === "undefined") return "ios";
-  return /android/i.test(navigator.userAgent) ? "android" : "ios";
-}
 
 export function InstallScreen() {
   const { goNext } = useFlow();
@@ -59,7 +52,7 @@ export function InstallScreen() {
   return (
     <StepFrame
       title="Add Trackd to your home screen"
-      sub="It runs like a normal app once it's there, and this comes first so notifications work."
+      sub="It works like a normal app once it's there. Do this first, or reminders can't reach you."
       footer={
         <div className="space-y-1">
           <FlowCta onClick={onConfirm}>I&apos;ve added it</FlowCta>

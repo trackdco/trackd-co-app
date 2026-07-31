@@ -25,6 +25,7 @@ export type Sex = "male" | "female";
  */
 export type RunningTag =
   | "comp_prep"
+  | "off_season"
   | "trt"
   | "peptides"
   | "first_cycle"
@@ -48,6 +49,13 @@ export type AttributionTag =
   | "elsewhere";
 
 export interface OnboardingSession {
+  /**
+   * What to call them. Adrian overrode the spec's D-2 default (which kept
+   * housekeeping lean and took the name from Google at the paywall): he wants
+   * the user to feel they have already built something before the demo, so the
+   * name is asked for up front and Welcome greets them with it.
+   */
+  name: string | null;
   /** "YYYY-MM-DD". Captured manually: Google OAuth does not reliably return it. */
   dob: string | null;
   sex: Sex | null;
@@ -65,6 +73,7 @@ export interface OnboardingSession {
 }
 
 export const EMPTY_SESSION: OnboardingSession = {
+  name: null,
   dob: null,
   sex: null,
   consent: false,
@@ -150,16 +159,22 @@ export function ageVerdict(dobKey: string | null, todayKey: string): AgeVerdict 
 /**
  * The single predicate the Continue button reads (§9 Screen 1 Logic): consent
  * ticked AND DOB resolves to 18+. Sex is required data (§8) so it is part of
- * the gate too. Anything short of all three leaves the button disabled and no
- * onward path exists.
+ * the gate too, and so is a name now that Welcome greets with it. Anything
+ * short of all four leaves the button disabled and no onward path exists.
+ *
+ * The legally load-bearing part is the age and the consent; the name is a
+ * product requirement sitting in the same check, which is fine because the
+ * check is all-or-nothing either way.
  */
 export function canLeaveHousekeeping(
-  session: Pick<OnboardingSession, "dob" | "sex" | "consent">,
+  session: Pick<OnboardingSession, "name" | "dob" | "sex" | "consent">,
   todayKey: string,
 ): boolean {
   return (
     session.consent === true &&
     session.sex !== null &&
+    typeof session.name === "string" &&
+    session.name.trim().length > 0 &&
     ageVerdict(session.dob, todayKey) === "ok"
   );
 }
@@ -190,6 +205,7 @@ export function normaliseSession(raw: unknown): OnboardingSession {
   };
 
   return {
+    name: typeof o.name === "string" && o.name.trim() ? o.name.trim().slice(0, 60) : null,
     dob: parseDateKey(typeof o.dob === "string" ? o.dob : null) ? (o.dob as string) : null,
     sex: o.sex === "male" || o.sex === "female" ? o.sex : null,
     consent: o.consent === true,
@@ -206,6 +222,7 @@ export function normaliseSession(raw: unknown): OnboardingSession {
 
 export const RUNNING_TAGS = [
   "comp_prep",
+  "off_season",
   "trt",
   "peptides",
   "first_cycle",

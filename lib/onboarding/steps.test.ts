@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DEMO_COUNT,
   FIRST_STEP,
   isStepId,
   nextStep,
@@ -23,15 +22,12 @@ describe("STEP_ORDER", () => {
     expect(STEP_ORDER[0].phase).toBe("anonymous");
   });
 
-  it("runs the whole demo before the paywall", () => {
-    const paywall = stepIndex("paywall");
-    for (const demo of ["demoLog", "demoStock", "demoSite", "demoHistory"] as const) {
-      expect(stepIndex(demo)).toBeLessThan(paywall);
-    }
+  it("runs the demo before the paywall", () => {
+    expect(stepIndex("demo")).toBeLessThan(stepIndex("paywall"));
   });
 
   it("gates the demo behind the age gate", () => {
-    expect(stepIndex("housekeeping")).toBeLessThan(stepIndex("demoLog"));
+    expect(stepIndex("housekeeping")).toBeLessThan(stepIndex("demo"));
     expect(stepIndex("housekeeping")).toBeLessThan(stepIndex("paywall"));
   });
 
@@ -46,10 +42,10 @@ describe("STEP_ORDER", () => {
     });
   });
 
-  it("has four demo screens numbered 1 to 4 in order", () => {
-    const demos = STEP_ORDER.filter((s) => s.demoIndex !== undefined);
-    expect(DEMO_COUNT).toBe(4);
-    expect(demos.map((s) => s.demoIndex)).toEqual([1, 2, 3, 4]);
+  it("keeps the demo as ONE step, so logging a dose never navigates", () => {
+    // Four routes made the aha feel like a slideshow. If a later change splits
+    // them again this fails, which is the point.
+    expect(STEP_ORDER.filter((s) => s.id.startsWith("demo"))).toHaveLength(1);
   });
 
   it("has unique ids", () => {

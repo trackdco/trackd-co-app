@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 
-import { Bell } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
-import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets";
-import { cn } from "@/lib/utils";
+import { guessPlatform } from "@/lib/onboarding/platform";
 
 import { FlowCta, SkipLink, StepFrame } from "../chrome";
 import { useFlow } from "../flow-context";
+import { NotificationMock } from "../notification-mock";
 
 /**
  * Screen 14 — Notifications (Spec 3-01 §9, §12).
@@ -29,6 +28,9 @@ import { useFlow } from "../flow-context";
 export function NotificationsScreen() {
   const { goNext } = useFlow();
   const [busy, setBusy] = useState(false);
+  // Same guess the install screen made, from one helper, so the two screens
+  // cannot show a user Safari's Share sheet and then an Android notification.
+  const [platform] = useState(guessPlatform);
 
   const onAllow = async () => {
     setBusy(true);
@@ -48,8 +50,8 @@ export function NotificationsScreen() {
 
   return (
     <StepFrame
-      title="Stay on schedule"
-      sub="A nudge on dose days, nothing else. You control what fires."
+      title="Turn on reminders"
+      sub="A nudge on dose days. Nothing else."
       footer={
         <div className="space-y-1">
           <FlowCta onClick={onAllow} disabled={busy}>
@@ -60,32 +62,12 @@ export function NotificationsScreen() {
       }
     >
       <div className="flex flex-1 flex-col justify-center">
-        {/* A sample of the real thing, in the shape iOS draws it. */}
-        <div className="rounded-2xl bg-bg-surface-raised p-4">
-          <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.625rem] bg-bg-input">
-              <Bell className="h-4 w-4 text-text-muted" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className={cn(CARD_EYEBROW, "text-text-muted")}>Trackd</p>
-                <span className={cn(DATA_MONO, "text-[10px] text-text-subtle")}>
-                  now
-                </span>
-              </div>
-              <p className="mt-1 text-[0.9rem] text-foreground">
-                Due today: Test E
-              </p>
-              <p className="mt-0.5 font-mono text-[11px] tabular-nums text-text-muted">
-                0.5 mL
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Drawn the way their own phone draws it. */}
+        <NotificationMock platform={platform} />
 
-        <p className="mt-4 text-center text-[0.75rem] leading-relaxed text-text-subtle">
-          Dose days, missed doses and low stock. Each one is a separate switch
-          in your profile.
+        <p className="mt-5 text-center text-[0.75rem] leading-relaxed text-text-subtle">
+          Dose days, missed doses and low stock. Each one is its own switch in
+          your profile.
         </p>
       </div>
     </StepFrame>

@@ -50,8 +50,8 @@ export function AttributionScreen() {
   if (session.affiliateCode) {
     return (
       <StepFrame
-        title="One quick thing"
-        sub="You came in on a creator link, so we already know. Nothing to answer."
+        title="Where did you hear about us?"
+        sub="You came in on a creator link, so we already know."
         footer={<FlowCta onClick={goNext}>Continue</FlowCta>}
       >
         <div className="flex flex-1 items-center justify-center">
@@ -65,8 +65,8 @@ export function AttributionScreen() {
 
   return (
     <StepFrame
-      title="One quick thing"
-      sub="Where'd you hear about us? Optional, and it helps us a lot."
+      title="Where did you hear about us?"
+      sub="Optional."
       footer={
         <div className="space-y-1">
           <FlowCta onClick={onContinue}>Continue</FlowCta>

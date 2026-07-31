@@ -18,11 +18,9 @@ export type StepId =
   | "running"
   | "struggle"
   | "celebrate"
-  | "demoLog"
-  | "demoStock"
-  | "demoSite"
-  | "demoHistory"
+  | "demo"
   | "payoff"
+  | "cost"
   | "paywall"
   | "welcome"
   | "install"
@@ -36,8 +34,6 @@ export type StepPhase = "anonymous" | "authed";
 export interface StepMeta {
   id: StepId;
   phase: StepPhase;
-  /** Demo screens carry a "DEMO · n / 4" eyebrow; this is the n. */
-  demoIndex?: number;
 }
 
 /**
@@ -51,11 +47,16 @@ export const STEP_ORDER: readonly StepMeta[] = [
   { id: "running", phase: "anonymous" },
   { id: "struggle", phase: "anonymous" },
   { id: "celebrate", phase: "anonymous" },
-  { id: "demoLog", phase: "anonymous", demoIndex: 1 },
-  { id: "demoStock", phase: "anonymous", demoIndex: 2 },
-  { id: "demoSite", phase: "anonymous", demoIndex: 3 },
-  { id: "demoHistory", phase: "anonymous", demoIndex: 4 },
+  // ONE step, four stages. The demo used to be four routes and Adrian's note
+  // was that walking between pages broke the illusion: logging a dose should
+  // move the thing beside it, not navigate somewhere. The stages live inside
+  // the screen (`components/onboarding/screens/demo.tsx`) so the cards can
+  // recede and accumulate on one surface.
+  { id: "demo", phase: "anonymous" },
   { id: "payoff", phase: "anonymous" },
+  // The cost comparison. D for now (Adrian's pick of six candidates); the
+  // others live at /onboarding/cost until one is chosen for good.
+  { id: "cost", phase: "anonymous" },
   { id: "paywall", phase: "anonymous" },
   { id: "welcome", phase: "authed" },
   { id: "install", phase: "authed" },
@@ -65,9 +66,6 @@ export const STEP_ORDER: readonly StepMeta[] = [
 ] as const;
 
 export const FIRST_STEP: StepId = STEP_ORDER[0].id;
-
-/** Total demo screens, so the eyebrow reads "1 / 4" without a literal. */
-export const DEMO_COUNT = STEP_ORDER.filter((s) => s.demoIndex !== undefined).length;
 
 const INDEX_BY_ID = new Map<StepId, number>(STEP_ORDER.map((s, i) => [s.id, i]));
 

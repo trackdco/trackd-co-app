@@ -4,10 +4,8 @@ import type { StepId } from "@/lib/onboarding/steps";
 
 import { AttributionScreen } from "./screens/attribution";
 import { CelebrateScreen } from "./screens/celebrate";
-import { DemoHistoryScreen } from "./screens/demo-history";
-import { DemoLogScreen } from "./screens/demo-log";
-import { DemoSiteScreen } from "./screens/demo-site";
-import { DemoStockScreen } from "./screens/demo-stock";
+import { CostScreen } from "./screens/cost";
+import { DemoScreen } from "./screens/demo";
 import { HookScreen } from "./screens/hook";
 import { HousekeepingScreen } from "./screens/housekeeping";
 import { InstallScreen } from "./screens/install";
@@ -29,11 +27,9 @@ const SCREENS: Record<StepId, () => React.ReactElement> = {
   running: RunningScreen,
   struggle: StruggleScreen,
   celebrate: CelebrateScreen,
-  demoLog: DemoLogScreen,
-  demoStock: DemoStockScreen,
-  demoSite: DemoSiteScreen,
-  demoHistory: DemoHistoryScreen,
+  demo: DemoScreen,
   payoff: PayoffScreen,
+  cost: CostScreen,
   paywall: PaywallScreen,
   welcome: WelcomeScreen,
   install: InstallScreen,

@@ -23,7 +23,7 @@ export function CelebrateScreen() {
       <StepFrame
         center
         title="Trackd's built for exactly this."
-        sub="Have a look at how it works. No account needed yet."
+        sub="Have a look. No account needed."
         footer={<FlowCta onClick={goNext}>Try it now</FlowCta>}
       >
         <div className="flex items-center justify-center">

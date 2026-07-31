@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 
 import { track } from "@/lib/onboarding/analytics";
-import { weeklyAnchor } from "@/lib/onboarding/pricing";
 import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +18,10 @@ import { useFlow } from "../flow-context";
  * the only honest way to draw this.
  *
  * The Trackd bar is amber, and it is the single amber beat on the screen.
+ *
+ * The per-week price anchor that used to sit under the CTA is gone (Adrian,
+ * 2026-07-31): the cost screen that follows makes the price argument properly,
+ * and making it twice weakened both.
  */
 
 const BARS = [
@@ -42,12 +45,9 @@ export function PayoffScreen() {
   return (
     <StepFrame
       title="The longer you track, the more you see."
-      sub="A tracker captures what guesswork drops."
+      sub="Nothing gets lost."
       footer={
-        <div className="space-y-3">
-          <FlowCta onClick={goNext}>See plans</FlowCta>
-          <p className="text-center text-[0.8rem] text-text-muted">{weeklyAnchor()}</p>
-        </div>
+        <FlowCta onClick={goNext}>Continue</FlowCta>
       }
     >
       <div className="flex flex-1 flex-col justify-center">
@@ -82,8 +82,7 @@ export function PayoffScreen() {
           </div>
 
           <p className="mt-5 text-[0.8rem] leading-relaxed text-text-muted">
-            Doses, stock, sites, bloods, photos and notes. In one place, for as
-            long as you keep them.
+            Doses, stock, sites, bloods, photos and notes. All in one place.
           </p>
         </div>
       </div>

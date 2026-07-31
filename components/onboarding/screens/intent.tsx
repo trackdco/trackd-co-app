@@ -29,16 +29,22 @@ import { useFlow } from "../flow-context";
  * enabled: making an optional question block the flow is how a user learns the
  * app argues with them.
  *
- * TGA discipline is the whole point of the copy here. The running options
- * describe the USER, never a goal ("Comp prep", not "get lean"). The struggle
- * options name TRACKING pains, never dosing pains ("Can't remember my last
- * site", never "not knowing when to pin").
+ * TGA discipline is the whole point of the copy here. The first screen's
+ * options describe the user's PHASE, never a goal or an outcome ("Comp prep",
+ * not "get lean"). The struggle options name TRACKING pains, never dosing pains
+ * ("Can't remember my last site", never "not knowing when to pin").
+ *
+ * The question used to be "What are you running?" and Adrian killed it: to him
+ * that reads as "which compounds are you on", which is not what the six answers
+ * are. "Where are you at right now?" asks for the phase, which is what they
+ * actually describe.
  */
 
 const ICON = "h-5 w-5";
 
 const RUNNING_OPTIONS: { value: RunningTag; label: string; icon: ReactNode }[] = [
   { value: "comp_prep", label: "Comp prep", icon: <Barbell className={ICON} /> },
+  { value: "off_season", label: "Off-season", icon: <Package className={ICON} /> },
   { value: "trt", label: "TRT / hormone optimisation", icon: <Pulse className={ICON} /> },
   { value: "peptides", label: "Peptides", icon: <Flask className={ICON} /> },
   { value: "first_cycle", label: "First cycle", icon: <Compass className={ICON} /> },
@@ -64,8 +70,8 @@ export function RunningScreen() {
 
   return (
     <StepFrame
-      title="What are you running?"
-      sub="Pick any that fit. Shapes what you see first."
+      title="Where are you at right now?"
+      sub="Pick any that fit."
       footer={
         <FlowCta
           onClick={() => {
@@ -97,8 +103,8 @@ export function StruggleScreen() {
 
   return (
     <StepFrame
-      title="What's the hard part right now?"
-      sub="The stuff a tracker actually kills."
+      title="What's the hard part?"
+      sub="Pick any that fit."
       footer={
         <FlowCta
           onClick={() => {

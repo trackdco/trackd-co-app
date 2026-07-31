@@ -88,9 +88,14 @@ describe("ageVerdict", () => {
 
 describe("canLeaveHousekeeping", () => {
   const today = "2026-07-31";
-  const adult = { dob: "1994-02-28", sex: "male" as const, consent: true };
+  const adult = {
+    name: "Adrian",
+    dob: "1994-02-28",
+    sex: "male" as const,
+    consent: true,
+  };
 
-  it("opens only when consent, sex and an 18+ DOB are all present", () => {
+  it("opens only when name, consent, sex and an 18+ DOB are all present", () => {
     expect(canLeaveHousekeeping(adult, today)).toBe(true);
   });
 
@@ -109,6 +114,11 @@ describe("canLeaveHousekeeping", () => {
   it("stays shut with no DOB at all", () => {
     expect(canLeaveHousekeeping({ ...adult, dob: null }, today)).toBe(false);
   });
+
+  it("stays shut without a name, and treats whitespace as no name", () => {
+    expect(canLeaveHousekeeping({ ...adult, name: null }, today)).toBe(false);
+    expect(canLeaveHousekeeping({ ...adult, name: "   " }, today)).toBe(false);
+  });
 });
 
 describe("normaliseSession", () => {
@@ -126,6 +136,12 @@ describe("normaliseSession", () => {
   it("drops a tampered DOB so a hand-edited key cannot pass the gate", () => {
     expect(normaliseSession({ dob: "not-a-date" }).dob).toBeNull();
     expect(normaliseSession({ dob: "2026-02-30" }).dob).toBeNull();
+  });
+
+  it("trims a name and drops one that is only whitespace", () => {
+    expect(normaliseSession({ name: "  Adrian  " }).name).toBe("Adrian");
+    expect(normaliseSession({ name: "   " }).name).toBeNull();
+    expect(normaliseSession({ name: 42 }).name).toBeNull();
   });
 
   it("keeps only recognised tags and de-duplicates them", () => {

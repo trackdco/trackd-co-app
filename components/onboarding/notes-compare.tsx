@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { ArrowsLeftRight } from "@/components/icons";
 import { cn } from "@/lib/utils";
@@ -17,7 +17,20 @@ import { DATA_MONO } from "@/lib/ui-presets";
  * Accessible as a real slider: `role="slider"` with arrow-key support, so it is
  * operable without a pointer. The handle is the only interactive element; the
  * panels underneath are inert.
+ *
+ * **It slides itself until you touch it** (Adrian, 2026-07-31). A static seam
+ * asks the user to work out that it is draggable; a moving one shows them both
+ * panels and demonstrates the control in the same gesture. It is a one-shot
+ * demonstration rather than ambient decoration: the first pointer or key from
+ * the user stops it for good and hands the seam over, and it never restarts.
+ * Under `prefers-reduced-motion` it never runs at all and simply sits at the
+ * midpoint.
  */
+
+/** Where the auto-sweep turns around, and how long a full there-and-back takes. */
+const SWEEP_MIN = 28;
+const SWEEP_MAX = 72;
+const SWEEP_MS = 4200;
 
 const NOTES_LINES = [
   "PROTOCOL",
@@ -42,8 +55,32 @@ const TRACKD_ROWS = [
 
 export function NotesCompare() {
   const [position, setPosition] = useState(50);
+  const [auto, setAuto] = useState(true);
   const boxRef = useRef<HTMLDivElement>(null);
   const labelId = useId();
+
+  // The demonstration sweep. A sine so it eases at both ends instead of
+  // ping-ponging, which reads mechanical.
+  useEffect(() => {
+    if (!auto) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    let raf = 0;
+    const start = performance.now();
+    const mid = (SWEEP_MIN + SWEEP_MAX) / 2;
+    const amp = (SWEEP_MAX - SWEEP_MIN) / 2;
+
+    const tick = (now: number) => {
+      const t = ((now - start) % SWEEP_MS) / SWEEP_MS;
+      setPosition(mid + amp * Math.sin(t * Math.PI * 2));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [auto]);
+
+  /** The user has taken over. Never give the sweep back. */
+  const takeOver = useCallback(() => setAuto(false), []);
 
   const setFromClientX = useCallback((clientX: number) => {
     const box = boxRef.current;
@@ -55,6 +92,7 @@ export function NotesCompare() {
   }, []);
 
   const onPointerDown = (e: React.PointerEvent) => {
+    takeOver();
     e.currentTarget.setPointerCapture(e.pointerId);
     setFromClientX(e.clientX);
   };
@@ -65,6 +103,7 @@ export function NotesCompare() {
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    takeOver();
     const step = e.shiftKey ? 10 : 4;
     if (e.key === "ArrowLeft") {
       e.preventDefault();
@@ -161,6 +200,16 @@ export function NotesCompare() {
           style={{ left: `${position}%` }}
           aria-hidden
         />
+
+        {/* A quiet nudge, only while the sweep is still running. */}
+        {auto ? (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 text-[9px] font-sans uppercase tracking-[0.18em] text-text-subtle"
+          >
+            Drag
+          </span>
+        ) : null}
 
         {/* The handle. The one amber beat on this screen: it is the live thing. */}
         <button

@@ -139,7 +139,7 @@ export function PaywallScreen() {
             )}
           </FlowCta>
           <p className="text-center text-[0.75rem] text-text-muted">
-            We&apos;ll remind you before it ends. {formatPrice(0)} today.
+            {formatPrice(0)} today. We&apos;ll remind you before it ends.
           </p>
         </div>
       }
