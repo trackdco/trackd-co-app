@@ -27,7 +27,10 @@ import { useFlow } from "../flow-context";
  * The sign-off carries the weight on its own now, which is why the spacing
  * below is deliberate rather than default: a letter that simply stops after
  * "Best," reads as unfinished, so the closing block gets a beat of its own and
- * steps down white → muted.
+ * steps down through amber to muted.
+ *
+ * The names are set in a handwriting face, which is the one place in the whole
+ * product that happens. It is doing the job the signatures were there for.
  */
 
 const PARAGRAPH =
@@ -73,10 +76,16 @@ export function LetterScreen() {
           <div className="border-t-[0.5px] border-border-default pt-5">
             <p className={cn(PARAGRAPH, "mb-3")}>Best,</p>
 
-            <p className="text-[13px] font-sans uppercase tracking-[0.18em] text-foreground">
+            {/* The one handwritten line in the product (Adrian, 2026-08-01).
+                Amber, mixed case, untracked — an uppercase tracked treatment
+                would fight the face and read as a label rather than a hand.
+                `--font-hand` is loaded in the root layout and referenced HERE
+                and nowhere else; see `ui-context.md` for why that is a rule and
+                not a habit. */}
+            <p className="font-[family-name:var(--font-hand)] text-[2rem] leading-none text-accent-amber">
               Angus &amp; Adrian
             </p>
-            <p className={cn(CARD_EYEBROW, "mt-1.5")}>Founders, Trackd Co</p>
+            <p className={cn(CARD_EYEBROW, "mt-2.5")}>Founders, Trackd Co</p>
           </div>
         </div>
       </div>

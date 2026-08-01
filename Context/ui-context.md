@@ -185,6 +185,17 @@ utilities (`font-sans`, `font-mono`) in `app/globals.css`.
 
 **Notes**
 
+- **A THIRD face exists, for exactly one line.** Caveat, as `--font-hand`,
+  sets "Angus & Adrian" at the foot of the onboarding founder letter, in amber
+  (Adrian, 2026-08-01). Their real signatures were built for that slot and he
+  rejected them; this does the job they were there for.
+
+  It is an exception and it stays one. **`--font-hand` is referenced in exactly
+  one component**, and a handwriting face on a dose figure, a card title or any
+  app surface is precisely the drift the two-face rule exists to prevent. It is
+  loaded through `next/font` so it is self-hosted at build time, which keeps the
+  no-external-host posture intact. If a second use ever appears, that is the
+  moment to argue about it, not a precedent to lean on.
 - The display serif (**Playfair Display** / `--font-display` /
   `font-display`) is **retired from the UI**. Remove the font load and
   the utility; no screen may reference it. The serif `trackd` wordmark

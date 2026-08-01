@@ -152,6 +152,9 @@
 
   /* House easing → utility (ease-motion). Durations have no Tailwind theme
      namespace, so reach for them as duration-[var(--motion-fast)]. */
+  /* The onboarding letter's sign-off, and nothing else. See ui-context.md. */
+  --font-hand: var(--font-hand);
+
   --ease-motion: var(--motion-ease);
   --color-state-error: var(--state-error);
   --color-state-success: var(--state-success);
