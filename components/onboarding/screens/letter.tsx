@@ -45,9 +45,22 @@ import { useFlow } from "../flow-context";
  * reaches it and the whole thing is wasted on an empty viewport.
  */
 
+/**
+ * `lift` nudges a signature up off the shared baseline, in pixels.
+ *
+ * Both boxes are the same height and bottom-aligned, which is correct for the
+ * BOXES and wrong for the ink: Adrian's has a large loop that sweeps to the
+ * very bottom of its bounding box, so its written line sits about a tenth of
+ * the box lower than Angus's and it reads as dropped (Adrian, 2026-08-01:
+ * "Adrian's one is too low"). Aligning the boxes cannot fix that — the
+ * difference is inside them.
+ *
+ * A per-signature offset rather than a cleverer alignment, because there is
+ * nothing to align ON. Handwriting has no baseline the geometry knows about.
+ */
 const SIGNATURES = [
-  { name: "Angus", art: SIGNATURE_ART.angus, delay: 220 },
-  { name: "Adrian", art: SIGNATURE_ART.adrian, delay: 620 },
+  { name: "Angus", art: SIGNATURE_ART.angus, delay: 220, lift: 0 },
+  { name: "Adrian", art: SIGNATURE_ART.adrian, delay: 620, lift: 7 },
 ] as const;
 
 const PARAGRAPH =
@@ -136,7 +149,7 @@ export function LetterScreen() {
                 mysteriously smaller because its export had more whitespace. */}
             <div
               ref={attach}
-              className="flex min-h-[4.5rem] items-end gap-7 text-accent-amber"
+              className="flex min-h-[5rem] items-end gap-11 text-accent-amber"
             >
               {SIGNATURES.map((sig) => (
                 <svg
@@ -145,10 +158,16 @@ export function LetterScreen() {
                   role="img"
                   aria-label={`${sig.name}'s signature`}
                   className={cn(
-                    "h-12 w-auto shrink-0",
+                    "h-14 w-auto shrink-0",
                     written ? "animate-signature" : "opacity-0",
                   )}
-                  style={{ animationDelay: `${sig.delay}ms` }}
+                  style={{
+                    animationDelay: `${sig.delay}ms`,
+                    // Not a Tailwind translate: the value is per-signature and
+                    // measured, so it belongs with the art rather than as a
+                    // class somebody later "tidies" to a round number.
+                    transform: sig.lift ? `translateY(-${sig.lift}px)` : undefined,
+                  }}
                 >
                   {sig.art.paths.map((d, i) => (
                     <path key={i} d={d} fill="currentColor" />
