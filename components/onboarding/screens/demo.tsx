@@ -186,7 +186,10 @@ export function DemoScreen() {
   const [recent, setRecent] = useState<readonly string[]>(DEMO_RECENT_SITES);
   const fired = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  /** The card the current stage just added, and the footer under everything.
+   *  Both are scroll TARGETS now that the page is what scrolls. */
+  const newestCardRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLElement>(null);
 
   const index = STAGES.indexOf(stage);
 
@@ -228,17 +231,41 @@ export function DemoScreen() {
     [],
   );
 
-  // Each new stage arrives below the last, so bring it into view.
+  /**
+   * THE PAGE is what scrolls, in two beats.
+   *
+   * This used to call `scrollTo` on the card column, which stopped being a
+   * scroll container the moment the pinned layout came out — so it silently did
+   * nothing, and on the site stage the Next button sat at 829px in an 844
+   * viewport with nothing to bring it up. Measured. That is the "there's no
+   * Next button" Adrian hit: it was there, 221px below the fold on his phone,
+   * and the nudge pointing at it was off-screen too.
+   *
+   * Beat one, here: a new stage arrives, so bring the TOP of the new card into
+   * view. You want to see the thing that just appeared, not the button under it.
+   */
   useEffect(() => {
     if (index === 0) return;
-    const el = scrollRef.current;
+    const el = newestCardRef.current;
     if (!el) return;
     const id = window.setTimeout(
-      () => el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }),
-      120,
+      () => el.scrollIntoView({ block: "start", behavior: "smooth" }),
+      140,
     );
     return () => window.clearTimeout(id);
   }, [index]);
+
+  /**
+   * Beat two: the stage's action is DONE, so bring the Next button into view.
+   * Fires from the same places that arm the nudge, so the button glides up and
+   * lifts rather than nudging somewhere nobody can see.
+   */
+  const revealNext = () => {
+    window.setTimeout(
+      () => footerRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }),
+      420,
+    );
+  };
 
   /** The tap that starts everything. Guarded so a double-tap fires once. */
   const onLog = () => {
@@ -350,7 +377,6 @@ export function DemoScreen() {
           cards arrive the padding collapses and the whole column glides up on
           the same slow-fast-slow curve the cards use. */}
       <div
-        ref={scrollRef}
         className={cn(
           "flex flex-1 flex-col justify-start gap-3 pb-2",
           "transition-[padding-top] duration-[760ms] motion-reduce:transition-none",
@@ -368,6 +394,7 @@ export function DemoScreen() {
 
             {index >= 1 && (
               <StockCard
+                cardRef={index === 1 ? newestCardRef : undefined}
                 stock={stock}
                 todayKey={todayKey}
                 receded={index > 1}
@@ -391,6 +418,7 @@ export function DemoScreen() {
 
             {index >= 2 && (
               <SiteCard
+                cardRef={index === 2 ? newestCardRef : undefined}
                 view={view}
                 setView={setView}
                 site={site}
@@ -405,16 +433,20 @@ export function DemoScreen() {
                   // opposite of what it is there for. The way out is offered,
                   // not taken for them.
                   armNudge("site", NUDGE_AFTER_TAP_MS);
+                  revealNext();
                 }}
               />
             )}
           </>
         )}
 
-        {showHistory && <HistoryPanel />}
+        {showHistory && <HistoryPanel cardRef={newestCardRef} />}
       </div>
 
-      <footer className="shrink-0 space-y-3 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <footer
+        ref={footerRef}
+        className="shrink-0 space-y-3 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+      >
         {stage === "log" && !logged ? (
           <p className="text-center text-xs text-text-subtle">Tap to log</p>
         ) : (
@@ -523,17 +555,20 @@ function StockCard({
   receded,
   empty,
   onLogAnother,
+  cardRef,
 }: {
   stock: DemoStock;
   todayKey: string;
   receded: boolean;
   empty: boolean;
   onLogAnother: () => void;
+  cardRef?: React.Ref<HTMLDivElement>;
 }) {
   const projected = formatDemoDate(demoProjectedEmpty(stock, todayKey));
 
   return (
     <div
+      ref={cardRef}
       className={cn(
         "animate-flow-in flow-card shrink-0 rounded-2xl bg-bg-surface p-5",
         CARD_MOTION,
@@ -604,12 +639,14 @@ function SiteCard({
   site,
   recent,
   onTap,
+  cardRef,
 }: {
   view: DemoView;
   setView: (v: DemoView) => void;
   site: { id: string; label: string } | null;
   recent: readonly string[];
   onTap: (id: string, label: string) => void;
+  cardRef?: React.Ref<HTMLDivElement>;
 }) {
   // The label comes straight from the tap. It used to be looked up in
   // DEMO_SITES by id, but those ids ("l_delt") are a different scheme from the
@@ -618,7 +655,10 @@ function SiteCard({
   const selectedLabel = site?.label ?? null;
 
   return (
-    <div className="animate-flow-in flow-card shrink-0 space-y-4 rounded-2xl bg-bg-surface p-5">
+    <div
+      ref={cardRef}
+      className="animate-flow-in flow-card shrink-0 space-y-4 rounded-2xl bg-bg-surface p-5"
+    >
       <Segmented
         label="Body view"
         value={view}
@@ -634,7 +674,10 @@ function SiteCard({
       <div aria-live="polite">
         {selectedLabel ? (
           <p className={cn(DATA_MONO, "uppercase tracking-[0.08em] text-foreground")}>
-            Logged: {selectedLabel} · rotation updated
+            {/* Not "rotation updated": the app RECORDS where you pinned, it
+                does not manage a rotation for you (Invariant 4). Same reason
+                the celebrate answer stopped saying it. */}
+            Logged: {selectedLabel}
           </p>
         ) : (
           <p className={cn(DATA_MONO, "uppercase tracking-[0.08em]")}>
@@ -767,14 +810,14 @@ function DemoSpark({
 }
 
 /** The look-back. A clean break: a different subject deserves its own surface. */
-function HistoryPanel() {
+function HistoryPanel({ cardRef }: { cardRef?: React.Ref<HTMLDivElement> }) {
   // Each card arrives on its own, in the order you would read them. A block
   // that appears all at once reads as a page; one that assembles reads as
   // something being shown to you (Adrian, 2026-08-01).
   const rise = (i: number) => ({ animationDelay: `${i * 160}ms` });
 
   return (
-    <div className="space-y-3">
+    <div ref={cardRef} className="space-y-3">
       <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-5" style={rise(0)}>
         <p className={CARD_EYEBROW}>Progress photos</p>
         <div className="mt-3 grid grid-cols-3 gap-2">
