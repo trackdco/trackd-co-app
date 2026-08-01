@@ -40,7 +40,6 @@ import type { DoseRow, InjectionSite } from "@/lib/db/types"
 import { isCatalogueName } from "@/lib/compound-lookup"
 import { pullStacks } from "@/lib/home/stackSync"
 import {
-  currentMemberIds,
   loadStacks,
   notifyStacksChanged,
   saveStacks,
@@ -369,6 +368,26 @@ function mergeAndSave(
  *
  * An empty pull is NO NEWS, never "the user deleted everything".
  */
+/**
+ * Take the server's start date for a stack whose own is a migration guess, and
+ * pull the guessed member spans back with it. A stack that knows its real start
+ * (`provisionalStart` absent) is returned untouched — the device's date is then
+ * the authoritative one, and the server's copy is what this device wrote.
+ */
+function adoptStart(local: Stack, serverFrom: string): Stack {
+  if (!local.provisionalStart || serverFrom >= local.effectiveFrom) return local
+  const guessed = local.effectiveFrom
+  const { provisionalStart, ...rest } = local
+  void provisionalStart
+  return {
+    ...rest,
+    effectiveFrom: serverFrom,
+    members: local.members.map((m) =>
+      m.from === guessed ? { ...m, from: serverFrom } : m
+    ),
+  }
+}
+
 function hydrateStacks(
   userId: string,
   pulled: Stack[],
@@ -406,23 +425,39 @@ function hydrateStacks(
   for (const p of pulled) {
     const loc = localById.get(p.id)
     localById.delete(p.id)
-    const pulledIds = currentMemberIds(p)
+    // EVERY member, not just the current ones. Judging on current membership
+    // alone let a stack be adopted while its unresolvable CLOSED spans were
+    // silently dropped — so a past member that had not yet migrated to Postgres
+    // vanished from the days it was actually in the stack, permanently and on
+    // every device.
+    const pulledIds = p.members.map((m) => m.compoundId)
     const resolves = pulledIds.every((id) => known.has(id))
     if (resolves && pulledIds.length > 0) {
       merged.push(p)
     } else if (loc) {
       // Keep what the device has rather than replacing it with a stack whose
-      // members would render as nothing — but take the SERVER's start date.
+      // members would render as nothing — but take the SERVER's start date when
+      // ours is only a guess.
       //
       // `stacks.created_at` is the only record of when a stack really began, and
       // a device migrated from the undated store guessed "today" for it (see
-      // `migrateLegacy`). Keeping the local guess here would leave that stack
-      // permanently under-grouping the days it actually covered, because this
-      // branch is the one a device with unmigrated custom members always takes.
-      merged.push({ ...loc, effectiveFrom: p.effectiveFrom })
+      // `migrateLegacy`). The member spans were guessed from the same day, so
+      // they are pulled back with it: moving the stack's gate alone would leave
+      // every recovered day with no members in force, which renders exactly as
+      // if nothing had been corrected.
+      merged.push(adoptStart(loc, p.effectiveFrom))
+    } else {
+      // Neither fully resolvable nor held locally. KEEP THE SERVER'S COPY rather
+      // than dropping it: this list is what the next `pushStacks` mirrors back
+      // up, so skipping the stack deletes it — and its whole dated history —
+      // from Postgres on the next edit. That was survivable when an empty stack
+      // was meaningless; now a stack whose members have all departed is a normal,
+      // deliberate state that still has to render on the days it covered.
+      // Nothing shows an unrenderable stack to the user: `activeStacks` keeps it
+      // off every present-tense screen, and `partitionByStack` skips it on any
+      // day it has no members for.
+      merged.push(p)
     }
-    // Neither resolvable nor local ⇒ skipped entirely. An empty card tells the
-    // user less than no card, and the next successful push will re-create it.
   }
   for (const leftover of localById.values()) merged.push(leftover)
 

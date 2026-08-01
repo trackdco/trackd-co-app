@@ -609,6 +609,36 @@ green on both.
   `project-overview.md` (never store derived values; RLS `(SELECT auth.uid())` on
   every table; entitlement gates read `profiles.tier` only).
 
+## Stacks are dated (2026-08-01)
+
+Adrian found a stack he had just created ("Vitamins" — creatine, vitamin D3,
+vitamin C) rendering on days before it existed, with members that had not been
+added yet. Reproduced: the compound-level gate was correct (a compound is not due
+before its start date), but `Stack` carried **no date at all**, so
+`partitionByStack` applied the present-day grouping to whichever day the
+dashboard was showing.
+
+- `Stack.effectiveFrom` + per-membership `from`/`to` spans (`to` EXCLUSIVE);
+  `supabase/protocol/013_stack_dating.sql` mirrors both.
+- The one-stack-per-compound unique index is now **partial** (`WHERE effective_to
+  IS NULL`) — the rule is about the present, and a closed span must not hold the
+  slot or a compound could never move between stacks. The composite PK on
+  `stack_members` is replaced by a surrogate `id` so a compound can rejoin.
+- Device store bumped `trackd.stacks.v1` → `v2`, migrating rather than
+  abandoning. A migrated stack's start is a GUESS ("today"), flagged
+  `provisionalStart` so `pushStacks` omits the column and `hydrateStacks` adopts
+  the server's real `created_at`-derived date instead.
+- Three cold-review agents found 1 CRITICAL + 4 HIGH, all fixed and re-reviewed
+  clean: no missing-COLUMN tolerance in `stackSync.ts` (the un-migrated state
+  broke every push and pull); `pushStacks` wiped membership before knowing it
+  could rebuild it; `hydrateStacks` judged resolution on current members only and
+  dropped closed spans; stack mutations were not `trackCriticalSync`, so
+  hydration raced a delete and resurrected it.
+- **Decision — a past day still shows due-but-unlogged compounds.** Adrian asked
+  whether they should only show what was logged; they should not. "Due and not
+  logged" IS the missed-dose concept, and day status, Consistency, the calendar
+  and the Blocks retrospective all read it.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

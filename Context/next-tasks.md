@@ -4,7 +4,7 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-07-31, evening (the cold-review + onboarding session)
+Last updated: 2026-08-01 (stack dating — Adrian's "Vitamins" report)
 
 ---
 
@@ -19,6 +19,19 @@ Last updated: 2026-07-31, evening (the cold-review + onboarding session)
 ---
 
 ## 🎯 Where we are
+
+**`stack-dating` (off `main`) — MERGED to main, 2026-08-01.** Adrian reported a
+stack he had just made ("Vitamins": creatine + D3 + vitamin C) showing on days
+before it existed. Root cause: a stack carried no date at all, so the dashboard
+drew today's grouping over every day in history. Fixed by dating the stack and
+each membership — Spec 01's forward-only rule applied to the one part of the
+protocol that was missing it. See `architecture.md` → Stacks.
+
+**⚠️ NEEDS ADRIAN: `supabase/protocol/013_stack_dating.sql` must be run in the
+Supabase SQL Editor.** The app tolerates the un-migrated state (it retries every
+read and write without the new columns), so nothing breaks before it runs — but
+stacks stay undated in Postgres until it does, and the device-side dating cannot
+be corrected from `created_at`.
 
 **Two branches are pushed and NEITHER is merged. `main` is untouched and still
 deploys prod.**

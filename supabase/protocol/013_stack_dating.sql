@@ -1,5 +1,5 @@
 -- ============================================================================
--- 009 — stacks are DATED  (Spec 05, fixing a hole shipped in 007)
+-- 013 — stacks are DATED  (Spec 05, fixing a hole shipped in 007)
 -- ============================================================================
 -- 007 gave a stack a name, a colour and a set of members, and no time dimension
 -- whatsoever. The dashboard applies the grouping to whichever day is on screen,

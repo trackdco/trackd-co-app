@@ -259,6 +259,67 @@ describe("a stack that empties is retired, not erased", () => {
   })
 })
 
+describe("regressions found in cold review", () => {
+  it("keeps historical order when an unrelated member is removed", () => {
+    // Positions used to be restated 0..n-1 on every save, colliding with the
+    // closed spans that keep their old numbers — so removing the FIRST of two
+    // members silently flipped the pair on every day before the removal.
+    const before = stack({
+      members: [
+        { compoundId: "z", from: MADE, position: 0 },
+        { compoundId: "a", from: MADE, position: 1 },
+      ],
+    })
+    const after = setStackMembers([before], "s1", ["a"], LATER)
+    expect(memberIdsOn(after[0], MADE)).toEqual(["z", "a"])
+    expect(currentMemberIds(after[0])).toEqual(["a"])
+  })
+
+  it("a new member goes after every position ever used, not into a reused slot", () => {
+    const after = setStackMembers([stack({ ids: ["a", "b"] })], "s1", ["a", "b", "c"], LATER)
+    const positions = after[0].members.map((m) => m.position)
+    expect(new Set(positions).size).toBe(positions.length)
+  })
+
+  it("renders a compound once even when two spans overlap", () => {
+    // Not reachable through the mutators, but a device clock that moves backwards
+    // or two client ids resolving to one Postgres row both produce it.
+    const s = stack({
+      effectiveFrom: "2026-07-01",
+      members: [
+        { compoundId: "a", from: "2026-07-01", to: "2026-07-20", position: 0 },
+        { compoundId: "a", from: "2026-07-05", to: "2026-07-10", position: 1 },
+      ],
+    })
+    expect(memberIdsOn(s, "2026-07-07")).toEqual(["a"])
+    expect(partitionByStack(["a"], [s], "2026-07-07").stacks[0].memberIds).toEqual(["a"])
+  })
+
+  it("never puts one compound in two stack rows on the same day", () => {
+    const a = stack({ id: "s1", members: [{ compoundId: "x", from: MADE, position: 0 }] })
+    const b = stack({ id: "s2", members: [{ compoundId: "x", from: MADE, position: 0 }] })
+    const { stacks: grouped, loose } = partitionByStack(["x"], [a, b], LATER)
+    expect(grouped).toHaveLength(1)
+    expect(grouped.flatMap((g) => g.memberIds)).toEqual(["x"])
+    expect(loose).toEqual([])
+  })
+
+  it("removing a member on a day before it joined cannot write to < from", () => {
+    // The DB CHECK rejects it outright, which would take the whole membership
+    // push down with it.
+    const after = removeMemberEverywhere([stack({ ids: ["a"] })], "a", "2026-07-01")
+    for (const m of after[0].members) {
+      if (m.to !== undefined) expect(m.to >= m.from).toBe(true)
+    }
+  })
+
+  it("ignores a set against a stack id that does not exist", () => {
+    const before = [stack({ id: "s1", ids: ["a", "b"] })]
+    const after = setStackMembers(before, "nope", ["a", "b"], LATER)
+    expect(currentMemberIds(after[0])).toEqual(["a", "b"])
+  })
+})
+
 describe("auto-naming an unnamed stack", () => {
   it("starts at Stack 1", () => {
     expect(nextStackName([])).toBe("Stack 1")
