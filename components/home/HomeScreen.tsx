@@ -707,6 +707,9 @@ export function HomeScreen({
               onAddStock={(dose) =>
                 router.push(`/protocol?stock=${encodeURIComponent(dose.id)}`)
               }
+              // Grouping is dated, so the card has to know WHICH day it is
+              // drawing — a stack made today never reaches back over history.
+              dayKey={selectedKey}
               stacks={stacks}
               // One tap logs every unlogged member. Each still writes its OWN
               // dose log through the same path a single tick uses, to the

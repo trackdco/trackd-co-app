@@ -4,7 +4,7 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-07-31, evening (the cold-review + onboarding session)
+Last updated: 2026-08-01 (stack dating — Adrian's "Vitamins" report)
 
 ---
 
@@ -20,8 +20,29 @@ Last updated: 2026-07-31, evening (the cold-review + onboarding session)
 
 ## 🎯 Where we are
 
-**Two branches are pushed and NEITHER is merged. `main` is untouched and still
-deploys prod.**
+**`stack-dating` — MERGED to `main`, 2026-08-01.** Eight review rounds; the
+last returned GO with no critical or high findings. Adrian reported a
+stack he had just made ("Vitamins": creatine + D3 + vitamin C) showing on days
+before it existed. Root cause: a stack carried no date at all, so the dashboard
+drew today's grouping over every day in history. Fixed by dating the stack and
+each membership — Spec 01's forward-only rule applied to the one part of the
+protocol that was missing it. See `architecture.md` → Stacks.
+
+**⚠️ NEEDS ADRIAN, AT RELEASE: `supabase/protocol/013_stack_dating.sql` must be
+run in the Supabase SQL Editor.** Treat it as a release gate, not a follow-up.
+The app tolerates the un-migrated state — every read and write retries without
+the new columns, and a pre-013 pull is marked provisional so the device's own
+dating wins — so nothing BREAKS before it runs. But until it does, an existing
+stack under-groups its own past: the v1→v2 device migration can only date a
+stack to the day of the upgrade, and the correction it is waiting for
+(`stacks.created_at`) cannot arrive over a pre-013 pull. Run the SQL, then open
+the app once; the first dated pull repairs every stack.
+
+Once 013 is applied everywhere, the pre-013 tolerance in `lib/home/stackSync.ts`
+(`isUndefinedColumn` and its three retry paths, plus `provisionalStart`) is dead
+code and can come out.
+
+**The other two branches are pushed and NEITHER is merged.**
 
 - **`wave3/fixes`** (off `wave3/progress-blocks-polish`) — the cold review's two
   HIGH fixes, the medium/low sweep, the "Discard this vial" clipping, and the

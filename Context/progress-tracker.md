@@ -609,6 +609,63 @@ green on both.
   `project-overview.md` (never store derived values; RLS `(SELECT auth.uid())` on
   every table; entitlement gates read `profiles.tier` only).
 
+## Stacks are dated (2026-08-01)
+
+Adrian found a stack he had just created ("Vitamins" — creatine, vitamin D3,
+vitamin C) rendering on days before it existed, with members that had not been
+added yet. Reproduced: the compound-level gate was correct (a compound is not due
+before its start date), but `Stack` carried **no date at all**, so
+`partitionByStack` applied the present-day grouping to whichever day the
+dashboard was showing.
+
+- `Stack.effectiveFrom` + per-membership `from`/`to` spans (`to` EXCLUSIVE);
+  `supabase/protocol/013_stack_dating.sql` mirrors both.
+- The one-stack-per-compound unique index is now **partial** (`WHERE effective_to
+  IS NULL`) — the rule is about the present, and a closed span must not hold the
+  slot or a compound could never move between stacks. The composite PK on
+  `stack_members` is replaced by a surrogate `id` so a compound can rejoin.
+- Device store bumped `trackd.stacks.v1` → `v2`, migrating rather than
+  abandoning. A migrated stack's start is a GUESS ("today"), flagged
+  `provisionalStart` so `pushStacks` omits the column and `hydrateStacks` adopts
+  the server's real `created_at`-derived date instead.
+- **Eight review rounds, fifteen cold agents, and every round but the last found a
+  defect introduced by the previous round's fix.** Round 1: 1 CRITICAL + 4 HIGH
+  (below). Round 2: a new CRITICAL created BY the round-1 fix — the pre-013 write
+  retry sent every span as its own row, which the old key rejects — plus a
+  `provisionalStart` flag that was written and never read. Round 3: a clamp
+  written `<=` where it needed `<`, which broke the ordinary same-day move while
+  fixing a rare backwards-clock case, and two removal paths that disagreed.
+  Round 4: a merge that built its map device-last so the device would win, then
+  discarded the result unless a new key appeared. Round 5: the same-day move
+  again (the device's record of it is an ABSENCE, so the server's stale span was
+  re-adopted) and `adoptStart` back-dating a member added ON the migration day.
+  The pattern was always the same shape — the server's copy quietly overwriting
+  something only the device knew — and the fix that finally held was to state one
+  rule (`mergeStack`: the device is authoritative) instead of three branches with
+  three policies, and to give the pure merge functions their own tests. The
+  Rounds 6 and 7 continued the pattern (a same-day removal left no evidence at
+  all, so the merge re-adopted the server's stale span; then the departure record
+  that fixed it collided with a same-day re-join in the dedupe key). Round 8
+  returned GO: 37 mutants and ~3,400 fuzzed operations through the real write
+  paths — offline, online, pre-013 and post-013 — lost no span, stack or day of
+  grouping. Every guard the rounds added is now pinned by a test that was checked
+  by reverting the fix and watching it fail. The round-1 findings were: no missing-COLUMN tolerance in `stackSync.ts` (the un-migrated state
+  broke every push and pull); `pushStacks` wiped membership before knowing it
+  could rebuild it; `hydrateStacks` judged resolution on current members only and
+  dropped closed spans; stack mutations were not `trackCriticalSync`, so
+  hydration raced a delete and resurrected it.
+- **Known and accepted:** a stack inserted into Postgres while its start date is
+  still provisional takes the database's UTC `CURRENT_DATE`, which is a day out
+  for a far-enough offset; and a member removed on a SECOND device is re-inserted
+  by this device's next push (`mergeStack` is device-authoritative — the
+  single-device assumption `mergeAndSave` already states). A retired stack is
+  also unreachable to delete, by design: it is hidden from every present-tense
+  screen but kept so the days it grouped still read correctly.
+- **Decision — a past day still shows due-but-unlogged compounds.** Adrian asked
+  whether they should only show what was logged; they should not. "Due and not
+  logged" IS the missed-dose concept, and day status, Consistency, the calendar
+  and the Blocks retrospective all read it.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

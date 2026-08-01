@@ -21,7 +21,12 @@ import {
   paletteColourVar,
   type PaletteColour,
 } from "@/lib/palette"
-import { STACK_NAME_MAX, type Stack } from "@/lib/home/stacks"
+import {
+  currentMemberIds,
+  STACK_NAME_MAX,
+  type Stack,
+  type StackDraft,
+} from "@/lib/home/stacks"
 import type { StackCompound } from "@/lib/home/stack"
 
 const LABEL = "text-xs font-medium uppercase tracking-[0.14em] text-text-muted"
@@ -58,7 +63,7 @@ export function StackEditSheet({
   compounds: StackCompound[]
   /** Compound ids already in a DIFFERENT stack — not offerable. */
   unavailableIds: Set<string>
-  onSave: (stack: Stack) => void
+  onSave: (draft: StackDraft) => void
   onDelete?: () => void
   /** The name to use when the field is left blank — "Stack 3". */
   fallbackName: string
@@ -114,7 +119,7 @@ function StackForm({
   compounds: StackCompound[]
   unavailableIds: Set<string>
   onClose: () => void
-  onSave: (stack: Stack) => void
+  onSave: (draft: StackDraft) => void
   onDelete?: () => void
   fallbackName: string
   onAddCompound?: () => void
@@ -124,7 +129,11 @@ function StackForm({
   const [colour, setColour] = useState<PaletteColour>(
     stack?.colour ?? DEFAULT_PALETTE_COLOUR
   )
-  const [members, setMembers] = useState<string[]>(stack?.memberIds ?? [])
+  // CURRENT members only — a past member left on a day that is now history and
+  // must not be re-offered as though it were still in the stack.
+  const [members, setMembers] = useState<string[]>(
+    stack ? currentMemberIds(stack) : []
+  )
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // A compound created from inside this sheet is ticked in automatically — the

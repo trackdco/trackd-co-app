@@ -246,8 +246,8 @@ stored.)
   `lib/home/stack.ts`), the **dose log** (`trackd.doselog.v1.<auth.uid()>`,
   `lib/home/doseLog.ts`), and the user-created "Make your own" **custom compounds**
   (`trackd.customCompounds.<auth.uid()>`, `components/navigation/add-to-stack-menu.tsx`),
-  and **stacks** (`trackd.stacks.v1.<auth.uid()>`, `lib/home/stacks.ts` — see
-  **Stacks** below) — keep `localStorage` as the synchronous, offline-capable read path the UI uses,
+  and **stacks** (`trackd.stacks.v2.<auth.uid()>`, `lib/home/stacks.ts` — see
+  **Stacks** below; `v1` is the pre-dating shape, read once and migrated forward) — keep `localStorage` as the synchronous, offline-capable read path the UI uses,
   but are now **mirrored to Supabase** so they survive a PWA delete/reinstall (which
   wipes the installed app's `localStorage`). The cloud tables live in
   `supabase/home/001_device_state_sync.sql` (`user_stack_compounds`,
@@ -593,13 +593,55 @@ exist as single catalogue compounds and are untouched.
 
 - **Storage** — `supabase/protocol/007_stacks.sql`: `stacks` (name + one of the
   twelve palette NAMES) and `stack_members` (the pairing + an order), bringing the
-  live DB to **25 tables**. Mirrored into `trackd.stacks.v1.<auth.uid()>` as the
+  live DB to **25 tables**. Mirrored into `trackd.stacks.v2.<auth.uid()>` as the
   synchronous offline read path, the same shape as the rest of the protocol data.
   `lib/home/stackSync.ts` pushes/pulls; `hydrateProtocol.ts` `hydrateStacks` folds
   the pull in.
+- **A grouping is DATED** (`supabase/protocol/013_stack_dating.sql`). 007 gave a
+  stack no time dimension at all, and the dashboard applies the grouping to
+  whichever day is on screen — so a stack created this morning was drawn over
+  every day already lived (a "Vitamins" stack appeared on days when only creatine
+  existed), and adding a member re-grouped every day before it joined. 013 adds
+  `stacks.effective_from` (backfilled from `created_at::date`) and
+  `stack_members.effective_from` / `effective_to` (EXCLUSIVE; NULL = still a
+  member), so a stack describes the days it actually covered. This is Spec 01's
+  rule — *a change applies from the chosen day forward and never rewrites the
+  past* — applied to the one part of the protocol that was missing it, and it is
+  the same shape as `protocol_compound_schedules`. Client-side: `Stack.effectiveFrom`
+  + `Stack.members[]` spans, read through `memberIdsOn(stack, day)` for a dated view
+  and `currentMemberIds(stack)` for the present tense.
 - **One compound, one stack** is enforced three ways: `setStackMembers` strips an
   incoming id from every other stack in the same pass, `dedupeMembership` runs on
-  both read and write, and a UNIQUE index backs it in Postgres.
+  both read and write, and a UNIQUE index backs it in Postgres. Since 013 that
+  index is **partial** (`WHERE effective_to IS NULL`) — the rule is about the
+  PRESENT, and a closed span must not hold the slot or a compound could never be
+  moved between stacks. `membersOn` de-duplicates on read as the last line of
+  defence, because overlapping spans are not structurally impossible (a device
+  clock that moves backwards, or two client ids that later resolve to one row).
+- **Hydration is DEVICE-AUTHORITATIVE** (`hydrateStacks` → `mergeStack`). The
+  server contributes exactly two things: the real start date when the device's is
+  only a v1-migration guess (`Stack.provisionalStart` /
+  `StackMembership.provisionalFrom`, cleared by `adoptStart` once corrected), and
+  any membership the device has never heard of. It used to be the reverse — a
+  fully-resolving pull replaced the local stack outright — which silently
+  reverted every stack edit made offline (nothing re-pushes stacks on reconnect),
+  deleted any member the push could not send, and overwrote real join dates with
+  013's backfill. Resolvability is no longer a gate: a pulled stack is kept even
+  when its members don't resolve, because this list is what the next push mirrors
+  back up and dropping it would delete the stack from Postgres.
+- **The client tolerates a database without 013** (`isUndefinedColumn`, the same
+  helper `protocolSync.ts` uses for the 006 cycle columns). Migrations here are
+  applied by hand, so the un-migrated state is one the deployed code sits in:
+  reads retry without the dating columns and mark the result provisional; writes
+  retry with the columns stripped and send OPEN spans only, since the pre-013 key
+  is `(stack_id, protocol_compound_id)` and closed spans would collide. All of it
+  becomes dead once 013 has run everywhere.
+- **A stack that empties is retired, not erased.** Deleting its last member closes
+  the span and leaves the stack in the store, so the days it grouped still read
+  correctly; `activeStacks()` keeps it off every present-tense screen so there is
+  no empty card. Deleting the STACK itself is still a hard delete — an explicit
+  "this grouping should not exist", as against the forward-dated change a member
+  leaving is.
 - **Ownership is structural** (`supabase/protocol/008_stack_members_ownership.sql`).
   007 shipped a hole: `stack_members` RLS checked only `user_id`, and the
   one-stack index was GLOBAL across users — so a user could claim another user's

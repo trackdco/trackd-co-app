@@ -4,8 +4,8 @@
  * **A stack is not a container.** Every member keeps its own schedule, dose, log
  * entries and history; removing a compound from a stack changes nothing about
  * that compound. That is not a convention to uphold here — it is structural:
- * a `Stack` holds a name, a colour and a list of member IDS, and there is no
- * field on it for a dose, a schedule, a time or a log. The grouping cannot own
+ * a `Stack` holds a name, a colour and a list of member REFERENCES, and there is
+ * no field on it for a dose, a schedule, a time or a log. The grouping cannot own
  * what it has nowhere to put.
  *
  * A stack means compounds INJECTED AT THE SAME TIME, not compounds combined into
@@ -13,9 +13,19 @@
  * exist as single catalogue compounds and are a different thing entirely;
  * nothing here reads or offers them.
  *
+ * **A grouping is dated, exactly like a schedule** (Spec 01's rule, applied to
+ * the one part of the protocol that was missing it). A stack created today
+ * describes today forward; it does not reach back and re-draw days that were
+ * already lived. Before this, `partitionByStack` was handed the day's due
+ * compounds and no date at all, so a stack made this morning wrapped every day in
+ * the user's history — a stack named "Vitamins" appeared on days when only
+ * creatine existed, and adding a member next month would have re-grouped every
+ * day before it joined. Membership carries the same dating, so a member shows
+ * inside the stack only on the days it was actually in it.
+ *
  * Persisted device-local (the synchronous, offline read path) and mirrored to
- * Postgres `stacks` + `stack_members` (`supabase/protocol/007`), the same shape
- * as the rest of the protocol data.
+ * Postgres `stacks` + `stack_members` (`supabase/protocol/007`, dated by `013`),
+ * the same shape as the rest of the protocol data.
  *
  * Pure data + pure helpers + guarded storage only; no React (`code-standards.md`).
  */
@@ -24,10 +34,46 @@ import { pushStacks } from "@/lib/home/stackSync"
 // Function-level use only (inside `commit`), so the stack.ts ⇄ stacks.ts cycle
 // is resolved long before either is called.
 import { loadStack } from "@/lib/home/stack"
-import { trackSync } from "@/lib/home/syncStatus"
+import { toDateKey, type DateKey } from "@/lib/home/mockHomeData"
+import { trackCriticalSync } from "@/lib/home/syncStatus"
 
 /** Stack names reuse the compound picker's existing limit — not a new one. */
 export const STACK_NAME_MAX = 80
+
+/**
+ * One compound's spell inside one stack.
+ *
+ * A REFERENCE plus the days it applied for — nothing else. There is deliberately
+ * no dose, time or log field here either: dating the membership must not become
+ * a back door through which a stack starts owning its members.
+ */
+export interface StackMembership {
+  /** References `StackCompound.id`. */
+  compoundId: string
+  /** Local "YYYY-MM-DD" — the first day this compound was in the stack. */
+  from: DateKey
+  /**
+   * EXCLUSIVE end — the first day it was no longer in the stack. Absent means it
+   * still is. Exclusive rather than inclusive so `from === to` is the empty span
+   * (joined and left the same day), which {@link pruneEmpty} drops rather than
+   * storing a membership that covers no day at all.
+   */
+  to?: DateKey
+  /** Display order within the stack. Mirrors `stack_members.position` 1:1. */
+  position: number
+  /**
+   * TRUE when `from` is the v1→v2 migration's guess rather than a record, the
+   * membership-level counterpart of {@link Stack.provisionalStart}.
+   *
+   * A flag is the only thing that can tell the two apart. `adoptStart` used to
+   * correct any span whose `from` equalled the stack's guessed start — but a
+   * member the user ticked in ON the migration day carries that same date
+   * honestly, so it was dragged back to the stack's real creation day and
+   * rendered on weeks before it joined. That is Adrian's original report,
+   * reintroduced for exactly the users the dating change exists to protect.
+   */
+  provisionalFrom?: boolean
+}
 
 export interface Stack {
   id: string
@@ -35,14 +81,52 @@ export interface Stack {
   name: string
   colour: PaletteColour
   /**
-   * ORDERED references to `StackCompound.id`. References — deleting the stack
-   * drops this list and nothing else. A compound id appears at most once here,
-   * and at most once across ALL stacks (see {@link setStackMembers}).
+   * Local "YYYY-MM-DD" — the day this stack began grouping. Days before it show
+   * the members ungrouped, in their category sections, which is what those days
+   * actually looked like.
    */
+  effectiveFrom: DateKey
+  /**
+   * Every spell any compound has had in this stack, past and present. One list,
+   * not a current-members list beside a history list: two would drift, and the
+   * drift would be invisible until someone scrolled back a month.
+   *
+   * A compound appears at most once with an OPEN span here, and at most once
+   * across ALL stacks (see {@link setStackMembers}). It may appear more than once
+   * with closed spans — leaving a stack and rejoining it later is two spells.
+   */
+  members: StackMembership[]
+  /**
+   * TRUE when `effectiveFrom` is a GUESS, not a record — set only by the v1→v2
+   * migration, which finds a stack with no dates at all and can do no better than
+   * "today". It is what stops that guess being written over the server's real
+   * `stacks.created_at`: `pushStacks` omits the column for a provisional stack,
+   * so an upsert leaves the true date alone, and `hydrateStacks` clears the flag
+   * once it has adopted that date. Absent on every stack the app itself created.
+   */
+  provisionalStart?: boolean
+}
+
+/**
+ * What the editing UI works in: present-tense membership, no dates. The store
+ * turns this into spans against today, so every screen that changes a stack goes
+ * through the same dating logic and none of them has to think about it.
+ */
+export interface StackDraft {
+  id: string
+  name: string
+  colour: PaletteColour
   memberIds: string[]
 }
 
-const storageKey = (userId: string) => `trackd.stacks.v1.${userId}`
+const storageKey = (userId: string) => `trackd.stacks.v2.${userId}`
+/** Pre-dating stacks (`{ memberIds: string[] }`). Migrated on first read. */
+const legacyStorageKey = (userId: string) => `trackd.stacks.v1.${userId}`
+
+/** Today as a local date key — the day every membership change takes effect. */
+function todayKey(): DateKey {
+  return toDateKey(new Date())
+}
 
 /* ----------------------------------------------------------------- storage */
 
@@ -50,7 +134,7 @@ export function loadStacks(userId: string): Stack[] {
   if (typeof window === "undefined") return []
   try {
     const raw = window.localStorage.getItem(storageKey(userId))
-    if (!raw) return []
+    if (raw === null) return migrateLegacy(userId)
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     const out: Stack[] = []
@@ -78,6 +162,49 @@ export function saveStacks(userId: string, stacks: Stack[]): boolean {
 }
 
 /**
+ * Read the pre-dating store and date it, so an existing user keeps their stacks.
+ *
+ * The old shape recorded no dates, so the true start is unknowable from the
+ * device — TODAY is the honest answer here, and it errs the safe way: the stack
+ * under-groups the days between its real creation and now, rather than falsely
+ * claiming days it never covered (the bug this whole change exists to fix).
+ * Postgres does know (`stacks.created_at`), and `hydrateStacks` adopts the pulled
+ * `effective_from` on the next sync, which corrects it for good.
+ */
+function migrateLegacy(userId: string): Stack[] {
+  let raw: string | null = null
+  try {
+    raw = window.localStorage.getItem(legacyStorageKey(userId))
+  } catch {
+    return []
+  }
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    const today = todayKey()
+    const out: Stack[] = []
+    for (const item of parsed) {
+      const s = normalizeStack(item, today)
+      if (s) out.push(s)
+    }
+    const migrated = dedupeMembership(out)
+    // A failed write (quota, storage off) is not fatal — the caller still gets
+    // the migrated list — but it does mean the next read re-migrates and
+    // recomputes "today", so the guessed start slides forward a day at a time
+    // until a write lands. `provisionalStart` is what makes that recoverable:
+    // hydration replaces the guess with the server's real date regardless.
+    //
+    // The v1 key is deliberately NOT cleared: it costs nothing, and a rollback
+    // to the previous bundle would otherwise find no stacks at all.
+    saveStacks(userId, migrated)
+    return migrated
+  } catch {
+    return []
+  }
+}
+
+/**
  * The name an unnamed stack gets: "Stack 1", "Stack 2", … (Adrian's call — Spec
  * 05 made the name required; a blank one now falls back rather than blocking).
  *
@@ -99,41 +226,122 @@ export function nextStackName(stacks: Stack[]): string {
 
 /* ------------------------------------------------------------------ queries */
 
-/** The stack a compound belongs to, or null. A compound has at most one. */
+/**
+ * Deterministic member order: the stored position, then the id so a tie never
+ * renders differently between two reads.
+ *
+ * Positions are assigned ONCE per membership and never restated (see
+ * {@link setStackMembers}), so a past day keeps the order it actually had. They
+ * were briefly renumbered 0..n-1 on every save, which silently reordered history:
+ * removing the first of two members renumbered the second to 0, colliding with
+ * the closed span still holding 0, and the tie-break then flipped the pair on
+ * every day before the removal.
+ */
+function byPosition(a: StackMembership, b: StackMembership): number {
+  return a.position - b.position || a.compoundId.localeCompare(b.compoundId)
+}
+
+/** Was this stack grouping anything yet on `dateKey`? */
+function stackStartedOn(stack: Stack, dateKey: DateKey): boolean {
+  return dateKey >= stack.effectiveFrom
+}
+
+/**
+ * The memberships in force on `dateKey`, in display order.
+ *
+ * Gated on the stack's own start as well as each span's, so a membership can
+ * never render on a day before the stack it belongs to existed — the gate holds
+ * even if a bad span were somehow stored.
+ */
+export function membersOn(stack: Stack, dateKey: DateKey): StackMembership[] {
+  if (!stackStartedOn(stack, dateKey)) return []
+  const inForce = stack.members
+    .filter((m) => m.from <= dateKey && (m.to === undefined || dateKey < m.to))
+    .sort(byPosition)
+  // ONE row per compound, always. Two spans for the same compound should never
+  // overlap, but nothing upstream can promise it — a device clock that moves
+  // backwards, or two client ids that later resolve to one Postgres row, both
+  // produce an overlap — and the spec's "never twice inside one stack" has to
+  // hold at the point of rendering, not just at the point of writing.
+  const seen = new Set<string>()
+  return inForce.filter((m) => {
+    if (seen.has(m.compoundId)) return false
+    seen.add(m.compoundId)
+    return true
+  })
+}
+
+/** The compound ids in the stack on `dateKey`, in display order. */
+export function memberIdsOn(stack: Stack, dateKey: DateKey): string[] {
+  return membersOn(stack, dateKey).map((m) => m.compoundId)
+}
+
+/** The memberships that are still open — what every present-tense screen wants. */
+export function currentMembers(stack: Stack): StackMembership[] {
+  return stack.members.filter((m) => m.to === undefined).sort(byPosition)
+}
+
+/** The compound ids currently in the stack, in display order. */
+export function currentMemberIds(stack: Stack): string[] {
+  return currentMembers(stack).map((m) => m.compoundId)
+}
+
+/** Stacks that still group at least one compound — what Protocol lists. A stack
+ *  whose last member was deleted is retained for history but is over, so it is
+ *  not offered as something to view or edit. */
+export function activeStacks(stacks: Stack[]): Stack[] {
+  return stacks.filter((s) => currentMembers(s).length > 0)
+}
+
+/** The stack a compound is in NOW, or null. A compound has at most one. */
 export function stackOf(stacks: Stack[], compoundId: string): Stack | null {
   for (const s of stacks) {
-    if (s.memberIds.includes(compoundId)) return s
+    if (currentMembers(s).some((m) => m.compoundId === compoundId)) return s
   }
   return null
 }
 
-/** Every compound id that is in some stack — what the "add members" picker
+/** Every compound id currently in some stack — what the "add members" picker
  *  excludes, so only unstacked compounds are offered. */
 export function stackedIds(stacks: Stack[]): Set<string> {
   const out = new Set<string>()
-  for (const s of stacks) for (const id of s.memberIds) out.add(id)
+  for (const s of stacks) {
+    for (const m of currentMembers(s)) out.add(m.compoundId)
+  }
   return out
 }
 
 /**
- * Split a list of compound ids into the stacks they belong to and the loose
- * remainder — the dashboard's one pass. A member renders inside its stack row
- * and must NOT also appear in its category section, so this returns a partition
- * rather than two independently-filtered lists that could drift.
+ * Split a list of compound ids into the stacks they belonged to ON `dateKey` and
+ * the loose remainder — the dashboard's one pass. A member renders inside its
+ * stack row and must NOT also appear in its category section, so this returns a
+ * partition rather than two independently-filtered lists that could drift.
  *
- * Stacks come back in their stored order, each carrying only the members
- * actually present in `ids` (so a member not due today doesn't create a ghost).
+ * `dateKey` is what stops a grouping from rewriting history: a stack that had not
+ * been created by that day contributes nothing and its compounds fall through to
+ * `loose`, which is exactly how the day looked when it was lived.
+ *
+ * Stacks come back in their stored order, each carrying only the members that
+ * were both in it that day and present in `ids` (so a member not due that day
+ * doesn't create a ghost).
  */
 export function partitionByStack(
   ids: string[],
-  stacks: Stack[]
+  stacks: Stack[],
+  dateKey: DateKey
 ): { stacks: { stack: Stack; memberIds: string[] }[]; loose: string[] } {
   const present = new Set(ids)
   const claimed = new Set<string>()
   const grouped: { stack: Stack; memberIds: string[] }[] = []
 
   for (const s of stacks) {
-    const members = s.memberIds.filter((id) => present.has(id))
+    // `claimed` is consulted, not merely recorded: two stacks can both hold a
+    // span covering this day for one compound (overlapping history, or two
+    // client ids that resolved to the same Postgres row), and rendering it in
+    // both rows would show the same dose twice with two ticks for one event.
+    const members = memberIdsOn(s, dateKey).filter(
+      (id) => present.has(id) && !claimed.has(id)
+    )
     if (members.length === 0) continue
     for (const id of members) claimed.add(id)
     grouped.push({ stack: s, memberIds: members })
@@ -145,42 +353,170 @@ export function partitionByStack(
 /* ---------------------------------------------------------------- mutations */
 
 /**
- * Replace a stack's members. **This is where the one-stack-per-compound rule is
- * enforced**: any id added here is removed from every other stack first, so the
+ * Drop spans that describe an impossible stretch — one that ends BEFORE it began.
+ *
+ * A zero-length span (`to === from`, a compound added and removed on the same
+ * day) is KEPT, even though it covers no day and renders nowhere. It is the
+ * device's only record that the departure happened, and deleting it made a
+ * same-day removal indistinguishable from never having removed anything: the
+ * evidence was an absence, so `mergeStack` could not tell the server's stale
+ * open span from genuine news and adopted it straight back — the compound
+ * reappeared in the stack, and the next push wrote that back to Postgres.
+ *
+ * It costs nothing to keep. `membersOn` excludes it (`from <= d && d < to` is
+ * empty), `currentMembers` excludes it (it is closed), `dedupeMembership` skips
+ * closed spans, and `pushStacks` filters it off the wire because
+ * `stack_members_span_valid` requires `effective_to > effective_from`.
+ */
+function pruneEmpty(members: StackMembership[]): StackMembership[] {
+  return members.filter((m) => m.to === undefined || m.to >= m.from)
+}
+
+/**
+ * Where a span that starts on `from` should END if it is closed on `on`.
+ *
+ * Three cases, and the boundary between the first two is load-bearing:
+ *  - `on === from` — joined and left the SAME DAY. Zero length, so `pruneEmpty`
+ *    drops it: it covered no day and must not render on one. This is the
+ *    ordinary case for moving a compound between stacks on the day you stacked
+ *    it, and treating it as "backwards clock" below left a ONE-DAY span in the
+ *    old stack — so for the rest of that day the compound sat in two stacks,
+ *    Home and Protocol disagreed about which, and if it had been the old stack's
+ *    only member the NEW stack did not render at all.
+ *  - `on < from` — the clock has moved backwards (crossing the dateline
+ *    westward, or a corrected clock). The span covered real days, so it is
+ *    shortened to one day rather than deleted.
+ *  - `on > from` — the normal close.
+ *
+ * `to` can never come out below `from`, which `stack_members_span_valid` rejects
+ * outright and which would take the whole membership push down with it.
+ */
+function clampEnd(from: DateKey, on: DateKey): DateKey {
+  if (on === from) return from
+  return on < from ? nextDay(from) : on
+}
+
+/** Close every OPEN span for `compoundId` in `stack` as of `on`. */
+function closeMember(
+  stack: Stack,
+  compoundId: string,
+  on: DateKey
+): Stack {
+  let touched = false
+  const members = stack.members.map((m) => {
+    if (m.compoundId !== compoundId || m.to !== undefined) return m
+    touched = true
+    return { ...m, to: clampEnd(m.from, on) }
+  })
+  return touched ? { ...stack, members: pruneEmpty(members) } : stack
+}
+
+/**
+ * Replace a stack's CURRENT members, effective from `on` (today, in every real
+ * call). **This is where the one-stack-per-compound rule is enforced**: any id
+ * added here has its open span in every other stack closed first, so the
  * invariant holds by construction rather than by a check a caller might skip.
  * Duplicates within the list are collapsed.
+ *
+ * Existing members keep the span they already had — re-saving a stack without
+ * touching its members must not restate every membership as beginning today,
+ * which would erase the grouping from every day before the edit.
  */
 export function setStackMembers(
   stacks: Stack[],
   stackId: string,
-  memberIds: string[]
+  memberIds: string[],
+  on: DateKey = todayKey()
 ): Stack[] {
+  // An unknown id would otherwise fall through to the "some OTHER stack" branch
+  // for every stack and quietly evict the listed compounds from all of them,
+  // adding them nowhere. No caller does this today; the guard makes it so none
+  // can.
+  if (!stacks.some((s) => s.id === stackId)) return stacks
+
   const unique = [...new Set(memberIds)]
   const taken = new Set(unique)
-  return stacks.map((s) =>
-    s.id === stackId
-      ? { ...s, memberIds: unique }
-      : { ...s, memberIds: s.memberIds.filter((id) => !taken.has(id)) }
-  )
+
+  return stacks.map((s) => {
+    if (s.id !== stackId) {
+      // A compound claimed by the target stack leaves this one as of `on`; its
+      // days here up to `on` are history and stay.
+      let next = s
+      for (const id of unique) next = closeMember(next, id, on)
+      return next
+    }
+
+    const open = new Map<string, StackMembership>()
+    for (const m of s.members) {
+      if (m.to === undefined) open.set(m.compoundId, m)
+    }
+    const kept: StackMembership[] = s.members.filter((m) => m.to !== undefined)
+    // A NEW member goes after every position ever used in this stack. Existing
+    // members keep the position they already had.
+    //
+    // Restating positions 0..n-1 on each save was wrong twice over: it rewrote
+    // the order of days already lived (the closed spans keep their old numbers,
+    // so the two schemes collide), and it bought nothing — the editor is a tick
+    // list with no way to reorder, so the only order the user can express is the
+    // order they ticked things in, which is what this preserves.
+    let nextPosition = s.members.reduce((max, m) => Math.max(max, m.position + 1), 0)
+    // A member removed EARLIER TODAY and re-added has no open span, so it would
+    // otherwise be treated as brand new and sent to the end of the row — and the
+    // editor is a tick list with no way to drag it back. Its span from today is
+    // about to be pruned as zero-length anyway, so reclaiming its position
+    // makes the round trip a genuine no-op.
+    const reclaimable = new Map<string, number>()
+    for (const m of s.members) {
+      if (m.to === on) reclaimable.set(m.compoundId, m.position)
+    }
+    for (const id of unique) {
+      const existing = open.get(id)
+      if (existing) {
+        kept.push(existing)
+        continue
+      }
+      const reclaimed = reclaimable.get(id)
+      kept.push({
+        compoundId: id,
+        from: on,
+        position: reclaimed ?? nextPosition++,
+      })
+    }
+    // Members that are gone: close them where they stood, through the SAME clamp
+    // `closeMember` uses. Writing `to: on` raw here meant the two removal paths
+    // disagreed — unticking a member in the editor with a clock that had moved
+    // backwards deleted its whole history, while deleting the compound outright
+    // correctly shortened it.
+    for (const [id, m] of open) {
+      if (!taken.has(id)) kept.push({ ...m, to: clampEnd(m.from, on) })
+    }
+    return { ...s, members: pruneEmpty(kept) }
+  })
 }
 
 /**
- * Drop a compound from whichever stack holds it — what deleting a compound
- * triggers. The stack SURVIVES with one fewer member (Spec 05), and the
- * compound's logged history is untouched because none of it lives here.
+ * End a compound's membership wherever it currently sits — what deleting a
+ * compound triggers. The stack SURVIVES with one fewer member (Spec 05), the
+ * compound's logged history is untouched because none of it lives here, and the
+ * days it WAS in the stack keep showing it there.
  */
 export function removeMemberEverywhere(
   stacks: Stack[],
-  compoundId: string
+  compoundId: string,
+  on: DateKey = todayKey()
 ): Stack[] {
-  return stacks.map((s) =>
-    s.memberIds.includes(compoundId)
-      ? { ...s, memberIds: s.memberIds.filter((id) => id !== compoundId) }
-      : s
-  )
+  return stacks.map((s) => closeMember(s, compoundId, on))
 }
 
-/** Delete the stack itself. Ungroups its members; nothing else changes. */
+/**
+ * Delete the stack itself. Ungroups its members on every day, past included.
+ *
+ * The asymmetry with member removal is deliberate: a member leaving is an
+ * ordinary forward-dated change, whereas deleting a stack is the user saying
+ * this grouping should not exist — the same "delete means gone" the rest of the
+ * app uses for a grouping that owns no history of its own. Nothing about a
+ * compound or a logged dose is touched either way.
+ */
 export function removeStack(stacks: Stack[], stackId: string): Stack[] {
   return stacks.filter((s) => s.id !== stackId)
 }
@@ -224,7 +560,18 @@ export function getStacksSnapshot(userId: string): Stack[] {
   }
   const loaded = loadStacks(userId)
   const value = loaded.length > 0 ? loaded : EMPTY_STACKS
-  snapshotCache = { userId, raw, value }
+  // Re-read the raw value: `loadStacks` MIGRATES a v1 store, which writes the v2
+  // key as a side effect. Caching under the pre-migration `raw` (null) meant the
+  // very next read missed and rebuilt a fresh array, so `useSyncExternalStore`
+  // saw two different snapshots for one unchanged store — React's dev-mode
+  // double-read warns about exactly that, and it cost an extra render.
+  let settled: string | null = raw
+  try {
+    settled = window.localStorage.getItem(storageKey(userId))
+  } catch {
+    settled = raw
+  }
+  snapshotCache = { userId, raw: settled, value }
   return value
 }
 
@@ -254,7 +601,16 @@ function commit(
     // `deleteStack` and `dropMember` both used to call this with no names, so
     // the defaulting lives HERE rather than at the call sites: a future caller
     // that forgets cannot reintroduce the bug.
-    void trackSync(pushStacks(next, names ?? memberNames(userId)))
+    //
+    // CRITICAL, not plain. `hydrateFromPostgres` awaits only `awaitCriticalSyncs()`
+    // before it reads, and hydration fires on mount, focus, visibilitychange and
+    // reconnect — including on the Protocol screen, where stack deletion lives.
+    // Tracked as ordinary, a delete raced its own push: the pull read the
+    // pre-delete row, adopted it, and wrote the stack back to the device, which
+    // the next push then restored to Postgres. The compound-archive half of
+    // `archiveInStack` is already wrapped this way for exactly the same reason;
+    // the stack half beside it was not.
+    void trackCriticalSync(pushStacks(next, names ?? memberNames(userId)))
   }
   return ok
 }
@@ -267,20 +623,33 @@ function memberNames(userId: string): Record<string, string> {
   return out
 }
 
-/** Create or update a stack (name, colour, members). Enforces one-stack-per-
- *  compound through {@link setStackMembers}. */
+/**
+ * Create or update a stack from the editing UI's present-tense draft. A NEW stack
+ * starts today — it describes the protocol from here forward, not the history
+ * behind it. Enforces one-stack-per-compound through {@link setStackMembers}.
+ */
 export function upsertStack(
   userId: string,
-  stack: Stack,
+  draft: StackDraft,
   /** Member id → compound name, so the mirror can resolve a diverged id. */
   names?: Record<string, string>
 ): boolean {
   const cur = loadStacks(userId)
-  const exists = cur.some((s) => s.id === stack.id)
-  const base = exists
-    ? cur.map((s) => (s.id === stack.id ? stack : s))
-    : [...cur, stack]
-  return commit(userId, setStackMembers(base, stack.id, stack.memberIds), names)
+  const existing = cur.find((s) => s.id === draft.id)
+  const today = todayKey()
+  const next: Stack = existing
+    ? { ...existing, name: draft.name, colour: draft.colour }
+    : {
+        id: draft.id,
+        name: draft.name,
+        colour: draft.colour,
+        effectiveFrom: today,
+        members: [],
+      }
+  const base = existing
+    ? cur.map((s) => (s.id === draft.id ? next : s))
+    : [...cur, next]
+  return commit(userId, setStackMembers(base, draft.id, draft.memberIds, today), names)
 }
 
 /** Delete a stack. Ungroups its members; every compound keeps running. */
@@ -288,49 +657,206 @@ export function deleteStack(userId: string, stackId: string): boolean {
   return commit(userId, removeStack(loadStacks(userId), stackId))
 }
 
-/** Drop a compound from whichever stack holds it — called when it is deleted. */
+/**
+ * End a compound's membership wherever it sits — called when it is deleted.
+ *
+ * The stack is NOT dissolved when its last member goes, unlike before: the days
+ * it grouped are still days it grouped, and deleting the row would rewrite them.
+ * It simply stops being current, and `activeStacks` keeps it out of every
+ * present-tense screen, so there is no empty card to get stuck with either.
+ */
 export function dropMember(userId: string, compoundId: string): boolean {
   const cur = loadStacks(userId)
   if (!stackOf(cur, compoundId)) return true // nothing to do
-  // A stack whose LAST member is deleted is dissolved rather than left as an
-  // empty card the user can only escape by deleting it. A stack reduced to ONE
-  // member is left alone — the spec says that stays a stack.
-  const next = removeMemberEverywhere(cur, compoundId).filter(
-    (s) => s.memberIds.length > 0
-  )
-  return commit(userId, next)
+  return commit(userId, removeMemberEverywhere(cur, compoundId))
 }
 
 /* ---------------------------------------------------------------- internals */
 
-/** Belt-and-braces for stored data: if two stacks somehow claim the same
- *  compound, the FIRST keeps it. Reading can then never show a compound twice. */
+/**
+ * Belt-and-braces for stored data: if two stacks somehow hold an OPEN span for
+ * the same compound, the one that STARTED MOST RECENTLY keeps it, and the other
+ * is CLOSED where it begins. Reading can then never show a compound in two
+ * stacks at once.
+ *
+ * Latest-start wins because that is what a duplicate actually is: the user moved
+ * the compound and the older stack kept a stale open end. Taking whichever stack
+ * happened to sort first got this backwards — stacks are held in creation order
+ * everywhere (`upsertStack` appends, `pullStacks` orders by `created_at`), so
+ * "first" meant OLDEST, which undid the user's most recent move and could empty
+ * the stack they had just built.
+ *
+ * Closing rather than deleting matters just as much: the loser may have grouped
+ * the compound legitimately for months before the move, and those days are real.
+ * A loser that starts on or after the winner covered nothing and prunes away.
+ *
+ * Closed spans are left alone: a compound that genuinely moved between stacks has
+ * one in each, and that is history, not a duplicate.
+ */
 function dedupeMembership(stacks: Stack[]): Stack[] {
-  const seen = new Set<string>()
-  return stacks.map((s) => {
-    const memberIds: string[] = []
-    for (const id of s.memberIds) {
-      if (seen.has(id)) continue
-      seen.add(id)
-      memberIds.push(id)
+  // Winner per compound: the latest-starting open span, ties going to the first
+  // stack in order so the result is deterministic either way.
+  const winner = new Map<string, { stackId: string; from: DateKey }>()
+  for (const s of stacks) {
+    for (const m of s.members) {
+      if (m.to !== undefined) continue
+      const cur = winner.get(m.compoundId)
+      if (!cur || m.from > cur.from) {
+        winner.set(m.compoundId, { stackId: s.id, from: m.from })
+      }
     }
-    return { ...s, memberIds }
+  }
+  return stacks.map((s) => {
+    const members: StackMembership[] = []
+    for (const m of s.members) {
+      if (m.to !== undefined) {
+        members.push(m)
+        continue
+      }
+      const won = winner.get(m.compoundId)
+      if (!won || won.stackId === s.id) {
+        members.push(m)
+        continue
+      }
+      members.push({ ...m, to: won.from < m.from ? m.from : won.from })
+    }
+    return { ...s, members: pruneEmpty(members) }
   })
 }
 
-function normalizeStack(item: unknown): Stack | null {
+/**
+ * Harden one stored membership. Returns null for anything unusable.
+ *
+ * A `to` that is present but unusable (unparseable, or earlier than `from`) DROPS
+ * the membership rather than reopening it. Reopening was the tempting reading —
+ * "we don't know when it left, so assume it didn't" — but it silently pulls a
+ * compound back into a stack it had left, and because an open span occupies the
+ * global one-stack-per-compound slot, it then hides that compound from every
+ * other stack's member picker with no way for the user to see why.
+ */
+function normalizeMembership(
+  raw: unknown,
+  index: number,
+  fallbackFrom: DateKey
+): StackMembership | null {
+  if (!raw || typeof raw !== "object") return null
+  const m = raw as Record<string, unknown>
+  if (typeof m.compoundId !== "string" || m.compoundId === "") return null
+  const from = isDateKey(m.from) ? m.from : fallbackFrom
+  const departed = m.to !== undefined && m.to !== null
+  const to = isDateKey(m.to) ? m.to : undefined
+  // `to === from` is the same-day departure record {@link pruneEmpty} keeps, so
+  // only a genuinely inverted span is unusable.
+  if (departed && (to === undefined || to < from)) return null
+  const position =
+    typeof m.position === "number" && Number.isFinite(m.position)
+      ? Math.trunc(m.position)
+      : index
+  return {
+    compoundId: m.compoundId,
+    from,
+    ...(to !== undefined ? { to } : {}),
+    position,
+    ...(m.provisionalFrom === true ? { provisionalFrom: true as const } : {}),
+  }
+}
+
+/**
+ * A real calendar day, not merely the right shape. The shape-only check accepted
+ * "2026-13-45", which passes every span comparison here (they are string
+ * compares) and only fails at the database, on an insert that runs after the
+ * membership wipe — so one corrupt local record emptied the durable mirror and
+ * kept doing so on every push.
+ */
+function isDateKey(v: unknown): v is DateKey {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false
+  const [y, m, d] = v.split("-").map(Number)
+  const date = new Date(y, m - 1, d)
+  return (
+    date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d
+  )
+}
+
+/** The day after `key`. Used to end a membership that cannot end where it began. */
+function nextDay(key: DateKey): DateKey {
+  const [y, m, d] = key.split("-").map(Number)
+  return toDateKey(new Date(y, m - 1, d + 1))
+}
+
+/**
+ * Harden a stored stack, accepting BOTH shapes: the dated one, and the
+ * pre-dating `{ memberIds: string[] }` (converted against `legacyFrom`).
+ *
+ * `legacyFrom` is only supplied by {@link migrateLegacy}. A v2 record that has
+ * somehow lost its dates falls back to today for the same reason: under-grouping
+ * is recoverable from Postgres, falsely grouping the past is the bug.
+ */
+function normalizeStack(item: unknown, legacyFrom?: DateKey): Stack | null {
   if (!item || typeof item !== "object") return null
   const s = item as Record<string, unknown>
   if (typeof s.id !== "string" || typeof s.name !== "string") return null
   const name = s.name.trim().slice(0, STACK_NAME_MAX)
   if (name === "") return null
-  const memberIds = Array.isArray(s.memberIds)
-    ? s.memberIds.filter((m): m is string => typeof m === "string")
-    : []
+
+  const stored = s.effectiveFrom
+  const effectiveFrom: DateKey = isDateKey(stored)
+    ? stored
+    : (legacyFrom ?? todayKey())
+  // Either the v1 migration, a v2 record that lost its date, or a record already
+  // flagged on a previous read: the day above is a guess, and must not be pushed
+  // over the server's real one.
+  //
+  // READING THE STORED FLAG BACK is what makes it work at all. Without it the
+  // flag lived only in the object `migrateLegacy` returned: the very next
+  // `loadStacks` saw a valid `effectiveFrom`, dropped the flag, and the next push
+  // wrote the guess over the server's `created_at`-derived date — destroying the
+  // only accurate copy and making the correction in `hydrateStacks` a no-op.
+  // Every consumer calls `loadStacks` directly, so "the next read" is the first
+  // thing that happens.
+  const provisional =
+    !isDateKey(stored) || legacyFrom !== undefined || s.provisionalStart === true
+
+  let members: StackMembership[] = []
+  if (Array.isArray(s.members) && s.members.length > 0) {
+    const seen = new Set<string>()
+    s.members.forEach((raw, i) => {
+      const m = normalizeMembership(raw, i, effectiveFrom)
+      if (!m) return
+      // One OPEN span per compound per stack; closed ones may repeat, and the
+      // key must carry `to` as well as `from`. Keyed on the pair alone, a
+      // same-day DEPARTURE RECORD (`to === from === D`) and the span created by
+      // re-joining that same day (which starts on D and reclaims its position)
+      // collide — so when the re-join is later closed for real, the read dropped
+      // the real span and kept the empty one, erasing weeks of grouping from the
+      // device and, on the next push, from Postgres.
+      const key =
+        m.to === undefined
+          ? `open:${m.compoundId}`
+          : `${m.compoundId}:${m.from}:${m.to}`
+      if (seen.has(key)) return
+      seen.add(key)
+      members.push(m)
+    })
+  } else if (Array.isArray(s.memberIds)) {
+    // Pre-dating record: every member is treated as having joined when the stack
+    // itself starts, which is the only claim the old shape supports — and is
+    // flagged as the guess it is, so `adoptStart` can correct it later without
+    // touching anything the user adds from here on.
+    const ids = [...new Set(s.memberIds.filter((m): m is string => typeof m === "string"))]
+    members = ids.map((compoundId, position) => ({
+      compoundId,
+      from: effectiveFrom,
+      position,
+      ...(provisional ? { provisionalFrom: true as const } : {}),
+    }))
+  }
+
   return {
     id: s.id,
     name,
     colour: isPaletteColour(s.colour) ? s.colour : DEFAULT_PALETTE_COLOUR,
-    memberIds: [...new Set(memberIds)],
+    effectiveFrom,
+    ...(provisional ? { provisionalStart: true as const } : {}),
+    members: pruneEmpty(members),
   }
 }
