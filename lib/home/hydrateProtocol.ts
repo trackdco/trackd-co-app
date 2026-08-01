@@ -44,6 +44,7 @@ import {
   notifyStacksChanged,
   saveStacks,
   type Stack,
+  type StackMembership,
 } from "@/lib/home/stacks"
 
 /** Pull Postgres (canonical) + the jsonb mirror, merge with local, and write the
@@ -350,56 +351,54 @@ function mergeAndSave(
  * Fold the pulled stacks into the device store — the half that was missing, and
  * why a stack did not survive a reinstall.
  *
- * Three rules, each of which was a bug first:
+ * **The device is authoritative.** The server contributes exactly two things: the
+ * real start date when ours is only a migration guess, and any membership we have
+ * never heard of. It used to be the other way round — a fully-resolving pull
+ * replaced the local stack outright — and that silently reverted every stack edit
+ * made offline (nothing re-pushes stacks on reconnect), deleted any member the
+ * push could not send (an unmigrated custom), and, once `013`'s backfill landed,
+ * overwrote real join dates with the stack's creation day.
  *
- *  - **Membership is judged against the MERGED LOCAL stack, not the Postgres
- *    pull.** `pullProtocolStackAndLogs` skips rows with a NULL `compound_id`,
- *    which is every CUSTOM compound — yet customs do have `protocol_compounds`
- *    rows and do get `stack_members` rows. Judging against the pull therefore
- *    declared every custom member unresolvable and quietly dropped it from the
- *    stack on the next focus event, then pushed the truncated list up.
- *  - **A stack is only adopted when its membership FULLY resolves.** Partial
- *    adoption silently discards whatever didn't map; an empty adoption (on a
- *    fresh device, where there is no local stack to fall back to) leaves a card
- *    with nothing in it and no way to tell what it held.
+ * Two things follow from it:
  *  - **Local member ids follow `idRemap`.** `mergeAndSave` can re-point a
  *    compound's local id at its Postgres row; a stack still holding the old id
  *    would render with no members.
+ *  - **A stack with no local counterpart is kept even when its members do not
+ *    resolve.** This list is what the next `pushStacks` mirrors back up, so
+ *    dropping it deletes the stack — and its whole dated history — from Postgres.
+ *    Resolvability is no longer a gate anywhere here.
  *
  * An empty pull is NO NEWS, never "the user deleted everything".
  */
-/**
- * Fold the server's stack into the DEVICE's, rather than the other way round.
- *
- * The device is authoritative here, and the server contributes exactly two
- * things: the real start date when ours is only a migration guess, and any
- * membership we have never heard of. Adopting the server's copy wholesale (or
- * merging by `compoundId|from`, which is the same thing whenever the two
- * disagree about a date) broke three separate ways:
- *
- *  - A member with no `protocol_compounds` row yet (an unmigrated custom).
- *    `pushStacks` skips it deliberately — "the device store still holds the
- *    membership" — and the merge then deleted the device's copy too.
- *  - Any stack edit made OFFLINE. Nothing re-pushes stacks on reconnect, so the
- *    next hydration reverted it: an added member undid itself, and a REMOVED one
- *    came back, because the removal changes a span's `to` and not its key.
- *  - Once `013` runs, its backfill dates every pre-existing membership to its
- *    stack's creation day, which is earlier than the real join date the device
- *    recorded for anything added before the migration was applied. Taking the
- *    server's version there restores the original bug outright — a member
- *    grouped on days before it joined — and leaves no local copy to recover from.
- *
- * So a compound the device knows about keeps the device's spans, ALL of them.
- * That is the same "local intent is freshest" rule `mergeAndSave` applies to a
- * compound's `archived` flag, and rests on the same single-device assumption
- * stated there. It is also the non-destructive direction: the worst case is a
- * membership lingering until the next successful push, rather than history
- * disappearing with no way back.
- */
-export function mergeStack(pulled: Stack, local: Stack): Stack {
+function placedElsewhere(local: Stack[], exceptStackId: string): Set<string> {
+  const out = new Set<string>()
+  for (const s of local) {
+    if (s.id === exceptStackId) continue
+    for (const m of s.members) {
+      if (m.to === undefined) out.add(m.compoundId)
+    }
+  }
+  return out
+}
+
+export function mergeStack(
+  pulled: Stack,
+  local: Stack,
+  /** Compounds the device currently has in some OTHER stack. A pulled membership
+   *  for one of those is a stale placement, not news. */
+  placedElsewhere: ReadonlySet<string> = new Set()
+): Stack {
   const base = adoptStart(local, pulled)
   const known = new Set(local.members.map((m) => m.compoundId))
-  const extra = pulled.members.filter((m) => !known.has(m.compoundId))
+  // `known` alone is not enough. Moving a compound between stacks ON THE DAY IT
+  // JOINED prunes its span in the old stack to nothing (it covered no day), so
+  // the device's record of the move is an ABSENCE — and the server's pre-move
+  // open span was re-adopted as an extra. The compound was then open in two
+  // stacks, and `dedupeMembership`'s same-day tie went to the older one, so the
+  // move was undone and the stack the user had just built was emptied and hidden.
+  const extra = pulled.members.filter(
+    (m) => !known.has(m.compoundId) && !placedElsewhere.has(m.compoundId)
+  )
   return extra.length === 0
     ? base
     : { ...base, members: [...base.members, ...extra] }
@@ -426,13 +425,19 @@ export function adoptStart(local: Stack, pulled: Stack): Stack {
   const guessed = local.effectiveFrom
   const { provisionalStart, ...rest } = local
   void provisionalStart
-  if (serverFrom >= guessed) return rest
+  // A member the user ticked in ON the migration day carries the guessed date
+  // honestly, so the date alone cannot say which spans to move — only the flag
+  // `migrateLegacy` set on the ones it invented can.
+  const undoGuess = (m: StackMembership): StackMembership => {
+    if (m.provisionalFrom !== true) return m
+    const { provisionalFrom, ...span } = m
+    void provisionalFrom
+    return serverFrom < span.from ? { ...span, from: serverFrom } : span
+  }
   return {
     ...rest,
-    effectiveFrom: serverFrom,
-    members: local.members.map((m) =>
-      m.from === guessed ? { ...m, from: serverFrom } : m
-    ),
+    effectiveFrom: serverFrom < guessed ? serverFrom : guessed,
+    members: local.members.map(undoGuess),
   }
 }
 
@@ -496,7 +501,7 @@ function hydrateStacks(
       // runs, so it wins outright.
       merged.push(loc)
     } else {
-      merged.push(mergeStack(p, loc))
+      merged.push(mergeStack(p, loc, placedElsewhere(remapped, p.id)))
     }
   }
   for (const leftover of localById.values()) merged.push(leftover)

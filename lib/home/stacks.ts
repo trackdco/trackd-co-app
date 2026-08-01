@@ -61,6 +61,18 @@ export interface StackMembership {
   to?: DateKey
   /** Display order within the stack. Mirrors `stack_members.position` 1:1. */
   position: number
+  /**
+   * TRUE when `from` is the v1→v2 migration's guess rather than a record, the
+   * membership-level counterpart of {@link Stack.provisionalStart}.
+   *
+   * A flag is the only thing that can tell the two apart. `adoptStart` used to
+   * correct any span whose `from` equalled the stack's guessed start — but a
+   * member the user ticked in ON the migration day carries that same date
+   * honestly, so it was dragged back to the stack's real creation day and
+   * rendered on weeks before it joined. That is Adrian's original report,
+   * reintroduced for exactly the users the dating change exists to protect.
+   */
+  provisionalFrom?: boolean
 }
 
 export interface Stack {
@@ -230,7 +242,7 @@ function byPosition(a: StackMembership, b: StackMembership): number {
 }
 
 /** Was this stack grouping anything yet on `dateKey`? */
-export function stackStartedOn(stack: Stack, dateKey: DateKey): boolean {
+function stackStartedOn(stack: Stack, dateKey: DateKey): boolean {
   return dateKey >= stack.effectiveFrom
 }
 
@@ -730,6 +742,7 @@ function normalizeMembership(
     from,
     ...(to !== undefined ? { to } : {}),
     position,
+    ...(m.provisionalFrom === true ? { provisionalFrom: true as const } : {}),
   }
 }
 
@@ -802,12 +815,15 @@ function normalizeStack(item: unknown, legacyFrom?: DateKey): Stack | null {
     })
   } else if (Array.isArray(s.memberIds)) {
     // Pre-dating record: every member is treated as having joined when the stack
-    // itself starts, which is the only claim the old shape supports.
+    // itself starts, which is the only claim the old shape supports — and is
+    // flagged as the guess it is, so `adoptStart` can correct it later without
+    // touching anything the user adds from here on.
     const ids = [...new Set(s.memberIds.filter((m): m is string => typeof m === "string"))]
     members = ids.map((compoundId, position) => ({
       compoundId,
       from: effectiveFrom,
       position,
+      ...(provisional ? { provisionalFrom: true as const } : {}),
     }))
   }
 

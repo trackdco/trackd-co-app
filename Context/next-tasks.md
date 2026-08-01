@@ -27,11 +27,19 @@ drew today's grouping over every day in history. Fixed by dating the stack and
 each membership — Spec 01's forward-only rule applied to the one part of the
 protocol that was missing it. See `architecture.md` → Stacks.
 
-**⚠️ NEEDS ADRIAN: `supabase/protocol/013_stack_dating.sql` must be run in the
-Supabase SQL Editor.** The app tolerates the un-migrated state (it retries every
-read and write without the new columns), so nothing breaks before it runs — but
-stacks stay undated in Postgres until it does, and the device-side dating cannot
-be corrected from `created_at`.
+**⚠️ NEEDS ADRIAN, AT RELEASE: `supabase/protocol/013_stack_dating.sql` must be
+run in the Supabase SQL Editor.** Treat it as a release gate, not a follow-up.
+The app tolerates the un-migrated state — every read and write retries without
+the new columns, and a pre-013 pull is marked provisional so the device's own
+dating wins — so nothing BREAKS before it runs. But until it does, an existing
+stack under-groups its own past: the v1→v2 device migration can only date a
+stack to the day of the upgrade, and the correction it is waiting for
+(`stacks.created_at`) cannot arrive over a pre-013 pull. Run the SQL, then open
+the app once; the first dated pull repairs every stack.
+
+Once 013 is applied everywhere, the pre-013 tolerance in `lib/home/stackSync.ts`
+(`isUndefinedColumn` and its three retry paths, plus `provisionalStart`) is dead
+code and can come out.
 
 **The other two branches are pushed and NEITHER is merged.**
 

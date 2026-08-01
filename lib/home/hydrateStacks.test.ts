@@ -14,7 +14,12 @@
 import { describe, expect, it } from "vitest"
 
 import { adoptStart, mergeStack } from "./hydrateProtocol"
-import { currentMemberIds, memberIdsOn, type Stack } from "./stacks"
+import {
+  currentMemberIds,
+  memberIdsOn,
+  type Stack,
+  type StackMembership,
+} from "./stacks"
 
 const base = (over: Partial<Stack> = {}): Stack => ({
   id: "s1",
@@ -122,35 +127,79 @@ describe("the 013 backfill must not overwrite a real join date", () => {
   })
 })
 
+describe("a move the server has not seen yet", () => {
+  it("does not re-adopt a compound the device has moved to another stack TODAY", () => {
+    // The same-day move prunes the old stack's span to nothing (it covered no
+    // day), so the device's record of the move is an ABSENCE — and the pulled
+    // pre-move span was adopted straight back, putting the compound in two
+    // stacks. `dedupeMembership`'s same-day tie then went to the OLDER stack, so
+    // the move was undone and the stack the user had just built was emptied.
+    const oldStack = base({ id: "morning", name: "Morning", members: [
+      { compoundId: "tren", from: "2026-07-10", position: 0 },
+    ] })
+    const pulledOld = base({ id: "morning", name: "Morning", members: [
+      { compoundId: "tren", from: "2026-07-10", position: 0 },
+      { compoundId: "creatine", from: "2026-07-10", position: 1 },
+    ] })
+    const merged = mergeStack(pulledOld, oldStack, new Set(["creatine"]))
+    expect(currentMemberIds(merged)).toEqual(["tren"])
+  })
+
+  it("still adopts a genuinely unknown member", () => {
+    const local = base({ members: [{ compoundId: "a", from: "2026-06-01", position: 0 }] })
+    const pulled = base({ members: [
+      { compoundId: "a", from: "2026-06-01", position: 0 },
+      { compoundId: "unknown", from: "2026-06-05", position: 1 },
+    ] })
+    expect(currentMemberIds(mergeStack(pulled, local, new Set(["elsewhere"])))).toEqual([
+      "a",
+      "unknown",
+    ])
+  })
+})
+
 describe("adoptStart — correcting a migration guess", () => {
   const guessed = base({ effectiveFrom: "2026-08-01", provisionalStart: true })
-  const withMember = (s: Stack, from: string): Stack => ({
-    ...s,
-    members: [{ compoundId: "a", from, position: 0 }],
+  /** A span the v1 migration invented — the only kind adoptStart may move. */
+  const invented = (compoundId: string, position: number): StackMembership => ({
+    compoundId,
+    from: "2026-08-01",
+    position,
+    provisionalFrom: true,
   })
 
   it("takes the server's earlier date, and pulls the guessed spans back with it", () => {
     // Moving the stack's gate alone leaves every recovered day with no members
     // in force, which renders exactly as if nothing had been corrected.
-    const local = withMember(guessed, "2026-08-01")
-    const pulled = base({ effectiveFrom: "2026-05-01" })
-    const out = adoptStart(local, pulled)
+    const local: Stack = { ...guessed, members: [invented("a", 0)] }
+    const out = adoptStart(local, base({ effectiveFrom: "2026-05-01" }))
     expect(out.effectiveFrom).toBe("2026-05-01")
     expect(memberIdsOn(out, "2026-06-15")).toEqual(["a"])
     expect(out.provisionalStart).toBeUndefined()
+    expect(out.members[0].provisionalFrom).toBeUndefined()
   })
 
   it("leaves a member that genuinely joined after the guess alone", () => {
     const local: Stack = {
       ...guessed,
-      members: [
-        { compoundId: "a", from: "2026-08-01", position: 0 },
-        { compoundId: "later", from: "2026-08-05", position: 1 },
-      ],
+      members: [invented("a", 0), { compoundId: "later", from: "2026-08-05", position: 1 }],
     }
     const out = adoptStart(local, base({ effectiveFrom: "2026-05-01" }))
     expect(memberIdsOn(out, "2026-06-15")).toEqual(["a"])
     expect(memberIdsOn(out, "2026-08-05")).toEqual(["a", "later"])
+  })
+
+  it("leaves a member added ON the migration day alone — the date alone cannot tell", () => {
+    // Adrian's original report, in the one place it could come back: a member
+    // ticked in on the day the store was migrated carries the guessed date
+    // HONESTLY, so back-dating it renders it on weeks before it joined.
+    const local: Stack = {
+      ...guessed,
+      members: [invented("creatine", 0), { compoundId: "d3", from: "2026-08-01", position: 1 }],
+    }
+    const out = adoptStart(local, base({ effectiveFrom: "2026-05-01" }))
+    expect(memberIdsOn(out, "2026-06-15")).toEqual(["creatine"])
+    expect(memberIdsOn(out, "2026-08-01")).toEqual(["creatine", "d3"])
   })
 
   it("clears the flag even when the server's date is no earlier", () => {

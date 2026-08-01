@@ -618,6 +618,24 @@ exist as single catalogue compounds and are untouched.
   moved between stacks. `membersOn` de-duplicates on read as the last line of
   defence, because overlapping spans are not structurally impossible (a device
   clock that moves backwards, or two client ids that later resolve to one row).
+- **Hydration is DEVICE-AUTHORITATIVE** (`hydrateStacks` → `mergeStack`). The
+  server contributes exactly two things: the real start date when the device's is
+  only a v1-migration guess (`Stack.provisionalStart` /
+  `StackMembership.provisionalFrom`, cleared by `adoptStart` once corrected), and
+  any membership the device has never heard of. It used to be the reverse — a
+  fully-resolving pull replaced the local stack outright — which silently
+  reverted every stack edit made offline (nothing re-pushes stacks on reconnect),
+  deleted any member the push could not send, and overwrote real join dates with
+  013's backfill. Resolvability is no longer a gate: a pulled stack is kept even
+  when its members don't resolve, because this list is what the next push mirrors
+  back up and dropping it would delete the stack from Postgres.
+- **The client tolerates a database without 013** (`isUndefinedColumn`, the same
+  helper `protocolSync.ts` uses for the 006 cycle columns). Migrations here are
+  applied by hand, so the un-migrated state is one the deployed code sits in:
+  reads retry without the dating columns and mark the result provisional; writes
+  retry with the columns stripped and send OPEN spans only, since the pre-013 key
+  is `(stack_id, protocol_compound_id)` and closed spans would collide. All of it
+  becomes dead once 013 has run everywhere.
 - **A stack that empties is retired, not erased.** Deleting its last member closes
   the span and leaves the stack in the store, so the days it grouped still read
   correctly; `activeStacks()` keeps it off every present-tense screen so there is

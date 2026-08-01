@@ -628,22 +628,33 @@ dashboard was showing.
   abandoning. A migrated stack's start is a GUESS ("today"), flagged
   `provisionalStart` so `pushStacks` omits the column and `hydrateStacks` adopts
   the server's real `created_at`-derived date instead.
-- Three review rounds, seven cold agents. Round 1 found 1 CRITICAL + 4 HIGH;
-  round 2 found a new CRITICAL introduced BY the round-1 fix (the pre-013 write
-  retry sent every span as its own row, which the old key rejected) plus a dead
-  `provisionalStart` flag; round 3 found a same-day boundary bug introduced by
-  the round-2 clamp, and two removal paths that disagreed. The round-1 findings
-  were: no missing-COLUMN tolerance in `stackSync.ts` (the un-migrated state
+- **Five review rounds, eleven cold agents, and every round but the last found a
+  defect introduced by the previous round's fix.** Round 1: 1 CRITICAL + 4 HIGH
+  (below). Round 2: a new CRITICAL created BY the round-1 fix — the pre-013 write
+  retry sent every span as its own row, which the old key rejects — plus a
+  `provisionalStart` flag that was written and never read. Round 3: a clamp
+  written `<=` where it needed `<`, which broke the ordinary same-day move while
+  fixing a rare backwards-clock case, and two removal paths that disagreed.
+  Round 4: a merge that built its map device-last so the device would win, then
+  discarded the result unless a new key appeared. Round 5: the same-day move
+  again (the device's record of it is an ABSENCE, so the server's stale span was
+  re-adopted) and `adoptStart` back-dating a member added ON the migration day.
+  The pattern was always the same shape — the server's copy quietly overwriting
+  something only the device knew — and the fix that finally held was to state one
+  rule (`mergeStack`: the device is authoritative) instead of three branches with
+  three policies, and to give the pure merge functions their own tests. The
+  round-1 findings were: no missing-COLUMN tolerance in `stackSync.ts` (the un-migrated state
   broke every push and pull); `pushStacks` wiped membership before knowing it
   could rebuild it; `hydrateStacks` judged resolution on current members only and
   dropped closed spans; stack mutations were not `trackCriticalSync`, so
   hydration raced a delete and resurrected it.
-- **Known and accepted (narrow):** a v1 store that is edited in the window
-  between the upgrade and the first successful hydration can push its guessed
-  member-span dates to Postgres, and a stack inserted while provisional takes the
-  database's UTC `CURRENT_DATE`. Both need a stack edit before the first cloud
-  pull lands on an upgrading device. Applying 013 and opening the app once closes
-  the window.
+- **Known and accepted:** a stack inserted into Postgres while its start date is
+  still provisional takes the database's UTC `CURRENT_DATE`, which is a day out
+  for a far-enough offset; and a member removed on a SECOND device is re-inserted
+  by this device's next push (`mergeStack` is device-authoritative — the
+  single-device assumption `mergeAndSave` already states). A retired stack is
+  also unreachable to delete, by design: it is hidden from every present-tense
+  screen but kept so the days it grouped still read correctly.
 - **Decision — a past day still shows due-but-unlogged compounds.** Adrian asked
   whether they should only show what was logged; they should not. "Due and not
   logged" IS the missed-dose concept, and day status, Consistency, the calendar
