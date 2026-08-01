@@ -155,12 +155,12 @@ export function NotesCompare() {
         ref={boxRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        className="relative h-[20rem] w-full touch-none select-none overflow-hidden rounded-2xl bg-bg-base"
+        className="relative h-[16.5rem] w-full touch-none select-none overflow-hidden rounded-2xl bg-bg-base"
       >
         {/* Panel A — the Notes app. Deliberately ugly: monospaced, unaligned,
             question marks where a figure should be. */}
         <div className="absolute inset-0 p-4" aria-hidden>
-          <div className="space-y-[3px]">
+          <div className="space-y-[2px]">
             {NOTES_LINES.map((line, i) => (
               <p
                 key={i}

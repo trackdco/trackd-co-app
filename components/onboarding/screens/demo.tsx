@@ -186,10 +186,9 @@ export function DemoScreen() {
   const [recent, setRecent] = useState<readonly string[]>(DEMO_RECENT_SITES);
   const fired = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** The card the current stage just added, and the footer under everything.
-   *  Both are scroll TARGETS now that the page is what scrolls. */
+  /** The scrolling card column, and the card the current stage just added. */
+  const scrollRef = useRef<HTMLDivElement>(null);
   const newestCardRef = useRef<HTMLDivElement>(null);
-  const footerRef = useRef<HTMLElement>(null);
 
   const index = STAGES.indexOf(stage);
 
@@ -232,40 +231,25 @@ export function DemoScreen() {
   );
 
   /**
-   * THE PAGE is what scrolls, in two beats.
+   * A new stage arrives below the last, so bring the TOP of its card into view.
    *
-   * This used to call `scrollTo` on the card column, which stopped being a
-   * scroll container the moment the pinned layout came out — so it silently did
-   * nothing, and on the site stage the Next button sat at 829px in an 844
-   * viewport with nothing to bring it up. Measured. That is the "there's no
-   * Next button" Adrian hit: it was there, 221px below the fold on his phone,
-   * and the nudge pointing at it was off-screen too.
-   *
-   * Beat one, here: a new stage arrives, so bring the TOP of the new card into
-   * view. You want to see the thing that just appeared, not the button under it.
+   * The CARD COLUMN is the scroll container again, not the page — the footer is
+   * pinned, so the Next button never needs scrolling to. This has been both
+   * ways: while the flow briefly scrolled as one page, this scrolled an element
+   * that was no longer a scroll container and silently did nothing, which put
+   * the button 221px below the fold on a real phone. If the pinning is ever
+   * removed again, this has to move with it.
    */
   useEffect(() => {
     if (index === 0) return;
     const el = newestCardRef.current;
-    if (!el) return;
-    const id = window.setTimeout(
-      () => el.scrollIntoView({ block: "start", behavior: "smooth" }),
-      140,
-    );
+    const port = scrollRef.current;
+    if (!el || !port) return;
+    const id = window.setTimeout(() => {
+      port.scrollTo({ top: el.offsetTop - port.offsetTop, behavior: "smooth" });
+    }, 140);
     return () => window.clearTimeout(id);
   }, [index]);
-
-  /**
-   * Beat two: the stage's action is DONE, so bring the Next button into view.
-   * Fires from the same places that arm the nudge, so the button glides up and
-   * lifts rather than nudging somewhere nobody can see.
-   */
-  const revealNext = () => {
-    window.setTimeout(
-      () => footerRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }),
-      420,
-    );
-  };
 
   /** The tap that starts everything. Guarded so a double-tap fires once. */
   const onLog = () => {
@@ -349,7 +333,7 @@ export function DemoScreen() {
   const showHistory = stage === "history";
 
   return (
-    <div className="flex flex-1 flex-col px-5 pt-2">
+    <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
       <header
         className={cn(
           "shrink-0 space-y-3 text-center transition-[padding-top] duration-[760ms] motion-reduce:transition-none",
@@ -377,8 +361,9 @@ export function DemoScreen() {
           cards arrive the padding collapses and the whole column glides up on
           the same slow-fast-slow curve the cards use. */}
       <div
+        ref={scrollRef}
         className={cn(
-          "flex flex-1 flex-col justify-start gap-3 pb-2",
+          "flex min-h-0 flex-1 flex-col justify-start gap-3 overflow-y-auto overflow-x-hidden pb-2",
           "transition-[padding-top] duration-[760ms] motion-reduce:transition-none",
           index === 0 ? "pt-6" : "pt-4",
         )}
@@ -433,7 +418,6 @@ export function DemoScreen() {
                   // opposite of what it is there for. The way out is offered,
                   // not taken for them.
                   armNudge("site", NUDGE_AFTER_TAP_MS);
-                  revealNext();
                 }}
               />
             )}
@@ -443,10 +427,7 @@ export function DemoScreen() {
         {showHistory && <HistoryPanel cardRef={newestCardRef} />}
       </div>
 
-      <footer
-        ref={footerRef}
-        className="shrink-0 space-y-3 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
-      >
+      <footer className="shrink-0 space-y-3 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         {stage === "log" && !logged ? (
           <p className="text-center text-xs text-text-subtle">Tap to log</p>
         ) : (

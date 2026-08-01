@@ -402,46 +402,51 @@ than designed. **Applies to `/onboarding` only for now.** Rolling it through
 the app is its own deliberate pass, not something to sprinkle screen by screen
 (that is how a design system ends up with four slightly different cards).
 
-### Rule: a full-screen flow is ONE PAGE, sized in `svh`, never `dvh`
+### Rule: a full-screen flow is PINNED, and sized in `svh`, never `dvh`
 
 `.flow-viewport` in `globals.css`, and it is the only place **`/onboarding`**
-writes a full-screen height. The rest of the app still uses `min-h-dvh` (the
-`(app)` shell, `/login`, `/welcome`, `/admin`, every `/preview/*`); migrating it
-is its own deliberate pass and is NOT implied by this rule.
+writes a full-screen height. The rest of the app still uses `min-h-dvh`;
+migrating it is its own deliberate pass and is NOT implied by this rule.
 
-**A MINIMUM height, and the page scrolls as one.** The CTA sits at the end of
-the content, not pinned to the bottom of the viewport. A pinned header and
-footer with the body scrolling between them was built and rejected (Adrian,
-2026-08-01: "I don't like how the buttons stick to the screen ... make it how it
-was before where it was just all on one page").
+**A FIXED height. The header and the CTA are pinned and the body scrolls
+between them.** Both models were built and tried on a real phone: one page with
+the CTA at the end of the content was Adrian's call on 2026-08-01 and he
+reversed it the same day, because several of these screens are taller than an
+iPhone's viewport once Safari's bars are up, so the only action on the screen
+landed below the fold with nothing to say it was there.
 
-**`svh`, not `dvh`.** The three units differ by which browser-chrome state they
-measure: `lvh` assumes it is RETRACTED, `dvh` tracks whatever it is doing right
-now, and `svh` assumes it is SHOWING, the smallest the viewport ever gets. `dvh`
-is the trap and was the original report: it is correct at any instant and
-therefore moves the layout as Safari's bar collapses on scroll and returns on
-scroll-up, and iOS resolves it late enough that a screen can paint once with its
-CTA underneath the bar. `svh` is decided once. A `100vh` line goes first as the
-fallback for a browser without `svh` (iOS before 15.4).
+**`svh`, not `dvh`.** `lvh` assumes the browser chrome is RETRACTED, `dvh`
+tracks whatever it is doing right now, `svh` assumes it is SHOWING — the
+smallest the viewport ever gets. `dvh` is the trap and was the original report:
+correct at any instant, and therefore moving the layout as Safari's bar
+collapses on scroll and returns on scroll-up. `100vh` first as the fallback for
+a browser without `svh` (iOS before 15.4).
 
-**Never put `min-h-0` on the column between the shell and a screen's content.**
-This is the load-bearing half and it is easy to add by reflex. A flex item's
-default `min-height: auto` is the only thing stopping it being shrunk below its
-own content; `min-h-0` removes that protection, and with it the hook's phone
-went small and rode up the screen and the paywall's carousel compressed until it
-could not be seen at all. On a tall viewport both look identical, which is why
-this has to be a written rule rather than something you would notice.
+Two things follow, and they are the ones that break silently:
+
+- **Every screen needs its own scroll port**, or `overflow: hidden` clips it.
+  `StepFrame` provides one; hook, celebrate, welcome and demo carry their own.
+- **Every flex ancestor between the shell and a port needs `min-h-0`.** A flex
+  item's default `min-height: auto` refuses to shrink below its content, so
+  without it the column grows past the shell and the footer is clipped instead
+  of pinned — measured once at 177px of CTA outside a 660px viewport. Note this
+  is the exact OPPOSITE of what the one-page model needed, which is why the two
+  cannot be half-mixed: adding `min-h-0` under a scrolling page is what made the
+  hook's phone go small and the paywall's carousel compress to nothing.
 
 **Give the top the same respect as the bottom.** The footer has carried
 `env(safe-area-inset-bottom)` since day one; the top was missed, and on a
 notched iPhone the progress bar sat level with the clock. If the inset is
 applied as PADDING, the element must not also have a fixed height — measured
-with a 59px inset on a 40px row, the bar was pushed clean out of its own box and
+with a 59px inset on a 40px row, the bar was pushed clean out of its box and
 drawn through the first line of every headline.
 
-**Measure these, do not look at them.** Every one of the above was invisible in
-desktop Chrome at 390x844. Drive the flow at 390x660 (the same phone once
-Safari's URL bar is counted) and 360x560, with the safe-area inset simulated.
+**Measure these, do not look at them.** Every one was invisible in desktop
+Chrome at 390x844. Drive the flow at 402x700 (his actual phone once Safari's
+bars are counted) and 360x560, with the safe-area inset simulated. And note the
+stale-`.next` trap: a CSS change can sit unserved while the file on disk is
+correct, so confirm a new rule is in `document.styleSheets` before concluding
+anything about it.
 
 ### Rule: new screens reuse the system
 

@@ -52,7 +52,7 @@ function PointCard({
     <div
       aria-hidden
       className={cn(
-        "animate-flow-in pointer-events-none absolute z-20 w-[8.25rem] rounded-2xl px-3 py-2.5",
+        "animate-flow-in pointer-events-none absolute z-20 w-[7.5rem] rounded-2xl px-2.5 py-2",
         "flow-card bg-bg-surface/95 backdrop-blur-sm",
         className,
       )}
@@ -61,7 +61,7 @@ function PointCard({
       <p className="text-[9px] font-sans uppercase tracking-[0.18em] text-text-muted">
         {title}
       </p>
-      <ul className="mt-1.5 space-y-1">
+      <ul className="mt-1 space-y-0.5">
         {points.map((p) => (
           <li key={p} className="flex items-center gap-1.5">
             <Mark
@@ -90,7 +90,7 @@ export function HookScreen() {
   const { goNext } = useFlow();
 
   return (
-    <div className="relative flex flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       {HOOK_BACKDROP ? (
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
           <Image
@@ -107,7 +107,7 @@ export function HookScreen() {
         </div>
       ) : null}
 
-      <div className="relative flex flex-1 flex-col px-5 pt-2">
+      <div className="relative flex min-h-0 flex-1 flex-col px-5 pt-2">
         <header className="shrink-0 space-y-4 text-center">
           <Image
             src="/trackd-wordmark.png"
@@ -125,7 +125,8 @@ export function HookScreen() {
           </FlowTitle>
         </header>
 
-        <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 py-5">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+          <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 py-5">
           {/* The phone, with a card floating off each of two opposite corners
               (Adrian, 2026-08-01). They sit on the side they describe, which is
               the whole reason those two corners: Notes is the left panel of the
@@ -135,7 +136,7 @@ export function HookScreen() {
               `pointer-events-none` throughout: they overhang the phone, and a
               decorative layer that swallows a drag on the slider underneath it
               would break the one control on the screen. */}
-          <div className="relative mx-auto w-full max-w-[19.5rem] shrink-0">
+          <div className="relative mx-auto w-full max-w-[17rem] shrink-0">
             <DeviceFrame>
               <div className="px-2 pb-2">
                 <NotesCompare />
@@ -146,14 +147,14 @@ export function HookScreen() {
               title="Trackd"
               tone="good"
               points={["In order", "Up to date", "Counted for you"]}
-              className="-right-2 -top-3"
+              className="-right-6 -top-4"
               delay={260}
             />
             <PointCard
               title="Notes app"
               tone="bad"
               points={["Jumbled", "Out of date", "Guesswork"]}
-              className="-bottom-3 -left-2"
+              className="-bottom-4 -left-6"
               delay={420}
             />
           </div>
@@ -163,6 +164,7 @@ export function HookScreen() {
               headline rather than as a label for the control. */}
           <FlowSub className="shrink-0 text-center">Slide to see the difference.</FlowSub>
           </div>
+        </div>
 
         <footer className="shrink-0 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <FlowCta onClick={goNext}>Continue</FlowCta>

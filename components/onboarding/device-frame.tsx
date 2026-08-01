@@ -26,7 +26,7 @@ export function DeviceFrame({
   return (
     <div
       className={cn(
-        "relative mx-auto w-full max-w-[19.5rem] rounded-[2.5rem] bg-bg-surface-raised p-[3px] shadow-[0_24px_60px_-24px_rgb(0_0_0/0.9)]",
+        "relative mx-auto w-full max-w-[17rem] rounded-[2.5rem] bg-bg-surface-raised p-[3px] shadow-[0_24px_60px_-24px_rgb(0_0_0/0.9)]",
         className,
       )}
     >

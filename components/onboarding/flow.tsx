@@ -324,7 +324,7 @@ function OnboardingFlowClient() {
           18px off-frame, which without this creates a real horizontal scroll
           area for the length of the animation (measured: 408px on a 390 phone). */}
       <div className="flow-canvas flow-viewport flex flex-col overflow-x-clip">
-        <div className="relative mx-auto flex w-full max-w-md flex-1 flex-col">
+        <div className="relative mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col">
           {/* Back arrow and progress on ONE row. The back control sits in the
               LAYOUT, not over it: absolutely positioned it collided with the
               first line of a long centred headline (measured on the paywall at
@@ -378,7 +378,7 @@ function OnboardingFlowClient() {
           <div
             key={step}
             className={cn(
-              "flex flex-1 flex-col",
+              "flex min-h-0 flex-1 flex-col",
               direction === "forward" ? "animate-flow-forward" : "animate-flow-back",
               // Not tappable until it has arrived. Every CTA sits in the same
               // place in the footer, so without this a second tap ran the NEW

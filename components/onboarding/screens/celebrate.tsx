@@ -95,16 +95,17 @@ export function CelebrateScreen() {
   if (pickedSomethingElse) lines.push(SOMETHING_ELSE);
 
   return (
-    <div className="relative flex flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <Confetti />
 
-      <div className="flex flex-1 flex-col px-5 pt-2">
+      <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
         {/* Tighter than it was: Kyle's render carries its own padding, so the
             gap was reading as a hole between him and the headline. */}
         {/* Scroll port + `flex-1` wrapper, as every other screen has. Kyle is
             330px before the headline and the answer list even start, so this is
             the screen most likely to run out of room on a short phone. */}
-        <div className="flex w-full flex-1 flex-col items-center justify-center gap-2 py-2">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+          <div className="flex w-full flex-1 flex-col items-center justify-center gap-2 py-2">
           <Mascot pose="thumbs" size={330} className="-mb-4 shrink-0" />
 
           <div className="shrink-0 space-y-5 text-center">
@@ -149,6 +150,7 @@ export function CelebrateScreen() {
             </p>
           </div>
           </div>
+        </div>
 
         <footer className="shrink-0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <FlowCta onClick={goNext}>Try it now</FlowCta>

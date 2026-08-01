@@ -479,31 +479,41 @@
 
 /* The height a flow screen is laid out against.
  *
- * A MINIMUM, not a fixed height, and the page scrolls as ONE (Adrian,
- * 2026-08-01: "I don't like how the buttons stick to the screen ... make it how
- * it was before where it was just all on one page"). A pinned header and footer
- * with the body scrolling between them was tried and he did not want it: the CTA
- * belongs at the end of the content, where you scroll to it.
+ * A FIXED height, and the flow does not scroll as a page: each screen scrolls
+ * its own body between a pinned header and a pinned footer, the way a native
+ * onboarding does.
  *
- * `svh`, NOT `dvh`. The three units differ by which browser-chrome state they
- * measure: `lvh` assumes it is RETRACTED, `dvh` tracks whatever it is doing now,
- * `svh` assumes it is SHOWING — the smallest the viewport ever gets. `dvh` is
- * the trap, and it was the original report: it is correct at any instant and so
- * moves the layout as Safari's bar collapses on scroll and returns on scroll-up,
- * and iOS resolves it late enough that a screen can paint once with its CTA
- * under the bar. `svh` is decided once and never moves.
+ * Both models have now been built and tried on a real phone. One page with the
+ * CTA at the end of the content was Adrian's call on 2026-08-01 and he reversed
+ * it the same day — "maybe it needs to be pinned to the screen like it was
+ * before ... because it doesn't work still". The reason it does not work is
+ * structural rather than a matter of taste: several of these screens are taller
+ * than an iPhone's viewport once Safari's bars are up, so the primary action
+ * lands below the fold with nothing on screen to say it is there. Pinned, the
+ * one thing you can do is always visible.
  *
- * `100vh` first as the fallback for a browser with no `svh` (iOS before 15.4),
- * where a dropped declaration would collapse the flow to auto height.
+ * `svh`, NOT `dvh`. `lvh` assumes the browser chrome is RETRACTED, `dvh` tracks
+ * whatever it is doing right now, and `svh` assumes it is SHOWING — the
+ * smallest the viewport ever gets. `dvh` is the trap and was the original
+ * report: it is correct at any instant and therefore moves the layout as
+ * Safari's bar collapses on scroll and returns on scroll-up. `svh` is decided
+ * once. `100vh` first as the fallback for a browser without `svh` (iOS < 15.4).
  *
- * NOTHING between here and a screen's content may set `min-h-0`. A flex item's
- * default `min-height: auto` is the only thing stopping it being squashed below
- * its own size, and `min-h-0` removes that: with it, the hook's phone went small
- * and rode up and the paywall's carousel compressed until it could not be seen.
- * Let the page grow instead. */
+ * THE REQUIREMENT THIS CREATES: every screen needs its own internal scroll
+ * port, or `overflow: hidden` silently clips it. They all have one —
+ * `StepFrame` provides it for most, and hook / celebrate / welcome / demo carry
+ * their own. Adding a screen without one is how this breaks.
+ *
+ * AND THE CHAIN MUST BE ABLE TO SHRINK: every flex ancestor between here and a
+ * port needs `min-h-0`. A flex item's default `min-height: auto` refuses to go
+ * below its content, so without it the column grows past the shell and the
+ * footer is clipped rather than pinned — measured once at 177px of CTA outside
+ * a 660px viewport. This is the exact opposite of the rule the one-page model
+ * needed, which is why the two cannot be half-mixed. */
 .flow-viewport {
-  min-height: 100vh;
-  min-height: 100svh;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
   overscroll-behavior-y: contain;
 }
 

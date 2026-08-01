@@ -183,7 +183,7 @@ export function StepFrame({
   ) : null;
 
   return (
-    <div className={cn("flex flex-1 flex-col px-5 pt-2", className)}>
+    <div className={cn("flex min-h-0 flex-1 flex-col px-5 pt-2", className)}>
       {/* `center` CENTRES THE HEADLINE TOO.
        *
        * It used to centre only the body and leave the title pinned to the top,
@@ -194,30 +194,37 @@ export function StepFrame({
        * "it's too high", on all three (2026-08-01). */}
       {!center && header}
 
-      {/* ONE PAGE. No scroll port and no `min-h-0` anywhere on this column.
+      {/* THE BODY SCROLLS, THE CHROME DOES NOT.
        *
-       * A pinned header and footer with the body scrolling between them was
-       * built and Adrian did not want it (2026-08-01): "make it how it was
-       * before where it was just all on one page." So the body simply grows,
-       * the footer sits after it, and the PAGE scrolls when there is more than
-       * fits.
+       * The flex child is the SCROLL PORT and is itself a flex column; the
+       * wrapper inside it is `flex-1`. Because a flex item's default
+       * `min-height` is `auto`, that wrapper can never be shrunk below its own
+       * content — so it is `max(content, available)`. `justify-center` then
+       * centres only when there IS free space, and when there is not the
+       * wrapper is exactly content height and the port scrolls from the top
+       * with nothing cut off.
        *
-       * `flex-1` with no `min-h-0` is the whole trick. A flex item's default
-       * `min-height: auto` means it can never be shrunk below its own content,
-       * so short content still pushes the footer down the viewport and long
-       * content grows the page instead of being squashed. `min-h-0` is what
-       * removed that protection and let the hook's phone go small and the
-       * paywall's carousel compress to nothing. */}
-      <div
-        className={cn(
-          "flex w-full flex-1 flex-col",
-          center ? "justify-center" : "justify-start",
-          !center && hasHeader && "pt-8",
-        )}
-      >
-        {center && header}
-        {center && hasHeader && children ? <div className="h-8 shrink-0" /> : null}
-        {children}
+       * `min-h-full` was tried instead and silently did nothing: a percentage
+       * min-height needs a definite containing height, and Chrome resolved it
+       * against content — measured at 328px inside a 664px port, so
+       * `justify-center` had no free space and every centred screen hugged the
+       * top. Sizing with flex removes the question.
+       *
+       * `overflow-x-hidden` explicitly: setting `overflow-y` alone computes
+       * `overflow-x` to `auto`, which gave the hook 4px of real sideways scroll
+       * at 360. The shell's `overflow-x-clip` cannot reach inside a port. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        <div
+          className={cn(
+            "flex w-full flex-1 flex-col",
+            center ? "justify-center" : "justify-start",
+            !center && hasHeader && "pt-8",
+          )}
+        >
+          {center && header}
+          {center && hasHeader && children ? <div className="h-8 shrink-0" /> : null}
+          {children}
+        </div>
       </div>
 
       <footer className="shrink-0 space-y-3 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">

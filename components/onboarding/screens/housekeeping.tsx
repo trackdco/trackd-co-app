@@ -79,6 +79,10 @@ export function HousekeepingScreen() {
 
   return (
     <StepFrame
+      // Pulls the form up under the header. Every other screen keeps the
+      // flow's default rhythm; this one is the tallest and the only one where
+      // the primary action fell off a real phone.
+      className="[&>div:nth-child(2)]:pt-4"
       title="Make Trackd yours"
       sub="Quick housekeeping first."
       footer={
@@ -87,16 +91,21 @@ export function HousekeepingScreen() {
         </FlowCta>
       }
     >
-      <div className="space-y-6">
+      {/* TIGHT ON PURPOSE. Measured on Adrian's own phone (402x874 at 3x, so
+          about 700 of usable height once Safari's bars are up): this screen ran
+          85px past the bottom, which put the only way forward off the screen on
+          the one page you cannot skip. Everything here is a notch smaller than
+          the flow's default rhythm, and it is the only screen that needs to be. */}
+      <div className="space-y-3">
         {/* The photo is the centrepiece and larger than everything else
             (Adrian, 2026-08-01) — the first thing on the screen should feel
             like it is about them, not like a form field. */}
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-2">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             aria-label="Add a profile photo"
-            className="flow-card flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-bg-surface transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+            className="flow-card flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-bg-surface transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
           >
             {photo ? (
               // A local object URL, not an upload. next/image would want a
@@ -104,16 +113,16 @@ export function HousekeepingScreen() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={photo} alt="" className="h-full w-full object-cover" />
             ) : (
-              <Camera className="h-7 w-7 text-text-subtle" />
+              <Camera className="h-6 w-6 text-text-subtle" />
             )}
           </button>
           <div className="text-center">
-            <p className="text-[0.85rem] text-foreground">
+            <p className="text-[0.8rem] text-foreground">
               {photo ? "Tap to change" : "Add a photo"}
+              {photo ? null : (
+                <span className="text-text-subtle">{" "}(optional)</span>
+              )}
             </p>
-            {photo ? null : (
-              <p className="mt-0.5 text-[0.75rem] text-text-subtle">(optional)</p>
-            )}
           </div>
           <input
             ref={fileRef}
@@ -138,7 +147,7 @@ export function HousekeepingScreen() {
             autoComplete="given-name"
             enterKeyHint="next"
             maxLength={24}
-            className="h-13 w-full rounded-xl bg-bg-input px-4 text-[0.95rem] text-foreground outline-none placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-12 w-full rounded-xl bg-bg-input px-4 text-[0.95rem] text-foreground outline-none placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
           />
         </FieldRow>
 
@@ -185,7 +194,7 @@ export function HousekeepingScreen() {
               const settled = e.target.value;
               patch({ dob: parseDateKey(settled) ? settled : null });
             }}
-            className="h-13 w-full rounded-xl bg-bg-input px-4 text-[0.95rem] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring [color-scheme:dark]"
+            className="h-12 w-full rounded-xl bg-bg-input px-4 text-[0.95rem] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring [color-scheme:dark]"
           />
 
           {/* Categorical, plain, and never alarming. A blocked date states the
