@@ -44,6 +44,7 @@ import {
   notifyStacksChanged,
   saveStacks,
   type Stack,
+  type StackMembership,
 } from "@/lib/home/stacks"
 
 /** Pull Postgres (canonical) + the jsonb mirror, merge with local, and write the
@@ -369,6 +370,34 @@ function mergeAndSave(
  * An empty pull is NO NEWS, never "the user deleted everything".
  */
 /**
+ * The server's stack, plus any membership the DEVICE holds that the pull does not.
+ *
+ * Adopting `p` wholesale discarded every local span the mirror had not managed to
+ * store, and two ordinary situations produce those:
+ *
+ *  - A member with no `protocol_compounds` row yet (an unmigrated custom).
+ *    `pushStacks` skips it deliberately — "the device store still holds the
+ *    membership" — and this branch then deleted the device's copy too, so the
+ *    only remaining record of it was gone.
+ *  - Any stack edit made OFFLINE. The push failed and nothing re-pushes stacks on
+ *    reconnect, so the next hydration reverted the edit silently. Adding a member
+ *    undid itself; removing one brought the member back.
+ *
+ * The device wins on a collision, which is the same "local intent is freshest"
+ * rule `mergeAndSave` applies to a compound's `archived` flag, and rests on the
+ * same single-device assumption stated there. It is also the non-destructive
+ * direction: the worst case is a membership lingering until the next successful
+ * push, rather than history disappearing with no way back.
+ */
+function withLocalSpans(pulled: Stack, local: Stack): Stack {
+  const bySpan = new Map<string, StackMembership>()
+  for (const m of pulled.members) bySpan.set(`${m.compoundId}|${m.from}`, m)
+  for (const m of local.members) bySpan.set(`${m.compoundId}|${m.from}`, m)
+  if (bySpan.size === pulled.members.length) return pulled
+  return { ...pulled, members: [...bySpan.values()] }
+}
+
+/**
  * Take the server's start date for a stack whose own is a migration guess, and
  * pull the guessed member spans back with it.
  *
@@ -452,7 +481,7 @@ function hydrateStacks(
       // only dated truth until the migration runs, so it wins outright.
       merged.push(loc)
     } else if (resolves && pulledIds.length > 0) {
-      merged.push(p)
+      merged.push(loc ? withLocalSpans(p, loc) : p)
     } else if (loc) {
       // Keep what the device has rather than replacing it with a stack whose
       // members would render as nothing — but take the SERVER's start date when

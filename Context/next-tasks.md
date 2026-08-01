@@ -20,7 +20,7 @@ Last updated: 2026-08-01 (stack dating — Adrian's "Vitamins" report)
 
 ## 🎯 Where we are
 
-**`stack-dating` (off `main`) — MERGED to main, 2026-08-01.** Adrian reported a
+**`stack-dating` (off `main`) — merged to `main` 2026-08-01.** Adrian reported a
 stack he had just made ("Vitamins": creatine + D3 + vitamin C) showing on days
 before it existed. Root cause: a stack carried no date at all, so the dashboard
 drew today's grouping over every day in history. Fixed by dating the stack and
@@ -33,8 +33,7 @@ read and write without the new columns), so nothing breaks before it runs — bu
 stacks stay undated in Postgres until it does, and the device-side dating cannot
 be corrected from `created_at`.
 
-**Two branches are pushed and NEITHER is merged. `main` is untouched and still
-deploys prod.**
+**The other two branches are pushed and NEITHER is merged.**
 
 - **`wave3/fixes`** (off `wave3/progress-blocks-polish`) — the cold review's two
   HIGH fixes, the medium/low sweep, the "Discard this vial" clipping, and the

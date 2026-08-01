@@ -348,14 +348,30 @@ function pruneEmpty(members: StackMembership[]): StackMembership[] {
 }
 
 /**
- * Close every OPEN span for `compoundId` in `stack` as of `on`.
+ * Where a span that starts on `from` should END if it is closed on `on`.
  *
- * `on` is clamped to the span's own start, so a device clock that has moved
- * backwards can never write `to < from` — which `stack_members_span_valid`
- * rejects outright, and which would take the whole membership push down with it.
- * A span clamped to zero length is then pruned, exactly like a join-and-leave on
- * the same day.
+ * Three cases, and the boundary between the first two is load-bearing:
+ *  - `on === from` — joined and left the SAME DAY. Zero length, so `pruneEmpty`
+ *    drops it: it covered no day and must not render on one. This is the
+ *    ordinary case for moving a compound between stacks on the day you stacked
+ *    it, and treating it as "backwards clock" below left a ONE-DAY span in the
+ *    old stack — so for the rest of that day the compound sat in two stacks,
+ *    Home and Protocol disagreed about which, and if it had been the old stack's
+ *    only member the NEW stack did not render at all.
+ *  - `on < from` — the clock has moved backwards (crossing the dateline
+ *    westward, or a corrected clock). The span covered real days, so it is
+ *    shortened to one day rather than deleted.
+ *  - `on > from` — the normal close.
+ *
+ * `to` can never come out below `from`, which `stack_members_span_valid` rejects
+ * outright and which would take the whole membership push down with it.
  */
+function clampEnd(from: DateKey, on: DateKey): DateKey {
+  if (on === from) return from
+  return on < from ? nextDay(from) : on
+}
+
+/** Close every OPEN span for `compoundId` in `stack` as of `on`. */
 function closeMember(
   stack: Stack,
   compoundId: string,
@@ -365,12 +381,7 @@ function closeMember(
   const members = stack.members.map((m) => {
     if (m.compoundId !== compoundId || m.to !== undefined) return m
     touched = true
-    // Clamped to the day AFTER the start, not to the start itself: clamping to
-    // `from` produces a zero-length span that `pruneEmpty` then deletes, so a
-    // device whose clock has moved backwards (crossing the dateline westward, or
-    // a corrected clock) erased a membership that had covered real days instead
-    // of ending it. Keeping one day is the smallest honest claim.
-    return { ...m, to: on <= m.from ? nextDay(m.from) : on }
+    return { ...m, to: clampEnd(m.from, on) }
   })
   return touched ? { ...stack, members: pruneEmpty(members) } : stack
 }
@@ -446,9 +457,13 @@ export function setStackMembers(
         position: reclaimed ?? nextPosition++,
       })
     }
-    // Members that are gone: close them where they stood.
+    // Members that are gone: close them where they stood, through the SAME clamp
+    // `closeMember` uses. Writing `to: on` raw here meant the two removal paths
+    // disagreed — unticking a member in the editor with a clock that had moved
+    // backwards deleted its whole history, while deleting the compound outright
+    // correctly shortened it.
     for (const [id, m] of open) {
-      if (!taken.has(id)) kept.push({ ...m, to: on })
+      if (!taken.has(id)) kept.push({ ...m, to: clampEnd(m.from, on) })
     }
     return { ...s, members: pruneEmpty(kept) }
   })

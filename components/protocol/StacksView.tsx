@@ -181,7 +181,10 @@ export function StacksView({
           setCreating(false)
           setEditing(null)
         }}
-        fallbackName={nextStackName(listed)}
+        /* All stacks, not just the listed ones: a retired stack still
+           renders under its name on the days it grouped, so reusing its
+           number would put two different "Stack 2"s in one history. */
+        fallbackName={nextStackName(stacks)}
         onAddCompound={() => setPickerOpen(true)}
         pendingMemberId={pendingMemberId}
         onDelete={

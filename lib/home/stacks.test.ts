@@ -313,6 +313,45 @@ describe("regressions found in cold review", () => {
     }
   })
 
+  it("moving a compound on the DAY IT JOINED leaves it in one stack, not two", () => {
+    // Every setStackMembers test used a removal day later than the join day, so
+    // the same-day boundary — setting two stacks up in one sitting and moving a
+    // compound you put in the wrong one — was never exercised. The old stack kept
+    // a one-day span, so for the rest of that day Home and Protocol disagreed
+    // about which stack the compound was in.
+    const morning = stack({ id: "m", name: "Morning", ids: ["creatine", "tren"] })
+    const evening = stack({ id: "e", name: "Evening", ids: [] })
+    const after = setStackMembers([morning, evening], "e", ["creatine"], MADE)
+
+    expect(memberIdsOn(after[0], MADE)).toEqual(["tren"])
+    expect(memberIdsOn(after[1], MADE)).toEqual(["creatine"])
+    const { stacks: grouped } = partitionByStack(["creatine", "tren"], after, MADE)
+    expect(grouped.map((g) => [g.stack.name, g.memberIds])).toEqual([
+      ["Morning", ["tren"]],
+      ["Evening", ["creatine"]],
+    ])
+  })
+
+  it("moving the ONLY member on its join day renders the new stack, not the dead one", () => {
+    const from = stack({ id: "m", name: "Morning", ids: ["creatine"] })
+    const to = stack({ id: "e", name: "Evening", ids: [] })
+    const after = setStackMembers([from, to], "e", ["creatine"], MADE)
+    const { stacks: grouped } = partitionByStack(["creatine"], after, MADE)
+    expect(grouped).toHaveLength(1)
+    expect(grouped[0].stack.name).toBe("Evening")
+  })
+
+  it("unticking a member in the editor shortens its span, like deleting the compound does", () => {
+    // The two removal paths disagreed: `removeMemberEverywhere` clamped, the
+    // editor's own branch wrote the day raw and `pruneEmpty` then deleted the
+    // whole span.
+    const before = stack({ ids: ["a", "b"] })
+    const edited = setStackMembers([before], "s1", ["b"], "2026-07-01")
+    const deleted = removeMemberEverywhere([before], "a", "2026-07-01")
+    expect(memberIdsOn(edited[0], MADE)).toEqual(memberIdsOn(deleted[0], MADE))
+    expect(memberIdsOn(edited[0], MADE)).toEqual(["a", "b"])
+  })
+
   it("keeps a member's place when it is removed and re-added the same day", () => {
     // No open span exists for it mid-edit, so it was treated as brand new and
     // sent to the end of the row — with a tick-list editor there is no way back.

@@ -628,12 +628,22 @@ dashboard was showing.
   abandoning. A migrated stack's start is a GUESS ("today"), flagged
   `provisionalStart` so `pushStacks` omits the column and `hydrateStacks` adopts
   the server's real `created_at`-derived date instead.
-- Three cold-review agents found 1 CRITICAL + 4 HIGH, all fixed and re-reviewed
-  clean: no missing-COLUMN tolerance in `stackSync.ts` (the un-migrated state
+- Three review rounds, seven cold agents. Round 1 found 1 CRITICAL + 4 HIGH;
+  round 2 found a new CRITICAL introduced BY the round-1 fix (the pre-013 write
+  retry sent every span as its own row, which the old key rejected) plus a dead
+  `provisionalStart` flag; round 3 found a same-day boundary bug introduced by
+  the round-2 clamp, and two removal paths that disagreed. The round-1 findings
+  were: no missing-COLUMN tolerance in `stackSync.ts` (the un-migrated state
   broke every push and pull); `pushStacks` wiped membership before knowing it
   could rebuild it; `hydrateStacks` judged resolution on current members only and
   dropped closed spans; stack mutations were not `trackCriticalSync`, so
   hydration raced a delete and resurrected it.
+- **Known and accepted (narrow):** a v1 store that is edited in the window
+  between the upgrade and the first successful hydration can push its guessed
+  member-span dates to Postgres, and a stack inserted while provisional takes the
+  database's UTC `CURRENT_DATE`. Both need a stack edit before the first cloud
+  pull lands on an upgrading device. Applying 013 and opening the app once closes
+  the window.
 - **Decision — a past day still shows due-but-unlogged compounds.** Adrian asked
   whether they should only show what was logged; they should not. "Due and not
   logged" IS the missed-dose concept, and day status, Consistency, the calendar
