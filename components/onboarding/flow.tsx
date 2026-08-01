@@ -324,15 +324,7 @@ function OnboardingFlowClient() {
           18px off-frame, which without this creates a real horizontal scroll
           area for the length of the animation (measured: 408px on a 390 phone). */}
       <div className="flow-canvas flow-viewport flex flex-col overflow-x-clip">
-        {/* `min-h-0` on BOTH this column and the step box below it. A flex
-              item defaults to `min-height: auto`, which means it cannot be
-              shrunk below its own content — so without these the whole column
-              grew past the fixed-height shell and `overflow: hidden` clipped
-              the footer. Measured: the paywall CTA sat 177px outside a 660px
-              viewport with no way to scroll to it. The chain from the shell
-              down to a screen's scroll port has to be able to shrink at every
-              link, or the port never gets the chance to scroll. */}
-          <div className="relative mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col">
+        <div className="relative mx-auto flex w-full max-w-md flex-1 flex-col">
           {/* Back arrow and progress on ONE row. The back control sits in the
               LAYOUT, not over it: absolutely positioned it collided with the
               first line of a long centred headline (measured on the paywall at
@@ -386,7 +378,7 @@ function OnboardingFlowClient() {
           <div
             key={step}
             className={cn(
-              "flex min-h-0 flex-1 flex-col",
+              "flex flex-1 flex-col",
               direction === "forward" ? "animate-flow-forward" : "animate-flow-back",
               // Not tappable until it has arrived. Every CTA sits in the same
               // place in the footer, so without this a second tap ran the NEW

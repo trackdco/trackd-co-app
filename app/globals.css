@@ -477,47 +477,33 @@
     var(--bg-base);
 }
 
-/* The full-screen height a flow screen is laid out against.
+/* The height a flow screen is laid out against.
  *
- * `svh`, NOT `dvh` (Adrian, 2026-08-01: "the search bar on Safari kind of
- * blocks the button sometimes"). The three units differ by which toolbar state
- * they measure: `lvh` assumes the browser chrome is RETRACTED, `dvh` tracks
- * whatever it is doing right now, and `svh` assumes it is SHOWING — the
- * smallest the viewport ever gets.
+ * A MINIMUM, not a fixed height, and the page scrolls as ONE (Adrian,
+ * 2026-08-01: "I don't like how the buttons stick to the screen ... make it how
+ * it was before where it was just all on one page"). A pinned header and footer
+ * with the body scrolling between them was tried and he did not want it: the CTA
+ * belongs at the end of the content, where you scroll to it.
  *
- * A bottom-pinned CTA has to clear the URL bar in EVERY state, so it must be
- * laid out against the smallest one. `dvh` is the trap: it is correct at any
- * given instant and therefore moves the footer under the user's thumb as the
- * bar collapses on scroll and returns on scroll-up, and iOS resolves it late
- * enough that a screen can paint once with the CTA beneath the bar. `svh` is
- * decided once and never moves. The cost is a strip of bare canvas at the
- * bottom while the bar is hidden, which is invisible: it is the same colour.
+ * `svh`, NOT `dvh`. The three units differ by which browser-chrome state they
+ * measure: `lvh` assumes it is RETRACTED, `dvh` tracks whatever it is doing now,
+ * `svh` assumes it is SHOWING — the smallest the viewport ever gets. `dvh` is
+ * the trap, and it was the original report: it is correct at any instant and so
+ * moves the layout as Safari's bar collapses on scroll and returns on scroll-up,
+ * and iOS resolves it late enough that a screen can paint once with its CTA
+ * under the bar. `svh` is decided once and never moves.
  *
- * The `100vh` line above it is the fallback for a browser with no `svh` (iOS
- * before 15.4), where a dropped declaration would collapse the flow to auto
- * height. Same specificity, so the later one wins wherever it parses.
+ * `100vh` first as the fallback for a browser with no `svh` (iOS before 15.4),
+ * where a dropped declaration would collapse the flow to auto height.
  *
- * `overscroll-behavior-y: contain` kills the rubber-band at the ends of the
- * page, which is the gesture that makes Safari's bar animate in and out in the
- * first place. */
-/* Note this is a FIXED height, not a minimum, and the flow does not scroll as a
- * page — each screen scrolls its own body between a pinned header and a pinned
- * footer, the way a native onboarding does.
- *
- * `min-height` was the first attempt and it left the original complaint half
- * fixed. On a 660px-tall viewport (a 390x844 iPhone in Safari, once the URL bar
- * is counted) the paywall's content came to 837px, so the column simply grew and
- * the CTA went below the fold — measured. A flow whose whole job is one action
- * per screen must never put that action somewhere you have to go looking for it.
- *
- * The requirement this creates: EVERY screen needs an internal scroll port, or
- * `overflow: hidden` here silently clips it. They all have one — `StepFrame`
- * provides it for most, and hook / celebrate / welcome / demo carry their own.
- * Adding a screen without one is the way this breaks. */
+ * NOTHING between here and a screen's content may set `min-h-0`. A flex item's
+ * default `min-height: auto` is the only thing stopping it being squashed below
+ * its own size, and `min-h-0` removes that: with it, the hook's phone went small
+ * and rode up and the paywall's carousel compressed until it could not be seen.
+ * Let the page grow instead. */
 .flow-viewport {
-  height: 100vh;
-  height: 100svh;
-  overflow: hidden;
+  min-height: 100vh;
+  min-height: 100svh;
   overscroll-behavior-y: contain;
 }
 
@@ -534,6 +520,44 @@
 /* Directional step motion. Forward comes from the right, back from the left,
    which is the single cheapest thing that makes a flow feel native rather than
    like a set of pages. */
+/* THE NUDGE — the demo's Next button lifting to say "you can move on".
+ *
+ * Adrian, 2026-08-01, replacing an auto-advance: the injection-site stage used
+ * to carry itself onward 1.6s after you tapped a region, which took the decision
+ * off the user on the one screen they are most likely to still be exploring. A
+ * nudge tells them the way out is there and lets them take it when they want.
+ *
+ * NOT ambient decoration, which `ui-context.md` bans: it fires only after the
+ * user has been on a stage a while or has finished what that stage asked for, it
+ * runs three times and stops, and tapping the button ends it. Movement that
+ * carries information is the exception the ban is written around.
+ *
+ * A class, never an inline `animation` shorthand — an inline shorthand outranks
+ * the reduced-motion block and cannot be switched off from the stylesheet. And
+ * it needs its OWN element: `animate-flow-in` also sets `animation`, so on a
+ * shared element one simply wins (measured: `flow-in` did, and the nudge never
+ * played). */
+@keyframes flow-nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-6px);
+  }
+  70% {
+    transform: translateY(0);
+  }
+}
+.animate-flow-nudge {
+  animation: flow-nudge 1400ms var(--motion-ease) 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-flow-nudge {
+    animation: none;
+  }
+}
+
 .animate-flow-forward {
   animation: flow-forward var(--motion-slow) var(--motion-ease) both;
 }
@@ -872,43 +896,14 @@
   }
 }
 
-/* The paywall's phone ring, sized against the viewport's HEIGHT.
+/* The paywall's floating labels. One size: the page scrolls now, so the ring
+ * does not have to shrink to make room and these do not have to shrink with it.
  *
- * The paywall is the one screen with more content than a short phone has room
- * for, and the price has to be visible before the button that commits to it.
- * Measured: the content is a fixed ~656px whatever the viewport, so on a
- * 390x660 phone (a 390x844 iPhone once Safari's URL bar is counted) the plan
- * cards ended 103px past the scroll port and 203px past it at 360x560, with the
- * pinned trial button tappable the whole time.
- *
- * Written HERE rather than as Tailwind arbitrary variants because the two
- * breakpoints overlap (560px matches both `max-height:700px` and
- * `max-height:600px`) and equal-specificity utilities are resolved by their
- * order in the generated stylesheet, which is not ours to control. Measured
- * doing exactly that: the 600px rule never won and 560 kept the 9rem ring.
- * Ordered by hand, smallest last, so the narrowest case always wins.
- *
- * Height rather than width, because this is a vertical budget and a wide phone
- * can still be short. */
-.paywall-ring {
-  height: 13.5rem;
-}
-.paywall-phone {
-  width: 7.75rem;
-}
-@media (max-height: 700px) {
-  .paywall-ring {
-    height: 9rem;
-  }
-  .paywall-phone {
-    width: 5.5rem;
-  }
-}
-@media (max-height: 600px) {
-  .paywall-ring {
-    height: 6.5rem;
-  }
-  .paywall-phone {
-    width: 4rem;
-  }
+ * They briefly did both. The ring came down to 88px on a short viewport to keep
+ * the plan cards above the fold, which left the labels bigger than the phone
+ * they were labelling — Adrian, 2026-08-01: "I cannot see the carousel anymore.
+ * The paywall looks really bad." */
+.paywall-label {
+  max-width: 7rem;
+  font-size: 9.5px;
 }

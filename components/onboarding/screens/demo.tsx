@@ -87,6 +87,22 @@ const RECEDE_MS = 520;
  */
 const DOUBLE_ADVANCE_MS = 900;
 
+/**
+ * How long a stage sits before the Next button nudges (see `.animate-flow-nudge`).
+ *
+ * Adrian, 2026-08-01: the site stage used to advance ITSELF 1.6s after a region
+ * was tapped, and he asked for it to stop — a body map is the thing people
+ * linger on, and taking the screen away mid-look is the opposite of what it is
+ * for. The nudge does the job the auto-advance was there to do (tell you the
+ * way out exists) without making the decision for you.
+ *
+ * Seven seconds: long enough that anyone reading or tapping around is not
+ * interrupted, short enough that someone who has stalled gets an answer.
+ */
+const NUDGE_AFTER_MS = 7000;
+/** After a site is tapped the stage is finished, so the nudge comes sooner. */
+const NUDGE_AFTER_TAP_MS = 1800;
+
 const HEADINGS: Record<Stage, { title: string; sub: string }> = {
   log: {
     title: "Log a dose.",
@@ -242,12 +258,47 @@ export function DemoScreen() {
    *  read inside a handler and never rendered. */
   const lastAdvanceAt = useRef(0);
 
+  /**
+   * Which stage the nudge is armed for, rather than a bare boolean.
+   *
+   * Derived comparison (`nudgeFor === stage`) means a stage change disarms it
+   * for free, with no `setState` in an effect body — which the lint rule
+   * rightly forbids and which a boolean would have needed.
+   */
+  const [nudgeFor, setNudgeFor] = useState<Stage | null>(null);
+  const nudging = nudgeFor === stage;
+  const nudgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const armNudge = (forStage: Stage, delay: number) => {
+    if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
+    nudgeTimer.current = setTimeout(() => setNudgeFor(forStage), delay);
+  };
+
+  // Every stage arms its own nudge on arrival.
+  useEffect(() => {
+    const id = setTimeout(() => setNudgeFor(stage), NUDGE_AFTER_MS);
+    return () => clearTimeout(id);
+  }, [stage]);
+
+  useEffect(
+    () => () => {
+      if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
+    },
+    [],
+  );
+
   const advance = () => {
     // Refuse a SECOND advance inside the window. A first tap is never blocked,
     // however quick the user is.
     const now = Date.now();
     if (now - lastAdvanceAt.current < DOUBLE_ADVANCE_MS) return;
     lastAdvanceAt.current = now;
+    // Taking the action the nudge was pointing at ends it.
+    setNudgeFor(null);
+    if (nudgeTimer.current) {
+      clearTimeout(nudgeTimer.current);
+      nudgeTimer.current = null;
+    }
     // Cancel any pending auto-advance first. The tick chain, the vial-empty
     // chain and the site-tap chain all schedule a `setStage`, and a user who
     // taps the CTA inside that window used to be YANKED BACKWARDS when the
@@ -271,7 +322,7 @@ export function DemoScreen() {
   const showHistory = stage === "history";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
+    <div className="flex flex-1 flex-col px-5 pt-2">
       <header
         className={cn(
           "shrink-0 space-y-3 text-center transition-[padding-top] duration-[760ms] motion-reduce:transition-none",
@@ -301,7 +352,7 @@ export function DemoScreen() {
       <div
         ref={scrollRef}
         className={cn(
-          "flex min-h-0 flex-1 flex-col justify-start gap-3 overflow-y-auto pb-2",
+          "flex flex-1 flex-col justify-start gap-3 pb-2",
           "transition-[padding-top] duration-[760ms] motion-reduce:transition-none",
           index === 0 ? "pt-6" : "pt-4",
         )}
@@ -347,18 +398,13 @@ export function DemoScreen() {
                 onTap={(id, label) => {
                   setSite({ id, label });
                   setRecent((r) => pushRecentSite(r, label));
-                  // TAPPING A SITE IS THE END OF THIS STAGE, so it carries you
-                  // on (Adrian, 2026-08-01: with a body map filling the screen
-                  // he would not have known when to press Next). Same idiom as
-                  // the vial running dry on the stage before: the demonstration
-                  // finishes itself rather than waiting to be dismissed.
-                  //
-                  // The hold is long enough to read the confirmation line that
-                  // appears under the map. Through the shared `timer` ref, so
-                  // tapping Next inside the window cancels it and cannot be
-                  // yanked backwards by a stale timeout.
-                  if (timer.current) clearTimeout(timer.current);
-                  timer.current = setTimeout(() => setStage("history"), 1600);
+                  // Tapping a site FINISHES this stage, so the Next button
+                  // nudges shortly after. It used to advance the stage itself,
+                  // and Adrian killed that (2026-08-01): a body map is the
+                  // thing people linger on, and taking it away mid-look is the
+                  // opposite of what it is there for. The way out is offered,
+                  // not taken for them.
+                  armNudge("site", NUDGE_AFTER_TAP_MS);
                 }}
               />
             )}
@@ -375,10 +421,17 @@ export function DemoScreen() {
           // Appears the moment there is somewhere to go. Adrian's note was that
           // he would not have known to press Continue, so it arrives WITH the
           // new card rather than sitting there through the whole screen.
+          // TWO elements, not two classes on one. Both `animate-flow-in` and
+          // `animate-flow-nudge` set the `animation` shorthand, so on a single
+          // element one simply wins: measured, `flow-in` did, and the nudge
+          // never played despite its class being present. The entrance owns the
+          // outer node and the nudge owns the inner one.
           <div className="animate-flow-in">
-            <FlowCta onClick={advance}>
-              {stage === "history" ? "Continue" : "Next"}
-            </FlowCta>
+            <div className={cn(nudging && "animate-flow-nudge")}>
+              <FlowCta onClick={advance}>
+                {stage === "history" ? "Continue" : "Next"}
+              </FlowCta>
+            </div>
           </div>
         )}
       </footer>

@@ -402,38 +402,46 @@ than designed. **Applies to `/onboarding` only for now.** Rolling it through
 the app is its own deliberate pass, not something to sprinkle screen by screen
 (that is how a design system ends up with four slightly different cards).
 
-### Rule: a full-screen flow is sized in `svh`, never `dvh`
+### Rule: a full-screen flow is ONE PAGE, sized in `svh`, never `dvh`
 
 `.flow-viewport` in `globals.css`, and it is the only place **`/onboarding`**
 writes a full-screen height. The rest of the app still uses `min-h-dvh` (the
 `(app)` shell, `/login`, `/welcome`, `/admin`, every `/preview/*`); migrating it
-is its own deliberate pass and is NOT implied by this rule. Adrian, 2026-08-01: "the search bar on Safari kind of blocks the
-button sometimes."
+is its own deliberate pass and is NOT implied by this rule.
 
-The three viewport units differ by which browser-chrome state they measure.
-`lvh` assumes the chrome is retracted, `dvh` tracks whatever it is doing right
-now, and **`svh` assumes it is showing** — the smallest the viewport ever gets.
-A screen with a CTA pinned to the bottom has to clear the URL bar in every
-state, so it is laid out against the smallest one.
+**A MINIMUM height, and the page scrolls as one.** The CTA sits at the end of
+the content, not pinned to the bottom of the viewport. A pinned header and
+footer with the body scrolling between them was built and rejected (Adrian,
+2026-08-01: "I don't like how the buttons stick to the screen ... make it how it
+was before where it was just all on one page").
 
-`dvh` is the trap, and it is the obvious-looking choice: it is correct at any
-given instant, which means it MOVES the footer as the bar collapses on scroll
-and returns on scroll-up, and iOS resolves it late enough that a screen can
-paint once with its CTA underneath the bar. `svh` is decided once and never
-moves. The cost is a strip of bare canvas at the bottom while the bar is hidden,
-which is invisible because it is the same colour.
+**`svh`, not `dvh`.** The three units differ by which browser-chrome state they
+measure: `lvh` assumes it is RETRACTED, `dvh` tracks whatever it is doing right
+now, and `svh` assumes it is SHOWING, the smallest the viewport ever gets. `dvh`
+is the trap and was the original report: it is correct at any instant and
+therefore moves the layout as Safari's bar collapses on scroll and returns on
+scroll-up, and iOS resolves it late enough that a screen can paint once with its
+CTA underneath the bar. `svh` is decided once. A `100vh` line goes first as the
+fallback for a browser without `svh` (iOS before 15.4).
 
-The rule carries a `100vh` fallback line before it (iOS before 15.4 has no
-`svh`, and a dropped declaration would collapse the flow to auto height) and
-`overscroll-behavior-y: contain`, which kills the rubber-band that makes Safari
-animate its bar in the first place.
+**Never put `min-h-0` on the column between the shell and a screen's content.**
+This is the load-bearing half and it is easy to add by reflex. A flex item's
+default `min-height: auto` is the only thing stopping it being shrunk below its
+own content; `min-h-0` removes that protection, and with it the hook's phone
+went small and rode up the screen and the paywall's carousel compressed until it
+could not be seen at all. On a tall viewport both look identical, which is why
+this has to be a written rule rather than something you would notice.
 
-**Verify a bottom-pinned CTA by measuring it**, not by looking at it. There is
-no checked-in harness for this: drive the page in a browser at 390x844 AND at
-390x660 (the same phone once Safari's URL bar is counted) and assert the CTA's
-`bottom` is inside the viewport. The trial button was 21px under the fold after
-one round of copy changes, and 177px outside a 660px viewport after the shell
-became fixed-height. Neither was visible by looking.
+**Give the top the same respect as the bottom.** The footer has carried
+`env(safe-area-inset-bottom)` since day one; the top was missed, and on a
+notched iPhone the progress bar sat level with the clock. If the inset is
+applied as PADDING, the element must not also have a fixed height — measured
+with a 59px inset on a 40px row, the bar was pushed clean out of its own box and
+drawn through the first line of every headline.
+
+**Measure these, do not look at them.** Every one of the above was invisible in
+desktop Chrome at 390x844. Drive the flow at 390x660 (the same phone once
+Safari's URL bar is counted) and 360x560, with the safe-area inset simulated.
 
 ### Rule: new screens reuse the system
 
@@ -585,6 +593,14 @@ hand-rolling animation per screen.
   everywhere else** (Adrian, 2026-08-01):
 
   1. `animate-flow-drift` — the paywall's floating labels.
+  0. (not a loop, but new) `animate-flow-nudge` — the demo's Next button
+     lifting after a stage has sat a while, or once the user has finished what
+     the stage asked for. It replaced an AUTO-ADVANCE (Adrian, 2026-08-01):
+     the injection-site stage used to carry itself onward, which took the
+     decision off the user on the screen they are most likely to still be
+     exploring. Three iterations and it stops; tapping ends it. Movement that
+     carries information, which is the exception the ambient-motion ban is
+     written around.
   2. `animate-kyle`'s float — the mascot breathing on the two celebration beats.
   3. The paywall carousel's auto-advance (a `setInterval`, not a class).
   4. The hook's compare sweep — which is now BOUNDED to two passes and then

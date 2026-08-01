@@ -213,20 +213,10 @@ export function PaywallHero() {
         </p>
       </div>
 
-      {/* THE RING SHRINKS ON A SHORT SCREEN, because the price has to be
-          visible before the button that commits to it.
-
-          Measured: the paywall's content is a fixed 679px whatever the viewport,
-          so on a 390x660 phone (a 844 iPhone once Safari's URL bar is counted)
-          the plan cards ended 103px past the scroll port, and 203px past it at
-          360x560 — the trial button pinned and tappable the whole time. Moving
-          the tick list below the plans helped and was not enough; at 560 the
-          port is 334px and the ring alone was 216 of it.
-
-          The sizing lives in `globals.css` as `.paywall-ring` / `.paywall-phone`;
-          see the note there for why it is not written as Tailwind variants. */}
+      {/* Sized so the phone reads as the hero of the screen. The page scrolls,
+          so this does not have to fight the plan cards for room. */}
       <div
-        className="paywall-ring relative mx-auto w-full max-w-[22rem] shrink-0 touch-pan-y select-none"
+        className="relative mx-auto h-[13.5rem] w-full max-w-[22rem] shrink-0 touch-pan-y select-none"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerCancel={() => { drag.current = null; }}
@@ -248,7 +238,7 @@ export function PaywallHero() {
             <div
               key={slide.id}
               aria-hidden
-              className="pointer-events-none absolute left-1/2 top-1/2 paywall-phone rounded-[1.5rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
+              className="pointer-events-none absolute left-1/2 top-1/2 w-[7.75rem] rounded-[1.5rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
               style={{
                 transitionDuration: reduced ? "0ms" : `${TURN_MS}ms`,
                 transform: `translate(-50%, -50%) translateX(${pos.x}) scale(${pos.scale})`,
@@ -283,7 +273,7 @@ export function PaywallHero() {
                 key={`${slide.id}-${l.text}`}
                 aria-hidden
                 className={cn(
-                  "animate-flow-drift pointer-events-none absolute z-40 flex max-w-[7rem] items-center gap-1.5 rounded-full bg-bg-surface/75 px-2.5 py-1.5 backdrop-blur-md",
+                  "paywall-label animate-flow-drift pointer-events-none absolute z-40 flex items-center gap-1.5 rounded-full bg-bg-surface/75 px-2.5 py-1.5 backdrop-blur-md",
                   "transition-opacity ease-[var(--motion-ease)] motion-reduce:transition-none",
                   on ? "opacity-100" : "opacity-0",
                   l.className,
@@ -298,7 +288,7 @@ export function PaywallHero() {
                 }
               >
                 <LabelIcon className="h-3 w-3 shrink-0 text-accent-amber" />
-                <span className="text-[9.5px] leading-tight text-foreground">
+                <span className="leading-tight text-foreground">
                   {l.text}
                 </span>
               </div>

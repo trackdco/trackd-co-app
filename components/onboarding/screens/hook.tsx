@@ -90,7 +90,7 @@ export function HookScreen() {
   const { goNext } = useFlow();
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="relative flex flex-1 flex-col">
       {HOOK_BACKDROP ? (
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
           <Image
@@ -107,7 +107,7 @@ export function HookScreen() {
         </div>
       ) : null}
 
-      <div className="relative flex min-h-0 flex-1 flex-col px-5 pt-2">
+      <div className="relative flex flex-1 flex-col px-5 pt-2">
         <header className="shrink-0 space-y-4 text-center">
           <Image
             src="/trackd-wordmark.png"
@@ -125,12 +125,7 @@ export function HookScreen() {
           </FlowTitle>
         </header>
 
-        {/* Scroll port + a `flex-1` wrapper, the same arrangement `StepFrame`
-            uses and for the same reason: on a short viewport this squashed the
-            phone instead of letting the screen scroll. `shrink-0` on the phone
-            itself, because a device frame that resizes to fit is not one. */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
-          <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 py-5">
+        <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 py-5">
           {/* The phone, with a card floating off each of two opposite corners
               (Adrian, 2026-08-01). They sit on the side they describe, which is
               the whole reason those two corners: Notes is the left panel of the
@@ -168,7 +163,6 @@ export function HookScreen() {
               headline rather than as a label for the control. */}
           <FlowSub className="shrink-0 text-center">Slide to see the difference.</FlowSub>
           </div>
-        </div>
 
         <footer className="shrink-0 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <FlowCta onClick={goNext}>Continue</FlowCta>
