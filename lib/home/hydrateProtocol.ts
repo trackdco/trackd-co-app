@@ -370,7 +370,7 @@ function mergeAndSave(
  *
  * An empty pull is NO NEWS, never "the user deleted everything".
  */
-function placedElsewhere(local: Stack[], exceptStackId: string): Set<string> {
+export function placedElsewhere(local: Stack[], exceptStackId: string): Set<string> {
   const out = new Set<string>()
   for (const s of local) {
     if (s.id === exceptStackId) continue
@@ -397,7 +397,13 @@ export function mergeStack(
   // stacks, and `dedupeMembership`'s same-day tie went to the older one, so the
   // move was undone and the stack the user had just built was emptied and hidden.
   const extra = pulled.members.filter(
-    (m) => !known.has(m.compoundId) && !placedElsewhere.has(m.compoundId)
+    (m) =>
+      !known.has(m.compoundId) &&
+      // Only an OPEN pulled span can conflict with where the device has since
+      // put the compound. A CLOSED one is history — it says where the compound
+      // used to be — and suppressing it dropped real past grouping that the
+      // next push then deleted from Postgres too.
+      !(m.to === undefined && placedElsewhere.has(m.compoundId))
   )
   return extra.length === 0
     ? base
@@ -441,7 +447,7 @@ export function adoptStart(local: Stack, pulled: Stack): Stack {
   }
 }
 
-function hydrateStacks(
+export function hydrateStacks(
   userId: string,
   pulled: Stack[],
   idRemap: Map<string, string>

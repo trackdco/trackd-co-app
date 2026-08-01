@@ -13,7 +13,7 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { adoptStart, mergeStack } from "./hydrateProtocol"
+import { adoptStart, mergeStack, placedElsewhere } from "./hydrateProtocol"
 import {
   currentMemberIds,
   memberIdsOn,
@@ -224,5 +224,67 @@ describe("adoptStart — correcting a migration guess", () => {
   it("never touches a stack that knows its own start", () => {
     const known = base({ effectiveFrom: "2026-06-01" })
     expect(adoptStart(known, base({ effectiveFrom: "2026-01-01" }))).toBe(known)
+  })
+})
+
+describe("placedElsewhere", () => {
+  const s = (id: string, members: StackMembership[]): Stack => base({ id, members })
+
+  it("names the compounds held OPEN in another stack", () => {
+    const local = [
+      s("a", [{ compoundId: "x", from: "2026-06-01", position: 0 }]),
+      s("b", [{ compoundId: "y", from: "2026-06-01", position: 0 }]),
+    ]
+    expect(placedElsewhere(local, "a")).toEqual(new Set(["y"]))
+    expect(placedElsewhere(local, "b")).toEqual(new Set(["x"]))
+  })
+
+  it("ignores closed spans — a compound that has LEFT is not placed anywhere", () => {
+    const local = [
+      s("a", []),
+      s("b", [{ compoundId: "y", from: "2026-06-01", to: "2026-07-01", position: 0 }]),
+    ]
+    expect(placedElsewhere(local, "a")).toEqual(new Set())
+  })
+
+  it("never reports the target stack's own members", () => {
+    const local = [s("a", [{ compoundId: "x", from: "2026-06-01", position: 0 }])]
+    expect(placedElsewhere(local, "a")).toEqual(new Set())
+  })
+})
+
+describe("mergeStack keeps history the device does not hold", () => {
+  it("adopts a pulled CLOSED span even for a compound placed elsewhere now", () => {
+    // The closed span says where the compound USED to be. It cannot conflict
+    // with an open membership, and suppressing it dropped real past grouping
+    // that the next push then deleted from Postgres too.
+    const local = base({
+      id: "a",
+      effectiveFrom: "2026-01-01",
+      members: [{ compoundId: "tren", from: "2026-01-01", position: 0 }],
+    })
+    const pulled = base({
+      id: "a",
+      effectiveFrom: "2026-01-01",
+      members: [
+        { compoundId: "tren", from: "2026-01-01", position: 0 },
+        { compoundId: "creatine", from: "2026-01-01", to: "2026-06-01", position: 1 },
+      ],
+    })
+    const merged = mergeStack(pulled, local, new Set(["creatine"]))
+    expect(memberIdsOn(merged, "2026-03-01")).toEqual(["tren", "creatine"])
+    expect(currentMemberIds(merged)).toEqual(["tren"])
+  })
+
+  it("routes through adoptStart, so a migration guess is actually corrected", () => {
+    // adoptStart is tested in isolation; this is the only path that calls it.
+    const local = base({
+      effectiveFrom: "2026-08-01",
+      provisionalStart: true,
+      members: [{ compoundId: "a", from: "2026-08-01", position: 0, provisionalFrom: true }],
+    })
+    const merged = mergeStack(base({ effectiveFrom: "2026-05-01" }), local)
+    expect(merged.effectiveFrom).toBe("2026-05-01")
+    expect(memberIdsOn(merged, "2026-06-15")).toEqual(["a"])
   })
 })

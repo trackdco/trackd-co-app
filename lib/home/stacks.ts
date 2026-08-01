@@ -352,11 +352,24 @@ export function partitionByStack(
 
 /* ---------------------------------------------------------------- mutations */
 
-/** Drop spans that cover no day — a compound added and removed the same day was
- *  never in the stack on any day, and storing it would render as a member on
- *  none of them while still occupying the one-stack-per-compound slot. */
+/**
+ * Drop spans that describe an impossible stretch — one that ends BEFORE it began.
+ *
+ * A zero-length span (`to === from`, a compound added and removed on the same
+ * day) is KEPT, even though it covers no day and renders nowhere. It is the
+ * device's only record that the departure happened, and deleting it made a
+ * same-day removal indistinguishable from never having removed anything: the
+ * evidence was an absence, so `mergeStack` could not tell the server's stale
+ * open span from genuine news and adopted it straight back — the compound
+ * reappeared in the stack, and the next push wrote that back to Postgres.
+ *
+ * It costs nothing to keep. `membersOn` excludes it (`from <= d && d < to` is
+ * empty), `currentMembers` excludes it (it is closed), `dedupeMembership` skips
+ * closed spans, and `pushStacks` filters it off the wire because
+ * `stack_members_span_valid` requires `effective_to > effective_from`.
+ */
 function pruneEmpty(members: StackMembership[]): StackMembership[] {
-  return members.filter((m) => m.to === undefined || m.to > m.from)
+  return members.filter((m) => m.to === undefined || m.to >= m.from)
 }
 
 /**
@@ -732,7 +745,9 @@ function normalizeMembership(
   const from = isDateKey(m.from) ? m.from : fallbackFrom
   const departed = m.to !== undefined && m.to !== null
   const to = isDateKey(m.to) ? m.to : undefined
-  if (departed && (to === undefined || to <= from)) return null
+  // `to === from` is the same-day departure record {@link pruneEmpty} keeps, so
+  // only a genuinely inverted span is unusable.
+  if (departed && (to === undefined || to < from)) return null
   const position =
     typeof m.position === "number" && Number.isFinite(m.position)
       ? Math.trunc(m.position)

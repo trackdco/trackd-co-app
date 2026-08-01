@@ -21,10 +21,14 @@ vi.mock("@/lib/home/syncStatus", () => ({
 }))
 
 import {
+  activeStacks,
   currentMemberIds,
+  deleteStack,
+  dropMember,
   loadStacks,
   memberIdsOn,
   saveStacks,
+  upsertStack,
   type Stack,
 } from "./stacks"
 
@@ -47,7 +51,10 @@ function fakeStorage() {
 }
 
 beforeEach(() => {
-  vi.stubGlobal("window", { localStorage: fakeStorage() })
+  // `dispatchEvent` is here because the persisting mutators notify subscribers;
+  // the stub only has to not throw, since nothing is listening in a unit test.
+  vi.stubGlobal("window", { localStorage: fakeStorage(), dispatchEvent: () => true })
+  vi.stubGlobal("CustomEvent", class { constructor(public type: string) {} })
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -246,6 +253,29 @@ describe("the provisional start flag", () => {
     expect(loadStacks(USER)[0].provisionalStart).toBe(true)
   })
 
+  it("flags the MEMBER spans the migration invented, and survives a reload", () => {
+    // Without the per-member flag, `adoptStart` can only go on the date — and a
+    // member ticked in ON the migration day carries that date honestly, so it
+    // gets back-dated across weeks it was never in the stack. That is Adrian's
+    // original report, arriving through the upgrade path.
+    freezeToday("2026-08-01")
+    write(V1_KEY, [{ id: "s1", name: "V", colour: "teal", memberIds: ["a", "b"] }])
+
+    expect(loadStacks(USER)[0].members.map((m) => m.provisionalFrom)).toEqual([true, true])
+    expect(loadStacks(USER)[0].members.map((m) => m.provisionalFrom)).toEqual([true, true])
+  })
+
+  it("does NOT flag a member added after the migration", () => {
+    freezeToday("2026-08-01")
+    write(V1_KEY, [{ id: "s1", name: "V", colour: "teal", memberIds: ["a"] }])
+    loadStacks(USER)
+    upsertStack(USER, { id: "s1", name: "V", colour: "teal", memberIds: ["a", "added"] })
+
+    const members = loadStacks(USER)[0].members
+    expect(members.find((m) => m.compoundId === "a")?.provisionalFrom).toBe(true)
+    expect(members.find((m) => m.compoundId === "added")?.provisionalFrom).toBeUndefined()
+  })
+
   it("is absent on a stack that knows its own start", () => {
     write(V2_KEY, [
       {
@@ -278,5 +308,83 @@ describe("impossible dates", () => {
     const [s] = loadStacks(USER)
     expect(s.effectiveFrom).toBe("2026-08-01")
     expect(s.members[0].from).toBe("2026-08-01")
+  })
+})
+
+describe("the write paths the UI actually calls", () => {
+  it("a new stack starts TODAY and groups nothing before it", () => {
+    freezeToday("2026-08-01")
+    upsertStack(USER, { id: "s1", name: "Vitamins", colour: "teal", memberIds: ["a", "b"] })
+    const [s] = loadStacks(USER)
+    expect(s.effectiveFrom).toBe("2026-08-01")
+    expect(memberIdsOn(s, "2026-07-31")).toEqual([])
+    expect(memberIdsOn(s, "2026-08-01")).toEqual(["a", "b"])
+  })
+
+  it("RENAMING a stack does not re-date it", () => {
+    // The whole bug, one rename away: restating `effectiveFrom` as today would
+    // silently un-group every day the stack had already covered.
+    freezeToday("2026-08-01")
+    upsertStack(USER, { id: "s1", name: "Vitamins", colour: "teal", memberIds: ["a"] })
+    freezeToday("2026-09-01")
+    upsertStack(USER, { id: "s1", name: "Morning", colour: "moss", memberIds: ["a"] })
+
+    const [s] = loadStacks(USER)
+    expect(s.name).toBe("Morning")
+    expect(s.colour).toBe("moss")
+    expect(s.effectiveFrom).toBe("2026-08-01")
+    expect(memberIdsOn(s, "2026-08-15")).toEqual(["a"])
+  })
+
+  it("adding a member later leaves the earlier days alone", () => {
+    // Adrian's report, through the real write path.
+    freezeToday("2026-08-01")
+    upsertStack(USER, { id: "s1", name: "Vitamins", colour: "teal", memberIds: ["creatine"] })
+    freezeToday("2026-08-20")
+    upsertStack(USER, {
+      id: "s1",
+      name: "Vitamins",
+      colour: "teal",
+      memberIds: ["creatine", "d3", "vitC"],
+    })
+
+    const [s] = loadStacks(USER)
+    expect(memberIdsOn(s, "2026-08-10")).toEqual(["creatine"])
+    expect(memberIdsOn(s, "2026-08-20")).toEqual(["creatine", "d3", "vitC"])
+  })
+
+  it("dropMember retires an emptied stack without erasing the days it grouped", () => {
+    freezeToday("2026-08-01")
+    upsertStack(USER, { id: "s1", name: "Vitamins", colour: "teal", memberIds: ["a"] })
+    freezeToday("2026-08-20")
+    dropMember(USER, "a")
+
+    const stacks = loadStacks(USER)
+    expect(stacks).toHaveLength(1)
+    expect(activeStacks(stacks)).toHaveLength(0)
+    expect(memberIdsOn(stacks[0], "2026-08-10")).toEqual(["a"])
+    expect(memberIdsOn(stacks[0], "2026-08-20")).toEqual([])
+  })
+
+  it("deleteStack ungroups every day, past included", () => {
+    freezeToday("2026-08-01")
+    upsertStack(USER, { id: "s1", name: "Vitamins", colour: "teal", memberIds: ["a"] })
+    freezeToday("2026-08-20")
+    deleteStack(USER, "s1")
+    expect(loadStacks(USER)).toEqual([])
+  })
+
+  it("moving a member to a new stack keeps each day in exactly one", () => {
+    freezeToday("2026-08-01")
+    upsertStack(USER, { id: "m", name: "Morning", colour: "teal", memberIds: ["a", "b"] })
+    freezeToday("2026-08-20")
+    upsertStack(USER, { id: "e", name: "Evening", colour: "moss", memberIds: ["a"] })
+
+    const stacks = loadStacks(USER)
+    for (const day of ["2026-08-10", "2026-08-20"]) {
+      const holders = stacks.filter((s) => memberIdsOn(s, day).includes("a"))
+      expect(holders).toHaveLength(1)
+      expect(holders[0].id).toBe(day === "2026-08-10" ? "m" : "e")
+    }
   })
 })

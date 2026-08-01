@@ -112,12 +112,18 @@ describe("one stack per compound", () => {
     expect(memberIdsOn(after[0], MADE)).toEqual(["a", "b"])
   })
 
-  it("drops a membership that began and ended on the same day", () => {
-    // It covered no day at all, so storing it would occupy the one-stack slot
-    // while rendering as a member of nothing.
+  it("a membership that began and ended on the same day renders on no day", () => {
+    // It covers no day, so it must not show anywhere or hold the
+    // one-stack-per-compound slot — but the span is KEPT as the record that the
+    // departure happened. Without it a same-day removal is an absence, and
+    // hydration cannot tell it from "the server knows something we don't".
     const added = setStackMembers([stack({ ids: [] })], "s1", ["a"], LATER)
     const removed = setStackMembers(added, "s1", [], LATER)
-    expect(removed[0].members).toEqual([])
+    expect(currentMemberIds(removed[0])).toEqual([])
+    expect(memberIdsOn(removed[0], LATER)).toEqual([])
+    expect(stackedIds(removed)).toEqual(new Set())
+    expect(removed[0].members).toHaveLength(1)
+    expect(removed[0].members[0]).toMatchObject({ compoundId: "a", from: LATER, to: LATER })
   })
 })
 
