@@ -117,6 +117,14 @@ export async function pushStacks(
           // A member with no Postgres row yet (an unmigrated custom) is skipped
           // rather than faked — the device store still holds the membership.
           if (!pcId) return null
+          // A span that ends on or before it starts fails
+          // `stack_members_span_valid` (23514), and the membership delete has
+          // already run by the time the insert reports it — so one bad local row
+          // would empty the mirror and do it again on every push. Every mutator
+          // upstream prunes these, and `isDateKey` now rejects an impossible-but-
+          // well-shaped date; this is the last gate before the wire, next to the
+          // `UUID_RE` check that guards stack ids for the same reason.
+          if (m.to !== undefined && m.to <= m.from) return null
           if (m.to === undefined) {
             if (claimedOpen.has(pcId)) return null
             claimedOpen.add(pcId)

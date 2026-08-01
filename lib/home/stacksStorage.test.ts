@@ -200,6 +200,33 @@ describe("two stacks claiming the same compound", () => {
     expect(memberIdsOn(sOld, "2026-07-01")).toEqual([])
     expect(memberIdsOn(sNew, "2026-07-01")).toEqual(["a"])
   })
+
+  it("breaks a same-day tie deterministically, without deleting either past", () => {
+    const stacks: Stack[] = [
+      {
+        id: "sA",
+        name: "A",
+        colour: "moss",
+        effectiveFrom: "2026-06-01",
+        members: [{ compoundId: "x", from: "2026-06-01", position: 0 }],
+      },
+      {
+        id: "sB",
+        name: "B",
+        colour: "teal",
+        effectiveFrom: "2026-06-01",
+        members: [{ compoundId: "x", from: "2026-06-01", position: 0 }],
+      },
+    ]
+    saveStacks(USER, stacks)
+    const loaded = loadStacks(USER)
+    const holders = loaded.filter((s) => currentMemberIds(s).includes("x"))
+    // Exactly one, on every day, either way the tie falls.
+    expect(holders).toHaveLength(1)
+    for (const day of ["2026-06-01", "2026-07-01"]) {
+      expect(loaded.filter((s) => memberIdsOn(s, day).includes("x"))).toHaveLength(1)
+    }
+  })
 })
 
 describe("the provisional start flag", () => {
