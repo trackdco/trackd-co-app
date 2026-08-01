@@ -8,39 +8,35 @@ Last updated: 2026-07-31, evening (the cold-review + onboarding session)
 
 ---
 
-## 📋 ADRIAN'S NOTES — round 2 is DONE (2026-08-01)
+## 📋 PARKED HERE — 2026-08-01, end of session
 
-> His screen-by-screen walk of the onboarding flow is built and verified.
-> Detail in `progress-tracker.md` → "Onboarding review pass 2". Nothing from
-> that list is outstanding.
+**The flow is good on a computer and still has problems on Adrian's phone.** He
+is writing a spec for those. Do not guess at them; wait for it.
 
-## 🔜 WAITING ON ADRIAN — onboarding round 2
+`Context/HANDOVER-PROMPT.md` is up to date — paste it into a fresh session.
 
-1. **Apply `supabase/onboarding/001_signup_attribution.sql`** when auth is
-   wired. Not before: nothing writes it until there is an account, and it needs
-   his hands (the MCP is not authorised here). Decide the read-back path too —
-   the two options are at the foot of the file.
-2. **Test the Safari fix on a real iPhone.** The URL bar overlapping the CTA is
-   fixed by sizing the flow in `svh` instead of `dvh`, which is the correct fix
-   and is reasoned rather than observed: desktop Chrome does not reproduce iOS
-   toolbar behaviour. Preview over the LAN (below) and check the trial button on
-   the paywall with the bar showing AND after scrolling.
-3. **"Someone else" vs "Somewhere else".** He asked for "a friend and someone
-   else". "A mate" is now "A friend" and the catch-all is "Someone else", which
-   reads as a person. If the catch-all is meant to cover a podcast or a forum
-   too, it wants to be "Somewhere else" and it is a one-word change.
-4. **The compound-naming question is bigger than the hook** — see
-   `progress-tracker.md` → Open Questions. The website already names compounds,
-   and the reasoning that took them off the hook applies there too.
-5. **The founder letter** is still "could be better" with nothing specific.
-   Untouched, per his own note that the copy is his.
+### Waiting on Adrian
 
-## 📱 Previewing on a phone, without Vercel
+1. **Signature SVGs** → `public/onboarding/signature-angus.svg` and
+   `signature-adrian.svg`, `fill="currentColor"`, artboard tight to the ink.
+   Then point the two `SIGNATURES` entries in `screens/letter.tsx` at them.
+2. **Gym-floor photo** → `public/onboarding/hook-backdrop.jpg`, then set
+   `HOOK_BACKDROP` in `screens/hook.tsx`.
+3. **Better app screenshots** → `public/onboarding/app-*.png`.
+4. **`supabase/onboarding/001_signup_attribution.sql`** — written, NOT applied.
+   Hold until auth is wired (nothing writes it before there is an account). The
+   read-back decision is at the foot of the file.
+5. **The phone-issues spec.**
 
-`npm run dev -- -p 3100 -H 0.0.0.0` in the worktree, then open
-**http://192.168.1.41:3100/onboarding** on a phone on the same wifi. No Vercel
-SSO, no deployment protection toggle, and it hot-reloads. The IP is the Mac's
-LAN address and will change on a different network (`ipconfig getifaddr en0`).
+### The UI style, carried forward
+
+`.flow-canvas` + `.flow-card` are the treatment he settled on, and the
+onboarding flow is the REFERENCE the app-wide restyle should point at rather
+than a moving target. Detail in `ui-context.md` → "the canvas is lit and cards
+have depth", and in the handover prompt. `PROMPT-app-surface-restyle.md` gets
+the spec written; it is not the spec and not the work. Note `--text-muted` on
+`--bg-surface` is 3.95:1 — under AA — and lighting the canvas moves that ratio
+on every screen, so contrast is part of that pass.
 
 ---
 
