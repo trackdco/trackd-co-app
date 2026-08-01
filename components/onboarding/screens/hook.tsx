@@ -125,7 +125,12 @@ export function HookScreen() {
           </FlowTitle>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 py-5">
+        {/* Scroll port + a `flex-1` wrapper, the same arrangement `StepFrame`
+            uses and for the same reason: on a short viewport this squashed the
+            phone instead of letting the screen scroll. `shrink-0` on the phone
+            itself, because a device frame that resizes to fit is not one. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 py-5">
           {/* The phone, with a card floating off each of two opposite corners
               (Adrian, 2026-08-01). They sit on the side they describe, which is
               the whole reason those two corners: Notes is the left panel of the
@@ -135,7 +140,7 @@ export function HookScreen() {
               `pointer-events-none` throughout: they overhang the phone, and a
               decorative layer that swallows a drag on the slider underneath it
               would break the one control on the screen. */}
-          <div className="relative mx-auto w-full max-w-[19.5rem]">
+          <div className="relative mx-auto w-full max-w-[19.5rem] shrink-0">
             <DeviceFrame>
               <div className="px-2 pb-2">
                 <NotesCompare />
@@ -161,7 +166,8 @@ export function HookScreen() {
           {/* The instruction belongs UNDER the thing it is about (Adrian,
               2026-08-01): above the phone it read as a subtitle to the
               headline rather than as a label for the control. */}
-          <FlowSub className="text-center">Slide to see the difference.</FlowSub>
+          <FlowSub className="shrink-0 text-center">Slide to see the difference.</FlowSub>
+          </div>
         </div>
 
         <footer className="shrink-0 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">

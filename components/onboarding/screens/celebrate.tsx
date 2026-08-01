@@ -43,11 +43,16 @@ const ANSWERS: Partial<Record<StruggleTag, string>> = {
 };
 
 /**
- * ALWAYS the last line (Adrian, 2026-08-01). The list answers what they told
- * us, and it should never read as though that is the whole app. Muted and
- * unticked, so it reads as a tail rather than as a seventh feature claim.
+ * The line for "Something else", and ONLY for that (Adrian, 2026-08-01,
+ * revising his own call from earlier the same day).
+ *
+ * It first shipped as an always-on tail. His correction is the better rule: if
+ * someone told us exactly what their problem is, answering it and then adding
+ * "and plenty more" waters down the answer. If they told us "something else",
+ * this IS the answer to what they said. It is a normal ticked line now rather
+ * than a muted afterthought, for the same reason.
  */
-const TAIL = "And plenty more.";
+const SOMETHING_ELSE = "And plenty more.";
 
 /**
  * ALWAYS SHOW AT LEAST THREE (Adrian, 2026-08-01). One tick is a thin reply to
@@ -70,15 +75,17 @@ const TOP_UP: StruggleTag[] = [
 export function CelebrateScreen() {
   const { goNext, session } = useFlow();
 
-  // "Something else" carries no feature line, so it cannot count toward the
-  // minimum either. Filtering FIRST is what stops a user who picked only that
-  // one from seeing a two-line answer.
+  // "Something else" has no feature line of its own, so it is held back and
+  // appended at the end. It cannot count toward the minimum either, or picking
+  // only that one would produce a two-line answer.
+  const pickedSomethingElse = session.struggle.includes("other");
   const chosen = session.struggle.filter((tag) => ANSWERS[tag] !== undefined);
   for (const tag of TOP_UP) {
     if (chosen.length >= MINIMUM_ANSWERS) break;
     if (!chosen.includes(tag)) chosen.push(tag);
   }
   const lines = chosen.map((tag) => ANSWERS[tag]).filter((l): l is string => Boolean(l));
+  if (pickedSomethingElse) lines.push(SOMETHING_ELSE);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -87,10 +94,14 @@ export function CelebrateScreen() {
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
         {/* Tighter than it was: Kyle's render carries its own padding, so the
             gap was reading as a hole between him and the headline. */}
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 py-2">
-          <Mascot pose="thumbs" size={330} className="-mb-4" />
+        {/* Scroll port + `flex-1` wrapper, as every other screen has. Kyle is
+            330px before the headline and the answer list even start, so this is
+            the screen most likely to run out of room on a short phone. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <div className="flex w-full flex-1 flex-col items-center justify-center gap-2 py-2">
+          <Mascot pose="thumbs" size={330} className="-mb-4 shrink-0" />
 
-          <div className="space-y-5 text-center">
+          <div className="shrink-0 space-y-5 text-center">
             <h1 className={cn(FLOW_DISPLAY, "text-balance")}>
               Trackd&apos;s built to solve{" "}
               <strong className="font-normal text-accent-amber">
@@ -119,24 +130,18 @@ export function CelebrateScreen() {
                   </span>
                 </li>
               ))}
-
-              {/* The tail. Indented to the same text column as the lines above
-                  by an empty tick-sized spacer, so it hangs off the list rather
-                  than starting a new one. */}
-              <li
-                className="animate-flow-in flex items-start gap-3"
-                style={{ animationDelay: `${160 + lines.length * 110}ms` }}
-              >
-                <span aria-hidden className="h-4 w-4 shrink-0" />
-                <span className="text-[0.9rem] leading-snug text-text-muted">
-                  {TAIL}
-                </span>
-              </li>
             </ul>
 
-            <p className="text-[0.85rem] text-text-muted">
-              Test it out. No account needed.
+            {/* Names the sample and says what happens next (Adrian,
+                2026-08-01: "Test it out. No account needed." was not obvious
+                enough). Three facts, in the order they matter: it is a sample
+                compound, you will log a dose on it, and nothing about it is
+                real or kept. */}
+            <p className="mx-auto max-w-[19rem] text-[0.85rem] leading-relaxed text-text-muted">
+              Have a go on a sample compound. Log a dose and watch what moves.
+              Nothing is saved and no account is needed.
             </p>
+          </div>
           </div>
         </div>
 

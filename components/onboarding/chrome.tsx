@@ -170,24 +170,67 @@ export function StepFrame({
   center?: boolean;
   className?: string;
 }) {
+  const hasHeader = Boolean(eyebrow || title || sub);
+  const header = hasHeader ? (
+    <header className="shrink-0 space-y-3 text-center">
+      {eyebrow ? <StepEyebrow>{eyebrow}</StepEyebrow> : null}
+      {title ? <FlowTitle>{title}</FlowTitle> : null}
+      {sub ? <FlowSub className="mx-auto max-w-[20rem]">{sub}</FlowSub> : null}
+    </header>
+  ) : null;
+
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col px-5 pt-2", className)}>
-      {(eyebrow || title || sub) && (
-        <header className="shrink-0 space-y-3 text-center">
-          {eyebrow ? <StepEyebrow>{eyebrow}</StepEyebrow> : null}
-          {title ? <FlowTitle>{title}</FlowTitle> : null}
-          {sub ? <FlowSub className="mx-auto max-w-[20rem]">{sub}</FlowSub> : null}
-        </header>
-      )}
+      {/* `center` CENTRES THE HEADLINE TOO.
+       *
+       * It used to centre only the body and leave the title pinned to the top,
+       * which is right for a screen with a form under it and wrong for the three
+       * that have almost nothing under it. Install, Notifications and
+       * Attribution pass an EMPTY body, so the old arrangement gave them a
+       * headline against the top edge and a large hole beneath it — Adrian's
+       * "it's too high", on all three (2026-08-01). */}
+      {!center && header}
 
-      <div
-        className={cn(
-          "flex min-h-0 flex-1 flex-col",
-          center ? "justify-center" : "justify-start",
-          (eyebrow || title || sub) && "pt-8",
-        )}
-      >
-        {children}
+      {/* THE BODY SCROLLS; IT DOES NOT COMPRESS.
+       *
+       * This was `flex min-h-0 flex-1` with the content straight inside it,
+       * which is `flex: 1 1 0%` — a basis of zero and permission to shrink. On
+       * a viewport with room to spare that looks identical. On a shorter one it
+       * SQUASHES its children instead of overflowing, which is exactly what
+       * Adrian saw on his phone (2026-08-01): the hook's phone went small and
+       * rode up to the top, and the paywall's carousel compressed until it was
+       * not visible at all. Sizing the flow in `svh` made the container shorter
+       * and so made a latent bug show up; it did not cause it.
+       *
+       * The pattern: the flex child is the SCROLL PORT and is itself a flex
+       * column; the wrapper inside it is `flex-1`. Because a flex item's default
+       * `min-height` is `auto`, the wrapper can never be shrunk below its own
+       * content — so it is `max(content, available)`. `justify-center` then
+       * centres only when there IS free space, and when there is not the
+       * wrapper is exactly content height and the port scrolls from the top with
+       * nothing cut off.
+       *
+       * `min-h-full` was tried first and silently did nothing: a percentage
+       * min-height needs a definite containing height, the port's comes from
+       * `flex: 1 1 0%`, and Chrome resolved it against content instead —
+       * measured, the wrapper came out 328px inside a 664px port, so
+       * `justify-center` had no free space to work with and every centred screen
+       * still hugged the top. Sizing with flex rather than percentages removes
+       * the question. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div
+          className={cn(
+            "flex w-full flex-1 flex-col",
+            center ? "justify-center" : "justify-start",
+            // The gap under the header only exists when the header is ABOVE
+            // this box. Centred, the header is inside it and carries its own.
+            !center && hasHeader && "pt-8",
+          )}
+        >
+          {center && header}
+          {center && hasHeader && children ? <div className="h-8 shrink-0" /> : null}
+          {children}
+        </div>
       </div>
 
       <footer className="shrink-0 space-y-3 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">

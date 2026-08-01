@@ -33,10 +33,17 @@ export function WelcomeScreen() {
           the screen reads as him welcoming you rather than as a titled page
           with a picture on it. Everything is centred as one block. */}
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6">
-          <Mascot pose="flex" size={280} />
+        {/* Scroll port + a `flex-1` wrapper, as `StepFrame` has it: this was
+            compressing Kyle on a short viewport rather than scrolling. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <div className="flex w-full flex-1 flex-col items-center justify-center gap-6">
+            {/* Nudged DOWN off the top of the block (Adrian, 2026-08-01). Kyle's
+                render carries transparent padding at the top, so centring the
+                group by its box left him sitting higher than he looks like he
+                should. `mt-6` moves the drawing, not the layout. */}
+            <Mascot pose="flex" size={280} className="mt-6 shrink-0" />
 
-          <div className="space-y-3 text-center">
+            <div className="shrink-0 space-y-3 text-center">
             {/* A 40px headline with a user-supplied name in it. The flow
                 clips overflow, so without this a long name is silently cut in
                 half on the one screen whose job is showing we know who they
@@ -50,9 +57,10 @@ export function WelcomeScreen() {
             >
               {name ? `You're in, ${name}!` : "You're in!"}
             </h1>
-            <FlowSub className="mx-auto max-w-[20rem]">
-              {TRIAL_DAYS}{" "}days on us. Let&apos;s finish setting you up.
-            </FlowSub>
+              <FlowSub className="mx-auto max-w-[20rem]">
+                {TRIAL_DAYS}{" "}days on us. Let&apos;s finish setting you up.
+              </FlowSub>
+            </div>
           </div>
         </div>
 

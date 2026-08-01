@@ -147,7 +147,10 @@ export function PaywallHero() {
   const active = SLIDES[index];
 
   return (
-    <div className="w-full">
+    // `shrink-0`: this is a fixed-height ring inside a flex column, and without
+    // it a short viewport squeezed it toward nothing. Adrian could not see the
+    // carousel AT ALL on his phone (2026-08-01) — not clipped, compressed.
+    <div className="w-full shrink-0">
       {/* The caption. Given room to breathe above and below (Adrian,
           2026-08-01): at `mb-3` it was crowding the top of the phone and read
           as a label stuck to it rather than as a line about it. */}
@@ -168,7 +171,7 @@ export function PaywallHero() {
           in on 2026-08-01 and put it 21px under again (measured at 360, 390 and
           430). This screen's budget is fixed: anything added below the ring has
           to come out of the ring. */}
-      <div className="relative mx-auto h-[13.5rem] w-full max-w-[22rem]">
+      <div className="relative mx-auto h-[13.5rem] w-full max-w-[22rem] shrink-0">
         {/* A pool of light under the front phone. */}
         <div
           aria-hidden

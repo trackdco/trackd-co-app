@@ -119,9 +119,7 @@ export function InstallScreen() {
         title="You're already set up"
         sub="Trackd is on your home screen, so reminders can reach you."
         footer={<FlowCta onClick={confirmManually}>Continue</FlowCta>}
-      >
-        <div className="flex items-center justify-center" />
-      </StepFrame>
+      />
     );
   }
 
@@ -155,11 +153,9 @@ export function InstallScreen() {
           </div>
         }
       >
-        {promptFailed ? (
-          <InstallSteps platform="android" />
-        ) : (
-          <div className="flex items-center justify-center" />
-        )}
+        {/* Nothing at all until the automatic path fails — an empty box here
+            would take the centred block off centre for a spacer. */}
+        {promptFailed ? <InstallSteps platform="android" /> : null}
       </StepFrame>
     );
   }

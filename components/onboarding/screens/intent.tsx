@@ -26,9 +26,21 @@ import { useFlow } from "../flow-context";
 /**
  * Screens 2 and 3 — the two intent screens (Spec 3-01 §9).
  *
- * Both are multi-select and both are OPTIONAL data (§8), so Continue is always
- * enabled: making an optional question block the flow is how a user learns the
- * app argues with them.
+ * Both are multi-select and **at least one answer is REQUIRED** (Adrian,
+ * 2026-08-01, overriding §8's "optional"). Continue stays disabled until
+ * something is picked.
+ *
+ * The reason is not data collection. The screen after these two answers what
+ * the user just said, and with nothing picked it has to invent an answer out of
+ * the top-up list — so a user who skipped both got a reply to a question they
+ * never answered, which is the least convincing thing on the screen. Requiring
+ * one pick is also the smallest possible ask: seven and seven options, tap one,
+ * and there is a "Just tracking for now" and a "Something else" so nobody is
+ * forced into a claim that is untrue of them.
+ *
+ * NOTE this makes the two screens harder to skip than the spec intends. Nothing
+ * downstream treats an empty list as invalid, so relaxing it is deleting one
+ * `disabled` prop.
  *
  * TGA discipline is the whole point of the copy here. The first screen's
  * options describe the user's PHASE, never a goal or an outcome ("Comp prep",
@@ -80,7 +92,9 @@ export function RunningScreen() {
       sub="Pick any that fit."
       footer={
         <FlowCta
+          disabled={session.running.length === 0}
           onClick={() => {
+            if (session.running.length === 0) return;
             track("running_selected", { count: session.running.length });
             goNext();
           }}
@@ -113,7 +127,9 @@ export function StruggleScreen() {
       sub="Pick any that fit."
       footer={
         <FlowCta
+          disabled={session.struggle.length === 0}
           onClick={() => {
+            if (session.struggle.length === 0) return;
             track("struggle_selected", { count: session.struggle.length });
             goNext();
           }}

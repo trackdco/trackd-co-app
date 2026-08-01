@@ -79,10 +79,11 @@ export function NotificationsScreen() {
         </div>
       }
     >
-      <div className="flex flex-1 flex-col justify-center">
+      {/* `shrink-0`, not `flex-1`: the frame centres this block as a whole now,
+          so a child that grows to fill pushed the mock back off centre. */}
+      <div className="shrink-0">
         {/* Drawn the way their own phone draws it. */}
         <NotificationMock platform={platform} />
-
       </div>
     </StepFrame>
   );

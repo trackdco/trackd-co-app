@@ -498,9 +498,24 @@
  * `overscroll-behavior-y: contain` kills the rubber-band at the ends of the
  * page, which is the gesture that makes Safari's bar animate in and out in the
  * first place. */
+/* Note this is a FIXED height, not a minimum, and the flow does not scroll as a
+ * page — each screen scrolls its own body between a pinned header and a pinned
+ * footer, the way a native onboarding does.
+ *
+ * `min-height` was the first attempt and it left the original complaint half
+ * fixed. On a 660px-tall viewport (a 390x844 iPhone in Safari, once the URL bar
+ * is counted) the paywall's content came to 837px, so the column simply grew and
+ * the CTA went below the fold — measured. A flow whose whole job is one action
+ * per screen must never put that action somewhere you have to go looking for it.
+ *
+ * The requirement this creates: EVERY screen needs an internal scroll port, or
+ * `overflow: hidden` here silently clips it. They all have one — `StepFrame`
+ * provides it for most, and hook / celebrate / welcome / demo carry their own.
+ * Adding a screen without one is the way this breaks. */
 .flow-viewport {
-  min-height: 100vh;
-  min-height: 100svh;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
   overscroll-behavior-y: contain;
 }
 
