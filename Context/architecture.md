@@ -1364,7 +1364,7 @@ reach the database, so we can see which channels are working.
   on writes to it.
 - **A CHECK ties `detail` to `source = 'elsewhere'`**, so a client bug cannot
   file free text under "Instagram" and quietly corrupt the aggregate.
-- **Nothing writes it yet, and the migration is not applied.** Attribution lives
+- **APPLIED 2026-08-01.** Nothing writes it yet, though: attribution lives
   on the anonymous device session and there is no account to attach it to until
   auth is wired at the paywall (`startTrial()` is the seam). The migration is
   written and waiting on Adrian; the Supabase MCP is not authorised in the agent

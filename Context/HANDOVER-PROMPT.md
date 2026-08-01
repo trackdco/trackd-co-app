@@ -24,7 +24,7 @@ This is Next.js 16, not 14. `middleware` is now `proxy.ts`. Read
 Prod is green.
 
 **`wave3/onboarding-flow`** is the active work: an anonymous 14-step onboarding
-flow at `/onboarding`. Pushed, NOT merged. Head is `6bf0301`.
+flow at `/onboarding`. Pushed, NOT merged.
 
 It has had several build passes with me reviewing screen by screen, plus three
 cold-review agents (correctness, browser execution, copy/UI/TGA) whose findings
@@ -67,6 +67,9 @@ missed all of these, and each was found only by driving the real page:
 - JSX drops whitespace between an expression and text across a line break. Use
   `{" "}`. Check rendered DOM text, not a screenshot.
 - Tailwind cannot see an interpolated class name. Write literals out.
+- **`next/image` cannot inherit `currentColor`.** It renders an `<img>`, so an
+  SVG loaded through it resolves the fill against its own default. Anything that
+  has to take a token colour must be INLINE (see `signatureArt.ts`).
 - **Two classes that both set `animation` fight, and one silently wins.**
   Measured: a nudge never played because `animate-flow-in` sat on the same
   element. Give each its own node.
@@ -98,10 +101,13 @@ it moves the layout as Safari's bar comes and goes; that was my original report.
 
 ## What I owe you
 
-- **Signature SVGs** (Angus + mine) → `public/onboarding/signature-angus.svg` and
-  `signature-adrian.svg`. `fill="currentColor"`, no hardcoded colour, artboard
-  trimmed tight to the ink. Then point the two `SIGNATURES` entries in
-  `components/onboarding/screens/letter.tsx` at them.
+- ~~Signature SVGs~~ **DONE.** My exports are wired into the founder letter and
+  they write themselves on when you scroll to them. Source files live in
+  `public/images/signature svg/`; the flow renders from a generated module,
+  `components/onboarding/signatureArt.ts`. If I ever re-export them, regenerate
+  that module rather than hand-editing it — the `viewBox` in there is the
+  MEASURED ink box, because the raw artboards were 2364x1330 with the ink using
+  about half of it, and the slot sizes by height.
 - **A gym-floor photo** → `public/onboarding/hook-backdrop.jpg`, then set
   `HOOK_BACKDROP` in `screens/hook.tsx`. The settle animation is already wired.
 - **Better app screenshots** →
@@ -111,10 +117,12 @@ it moves the layout as Safari's bar comes and goes; that was my original report.
 
 ## What I still have to run
 
-**`supabase/onboarding/001_signup_attribution.sql`** — written, NOT applied, and
-it should not be applied until auth is wired, because nothing writes it until
-there is an account. How it gets read back is an open decision spelled out at the
-foot of the file (service-role aggregate vs a founder-only SELECT policy).
+**`supabase/onboarding/001_signup_attribution.sql` is APPLIED** (2026-08-01).
+Nothing writes it yet — attribution lives on the anonymous device session and
+there is no account to attach a row to until auth is wired at the paywall. How
+it gets read back is still my open decision, spelled out at the foot of the file
+(service-role aggregate vs a founder-only SELECT policy). Nothing else is
+pending; every other migration is live.
 
 ## The UI style discussion — carry this forward
 

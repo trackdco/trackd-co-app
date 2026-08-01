@@ -530,6 +530,39 @@
 /* Directional step motion. Forward comes from the right, back from the left,
    which is the single cheapest thing that makes a flow feel native rather than
    like a set of pages. */
+/* A SIGNATURE BEING WRITTEN.
+ *
+ * A left-to-right wipe, not a stroke-draw. The usual trick for this is
+ * `stroke-dasharray` walking a line, and it is not available here: Adrian's
+ * exports are FILLED outlines with no stroke at all (measured — one path for
+ * Angus, three for Adrian, `fill` only). There is no line to walk.
+ *
+ * So the ink is revealed in the direction a hand moves, which reads as writing
+ * for the same reason and needs nothing from the artwork. Slower than the
+ * flow's other motion on purpose: a signature that snaps in is just an image
+ * appearing.
+ *
+ * `both` so it holds at zero before its delay — otherwise each one flashes in
+ * fully drawn on its first frame and then wipes, which is the opposite effect.
+ * Under `prefers-reduced-motion` it is simply there. */
+@keyframes signature-write {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.animate-signature {
+  animation: signature-write 1100ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-signature {
+    animation: none;
+    clip-path: none;
+  }
+}
+
 /* THE NUDGE — the demo's Next button lifting to say "you can move on".
  *
  * Adrian, 2026-08-01, replacing an auto-advance: the injection-site stage used

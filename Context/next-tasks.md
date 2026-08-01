@@ -17,15 +17,18 @@ is writing a spec for those. Do not guess at them; wait for it.
 
 ### Waiting on Adrian
 
-1. **Signature SVGs** → `public/onboarding/signature-angus.svg` and
-   `signature-adrian.svg`, `fill="currentColor"`, artboard tight to the ink.
-   Then point the two `SIGNATURES` entries in `screens/letter.tsx` at them.
+1. ~~Signature SVGs~~ **DONE 2026-08-01.** Wired into the founder letter from
+   `components/onboarding/signatureArt.ts` (generated from his exports in
+   `public/images/signature svg/`), amber from the token, writing on when the
+   block is scrolled to. Re-exporting means regenerating the module, not editing
+   it: the `viewBox` is a measured ink box.
 2. **Gym-floor photo** → `public/onboarding/hook-backdrop.jpg`, then set
    `HOOK_BACKDROP` in `screens/hook.tsx`.
 3. **Better app screenshots** → `public/onboarding/app-*.png`.
-4. **`supabase/onboarding/001_signup_attribution.sql`** — written, NOT applied.
-   Hold until auth is wired (nothing writes it before there is an account). The
-   read-back decision is at the foot of the file.
+4. ~~Run `supabase/onboarding/001_signup_attribution.sql`~~ **APPLIED
+   2026-08-01.** Nothing writes it until auth is wired. The read-back decision
+   (service-role aggregate vs founder-only SELECT policy) is still open and is
+   at the foot of the file.
 5. **The phone-issues spec.**
 
 ### The UI style, carried forward
