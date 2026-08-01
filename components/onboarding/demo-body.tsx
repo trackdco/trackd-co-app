@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { siteHeat } from "@/lib/home/siteRecency";
 
 import {
+  regionNeedsHalo,
   routeBasePaths,
   routeRegions,
   routeTransform,
@@ -68,21 +69,30 @@ export function siteLabel(siteId: string): string {
 /**
  * The seeded history: one recent site and two rested ones per view, which is
  * what Adrian asked for and also roughly what a real rotation looks like.
+ *
+ * EVERY DAY COUNT SITS INSIDE THE DECAY WINDOW (IM is 7 days), and that is a
+ * requirement rather than a coincidence. `siteHeat` fades to exactly zero at
+ * the end of the window, so a site seeded at 9 or 11 days renders completely
+ * unshaded — which left a chip on the screen with a hairline pointing at an
+ * invisible region. On a screen whose whole claim is "see at a glance which
+ * sites have rested", one of the three sites being impossible to see was the
+ * worst of the three to get wrong. 2 / 4 / 6 gives three obviously different
+ * shades, which is the ramp being demonstrated.
  */
 const HISTORY: Record<DemoView, Record<string, number>> = {
   front: {
     "im-delt-l": 2,
     "im-quad-front-r": 6,
-    "im-vglute-l": 9,
+    "im-vglute-l": 4,
   },
   back: {
     // NOT `im-delt-*`: the back artwork has no delt region (it has traps,
     // lats, triceps, glutes and calves), so a delt seeded here shaded nothing
     // and its chip never mounted — silently, because the anchor lookup just
     // returns nothing.
-    "im-glute-r": 3,
-    "im-trap-r": 7,
-    "im-lat-l": 11,
+    "im-glute-r": 2,
+    "im-trap-r": 4,
+    "im-lat-l": 6,
   },
 };
 
@@ -147,90 +157,122 @@ export function DemoBody({
     [view],
   );
 
-  /** The freshest site is the one worth naming in full. */
+  /** The freshest site, kept only to order the chips' arrival. */
   const freshest = Object.entries(history).sort((a, b) => a[1] - b[1])[0]?.[0];
 
   return (
-    <div className="relative mx-auto w-full max-w-[19rem]">
-      <svg
-        key={view}
-        ref={measure}
-        viewBox="0 0 100 100"
-        className="h-auto w-full"
-        role="group"
-        aria-label={`Injection sites, ${view} view`}
-      >
-        <g aria-hidden="true">
-          <g transform={transform} style={{ fill: "var(--bg-input)" }} stroke="none">
-            {basePaths.map((d, i) => (
-              <path key={i} d={d} />
-            ))}
+    // The body occupies the MIDDLE of this box and the chips live in the
+    // gutters either side (Adrian, 2026-08-01). They used to sit on top of the
+    // silhouette, which put a label over the very region it was labelling and
+    // made a small map smaller. Because this wrapper's height is exactly the
+    // svg's height (the chips are absolute and contribute none), an anchor's
+    // `y%` measured against the svg is the same `y%` here, so pinning a chip
+    // vertically needs no second measurement.
+    <div className="relative mx-auto w-full max-w-[21rem]">
+      {/* 62%: the widest the body can be while a "6d ago" chip still clears it
+          in the gutter at 360, which is the narrowest phone we draw for. */}
+      <div className="mx-auto w-[62%]">
+        <svg
+          key={view}
+          ref={measure}
+          viewBox="0 0 100 100"
+          className="h-auto w-full"
+          role="group"
+          aria-label={`Injection sites, ${view} view`}
+        >
+          <g aria-hidden="true">
+            <g transform={transform} style={{ fill: "var(--bg-input)" }} stroke="none">
+              {basePaths.map((d, i) => (
+                <path key={i} d={d} />
+              ))}
+            </g>
           </g>
-        </g>
 
-        <g transform={transform}>
-          {regions.map((region) => {
-            const label = siteLabel(region.siteId);
-            const days = history[region.siteId];
-            const active = selected === region.siteId;
+          <g transform={transform}>
+            {regions.map((region) => {
+              const label = siteLabel(region.siteId);
+              const days = history[region.siteId];
+              const active = selected === region.siteId;
 
-            const fill = active
-              ? "var(--accent-amber)"
-              : days !== undefined
-                ? `color-mix(in srgb, var(--accent-amber) ${recencyMix(days)}%, var(--bg-surface-raised))`
-                : "var(--bg-surface-raised)";
+              const fill = active
+                ? "var(--accent-amber)"
+                : days !== undefined
+                  ? `color-mix(in srgb, var(--accent-amber) ${recencyMix(days)}%, var(--bg-surface-raised))`
+                  : "var(--bg-surface-raised)";
 
-            return (
-              <path
-                key={region.siteId}
-                d={region.d}
-                role="button"
-                tabIndex={0}
-                aria-label={
-                  days !== undefined
-                    ? `${label}, last logged ${days} days ago`
-                    : `Record ${label}`
-                }
-                aria-pressed={active}
-                data-site={region.siteId}
-                onClick={() => onTap(region.siteId, label)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onTap(region.siteId, label);
+              return (
+                <path
+                  key={region.siteId}
+                  d={region.d}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={
+                    days !== undefined
+                      ? `${label}, last logged ${days} days ago`
+                      : `Record ${label}`
                   }
-                }}
-                // An SVG path cannot take a Tailwind ring, so the focus state
-                // is a real outline. `outline-none` with nothing in its place
-                // left a keyboard user tabbing blind through fourteen regions.
-                className="cursor-pointer transition-[fill] duration-[var(--motion-base)] ease-[var(--motion-ease)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary motion-reduce:transition-none"
-                style={{ fill }}
-              />
-            );
-          })}
-        </g>
-      </svg>
+                  aria-pressed={active}
+                  data-site={region.siteId}
+                  onClick={() => onTap(region.siteId, label)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onTap(region.siteId, label);
+                    }
+                  }}
+                  // An SVG path cannot take a Tailwind ring, so the focus state
+                  // is a real outline. `outline-none` with nothing in its place
+                  // left a keyboard user tabbing blind through fourteen regions.
+                  // `site-hit` is the transparent stroke that makes a
+                  // region tappable at its own visual centre. Applied only to
+                  // the regions the sweep says need it (`regionNeedsHalo`) —
+                  // a blanket halo lets a big region steal its neighbours'
+                  // centres. See `globals.css`.
+                  className={cn(
+                    "cursor-pointer transition-[fill] duration-[var(--motion-base)] ease-[var(--motion-ease)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary motion-reduce:transition-none",
+                    regionNeedsHalo(region.siteId) && "site-hit",
+                  )}
+                  style={{ fill }}
+                />
+              );
+            })}
+          </g>
+        </svg>
+      </div>
 
-      {/* Day counts pinned to the sites they belong to. Factual and small:
-          they say WHEN, never where to go next. */}
+      {/* Day counts, OUTSIDE the body, in the gutter on the side each site sits
+          on. They say WHEN and nothing else: no site names (Adrian,
+          2026-08-01), because the map already shows you where, and a name on a
+          chip is the one thing that could read as a suggestion. A hairline
+          reaches back toward the region so a chip is never orphaned. */}
       {Object.entries(history).map(([id, days]) => {
         const at = anchors[id];
         if (!at) return null;
-        const isFreshest = freshest === id;
+        const onLeft = at.x < 50;
         return (
           <span
             key={id}
             aria-hidden
             className={cn(
-              "animate-flow-in pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full px-2 py-1",
-              "font-mono text-[9px] tabular-nums tracking-[0.06em]",
-              isFreshest
-                ? "flow-card bg-bg-surface text-accent-amber"
-                : "bg-bg-surface/85 text-text-muted backdrop-blur-sm",
+              "animate-flow-in pointer-events-none absolute flex -translate-y-1/2 items-center gap-1.5",
+              onLeft ? "left-0" : "right-0 flex-row-reverse",
             )}
-            style={{ left: `${at.x}%`, top: `${at.y}%` }}
+            style={{
+              top: `${at.y}%`,
+              // Freshest first, so the eye is drawn to the live one.
+              animationDelay: `${freshest === id ? 0 : 140}ms`,
+            }}
           >
-            {isFreshest ? `${siteLabel(id)} · ${days}d ago` : `${days}d`}
+            <span
+              className={cn(
+                "whitespace-nowrap rounded-full bg-bg-surface px-2 py-1",
+                "font-mono text-[9px] tabular-nums tracking-[0.06em]",
+                freshest === id ? "flow-card text-accent-amber" : "text-text-muted",
+              )}
+            >
+              {days}d ago
+            </span>
+            <span className="h-px w-3 shrink-0 bg-border-strong" />
           </span>
         );
       })}

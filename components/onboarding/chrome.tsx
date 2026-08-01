@@ -17,16 +17,18 @@ import { CARD_EYEBROW, FLOW_SUB, FLOW_TITLE } from "@/lib/ui-presets";
  */
 
 /**
- * Progress, as a short bar with its figure beside it.
+ * Progress, as a bar with its figure beside it.
  *
- * It used to be a full-bleed hairline across the very top, which Adrian could
- * not see on a phone: a 2px line the width of the screen reads as part of the
- * chrome rather than as a reading. This is deliberately small, white and
- * slightly thick, and it sits in the header row next to the back arrow where
- * the eye already goes.
+ * It has been through three sizes. It was a full-bleed hairline across the very
+ * top, which Adrian could not see on a phone: a 2px line the width of the screen
+ * reads as part of the chrome rather than as a reading. It then became a 64x3
+ * bar railed to the right of the header, which he could see but which sat off in
+ * a corner. It is now **centred, and roughly double** (2026-08-01): the middle
+ * of the header is where the eye lands between screens, and the one thing on
+ * screen that says "you are getting somewhere" should not be the smallest.
  *
- * It moves SLOWLY. The bar is the only thing on screen that says "you are
- * getting somewhere", so watching it move is the point; snapping wastes it.
+ * It moves SLOWLY, for the same reason: watching it move is the point, and
+ * snapping wastes it.
  */
 export function ProgressRail({ progress }: { progress: number }) {
   const pct = Math.round(Math.max(0, Math.min(1, progress)) * 100);
@@ -37,20 +39,20 @@ export function ProgressRail({ progress }: { progress: number }) {
 
   return (
     <div
-      className="flex items-center gap-2"
+      className="flex items-center gap-2.5"
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={pct}
       aria-label="Setup progress"
     >
-      <span className="h-[3px] w-16 overflow-hidden rounded-full bg-bg-surface-raised">
+      <span className="h-[6px] w-36 overflow-hidden rounded-full bg-bg-surface-raised">
         <span
           className="block h-full rounded-full bg-accent-primary transition-[width] duration-[900ms] ease-[var(--motion-ease)] motion-reduce:transition-none"
           style={{ width: `${pct}%` }}
         />
       </span>
-      <span className="font-mono text-[10px] tabular-nums text-text-muted">
+      <span className="font-mono text-[11px] tabular-nums text-text-muted">
         {pct}%
       </span>
     </div>

@@ -10,7 +10,12 @@ import {
   UsersThree,
 } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
-import type { AttributionTag } from "@/lib/onboarding/session";
+import {
+  ATTRIBUTION_DETAIL_MAX,
+  normaliseAttributionDetail,
+  type AttributionTag,
+} from "@/lib/onboarding/session";
+import { cn } from "@/lib/utils";
 
 import { FlowCta, SkipLink, StepFrame } from "../chrome";
 import { Chip } from "../controls";
@@ -32,17 +37,33 @@ const ICON = "h-5 w-5";
 const OPTIONS: { value: AttributionTag; label: string; icon: ReactNode }[] = [
   { value: "instagram", label: "Instagram", icon: <InstagramLogo className={ICON} /> },
   { value: "tiktok", label: "TikTok", icon: <TiktokLogo className={ICON} /> },
-  { value: "mate", label: "A mate", icon: <ChatCircleDots className={ICON} /> },
+  // "A mate" → "A friend" (Adrian, 2026-08-01). Same person, one fewer
+  // assumption about who is reading.
+  { value: "mate", label: "A friend", icon: <ChatCircleDots className={ICON} /> },
   { value: "community", label: "A community or group", icon: <UsersThree className={ICON} /> },
-  { value: "elsewhere", label: "Somewhere else", icon: <Compass className={ICON} /> },
+  { value: "elsewhere", label: "Someone else", icon: <Compass className={ICON} /> },
 ];
 
 export function AttributionScreen() {
   const { session, patch, goNext } = useFlow();
 
+  const showDetail = session.attribution === "elsewhere";
+
   const onContinue = () => {
+    // Tidy once, on the way out, and write it back so what is recorded and what
+    // is stored are the same string.
+    const detail = showDetail
+      ? normaliseAttributionDetail(session.attributionDetail)
+      : null;
+    if (detail !== session.attributionDetail) patch({ attributionDetail: detail });
+
     if (session.attribution) {
-      track("attribution_selected", { source: session.attribution });
+      track("attribution_selected", {
+        source: session.attribution,
+        // The value itself, not just whether one was given: this is the
+        // question the screen exists to answer.
+        detail: detail ?? undefined,
+      });
     }
     goNext();
   };
@@ -87,10 +108,55 @@ export function AttributionScreen() {
               patch({
                 attribution:
                   session.attribution === option.value ? null : option.value,
+                // Deselecting clears what was typed under it. Leaving an orphan
+                // string on the session would send "a podcast" to the database
+                // attached to whichever chip they picked instead.
+                ...(session.attribution === option.value || option.value !== "elsewhere"
+                  ? { attributionDetail: null }
+                  : {}),
               })
             }
           />
         ))}
+
+        {/* Unfolds under the catch-all chip, and ONLY under it. The whole
+            reason the option exists is to collect the answers that are not on
+            the list (Adrian, 2026-08-01), so "Someone else" with nowhere to say
+            who is the one answer on this screen that teaches us nothing.
+            Grid-rows so it animates open without its height being known. */}
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows] duration-[420ms] ease-[var(--motion-ease)] motion-reduce:transition-none",
+            showDetail ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+          )}
+        >
+          <div className="overflow-hidden">
+            <input
+              value={session.attribution === "elsewhere" ? (session.attributionDetail ?? "") : ""}
+              // CAPPED here, never normalised here. `normaliseAttributionDetail`
+              // trims and collapses whitespace, which on a per-keystroke change
+              // eats the space the moment you type it: "a podcast" then a space
+              // then "n" would land as "a podcastn". Tidying happens at the
+              // boundaries (on Continue, on read from storage, and again on the
+              // server), which is where it belongs.
+              onChange={(e) =>
+                patch({
+                  attributionDetail:
+                    e.target.value.slice(0, ATTRIBUTION_DETAIL_MAX) || null,
+                })
+              }
+              // Not focusable while folded away, or a keyboard user tabs into a
+              // field they cannot see.
+              tabIndex={showDetail ? 0 : -1}
+              aria-hidden={!showDetail}
+              maxLength={ATTRIBUTION_DETAIL_MAX}
+              placeholder="Who, or where? Optional."
+              aria-label="Where you heard about us"
+              autoComplete="off"
+              className="mt-2 h-12 w-full rounded-xl bg-bg-input px-4 text-sm text-foreground outline-none placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+        </div>
       </div>
     </StepFrame>
   );

@@ -208,7 +208,18 @@ const BARS = [
  * and the Trackd bar sheds one. Deterministic scatter, so it is identical on
  * every render and cannot differ between server and client.
  */
-function DollarFall({ count, delay }: { count: number; delay: number }) {
+function DollarFall({
+  count,
+  delay,
+  amber = false,
+}: {
+  count: number;
+  delay: number;
+  /** The Trackd bar's money is AMBER (Adrian, 2026-08-01), and there is barely
+   *  any of it. Two amber glyphs against nine muted ones is the whole argument
+   *  in colour, and amber is already what this flow uses for "ours". */
+  amber?: boolean;
+}) {
   const pieces = useMemo(
     () =>
       Array.from({ length: count }, (_, i) => {
@@ -231,7 +242,10 @@ function DollarFall({ count, delay }: { count: number; delay: number }) {
       {pieces.map((p, i) => (
         <span
           key={i}
-          className="animate-dollar-fall absolute font-mono text-text-subtle"
+          className={cn(
+            "animate-dollar-fall absolute font-mono",
+            amber ? "text-accent-amber" : "text-text-subtle",
+          )}
           style={
             {
               left: `${p.left}%`,
@@ -267,23 +281,31 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
                 <div
                   className={cn(
                     "relative w-full rounded-t-lg",
-                    // Slower than it was. The bar climbing is the argument, so
-                    // it is worth watching (Adrian: "slow is premium").
-                    "transition-[height] duration-[1500ms] ease-[var(--motion-ease)]",
+                    // Slower again (Adrian, 2026-08-01: "go up a bit slow").
+                    // The tall bar climbing IS the argument, and the money has
+                    // to be falling off it while it climbs rather than after
+                    // it lands, or the two read as separate events.
+                    "transition-[height] ease-[var(--motion-ease)]",
                     "motion-reduce:transition-none",
                     bar.accent ? "bg-accent-amber" : "bg-bg-surface-raised",
                   )}
                   style={{
                     height: grown ? `${bar.height}%` : "0%",
+                    // The expensive bar takes its time; the sliver has almost
+                    // no distance to cover, so an equal duration made it look
+                    // stalled.
+                    transitionDuration: bar.accent ? "1100ms" : "2600ms",
                     transitionDelay: `${i * 260}ms`,
                   }}
                 >
-                  {/* The money leaving. Nine off the expensive one, one off
-                      ours, which is the comparison made without a figure. */}
+                  {/* The money leaving. Nine off the expensive one, TWO off
+                      ours and in amber, which is the comparison made without a
+                      figure. Ours falls last, once its bar has arrived. */}
                   {grown ? (
                     <DollarFall
-                      count={bar.accent ? 1 : 9}
-                      delay={bar.accent ? 1900 : 700}
+                      count={bar.accent ? 2 : 9}
+                      delay={bar.accent ? 2400 : 500}
+                      amber={bar.accent}
                     />
                   ) : null}
                 </div>
@@ -311,11 +333,13 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
             screen: the graph is the argument, the sentence is the conclusion. */}
         <div className="mt-8 space-y-3 px-1 text-center">
           <h1 className={cn(FLOW_TITLE, "text-balance")}>
-            The tracking is the cheap part.
+            The tracking is{" "}
+            {/* Same emphasis treatment as the payoff headline. */}
+            <em className="font-medium">the cheap part</em>.
           </h1>
           <p className="mx-auto max-w-[21rem] text-[0.9rem] leading-relaxed text-text-muted">
-            Compounds, pins, bloods, supplements. It all adds up. This is the
-            bit that doesn&apos;t.
+            Compounds, pins, bloods and supplements all add up. This is the bit
+            that doesn&apos;t.
           </p>
         </div>
       </div>

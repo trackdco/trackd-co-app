@@ -34,11 +34,17 @@ export type RunningTag =
   | "blast_cruise"
   | "nothing";
 
-/** Screen 3 options. All of these are TRACKING pains, never dosing pains. */
+/**
+ * Screen 3 options. All of these are TRACKING pains, never dosing pains.
+ *
+ * `units_to_draw` ("converting a dose into syringe units") was removed by Adrian
+ * on 2026-08-01. It sat closer to the act of dosing than anything else on the
+ * list, and the calculator answer already reads as "powder to units", so the
+ * option was both the least on-message and the most redundant.
+ */
 export type StruggleTag =
   | "whats_left"
   | "recon_maths"
-  | "units_to_draw"
   | "last_site"
   | "notes_app"
   | "too_much"
@@ -69,6 +75,16 @@ export interface OnboardingSession {
   running: RunningTag[];
   struggle: StruggleTag[];
   attribution: AttributionTag | null;
+  /**
+   * The free text typed under "Somewhere else" (Adrian, 2026-08-01): which
+   * podcast, which forum, which coach. The whole point of the option is to
+   * learn the answers we did not think to put on the list, so a bucket labelled
+   * "other" with nothing in it would be the one useless answer on the screen.
+   *
+   * Capped hard on read. It is user input that ends up in an aggregate someone
+   * reads, so its length is not the user's to decide.
+   */
+  attributionDetail: string | null;
   /** Creator code captured from `?code=` on first load, or typed at the paywall. */
   affiliateCode: string | null;
   /** Which plan the paywall has selected. Yearly is the pre-selected hero. */
@@ -85,6 +101,7 @@ export const EMPTY_SESSION: OnboardingSession = {
   running: [],
   struggle: [],
   attribution: null,
+  attributionDetail: null,
   affiliateCode: null,
   plan: "yearly",
   startedAt: null,
@@ -219,6 +236,7 @@ export function normaliseSession(raw: unknown): OnboardingSession {
     attribution: (ATTRIBUTION_TAGS as readonly string[]).includes(o.attribution as string)
       ? (o.attribution as AttributionTag)
       : null,
+    attributionDetail: normaliseAttributionDetail(o.attributionDetail),
     // Through the SAME validator the URL path uses. This was the one field
     // that trusted whatever came out of storage, which contradicted this
     // file's own "untrusted input by the time it comes back out" contract.
@@ -243,13 +261,30 @@ export const RUNNING_TAGS = [
 export const STRUGGLE_TAGS = [
   "whats_left",
   "recon_maths",
-  "units_to_draw",
   "last_site",
   "notes_app",
   "too_much",
   "no_history",
   "other",
 ] as const satisfies readonly StruggleTag[];
+
+/** How long a typed attribution may be. Matches the DB CHECK, so a value that
+ *  passes here cannot be rejected by Postgres. */
+export const ATTRIBUTION_DETAIL_MAX = 80;
+
+/**
+ * Clean up a typed attribution: trim, collapse runs of whitespace (a paste out
+ * of a chat app arrives full of newlines), cap, and treat empty as absent.
+ *
+ * Exported because the SERVER validates with this same function rather than a
+ * second copy of the rules. A cap enforced only in the input's `maxLength` is
+ * not enforced at all.
+ */
+export function normaliseAttributionDetail(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const cleaned = raw.replace(/\s+/g, " ").trim().slice(0, ATTRIBUTION_DETAIL_MAX);
+  return cleaned.length > 0 ? cleaned : null;
+}
 
 export const ATTRIBUTION_TAGS = [
   "instagram",

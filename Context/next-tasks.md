@@ -8,13 +8,39 @@ Last updated: 2026-07-31, evening (the cold-review + onboarding session)
 
 ---
 
-## 📋 ADRIAN'S NOTES — PASTE THEM HERE
+## 📋 ADRIAN'S NOTES — round 2 is DONE (2026-08-01)
 
-> Adrian has a list of things to fix from his own review. **They go here, and
-> they are the first thing to work on tomorrow**, ahead of anything else in this
-> file. Nothing below is more urgent than what he found himself.
->
-> _(empty — waiting on him)_
+> His screen-by-screen walk of the onboarding flow is built and verified.
+> Detail in `progress-tracker.md` → "Onboarding review pass 2". Nothing from
+> that list is outstanding.
+
+## 🔜 WAITING ON ADRIAN — onboarding round 2
+
+1. **Apply `supabase/onboarding/001_signup_attribution.sql`** when auth is
+   wired. Not before: nothing writes it until there is an account, and it needs
+   his hands (the MCP is not authorised here). Decide the read-back path too —
+   the two options are at the foot of the file.
+2. **Test the Safari fix on a real iPhone.** The URL bar overlapping the CTA is
+   fixed by sizing the flow in `svh` instead of `dvh`, which is the correct fix
+   and is reasoned rather than observed: desktop Chrome does not reproduce iOS
+   toolbar behaviour. Preview over the LAN (below) and check the trial button on
+   the paywall with the bar showing AND after scrolling.
+3. **"Someone else" vs "Somewhere else".** He asked for "a friend and someone
+   else". "A mate" is now "A friend" and the catch-all is "Someone else", which
+   reads as a person. If the catch-all is meant to cover a podcast or a forum
+   too, it wants to be "Somewhere else" and it is a one-word change.
+4. **The compound-naming question is bigger than the hook** — see
+   `progress-tracker.md` → Open Questions. The website already names compounds,
+   and the reasoning that took them off the hook applies there too.
+5. **The founder letter** is still "could be better" with nothing specific.
+   Untouched, per his own note that the copy is his.
+
+## 📱 Previewing on a phone, without Vercel
+
+`npm run dev -- -p 3100 -H 0.0.0.0` in the worktree, then open
+**http://192.168.1.41:3100/onboarding** on a phone on the same wifi. No Vercel
+SSO, no deployment protection toggle, and it hot-reloads. The IP is the Mac's
+LAN address and will change on a different network (`ipconfig getifaddr en0`).
 
 ---
 

@@ -15,7 +15,6 @@ import {
   Package,
   Pulse,
   SquaresFour,
-  Syringe,
 } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
 import type { RunningTag, StruggleTag } from "@/lib/onboarding/session";
@@ -36,11 +35,13 @@ import { useFlow } from "../flow-context";
  * not "get lean"). The struggle options name TRACKING pains, never dosing pains
  * ("Can't remember my last site", never "not knowing when to pin").
  *
- * The first question used to be "What are you running?" and Adrian killed it:
- * to him that reads as "which compounds are you on", which is not what the
- * answers are. "Where are you at right now?" replaced it and he killed that
- * too. "What's the plan?" is what stuck, and it is the right question for a
- * list of phases.
+ * The first question has been round the houses: "What are you running?" was
+ * killed for reading as "which compounds are you on", "Where are you at right
+ * now?" was killed too, and "What's the plan?" stuck for a while. Adrian settled
+ * it on 2026-08-01 and went BACK to "What are you running?" — his words: he knew
+ * he had said it was not good, and he wants it anyway. "What's the plan?" reads
+ * as though the app is about to give you one, which is the one thing it must
+ * never do; "running" is the word this audience actually uses about a phase.
  */
 
 const ICON = "h-5 w-5";
@@ -58,7 +59,6 @@ const RUNNING_OPTIONS: { value: RunningTag; label: string; icon: ReactNode }[] =
 const STRUGGLE_OPTIONS: { value: StruggleTag; label: string; icon: ReactNode }[] = [
   { value: "whats_left", label: "Losing track of what's left", icon: <Package className={ICON} /> },
   { value: "recon_maths", label: "Reconstitution maths by hand", icon: <Calculator className={ICON} /> },
-  { value: "units_to_draw", label: "Converting a dose into syringe units", icon: <Syringe className={ICON} /> },
   { value: "last_site", label: "Can't remember my last site", icon: <Drop className={ICON} /> },
   { value: "notes_app", label: "Notes app is a mess", icon: <ClipboardText className={ICON} /> },
   { value: "too_much", label: "Too many things to stay on top of", icon: <SquaresFour className={ICON} /> },
@@ -76,7 +76,7 @@ export function RunningScreen() {
 
   return (
     <StepFrame
-      title="What's the plan?"
+      title="What are you running?"
       sub="Pick any that fit."
       footer={
         <FlowCta

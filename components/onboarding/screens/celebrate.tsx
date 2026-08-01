@@ -22,17 +22,32 @@ import { Mascot } from "../mascot";
  * rather than as a titled page with a picture on it.
  */
 
-/** One line per struggle. Features, never outcomes (TGA §3.1). */
-const ANSWERS: Record<StruggleTag, string> = {
-  whats_left: "What's left, without counting.",
-  recon_maths: "Powder to units, worked out.",
-  units_to_draw: "Your dose, converted to units, on the row.",
-  last_site: "Your last site, remembered.",
-  notes_app: "One place instead of a notes app.",
-  too_much: "Compounds, peptides and supplements together.",
-  no_history: "Bloods against the protocol you were on.",
-  other: "And plenty more besides.",
+/**
+ * One line per struggle. Features, never outcomes (TGA §3.1).
+ *
+ * Rewritten 2026-08-01 on Adrian's note that they were too vague to be an
+ * answer: each line now NAMES the thing that exists rather than gesturing at
+ * the relief it brings. "What's left, without counting" describes a feeling;
+ * "full stock tracking" is a feature you can go and look at.
+ *
+ * `other` has no line, deliberately. "Something else" names no feature, and the
+ * tail below already covers it.
+ */
+const ANSWERS: Partial<Record<StruggleTag, string>> = {
+  whats_left: "Full stock tracking, counted for you.",
+  recon_maths: "A calculator that turns powder into units.",
+  last_site: "Built-in injection site rotation.",
+  notes_app: "One clean place instead of a notes app.",
+  too_much: "Every compound in one simple place.",
+  no_history: "Bloods against the protocol you're on.",
 };
+
+/**
+ * ALWAYS the last line (Adrian, 2026-08-01). The list answers what they told
+ * us, and it should never read as though that is the whole app. Muted and
+ * unticked, so it reads as a tail rather than as a seventh feature claim.
+ */
+const TAIL = "And plenty more.";
 
 /**
  * ALWAYS SHOW AT LEAST THREE (Adrian, 2026-08-01). One tick is a thin reply to
@@ -55,12 +70,15 @@ const TOP_UP: StruggleTag[] = [
 export function CelebrateScreen() {
   const { goNext, session } = useFlow();
 
-  const chosen = [...session.struggle];
+  // "Something else" carries no feature line, so it cannot count toward the
+  // minimum either. Filtering FIRST is what stops a user who picked only that
+  // one from seeing a two-line answer.
+  const chosen = session.struggle.filter((tag) => ANSWERS[tag] !== undefined);
   for (const tag of TOP_UP) {
     if (chosen.length >= MINIMUM_ANSWERS) break;
     if (!chosen.includes(tag)) chosen.push(tag);
   }
-  const lines = chosen.map((tag) => ANSWERS[tag]);
+  const lines = chosen.map((tag) => ANSWERS[tag]).filter((l): l is string => Boolean(l));
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -101,6 +119,19 @@ export function CelebrateScreen() {
                   </span>
                 </li>
               ))}
+
+              {/* The tail. Indented to the same text column as the lines above
+                  by an empty tick-sized spacer, so it hangs off the list rather
+                  than starting a new one. */}
+              <li
+                className="animate-flow-in flex items-start gap-3"
+                style={{ animationDelay: `${160 + lines.length * 110}ms` }}
+              >
+                <span aria-hidden className="h-4 w-4 shrink-0" />
+                <span className="text-[0.9rem] leading-snug text-text-muted">
+                  {TAIL}
+                </span>
+              </li>
             </ul>
 
             <p className="text-[0.85rem] text-text-muted">

@@ -122,3 +122,41 @@ export function routeRegions(
   const a = art(route, sex)
   return aspect === "anterior" ? a.regionsFront : a.regionsBack
 }
+
+/**
+ * Regions that need the transparent hit halo (`.site-hit` in `globals.css`).
+ *
+ * Adrian reported two regions that could not be tapped at their visual centre
+ * (2026-08-01). Swept in Chrome across all four artwork modules, 42 regions:
+ * the two TRICEPS on the posterior view are the only ones, on both bodies. A
+ * tricep is a narrow curved sliver, so the centre of its bounding box lands in
+ * the concave side — outside its own fill, where `elementFromPoint` returns the
+ * base silhouette and the tap does nothing.
+ *
+ * ## Why this is a LIST and not a rule applied to everything
+ *
+ * A blanket halo was tried first and made things worse. The halo is symmetric,
+ * so it expands a region OVER its neighbours, and on the anterior view the big
+ * quad-front region sits against the narrow quad-out and ventroglute strips:
+ *
+ *   halo 8 (4px a side) — triceps fixed, quad-out AND ventroglute stolen by
+ *                         quad-front on both bodies. Two fixed, four broken.
+ *   halo 4 (2px a side) — triceps fixed, ventroglute fine, quad-out still
+ *                         stolen (it is 6px wide).
+ *   halo 4, triceps only — 42 regions, 0 unreachable.
+ *
+ * The triceps have nothing packed against them, which is exactly why a halo is
+ * safe there and nowhere else. Anything wide enough to be generous is wide
+ * enough to steal from the region next door.
+ *
+ * If the artwork is ever redrawn, re-run the sweep rather than trusting this
+ * list. It is a record of a measurement, not a rule.
+ */
+const HALO_SITE_IDS: ReadonlySet<string> = new Set([
+  "im-tricep-l",
+  "im-tricep-r",
+])
+
+export function regionNeedsHalo(siteId: string): boolean {
+  return HALO_SITE_IDS.has(siteId)
+}

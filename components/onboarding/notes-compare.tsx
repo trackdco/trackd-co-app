@@ -32,25 +32,39 @@ const SWEEP_MIN = 28;
 const SWEEP_MAX = 72;
 const SWEEP_MS = 4200;
 
+/**
+ * NO COMPOUND IS NAMED ON THIS SCREEN (Adrian, 2026-08-01).
+ *
+ * The hook runs BEFORE the age gate and is a public marketing surface, so it
+ * carries no substance names at all. That is a stricter line than spec §3.2's
+ * "substance-adjacent content comes after the age gate", and deliberately so:
+ * an age gate is a product control, and it is not what makes naming a
+ * prescription-only substance in promotional copy acceptable.
+ *
+ * The screen loses nothing. Its argument was never "look, here is a compound"
+ * — it is "you do not know how much is left, and you are not sure when you
+ * last did it". Every line below is about UNCERTAINTY, which is the actual
+ * mess, and the generic labels match the demo screen's own convention.
+ */
 const NOTES_LINES = [
   "PROTOCOL",
-  "test e 250 mon + thurs??",
+  "mon + thurs?? or tues",
   "  - last one 23rd i think",
-  "npp 100 eod",
-  "  - ran out? check vial",
+  "second one eod",
+  "  - ran out? check the vial",
   "",
-  "bac water 2ml -> 5mg vial",
-  "  = ??? mcg per unit",
+  "2ml water -> 5mg vial",
+  "  = ??? per unit",
   "",
   "bloods 10/07 - still not booked",
   "left delt last time. or right",
 ];
 
 const TRACKD_ROWS = [
-  { name: "Testosterone Enanthate", left: "6.5 mL", doses: "13 left" },
-  { name: "NPP", left: "2.0 mL", doses: "4 left" },
-  { name: "Semaglutide", left: "1.4 mL", doses: "7 left" },
-  { name: "Vitamin D3", left: "84 tabs", doses: "84 left" },
+  { name: "Compound 1", left: "6.5 mL" },
+  { name: "Compound 2", left: "2.0 mL" },
+  { name: "Peptide 1", left: "1.4 mL" },
+  { name: "Supplement", left: "84 tabs" },
 ];
 
 export function NotesCompare() {
@@ -131,24 +145,21 @@ export function NotesCompare() {
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between px-1">
-        <span className="text-[9px] font-sans uppercase tracking-[0.18em] text-text-subtle">
-          Notes app
-        </span>
-        <span
-          id={labelId}
-          className="text-[9px] font-sans uppercase tracking-[0.18em] text-text-muted"
-        >
-          Trackd
-        </span>
-      </div>
+    <div>
+      {/* The two side labels used to live here as eyebrows. They are now the
+          floating cards outside the phone (`hook.tsx`), which say the same
+          thing and carry their own points, so keeping both would have labelled
+          each side twice. The slider still needs a name for assistive tech,
+          hence the visually-hidden one. */}
+      <span id={labelId} className="sr-only">
+        Notes app compared with Trackd
+      </span>
 
       <div
         ref={boxRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        className="relative h-[21.5rem] w-full touch-none select-none overflow-hidden rounded-2xl bg-bg-base"
+        className="relative h-[20rem] w-full touch-none select-none overflow-hidden rounded-2xl bg-bg-base"
       >
         {/* Panel A — the Notes app. Deliberately ugly: monospaced, unaligned,
             question marks where a figure should be. */}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { CaretDown, CircleNotch } from "@/components/icons";
+import { CaretDown, Check, CircleNotch } from "@/components/icons";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { track } from "@/lib/onboarding/analytics";
 import { validateCode, type CodeVerdict } from "@/lib/onboarding/affiliate";
@@ -43,6 +43,17 @@ import { useFlow } from "../flow-context";
  * The preview path is explicit rather than hidden, so nobody can mistake a
  * stubbed trial for a real one.
  */
+
+/**
+ * What the trial opens up. Features only, in the flow's voice: each line names
+ * something that exists on a screen the carousel just showed, so nothing here
+ * is a claim about what it will do for anybody.
+ */
+const INCLUDED = [
+  "Everything you run, tracked in one place",
+  "Stock, doses and injection sites as you go",
+  "Photos, weight, bloods and notes, kept",
+];
 
 export function PaywallScreen() {
   const { session, patch, goNext, setAccountName } = useFlow();
@@ -150,6 +161,28 @@ export function PaywallScreen() {
     >
       <div className="flex flex-1 flex-col gap-5">
         <PaywallHero />
+
+        {/* What the trial actually opens. Placeholder copy pending Adrian's
+            paywall research (2026-08-01) — the point of having it now is that
+            the screen stops going straight from a carousel to a price with
+            nothing said in between.
+            Ticks are MUTED, not amber: the "Save" badge below is this screen's
+            amber beat, and two amber things competing is how the rule about
+            rarity gets broken one component at a time. */}
+        <ul className="space-y-1.5">
+          {INCLUDED.map((line) => (
+            <li key={line} className="flex items-start gap-2.5">
+              <Check
+                className="mt-[3px] h-3.5 w-3.5 shrink-0 text-text-muted"
+                weight="bold"
+                aria-hidden
+              />
+              <span className="text-[0.85rem] leading-snug text-foreground">
+                {line}
+              </span>
+            </li>
+          ))}
+        </ul>
 
         {/* Plan cards */}
         <div

@@ -148,8 +148,10 @@ export function PaywallHero() {
 
   return (
     <div className="w-full">
-      {/* The caption, sitting higher and fading longer. */}
-      <div className="mb-3 flex h-5 items-center justify-center" aria-hidden>
+      {/* The caption. Given room to breathe above and below (Adrian,
+          2026-08-01): at `mb-3` it was crowding the top of the phone and read
+          as a label stuck to it rather than as a line about it. */}
+      <div className="mb-5 flex h-5 items-center justify-center" aria-hidden>
         <p
           key={active.id}
           className={cn(CARD_EYEBROW, "animate-flow-caption")}
@@ -159,10 +161,14 @@ export function PaywallHero() {
         </p>
       </div>
 
-      {/* Sized so the trial CTA clears the fold. It was 19rem, which pushed
-          the primary action 145px below the bottom of a 390x844 phone — you
-          had to scroll to find the button the whole screen exists for. */}
-      <div className="relative mx-auto h-[15rem] w-full max-w-[22rem]">
+      {/* Sized so the trial CTA clears the fold. It was 19rem, which pushed the
+          primary action 145px below the bottom of a 390x844 phone — you had to
+          scroll to find the button the whole screen exists for. Then 15rem,
+          which held until the tick list and the extra caption/dot spacing went
+          in on 2026-08-01 and put it 21px under again (measured at 360, 390 and
+          430). This screen's budget is fixed: anything added below the ring has
+          to come out of the ring. */}
+      <div className="relative mx-auto h-[13.5rem] w-full max-w-[22rem]">
         {/* A pool of light under the front phone. */}
         <div
           aria-hidden
@@ -180,7 +186,7 @@ export function PaywallHero() {
             <div
               key={slide.id}
               aria-hidden
-              className="pointer-events-none absolute left-1/2 top-1/2 w-[8.75rem] rounded-[1.5rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
+              className="pointer-events-none absolute left-1/2 top-1/2 w-[7.75rem] rounded-[1.5rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
               style={{
                 transitionDuration: `${TURN_MS}ms`,
                 transform: `translate(-50%, -50%) translateX(${pos.x}) scale(${pos.scale})`,
@@ -240,7 +246,8 @@ export function PaywallHero() {
         )}
       </div>
 
-      <div className="mt-4 mb-1 flex items-center justify-center gap-1.5">
+      {/* Same again below: the dots were sitting on the phone's feet. */}
+      <div className="mt-6 mb-2 flex items-center justify-center gap-1.5">
         {SLIDES.map((slide, i) => (
           <button
             key={slide.id}

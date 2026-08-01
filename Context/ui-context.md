@@ -255,6 +255,20 @@ than re-deriving classes per card:
   (Added for the onboarding flow, Spec 3-01.)
 - **`SHEET_TITLE`** — `text-xl font-light tracking-[-0.01em]
   text-foreground` — bottom-sheet headers.
+- **Emphasis inside a headline** — `<em className="font-medium">`, i.e. Geist
+  **Medium (500) and italic**, on the two or three words a `FLOW_TITLE` or
+  `FLOW_DISPLAY` actually turns on ("the more you see", "the cheap part").
+  Adrian, 2026-08-01. Weight alone was not enough at 32px on a dark canvas: the
+  step from Light to Medium is visible in a paragraph and almost invisible in a
+  headline, so the slant is doing most of the work and the weight is stopping it
+  reading as a quotation. **Still 500, never 600+** — the type rule is
+  unchanged. It is `<em>`, not a styled `<span>`, so the emphasis is in the
+  markup rather than only in the paint.
+  **Headlines only, and at most one span per headline.** A second one is two
+  emphases, which is none. Italic appears NOWHERE else in the app: not in body
+  copy, not in a label, not on a value. A data figure is never italicised, ever
+  — mono digits at a slant stop being scannable, which is the entire reason the
+  figures are mono.
 - **`DANGER_ROW`** — a row inside Profile's **danger zone** (spec 09 · part
   two): Sign out, Clear all compounds, Delete my account. Red **label** on an
   unfilled row, with the boundary carried by the section's own
@@ -379,6 +393,34 @@ morphism kit: the moment surfaces start glowing it reads as generated rather
 than designed. **Applies to `/onboarding` only for now.** Rolling it through
 the app is its own deliberate pass, not something to sprinkle screen by screen
 (that is how a design system ends up with four slightly different cards).
+
+### Rule: a full-screen flow is sized in `svh`, never `dvh`
+
+`.flow-viewport` in `globals.css`, and it is the only place a full-screen height
+is written. Adrian, 2026-08-01: "the search bar on Safari kind of blocks the
+button sometimes."
+
+The three viewport units differ by which browser-chrome state they measure.
+`lvh` assumes the chrome is retracted, `dvh` tracks whatever it is doing right
+now, and **`svh` assumes it is showing** — the smallest the viewport ever gets.
+A screen with a CTA pinned to the bottom has to clear the URL bar in every
+state, so it is laid out against the smallest one.
+
+`dvh` is the trap, and it is the obvious-looking choice: it is correct at any
+given instant, which means it MOVES the footer as the bar collapses on scroll
+and returns on scroll-up, and iOS resolves it late enough that a screen can
+paint once with its CTA underneath the bar. `svh` is decided once and never
+moves. The cost is a strip of bare canvas at the bottom while the bar is hidden,
+which is invisible because it is the same colour.
+
+The rule carries a `100vh` fallback line before it (iOS before 15.4 has no
+`svh`, and a dropped declaration would collapse the flow to auto height) and
+`overscroll-behavior-y: contain`, which kills the rubber-band that makes Safari
+animate its bar in the first place.
+
+**Verify a bottom-pinned CTA by measuring it**, not by looking at it: the walk
+script asserts the trial button's `bottom` is above 844. It was 21px under after
+one round of copy changes and nothing on screen said so.
 
 ### Rule: new screens reuse the system
 

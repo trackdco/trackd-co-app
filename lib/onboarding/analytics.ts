@@ -29,6 +29,10 @@ export type OnboardingEvent =
   | "auth_completed"
   | "trial_started"
   | "install_confirmed"
+  // The OS install dialog was offered and did not end in an install. Worth its
+  // own event: it is the difference between "Android users do not install" and
+  // "Android users never got asked", and only one of those is a copy problem.
+  | "install_prompt_failed"
   | "notifications_granted"
   | "attribution_selected"
   | "onboarding_completed";

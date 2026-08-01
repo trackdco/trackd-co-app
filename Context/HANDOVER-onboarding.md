@@ -15,7 +15,7 @@ Each has a wired slot. Dropping the file in is the whole change.
 
 | What | Where it goes | Notes |
 |---|---|---|
-| **Signature SVGs** (Angus + Adrian) | `SIGNATURES` in `components/onboarding/screens/letter.tsx` | Vertical space is already reserved so the block will not jump. Export with `fill="currentColor"` and NO hardcoded colour, so the amber comes from the token and a palette retune carries it. |
+| **Signature SVGs** (Angus + Adrian) | Drop the files at `public/onboarding/signature-angus.svg` and `public/onboarding/signature-adrian.svg`, then point the two `SIGNATURES` entries in `components/onboarding/screens/letter.tsx` at them | Vertical space is already reserved so the block will not jump. Export with `fill="currentColor"` and NO hardcoded colour, so the amber comes from the token and a palette retune carries it. Trim the artboard tight to the ink: the slot sizes by height, so whitespace baked into the file renders as a smaller signature. |
 | **Gym-floor backdrop** | `HOOK_BACKDROP` in `screens/hook.tsx` | Currently null. The one-shot settle animation is already wired; set the constant and it plays. |
 | **Real app screenshots** | `public/onboarding/app-{home,protocol,calculator,progress}.png` | Currently captures of `/preview/*`. Adrian said he would send better ones. **They also go stale whenever a screen changes** — recapture with the harness script. |
 | **Progress photos to blur** | `MirrorPhoto` in `screens/demo.tsx` | Optional. Currently a drawn stand-in, deliberately unreadable. |

@@ -282,6 +282,46 @@
 .muscle-region {
   outline: none;
 }
+
+/* THE HIT HALO — why an injection-site region is tappable slightly outside its
+ * own outline.
+ *
+ * Adrian reported (2026-08-01) that two regions could not be tapped at their
+ * visual centre. Measured, in Chrome, over all four artwork modules: the two
+ * TRICEPS on the posterior view, on BOTH the male and the female body, are the
+ * only ones, and the cause is geometric rather than a bug in the markup. A
+ * tricep is drawn as a narrow curved sliver, so the centre of its BOUNDING BOX
+ * falls in the concave side, outside the shape. `isPointInFill` says false
+ * there and `elementFromPoint` returns the base silhouette, so the tap does
+ * nothing at exactly the spot a user aims at. Every other region passes.
+ *
+ * The fix is a transparent stroke rather than a redrawn path: the artwork is
+ * Angus's and is not ours to reshape, and a stroke widens the hittable area
+ * without moving a single pixel of what is drawn. A transparent stroke is still
+ * a PAINTED stroke as far as hit-testing is concerned (`stroke: none` would not
+ * be), which is the whole mechanism, and `non-scaling-stroke` keeps the halo the
+ * same size on every screen instead of scaling with the artwork.
+ *
+ * THE WIDTH IS MEASURED, AND IT IS NARROW ON PURPOSE. The worst tricep needed
+ * ~1.7 css px to reach its centre. The first attempt used 8 (4px a side) for
+ * headroom and MADE THINGS WORSE somewhere else: on the anterior view the
+ * quad-front region is drawn over the narrow quad-out and ventroglute beside it,
+ * so a 4px halo let quad-front swallow BOTH of their centres — two regions fixed
+ * and four broken. 4 (2px a side) clears the triceps with margin and leaves
+ * every other region hitting itself. Verified across all four artwork modules:
+ * 42 regions, 0 unreachable.
+ *
+ * If this is ever widened, re-run the region sweep. A halo big enough to be
+ * generous is a halo big enough to steal from the region next door.
+ *
+ * Applies to both renderers: the app's picker (`BodyMap`) and the onboarding
+ * demo's own (`demo-body.tsx`). One rule, so the two cannot drift. */
+.site-hit {
+  stroke: transparent;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+  paint-order: stroke;
+}
 .mr-interactive {
   cursor: pointer;
 }
@@ -433,6 +473,35 @@
       var(--bg-base) 62%
     ),
     var(--bg-base);
+}
+
+/* The full-screen height a flow screen is laid out against.
+ *
+ * `svh`, NOT `dvh` (Adrian, 2026-08-01: "the search bar on Safari kind of
+ * blocks the button sometimes"). The three units differ by which toolbar state
+ * they measure: `lvh` assumes the browser chrome is RETRACTED, `dvh` tracks
+ * whatever it is doing right now, and `svh` assumes it is SHOWING — the
+ * smallest the viewport ever gets.
+ *
+ * A bottom-pinned CTA has to clear the URL bar in EVERY state, so it must be
+ * laid out against the smallest one. `dvh` is the trap: it is correct at any
+ * given instant and therefore moves the footer under the user's thumb as the
+ * bar collapses on scroll and returns on scroll-up, and iOS resolves it late
+ * enough that a screen can paint once with the CTA beneath the bar. `svh` is
+ * decided once and never moves. The cost is a strip of bare canvas at the
+ * bottom while the bar is hidden, which is invisible: it is the same colour.
+ *
+ * The `100vh` line above it is the fallback for a browser with no `svh` (iOS
+ * before 15.4), where a dropped declaration would collapse the flow to auto
+ * height. Same specificity, so the later one wins wherever it parses.
+ *
+ * `overscroll-behavior-y: contain` kills the rubber-band at the ends of the
+ * page, which is the gesture that makes Safari's bar animate in and out in the
+ * first place. */
+.flow-viewport {
+  min-height: 100vh;
+  min-height: 100svh;
+  overscroll-behavior-y: contain;
 }
 
 /* Cards that sit ON the canvas instead of being holes cut out of it: a hairline

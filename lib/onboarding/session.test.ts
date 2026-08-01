@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   ageInYears,
   ageVerdict,
+  ATTRIBUTION_DETAIL_MAX,
   canLeaveHousekeeping,
   EMPTY_SESSION,
+  normaliseAttributionDetail,
   normaliseSession,
   parseDateKey,
 } from "./session";
@@ -156,5 +158,44 @@ describe("normaliseSession", () => {
   it("defaults an unrecognised plan to yearly", () => {
     expect(normaliseSession({ plan: "lifetime" }).plan).toBe("yearly");
     expect(normaliseSession({ plan: "monthly" }).plan).toBe("monthly");
+  });
+});
+
+describe("attribution detail", () => {
+  it("keeps a typed answer, tidied", () => {
+    expect(normaliseAttributionDetail("  the lift club  podcast ")).toBe(
+      "the lift club podcast",
+    );
+    // A paste out of a chat app arrives full of newlines.
+    expect(normaliseAttributionDetail("my\ncoach\t Sam")).toBe("my coach Sam");
+  });
+
+  it("treats empty and whitespace-only as no answer", () => {
+    expect(normaliseAttributionDetail("")).toBeNull();
+    expect(normaliseAttributionDetail("   ")).toBeNull();
+    expect(normaliseAttributionDetail(null)).toBeNull();
+    expect(normaliseAttributionDetail(42)).toBeNull();
+  });
+
+  it("caps the length, because this ends up in an aggregate someone reads", () => {
+    const long = "x".repeat(500);
+    expect(normaliseAttributionDetail(long)).toHaveLength(ATTRIBUTION_DETAIL_MAX);
+  });
+
+  it("normalises what comes back out of storage", () => {
+    expect(normaliseSession({ attributionDetail: "  a  mate  " }).attributionDetail).toBe(
+      "a mate",
+    );
+    expect(normaliseSession({}).attributionDetail).toBeNull();
+  });
+});
+
+describe("the retired struggle tag", () => {
+  it("drops `units_to_draw` from a session written before it was removed", () => {
+    // Adrian removed "converting a dose into syringe units" on 2026-08-01. A
+    // device that answered the old question must not carry a tag the celebrate
+    // screen has no answer for.
+    const s = normaliseSession({ struggle: ["whats_left", "units_to_draw"] });
+    expect(s.struggle).toEqual(["whats_left"]);
   });
 });

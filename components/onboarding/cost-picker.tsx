@@ -16,7 +16,7 @@ export function CostVariantPicker() {
   const Screen = active.Component;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg-base">
+    <div className="flow-viewport flex flex-col bg-bg-base">
       {/* Harness chrome. Deliberately plain so it cannot be mistaken for part
           of the screen being judged. */}
       <div className="shrink-0 border-b-[0.5px] border-border-default px-5 py-3">

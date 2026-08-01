@@ -600,8 +600,97 @@ created a real 408px horizontal scroll area on a 390 phone for the length of
 the animation (clipped), and "5 days on us" rendered as "5days" because JSX
 drops whitespace between an expression and text across a line break.
 
+## Onboarding review pass 2 (2026-08-01) — Adrian's screen-by-screen notes
+
+He walked the flow and dictated changes for almost every screen. All built,
+all verified by execution at 360 / 390 / 430 (no console errors, no page
+errors, no horizontal overflow). tsc / eslint / **496 tests** / `next build`
+green.
+
+- **The hook names no compound at all now.** Genericised on his instruction. The
+  screen loses nothing, because its argument was never the substances: it is
+  "you do not know how much is left, and you are not sure when you last did it".
+  Every Notes-app line is about UNCERTAINTY and the Trackd rows use the demo's
+  own generic labels. **Note the reasoning, because the age gate is not the
+  operative line** — see Open Questions.
+- **Two floating cards** off the phone's corners, on the side each describes:
+  Trackd top-right with three ticks, Notes app bottom-left with three crosses.
+  The in-panel eyebrows they duplicate were removed.
+- **The progress rail is centred**, 144x6 (was 64x3, railed right). Absolutely
+  positioned so the back arrow's presence cannot shift it between screens.
+- **"What's the plan?" is back to "What are you running?"** — his call,
+  reversing his own earlier one. "What's the plan" reads as though the app is
+  about to give you one.
+- **"Converting a dose into syringe units" is gone** from the struggle list, and
+  its tag is removed from `StruggleTag` (a stored session carrying it is dropped
+  on read, so no migration).
+- **The celebrate answers name features rather than feelings** ("Full stock
+  tracking, counted for you", not "What's left, without counting"), and the list
+  **always ends on "And plenty more."**, muted and unticked. "Something else" now
+  carries no line of its own, because it names no feature.
+- **The demo's day-count chips moved OUTSIDE the body** into the gutters, with a
+  hairline reaching back, and say only the day count. The seeded history moved
+  to 2 / 4 / 6 days: the old 9 and 11 sat outside the 7-day IM decay window, so
+  `siteHeat` returned zero and one chip pointed at a completely invisible region
+  on the screen whose whole claim is "see which sites have rested".
+- **Tapping a site now carries the stage on by itself**, like the vial running
+  dry does on the stage before. His note was that with a body map filling the
+  screen he would not have known when to press Next. The back handler cancels
+  the pending timer, or stepping back would be dragged forward again.
+- **The look-back's cards are the app's cards**: Running uses
+  `PhotoRunningList`'s row treatment (container, name, right-railed mono),
+  Weight has a WORKING Trend/Scale toggle with the real crossfade, and Schedule
+  adopts `ScheduleGrid`'s day initials and mark treatment.
+- **Payoff and cost headlines carry one emphasised span** ("the more you see",
+  "the cheap part") in Medium italic — a new, documented, headline-only
+  treatment. Cost copy is his wording; the tall bar climbs over 2.6s with money
+  falling off it as it goes, and the Trackd bar sheds exactly two AMBER dollars.
+- **The paywall gained three ticks** and the caption/dots got the space he
+  asked for. That pushed the trial CTA **21px below the fold at all three
+  widths**, measured, so the hero ring came down from 15rem to 13.5rem. This
+  screen's budget is fixed: anything added below the ring comes out of the ring.
+- **The Android install path now falls back to instructions** when the OS dialog
+  does not end in an install, instead of leaving the user on a button that
+  already did nothing. `install_prompt_failed` is its own event.
+- **Attribution**: "A mate" is "A friend", the catch-all is "Someone else" and
+  unfolds a typed field. `supabase/onboarding/001` is written and NOT applied.
+
+**The two tricep regions are fixed, and the fix reaches the real site picker.**
+Measured rather than guessed: swept all 42 regions across both bodies and both
+views, found exactly two unreachable at their visual centre (the triceps, both
+sexes), and fixed them with a scoped transparent stroke. The first attempt used
+a blanket halo and **broke four regions to fix two** — the quad-front region
+swallowed the narrow quad-out and ventroglute centres beside it. Now 42/42
+reachable. See `architecture.md` → Injection Sites.
+
+**Safari's URL bar was overlapping the CTA** (his report). The flow was sized in
+`dvh`, which tracks the CURRENT chrome state and therefore moves the footer as
+the bar collapses and returns. It is now `svh` (the smallest viewport, i.e. bar
+showing) via one `.flow-viewport` rule, with a `100vh` fallback and
+`overscroll-behavior-y: contain`. **Reasoned and applied, NOT verified on a real
+iPhone** — desktop Chrome cannot reproduce the toolbar behaviour.
+
 ## Open Questions
 
+- **Naming compounds in marketing copy — the age gate is not the operative
+  line.** Adrian asked whether real compound names before the age gate are a
+  legal problem. The honest answer, and it is not legal advice: an age gate is a
+  PRODUCT control, and it is not what makes naming a prescription-only substance
+  in promotional material acceptable. Under the Therapeutic Goods Act,
+  restrictions on advertising prescription-only (S4) and controlled (S8)
+  substances to the public apply to the advertisement, not to the age of who
+  sees it. So the question is not "before or after the gate", it is "is this
+  surface promotional". The hook is, and has been genericised. **Two things
+  follow and both are Adrian's:** the same reasoning applies to the existing
+  website, which he says already names compounds; and it arguably reaches the
+  demo screen too, though a tool demonstration shown to a gated, self-identified
+  adult is materially weaker exposure than a public landing screen. Worth twenty
+  minutes of an actual Australian regulatory lawyer before launch, because the
+  penalties here are real.
+- **Reading signup attribution back** — service-role aggregate (narrows
+  `adminMetrics.ts`'s "never return a row" rule) versus a founder-only SELECT
+  policy (a third hardcoded copy of the founder emails). Spelled out at the foot
+  of `supabase/onboarding/001`.
 - ~~**Schedule versioning — migration awaiting Adrian.**~~ **RESOLVED 2026-07-29.**
   `supabase/protocol/005` is applied, so schedule versions (and the Spec 02 delete
   `stopped` markers) now persist server-side instead of living only on the device

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { Vial } from "@/components/containers";
 import { Check, Plus } from "@/components/icons";
@@ -83,7 +83,11 @@ const HEADINGS: Record<Stage, { title: string; sub: string }> = {
   },
   history: {
     title: "It all compounds.",
-    sub: "Track photos, weight, bloods and notes. It is all still there in six months."
+    // "It is all still there in six months" was killed by Adrian (2026-08-01)
+    // for sounding like a storage guarantee rather than a reason to care. What
+    // replaces it stays a statement about the RECORD, not about the user's
+    // results: Trackd shows you the run, it does not claim to improve it.
+    sub: "Track photos, weight, bloods and notes. See the whole run, not just today.",
   },
 };
 
@@ -102,11 +106,14 @@ const DEMO_SCHEDULE = [
   { name: "Peptide 1", days: [true, true, true, true, true, true, true] },
 ];
 
+/** Monday first, as `ScheduleGrid` has it. */
+const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"];
+
 /** What was running across the window, under the photos. */
 const DEMO_RUNNING = [
-  { name: "Compound 1", detail: "250 mg · 2x a week" },
-  { name: "Compound 2", detail: "100 mg · every 3rd day" },
-  { name: "Peptide 1", detail: "250 mcg · daily" },
+  { name: "Compound 1", detail: "250 mg", colour: "var(--cat-anabolic)" },
+  { name: "Compound 2", detail: "100 mg", colour: "var(--cat-anabolic)" },
+  { name: "Peptide 1", detail: "250 mcg", colour: "var(--cat-peptide)" },
 ];
 /**
  * Slow, then fast, then slow. `cubic-bezier(0.65, 0, 0.35, 1)` is a symmetric
@@ -150,6 +157,14 @@ export function DemoScreen() {
   useEffect(() => {
     setBackHandler(() => {
       if (index <= 0) return false;
+      // Cancel any pending auto-advance, for the same reason `advance` does:
+      // both the empty-vial chain and the site-tap chain schedule a `setStage`,
+      // and a timer that lands after the user has stepped BACK would drag them
+      // forwards again past the screen they just asked to see.
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
       setStage(STAGES[index - 1]);
       return true;
     });
@@ -289,6 +304,18 @@ export function DemoScreen() {
                 onTap={(id, label) => {
                   setSite({ id, label });
                   setRecent((r) => pushRecentSite(r, label));
+                  // TAPPING A SITE IS THE END OF THIS STAGE, so it carries you
+                  // on (Adrian, 2026-08-01: with a body map filling the screen
+                  // he would not have known when to press Next). Same idiom as
+                  // the vial running dry on the stage before: the demonstration
+                  // finishes itself rather than waiting to be dismissed.
+                  //
+                  // The hold is long enough to read the confirmation line that
+                  // appears under the map. Through the shared `timer` ref, so
+                  // tapping Next inside the window cancels it and cannot be
+                  // yanked backwards by a stale timeout.
+                  if (timer.current) clearTimeout(timer.current);
+                  timer.current = setTimeout(() => setStage("history"), 1600);
                 }}
               />
             )}
@@ -523,11 +550,128 @@ function SiteCard({
   );
 }
 
+/* ------------------------------------------------------------------------- */
+
+const SPARK_W = 132;
+const SPARK_H = 44;
+/** The real card's window. Same figure, so the two smooth identically. */
+const TREND_WINDOW = 7;
+
+/** Trailing simple moving average, exactly as `WeightGlanceCard` computes it. */
+function movingAverage(values: number[], window: number): number[] {
+  return values.map((_, i) => {
+    const slice = values.slice(Math.max(0, i - window + 1), i + 1);
+    return slice.reduce((a, b) => a + b, 0) / slice.length;
+  });
+}
+
+/**
+ * The demo's Weight card, with a WORKING Trend / Scale toggle (Adrian,
+ * 2026-08-01).
+ *
+ * It is the app's own card, reduced to what fits in half a phone: the two
+ * series crossfade by opacity rather than swapping, the trend keeps its 2.5
+ * stroke over a tapered fill and the raw Scale line stays thinner and unfilled,
+ * which is the one distinction `ui-context.md` → Charts says must never
+ * collapse. Opening on `scale` matches the real card, which never auto-selects
+ * the smoothed line.
+ *
+ * A dead control would have been the easier build and the worse demo: the whole
+ * screen exists to say "this is the app", and the first thing a curious person
+ * does is press the thing that looks pressable.
+ */
+function DemoWeightCard({ style }: { style: CSSProperties }) {
+  const [mode, setMode] = useState<"trend" | "scale">("scale");
+
+  const scale = DEMO_WEIGHTS;
+  const trend = movingAverage(DEMO_WEIGHTS, TREND_WINDOW);
+  const shown = mode === "trend" ? trend : scale;
+  const last = shown[shown.length - 1];
+  const delta = last - shown[0];
+
+  return (
+    <div className="animate-flow-in flow-card flex flex-col rounded-2xl bg-bg-surface p-4" style={style}>
+      <p className={CARD_EYEBROW}>Weight</p>
+
+      <p className="mt-2 font-mono text-xl font-light tabular-nums leading-none text-foreground">
+        {last.toFixed(1)}
+        <span className="ml-1 text-[11px] text-text-muted">kg</span>
+      </p>
+      <p className="mt-1 font-mono text-[11px] tabular-nums text-text-muted">
+        {delta >= 0 ? "+" : "−"}
+        {Math.abs(delta).toFixed(1)} kg <span className="font-sans">{mode}</span>
+      </p>
+
+      <svg viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} className="mt-2 h-9 w-full" aria-hidden>
+        <defs>
+          <linearGradient id="demoWeightFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity={0.35} />
+            <stop offset="100%" stopColor="var(--chart-trend)" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <DemoSpark vals={scale} colour="var(--chart-line)" active={mode === "scale"} raw />
+        <DemoSpark vals={trend} colour="var(--chart-trend)" active={mode === "trend"} />
+      </svg>
+
+      <div className="mt-3 grid grid-cols-2 gap-1 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]">
+        {(["trend", "scale"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMode(m)}
+            aria-pressed={mode === m}
+            className={cn(
+              "rounded-full py-1 font-medium transition-colors duration-300 ease-out",
+              // The real card's trick for keeping a 25px pill a 44px target.
+              "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
+              mode === m ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
+            )}
+          >
+            {m === "trend" ? "Trend" : "Scale"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DemoSpark({
+  vals,
+  colour,
+  active,
+  raw = false,
+}: {
+  vals: number[];
+  colour: string;
+  active: boolean;
+  raw?: boolean;
+}) {
+  const geo = sparkGeometry(vals, SPARK_W, SPARK_H);
+  const last = sparkLastPoint(vals, SPARK_W, SPARK_H);
+  return (
+    <g
+      className={cn(
+        "transition-opacity duration-300 ease-out motion-reduce:transition-none",
+        active ? "opacity-100" : "opacity-0",
+      )}
+    >
+      {raw ? null : <path d={geo.area} fill="url(#demoWeightFill)" stroke="none" />}
+      <path
+        d={geo.line}
+        fill="none"
+        stroke={colour}
+        strokeWidth={raw ? 1.5 : 2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      {last ? <circle cx={last.x} cy={last.y} r={2.5} fill="var(--accent-primary)" /> : null}
+    </g>
+  );
+}
+
 /** The look-back. A clean break: a different subject deserves its own surface. */
 function HistoryPanel() {
-  const spark = sparkGeometry(DEMO_WEIGHTS, 132, 44);
-  const sparkLast = sparkLastPoint(DEMO_WEIGHTS, 132, 44);
-
   // Each card arrives on its own, in the order you would read them. A block
   // that appears all at once reads as a page; one that assembles reads as
   // something being shown to you (Adrian, 2026-08-01).
@@ -549,16 +693,24 @@ function HistoryPanel() {
         </div>
       </div>
 
-      {/* What was running across those weeks, in the app's own row language. */}
+      {/* What was running across those weeks. This is `PhotoRunningList`'s row
+          treatment verbatim (Adrian, 2026-08-01): a container leading, the name,
+          the amount right-railed in mono, each row on its own raised pill rather
+          than separated by a hairline. A demo that shows a Running list the user
+          will not recognise an hour later is the one thing a demo must not do. */}
       <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-5" style={rise(1)}>
         <p className={CARD_EYEBROW}>Running</p>
-        <ul className="mt-3 divide-y divide-border-default">
+        <ul className="mt-2 space-y-1.5">
           {DEMO_RUNNING.map((c) => (
-            <li key={c.name} className="flex items-center justify-between gap-3 py-2.5">
-              <span className="min-w-0 flex-1 truncate text-[0.85rem] text-foreground">
+            <li
+              key={c.name}
+              className="flex items-center gap-3 rounded-xl bg-bg-surface-raised px-3 py-2.5"
+            >
+              <Vial colour={c.colour} fill={0.7} size={28} className="shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                 {c.name}
               </span>
-              <span className={cn(DATA_MONO, "shrink-0 text-[10px]")}>
+              <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
                 {c.detail}
               </span>
             </li>
@@ -568,58 +720,44 @@ function HistoryPanel() {
 
       {/* Weight beside the schedule, the way Progress lays them out. */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-4" style={rise(2)}>
-          <p className={CARD_EYEBROW}>Weight</p>
-          <p className="mt-2 font-mono text-xl font-light tabular-nums leading-none text-foreground">
-            83.9
-            <span className="ml-1 text-[11px] text-text-muted">kg</span>
-          </p>
-          {/* The SAME treatment the real glance card uses: tapered fill under a
-              monotone trend line, with a white dot on the latest point. A demo
-              that shows a Weight card the user will not recognise an hour later
-              is the one thing a demo must not do. */}
-          <svg viewBox="0 0 132 44" className="mt-2 h-9 w-full" aria-hidden>
-            <defs>
-              <linearGradient id="demoWeightFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="var(--chart-trend)" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <path d={spark.area} fill="url(#demoWeightFill)" stroke="none" />
-            <path
-              d={spark.line}
-              fill="none"
-              stroke="var(--chart-trend)"
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            />
-            {sparkLast ? (
-              <circle cx={sparkLast.x} cy={sparkLast.y} r={2.5} fill="var(--accent-primary)" />
-            ) : null}
-          </svg>
-        </div>
+        <DemoWeightCard style={rise(2)} />
 
+        {/* The schedule, in `ScheduleGrid`'s language: day initials across the
+            top, one row of marks per compound, logged as a solid white dot and
+            a day with nothing due as the small `border-default` tick rather
+            than a hollow ring. Half a phone wide, so the compound name sits
+            above its row instead of in the app's 38% left column. */}
         <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-4" style={rise(3)}>
           <p className={CARD_EYEBROW}>Schedule</p>
-          <div className="mt-3 space-y-2">
+
+          <div className="mt-3 grid grid-cols-7 gap-1">
+            {DAY_INITIALS.map((d, i) => (
+              <span
+                key={i}
+                className="text-center text-[9px] font-medium uppercase tracking-wide text-text-subtle"
+              >
+                {d}
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-1.5 space-y-2">
             {DEMO_SCHEDULE.map((row) => (
-              <div key={row.name} className="space-y-1.5">
+              <div key={row.name} className="space-y-1">
                 <p className="text-[9px] font-sans uppercase tracking-[0.12em] text-text-subtle">
                   {row.name}
                 </p>
-                <div className="flex items-center gap-1.5">
+                <div className="grid grid-cols-7 gap-1">
                   {row.days.map((on, c) => (
-                    <span
-                      key={c}
-                      className={cn(
-                        "h-2 w-2 rounded-full",
-                        on
-                          ? "bg-accent-primary/85"
-                          : "border-[0.5px] border-border-strong",
-                      )}
-                    />
+                    <span key={c} className="flex h-3 items-center justify-center">
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "rounded-full",
+                          on ? "h-2.5 w-2.5 bg-accent-primary" : "h-1 w-1 bg-border-default",
+                        )}
+                      />
+                    </span>
                   ))}
                 </div>
               </div>

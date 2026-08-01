@@ -83,7 +83,7 @@ export function OnboardingFlow() {
   );
 
   // Same near-black as the flow, so the frame this costs is invisible.
-  if (!isClient) return <div className="flow-canvas min-h-dvh" aria-hidden />;
+  if (!isClient) return <div className="flow-canvas flow-viewport" aria-hidden />;
 
   return <OnboardingFlowClient />;
 }
@@ -294,28 +294,36 @@ function OnboardingFlowClient() {
       {/* overflow-x clipped: the directional entrance starts the incoming screen
           18px off-frame, which without this creates a real horizontal scroll
           area for the length of the animation (measured: 408px on a 390 phone). */}
-      <div className="flow-canvas flex min-h-dvh flex-col overflow-x-clip">
+      <div className="flow-canvas flow-viewport flex flex-col overflow-x-clip">
         <div className="relative mx-auto flex w-full max-w-md flex-1 flex-col">
           {/* Back arrow and progress on ONE row. The back control sits in the
               LAYOUT, not over it: absolutely positioned it collided with the
               first line of a long centred headline (measured on the paywall at
               390). The row is always present so screens do not jump vertically
-              when either thing appears. */}
-          <div className="flex h-10 shrink-0 items-center justify-between gap-3 px-3 pt-2">
+              when either thing appears.
+
+              The RAIL is centred on the row rather than railed right (Adrian,
+              2026-08-01). It is absolutely positioned so the back arrow's
+              presence or absence cannot shift it — with the arrow in flow, a
+              screen that has no back button would slide the bar sideways, and a
+              progress bar that moves horizontally between screens is worse than
+              one sitting in a corner. `pointer-events-none` because it is a
+              readout, and it overlaps the arrow's 40px target at 360. */}
+          <div className="relative flex h-10 shrink-0 items-center px-3 pt-2">
             {canGoBack ? (
               <button
                 type="button"
                 onClick={goBack}
                 aria-label="Go back"
-                className="-ml-1 flex h-10 w-10 items-center justify-center rounded-full text-text-subtle transition-colors duration-[var(--motion-fast)] hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+                className="relative z-10 -ml-1 flex h-10 w-10 items-center justify-center rounded-full text-text-subtle transition-colors duration-[var(--motion-fast)] hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
               >
                 <CaretLeft className="h-5 w-5" />
               </button>
-            ) : (
-              <span aria-hidden />
-            )}
+            ) : null}
 
-            <ProgressRail progress={stepProgress(step)} />
+            <div className="pointer-events-none absolute inset-x-0 top-2 flex h-10 items-center justify-center">
+              <ProgressRail progress={stepProgress(step)} />
+            </div>
           </div>
 
           {/* `key` remounts on every step, which is what replays the entrance

@@ -84,15 +84,31 @@ export function InstallScreen() {
     goNext();
   }, [goNext, platform]);
 
+  /**
+   * Has the OS dialog been tried and NOT resulted in an install?
+   *
+   * Adrian, 2026-08-01: "if for some reason any issues with it then they should
+   * give the instructions". `beforeinstallprompt` having fired is not a promise
+   * that the dialog appears or succeeds — the user can dismiss it, Chrome can
+   * refuse to show it twice, and some builds resolve it with no dialog at all.
+   * Leaving the user on a button that already did nothing is the dead end this
+   * avoids: the manual steps appear underneath, and they get a way past.
+   */
+  const [promptFailed, setPromptFailed] = useState(false);
+
   const install = useCallback(async () => {
     setBusy(true);
-    const outcome = await promptInstall();
+    // A rejected promise here used to be an unhandled rejection that also left
+    // `busy` true, so the button read "Opening" for ever.
+    const outcome = await promptInstall().catch(() => "unavailable" as const);
     setBusy(false);
     if (outcome === "accepted") {
       track("install_confirmed", { platform, method: "prompt" });
       goNext();
+      return;
     }
-    // Dismissed or unavailable: stay put. They can try again or skip.
+    track("install_prompt_failed", { platform, outcome: String(outcome) });
+    setPromptFailed(true);
   }, [goNext, platform, promptInstall]);
 
   /* ---- 1. Already installed. Nothing to ask for. ---- */
@@ -109,23 +125,41 @@ export function InstallScreen() {
     );
   }
 
-  /* ---- 2. Android: a real button, no instructions. ---- */
+  /* ---- 2. Android: a real button, and the manual steps only if it fails. ---- */
   if (canInstall) {
     return (
       <StepFrame
         center
         title="Add Trackd to your home screen"
-        sub="One tap. It works like a normal app once it's there, and reminders need it."
+        sub={
+          promptFailed
+            ? "That did not open. You can add it from the browser menu instead."
+            : "One tap. It works like a normal app once it's there, and reminders need it."
+        }
         footer={
           <div className="space-y-1">
-            <FlowCta onClick={install} disabled={busy}>
-              {busy ? "Opening" : "Add to home screen"}
+            <FlowCta onClick={promptFailed ? confirmManually : install} disabled={busy}>
+              {busy
+                ? "Opening"
+                : promptFailed
+                  ? "I've added it"
+                  : "Add to home screen"}
             </FlowCta>
+            {/* The OS button stays available underneath: Chrome will often
+                show the dialog on a second attempt, and taking the automatic
+                path away because it missed once would be the wrong trade. */}
+            {promptFailed ? (
+              <SkipLink onClick={install}>Try the install button again</SkipLink>
+            ) : null}
             <SkipLink onClick={goNext}>Skip for now</SkipLink>
           </div>
         }
       >
-        <div className="flex items-center justify-center" />
+        {promptFailed ? (
+          <InstallSteps platform="android" />
+        ) : (
+          <div className="flex items-center justify-center" />
+        )}
       </StepFrame>
     );
   }
@@ -154,30 +188,43 @@ export function InstallScreen() {
           ]}
         />
 
-        <ol className="flow-card rounded-2xl bg-bg-surface px-5">
-          {STEPS[platform].map((step, i) => (
-            <li
-              key={step.text}
-              className={cn(
-                "flex items-center gap-3 py-4",
-                i > 0 && "border-t-[0.5px] border-border-default",
-              )}
-            >
-              <span className={cn(DATA_MONO, "w-3 shrink-0 text-text-subtle")}>
-                {i + 1}
-              </span>
-              <span className="flex min-w-0 flex-1 items-center gap-2 text-[0.9rem] text-foreground">
-                {step.icon ? (
-                  <span className="text-text-muted" aria-hidden>
-                    {step.icon}
-                  </span>
-                ) : null}
-                {step.text}
-              </span>
-            </li>
-          ))}
-        </ol>
+        <InstallSteps platform={platform} />
       </div>
     </StepFrame>
+  );
+}
+
+/**
+ * The manual Share-sheet / menu steps. One component, two callers: the iOS path
+ * (where there has never been an install API) and the Android FALLBACK (where
+ * there is one and it did not work). Shared rather than duplicated, because two
+ * copies of a set of instructions is how one of them ends up describing a menu
+ * that moved.
+ */
+function InstallSteps({ platform }: { platform: Platform }) {
+  return (
+    <ol className="flow-card rounded-2xl bg-bg-surface px-5">
+      {STEPS[platform].map((step, i) => (
+        <li
+          key={step.text}
+          className={cn(
+            "flex items-center gap-3 py-4",
+            i > 0 && "border-t-[0.5px] border-border-default",
+          )}
+        >
+          <span className={cn(DATA_MONO, "w-3 shrink-0 text-text-subtle")}>
+            {i + 1}
+          </span>
+          <span className="flex min-w-0 flex-1 items-center gap-2 text-[0.9rem] text-foreground">
+            {step.icon ? (
+              <span className="text-text-muted" aria-hidden>
+                {step.icon}
+              </span>
+            ) : null}
+            {step.text}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }

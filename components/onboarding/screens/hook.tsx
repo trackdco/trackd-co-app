@@ -3,6 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { Check, X } from "@/components/icons";
+import { cn } from "@/lib/utils";
+
 import { FlowCta, FlowSub, FlowTitle } from "../chrome";
 import { DeviceFrame } from "../device-frame";
 import { NotesCompare } from "../notes-compare";
@@ -22,6 +25,66 @@ import { useFlow } from "../flow-context";
  * loop (see `.animate-flow-hero`).
  */
 const HOOK_BACKDROP: string | null = null;
+
+/**
+ * One of the two cards floating off the phone's corners.
+ *
+ * Three points each, in opposing pairs, so the two cards read as one sentence
+ * rather than as two lists. The ticks are FOREGROUND white and the crosses are
+ * subtle, which is the contrast doing the work: amber stays on the slider
+ * handle, the one live control on the screen, per the one-or-two-beats rule.
+ */
+function PointCard({
+  title,
+  tone,
+  points,
+  className,
+  delay,
+}: {
+  title: string;
+  tone: "good" | "bad";
+  points: string[];
+  className?: string;
+  delay: number;
+}) {
+  const Mark = tone === "good" ? Check : X;
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "animate-flow-in pointer-events-none absolute z-20 w-[8.25rem] rounded-2xl px-3 py-2.5",
+        "flow-card bg-bg-surface/95 backdrop-blur-sm",
+        className,
+      )}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <p className="text-[9px] font-sans uppercase tracking-[0.18em] text-text-muted">
+        {title}
+      </p>
+      <ul className="mt-1.5 space-y-1">
+        {points.map((p) => (
+          <li key={p} className="flex items-center gap-1.5">
+            <Mark
+              className={cn(
+                "h-3 w-3 shrink-0",
+                tone === "good" ? "text-foreground" : "text-text-subtle",
+              )}
+              weight="bold"
+            />
+            <span
+              className={cn(
+                "text-[11px] leading-tight",
+                tone === "good" ? "text-foreground" : "text-text-muted",
+              )}
+            >
+              {p}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function HookScreen() {
   const { goNext } = useFlow();
@@ -63,11 +126,37 @@ export function HookScreen() {
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 py-5">
-          <DeviceFrame>
-            <div className="px-2 pb-2">
-              <NotesCompare />
-            </div>
-          </DeviceFrame>
+          {/* The phone, with a card floating off each of two opposite corners
+              (Adrian, 2026-08-01). They sit on the side they describe, which is
+              the whole reason those two corners: Notes is the left panel of the
+              wipe and Trackd is the right, so bottom-LEFT and top-RIGHT read as
+              labels for the halves rather than as decoration.
+
+              `pointer-events-none` throughout: they overhang the phone, and a
+              decorative layer that swallows a drag on the slider underneath it
+              would break the one control on the screen. */}
+          <div className="relative mx-auto w-full max-w-[19.5rem]">
+            <DeviceFrame>
+              <div className="px-2 pb-2">
+                <NotesCompare />
+              </div>
+            </DeviceFrame>
+
+            <PointCard
+              title="Trackd"
+              tone="good"
+              points={["In order", "Up to date", "Counted for you"]}
+              className="-right-2 -top-3"
+              delay={260}
+            />
+            <PointCard
+              title="Notes app"
+              tone="bad"
+              points={["Jumbled", "Out of date", "Guesswork"]}
+              className="-bottom-3 -left-2"
+              delay={420}
+            />
+          </div>
 
           {/* The instruction belongs UNDER the thing it is about (Adrian,
               2026-08-01): above the phone it read as a subtitle to the
