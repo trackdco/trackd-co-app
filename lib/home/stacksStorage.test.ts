@@ -168,34 +168,88 @@ describe("hostile stored records", () => {
 })
 
 describe("two stacks claiming the same compound", () => {
-  it("ends the loser's span instead of deleting its history", () => {
-    // Deleting it threw away however long that stack had legitimately grouped
-    // the compound for.
+  it("the LATEST membership wins, and the loser's past is kept", () => {
+    // Stacks are held in CREATION order everywhere (`upsertStack` appends,
+    // `pullStacks` orders by created_at), so "whichever sorts first wins" handed
+    // it to the oldest — undoing the user's most recent move, and emptying the
+    // stack they had just built. The array order here is the real one.
     const stacks: Stack[] = [
       {
-        id: "s1",
-        name: "New",
-        colour: "teal",
-        effectiveFrom: "2026-06-01",
-        members: [{ compoundId: "a", from: "2026-06-01", position: 0 }],
-      },
-      {
-        id: "s2",
+        id: "sOld",
         name: "Old",
         colour: "moss",
         effectiveFrom: "2026-01-01",
         members: [{ compoundId: "a", from: "2026-01-01", position: 0 }],
       },
+      {
+        id: "sNew",
+        name: "New",
+        colour: "teal",
+        effectiveFrom: "2026-06-01",
+        members: [{ compoundId: "a", from: "2026-06-01", position: 0 }],
+      },
     ]
     saveStacks(USER, stacks)
-    const [s1, s2] = loadStacks(USER)
+    const [sOld, sNew] = loadStacks(USER)
 
-    expect(currentMemberIds(s1)).toEqual(["a"])
-    expect(currentMemberIds(s2)).toEqual([])
-    // The five months it really was in "Old" are still there.
-    expect(memberIdsOn(s2, "2026-03-01")).toEqual(["a"])
+    expect(currentMemberIds(sNew)).toEqual(["a"])
+    expect(currentMemberIds(sOld)).toEqual([])
+    // The five months it really was in "Old" are still there — closed, not deleted.
+    expect(memberIdsOn(sOld, "2026-03-01")).toEqual(["a"])
     // And it is in exactly one stack on any given day.
-    expect(memberIdsOn(s2, "2026-07-01")).toEqual([])
-    expect(memberIdsOn(s1, "2026-07-01")).toEqual(["a"])
+    expect(memberIdsOn(sOld, "2026-07-01")).toEqual([])
+    expect(memberIdsOn(sNew, "2026-07-01")).toEqual(["a"])
+  })
+})
+
+describe("the provisional start flag", () => {
+  it("survives a store round-trip", () => {
+    // It used to live only in the object `migrateLegacy` returned: the next
+    // `loadStacks` saw a valid date, dropped the flag, and the next push wrote
+    // the guess over the server's real `created_at`-derived date — destroying the
+    // only accurate copy. Every consumer calls `loadStacks` directly, so "the
+    // next read" is the very next thing that happens.
+    freezeToday("2026-08-01")
+    write(V1_KEY, [{ id: "s1", name: "V", colour: "teal", memberIds: ["a"] }])
+
+    expect(loadStacks(USER)[0].provisionalStart).toBe(true)
+    expect(loadStacks(USER)[0].provisionalStart).toBe(true)
+
+    saveStacks(USER, loadStacks(USER))
+    expect(loadStacks(USER)[0].provisionalStart).toBe(true)
+  })
+
+  it("is absent on a stack that knows its own start", () => {
+    write(V2_KEY, [
+      {
+        id: "s1",
+        name: "V",
+        colour: "teal",
+        effectiveFrom: "2026-07-01",
+        members: [{ compoundId: "a", from: "2026-07-01", position: 0 }],
+      },
+    ])
+    expect(loadStacks(USER)[0].provisionalStart).toBeUndefined()
+  })
+})
+
+describe("impossible dates", () => {
+  it("are not treated as dates", () => {
+    // "2026-13-45" is the right SHAPE, passes every span comparison here (they
+    // are string compares) and only fails at the database — on an insert that
+    // runs after the membership wipe.
+    freezeToday("2026-08-01")
+    write(V2_KEY, [
+      {
+        id: "s1",
+        name: "V",
+        colour: "teal",
+        effectiveFrom: "2026-13-45",
+        members: [{ compoundId: "a", from: "2026-02-30", position: 0 }],
+      },
+    ])
+    const [s] = loadStacks(USER)
+    expect(s.effectiveFrom).toBe("2026-08-01")
+    expect(s.members[0].from).toBe("2026-08-01")
   })
 })

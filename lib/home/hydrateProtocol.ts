@@ -370,15 +370,26 @@ function mergeAndSave(
  */
 /**
  * Take the server's start date for a stack whose own is a migration guess, and
- * pull the guessed member spans back with it. A stack that knows its real start
- * (`provisionalStart` absent) is returned untouched — the device's date is then
- * the authoritative one, and the server's copy is what this device wrote.
+ * pull the guessed member spans back with it.
+ *
+ * A stack that knows its real start (`provisionalStart` absent) is returned
+ * untouched — the device's date is then the authoritative one, and the server's
+ * copy is what this device wrote. So is a stack whose SERVER date is itself a
+ * guess: `pullStacks` marks the whole result provisional when it had to fall
+ * back to the pre-013 select, and adopting a `created_at`-derived date over the
+ * device's own would be trading one guess for another.
+ *
+ * The flag is cleared whenever a REAL server date has been seen, even if it is
+ * not earlier than ours — otherwise the stack stays in the "omit effective_from"
+ * push batch forever and the device could never mirror its date up at all.
  */
-function adoptStart(local: Stack, serverFrom: string): Stack {
-  if (!local.provisionalStart || serverFrom >= local.effectiveFrom) return local
+function adoptStart(local: Stack, pulled: Stack): Stack {
+  if (!local.provisionalStart || pulled.provisionalStart) return local
+  const serverFrom = pulled.effectiveFrom
   const guessed = local.effectiveFrom
   const { provisionalStart, ...rest } = local
   void provisionalStart
+  if (serverFrom >= guessed) return rest
   return {
     ...rest,
     effectiveFrom: serverFrom,
@@ -432,7 +443,15 @@ function hydrateStacks(
     // every device.
     const pulledIds = p.members.map((m) => m.compoundId)
     const resolves = pulledIds.every((id) => known.has(id))
-    if (resolves && pulledIds.length > 0) {
+    if (p.provisionalStart && loc) {
+      // The pull came from a database without the 013 columns, so its dates were
+      // INVENTED: every span reads as open (the old schema cannot say a
+      // membership ended) and every start is the stack's creation day. Adopting
+      // that would resurrect every compound the user has ever removed from a
+      // stack and overwrite the real join dates. The device's own copy is the
+      // only dated truth until the migration runs, so it wins outright.
+      merged.push(loc)
+    } else if (resolves && pulledIds.length > 0) {
       merged.push(p)
     } else if (loc) {
       // Keep what the device has rather than replacing it with a stack whose
@@ -445,7 +464,7 @@ function hydrateStacks(
       // they are pulled back with it: moving the stack's gate alone would leave
       // every recovered day with no members in force, which renders exactly as
       // if nothing had been corrected.
-      merged.push(adoptStart(loc, p.effectiveFrom))
+      merged.push(adoptStart(loc, p))
     } else {
       // Neither fully resolvable nor held locally. KEEP THE SERVER'S COPY rather
       // than dropping it: this list is what the next `pushStacks` mirrors back
@@ -453,9 +472,10 @@ function hydrateStacks(
       // from Postgres on the next edit. That was survivable when an empty stack
       // was meaningless; now a stack whose members have all departed is a normal,
       // deliberate state that still has to render on the days it covered.
-      // Nothing shows an unrenderable stack to the user: `activeStacks` keeps it
-      // off every present-tense screen, and `partitionByStack` skips it on any
-      // day it has no members for.
+      // `partitionByStack` skips it on any day it has no members for, and
+      // Protocol lists only stacks with at least one member it can actually
+      // render — so carrying it costs the user nothing while it waits for the
+      // compound that would make it whole.
       merged.push(p)
     }
   }

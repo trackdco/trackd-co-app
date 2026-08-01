@@ -313,6 +313,22 @@ describe("regressions found in cold review", () => {
     }
   })
 
+  it("keeps a member's place when it is removed and re-added the same day", () => {
+    // No open span exists for it mid-edit, so it was treated as brand new and
+    // sent to the end of the row — with a tick-list editor there is no way back.
+    const before = stack({ ids: ["a", "b"] })
+    const removed = setStackMembers([before], "s1", ["b"], LATER)
+    const readded = setStackMembers(removed, "s1", ["b", "a"], LATER)
+    expect(currentMemberIds(readded[0])).toEqual(["a", "b"])
+  })
+
+  it("shortens rather than deletes a membership closed by a backwards clock", () => {
+    const after = removeMemberEverywhere([stack({ ids: ["a", "b"] })], "a", "2026-07-01")
+    // The days it really was in the stack still show it.
+    expect(memberIdsOn(after[0], MADE)).toEqual(["a", "b"])
+    expect(currentMemberIds(after[0])).toEqual(["b"])
+  })
+
   it("ignores a set against a stack id that does not exist", () => {
     const before = [stack({ id: "s1", ids: ["a", "b"] })]
     const after = setStackMembers(before, "nope", ["a", "b"], LATER)

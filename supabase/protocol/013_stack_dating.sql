@@ -29,11 +29,19 @@
 -- 1. stacks.effective_from — exact, from the row's own creation timestamp.
 --
 -- `created_at` is timestamptz and the cast lands in the DATABASE's timezone (UTC
--- on Supabase), so a stack created late evening in a positive-offset zone can
--- backfill one day late. That is the safe direction — a stack that starts a day
--- later under-groups one day rather than falsely claiming days it never covered,
--- which is the entire bug being fixed. New rows are dated by the client, which
--- knows the user's real local day.
+-- on Supabase), so the backfilled day can be off by one against the user's local
+-- day, in EITHER direction depending on their offset:
+--
+--   * West of UTC (the Americas): a stack created late evening local time is
+--     already the next day in UTC, so it backfills one day LATE — it under-groups
+--     a single day, which is the harmless direction.
+--   * East of UTC: a stack created early morning local time is still the previous
+--     day in UTC, so it backfills one day EARLY — it groups one day it did not
+--     exist on, which is a one-day instance of the bug being fixed.
+--
+-- One day either way is the best a timestamp taken without a timezone can do, and
+-- it only affects rows created before this migration. Every row written after it
+-- is dated by the CLIENT, which knows the user's real local day.
 -- ---------------------------------------------------------------------------
 ALTER TABLE stacks ADD COLUMN IF NOT EXISTS effective_from date;
 

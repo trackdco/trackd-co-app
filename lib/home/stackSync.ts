@@ -236,16 +236,33 @@ export async function pushStacks(
     if (rows.length === 0) return { ok: unresolved === 0 }
 
     let { error: memErr } = await cx.supabase.from("stack_members").insert(rows)
-    // Same pre-013 tolerance as the stack upsert: drop the span columns and mirror
-    // the membership undated, rather than failing every stack edit until the
-    // migration is applied.
+    // Pre-013 tolerance, and it must send ONLY THE OPEN SPANS.
+    //
+    // Before 013 the table's contract is present-tense membership: 007's PK is
+    // (stack_id, protocol_compound_id) and 008's unique index is
+    // (user_id, protocol_compound_id) with no partial predicate. Two spans for one
+    // compound — which is what any move between stacks, or any remove-then-re-add,
+    // produces — collapse onto one key and the insert dies 23505. The membership
+    // delete has already run by then, so that would leave the mirror EMPTY and
+    // repeat identically on every subsequent push until the migration is applied.
+    //
+    // Dropping the closed spans is the honest translation: the old schema has
+    // nowhere to say "this membership ended", and the device store keeps the full
+    // history regardless. The alternative — sending them stripped of their dates —
+    // writes them back as CURRENT members, and the next pull then resurrects every
+    // compound the user ever removed from a stack.
     if (memErr && isUndefinedColumn(memErr)) {
-      const undated = rows.map(({ effective_from, effective_to, ...rest }) => {
-        void effective_from
-        void effective_to
-        return rest
-      })
-      ;({ error: memErr } = await cx.supabase.from("stack_members").insert(undated))
+      const undated = rows
+        .filter((r) => r.effective_to === null)
+        .map(({ effective_from, effective_to, ...rest }) => {
+          void effective_from
+          void effective_to
+          return rest
+        })
+      ;({ error: memErr } =
+        undated.length > 0
+          ? await cx.supabase.from("stack_members").insert(undated)
+          : { error: null })
     }
     if (memErr) {
       if (isMissingTable(memErr)) return { ok: true, skipped: true }
@@ -316,6 +333,13 @@ export async function pullStacks(): Promise<Stack[]> {
           }[]
         | null
     }
+    // Whether the rows carry real dates or invented ones. On the undated retry
+    // every `from` below is derived from `created_at` and every span reads as
+    // open, because the old schema cannot express an ended membership — so the
+    // result is marked provisional and `hydrateStacks` keeps the device's own
+    // dating in preference to it.
+    const undatedPull = !Object.hasOwn((data ?? [{}])[0] ?? {}, "effective_from")
+
     return ((data ?? []) as unknown as Row[]).map((r) => {
       // A database that has `stacks` but not yet 013 answers the undated select
       // above, so there is no `effective_from`. Fall back to the creation DAY
@@ -328,6 +352,7 @@ export async function pullStacks(): Promise<Stack[]> {
         name: r.name,
         colour: r.colour as Stack["colour"],
         effectiveFrom,
+        ...(undatedPull ? { provisionalStart: true as const } : {}),
         members: (r.stack_members ?? [])
           .slice()
           .sort((a, b) => a.position - b.position)

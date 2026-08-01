@@ -72,11 +72,20 @@ export function StacksView({
   const [pendingMemberId, setPendingMemberId] = useState<string | null>(null)
 
   const active = useMemo(() => compounds.filter((c) => !c.archived), [compounds])
-  // Stacks that still group something. A stack whose last member was deleted is
-  // KEPT in the store so the days it grouped still read correctly, but it is
-  // over — listing it would leave an empty card with nothing to show.
-  const listed = useMemo(() => activeStacks(stacks), [stacks])
   const byId = useMemo(() => new Map(active.map((c) => [c.id, c])), [active])
+  // Stacks that still group something THIS SCREEN CAN DRAW. Two ways a stack
+  // fails that: its last member was deleted (it is kept in the store so the days
+  // it grouped still read correctly, but it is over), or its members haven't
+  // hydrated onto this device yet (`hydrateStacks` keeps such a stack rather than
+  // deleting it from Postgres). Either way an empty card tells the user less than
+  // no card, so neither is listed.
+  const listed = useMemo(
+    () =>
+      activeStacks(stacks).filter((s) =>
+        currentMemberIds(s).some((id) => byId.has(id))
+      ),
+    [stacks, byId]
+  )
 
   /** Ids in a stack OTHER than the one being edited. */
   const unavailable = useMemo(() => {
@@ -172,7 +181,7 @@ export function StacksView({
           setCreating(false)
           setEditing(null)
         }}
-        fallbackName={nextStackName(stacks)}
+        fallbackName={nextStackName(listed)}
         onAddCompound={() => setPickerOpen(true)}
         pendingMemberId={pendingMemberId}
         onDelete={

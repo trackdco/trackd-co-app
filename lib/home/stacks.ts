@@ -365,7 +365,12 @@ function closeMember(
   const members = stack.members.map((m) => {
     if (m.compoundId !== compoundId || m.to !== undefined) return m
     touched = true
-    return { ...m, to: on < m.from ? m.from : on }
+    // Clamped to the day AFTER the start, not to the start itself: clamping to
+    // `from` produces a zero-length span that `pruneEmpty` then deletes, so a
+    // device whose clock has moved backwards (crossing the dateline westward, or
+    // a corrected clock) erased a membership that had covered real days instead
+    // of ending it. Keeping one day is the smallest honest claim.
+    return { ...m, to: on <= m.from ? nextDay(m.from) : on }
   })
   return touched ? { ...stack, members: pruneEmpty(members) } : stack
 }
@@ -419,10 +424,27 @@ export function setStackMembers(
     // list with no way to reorder, so the only order the user can express is the
     // order they ticked things in, which is what this preserves.
     let nextPosition = s.members.reduce((max, m) => Math.max(max, m.position + 1), 0)
+    // A member removed EARLIER TODAY and re-added has no open span, so it would
+    // otherwise be treated as brand new and sent to the end of the row — and the
+    // editor is a tick list with no way to drag it back. Its span from today is
+    // about to be pruned as zero-length anyway, so reclaiming its position
+    // makes the round trip a genuine no-op.
+    const reclaimable = new Map<string, number>()
+    for (const m of s.members) {
+      if (m.to === on) reclaimable.set(m.compoundId, m.position)
+    }
     for (const id of unique) {
       const existing = open.get(id)
-      if (existing) kept.push(existing)
-      else kept.push({ compoundId: id, from: on, position: nextPosition++ })
+      if (existing) {
+        kept.push(existing)
+        continue
+      }
+      const reclaimed = reclaimable.get(id)
+      kept.push({
+        compoundId: id,
+        from: on,
+        position: reclaimed ?? nextPosition++,
+      })
     }
     // Members that are gone: close them where they stood.
     for (const [id, m] of open) {
@@ -613,21 +635,37 @@ export function dropMember(userId: string, compoundId: string): boolean {
 
 /**
  * Belt-and-braces for stored data: if two stacks somehow hold an OPEN span for
- * the same compound, the FIRST keeps it. Reading can then never show a compound
- * in two stacks at once.
+ * the same compound, the one that STARTED MOST RECENTLY keeps it, and the other
+ * is CLOSED where it begins. Reading can then never show a compound in two
+ * stacks at once.
  *
- * The loser is CLOSED at the winner's start, not deleted. Deleting it threw away
- * however many months that stack had legitimately grouped the compound for — the
- * duplicate is almost always a stale open end on an older, genuine membership,
- * so ending it where the newer one begins is both the smaller claim and the more
- * likely truth. A loser that starts on or after the winner covered nothing and
- * prunes away by itself.
+ * Latest-start wins because that is what a duplicate actually is: the user moved
+ * the compound and the older stack kept a stale open end. Taking whichever stack
+ * happened to sort first got this backwards — stacks are held in creation order
+ * everywhere (`upsertStack` appends, `pullStacks` orders by `created_at`), so
+ * "first" meant OLDEST, which undid the user's most recent move and could empty
+ * the stack they had just built.
+ *
+ * Closing rather than deleting matters just as much: the loser may have grouped
+ * the compound legitimately for months before the move, and those days are real.
+ * A loser that starts on or after the winner covered nothing and prunes away.
  *
  * Closed spans are left alone: a compound that genuinely moved between stacks has
  * one in each, and that is history, not a duplicate.
  */
 function dedupeMembership(stacks: Stack[]): Stack[] {
-  const winners = new Map<string, DateKey>()
+  // Winner per compound: the latest-starting open span, ties going to the first
+  // stack in order so the result is deterministic either way.
+  const winner = new Map<string, { stackId: string; from: DateKey }>()
+  for (const s of stacks) {
+    for (const m of s.members) {
+      if (m.to !== undefined) continue
+      const cur = winner.get(m.compoundId)
+      if (!cur || m.from > cur.from) {
+        winner.set(m.compoundId, { stackId: s.id, from: m.from })
+      }
+    }
+  }
   return stacks.map((s) => {
     const members: StackMembership[] = []
     for (const m of s.members) {
@@ -635,13 +673,12 @@ function dedupeMembership(stacks: Stack[]): Stack[] {
         members.push(m)
         continue
       }
-      const winnerFrom = winners.get(m.compoundId)
-      if (winnerFrom === undefined) {
-        winners.set(m.compoundId, m.from)
+      const won = winner.get(m.compoundId)
+      if (!won || won.stackId === s.id) {
         members.push(m)
         continue
       }
-      members.push({ ...m, to: winnerFrom < m.from ? m.from : winnerFrom })
+      members.push({ ...m, to: won.from < m.from ? m.from : won.from })
     }
     return { ...s, members: pruneEmpty(members) }
   })
@@ -681,8 +718,26 @@ function normalizeMembership(
   }
 }
 
+/**
+ * A real calendar day, not merely the right shape. The shape-only check accepted
+ * "2026-13-45", which passes every span comparison here (they are string
+ * compares) and only fails at the database, on an insert that runs after the
+ * membership wipe — so one corrupt local record emptied the durable mirror and
+ * kept doing so on every push.
+ */
 function isDateKey(v: unknown): v is DateKey {
-  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false
+  const [y, m, d] = v.split("-").map(Number)
+  const date = new Date(y, m - 1, d)
+  return (
+    date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d
+  )
+}
+
+/** The day after `key`. Used to end a membership that cannot end where it began. */
+function nextDay(key: DateKey): DateKey {
+  const [y, m, d] = key.split("-").map(Number)
+  return toDateKey(new Date(y, m - 1, d + 1))
 }
 
 /**
@@ -704,9 +759,19 @@ function normalizeStack(item: unknown, legacyFrom?: DateKey): Stack | null {
   const effectiveFrom: DateKey = isDateKey(stored)
     ? stored
     : (legacyFrom ?? todayKey())
-  // Either the v1 migration or a v2 record that lost its date: the day above is
-  // a guess, and must not be pushed over the server's real one.
-  const provisional = !isDateKey(stored) || legacyFrom !== undefined
+  // Either the v1 migration, a v2 record that lost its date, or a record already
+  // flagged on a previous read: the day above is a guess, and must not be pushed
+  // over the server's real one.
+  //
+  // READING THE STORED FLAG BACK is what makes it work at all. Without it the
+  // flag lived only in the object `migrateLegacy` returned: the very next
+  // `loadStacks` saw a valid `effectiveFrom`, dropped the flag, and the next push
+  // wrote the guess over the server's `created_at`-derived date — destroying the
+  // only accurate copy and making the correction in `hydrateStacks` a no-op.
+  // Every consumer calls `loadStacks` directly, so "the next read" is the first
+  // thing that happens.
+  const provisional =
+    !isDateKey(stored) || legacyFrom !== undefined || s.provisionalStart === true
 
   let members: StackMembership[] = []
   if (Array.isArray(s.members) && s.members.length > 0) {
