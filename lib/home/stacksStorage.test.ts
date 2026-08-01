@@ -132,6 +132,27 @@ describe("hostile stored records", () => {
     expect(currentMemberIds(s)).toEqual(["ok"])
   })
 
+  it("keeps a stored departure record, and still rejects an inverted span", () => {
+    // `to === from` is the same-day departure record; only `to < from` is
+    // unusable. Rejecting both at the load boundary silently undid the fix.
+    write(V2_KEY, [
+      {
+        id: "s1",
+        name: "V",
+        colour: "teal",
+        effectiveFrom: "2026-07-01",
+        members: [
+          { compoundId: "left", from: "2026-07-05", to: "2026-07-05", position: 0 },
+          { compoundId: "bad", from: "2026-07-05", to: "2026-07-01", position: 1 },
+          { compoundId: "here", from: "2026-07-01", position: 2 },
+        ],
+      },
+    ])
+    const [s] = loadStacks(USER)
+    expect(currentMemberIds(s)).toEqual(["here"])
+    expect(s.members.map((m) => m.compoundId).sort()).toEqual(["here", "left"])
+  })
+
   it("keeps a stack readable when a member entry is malformed", () => {
     write(V2_KEY, [
       {
@@ -228,8 +249,11 @@ describe("two stacks claiming the same compound", () => {
     saveStacks(USER, stacks)
     const loaded = loadStacks(USER)
     const holders = loaded.filter((s) => currentMemberIds(s).includes("x"))
-    // Exactly one, on every day, either way the tie falls.
+    // Exactly one, on every day — and the LATER-starting membership is the one
+    // that keeps it, which is what stops a duplicate undoing the user's most
+    // recent move. Equal starts fall to the first stack, deterministically.
     expect(holders).toHaveLength(1)
+    expect(holders[0].id).toBe("sA")
     for (const day of ["2026-06-01", "2026-07-01"]) {
       expect(loaded.filter((s) => memberIdsOn(s, day).includes("x"))).toHaveLength(1)
     }
@@ -372,6 +396,24 @@ describe("the write paths the UI actually calls", () => {
     freezeToday("2026-08-20")
     deleteStack(USER, "s1")
     expect(loadStacks(USER)).toEqual([])
+  })
+
+  it("untick, re-tick, then remove weeks later — the real span survives the read", () => {
+    // The departure record and a same-day re-join share (compoundId, from), so a
+    // dedupe key on that pair alone dropped the REAL span on the next read and
+    // erased weeks of grouping — from the device, and from Postgres on the next
+    // push. Reachable straight through the editor: a compound with a departure
+    // record is immediately re-tickable in the same stack that day.
+    freezeToday("2026-06-01")
+    upsertStack(USER, { id: "s1", name: "Morning", colour: "teal", memberIds: ["test", "bpc", "tb"] })
+    upsertStack(USER, { id: "s1", name: "Morning", colour: "teal", memberIds: ["test", "tb"] })
+    upsertStack(USER, { id: "s1", name: "Morning", colour: "teal", memberIds: ["test", "tb", "bpc"] })
+    freezeToday("2026-06-25")
+    upsertStack(USER, { id: "s1", name: "Morning", colour: "teal", memberIds: ["test", "tb"] })
+
+    const [s] = loadStacks(USER)
+    expect(memberIdsOn(s, "2026-06-10").sort()).toEqual(["bpc", "tb", "test"])
+    expect(currentMemberIds(s).sort()).toEqual(["tb", "test"])
   })
 
   it("moving a member to a new stack keeps each day in exactly one", () => {

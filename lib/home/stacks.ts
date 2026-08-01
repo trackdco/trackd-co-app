@@ -822,8 +822,17 @@ function normalizeStack(item: unknown, legacyFrom?: DateKey): Stack | null {
     s.members.forEach((raw, i) => {
       const m = normalizeMembership(raw, i, effectiveFrom)
       if (!m) return
-      // One OPEN span per compound per stack; closed ones may repeat.
-      const key = m.to === undefined ? `open:${m.compoundId}` : `${m.compoundId}:${m.from}`
+      // One OPEN span per compound per stack; closed ones may repeat, and the
+      // key must carry `to` as well as `from`. Keyed on the pair alone, a
+      // same-day DEPARTURE RECORD (`to === from === D`) and the span created by
+      // re-joining that same day (which starts on D and reclaims its position)
+      // collide — so when the re-join is later closed for real, the read dropped
+      // the real span and kept the empty one, erasing weeks of grouping from the
+      // device and, on the next push, from Postgres.
+      const key =
+        m.to === undefined
+          ? `open:${m.compoundId}`
+          : `${m.compoundId}:${m.from}:${m.to}`
       if (seen.has(key)) return
       seen.add(key)
       members.push(m)

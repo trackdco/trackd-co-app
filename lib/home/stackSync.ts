@@ -158,7 +158,16 @@ export async function pushStacks(
 
     // Nothing to put back, but something to take away ⇒ abort untouched. This is
     // the guard that makes the ordering above matter.
-    const hasMembers = stacks.some((s) => s.members.length > 0)
+    //
+    // Counted over PUSHABLE spans, not over `members.length`. A zero-length
+    // departure record is a device-side artefact that the span gate above
+    // correctly refuses to send, so a stack holding only those looked like
+    // "members exist but none resolved" and aborted the whole mirror — which
+    // meant a stack the user had DELETED was never deleted server-side, and came
+    // back on the next hydration.
+    const hasMembers = stacks.some((s) =>
+      s.members.some((m) => m.to === undefined || m.to > m.from)
+    )
     if (hasMembers && rows.length === 0) {
       console.error("pushStacks aborted: no member resolved, refusing to clear")
       return { ok: false }
