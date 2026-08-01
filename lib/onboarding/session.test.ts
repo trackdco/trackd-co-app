@@ -215,3 +215,33 @@ describe("the retired struggle tag", () => {
     expect(s.struggle).toEqual(["whats_left"]);
   });
 });
+
+describe("the age gate and a date input's intermediate states", () => {
+  const TODAY = "2026-08-01";
+
+  it("an empty DOB never passes the gate", () => {
+    const base = { name: "Testy", sex: "male" as const, consent: true };
+    expect(canLeaveHousekeeping({ ...base, dob: null }, TODAY)).toBe(false);
+    expect(canLeaveHousekeeping({ ...base, dob: "" }, TODAY)).toBe(false);
+  });
+
+  it("a complete DOB passes and a partial one does not parse", () => {
+    // The housekeeping field commits to the session only when `parseDateKey`
+    // accepts the value, which is what stops iOS's wheel — it fires `change`
+    // with empty and partial values while it is still turning, and one of those
+    // used to wipe a date the user had already committed and lock them out of
+    // the flow entirely.
+    expect(parseDateKey("1990-05-20")).not.toBeNull();
+    expect(parseDateKey("")).toBeNull();
+    expect(parseDateKey("1990-05")).toBeNull();
+    expect(parseDateKey("1990")).toBeNull();
+    // A single-digit year is rejected, and by accident rather than by design:
+    // `new Date(1, …)` maps years 0-99 onto 1900-1999, so the round-trip check
+    // that catches 31 February catches this too. Recorded because it looks like
+    // a gap and is not one — nobody's date of birth is in year 1.
+    expect(parseDateKey("0001-05-20")).toBeNull();
+
+    const base = { name: "Testy", sex: "male" as const, consent: true };
+    expect(canLeaveHousekeeping({ ...base, dob: "1990-05-20" }, TODAY)).toBe(true);
+  });
+});

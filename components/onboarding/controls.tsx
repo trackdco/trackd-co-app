@@ -166,6 +166,12 @@ export function ConsentRow({
         onClick={onToggle}
         className={cn(
           "mt-[0.1rem] flex h-5 w-5 shrink-0 items-center justify-center rounded-[0.375rem]",
+          // The tick stays 20px; the TARGET is grown to 44 with a transparent
+          // pseudo-element, the same trick the weight toggle uses. This is the
+          // control that gates the entire flow and it was the smallest thing on
+          // the screen. (An earlier attempt at this edit targeted a class string
+          // that does not exist here and silently changed nothing.)
+          "relative before:absolute before:-inset-3 before:content-['']",
           "transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)]",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           "motion-reduce:transition-none",

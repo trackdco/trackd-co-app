@@ -5,7 +5,11 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { Camera } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
-import { ageVerdict, canLeaveHousekeeping } from "@/lib/onboarding/session";
+import {
+  ageVerdict,
+  canLeaveHousekeeping,
+  parseDateKey,
+} from "@/lib/onboarding/session";
 
 import { FlowCta, StepFrame } from "../chrome";
 import { ConsentRow, FieldRow, Segmented } from "../controls";
@@ -34,6 +38,16 @@ export function HousekeepingScreen() {
   const nameId = useId();
   const dobId = useId();
   const [photo, setPhoto] = useState<string | null>(null);
+  /**
+   * The date field's own value, separate from the session's.
+   *
+   * A date input has intermediate states that are not answers — half-typed on a
+   * desktop, and on iOS empty over and over while the WHEEL is still turning.
+   * Binding it straight to the session meant every one of those was treated as
+   * the user's answer. Keeping a draft lets the field say whatever it currently
+   * says while the session only ever holds a complete date.
+   */
+  const [dobDraft, setDobDraft] = useState(session.dob ?? "");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const verdict = ageVerdict(session.dob, todayKey);
@@ -132,13 +146,45 @@ export function HousekeepingScreen() {
           <input
             id={dobId}
             type="date"
-            value={session.dob ?? ""}
+            value={dobDraft}
             max={todayKey}
-            // The value is taken EXACTLY as the field reports it. An empty
-            // change event is empty, never "today": a native wheel picker fires
-            // one mid-pick, and coercing it is how a back-dated entry ends up
-            // saved under today (wave3, commit ed3eed5).
-            onChange={(e) => patch({ dob: e.target.value || null })}
+            /**
+             * ONLY A COMPLETE DATE IS AN ANSWER. THIS IS WHY NOBODY COULD GET
+             * PAST THIS SCREEN ON AN IPHONE (Adrian, 2026-08-01).
+             *
+             * iOS renders a date input as a WHEEL and fires `change` while it is
+             * still turning, including with an empty value. The field used to be
+             * bound straight to the session and took each of those exactly as
+             * reported — so one wiped a date the user had already committed,
+             * `canLeaveHousekeeping` went back to false, Continue greyed out,
+             * and there was no way forward at all. Reproduced at 390x844,
+             * 390x660 and 360x560 by dispatching a native empty change through
+             * React's value setter, the closest a desktop browser gets to a
+             * wheel.
+             *
+             * The comment this replaces had the right OBSERVATION and drew the
+             * wrong conclusion for this field. Refusing to coerce an empty to
+             * "today" is correct for a JOURNAL date, where a coerced value
+             * silently mis-files an entry under the wrong day. A date of birth
+             * has no such failure mode: an empty one is not a wrong answer, it
+             * is no answer, and destroying a good one only locks the user out.
+             *
+             * Simply ignoring empties was tried and was worse: the input is
+             * controlled, so React put the old date straight back, which would
+             * also fight anyone retyping a year on a desktop. Hence the draft —
+             * the field shows whatever it currently says, and the session takes
+             * it only when it parses. Blur settles it either way, so clearing on
+             * purpose still works.
+             */
+            onChange={(e) => {
+              const next = e.target.value;
+              setDobDraft(next);
+              if (parseDateKey(next)) patch({ dob: next });
+            }}
+            onBlur={(e) => {
+              const settled = e.target.value;
+              patch({ dob: parseDateKey(settled) ? settled : null });
+            }}
             className="h-13 w-full rounded-xl bg-bg-input px-4 text-[0.95rem] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring [color-scheme:dark]"
           />
 
