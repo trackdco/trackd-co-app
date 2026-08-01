@@ -20,7 +20,8 @@ Last updated: 2026-08-01 (stack dating — Adrian's "Vitamins" report)
 
 ## 🎯 Where we are
 
-**`stack-dating` (off `main`) — merged to `main` 2026-08-01.** Adrian reported a
+**`stack-dating` — MERGED to `main`, 2026-08-01.** Eight review rounds; the
+last returned GO with no critical or high findings. Adrian reported a
 stack he had just made ("Vitamins": creatine + D3 + vitamin C) showing on days
 before it existed. Root cause: a stack carried no date at all, so the dashboard
 drew today's grouping over every day in history. Fixed by dating the stack and

@@ -11,9 +11,15 @@
  * the real start date when ours is a migration guess, and any membership we have
  * never heard of. Nothing else.
  */
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { adoptStart, mergeStack, placedElsewhere } from "./hydrateProtocol"
+import {
+  adoptStart,
+  hydrateStacks,
+  mergeStack,
+  placedElsewhere,
+} from "./hydrateProtocol"
+import { saveStacks } from "./stacks"
 import {
   currentMemberIds,
   memberIdsOn,
@@ -286,5 +292,92 @@ describe("mergeStack keeps history the device does not hold", () => {
     const merged = mergeStack(base({ effectiveFrom: "2026-05-01" }), local)
     expect(merged.effectiveFrom).toBe("2026-05-01")
     expect(memberIdsOn(merged, "2026-06-15")).toEqual(["a"])
+  })
+})
+
+
+/**
+ * `hydrateStacks` itself — the branch logic that chooses between the merge
+ * policies above. Its two data-loss guards were unpinned: dropping a pulled
+ * stack with no local counterpart, and dropping a leftover local stack, each
+ * lose a stack on reinstall AND delete it from Postgres on the next push.
+ */
+describe("hydrateStacks", () => {
+  const USER = "u-hydrate"
+  const KEY = `trackd.stacks.v2.${USER}`
+
+  function stubWindow() {
+    const map = new Map<string, string>()
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (k: string) => map.get(k) ?? null,
+        setItem: (k: string, v: string) => void map.set(k, v),
+        removeItem: (k: string) => void map.delete(k),
+      },
+      dispatchEvent: () => true,
+    })
+    vi.stubGlobal("CustomEvent", class { constructor(public type: string) {} })
+    return map
+  }
+
+  beforeEach(() => stubWindow())
+  afterEach(() => vi.unstubAllGlobals())
+
+  const stored = (): Stack[] => JSON.parse(window.localStorage.getItem(KEY) ?? "[]")
+
+  it("keeps a pulled stack that has no local counterpart", () => {
+    // This list is what the next push mirrors back up, so dropping the stack
+    // deletes it — and its whole dated history — from Postgres.
+    hydrateStacks(USER, [base({ id: "remote", members: [
+      { compoundId: "x", from: "2026-06-01", position: 0 },
+    ] })], new Map())
+    expect(stored().map((s) => s.id)).toEqual(["remote"])
+  })
+
+  it("keeps a local stack the pull does not mention", () => {
+    saveStacks(USER, [base({ id: "localOnly", members: [
+      { compoundId: "x", from: "2026-06-01", position: 0 },
+    ] })])
+    hydrateStacks(USER, [base({ id: "other", members: [
+      { compoundId: "y", from: "2026-06-01", position: 0 },
+    ] })], new Map())
+    expect(stored().map((s) => s.id).sort()).toEqual(["localOnly", "other"])
+  })
+
+  it("prefers the DEVICE outright when the pull's dates are invented", () => {
+    // A pre-013 pull cannot express an ended membership, so every span comes
+    // back open and every start is the stack's creation day. Grafting one of
+    // those on would group a compound across days it was never in the stack —
+    // the exact bug this whole change exists to fix, arriving from the mirror.
+    saveStacks(USER, [base({ id: "s1", effectiveFrom: "2026-01-01", members: [
+      { compoundId: "kept", from: "2026-06-01", position: 0 },
+    ] })])
+    hydrateStacks(USER, [base({ id: "s1", effectiveFrom: "2026-01-01", provisionalStart: true, members: [
+      { compoundId: "kept", from: "2026-01-01", position: 0 },
+      // Real in Postgres, but its date here is invented and the device has never
+      // seen it — so it must NOT be grafted in until a dated pull says when.
+      { compoundId: "unseen", from: "2026-01-01", position: 1 },
+    ] })], new Map())
+    const [s] = stored()
+    expect(currentMemberIds(s)).toEqual(["kept"])
+    expect(memberIdsOn(s, "2026-03-01")).toEqual([])
+  })
+
+  it("treats an empty pull as no news, never as a deletion", () => {
+    saveStacks(USER, [base({ id: "s1", members: [
+      { compoundId: "x", from: "2026-06-01", position: 0 },
+    ] })])
+    hydrateStacks(USER, [], new Map())
+    expect(stored().map((s) => s.id)).toEqual(["s1"])
+  })
+
+  it("follows an id remap through CLOSED spans as well as open ones", () => {
+    // A past membership naming a retired id would stop matching, and the
+    // historical day would silently ungroup.
+    saveStacks(USER, [base({ id: "s1", members: [
+      { compoundId: "old", from: "2026-06-01", to: "2026-07-01", position: 0 },
+    ] })])
+    hydrateStacks(USER, [], new Map([["old", "new"]]))
+    expect(stored()[0].members[0].compoundId).toBe("new")
   })
 })

@@ -108,6 +108,22 @@ describe("refusing to clear what it cannot rebuild", () => {
     })
   })
 
+  it("still clears when a stack holds ONLY same-day departure records", () => {
+    // Those spans are a device-side artefact the wire gate correctly refuses to
+    // send, so counting them as "members exist" made the push read as "nothing
+    // resolved" and abort — which meant a stack the user had DELETED was never
+    // deleted server-side, and came back on the next hydration.
+    const retired = stack({
+      id: "22222222-2222-4222-8222-222222222222",
+      members: [{ compoundId: "a", from: "2026-08-01", to: "2026-08-01", position: 0 }],
+    })
+    return pushStacks([retired]).then((r) => {
+      expect(r.ok).toBe(true)
+      expect(opsOn("stacks")).toContain("delete")
+      expect(opsOn("stack_members")).toContain("delete")
+    })
+  })
+
   it("builds the replacement before issuing any delete", () => {
     return pushStacks([stack()]).then(() => {
       expect(opsOn("stacks")).toEqual(["delete", "upsert"])

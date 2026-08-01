@@ -628,7 +628,7 @@ dashboard was showing.
   abandoning. A migrated stack's start is a GUESS ("today"), flagged
   `provisionalStart` so `pushStacks` omits the column and `hydrateStacks` adopts
   the server's real `created_at`-derived date instead.
-- **Five review rounds, eleven cold agents, and every round but the last found a
+- **Eight review rounds, fifteen cold agents, and every round but the last found a
   defect introduced by the previous round's fix.** Round 1: 1 CRITICAL + 4 HIGH
   (below). Round 2: a new CRITICAL created BY the round-1 fix — the pre-013 write
   retry sent every span as its own row, which the old key rejects — plus a
@@ -643,7 +643,13 @@ dashboard was showing.
   something only the device knew — and the fix that finally held was to state one
   rule (`mergeStack`: the device is authoritative) instead of three branches with
   three policies, and to give the pure merge functions their own tests. The
-  round-1 findings were: no missing-COLUMN tolerance in `stackSync.ts` (the un-migrated state
+  Rounds 6 and 7 continued the pattern (a same-day removal left no evidence at
+  all, so the merge re-adopted the server's stale span; then the departure record
+  that fixed it collided with a same-day re-join in the dedupe key). Round 8
+  returned GO: 37 mutants and ~3,400 fuzzed operations through the real write
+  paths — offline, online, pre-013 and post-013 — lost no span, stack or day of
+  grouping. Every guard the rounds added is now pinned by a test that was checked
+  by reverting the fix and watching it fail. The round-1 findings were: no missing-COLUMN tolerance in `stackSync.ts` (the un-migrated state
   broke every push and pull); `pushStacks` wiped membership before knowing it
   could rebuild it; `hydrateStacks` judged resolution on current members only and
   dropped closed spans; stack mutations were not `trackCriticalSync`, so
