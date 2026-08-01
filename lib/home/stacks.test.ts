@@ -5,12 +5,19 @@
  * belongs to at most one stack, and never appears twice inside one. The third —
  * that a stack owns no member field — is enforced by the TYPE (a `Stack` has
  * nowhere to put a dose, schedule or log), so there is nothing to assert.
+ *
+ * The fourth rule is the DATING added after stacks were found rewriting history:
+ * a grouping applies from the day it was made forward, and a membership from the
+ * day it began. Every test that walks back in time is pinning that.
  */
 import { describe, expect, it } from "vitest"
 
 import { nextStartingCompound, type StackCompound } from "@/lib/home/stack"
 
 import {
+  activeStacks,
+  currentMemberIds,
+  memberIdsOn,
   partitionByStack,
   removeMemberEverywhere,
   removeStack,
@@ -21,52 +28,130 @@ import {
   type Stack,
 } from "./stacks"
 
-const stack = (over: Partial<Stack> = {}): Stack => ({
-  id: "s1",
-  name: "Morning",
-  colour: "teal",
-  memberIds: [],
-  ...over,
-})
+const MADE = "2026-07-10"
+
+/** A stack made on `MADE`, with every member joining that day. */
+const stack = (over: Partial<Stack> & { ids?: string[] } = {}): Stack => {
+  const { ids = [], ...rest } = over
+  return {
+    id: "s1",
+    name: "Morning",
+    colour: "teal",
+    effectiveFrom: MADE,
+    members: ids.map((compoundId, position) => ({
+      compoundId,
+      from: MADE,
+      position,
+    })),
+    ...rest,
+  }
+}
+
+/** Current member ids of the stack with this id. */
+const idsOf = (stacks: Stack[], id: string) =>
+  currentMemberIds(stacks.find((s) => s.id === id)!)
+
+const LATER = "2026-07-20"
 
 describe("one stack per compound", () => {
   it("moves a compound out of its old stack when added to a new one", () => {
     const before = [
-      stack({ id: "s1", memberIds: ["a", "b"] }),
-      stack({ id: "s2", name: "Evening", memberIds: ["c"] }),
+      stack({ id: "s1", ids: ["a", "b"] }),
+      stack({ id: "s2", name: "Evening", ids: ["c"] }),
     ]
-    const after = setStackMembers(before, "s2", ["c", "a"])
-    expect(after.find((s) => s.id === "s2")!.memberIds).toEqual(["c", "a"])
+    const after = setStackMembers(before, "s2", ["c", "a"], LATER)
+    expect(idsOf(after, "s2")).toEqual(["c", "a"])
     // 'a' left s1 automatically — the invariant holds by construction.
-    expect(after.find((s) => s.id === "s1")!.memberIds).toEqual(["b"])
+    expect(idsOf(after, "s1")).toEqual(["b"])
   })
 
-  it("never lets the same compound sit in two stacks", () => {
+  it("never lets the same compound sit in two stacks AT ONCE", () => {
     const after = setStackMembers(
-      [stack({ id: "s1", memberIds: ["a"] }), stack({ id: "s2", memberIds: [] })],
+      [stack({ id: "s1", ids: ["a"] }), stack({ id: "s2", ids: [] })],
       "s2",
-      ["a"]
+      ["a"],
+      LATER
     )
-    const all = after.flatMap((s) => s.memberIds)
+    const all = after.flatMap((s) => currentMemberIds(s))
     expect(all).toEqual(["a"])
     expect(new Set(all).size).toBe(all.length)
   })
 
+  it("but the days before the move still show it in the OLD stack", () => {
+    const after = setStackMembers(
+      [stack({ id: "s1", ids: ["a"] }), stack({ id: "s2", name: "Evening", ids: [] })],
+      "s2",
+      ["a"],
+      LATER
+    )
+    const s1 = after.find((s) => s.id === "s1")!
+    const s2 = after.find((s) => s.id === "s2")!
+    // The day before the move: still in s1, not yet in s2.
+    expect(memberIdsOn(s1, "2026-07-19")).toEqual(["a"])
+    expect(memberIdsOn(s2, "2026-07-19")).toEqual([])
+    // The day of the move: swapped, and never in both.
+    expect(memberIdsOn(s1, LATER)).toEqual([])
+    expect(memberIdsOn(s2, LATER)).toEqual(["a"])
+  })
+
   it("collapses a duplicate inside one stack", () => {
-    const after = setStackMembers([stack({ memberIds: [] })], "s1", ["a", "b", "a"])
-    expect(after[0].memberIds).toEqual(["a", "b"])
+    const after = setStackMembers([stack({ ids: [] })], "s1", ["a", "b", "a"], LATER)
+    expect(currentMemberIds(after[0])).toEqual(["a", "b"])
   })
 
   it("preserves the order the user chose", () => {
-    const after = setStackMembers([stack()], "s1", ["c", "a", "b"])
-    expect(after[0].memberIds).toEqual(["c", "a", "b"])
+    const after = setStackMembers([stack()], "s1", ["c", "a", "b"], LATER)
+    expect(currentMemberIds(after[0])).toEqual(["c", "a", "b"])
+  })
+
+  it("re-saving an unchanged stack does not restate its members as starting today", () => {
+    // The regression that would silently un-group every past day: an edit that
+    // only renames the stack must leave every existing span exactly where it was.
+    const after = setStackMembers([stack({ ids: ["a", "b"] })], "s1", ["a", "b"], LATER)
+    expect(after[0].members.map((m) => m.from)).toEqual([MADE, MADE])
+    expect(memberIdsOn(after[0], MADE)).toEqual(["a", "b"])
+  })
+
+  it("drops a membership that began and ended on the same day", () => {
+    // It covered no day at all, so storing it would occupy the one-stack slot
+    // while rendering as a member of nothing.
+    const added = setStackMembers([stack({ ids: [] })], "s1", ["a"], LATER)
+    const removed = setStackMembers(added, "s1", [], LATER)
+    expect(removed[0].members).toEqual([])
+  })
+})
+
+describe("dating a stack", () => {
+  it("groups nothing before the day it was made", () => {
+    const s = stack({ ids: ["a", "b"] })
+    expect(memberIdsOn(s, "2026-07-09")).toEqual([])
+    expect(memberIdsOn(s, MADE)).toEqual(["a", "b"])
+  })
+
+  it("a member added later is absent from the days before it joined", () => {
+    // Adrian's report: a "Vitamins" stack gained D3 and C after the fact, and
+    // they showed on days when only creatine was being taken.
+    const after = setStackMembers(
+      [stack({ ids: ["creatine"] })],
+      "s1",
+      ["creatine", "d3", "vitC"],
+      LATER
+    )
+    expect(memberIdsOn(after[0], "2026-07-19")).toEqual(["creatine"])
+    expect(memberIdsOn(after[0], LATER)).toEqual(["creatine", "d3", "vitC"])
+  })
+
+  it("a removed member still shows on the days it was in the stack", () => {
+    const after = removeMemberEverywhere([stack({ ids: ["a", "b"] })], "a", LATER)
+    expect(memberIdsOn(after[0], "2026-07-19")).toEqual(["a", "b"])
+    expect(memberIdsOn(after[0], LATER)).toEqual(["b"])
   })
 })
 
 describe("lookups", () => {
   const stacks = [
-    stack({ id: "s1", memberIds: ["a", "b"] }),
-    stack({ id: "s2", name: "Evening", memberIds: ["c"] }),
+    stack({ id: "s1", ids: ["a", "b"] }),
+    stack({ id: "s2", name: "Evening", ids: ["c"] }),
   ]
 
   it("finds the stack a compound belongs to", () => {
@@ -78,63 +163,75 @@ describe("lookups", () => {
   it("lists every stacked compound, for excluding them from the member picker", () => {
     expect(stackedIds(stacks)).toEqual(new Set(["a", "b", "c"]))
   })
+
+  it("a past member is not counted as stacked — it can join another stack", () => {
+    const after = removeMemberEverywhere([stack({ ids: ["a", "b"] })], "a", LATER)
+    expect(stackedIds(after)).toEqual(new Set(["b"]))
+    expect(stackOf(after, "a")).toBeNull()
+  })
 })
 
 describe("the dashboard partition", () => {
-  const stacks = [stack({ id: "s1", memberIds: ["a", "b"] })]
+  const stacks = [stack({ id: "s1", ids: ["a", "b"] })]
 
   it("puts members in their stack and never also in the loose list", () => {
-    const { stacks: grouped, loose } = partitionByStack(["a", "b", "x"], stacks)
+    const { stacks: grouped, loose } = partitionByStack(["a", "b", "x"], stacks, MADE)
     expect(grouped).toHaveLength(1)
     expect(grouped[0].memberIds).toEqual(["a", "b"])
     expect(loose).toEqual(["x"])
   })
 
+  it("leaves everything loose on a day BEFORE the stack was made", () => {
+    // The bug: a stack made today wrapped every day already lived.
+    const { stacks: grouped, loose } = partitionByStack(["a", "b", "x"], stacks, "2026-07-09")
+    expect(grouped).toHaveLength(0)
+    expect(loose).toEqual(["a", "b", "x"])
+  })
+
   it("omits a stack with no members due that day rather than showing it empty", () => {
-    const { stacks: grouped, loose } = partitionByStack(["x"], stacks)
+    const { stacks: grouped, loose } = partitionByStack(["x"], stacks, MADE)
     expect(grouped).toHaveLength(0)
     expect(loose).toEqual(["x"])
   })
 
   it("shows a partially-due stack with only the due members", () => {
-    const { stacks: grouped, loose } = partitionByStack(["a", "x"], stacks)
+    const { stacks: grouped, loose } = partitionByStack(["a", "x"], stacks, MADE)
     expect(grouped[0].memberIds).toEqual(["a"])
     expect(loose).toEqual(["x"])
   })
 
   it("with no stacks, everything stays loose — the dashboard is unchanged", () => {
-    const { stacks: grouped, loose } = partitionByStack(["a", "b"], [])
+    const { stacks: grouped, loose } = partitionByStack(["a", "b"], [], MADE)
     expect(grouped).toHaveLength(0)
     expect(loose).toEqual(["a", "b"])
   })
 
-  it("partitions — every id lands in exactly one place", () => {
+  it("partitions — every id lands in exactly one place, on any day", () => {
     const ids = ["a", "b", "x", "y"]
-    const { stacks: grouped, loose } = partitionByStack(ids, stacks)
-    const seen = [...grouped.flatMap((g) => g.memberIds), ...loose]
-    expect(seen.sort()).toEqual([...ids].sort())
+    for (const day of ["2026-07-01", MADE, LATER]) {
+      const { stacks: grouped, loose } = partitionByStack(ids, stacks, day)
+      const seen = [...grouped.flatMap((g) => g.memberIds), ...loose]
+      expect(seen.sort()).toEqual([...ids].sort())
+    }
   })
 })
 
 describe("deletion leaves compounds alone", () => {
   it("dropping a member leaves the stack standing with one fewer", () => {
-    const after = removeMemberEverywhere(
-      [stack({ memberIds: ["a", "b", "c"] })],
-      "b"
-    )
+    const after = removeMemberEverywhere([stack({ ids: ["a", "b", "c"] })], "b", LATER)
     expect(after).toHaveLength(1)
-    expect(after[0].memberIds).toEqual(["a", "c"])
+    expect(currentMemberIds(after[0])).toEqual(["a", "c"])
   })
 
   it("a stack reduced to one member is still a stack", () => {
-    const after = removeMemberEverywhere([stack({ memberIds: ["a", "b"] })], "a")
-    expect(after[0].memberIds).toEqual(["b"])
+    const after = removeMemberEverywhere([stack({ ids: ["a", "b"] })], "a", LATER)
+    expect(currentMemberIds(after[0])).toEqual(["b"])
   })
 
   it("deleting the stack ungroups its members and touches nothing else", () => {
     const before = [
-      stack({ id: "s1", memberIds: ["a", "b"] }),
-      stack({ id: "s2", memberIds: ["c"] }),
+      stack({ id: "s1", ids: ["a", "b"] }),
+      stack({ id: "s2", ids: ["c"] }),
     ]
     const after = removeStack(before, "s1")
     expect(after).toHaveLength(1)
@@ -144,18 +241,21 @@ describe("deletion leaves compounds alone", () => {
   })
 })
 
-describe("a stack is dissolved only when it empties", () => {
+describe("a stack that empties is retired, not erased", () => {
   it("keeps a stack that still has one member", () => {
-    const after = removeMemberEverywhere([stack({ memberIds: ["a", "b"] })], "a")
-      .filter((s) => s.memberIds.length > 0)
+    const after = activeStacks(
+      removeMemberEverywhere([stack({ ids: ["a", "b"] })], "a", LATER)
+    )
     expect(after).toHaveLength(1)
-    expect(after[0].memberIds).toEqual(["b"])
+    expect(currentMemberIds(after[0])).toEqual(["b"])
   })
 
-  it("drops a stack whose last member is gone, rather than leaving an empty card", () => {
-    const after = removeMemberEverywhere([stack({ memberIds: ["a"] })], "a")
-      .filter((s) => s.memberIds.length > 0)
-    expect(after).toHaveLength(0)
+  it("stops listing a stack whose last member is gone, rather than an empty card", () => {
+    const after = removeMemberEverywhere([stack({ ids: ["a"] })], "a", LATER)
+    expect(activeStacks(after)).toHaveLength(0)
+    // But it is still there, and the days it grouped still read correctly.
+    expect(after).toHaveLength(1)
+    expect(memberIdsOn(after[0], "2026-07-19")).toEqual(["a"])
   })
 })
 

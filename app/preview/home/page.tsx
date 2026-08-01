@@ -53,7 +53,14 @@ export default function PreviewHomePage() {
       id: "s-morning",
       name: "Morning shot",
       colour: "steel",
-      memberIds: ["c-test", "c-bpc", "c-tb"],
+      // Dated well back so the preview's stack row renders on the day shown —
+      // grouping applies from its own start forward, never before it.
+      effectiveFrom: "2026-01-01",
+      members: ["c-test", "c-bpc", "c-tb"].map((compoundId, position) => ({
+        compoundId,
+        from: "2026-01-01",
+        position,
+      })),
     },
   ];
 

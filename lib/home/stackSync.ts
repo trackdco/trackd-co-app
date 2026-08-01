@@ -16,7 +16,7 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
-import type { Stack } from "@/lib/home/stacks"
+import type { Stack, StackMembership } from "@/lib/home/stacks"
 
 type Ok = { ok: boolean; skipped?: boolean }
 
@@ -55,7 +55,11 @@ export async function pushStacks(
     if (!cx) return { ok: false }
 
     // Resolve every client compound id to its protocol_compounds row up front.
-    const clientIds = [...new Set(stacks.flatMap((s) => s.memberIds))]
+    // PAST members count: a closed span is what keeps a historical day reading
+    // the way it was lived, so it has to reach Postgres like any other row.
+    const clientIds = [
+      ...new Set(stacks.flatMap((s) => s.members.map((m) => m.compoundId))),
+    ]
     const idMap = await resolveProtocolCompoundIds(
       clientIds.map((id) => ({ id, name: names[id] ?? null }))
     )
@@ -88,6 +92,11 @@ export async function pushStacks(
         user_id: cx.userId,
         name: s.name,
         colour: s.colour,
+        // The day the grouping began (supabase/protocol/009). Sent from the
+        // device because only the device knows the user's local day; the column
+        // defaults to the DATABASE's current date, which is a different day for
+        // anyone far enough from UTC.
+        effective_from: s.effectiveFrom,
       })),
       { onConflict: "id" }
     )
@@ -110,24 +119,48 @@ export async function pushStacks(
 
     // Two client ids can resolve to the SAME protocol_compounds row (an offline
     // add of a name Postgres already has, before hydration de-dupes). Inserting
-    // both violates the unique index, and because the delete has already run
-    // that one collision would wipe EVERY stack's membership — so collapse them
-    // here. First occurrence wins, matching `dedupeMembership` on the read side.
-    const claimed = new Set<string>()
+    // two OPEN spans for it violates `stack_members_one_current_stack_per_compound`,
+    // and because the delete has already run that one collision would wipe EVERY
+    // stack's membership — so collapse them here. First occurrence wins, matching
+    // `dedupeMembership` on the read side.
+    //
+    // Only OPEN spans compete for that slot (009 scoped the index to the present).
+    // A closed span is history and several may legitimately exist for the same
+    // compound — a compound that moved from one stack to another has one in each —
+    // so those are de-duplicated on the span itself, which only collapses rows
+    // that are genuinely identical.
+    const claimedOpen = new Set<string>()
+    const seenClosed = new Set<string>()
     const rows = stacks.flatMap((s) =>
-      s.memberIds
-        .map((clientId, position) => {
+      s.members
+        .map((m: StackMembership) => {
           // `Object.hasOwn`, not `idMap[clientId]`: a member id of "__proto__"
           // reads Object.prototype off an EMPTY map, which is truthy, so it was
           // counted as resolved and sent as `protocol_compound_id: {}`. The
           // membership delete runs first, so that one bad id wiped every stack's
           // membership in Postgres and then failed the insert.
-          const pcId = Object.hasOwn(idMap, clientId) ? idMap[clientId] : undefined
+          const pcId = Object.hasOwn(idMap, m.compoundId)
+            ? idMap[m.compoundId]
+            : undefined
           // A member with no Postgres row yet (an unmigrated custom) is skipped
           // rather than faked — the device store still holds the membership.
-          if (!pcId || claimed.has(pcId)) return null
-          claimed.add(pcId)
-          return { stack_id: s.id, protocol_compound_id: pcId, user_id: cx.userId, position }
+          if (!pcId) return null
+          if (m.to === undefined) {
+            if (claimedOpen.has(pcId)) return null
+            claimedOpen.add(pcId)
+          } else {
+            const key = `${s.id}|${pcId}|${m.from}|${m.to}`
+            if (seenClosed.has(key)) return null
+            seenClosed.add(key)
+          }
+          return {
+            stack_id: s.id,
+            protocol_compound_id: pcId,
+            user_id: cx.userId,
+            position: m.position,
+            effective_from: m.from,
+            effective_to: m.to ?? null,
+          }
         })
         .filter((r): r is NonNullable<typeof r> => r !== null)
     )
@@ -162,7 +195,10 @@ export async function pullStacks(): Promise<Stack[]> {
     if (!cx) return []
     const { data, error } = await cx.supabase
       .from("stacks")
-      .select("id, name, colour, stack_members(protocol_compound_id, position)")
+      .select(
+        "id, name, colour, effective_from, created_at, " +
+          "stack_members(protocol_compound_id, position, effective_from, effective_to)"
+      )
       .eq("user_id", cx.userId)
       .order("created_at", { ascending: true })
     if (error) {
@@ -174,17 +210,39 @@ export async function pullStacks(): Promise<Stack[]> {
       id: string
       name: string
       colour: string
-      stack_members: { protocol_compound_id: string; position: number }[] | null
+      effective_from: string | null
+      created_at: string
+      stack_members:
+        | {
+            protocol_compound_id: string
+            position: number
+            effective_from: string | null
+            effective_to: string | null
+          }[]
+        | null
     }
-    return ((data ?? []) as unknown as Row[]).map((r) => ({
-      id: r.id,
-      name: r.name,
-      colour: r.colour as Stack["colour"],
-      memberIds: (r.stack_members ?? [])
-        .slice()
-        .sort((a, b) => a.position - b.position)
-        .map((m) => m.protocol_compound_id),
-    }))
+    return ((data ?? []) as unknown as Row[]).map((r) => {
+      // A database that has `stacks` but not yet 009 returns no `effective_from`.
+      // Fall back to the creation DAY rather than to "no gate at all": an
+      // ungated stack is the retroactive-grouping bug, whereas a creation-day
+      // gate is the same answer 009's own backfill computes.
+      const effectiveFrom = r.effective_from ?? r.created_at.slice(0, 10)
+      return {
+        id: r.id,
+        name: r.name,
+        colour: r.colour as Stack["colour"],
+        effectiveFrom,
+        members: (r.stack_members ?? [])
+          .slice()
+          .sort((a, b) => a.position - b.position)
+          .map((m, i) => ({
+            compoundId: m.protocol_compound_id,
+            from: m.effective_from ?? effectiveFrom,
+            ...(m.effective_to ? { to: m.effective_to } : {}),
+            position: typeof m.position === "number" ? m.position : i,
+          })),
+      }
+    })
   } catch (e) {
     console.error("pullStacks failed", e)
     return []

@@ -11,7 +11,7 @@ import {
   FALLBACK_CATEGORY_META,
   type CompoundCategory,
 } from "@/lib/compound-categories"
-import type { DoseLog } from "@/lib/home/mockHomeData"
+import type { DateKey, DoseLog } from "@/lib/home/mockHomeData"
 import { formatDraw, type Draw, type DrawSource } from "@/lib/home/draw"
 import { formatTimeLabel, type StackCompound } from "@/lib/home/stack"
 import { partitionByStack, type Stack } from "@/lib/home/stacks"
@@ -52,6 +52,11 @@ interface TodaysCycleCardProps {
   noVialIds: ReadonlySet<string>
   /** Tap "add stock" on a row with no vial → the storage add-flow (D1). */
   onAddStock: (dose: StackCompound) => void
+  /** The day being rendered, "YYYY-MM-DD". Required, because grouping is DATED:
+   *  a stack only groups days from the day it was created, and only the members
+   *  that were in it then (Spec 05 · dating). Without it the card drew today's
+   *  grouping over every day in the user's history. */
+  dayKey: DateKey
   /** The user's stacks (Spec 05). Members render inside their stack row and are
    *  NOT repeated in their category sections. Absent/empty ⇒ the card is exactly
    *  what it was before stacks existed. */
@@ -311,6 +316,7 @@ export function TodaysCycleCard({
   drawSources,
   noVialIds,
   onAddStock,
+  dayKey,
   stacks,
   onLogStack,
   greeting,
@@ -318,10 +324,15 @@ export function TodaysCycleCard({
   // ONE partition: a member appears in its stack row and therefore cannot also
   // appear in a category section. Two independent filters could drift; a
   // partition cannot.
+  //
+  // Partitioned FOR THIS DAY. A stack created after `dayKey` groups nothing here
+  // and its compounds fall through to `loose` — which is how the day looked when
+  // it was lived, rather than how the protocol is arranged now.
   const byId = new Map(dueDoses.map((d) => [d.id, d]))
   const { stacks: grouped, loose } = partitionByStack(
     dueDoses.map((d) => d.id),
-    stacks ?? []
+    stacks ?? [],
+    dayKey
   )
   const looseDoses = loose
     .map((id) => byId.get(id))

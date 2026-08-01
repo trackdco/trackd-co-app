@@ -34,7 +34,7 @@ import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { newId } from "@/lib/home/id"
 import { isRunning, loadStack, type StackCompound } from "@/lib/home/stack"
-import { loadStacks, type Stack } from "@/lib/home/stacks"
+import { activeStacks, currentMemberIds, loadStacks, type Stack } from "@/lib/home/stacks"
 import { paletteColourVar } from "@/lib/palette"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import {
@@ -494,7 +494,7 @@ export function AddToStackMenu({
           .map((c) => [c.name.toLowerCase(), c.id] as const)
       )
     )
-    setStacks(loadStacks(userId))
+    setStacks(activeStacks(loadStacks(userId)))
   }
 
   // A compound already in the log is dimmed + unclickable. Tapping it shakes the
@@ -1369,7 +1369,7 @@ function StackReferenceList({ stacks }: { stacks: Stack[] }) {
             {s.name}
           </span>
           <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
-            {s.memberIds.length}
+            {currentMemberIds(s).length}
           </span>
         </li>
       ))}

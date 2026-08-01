@@ -11,6 +11,8 @@ import { StackDetailSheet } from "@/components/protocol/StackDetailSheet"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { paletteColourVar } from "@/lib/palette"
 import {
+  activeStacks,
+  currentMemberIds,
   deleteStack,
   getStacksSnapshot,
   stackedIds,
@@ -70,12 +72,16 @@ export function StacksView({
   const [pendingMemberId, setPendingMemberId] = useState<string | null>(null)
 
   const active = useMemo(() => compounds.filter((c) => !c.archived), [compounds])
+  // Stacks that still group something. A stack whose last member was deleted is
+  // KEPT in the store so the days it grouped still read correctly, but it is
+  // over — listing it would leave an empty card with nothing to show.
+  const listed = useMemo(() => activeStacks(stacks), [stacks])
   const byId = useMemo(() => new Map(active.map((c) => [c.id, c])), [active])
 
   /** Ids in a stack OTHER than the one being edited. */
   const unavailable = useMemo(() => {
     const all = stackedIds(stacks)
-    if (editing) for (const id of editing.memberIds) all.delete(id)
+    if (editing) for (const id of currentMemberIds(editing)) all.delete(id)
     return all
   }, [stacks, editing])
 
@@ -85,13 +91,13 @@ export function StacksView({
     <div className="space-y-5">
       <h2 className={`${CARD_EYEBROW} px-1`}>Stacks</h2>
 
-      {stacks.length > 0 && (
+      {listed.length > 0 && (
         <div className="space-y-3">
-          {stacks.map((s) => (
+          {listed.map((s) => (
             <StackCard
               key={s.id}
               stack={s}
-              members={s.memberIds
+              members={currentMemberIds(s)
                 .map((id) => byId.get(id))
                 .filter((c): c is StackCompound => Boolean(c))}
               onOpen={() => setViewing(s)}
@@ -106,12 +112,12 @@ export function StacksView({
         disabled={active.length === 0}
         hint="Add a compound first"
         description={
-          stacks.length === 0
+          listed.length === 0
             ? "Compounds you take together, logged in one tap."
             : undefined
         }
         preview={
-          stacks.length === 0 ? (
+          listed.length === 0 ? (
             <span className="flex items-end -space-x-3">
               <Container inventoryType="preconcentrated" category="anabolic" stackColour={paletteColourVar("steel")} fill={0.7} size={40} />
               <Container inventoryType="reconstituted" category="peptide" stackColour={paletteColourVar("steel")} fill={0.55} size={40} />
@@ -127,7 +133,7 @@ export function StacksView({
         stack={viewing}
         members={
           viewing
-            ? viewing.memberIds
+            ? currentMemberIds(viewing)
                 .map((id) => byId.get(id))
                 .filter((c): c is StackCompound => Boolean(c))
             : []

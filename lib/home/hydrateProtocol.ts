@@ -40,6 +40,7 @@ import type { DoseRow, InjectionSite } from "@/lib/db/types"
 import { isCatalogueName } from "@/lib/compound-lookup"
 import { pullStacks } from "@/lib/home/stackSync"
 import {
+  currentMemberIds,
   loadStacks,
   notifyStacksChanged,
   saveStacks,
@@ -375,10 +376,18 @@ function hydrateStacks(
 ): void {
   const local = loadStacks(userId)
   // Follow any id change first, so a local stack keeps pointing at its members.
+  // Closed spans are remapped too — a past membership that still names a retired
+  // id would silently stop matching, and the historical day would ungroup.
   const remapped = local.map((s) =>
     idRemap.size === 0
       ? s
-      : { ...s, memberIds: s.memberIds.map((id) => idRemap.get(id) ?? id) }
+      : {
+          ...s,
+          members: s.members.map((m) => ({
+            ...m,
+            compoundId: idRemap.get(m.compoundId) ?? m.compoundId,
+          })),
+        }
   )
   if (pulled.length === 0) {
     // No news from the server — but a remap may still have moved ids locally.
@@ -397,13 +406,20 @@ function hydrateStacks(
   for (const p of pulled) {
     const loc = localById.get(p.id)
     localById.delete(p.id)
-    const resolves = p.memberIds.every((id) => known.has(id))
-    if (resolves && p.memberIds.length > 0) {
+    const pulledIds = currentMemberIds(p)
+    const resolves = pulledIds.every((id) => known.has(id))
+    if (resolves && pulledIds.length > 0) {
       merged.push(p)
     } else if (loc) {
       // Keep what the device has rather than replacing it with a stack whose
-      // members would render as nothing.
-      merged.push(loc)
+      // members would render as nothing — but take the SERVER's start date.
+      //
+      // `stacks.created_at` is the only record of when a stack really began, and
+      // a device migrated from the undated store guessed "today" for it (see
+      // `migrateLegacy`). Keeping the local guess here would leave that stack
+      // permanently under-grouping the days it actually covered, because this
+      // branch is the one a device with unmigrated custom members always takes.
+      merged.push({ ...loc, effectiveFrom: p.effectiveFrom })
     }
     // Neither resolvable nor local ⇒ skipped entirely. An empty card tells the
     // user less than no card, and the next successful push will re-create it.
