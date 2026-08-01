@@ -68,8 +68,8 @@ missed all of these, and each was found only by driving the real page:
   `{" "}`. Check rendered DOM text, not a screenshot.
 - Tailwind cannot see an interpolated class name. Write literals out.
 - **`next/image` cannot inherit `currentColor`.** It renders an `<img>`, so an
-  SVG loaded through it resolves the fill against its own default. Anything that
-  has to take a token colour must be INLINE (see `signatureArt.ts`).
+  SVG loaded through it resolves the fill against its own default and can never
+  take a token colour. Anything that has to be themed must be INLINE.
 - **Two classes that both set `animation` fight, and one silently wins.**
   Measured: a nudge never played because `animate-flow-in` sat on the same
   element. Give each its own node.
@@ -101,13 +101,13 @@ it moves the layout as Safari's bar comes and goes; that was my original report.
 
 ## What I owe you
 
-- ~~Signature SVGs~~ **DONE.** My exports are wired into the founder letter and
-  they write themselves on when you scroll to them. Source files live in
-  `public/images/signature svg/`; the flow renders from a generated module,
-  `components/onboarding/signatureArt.ts`. If I ever re-export them, regenerate
-  that module rather than hand-editing it — the `viewBox` in there is the
-  MEASURED ink box, because the raw artboards were 2364x1330 with the ink using
-  about half of it, and the slot sizes by height.
+- ~~Signature SVGs~~ **DROPPED.** They were built, wired and animated, and I
+  looked at them and did not want them. All of it is deleted: the art module,
+  the animation, the slot. **Do not offer to put them back** — the letter's
+  sign-off is a rule, a "Best," and the two names now, and it fits a phone
+  without scrolling. My original exports are still in
+  `public/images/signature svg/` if I change my mind, but that is my call to
+  make, not a loose end for you to tidy.
 - **A gym-floor photo** → `public/onboarding/hook-backdrop.jpg`, then set
   `HOOK_BACKDROP` in `screens/hook.tsx`. The settle animation is already wired.
 - **Better app screenshots** →

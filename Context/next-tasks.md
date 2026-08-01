@@ -17,11 +17,11 @@ is writing a spec for those. Do not guess at them; wait for it.
 
 ### Waiting on Adrian
 
-1. ~~Signature SVGs~~ **DONE 2026-08-01.** Wired into the founder letter from
-   `components/onboarding/signatureArt.ts` (generated from his exports in
-   `public/images/signature svg/`), amber from the token, writing on when the
-   block is scrolled to. Re-exporting means regenerating the module, not editing
-   it: the `viewBox` is a measured ink box.
+1. ~~Signature SVGs~~ **DROPPED 2026-08-01.** Built, wired, animated, and then
+   removed at Adrian's call once he saw them. Everything is deleted (art module,
+   keyframe, slot) and the letter's sign-off was respaced around their absence:
+   a hairline rule, "Best,", then the two names. **Do not propose bringing them
+   back.** His source exports are still in `public/images/signature svg/`.
 2. **Gym-floor photo** → `public/onboarding/hook-backdrop.jpg`, then set
    `HOOK_BACKDROP` in `screens/hook.tsx`.
 3. **Better app screenshots** → `public/onboarding/app-*.png`.
