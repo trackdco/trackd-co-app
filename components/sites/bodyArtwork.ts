@@ -127,8 +127,10 @@ export function routeRegions(
  * Regions that need the transparent hit halo (`.site-hit` in `globals.css`).
  *
  * Adrian reported two regions that could not be tapped at their visual centre
- * (2026-08-01). Swept in Chrome across all four artwork modules, 42 regions:
- * the two TRICEPS on the posterior view are the only ones, on both bodies. A
+ * (2026-08-01). Swept in Chrome across the IM artwork for both bodies and both
+ * views, 42 regions: the two TRICEPS on the posterior view are the only ones,
+ * on each body. Neither id appears in either Sub-Q module, so this is a no-op
+ * there. A
  * tricep is a narrow curved sliver, so the centre of its bounding box lands in
  * the concave side — outside its own fill, where `elementFromPoint` returns the
  * base silhouette and the tap does nothing.

@@ -20,6 +20,7 @@ import {
   type OnboardingSession,
 } from "@/lib/onboarding/session";
 import {
+  clampIntent,
   clampStep,
   FIRST_STEP,
   isStepId,
@@ -112,11 +113,23 @@ function OnboardingFlowClient() {
 
   const [todayKey] = useState(resolveTodayKey);
 
-  // Did THIS flow push a history entry? `prevStep` only says a step exists
-  // before this one, which is why the arrow rendered and did nothing on a deep
-  // link, and pointed back at Google after the OAuth round-trip. State rather
-  // than a ref, because it is read during render.
-  const [hasPushed, setHasPushed] = useState(false);
+  /**
+   * How many history entries THIS flow has pushed.
+   *
+   * A boolean was not enough. `prevStep` only says a step exists before this
+   * one, which is why the arrow rendered and did nothing on a deep link and
+   * pointed back at Google after the OAuth round-trip — hence the flag. But a
+   * flag that is only ever set to true fixes the first entry and not the
+   * return: land on `?step=welcome` from OAuth (no arrow, correct), go forward
+   * once, come back, and the arrow is STILL shown because the flag never went
+   * down. Tapping it then walks out of the flow and back to the callback URL,
+   * which is the exact bug the flag exists to prevent.
+   *
+   * A depth counts up on push and down on popstate, so it is zero again
+   * whenever we are back where this flow started. State rather than a ref,
+   * because it is read during render.
+   */
+  const [depth, setDepth] = useState(0);
   // Whether a screen has claimed BACK for itself, mirrored into state for the
   // same reason.
   const [backOwned, setBackOwned] = useState(false);
@@ -124,8 +137,12 @@ function OnboardingFlowClient() {
   const [step, setStep] = useState<StepId>(() => {
     const requested = new URLSearchParams(window.location.search).get("step");
     if (!isStepId(requested)) return FIRST_STEP;
-    // A deep link cannot walk past the age gate. See `clampStep`.
-    return clampStep(requested, canLeaveHousekeeping(session, todayKey));
+    // A deep link cannot walk past the age gate, and cannot skip the intent
+    // screens either. See `clampStep` and `clampIntent`.
+    return clampIntent(
+      clampStep(requested, canLeaveHousekeeping(session, todayKey)),
+      session,
+    );
   });
   const [accountName, setAccountName] = useState<string | null>(null);
   // Which way the last move went, so the entering screen slides in from the
@@ -157,8 +174,16 @@ function OnboardingFlowClient() {
   // was captured when it was attached. Written in an effect (not during render,
   // which the refs lint rule rightly forbids) and read inside the handler.
   const gateRef = useRef(false);
+  // The intent answers, for the same reason: browser FORWARD must be judged
+  // against what the session holds NOW, not what it held when the listener was
+  // attached. Untick your only answer, then press Forward.
+  const answersRef = useRef<{ running: readonly unknown[]; struggle: readonly unknown[] }>({
+    running: [],
+    struggle: [],
+  });
   useEffect(() => {
     gateRef.current = canLeaveHousekeeping(session, todayKey);
+    answersRef.current = { running: session.running, struggle: session.struggle };
   }, [session, todayKey]);
 
   // The hardware/browser back button walks the flow.
@@ -167,12 +192,16 @@ function OnboardingFlowClient() {
       const requested = new URLSearchParams(window.location.search).get("step");
       setDirection("back");
       beginSettle();
+      // One step closer to wherever this flow was entered. Clamped at zero:
+      // `popstate` also fires on FORWARD, and a forward move must not take the
+      // depth negative.
+      setDepth((d) => Math.max(0, d - 1));
       if (!isStepId(requested)) {
         setStep(FIRST_STEP);
         return;
       }
-      // Same clamp as the initial read: history is user-editable too.
-      setStep(clampStep(requested, gateRef.current));
+      // Same clamps as the initial read: history is user-editable too.
+      setStep(clampIntent(clampStep(requested, gateRef.current), answersRef.current));
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -191,7 +220,7 @@ function OnboardingFlowClient() {
     const url = new URL(window.location.href);
     url.searchParams.set("step", target);
     window.history.pushState({ step: target }, "", url);
-    setHasPushed(true);
+    setDepth((d) => d + 1);
     beginSettle();
     // The browser keeps the old scroll offset otherwise, and a long screen
     // opens half-way down.
@@ -287,7 +316,7 @@ function OnboardingFlowClient() {
   // A screen that owns BACK always shows the arrow (the demo steps its own
   // stages); otherwise it only shows if this flow actually pushed something.
   const canGoBack =
-    backOwned || (hasPushed && step !== FIRST_STEP && prevStep(step) !== null);
+    backOwned || (depth > 0 && step !== FIRST_STEP && prevStep(step) !== null);
 
   return (
     <FlowContext.Provider value={value}>
@@ -317,27 +346,39 @@ function OnboardingFlowClient() {
               progress bar that moves horizontally between screens is worse than
               one sitting in a corner. `pointer-events-none` because it is a
               readout, and it overlaps the arrow's 40px target at 360. */}
-          {/* `env(safe-area-inset-top)` and a bigger floor. The footer has
-              respected the bottom inset since day one and the top was never
-              given the same treatment, so on a real iPhone the progress bar sat
-              up level with the clock and the camera and read as cut off
-              (Adrian, 2026-08-01). `max()` so a device with no inset still gets
-              a deliberate gap rather than 8px. */}
-          <div className="relative flex h-10 shrink-0 items-center px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-            {canGoBack ? (
-              <button
-                type="button"
-                onClick={goBack}
-                aria-label="Go back"
-                className="relative z-10 -ml-1 flex h-10 w-10 items-center justify-center rounded-full text-text-subtle transition-colors duration-[var(--motion-fast)] hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
-              >
-                <CaretLeft className="h-5 w-5" />
-              </button>
-            ) : null}
+          {/* THE HEADER ROW. Back arrow left, progress centred, and it must
+              clear the notch.
 
-            <div className="pointer-events-none absolute inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] flex h-10 items-center justify-center">
-              <ProgressRail progress={stepProgress(step)} />
+              Written as a 3-column GRID with equal outer columns, so the rail
+              is centred by the layout and the back arrow's presence cannot
+              shift it. The previous version positioned the rail absolutely at
+              `top-[env(safe-area-inset-top)]` inside a FIXED `h-10` row, which
+              was wrong in a way desktop could not show: the row never grew with
+              the inset, so on a notched iPhone (44-59px, all of them bigger
+              than the 40px row) the bar was pushed straight out of its own box
+              and rendered THROUGH the first line of the headline. Measured with
+              the inset simulated at 59px: bar at 71..87, h1 at 67..101.
+
+              So: no fixed height, no absolute positioning. `pt` carries the
+              inset and the row is as tall as it needs to be. */}
+          <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1">
+            <div className="flex min-h-10 items-center justify-start">
+              {canGoBack ? (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  aria-label="Go back"
+                  className="-ml-1 flex h-10 w-10 items-center justify-center rounded-full text-text-subtle transition-colors duration-[var(--motion-fast)] hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+                >
+                  <CaretLeft className="h-5 w-5" />
+                </button>
+              ) : null}
             </div>
+
+            <ProgressRail progress={stepProgress(step)} />
+
+            {/* Balances the arrow's column so the rail sits on the true centre. */}
+            <span aria-hidden />
           </div>
 
           {/* `key` remounts on every step, which is what replays the entrance

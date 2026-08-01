@@ -150,8 +150,11 @@ export function SkipLink({
  * The screen scaffold: header block, a body that takes the slack, and a footer
  * that holds the CTA above the home indicator.
  *
- * `center` vertically centres the body for the moments that are one object on a
- * field (the hook, celebrate, welcome) rather than a form.
+ * `center` vertically centres the HEADLINE AND the body together, for a screen
+ * carrying little or no content under its title: Install, Notifications,
+ * Attribution. (The hook, celebrate and welcome are hand-rolled and never come
+ * through here — an earlier version of this comment named them, which sent you
+ * looking in the wrong file.)
  */
 export function StepFrame({
   eyebrow,
@@ -217,7 +220,11 @@ export function StepFrame({
        * `justify-center` had no free space to work with and every centred screen
        * still hugged the top. Sizing with flex rather than percentages removes
        * the question. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* `overflow-x-hidden` explicitly: setting `overflow-y` alone computes
+          `overflow-x` to `auto`, which gave the hook 4px of real sideways
+          scroll at 360 (the phone mock is 324 in a 320 box). The shell's own
+          `overflow-x-clip` cannot reach inside a nested scroll port. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
         <div
           className={cn(
             "flex w-full flex-1 flex-col",

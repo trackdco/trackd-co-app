@@ -101,6 +101,44 @@ export function clampStep(
   return stepIndex(requested) > gate ? "housekeeping" : requested;
 }
 
+/**
+ * THE INTENT CLAMP — separate from the age gate, and deliberately narrower.
+ *
+ * Adrian requires at least one answer on each intent screen (2026-08-01), and
+ * the disabled Continue button only covers the forward path. Browser FORWARD
+ * re-enters a step the user has since emptied, and a bookmark or a shared link
+ * skips them outright — either way `celebrate` renders a reply to a question
+ * nobody answered, which is the whole thing the requirement exists to stop.
+ *
+ * ## Why this is not folded into `clampStep`
+ *
+ * The age gate is legally load-bearing and clamps EVERYTHING past housekeeping.
+ * This must not: `welcome` is where OAuth returns, and a user coming back from
+ * Google with an empty session would be thrown back to the intent screens with
+ * their trial already started. So this clamps only the anonymous stretch
+ * BETWEEN the intent screens and the paywall, and never touches a post-paywall
+ * step.
+ *
+ * Returns the earliest unanswered intent screen, or the requested step.
+ */
+const INTENT_GUARDED: readonly StepId[] = [
+  "celebrate",
+  "demo",
+  "payoff",
+  "cost",
+  "paywall",
+];
+
+export function clampIntent(
+  requested: StepId,
+  answers: { running: readonly unknown[]; struggle: readonly unknown[] },
+): StepId {
+  if (!INTENT_GUARDED.includes(requested)) return requested;
+  if (answers.running.length === 0) return "running";
+  if (answers.struggle.length === 0) return "struggle";
+  return requested;
+}
+
 export function stepMeta(id: StepId): StepMeta | null {
   const i = stepIndex(id);
   return i === -1 ? null : STEP_ORDER[i];

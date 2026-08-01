@@ -68,6 +68,23 @@ export function AttributionScreen() {
     goNext();
   };
 
+  /**
+   * Skip CLEARS, it does not just leave.
+   *
+   * It used to be a bare `goNext`, so a user who tapped Instagram and then
+   * tapped Skip (the screen says "Optional", so that is a normal thing to do)
+   * left "instagram" on the session while `attribution_selected` never fired.
+   * The device and the analytics then disagreed about the one fact this screen
+   * exists to capture, and the stored answer would have been written to
+   * Postgres as though they had confirmed it.
+   */
+  const onSkip = () => {
+    if (session.attribution || session.attributionDetail) {
+      patch({ attribution: null, attributionDetail: null });
+    }
+    goNext();
+  };
+
   if (session.affiliateCode) {
     return (
       <StepFrame
@@ -93,7 +110,7 @@ export function AttributionScreen() {
       footer={
         <div className="space-y-1">
           <FlowCta onClick={onContinue}>Continue</FlowCta>
-          <SkipLink onClick={goNext}>Skip</SkipLink>
+          <SkipLink onClick={onSkip}>Skip</SkipLink>
         </div>
       }
     >

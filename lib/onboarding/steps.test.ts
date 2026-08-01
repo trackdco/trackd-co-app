@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clampIntent,
   clampStep,
   FIRST_STEP,
   isStepId,
@@ -136,6 +137,44 @@ describe("clampStep — the age gate, enforced", () => {
   it("lets everything through once the gate is satisfied", () => {
     for (const step of STEP_ORDER.map((s) => s.id)) {
       expect(clampStep(step, true)).toBe(step);
+    }
+  });
+});
+
+describe("clampIntent", () => {
+  const none = { running: [], struggle: [] };
+  const both = { running: ["trt"], struggle: ["whats_left"] };
+
+  it("sends an unanswered deep link back to the first unanswered screen", () => {
+    // Browser FORWARD after untickng the only answer, and a bookmarked link,
+    // both land here. Adrian requires one answer on each (2026-08-01) and the
+    // disabled button only covers the forward path.
+    expect(clampIntent("celebrate", none)).toBe("running");
+    expect(clampIntent("demo", none)).toBe("running");
+    expect(clampIntent("paywall", none)).toBe("running");
+    expect(clampIntent("celebrate", { running: ["trt"], struggle: [] })).toBe(
+      "struggle",
+    );
+  });
+
+  it("passes a fully answered session straight through", () => {
+    for (const step of ["celebrate", "demo", "payoff", "cost", "paywall"] as const) {
+      expect(clampIntent(step, both)).toBe(step);
+    }
+  });
+
+  it("never touches the steps before the intent screens", () => {
+    for (const step of ["hook", "housekeeping", "running", "struggle"] as const) {
+      expect(clampIntent(step, none)).toBe(step);
+    }
+  });
+
+  it("NEVER touches a post-paywall step, whatever the answers", () => {
+    // This is the load-bearing half. `welcome` is where OAuth returns, so a
+    // user coming back from Google with an empty session must not be thrown
+    // back to the intent screens with their trial already started.
+    for (const step of ["welcome", "install", "notifications", "attribution", "letter"] as const) {
+      expect(clampIntent(step, none)).toBe(step);
     }
   });
 });

@@ -1327,8 +1327,7 @@ full-screen sheet, and the site picker inside the log-dose sheet.
   never recommends**: no suggested-next-site, ranking, risk score, or warning icon
   (the amber exception is documented in `ui-context.md`).
 - **The hit halo (2026-08-01).** Adrian found two regions that could not be
-  tapped at their visual centre. Swept in Chrome across all four artwork
-  modules (42 regions): the two **triceps on the posterior view**, on BOTH
+  tapped at their visual centre. Swept in Chrome across the IM artwork for both bodies and both views (42 regions): the two **triceps on the posterior view**, on BOTH
   bodies, are the only ones. A tricep is drawn as a narrow curved sliver, so the
   centre of its bounding box falls in the concave side — outside its own fill,
   where `elementFromPoint` returns the base silhouette and the tap does nothing

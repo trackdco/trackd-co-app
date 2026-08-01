@@ -21,6 +21,22 @@ export const PAGE_TITLE =
 
 /** Bottom-sheet header (Add photos, Journal, Edit cycle, …) — sans, light, tightly
  *  tracked. One notch smaller than PAGE_TITLE. */
+/**
+ * Emphasis on the two or three words a full-screen flow headline actually turns
+ * on ("the more you see", "the cheap part"). Used as
+ * `<em className={FLOW_EMPHASIS}>`, so the emphasis is in the markup and not
+ * only in the paint.
+ *
+ * Geist Medium (500) AND italic. Weight alone was not enough at 32px on a dark
+ * canvas: the step from Light to Medium is visible in a paragraph and almost
+ * invisible in a headline, so the slant does most of the work and the weight
+ * stops it reading as a quotation. Still 500, never 600+.
+ *
+ * A preset rather than a literal because the flow already carries three other
+ * emphasis treatments; see `ui-context.md` → Typography for which and why.
+ */
+export const FLOW_EMPHASIS = "font-medium"
+
 export const SHEET_TITLE =
   "text-xl font-light tracking-[-0.01em] text-foreground"
 

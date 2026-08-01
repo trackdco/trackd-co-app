@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 
 import {
@@ -46,10 +46,15 @@ import { cn } from "@/lib/utils";
  * out of the greeting, because this is shown to strangers and must not greet
  * them as somebody else.
  *
- * The motion loops. That is sanctioned here and nowhere in the app proper (see
- * `globals.css` beside the keyframe). Everything is `aria-hidden` and
- * `pointer-events-none` except the dots, so none of it can eat a tap meant for
- * the CTA, and it all freezes under `prefers-reduced-motion`.
+ * The motion loops until the user swipes it, and then it stops for good — a
+ * ring that keeps turning under a thumb that just moved it fights the person
+ * using it. Looping is sanctioned here and nowhere in the app proper (see
+ * `globals.css` beside the keyframe), and it all freezes under
+ * `prefers-reduced-motion`.
+ *
+ * The phones and the labels are `aria-hidden` and `pointer-events-none`, so
+ * none of them can eat a tap. Pointer events live on the RING WRAPPER (for the
+ * swipe) and on the dots; both sit above the CTA, never over it.
  */
 
 interface Slide {
@@ -65,10 +70,10 @@ const SLIDES: Slide[] = [
     src: "/onboarding/app-home.png",
     caption: "Track the protocol",
     labels: [
-      { text: "Log a dose", icon: Syringe, className: "left-0 top-2", drift: ["5px", "-6px", "8600ms"] },
-      { text: "What's due today", icon: ListChecks, className: "right-0 top-16", drift: ["-5px", "7px", "10200ms"] },
-      { text: "Next dose", icon: CalendarDots, className: "left-0 bottom-14", drift: ["6px", "6px", "11400ms"] },
-      { text: "Injection sites", icon: Drop, className: "right-0 bottom-2", drift: ["-4px", "-8px", "9200ms"] },
+      { text: "Log a dose", icon: Syringe, className: "left-1 top-1", drift: ["5px", "-6px", "8600ms"] },
+      { text: "What's due today", icon: ListChecks, className: "right-1 top-14", drift: ["-5px", "7px", "10200ms"] },
+      { text: "Next dose", icon: CalendarDots, className: "left-1 bottom-12", drift: ["6px", "6px", "11400ms"] },
+      { text: "Injection sites", icon: Drop, className: "right-1 bottom-1", drift: ["-4px", "-8px", "9200ms"] },
     ],
   },
   {
@@ -76,10 +81,10 @@ const SLIDES: Slide[] = [
     src: "/onboarding/app-protocol.png",
     caption: "Everything in one place",
     labels: [
-      { text: "Compounds", icon: TestTube, className: "left-0 top-2", drift: ["5px", "-7px", "9000ms"] },
-      { text: "Stacks", icon: Package, className: "right-0 top-16", drift: ["-6px", "6px", "10800ms"] },
-      { text: "Cycles", icon: CalendarDots, className: "left-0 bottom-14", drift: ["6px", "5px", "11000ms"] },
-      { text: "Stock on hand", icon: Flask, className: "right-0 bottom-2", drift: ["-4px", "-7px", "9600ms"] },
+      { text: "Compounds", icon: TestTube, className: "left-1 top-1", drift: ["5px", "-7px", "9000ms"] },
+      { text: "Stacks", icon: Package, className: "right-1 top-14", drift: ["-6px", "6px", "10800ms"] },
+      { text: "Cycles", icon: CalendarDots, className: "left-1 bottom-12", drift: ["6px", "5px", "11000ms"] },
+      { text: "Stock on hand", icon: Flask, className: "right-1 bottom-1", drift: ["-4px", "-7px", "9600ms"] },
     ],
   },
   {
@@ -90,10 +95,10 @@ const SLIDES: Slide[] = [
     // thing this app should ever imply. This states what it does and stops.
     caption: "Powder to units",
     labels: [
-      { text: "Powder and water", icon: Flask, className: "left-0 top-2", drift: ["5px", "-6px", "8800ms"] },
-      { text: "Dose in units", icon: Calculator, className: "right-0 top-16", drift: ["-5px", "7px", "10400ms"] },
-      { text: "Drawn to scale", icon: Syringe, className: "left-0 bottom-14", drift: ["6px", "6px", "11600ms"] },
-      { text: "Any syringe size", icon: Scales, className: "right-0 bottom-2", drift: ["-4px", "-8px", "9400ms"] },
+      { text: "Powder and water", icon: Flask, className: "left-1 top-1", drift: ["5px", "-6px", "8800ms"] },
+      { text: "Dose in units", icon: Calculator, className: "right-1 top-14", drift: ["-5px", "7px", "10400ms"] },
+      { text: "Drawn to scale", icon: Syringe, className: "left-1 bottom-12", drift: ["6px", "6px", "11600ms"] },
+      { text: "Any syringe size", icon: Scales, className: "right-1 bottom-1", drift: ["-4px", "-8px", "9400ms"] },
     ],
   },
   {
@@ -101,13 +106,16 @@ const SLIDES: Slide[] = [
     src: "/onboarding/app-progress.png",
     caption: "See it change over time",
     labels: [
-      { text: "Progress photos", icon: ImageSquare, className: "left-0 top-2", drift: ["5px", "-7px", "8400ms"] },
-      { text: "Weight", icon: Scales, className: "right-0 top-16", drift: ["-6px", "6px", "10600ms"] },
-      { text: "Bloodwork", icon: ChartLine, className: "left-0 bottom-14", drift: ["6px", "5px", "11200ms"] },
-      { text: "Journal", icon: ClipboardText, className: "right-0 bottom-2", drift: ["-4px", "-8px", "9800ms"] },
+      { text: "Progress photos", icon: ImageSquare, className: "left-1 top-1", drift: ["5px", "-7px", "8400ms"] },
+      { text: "Weight", icon: Scales, className: "right-1 top-14", drift: ["-6px", "6px", "10600ms"] },
+      { text: "Bloodwork", icon: ChartLine, className: "left-1 bottom-12", drift: ["6px", "5px", "11200ms"] },
+      { text: "Journal", icon: ClipboardText, className: "right-1 bottom-1", drift: ["-4px", "-8px", "9800ms"] },
     ],
   },
 ];
+
+/** How far a thumb must travel before it counts as a swipe rather than a tap. */
+const SWIPE_MIN_PX = 40;
 
 const SLIDE_MS = 4600;
 /** The turn. Slow on purpose: the movement IS the thing being watched. */
@@ -122,9 +130,9 @@ const CAPTION_MS = 1200;
  */
 const RING = [
   { x: "0%", scale: 1, opacity: 1, z: 30 },
-  { x: "54%", scale: 0.78, opacity: 0.42, z: 20 },
+  { x: "50%", scale: 0.72, opacity: 0.26, z: 20 },
   { x: "0%", scale: 0.6, opacity: 0, z: 10 },
-  { x: "-54%", scale: 0.78, opacity: 0.42, z: 20 },
+  { x: "-50%", scale: 0.72, opacity: 0.26, z: 20 },
 ];
 
 export function PaywallHero() {
@@ -134,15 +142,56 @@ export function PaywallHero() {
       typeof window !== "undefined" &&
       Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
   );
+  /**
+   * The user has taken the ring over by swiping it (Adrian, 2026-08-01: "I
+   * should also be able to swipe the carousel").
+   *
+   * Once they have, the auto-advance stops for good. A carousel that keeps
+   * turning under a thumb that just moved it fights the person using it, and
+   * this is the same rule the hook's compare slider follows: the sweep is a
+   * demonstration, and the first real gesture ends it.
+   */
+  const [taken, setTaken] = useState(false);
 
+  // The ring keeps ADVANCING under `prefers-reduced-motion`; what it stops
+  // doing is MOVING (`TURN_MS` collapses to 0 below, and the CSS transitions
+  // are already `motion-reduce:transition-none`).
+  //
+  // Stopping the advance entirely was measured to strand 12 of the 16 labels
+  // and 3 of the 4 screenshots at `opacity: 0` — a reduced-motion user saw a
+  // quarter of the pitch unless they found the dots. The setting asks for less
+  // motion, not less content, and a cut is not motion.
   useEffect(() => {
-    if (reduced) return;
+    if (taken) return;
     const id = window.setInterval(
       () => setIndex((i) => (i + 1) % SLIDES.length),
       SLIDE_MS,
     );
     return () => window.clearInterval(id);
-  }, [reduced]);
+  }, [taken]);
+
+  const step = (delta: number) => {
+    setTaken(true);
+    setIndex((i) => (i + delta + SLIDES.length) % SLIDES.length);
+  };
+
+  /** Horizontal swipe. Tracked on the wrapper, which is the only thing here
+   *  that accepts pointer events; the phones and labels are all inert. */
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  const onPointerDown = (e: React.PointerEvent) => {
+    drag.current = { x: e.clientX, y: e.clientY };
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    const from = drag.current;
+    drag.current = null;
+    if (!from) return;
+    const dx = e.clientX - from.x;
+    const dy = e.clientY - from.y;
+    // A real horizontal swipe: far enough to be deliberate, and more sideways
+    // than vertical so it never steals a scroll of the screen underneath.
+    if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) <= Math.abs(dy)) return;
+    step(dx < 0 ? 1 : -1);
+  };
 
   const active = SLIDES[index];
 
@@ -154,24 +203,34 @@ export function PaywallHero() {
       {/* The caption. Given room to breathe above and below (Adrian,
           2026-08-01): at `mb-3` it was crowding the top of the phone and read
           as a label stuck to it rather than as a line about it. */}
-      <div className="mb-5 flex h-5 items-center justify-center" aria-hidden>
+      <div className="mb-5 flex h-5 items-center justify-center [@media(max-height:700px)]:mb-2" aria-hidden>
         <p
           key={active.id}
           className={cn(CARD_EYEBROW, "animate-flow-caption")}
-          style={{ animationDuration: `${CAPTION_MS}ms` }}
+          style={{ animationDuration: reduced ? "0ms" : `${CAPTION_MS}ms` }}
         >
           {active.caption}
         </p>
       </div>
 
-      {/* Sized so the trial CTA clears the fold. It was 19rem, which pushed the
-          primary action 145px below the bottom of a 390x844 phone — you had to
-          scroll to find the button the whole screen exists for. Then 15rem,
-          which held until the tick list and the extra caption/dot spacing went
-          in on 2026-08-01 and put it 21px under again (measured at 360, 390 and
-          430). This screen's budget is fixed: anything added below the ring has
-          to come out of the ring. */}
-      <div className="relative mx-auto h-[13.5rem] w-full max-w-[22rem] shrink-0">
+      {/* THE RING SHRINKS ON A SHORT SCREEN, because the price has to be
+          visible before the button that commits to it.
+
+          Measured: the paywall's content is a fixed 679px whatever the viewport,
+          so on a 390x660 phone (a 844 iPhone once Safari's URL bar is counted)
+          the plan cards ended 103px past the scroll port, and 203px past it at
+          360x560 — the trial button pinned and tappable the whole time. Moving
+          the tick list below the plans helped and was not enough; at 560 the
+          port is 334px and the ring alone was 216 of it.
+
+          The sizing lives in `globals.css` as `.paywall-ring` / `.paywall-phone`;
+          see the note there for why it is not written as Tailwind variants. */}
+      <div
+        className="paywall-ring relative mx-auto w-full max-w-[22rem] shrink-0 touch-pan-y select-none"
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => { drag.current = null; }}
+      >
         {/* A pool of light under the front phone. */}
         <div
           aria-hidden
@@ -189,9 +248,9 @@ export function PaywallHero() {
             <div
               key={slide.id}
               aria-hidden
-              className="pointer-events-none absolute left-1/2 top-1/2 w-[7.75rem] rounded-[1.5rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
+              className="pointer-events-none absolute left-1/2 top-1/2 paywall-phone rounded-[1.5rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
               style={{
-                transitionDuration: `${TURN_MS}ms`,
+                transitionDuration: reduced ? "0ms" : `${TURN_MS}ms`,
                 transform: `translate(-50%, -50%) translateX(${pos.x}) scale(${pos.scale})`,
                 opacity: pos.opacity,
                 zIndex: pos.z,
@@ -224,23 +283,22 @@ export function PaywallHero() {
                 key={`${slide.id}-${l.text}`}
                 aria-hidden
                 className={cn(
-                  "animate-flow-drift pointer-events-none absolute z-40 flex max-w-[8rem] items-center gap-2 rounded-full bg-bg-surface/90 px-3 py-2 backdrop-blur-sm",
-                  "shadow-[0_10px_26px_-14px_rgb(0_0_0/0.9)]",
+                  "animate-flow-drift pointer-events-none absolute z-40 flex max-w-[7rem] items-center gap-1.5 rounded-full bg-bg-surface/75 px-2.5 py-1.5 backdrop-blur-md",
                   "transition-opacity ease-[var(--motion-ease)] motion-reduce:transition-none",
                   on ? "opacity-100" : "opacity-0",
                   l.className,
                 )}
                 style={
                   {
-                    transitionDuration: `${CAPTION_MS}ms`,
+                    transitionDuration: reduced ? "0ms" : `${CAPTION_MS}ms`,
                     "--drift-x": l.drift[0],
                     "--drift-y": l.drift[1],
                     "--drift-ms": l.drift[2],
                   } as CSSProperties
                 }
               >
-                <LabelIcon className="h-3.5 w-3.5 shrink-0 text-accent-amber" />
-                <span className="text-[10px] leading-tight text-foreground">
+                <LabelIcon className="h-3 w-3 shrink-0 text-accent-amber" />
+                <span className="text-[9.5px] leading-tight text-foreground">
                   {l.text}
                 </span>
               </div>
@@ -250,7 +308,7 @@ export function PaywallHero() {
       </div>
 
       {/* Same again below: the dots were sitting on the phone's feet. */}
-      <div className="mt-6 mb-2 flex items-center justify-center gap-1.5">
+      <div className="mt-6 mb-2 flex items-center justify-center gap-1.5 [@media(max-height:700px)]:mt-3">
         {SLIDES.map((slide, i) => (
           <button
             key={slide.id}

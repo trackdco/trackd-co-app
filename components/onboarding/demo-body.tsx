@@ -157,7 +157,8 @@ export function DemoBody({
     [view],
   );
 
-  /** The freshest site, kept only to order the chips' arrival. */
+  /** The freshest site: it arrives first AND it is the one chip that reads
+   *  amber, so this is the screen's amber selector, not just a sort key. */
   const freshest = Object.entries(history).sort((a, b) => a[1] - b[1])[0]?.[0];
 
   return (
@@ -169,9 +170,12 @@ export function DemoBody({
     // `y%` measured against the svg is the same `y%` here, so pinning a chip
     // vertically needs no second measurement.
     <div className="relative mx-auto w-full max-w-[21rem]">
-      {/* 62%: the widest the body can be while a "6d ago" chip still clears it
-          in the gutter at 360, which is the narrowest phone we draw for. */}
-      <div className="mx-auto w-[62%]">
+      {/* 72% (Adrian, 2026-08-01: "make the guy a bit bigger"). The room comes
+          out of the chips, which lost the word "ago" to pay for it — the "d"
+          already says these are days, and the figure is what he asked to see.
+          72% is the widest the body goes while a chip still clears it in the
+          gutter at 360, the narrowest phone we draw for. */}
+      <div className="mx-auto w-[72%]">
         <svg
           key={view}
           ref={measure}
@@ -265,14 +269,14 @@ export function DemoBody({
           >
             <span
               className={cn(
-                "whitespace-nowrap rounded-full bg-bg-surface px-2 py-1",
+                "whitespace-nowrap rounded-full bg-bg-surface px-1.5 py-1",
                 "font-mono text-[9px] tabular-nums tracking-[0.06em]",
                 freshest === id ? "flow-card text-accent-amber" : "text-text-muted",
               )}
             >
-              {days}d ago
+              {days}d
             </span>
-            <span className="h-px w-3 shrink-0 bg-border-strong" />
+            <span className="h-px w-2.5 shrink-0 bg-border-strong" />
           </span>
         );
       })}

@@ -129,7 +129,7 @@ export function HookScreen() {
             uses and for the same reason: on a short viewport this squashed the
             phone instead of letting the screen scroll. `shrink-0` on the phone
             itself, because a device frame that resizes to fit is not one. */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
           <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 py-5">
           {/* The phone, with a card floating off each of two opposite corners
               (Adrian, 2026-08-01). They sit on the side they describe, which is

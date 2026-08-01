@@ -76,7 +76,7 @@ export interface OnboardingSession {
   struggle: StruggleTag[];
   attribution: AttributionTag | null;
   /**
-   * The free text typed under "Somewhere else" (Adrian, 2026-08-01): which
+   * The free text typed under the catch-all chip (Adrian, 2026-08-01): which
    * podcast, which forum, which coach. The whole point of the option is to
    * learn the answers we did not think to put on the list, so a bucket labelled
    * "other" with nothing in it would be the one useless answer on the screen.
@@ -226,6 +226,12 @@ export function normaliseSession(raw: unknown): OnboardingSession {
     return [...seen];
   };
 
+  const attribution = (ATTRIBUTION_TAGS as readonly string[]).includes(
+    o.attribution as string,
+  )
+    ? (o.attribution as AttributionTag)
+    : null;
+
   return {
     name: typeof o.name === "string" && o.name.trim() ? o.name.trim().slice(0, 24) : null,
     dob: parseDateKey(typeof o.dob === "string" ? o.dob : null) ? (o.dob as string) : null,
@@ -233,10 +239,15 @@ export function normaliseSession(raw: unknown): OnboardingSession {
     consent: o.consent === true,
     running: asArray(o.running, RUNNING_TAGS),
     struggle: asArray(o.struggle, STRUGGLE_TAGS),
-    attribution: (ATTRIBUTION_TAGS as readonly string[]).includes(o.attribution as string)
-      ? (o.attribution as AttributionTag)
-      : null,
-    attributionDetail: normaliseAttributionDetail(o.attributionDetail),
+    attribution,
+    // The detail belongs to the catch-all and to nothing else, which is the
+    // same rule `signup_attribution_detail_scope` enforces in Postgres. Without
+    // this the two fields normalise independently, so a hand-edited session can
+    // produce an orphan string filed under a source that never asked for one.
+    attributionDetail:
+      attribution === "elsewhere"
+        ? normaliseAttributionDetail(o.attributionDetail)
+        : null,
     // Through the SAME validator the URL path uses. This was the one field
     // that trusted whatever came out of storage, which contradicted this
     // file's own "untrusted input by the time it comes back out" contract.

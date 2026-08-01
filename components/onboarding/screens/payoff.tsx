@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { track } from "@/lib/onboarding/analytics";
-import { CARD_EYEBROW, FLOW_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW, FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
@@ -85,9 +85,8 @@ export function PayoffScreen() {
         <div className="mt-8 space-y-3 px-1 text-center">
           <h1 className={cn(FLOW_TITLE, "text-balance")}>
             The longer you track,{" "}
-            {/* Medium + italic, the flow's one emphasis treatment (ui-context
-                → Typography). 500, never 600+, so it leans without shouting. */}
-            <em className="font-medium">the more you see</em>.
+            {/* `FLOW_EMPHASIS`: Medium + italic, 500, never 600+. */}
+            <em className={FLOW_EMPHASIS}>the more you see</em>.
           </h1>
           <p className="mx-auto max-w-[21rem] text-[0.9rem] leading-relaxed text-text-muted">
             Patterns only show up over months. Nothing gets lost, so they are

@@ -265,10 +265,18 @@ than re-deriving classes per card:
   unchanged. It is `<em>`, not a styled `<span>`, so the emphasis is in the
   markup rather than only in the paint.
   **Headlines only, and at most one span per headline.** A second one is two
-  emphases, which is none. Italic appears NOWHERE else in the app: not in body
-  copy, not in a label, not on a value. A data figure is never italicised, ever
-  — mono digits at a slant stop being scannable, which is the entire reason the
-  figures are mono.
+  emphases, which is none. Use the shared **`FLOW_EMPHASIS`** preset rather than
+  typing the class, so four call sites cannot drift into four treatments.
+  **A data figure is never italicised, ever** — mono digits at a slant stop
+  being scannable, which is the entire reason the figures are mono.
+  **This is not the only emphasis in the flow, and the others are deliberate:**
+  the hook's `<strong className="font-medium">Notes app</strong>` (upright,
+  because it is naming the thing being replaced, not stressing it) and
+  celebrate's `<strong className="font-normal text-accent-amber">exactly
+  that</strong>` (amber, and that screen's single amber beat). Both are
+  Adrian-approved and predate this preset. The founder letter also carries one
+  `<em>` in body copy; it is a signed message from two people rather than
+  system copy, and is exempt for the same reason its exclamation mark is.
 - **`DANGER_ROW`** — a row inside Profile's **danger zone** (spec 09 · part
   two): Sign out, Clear all compounds, Delete my account. Red **label** on an
   unfilled row, with the boundary carried by the section's own
@@ -396,8 +404,10 @@ the app is its own deliberate pass, not something to sprinkle screen by screen
 
 ### Rule: a full-screen flow is sized in `svh`, never `dvh`
 
-`.flow-viewport` in `globals.css`, and it is the only place a full-screen height
-is written. Adrian, 2026-08-01: "the search bar on Safari kind of blocks the
+`.flow-viewport` in `globals.css`, and it is the only place **`/onboarding`**
+writes a full-screen height. The rest of the app still uses `min-h-dvh` (the
+`(app)` shell, `/login`, `/welcome`, `/admin`, every `/preview/*`); migrating it
+is its own deliberate pass and is NOT implied by this rule. Adrian, 2026-08-01: "the search bar on Safari kind of blocks the
 button sometimes."
 
 The three viewport units differ by which browser-chrome state they measure.
@@ -418,9 +428,12 @@ The rule carries a `100vh` fallback line before it (iOS before 15.4 has no
 `overscroll-behavior-y: contain`, which kills the rubber-band that makes Safari
 animate its bar in the first place.
 
-**Verify a bottom-pinned CTA by measuring it**, not by looking at it: the walk
-script asserts the trial button's `bottom` is above 844. It was 21px under after
-one round of copy changes and nothing on screen said so.
+**Verify a bottom-pinned CTA by measuring it**, not by looking at it. There is
+no checked-in harness for this: drive the page in a browser at 390x844 AND at
+390x660 (the same phone once Safari's URL bar is counted) and assert the CTA's
+`bottom` is inside the viewport. The trial button was 21px under the fold after
+one round of copy changes, and 177px outside a 660px viewport after the shell
+became fixed-height. Neither was visible by looking.
 
 ### Rule: new screens reuse the system
 

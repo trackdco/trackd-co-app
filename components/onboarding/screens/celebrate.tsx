@@ -36,9 +36,16 @@ import { Mascot } from "../mascot";
 const ANSWERS: Partial<Record<StruggleTag, string>> = {
   whats_left: "Full stock tracking, counted for you.",
   recon_maths: "A calculator that turns powder into units.",
-  last_site: "Built-in injection site rotation.",
+  // NOT "built-in injection site rotation". The sites feature REPORTS, it does
+  // not recommend (Invariant 4, and `ui-context.md` → the recency ramp): naming
+  // rotation as a thing the app does implies it manages one for you. The
+  // struggle this answers is "Can't remember my last site", so the honest
+  // answer is the record, which is also what the demo screen already says.
+  last_site: "Every injection site, logged and dated.",
   notes_app: "One clean place instead of a notes app.",
-  too_much: "Every compound in one simple place.",
+  // Deliberately NOT another "one place" line — `notes_app` above is already
+  // that, and a user who picks both was getting the same sentence twice.
+  too_much: "Compounds, peptides and supplements on one list.",
   no_history: "Bloods against the protocol you're on.",
 };
 
@@ -97,7 +104,7 @@ export function CelebrateScreen() {
         {/* Scroll port + `flex-1` wrapper, as every other screen has. Kyle is
             330px before the headline and the answer list even start, so this is
             the screen most likely to run out of room on a short phone. */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
           <div className="flex w-full flex-1 flex-col items-center justify-center gap-2 py-2">
           <Mascot pose="thumbs" size={330} className="-mb-4 shrink-0" />
 
@@ -132,14 +139,14 @@ export function CelebrateScreen() {
               ))}
             </ul>
 
-            {/* Names the sample and says what happens next (Adrian,
-                2026-08-01: "Test it out. No account needed." was not obvious
-                enough). Three facts, in the order they matter: it is a sample
-                compound, you will log a dose on it, and nothing about it is
-                real or kept. */}
+            {/* Says what the demo will actually make you do, in its own order
+                (Adrian, 2026-08-01, on his second pass: he dictated "log a
+                dose, stock comes off the vial, and then one of the sites").
+                Three beats matching the demo's three stages, so nobody arrives
+                at a body map wondering what they are looking at. */}
             <p className="mx-auto max-w-[19rem] text-[0.85rem] leading-relaxed text-text-muted">
-              Have a go on a sample compound. Log a dose and watch what moves.
-              Nothing is saved and no account is needed.
+              Log a dose. Stock comes off the vial. Then pick a site. Nothing is
+              saved and no account is needed.
             </p>
           </div>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ArrowsLeftRight } from "@/components/icons";
 import { cn } from "@/lib/utils";
@@ -71,7 +71,6 @@ export function NotesCompare() {
   const [position, setPosition] = useState(50);
   const [auto, setAuto] = useState(true);
   const boxRef = useRef<HTMLDivElement>(null);
-  const labelId = useId();
 
   // The demonstration sweep. A sine so it eases at both ends instead of
   // ping-ponging, which reads mechanical.
@@ -149,12 +148,9 @@ export function NotesCompare() {
       {/* The two side labels used to live here as eyebrows. They are now the
           floating cards outside the phone (`hook.tsx`), which say the same
           thing and carry their own points, so keeping both would have labelled
-          each side twice. The slider still needs a name for assistive tech,
-          hence the visually-hidden one. */}
-      <span id={labelId} className="sr-only">
-        Notes app compared with Trackd
-      </span>
-
+          each side twice. The slider carries its own `aria-label`; it briefly
+          had a visually-hidden label AND that, and `aria-labelledby` wins, so
+          the better of the two strings never reached anyone. */}
       <div
         ref={boxRef}
         onPointerDown={onPointerDown}
@@ -236,7 +232,6 @@ export function NotesCompare() {
         <button
           type="button"
           role="slider"
-          aria-labelledby={labelId}
           aria-label="Drag to compare a Notes app with Trackd"
           aria-valuemin={0}
           aria-valuemax={100}

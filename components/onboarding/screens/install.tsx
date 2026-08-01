@@ -21,7 +21,7 @@ import { useFlow } from "../flow-context";
  * first fails silently and burns the one prompt the OS gives you. The order is
  * enforced by `STEP_ORDER` and pinned by a test.
  *
- * ## Three states, because there are genuinely three
+ * ## Four states, because there are genuinely four
  *
  * Adrian asked whether the install can be automated. The honest answer is that
  * it depends entirely on the platform, so this screen stops pretending
@@ -32,13 +32,19 @@ import { useFlow } from "../flow-context";
  *    self-reported step into a verified one.
  * 2. **Android / Chrome** — `beforeinstallprompt` fires, the app already
  *    captures it (`components/pwa/usePwaInstall.ts`), and one tap opens the
- *    real OS install dialog. No instructions needed.
- * 3. **iOS** — there is no install API and never has been. Apple has shipped
+ *    real OS install dialog. No instructions until it fails.
+ * 3. **Android, prompt refused** — `beforeinstallprompt` having fired is not a
+ *    promise that the dialog appears or succeeds: it can be dismissed, Chrome
+ *    can decline to show it twice, and some builds resolve it with no dialog at
+ *    all. So the manual steps appear underneath and the OS button stays
+ *    available (Adrian, 2026-08-01). Leaving someone on a button that already
+ *    did nothing is the dead end this avoids.
+ * 4. **iOS** — there is no install API and never has been. Apple has shipped
  *    nothing for this, so the job here is clarity, not automation: the Share
  *    sheet, spelled out.
  *
- * The "I've added it" button only exists in the case where we genuinely cannot
- * know, which is iOS.
+ * The "I've added it" button exists in the two cases where we genuinely cannot
+ * know: iOS, and an Android install we were never told the outcome of.
  */
 
 const STEPS: Record<Platform, { icon: React.ReactNode; text: string }[]> = {
@@ -131,7 +137,7 @@ export function InstallScreen() {
         title="Add Trackd to your home screen"
         sub={
           promptFailed
-            ? "That did not open. You can add it from the browser menu instead."
+            ? "The install prompt did not open. You can add it from the browser menu instead."
             : "One tap. It works like a normal app once it's there, and reminders need it."
         }
         footer={
@@ -147,7 +153,7 @@ export function InstallScreen() {
                 show the dialog on a second attempt, and taking the automatic
                 path away because it missed once would be the wrong trade. */}
             {promptFailed ? (
-              <SkipLink onClick={install}>Try the install button again</SkipLink>
+              <SkipLink onClick={install}>Try again</SkipLink>
             ) : null}
             <SkipLink onClick={goNext}>Skip for now</SkipLink>
           </div>

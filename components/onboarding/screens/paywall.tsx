@@ -50,9 +50,9 @@ import { useFlow } from "../flow-context";
  * is a claim about what it will do for anybody.
  */
 const INCLUDED = [
-  "Everything you run, tracked in one place",
-  "Stock, doses and injection sites as you go",
-  "Photos, weight, bloods and notes, kept",
+  "Everything you run, tracked in one place.",
+  "Stock, doses and injection sites, logged as you go.",
+  "Photos, weight, bloods and notes, all kept.",
 ];
 
 export function PaywallScreen() {
@@ -159,30 +159,8 @@ export function PaywallScreen() {
         </div>
       }
     >
-      <div className="flex flex-1 flex-col gap-5">
+      <div className="flex flex-1 flex-col gap-4">
         <PaywallHero />
-
-        {/* What the trial actually opens. Placeholder copy pending Adrian's
-            paywall research (2026-08-01) — the point of having it now is that
-            the screen stops going straight from a carousel to a price with
-            nothing said in between.
-            Ticks are MUTED, not amber: the "Save" badge below is this screen's
-            amber beat, and two amber things competing is how the rule about
-            rarity gets broken one component at a time. */}
-        <ul className="space-y-1.5">
-          {INCLUDED.map((line) => (
-            <li key={line} className="flex items-start gap-2.5">
-              <Check
-                className="mt-[3px] h-3.5 w-3.5 shrink-0 text-text-muted"
-                weight="bold"
-                aria-hidden
-              />
-              <span className="text-[0.85rem] leading-snug text-foreground">
-                {line}
-              </span>
-            </li>
-          ))}
-        </ul>
 
         {/* Plan cards */}
         <div
@@ -234,6 +212,32 @@ export function PaywallScreen() {
             );
           })}
         </div>
+
+        {/* What the trial actually opens. Interim copy pending Adrian's
+            paywall research (2026-08-01).
+
+            BELOW the plan cards, not above them. Above, it pushed the price
+            out of the scroll port on a short phone: measured at 360x560 the
+            plan cards started at 500 in a port ending at 416, so the pinned
+            trial button was fully visible and committable while the price it
+            commits to was 322px of scrolling away.
+            Ticks are MUTED, not amber: the "Save" badge below is this screen's
+            amber beat, and two amber things competing is how the rule about
+            rarity gets broken one component at a time. */}
+        <ul className="space-y-1">
+          {INCLUDED.map((line) => (
+            <li key={line} className="flex items-start gap-2">
+              <Check
+                className="mt-[2px] h-3 w-3 shrink-0 text-text-muted"
+                weight="bold"
+                aria-hidden
+              />
+              <span className="text-[0.8rem] leading-snug text-foreground">
+                {line}
+              </span>
+            </li>
+          ))}
+        </ul>
 
         {/* Affiliate code. A card you can see, that unfolds when tapped
             (Adrian, 2026-08-01) — a bare link was too quiet for the one action

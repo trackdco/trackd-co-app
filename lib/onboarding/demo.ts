@@ -13,10 +13,19 @@
  * numbers, computed on read, stored nowhere.
  */
 
-/** The sample compound the demo runs on. Generic on purpose: a "Custom
- *  compound" is the one name that cannot read as a recommendation. */
+/**
+ * The compound the demo runs on. Generic on purpose: a name that is plainly a
+ * placeholder is the one name that cannot read as a recommendation.
+ *
+ * It was "Custom compound" and that was wrong twice over (2026-08-01). It
+ * collided with the app's own meaning of CUSTOM — a compound the user made
+ * themselves through "Make your own" — which this is not; and the screens
+ * around it had already drifted to calling it a SAMPLE, in the log button's
+ * `aria-label` and in the celebrate line that introduces it. Three names for
+ * one object across two screens.
+ */
 export const DEMO_COMPOUND = {
-  name: "Custom compound",
+  name: "Sample compound",
   concentrationMgPerMl: 200,
   doseMl: 0.5,
   /**

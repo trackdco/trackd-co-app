@@ -183,10 +183,26 @@ describe("attribution detail", () => {
   });
 
   it("normalises what comes back out of storage", () => {
-    expect(normaliseSession({ attributionDetail: "  a  mate  " }).attributionDetail).toBe(
-      "a mate",
-    );
+    expect(
+      normaliseSession({ attribution: "elsewhere", attributionDetail: "  a  podcast  " })
+        .attributionDetail,
+    ).toBe("a podcast");
     expect(normaliseSession({}).attributionDetail).toBeNull();
+  });
+
+  it("drops a detail that is not attached to the catch-all", () => {
+    // The same rule `signup_attribution_detail_scope` enforces in Postgres. A
+    // hand-edited session must not be able to file free text under a source
+    // that never asked for any, which would put "the lift club" in the
+    // Instagram bucket the first time this is written to the database.
+    expect(
+      normaliseSession({ attribution: "instagram", attributionDetail: "the lift club" })
+        .attributionDetail,
+    ).toBeNull();
+    expect(
+      normaliseSession({ attribution: null, attributionDetail: "the lift club" })
+        .attributionDetail,
+    ).toBeNull();
   });
 });
 

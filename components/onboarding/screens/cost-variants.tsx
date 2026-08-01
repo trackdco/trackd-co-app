@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import { formatPrice, PLANS } from "@/lib/onboarding/pricing";
-import { CARD_EYEBROW, DATA_MONO, FLOW_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW, DATA_MONO, FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
@@ -217,7 +217,9 @@ function DollarFall({
   delay: number;
   /** The Trackd bar's money is AMBER (Adrian, 2026-08-01), and there is barely
    *  any of it. Two amber glyphs against nine muted ones is the whole argument
-   *  in colour, and amber is already what this flow uses for "ours". */
+   *  in colour. This is not a new meaning for amber: the glyphs belong to the
+   *  amber bar they fall from, so the bar and its money are ONE beat, which is
+   *  the screen's only one. */
   amber?: boolean;
 }) {
   const pieces = useMemo(
@@ -334,10 +336,13 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
         <div className="mt-8 space-y-3 px-1 text-center">
           <h1 className={cn(FLOW_TITLE, "text-balance")}>
             The tracking is{" "}
-            {/* Same emphasis treatment as the payoff headline. */}
-            <em className="font-medium">the cheap part</em>.
+            {/* Same preset as the payoff headline. */}
+            <em className={FLOW_EMPHASIS}>the cheap part</em>.
           </h1>
-          <p className="mx-auto max-w-[21rem] text-[0.9rem] leading-relaxed text-text-muted">
+          {/* Wider than the payoff screen's equivalent (Adrian, 2026-08-01):
+              at 21rem "up" wrapped onto a line of its own, which reads as a
+              typo rather than a sentence. */}
+          <p className="mx-auto max-w-[23.5rem] text-[0.9rem] leading-relaxed text-text-muted">
             Compounds, pins, bloods and supplements all add up. This is the bit
             that doesn&apos;t.
           </p>

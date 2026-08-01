@@ -34,8 +34,12 @@ create table if not exists public.signup_attribution (
 
   -- A creator code is a STRONGER attribution than a self-reported one (spec
   -- §4), so it is recorded beside the answer rather than instead of it.
+  -- 24 to match `normaliseCode` in `lib/onboarding/affiliate.ts`, for the same
+  -- reason `detail` matches its own constant: a value the client accepts must
+  -- never be rejected here, and a value the client cannot parse must never be
+  -- storable.
   affiliate_code text
-    check (affiliate_code is null or char_length(affiliate_code) between 1 and 32),
+    check (affiliate_code is null or char_length(affiliate_code) between 1 and 24),
 
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -58,17 +62,17 @@ alter table public.signup_attribution enable row level security;
 -- House pattern: the identity call is wrapped so the planner caches it.
 drop policy if exists "own signup_attribution - select" on public.signup_attribution;
 create policy "own signup_attribution - select"
-  on public.signup_attribution for select
+  on public.signup_attribution for select to authenticated
   using ((select auth.uid()) = user_id);
 
 drop policy if exists "own signup_attribution - insert" on public.signup_attribution;
 create policy "own signup_attribution - insert"
-  on public.signup_attribution for insert
+  on public.signup_attribution for insert to authenticated
   with check ((select auth.uid()) = user_id);
 
 drop policy if exists "own signup_attribution - update" on public.signup_attribution;
 create policy "own signup_attribution - update"
-  on public.signup_attribution for update
+  on public.signup_attribution for update to authenticated
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
 

@@ -287,7 +287,8 @@
  * own outline.
  *
  * Adrian reported (2026-08-01) that two regions could not be tapped at their
- * visual centre. Measured, in Chrome, over all four artwork modules: the two
+ * visual centre. Measured, in Chrome, over the IM artwork for both bodies and
+ * both views: the two
  * TRICEPS on the posterior view, on BOTH the male and the female body, are the
  * only ones, and the cause is geometric rather than a bug in the markup. A
  * tricep is drawn as a narrow curved sliver, so the centre of its BOUNDING BOX
@@ -308,7 +309,8 @@
  * quad-front region is drawn over the narrow quad-out and ventroglute beside it,
  * so a 4px halo let quad-front swallow BOTH of their centres — two regions fixed
  * and four broken. 4 (2px a side) clears the triceps with margin and leaves
- * every other region hitting itself. Verified across all four artwork modules:
+ * every other region hitting itself. Verified across the IM artwork for both
+ * bodies and both views:
  * 42 regions, 0 unreachable.
  *
  * If this is ever widened, re-run the region sweep. A halo big enough to be
@@ -867,5 +869,46 @@
     /* Every numeral in the app aligns — no per-component opt-in
        (see ui-context.md → Typography / Styling Notes). */
     font-variant-numeric: tabular-nums;
+  }
+}
+
+/* The paywall's phone ring, sized against the viewport's HEIGHT.
+ *
+ * The paywall is the one screen with more content than a short phone has room
+ * for, and the price has to be visible before the button that commits to it.
+ * Measured: the content is a fixed ~656px whatever the viewport, so on a
+ * 390x660 phone (a 390x844 iPhone once Safari's URL bar is counted) the plan
+ * cards ended 103px past the scroll port and 203px past it at 360x560, with the
+ * pinned trial button tappable the whole time.
+ *
+ * Written HERE rather than as Tailwind arbitrary variants because the two
+ * breakpoints overlap (560px matches both `max-height:700px` and
+ * `max-height:600px`) and equal-specificity utilities are resolved by their
+ * order in the generated stylesheet, which is not ours to control. Measured
+ * doing exactly that: the 600px rule never won and 560 kept the 9rem ring.
+ * Ordered by hand, smallest last, so the narrowest case always wins.
+ *
+ * Height rather than width, because this is a vertical budget and a wide phone
+ * can still be short. */
+.paywall-ring {
+  height: 13.5rem;
+}
+.paywall-phone {
+  width: 7.75rem;
+}
+@media (max-height: 700px) {
+  .paywall-ring {
+    height: 9rem;
+  }
+  .paywall-phone {
+    width: 5.5rem;
+  }
+}
+@media (max-height: 600px) {
+  .paywall-ring {
+    height: 6.5rem;
+  }
+  .paywall-phone {
+    width: 4rem;
   }
 }

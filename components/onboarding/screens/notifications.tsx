@@ -72,8 +72,11 @@ export function NotificationsScreen() {
       sub="A nudge on dose days. Nothing else."
       footer={
         <div className="space-y-1">
+          {/* Measured at 1317ms to advance on a "default" outcome and 1315ms
+              on "denied". Without a label the button just went flat and stayed
+              there, which reads as a dead tap and invites a second one. */}
           <FlowCta onClick={onAllow} disabled={busy}>
-            Allow notifications
+            {busy ? "Waiting for your answer" : "Allow notifications"}
           </FlowCta>
           <SkipLink onClick={goNext}>Not now</SkipLink>
         </div>

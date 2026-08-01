@@ -35,7 +35,7 @@ export function WelcomeScreen() {
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
         {/* Scroll port + a `flex-1` wrapper, as `StepFrame` has it: this was
             compressing Kyle on a short viewport rather than scrolling. */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
           <div className="flex w-full flex-1 flex-col items-center justify-center gap-6">
             {/* Nudged DOWN off the top of the block (Adrian, 2026-08-01). Kyle's
                 render carries transparent padding at the top, so centring the

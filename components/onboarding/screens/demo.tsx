@@ -64,12 +64,35 @@ type Stage = (typeof STAGES)[number];
 const TICK_HOLD_MS = 620;
 const RECEDE_MS = 520;
 
+/**
+ * The minimum gap between two ADVANCES. A second one inside this window is
+ * refused.
+ *
+ * The flow has this protection for step changes (`SETTLE_MS` in `flow.tsx`) and
+ * the demo sat underneath it: `advance` changes the STAGE, never the step, so
+ * nothing was disabled and the footer button is never remounted — same node,
+ * same place, four stages. A deliberate double tap ran twice, and measured, it
+ * did so at every gap from 0 to 700ms. 900 rather than 700 because a two-click
+ * sequence carries its own latency: at a nominal 690ms gap the second tap still
+ * landed outside a 700ms window and skipped the stage. The worst version is reachable through
+ * the site auto-advance: tap a region, the map sits still for 1600ms, tap Next,
+ * tap Next again, and you leave the demo having seen the look-back for about
+ * fifty milliseconds with `demo_completed` logged as though you had watched it.
+ *
+ * Rate-limiting the ADVANCE, not the stage's arrival. The first version keyed
+ * off how long the current stage had been on screen, which also refused a
+ * perfectly deliberate FIRST tap from anyone quicker than the animation —
+ * measured: a tap 660ms after the stock card arrived did nothing at all, which
+ * is a worse bug than the one it fixed.
+ */
+const DOUBLE_ADVANCE_MS = 900;
+
 const HEADINGS: Record<Stage, { title: string; sub: string }> = {
   log: {
     title: "Log a dose.",
     // Says which control and what it does, and nothing else. The old line
     // ("One tap. Watch what it moves.") was telling them how to feel about it.
-    sub: "Tap the plus to log the custom compound.",
+    sub: "Tap the plus to log the sample compound.",
   },
   stock: {
     title: "Always know your stock.",
@@ -165,7 +188,18 @@ export function DemoScreen() {
         clearTimeout(timer.current);
         timer.current = null;
       }
-      setStage(STAGES[index - 1]);
+      const back = STAGES[index - 1];
+      // Returning to `log` has to put the card BACK. It kept `logged` and
+      // `receding`, so stepping back landed on a dimmed card with a collapsed,
+      // disabled tick, under the instruction "Tap the plus to log the sample
+      // compound" and no plus to tap. Measured at 0.45 opacity.
+      if (back === "log") {
+        setLogged(false);
+        setReceding(false);
+        setStock(DEMO_START);
+        fired.current = false;
+      }
+      setStage(back);
       return true;
     });
     return () => setBackHandler(null);
@@ -204,12 +238,21 @@ export function DemoScreen() {
     }, TICK_HOLD_MS);
   };
 
+  /** When `advance` last ran. See `DOUBLE_ADVANCE_MS`. A ref, not state: it is
+   *  read inside a handler and never rendered. */
+  const lastAdvanceAt = useRef(0);
+
   const advance = () => {
-    // Cancel any pending auto-advance first. The tick chain and the
-    // vial-empty chain both schedule a `setStage`, and a user who taps the CTA
-    // inside that window used to be YANKED BACKWARDS when the older timer
-    // landed after their tap. Measured: tap, Next, Next lands on site then
-    // snaps to stock.
+    // Refuse a SECOND advance inside the window. A first tap is never blocked,
+    // however quick the user is.
+    const now = Date.now();
+    if (now - lastAdvanceAt.current < DOUBLE_ADVANCE_MS) return;
+    lastAdvanceAt.current = now;
+    // Cancel any pending auto-advance first. The tick chain, the vial-empty
+    // chain and the site-tap chain all schedule a `setStage`, and a user who
+    // taps the CTA inside that window used to be YANKED BACKWARDS when the
+    // older timer landed after their tap. Measured: tap, Next, Next lands on
+    // site then snaps to stock.
     if (timer.current) {
       clearTimeout(timer.current);
       timer.current = null;
