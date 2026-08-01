@@ -80,6 +80,15 @@ ALTER TABLE stack_members
 -- data. `protocol_compound_id` is already unique per user via the composite FK,
 -- so including user_id costs nothing and closes the cross-tenant collision.
 -- ---------------------------------------------------------------------------
+-- ⚠️ DO NOT RE-RUN THIS FILE AFTER `013_stack_dating.sql`.
+--
+-- 013 replaced the index below with a PARTIAL one (`WHERE effective_to IS NULL`),
+-- because once membership is dated the rule means "at most one CURRENT stack" —
+-- a closed span is history and must not hold the slot. Recreating the
+-- unqualified index here would make moving a compound between stacks fail 23505
+-- for good, and nothing would say why. If you need 008's ownership hardening
+-- again, run it and then re-run 013, which is idempotent and restores the
+-- partial index.
 DROP INDEX IF EXISTS stack_members_one_stack_per_compound;
 CREATE UNIQUE INDEX IF NOT EXISTS stack_members_one_stack_per_compound
     ON stack_members (user_id, protocol_compound_id);
