@@ -124,13 +124,17 @@ export function LetterScreen() {
               "Enter Trackd" moved WITH the exit, onto the install screen, so
               the flow still ends on the same words.
 
-              "Almost there" is his pick over an interim "One last thing",
-              which collided with the attribution screen's own heading two taps
-              earlier and was ALSO untrue, since install still follows. This
-              says where you are rather than what is next, which is the only
-              honest thing a button here can say. */}
+              "Last step" (Adrian, 2026-08-07), over an interim "One last
+              thing" and then "Almost there". It names WHAT COMES NEXT, and it
+              is literally true: install is the final screen, so the tap really
+              does open the last step. That is the thing "One last thing" got
+              wrong — it claimed the letter itself was the end — and the thing
+              "Almost there" ducked by describing a feeling instead.
+
+              Sentence case, like every other CTA in the flow ("Continue",
+              "See plans", "Add to home screen"). */}
           <div className="pt-8">
-            <FlowCta onClick={goNext}>Almost there</FlowCta>
+            <FlowCta onClick={goNext}>Last step</FlowCta>
           </div>
         </div>
       </div>
