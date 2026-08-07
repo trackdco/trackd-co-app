@@ -15,7 +15,7 @@ import {
   type DateKey,
 } from "@/lib/home/mockHomeData";
 import { isDueOnFor, type StackCompound } from "@/lib/home/stack";
-import type { DayLogs } from "@/lib/home/doseLog";
+import { slotsForDay, type DayLogs } from "@/lib/home/doseLog";
 
 export interface AdherencePoint {
   key: DateKey;
@@ -161,11 +161,30 @@ function adherenceOn(
   const date = dateKeyToDate(key);
   // Judged by the rule in force on that day — consistency must not be
   // recomputed against a schedule the user only adopted later.
-  const dueIds = compounds.filter((c) => isDueOnFor(c, date)).map((c) => c.id);
-  const due = dueIds.length;
-  if (due === 0) return { key, due: 0, logged: 0, pct: null };
+  const dueCompounds = compounds.filter((c) => isDueOnFor(c, date));
   const dayLogs = logs[key] ?? {};
-  const logged = dueIds.filter((id) => dayLogs[id]).length;
+
+  // Counted in DOSES, not compounds. `dueIds.filter((id) => dayLogs[id])` tested
+  // slot 0 alone, so a twice-daily compound counted once and its morning dose
+  // alone made the day 100%.
+  let due = 0;
+  let logged = 0;
+  for (const c of dueCompounds) {
+    const slots = slotsForDay(c, key, dayLogs);
+    due += slots.length;
+    // ⚠️ A SKIPPED dose is due-and-not-taken (Adrian, 2026-08-07).
+    //
+    // The distinction that settles it: a PAUSE changes what was due, and paused
+    // days never reach here at all because `isDueOnFor` gates them out. A skip
+    // does not change the plan — the dose was still due on that day and you
+    // decided not to take it, so the percentage should say so.
+    //
+    // Skip's value is therefore the RECORD and the silenced nudge, not an escape
+    // from the number. Counting it as taken would let someone skip everything and
+    // read 100%, which makes the metric mean nothing.
+    logged += slots.filter((s) => s.log != null && s.log.status !== "skipped").length;
+  }
+  if (due === 0) return { key, due: 0, logged: 0, pct: null };
   return { key, due, logged, pct: Math.round((logged / due) * 100) };
 }
 

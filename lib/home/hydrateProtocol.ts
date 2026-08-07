@@ -22,7 +22,9 @@ import {
   isTombstoned,
   loadDoseLogs,
   loadTombstones,
+  parseSlotKey,
   saveDoseLogs,
+  slotKey,
   notifyDoseLogsChanged,
   type DayLogs,
 } from "@/lib/home/doseLog"
@@ -31,6 +33,7 @@ import { pushStackCompound, pullStackAndLogs } from "@/lib/home/syncActions"
 import {
   archiveProtocolCompound,
   pullProtocolStackAndLogs,
+  pullPauses,
   pullScheduleVersions,
   pushProtocolCompound,
 } from "@/lib/home/protocolSync"
@@ -39,6 +42,17 @@ import { injectionSiteToLocal } from "@/lib/db/types"
 import type { DoseRow, InjectionSite } from "@/lib/db/types"
 import { isCatalogueName } from "@/lib/compound-lookup"
 import { pullStacks } from "@/lib/home/stackSync"
+import { listOneOffLogs } from "@/lib/db/oneOffLogs"
+import {
+  loadOneOffTombstones,
+  loadOneOffs,
+  normalizeOneOff,
+  notifyOneOffsChanged,
+  saveOneOffs,
+  type OneOffDays,
+  type OneOffLog,
+} from "@/lib/home/oneOffLogs"
+import type { Pause } from "@/lib/home/pauses"
 import {
   loadStacks,
   notifyStacksChanged,
@@ -56,14 +70,17 @@ export async function hydrateFromPostgres(userId: string): Promise<void> {
   // merge's flush then re-pushes it, making the resurrection permanent. See
   // `awaitCriticalSyncs`.
   await awaitCriticalSyncs()
-  const [pg, cloud, versions, stacks] = await Promise.all([
+  const [pg, cloud, versions, stacks, pauses, oneOffs] = await Promise.all([
     pullProtocolStackAndLogs(),
     pullStackAndLogs(),
     pullScheduleVersions(),
     pullStacks(),
+    pullPauses(),
+    listOneOffLogs(),
   ])
-  const idRemap = mergeAndSave(userId, pg, cloud, versions)
+  const idRemap = mergeAndSave(userId, pg, cloud, versions, pauses)
   hydrateStacks(userId, stacks, idRemap)
+  hydrateOneOffs(userId, oneOffs)
 }
 
 /** Fold raw Postgres dose rows into `DayLogs`, keyed by the DEVICE's local day +
@@ -102,12 +119,18 @@ function doseRowsToDayLogs(
       // recorded in survives the round-trip and the row can't be relabelled with
       // the compound's current unit (see DoseLog.unit).
       ...(r.doseUnit ? { unit: r.doseUnit } : {}),
+      // A skipped dose must not read back as one that was taken.
+      ...(r.status === "skipped" ? { status: "skipped" as const } : {}),
       ...(r.note ? { note: r.note } : {}),
       siteId,
       time24,
       inventoryItemId: r.inventoryItemId,
     }
-    ;(out[dateKey] ??= {})[r.compoundId] = log
+    // ⚠️ Keyed by SLOT. Writing `r.compoundId` alone put both of a day's doses
+    // on the same key, so the later row silently overwrote the earlier one — and
+    // on a fresh device, where there is no local copy to merge against, the
+    // second dose of every multi-dose day was lost outright.
+    ;(out[dateKey] ??= {})[slotKey(r.compoundId, r.slotIndex)] = log
   }
   return out
 }
@@ -122,7 +145,8 @@ function mergeAndSave(
   userId: string,
   pg: { stack: StackCompound[]; doseRows: DoseRow[] },
   cloud: { stack: StackCompound[]; doseLogs: DayLogs },
-  versionRows: Awaited<ReturnType<typeof pullScheduleVersions>> = {}
+  versionRows: Awaited<ReturnType<typeof pullScheduleVersions>> = {},
+  pauseRows: Awaited<ReturnType<typeof pullPauses>> = {}
 ): Map<string, string> {
   const local = loadStack(userId) ?? []
   const localLogs = loadDoseLogs(userId)
@@ -175,6 +199,33 @@ function mergeAndSave(
     // cycle the user just set. Postgres wins when it actually knows one; the
     // device's own cycle survives when it does not.
     if (!merged.cycle && loc?.cycle) merged = { ...merged, cycle: loc.cycle }
+    // PAUSES, same bargain as the cycle and the version trail. Postgres is
+    // canonical when it returns any — a reinstall must get the user's pauses
+    // back — and the device's own survive when it returns none, which is every
+    // hydration until `supabase/protocol/018` is applied. Without the fallback,
+    // pausing a compound and reopening the app would silently un-pause it.
+    // ⚠️ MERGED BY ID, not replaced. Taking the server's list wholesale undid a
+    // Resume made offline: the local row said "ends yesterday", the push had not
+    // landed, and the pull's still-open row overwrote it — silently pausing the
+    // compound again, indefinitely. Same for a pause created offline.
+    //
+    // The server wins for an id both hold (it is what actually persisted);
+    // local-only ids are kept, because the server has simply not heard of them
+    // yet. This is the same bargain the dose logs make two blocks below.
+    const pulledPauses = pauseRows[c.id] ?? []
+    const byPauseId = new Map<string, Pause>()
+    for (const p of loc?.pauses ?? []) byPauseId.set(p.id, p)
+    for (const p of pulledPauses) {
+      byPauseId.set(p.id, {
+        id: p.id,
+        startedOn: p.startedOn,
+        endsOn: p.endsOn,
+        ...(p.groupId ? { groupId: p.groupId } : {}),
+      })
+    }
+    if (byPauseId.size > 0) {
+      merged = { ...merged, pauses: [...byPauseId.values()] }
+    }
     if (loc && Boolean(loc.archived) !== Boolean(c.archived)) {
       // CRITICAL, not plain: this push converges Postgres onto the local delete
       // intent, so the NEXT hydration must wait for it (`awaitCriticalSyncs` at the
@@ -305,16 +356,21 @@ function mergeAndSave(
   const tombstones = loadTombstones(userId)
   const merged: DayLogs = {}
   for (const [day, entries] of Object.entries(doseRowsToDayLogs(pg.doseRows, methodById))) {
-    for (const [compoundId, log] of Object.entries(entries)) {
-      if (isTombstoned(tombstones, day, compoundId)) continue
-      ;(merged[day] ??= {})[compoundId] = log
+    for (const [key, log] of Object.entries(entries)) {
+      // PARSED, because a tombstone carries the slot: testing the raw key
+      // against slot 0's tombstone meant un-logging the EVENING dose offline
+      // never suppressed it, and it came back keyed as the morning one.
+      const { compoundId, slot } = parseSlotKey(key)
+      if (isTombstoned(tombstones, day, compoundId, slot)) continue
+      ;(merged[day] ??= {})[key] = log
     }
   }
   for (const src of [remapLogs(cloud.doseLogs), remapLogs(localLogs)]) {
     for (const [day, entries] of Object.entries(src)) {
       for (const [compoundId, log] of Object.entries(entries)) {
         // A tombstoned dose stays gone from every source, not just the pull.
-        if (isTombstoned(tombstones, day, compoundId)) continue
+        const parsed = parseSlotKey(compoundId)
+        if (isTombstoned(tombstones, day, parsed.compoundId, parsed.slot)) continue
         const already = merged[day]?.[compoundId]
         if (already) {
           /**
@@ -356,7 +412,7 @@ function mergeAndSave(
  * never heard of. It used to be the other way round — a fully-resolving pull
  * replaced the local stack outright — and that silently reverted every stack edit
  * made offline (nothing re-pushes stacks on reconnect), deleted any member the
- * push could not send (an unmigrated custom), and, once `013`'s backfill landed,
+ * push could not send (an unmigrated custom), and, once `023`'s backfill landed,
  * overwrote real join dates with the stack's creation day.
  *
  * Two things follow from it:
@@ -418,7 +474,7 @@ export function mergeStack(
  * untouched — the device's date is then the authoritative one, and the server's
  * copy is what this device wrote. So is a stack whose SERVER date is itself a
  * guess: `pullStacks` marks the whole result provisional when it had to fall
- * back to the pre-013 select, and adopting a `created_at`-derived date over the
+ * back to the pre-023 select, and adopting a `created_at`-derived date over the
  * device's own would be trading one guess for another.
  *
  * The flag is cleared whenever a REAL server date has been seen, even if it is
@@ -514,4 +570,69 @@ export function hydrateStacks(
 
   saveStacks(userId, merged)
   notifyStacksChanged()
+}
+
+
+/**
+ * Fold the pulled one-offs into the device store.
+ *
+ * Postgres is canonical, MINUS anything the user has deleted whose delete has
+ * not landed yet — the same tombstone bargain the dose logs make. Without it,
+ * deleting a one-off offline and reconnecting brings it straight back, because
+ * hydration seeds from the pulled rows unconditionally.
+ *
+ * A pull that returns NOTHING leaves the device store alone: that is every
+ * hydration until `supabase/protocol/020` is applied, and wiping the local
+ * entries on the strength of an empty read would delete the only copy.
+ */
+function hydrateOneOffs(
+  userId: string,
+  rows: Awaited<ReturnType<typeof listOneOffLogs>>
+): void {
+  if (rows.length === 0) return
+  const tombstoned = loadOneOffTombstones(userId)
+  /**
+   * ⚠️ MERGED, not replaced.
+   *
+   * Building `days` from the pulled rows alone and saving it DELETED every
+   * one-off written offline: `addOneOff` pushes fire-and-forget, nothing retries
+   * it, so an entry made without a network existed only on the device — and the
+   * next hydration overwrote it with the server's list. Local entries the server
+   * has never heard of are kept; a pulled row wins for an id they share, because
+   * that is the one the server actually stored.
+   */
+  const local = loadOneOffs(userId)
+  const byId = new Map<string, OneOffLog>()
+  for (const list of Object.values(local)) {
+    for (const l of list) if (!Object.hasOwn(tombstoned, l.id)) byId.set(l.id, l)
+  }
+  for (const r of rows) {
+    if (Object.hasOwn(tombstoned, r.id)) continue
+    const pulled = normalizeOneOff({
+      id: r.id,
+      label: r.label,
+      compoundName: r.compoundName ?? undefined,
+      amount: r.amount == null ? undefined : String(r.amount),
+      unit: r.unit ?? undefined,
+      loggedFor: r.loggedFor,
+      // The stored instant back to a local clock time. The DAY comes from
+      // `logged_for`, which the device vouched for; only the time is derived.
+      time24: new Date(r.takenAtIso).toTimeString().slice(0, 5),
+      note: r.note ?? undefined,
+    })
+    if (!pulled) continue
+    // `category` and `method` are not columns on `one_off_logs` — they are
+    // display facts derived from the catalogue. Carry the device's copy across
+    // rather than blanking them, or every entry redraws as a generic supplement
+    // after the first hydration.
+    const had = byId.get(pulled.id)
+    byId.set(pulled.id, {
+      ...pulled,
+      ...(had?.category ? { category: had.category } : {}),
+      ...(had?.method ? { method: had.method } : {}),
+    })
+  }
+  const days: OneOffDays = {}
+  for (const l of byId.values()) (days[l.loggedFor] ??= []).push(l)
+  if (saveOneOffs(userId, days)) notifyOneOffsChanged()
 }

@@ -1,0 +1,285 @@
+"use client";
+
+import { useCallback, useState, useSyncExternalStore } from "react";
+
+import { DotsThree, Plus, Share } from "@/components/icons";
+import { usePwaInstall } from "@/components/pwa/usePwaInstall";
+import { track } from "@/lib/onboarding/analytics";
+import {
+  BROWSER_LABEL,
+  canInstallHere,
+  guessDevice,
+  installSteps,
+  type Browser,
+  type DeviceGuess,
+} from "@/lib/onboarding/platform";
+import { DATA_MONO } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
+
+import { FlowCta, SkipLink, StepFrame } from "../chrome";
+import { Segmented } from "../controls";
+import { useFlow } from "../flow-context";
+
+/**
+ * Screen 13 — Add to Home Screen (Spec 3-01 §9, §12).
+ *
+ * **This must precede the notification request.** An iOS PWA cannot request or
+ * receive web push until it has been installed to the Home Screen, so asking
+ * first fails silently and burns the one prompt the OS gives you. The order is
+ * enforced by `STEP_ORDER` and pinned by a test.
+ *
+ * ## Four states, because there are genuinely four
+ *
+ * Adrian asked whether the install can be automated. The honest answer is that
+ * it depends entirely on the platform, so this screen stops pretending
+ * otherwise:
+ *
+ * 1. **Already installed** — detected via `display-mode: standalone`. There is
+ *    nothing to do, so the screen says so and moves on. This turns a
+ *    self-reported step into a verified one.
+ * 2. **Android / Chrome** — `beforeinstallprompt` fires, the app already
+ *    captures it (`components/pwa/usePwaInstall.ts`), and one tap opens the
+ *    real OS install dialog. No instructions until it fails.
+ * 3. **Android, prompt refused** — `beforeinstallprompt` having fired is not a
+ *    promise that the dialog appears or succeeds: it can be dismissed, Chrome
+ *    can decline to show it twice, and some builds resolve it with no dialog at
+ *    all. So the manual steps appear underneath and the OS button stays
+ *    available (Adrian, 2026-08-01). Leaving someone on a button that already
+ *    did nothing is the dead end this avoids.
+ * 4. **iOS** — there is no install API and never has been. Apple has shipped
+ *    nothing for this, so the job here is clarity, not automation: the Share
+ *    sheet, spelled out.
+ *
+ * The "I've added it" button exists in the two cases where we genuinely cannot
+ * know: iOS, and an Android install we were never told the outcome of.
+ */
+
+/** The three icons the step list can ask for, resolved once. */
+const STEP_ICON = {
+  share: <Share className="h-4 w-4" />,
+  menu: <DotsThree className="h-4 w-4" />,
+  plus: <Plus className="h-4 w-4" />,
+} as const;
+
+/** Is the page running as an installed app rather than in a browser tab? */
+const subscribeStandalone = (cb: () => void) => {
+  if (typeof window === "undefined") return () => {};
+  const mq = window.matchMedia("(display-mode: standalone)");
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+};
+const standaloneSnapshot = () =>
+  typeof window !== "undefined" &&
+  (window.matchMedia("(display-mode: standalone)").matches ||
+    // iOS Safari's own flag, which predates the standard media query.
+    (window.navigator as { standalone?: boolean }).standalone === true);
+
+export function InstallScreen() {
+  const { goNext } = useFlow();
+  // Platform AND browser, guessed once and overridable. `device` is what every
+  // piece of copy on this screen reads from, so the toggle genuinely changes
+  // the instructions rather than only the label above them.
+  const [device, setDevice] = useState<DeviceGuess>(guessDevice);
+  const platform = device.platform;
+  const { canInstall, promptInstall } = usePwaInstall();
+  const [busy, setBusy] = useState(false);
+
+  const installed = useSyncExternalStore(
+    subscribeStandalone,
+    standaloneSnapshot,
+    () => false,
+  );
+
+  const confirmManually = useCallback(() => {
+    track("install_confirmed", { platform, method: "self-reported" });
+    goNext();
+  }, [goNext, platform]);
+
+  /**
+   * Has the OS dialog been tried and NOT resulted in an install?
+   *
+   * Adrian, 2026-08-01: "if for some reason any issues with it then they should
+   * give the instructions". `beforeinstallprompt` having fired is not a promise
+   * that the dialog appears or succeeds — the user can dismiss it, Chrome can
+   * refuse to show it twice, and some builds resolve it with no dialog at all.
+   * Leaving the user on a button that already did nothing is the dead end this
+   * avoids: the manual steps appear underneath, and they get a way past.
+   */
+  const [promptFailed, setPromptFailed] = useState(false);
+
+  const install = useCallback(async () => {
+    setBusy(true);
+    // A rejected promise here used to be an unhandled rejection that also left
+    // `busy` true, so the button read "Opening" for ever.
+    const outcome = await promptInstall().catch(() => "unavailable" as const);
+    setBusy(false);
+    if (outcome === "accepted") {
+      track("install_confirmed", { platform, method: "prompt" });
+      goNext();
+      return;
+    }
+    track("install_prompt_failed", { platform, outcome: String(outcome) });
+    setPromptFailed(true);
+  }, [goNext, platform, promptInstall]);
+
+  /* ---- 1. Already installed. Nothing to ask for. ---- */
+  if (installed) {
+    return (
+      <StepFrame
+        center
+        title="You're already set up"
+        sub="Trackd is on your home screen, so reminders can reach you."
+        footer={<FlowCta onClick={confirmManually}>Continue</FlowCta>}
+      />
+    );
+  }
+
+  /* ---- 2. Android: a real button, and the manual steps only if it fails. ---- */
+  if (canInstall) {
+    return (
+      <StepFrame
+        center
+        title="Add Trackd to your home screen"
+        sub={
+          promptFailed
+            ? "The install prompt did not open. You can add it from the browser menu instead."
+            : "One tap. It works like a normal app once it's there, and reminders need it."
+        }
+        footer={
+          <div className="space-y-1">
+            <FlowCta onClick={promptFailed ? confirmManually : install} disabled={busy}>
+              {busy
+                ? "Opening"
+                : promptFailed
+                  ? "I've added it"
+                  : "Add to home screen"}
+            </FlowCta>
+            {/* The OS button stays available underneath: Chrome will often
+                show the dialog on a second attempt, and taking the automatic
+                path away because it missed once would be the wrong trade. */}
+            {promptFailed ? (
+              <SkipLink onClick={install}>Try again</SkipLink>
+            ) : null}
+            <SkipLink onClick={goNext}>Skip for now</SkipLink>
+          </div>
+        }
+      >
+        {/* Nothing at all until the automatic path fails — an empty box here
+            would take the centred block off centre for a spacer. */}
+        {promptFailed ? <InstallSteps device={device} /> : null}
+      </StepFrame>
+    );
+  }
+
+  /* ---- 3. iOS, or a browser that will not offer it: spell it out. ---- */
+
+  // ON iOS, ONLY SAFARI CAN INSTALL (Adrian, 2026-08-05: "make it whatever the
+  // user is on"). Chrome, Firefox and Edge on iOS have no Add to Home Screen at
+  // all — Apple does not expose it — so describing Safari's Share sheet to them
+  // sends them hunting for a control that does not exist. The honest screen
+  // says which browser they need.
+  const wrongBrowser = !canInstallHere(device);
+
+  return (
+    <StepFrame
+      center
+      title={
+        wrongBrowser
+          ? `Open Trackd in Safari to add it`
+          : "Add Trackd to your home screen"
+      }
+      // "Do this first." and nothing after it (Adrian, 2026-08-05). The tail
+      // used to explain the consequence — "or reminders can't reach you" —
+      // which is true and is still the reason the screen exists, but it argues
+      // where the line above already instructs. Reminders get their own screen
+      // immediately after this one and can make their own case there.
+      sub={
+        wrongBrowser
+          ? `${BROWSER_LABEL[device.browser]} on iPhone can't add apps to the home screen. Only Safari can.`
+          : "It works like a normal app once it's there. Do this first."
+      }
+      footer={
+        <div className="space-y-1">
+          <FlowCta onClick={confirmManually}>I&apos;ve added it</FlowCta>
+          <SkipLink onClick={goNext}>Skip for now</SkipLink>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <Segmented
+          label="Your device"
+          value={platform}
+          onChange={(next) =>
+            // Changing platform resets the browser to that platform's default,
+            // because a stale "Samsung Internet" against iPhone would produce
+            // instructions for a combination that cannot exist.
+            setDevice({
+              platform: next,
+              browser: next === "ios" ? "safari" : "chrome",
+            })
+          }
+          options={[
+            { value: "ios", label: "iPhone" },
+            { value: "android", label: "Android" },
+          ]}
+        />
+
+        {/* The browser row. Offered per platform, because the lists genuinely
+            differ — Samsung Internet does not exist on iOS. */}
+        <Segmented
+          label="Your browser"
+          value={device.browser}
+          onChange={(browser) => setDevice((d) => ({ ...d, browser }))}
+          options={
+            platform === "ios"
+              ? ([
+                  { value: "safari", label: "Safari" },
+                  { value: "chrome", label: "Chrome" },
+                ] as { value: Browser; label: string }[])
+              : ([
+                  { value: "chrome", label: "Chrome" },
+                  { value: "samsung", label: "Samsung" },
+                ] as { value: Browser; label: string }[])
+          }
+        />
+
+        <InstallSteps device={device} />
+      </div>
+    </StepFrame>
+  );
+}
+
+/**
+ * The manual Share-sheet / menu steps. One component, two callers: the iOS path
+ * (where there has never been an install API) and the Android FALLBACK (where
+ * there is one and it did not work). Shared rather than duplicated, because two
+ * copies of a set of instructions is how one of them ends up describing a menu
+ * that moved.
+ */
+function InstallSteps({ device }: { device: DeviceGuess }) {
+  return (
+    <ol className="flow-card rounded-2xl bg-bg-surface px-5">
+      {installSteps(device).map((step, i) => (
+        <li
+          key={step.text}
+          className={cn(
+            "flex items-center gap-3 py-4",
+            i > 0 && "border-t-[0.5px] border-border-default",
+          )}
+        >
+          <span className={cn(DATA_MONO, "w-3 shrink-0 text-text-subtle")}>
+            {i + 1}
+          </span>
+          <span className="flex min-w-0 flex-1 items-center gap-2 text-[0.9rem] text-foreground">
+            {step.icon ? (
+              <span className="text-text-muted" aria-hidden>
+                {STEP_ICON[step.icon]}
+              </span>
+            ) : null}
+            {step.text}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}

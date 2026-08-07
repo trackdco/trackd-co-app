@@ -76,9 +76,15 @@ Everything **settled** reads white or muted: a single logged-dose **tick**
 resolves to a filled `--accent-primary` (white) mark; the **active selection** in
 a control is white; the tab bar is monochrome (active white, inactive
 `--text-subtle`). Rarity is what makes amber read — if half the screen is amber,
-nothing is urgent. **Two sanctioned many-amber surfaces**, and only two: the
-injection-site recency ramp below, and a **settings screen carrying several
-switches** (`/notifications` shows four amber tracks with everything on). The
+nothing is urgent. **Three sanctioned many-amber surfaces**, and only three: the
+injection-site recency ramp below, a **settings screen carrying several
+switches** (`/notifications` shows four amber tracks with everything on), and
+an **onboarding answer list** (a selected chip reads amber: text, icon, tick,
+and a 10% wash). All three are the same argument rather than three excuses: on
+each of those surfaces the amber thing IS the live state, and it is the thing
+the user came to the screen to see. Note the third is scoped to `/onboarding`;
+inside the app amber means "this needs you now" against real data, and a
+selected row in a list is not that (Adrian, 2026-08-01). The
 switch rule below is why, and it is consistent with rarity rather than an
 exception to it: a switch that is on IS the live state, and on a screen whose
 entire job is showing you which things are on, that is the content, not
@@ -179,6 +185,17 @@ utilities (`font-sans`, `font-mono`) in `app/globals.css`.
 
 **Notes**
 
+- **A THIRD face exists, for exactly one line.** Caveat, as `--font-hand`,
+  sets "Angus & Adrian" at the foot of the onboarding founder letter, in amber
+  (Adrian, 2026-08-01). Their real signatures were built for that slot and he
+  rejected them; this does the job they were there for.
+
+  It is an exception and it stays one. **`--font-hand` is referenced in exactly
+  one component**, and a handwriting face on a dose figure, a card title or any
+  app surface is precisely the drift the two-face rule exists to prevent. It is
+  loaded through `next/font` so it is self-hosted at build time, which keeps the
+  no-external-host posture intact. If a second use ever appears, that is the
+  moment to argue about it, not a precedent to lean on.
 - The display serif (**Playfair Display** / `--font-display` /
   `font-display`) is **retired from the UI**. Remove the font load and
   the utility; no screen may reference it. The serif `trackd` wordmark
@@ -230,8 +247,47 @@ than re-deriving classes per card:
 - **`PAGE_TITLE`** — `text-2xl font-light tracking-[-0.02em]
   text-foreground` — the greeting and the `<h1>` on standalone screens
   (Profile, Weight, Blocks, Notifications, Billing).
+- **`FLOW_DISPLAY`** — `text-[2.5rem] font-light leading-[1.02]
+  tracking-[-0.035em] text-foreground` — the MOMENT screens in a full-screen
+  flow: celebrate, welcome, a single-sentence statement. One notch above
+  `FLOW_TITLE` and tracked tighter, so the line reads as a statement rather than
+  a page title. Reserved for a screen carrying one sentence and nothing else; a
+  screen with a form under it uses `FLOW_TITLE`. A user-supplied name inside one
+  needs `[overflow-wrap:anywhere]`, because 40px type and a long word do not
+  share a phone. (Added for the onboarding flow, Spec 3-01.)
+- **`FLOW_TITLE`** — `text-[2rem] font-light leading-[1.05] tracking-[-0.02em]
+  text-foreground` — the headline on a **full-screen external flow**: `/login`
+  and `/onboarding`. One notch ABOVE `PAGE_TITLE`, because these screens carry a
+  single headline on an otherwise empty field rather than titling a page of
+  data. It codifies the treatment `/login` already shipped rather than inventing
+  one, so the onboarding flow could not drift into a second. Still Geist Light:
+  the hierarchy is size and weight, never a second typeface. Its supporting line
+  is **`FLOW_SUB`** (`text-[0.95rem] leading-relaxed text-text-muted`).
+  (Added for the onboarding flow, Spec 3-01.)
 - **`SHEET_TITLE`** — `text-xl font-light tracking-[-0.01em]
   text-foreground` — bottom-sheet headers.
+- **Emphasis inside a headline** — `<em className="font-medium">`, i.e. Geist
+  **Medium (500) and italic**, on the two or three words a `FLOW_TITLE` or
+  `FLOW_DISPLAY` actually turns on ("the more you see", "the cheap part").
+  Adrian, 2026-08-01. Weight alone was not enough at 32px on a dark canvas: the
+  step from Light to Medium is visible in a paragraph and almost invisible in a
+  headline, so the slant is doing most of the work and the weight is stopping it
+  reading as a quotation. **Still 500, never 600+** — the type rule is
+  unchanged. It is `<em>`, not a styled `<span>`, so the emphasis is in the
+  markup rather than only in the paint.
+  **Headlines only, and at most one span per headline.** A second one is two
+  emphases, which is none. Use the shared **`FLOW_EMPHASIS`** preset rather than
+  typing the class, so four call sites cannot drift into four treatments.
+  **A data figure is never italicised, ever** — mono digits at a slant stop
+  being scannable, which is the entire reason the figures are mono.
+  **This is not the only emphasis in the flow, and the others are deliberate:**
+  the hook's `<strong className="font-medium">Notes app</strong>` (upright,
+  because it is naming the thing being replaced, not stressing it) and
+  celebrate's `<strong className="font-normal text-accent-amber">exactly
+  that</strong>` (amber, and that screen's single amber beat). Both are
+  Adrian-approved and predate this preset. The founder letter also carries one
+  `<em>` in body copy; it is a signed message from two people rather than
+  system copy, and is exempt for the same reason its exclamation mark is.
 - **`DANGER_ROW`** — a row inside Profile's **danger zone** (spec 09 · part
   two): Sign out, Clear all compounds, Delete my account. Red **label** on an
   unfilled row, with the boundary carried by the section's own
@@ -336,6 +392,72 @@ shadcn's default border per the borderless-card rule.
   padding (`pb-[env(safe-area-inset-bottom)]`), so content slides
   under it on scroll instead of stopping at a solid block — the last
   visible "web app" tell on scroll-heavy screens.
+
+### Surface treatment: the canvas is lit and cards have depth
+
+Introduced for `/onboarding` (Adrian, 2026-08-01: "it looks too simple"), and
+the reference the app restyle will be pointed at. Two classes in
+`globals.css`, both mixed FROM the tokens with `color-mix` so no hex escapes
+that file and a palette retune carries them:
+
+- **`.flow-canvas`** — a radial lift at the top of the page falling to
+  `--bg-base` by 62%. A full-screen dark surface with no gradient reads as a
+  void; a few percent of light at the top reads as lit.
+- **`.flow-card`** — an inset hairline of 5% white along a card's top edge
+  (where a light source would catch it) plus a soft drop shadow beneath. Both
+  are far weaker than they sound; the effect is depth, not decoration.
+
+The restraint is the point. This is one hairline and one shadow, not a glass
+morphism kit: the moment surfaces start glowing it reads as generated rather
+than designed. **Applies to `/onboarding` only for now.** Rolling it through
+the app is its own deliberate pass, not something to sprinkle screen by screen
+(that is how a design system ends up with four slightly different cards).
+
+### Rule: a full-screen flow is PINNED, and sized in `svh`, never `dvh`
+
+`.flow-viewport` in `globals.css`, and it is the only place **`/onboarding`**
+writes a full-screen height. The rest of the app still uses `min-h-dvh`;
+migrating it is its own deliberate pass and is NOT implied by this rule.
+
+**A FIXED height. The header and the CTA are pinned and the body scrolls
+between them.** Both models were built and tried on a real phone: one page with
+the CTA at the end of the content was Adrian's call on 2026-08-01 and he
+reversed it the same day, because several of these screens are taller than an
+iPhone's viewport once Safari's bars are up, so the only action on the screen
+landed below the fold with nothing to say it was there.
+
+**`svh`, not `dvh`.** `lvh` assumes the browser chrome is RETRACTED, `dvh`
+tracks whatever it is doing right now, `svh` assumes it is SHOWING — the
+smallest the viewport ever gets. `dvh` is the trap and was the original report:
+correct at any instant, and therefore moving the layout as Safari's bar
+collapses on scroll and returns on scroll-up. `100vh` first as the fallback for
+a browser without `svh` (iOS before 15.4).
+
+Two things follow, and they are the ones that break silently:
+
+- **Every screen needs its own scroll port**, or `overflow: hidden` clips it.
+  `StepFrame` provides one; hook, celebrate, welcome and demo carry their own.
+- **Every flex ancestor between the shell and a port needs `min-h-0`.** A flex
+  item's default `min-height: auto` refuses to shrink below its content, so
+  without it the column grows past the shell and the footer is clipped instead
+  of pinned — measured once at 177px of CTA outside a 660px viewport. Note this
+  is the exact OPPOSITE of what the one-page model needed, which is why the two
+  cannot be half-mixed: adding `min-h-0` under a scrolling page is what made the
+  hook's phone go small and the paywall's carousel compress to nothing.
+
+**Give the top the same respect as the bottom.** The footer has carried
+`env(safe-area-inset-bottom)` since day one; the top was missed, and on a
+notched iPhone the progress bar sat level with the clock. If the inset is
+applied as PADDING, the element must not also have a fixed height — measured
+with a 59px inset on a 40px row, the bar was pushed clean out of its box and
+drawn through the first line of every headline.
+
+**Measure these, do not look at them.** Every one was invisible in desktop
+Chrome at 390x844. Drive the flow at 402x700 (his actual phone once Safari's
+bars are counted) and 360x560, with the safe-area inset simulated. And note the
+stale-`.next` trap: a CSS change can sit unserved while the file on disk is
+correct, so confirm a new rule is in `document.styleSheets` before concluding
+anything about it.
 
 ### Rule: new screens reuse the system
 
@@ -477,6 +599,41 @@ hand-rolling animation per screen.
   so touches land even without borders. A blocked tap shakes
   (`animate-card-shake`); a notice slides down from the top edge
   (`animate-notice-in`).
+- **The onboarding flow** (Spec 3-01) carries its own motion, and it is the
+  ONLY surface allowed to. Entrances: `animate-flow-in`, `animate-flow-forward`
+  / `animate-flow-back` (directional step transitions), `animate-flow-hero`,
+  `animate-flow-caption`, `animate-kyle`'s arrival, `animate-flow-confetti` and
+  `animate-dollar-fall` (both one-shot).
+
+  **Four things in that flow DO loop, and the ban below still stands
+  everywhere else** (Adrian, 2026-08-01):
+
+  1. `animate-flow-drift` — the paywall's floating labels.
+  0. (not a loop, but new) `animate-flow-nudge` — the demo's Next button
+     lifting after a stage has sat a while, or once the user has finished what
+     the stage asked for. It replaced an AUTO-ADVANCE (Adrian, 2026-08-01):
+     the injection-site stage used to carry itself onward, which took the
+     decision off the user on the screen they are most likely to still be
+     exploring. Three iterations and it stops; tapping ends it. Movement that
+     carries information, which is the exception the ambient-motion ban is
+     written around.
+  2. `animate-kyle`'s float — the mascot breathing on the two celebration beats.
+  3. The paywall carousel's auto-advance (a `setInterval`, not a class).
+  4. The hook's compare sweep — which is now BOUNDED to two passes and then
+     stops, so it is a demonstration rather than a loop.
+
+  The argument for the first three is that `/onboarding` is a marketing
+  surface with no data on it, and the ban exists because movement competes with
+  figures someone is reading. **Do not carry any of them into the app.** Every
+  one collapses under `prefers-reduced-motion`, and a decorative layer is always
+  `pointer-events-none`, because a layer that swallows the tap underneath it has
+  bitten this prototype before.
+
+  One trap worth naming: an **inline `animation` shorthand outranks the
+  reduced-motion block** and cannot be switched off from the stylesheet. Use a
+  class. Inline `animation-duration` / `transition-duration` longhands are safe.
+  And an animation that ends at `opacity: 0` needs `display: none` under reduce,
+  not just `animation: none`, or it strands itself visible on its first frame.
 - **Banned** — ambient / decorative motion: floating particles, meteor
   or hero effects, cursor-follow, scroll-triggered decorative lines.
   These are the clearest "AI-built" tell and steal attention from the data.
@@ -491,6 +648,12 @@ feels off even when it looks right.
 
 - Terse, exact, confident. No exclamation marks, no emoji, no chirp
   ("Nice work!", "Oops!").
+  **Two sanctioned exceptions, both in `/onboarding` and both Adrian's call
+  (2026-08-01):** the welcome line after the trial starts ("You're in,
+  {name}!") and the founder letter, which is a signed message from two people
+  rather than system copy. The ban exists so an INSTRUMENT does not chirp at
+  you about your own data; neither of those is the instrument talking. Nothing
+  inside the app gets one.
 - **Never an em dash.** Not in any user-facing string, anywhere in the app
   (Adrian, 2026-07-30). Use a full stop and a second sentence, a colon where
   one clause introduces another, or a comma. An em dash reads as an aside the

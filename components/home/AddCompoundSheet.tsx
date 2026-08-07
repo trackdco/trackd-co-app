@@ -5,9 +5,10 @@ import { CalendarDots, CaretDown, PencilSimple, Warning } from "@/components/ico
 
 import { cn } from "@/lib/utils"
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
-import { isVialForm } from "@/lib/containers/form"
+import { isInventoryForm, isStockableForm } from "@/lib/containers/form"
 import { Input } from "@/components/ui/input"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
+import type { InventoryType } from "@/lib/db/types"
 import { resolveFill, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
 import {
   availableCycleEnds,
@@ -246,8 +247,42 @@ function initSchedule(schedule: Schedule | null, now: Date) {
     sMonth: String(Number(m)),
     sYear: y,
     timeOfDay: schedule.timeOfDay,
+    // Slots 1..n, so editing a twice-daily compound opens on both its times
+    // rather than silently dropping the second one on save.
+    laterTimes: schedule.laterTimes ?? [],
+    // Their amounts, as input strings. A null (meaning "same as the dose
+    // above") becomes an empty field rather than a repeated number, so the
+    // default stays visibly the default.
+    laterDoses: (schedule.laterTimes ?? []).map((_, i) => {
+      const d = schedule.laterDoses?.[i]
+      return typeof d === "number" && d > 0 ? String(d) : ""
+    }),
   }
 }
+
+/**
+ * How many doses a day before the save ASKS, and before it refuses (Adrian,
+ * 2026-08-07).
+ *
+ * Six covers every realistic protocol — 4x daily orals, 3x daily peptides — with
+ * headroom, so it is the point at which more is worth a question rather than the
+ * point at which it is wrong. Ten is the hard stop: past that the list is
+ * unusable and the far likelier explanation is a stuck finger on "Add".
+ *
+ * Deliberately two numbers and not one. A single cap either blocks a legitimate
+ * regimen or lets a mis-tap through silently; this does neither.
+ */
+/** `HH:mm` moved on by `hours`, wrapping at midnight. Used to space a newly
+ *  added dose from the one above it. */
+function shiftHours(time: string, hours: number): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time)
+  if (!m) return time
+  const total = (Number(m[1]) * 60 + Number(m[2]) + hours * 60 + 1440) % 1440
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`
+}
+
+const DOSES_SOFT_CAP = 6
+const DOSES_HARD_CAP = 10
 
 /**
  * "Add to log" / "Edit compound" — captures dose and schedule (with a start date
@@ -282,10 +317,16 @@ export function AddCompoundSheet({
     toSource(compound, editCompound, reAdded)
   )
   const next = toSource(compound, editCompound, reAdded)
-  if (
-    next !== null &&
-    (next.id !== shown?.id || next.name !== shown?.name)
-  ) {
+  // ⚠️ Compared by IDENTITY while open, not by id-and-name. `toSource` rebuilds
+  // a fresh object every render, so a changed dose, schedule, dose-time or
+  // per-slot amount left id and name identical — and `shown` stayed pinned to
+  // whatever was captured the FIRST time the sheet opened. Re-opening after an
+  // edit then showed the OLD values, and saving wrote them back as a new version
+  // effective today, silently reverting the edit the user had just made.
+  //
+  // The id/name test survives only for the CLOSED case, which is what keeps the
+  // body from blanking mid-animation when the target goes away.
+  if (next !== null && (open ? next !== shown : next.id !== shown?.id)) {
     setShown(next)
   }
 
@@ -354,6 +395,12 @@ function AddCompoundBody({
   )
 
   const { notice, show, dismiss } = useAmberNotice()
+  /**
+   * Set when a save is held back to ask about an unusual number of doses a day
+   * (Adrian, 2026-08-07). Cleared on cancel and on the confirmed save, so the
+   * question is asked once per attempt rather than remembered.
+   */
+  const [confirmManyDoses, setConfirmManyDoses] = useState(false)
   // `method` is the chosen route. Switching route resets the rotation, because
   // the available injection sites differ by route (IM vs SubQ vs none).
   const [method, setMethod] = useState<InjectionMethod>(
@@ -363,13 +410,15 @@ function AddCompoundBody({
   // Optional "stock on hand" entry (create only). The vial type comes from the
   // selected catalogue route, so we show just that type's fields.
   const stockType = (routeForms.find((f) => toMethod(f.route) === method)?.inventoryType ??
-    "") as "" | "reconstituted" | "preconcentrated" | "oral_solid"
-  // Only compounds that come in a VIAL get the stock step (Spec 03). The test is
-  // the selected route's inventory FORM, never the category — so a future oral
-  // compound in any category behaves correctly, and Creatine or Berberine (po →
-  // oral_solid) never get asked "how much is left in the vial?". Tabs/caps stock
-  // still exists in the Protocol → Stock tab; it is only dropped from this form.
-  const canStock = !isEdit && isVialForm(stockType)
+    "") as "" | InventoryType
+  // ~~Only compounds that come in a VIAL get the stock step (Spec 03)~~ — that
+  // restriction existed because this form had no fields for anything else, and
+  // asking "how much is left in the vial?" about a tub of creatine was worse
+  // than not asking. **Spec w2b-13, Step 4 gives all four forms their own
+  // fields**, so the gate is now simply "is this a thing with stock", which is
+  // every form there is. Adding creatine from scratch offers a stock step and
+  // never mentions BAC water.
+  const canStock = !isEdit && isStockableForm(stockType)
   // The cycle being built here. Held in form state until the compound exists,
   // then written through the same `setCompoundCycle` Protocol → Cycles uses.
   // A RE-ADD presents as a first-time add in every visible respect (Spec 02), so
@@ -398,6 +447,15 @@ function AddCompoundBody({
   const [stBac, setStBac] = useState("")
   const [stMl, setStMl] = useState("")
   const [stConc, setStConc] = useState("")
+  // oral_solid — a count, and a strength that is OPTIONAL and not always in mg
+  // (`supabase/protocol/016`).
+  const [stCount, setStCount] = useState("")
+  const [stOralForm, setStOralForm] = useState<"tab" | "capsule">("tab")
+  const [stStrength, setStStrength] = useState("")
+  const [stStrengthUnit, setStStrengthUnit] = useState<"mg" | "iu">("mg")
+  // bulk_powder — the tub's weight in grams, and an optional serving size.
+  const [stTubGrams, setStTubGrams] = useState("")
+  const [stServingG, setStServingG] = useState("")
   // "How much is in it?" — same part-used estimate as the Stock tab (Full/¾/½/¼ or an
   // exact amount-left). Default Full = no offset, the prior full-vial behaviour.
   const [stFillPreset, setStFillPreset] = useState(1)
@@ -442,6 +500,26 @@ function AddCompoundBody({
     return () => window.clearInterval(id)
   }, [manualTime])
   const timeOfDay = manualTime ?? hhmm(clock)
+  /**
+   * The day's SECOND and later dose times (Spec w2b-13, Step 5). Empty = once a
+   * day, which is how every compound starts and how nearly all of them stay.
+   *
+   * Slot 0's time is `timeOfDay` above and is NOT in here — see
+   * `Schedule.laterTimes` for why the two are kept apart.
+   */
+  const [laterTimes, setLaterTimes] = useState<string[]>(
+    isEdit ? (initial.laterTimes ?? []) : []
+  )
+  /**
+   * The AMOUNT for each later dose, as a raw input string. `""` means "same as
+   * the dose above", which is both the default and the common case.
+   *
+   * ⚠️ Per-slot amounts are scope the spec deferred, added on Adrian's call
+   * (2026-08-07). See `supabase/protocol/021`'s header.
+   */
+  const [laterDoses, setLaterDoses] = useState<string[]>(
+    isEdit ? (initial.laterDoses ?? []) : []
+  )
 
   const todayKey = toDateKey(now)
   // The day an alteration takes effect FROM. The spec's rule is "from the selected
@@ -503,6 +581,31 @@ function AddCompoundBody({
     return { type: "daily" }
   }
 
+  /**
+   * The later times as they will be STORED: only real, set times.
+   *
+   * A blank row is dropped rather than kept as `""`, because an empty later time
+   * is not the same meaningful "no time set" that slot 0's may be — slot 0
+   * always exists, so `""` there says "this compound has no set time", whereas a
+   * blank second row just says the user added a row and did not fill it in.
+   */
+  const cleanLaterTimes = laterTimes.filter((t) => hasTime(t))
+  /**
+   * The per-slot amounts as they will be STORED, aligned to `cleanLaterTimes`.
+   *
+   * Aligned to the CLEANED times, not the raw ones: position is the slot, so an
+   * amount left beside a blank time would otherwise attach itself to whichever
+   * dose happened to survive filtering. A blank or non-positive amount becomes
+   * null, which reads as "the compound's own dose".
+   */
+  const cleanLaterDoses = laterTimes
+    .map((t, i) => ({ t, d: laterDoses[i] ?? "" }))
+    .filter(({ t }) => hasTime(t))
+    .map(({ d }) => {
+      const n = Number.parseFloat(d)
+      return Number.isFinite(n) && n > 0 ? n : null
+    })
+
   const previewSchedule: Schedule = {
     cadence: buildCadence(),
     timeOfDay,
@@ -523,16 +626,17 @@ function AddCompoundBody({
       bacWater: amt(stBac),
       oilMl: amt(stMl),
       concentration: amt(stConc),
-      // Tabs/caps can't be reached from this form (vials only, Spec 03), but the
-      // shared helper's shape covers every inventory type.
-      count: 0,
-      strength: 0,
+      count: amt(stCount),
+      strength: amt(stStrength),
+      tubGrams: amt(stTubGrams),
     },
     stExactLeft,
     stFillPreset,
   )
-  // Vials only on this form (Spec 03), so the part-used amount is always in mL.
-  const stFillUnit = "mL"
+  // The part-used amount is entered in the container's OWN measure, which is no
+  // longer always millilitres now that this form covers all four types.
+  const stFillUnit =
+    stockType === "oral_solid" ? stOralForm : stockType === "bulk_powder" ? "g" : "mL"
 
   function buildStockInsert():
     | Omit<StockInsert, "id" | "protocol_compound_id">
@@ -562,8 +666,41 @@ function AddCompoundBody({
         prior_used_base,
       }
     }
-    // No `oral_solid` branch: the step is gated to vials (see `canStock`). Tabs and
-    // caps are still fully supported by Protocol → Stock's own sheet.
+    if (stockType === "bulk_powder") {
+      // A tub is a weight and nothing else (`supabase/protocol/014`).
+      if (n(stTubGrams) <= 0) return null
+      return {
+        inventory_type: "bulk_powder",
+        base_unit: "g",
+        total_amount: n(stTubGrams),
+        total_amount_unit: "g",
+        serving_size_g: n(stServingG) > 0 ? n(stServingG) : null,
+        prior_used_base,
+      }
+    }
+    if (stockType === "oral_solid") {
+      if (n(stCount) <= 0) return null
+      // No stated strength: the tablet is the unit (`supabase/protocol/016`).
+      // A complete item, not a half-filled form.
+      if (n(stStrength) <= 0) {
+        return {
+          inventory_type: "oral_solid",
+          base_unit: stOralForm,
+          total_amount: n(stCount),
+          total_amount_unit: stOralForm,
+          strength_per_unit: null,
+          prior_used_base,
+        }
+      }
+      return {
+        inventory_type: "oral_solid",
+        base_unit: stStrengthUnit,
+        total_amount: n(stCount),
+        total_amount_unit: stOralForm,
+        strength_per_unit: n(stStrength),
+        prior_used_base,
+      }
+    }
     return null
   }
 
@@ -588,10 +725,29 @@ function AddCompoundBody({
         return "Enter both the volume and the concentration, or clear them."
       }
     }
+    if (stockType === "oral_solid") {
+      // Strength is optional here, so only a started-but-empty COUNT is an
+      // error. Typing a strength and no count is the half-filled case.
+      const started = stCount.trim() !== "" || stStrength.trim() !== ""
+      if (started && buildStockInsert() === null) {
+        return "Enter how many are in the bottle, or clear this."
+      }
+    }
+    if (stockType === "bulk_powder") {
+      const started = stTubGrams.trim() !== "" || stServingG.trim() !== ""
+      if (started && buildStockInsert() === null) {
+        return "Enter the tub weight in grams, or clear this."
+      }
+    }
     return undefined
   }
 
-  async function handleSave() {
+  /** `confirmed` is passed by the over-six dialog's own button. It is a
+   *  PARAMETER rather than a read of `confirmManyDoses`, because clearing that
+   *  state and calling this in the same handler would have this function read
+   *  the stale closure value — correct today by accident, and a trap for the
+   *  next edit. */
+  async function handleSave(confirmed = false) {
     const doseValue = Number(dose)
     if (dose.trim() === "" || !Number.isFinite(doseValue) || doseValue <= 0) {
       setErrors((p) => ({ ...p, dose: "Enter a dose greater than 0." }))
@@ -606,6 +762,15 @@ function AddCompoundBody({
     const cycleMsg = cycleProblem(cycleDraft)
     if (cycleMsg) {
       setErrors((p) => ({ ...p, cycle: cycleMsg }))
+      return
+    }
+    // More doses a day than anything realistic needs. Not blocked — some
+    // regimens genuinely are frequent — but asked about once, because the far
+    // likelier explanation is a stuck finger on "Add another dose". The hard cap
+    // is enforced by the Add row disappearing, not here.
+    const dosesPerDay = cleanLaterTimes.length + 1
+    if (dosesPerDay > DOSES_SOFT_CAP && !confirmed) {
+      setConfirmManyDoses(true)
       return
     }
     // When the time is still live-tracking, resolve it at SAVE (a fresh now), so
@@ -654,6 +819,13 @@ function AddCompoundBody({
             {
               cadence: previewSchedule.cadence,
               timeOfDay: effectiveTime,
+              // The later times ride the VERSION too: a slot is an index into
+              // that day's times, so history resolved against today's array
+              // would relabel doses already taken.
+              ...(cleanLaterTimes.length > 0 ? { laterTimes: cleanLaterTimes } : {}),
+              ...(cleanLaterDoses.some((d) => d != null)
+                ? { laterDoses: cleanLaterDoses }
+                : {}),
               dose: doseValue,
               unit,
               // The cycle MUST ride this version. `resolveScheduleOn` reads the
@@ -675,7 +847,16 @@ function AddCompoundBody({
       method,
       dose: doseValue,
       unit,
-      schedule: { ...previewSchedule, timeOfDay: effectiveTime },
+      schedule: {
+        ...previewSchedule,
+        timeOfDay: effectiveTime,
+        // Only written when there IS more than one dose, so a once-daily
+        // compound's stored record is byte-for-byte what it always was.
+        ...(cleanLaterTimes.length > 0 ? { laterTimes: cleanLaterTimes } : {}),
+        ...(cleanLaterDoses.some((d) => d != null)
+          ? { laterDoses: cleanLaterDoses }
+          : {}),
+      },
       // Per-compound injection-site config was retired (Spec 19, Step 3): the site
       // is now chosen at log time from the user's working set. Any legacy value is
       // cleared on save. These fields remain vestigial on the model/sync.
@@ -687,6 +868,17 @@ function AddCompoundBody({
       // the day being edited — not on today, which would leave the days between
       // ungated and read them back as missed.
       ...(cycleDraft ? { cycle: cycleDraft } : {}),
+      // The selected route's inventory form, RECORDED rather than re-derived
+      // (Spec w2b-13, Step 1 · `supabase/protocol/023`). For a "Make your own"
+      // compound this is the Inventory type answer the form has always asked for
+      // and always thrown away; for a catalogue compound it is the chosen route's
+      // own form. An edit has no route picker and carries `inventoryType: ""`
+      // (see `toSource`), so it keeps whatever was stored rather than clearing it.
+      ...(isInventoryForm(stockType)
+        ? { inventoryForm: stockType }
+        : source.prior?.inventoryForm
+          ? { inventoryForm: source.prior.inventoryForm }
+          : {}),
     }
     if (!upsertStack(userId, saved)) {
       show("Couldn't save to this device. Storage may be full or off.")
@@ -713,8 +905,62 @@ function AddCompoundBody({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-t-3xl hairline-t bg-bg-surface shadow-lg">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-t-3xl hairline-t bg-bg-surface shadow-lg">
       <AmberNotice notice={notice} onDismiss={dismiss} />
+
+      {/* "That is a lot of doses" — a real question, not a toast, because it
+          needs an answer before the save can go through. */}
+      {confirmManyDoses && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm the number of doses"
+          // Escape DISMISSES THE CONFIRM, not the sheet. Without this it fell
+          // through to Radix and closed the whole form, discarding everything
+          // typed — the worst possible answer to "are you sure".
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault()
+              e.stopPropagation()
+              setConfirmManyDoses(false)
+            }
+          }}
+          className="absolute inset-0 z-50 flex items-center justify-center bg-bg-base/70 px-6 backdrop-blur-sm"
+        >
+          <div className="w-full max-w-xs space-y-3 rounded-2xl bg-bg-surface-raised p-5 shadow-lg">
+            <p className="text-sm font-medium text-foreground">
+              {cleanLaterTimes.length + 1} doses a day?
+            </p>
+            <p className="text-sm leading-relaxed text-text-muted">
+              That is more than most protocols ask for. It will show as{" "}
+              {cleanLaterTimes.length + 1} separate rows to tick off each day.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                // Focused on open, so a keyboard or screen-reader user lands
+                // inside the dialog rather than in the form behind the scrim.
+                // The SAFE choice takes focus, not the destructive one.
+                autoFocus
+                onClick={() => setConfirmManyDoses(false)}
+                className="flex-1 rounded-xl border border-border-default bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary hover:bg-bg-surface-raised"
+              >
+                Go back
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmManyDoses(false)
+                  void handleSave(true)
+                }}
+                className="flex-1 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+              >
+                Yes, save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 pt-4 pb-3">
@@ -730,7 +976,7 @@ function AddCompoundBody({
         </SheetTitle>
         <button
           type="button"
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80"
         >
           {isEdit ? "Save" : "Add"}
@@ -740,7 +986,12 @@ function AddCompoundBody({
         Set the dose and schedule.
       </SheetDescription>
 
-      <div className="flex-1 space-y-5 overflow-y-auto px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <div
+        // Unreachable while the confirm is up. `aria-modal` alone is a claim,
+        // not an enforcement — Tab still walked into the form behind it.
+        inert={confirmManyDoses}
+        className="flex-1 space-y-5 overflow-y-auto px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+      >
         {/* Compound header — the container, the name, and one detail line.
             Replaces the bordered name card (spec 10). The container is the thing
             that identifies a compound at a glance, and it is the same header
@@ -1036,6 +1287,97 @@ function AddCompoundBody({
               />
             </div>
           </FormRow>
+
+          {/* Later doses. A compound taken twice a day has had `times_per_day`
+              in the schema since v0.4.2 and no way to say so until now — the log
+              was one row per compound per day at both ends, so the second dose
+              overwrote the first. Each time added here becomes its own tickable
+              row on the day's log. */}
+          {laterTimes.map((t, i) => (
+            <div key={i}>
+              <RowDivider />
+              <FormRow label={`Dose ${i + 2}`}>
+                <div className="flex items-center justify-end gap-1.5">
+                  {/* Its own AMOUNT. Blank = the same dose as above, which is
+                      what the placeholder says and what gets stored (null).
+                      Per-slot amounts are Adrian's addition over the spec —
+                      see `supabase/protocol/021`. */}
+                  <Input
+                    inputMode="decimal"
+                    value={laterDoses[i] ?? ""}
+                    onChange={(e) =>
+                      setLaterDoses((prev) => {
+                        const next = [...prev]
+                        while (next.length < laterTimes.length) next.push("")
+                        next[i] = sanitizeDoseInput(e.target.value)
+                        return next
+                      })
+                    }
+                    // Blank means "the same as the dose above", so the placeholder IS
+                    // that dose rather than the word "optional".
+                    placeholder={dose || "same"}
+                    aria-label={`Dose ${i + 2} amount`}
+                    className="h-11 w-20 rounded-lg border-border-default bg-bg-input px-3 text-right font-mono text-base dark:bg-bg-input"
+                  />
+                  <span className="font-mono text-xs text-text-muted">{unit}</span>
+                  <Input
+                    type="time"
+                    value={t}
+                    onChange={(e) =>
+                      setLaterTimes((prev) =>
+                        prev.map((v, j) => (j === i ? e.target.value : v))
+                      )
+                    }
+                    aria-label={`Dose ${i + 2} time`}
+                    className="h-11 w-36 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+                  />
+                  <button
+                    type="button"
+                    // Removing the LAST one only. A slot is an index, so dropping
+                    // one from the middle would renumber every dose after it and
+                    // silently re-point logs already written against those slots.
+                    onClick={() => {
+                      setLaterTimes((prev) => prev.slice(0, -1))
+                      setLaterDoses((prev) => prev.slice(0, -1))
+                    }}
+                    disabled={i !== laterTimes.length - 1}
+                    aria-label={`Remove dose ${i + 2}`}
+                    className="text-xs font-medium text-text-muted transition-colors hover:text-foreground disabled:opacity-30"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </FormRow>
+            </div>
+          ))}
+          {/* The row disappears at the HARD cap. Between the soft and hard caps
+              it still adds, and the save is what asks whether you meant it —
+              see `DOSES_SOFT_CAP`. */}
+          {laterTimes.length + 1 < DOSES_HARD_CAP && (
+            <>
+              <RowDivider />
+              <FormRow
+                label="Add another dose"
+                hint={
+                  laterTimes.length === 0
+                    ? "Optional"
+                    : `${laterTimes.length + 1} a day`
+                }
+                onPress={() => {
+                  // Offset EIGHT HOURS from the dose above rather than repeating
+                  // it. Seeding the same time meant saving unchanged gave you two
+                  // slots at 08:00, which is never what anyone means by "another
+                  // dose" and reads as a bug.
+                  setLaterTimes((prev) => [
+                    ...prev,
+                    shiftHours(prev.at(-1) ?? timeOfDay, 8),
+                  ])
+                  setLaterDoses((prev) => [...prev, ""])
+                }}
+                value="Add"
+              />
+            </>
+          )}
         </div>
 
         {/* Past start — a quiet confirmation of the date it's landing on, so a
@@ -1258,9 +1600,43 @@ function AddCompoundBody({
                     </label>
                   </div>
                 )}
-                {/* No tabs/caps fields here: this step is gated to vials (Spec 03),
-                    so `stockType` can only be reconstituted or preconcentrated. Oral
-                    solids still have full stock support in Protocol → Stock. */}
+                {stockType === "oral_solid" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-text-muted">Count</span>
+                      <div className="flex gap-1.5">
+                        <Input inputMode="numeric" value={stCount} onChange={(e) => setStCount(sanitizeDoseInput(e.target.value))} placeholder="100" className="h-11 min-w-0 flex-1 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                        <div className="flex gap-1">
+                          <button type="button" onClick={() => setStOralForm("tab")} className={cn(STOCK_PILL, stOralForm === "tab" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>tab</button>
+                          <button type="button" onClick={() => setStOralForm("capsule")} className={cn(STOCK_PILL, stOralForm === "capsule" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>cap</button>
+                        </div>
+                      </div>
+                    </label>
+                    <label className="block">
+                      {/* Optional, and not always mg — see `supabase/protocol/016`. */}
+                      <span className="mb-1 block text-xs text-text-muted">Strength each</span>
+                      <div className="flex gap-1.5">
+                        <Input inputMode="decimal" value={stStrength} onChange={(e) => setStStrength(sanitizeDoseInput(e.target.value))} placeholder="optional" className="h-11 min-w-0 flex-1 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                        <div className="flex gap-1">
+                          <button type="button" onClick={() => setStStrengthUnit("mg")} className={cn(STOCK_PILL, stStrengthUnit === "mg" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>mg</button>
+                          <button type="button" onClick={() => setStStrengthUnit("iu")} className={cn(STOCK_PILL, stStrengthUnit === "iu" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>iu</button>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                )}
+                {stockType === "bulk_powder" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-text-muted">Tub weight (g)</span>
+                      <Input inputMode="decimal" value={stTubGrams} onChange={(e) => setStTubGrams(sanitizeDoseInput(e.target.value))} placeholder="1000" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-text-muted">Serving (g)</span>
+                      <Input inputMode="decimal" value={stServingG} onChange={(e) => setStServingG(sanitizeDoseInput(e.target.value))} placeholder="optional" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                    </label>
+                  </div>
+                )}
                 {/* How much is in it? — always shown when the vial panel is open (not
                     hidden until the amounts are typed), so the part-full option is
                     discoverable straight away. The presets/bar light up once there's a

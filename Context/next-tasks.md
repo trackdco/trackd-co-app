@@ -4,17 +4,153 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-01 (stack dating — Adrian's "Vitamins" report)
+Last updated: 2026-08-07 (Spec w2b-13 built, reviewed, merged)
 
 ---
 
-## 📋 ADRIAN'S NOTES — PASTE THEM HERE
+## 📋 WHERE THINGS STAND — 2026-08-07
 
-> Adrian has a list of things to fix from his own review. **They go here, and
-> they are the first thing to work on tomorrow**, ahead of anything else in this
-> file. Nothing below is more urgent than what he found himself.
->
-> _(empty — waiting on him)_
+**Spec w2b-13 (compound controls) is BUILT, REVIEWED and MERGED to `main`.** All
+eight steps, ten migrations (`023`–`022`) applied by hand, four cold review
+agents run before anything was pasted. State + decisions are in
+`progress-tracker.md`; do not re-derive them.
+
+### What is owed next
+
+1. **Walk it on a real phone, signed in.** Everything so far is verified by
+   types, tests, review and a build — plus Adrian's pass over the `/preview/*`
+   harnesses. Nothing has been driven against the real database while signed in.
+   The cold review found ~25 defects the green gates were happy with, so the
+   remaining risk is concentrated exactly there.
+2. **The `/preview/*` harnesses are now load-bearing** and there are six:
+   `home`, `calendar`, `pause`, `detail`, `stock`, `containers`. They seed their
+   own fake data under a throwaway user id and need no sign-in. `pause` and
+   `detail` render the REAL sheets; `containers` and `stock` are review surfaces.
+   They 404 in production.
+3. **Adrian's outstanding assets** (below) are unchanged by this spec.
+
+### ⚠️ The trap this spec added, worth knowing
+
+**A renamed column breaks the DEPLOYED code, not the branch.** `016` renamed
+`strength_per_unit_mg`, and for the window between applying it and deploying,
+prod's Stock tab was empty for everyone — `listStock` errored and returned `[]`.
+This branch tolerates both names; `main` did not. **Apply a rename and deploy in
+the same sitting**, or hotfix main first.
+
+## 📋 THE PHONE PASS — 2026-08-05
+
+**There was never a phone-issues spec, and it is not owed.** Adrian walked the
+flow on his own phone with a LAN dev server up and dictated the changes screen
+by screen. **His verdict on the flow itself: "it works now ... all the buttons
+work."** The problems the last session parked were not reproduced.
+
+**Why it looked broken before, measured:** `https://trackdco.app/onboarding`
+**404s**. `main` has no `app/onboarding` and no `components/onboarding` at all,
+so the flow has never been deployed. A phone at `trackdco.app` gets the OLD
+`FirstRun` carousel (`app/_components/first-run.tsx`); a laptop gets the desktop
+interstitial ("Track your protocol. Not your spreadsheets.",
+`components/pwa/desktop-interstitial.tsx`). Neither is this flow. **Nothing
+routes to `/onboarding` yet** — that is a live decision, not a bug.
+
+### Built this session (all on `wave3/onboarding-flow`)
+
+Gates: tsc, eslint, **503 tests**, `next build` all green.
+
+- **Celebrate** — the paragraph under the ticks is gone. CTA was already "Try it
+  now" and stays.
+- **Injection sites: the blue box is fixed.** The region paths are
+  `role="button" tabIndex={0}`, so a TAP focused them and Safari drew its own
+  focus ring — and an SVG path's outline is its BOUNDING BOX, so an anatomical
+  region came back as a blue rectangle. `[data-site]:focus:not(:focus-visible)`
+  in `globals.css`, plus a transparent tap highlight. Keyboard focus untouched.
+- **Demo weight card** — Scale now carries the same 2.5 stroke and the same
+  0.35 → 0 taper as Trend, in its OWN periwinkle. Colour still separates raw
+  from smoothed, which is the part `ui-context.md` → Charts actually protects.
+- **Paywall** — CTA UNPINNED (scroll to it), creator code moved directly under
+  the plan cards. Unpinning also structurally kills the old "payable without the
+  price on screen" defect: the CTA is now below the price by construction.
+- **Install** — sub is "Do this first." with the reminders tail cut. iOS steps
+  are now **Share → View More → Add to Home Screen**, which is the real current
+  iPhone flow; the old wording named a row that is below the Share sheet's fold.
+- **Notifications** — the drawn prompt is TAPPABLE and runs the same
+  `onAllow`, so pressing the Allow in the picture asks for permission.
+- **Attribution** — "Someone else" → "Something else". Stored value
+  (`elsewhere`) unchanged, so it is a label edit only. "Optional" stays.
+- **Founder letter** — CTA moved BELOW Angus & Adrian, in the scroll flow.
+  `StepFrame` now renders no footer when given none.
+- **Hook** — the Notes/Trackd sweep now damps to rest instead of being cut at
+  full travel. The sine always ENDED on the midpoint; what was missing was
+  deceleration.
+
+### PINNED vs SCROLLED — the current rule
+
+**The pinned model stays everywhere except two screens** (Adrian, 2026-08-05:
+"leaving the button glued to the bottom, except for those few things"). The two
+exceptions are the **paywall** and the **founder letter**, and both are unpinned
+for the same reason: those screens ask you to READ, and a pinned CTA is a Skip
+button that does not say Skip. Do not generalise this to the other twelve.
+
+### Waiting on Adrian
+
+1. ~~Signature SVGs~~ **DROPPED 2026-08-01.** Built, wired, animated, and then
+   removed at Adrian's call once he saw them. Everything is deleted (art module,
+   keyframe, slot) and the letter's sign-off was respaced around their absence:
+   a hairline rule, "Best,", then the two names. **Do not propose bringing them
+   back.** ~~His source exports are still in `public/images/signature svg/`.~~
+   **That folder no longer exists** (verified 2026-08-07 — `public/images/` held
+   nothing but a `.DS_Store` and was removed in the repo cleanup). If the source
+   exports matter, they are Adrian's own files, not the repo's.
+2. **Gym-floor photo** → `public/onboarding/hook-backdrop.jpg`, then set
+   `HOOK_BACKDROP` in `screens/hook.tsx`. **Deprioritised** — "backdrop is fine
+   for now".
+3. ~~**App screenshots**~~ **DELIVERED — verified 2026-08-07.** All four
+   (`app-home`, `app-protocol`, `app-progress`, `app-calculator`) are present in
+   `public/onboarding/` at exactly **1170 × 2280**, the required size. This item
+   was still listed as owed; it is not. Nothing further is needed here.
+4. **A real iOS Notes screenshot** for the hook's left panel, typed from
+   `NOTES_LINES` in `notes-compare.tsx`. Not yet wired — the panel is still
+   drawn in CSS, and swapping it for an image is its own change.
+5. **The cost screen's diagram.** He likes "The tracking is the cheap part" and
+   wants a different picture under it. Alternatives are owed; the tiers idea
+   (compounds → needles → BAC water, each unlocking, Trackd smallest) is his.
+6. **Injection sites on their own page** — raised as a maybe, to discuss.
+7. **A "Lex in Progress" sample** he owes me — unresolved; ask what it is.
+
+### ⚠️ TRAP: Turbopack does not hot-reload `globals.css` here
+
+**Measured twice in one session, 2026-08-05.** Edit `app/globals.css`, and the
+rule is correct on disk and **absent from the served stylesheet** — no error, no
+warning, the page just does not have your CSS. Both times the fix was to
+**restart the dev server**. The byte size of the served file even CHANGES
+(Tailwind utilities from `.tsx` edits recompile fine), so "the CSS updated" is
+not evidence that YOUR rule did.
+
+The check that actually works, and the only one to trust:
+
+```sh
+CSS=$(curl -s http://localhost:3100/onboarding | grep -oE '/_next/static/[^"]*\.css' | head -1)
+curl -s "http://localhost:3100$CSS" | grep -c "your-new-selector"
+```
+
+Zero means restart, do not debug the CSS. This is the same family as the stale
+`.next` trap below and cost the first blue-box fix a whole round trip — it was
+reported as still broken when the rule was right and simply not being served.
+
+### Then: the cold-agent round
+
+Adrian will run cold review agents over this diff when the changes are done.
+Findings come back categorised **critical / high / medium / low**; he takes the
+highs himself and the rest get fixed here. Do not start it unprompted.
+
+### The UI style, carried forward
+
+`.flow-canvas` + `.flow-card` are the treatment he settled on, and the
+onboarding flow is the REFERENCE the app-wide restyle should point at rather
+than a moving target. Detail in `ui-context.md` → "the canvas is lit and cards
+have depth", and in the handover prompt. `PROMPT-app-surface-restyle.md` gets
+the spec written; it is not the spec and not the work. Note `--text-muted` on
+`--bg-surface` is 3.95:1 — under AA — and lighting the canvas moves that ratio
+on every screen, so contrast is part of that pass.
 
 ---
 
@@ -28,17 +164,17 @@ drew today's grouping over every day in history. Fixed by dating the stack and
 each membership — Spec 01's forward-only rule applied to the one part of the
 protocol that was missing it. See `architecture.md` → Stacks.
 
-**⚠️ NEEDS ADRIAN, AT RELEASE: `supabase/protocol/013_stack_dating.sql` must be
+**⚠️ NEEDS ADRIAN, AT RELEASE: `supabase/protocol/023_stack_dating.sql` must be
 run in the Supabase SQL Editor.** Treat it as a release gate, not a follow-up.
 The app tolerates the un-migrated state — every read and write retries without
-the new columns, and a pre-013 pull is marked provisional so the device's own
+the new columns, and a pre-023 pull is marked provisional so the device's own
 dating wins — so nothing BREAKS before it runs. But until it does, an existing
 stack under-groups its own past: the v1→v2 device migration can only date a
 stack to the day of the upgrade, and the correction it is waiting for
-(`stacks.created_at`) cannot arrive over a pre-013 pull. Run the SQL, then open
+(`stacks.created_at`) cannot arrive over a pre-023 pull. Run the SQL, then open
 the app once; the first dated pull repairs every stack.
 
-Once 013 is applied everywhere, the pre-013 tolerance in `lib/home/stackSync.ts`
+Once 013 is applied everywhere, the pre-023 tolerance in `lib/home/stackSync.ts`
 (`isUndefinedColumn` and its three retry paths, plus `provisionalStart`) is dead
 code and can come out.
 
@@ -71,6 +207,53 @@ Verified at the last commit: `tsc` clean, `eslint` clean, **341 tests pass**,
 
 ---
 
+## 🔜 ONBOARDING: what is still open (2026-08-01)
+
+The flow is built and previewable on `wave3/onboarding-flow`. NOT merged.
+Adrian has been through it twice; these are what is left.
+
+**Assets he still owes:**
+- The gym-floor backdrop for the hook. `HOOK_BACKDROP` in `screens/hook.tsx` is
+  null and the one-shot settle is already wired; it needs a photo.
+- Signature SVGs. `SIGNATURES` in `screens/letter.tsx`, space already reserved
+  so the block will not jump. Use `fill="currentColor"`, no hardcoded colour.
+- Real progress photos to blur, if he does not want the drawn stand-in.
+
+**Decisions taken, recorded so they are not re-litigated:**
+- `ui-context.md` OVERRIDES the spec's §11 token table, which was written by a
+  different Claude session and contradicts it. Adrian, 2026-08-01.
+- The demo is ONE step with four stages, never four routes.
+- Housekeeping captures name + photo (overrides spec D-2), Welcome greets with
+  them, and the photo is not asked for twice.
+- The cost screen carries NO price. The amount charged depends on the
+  customer's region and only the billing provider knows it; $70 there and
+  AU$110 at the sheet is a broken promise at the worst moment. **Prices on the
+  PAYWALL are scaffolding** ($69.99 / $11.99) until RevenueCat is wired.
+- Kyle's background is NOT cut out. His singlet is black and within a few points
+  of the backdrop, so any automatic matte punches holes in his shirt. The image
+  edge is feathered with a radial mask instead.
+- Amber now marks a selected chip, an exclamation mark is allowed in exactly two
+  onboarding strings, and the surface treatment is documented. All three are in
+  `ui-context.md`; the app is unchanged.
+
+**Known gaps in the flow:**
+- Auth and payment are STUBBED. `startTrial()` in `screens/paywall.tsx` is the
+  single seam. There is no RevenueCat integration on this project at all.
+- The "REAL SIGN-IN" card on the paywall is honest scaffolding, not shippable
+  chrome. It goes when auth is wired.
+- The carousel PNGs in `public/onboarding/` are captures of `/preview/*`.
+  **They go stale when a screen changes.** Recapture with the harness script.
+- Analytics events fire into a `window` buffer. There is no destination wired.
+
+## 🔜 THE APP-WIDE SURFACE RESTYLE (spec not yet written)
+
+Adrian much prefers the onboarding's surface treatment to the app's current
+flat one and wants it rolled through everything, including the external pages.
+**`Context/PROMPT-app-surface-restyle.md` is the prompt to paste into a fresh
+session to get the spec written.** Deliberately not started here: it is a
+cross-cutting change that wants its own spec, and starting it mid-onboarding
+would be the distraction Adrian himself called it.
+
 ## 🔜 DECISIONS WAITING ON ADRIAN (before anything else)
 
 1. **Preview both branches, then say what merges.** Nothing goes to `main`
@@ -99,28 +282,14 @@ Verified at the last commit: `tsc` clean, `eslint` clean, **341 tests pass**,
    DERIVED from those two numbers, so changing the prices moves everything and
    nothing can contradict anything else.
 
-## 🔜 THE SUPPLEMENT FORM OVERRIDE (approved, NOT built)
+## ✅ THE SUPPLEMENT FORM OVERRIDE — SUPERSEDED, 2026-08-07
 
-Adrian approved a per-user form override living on his own protocol row. **It is
-not built, because it needs a migration only he can apply** (the Supabase MCP is
-not authorised here) and shipping UI against a column that does not exist yet
-would 42501 the preview.
-
-The plan, when he is ready:
-
-- `supabase/protocol/013_compound_form_override.sql` — a nullable
-  `protocol_compounds.form_override text` with a CHECK of
-  `('tablet','capsule','powder','liquid')`. Additive, no table count change.
-- **It must also be added to BOTH grant lists** in a new `supabase/grants/00N_*`
-  migration, or the Data API 42501s on every write to `protocol_compounds`
-  (`code-standards.md` — this has bitten before).
-- The catalogue stays read-only (Invariant 6). The override is the user's, on
-  the user's row.
-- `containerFormFor` already takes the compound; it gains one more optional
-  input that wins over the unit rule when set.
-
-**The default fix has already shipped on `wave3/fixes` and needs no migration**,
-so vitamin C and D3 read correctly out of the box either way.
+`013_compound_form_override.sql` was written and never applied. Spec w2b-13's
+Step 1 replaced it with `023_compound_inventory_form.sql`, which stores the
+compound's INVENTORY FORM rather than an override of the container picture — so
+it fixes the picture, the stock form and the depletion maths together, where the
+override fixed only the picture. Two independent overrides of one drawing could
+have disagreed. Applied. Nothing owed here.
 
 ## 🔜 CARRIED FROM THE OVERNIGHT SESSION
 

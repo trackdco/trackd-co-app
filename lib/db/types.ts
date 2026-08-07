@@ -11,7 +11,7 @@
  *
  * Pure types + pure helpers only; no React, no side effects (code-standards.md).
  */
-import { hasTime, isInjectable } from "@/lib/home/stack"
+import { doseTimesOf, hasTime, isInjectable } from "@/lib/home/stack"
 import type { Cadence, InjectionMethod, StackCompound } from "@/lib/home/stack"
 import type { CompoundCategory } from "@/lib/compound-categories"
 import { cycleRuleFromColumns, cycleRuleToColumns } from "@/lib/protocol/cycleRule"
@@ -43,8 +43,14 @@ import { coerceDoseUnit, type DoseUnit } from "@/lib/db/doseUnits"
 /** `admin_route` enum. */
 export type AdminRoute = "po" | "subq" | "im" | "nasal" | "topical"
 
-/** `inventory_type` enum (the 3-way discriminated union; wired in Step 5). */
-export type InventoryType = "reconstituted" | "preconcentrated" | "oral_solid"
+/** `inventory_type` enum (wired in Step 5). `bulk_powder` joined the other three
+ *  with `supabase/protocol/014` — a tub of something scooped and weighed in
+ *  grams, which no route can imply (creatine is `po`, same as a capsule). */
+export type InventoryType =
+  | "reconstituted"
+  | "preconcentrated"
+  | "oral_solid"
+  | "bulk_powder"
 
 /** `log_status` enum. */
 export type LogStatus = "taken" | "skipped"
@@ -127,6 +133,14 @@ export interface DoseRow {
    * dose could be written back under two different days as two rows.
    */
   recoveredDay: string | null
+  /** Which of the day's scheduled doses this row is (`supabase/protocol/017`).
+   *  0 on every row written before that migration, and on every once-daily
+   *  compound. Without it the pull keys two doses of one day to the same slot
+   *  and they collapse into one. */
+  slotIndex: number
+  /** Taken, or deliberately skipped. A skipped row must not read back as a
+   *  dose that was taken. */
+  status: "taken" | "skipped"
   /** The dose's own note (`dose_logs.note`), or null. */
   note: string | null
   amount: string
@@ -209,6 +223,14 @@ export interface ProtocolCompound {
   cycle_end_date?: string | null
   cycle_end_rounds?: number | null
   cycle_colour?: string | null
+  /** The form this compound is actually held in, as the user stated it
+   *  (`supabase/protocol/023`). NULL — every row added before it — means derive
+   *  it from name + route, which is what `containerFormFor` still does
+   *  underneath. Optional because a pre-023 row does not carry the column. */
+  inventory_form?: InventoryType | null
+  /** Per-slot planned dose, parallel to `dose_times` (`supabase/protocol/021`).
+   *  A null element, a short array or a null column all mean "use dose_amount". */
+  slot_doses?: (number | null)[] | null
   created_at: string
   updated_at: string
 }
@@ -277,6 +299,12 @@ export interface ProtocolCompoundInsert {
   cycle_end_date?: string | null
   cycle_end_rounds?: number | null
   cycle_colour?: string | null
+  /** The compound's stated inventory form (`supabase/protocol/023`). Stripped
+   *  and retried alongside the cycle columns if the migration is not applied. */
+  inventory_form?: InventoryType | null
+  /** Per-slot planned dose, parallel to `dose_times` (`supabase/protocol/021`).
+   *  Stripped and retried alongside the other pending columns. */
+  slot_doses?: (number | null)[] | null
 }
 
 export interface DoseLogInsert {
@@ -293,6 +321,10 @@ export interface DoseLogInsert {
   logged_for?: string | null
   scheduled_for?: string | null
   note?: string | null
+  /** Which of the day's scheduled doses this is (`supabase/protocol/017`).
+   *  Omitted or 0 = the day's first dose, which is every row written before that
+   *  migration. Stripped and retried when the column is not there yet. */
+  slot_index?: number
 }
 
 /* ----------------------------------------- local ↔ Postgres mapping (Step 2) */
@@ -442,17 +474,28 @@ export function stackCompoundToProtocolInsert(
     schedule_type: schedule.schedule_type,
     days_of_week: schedule.days_of_week,
     interval_days: schedule.interval_days,
-    times_per_day: 1,
-    // An UNSET dose time is stored as a one-element array holding NULL, not as a
-    // substituted default (Spec 01 → Dose time). That satisfies both DB rules
-    // without a migration: `dose_times` is NOT NULL (the ARRAY itself isn't null)
-    // and `dose_times_match` counts array LENGTH (1), which a NULL element still
-    // has. Writing a placeholder time here instead would put a number in the DB
-    // that the user never chose, and nothing downstream could tell it apart from
-    // a real one.
-    dose_times: hasTime(c.schedule.timeOfDay)
-      ? [`${c.schedule.timeOfDay}:00`]
-      : [null],
+    // Both of these were hardcoded to a single daily dose until Spec w2b-13,
+    // Step 5. `times_per_day` has existed since v0.4.2 and nothing could ever
+    // satisfy it, because the device model had no way to say "twice".
+    times_per_day: doseTimesOf(c.schedule).length,
+    // An UNSET dose time is stored as a NULL ELEMENT, not as a substituted
+    // default (Spec 01 → Dose time). That satisfies both DB rules without a
+    // migration: `dose_times` is NOT NULL (the ARRAY itself isn't null) and
+    // `dose_times_match` counts array LENGTH, which a NULL element still
+    // contributes to. Writing a placeholder time here instead would put a number
+    // in the DB that the user never chose, and nothing downstream could tell it
+    // apart from a real one.
+    //
+    // The ARRAY POSITION is the slot (`supabase/protocol/017`), so a null must
+    // hold its place rather than be filtered out — dropping it would shift every
+    // later dose onto the wrong slot.
+    dose_times: doseTimesOf(c.schedule).map((t) => (hasTime(t) ? `${t}:00` : null)),
+    // Per-slot amounts, same array position as `dose_times`. Only written when
+    // the user actually set one, so a compound whose doses are all the same
+    // stores nothing and keeps reading `dose_amount` (`supabase/protocol/021`).
+    ...(c.schedule.laterDoses && c.schedule.laterDoses.some((d) => d != null)
+      ? { slot_doses: [null, ...c.schedule.laterDoses] }
+      : {}),
     first_dose_on: c.schedule.startDate,
     end_date: null,
     is_active: !c.archived,
@@ -462,6 +505,10 @@ export function stackCompoundToProtocolInsert(
         ? ((c.rotationIndex % rotation.length) + rotation.length) % rotation.length
         : 0,
     ...cycleRuleToColumns(c.cycle),
+    // Only written when the user actually stated a form. `undefined` (not null)
+    // when they did not, so an upsert of a compound added before 013 leaves any
+    // value already in the column alone rather than clearing it.
+    ...(c.inventoryForm ? { inventory_form: c.inventoryForm } : {}),
   }
 }
 

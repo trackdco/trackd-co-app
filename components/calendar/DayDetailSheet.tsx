@@ -1,6 +1,7 @@
 "use client";
 
-import { CaretRight } from "@/components/icons";
+import { CaretRight, DotsThree } from "@/components/icons";
+import type { OneOffLog } from "@/lib/home/oneOffLogs";
 
 import {
   Sheet,
@@ -48,6 +49,11 @@ interface DayDetailSheetProps {
   dueToLog: StackCompound[];
   /** Log one of them. The caller writes to THIS sheet's day, not to today. */
   onLogDose: (compound: StackCompound) => void;
+  /** Things taken off-plan on this day (Spec w2b-13, Step 8). They appear here
+   *  and in a block's look-back, and nowhere that counts anything. */
+  oneOffs?: OneOffLog[];
+  /** Open the off-plan menu for THIS day — the "⋯" beside Running. */
+  onOpenOneOffs?: () => void;
   /** Cycles covering this day (Spec 03 · part two). End dates live here rather
    *  than on the grid, where they would clutter every single on-day. */
   cycles?: CycleDayDetail[];
@@ -76,6 +82,8 @@ export function DayDetailSheet({
   onOpenChange,
   dateKey,
   running,
+  oneOffs,
+  onOpenOneOffs,
   weightKg,
   unit,
   markers,
@@ -157,8 +165,41 @@ export function DayDetailSheet({
                 </Row>
               )}
 
-              {/* 1 — Running (what was logged that day). */}
-              <Row label="Running">
+              {/* 1 — Running (what was logged that day).
+
+                  OFF-PLAN entries hang off the "⋯" here rather than occupying a
+                  section of their own (Adrian, 2026-08-07). Most days have none,
+                  and a permanently empty "Also taken" block was a heading
+                  earning its space on the rare day and wasting it on every
+                  other. The count rides the button so the menu is never a
+                  surprise when you open it. */}
+              <Row
+                label="Running"
+                action={
+                  onOpenOneOffs && (
+                    <button
+                      type="button"
+                      onClick={onOpenOneOffs}
+                      aria-label={
+                        // The visible "+2" is inside the button, so a bare label
+                        // OVERRODE it and the count never reached a screen
+                        // reader.
+                        (oneOffs?.length ?? 0) > 0
+                          ? `Other things logged on this day (${oneOffs?.length})`
+                          : "Log something else on this day"
+                      }
+                      className="-mr-1 flex h-7 items-center gap-1.5 rounded-full px-2 text-text-muted transition-colors hover:text-text-primary"
+                    >
+                      {(oneOffs?.length ?? 0) > 0 && (
+                        <span className="font-mono text-[11px] tabular-nums">
+                          +{oneOffs?.length}
+                        </span>
+                      )}
+                      <DotsThree className="h-4 w-4" aria-hidden />
+                    </button>
+                  )
+                }
+              >
                 {running.length === 0 ? (
                   <Empty />
                 ) : (
@@ -286,12 +327,26 @@ export function DayDetailSheet({
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({
+  label,
+  action,
+  children,
+}: {
+  label: string;
+  /** A control railed right of the heading — the "⋯" that opens a section's own
+   *  menu, so the sheet does not grow a permanent block for something most days
+   *  have none of. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section>
-      <h3 className="pb-2 text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
-        {label}
-      </h3>
+      <div className="flex items-center justify-between gap-3 pb-2">
+        <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
+          {label}
+        </h3>
+        {action}
+      </div>
       {children}
     </section>
   );

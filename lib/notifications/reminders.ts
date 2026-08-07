@@ -14,6 +14,16 @@ import { isOnCycle, type CycleRule } from "@/lib/protocol/cycleRule";
 export interface ReminderCompound {
   id: string;
   name: string;
+  /**
+   * True when a pause covers today (`supabase/protocol/018`).
+   *
+   * Resolved by the caller, because this module is pure and the pause lives in
+   * another table. It exists for the same reason `cycle` does: this file is the
+   * SERVER-SIDE MIRROR of the client's `isDueOnFor`, and a gate the client
+   * applies but the push does not means the app correctly shows nothing due
+   * while the notification announces the dose and then nags for "missing" it.
+   */
+  paused?: boolean;
   schedule_type: ScheduleType;
   days_of_week: number[] | null; // ISO weekday (Mon=1 … Sun=7) for specific_days
   interval_days: number | null;
@@ -49,6 +59,9 @@ export const PC_REMINDER_SELECT =
 
 export interface LowStockItem {
   name: string;
+  /** True when the compound this stock belongs to is paused today. Its stock is
+   *  not moving, so "running low" is noise rather than news. */
+  paused?: boolean;
   estEmptyDate: string | null; // YYYY-MM-DD from v_inventory_math
   /**
    * The view's own day COUNT (`supabase/protocol/010`), which is what the
@@ -115,6 +128,10 @@ export function isDueToday(c: ReminderCompound, todayKey: string): boolean {
   const today = dayNumber(todayKey);
   if (c.first_dose_on && today < dayNumber(c.first_dose_on)) return false;
   if (c.end_date && today > dayNumber(c.end_date)) return false;
+  // PAUSED: nothing is due, so nothing is announced and nothing is nagged about.
+  // Mirrors the client's gate, which sits in the same position — above the
+  // cycle check and below the stopped one.
+  if (c.paused) return false;
   // Off-cycle means the user is not taking it: nothing is due, so nothing can be
   // announced and nothing can be nagged about. No `CycleContext` is passed for
   // the same reason the client passes none — the "ends when the vial runs out"
@@ -165,6 +182,10 @@ export function lowStock(
 ): LowStockItem[] {
   const today = dayNumber(todayKey);
   return stock.filter((s) => {
+    // A paused compound is consuming nothing, so its stock is not running out —
+    // it is simply sitting there. Nudging about it is noise, and the user has
+    // already told us they are not taking it.
+    if (s.paused) return false;
     const daysLeft =
       s.daysToEmpty ??
       (s.estEmptyDate ? dayNumber(s.estEmptyDate) - today : null);

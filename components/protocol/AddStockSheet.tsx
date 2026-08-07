@@ -25,6 +25,7 @@ import {
   type StackCompound,
 } from "@/lib/home/stack"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
+import { isInventoryForm } from "@/lib/containers/form"
 import { routesOf } from "@/lib/compound-categories"
 import { todayKey } from "@/lib/protocol/cycle"
 import { resolveFill, vialBasis, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
@@ -35,10 +36,20 @@ const FIELD =
   "h-11 w-full min-w-0 rounded-xl border border-border-default bg-bg-input px-3 text-base text-foreground shadow-xs outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong"
 const LABEL = "text-xs font-medium uppercase tracking-[0.14em] text-text-muted"
 
-const TYPES: { value: InventoryType; label: string; hint: string }[] = [
-  { value: "reconstituted", label: "Reconstituted", hint: "powder + BAC water" },
-  { value: "preconcentrated", label: "Pre-mixed", hint: "oil at a stated mg/mL" },
-  { value: "oral_solid", label: "Oral", hint: "tabs / caps" },
+/**
+ * The four inventory forms, as the picker names them.
+ *
+ * **There is no `hint` field, deliberately.** Every entry used to carry a line of
+ * subtext ("powder + BAC water", "oil at a stated mg/mL") and Spec w2b-13 removes
+ * the concept, not just the strings: the sheet now OPENS on the compound's own
+ * form, so the subtext was explaining a choice the user is no longer being asked
+ * to make. Do not reinstate it.
+ */
+const TYPES: { value: InventoryType; label: string }[] = [
+  { value: "reconstituted", label: "Reconstituted" },
+  { value: "preconcentrated", label: "Pre-mixed" },
+  { value: "oral_solid", label: "Oral" },
+  { value: "bulk_powder", label: "Powder" },
 ]
 
 function num(s: string): number {
@@ -52,9 +63,12 @@ function clean(s: string): string {
   return v
 }
 
-const ALL_FORMS: InventoryType[] = ["reconstituted", "preconcentrated", "oral_solid"]
-const isForm = (t: string): t is InventoryType =>
-  t === "reconstituted" || t === "preconcentrated" || t === "oral_solid"
+const ALL_FORMS: InventoryType[] = [
+  "reconstituted",
+  "preconcentrated",
+  "oral_solid",
+  "bulk_powder",
+]
 
 /** The inventory form(s) a compound can actually be stocked as, from the bundled
  *  catalogue's per-route data (default first) — so the picker shows only the real
@@ -65,16 +79,23 @@ function catalogueForms(name: string): InventoryType[] | null {
   if (!c) return null
   const forms: InventoryType[] = []
   for (const rf of routesOf(c)) {
-    if (isForm(rf.inventoryType) && !forms.includes(rf.inventoryType)) forms.push(rf.inventoryType)
+    if (isInventoryForm(rf.inventoryType) && !forms.includes(rf.inventoryType)) forms.push(rf.inventoryType)
   }
   return forms.length > 0 ? forms : null
 }
 
-/** Fallback for a custom compound (no catalogue routes): infer plausible form(s)
- *  from how it's taken. Oral → tabs/caps; injectable → powder or pre-mixed oil;
- *  nasal → reconstituted. */
+/**
+ * Fallback for a custom compound (no catalogue routes): infer plausible form(s)
+ * from how it's taken. Injectable → powder or pre-mixed oil; nasal →
+ * reconstituted.
+ *
+ * `po` returns BOTH oral forms, because a user's own protein powder has no
+ * catalogue entry and "taken by mouth" genuinely does not distinguish a capsule
+ * from a scoop. Offering only `oral_solid` here is what forced every custom
+ * supplement to be described as tabs it is not made of.
+ */
 function formsForMethod(method: InjectionMethod): InventoryType[] {
-  if (method === "po") return ["oral_solid"]
+  if (method === "po") return ["oral_solid", "bulk_powder"]
   if (method === "im" || method === "subq") return ["reconstituted", "preconcentrated"]
   if (method === "nasal") return ["reconstituted"]
   return ALL_FORMS
@@ -159,10 +180,24 @@ function AddStockForm({
     () => EMPTY,
   )
   const compounds = stack.filter((c) => !c.archived)
+  /**
+   * The forms this compound can be stocked as, **its own form first**.
+   *
+   * The order is the whole point (Spec w2b-13, Step 4). `TYPES` is ordered with
+   * `reconstituted` first, so a picker seeded from `TYPES` order opened on
+   * "powder + BAC water" for everything — and adding a tub of creatine began by
+   * asking about bacteriostatic water. Seeding from the compound's stored
+   * `inventoryForm` (`supabase/protocol/023`) puts the right answer under the
+   * cursor, and the catalogue's own default supplies it for everything added
+   * before that column existed.
+   */
   const formsForId = (id: string): InventoryType[] => {
     const c = compounds.find((x) => x.id === id)
     if (!c) return ALL_FORMS
-    return catalogueForms(c.name) ?? formsForMethod(c.method)
+    const candidates = catalogueForms(c.name) ?? formsForMethod(c.method)
+    const own = c.inventoryForm
+    if (!own || !candidates.includes(own)) return candidates
+    return [own, ...candidates.filter((f) => f !== own)]
   }
 
   // Editing a vial and refilling both pre-select (and lock) the compound; editing
@@ -214,7 +249,17 @@ function AddStockForm({
   const [oralForm, setOralForm] = useState<"tab" | "capsule">(
     ei?.totalAmountUnit === "capsule" ? "capsule" : "tab",
   )
-  const [strength, setStrength] = useState(numStr(ei?.strengthPerUnitMg))
+  const [strength, setStrength] = useState(numStr(ei?.strengthPerUnit))
+  // The unit on the LABEL, not always milligrams (`supabase/protocol/016`).
+  // Vitamin D is sold in IU universally and could not be stored at all before.
+  const [strengthUnit, setStrengthUnit] = useState<"mg" | "iu">(
+    ei?.inventoryType === "oral_solid" && ei.baseUnit === "iu" ? "iu" : "mg",
+  )
+  // bulk_powder — the tub's weight in grams, and an optional serving size.
+  const [tubGrams, setTubGrams] = useState(
+    ei?.inventoryType === "bulk_powder" ? numStr(ei.totalAmount) : "",
+  )
+  const [servingG, setServingG] = useState(numStr(ei?.servingSizeG))
   // "How much is in it?" — a Full/¾/½/¼ preset, or an exact amount-left in the
   // vial's own measure (mL of solution, or tab/cap count). An exact entry overrides
   // the preset. Both fold into prior_used_base on save; default Full = no change.
@@ -229,11 +274,13 @@ function AddStockForm({
       oilMl: ei.inventoryType === "preconcentrated" ? (ei.totalAmount ?? 0) : 0,
       concentration: ei.concentrationMgPerMl ?? 0,
       count: ei.inventoryType === "oral_solid" ? (ei.totalAmount ?? 0) : 0,
-      strength: ei.strengthPerUnitMg ?? 0,
+      strength: ei.strengthPerUnit ?? 0,
+      tubGrams: ei.inventoryType === "bulk_powder" ? (ei.totalAmount ?? 0) : 0,
     })
     if (!basis || basis.perNative <= 0) return ""
     const left = (basis.totalBase - ei.priorUsedBase) / basis.perNative
     if (!(left > 0)) return ""
+    // Tabs are whole things; grams and millilitres are not.
     return ei.inventoryType === "oral_solid" ? String(Math.round(left)) : String(round3(left))
   })
   const [saving, setSaving] = useState(false)
@@ -250,6 +297,7 @@ function AddStockForm({
       concentration: num(concentration),
       count: num(count),
       strength: num(strength),
+      tubGrams: num(tubGrams),
     },
     exactLeft,
     fillPreset,
@@ -284,14 +332,46 @@ function AddStockForm({
         prior_used_base,
       }
     }
-    if (num(count) <= 0 || num(strength) <= 0) return null
+    if (type === "bulk_powder") {
+      // A tub is a weight and nothing else. `total_amount` is grams, `base_unit`
+      // is `g`, and the serving size — if given — is a convenience the maths
+      // never touches (`supabase/protocol/014`).
+      if (num(tubGrams) <= 0) return null
+      return {
+        ...base,
+        inventory_type: "bulk_powder",
+        base_unit: "g",
+        total_amount: num(tubGrams),
+        total_amount_unit: "g",
+        serving_size_g: num(servingG) > 0 ? num(servingG) : null,
+        prior_used_base,
+      }
+    }
+    if (num(count) <= 0) return null
+    // Oral with NO stated strength: the tablet is the unit, so the base unit
+    // becomes the tab/cap itself and there is no strength to store
+    // (`supabase/protocol/016`). This is a complete, valid item — a multivitamin
+    // — not a half-filled form, which is why it returns rather than nulling.
+    if (num(strength) <= 0) {
+      return {
+        ...base,
+        inventory_type: "oral_solid",
+        base_unit: oralForm as DoseUnit,
+        total_amount: num(count),
+        total_amount_unit: oralForm as DoseUnit,
+        strength_per_unit: null,
+        prior_used_base,
+      }
+    }
     return {
       ...base,
       inventory_type: "oral_solid",
-      base_unit: "mg",
+      // The base is the unit the STRENGTH is in, which is what the dose will be
+      // logged in — mg for vitamin C, iu for vitamin D.
+      base_unit: strengthUnit,
       total_amount: num(count),
       total_amount_unit: oralForm as DoseUnit,
-      strength_per_unit_mg: num(strength),
+      strength_per_unit: num(strength),
       prior_used_base,
     }
   }
@@ -302,7 +382,8 @@ function AddStockForm({
 
   // Live "how much is in it?" feedback: the picker only appears once the type's
   // amounts are entered (no capacity → nothing to be a fraction of).
-  const fillUnit = type === "oral_solid" ? oralForm : "mL"
+  const fillUnit =
+    type === "oral_solid" ? oralForm : type === "bulk_powder" ? "g" : "mL"
 
   async function save() {
     if (!insert) return
@@ -356,7 +437,14 @@ function AddStockForm({
         pcId ? { ...insert, protocol_compound_id: pcId } : insert
       )
       if (!r.ok) {
-        setError("Couldn’t save this stock. Please try again.")
+        // A form the database cannot hold until `014`/`016` are applied gets its
+        // own words. "Please try again" is a lie there — trying again will fail
+        // identically, and the user has no way to know it is not their input.
+        setError(
+          r.pendingMigration
+            ? "This container type isn’t available yet. Try Reconstituted, Pre-mixed or Oral for now."
+            : "Couldn’t save this stock. Please try again."
+        )
         return // keep the sheet open so the input isn't lost on a failed save
       }
       onAdded()
@@ -413,12 +501,11 @@ function AddStockForm({
                 <div className="flex items-center justify-between gap-2">
                   <p className="min-w-0 text-sm text-foreground">
                     {TYPES.find((t) => t.value === type)?.label}
-                    <span className="text-text-subtle">
-                      {" · "}
-                      {lockedType
-                        ? "same as your current vial"
-                        : TYPES.find((t) => t.value === type)?.hint}
-                    </span>
+                    {lockedType && (
+                      <span className="text-text-subtle">
+                        {" · same as your current vial"}
+                      </span>
+                    )}
                   </p>
                   <button
                     type="button"
@@ -442,8 +529,8 @@ function AddStockForm({
                 <div className="flex items-start justify-between gap-2">
                   <span className="block text-xs text-text-subtle">
                     {picker === "all"
-                      ? "Changing the form starts a fresh vial of the new type."
-                      : TYPES.find((t) => t.value === type)?.hint}
+                      ? "Changing the form starts a fresh container of the new type."
+                      : ""}
                   </span>
                   {picker === "compound" && (
                     <button
@@ -491,20 +578,52 @@ function AddStockForm({
             )}
 
             {type === "oral_solid" && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block space-y-1.5">
+                    <span className={LABEL}>Count</span>
+                    <div className="flex gap-2">
+                      <input value={count} onChange={(e) => setCount(clean(e.target.value))} inputMode="numeric" placeholder="e.g. 100" className={FIELD} />
+                      <div className="flex gap-1">
+                        <button type="button" onClick={() => setOralForm("tab")} className={pill(oralForm === "tab")}>tab</button>
+                        <button type="button" onClick={() => setOralForm("capsule")} className={pill(oralForm === "capsule")}>cap</button>
+                      </div>
+                    </div>
+                  </label>
+                  <label className="block space-y-1.5">
+                    {/* OPTIONAL, and the unit is whatever the label says — a
+                        5000 iu vitamin D tablet could not be stored at all
+                        before `supabase/protocol/016`. */}
+                    <span className={LABEL}>Strength each</span>
+                    <div className="flex gap-2">
+                      <input value={strength} onChange={(e) => setStrength(clean(e.target.value))} inputMode="decimal" placeholder="optional" className={FIELD} />
+                      <div className="flex gap-1">
+                        <button type="button" onClick={() => setStrengthUnit("mg")} className={pill(strengthUnit === "mg")}>mg</button>
+                        <button type="button" onClick={() => setStrengthUnit("iu")} className={pill(strengthUnit === "iu")}>iu</button>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+                {num(strength) <= 0 && num(count) > 0 && (
+                  <p className="text-xs text-text-subtle">
+                    No strength stated, so doses are counted in {oralForm === "tab" ? "tabs" : "caps"}.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* The powder form is the reconstituted form with the second input
+                removed: same LABEL + FIELD markup, same clean/num handling, one
+                amount row instead of two, and no derived readout. */}
+            {type === "bulk_powder" && (
               <div className="grid grid-cols-2 gap-3">
                 <label className="block space-y-1.5">
-                  <span className={LABEL}>Count</span>
-                  <div className="flex gap-2">
-                    <input value={count} onChange={(e) => setCount(clean(e.target.value))} inputMode="numeric" placeholder="e.g. 100" className={FIELD} />
-                    <div className="flex gap-1">
-                      <button type="button" onClick={() => setOralForm("tab")} className={pill(oralForm === "tab")}>tab</button>
-                      <button type="button" onClick={() => setOralForm("capsule")} className={pill(oralForm === "capsule")}>cap</button>
-                    </div>
-                  </div>
+                  <span className={LABEL}>Tub weight (g)</span>
+                  <input value={tubGrams} onChange={(e) => setTubGrams(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 1000" className={FIELD} />
                 </label>
                 <label className="block space-y-1.5">
-                  <span className={LABEL}>Strength (mg each)</span>
-                  <input value={strength} onChange={(e) => setStrength(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 25" className={FIELD} />
+                  <span className={LABEL}>Serving (g)</span>
+                  <input value={servingG} onChange={(e) => setServingG(clean(e.target.value))} inputMode="decimal" placeholder="optional" className={FIELD} />
                 </label>
               </div>
             )}

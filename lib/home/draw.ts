@@ -37,13 +37,33 @@ export interface DrawSource {
    *  The view derives this with no unit-specific branch, so the iu path is the
    *  same maths, not a special case. NULL for `oral_solid`. */
   concentrationPerMl: number | null
-  /** mg per tab/cap. NULL unless `oral_solid`. */
-  strengthPerUnitMg: number | null
+  /**
+   * Strength of one tab/cap, in the item's own base unit (mg OR iu — `016`
+   * renamed the column off `_mg` for exactly this reason). NULL unless
+   * `oral_solid`, and ALSO null on an oral whose label states no single strength
+   * (a multivitamin), where the dose is already a count and there is nothing to
+   * divide by.
+   */
+  strengthPerUnit: number | null
   /** "tab" | "capsule" — so an oral reads "2 caps", not "2 tabs". */
   oralForm: string | null
   /** The compound's `dose_unit` as the vial was matched on it, server-side. Passed
    *  back so the formatter can't drift from the unit family the link was made with. */
   doseUnit: string
+  /**
+   * Remaining and total in the item's base unit, straight from
+   * `v_inventory_math` (Spec w2b-13, Step 7).
+   *
+   * Carried so the compound detail sheet can draw a REAL fill rather than the
+   * hardcoded 0.7 it used — a decorative number sitting beside real ones. Their
+   * ratio is the same `remainingBase / totalBase` the Protocol storage card
+   * uses, so the two surfaces cannot disagree about how full a container is.
+   */
+  remainingBase: number | null
+  totalBase: number | null
+  /** Remaining in the container's own measure ("8" mL, "42" tabs, "990" g), for
+   *  the figure beside the artwork. */
+  remainingDisplay: number | null
 }
 
 export type Draw =
@@ -140,10 +160,19 @@ export function formatDraw(
   if (base == null) return null
 
   if (source.inventoryType === "oral_solid") {
-    const strength = source.strengthPerUnitMg
-    if (!strength || strength <= 0) return null
+    const strength = source.strengthPerUnit
+    // No stated strength (`016`): the item is based in tab/capsule, so the dose
+    // IS the count and dividing would be wrong rather than merely unnecessary.
+    if (strength == null) return { kind: "count", label: formatCount(base, source.oralForm) }
+    if (strength <= 0) return null
     return { kind: "count", label: formatCount(base / strength, source.oralForm) }
   }
+
+  // A tub is weighed, not drawn: there is no syringe and no tablet to count, so
+  // there is nothing useful to say beside the dose. It also has no
+  // `concentrationPerMl`, so the volume path below would return null anyway —
+  // this is the same answer, said on purpose.
+  if (source.inventoryType === "bulk_powder") return null
 
   // reconstituted + preconcentrated both resolve to a volume draw (D6).
   const conc = source.concentrationPerMl

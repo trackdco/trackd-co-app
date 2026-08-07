@@ -108,7 +108,7 @@ export function PhotoRunningList({
           >
             <Container
               name={c.name}
-              inventoryType={inventoryTypeForCompound(c.name, c.method)}
+              inventoryType={inventoryTypeForCompound(c.name, c.method, c.inventoryForm)}
               category={c.category}
               fill={0.7}
               size={28}

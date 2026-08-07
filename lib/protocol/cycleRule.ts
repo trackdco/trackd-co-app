@@ -81,6 +81,27 @@ export interface CycleRule {
  */
 export interface CycleContext {
   vialEmptyOn?: string | null
+  /**
+   * How many days between the cycle's anchor and the day being asked about were
+   * PAUSED (Spec w2b-13, Step 6).
+   *
+   * Subtracted from the day offset before the on/off modulo, so paused days do
+   * not advance the cycle clock: a twelve-week run paused for ten days is still
+   * twelve weeks of dosing, finishing ten days later. This is arithmetic at read
+   * time and never a write — see the pause module's header for why.
+   */
+  pausedDays?: number
+  /**
+   * How many paused days fall BEFORE a fixed end date, for a cycle whose end is
+   * `onDate`.
+   *
+   * The effective end is the stored date plus this. Without it, pausing near the
+   * end of a run just eats the tail. **`cycle_end_date` in the database never
+   * moves** — writing it from a past day would destroy future schedule versions,
+   * because `recordScheduleVersion` deletes every version dated after the one it
+   * writes.
+   */
+  pausedBeforeEnd?: number
 }
 
 /** Whether "ends when the vial runs out" may be offered for this compound. Reuses
@@ -253,7 +274,10 @@ export function cycleStatusOn(
   // Before the cycle begins nothing is due — but it has not ended either.
   if (day < anchor) return { ...OFF, pending: true }
 
-  const elapsed = day - anchor
+  // Paused days do not advance the cycle clock (Spec w2b-13, Step 6). Clamped
+  // at 0 so a nonsense count can only ever leave the cycle where it was, never
+  // push it backwards before its own anchor.
+  const elapsed = Math.max(0, day - anchor - Math.max(0, ctx?.pausedDays ?? 0))
   const period = cyclePeriod(cycle.pattern)
   const round = period ? Math.floor(elapsed / period) : null
 
@@ -297,8 +321,11 @@ function hasEndedBy(
       return false
     case "onDate": {
       const end = dayNumber(cycle.end.date)
-      // The end date is the last day ON, so the cycle ends the day after.
-      return end !== null && day > end
+      // The end date is the last day ON, so the cycle ends the day after — and
+      // it MOVES OUT by however many days were paused before it, so pausing near
+      // the end of a run does not simply eat the tail. Read-time only; the
+      // stored `cycle_end_date` is never rewritten (see `CycleContext`).
+      return end !== null && day > end + Math.max(0, ctx?.pausedBeforeEnd ?? 0)
     }
     case "afterRounds":
       // Rounds are 0-based, so round N means N complete rounds have passed.

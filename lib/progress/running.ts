@@ -48,6 +48,10 @@ export interface RunningCompound {
   category: string
   /** The route, for resolving which container to draw. */
   method: string
+  /** The compound's stated form, when it has one — passed through so this list
+   *  draws the same container Home does rather than re-deriving it from name +
+   *  route (`supabase/protocol/023`). */
+  inventoryForm?: string | null
   /** The dose in force on that day. */
   amount: string
   unit: string
@@ -120,6 +124,7 @@ export function compoundsRunningOn(
       name: c.name,
       category: c.category,
       method: c.method,
+      inventoryForm: c.inventoryForm,
       amount: String(resolved.dose),
       unit: resolved.unit,
     })

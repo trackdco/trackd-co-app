@@ -18,6 +18,23 @@
 import { createClient } from "@/lib/supabase/server"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 
+/**
+ * `inventory_items` + its joined compound, as of `supabase/protocol/016`.
+ * `protocol_compounds!inner` + the is_active filter makes Stock a strict subset
+ * of the user's ACTIVE compounds: archiving a compound on Home drops its vial
+ * from Stock too, so Stock can never show a compound Home doesn't.
+ * custom_name/custom_category cover a CUSTOM compound (compound_id NULL, so the
+ * nested `compounds` join is null) — coalesced when the row is mapped.
+ */
+const ITEM_COLUMNS_POST_016 =
+  "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit, serving_size_g, prior_used_base, protocol_compounds!inner(is_active, custom_name, custom_category, compounds(name, category))"
+
+/** The same list before `016` renamed the strength column and `014` added the
+ *  serving size — the retry list, so the app still runs against a database that
+ *  has had neither applied. */
+const ITEM_COLUMNS_PRE_016 =
+  "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, prior_used_base, protocol_compounds!inner(is_active, custom_name, custom_category, compounds(name, category))"
+
 /** The math view's columns as they exist before `supabase/protocol/010`. */
 const MATH_COLUMNS =
   "inventory_item_id, remaining_display, doses_remaining, est_empty_date, ml_per_dose, units_per_dose_oral, concentration_per_ml, remaining_base, total_base"
@@ -28,6 +45,46 @@ const MATH_COLUMNS_WITH_DAYS = `${MATH_COLUMNS}, days_to_empty`
  *  `PGRST204` from PostgREST's own schema cache. Mirrors `protocolSync.ts`. */
 function isUndefinedColumn(error: { code?: string } | null): boolean {
   return error?.code === "42703" || error?.code === "PGRST204"
+}
+
+/**
+ * "That enum has no such value" — `bulk_powder` and `g` before
+ * `supabase/protocol/014` PART A.
+ *
+ * A DIFFERENT code from a missing column (`22P02` is invalid text
+ * representation; `23514` is the type CHECK rejecting the shape), so the
+ * column-name retries never fired for it and adding a tub of creatine simply
+ * failed with a bare "couldn't save this stock".
+ *
+ * There is deliberately NO retry for it. Unlike a renamed column, there is
+ * nothing to rewrite the payload INTO: a database without the enum value cannot
+ * hold a powder at all, and coercing it to `oral_solid` would store a tub as a
+ * tablet count and quietly corrupt the maths. The caller gets a specific answer
+ * instead, so the sheet can say what is actually wrong.
+ */
+function isPendingEnumValue(error: { code?: string } | null): boolean {
+  return error?.code === "22P02" || error?.code === "23514"
+}
+
+/**
+ * A write payload rewritten for a database that has not had `014`/`016` applied:
+ * `strength_per_unit` goes back to `strength_per_unit_mg` and `serving_size_g`
+ * is dropped.
+ *
+ * The rename is safe to undo because the values are identical — `016` renames a
+ * column, it does not convert anything. Dropping the serving size is a real (if
+ * small) loss, and it is the right trade: a serving size is a convenience, and
+ * losing it beats failing the whole insert and telling the user their stock
+ * didn't save. It cannot bite in practice either way, since `serving_size_g` is
+ * only ever set on a `bulk_powder`, and a database without `014` has no such
+ * type for the row to be.
+ */
+function toLegacyColumns(row: object): Record<string, unknown> {
+  const { strength_per_unit, serving_size_g: _dropped, ...rest } = row as Record<string, unknown>
+  void _dropped
+  return strength_per_unit === undefined
+    ? rest
+    : { ...rest, strength_per_unit_mg: strength_per_unit }
 }
 
 async function sessionCtx() {
@@ -55,7 +112,13 @@ export interface StockItem {
   totalAmountUnit: string | null
   bacWaterMl: number | null
   concentrationMgPerMl: number | null
-  strengthPerUnitMg: number | null
+  /** Strength of ONE tab/cap, in the unit named by `baseUnit` — mg OR iu, which
+   *  is why `016` renamed the column off `_mg`. NULL is meaningful: the label
+   *  states no single strength (a multivitamin), and then the COUNT is the base. */
+  strengthPerUnit: number | null
+  /** Grams in one scoop, for a `bulk_powder` only. A convenience for the
+   *  quick-add chip — inventory is tracked in grams either way. */
+  servingSizeG: number | null
   /** Base-unit amount already used when the vial was added part-used (NULL = full).
    *  A raw INPUT folded into remaining by v_inventory_math — never a stored balance. */
   priorUsedBase: number | null
@@ -91,7 +154,11 @@ export interface StockInsert {
   total_amount_unit: DoseUnit
   bac_water_ml?: number | null
   concentration_mg_per_ml?: number | null
-  strength_per_unit_mg?: number | null
+  /** Renamed off `_mg` by `supabase/protocol/016`; nullable since the same
+   *  migration, meaning "the label states no single strength". */
+  strength_per_unit?: number | null
+  /** `bulk_powder` only — the CHECK rejects it on anything else. */
+  serving_size_g?: number | null
   reconstituted_on?: string | null
   /** Base-unit amount already gone when added part-used (NULL/0 = a full vial). */
   prior_used_base?: number | null
@@ -115,9 +182,7 @@ export async function listStock(): Promise<StockItem[]> {
         // vial from Stock too, so Stock can never show a compound Home doesn't.
         // custom_name/custom_category cover a CUSTOM compound (compound_id NULL,
         // so the nested `compounds` join is null) — coalesced below.
-        .select(
-          "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, prior_used_base, protocol_compounds!inner(is_active, custom_name, custom_category, compounds(name, category))"
-        )
+        .select(ITEM_COLUMNS_POST_016)
         .eq("user_id", ctx.userId)
         .eq("is_active", true)
         .eq("protocol_compounds.is_active", true)
@@ -128,9 +193,29 @@ export async function listStock(): Promise<StockItem[]> {
       // database that has not had 010 applied yet.
       ctx.supabase.from("v_inventory_math").select(MATH_COLUMNS_WITH_DAYS),
     ])
+    let itemRows = itemsRes.data as Record<string, unknown>[] | null
     if (itemsRes.error) {
-      console.error("listStock items failed", itemsRes.error)
-      return []
+      // Pre-016: `strength_per_unit` and `serving_size_g` do not exist yet. Retry
+      // on the old column list rather than showing the user an empty Stock tab,
+      // and alias the old name into the new one below so nothing downstream has
+      // to know which shape it came back in.
+      if (isUndefinedColumn(itemsRes.error)) {
+        const retry = await ctx.supabase
+          .from("inventory_items")
+          .select(ITEM_COLUMNS_PRE_016)
+          .eq("user_id", ctx.userId)
+          .eq("is_active", true)
+          .eq("protocol_compounds.is_active", true)
+          .order("created_at", { ascending: false })
+        if (retry.error) {
+          console.error("listStock items failed", retry.error)
+          return []
+        }
+        itemRows = retry.data as Record<string, unknown>[] | null
+      } else {
+        console.error("listStock items failed", itemsRes.error)
+        return []
+      }
     }
     let mathRows: Record<string, unknown>[] | null =
       (mathRes.data as Record<string, unknown>[] | null) ?? null
@@ -158,7 +243,7 @@ export async function listStock(): Promise<StockItem[]> {
     }
     const num = (v: unknown): number | null => (v == null ? null : Number(v))
 
-    return (itemsRes.data ?? []).map((row) => {
+    return (itemRows ?? []).map((row) => {
       const r = row as Record<string, unknown>
       const pc = r.protocol_compounds as {
         custom_name?: string | null
@@ -182,7 +267,10 @@ export async function listStock(): Promise<StockItem[]> {
         totalAmountUnit: (r.total_amount_unit as string | null) ?? null,
         bacWaterMl: num(r.bac_water_ml),
         concentrationMgPerMl: num(r.concentration_mg_per_ml),
-        strengthPerUnitMg: num(r.strength_per_unit_mg),
+        // `strength_per_unit_mg` is the pre-016 name — read as a fallback so the
+        // retry path above produces the same shape as the primary one.
+        strengthPerUnit: num(r.strength_per_unit ?? r.strength_per_unit_mg),
+        servingSizeG: num(r.serving_size_g),
         priorUsedBase: num(r.prior_used_base),
         remainingDisplay: num(m.remaining_display),
         dosesRemaining: num(m.doses_remaining),
@@ -208,14 +296,31 @@ export async function listStock(): Promise<StockItem[]> {
  * vials are archived (`is_active = false`). Insert-first ordering means a failed
  * archive never leaves the compound with zero active stock. Returns ok.
  */
-export async function addStockItem(row: StockInsert): Promise<{ ok: boolean }> {
+export async function addStockItem(
+  row: StockInsert
+): Promise<{ ok: boolean; pendingMigration?: boolean }> {
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }
-    const { error } = await ctx.supabase
+    let { error } = await ctx.supabase
       .from("inventory_items")
       .insert({ ...row, user_id: ctx.userId })
+    // Pre-016 the strength column still has its old name. Retry on the old shape
+    // rather than telling the user their stock didn't save.
+    if (error && isUndefinedColumn(error)) {
+      ;({ error } = await ctx.supabase
+        .from("inventory_items")
+        .insert({ ...toLegacyColumns(row), user_id: ctx.userId }))
+    }
     if (error) {
+      // A form the database cannot hold YET, rather than a failure of this
+      // write. Reported distinctly so the sheet can name the real reason —
+      // there is nothing to retry, and silently degrading a tub to a tablet
+      // count would corrupt its maths. See `isPendingEnumValue`.
+      if (isPendingEnumValue(error)) {
+        console.error("addStockItem: form not available until 014/016", error)
+        return { ok: false, pendingMigration: true }
+      }
       console.error("addStockItem failed", error)
       return { ok: false }
     }
@@ -255,21 +360,30 @@ export async function updateStockItem(
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }
-    const { error } = await ctx.supabase
-      .from("inventory_items")
-      .update({
+    const payload = {
         inventory_type: row.inventory_type,
         base_unit: row.base_unit,
         total_amount: row.total_amount,
         total_amount_unit: row.total_amount_unit,
         bac_water_ml: row.bac_water_ml ?? null,
         concentration_mg_per_ml: row.concentration_mg_per_ml ?? null,
-        strength_per_unit_mg: row.strength_per_unit_mg ?? null,
+        strength_per_unit: row.strength_per_unit ?? null,
+        serving_size_g: row.serving_size_g ?? null,
         reconstituted_on: row.reconstituted_on ?? null,
         prior_used_base: row.prior_used_base ?? null,
-      })
+    }
+    let { error } = await ctx.supabase
+      .from("inventory_items")
+      .update(payload)
       .eq("id", id)
       .eq("user_id", ctx.userId)
+    if (error && isUndefinedColumn(error)) {
+      ;({ error } = await ctx.supabase
+        .from("inventory_items")
+        .update(toLegacyColumns(payload))
+        .eq("id", id)
+        .eq("user_id", ctx.userId))
+    }
     if (error) {
       console.error("updateStockItem failed", error)
       return { ok: false }

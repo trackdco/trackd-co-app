@@ -21,8 +21,43 @@ export const PAGE_TITLE =
 
 /** Bottom-sheet header (Add photos, Journal, Edit cycle, …) — sans, light, tightly
  *  tracked. One notch smaller than PAGE_TITLE. */
+/**
+ * Emphasis on the two or three words a full-screen flow headline actually turns
+ * on ("the more you see", "the cheap part"). Used as
+ * `<em className={FLOW_EMPHASIS}>`, so the emphasis is in the markup and not
+ * only in the paint.
+ *
+ * Geist Medium (500) AND italic. Weight alone was not enough at 32px on a dark
+ * canvas: the step from Light to Medium is visible in a paragraph and almost
+ * invisible in a headline, so the slant does most of the work and the weight
+ * stops it reading as a quotation. Still 500, never 600+.
+ *
+ * A preset rather than a literal because the flow already carries three other
+ * emphasis treatments; see `ui-context.md` → Typography for which and why.
+ */
+export const FLOW_EMPHASIS = "font-medium"
+
 export const SHEET_TITLE =
   "text-xl font-light tracking-[-0.01em] text-foreground"
+
+/** The headline on a FULL-SCREEN EXTERNAL FLOW — sign-in and onboarding. One
+ *  notch ABOVE `PAGE_TITLE`, because these screens carry a single headline on an
+ *  otherwise empty field rather than titling a page of data. Codifies the
+ *  treatment `/login` already shipped, so the onboarding flow could not drift
+ *  into a second one. Still Geist Light: the hierarchy is size and weight, never
+ *  a second typeface (the display serif is retired). */
+export const FLOW_TITLE =
+  "text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground"
+
+/** The supporting line under a `FLOW_TITLE`. */
+export const FLOW_SUB = "text-[0.95rem] leading-relaxed text-text-muted"
+
+/** The MOMENT screens in a flow — celebrate, welcome, the cost statement.
+ *  One notch above `FLOW_TITLE` and tracked tighter, so the line reads as a
+ *  statement rather than a page title. Reserved for a screen carrying a single
+ *  sentence and nothing else; a screen with a form under it uses `FLOW_TITLE`. */
+export const FLOW_DISPLAY =
+  "text-[2.5rem] font-light leading-[1.02] tracking-[-0.035em] text-foreground"
 
 /* ---------------------------------------------------------------------------
    Inversion presets (see ui-context.md → Typography): card TITLES recede into

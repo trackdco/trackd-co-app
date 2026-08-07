@@ -19,7 +19,7 @@ import {
   resolveScheduleOn,
   type StackCompound,
 } from "@/lib/home/stack"
-import type { DayLogs } from "@/lib/home/doseLog"
+import { slotsForDay, type DayLogs } from "@/lib/home/doseLog"
 
 export interface NextDose {
   name: string
@@ -72,21 +72,29 @@ export function computeNextDose(
   date: Date
 ): NextDose | null {
   const dayLogs = logs[dateKey] ?? {}
+  // PER SLOT, not per compound. Filtering on `dayLogs[c.id]` tested slot 0
+  // alone, so ticking the morning dose of a twice-daily compound sent the card
+  // to "nothing outstanding" for the rest of the day — while `statusOf` went on
+  // counting the evening dose as due and then missed.
   const due = stack
-    .filter((c) => !c.archived && !dayLogs[c.id] && isDueOnFor(c, date))
+    .filter((c) => !c.archived && isDueOnFor(c, date))
     // The time to show is the one scheduled for THAT day, which an alteration made
     // later must not restate (Spec 01 → alterations apply forward only).
-    .map((c) => {
+    .flatMap((c) => {
       const on = resolveScheduleOn(c, dateKey)
-      return {
-        name: c.name,
-        time24: on.schedule.timeOfDay,
-        // The compound itself, so a caller can draw its container — and the dose
-        // AS IT WAS on that day, which an alteration made later must not restate.
-        compound: c,
-        dose: on.dose,
-        unit: on.unit,
-      }
+      const next = slotsForDay(c, dateKey, dayLogs).find((s) => s.log == null)
+      if (!next) return []
+      return [
+        {
+          name: c.name,
+          time24: next.time24,
+          // The compound itself, so a caller can draw its container — and the dose
+          // AS IT WAS on that day, which an alteration made later must not restate.
+          compound: c,
+          dose: next.dose,
+          unit: on.unit,
+        },
+      ]
     })
   if (due.length === 0) return null
   const sorted = due.sort((a, b) => {

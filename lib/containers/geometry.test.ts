@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  BOTTLE_FILL_BOTTOM,
+  BOTTLE_FILL_TOP,
+  ILLUSTRATIVE_FILL,
+  TUB_FILL_BOTTOM,
+  TUB_FILL_TOP,
   VIAL_FILL_BOTTOM,
   VIAL_FILL_SPAN,
   VIAL_FILL_TOP,
   VIAL_MENISCUS_HEIGHT,
+  bottleFillSurface,
   clampFill,
+  tubPowder,
   vialLiquid,
 } from "./geometry"
 import { inventoryTypeForCompound } from "./form"
@@ -161,5 +168,73 @@ describe("containersHaveOneSource — the structural guard", () => {
     }
 
     expect(offenders).toEqual([])
+  })
+})
+
+describe("tubPowder — the surface falls, the floor stays put", () => {
+  it("is empty at 0% and full at 100%", () => {
+    expect(tubPowder(0).height).toBe(0)
+    expect(tubPowder(0).y).toBe(TUB_FILL_BOTTOM)
+    expect(tubPowder(1).y).toBe(TUB_FILL_TOP)
+  })
+
+  it("reproduces the OLD fixed artwork at the illustrative fill", () => {
+    // The whole reason TUB_FILL_TOP is 34: a container with no stock recorded
+    // must look exactly as it did before this became a measurement. The old
+    // hardcoded path put the surface at y=56.
+    expect(Math.round(tubPowder(ILLUSTRATIVE_FILL).y)).toBe(56)
+  })
+
+  it("clamps a nonsense fill instead of drawing outside the tub", () => {
+    expect(tubPowder(5).y).toBe(TUB_FILL_TOP)
+    expect(tubPowder(-1).y).toBe(TUB_FILL_BOTTOM)
+    expect(tubPowder(Number.NaN).height).toBe(0)
+  })
+
+  it("never lets the corner radius exceed the height it is rounding", () => {
+    // A radius taller than the shape makes the arc double back and the path
+    // renders as a bow-tie. Checked across the range where it can bite.
+    for (const f of [0.001, 0.01, 0.02, 0.05, 0.1]) {
+      const { path, height } = tubPowder(f)
+      const radii = [...path.matchAll(/a([\d.]+) /g)].map((m) => Number(m[1]))
+      for (const r of radii) expect(r).toBeLessThanOrEqual(height / 2 + 1e-9)
+      expect(path).not.toContain("NaN")
+    }
+  })
+
+  it("tapers the surface as the last of the powder goes", () => {
+    expect(tubPowder(0.02).surfaceRx).toBeLessThan(tubPowder(1).surfaceRx)
+    expect(tubPowder(0.5).surfaceRx).toBe(tubPowder(1).surfaceRx)
+  })
+})
+
+describe("bottleFillSurface — tablets leave from the top down", () => {
+  it("spans the bottle from its base to its shoulder", () => {
+    expect(bottleFillSurface(0)).toBe(BOTTLE_FILL_BOTTOM)
+    expect(bottleFillSurface(1)).toBe(BOTTLE_FILL_TOP)
+  })
+
+  it("keeps all six original tablets in the bottle at the illustrative fill", () => {
+    // Same contract as the tub: a bottle with no stock recorded is drawn
+    // exactly as it was before. The six sit at y = 58…83.5.
+    const surface = bottleFillSurface(ILLUSTRATIVE_FILL)
+    for (const restsAt of [58, 62, 68, 73.5, 79.5, 83.5]) {
+      expect(restsAt).toBeGreaterThanOrEqual(surface)
+    }
+    // …and the two added above them stay out of it, so the default is unchanged.
+    for (const restsAt of [38, 45]) {
+      expect(restsAt).toBeLessThan(surface)
+    }
+  })
+
+  it("empties monotonically — no tablet reappears as stock falls", () => {
+    const visible = (f: number) =>
+      [38, 45, 58, 62, 68, 73.5, 79.5, 83.5].filter((y) => y >= bottleFillSurface(f)).length
+    let prior = visible(1)
+    for (const f of [0.9, 0.75, 0.6, 0.4, 0.25, 0.1, 0]) {
+      const now = visible(f)
+      expect(now).toBeLessThanOrEqual(prior)
+      prior = now
+    }
   })
 })

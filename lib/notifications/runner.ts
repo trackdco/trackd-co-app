@@ -121,7 +121,7 @@ async function collectUserData(
   // Active compounds (+ catalogue name) and recent "taken" logs to detect what's
   // already logged today. A 36h window covers any timezone offset around midnight.
   const since = new Date(now.getTime() - 36 * 3_600_000).toISOString();
-  const [pcRes, logRes, invRes] = await Promise.all([
+  const [pcRes, logRes, invRes, pauseRes] = await Promise.all([
     supabase
       .from("protocol_compounds")
       // The `cycle_*` columns ride along because an off-cycle day is NOT due
@@ -132,17 +132,48 @@ async function collectUserData(
       .eq("is_active", true),
     supabase
       .from("dose_logs")
-      .select("protocol_compound_id, taken_at")
+      // NOT filtered to `taken`. A SKIPPED dose is dealt with — the user made a
+      // decision about it — so it must not be nagged as forgotten. It still
+      // counts against the consistency percentage (`lib/progress/consistency.ts`
+      // explains why those are different questions), but a push saying "you
+      // haven't logged this" about a dose you deliberately skipped is just wrong.
+      .select("protocol_compound_id, taken_at, status")
       .eq("user_id", userId)
-      .eq("status", "taken")
       .gte("taken_at", since),
     supabase
       .from("inventory_items")
-      .select("id, protocol_compounds!inner(is_active, compounds(name))")
+      // `protocol_compound_id` rides along so a vial can be matched to a PAUSE.
+      // Without it the paused lookup below silently reads `undefined` and never
+      // matches, so a paused compound keeps sending low-stock nudges.
+      .select("id, protocol_compound_id, protocol_compounds!inner(is_active, compounds(name))")
       .eq("user_id", userId)
       .eq("is_active", true)
       .eq("protocol_compounds.is_active", true),
+    // Pauses covering TODAY. A paused compound announces nothing and is nagged
+    // about nothing — the same gate the client applies in `isDueOnFor`
+    // (`supabase/protocol/018`). Selected separately rather than joined so a
+    // compound with several historic pauses is not multiplied by them.
+    //
+    // Tolerant of `018` not being applied: the error is swallowed below and the
+    // paused set is simply empty, which is exactly today's behaviour.
+    supabase
+      .from("compound_pauses")
+      .select("protocol_compound_id, started_on, ends_on")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .lte("started_on", todayKey),
   ]);
+
+  const pausedIds = new Set<string>();
+  for (const row of pauseRes.data ?? []) {
+    const r = row as Record<string, unknown>;
+    const endsOn = r.ends_on as string | null;
+    // `ends_on` is the LAST paused day, inclusive — so a pause ending today
+    // still covers today.
+    if (endsOn === null || endsOn >= todayKey) {
+      pausedIds.add(r.protocol_compound_id as string);
+    }
+  }
 
   const compounds: ReminderCompound[] = (pcRes.data ?? []).map((row) => {
     const r = row as Record<string, unknown>;
@@ -158,9 +189,12 @@ async function collectUserData(
       // Resolved with the SAME mapper the client uses, so the two cannot read
       // the same seven columns differently.
       cycle: cycleRuleFromColumns(r as Partial<CycleColumns>),
+      paused: pausedIds.has(r.id as string),
     };
   });
 
+  // Everything RESOLVED today, taken or skipped. Named for what it gates: the
+  // "you have not logged this" nudge.
   const loggedTodayIds = new Set<string>();
   for (const row of logRes.data ?? []) {
     const r = row as Record<string, unknown>;
@@ -191,6 +225,10 @@ async function collectUserData(
     const m = mathById.get(r.id as string) ?? {};
     return {
       name: pc?.compounds?.name ?? "a vial",
+      // Its compound is paused, so the stock is not moving and "running low" is
+      // noise. `019` already returns a longer (or null) runway for these; this
+      // is the belt to that braces, and it holds even before 019 is applied.
+      paused: pausedIds.has(r.protocol_compound_id as string),
       estEmptyDate: (m.est_empty_date as string | null) ?? null,
       daysToEmpty: m.days_to_empty == null ? null : Number(m.days_to_empty),
       dosesRemaining: m.doses_remaining == null ? null : Number(m.doses_remaining),

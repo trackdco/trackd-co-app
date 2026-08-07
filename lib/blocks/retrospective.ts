@@ -112,6 +112,10 @@ export interface RanCompound {
   category: string
   /** The route, for resolving which container to draw. */
   method: string
+  /** The compound's stated form, when it has one — passed through so the
+   *  retrospective draws the same container Home does rather than re-deriving
+   *  it from name + route (`supabase/protocol/023`). */
+  inventoryForm?: string | null
   /** Doses logged for this compound inside the window. */
   doses: number
 }
@@ -154,6 +158,7 @@ export function compoundsRunAcross(
         name: r.name,
         category: r.category,
         method: r.method,
+        inventoryForm: r.inventoryForm,
         doses: 0,
       })
     }
@@ -176,6 +181,7 @@ export function compoundsRunAcross(
         name: c.name,
         category: c.category,
         method: c.method,
+        inventoryForm: c.inventoryForm,
         doses: 1,
       })
     }

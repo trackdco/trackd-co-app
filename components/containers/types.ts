@@ -10,10 +10,14 @@ export interface ContainerProps {
    */
   colour: string
   /**
-   * 0…1. **Only the vial's fill is real** (remaining volume against the vial's
-   * total). Bottles and tubs have no storage tracking yet and default to a fixed
-   * illustrative level — the prop exists on all three so the artwork goes live
-   * with no rework when tablet and powder counts arrive.
+   * 0…1. **Real on all three containers** (Spec w2b-13, Step 3): it is
+   * `remaining_base / total_base` from `v_inventory_math` in every case — volume
+   * for a vial, tablets for a bottle, grams for a tub.
+   *
+   * OMITTED is meaningful and is not the same as 0. A container drawn with no
+   * `fill` falls back to `ILLUSTRATIVE_FILL`, which is deliberately not 1,
+   * because a caller with no stock figure must not imply one. Pass a number only
+   * when you have one.
    */
   fill?: number
   /** Rendered height in px. The artwork scales from its viewBox — there are no

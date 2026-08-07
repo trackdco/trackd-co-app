@@ -1368,6 +1368,20 @@ full-screen sheet, and the site picker inside the log-dose sheet.
   (the coarse `injection_site` enum collapses many sites to `other`). It **reports,
   never recommends**: no suggested-next-site, ranking, risk score, or warning icon
   (the amber exception is documented in `ui-context.md`).
+- **The hit halo (2026-08-01).** Adrian found two regions that could not be
+  tapped at their visual centre. Swept in Chrome across the IM artwork for both bodies and both views (42 regions): the two **triceps on the posterior view**, on BOTH
+  bodies, are the only ones. A tricep is drawn as a narrow curved sliver, so the
+  centre of its bounding box falls in the concave side — outside its own fill,
+  where `elementFromPoint` returns the base silhouette and the tap does nothing
+  at exactly the spot a user aims at. Fixed with a transparent
+  `vector-effect: non-scaling-stroke` (`.site-hit`, `globals.css`) rather than by
+  redrawing the artwork, which is Angus's. **Scoped, via `regionNeedsHalo`
+  (`bodyArtwork.ts`), to the two ids that need it** — a blanket halo was tried
+  first and was worse: it expands symmetrically, so at 4px a side the big
+  quad-front region swallowed the centres of the narrow quad-out and
+  ventroglute strips beside it, fixing two regions and breaking four. Both
+  renderers (`BodyMap` for the app, the onboarding demo's `demo-body.tsx`) share
+  the one CSS rule and the one list. Re-run the sweep if the artwork changes.
 - **Retired.** The per-user working set was dropped: `user_injection_sites` +
   migrations `003`/`004` are inert history, and the table is dropped in
   `supabase/sites/010_drop_working_set.sql` (applied live). The old `/settings/sites`
@@ -1376,6 +1390,32 @@ full-screen sheet, and the site picker inside the log-dose sheet.
   `advanceRotation`/`resolvedDaySite` helpers remain **vestigial** (fields always
   `[]`, helpers uncalled). `dose_logs.injection_site` + all logged history are
   untouched (Invariant 8). Spec 19 ships as one PR (not yet deployed).
+
+## Signup attribution (2026-08-01, NOT APPLIED)
+
+"Where did you hear about us" is captured on the last onboarding screen. Adrian
+asked for the catch-all option to open a **typed field** and for the answer to
+reach the database, so we can see which channels are working.
+
+- **`supabase/onboarding/001_signup_attribution.sql`** — one row per user
+  (`source` CHECK-constrained to the five tags, nullable `detail` free text
+  capped at 80 to match `ATTRIBUTION_DETAIL_MAX`, `affiliate_code`), own RLS
+  (own select/insert/update, no delete), own GRANT. **A table rather than two
+  `profiles` columns**, because every new `profiles` column has to be added to
+  both column-level grant lists (the Spec 16 tier lock) or the Data API 42501s
+  on writes to it.
+- **A CHECK ties `detail` to `source = 'elsewhere'`**, so a client bug cannot
+  file free text under "Instagram" and quietly corrupt the aggregate.
+- **APPLIED 2026-08-01.** Nothing writes it yet, though: attribution lives
+  on the anonymous device session and there is no account to attach it to until
+  auth is wired at the paywall (`startTrial()` is the seam). The migration is
+  written and waiting on Adrian; the Supabase MCP is not authorised in the agent
+  session.
+- **Reading it back is an open decision**, spelled out at the foot of the
+  migration: service-role aggregates (no new policy, but `adminMetrics.ts`'s
+  "never return a row" rule would have to be narrowed on purpose) versus a
+  founder-only SELECT policy (reads normally, but a third place the founder
+  emails are hardcoded).
 
 ## Auth and Access Model
 

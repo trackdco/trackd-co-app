@@ -61,6 +61,20 @@ export interface DoseLog {
    * and had never been written to.
    */
   note?: string
+  /**
+   * Was this dose TAKEN, or deliberately skipped?
+   *
+   * Absent means taken, which is every log written before Skip existed — so
+   * this needed no migration of the device store. A skipped dose is a RECORD,
+   * not an absence: it says "I decided not to", which is a different fact from
+   * "nothing happened here", and only the first can be distinguished from a
+   * dose you simply forgot.
+   *
+   * `dose_logs.status` has held this since v0.4.2 and nothing had ever written
+   * `skipped` to it. A skipped row does not deplete stock — `v_inventory_math`'s
+   * consumed CTE has always filtered on `status = 'taken'`.
+   */
+  status?: "taken" | "skipped"
   /** Injection site id (injectables only); null for orals. */
   siteId: string | null
   /** Time the dose was taken, 24h "HH:MM", or "" when the user left it unset. */

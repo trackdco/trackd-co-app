@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Info, NotePencil, Scales, Syringe } from "@/components/icons";
+import { Camera, Info, NotePencil, Plus, Scales, Syringe } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import type { DateKey } from "@/lib/home/mockHomeData";
@@ -159,9 +159,15 @@ function DayCell({
       <span className="flex h-[2px] items-center" aria-hidden>
         {segments && segments.length > 0 && <CycleFill segments={segments} />}
       </span>
-      {/* The "what was logged" mark — only under logged days. */}
-      <span className="relative z-10 flex h-3 items-center justify-center" aria-hidden>
+      {/* The "what was logged" mark — only under logged days.
+
+          The one-off mark sits beside it and is drawn INDEPENDENTLY of `status`
+          (Spec w2b-13, Step 8): a day with nothing scheduled and one off-plan
+          entry still shows an empty ring, because nothing was due, and this
+          plus-sign is what says something happened anyway. */}
+      <span className="relative z-10 flex h-3 items-center justify-center gap-0.5" aria-hidden>
         {!selected && info.status === "logged" && <KindIcon kind={info.kind} />}
+        {!selected && info.oneOff && <Plus className="h-2.5 w-2.5 text-text-subtle" />}
       </span>
     </button>
   );

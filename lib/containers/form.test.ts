@@ -79,16 +79,37 @@ describe("containerFormFor", () => {
 })
 
 describe("the catalogue's own supplements", () => {
-  it("leaves most of them as counted-out units rather than powders", () => {
-    const supplements = COMPOUNDS.filter(
-      (c) => c.category === "supplement" && c.defaultInventoryType === "oral_solid",
-    )
-    const powders = supplements.filter((c) => c.defaultUnit === "g")
+  /**
+   * The powder/tablet split used to be DERIVED here — every supplement was
+   * `oral_solid`, and `containerFormFor` inferred a tub from a `g` dose unit.
+   * Spec w2b-13 makes it a stored fact instead (`bulk_powder`,
+   * `supabase/protocol/014`), so this asserts the two agree rather than
+   * re-deriving the rule the catalogue now states outright.
+   */
+  it("types every gram-dosed supplement as a powder, and nothing else", () => {
+    const supplements = COMPOUNDS.filter((c) => c.category === "supplement")
+    const grams = supplements.filter((c) => c.defaultUnit === "g")
+    const powders = supplements.filter((c) => c.defaultInventoryType === "bulk_powder")
 
     // Sanity: the split is real, and neither side is empty or everything.
     expect(supplements.length).toBeGreaterThan(50)
-    expect(powders.length).toBeGreaterThan(4)
-    expect(powders.length).toBeLessThan(supplements.length / 2)
+    expect(grams.length).toBeGreaterThan(4)
+    expect(grams.length).toBeLessThan(supplements.length / 2)
+
+    // The stored form and the dose unit say the SAME thing. If these ever
+    // diverge, a tub gets a stock form asking for a tablet count.
+    expect(powders.map((c) => c.name).sort()).toEqual(grams.map((c) => c.name).sort())
+  })
+
+  it("draws a tub for a stored bulk_powder without consulting the name", () => {
+    // The whole point of storing the form: no catalogue lookup is needed, so an
+    // off-catalogue protein powder draws a tub too.
+    expect(
+      containerFormFor({ inventoryType: "bulk_powder", category: "supplement" }),
+    ).toBe("tub")
+    expect(
+      containerFormFor({ inventoryType: "bulk_powder", category: null, name: "Nan's own blend" }),
+    ).toBe("tub")
   })
 
   it("prices the vitamins in iu, mg or mcg, never grams", () => {

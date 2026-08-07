@@ -152,6 +152,9 @@
 
   /* House easing → utility (ease-motion). Durations have no Tailwind theme
      namespace, so reach for them as duration-[var(--motion-fast)]. */
+  /* The onboarding letter's sign-off, and nothing else. See ui-context.md. */
+  --font-hand: var(--font-hand);
+
   --ease-motion: var(--motion-ease);
   --color-state-error: var(--state-error);
   --color-state-success: var(--state-success);
@@ -282,6 +285,159 @@
 .muscle-region {
   outline: none;
 }
+
+/* THE HIT HALO — why an injection-site region is tappable slightly outside its
+ * own outline.
+ *
+ * Adrian reported (2026-08-01) that two regions could not be tapped at their
+ * visual centre. Measured, in Chrome, over the IM artwork for both bodies and
+ * both views: the two
+ * TRICEPS on the posterior view, on BOTH the male and the female body, are the
+ * only ones, and the cause is geometric rather than a bug in the markup. A
+ * tricep is drawn as a narrow curved sliver, so the centre of its BOUNDING BOX
+ * falls in the concave side, outside the shape. `isPointInFill` says false
+ * there and `elementFromPoint` returns the base silhouette, so the tap does
+ * nothing at exactly the spot a user aims at. Every other region passes.
+ *
+ * The fix is a transparent stroke rather than a redrawn path: the artwork is
+ * Angus's and is not ours to reshape, and a stroke widens the hittable area
+ * without moving a single pixel of what is drawn. A transparent stroke is still
+ * a PAINTED stroke as far as hit-testing is concerned (`stroke: none` would not
+ * be), which is the whole mechanism, and `non-scaling-stroke` keeps the halo the
+ * same size on every screen instead of scaling with the artwork.
+ *
+ * THE WIDTH IS MEASURED, AND IT IS NARROW ON PURPOSE. The worst tricep needed
+ * ~1.7 css px to reach its centre. The first attempt used 8 (4px a side) for
+ * headroom and MADE THINGS WORSE somewhere else: on the anterior view the
+ * quad-front region is drawn over the narrow quad-out and ventroglute beside it,
+ * so a 4px halo let quad-front swallow BOTH of their centres — two regions fixed
+ * and four broken. 4 (2px a side) clears the triceps with margin and leaves
+ * every other region hitting itself. Verified across the IM artwork for both
+ * bodies and both views:
+ * 42 regions, 0 unreachable.
+ *
+ * If this is ever widened, re-run the region sweep. A halo big enough to be
+ * generous is a halo big enough to steal from the region next door.
+ *
+ * Applies to both renderers: the app's picker (`BodyMap`) and the onboarding
+ * demo's own (`demo-body.tsx`). One rule, so the two cannot drift. */
+.site-hit {
+  stroke: transparent;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+  paint-order: stroke;
+}
+
+/* THE BLUE BOX ON TAP (Adrian, on his phone, 2026-08-05 — reported TWICE).
+ *
+ * The first fix was scoped to `[data-site]`, because the report was about the
+ * injection-site map. It was the right fix for the wrong scope: he came back
+ * with "I can still see the little blue outlines when I tap on the screen",
+ * which is the same defect on every other control in the flow. Scoping a
+ * platform-behaviour fix to the one element it was noticed on is how you fix a
+ * symptom three times. It is flow-wide now.
+ *
+ * THREE separate iOS behaviours produce it, and they need three different
+ * answers — which is why one of them alone did not clear it:
+ *
+ * 1. THE FOCUS RING. Anything focusable that a finger touches gets `:focus`,
+ *    and a focused element with no author outline gets the browser's own, drawn
+ *    in `-webkit-focus-ring-color` (blue in Safari). On an SVG path the outline
+ *    is its BOUNDING BOX, so an anatomical region came back as a rectangle. It
+ *    persists until focus moves, which is why it reads as a highlight and not a
+ *    flash.
+ * 2. THE TAP HIGHLIGHT. A block of colour over the element's box for the
+ *    duration of the touch, independent of focus.
+ * 3. TEXT SELECTION. A tap that drifts a few pixels on a heading or a label
+ *    starts a selection, and a selection is blue. "It's like I'm selecting
+ *    something on an iPhone" is exactly what this is, and neither of the two
+ *    above would have stopped it.
+ *
+ * KEYBOARD FOCUS IS UNTOUCHED. `:focus:not(:focus-visible)` is precisely the
+ * pointer case — a tap never matches `:focus-visible`, a Tab always does — so
+ * every focus ring in the flow still fires for a keyboard, and tabbing blind
+ * through fourteen body regions does not come back.
+ *
+ * TEXT STAYS SELECTABLE WHERE IT IS TYPED. Inputs, textareas and anything
+ * contenteditable opt back in below; without that, `user-select: none` on the
+ * container takes the ability to select and edit your own name with it.
+ *
+ * In `globals.css` rather than as Tailwind variants because `focus:` and
+ * `focus-visible:` have equal specificity: which wins is decided by the order
+ * Tailwind happens to emit them in, not the order they are written. This file's
+ * order is ours. */
+/* SCOPE: APP-WIDE, not the onboarding flow. Third report (2026-08-05).
+ *
+ * Fix one was `[data-site]`. Fix two was `.flow-viewport`. Both were still
+ * scoped to where the box had been NOTICED, and he came back with "on the app,
+ * if I click on the body part" — the app's own `BodyMap` and every other screen
+ * live OUTSIDE `.flow-viewport`, so neither fix could ever have reached them.
+ * This is platform behaviour on every tappable thing we ship, so it is handled
+ * once, globally, and not chased screen by screen.
+ *
+ * `--ring` was MEASURED before writing this: it is `--accent-amber`. Our own
+ * focus ring is amber, so a BLUE ring is the user agent's and not ours, which
+ * is what rules out simply restyling the token. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The UA focus ring on POINTER interaction only. A tap never matches
+ * `:focus-visible` and a Tab always does, so keyboard focus is untouched
+ * everywhere in the app. */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Text selection, on the things you TAP rather than the things you read.
+ *
+ * Scoped to interactive elements deliberately: a blanket `user-select: none`
+ * would also stop someone selecting a journal entry, a legal document or a
+ * dose note, and those are text people have a real reason to copy. A button
+ * label is not. */
+button,
+a,
+label,
+summary,
+[role="button"],
+[data-site],
+.muscle-region {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* THE BLUE BOX, IDENTIFIED FROM SCREENSHOTS (Adrian, 2026-08-05, fourth report).
+ *
+ * Two artefacts were on screen AT ONCE: a rectangle around the region just
+ * tapped, and a thin vertical bar left behind on the one tapped before it. Only
+ * one element can hold focus, so two simultaneous marks were never a focus ring
+ * — which is exactly why three rounds of suppressing focus outlines changed
+ * nothing. It is iOS TEXT SELECTION: the rectangle is a selection range drawn
+ * around the SVG element, the vertical bar is the collapsed caret it leaves.
+ *
+ * Why the earlier `user-select: none` did not catch it: it was on `[data-site]`,
+ * which is the `<path>`. A selection can BEGIN on the parent `<g>` or `<svg>`
+ * and a rule on the child cannot stop it. So the whole subtree opts out.
+ *
+ * `-webkit-touch-callout: none` is the piece that had never been tried at all.
+ * It is the iOS long-press selection/callout UI specifically, and it is a
+ * separate mechanism from both `user-select` and the focus ring.
+ *
+ * `::selection` transparent is the backstop, scoped INSIDE svg only — making it
+ * transparent app-wide would take the highlight off text people are genuinely
+ * selecting, like a journal entry or a legal document. */
+svg,
+svg * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+svg ::selection {
+  background: transparent;
+}
+svg ::-moz-selection {
+  background: transparent;
+}
 .mr-interactive {
   cursor: pointer;
 }
@@ -392,6 +548,224 @@
   animation: card-shake 420ms ease-in-out both;
 }
 
+/* ---------------------------------------------------------------------------
+   Onboarding flow motion (Spec 3-01). Three classes, all ENTRANCES — a screen
+   arriving, a hero settling, a celebration firing once. None of them loops:
+   ambient/decorative motion is banned (ui-context.md → Motion), and the line
+   between the two is whether it keeps going after you have looked at it.
+   --------------------------------------------------------------------------- */
+
+/* A step arriving: fades and rises on the house slow/ease pair, matching the
+   Home cards' entrance so the flow reads as the same app it leads into. */
+.animate-flow-in {
+  animation: flow-in var(--motion-slow) var(--motion-ease) both;
+}
+
+/* The hook's hero settling from a slight overscale. One shot on entry, so the
+   image lands rather than sitting there breathing. */
+.animate-flow-hero {
+  animation: flow-hero 1400ms var(--motion-ease) both;
+}
+
+/* A single celebration burst. Per-piece drift/rotation/delay are inline (they
+   are live values); the keyframe owns the arc and the fade. */
+.animate-flow-confetti {
+  animation: flow-confetti 2200ms cubic-bezier(0.2, 0.6, 0.35, 1) both;
+}
+
+/* ---------------------------------------------------------------------------
+   Onboarding surface treatment (Adrian, 2026-08-01: "it looks too simple").
+   Three things, all token-derived so no hex appears outside :root.
+   --------------------------------------------------------------------------- */
+
+/* The canvas. A very slight lift at the top falling to the flat page colour,
+   so a full-screen dark surface reads as lit rather than as a void. The stop
+   colour is mixed FROM the tokens, so a palette retune carries it. */
+.flow-canvas {
+  background:
+    radial-gradient(
+      120% 70% at 50% 0%,
+      color-mix(in srgb, var(--text-primary) 5%, var(--bg-base)) 0%,
+      var(--bg-base) 62%
+    ),
+    var(--bg-base);
+}
+
+/* The height a flow screen is laid out against.
+ *
+ * A FIXED height, and the flow does not scroll as a page: each screen scrolls
+ * its own body between a pinned header and a pinned footer, the way a native
+ * onboarding does.
+ *
+ * Both models have now been built and tried on a real phone. One page with the
+ * CTA at the end of the content was Adrian's call on 2026-08-01 and he reversed
+ * it the same day — "maybe it needs to be pinned to the screen like it was
+ * before ... because it doesn't work still". The reason it does not work is
+ * structural rather than a matter of taste: several of these screens are taller
+ * than an iPhone's viewport once Safari's bars are up, so the primary action
+ * lands below the fold with nothing on screen to say it is there. Pinned, the
+ * one thing you can do is always visible.
+ *
+ * `svh`, NOT `dvh`. `lvh` assumes the browser chrome is RETRACTED, `dvh` tracks
+ * whatever it is doing right now, and `svh` assumes it is SHOWING — the
+ * smallest the viewport ever gets. `dvh` is the trap and was the original
+ * report: it is correct at any instant and therefore moves the layout as
+ * Safari's bar collapses on scroll and returns on scroll-up. `svh` is decided
+ * once. `100vh` first as the fallback for a browser without `svh` (iOS < 15.4).
+ *
+ * THE REQUIREMENT THIS CREATES: every screen needs its own internal scroll
+ * port, or `overflow: hidden` silently clips it. They all have one —
+ * `StepFrame` provides it for most, and hook / celebrate / welcome / demo carry
+ * their own. Adding a screen without one is how this breaks.
+ *
+ * AND THE CHAIN MUST BE ABLE TO SHRINK: every flex ancestor between here and a
+ * port needs `min-h-0`. A flex item's default `min-height: auto` refuses to go
+ * below its content, so without it the column grows past the shell and the
+ * footer is clipped rather than pinned — measured once at 177px of CTA outside
+ * a 660px viewport. This is the exact opposite of the rule the one-page model
+ * needed, which is why the two cannot be half-mixed. */
+.flow-viewport {
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+  overscroll-behavior-y: contain;
+}
+
+/* Cards that sit ON the canvas instead of being holes cut out of it: a hairline
+   of light along the top edge where a light source would catch it, and a soft
+   shadow underneath. Both are far weaker than they look written down; the
+   effect is depth, not decoration. */
+.flow-card {
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 5%, transparent),
+    0 10px 30px -18px rgb(0 0 0 / 0.85);
+}
+
+/* SCROLL PORTS FADE AT THEIR EDGES INSTEAD OF GUILLOTINING (Adrian, on his
+   phone, 2026-08-05: "it just kind of cuts off ... can you make it fade like a
+   gradient, and do that on any of the pages that have that").
+ *
+ * A scrolling column inside a fixed-height shell has to end somewhere, and a
+ * hard edge announces the clip: a card is simply sliced mid-height and the eye
+ * reads it as broken rather than as continuing. A mask makes the same clip read
+ * as "there is more below".
+ *
+ * BOTH edges are long. The bottom (44px) is where content runs off; the top
+ * (34px) is where content slides UNDER THE PINNED HEADLINE, which is the edge
+ * Adrian was actually asking about (2026-08-05: "when the title stays put, I
+ * want it to be a gradient from where the title is"). A 10px top fade was too
+ * short to read as anything and looked like no gradient at all.
+ *
+ * The cost of the longer top fade is on the CENTRED screens, whose headline
+ * sits inside the port rather than above it — but those screens centre their
+ * content, so the first 34px is empty space on all of them.
+ *
+ * `mask-image` rather than an overlaid gradient div: an overlay has to know the
+ * background colour behind it, and on `.flow-canvas` that colour is a gradient
+ * that changes down the page, so any fixed-colour overlay banded visibly
+ * against it. A mask removes alpha and cannot be wrong about the backdrop.
+ *
+ * Pointer events and scrolling are untouched — a mask paints, it does not
+ * intercept. */
+.flow-scroll-fade {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 34px,
+    black calc(100% - 44px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 34px,
+    black calc(100% - 44px),
+    transparent 100%
+  );
+}
+
+/* Directional step motion. Forward comes from the right, back from the left,
+   which is the single cheapest thing that makes a flow feel native rather than
+   like a set of pages. */
+/* THE NUDGE — the demo's Next button lifting to say "you can move on".
+ *
+ * Adrian, 2026-08-01, replacing an auto-advance: the injection-site stage used
+ * to carry itself onward 1.6s after you tapped a region, which took the decision
+ * off the user on the one screen they are most likely to still be exploring. A
+ * nudge tells them the way out is there and lets them take it when they want.
+ *
+ * NOT ambient decoration, which `ui-context.md` bans: it fires only after the
+ * user has been on a stage a while or has finished what that stage asked for, it
+ * runs three times and stops, and tapping the button ends it. Movement that
+ * carries information is the exception the ban is written around.
+ *
+ * A class, never an inline `animation` shorthand — an inline shorthand outranks
+ * the reduced-motion block and cannot be switched off from the stylesheet. And
+ * it needs its OWN element: `animate-flow-in` also sets `animation`, so on a
+ * shared element one simply wins (measured: `flow-in` did, and the nudge never
+ * played). */
+@keyframes flow-nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-6px);
+  }
+  70% {
+    transform: translateY(0);
+  }
+}
+.animate-flow-nudge {
+  animation: flow-nudge 1400ms var(--motion-ease) 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-flow-nudge {
+    animation: none;
+  }
+}
+
+.animate-flow-forward {
+  animation: flow-forward var(--motion-slow) var(--motion-ease) both;
+}
+
+.animate-flow-back {
+  animation: flow-back var(--motion-slow) var(--motion-ease) both;
+}
+
+/* Kyle. He arrives rather than appearing, then floats. The float loops, under
+   the same reasoning as the drift below: a marketing surface with no data on
+   it, and a mascot that sits dead still reads like a sticker. Slightly faster
+   and taller than the fragment drift so he feels alive next to them. */
+.animate-dollar-fall {
+  animation: dollar-fall var(--fall-ms, 2400ms) ease-in both;
+}
+
+/* A CLASS, not an inline `animation` shorthand. An inline animation outranks
+   any stylesheet rule, so the reduce block below cannot switch it off — the
+   exact mistake spec 07 shipped once already. Only the duration stays inline. */
+.animate-flow-caption {
+  animation: flow-caption 1200ms var(--motion-ease) both;
+}
+
+.animate-kyle {
+  animation:
+    kyle-in 760ms var(--motion-ease) both,
+    kyle-float 3600ms 760ms ease-in-out infinite alternate;
+}
+
+/* The paywall's app fragments, drifting. THIS ONE LOOPS, and it is the only
+   thing in the app that does: "Banned - ambient / decorative motion" above is a
+   rule about the DATA screens, where movement competes with figures the user is
+   reading. The paywall is a marketing surface with no data on it, Adrian asked
+   for it specifically (2026-07-31), and the amplitude is a few pixels over
+   several seconds so it reads as depth rather than animation. It still
+   collapses entirely under prefers-reduced-motion. Do not copy this into the
+   app proper. */
+.animate-flow-drift {
+  animation: flow-drift var(--drift-ms, 9000ms) ease-in-out infinite alternate;
+}
+
 /* The calculator's syringe fill easing into its new length (Spec 07). A CLASS,
    not an inline style: the scale factor itself has to be inline (it is a live
    value), and an inline `transition` would outrank Tailwind's
@@ -421,8 +795,27 @@
   .animate-home-tick-ring,
   .animate-home-up,
   .animate-notice-in,
-  .animate-card-shake {
+  .animate-card-shake,
+  .animate-flow-in,
+  .animate-flow-hero,
+  .animate-flow-confetti,
+  .animate-flow-drift,
+  .animate-flow-forward,
+  .animate-flow-back,
+  .animate-kyle,
+  .animate-dollar-fall,
+  .animate-flow-caption {
     animation: none;
+  }
+
+  /* These two animate TO invisibility, so killing the animation strands them
+     visible: 18 amber slivers pinned to the top of the celebrate screen, and a
+     stack of dollar signs sitting on the cost bars. Every other animation here
+     animates FROM opacity 0 to its natural state, so `animation: none` lands
+     on the right frame; these are the two that do not. */
+  .animate-flow-confetti,
+  .animate-dollar-fall {
+    display: none;
   }
 }
 
@@ -445,6 +838,279 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes flow-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   WELCOME EFFECTS — the greeting screen's arrival, four candidates.
+
+   All four are ONE-SHOT. `ui-context.md` bans ambient motion, and a greeting
+   that keeps pulsing after you have read it is exactly that. Each plays once,
+   settles, and stops.
+
+   These are candidates for review at `/onboarding/welcome-effects`; whichever
+   Adrian picks stays and the rest come out with the harness.
+   --------------------------------------------------------------------------- */
+
+/* A — a soft amber bloom opening behind Kyle, like a light coming up on him. */
+@keyframes welcome-bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  55% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+}
+.animate-welcome-bloom {
+  animation: welcome-bloom 1500ms var(--motion-ease) both;
+}
+
+/* D — Kyle rises further and slower than the words under him, so he leads and
+   they settle. Replaced the ring sweep, which read as a generic flourish, and
+   the confetti, which Adrian killed outright (2026-08-05): confetti rewards an
+   achievement and nobody has achieved anything here but typing their name. */
+@keyframes welcome-lift {
+  from {
+    opacity: 0;
+    transform: translateY(34px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-welcome-lift {
+  animation: welcome-lift 1100ms var(--motion-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-welcome-bloom,
+  .animate-welcome-lift {
+    animation: none;
+  }
+}
+
+@keyframes flow-hero {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* The paywall carousel's caption: a long, eased cross-fade with a touch of
+   rise, so the line changes without snapping. */
+/* The cost screen's falling money. A dollar sign lifts off the top of a bar,
+   drifts, and falls away to nothing. One per unit of spend, so the expensive
+   bar sheds a shower and Trackd sheds one. */
+@keyframes dollar-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.85);
+  }
+  18% {
+    opacity: 1;
+    transform: translate3d(calc(var(--dx, 0px) * 0.2), -10px, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--dx, 0px), var(--dy, 90px), 0) scale(0.9);
+  }
+}
+
+@keyframes flow-caption {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  20% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes kyle-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 26px, 0) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes kyle-float {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+@keyframes flow-forward {
+  from {
+    opacity: 0;
+    transform: translate3d(18px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes flow-back {
+  from {
+    opacity: 0;
+    transform: translate3d(-18px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* HOUSEKEEPING RISES INSTEAD OF SLIDING SIDEWAYS (Adrian, 2026-08-05: "it
+   slides up the same way that when you log a compound, how that card slides
+   up").
+ *
+ * The sideways move is right for stepping between SUBJECTS — hook to demo to
+ * paywall are different places. The four housekeeping screens are one
+ * conversation, and a set of questions answering in turn should stack upward
+ * the way the log sheet's cards do, not scroll past like pages.
+ *
+ * A longer travel than `flow-forward`'s 18px, because vertical movement at that
+ * distance reads as a twitch rather than as an arrival. */
+@keyframes flow-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 26px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+.animate-flow-rise {
+  animation: flow-rise var(--motion-slow, 520ms) var(--motion-ease) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-flow-rise {
+    animation: none;
+  }
+}
+
+/* THE FOUNDERS' NAMES, WRITING THEMSELVES ON (Adrian, 2026-08-05).
+ *
+ * The signature SVGs were built, animated with a stroke-dash reveal, and then
+ * deleted at his call — he did not want the artwork. This is the same GESTURE
+ * without the artwork: the handwriting face is already there, and a left-to-
+ * right wipe makes it appear as though it is being written.
+ *
+ * Done with a MASK that sweeps, not with `width`, and the difference matters:
+ * animating width reflows the text and re-wraps it every frame, and on a name
+ * that is close to the column width the last word jumps to a second line
+ * mid-animation. A mask changes nothing about layout — the text is laid out
+ * once, at its final size, and is simply revealed.
+ *
+ * `mask-size: 220%` with the position sliding from right to left means the
+ * opaque part of the gradient travels across the whole width. The soft edge
+ * (the 12% band) is what makes it read as a nib rather than a wipe.
+ *
+ * It runs ONCE, on arrival, and holds. Under reduced motion the name is simply
+ * there — the mask is removed entirely rather than snapped, so there is no
+ * chance of leaving the text half-masked. */
+@keyframes hand-write {
+  from {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+  }
+  to {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+}
+.animate-hand-write {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    black 0,
+    black 44%,
+    transparent 56%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    black 0,
+    black 44%,
+    transparent 56%,
+    transparent 100%
+  );
+  -webkit-mask-size: 220% 100%;
+  mask-size: 220% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  /* SLOW. 2.8s for fourteen characters is roughly the speed a person signs
+   * their name, and speed is the entire difference between "being written" and
+   * "a wipe passing over some text" (Adrian, 2026-08-05). Linear, not eased: a
+   * hand moves at a fairly constant rate across a signature, and the house
+   * ease-out made it sprint the first half and crawl the last.
+   * The 600ms delay lets the letter settle first, so the eye is already on the
+   * page when the hand starts. */
+  animation: hand-write 2800ms linear 600ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-hand-write {
+    -webkit-mask-image: none;
+    mask-image: none;
+    animation: none;
+  }
+}
+
+@keyframes flow-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(var(--drift-x, 0px), var(--drift-y, -6px), 0);
+  }
+}
+
+@keyframes flow-confetti {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--drift, 0px), var(--fall, 120px), 0)
+      rotate(var(--spin, 180deg));
   }
 }
 
@@ -545,4 +1211,16 @@
        (see ui-context.md → Typography / Styling Notes). */
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* The paywall's floating labels. One size: the page scrolls now, so the ring
+ * does not have to shrink to make room and these do not have to shrink with it.
+ *
+ * They briefly did both. The ring came down to 88px on a short viewport to keep
+ * the plan cards above the fold, which left the labels bigger than the phone
+ * they were labelling — Adrian, 2026-08-01: "I cannot see the carousel anymore.
+ * The paywall looks really bad." */
+.paywall-label {
+  max-width: 7rem;
+  font-size: 9.5px;
 }

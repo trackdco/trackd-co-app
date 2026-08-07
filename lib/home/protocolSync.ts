@@ -49,6 +49,14 @@ import type { CompoundCategory } from "@/lib/compound-categories"
 import type { DrawSource } from "@/lib/home/draw"
 import type { StackCompound } from "@/lib/home/stack"
 import { CYCLE_COLUMNS, type CycleColumns } from "@/lib/protocol/cycleRule"
+import {
+  deletePause,
+  endPause,
+  endPauseGroup,
+  listPauses,
+  upsertPause,
+  type PauseRow,
+} from "@/lib/db/compoundPauses"
 import { capNote, type DoseLog } from "@/lib/home/mockHomeData"
 import {
   deterministicUuid,
@@ -165,7 +173,17 @@ function parseAmount(raw: string, fallback: number): number {
 /** Mirrors the DB `unit_family_compatible`: an mg-tracked vial takes mg/mcg doses;
  *  an iu-tracked vial takes iu doses. Guards the dose↔inventory link. */
 function unitFamilyOk(base: string, dose: string): boolean {
-  return (base === "mg" && (dose === "mg" || dose === "mcg")) || (base === "iu" && dose === "iu")
+  // The TS mirror of `unit_family_compatible` (`supabase/protocol/016`). It must
+  // list every family the database does, or a legitimate pairing is rejected
+  // here and the dose is written with NO vial link — so the container never
+  // depletes, which is the entire point of 014/015.
+  return (
+    (base === "mg" && (dose === "mg" || dose === "mcg")) ||
+    (base === "iu" && dose === "iu") ||
+    (base === "g" && (dose === "g" || dose === "mg")) ||
+    (base === "tab" && dose === "tab") ||
+    (base === "capsule" && dose === "capsule")
+  )
 }
 
 /* --------------------------------------------------------------- compounds */
@@ -476,6 +494,71 @@ export async function archiveProtocolCompound(
   }
 }
 
+/* ------------------------------------------------------------------ pauses */
+
+/**
+ * Push one pause for a compound (Spec w2b-13, Step 6).
+ *
+ * Resolves the client compound id to its `protocol_compound_id` the same way
+ * every other write here does — by the derived id first, then by NAME — because
+ * the two legitimately diverge and a pause written against an id no row has
+ * would report success and persist nothing.
+ *
+ * A custom compound with no Postgres row is `skipped`, not failed: its pause
+ * lives in the device store and gates `isDueOnFor` from there, which is the same
+ * bargain its dose logs already make.
+ */
+export async function pushCompoundPause(
+  clientCompoundId: string,
+  name: string | null,
+  pause: { id: string; startedOn: string; endsOn: string | null; groupId?: string | null }
+): Promise<Ok> {
+  try {
+    const cx = await ctx()
+    if (!cx) return { ok: false }
+    const pcId = await findProtocolCompoundId(cx, clientCompoundId, name)
+    if (!pcId) return { ok: true, skipped: true }
+    return await upsertPause({
+      id: pause.id,
+      protocolCompoundId: pcId,
+      startedOn: pause.startedOn,
+      endsOn: pause.endsOn,
+      groupId: pause.groupId ?? null,
+    })
+  } catch (e) {
+    console.error("pushCompoundPause failed", e)
+    return { ok: false }
+  }
+}
+
+/** End a pause on `endsOn` — the LAST paused day, so resuming today passes
+ *  yesterday. An UPDATE, never a delete: the break happened. */
+export async function pushPauseEnd(id: string, endsOn: string): Promise<Ok> {
+  return await endPause(id, endsOn)
+}
+
+/** Drop a pause entirely — the undo for one created by mistake. Its days go back
+ *  to being ordinary days, which is what makes this different from ending it. */
+export async function pushPauseDelete(id: string): Promise<Ok> {
+  return await deletePause(id)
+}
+
+/** End every pause one whole-stack action wrote, and only those. */
+export async function pushPauseGroupEnd(
+  groupId: string,
+  endsOn: string
+): Promise<Ok> {
+  return await endPauseGroup(groupId, endsOn)
+}
+
+/** Every active pause the user has, keyed by `protocol_compound_id`. */
+export async function pullPauses(): Promise<Record<string, PauseRow[]>> {
+  const rows = await listPauses()
+  const out: Record<string, PauseRow[]> = {}
+  for (const r of rows) (out[r.protocolCompoundId] ??= []).push(r)
+  return out
+}
+
 // A hard delete of a protocol compound (which would cascade its dose logs) is NOT
 // reachable from the app (Spec 02): "Delete" is `archiveProtocolCompound` above,
 // which stops future doses and keeps every log. The DB cascade remains only so a
@@ -485,10 +568,28 @@ export async function archiveProtocolCompound(
 
 /** The vial `base_unit` a dose in `doseUnit` may draw from (the `unitFamilyOk`
  *  families, expressed as a query filter). Null = no vial can ever match. */
-function baseUnitForDose(doseUnit: string): "mg" | "iu" | null {
-  if (doseUnit === "mg" || doseUnit === "mcg") return "mg"
-  if (doseUnit === "iu") return "iu"
-  return null
+/**
+ * Which item bases a dose in this unit may draw from — the inverse of
+ * `unit_family_compatible`.
+ *
+ * A LIST, because `mg` is genuinely ambiguous: it pairs with an mg-based vial
+ * AND with a gram-based tub (`supabase/protocol/014` lets a tub take grams or
+ * milligrams). Returning the single narrower `mg` meant a 500 mg dose of
+ * creatine could never find its tub, so the dose was written with no vial link
+ * and the tub never depleted.
+ *
+ * An EMPTY list means "nothing can back this", which `vialOnDate` reads as a
+ * CONFIRMED no-vial — so an unlisted unit does not merely degrade, it tells the
+ * UI there is no stock. Keep this in step with `unitFamilyOk` above.
+ */
+function baseUnitsForDose(doseUnit: string): string[] {
+  if (doseUnit === "mcg") return ["mg"]
+  if (doseUnit === "mg") return ["mg", "g"]
+  if (doseUnit === "iu") return ["iu"]
+  if (doseUnit === "g") return ["g"]
+  if (doseUnit === "tab") return ["tab"]
+  if (doseUnit === "capsule") return ["capsule"]
+  return []
 }
 
 /**
@@ -545,8 +646,8 @@ async function vialOnDateResult(
   dateKey: string,
   doseUnit: string
 ): Promise<VialLookup> {
-  const base = baseUnitForDose(doseUnit)
-  if (!base) return { ok: true, vial: null } // no vial can ever match — a real answer
+  const bases = baseUnitsForDose(doseUnit)
+  if (bases.length === 0) return { ok: true, vial: null } // no vial can ever match — a real answer
   const { data, error } = await supabase
     .from("inventory_items")
     // `total_amount_unit` rides along for the draw's tab/cap wording (Spec 21). The
@@ -555,7 +656,7 @@ async function vialOnDateResult(
     .select("id, total_amount_unit")
     .eq("protocol_compound_id", pcId)
     .eq("user_id", userId)
-    .eq("base_unit", base)
+    .in("base_unit", bases)
     .lte("acquired_on", acquiredOnCutoff(dateKey))
     .order("acquired_on", { ascending: false })
     .order("created_at", { ascending: false })
@@ -635,7 +736,7 @@ export async function resolveVialForDate(
  * for the SELECTED day, not today: a back-dated row must price against the vial in
  * use *then* (often archived by now), the same rule that keeps back-dating honest.
  *
- * `concentration_per_ml` / `inventory_type` / `strength_per_unit_mg` come ONLY from
+ * `concentration_per_ml` / `inventory_type` / `strength_per_unit` come ONLY from
  * `v_inventory_math` — never recomputed. The division by the row's own dose happens
  * in `lib/home/draw.ts`; see the note there for why the view can't do it.
  *
@@ -711,20 +812,40 @@ export async function resolveDrawSources(
     )
     if (hits.length === 0) return { sources: {}, noVial }
 
+    const ids = hits.map((h) => h.vial.id)
     const mathRes = await cx.supabase
       .from("v_inventory_math")
-      .select("inventory_item_id, inventory_type, concentration_per_ml, strength_per_unit_mg")
-      .in("inventory_item_id", hits.map((h) => h.vial.id))
-    if (mathRes.error) {
+      .select(
+        "inventory_item_id, inventory_type, concentration_per_ml, strength_per_unit, remaining_base, total_base, remaining_display"
+      )
+      .in("inventory_item_id", ids)
+    let mathRows = mathRes.data as Record<string, unknown>[] | null
+    let mathError = mathRes.error
+    // Pre-016 the view still calls that column `strength_per_unit_mg`. Retry on
+    // the old name; the value is identical, only the label moved. Written as two
+    // literal selects rather than one interpolated column list because
+    // PostgREST's typed client parses that string at the TYPE level and cannot
+    // read a template literal.
+    if (mathError && isUndefinedColumn(mathError)) {
+      const legacy = await cx.supabase
+        .from("v_inventory_math")
+        .select(
+          "inventory_item_id, inventory_type, concentration_per_ml, strength_per_unit_mg, remaining_base, total_base, remaining_display"
+        )
+        .in("inventory_item_id", ids)
+      mathRows = legacy.data as Record<string, unknown>[] | null
+      mathError = legacy.error
+    }
+    if (mathError) {
       // The vials resolved but their maths didn't load. Keep the confirmed-no-vial
       // rows (that lookup DID succeed) and leave the rest quiet — never downgrade a
       // compound we know has a vial into "add stock".
-      console.error("resolveDrawSources math failed", mathRes.error)
+      console.error("resolveDrawSources math failed", mathError)
       return { sources: {}, noVial }
     }
 
     const math = new Map(
-      (mathRes.data ?? []).map((m) => [m.inventory_item_id as string, m])
+      (mathRows ?? []).map((m) => [m.inventory_item_id as string, m])
     )
 
     const sources: Record<string, DrawSource> = {}
@@ -735,10 +856,16 @@ export async function resolveDrawSources(
         inventoryType: m.inventory_type as InventoryType,
         concentrationPerMl:
           m.concentration_per_ml == null ? null : Number(m.concentration_per_ml),
-        strengthPerUnitMg:
-          m.strength_per_unit_mg == null ? null : Number(m.strength_per_unit_mg),
+        strengthPerUnit: (() => {
+          const v = m.strength_per_unit ?? m.strength_per_unit_mg
+          return v == null ? null : Number(v)
+        })(),
         oralForm: h.vial.totalAmountUnit,
         doseUnit: h.doseUnit,
+        remainingBase: m.remaining_base == null ? null : Number(m.remaining_base),
+        totalBase: m.total_base == null ? null : Number(m.total_base),
+        remainingDisplay:
+          m.remaining_display == null ? null : Number(m.remaining_display),
       }
     }
     return { sources, noVial }
@@ -782,7 +909,11 @@ export async function pushProtocolDoseLog(
    * correcting itself. When false the column is OMITTED from the payload, so an
    * existing stored day is left exactly as it was rather than overwritten.
    */
-  dayIsDeviceRecorded = true
+  dayIsDeviceRecorded = true,
+  /** Which of the day's scheduled doses this is — an index into `dose_times`
+   *  (`supabase/protocol/017`). 0 is every dose written before slots existed,
+   *  and seeds the row id exactly as it did then. */
+  slot = 0
 ): Promise<Ok> {
   try {
     const cx = await ctx()
@@ -895,18 +1026,21 @@ export async function pushProtocolDoseLog(
       const { data: prior } = await cx.supabase
         .from("dose_logs")
         .select("inventory_item_id")
-        .eq("id", doseLogRowId(cx.userId, dateKey, pcId))
+        .eq("id", doseLogRowId(cx.userId, dateKey, pcId, slot))
         .eq("user_id", cx.userId)
         .maybeSingle()
       inventoryItemId = (prior?.inventory_item_id as string | null) ?? null
     }
 
-    const dlId = doseLogRowId(cx.userId, dateKey, pcId)
+    const dlId = doseLogRowId(cx.userId, dateKey, pcId, slot)
     const saved = await upsertDoseLog({
       id: dlId,
       protocol_compound_id: pcId,
+      // A SKIPPED dose keeps its inventory link but does not consume: the view's
+      // `consumed` CTE has always filtered on `status = 'taken'`, so this needs
+      // no maths change at all.
       inventory_item_id: inventoryItemId,
-      status: "taken",
+      status: log.status === "skipped" ? "skipped" : "taken",
       dose_amount: parseAmount(log.amount, Number(pc.dose_amount)),
       // The unit the dose was RECORDED in wins over the compound's current one, so
       // re-saving an old dose can't relabel it with a unit it was never taken in.
@@ -927,6 +1061,7 @@ export async function pushProtocolDoseLog(
       // The user's own words about this dose, if any. The column has existed
       // since v0.4.2 and nothing had ever written to it.
       note: log.note?.trim() ? capNote(log.note.trim(), NOTE_MAX) : null,
+      slot_index: slot,
     })
     return { ok: saved !== null }
   } catch (e) {
@@ -944,7 +1079,10 @@ export async function deleteProtocolDoseLog(
    *  targets a row that doesn't exist. `DELETE … WHERE id = <nothing>` affects zero
    *  rows and PostgREST calls that a success, so the un-log reported ok, the
    *  tombstone cleared, and the next pull put the dose straight back. */
-  compoundName: string | null = null
+  compoundName: string | null = null,
+  /** Which of the day's doses to remove. Undoing the evening dose must not
+   *  target the morning one — see `tombstoneId`. */
+  slot = 0
 ): Promise<Ok> {
   try {
     const cx = await ctx()
@@ -957,7 +1095,7 @@ export async function deleteProtocolDoseLog(
       (compoundName
         ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
         : null) ?? resolvePcId(cx.userId, clientCompoundId)
-    const dlId = doseLogRowId(cx.userId, dateKey, pcId)
+    const dlId = doseLogRowId(cx.userId, dateKey, pcId, slot)
     const res = await deleteDoseLog(dlId)
     // A delete that matched NOTHING is not a delete. Reporting it as one let the
     // caller drop its tombstone, and the dose came back on the next pull. Treated
@@ -1021,6 +1159,13 @@ export async function pushScheduleVersions(
     daysOfWeek: number[] | null
     intervalDays: number | null
     time: string | null
+    /** Slots 1..n, `HH:mm:ss`. Slot 0 is `time`. The ARRAY POSITION is the
+     *  slot (`supabase/protocol/017`), so these are appended in order and never
+     *  compacted — a NULL element is an unset time holding its place. */
+    laterTimes: (string | null)[]
+    /** Per-slot amounts for slots 1..n, parallel to `laterTimes`. Null = every
+     *  slot takes the version's own dose (`supabase/protocol/021`). */
+    laterDoses: (number | null)[] | null
     stopped: boolean
   } & Partial<CycleColumns>)[]
 ): Promise<Ok> {
@@ -1040,7 +1185,13 @@ export async function pushScheduleVersions(
         schedule_type: v.scheduleType,
         days_of_week: v.daysOfWeek,
         interval_days: v.intervalDays,
-        dose_times: [v.time],
+        dose_times: [v.time, ...v.laterTimes],
+        // Only when there IS one. The key being present at all — even holding
+        // null — makes PostgREST 204 the whole payload on a database without
+        // `021`, which is every database today. That sent EVERY push to the
+        // retry below, which also strips the cycle columns, so a cycle was
+        // dropped from the version trail on every ordinary edit.
+        ...(v.laterDoses ? { slot_doses: [null, ...v.laterDoses] } : {}),
         stopped: v.stopped,
         // The cycle in force under this version — see `scheduleVersionToRow`.
         ...pickCycleColumns(v),
@@ -1064,7 +1215,11 @@ export async function pushScheduleVersions(
               schedule_type: v.scheduleType,
               days_of_week: v.daysOfWeek,
               interval_days: v.intervalDays,
-              dose_times: [v.time],
+              dose_times: [v.time, ...v.laterTimes],
+              // `slot_doses` is deliberately absent from this retry: it arrives
+              // with 021 and a database missing the cycle columns is very
+              // unlikely to have it. Per-slot amounts survive in the device
+              // store and re-push once the migration lands.
               stopped: v.stopped,
             })),
             { onConflict: "user_id,protocol_compound_id,effective_from" }
@@ -1103,7 +1258,7 @@ export async function pushScheduleVersions(
 
 /** The dose-log columns as they exist before `supabase/protocol/011`. */
 const DOSE_LOG_COLUMNS =
-  "id, protocol_compound_id, taken_at, dose_amount, dose_unit, injection_site, inventory_item_id, note"
+  "id, protocol_compound_id, taken_at, dose_amount, dose_unit, injection_site, inventory_item_id, note, status"
 
 /**
  * Pull the user's dose logs, asking for `logged_for` and retrying without it.
@@ -1116,6 +1271,16 @@ async function readDoseLogRows(cx: {
   supabase: Awaited<ReturnType<typeof createClient>>
   userId: string
 }) {
+  // ⚠️ `slot_index` MUST come back, or two doses of the same compound on the
+  // same day both key to slot 0 and collapse into one — the later row winning
+  // non-deterministically, and the earlier dose lost for good on a fresh
+  // device. Three tiers, newest column first: 017 then 011 then neither.
+  const full = await cx.supabase
+    .from("dose_logs")
+    .select(`${DOSE_LOG_COLUMNS}, logged_for, slot_index`)
+    .eq("user_id", cx.userId)
+  if (!full.error) return full
+  if (!isUndefinedColumn(full.error)) return full
   const withDay = await cx.supabase
     .from("dose_logs")
     .select(`${DOSE_LOG_COLUMNS}, logged_for`)
@@ -1152,9 +1317,24 @@ export async function pullScheduleVersions(): Promise<
         .eq("user_id", cx.userId)
         .order("effective_from", { ascending: true })
 
-    let { data, error } = await read(`${VERSION_COLUMNS}, ${CYCLE_COLUMNS.join(", ")}`)
-    // Pre-006 environments have no cycle columns; re-read without them rather
-    // than returning nothing, which would drop the whole version trail.
+    let { data, error } = await read(
+      `${VERSION_COLUMNS}, slot_doses, ${CYCLE_COLUMNS.join(", ")}`
+    )
+    // THREE tiers, because two pending migrations can each remove a column here
+    // and `isUndefinedColumn` never says WHICH one Postgres objected to.
+    //
+    // ⚠️ THE ORDER IS LOAD-BEARING and was wrong once. Tier 2 drops
+    // `slot_doses` (021, the LATER migration) and keeps the cycle columns (006,
+    // long applied). Dropping the cycle columns first instead meant tier 2 could
+    // only succeed on a database with 021 but not 006 — an ordering that cannot
+    // exist — so every hydration fell to tier 3 and returned the version trail
+    // with NO CYCLE. `mergeAndSave` then let those cycle-less rows overwrite the
+    // local ones, destroying the device's copy on the first hydration.
+    if (error && isUndefinedColumn(error)) {
+      ;({ data, error } = await read(
+        `${VERSION_COLUMNS}, ${CYCLE_COLUMNS.join(", ")}`
+      ))
+    }
     if (error && isUndefinedColumn(error)) {
       ;({ data, error } = await read(VERSION_COLUMNS))
     }
@@ -1174,6 +1354,9 @@ export async function pullScheduleVersions(): Promise<
   }
 }
 
+/** The columns that have existed since `005`. `slot_doses` (021) and the cycle
+ *  columns (006) are appended per tier by the reader above, because either can
+ *  be absent on a database that has not had its migration applied. */
 const VERSION_COLUMNS =
   "protocol_compound_id, effective_from, dose_amount, dose_unit, schedule_type, days_of_week, interval_days, dose_times, stopped"
 
@@ -1187,6 +1370,14 @@ function mapVersion(r: Record<string, unknown>) {
     daysOfWeek: (r.days_of_week as number[] | null) ?? null,
     intervalDays: (r.interval_days as number | null) ?? null,
     time: (times?.[0] ?? null) as string | null,
+    // Slots 1..n. Position IS the slot, so a null element holds its place and a
+    // dropped one would shift every later dose onto the wrong slot.
+    laterTimes: (times ?? []).slice(1).map((t) => t ?? ""),
+    // Slot 0's amount is the version's own dose, so the stored array's first
+    // element is always null and is dropped on the way back out.
+    laterDoses: ((r.slot_doses as (number | null)[] | null) ?? null)
+      ?.slice(1)
+      .map((d) => (typeof d === "number" && d > 0 ? d : null)) ?? null,
     stopped: r.stopped === true,
     cycle_anchor: (r.cycle_anchor as string | null) ?? null,
     cycle_on_days: (r.cycle_on_days as number | null) ?? null,
@@ -1285,6 +1476,13 @@ export async function pullProtocolStackAndLogs(): Promise<{
               r.protocol_compound_id as string,
               String(r.taken_at)
             ),
+        // Which of the day's doses this is (`supabase/protocol/017`). Absent
+        // until that migration, and 0 there — which is what every pre-017 row
+        // genuinely is.
+        slotIndex: Number(r.slot_index ?? 0) || 0,
+        // Taken or deliberately skipped. Absent status reads as taken, which is
+        // every row written before Skip existed.
+        status: r.status === "skipped" ? "skipped" : "taken",
         note: (r.note as string | null | undefined) ?? null,
         amount: String(r.dose_amount),
         // The unit this dose was LOGGED in — per-log in the schema, so history

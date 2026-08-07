@@ -12,6 +12,15 @@
 import { createClient } from "@/lib/supabase/server"
 import type { DoseLog, DoseLogInsert } from "@/lib/db/types"
 
+/**
+ * "That column doesn't exist" — `slot_index` before `supabase/protocol/017`.
+ * `PGRST204` is what a WRITE gets (PostgREST rejects the payload against its
+ * schema cache first); `42703` is what a READ gets from Postgres itself.
+ */
+function isUndefinedColumn(error: { code?: string } | null): boolean {
+  return error?.code === "42703" || error?.code === "PGRST204"
+}
+
 async function sessionCtx() {
   const supabase = await createClient()
   const {
@@ -63,6 +72,23 @@ export async function upsertDoseLog(row: DoseLogInsert): Promise<DoseLog | null>
       .select("*")
       .single()
     if (error) {
+      // Pre-017 there is no `slot_index`. Retry without it rather than lose the
+      // dose: the row id already encodes the slot, so a second dose still lands
+      // on its own row — the database simply cannot yet SAY which slot it is.
+      if (isUndefinedColumn(error)) {
+        const { slot_index: _dropped, ...rest } = row
+        void _dropped
+        const retry = await ctx.supabase
+          .from("dose_logs")
+          .upsert({ ...rest, user_id: ctx.userId }, { onConflict: "id" })
+          .select("*")
+          .single()
+        if (retry.error) {
+          console.error("upsertDoseLog failed", retry.error)
+          return null
+        }
+        return retry.data as DoseLog
+      }
       console.error("upsertDoseLog failed", error)
       return null
     }

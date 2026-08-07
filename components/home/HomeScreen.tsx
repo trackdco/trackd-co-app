@@ -17,6 +17,7 @@ import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
 import {
   EMPTY_STACKS,
   getStacksSnapshot,
+  memberIdsOn,
   subscribeStacks,
   type Stack,
 } from "@/lib/home/stacks"
@@ -30,6 +31,15 @@ import { InjectionSitesGlanceCard } from "@/components/home/InjectionSitesGlance
 import { InjectionSitesSheet } from "@/components/home/InjectionSitesSheet"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
+import type { PausedEntry } from "@/components/home/TodaysCycleCard"
+import { PauseSheet } from "@/components/home/PauseSheet"
+import {
+  activePause,
+  isPausedOn,
+  resumeLabel,
+  resumesOn,
+} from "@/lib/home/pauses"
+import { newId } from "@/lib/home/id"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import type { BodySex, InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
 import {
@@ -47,15 +57,28 @@ import {
   loadStack,
   majorityInjectionRoute,
   nextStartingCompound,
+  doseAmountsOf,
+  doseTimesOf,
+  formatDateKeyShort,
   notifyStackChanged,
+  pauseCompound,
+  pauseCompounds,
+  resolveScheduleOn,
+  resumeCompound,
+  resumePauseGroup,
   saveStack,
   subscribeStack,
+  timesPerDayOf,
   type StackCompound,
 } from "@/lib/home/stack"
 import {
   getDoseLogsSnapshot,
   commitDoseOn,
+  loggedCountFor,
   logDose,
+  slotKey,
+  nextUnloggedSlot,
+  slotsForDay,
   subscribeDoseLogs,
   unlogDose,
   type DayLogs,
@@ -211,11 +234,15 @@ export function HomeScreen({
   const [logTarget, setLogTarget] = useState<{
     compound: StackCompound
     existing: DoseLog | null
+    /** Which of the day's doses is being logged (Spec w2b-13, Step 5). */
+    slot: number
   } | null>(null)
   // Injection-site map (opened from the glance card) — a read-only view of the
   // rotation derived from the dose log. `mirrorTip` shows a one-time note that the
   // front view is mirrored, decided on the first-ever open (event-driven, so no
   // setState-in-effect).
+  /** The compound whose Pause sheet is open, if any. */
+  const [pauseTarget, setPauseTarget] = useState<StackCompound | null>(null)
   const [sitesOpen, setSitesOpen] = useState(false)
   const [mirrorTip, setMirrorTip] = useState(false)
   // Tapping a compound opens its detail; "Edit" from there opens the add sheet.
@@ -345,16 +372,20 @@ export function HomeScreen({
     const date = dateKeyToDate(key)
     // Judged by the rule that was in force on THAT day, not the current one — an
     // alteration applies forward only, so a past rest day stays a rest day.
-    const dueIds = activeStack
-      .filter((c) => isDueOnFor(c, date))
-      .map((c) => c.id)
     const dayLogs = logs[key] ?? {}
-    if (dueIds.length === 0) {
+    // In DOSES, not compounds: a compound due twice contributes two, so logging
+    // one of them is `partial` rather than the whole day reading as done.
+    const due = activeStack.filter((c) => isDueOnFor(c, date))
+    const dueCount = due.reduce(
+      (n, c) => n + timesPerDayOf(resolveScheduleOn(c, key).schedule),
+      0,
+    )
+    if (dueCount === 0) {
       return Object.keys(dayLogs).length > 0 ? "logged" : "none"
     }
-    const loggedCount = dueIds.filter((id) => dayLogs[id]).length
+    const loggedCount = due.reduce((n, c) => n + loggedCountFor(dayLogs, c.id), 0)
     if (loggedCount === 0) return "missed"
-    if (loggedCount >= dueIds.length) return "logged"
+    if (loggedCount >= dueCount) return "logged"
     return "partial"
   }
 
@@ -383,14 +414,32 @@ export function HomeScreen({
   const isToday = selectedKey === todayKey
   const selectedDate = dateKeyToDate(selectedKey)
   const selectedRows = logs[selectedKey] ?? {}
-  const dueCompounds = stack.filter((c) =>
-    selectedRows[c.id]
-      ? true
-      : !c.archived && isDueOnFor(c, selectedDate)
+  /** Every compound in a stack ON THE SELECTED DAY — a paused member stays in
+   *  its stack row rather than moving to the Paused section (Adrian,
+   *  2026-08-07).
+   *
+   *  Dated, via `memberIdsOn`: membership is a set of SPELLS since the stack
+   *  dating work, so a compound that has since left a stack must not be held out
+   *  of the Paused section on the days after it left. */
+  const stackMemberIds = new Set(
+    stacks.flatMap((st) => memberIdsOn(st, selectedKey)),
   )
+  const dueCompounds = stack.filter((c) => {
+    if (loggedCountFor(selectedRows, c.id) > 0) return true
+    if (c.archived) return false
+    if (isDueOnFor(c, selectedDate)) return true
+    // A PAUSED stack member is kept in the list so its stack still shows every
+    // compound it contains; the row renders it blacked out and untickable. A
+    // paused LOOSE compound is not — it moves to the Paused section instead.
+    return stackMemberIds.has(c.id) && isPausedOn(c.pauses, selectedKey)
+  })
   const dueDoses = dueCompounds.map((c) => ({
     ...c,
+    // `log` is slot 0's, unchanged — `slotKey(id, 0)` IS the bare compound id,
+    // so every row that existed before slots reads back exactly as it did.
     log: selectedRows[c.id] ?? null,
+    slots: slotsForDay(c, selectedKey, selectedRows),
+    paused: isPausedOn(c.pauses, selectedKey),
   }))
   // Per-Dose Draw (Spec 21) — the backing vial per due compound, for the selected
   // day. Its own read because the today's-log is computed from the device stack +
@@ -407,12 +456,59 @@ export function HomeScreen({
   }>({ key: "", result: EMPTY_DRAW_RESULT })
   // Ring + dots for the SELECTED day, from the same `dueDoses` the log renders,
   // so the two can never disagree about what is due.
-  const selectedLogged = dueDoses.filter((d) => d.log != null).length
-  const dayDots: DayDot[] = dueDoses.map((d) => ({
-    id: d.id,
-    category: d.category,
-    logged: d.log != null,
-  }))
+  // Counted in DOSES, not compounds. A compound due twice a day contributes two
+  // of each, or the ring would read 100% with the evening dose still untaken.
+  // A paused compound is not DUE, so it contributes nothing to the ring — it
+  // would otherwise sit there permanently unlogged and hold the day below 100%.
+  const countable = dueDoses.filter((d) => !d.paused)
+  const selectedLogged = countable.reduce(
+    (n, d) => n + d.slots.filter((s) => s.log != null).length,
+    0,
+  )
+  const dayDots: DayDot[] = countable.flatMap((d) =>
+    d.slots.map((s) => ({
+      id: `${d.id}#${s.slot}`,
+      category: d.category,
+      logged: s.log != null,
+    })),
+  )
+  /**
+   * What is paused on the selected day, collapsed for display.
+   *
+   * Two things this deliberately does, both of which the naive version got
+   * wrong:
+   *
+   *  - **Archived compounds are excluded.** A soft-deleted compound keeps its
+   *    pause rows, so counting them would inflate the number with things the
+   *    user has already removed.
+   *  - **A fully paused stack collapses to ONE entry**, rather than listing five
+   *    members that all say the same thing. A partly paused stack does not — its
+   *    paused members are genuinely separate from its running ones.
+   */
+  const dueIds = new Set(dueDoses.map((d) => d.id))
+  const pausedEntries: PausedEntry[] = stack
+    .filter(
+      (c) =>
+        !c.archived &&
+        // Not already on screen above. A compound with a log on a backdated
+        // pause's day stays in the day's list (showing what was taken), and
+        // listing it down here as well rendered it twice.
+        !dueIds.has(c.id) &&
+        // A paused STACK MEMBER stays in its stack, blacked out, rather than
+        // moving down here (Adrian, 2026-08-07) — its stack should keep showing
+        // everything it contains. Only loose compounds move.
+        !stackMemberIds.has(c.id) &&
+        activePause(c.pauses, selectedKey) !== null,
+    )
+    .map((c) => ({
+      compound: c,
+      label: c.name,
+      count: 1,
+      resumesOn: resumesOn(c.pauses, selectedKey),
+      resumeLabel:
+        resumeLabel(c.pauses, selectedKey, formatDateKeyShort) ?? "Indefinite",
+    }))
+
   // The soonest UNLOGGED dose on the selected day, through the SHARED resolver.
   // A local sort here got this wrong: `timeOfDay` may legitimately be `""`, which
   // string-compares below every real time, so an untimed compound sorted FIRST and
@@ -570,9 +666,10 @@ export function HomeScreen({
     compoundId: string,
     log: DoseLog,
     landsOn: string,
-    openedOn: string
+    openedOn: string,
+    slot = 0
   ) {
-    commitDoseOn(userId, compoundId, log, landsOn, openedOn)
+    commitDoseOn(userId, compoundId, log, landsOn, openedOn, slot)
     // Follow the dose to its new day — but only AFTER the sheet has closed. The
     // sheet freezes the day it opened on for exactly this reason: moving the
     // selection while it is open used to remount it, wiping the success tick and
@@ -592,8 +689,8 @@ export function HomeScreen({
    * midnight was enough to make Remove delete the NEXT day's dose and tombstone
    * it, while the one on screen survived.
    */
-  function handleRemove(compoundId: string, dateKey: string) {
-    unlogDose(userId, dateKey, compoundId)
+  function handleRemove(compoundId: string, dateKey: string, slot = 0) {
+    unlogDose(userId, dateKey, compoundId, slot)
   }
 
   return (
@@ -693,11 +790,11 @@ export function HomeScreen({
               title={cycleTitle}
               dueDoses={dueDoses}
               startsNext={startsNext}
-              onLog={(dose) =>
-                setLogTarget({ compound: dose, existing: null })
+              onLog={(dose, slot) =>
+                setLogTarget({ compound: dose, existing: null, slot })
               }
               /* From the ROW, so the day is the one the row is rendered for. */
-              onUnlog={(dose) => handleRemove(dose.id, selectedKey)}
+              onUnlog={(dose, slot) => handleRemove(dose.id, selectedKey, slot)}
               onOpenDetail={(dose) => setDetailTarget(dose)}
               drawSources={drawResult.sources}
               noVialIds={noVialIds}
@@ -710,6 +807,8 @@ export function HomeScreen({
               // Grouping is dated, so the card has to know WHICH day it is
               // drawing — a stack made today never reaches back over history.
               dayKey={selectedKey}
+              paused={pausedEntries}
+              onOpenPaused={(entry) => setPauseTarget(entry.compound)}
               stacks={stacks}
               // One tap logs every unlogged member. Each still writes its OWN
               // dose log through the same path a single tick uses, to the
@@ -724,15 +823,39 @@ export function HomeScreen({
                 // the same rule the single-dose log sheet uses.
                 const time24 = selectedKey === todayKey ? hhmmNow() : ""
                 for (const m of members) {
-                  logDose(userId, selectedKey, m.id, {
-                    amount: String(m.dose),
-                    unit: m.unit,
-                    time24: time24 || m.schedule.timeOfDay,
-                    // No site: a stack tick has no body map, and inventing one
-                    // would corrupt the rotation view. Members needing a site are
-                    // ticked individually, where the map is offered.
-                    siteId: null,
-                  })
+                  // One tap logs the NEXT unlogged dose of each member, not
+                  // always its first. Without this, tapping a twice-daily
+                  // member's stack in the evening overwrote the morning dose it
+                  // had already recorded. A member already complete for the day
+                  // returns null and is skipped rather than duplicated.
+                  const resolved = resolveScheduleOn(m, selectedKey)
+                  const slot = nextUnloggedSlot(
+                    selectedRows,
+                    m.id,
+                    timesPerDayOf(resolved.schedule),
+                  )
+                  if (slot == null) continue
+                  // THIS SLOT's planned amount, which is not always the
+                  // compound's — an evening dose may be half the morning one
+                  // (`supabase/protocol/021`).
+                  const planned =
+                    doseAmountsOf(resolved.schedule, resolved.dose)[slot] ?? m.dose
+                  logDose(
+                    userId,
+                    selectedKey,
+                    m.id,
+                    {
+                      amount: String(planned),
+                      unit: m.unit,
+                      time24:
+                        time24 || doseTimesOf(resolved.schedule)[slot] || "",
+                      // No site: a stack tick has no body map, and inventing one
+                      // would corrupt the rotation view. Members needing a site are
+                      // ticked individually, where the map is offered.
+                      siteId: null,
+                    },
+                    slot,
+                  )
                 }
               }}
             />
@@ -749,7 +872,14 @@ export function HomeScreen({
             // rather than always saying "Today".
             title={isToday ? "Today" : WEEKDAYS[selectedDate.getDay()]}
             logged={selectedLogged}
-            due={dueDoses.length}
+            // DOSES, not compounds. `dueDoses.length` counted compounds while
+            // `logged` and `dots` counted doses, so a twice-daily compound with
+            // its morning dose ticked read "1 of 1" at 100% while the row below
+            // it correctly said "1 of 2" — and a stack with a paused member
+            // could never reach 100% at all. `dayDots` is built from exactly the
+            // set `logged` is counted over, so using its length makes the three
+            // agree by construction.
+            due={dayDots.length}
             dots={dayDots}
             next={nextDoseInfo}
             paused={logTarget !== null}
@@ -811,6 +941,7 @@ export function HomeScreen({
         open={logTarget !== null}
         compound={logTarget?.compound ?? null}
         existing={logTarget?.existing ?? null}
+        slot={logTarget?.slot ?? 0}
         // The dose lands on the day the strip is parked on, not necessarily today —
         // `handleTracked` already writes to `selectedKey`, and the sheet needs the
         // same day to default the time and name it back to the user.
@@ -831,7 +962,11 @@ export function HomeScreen({
         }}
         onTracked={handleTracked}
         onRemove={handleRemove}
-        hasLogOn={(day) => Boolean(logs[day]?.[logTarget?.compound.id ?? ""])}
+        hasLogOn={(day) =>
+          Boolean(
+            logs[day]?.[slotKey(logTarget?.compound.id ?? "", logTarget?.slot ?? 0)]
+          )
+        }
       />
 
       {/* Tap a compound → its detail; Edit there opens the add sheet pre-filled.
@@ -841,6 +976,7 @@ export function HomeScreen({
         open={detailTarget !== null}
         compound={detailTarget}
         isToday={isToday}
+        dateKey={selectedKey}
         onOpenChange={(open) => {
           if (!open) setDetailTarget(null)
         }}
@@ -851,7 +987,77 @@ export function HomeScreen({
           setLogTarget({
             compound: c,
             existing: selectedRows[c.id] ?? null,
+            // Slot 0 — "Edit today's dose" means the day's FIRST dose. A
+            // multi-dose compound's later doses are edited from their own
+            // sub-rows, where it is unambiguous which one is meant.
+            slot: 0,
           })
+        }}
+        onPause={(c) => {
+          setDetailTarget(null)
+          setPauseTarget(c)
+        }}
+        // The container's REAL fill, from the same `v_inventory_math` figures
+        // the Protocol storage card reads (Spec w2b-13, Step 7). Undefined when
+        // this compound has no vial resolved, and the artwork then falls back to
+        // the illustrative level rather than drawing an empty container.
+        stock={(() => {
+          const src = detailTarget
+            ? drawResult.sources[detailTarget.id]
+            : undefined
+          if (!src) return undefined
+          const fill =
+            src.remainingBase != null && src.totalBase
+              ? Math.max(0, Math.min(1, src.remainingBase / src.totalBase))
+              : null
+          return {
+            fill,
+            remaining: src.remainingDisplay,
+            unit: src.inventoryType === "oral_solid" ? src.oralForm : null,
+            // A DrawSource only exists where a vial resolved, so reaching here
+            // is itself the proof.
+            exists: true,
+          }
+        })()}
+        onAddStock={(c) => {
+          setDetailTarget(null)
+          router.push(`/protocol?stock=${encodeURIComponent(c.id)}`)
+        }}
+        // SKIP — a record, not an absence. It writes a log with
+        // `status: "skipped"`, so the day reads as dealt with rather than as a
+        // dose forgotten, and stock does not move (`v_inventory_math`'s consumed
+        // CTE has always filtered on `taken`).
+        // What is on the day already, so the primary button can say "Log" or
+        // "Edit" rather than both.
+        todaysLog={detailTarget ? (selectedRows[detailTarget.id] ?? null) : null}
+        onSkip={(c) => {
+          const resolved = resolveScheduleOn(c, selectedKey)
+          const slot = nextUnloggedSlot(
+            selectedRows,
+            c.id,
+            timesPerDayOf(resolved.schedule),
+          )
+          // ⚠️ NULL means every dose of the day is already recorded. Falling
+          // back to slot 0 here OVERWROTE a dose the user had taken — losing its
+          // real amount, its real time and its injection site, with no
+          // confirmation and no undo. Nothing to skip is not the same as skip
+          // the first one.
+          if (slot == null) return
+          logDose(
+            userId,
+            selectedKey,
+            c.id,
+            {
+              amount: String(
+                doseAmountsOf(resolved.schedule, resolved.dose)[slot] ?? c.dose,
+              ),
+              unit: c.unit,
+              time24: selectedKey === todayKey ? hhmmNow() : "",
+              siteId: null,
+              status: "skipped",
+            },
+            slot,
+          )
         }}
         onEdit={(c) => {
           setDetailTarget(null)
@@ -874,6 +1080,53 @@ export function HomeScreen({
       />
 
       {/* Injection-site menu — choose your sites / see where you last pinned. */}
+      {/* Pause — the second and last lifecycle verb. A stack's members come
+          along so "pause the whole stack" can list them; one action writes N
+          pauses sharing a group id, which is what lets Resume restore only what
+          it paused. */}
+      <PauseSheet
+        open={pauseTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setPauseTarget(null)
+        }}
+        compound={pauseTarget}
+        todayKey={todayKey}
+        // The day being VIEWED. `pausedEntries` is derived against it, so the
+        // sheet has to judge "already paused" against the same day or tapping a
+        // paused row on a past day opens a blank new-pause form.
+        referenceKey={selectedKey}
+        stackMembers={
+          pauseTarget
+            ? (
+                stacks
+                  .map((st) => memberIdsOn(st, selectedKey))
+                  .find((ids) => ids.includes(pauseTarget.id)) ?? []
+              )
+                .filter((id) => id !== pauseTarget.id)
+                .map((id) => stack.find((c) => c.id === id))
+                .filter((c): c is StackCompound => c !== undefined)
+            : []
+        }
+        onPause={(ids, range) => {
+          if (ids.length === 1) {
+            pauseCompound(userId, ids[0], { id: newId(), ...range })
+          } else {
+            // One group id for the whole action, so resuming the stack later
+            // restores exactly these and leaves a separately-paused member be.
+            pauseCompounds(userId, ids, range, newId(), newId)
+          }
+          notifyStackChanged()
+        }}
+        onResume={(c, on) => {
+          const active = activePause(c.pauses, on)
+          // A group pause resumes as a GROUP, or the other members would stay
+          // paused with no obvious way back.
+          if (active?.groupId) resumePauseGroup(userId, active.groupId, on)
+          else resumeCompound(userId, c.id, on)
+          notifyStackChanged()
+        }}
+      />
+
       <InjectionSitesSheet
         open={sitesOpen}
         onOpenChange={setSitesOpen}

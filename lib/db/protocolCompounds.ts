@@ -24,10 +24,38 @@ function isUndefinedColumn(error: { code?: string } | null): boolean {
   return error?.code === "42703" || error?.code === "PGRST204"
 }
 
-/** The same row without its cycle columns, for the pre-006 retry. */
-function stripCycleColumns<T extends ProtocolCompoundInsert>(row: T): T {
+/**
+ * The same row without any column a pending migration may not have added yet —
+ * the seven cycle columns (006), `inventory_form` (023) and `slot_doses` (021).
+ *
+ * ONE strip for all of them, deliberately. `isUndefinedColumn` cannot tell us
+ * WHICH column PostgREST objected to, so a retry that dropped only the cycle
+ * columns would fail again in exactly the same way on a database missing 013,
+ * and the write would be lost. Dropping every optional column at once costs a
+ * cycle rule that the device store still holds and re-pushes; keeping them
+ * separate would cost the whole row.
+ */
+function stripPendingColumns<T extends ProtocolCompoundInsert>(row: T): T {
   const out: T = { ...row }
   for (const key of CYCLE_COLUMNS) delete out[key]
+  delete out.inventory_form
+  delete out.slot_doses
+  return out
+}
+
+/**
+ * The LIGHTER strip: only the newest columns (013's `inventory_form`, 021's
+ * `slot_doses`), keeping the cycle.
+ *
+ * Tried FIRST, because the cycle columns have been applied since 006 and the
+ * other two may not be — so the common failure is one of the new ones, and
+ * dropping the cycle to fix it threw away a rule the user had set. Only if this
+ * still fails does the full strip run.
+ */
+function stripNewestColumns<T extends ProtocolCompoundInsert>(row: T): T {
+  const out: T = { ...row }
+  delete out.inventory_form
+  delete out.slot_doses
   return out
 }
 
@@ -83,14 +111,30 @@ export async function upsertProtocolCompound(
       .select("*")
       .single()
     if (error) {
-      // The 006 cycle columns may not exist yet. Retry without them rather than
-      // losing the whole write — the device store keeps the cycle meanwhile, so
-      // no intent is lost, and the columns start persisting once 006 is applied.
+      // The 006 cycle columns or 023's inventory_form may not exist yet. Retry
+      // without them rather than losing the whole write — the device store keeps
+      // both meanwhile, so no intent is lost, and they start persisting once the
+      // migration is applied.
       if (isUndefinedColumn(error)) {
+        // TIER 2: drop only the newest columns, keeping the cycle.
+        const lighter = await ctx.supabase
+          .from("protocol_compounds")
+          .upsert(
+            { ...stripNewestColumns(row), user_id: ctx.userId },
+            { onConflict: "id" }
+          )
+          .select("*")
+          .single()
+        if (!lighter.error) return lighter.data as ProtocolCompound
+        if (!isUndefinedColumn(lighter.error)) {
+          console.error("upsertProtocolCompound failed", lighter.error)
+          return null
+        }
+        // TIER 3: a database without 006 either. Now the cycle goes too.
         const { data: retry, error: retryError } = await ctx.supabase
           .from("protocol_compounds")
           .upsert(
-            { ...stripCycleColumns(row), user_id: ctx.userId },
+            { ...stripPendingColumns(row), user_id: ctx.userId },
             { onConflict: "id" }
           )
           .select("*")
@@ -136,13 +180,13 @@ export async function upsertProtocolCompounds(
       let { error } = await ctx.supabase
         .from("protocol_compounds")
         .upsert(chunk, { onConflict: "id" })
-      // Same pre-006 retry as the single upsert. Without it the one-time
+      // Same pending-column retry as the single upsert. Without it the one-time
       // device→Postgres backfill fails on every login until the migration lands,
       // and `migrateDeviceState` never marks itself complete.
       if (error && isUndefinedColumn(error)) {
         ;({ error } = await ctx.supabase
           .from("protocol_compounds")
-          .upsert(chunk.map(stripCycleColumns), { onConflict: "id" }))
+          .upsert(chunk.map((r) => stripPendingColumns(r)), { onConflict: "id" }))
       }
       if (error) {
         console.error("upsertProtocolCompounds failed", error)

@@ -18,14 +18,29 @@ export function deterministicUuid(seed: string): string {
 }
 
 /**
- * The `dose_logs.id` a (user, local day, compound) triple produces.
+ * The `dose_logs.id` a (user, local day, compound, slot) tuple produces.
  *
  * The day is part of the identity, which is what makes a dose idempotent to
  * re-push — and also what makes a re-derived day mint a SECOND row rather than
  * update the first. {@link recoverLoggedDay} is the other half of that bargain.
+ *
+ * **Slot 0 seeds EXACTLY as it did before the argument existed**, and that is
+ * load-bearing rather than tidy: every row ever written is slot 0, and a changed
+ * seed would give all of them new ids, so the next push would insert duplicates
+ * beside the originals instead of updating them. No backfill is needed precisely
+ * because the default reproduces the old string byte for byte.
  */
-export function doseLogRowId(userId: string, dateKey: string, pcId: string): string {
-  return deterministicUuid(`dl:${userId}:${dateKey}:${pcId}`)
+export function doseLogRowId(
+  userId: string,
+  dateKey: string,
+  pcId: string,
+  slot = 0,
+): string {
+  const seed =
+    slot === 0
+      ? `dl:${userId}:${dateKey}:${pcId}`
+      : `dl:${userId}:${dateKey}:${pcId}:${slot}`
+  return deterministicUuid(seed)
 }
 
 /** `YYYY-MM-DD` `n` days from `key`, counted in UTC so no local offset applies. */

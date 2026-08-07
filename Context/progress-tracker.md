@@ -5,7 +5,78 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-07-31 (evening session)
+Last updated: 2026-08-07 (Spec w2b-13 — compound controls, all 8 steps)
+
+## Spec w2b-13 — compound controls (BUILT, 2026-08-07)
+
+All eight steps on `wave3/onboarding-flow`. tsc, eslint, **646 tests**, `next
+build` green. **Ten migrations, `023`–`022`, applied by Adrian by hand.**
+
+| Step | What it is |
+|---|---|
+| 1 | `protocol_compounds.inventory_form` — the form is a FACT, not re-derived from name + route each render |
+| 2 | `bulk_powder` as a fourth form; an oral's strength in mg OR iu, and optional |
+| 3 | Real fill for tubs and bottles, from the same `remaining_base / total_base` the vial uses |
+| 4 | The powder stock form; the sheet opens on the compound's OWN form |
+| 5 | Multi-dose days (`slot_index`) + per-slot amounts |
+| 6 | Pause — an interval table, invisible to adherence |
+| 7 | The detail sheet rebuilt: one filled button, four rows, no `More` |
+| 8 | One-off logs — something taken once, off-plan |
+
+### The decisions that are load-bearing
+
+- **`023` REPLACED the unapplied `013_compound_form_override.sql`.** That file
+  overrode the container PICTURE; this stores what the picture is derived from,
+  so it fixes the picture, the stock form and the depletion maths at once.
+- **Slot 0 is UNSUFFIXED** — its store key is the bare compound id and its row id
+  seeds with the pre-slot string byte for byte. That is the entire reason Step 5
+  needed no backfill. Both halves must agree; changing one orphans every log.
+- **A one-off references the CATALOGUE, never a protocol row.** That is what lets
+  it appear in history (calendar, block look-back) while counting toward nothing:
+  consistency, the runway, stock and the picker all read
+  `protocol_compounds`/`dose_logs`, so it is excluded by ABSENCE rather than by
+  four filters. Adrian's call over the spec's "references nothing".
+- **Per-slot amounts were scope the spec DEFERRED**, added on Adrian's call
+  (`supabase/protocol/021`). Do not reinstate the restriction on the strength of
+  the spec's Out of Scope paragraph.
+- **A pause changes what was DUE; a skip does not.** So a paused day never
+  reaches the consistency calculation, and a skipped dose counts as
+  due-and-not-taken. A skip is still NOT nagged about — those are different
+  questions. (Adrian, 2026-08-07.)
+- **The cadence RE-ANCHORS to the resume day** after a pause (Adrian's call,
+  overturning the first build). The trade: a pause shifts every future dose date,
+  and two pauses drift the calendar further each time.
+- **Spec Step 7.7 was REVERTED** — tapping a compound row opens the sheet, it
+  does not log. The tick is still the only thing that logs.
+
+### The cold review, 2026-08-07
+
+Four agents ran adversarially over the SQL, the pause/slot logic, the sync layer
+and the React before any migration was pasted. **None of the ~25 defects they
+found were caught by tsc, eslint or the 633 tests then passing** — every one
+lived at a boundary. Worth repeating on the next spec of this size.
+
+The two that mattered most:
+
+- **`018` reproduced the exact shape `009_ownership_hardening` exists to close** —
+  a single-column FK plus an unscoped unique index, letting any authenticated
+  user squat a victim's pause slot permanently. Now a composite FK.
+- **`022` was MISSING and required.** `005` caps `dose_times` at exactly one
+  element, so every multi-dose schedule version Step 5 makes possible was being
+  rejected `23514` with no retry.
+
+Plus four silent data-loss paths (slot-blind dose-log pull, slot-blind re-push,
+hydration replacing the one-off and pause stores wholesale, Skip overwriting a
+taken dose). Detail in the commit `3291e6f`.
+
+### Known gap, deliberately left
+
+A user who explicitly states `oral_solid` for a gram-dosed supplement still gets
+a TUB. Not fixable in `containerFormFor` — `inventoryTypeForCompound` returns the
+same string whether the form was stored or derived — and forcing it would
+silently reclassify every off-catalogue supplement. `014` retyped all 13
+catalogue powders, so only a deliberate override lands there. Reason is written
+into `lib/containers/form.ts`.
 
 ## Current state (2026-07-23)
 
@@ -559,8 +630,214 @@ no page errors, no horizontal overflow. Gates: tsc clean, eslint clean, **458
 tests** on the onboarding branch and **421** on the fixes branch, `next build`
 green on both.
 
+## Onboarding, second and third passes (2026-08-01)
+
+Branch `wave3/onboarding-flow`, pushed, NOT merged. `main` carries the wave3
+review fixes and the calculator unpin and is otherwise untouched.
+
+**The flow is fourteen steps and the demo is one of them.** It used to be four
+routes; walking between pages broke the illusion the demo exists to create, so
+logging a dose now ticks the card, recedes it and floats the stock card in
+underneath on the same surface. Three beats with a deliberate hold, because
+rushing it read as a page swap rather than a consequence.
+
+**The surface treatment is the thing Adrian reacted to most.** `.flow-canvas`
+lights the top of the page, `.flow-card` gives every card a 5%-white top edge
+and a soft shadow, and screens slide in directionally. All token-derived via
+`color-mix`. Documented in `ui-context.md` and scoped to `/onboarding`; the
+app-wide roll-out is a separate spec (see `next-tasks.md`).
+
+**The paywall is a carousel of the real app.** Four actual captures of
+`/preview/home|protocol|recon|progress` inside one phone that never moves,
+cross-fading on a 1.1s eased fade, with four labels orbiting each and a caption
+above. The capture script strips the name from the greeting, because the
+screenshot is shown to strangers.
+
+**Kyle is in**, thumbs-up on celebrate and flexing on welcome, feathered rather
+than matted.
+
+**Three `ui-context.md` amendments, all Adrian's call:** a selected onboarding
+chip may be amber (third sanctioned many-amber surface, same argument as the
+switch rule); exclamation marks are allowed in exactly two onboarding strings
+and nowhere in the app; and the surface treatment is written down.
+
+Gates on the branch: tsc clean, eslint clean, **487 tests**, build green.
+Driven at 360/390/430 across every step: no console errors, no page errors, no
+horizontal overflow, and the demo still leaves nothing behind but
+`trackd.onboarding.v1`.
+
+Two bugs found by measuring rather than looking: the directional entrance
+created a real 408px horizontal scroll area on a 390 phone for the length of
+the animation (clipped), and "5 days on us" rendered as "5days" because JSX
+drops whitespace between an expression and text across a line break.
+
+## Onboarding review pass 2 (2026-08-01) — Adrian's screen-by-screen notes
+
+He walked the flow and dictated changes for almost every screen. All built,
+all verified by execution at 360 / 390 / 430 (no console errors, no page
+errors, no horizontal overflow). tsc / eslint / **496 tests** / `next build`
+green.
+
+- **The hook names no compound at all now.** Genericised on his instruction. The
+  screen loses nothing, because its argument was never the substances: it is
+  "you do not know how much is left, and you are not sure when you last did it".
+  Every Notes-app line is about UNCERTAINTY and the Trackd rows use the demo's
+  own generic labels. **Note the reasoning, because the age gate is not the
+  operative line** — see Open Questions.
+- **Two floating cards** off the phone's corners, on the side each describes:
+  Trackd top-right with three ticks, Notes app bottom-left with three crosses.
+  The in-panel eyebrows they duplicate were removed.
+- **The progress rail is centred**, 144x6 (was 64x3, railed right). Absolutely
+  positioned so the back arrow's presence cannot shift it between screens.
+- **"What's the plan?" is back to "What are you running?"** — his call,
+  reversing his own earlier one. "What's the plan" reads as though the app is
+  about to give you one.
+- **"Converting a dose into syringe units" is gone** from the struggle list, and
+  its tag is removed from `StruggleTag` (a stored session carrying it is dropped
+  on read, so no migration).
+- **The celebrate answers name features rather than feelings** ("Full stock
+  tracking, counted for you", not "What's left, without counting"), and the list
+  **always ends on "And plenty more."**, muted and unticked. "Something else" now
+  carries no line of its own, because it names no feature.
+- **The demo's day-count chips moved OUTSIDE the body** into the gutters, with a
+  hairline reaching back, and say only the day count. The seeded history moved
+  to 2 / 4 / 6 days: the old 9 and 11 sat outside the 7-day IM decay window, so
+  `siteHeat` returned zero and one chip pointed at a completely invisible region
+  on the screen whose whole claim is "see which sites have rested".
+- **Tapping a site now carries the stage on by itself**, like the vial running
+  dry does on the stage before. His note was that with a body map filling the
+  screen he would not have known when to press Next. The back handler cancels
+  the pending timer, or stepping back would be dragged forward again.
+- **The look-back's cards are the app's cards**: Running uses
+  `PhotoRunningList`'s row treatment (container, name, right-railed mono),
+  Weight has a WORKING Trend/Scale toggle with the real crossfade, and Schedule
+  adopts `ScheduleGrid`'s day initials and mark treatment.
+- **Payoff and cost headlines carry one emphasised span** ("the more you see",
+  "the cheap part") in Medium italic — a new, documented, headline-only
+  treatment. Cost copy is his wording; the tall bar climbs over 2.6s with money
+  falling off it as it goes, and the Trackd bar sheds exactly two AMBER dollars.
+- **The paywall gained three ticks** and the caption/dots got the space he
+  asked for. That pushed the trial CTA **21px below the fold at all three
+  widths**, measured, so the hero ring came down from 15rem to 13.5rem. This
+  screen's budget is fixed: anything added below the ring comes out of the ring.
+- **The Android install path now falls back to instructions** when the OS dialog
+  does not end in an install, instead of leaving the user on a button that
+  already did nothing. `install_prompt_failed` is its own event.
+- **Attribution**: "A mate" is "A friend", the catch-all is "Someone else" and
+  unfolds a typed field. ~~`supabase/onboarding/001` is written and NOT applied.~~
+  **It IS applied — verified live 2026-08-07** against the Data API. It was
+  applied by hand and neither this line nor the file's own header was updated.
+
+**The two tricep regions are fixed, and the fix reaches the real site picker.**
+Measured rather than guessed: swept all 42 regions across both bodies and both
+views, found exactly two unreachable at their visual centre (the triceps, both
+sexes), and fixed them with a scoped transparent stroke. The first attempt used
+a blanket halo and **broke four regions to fix two** — the quad-front region
+swallowed the narrow quad-out and ventroglute centres beside it. Now 42/42
+reachable. See `architecture.md` → Injection Sites.
+
+**Safari's URL bar was overlapping the CTA** (his report). The flow was sized in
+`dvh`, which tracks the CURRENT chrome state and therefore moves the footer as
+the bar collapses and returns. It is now `svh` (the smallest viewport, i.e. bar
+showing) via one `.flow-viewport` rule, with a `100vh` fallback and
+`overscroll-behavior-y: contain`. **Reasoned and applied, NOT verified on a real
+iPhone** — desktop Chrome cannot reproduce the toolbar behaviour.
+
+## Repo cleanup (2026-08-07)
+
+A full sweep of the working tree. Gates after: `tsc` clean, `eslint` clean,
+**526 tests pass**. `next build` NOT re-run — a dev server was up, and this
+project's rule is never to build against a live `next dev` (they share `.next`).
+Every deletion was a file with **zero importers**, so build risk is nil.
+
+- **Four orphaned components deleted** (552 lines): `components/ui/card.tsx`,
+  `ui/dialog.tsx`, `ui/tabs.tsx` (shadcn scaffolding the app never adopted — it
+  uses its own `ui-context.md` surfaces) and `components/pwa/install-prompt.tsx`
+  (superseded by `InstallHomeScreenPopup` + `usePwaInstall`). All four were
+  verified unreferenced by symbol, not just by filename.
+- **100 `condensed_GLBX-*.csv` untracked** (7.0 MB). They were committed BEFORE
+  the `.gitignore` rule was added, and gitignore does not untrack — so the rule
+  had been silently doing nothing. **They are a friend's trading-bot data, not
+  Trackd's**, and were MOVED, not deleted, to
+  `~/Documents/GitHub/glbx-trading-data/`. They also remain in this repo's git
+  history at the pre-cleanup commits.
+- **Junk removed:** `.next 2/` (an empty iCloud-duplicated build dir),
+  `public/images/` (held nothing but a `.DS_Store`), and 9 stray `.DS_Store`s.
+- **`scripts/gen-female-body-art.py` had a broken path** — it read
+  `Context/Feature Specs/body-svg/female`, missing the `svgs/` segment, so it
+  would have failed the moment Angus redrew the female artwork. Fixed and the
+  path verified to resolve. This is the only behavioural fix in the sweep.
+
+**`Context/Feature Specs/` flattened to ONE folder (2026-08-07).** `Wave 1 - Beta/`,
+`wave 2 - refinement/part one|two/` and `proposals/` are gone; 43 specs now sit at
+the root with `00-INDEX.md` over them. **The flattening REPAIRED references rather
+than breaking them** — ~15 SQL migrations and source comments already cited flat
+paths (`Context/Feature Specs/08-Home-page-fixes-v1.md`, `.../15`, `.../16`,
+`.../17`), because the specs were flat first and the wave folders came later and
+silently orphaned every one. Wave 1 keeps its bare numbers for exactly that
+reason; Wave 2 takes `w2a-`/`w2b-` because both waves number from 01. Four
+malformed filenames fixed on the way through (a trailing space, two missing
+`.md`, one `md` missing its dot), and `18-SPEC_INDEX.md` became
+`18-build-order-snapshot-2026-07-02.md` — it was never an index, it is a stale
+July plan on its own conflicting numbering where "02" means the file numbered 15.
+`svgs/` is NOT archive: `scripts/gen-female-body-art.py` reads `svgs/body-svg/female/`.
+
+**Schema verified against prod, not against these docs (2026-08-07).** Probed the
+live Data API read-only with the service key, one request per migration. **Every
+migration on disk is applied except `protocol/013`, which was never written.**
+Two doc corrections came out of it:
+
+- **`onboarding/001` (signup attribution) IS applied.** Both this file and the
+  migration's own header said otherwise. Hand-applied migrations never appear in
+  `list_migrations`, so a file's comment is its only status record — and that is
+  precisely why it rotted. Trust the schema, not the comment.
+- **`profiles.welcome_seen` is correctly absent**, which confirms `profile/005`
+  (the drop) ran.
+
+**How to re-run this check** — no MCP needed, and it is strictly read-only
+(`limit=0` returns no rows). One `curl` per table against the Data API:
+
+```sh
+set -a; source .env.local; set +a
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "apikey: $SUPABASE_SECRET_KEY" -H "Authorization: Bearer $SUPABASE_SECRET_KEY" \
+  "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/<table>?select=<column>&limit=0"
+# 200 = applied · 400 = column missing · 404 = table missing
+```
+
+**Use the SERVICE key for existence checks and read the migration for the real
+identifiers first** — a wrong column guess returns the same 400 as a missing
+one, which produced six false alarms on the first pass here. Note the service
+key bypasses grants, so this proves the object exists, NOT that the Data API can
+reach it; an `anon`-key 42501 is the EXPECTED answer for every `authenticated`
+table and is not evidence of a missing grant.
+
+**A naming collision worth knowing about:** `supabase/markers/` holds TWO `001`
+migrations — `001_custom_marker_polarity.sql` and `001_rename_cycle_changes.sql`.
+Both are applied, so they were NOT renumbered (renaming an applied migration
+buys confusion, not clarity). Every other folder numbers cleanly.
+
 ## Open Questions
 
+- **Naming compounds in marketing copy — the age gate is not the operative
+  line.** Adrian asked whether real compound names before the age gate are a
+  legal problem. The honest answer, and it is not legal advice: an age gate is a
+  PRODUCT control, and it is not what makes naming a prescription-only substance
+  in promotional material acceptable. Under the Therapeutic Goods Act,
+  restrictions on advertising prescription-only (S4) and controlled (S8)
+  substances to the public apply to the advertisement, not to the age of who
+  sees it. So the question is not "before or after the gate", it is "is this
+  surface promotional". The hook is, and has been genericised. **Two things
+  follow and both are Adrian's:** the same reasoning applies to the existing
+  website, which he says already names compounds; and it arguably reaches the
+  demo screen too, though a tool demonstration shown to a gated, self-identified
+  adult is materially weaker exposure than a public landing screen. Worth twenty
+  minutes of an actual Australian regulatory lawyer before launch, because the
+  penalties here are real.
+- **Reading signup attribution back** — service-role aggregate (narrows
+  `adminMetrics.ts`'s "never return a row" rule) versus a founder-only SELECT
+  policy (a third hardcoded copy of the founder emails). Spelled out at the foot
+  of `supabase/onboarding/001`.
 - ~~**Schedule versioning — migration awaiting Adrian.**~~ **RESOLVED 2026-07-29.**
   `supabase/protocol/005` is applied, so schedule versions (and the Spec 02 delete
   `stopped` markers) now persist server-side instead of living only on the device
@@ -619,7 +896,7 @@ before its start date), but `Stack` carried **no date at all**, so
 dashboard was showing.
 
 - `Stack.effectiveFrom` + per-membership `from`/`to` spans (`to` EXCLUSIVE);
-  `supabase/protocol/013_stack_dating.sql` mirrors both.
+  `supabase/protocol/023_stack_dating.sql` mirrors both.
 - The one-stack-per-compound unique index is now **partial** (`WHERE effective_to
   IS NULL`) — the rule is about the present, and a closed span must not hold the
   slot or a compound could never move between stacks. The composite PK on
@@ -630,7 +907,7 @@ dashboard was showing.
   the server's real `created_at`-derived date instead.
 - **Eight review rounds, fifteen cold agents, and every round but the last found a
   defect introduced by the previous round's fix.** Round 1: 1 CRITICAL + 4 HIGH
-  (below). Round 2: a new CRITICAL created BY the round-1 fix — the pre-013 write
+  (below). Round 2: a new CRITICAL created BY the round-1 fix — the pre-023 write
   retry sent every span as its own row, which the old key rejects — plus a
   `provisionalStart` flag that was written and never read. Round 3: a clamp
   written `<=` where it needed `<`, which broke the ordinary same-day move while
@@ -647,7 +924,7 @@ dashboard was showing.
   all, so the merge re-adopted the server's stale span; then the departure record
   that fixed it collided with a same-day re-join in the dedupe key). Round 8
   returned GO: 37 mutants and ~3,400 fuzzed operations through the real write
-  paths — offline, online, pre-013 and post-013 — lost no span, stack or day of
+  paths — offline, online, pre-023 and post-013 — lost no span, stack or day of
   grouping. Every guard the rounds added is now pinned by a test that was checked
   by reverting the fix and watching it fail. The round-1 findings were: no missing-COLUMN tolerance in `stackSync.ts` (the un-migrated state
   broke every push and pull); `pushStacks` wiped membership before knowing it

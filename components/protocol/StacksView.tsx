@@ -147,7 +147,7 @@ export function StacksView({
                 .filter((c): c is StackCompound => Boolean(c))
             : []
         }
-        inventoryTypeOf={(c) => inventoryTypeForCompound(c.name, c.method)}
+        inventoryTypeOf={(c) => inventoryTypeForCompound(c.name, c.method, c.inventoryForm)}
         onEdit={() => {
           setEditing(viewing)
           setViewing(null)
@@ -250,7 +250,7 @@ function StackCard({
           <Container
             key={m.id}
             name={m.name}
-            inventoryType={inventoryTypeForCompound(m.name, m.method)}
+            inventoryType={inventoryTypeForCompound(m.name, m.method, m.inventoryForm)}
             category={m.category}
             stackColour={colour}
             fill={0.7}

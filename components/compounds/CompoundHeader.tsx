@@ -27,6 +27,7 @@ export function CompoundHeader({
    *  the unit — the log sheet uses it for the scheduled time. */
   detail,
   size = 52,
+  inventoryForm,
 }: {
   name: string
   category: string
@@ -34,13 +35,17 @@ export function CompoundHeader({
   unit: string
   detail?: string
   size?: number
+  /** The compound's stated form, when the caller has one (`inventory_form`,
+   *  `supabase/protocol/023`). Omitted, the container falls back to deriving the
+   *  form from name + route, which is what every caller did before it existed. */
+  inventoryForm?: string | null
 }) {
   const meta = CATEGORY_META[category as CompoundCategory] ?? FALLBACK_CATEGORY_META
   return (
     <div className="flex items-center gap-4">
       <Container
         name={name}
-        inventoryType={inventoryTypeForCompound(name, method)}
+        inventoryType={inventoryTypeForCompound(name, method, inventoryForm)}
         category={category}
         fill={0.7}
         size={size}

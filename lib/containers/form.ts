@@ -33,8 +33,66 @@ import {
   type CompoundCategory,
 } from "@/lib/compound-categories"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
+import type { InventoryType } from "@/lib/db/types"
 
 export type ContainerForm = "vial" | "bottle" | "tub"
+
+/** The four `inventory_type` values, as a type guard. Lives here because this is
+ *  the module that answers "what form is this compound", and a second copy is
+ *  exactly how the container resolvers drifted apart twice before (see
+ *  `inventoryTypeForCompound`). Anything unrecognised — a hand-edited device
+ *  record, a value from a future migration — falls through to the name+route
+ *  derivation rather than being trusted. */
+export function isInventoryForm(v: unknown): v is InventoryType {
+  return (
+    v === "reconstituted" ||
+    v === "preconcentrated" ||
+    v === "oral_solid" ||
+    v === "bulk_powder"
+  )
+}
+
+/**
+ * The compound's OWN stated form, when it has one
+ * (`protocol_compounds.inventory_form`, `supabase/protocol/023`). It wins over
+ * every derivation below, because it is the only input here that is a fact
+ * rather than an inference: the catalogue knows how a compound is usually sold,
+ * and this knows what is on the user's shelf.
+ *
+ * `bulk_powder` is the reason this exists. No route implies it — creatine is
+ * `po`, exactly like a capsule — so the powder/tablet split among supplements
+ * had to be guessed from the catalogue's dose unit (grams are scooped). That
+ * guess stays as the fallback and is right for the catalogue's 84 compounds; it
+ * cannot be right for a compound the catalogue has never seen.
+ */
+function statedForm(inventoryType?: string | null): ContainerForm | null {
+  if (inventoryType === "bulk_powder") return "tub"
+  return null
+}
+
+/**
+ * ⚠️ KNOWN GAP, deliberately left (review, 2026-08-07).
+ *
+ * A user who explicitly states `oral_solid` for a gram-dosed supplement — "my
+ * creatine is capsules" — still gets a TUB, because `isScoopedPowder` below
+ * reads the catalogue's dose unit and overrules them.
+ *
+ * It is not fixable HERE. `inventoryTypeForCompound` returns the string
+ * `"oral_solid"` whether it was stored or derived, so this function genuinely
+ * cannot tell a stated form from a guessed one. Fixing it properly means adding
+ * a `stated` flag to `ContainerFormInput` and threading it through all twelve
+ * call sites.
+ *
+ * Left because the blast radius is worse than the bug: `isScoopedPowder` returns
+ * TRUE for an unresolvable name, so every off-catalogue "make your own"
+ * supplement currently draws a tub. Making `oral_solid` mean "bottle"
+ * unconditionally would silently reclassify all of them, which is the exact
+ * reclassification that comment was written to prevent.
+ *
+ * Narrow in practice: `014` retyped every gram-dosed catalogue supplement to
+ * `bulk_powder`, so the derivation now answers correctly on its own for all 13.
+ * Only a deliberate override lands here.
+ */
 
 /**
  * Does this inventory form come in a VIAL? The single test behind both the
@@ -46,6 +104,20 @@ export type ContainerForm = "vial" | "bottle" | "tub"
  */
 export function isVialForm(inventoryType?: string | null): boolean {
   return inventoryType === "reconstituted" || inventoryType === "preconcentrated"
+}
+
+/**
+ * Can stock be recorded for this form at all? True for all four, which is the
+ * point: it used to be `isVialForm`, and that was not a claim about vials but a
+ * claim about which fields the add-compound form happened to have (Spec 03).
+ *
+ * Kept as its own named function rather than inlined as `!!form`, because the
+ * two questions are genuinely different and the codebase has already conflated
+ * them once. `isVialForm` still means "is it a vial" and is still the right test
+ * for anything about syringes, draws or reconstitution.
+ */
+export function isStockableForm(inventoryType?: string | null): boolean {
+  return isInventoryForm(inventoryType)
 }
 
 export interface ContainerFormInput {
@@ -82,6 +154,10 @@ export function containerFormFor({
   category,
   name,
 }: ContainerFormInput): ContainerForm {
+  // A stated form wins over every inference below it — see `statedForm`.
+  const stated = statedForm(inventoryType)
+  if (stated) return stated
+
   // A vial is a vial regardless of what it holds.
   if (isVialForm(inventoryType)) return "vial"
 
@@ -120,16 +196,23 @@ export function containerFormFor({
  *     that row, one tap apart. The copy is gone; `containersHaveOneSource` in
  *     `geometry.test.ts` fails the build if a sixth one appears.
  *
- * KNOWN GAP: an off-catalogue `nasal` compound resolves as injectable and draws
+ * ~~KNOWN GAP: an off-catalogue `nasal` compound resolves as injectable and draws
  * a vial, and the "Make your own" form's Inventory type answer is never read
- * back. Fixing it properly means carrying the chosen form on `StackCompound`
- * and through the Postgres mirror, so it is recorded in `next-tasks.md` rather
- * than papered over here.
+ * back.~~ **CLOSED** by `supabase/protocol/023`: the answer is stored on
+ * `protocol_compounds.inventory_form`, carried on `StackCompound.inventoryForm`,
+ * and passed here as `stored`. The derivation below is unchanged and is still
+ * what answers for every compound added before that migration — which is most of
+ * them, so do not delete it.
  */
 export function inventoryTypeForCompound(
   name: string,
   method: string,
+  /** The compound's own stated form, when it has one. Wins outright: it is the
+   *  user's answer about their own shelf, where everything below is an
+   *  inference from a catalogue. */
+  stored?: string | null,
 ): string | null {
+  if (stored) return stored
   const lower = name.trim().toLowerCase()
   const cat = COMPOUNDS.find((x) => x.name.toLowerCase() === lower)
   if (cat) {

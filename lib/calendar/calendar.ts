@@ -11,6 +11,7 @@
  * call), and the Running row lists those logged compounds.
  */
 import { toDateKey, type DateKey } from "@/lib/home/mockHomeData";
+import { parseSlotKey } from "@/lib/home/doseLog";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -65,6 +66,16 @@ export function resolveDayStatus(
 
 /** Per-day grid info: the ring state + which icon (if any) sits under the number. */
 export interface DayInfo {
+  /**
+   * Something off-plan was logged on this day (Spec w2b-13, Step 8).
+   *
+   * **Deliberately NOT part of `status`.** The ring answers "did I do what I
+   * planned"; a one-off is not part of any plan, so letting it fill the ring
+   * would make an off-plan supplement read as protocol adherence — and would
+   * let a day where nothing was scheduled show as complete. It gets its own
+   * quiet mark instead, which answers the different question: what happened.
+   */
+  oneOff?: boolean
   status: CalendarDayStatus;
   kind: LoggedKind;
 }
@@ -99,19 +110,40 @@ export interface LoggedCompound {
  * and the row degrades to "Logged dose" with no unit rather than vanishing.
  */
 export function buildRunning(
-  day: Record<string, { amount: string; time24: string; siteId: string | null }> | undefined,
+  day:
+    | Record<
+        string,
+        {
+          amount: string
+          time24: string
+          siteId: string | null
+          status?: "taken" | "skipped"
+        }
+      >
+    | undefined,
   stackById: Map<string, { name: string; category: string; unit: string }>,
 ): LoggedCompound[] {
   if (!day) return []
   return Object.entries(day)
-    .map(([compoundId, log]) => {
+    .map(([key, log]) => {
+      // PARSED. The keys are SLOT keys (`abc#1` for the evening dose), so a raw
+      // lookup missed for every dose after the first and the row degraded to an
+      // anonymous "Logged dose" with no unit and no category — for a compound
+      // sitting right above it, fully named.
+      const { compoundId, slot } = parseSlotKey(key)
       const c = stackById.get(compoundId)
+      const base = c?.name ?? "Logged dose"
       return {
-        id: compoundId,
-        name: c?.name ?? "Logged dose",
+        id: key,
+        // Later doses say WHICH they were, or the same name appears twice with
+        // no way to tell them apart.
+        name: slot > 0 ? `${base} · dose ${slot + 1}` : base,
         category: c?.category ?? "",
-        amount: log.amount,
-        unit: c?.unit ?? "",
+        // A skipped dose is not a dose that was taken. Showing its planned
+        // amount here made a deliberate skip indistinguishable from a dose the
+        // user actually had.
+        amount: log.status === "skipped" ? "Skipped" : log.amount,
+        unit: log.status === "skipped" ? "" : (c?.unit ?? ""),
         time24: log.time24,
         siteId: log.siteId,
       }

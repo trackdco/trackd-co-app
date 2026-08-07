@@ -245,6 +245,38 @@ export function ProtocolScreen({
           setDetailTarget(null)
           setEditTarget(c)
         }}
+        // Protocol holds the real `StockItem`, so the sheet's container draws
+        // its ACTUAL fill here — the same `remainingBase / totalBase` the
+        // storage card two rows up is showing (Spec w2b-13, Step 7).
+        stock={(() => {
+          const item = detailTarget
+            ? (stockByCompound?.get(detailTarget.id) ?? null)
+            : null
+          if (!item) return undefined
+          const fill =
+            item.remainingBase != null && item.totalBase
+              ? Math.max(0, Math.min(1, item.remainingBase / item.totalBase))
+              : null
+          return {
+            fill,
+            exists: true,
+            remaining: item.remainingDisplay,
+            unit:
+              item.inventoryType === "oral_solid"
+                ? item.totalAmountUnit
+                : item.inventoryType === "bulk_powder"
+                  ? "g"
+                  : "mL",
+          }
+        })()}
+        onAddStock={(c) => {
+          setDetailTarget(null)
+          setStockTarget(c)
+        }}
+        onCorrectStock={(c) => {
+          setDetailTarget(null)
+          setStockEditItem(stockByCompound?.get(c.id) ?? null)
+        }}
         onArchive={(id) => archiveInStack(userId, id, true)}
       />
 

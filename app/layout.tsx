@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Caveat, Geist, Geist_Mono } from "next/font/google";
 import Image from "next/image";
 import "./globals.css";
 
@@ -17,6 +17,25 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+/**
+ * A THIRD typeface, and the only one, for exactly one line: the founders' names
+ * at the foot of the onboarding letter (Adrian, 2026-08-01).
+ *
+ * `ui-context.md` ships two faces and retired the display serif outright, so
+ * this is a deliberate exception rather than an oversight — see the note there.
+ * It is scoped by the variable: nothing in the app proper references
+ * `--font-hand`, and it must stay that way. A handwriting face on a dose figure
+ * or a card title is the drift the two-face rule exists to prevent.
+ *
+ * `next/font` self-hosts it at build time, so there is no runtime request to
+ * Google and nothing for the CSP to allow.
+ */
+const caveat = Caveat({
+  variable: "--font-hand",
+  subsets: ["latin"],
+  weight: ["600"],
 });
 
 export const metadata: Metadata = {
@@ -61,7 +80,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${caveat.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/* iOS launch images — React hoists these <link> tags into <head>.

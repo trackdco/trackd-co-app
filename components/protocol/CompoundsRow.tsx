@@ -117,5 +117,5 @@ export function orderByCategory(compounds: StackCompound[]): StackCompound[] {
  *  shares — this file used to hold its own copy with a DIFFERENT off-catalogue
  *  fallback, so a custom subQ compound drew a vial here and a bottle on Home. */
 function inventoryTypeOf(c: StackCompound): string | null {
-  return inventoryTypeForCompound(c.name, c.method)
+  return inventoryTypeForCompound(c.name, c.method, c.inventoryForm)
 }

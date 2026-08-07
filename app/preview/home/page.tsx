@@ -45,7 +45,59 @@ export default function PreviewHomePage() {
         anchor: toDateKey(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 2)),
       },
     },
+    // Twice a day (Spec w2b-13, Step 5): one parent row reading "n of 2", with
+    // two independently tickable sub-rows. `laterTimes` holds slots 1..n; slot
+    // 0's time stays in `timeOfDay`, so a once-daily compound is unchanged.
+    {
+      ...daily("c-metf", "Metformin", "oral", "po", 500, "mg", "08:00"),
+      schedule: {
+        cadence: { type: "daily" },
+        timeOfDay: "08:00",
+        laterTimes: ["20:00"],
+        // PER-SLOT AMOUNT: 500 mg in the morning, 250 mg at night. Adrian's
+        // addition over the spec (`supabase/protocol/021`) — the sub-rows
+        // should read 500mg and 250mg, not 500mg twice.
+        laterDoses: [250],
+        startDate: "2026-01-01",
+      },
+    },
   ];
+
+  // PAUSED for a fortnight (Spec w2b-13, Step 6). It should appear as one dim
+  // row reading "Paused · back <date>", never hidden — a hidden compound reads
+  // as a deleted one — and none of its days should count as missed.
+  sampleCompounds.push({
+    ...daily("c-nac", "NAC", "supplement", "po", 600, "mg", "21:00"),
+    pauses: [
+      {
+        id: "pause-nac",
+        startedOn: toDateKey(
+          new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 3),
+        ),
+        endsOn: toDateKey(
+          new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 10),
+        ),
+      },
+    ],
+  });
+
+  // A paused STACK MEMBER. It must stay inside "Morning shot", blacked out and
+  // struck through — NOT moved to the Paused section — so the stack keeps
+  // showing every compound it contains (Adrian, 2026-08-07).
+  const tb = sampleCompounds.find((c) => c.id === "c-tb");
+  if (tb) {
+    tb.pauses = [
+      {
+        id: "pause-tb",
+        startedOn: toDateKey(
+          new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 1),
+        ),
+        endsOn: toDateKey(
+          new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 6),
+        ),
+      },
+    ];
+  }
 
   // One stack: the three things taken together at 8am.
   const sampleStacks: Stack[] = [
@@ -68,6 +120,19 @@ export default function PreviewHomePage() {
   const sampleLogs: DayLogs = {
     [todayKey]: {
       "c-bpc": { amount: "250", unit: "mcg", siteId: null, time24: "08:05" },
+      // Metformin's MORNING dose only — slot 0, whose key is the bare compound
+      // id. The row should read "1 of 2" with the evening dose still untaken,
+      // and the day's ring should NOT read complete.
+      "c-metf": { amount: "500", unit: "mg", siteId: null, time24: "08:10" },
+      // SKIPPED (Spec w2b-13, Step 7): a minus rather than a tick, and the row
+      // reads "Skipped" instead of an amount. Resolved, but not taken.
+      "c-anas": {
+        amount: "0.5",
+        unit: "mg",
+        siteId: null,
+        time24: "20:00",
+        status: "skipped",
+      },
     },
   };
 

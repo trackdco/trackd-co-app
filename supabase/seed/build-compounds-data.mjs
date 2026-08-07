@@ -62,7 +62,15 @@ const VALID = {
   ]),
   default_unit: new Set(["mg", "mcg", "iu", "g", "capsule"]),
   default_route: new Set(["im", "subq", "po", "nasal"]),
-  default_inventory_type: new Set(["reconstituted", "preconcentrated", "oral_solid"]),
+  // `bulk_powder` joined the other three with `supabase/protocol/014`. It is the
+  // form for anything scooped and weighed in grams — which is every supplement
+  // whose `default_unit` is `g`, and nothing else.
+  default_inventory_type: new Set([
+    "reconstituted",
+    "preconcentrated",
+    "oral_solid",
+    "bulk_powder",
+  ]),
 }
 
 const rows = parseCSV(fs.readFileSync(csvPath, "utf8")).filter((r) => r.length > 1)

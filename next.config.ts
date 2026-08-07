@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
   // to machines already on the same LAN as the running dev server.
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.16.*.*", "*.local"],
 
+  // The floating "N" badge in dev. It is Next's own route indicator, not ours,
+  // and it never ships — but it is pinned bottom-left, which is exactly where a
+  // phone-first flow puts its consent tick and its primary button. Reviewing on
+  // a real phone means it sits ON TOP of the two controls you are trying to
+  // judge (and, worse, on top of ones you are trying to TAP). Off, so what is on
+  // the screen in dev is what is on the screen in production.
+  devIndicators: false,
+
   // Compress text/JSON responses (gzip/brotli). On Vercel this is handled at the
   // edge — verified live: HTML/RSC + JS chunks serve `content-encoding: br`
   // (~75–80% smaller), Supabase's Data API serves gzip JSON, and tiny/already-

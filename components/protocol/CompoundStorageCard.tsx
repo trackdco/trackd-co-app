@@ -6,6 +6,8 @@ import { Container } from "@/components/containers"
 import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
 import { ILLUSTRATIVE_FILL } from "@/lib/containers/geometry"
+import { formatGrams } from "@/lib/protocol/vialFill"
+import { activePause } from "@/lib/home/pauses"
 
 /**
  * Whole days from today until a vial runs dry, at or below which the date reads
@@ -70,25 +72,27 @@ export function CompoundStorageCard({
   /** Tap the stock line → add or refill its vial. Vial-form compounds only. */
   onAddStock: () => void
 }) {
-  // Tracked = anything the inventory model actually knows about: vials
-  // (reconstituted / preconcentrated) AND tabs/caps (oral_solid), which have had
-  // working tracking all along — `v_inventory_math.units_per_dose_oral`, and the
-  // tabs branch of AddStockSheet. Spec 03 only removed orals from the ADD
-  // COMPOUND form, never from storage. Showing them here is un-hiding what
-  // exists, not building anything (Adrian's call).
+  // Tracked = anything the inventory model knows about, which since Spec w2b-13
+  // is ALL FOUR forms. Vials and tabs/caps always were; a tub joined them when
+  // `supabase/protocol/014` gave it an inventory type and `015` gave it a total
+  // and a remaining.
   //
-  // POWDERS are genuinely different: there is no inventory type for a tub, so
-  // there is nothing to show and the card says so rather than implying one.
+  // ~~POWDERS are genuinely different: there is no inventory type for a tub~~ —
+  // there is now. That sentence was true when this card was written and is the
+  // reason for the "No stock tracked" branch below, which is now reachable only
+  // for a form this list does not name.
   const tracked =
     inventoryType === "reconstituted" ||
     inventoryType === "preconcentrated" ||
-    inventoryType === "oral_solid"
-  // The GAUGE is vial-only. A bottle's and a tub's artwork is a fixed decorative
-  // arrangement (see components/containers) — it cannot represent a level — so a
-  // percentage bar beside it would contradict the picture on the same card. Orals
-  // still show their FIGURES, which is what was asked for; they just don't get a
-  // gauge the artwork can't back up.
-  const gauged = inventoryType === "reconstituted" || inventoryType === "preconcentrated"
+    inventoryType === "oral_solid" ||
+    inventoryType === "bulk_powder"
+  // ~~The GAUGE is vial-only~~, because a bottle's and a tub's artwork was a
+  // fixed decorative arrangement that could not represent a level, and a
+  // percentage bar beside it would have contradicted the picture on the same
+  // card. **Spec w2b-13, Step 3 made both artworks real**, so the picture and
+  // the bar now agree and the restriction is gone: whenever there is a fill to
+  // show, it is shown.
+  const gauged = tracked
   const hasVial = stock != null && stock.remainingDisplay != null
   const fill = tracked ? fillOf(stock) : null
   // The view's own day COUNT wherever it is available (`supabase/protocol/010`),
@@ -96,7 +100,18 @@ export function CompoundStorageCard({
   // UTC: subtracting a local today from a UTC-anchored date is a day out for most
   // of the world for part of every day, which moved the amber flag with it. Falls
   // back to the old subtraction until 010 is applied.
-  const daysLeft = !tracked
+  // ⚠️ A PAUSED compound has no runway, and must not fall back to one.
+  // `supabase/protocol/019` returns NULL for `days_to_empty` while a pause is
+  // open — deliberately, because "when does this run out" has no answer while
+  // nothing is being consumed. The `?? estEmptyDate` fallback below then
+  // resurrected the old number and fired the amber "runs dry" flag on a compound
+  // the user is not taking, which is the exact outcome 019 exists to prevent.
+  // `est_empty_date` is left pause-unaware on purpose (it is the UTC-leaking
+  // column, on its way out), so the guard belongs here.
+  // Derived here rather than taken as a prop: the card already has the compound,
+  // and a pause is an interval read at render time, never a stored flag.
+  const paused = activePause(compound.pauses, todayKey) !== null
+  const daysLeft = !tracked || paused
     ? null
     : (stock?.daysToEmpty ?? daysUntil(todayKey, stock?.estEmptyDate ?? null))
   // The DATE shown for a far-off vial is derived from the local today plus that
@@ -244,6 +259,11 @@ function fillOf(stock: StockItem | null): number | null {
 /** How much is physically left — "8 mL", or a tablet count for orals. */
 function formatRemaining(stock: StockItem | null): string {
   if (!stock || stock.remainingDisplay == null) return "Add stock"
+  // A tub is weighed, and it is worded as the tub is labelled — grams up to a
+  // kilo, kilograms above it. Storage is grams throughout; see `formatGrams`.
+  if (stock.inventoryType === "bulk_powder") {
+    return `${formatGrams(stock.remainingDisplay)} left`
+  }
   // Orals are stored as "tab" OR "capsule"; using the stored unit stops 60
   // capsules of NAC reading as "30 tabs left".
   const one = stock.remainingDisplay === 1

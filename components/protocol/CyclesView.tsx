@@ -88,7 +88,7 @@ export function CyclesView({
               compound={c}
               cycle={c.cycle!}
               todayKey={today}
-              inventoryType={inventoryTypeForCompound(c.name, c.method)}
+              inventoryType={inventoryTypeForCompound(c.name, c.method, c.inventoryForm)}
               onEdit={() => setViewing(c)}
             />
           ))}
@@ -184,7 +184,7 @@ export function CyclesView({
         compound={viewing}
         cycle={viewing?.cycle ?? null}
         todayKey={today}
-        inventoryType={viewing ? inventoryTypeForCompound(viewing.name, viewing.method) : null}
+        inventoryType={viewing ? inventoryTypeForCompound(viewing.name, viewing.method, viewing.inventoryForm) : null}
         onEdit={() => {
           setEditing(viewing)
           setViewing(null)
@@ -196,7 +196,7 @@ export function CyclesView({
         onOpenChange={(o) => !o && setEditing(null)}
         compoundName={editing?.name ?? ""}
         cycle={editing?.cycle ?? null}
-        vialTracked={editing ? isVialForm(inventoryTypeForCompound(editing.name, editing.method)) : false}
+        vialTracked={editing ? isVialForm(inventoryTypeForCompound(editing.name, editing.method, editing.inventoryForm)) : false}
         onSave={(cycle) => {
           if (editing) save(editing, cycle)
           setEditing(null)

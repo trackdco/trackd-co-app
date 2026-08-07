@@ -16,9 +16,24 @@
 import type { CompoundCategory } from "@/lib/compound-categories"
 import { isCustomName } from "@/lib/compound-lookup"
 import { coerceDoseUnit } from "@/lib/db/doseUnits"
+import { isInventoryForm } from "@/lib/containers/form"
+import {
+  activePause,
+  dayBefore,
+  effectiveCadenceStart,
+  isPausedOn,
+  normalizePause,
+  pausedDaysBetween,
+  type Pause,
+} from "@/lib/home/pauses"
+import type { InventoryType } from "@/lib/db/types"
 import { pushStackCompound } from "@/lib/home/syncActions"
 import {
   archiveProtocolCompound,
+  pushCompoundPause,
+  pushPauseDelete,
+  pushPauseEnd,
+  pushPauseGroupEnd,
   pushProtocolCompound,
   pushScheduleVersions,
 } from "@/lib/home/protocolSync"
@@ -66,8 +81,71 @@ export interface Schedule {
    * with {@link hasTime}; never substitute a default at the call site.
    */
   timeOfDay: string
+  /**
+   * The times of the day's SECOND and subsequent doses, 24h "HH:mm"
+   * (Spec w2b-13, Step 5). Absent or empty = once a day, which is every record
+   * written before this existed.
+   *
+   * Slot 0's time stays in {@link timeOfDay} rather than moving into this array,
+   * and that is deliberate: dozens of call sites read `timeOfDay` as "the time
+   * this compound is due", and folding it into an array would have made every
+   * one of them a migration. Read the whole day through {@link doseTimesOf}.
+   */
+  laterTimes?: string[]
+  /**
+   * Per-slot planned amounts for slots 1..n, parallel to {@link laterTimes}
+   * (`supabase/protocol/021`). `laterDoses[i]` is the amount for
+   * `laterTimes[i]`, in the compound's own unit.
+   *
+   * A `null` element — or a short/absent array — means "the compound's own
+   * dose", which is why this needed no migration of existing records. Slot 0
+   * always takes the compound's dose and is deliberately not represented here.
+   *
+   * NEVER a per-slot unit. One compound, one `dose_unit`: 100 mg AM and 50 mg
+   * PM, never 100 mg AM and 5000 iu PM.
+   *
+   * ⚠️ This is scope the spec deferred, added on Adrian's call (2026-08-07)
+   * after being told it was deferred. See `supabase/protocol/021`'s header.
+   */
+  laterDoses?: (number | null)[]
   /** Cycle start, "YYYY-MM-DD". Anchors EOD / every-N-days and gates due dates. */
   startDate: string
+}
+
+/**
+ * The planned amount for every slot, in slot order — `doseAmountsOf(s, d)[n]` is
+ * what slot `n` delivers.
+ *
+ * Reads {@link Schedule.laterDoses} DEFENSIVELY: a missing element, a null one,
+ * a short array and an absent array all mean "the compound's own dose". They are
+ * all legitimate states rather than corruption, so there is nothing here to
+ * repair or warn about.
+ */
+export function doseAmountsOf(schedule: Schedule, dose: number): number[] {
+  const later = schedule.laterDoses ?? []
+  return doseTimesOf(schedule).map((_, i) => {
+    if (i === 0) return dose
+    const own = later[i - 1]
+    return typeof own === "number" && own > 0 ? own : dose
+  })
+}
+
+/**
+ * Every time this compound is due on a day it is due at all, slot order —
+ * `doseTimesOf(s)[n]` is the time of slot `n`.
+ *
+ * Always at least one element, so a caller never has to special-case a
+ * once-daily compound. That single element may be `""` (a deliberate "no time
+ * set"); see {@link Schedule.timeOfDay}.
+ */
+export function doseTimesOf(schedule: Schedule): string[] {
+  return [schedule.timeOfDay, ...(schedule.laterTimes ?? [])]
+}
+
+/** How many doses a day this compound is due — the device model's answer to
+ *  `protocol_compounds.times_per_day`. Never below 1. */
+export function timesPerDayOf(schedule: Schedule): number {
+  return 1 + (schedule.laterTimes?.length ?? 0)
 }
 
 /** Whether a schedule / log time has actually been set. The field is optional, so
@@ -96,6 +174,22 @@ export interface ScheduleVersion {
   effectiveFrom: string
   cadence: Cadence
   timeOfDay: string
+  /**
+   * The day's SECOND and later dose times under this version (Spec w2b-13,
+   * Step 5). Absent = once a day.
+   *
+   * It rides the version for the same reason the cycle does, and the failure it
+   * prevents is specific: a SLOT is an index into `dose_times`, so resolving an
+   * old log against TODAY's times would relabel history — reorder your times, or
+   * drop from 3x to 2x daily, and a dose logged at 20:00 starts displaying as
+   * 14:00.
+   */
+  laterTimes?: string[]
+  /** The per-slot amounts in force under this version, parallel to
+   *  {@link laterTimes}. Rides the version for the same reason the times do:
+   *  raising the evening dose today must not restate the evening doses already
+   *  taken last month. */
+  laterDoses?: (number | null)[]
   dose: number
   unit: string
   /**
@@ -184,6 +278,12 @@ export function resolveScheduleOn(
     schedule: {
       cadence: version.cadence,
       timeOfDay: version.timeOfDay,
+      ...(version.laterTimes && version.laterTimes.length > 0
+        ? { laterTimes: version.laterTimes }
+        : {}),
+      ...(version.laterDoses && version.laterDoses.some((d) => d != null)
+        ? { laterDoses: version.laterDoses }
+        : {}),
       startDate,
     },
     dose: version.dose,
@@ -212,10 +312,64 @@ export function isDueOnFor(
   // A stopped stretch is not a rest day within a schedule — the compound wasn't
   // being run at all, so nothing was due and nothing can be missed.
   if (resolved.stopped) return false
+  // PAUSED. Nothing was due, so the day reads as `none` rather than `missed` —
+  // which is exactly why backdating a pause needs no backfill: the days
+  // reclassify themselves at the next render. Sits ABOVE the cycle check
+  // because the cycle arithmetic below needs to know the day was paused.
+  if (isPausedOn(c.pauses, dateKey)) return false
   // Off-cycle means the user is not taking it: there is nothing to track, and
   // nothing to miss.
-  if (!isOnCycle(resolved.cycle, dateKey, ctx)) return false
-  return isDueOn(resolved.schedule, date)
+  if (!isOnCycle(resolved.cycle, dateKey, pauseContext(c, resolved.cycle, dateKey, ctx))) {
+    return false
+  }
+  // The cadence RE-ANCHORS to the day the last pause ended, so an
+  // every-third-day compound is due on the day it comes back rather than on
+  // whatever day the untouched grid would have picked. See
+  // `effectiveCadenceStart` for the trade this accepts.
+  return isDueOn(withCadenceStart(resolved.schedule, c.pauses, dateKey), date)
+}
+
+/**
+ * The schedule with its cadence anchor moved to the last resume day, when there
+ * has been one. Returns the schedule UNCHANGED when there are no pauses, so a
+ * compound that has never been paused allocates nothing and behaves identically.
+ */
+function withCadenceStart(
+  schedule: Schedule,
+  pauses: readonly Pause[] | undefined,
+  dateKey: string
+): Schedule {
+  if (!pauses || pauses.length === 0) return schedule
+  const startDate = effectiveCadenceStart(schedule.startDate, pauses, dateKey)
+  return startDate === schedule.startDate ? schedule : { ...schedule, startDate }
+}
+
+/**
+ * The cycle context for this compound on this day, with its paused days counted.
+ *
+ * Kept here rather than inside `cycleStatusOn` because that function is shared
+ * with surfaces that have no compound in hand, and because THIS is the layer
+ * that knows where the pauses live. Both counts are half-open — see
+ * `pausedDaysBetween` for why counting the day itself would take one day too
+ * many off every cycle.
+ *
+ * Cheap on the common path: a compound with no pauses and no cycle returns the
+ * caller's own context untouched, so `isDueOnFor` costs exactly what it did
+ * before pauses existed.
+ */
+export function pauseContext(
+  c: StackCompound,
+  cycle: CycleRule | undefined,
+  dateKey: string,
+  base?: CycleContext
+): CycleContext | undefined {
+  if (!c.pauses || c.pauses.length === 0 || !cycle) return base
+  const pausedDays = pausedDaysBetween(c.pauses, cycle.anchor, dateKey)
+  const pausedBeforeEnd =
+    cycle.end.type === "onDate"
+      ? pausedDaysBetween(c.pauses, cycle.anchor, cycle.end.date)
+      : 0
+  return { ...base, pausedDays, pausedBeforeEnd }
 }
 
 /**
@@ -234,6 +388,8 @@ export function recordScheduleVersion(
   next: {
     cadence: Cadence
     timeOfDay: string
+    laterTimes?: string[]
+    laterDoses?: (number | null)[]
     dose: number
     unit: string
     stopped?: boolean
@@ -247,6 +403,12 @@ export function recordScheduleVersion(
       effectiveFrom: previous.schedule.startDate,
       cadence: previous.schedule.cadence,
       timeOfDay: previous.schedule.timeOfDay,
+      ...(previous.schedule.laterTimes && previous.schedule.laterTimes.length > 0
+        ? { laterTimes: previous.schedule.laterTimes }
+        : {}),
+      ...(previous.schedule.laterDoses && previous.schedule.laterDoses.some((d) => d != null)
+        ? { laterDoses: previous.schedule.laterDoses }
+        : {}),
       dose: previous.dose,
       unit: previous.unit,
       // The baseline carries the OUTGOING cycle too, so the stretch before a
@@ -298,6 +460,12 @@ export function recordScheduleStop(
     {
       cadence: previous.schedule.cadence,
       timeOfDay: previous.schedule.timeOfDay,
+      ...(previous.schedule.laterTimes && previous.schedule.laterTimes.length > 0
+        ? { laterTimes: previous.schedule.laterTimes }
+        : {}),
+      ...(previous.schedule.laterDoses && previous.schedule.laterDoses.some((d) => d != null)
+        ? { laterDoses: previous.schedule.laterDoses }
+        : {}),
       dose: previous.dose,
       unit: previous.unit,
       stopped: true,
@@ -338,6 +506,17 @@ export function scheduleVersionToRow(v: ScheduleVersion) {
           ? Math.max(1, Math.floor(cad.n))
           : null,
     time: hasTime(v.timeOfDay) ? `${v.timeOfDay}:00` : null,
+    // Slots 1..n, for `dose_times`. Slot 0 stays in `time` above, so a
+    // once-daily version writes exactly what it always did.
+    //
+    // MAPPED, NOT FILTERED. Position IS the slot, and `laterDoses` below is not
+    // compacted — dropping an unset time here shifted every later dose onto the
+    // wrong slot's amount. An unset slot writes NULL and holds its place, the
+    // same thing `stackCompoundToProtocolInsert` does.
+    laterTimes: (v.laterTimes ?? []).map((t) => (hasTime(t) ? `${t}:00` : null)),
+    // Per-slot amounts for slots 1..n. Position IS the slot, so nulls are kept
+    // in place rather than compacted.
+    laterDoses: v.laterDoses ?? null,
     stopped: v.stopped === true,
     // The cycle in force under THIS version. Without it a Postgres round-trip
     // (a PWA reinstall, say) returns the trail with every cycle stripped, so a
@@ -358,6 +537,11 @@ export function scheduleVersionFromRow(
     daysOfWeek: number[] | null
     intervalDays: number | null
     time: string | null
+    /** Slots 1..n, `HH:mm:ss`. A NULL element is an unset time holding its
+     *  slot's place — position IS the slot. Optional so a pre-Step-5 row
+     *  round-trips. */
+    laterTimes?: (string | null)[] | null
+    laterDoses?: (number | null)[] | null
     stopped?: boolean | null
   } & Partial<CycleColumns>
 ): ScheduleVersion {
@@ -378,6 +562,16 @@ export function scheduleVersionFromRow(
     effectiveFrom: r.effectiveFrom,
     cadence,
     timeOfDay: r.time ? r.time.slice(0, 5) : "",
+    ...(() => {
+      const later = (r.laterTimes ?? []).map((t) => (t ? t.slice(0, 5) : ""))
+      return later.length > 0 ? { laterTimes: later } : {}
+    })(),
+    ...(() => {
+      const doses = (r.laterDoses ?? []).map((d) =>
+        typeof d === "number" && d > 0 ? d : null,
+      )
+      return doses.some((d) => d != null) ? { laterDoses: doses } : {}
+    })(),
     dose: r.dose,
     unit: r.unit,
     ...(r.stopped ? { stopped: true } : {}),
@@ -456,6 +650,27 @@ export interface StackCompound {
    *  runs uncycled. Forward-looking UI reads this; {@link resolveScheduleOn}
    *  answers what the cycle was on any past day. One cycle, one compound. */
   cycle?: CycleRule
+  /**
+   * The form this compound is held in — `reconstituted | preconcentrated |
+   * oral_solid | bulk_powder` — as the user stated it, mirroring
+   * `protocol_compounds.inventory_form` (`supabase/protocol/023`).
+   *
+   * Absent on every compound added before that migration, and on every one the
+   * user never answered for. Absent does NOT mean unknown: `containerFormFor`
+   * falls back to deriving it from name + route exactly as it always has. The
+   * column exists because that derivation cannot see a scooped powder — creatine
+   * is `po`, which derives `oral_solid` for tubs and capsules alike.
+   */
+  inventoryForm?: InventoryType | null
+  /**
+   * Stretches during which this compound is not being taken (Spec w2b-13,
+   * Step 6 · `supabase/protocol/018`). Absent/empty = never paused.
+   *
+   * An INTERVAL list, not a "paused" flag: a compound is paused many times over
+   * its life, and a flag would make each new pause retroactively convert the
+   * previous one's days back into missed ones.
+   */
+  pauses?: Pause[]
 }
 
 // `v2` bump: abandons any earlier-seeded device data so the app starts as a
@@ -630,6 +845,16 @@ export function setCompoundCycle(
     {
       cadence: previous.schedule.cadence,
       timeOfDay: previous.schedule.timeOfDay,
+      // ⚠️ The later doses ride this version too. Omitting them wrote a version
+      // saying the compound is dosed ONCE a day, so from the cycle's effective
+      // date forward its evening dose lost its time, took the morning dose's
+      // amount, and could not be logged at all.
+      ...(previous.schedule.laterTimes && previous.schedule.laterTimes.length > 0
+        ? { laterTimes: previous.schedule.laterTimes }
+        : {}),
+      ...(previous.schedule.laterDoses && previous.schedule.laterDoses.some((d) => d != null)
+        ? { laterDoses: previous.schedule.laterDoses }
+        : {}),
       dose: previous.dose,
       unit: previous.unit,
       ...(cycle ? { cycle } : {}),
@@ -649,6 +874,193 @@ export function setCompoundCycle(
   return upsertStack(userId, next)
 }
 
+/* ------------------------------------------------------------------ pauses */
+
+/**
+ * Pause a compound from `startedOn` until `endsOn` (inclusive), or indefinitely
+ * when `endsOn` is null.
+ *
+ * **Pausing something already paused EDITS that pause; it is never additive.**
+ * A new pause whose range overlaps an existing one extends that row rather than
+ * inserting a second, because two overlapping pauses would double-count in the
+ * cycle arithmetic — ten days of rest would take twenty days off the clock.
+ *
+ * Backdating costs nothing: nothing derived from a pause is stored, so days
+ * already showing as missed simply stop resolving that way at the next render.
+ */
+export function pauseCompound(
+  userId: string,
+  id: string,
+  pause: { id: string; startedOn: string; endsOn: string | null; groupId?: string | null }
+): boolean {
+  const cur = loadStack(userId) ?? []
+  const previous = cur.find((c) => c.id === id)
+  if (!previous) return false
+
+  const existing = previous.pauses ?? []
+  // Anything this new range touches is absorbed rather than left beside it.
+  // Adjacency counts as overlap: a pause ending Tuesday and one starting
+  // Wednesday are one unbroken break, and leaving them as two rows would make
+  // "resume" ambiguous.
+  const overlapping = existing.filter((p) => rangesTouch(p, pause))
+  const kept = existing.filter((p) => !rangesTouch(p, pause))
+  const merged =
+    overlapping.length === 0
+      ? pause
+      : {
+          // Keep the OLDEST row's id, so the extension updates a row that
+          // already exists instead of orphaning it and inserting a new one.
+          id: overlapping[0].id,
+          startedOn: [pause.startedOn, ...overlapping.map((p) => p.startedOn)].sort()[0],
+          endsOn: latestEnd([pause, ...overlapping]),
+          ...(pause.groupId ? { groupId: pause.groupId } : {}),
+        }
+
+  const next: StackCompound = { ...previous, pauses: [...kept, merged] }
+  if (!upsertStack(userId, next)) return false
+  void trackSync(pushCompoundPause(id, previous.name, merged))
+  // The rows this one ABSORBED are gone locally; they must go from Postgres too.
+  // Leaving them there meant the next hydration pulled a pause the user had
+  // merged away and the compound went quiet again on days it had been resumed.
+  // CRITICAL for the same reason a resume is: losing the race with a pull
+  // reinstates something the user deliberately removed.
+  for (const p of overlapping) {
+    if (p.id === merged.id) continue
+    void trackCriticalSync(pushPauseDelete(p.id))
+  }
+  return true
+}
+
+/** Do these two ranges overlap or sit end to end? An indefinite pause has no
+ *  end, so it touches anything at or after its start. */
+function rangesTouch(
+  a: { startedOn: string; endsOn: string | null },
+  b: { startedOn: string; endsOn: string | null }
+): boolean {
+  const aEnd = a.endsOn === null ? null : shiftKey(a.endsOn, 1)
+  const bEnd = b.endsOn === null ? null : shiftKey(b.endsOn, 1)
+  if (aEnd !== null && aEnd < b.startedOn) return false
+  if (bEnd !== null && bEnd < a.startedOn) return false
+  return true
+}
+
+/** The latest end among these ranges — null (indefinite) wins over any date. */
+function latestEnd(rs: { endsOn: string | null }[]): string | null {
+  if (rs.some((r) => r.endsOn === null)) return null
+  return rs.map((r) => r.endsOn as string).sort().at(-1) ?? null
+}
+
+/** `YYYY-MM-DD` shifted by n days, in UTC so no local offset applies. */
+function shiftKey(key: string, n: number): string {
+  const [y, m, d] = key.split("-").map(Number)
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
+}
+
+/**
+ * Resume a paused compound from `on` — so `on` itself is due again.
+ *
+ * Writes `endsOn = the day before`, because both ends of a pause are inclusive.
+ * A pause that had not started yet is DELETED rather than ended: ending it would
+ * leave a zero-length break the user never took.
+ *
+ * CRITICAL sync, not ordinary. A resume is a delete in effect, and an ordinary
+ * push that loses its race with a pull would have the pause reinstated — the
+ * compound would silently go quiet again after the user had brought it back.
+ */
+export function resumeCompound(userId: string, id: string, on: string): boolean {
+  const cur = loadStack(userId) ?? []
+  const previous = cur.find((c) => c.id === id)
+  if (!previous) return false
+  const active = activePause(previous.pauses, on)
+  if (!active) return false
+
+  const endsOn = dayBefore(on)
+  const dropped = endsOn < active.startedOn
+  const pauses = dropped
+    ? (previous.pauses ?? []).filter((p) => p.id !== active.id)
+    : (previous.pauses ?? []).map((p) => (p.id === active.id ? { ...p, endsOn } : p))
+
+  if (!upsertStack(userId, { ...previous, pauses })) return false
+  void trackCriticalSync(
+    dropped ? pushPauseDelete(active.id) : pushPauseEnd(active.id, endsOn)
+  )
+  return true
+}
+
+/**
+ * Pause several compounds as ONE action, sharing a fresh group id.
+ *
+ * **A stack pause is N compound pauses, not a pause on the stack.**
+ * `stack_members` holds a pairing and an integer and nothing else, deliberately
+ * (`supabase/protocol/007_stacks.sql:9-17`); a stack has nowhere to store a
+ * pause and should not gain one.
+ *
+ * The group id is what lets Resume restore only what THIS action paused. A
+ * member the user had already paused separately carries no group id, so it stays
+ * paused when the stack resumes — which is the behaviour that makes ticking
+ * members off the list meaningful in the first place.
+ */
+export function pauseCompounds(
+  userId: string,
+  ids: string[],
+  range: { startedOn: string; endsOn: string | null },
+  groupId: string,
+  newPauseId: () => string
+): boolean {
+  let allOk = ids.length > 0
+  for (const id of ids) {
+    const ok = pauseCompound(userId, id, {
+      id: newPauseId(),
+      startedOn: range.startedOn,
+      endsOn: range.endsOn,
+      groupId,
+    })
+    if (!ok) allOk = false
+  }
+  return allOk
+}
+
+/**
+ * Resume every compound paused by one group action, on `on`.
+ *
+ * Resolves the group from the device store rather than taking a list, so it
+ * cannot resume a member that action never paused. The single cloud write ends
+ * the whole group in one statement; the local writes are per compound because
+ * that is where the pauses live.
+ */
+export function resumePauseGroup(
+  userId: string,
+  groupId: string,
+  on: string
+): boolean {
+  const cur = loadStack(userId) ?? []
+  const endsOn = dayBefore(on)
+  let touched = false
+  for (const c of cur) {
+    const mine = (c.pauses ?? []).filter((p) => p.groupId === groupId)
+    if (mine.length === 0) continue
+    const pauses = (c.pauses ?? []).flatMap((p) => {
+      if (p.groupId !== groupId) return [p]
+      // ALREADY OVER — leave it exactly as it is. Rewriting `endsOn` on a pause
+      // that ended weeks ago EXTENDED it to today, so the days the user actually
+      // ran and logged in between retroactively became not-due and left the
+      // calendar and their adherence. Reachable by resuming one member early and
+      // the stack later.
+      if (p.endsOn !== null && p.endsOn < on) return [p]
+      // A pause that had not started yet is dropped, not ended — ending it
+      // would leave a zero-length break the user never took.
+      if (endsOn < p.startedOn) return []
+      return [{ ...p, endsOn }]
+    })
+    if (upsertStack(userId, { ...c, pauses })) touched = true
+  }
+  if (!touched) return false
+  // CRITICAL: a resume is a delete in effect, and losing the race with a pull
+  // would silently re-pause everything the user just brought back.
+  void trackCriticalSync(pushPauseGroupEnd(groupId, endsOn))
+  return true
+}
+
 /**
  * Has this compound's cycle finished by `dateKey`? **Derived, never stored**
  * (Invariant 1) — an end condition is a rule, and asking it on a date is the
@@ -666,7 +1078,15 @@ export function isCycleEnded(
 ): boolean {
   const resolved = resolveScheduleOn(c, dateKey)
   if (!resolved.cycle) return false
-  return cycleStatusOn(resolved.cycle, dateKey, ctx).ended
+  // WITH the pause context. This was the one gate in the file that did not have
+  // it, so a paused run reported ENDED on the tail the pause had just pushed
+  // out — the compound vanished from Today's Log and was offered back as a fresh
+  // add, while the calendar and consistency still counted it as due.
+  return cycleStatusOn(
+    resolved.cycle,
+    dateKey,
+    pauseContext(c, resolved.cycle, dateKey, ctx)
+  ).ended
 }
 
 /** Active = not deleted and not finished. What the log and pickers filter on. */
@@ -834,7 +1254,11 @@ export function upcomingDoseDates(
   count: number,
   /** The cycle to respect, if any. Without it the preview would list dates that
    *  fall inside an off-period — days the user is deliberately not dosing. */
-  cycle?: CycleRule | null
+  cycle?: CycleRule | null,
+  /** Pauses to skip over (Spec w2b-13, Step 6). Without them the "Next" line
+   *  lists dates that fall INSIDE a pause — telling the user their next three
+   *  doses are on days they have deliberately stopped taking it. */
+  pauses?: readonly Pause[]
 ): string[] {
   const out: string[] = []
   const start = parseDateKey(schedule.startDate)
@@ -844,7 +1268,28 @@ export function upcomingDoseDates(
   }
   for (let i = 0; i < 400 && out.length < count; i++) {
     const key = toDateKeyLocal(cursor)
-    if (isDueOn(schedule, cursor) && isOnCycle(cycle, key)) out.push(key)
+    const paused = isPausedOn(pauses, key)
+    // Paused days are skipped AND do not advance the cycle clock, so the dates
+    // after a pause are the ones the cycle will actually land on. `pausedBeforeEnd`
+    // rides along too, or an `onDate` cycle's preview stops earlier than
+    // `isDueOnFor` says it does.
+    const cycleCtx =
+      cycle && pauses && pauses.length > 0
+        ? {
+            pausedDays: pausedDaysBetween(pauses, cycle.anchor, key),
+            pausedBeforeEnd:
+              cycle.end.type === "onDate"
+                ? pausedDaysBetween(pauses, cycle.anchor, cycle.end.date)
+                : 0,
+          }
+        : undefined
+    // ⚠️ THE RE-ANCHORED grid, the same one `isDueOnFor` walks. Walking the
+    // original one made every date on the "Next" line disagree with the week
+    // strip and the calendar for any compound that had ever been paused.
+    const onDay = withCadenceStart(schedule, pauses, key)
+    if (!paused && isDueOn(onDay, cursor) && isOnCycle(cycle, key, cycleCtx)) {
+      out.push(key)
+    }
     cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1)
   }
   return out
@@ -1017,6 +1462,17 @@ function normalizeCompound(item: unknown): StackCompound | null {
     archived: c.archived === true,
     ...(normalizeHistory(c.scheduleHistory) ?? {}),
     ...(cycle ? { cycle } : {}),
+    // Guarded on the way out of storage so a hand-edited or future-versioned
+    // value can't reach `containerFormFor` — an unrecognised form falls through
+    // to the name+route derivation, the same answer a compound with nothing
+    // stored gets.
+    ...(isInventoryForm(c.inventoryForm) ? { inventoryForm: c.inventoryForm } : {}),
+    ...(() => {
+      const pauses = Array.isArray(c.pauses)
+        ? c.pauses.map(normalizePause).filter((p): p is Pause => p !== null)
+        : []
+      return pauses.length > 0 ? { pauses } : {}
+    })(),
   })
 }
 
@@ -1078,12 +1534,24 @@ function normalizeHistory(raw: unknown): { scheduleHistory: ScheduleVersion[] } 
     if (!item || typeof item !== "object") continue
     const v = item as Record<string, unknown>
     if (typeof v.effectiveFrom !== "string") continue
-    const s = normalizeSchedule({ cadence: v.cadence, timeOfDay: v.timeOfDay })
+    const s = normalizeSchedule({
+      cadence: v.cadence,
+      timeOfDay: v.timeOfDay,
+      laterTimes: v.laterTimes,
+      laterDoses: v.laterDoses,
+    })
     const cycle = normalizeCycle(v.cycle)
     out.push({
       effectiveFrom: v.effectiveFrom,
       cadence: s.cadence,
       timeOfDay: s.timeOfDay,
+      // Slot times ride the version: without them a Postgres round-trip
+      // resolves every historic slot against TODAY's times and relabels the
+      // history. See `ScheduleVersion.laterTimes`.
+      ...(s.laterTimes && s.laterTimes.length > 0 ? { laterTimes: s.laterTimes } : {}),
+      ...(s.laterDoses && s.laterDoses.some((d) => d != null)
+        ? { laterDoses: s.laterDoses }
+        : {}),
       dose: typeof v.dose === "number" ? v.dose : 0,
       unit: typeof v.unit === "string" ? v.unit : "mg",
       // `stopped` must survive the round-trip or the deleted-compound gap
@@ -1103,6 +1571,26 @@ function normalizeSchedule(raw: unknown): Schedule {
   // stored empty string is a choice, not a missing field. Only a genuinely absent
   // or non-string value falls through to unset.
   const timeOfDay = typeof s.timeOfDay === "string" ? s.timeOfDay : ""
+  // Later dose times, guarded on the way out of storage. A malformed entry drops
+  // rather than shifting every slot after it — a slot is an INDEX, so a silently
+  // removed element would relabel the doses that follow it.
+  const rawLater = Array.isArray(s.laterTimes) ? s.laterTimes : []
+  const rawDoses = Array.isArray(s.laterDoses) ? s.laterDoses : []
+  // ⚠️ FILTERED AS PAIRS. Filtering the times and then indexing the amounts by
+  // their NEW positions handed a surviving time the dropped one's amount —
+  // `["", "20:00"]` with `[25, 50]` made the 20:00 dose 25 mg. Position is the
+  // slot on both sides, so they can only be trimmed together.
+  const pairs = rawLater
+    .map((t, i) => ({ t, d: rawDoses[i] }))
+    .filter((p): p is { t: string; d: unknown } => typeof p.t === "string" && hasTime(p.t))
+  const laterTimes = pairs.map((p) => p.t)
+  const laterDoses = pairs.map((p) =>
+    typeof p.d === "number" && Number.isFinite(p.d) && p.d > 0 ? p.d : null
+  )
+  const extra = {
+    ...(laterTimes.length > 0 ? { laterTimes } : {}),
+    ...(laterDoses.some((d) => d != null) ? { laterDoses } : {}),
+  }
   // Legacy records have no start date; "1970-01-01" reads as "already started"
   // (always due) and keeps EOD/every-N anchored consistently.
   const startDate =
@@ -1110,9 +1598,9 @@ function normalizeSchedule(raw: unknown): Schedule {
   const cad = s.cadence as Record<string, unknown> | undefined
   const type = cad?.type
   if (type === "everyOtherDay")
-    return { cadence: { type }, timeOfDay, startDate }
+    return { cadence: { type }, timeOfDay, ...extra, startDate }
   if (type === "everyNDays" && typeof cad?.n === "number")
-    return { cadence: { type, n: cad.n }, timeOfDay, startDate }
+    return { cadence: { type, n: cad.n }, timeOfDay, ...extra, startDate }
   if (type === "daysOfWeek" && Array.isArray(cad?.days))
     return {
       cadence: {
@@ -1122,7 +1610,8 @@ function normalizeSchedule(raw: unknown): Schedule {
         ),
       },
       timeOfDay,
+      ...extra,
       startDate,
     }
-  return { cadence: { type: "daily" }, timeOfDay, startDate }
+  return { cadence: { type: "daily" }, timeOfDay, ...extra, startDate }
 }

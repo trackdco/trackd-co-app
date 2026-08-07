@@ -5,7 +5,7 @@ Mirrors the shape of the existing bodyArtworkIM.ts / bodyArtworkSubQ.ts.
 
     python3 scripts/gen-female-body-art.py
 
-Reads  Context/Feature Specs/body-svg/female/*.svg
+Reads  Context/Feature Specs/svgs/body-svg/female/*.svg
 Writes components/sites/bodyArtworkFemale{IM,SubQ}.ts  (GENERATED — edit this
        script and re-run, don't hand-edit the output)
 
@@ -20,7 +20,7 @@ ad-hoc before this script existed; they have no equivalent (leave them be).
 import os, re, sys, xml.etree.ElementTree as ET
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SVG_DIR = f"{ROOT}/Context/Feature Specs/body-svg/female"
+SVG_DIR = f"{ROOT}/Context/Feature Specs/svgs/body-svg/female"
 OUT_DIR = f"{ROOT}/components/sites"
 NS = "{http://www.w3.org/2000/svg}"
 

@@ -146,7 +146,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -166,7 +166,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -406,7 +406,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -450,7 +450,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -473,7 +473,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -572,7 +572,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -813,7 +813,7 @@ export const COMPOUNDS: Compound[] = [
     "aliases": [],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -891,7 +891,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -1041,7 +1041,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -1075,7 +1075,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -1086,7 +1086,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -2045,7 +2045,7 @@ export const COMPOUNDS: Compound[] = [
     "aliases": [],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {
@@ -2556,7 +2556,7 @@ export const COMPOUNDS: Compound[] = [
     ],
     "defaultUnit": "g",
     "defaultRoute": "po",
-    "defaultInventoryType": "oral_solid",
+    "defaultInventoryType": "bulk_powder",
     "halfLifeHours": null
   },
   {

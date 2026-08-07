@@ -43,7 +43,7 @@ Two Progress items are waiting on ME, not on you. Do not "fix" them:
   thin; the spec file still says the opposite and has not been amended.
 
 **Blocks** is new scope, not one of the eighteen specs.
-`Context/Feature Specs/proposals/blocks.md` has the design and every decision
+`Context/Feature Specs/w2b-12-blocks.md` has the design and every decision
 I've settled. The migration is applied and it reads from Postgres. Still to
 build: the create sheet, the end-date prompt (Extend / Close / Leave running,
 user picks the new date), and the `/blocks` page with the retrospective — which

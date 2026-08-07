@@ -34,7 +34,7 @@ export default function PreviewContainersPage() {
         </p>
       </header>
 
-      {/* Vial fill — the only real fill in the app. */}
+      {/* All three fills are real as of Spec w2b-13, Step 3. */}
       <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
         <h2 className={CARD_EYEBROW}>Vial · fill level</h2>
         <div className="flex items-end justify-between gap-2">
@@ -45,6 +45,40 @@ export default function PreviewContainersPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* The tub's powder level: a surface that falls, like the vial's. */}
+      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+        <h2 className={CARD_EYEBROW}>Tub · fill level</h2>
+        <div className="flex items-end justify-between gap-2">
+          {FILLS.map((fill) => (
+            <div key={fill} className="flex flex-col items-center gap-2">
+              <Tub colour="var(--cat-supplement)" fill={fill} size={84} />
+              <span className={DATA_MONO}>{Math.round(fill * 100)}%</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-text-muted">
+          Grams remaining against the tub weight. The surface narrows below a
+          fifth full, so the last of it reads as a heap rather than a thin disc.
+        </p>
+      </section>
+
+      {/* The bottle empties by COUNT — it has no surface to draw. */}
+      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+        <h2 className={CARD_EYEBROW}>Bottle · fill level</h2>
+        <div className="flex items-end justify-between gap-2">
+          {FILLS.map((fill) => (
+            <div key={fill} className="flex flex-col items-center gap-2">
+              <Bottle colour="var(--cat-oral)" fill={fill} size={84} />
+              <span className={DATA_MONO}>{Math.round(fill * 100)}%</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-text-muted">
+          Tablets leave from the top down as the count falls. There is no liquid
+          surface to draw, so the count is the level.
+        </p>
       </section>
 
       {/* Animation + reduced-motion check. */}

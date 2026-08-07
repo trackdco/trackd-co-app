@@ -47,4 +47,19 @@ next-env.d.ts
 
 # Dev cache symlinked from .next, kept off iCloud (ends in .nosync)
 .next.nosync
+
+# A friend's trading-bot market data. Nothing to do with Trackd — it lives here
+# only so Adrian still has it to hand. Kept OUT of git deliberately: it is 7 MB
+# of CSV that was once committed by accident, and adding a .gitignore rule does
+# NOT untrack an already-committed file (that took a `git rm --cached` to undo).
+# Do not remove these rules without knowing that.
+/trading data/
 condensed_GLBX-*
+
+# iCloud's conflicted-copy duplicates. Syncing this folder through iCloud Drive
+# leaves a "<name> 2.<ext>" beside a file it thinks diverged — 102 appeared in a
+# single session. They are byte-copies of tracked files, never edited, and
+# committing them both doubles the repo and confuses git's rename detection
+# (it starts pairing real files with the copies). Delete them freely.
+* 2.*
+* 2

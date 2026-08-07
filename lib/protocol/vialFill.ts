@@ -16,7 +16,14 @@ export interface VialAmounts {
   oilMl: number // preconcentrated: mL of solution
   concentration: number // preconcentrated: stated mg/mL
   count: number // oral_solid: tab/cap count
-  strength: number // oral_solid: mg per tab/cap
+  /** oral_solid: strength per tab/cap, in the item's base unit (mg OR iu — see
+   *  `supabase/protocol/016`). **0 now means "not stated"**, which is a legal
+   *  state rather than an incomplete form: the label of a multivitamin names no
+   *  single strength, and the tablet itself becomes the unit. */
+  strength: number
+  /** bulk_powder: the tub's weight in grams. Its mass IS the base, exactly as a
+   *  reconstituted vial's powder mass is. */
+  tubGrams: number
 }
 
 export interface VialBasis {
@@ -42,8 +49,17 @@ function num(s: string): number {
   return Number.isFinite(n) ? n : 0
 }
 
-/** The capacity basis for the chosen type, or null until its inputs are present
- *  (no capacity → a fill estimate is meaningless, so the control stays hidden). */
+/**
+ * The capacity basis for the chosen type, or null until its inputs are present
+ * (no capacity → a fill estimate is meaningless, so the control stays hidden).
+ *
+ * **There is one basis per FORM, and getting that wrong makes the presets store
+ * the wrong number rather than merely look odd.** The presets resolve to
+ * `prior_used_base`, a real stored value: a ½-full 1 kg tub must land on 500 g
+ * used, and a ½-full 100-tab bottle on 50 tabs. A basis computed for the wrong
+ * form writes an offset at the wrong scale, and the view then subtracts it from
+ * remaining forever.
+ */
 export function vialBasis(type: InventoryType, v: VialAmounts): VialBasis | null {
   if (type === "reconstituted") {
     if (v.powder <= 0 || v.bacWater <= 0) return null
@@ -53,7 +69,21 @@ export function vialBasis(type: InventoryType, v: VialAmounts): VialBasis | null
     if (v.oilMl <= 0 || v.concentration <= 0) return null
     return { totalBase: v.oilMl * v.concentration, perNative: v.concentration, fullNative: v.oilMl }
   }
-  if (v.count <= 0 || v.strength <= 0) return null
+  if (type === "bulk_powder") {
+    // A tub is the simplest of the four: grams in, grams out. Its native measure
+    // IS its base, so `perNative` is 1 — the same shape a reconstituted vial
+    // would have if you measured it in powder rather than in water.
+    if (v.tubGrams <= 0) return null
+    return { totalBase: v.tubGrams, perNative: 1, fullNative: v.tubGrams }
+  }
+  if (v.count <= 0) return null
+  // Oral with NO stated strength (`supabase/protocol/016`): the tablet is the
+  // unit, so the count is the base and one tab is one base unit. Without this
+  // the whole fill control disappeared for a multivitamin, because the old guard
+  // required a strength the label does not carry.
+  if (v.strength <= 0) {
+    return { totalBase: v.count, perNative: 1, fullNative: v.count }
+  }
   return { totalBase: v.count * v.strength, perNative: v.strength, fullNative: v.count }
 }
 
@@ -94,4 +124,27 @@ export function resolveFill(
   const percent =
     basis.totalBase > 0 ? Math.max(0, Math.min(100, (remaining / basis.totalBase) * 100)) : null
   return { basis, exactActive, remaining, priorUsed, percent }
+}
+
+/**
+ * A weight in grams, worded the way a label is: `900 g`, `1.5 kg`.
+ *
+ * **Display only.** Inventory stores grams and nothing but grams — a 1 kg tub is
+ * `total_amount = 1000`, `total_amount_unit = 'g'` — because two stored units
+ * for one quantity is exactly how a "remaining" figure ends up a thousand times
+ * wrong. This converts at the last moment, on the way to the screen.
+ *
+ * The threshold is 1000 g rather than something lower because a 900 g tub is
+ * sold as 900 g, and rounding it to "0.9 kg" would print a number the tub itself
+ * does not say.
+ */
+export function formatGrams(grams: number): string {
+  if (!Number.isFinite(grams)) return "0 g"
+  // One decimal at most: a kitchen scale reads 990.5 g, not 990.4823 g. Rounded
+  // BEFORE the threshold test, or 999.96 rounds to "1000 g" — a number that is
+  // simultaneously under the kilo cutoff and printed as one.
+  const rounded = Math.round(grams * 10) / 10
+  if (Math.abs(rounded) < 1000) return `${rounded} g`
+  const kg = Math.round((rounded / 1000) * 100) / 100
+  return `${kg} kg`
 }

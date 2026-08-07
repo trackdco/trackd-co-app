@@ -1,6 +1,6 @@
 "use client"
 
-import { CaretDown, Check, DotsThree } from "@/components/icons"
+import { CaretDown, Check, DotsThree, Minus, Pause } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
@@ -17,13 +17,48 @@ import { formatTimeLabel, type StackCompound } from "@/lib/home/stack"
 import { partitionByStack, type Stack } from "@/lib/home/stacks"
 import { Container } from "@/components/containers"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
+import type { DaySlot } from "@/lib/home/doseLog"
 import { paletteColourVar } from "@/lib/palette"
+import { DATA_MONO } from "@/lib/ui-presets"
 import { formatPhotoDateShort } from "@/lib/progress/photos"
 import { useState, type ReactNode } from "react"
 
+/**
+ * One paused thing on the dashboard — a compound, or a whole stack collapsed to
+ * a single entry.
+ *
+ * A fully paused STACK collapses to one row rather than listing five members,
+ * because five greyed rows saying the same thing is not five pieces of
+ * information.
+ */
+export interface PausedEntry {
+  /** The compound this entry acts on. For a stack it is the first member, which
+   *  is enough: the Pause sheet resolves the group from the pause itself. */
+  compound: StackCompound
+  /** What to call it — the compound's name, or the stack's. */
+  label: string
+  /** How many compounds this entry stands for. >1 = a collapsed stack. */
+  count: number
+  /** The day they come back, or null for an indefinite pause. */
+  resumesOn: string | null
+  /** How that return READS: a date when it is far off, a countdown once it is
+   *  within a week, "Indefinite" when there is none. Resolved by the caller so
+   *  the date formatting stays in one place. */
+  resumeLabel: string
+}
+
 /** A due compound plus its log state. */
 export type DueDose = StackCompound & {
+  /** Slot 0's log. Kept as its own field because most of the app is
+   *  single-dose and reads it directly; it is always `slots[0].log`. */
   log: DoseLog | null
+  /** Every dose due on this day, in slot order (Spec w2b-13, Step 5). Length 1
+   *  for a once-daily compound, which is nearly all of them. */
+  slots: DaySlot[]
+  /** Paused on the day being shown. Only ever true for a STACK MEMBER here — a
+   *  paused loose compound moves to the Paused section instead (Adrian,
+   *  2026-08-07). The row renders blacked out and cannot be ticked. */
+  paused?: boolean
 }
 
 interface TodaysCycleCardProps {
@@ -34,12 +69,19 @@ interface TodaysCycleCardProps {
    *  card it introduces the content. */
   greeting?: ReactNode
   dueDoses: DueDose[]
+  /** Compounds paused on the selected day, with the day they come back. Never
+   *  hidden — a hidden compound reads as a deleted one. */
+  paused?: PausedEntry[]
+  /** Tap a paused entry → open its Pause sheet, where Resume lives. */
+  onOpenPaused?: (entry: PausedEntry) => void
   /** The soonest compound whose start date is still ahead, when nothing is due
    *  on the selected day. Null when there is none. */
   startsNext?: { name: string; startDate: string } | null
-  onLog: (dose: StackCompound) => void
+  /** Log one of a compound's doses. `slot` says WHICH — 0 for a once-daily
+   *  compound, which is nearly all of them (Spec w2b-13, Step 5). */
+  onLog: (dose: StackCompound, slot: number) => void
   /** Untick a logged dose → remove its log. The tick is a pure toggle. */
-  onUnlog: (dose: StackCompound) => void
+  onUnlog: (dose: StackCompound, slot: number) => void
   /** Tap the name or the "⋯" → open this compound's detail, where every edit lives. */
   onOpenDetail: (dose: StackCompound) => void
   /** Per-Dose Draw (Spec 21) — the backing vial's facts per compound id, resolved
@@ -174,10 +216,174 @@ function DrawSlot({
  *  dose. The draw is priced against this, so the two figures on a row always agree
  *  (an edited log must never sit beside the planned dose's draw). A half-typed /
  *  unusable amount yields null → no draw, rather than a wrong one. */
-function shownAmount(dose: DueDose): number | null {
-  if (!dose.log) return dose.dose
-  const n = Number.parseFloat(dose.log.amount)
+function shownAmount(dose: DueDose, log: DoseLog | null): number | null {
+  if (!log) return dose.dose
+  const n = Number.parseFloat(log.amount)
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+/**
+ * The tick. A PURE TOGGLE: empty ring opens the Log sheet, filled tick unticks.
+ * No edit hides behind it — edits live on the name / "⋯".
+ */
+function DoseTick({
+  logged,
+  skipped,
+  label,
+  onClick,
+}: {
+  logged: boolean
+  /** Deliberately not taken. A filled tick would claim the opposite. */
+  skipped?: boolean
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      // h-6 w-6, the SAME size as a compound row's tick and a stack's own
+      // (Adrian, 2026-08-07). A sub-row's dose is a dose like any other, and a
+      // smaller tick read as a lesser control — as well as being a smaller tap
+      // target for the same action.
+      className={cn(
+        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
+        skipped
+          ? // A skipped dose is RESOLVED but not taken, so it gets neither the
+            // filled tick (which would claim it was) nor the empty ring (which
+            // would claim nothing happened). A minus says both.
+            "border-border-strong text-text-muted"
+          : logged
+            ? "border-accent-primary bg-accent-primary text-bg-base"
+            : "border-border-strong text-transparent hover:border-text-primary"
+      )}
+    >
+      {skipped ? (
+        <Minus className="h-3.5 w-3.5" aria-hidden />
+      ) : (
+        <Check className="h-3.5 w-3.5" aria-hidden />
+      )}
+    </button>
+  )
+}
+
+/**
+ * A compound due MORE THAN ONCE on this day: one parent row carrying the name
+ * and an `n of m` count, then one independently tickable sub-row per slot.
+ *
+ * The parent has no tick of its own, deliberately. A single control over several
+ * doses has to mean either "all" or "the next one", and both readings are wrong
+ * often enough to lose a dose — so the doses are ticked where they are listed.
+ */
+function MultiDoseRow({
+  dose,
+  onLog,
+  onUnlog,
+  onOpenDetail,
+  drawSource,
+  showAddStock,
+  onAddStock,
+}: {
+  dose: DueDose
+  onLog: (dose: StackCompound, slot: number) => void
+  onUnlog: (dose: StackCompound, slot: number) => void
+  onOpenDetail: (dose: StackCompound) => void
+  drawSource: DrawSource | undefined
+  showAddStock: boolean
+  onAddStock: (dose: StackCompound) => void
+}) {
+  const taken = dose.slots.filter((s) => s.log != null).length
+  const done = taken >= dose.slots.length
+
+  return (
+    <li className={cn("py-2 transition-opacity duration-200", done && "opacity-60")}>
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={() => onOpenDetail(dose)}
+            className="block w-full min-w-0 text-left"
+          >
+            <span className="block truncate text-sm font-medium text-foreground">
+              {dose.name}
+            </span>
+          </button>
+          <span className="mt-0.5 block font-mono text-xs tabular-nums text-text-muted">
+            {taken} of {dose.slots.length}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenDetail(dose)}
+          aria-label={`Edit ${dose.name}`}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-text-primary"
+        >
+          <DotsThree className="h-5 w-5" aria-hidden />
+        </button>
+      </div>
+
+      {/* Indented on `pl-4`, the same inset an expanded stack gives its members,
+          so nesting reads the same wherever it happens. */}
+      <ul className="mt-0.5 pl-4">
+        {dose.slots.map((s) => {
+          const log = s.log
+          // The PLANNED amount for this slot, not the compound's — they differ
+          // when a per-slot dose is set (100 mg AM, 50 mg PM,
+          // `supabase/protocol/021`). A logged dose still shows what was
+          // actually taken, which is what `shownAmount` returns.
+          const amount = log ? shownAmount(dose, log) : s.dose
+          const shownUnit = (log?.unit ?? dose.unit) || dose.unit
+          const draw =
+            amount == null ? null : formatDraw(amount, shownUnit, drawSource ?? null)
+          return (
+            <li
+              key={s.slot}
+              className={cn(
+                // gap-3 + py-2: a compound row's own rhythm, so a sub-row sits
+                // on the same grid as every other tickable line on the screen.
+                "flex items-center gap-3 py-2 transition-opacity duration-200",
+                log && "opacity-60"
+              )}
+            >
+              <DoseTick
+                logged={log != null}
+                skipped={log?.status === "skipped"}
+                label={
+                  log
+                    ? `Untick ${dose.name}, dose ${s.slot + 1}`
+                    : `Log ${dose.name}, dose ${s.slot + 1}`
+                }
+                onClick={() => (log ? onUnlog(dose, s.slot) : onLog(dose, s.slot))}
+              />
+              <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onOpenDetail(dose)}
+                  className="min-w-0 shrink truncate text-left font-mono text-xs tabular-nums text-text-muted"
+                >
+                  {log?.status === "skipped"
+                    ? "Skipped"
+                    : log
+                      ? `${log.amount}${shownUnit}`
+                      : `${formatDose(s.dose)}${dose.unit}`}{" "}
+                  · {formatTimeLabel(log ? log.time24 : s.time24)}
+                  {/* A dose taken under an older, longer schedule. Named rather
+                      than hidden: it happened. */}
+                  {s.historic && " · past schedule"}
+                </button>
+                <DrawSlot
+                  draw={draw}
+                  showAddStock={showAddStock}
+                  onAddStock={() => onAddStock(dose)}
+                />
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    </li>
+  )
 }
 
 function DoseRow({
@@ -190,15 +396,62 @@ function DoseRow({
   onAddStock,
 }: {
   dose: DueDose
-  onLog: (dose: StackCompound) => void
-  onUnlog: (dose: StackCompound) => void
+  onLog: (dose: StackCompound, slot: number) => void
+  onUnlog: (dose: StackCompound, slot: number) => void
   onOpenDetail: (dose: StackCompound) => void
   drawSource: DrawSource | undefined
   showAddStock: boolean
   onAddStock: (dose: StackCompound) => void
 }) {
+  // PAUSED (a stack member only — see `DueDose.paused`). Blacked out and
+  // untickable: nothing is due, so a tick would be a control for an action that
+  // does not exist. It stays in place rather than moving, so the stack keeps
+  // showing every compound it contains.
+  //
+  // ⚠️ Only when there is NOTHING LOGGED. A backdated pause covers days the user
+  // already logged doses on, and rendering those as a bare "Paused" row HID what
+  // they took — the dose was still recorded, just invisible. A logged day falls
+  // through to the normal row, which is already dimmed.
+  if (dose.paused && dose.slots.every((s) => s.log == null)) {
+    return (
+      <li className="flex items-center gap-3 py-2 opacity-40">
+        <span
+          aria-hidden
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-muted"
+        >
+          <Pause className="h-3 w-3" weight="fill" />
+        </span>
+        <button
+          type="button"
+          onClick={() => onOpenDetail(dose)}
+          className="min-w-0 flex-1 text-left"
+        >
+          <span className="block truncate text-sm font-medium text-foreground line-through decoration-text-muted/60">
+            {dose.name}
+          </span>
+          <span className="mt-0.5 block font-mono text-xs tabular-nums text-text-muted">
+            Paused
+          </span>
+        </button>
+      </li>
+    )
+  }
+  // More than one dose today — a different shape entirely (see `MultiDoseRow`).
+  if (dose.slots.length > 1) {
+    return (
+      <MultiDoseRow
+        dose={dose}
+        onLog={onLog}
+        onUnlog={onUnlog}
+        onOpenDetail={onOpenDetail}
+        drawSource={drawSource}
+        showAddStock={showAddStock}
+        onAddStock={onAddStock}
+      />
+    )
+  }
   const log = dose.log
-  const amount = shownAmount(dose)
+  const amount = shownAmount(dose, log)
   // The unit the shown amount is IN: for a logged dose that's the unit it was
   // recorded in, not whatever the compound's unit happens to be now — otherwise
   // changing a compound from mg to mcg relabels every dose already logged,
@@ -225,23 +478,34 @@ function DoseRow({
           to behave. No edit hides behind the tick — edits live on the name / "⋯". */}
       <button
         type="button"
-        onClick={() => (log ? onUnlog(dose) : onLog(dose))}
+        onClick={() => (log ? onUnlog(dose, 0) : onLog(dose, 0))}
         aria-label={log ? `Untick ${dose.name}` : `Log ${dose.name}`}
         className={cn(
           "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
-          log
-            ? "border-accent-primary bg-accent-primary text-bg-base"
-            : "border-border-strong text-transparent hover:border-text-primary"
+          log?.status === "skipped"
+            ? "border-border-strong text-text-muted"
+            : log
+              ? "border-accent-primary bg-accent-primary text-bg-base"
+              : "border-border-strong text-transparent hover:border-text-primary"
         )}
       >
-        <Check className="h-3.5 w-3.5" aria-hidden />
+        {log?.status === "skipped" ? (
+          <Minus className="h-3.5 w-3.5" aria-hidden />
+        ) : (
+          <Check className="h-3.5 w-3.5" aria-hidden />
+        )}
       </button>
 
       {/* Title first, specs below — the name stays fully readable (never squeezed by
           the figures). Tapping the name or the specs opens the compound detail, where
           every edit lives. The two are separate buttons only because the draw slot
           sits inside the specs line and can itself be a tap ("add stock") — a button
-          inside a button is invalid markup. */}
+          inside a button is invalid markup.
+
+          ~~Spec w2b-13 Step 7.7 made a row tap LOG the dose, with the sheet
+          moving to a long-press.~~ REVERTED at Adrian's call (2026-08-07): it
+          moved the app's most-used tap target, and the tick already logs. The
+          tick logs, the row opens. */}
       <div className="min-w-0 flex-1">
         <button
           type="button"
@@ -262,9 +526,11 @@ function DoseRow({
                 not the current plan — so an edited or historical dose reads back
                 as what happened. Altering the schedule changes what is DUE from
                 here on; it must never restate a dose already taken. */}
-            {log
-              ? `${log.amount}${shownUnit}`
-              : `${formatDose(dose.dose)}${dose.unit}`}{" "}
+            {log?.status === "skipped"
+              ? "Skipped"
+              : log
+                ? `${log.amount}${shownUnit}`
+                : `${formatDose(dose.dose)}${dose.unit}`}{" "}
             · {formatTimeLabel(log ? log.time24 : dose.schedule.timeOfDay)}
           </button>
 
@@ -309,6 +575,8 @@ function DoseRow({
 export function TodaysCycleCard({
   title,
   dueDoses,
+  paused,
+  onOpenPaused,
   startsNext = null,
   onLog,
   onUnlog,
@@ -369,7 +637,12 @@ export function TodaysCycleCard({
           ))}
 
           {groupByCategory(looseDoses).map((group) => {
-            const pending = group.doses.filter((d) => d.log == null).length
+            // ANY unlogged slot, not just slot 0. Testing `d.log` alone made a
+            // divider read "Logged" while the multi-dose row directly beneath it
+            // said "1 of 2". A paused member counts toward neither.
+            const pending = group.doses.filter(
+              (d) => !d.paused && d.slots.some((s) => s.log == null),
+            ).length
             return (
               <div key={group.cat} className="mt-3 first:mt-2">
                 {/* Slim category divider — dot + label + hairline rule + an
@@ -424,6 +697,54 @@ export function TodaysCycleCard({
           )}
         </p>
       )}
+
+      {/* PAUSED — its own category, at the very BOTTOM, so the things that still
+          need logging sit above it (Adrian, 2026-08-07). Never hidden: a hidden
+          compound reads as a deleted one, and the whole point of Pause is that
+          it is not a delete.
+
+          Stack members are NOT here. A paused member stays in its stack row,
+          blacked out, so the stack keeps showing everything it contains. */}
+      {paused && paused.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-center gap-2 pt-3">
+            <span className={cn(CARD_EYEBROW, "shrink-0")}>Paused</span>
+            <span aria-hidden className="h-[0.5px] flex-1 bg-border-default" />
+            <span className="font-mono text-[11px] tabular-nums text-text-subtle">
+              {paused.length}
+            </span>
+          </div>
+          <ul className="px-1">
+            {paused.map((p) => (
+              <li key={p.compound.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpenPaused?.(p)}
+                  className="flex w-full items-center gap-3 py-2 text-left opacity-50 transition-opacity hover:opacity-80"
+                >
+                  {/* A pause glyph where the tick would be — it names the state
+                      rather than leaving an empty ring that reads as an unticked
+                      dose. Sized and positioned exactly as the tick, so the
+                      column of controls stays one straight line. */}
+                  <span
+                    aria-hidden
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-muted"
+                  >
+                    <Pause className="h-3 w-3" weight="fill" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                    {p.label}
+                  </span>
+                  {/* Railed RIGHT with the rest of the app's row-level figures.
+                      A date while the return is far off, a countdown once it is
+                      within a week — see `resumeLabel`. */}
+                  <span className={cn(DATA_MONO, "shrink-0")}>{p.resumeLabel}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   )
 }
@@ -457,8 +778,8 @@ function StackDoseRow({
 }: {
   stack: Stack
   members: DueDose[]
-  onLog: (dose: StackCompound) => void
-  onUnlog: (dose: StackCompound) => void
+  onLog: (dose: StackCompound, slot: number) => void
+  onUnlog: (dose: StackCompound, slot: number) => void
   onOpenDetail: (dose: StackCompound) => void
   onLogStack?: (members: StackCompound[]) => void
   drawSources: Record<string, DrawSource>
@@ -468,8 +789,17 @@ function StackDoseRow({
   const [open, setOpen] = useState(false)
   const colour = paletteColourVar(stack.colour)
 
-  const logged = members.filter((m) => m.log != null).length
-  const total = members.length
+  // Counted in DOSES, not members: a twice-daily member contributes two, so the
+  // stack cannot read complete with its evening dose still untaken.
+  // Paused members are still LISTED (blacked out) but count for nothing: with
+  // them in the total the stack could never read complete, and its "N due"
+  // would nag about doses nobody is taking.
+  const live = members.filter((m) => !m.paused)
+  const logged = live.reduce(
+    (n, m) => n + m.slots.filter((sl) => sl.log != null).length,
+    0,
+  )
+  const total = live.reduce((n, m) => n + m.slots.length, 0)
   const complete = logged === total && total > 0
   const partial = logged > 0 && !complete
 
@@ -484,9 +814,17 @@ function StackDoseRow({
    * guard against here.
    */
   function logRemaining() {
-    const unlogged = members.filter((m) => m.log == null)
+    const unlogged = live.filter((m) => m.slots.some((sl) => sl.log == null))
     if (onLogStack) onLogStack(unlogged)
-    else for (const m of unlogged) onLog(m)
+    // The fallback logs each member's FIRST unlogged dose, matching what
+    // `onLogStack` does. One tap advances every member by one dose; it does not
+    // complete a twice-daily member's whole day at once.
+    else {
+      for (const m of unlogged) {
+        const next = m.slots.find((sl) => sl.log == null)
+        if (next) onLog(m, next.slot)
+      }
+    }
   }
 
   return (
@@ -501,7 +839,11 @@ function StackDoseRow({
           {stack.name}
         </span>
         <span aria-hidden className="h-[0.5px] flex-1 bg-border-default" />
-        {complete ? (
+        {/* A wholly paused stack has NOTHING live in it, so "0 due" in amber
+            was nagging about doses nobody is taking. */}
+        {total === 0 ? (
+          <span className="text-[11px] text-text-subtle">Paused</span>
+        ) : complete ? (
           <span className="text-[11px] text-text-subtle">Logged</span>
         ) : (
           <span className="font-mono text-[11px] tabular-nums text-accent-amber">
@@ -525,7 +867,16 @@ function StackDoseRow({
             of them was the one control that did not look like the others.
             Complete → the filled tick, and tapping it does nothing: un-logging in
             bulk would destroy each dose's own amount, time and site. */}
-        {complete ? (
+        {total === 0 ? (
+          // Nothing live to log, so the pause glyph rather than a tick that
+          // would call `onLogStack([])` and do nothing at all.
+          <span
+            aria-hidden
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-muted"
+          >
+            <Pause className="h-3 w-3" weight="fill" />
+          </span>
+        ) : complete ? (
           <span
             aria-hidden
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-bg-base"
@@ -569,7 +920,7 @@ function StackDoseRow({
               <Container
                 key={m.id}
                 name={m.name}
-                inventoryType={inventoryTypeForCompound(m.name, m.method)}
+                inventoryType={inventoryTypeForCompound(m.name, m.method, m.inventoryForm)}
                 category={m.category}
                 stackColour={colour}
                 // Drops by a dose's worth when logged — all members move at once.
@@ -583,7 +934,7 @@ function StackDoseRow({
               {stack.name}
             </span>
             <span className="mt-0.5 block font-mono text-xs tabular-nums text-text-muted">
-              {logged} of {total} logged
+              {total === 0 ? "Paused" : `${logged} of ${total} logged`}
             </span>
           </span>
         </button>

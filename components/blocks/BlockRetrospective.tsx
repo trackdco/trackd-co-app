@@ -2,6 +2,16 @@
 
 import { useMemo, useSyncExternalStore } from "react"
 
+import {
+  getOneOffsSnapshot,
+  oneOffsInWindow,
+  subscribeOneOffs,
+  type OneOffDays,
+} from "@/lib/home/oneOffLogs"
+
+/** Stable empty reference for the one-off store's server snapshot. */
+const EMPTY_ONE_OFFS: OneOffDays = {}
+
 import { cn } from "@/lib/utils"
 import { Container } from "@/components/containers/Container"
 import { useMounted } from "@/components/home/useMounted"
@@ -115,6 +125,18 @@ export function BlockRetrospective({
     })
   }, [block, todayKey, deviceReady, stack, logs, weight, photos, bloods, journal])
 
+  /** Off-plan entries inside the block's own window. Their own store and their
+   *  own section — see the "Also taken" block below. */
+  const oneOffStore = useSyncExternalStore(
+    subscribeOneOffs,
+    () => getOneOffsSnapshot(userId),
+    () => EMPTY_ONE_OFFS,
+  )
+  const oneOffs = useMemo(() => {
+    if (!deviceReady) return []
+    return oneOffsInWindow(oneOffStore, retro.window.from, retro.window.to)
+  }, [deviceReady, oneOffStore, retro.window.from, retro.window.to])
+
   const live = block.status === "active"
   const pair = retro.photos ? comparePair(retro.photos) : null
   const consistencyTarget =
@@ -224,7 +246,7 @@ export function BlockRetrospective({
               >
                 <Container
                   name={c.name}
-                  inventoryType={inventoryTypeForCompound(c.name, c.method)}
+                  inventoryType={inventoryTypeForCompound(c.name, c.method, c.inventoryForm)}
                   category={c.category}
                   fill={0.7}
                   size={28}
@@ -239,6 +261,49 @@ export function BlockRetrospective({
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* ALSO TAKEN — one-offs inside the window, in their OWN section below the
+          tracked compounds (Adrian, 2026-08-07).
+
+          Never merged into a tracked compound's dose count, even where the names
+          match. A one-off counts toward nothing anywhere else in the app — not
+          consistency, not the runway, not stock — and folding it into "What you
+          ran" would make this the one screen where it silently did. Kept apart,
+          the tracked figures stay the tracked figures and the off-plan ones are
+          still on the page, which is the whole point of showing them. */}
+      {oneOffs.length > 0 && (
+        <section className="rounded-2xl bg-bg-surface p-5">
+          <p className={CARD_EYEBROW}>Also taken</p>
+          <ul className="mt-3 space-y-1.5">
+            {oneOffs.map((o) => (
+              <li
+                key={o.label}
+                className="flex items-center gap-3 rounded-xl bg-bg-surface-raised px-3 py-2.5"
+              >
+                <Container
+                  name={o.compoundName ?? o.label}
+                  inventoryType={inventoryTypeForCompound(
+                    o.compoundName ?? o.label,
+                    o.method ?? "po",
+                  )}
+                  category={o.category ?? "supplement"}
+                  size={28}
+                  className="shrink-0"
+                />
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  {o.label}
+                </span>
+                <span className={cn(DATA_MONO, "shrink-0")}>
+                  {o.count} {o.count === 1 ? "time" : "times"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-text-subtle">
+            Logged off-plan. Not counted in consistency or stock.
+          </p>
         </section>
       )}
 

@@ -27,6 +27,7 @@ import type {
 } from "@/lib/db/types"
 import { BodySilhouette } from "@/components/sites/BodySilhouette"
 import {
+  regionNeedsHalo,
   routeRegions,
   routeTransform,
   type BodyRegion,
@@ -210,7 +211,17 @@ function RegionShape({
       {/* Native tooltip only when NOT the scrub target — otherwise the browser's
           default title tooltip fights the parent's pointer-following tooltip. */}
       {site && !canInspect && <title>{site.label}</title>}
-      <path d={region.d} className="mr-fill" />
+      {/* `site-hit` carries the transparent stroke that makes a region tappable
+          at its own visual centre — without it the two triceps on the back view
+          cannot be hit where the user aims, on either body. Applied only where
+          the region sweep says it is needed, because the halo is symmetric and a
+          blanket one lets a big region swallow a narrow neighbour's centre (the
+          quads, measured). See `globals.css` and `regionNeedsHalo`. It sits on
+          the FILL path, which is the one that takes the tap. */}
+      <path
+        d={region.d}
+        className={cn("mr-fill", regionNeedsHalo(region.siteId) && "site-hit")}
+      />
       {amberOpacity > 0 && (
         <path
           d={region.d}

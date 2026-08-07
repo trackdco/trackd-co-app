@@ -19,7 +19,7 @@
  * (user, day, compound), so re-pushing a log that already landed is a no-op. Safe
  * to call on every reconnect.
  */
-import { loadDoseLogs } from "@/lib/home/doseLog"
+import { loadDoseLogs, parseSlotKey } from "@/lib/home/doseLog"
 import { loadStack } from "@/lib/home/stack"
 import { pushProtocolDoseLog } from "@/lib/home/protocolSync"
 import { combineLocalDateTime } from "@/lib/home/mockHomeData"
@@ -39,7 +39,13 @@ export async function repushDoseLogs(userId: string): Promise<RepushResult> {
   const compoundById = new Map(stack.map((c) => [c.id, c]))
 
   for (const [dateKey, day] of Object.entries(logs)) {
-    for (const [compoundId, log] of Object.entries(day)) {
+    for (const [key, log] of Object.entries(day)) {
+      // PARSED. The store's keys are slot keys (`abc#1` for the evening dose),
+      // and looking one up as a bare compound id missed — so every dose after
+      // the first was silently skipped and never reached Postgres at all. That
+      // is exactly the offline loss this module exists to repair, reintroduced
+      // for multi-dose compounds.
+      const { compoundId, slot } = parseSlotKey(key)
       const method = compoundById.get(compoundId)?.method
       // A compound the device no longer knows about can't be resolved server-side
       // either, so skip rather than guess a route.
@@ -64,7 +70,8 @@ export async function repushDoseLogs(userId: string): Promise<RepushResult> {
           // `supabase/protocol/012` forbids writing a guessed day: doing so makes
           // it permanent and stops the fallback correcting itself. Live logging
           // still stamps the day, which is the only place that legitimately can.
-          false
+          false,
+          slot
         )
         if (res.ok) out.pushed += 1
         else out.failed += 1

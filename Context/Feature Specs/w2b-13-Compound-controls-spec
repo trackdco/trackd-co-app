@@ -1,0 +1,619 @@
+# compound-controls-spec.md
+
+Audited against HEAD `12a4395`. Every file path, column name and function name
+below is real. Where this spec contradicts an existing code comment, the
+contradiction is called out explicitly — do not resolve it silently.
+
+---
+
+## Goal
+
+Five changes to how a user controls a compound after it exists.
+
+1. **Pause** a compound or a whole stack for a stretch of days, with a resume
+   date or indefinitely, backdateable.
+2. **Rebuild the compound detail sheet** so every action is visible without a
+   `More` disclosure, and the fill shown is the real one.
+3. **Bulk powder as a fourth inventory form**, plus real container fill for tubs
+   and bottles instead of the illustrative level.
+4. **Log a compound more than once a day** where `times_per_day > 1`.
+5. **One-off logs** — record something taken once, with no schedule and no
+   stock.
+
+---
+
+## Out of Scope
+
+**DO NOT add an "End" or "Archive" lifecycle verb.** Delete is already soft
+(`archiveProtocolCompound`, `lib/home/protocolSync.ts:479-482`) and keeps every
+dose log. Delete stays the only lifecycle verb; Pause is the second and last
+addition. The comment at `components/home/CompoundDetailSheet.tsx:300-302`
+becomes "Delete and Pause are the ONLY lifecycle verbs" — update it, don't
+delete it.
+
+**DO NOT store a "remaining" or "paused" derived value anywhere.** The
+no-stored-derived invariant (`supabase/trackd_schema_v0_4_2.sql:762-767`,
+`lib/db/inventory.ts:10-13`) holds for pauses too. A pause is an interval; every
+consequence of it is computed at read time.
+
+**DO NOT push `cycles.ended_on` or `protocol_compounds.cycle_end_date` when a
+pause extends a cycle.** `recordScheduleVersion` deletes every version dated
+after the one it writes (`lib/home/stack.ts:275`), so writing an end date from a
+past day destroys future schedule versions. Pause extension is subtraction
+inside the cycle-day arithmetic, never a write.
+
+**DO NOT put pause state in columns on `protocol_compounds`.** A compound is
+paused many times over its life. Columns hold one pause, and overwriting an old
+pause retroactively converts its days back into missed days, because missed is
+inferred from due-and-unlogged (`components/home/HomeScreen.tsx:356`).
+
+**DO NOT set `is_active = false` on a paused compound.** Pause and archive are
+different states. `is_active` is what Delete writes; a paused compound is still
+live, still in the stack, still holding stock.
+
+**DO NOT build a job that resumes a pause.** A pause with an end date resumes
+because the date comparison stops matching, not because anything ran. No cron,
+no scheduled function, no "resume" write. The only writes are creating a pause
+and ending one early.
+
+**DO NOT reuse `dose_logs` for one-off logs.** `protocol_compound_id` is NOT
+NULL, and `doseLogRowId` is one row per compound per day at both the database
+and the device store (`lib/home/doseLog.ts:21`).
+
+**DO NOT add `scoop` to the `dose_unit` enum.** That enum is guarded by three
+unit-family triggers protecting inventory maths. One-off log units are a
+separate `text` column with its own CHECK.
+
+**DO NOT open the stock form on `reconstituted`.** `TYPES` in
+`AddStockSheet.tsx` is ordered with reconstituted first and the picker defaults
+to it, so adding stock for creatine or a vitamin starts by asking about BAC
+water. The form is resolved from the compound before the sheet renders.
+
+**DO NOT show a form a compound cannot be.** `catalogueForms` already returns
+only the real options and the picker already disappears when there is one
+(`AddStockSheet.tsx`). The mechanism is fine; what's wrong is the data behind it
+— supplements resolve by route, so creatine's `po` produces `oral_solid`.
+
+**DO NOT support different amounts per slot on a multi-dose day in this
+version.** A compound dosed 2× daily delivers `dose_amount` twice. Per-slot
+amounts (100 mg AM, 50 mg PM) are a later change and need a per-slot column on
+the schedule, not just a slot index on the log.
+
+**DO NOT add async reads inside `isDueOnFor`.** It is pure and synchronous and
+called by the week strip, calendar grid, consistency and Next Dose
+(`lib/home/stack.ts:205-219`). This constraint already shelved the
+`when_vial_empty` end condition (`lib/protocol/cycleRule.ts:375-394`).
+
+**DO NOT block a dose log because stock has run out.** Today the write path
+never reads remaining and the view clamps at zero. Keep it that way.
+
+---
+
+## Design Decisions
+
+**An inventory form is a fact about a compound, not something re-derived from
+its name.** `StackCompound` currently carries no inventory type and rebuilds it
+from name + route on every render, with the gap already logged
+(`lib/containers/form.ts:126-144`). Bulk powder cannot be derived from route —
+creatine is `po`, which resolves to `oral_solid`. The form becomes a stored,
+nullable column on `protocol_compounds` that falls back to today's derivation
+when null. This is the prerequisite for changes 3 and 4 both.
+
+**A pause is a bounded interval in its own table.** Modelled on `blocks`
+(`supabase/blocks/001_blocks.sql`), which is the only existing shape in the
+schema with a start, a nullable end and a partial unique index. Not a
+`stopped` schedule version — a stop is open-ended until superseded and cannot
+be written in advance.
+
+**A pause is invisible to adherence because nothing was due.** The gate goes
+inside `isDueOnFor`, which makes a paused day return `none` rather than
+`missed`. This is why backdating a pause costs nothing: no backfill, no
+migration, the reclassification happens at next render. The codebase has been
+bitten three times by the opposite (`lib/home/stack.ts:553-566`, `:282-291`).
+
+**Paused days do not advance the cycle clock.** A twelve-week run paused for ten
+days is still twelve weeks of dosing. Implemented by subtracting paused days
+from the day offset before the on/off modulo in `isOnCycle`, and by adding
+remaining pause days to `days_to_empty` in the view. Both are arithmetic, not
+writes.
+
+**A stack pause is N compound pauses sharing a group id.** `stack_members` holds
+a pairing and an integer and nothing else, deliberately
+(`supabase/protocol/007_stacks.sql:9-17`). A stack has nowhere to store a pause
+and should not gain one. The group id is what lets Resume restore only what that
+action paused, leaving individually-paused members paused.
+
+**Pause is expressed as a duration, not a date.** "Two weeks" is how a user
+thinks about a holiday. Until-date and indefinite exist as second choices.
+Backdate is a row that opens a picker, not a visible date field.
+
+**The compound detail sheet shows every action at one level.** No `More`
+disclosure. Actions group under Today / Protocol / Inventory with Delete
+separated below. No Close button — the sheet dismisses by drag.
+
+**The fill on the detail sheet is the real fill.** Line 163 currently hardcodes
+`fill={0.7}`, which is a decorative number sitting next to real ones.
+
+**Container fill display stays continuous; the quarter presets stay an input.**
+`vialLiquid` is already continuous (`lib/containers/geometry.ts:47-54`) and
+`remainingBase / totalBase` already produces the value for any type. The
+quarters in `FILL_PRESETS` are the part-used estimator that produces
+`prior_used_base` — reuse them for tubs and bottles, don't turn the display into
+steps.
+
+**A bulk powder is tracked in grams and nothing else.** `total_amount` is the
+tub weight, `base_unit` is `g`. Serving size is an optional convenience that
+powers a quick-add chip and a scoop-to-grams conversion; it is never the unit of
+inventory.
+
+**Grams get their own unit family.** `unit_family_compatible`
+(`supabase/trackd_schema_v0_4_2.sql:604-611`) gains `g` accepting `g` or `mg`.
+`g` is deliberately not added to the existing `mg` family, or a user could log
+grams against a peptide vial.
+
+**Pause dates are inclusive at both ends.** `started_on` is the first paused day
+and `ends_on` is the last. Resuming today writes `ends_on` as yesterday, so today
+is due again. Undefined inclusivity is the single most likely source of an
+off-by-one here, and an off-by-one shows up as a phantom missed day.
+
+**A pause shifts the cycle, not the cadence grid.** Paused days are subtracted
+from the on/off cycle arithmetic, because losing on-days would cut a protocol
+short. They are **not** subtracted inside `isDueOn`, so an every-third-day
+compound resumes on its original grid rather than re-anchoring to the resume
+date. Re-anchoring would mean every pause silently rewrites the calendar for
+every future dose, which is worse than the next dose landing one or two days
+off.
+
+**An end date is extended at read time, never written.** For a compound with
+`cycle_end_type = 'on_date'`, the effective end is the stored date plus the
+paused days that fall before it. Without this, pausing near the end of a run just
+eats the tail. The stored `cycle_end_date` never moves — see Out of Scope.
+
+**Pausing something already paused edits that pause.** The action is not additive.
+If a pause covering today exists, the sheet opens showing that pause with Resume
+and Change end date, not a fresh pause form. A new pause whose range overlaps an
+existing one extends the existing row rather than inserting a second.
+
+**A one-off log is the one write in the app with a random id.** Everything else
+uses a deterministic id so replay is idempotent (`doseLogRowId`). Two one-off logs
+of the same thing on the same day must both survive, so no deterministic key
+exists. The id is a client-generated uuid, stored locally at write time and
+reused on every replay — which is what preserves idempotency.
+
+**Adding stock asks about the thing you're actually holding.** The stock form is
+resolved from the compound's inventory form (Step 1) before the sheet opens. A
+peptide asks about powder and BAC water. An anabolic asks about mg/mL. A vitamin
+asks about tablet count and strength. A protein or creatine tub asks about
+weight. The picker only appears when a compound genuinely has more than one
+possible form, and even then it opens on that compound's own form, never on
+reconstituted.
+
+**An oral holds its strength in whatever unit is printed on the label.** Today
+`oral_solid` forces `base_unit = 'mg'`, so a 5000 IU vitamin D tablet cannot be
+represented at all. Orals accept `mg` or `iu`, and the column stops being named
+for milligrams.
+
+**An oral's strength is optional, and without it the dose is a count.** There
+are two honest ways to hold a tablet. Strength stated — vitamin C at 1000 mg a
+tab — so you log 2000 mg and two tablets leave stock. Strength not stated — a
+multivitamin, fish oil — so you log 1 tab and one tablet leaves stock. The
+second is currently impossible because inventory-backed doses are restricted to
+mg/mcg/iu. Both must work.
+
+**The powder stock form is the reconstituted form with the second input
+removed.** Same sheet, same `FIELD` and `LABEL` classes, same fill picker, same
+`clean`/`num` input handling. One amount row instead of two, no derived
+concentration readout, and every `hint` subtext dropped.
+
+**A dose slot is identified by index, and existing rows are slot zero.**
+`doseLogRowId` gains a fourth argument. A default of 0 makes every existing row
+correct without a backfill.
+
+**A slot resolves against the schedule version in force on that day, not the
+current one.** Slot 1 means "the second entry in `dose_times`", and `dose_times`
+is versioned per `effective_from` (`supabase/protocol/005`). If a user reorders
+their times or drops from 3× to 2× daily, resolving old logs against today's
+array retroactively relabels history — a dose logged at 20:00 starts displaying
+as 14:00. Slots beyond the current `times_per_day` still render; they are past
+doses that were genuinely taken, not errors.
+
+**A one-off log references nothing.** No compound, no inventory item, no stack.
+It appears in the timeline and nowhere else — excluded from consistency, from
+the runway, from stock, from the picker. That exclusion is the entire reason it
+can be frictionless.
+
+---
+
+## Implementation
+
+**Read these before starting.** Six things this spec instructs changes to were
+never seen during the audit. Open each one before writing the step that touches
+it, and if any of them contradicts what's written here, the code wins and the
+spec gets amended:
+
+- `isOnCycle` — Step 6 subtracts paused days from its day offset.
+- `v_inventory_math` in full — amended by `015`, `016` and `019`.
+- `vialBasis` and `resolveFill` in `lib/protocol/vialFill.ts` — extended in Step 4.
+- The reconstituted branch's JSX in `AddStockSheet.tsx` — Step 4 copies it.
+- `upcomingDoseDates` — gains a pauses argument in Step 6.
+- The scheduling path in `lib/notifications/runner.ts` — silenced in Step 6.
+
+Also confirm `'g'` is actually on the live `dose_unit` enum. The audit found it in
+the TypeScript mirror and believes it was appended during catalogue seeding, but
+that was never verified against the database.
+
+**Ship in three tranches, not one.** Steps 1–4 are inventory and stand alone —
+merge and ship them before starting anything else. Step 5 is multi-dose logging,
+independent of the rest. Steps 6–8 are pause, the detail sheet and one-off logs.
+Each tranche is releasable on its own; Step 1 is the only hard dependency, and
+everything depends on it.
+
+Apply migrations in order. Each SQL file needs its own
+`GRANT … TO authenticated` or PostgREST returns 42501
+(`supabase/protocol/007_stacks.sql:88-92`). Every new column read by the client
+needs the `isUndefinedColumn` retry treatment (`lib/db/inventory.ts:29-31`) or
+the column-stripping treatment (`lib/protocol/cycleRule.ts:100-108`) so the app
+still runs against a database that hasn't had the migration applied.
+
+**Two traps specific to these migrations.**
+
+`ALTER TYPE inventory_type ADD VALUE 'bulk_powder'` cannot be used in the same
+transaction that adds it. Pasting the whole of `014` into the SQL Editor as one
+block will fail. Run the `ALTER TYPE` on its own first, then the rest.
+
+The rename in `016` is the **only backwards-incompatible change in this spec**.
+Every other migration can be applied before or after the deploy; a rename makes
+the old column name disappear, so code still reading `strength_per_unit_mg`
+breaks the moment it runs. Apply `016` and deploy together, or add the new
+column and backfill instead of renaming if you'd rather not coordinate.
+
+### Step 1 — Record the inventory form on the compound
+
+1. Migration `supabase/protocol/013_compound_inventory_form.sql`: add
+   `inventory_form inventory_type NULL` to `protocol_compounds`.
+2. Add `inventoryForm?: InventoryType | null` to `ProtocolCompound`
+   (`lib/db/types.ts:174-214`) and to `StackCompound`
+   (`lib/home/stack.ts:437-459`).
+3. In the resolver at `lib/containers/form.ts`, read the stored value first and
+   fall back to today's name-and-route derivation when null. Do not remove the
+   fallback — existing compounds have no stored value.
+4. Read back the "Make your own" form's Inventory type answer and write it to
+   the new column. This closes the KNOWN GAP at
+   `lib/containers/form.ts:126-144`.
+
+**Verify before continuing:** an off-catalogue nasal compound no longer draws a
+vial.
+
+### Step 2 — Bulk powder, and orals in any label unit
+
+1. Migration `014_bulk_powder.sql`:
+   - `ALTER TYPE inventory_type ADD VALUE 'bulk_powder';`
+   - Confirm `'g'` is present on `dose_unit`; add it if the live enum lacks it.
+   - Add `serving_size_g numeric(10,3) NULL` to `inventory_items`.
+   - Replace the `inv_type_fields` CHECK with a four-branch version. The new
+     branch: `bac_water_ml`, `concentration_mg_per_ml` and
+     `strength_per_unit_mg` all NULL, `base_unit = 'g'`,
+     `total_amount_unit = 'g'`.
+   - Add to the CHECK: `serving_size_g IS NULL OR inventory_type = 'bulk_powder'`.
+   - Extend `unit_family_compatible` with
+     `OR (item_base = 'g' AND dose IN ('g','mg'))`.
+2. Migration `015_powder_math.sql`, amending `v_inventory_math`:
+   - `remaining_base` gains `WHEN 'bulk_powder' THEN i.total_amount`.
+   - **The `consumed` CTE must become base-aware.** It currently converts
+     `mcg → mg` with no knowledge of the item
+     (`supabase/protocol/010_inventory_days_to_empty.sql:35-46`). Join
+     `inventory_items` and convert against `base_unit`: for a `g` item, an `mg`
+     dose divides by 1000; for an `mg` item, an `mcg` dose divides by 1000 as
+     today.
+3. Migration `016_oral_units.sql`:
+   - `ALTER TABLE inventory_items RENAME COLUMN strength_per_unit_mg TO
+     strength_per_unit;` The name lies as soon as a tablet is measured in IU.
+     Update every reader: the `inv_type_fields` CHECK, `v_inventory_math`,
+     `StockInsert` and `StockItem` (`lib/db/inventory.ts:44-98`),
+     `AddStockSheet.tsx`'s oral fields, and `buildStockInsert`.
+   - Make `strength_per_unit` nullable on the `oral_solid` branch, and change
+     that branch to `base_unit IN ('mg','iu','tab','capsule')`. Strength stated →
+     base is `mg` or `iu`. Strength null → base equals `total_amount_unit`
+     (`tab` or `capsule`).
+   - Extend `unit_family_compatible` with
+     `OR (item_base = 'tab' AND dose = 'tab') OR (item_base = 'capsule' AND dose = 'capsule')`.
+   - Widen `inv_backed_dose_unit` (`supabase/trackd_schema_v0_4_2.sql:719-721`)
+     from `('mg','mcg','iu')` to include `'g'`, `'tab'` and `'capsule'`. The
+     family triggers are what actually enforce correctness; this CHECK was only
+     ever a coarse first pass.
+4. In `v_inventory_math`, the `oral_solid` branch of `remaining_base` becomes
+   `i.total_amount * COALESCE(i.strength_per_unit, 1)`. That one `COALESCE`
+   handles both kinds of tablet — strength stated gives a base in mg or IU,
+   strength null gives a base in tablets.
+5. Add `bulk_powder` to `InventoryType` (`lib/db/types.ts:47`) and to
+   `StockInsert` handling in `lib/db/inventory.ts`.
+
+**Verify before continuing:** a 1 kg tub logged 10 g reads 990 g remaining. A
+peptide vial rejects a dose in grams. A 100-tab bottle of 1000 mg vitamin C
+logged 2000 mg drops to 98 tabs. A 5000 IU vitamin D tablet can be created at
+all. A 60-tab multivitamin with no strength logged 1 tab drops to 59.
+
+### Step 3 — Real fill for tubs and bottles
+
+1. `Tub.tsx` and `Bottle.tsx` read the `fill` prop instead of
+   `ILLUSTRATIVE_FILL`. Keep `ILLUSTRATIVE_FILL` as the fallback when `fill` is
+   undefined, and keep it at 0.62 — a full container reads as a claim about
+   stock (`lib/containers/geometry.ts:25`).
+2. Add the fill geometry for both shapes in `lib/containers/geometry.ts`,
+   mirroring `vialLiquid`.
+3. Update the comment at `components/containers/types.ts:12-18` — the fill is
+   now real for all three.
+
+### Step 4 — The powder stock form
+
+1. In `AddStockSheet.tsx`, add `{ value: "bulk_powder", label: "Powder" }` to
+   `TYPES`. **Remove the `hint` field from the type entirely** and drop the
+   subtext from all four entries.
+1a. Resolve the compound's form before first render and open the sheet on it —
+   `formsForId` already returns the candidate list, so seed the selected form
+   from Step 1's stored `inventory_form` and put that form first, rather than
+   letting `TYPES` order decide. `refillType` already does exactly this for
+   refills (it locks the form); extend the same behaviour to a fresh add.
+1b. Seed the catalogue with correct forms. `catalogueForms` reads
+   `routesOf(c).inventoryType`, so creatine and any other scooped powder need
+   `bulk_powder` on their `po` route in `lib/compounds-catalogue`, and
+   vitamins need `oral_solid` with a strength unit. Run `seed:compounds`
+   (`supabase/seed/build-compounds-data.mjs`) after editing. Without this the
+   picker resolves supplements by route and lands on `oral_solid` for
+   everything oral, powder included.
+1c. Extend `formsForMethod` — the custom-compound fallback — so `po` returns
+   `["oral_solid", "bulk_powder"]` rather than orals only. A user's own protein
+   powder has no catalogue entry.
+2. Add the `bulk_powder` branch to the form body by **copying the reconstituted
+   branch's row structure exactly** — same `LABEL` + `FIELD` markup, same
+   `clean`/`num` handlers — then deleting the BAC water row and the derived
+   concentration readout. Rows, in order: tub weight (`g`, `total_amount`),
+   serving size (`g`, `serving_size_g`, optional), fill picker.
+3. Reuse `resolveFill` / `vialBasis` / `FILL_PRESETS` unchanged for the fill
+   picker. Presets are the primary input; exact amount is the escape hatch
+   below.
+3a. **`vialBasis` needs a basis per form or the presets compute the wrong
+   `prior_used_base`.** It currently derives a vial's total base. Extend it:
+   powder → `total_amount`; oral with strength → `total_amount *
+   strength_per_unit`; oral without → `total_amount`. A ½-full 1 kg tub must
+   land on 500 g used, and a ½-full 100-tab bottle on 50 tabs.
+3b. Store powder amounts in grams and display kilograms above 1000 g. A 1 kg tub
+   is `total_amount = 1000`, `total_amount_unit = 'g'`. Display conversion only —
+   nothing derived is stored.
+4. Extend `buildStockInsert` in `AddCompoundSheet.tsx` — it currently returns
+   null for anything not vial-shaped (`:565-567`).
+5. Replace the `canStock` gate (`:363-372`) — `isVialForm` becomes
+   `isStockableForm`, true for all four forms, so orals and powders get a stock
+   step during add-compound instead of only in Protocol → Stock.
+
+**Verify before continuing:** creatine added from scratch offers a stock step,
+asks for tub weight, and never mentions BAC water.
+
+### Step 5 — Multi-dose days
+
+1. Migration `017_dose_slots.sql`: add
+   `slot_index smallint NOT NULL DEFAULT 0` to `dose_logs`, with
+   `CHECK (slot_index >= 0)`.
+2. `doseLogRowId(userId, dateKey, pcId)` gains a fourth argument `slot`
+   (`lib/home/protocolSync.ts:904`). Slot 0 must produce the same id as today,
+   so existing rows still upsert onto themselves.
+3. Device store key becomes `${compoundId}#${slot}` in `lib/home/doseLog.ts:21`.
+   Migrate existing keys on read by treating an unsuffixed key as slot 0.
+4. `logDose` takes a slot. Every call site passes one: single tick passes the
+   slot tapped, stack logging (`components/home/HomeScreen.tsx:714-734`) passes
+   the next unlogged slot per member.
+4a. **Delete tombstones must carry the slot** (`lib/home/doseLog.ts:26-110`).
+   They are keyed by compound and date today, so undoing the evening dose offline
+   would suppress the morning one on next hydration.
+5. The compound row renders one sub-row per entry in `dose_times` when
+   `times_per_day > 1`, each independently loggable, with `n of m` on the
+   parent. `partial` in `DayStatus` becomes reachable — check it renders.
+
+**Verify before continuing:** a 2× daily compound logged once shows 1 of 2 and a
+`partial` day. Logged twice, two rows exist. A pre-existing single-dose
+compound's logs are untouched.
+
+### Step 6 — Pause
+
+1. Migration `018_compound_pauses.sql`:
+   ```
+   CREATE TABLE compound_pauses (
+       id                   uuid PRIMARY KEY,
+       user_id              uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+       protocol_compound_id uuid NOT NULL REFERENCES protocol_compounds(id) ON DELETE CASCADE,
+       started_on           date NOT NULL,
+       ends_on              date,
+       pause_group_id       uuid,
+       is_active            boolean NOT NULL DEFAULT true,
+       created_at           timestamptz NOT NULL DEFAULT now(),
+       updated_at           timestamptz NOT NULL DEFAULT now(),
+       CONSTRAINT pause_order CHECK (ends_on IS NULL OR ends_on >= started_on)
+   );
+   ```
+   Plus RLS, a `GRANT`, an index on `(protocol_compound_id, started_on)`, an
+   index on `pause_group_id`, and a partial unique index on
+   `(protocol_compound_id) WHERE is_active AND ends_on IS NULL` — one indefinite
+   pause per compound. Overlap of dated pauses is prevented in app logic, not
+   the index; `current_date` is not immutable and cannot appear in a predicate.
+   `id` is client-generated so replay is idempotent.
+2. `lib/home/pauses.ts`, all pure and synchronous:
+   - `isPausedOn(pauses, dateKey): boolean`
+   - `pausedDaysBetween(pauses, fromKey, toKey): number`
+   - `activePause(pauses, dateKey): Pause | null`
+3. Add `pauses: Pause[]` to `StackCompound`, hydrated alongside schedule
+   versions.
+4. **Gate inside `isDueOnFor`** (`lib/home/stack.ts:205-219`), after the
+   `resolved.stopped` check and **before** `isOnCycle`:
+   ```
+   if (isPausedOn(c.pauses, dateKey)) return false
+   ```
+   Order matters — the cycle check needs to know the day was paused.
+5. In `isOnCycle`, subtract `pausedDaysBetween(pauses, anchor, dateKey)` from
+   the day offset before the on/off modulo, so paused days don't advance the
+   cycle.
+6. Migration `019_pause_runway.sql`: in `v_inventory_math`, LEFT JOIN active
+   pauses and add remaining paused days to `days_to_empty`. **An indefinite
+   pause returns NULL for `days_to_empty`, not a large number** — there is no
+   answer to "when does this run out" when nothing is being consumed and no
+   resume date exists. The client already handles NULL there. Leave
+   `est_empty_date` alone — it is the UTC-leaking column and the client already
+   prefers `days_to_empty` (`supabase/protocol/010:5-20`).
+7. Writes follow the house pattern (`lib/home/doseLog.ts:230-269`):
+   localStorage synchronously, custom event, `void trackSync(push…())`. Resume
+   and un-pause are deletes in effect, so they use `trackCriticalSync` and write
+   a tombstone with the 14-day TTL (`lib/home/doseLog.ts:26-110`).
+8. Pause sheet: duration chips (1 week / 2 weeks / until date / indefinite),
+   a Starts row, a Backdate row, a Pause whole stack row. Confirm button states
+   the resolved date.
+9. Stack pause: the Pause whole stack row opens a member checklist with every
+   member pre-ticked. Confirm writes one row per ticked member sharing a fresh
+   `pause_group_id`. Resume resolves the group and ends only those rows.
+10. Dashboard: a single collapsed row reading `Paused · n` with the earliest
+    resume date. Expanded, members render greyed. Never hidden — hidden reads as
+    deleted. **Filter out archived compounds** — a soft-deleted compound keeps its
+    pause rows and would otherwise inflate the count. **Collapse a whole paused
+    stack to one entry** rather than listing five members.
+11. **Silence notifications for a paused compound.** `lib/notifications/runner.ts`
+    schedules from the compound, not from `isDueOnFor`. A paused compound must
+    stop sending dose reminders and stop sending the low-stock nudge (`:196`) —
+    stock isn't moving, so the nudge is noise.
+12. **`upcomingDoseDates` needs the pauses.** Its signature is
+    `(schedule, from, count, cycle)` — called at
+    `components/home/CompoundDetailSheet.tsx` for the Next line. Without pauses it
+    will show three dates that fall inside the pause.
+13. **Effective end date.** Where a compound has `cycle_end_type = 'on_date'`,
+    compute the effective end as the stored date plus paused days falling before
+    it, at read time in `lib/protocol/cycleRule.ts`. Nothing written.
+14. Pause sheet, already-paused state: if a pause covers today, open on that
+    pause with Resume and Change end date. Resume writes `ends_on = yesterday`.
+    A new pause overlapping an existing one extends that row instead of
+    inserting.
+
+**Verify before continuing:** pause creatine two weeks, then check the past
+fortnight of the calendar shows no missed days for it. Backdate a pause five
+days and watch five missed days become blank. Pause a stack, untick one member,
+resume, and confirm the unticked member is still running and a
+separately-paused member is still paused.
+
+### Step 7 — The compound detail sheet
+
+1. Rewrite `DetailBody` in `components/home/CompoundDetailSheet.tsx` to the
+   approved layout: drag handle, header with real fill and remaining, then
+   Today (Log / Edit / Skip), Protocol (Pause, Alter dose, Schedule), Inventory
+   (Add stock, Correct remaining), Delete below a divider.
+2. Replace `fill={0.7}` at line 163 with the real value, computed as at
+   `components/protocol/CompoundStorageCard.tsx:240-241`.
+3. Remove the `More` disclosure and the `Close` SheetClose.
+4. Add `onPause` to the props (`:36-54`).
+5. Show current values inline on their rows — dose on Alter dose, cadence on
+   Schedule.
+6. Keep the destructive red on Delete's inline confirm and keep the comment at
+   `:234-239` explaining that red is for destructive confirmation only.
+7. On the dashboard, tapping a compound row logs the dose; the sheet opens from
+   the chevron or a long-press.
+
+### Step 8 — One-off logs
+
+1. Migration `020_one_off_logs.sql`:
+   ```
+   CREATE TABLE one_off_logs (
+       id          uuid PRIMARY KEY,
+       user_id     uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+       label       text NOT NULL CHECK (length(btrim(label)) BETWEEN 1 AND 80),
+       amount      numeric(10,3),
+       unit        text CHECK (unit IN ('g','mg','mcg','iu','ml','tab','capsule','scoop')),
+       logged_for  date NOT NULL,
+       taken_at    timestamptz NOT NULL DEFAULT now(),
+       note        text,
+       created_at  timestamptz NOT NULL DEFAULT now()
+   );
+   ```
+   Plus RLS, a `GRANT`, and an index on `(user_id, logged_for)`. `unit` is
+   `text` with a CHECK, not `dose_unit` — see Design Decisions.
+2. `logged_for` follows the `dose_logs.logged_for` pattern: device-local, only
+   written when the device vouches for the day
+   (`dayIsDeviceRecorded`, `lib/home/protocolSync.ts:774-785`). Never
+   `current_date` in SQL.
+3. Union one-off logs into the timeline at read time. Exclude them from
+   `DayStatus`, from consistency, from `v_inventory_math`, from the compound
+   picker and from Stock.
+4. Sheet: recents as chips (distinct label over the last 30 days), then label,
+   amount, unit select including `scoop`, then time. Entry point is a row on the
+   dashboard below the compound list.
+5. After a third log of the same label, offer once to add it to the schedule.
+   Dismissal is remembered per label.
+6. **Deleting a one-off log.** It will be mis-typed constantly, so it needs a
+   delete with a tombstone on the same 14-day TTL pattern, and the delete goes
+   through `trackCriticalSync` so hydration can't resurrect it.
+7. The id is a client-generated uuid held in localStorage from the moment of
+   writing, and the same id is used on every replay. Do not derive it from
+   label, date or user — see Design Decisions.
+
+---
+
+## Check When Done
+
+- A compound paused for two weeks shows nothing due for fourteen days, and none
+  of those days reads as missed.
+- Backdating a pause reclassifies past missed days to blank with no migration
+  and no backfill.
+- A twelve-week cycle paused ten days finishes ten days later, with
+  `cycle_end_date` unchanged in the database.
+- Pausing a stack pre-ticks all members; unticking one leaves it running;
+  resuming the stack does not resume a member that was paused separately.
+- A compound with an indefinite pause cannot receive a second one.
+- Resuming a pause today makes today due, not tomorrow.
+- A pause with an end date resumes with no job having run — confirm by pausing
+  until yesterday and reopening the app with no network.
+- A compound paused indefinitely shows no runway estimate rather than a huge one.
+- Pausing a compound does not archive it — it still appears in Stock and in its
+  stack.
+- Reordering `dose_times` does not relabel the times on past logged doses.
+- Dropping a compound from 3× to 2× daily leaves its historic third doses visible.
+- Migration numbers are unique and applied in order, with the `ALTER TYPE` in
+  `014` run as its own statement.
+- Pausing an already-paused compound edits the existing pause instead of stacking
+  a second one.
+- An every-third-day compound paused a week resumes on its original grid.
+- A run ending on a fixed date, paused ten days mid-way, ends ten days later —
+  and `cycle_end_date` in the database is unchanged.
+- A paused compound sends no dose reminders and no low-stock nudge.
+- The Next line on the detail sheet skips dates inside the pause.
+- A soft-deleted compound does not appear in the paused count.
+- A fully paused stack shows as one entry, not as its members.
+- A part-used 1 kg tub added at ½ starts at 500 g; a part-used 100-tab bottle at
+  ½ starts at 50 tabs.
+- Undoing the evening dose of a twice-daily compound offline leaves the morning
+  dose logged after the next hydration.
+- A one-off log deleted offline stays deleted after hydration, and a replayed
+  one-off log does not double-insert.
+- Pause survives an offline round trip and a reinstall; un-pausing offline is not
+  undone by the next hydration.
+- `isDueOnFor` is still pure and synchronous, with no awaits added.
+- A 1 kg creatine tub logged 10 g shows 990 g. Logged 200 times, it shows 0, not
+  a negative, and the log still writes.
+- A peptide vial rejects a dose in grams; a powder tub rejects a dose in IU.
+- Adding creatine from scratch offers a stock step and never mentions BAC water.
+- Adding stock opens on the compound's own form every time — a peptide on powder
+  and BAC water, an anabolic on mg/mL, a vitamin on tabs and strength, a tub on
+  weight. The form picker never opens on reconstituted by default, and does not
+  appear at all when a compound has one possible form.
+- A 100-tab bottle of 1000 mg vitamin C logged 2000 mg drops to 98 tabs.
+- A 5000 IU vitamin D tablet can be stocked, and logging 5000 IU drops it one
+  tablet.
+- A multivitamin with no stated strength can be stocked as 60 tabs and logged as
+  1 tab.
+- No column named for milligrams holds a value in IU.
+- No inventory type's stock form displays a subtext hint.
+- Tub and bottle fill move as stock depletes; a part-used tub added at ½ starts
+  at half.
+- A 2× daily compound logs twice in one day, producing two rows, and reads 1 of
+  2 after one.
+- Existing single-dose logs are unchanged after the slot migration.
+- A one-off log appears in the timeline and nowhere else — not in consistency,
+  the runway, Stock, or the picker.
+- Two one-off logs of the same thing on the same day both persist.
+- The detail sheet has no `More` and no `Close`, and its fill matches the fill on
+  the storage card.
+- Every new table has an explicit `GRANT … TO authenticated`.
+- The app still runs against a database missing every migration in this spec.

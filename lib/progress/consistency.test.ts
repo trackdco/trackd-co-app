@@ -4,7 +4,8 @@
  */
 import { describe, it, expect } from "vitest"
 
-import { overallPct } from "@/lib/progress/consistency"
+import { computeAdherenceOver, overallPct } from "@/lib/progress/consistency"
+import type { StackCompound } from "@/lib/home/stack"
 
 describe("overallPct — today is not yet missed", () => {
   const pt = (key: string, due: number, logged: number) =>
@@ -33,5 +34,89 @@ describe("overallPct — today is not yet missed", () => {
 
   it("is unchanged when no today key is supplied", () => {
     expect(overallPct([pt("2026-07-31", 1, 0)])).toBe(0)
+  })
+})
+
+/**
+ * SLOTS AND SKIPS (Spec w2b-13; Adrian's call on skips, 2026-08-07).
+ *
+ * The rule these pin: a PAUSE changes what was due, so a paused day never
+ * reaches the calculation at all. A SKIP does not change the plan — the dose was
+ * still due and the user chose not to take it — so it counts as due-and-not-taken.
+ */
+describe("consistency counts DOSES, and a skip is not a dose taken", () => {
+  const twiceDaily = (over: Partial<StackCompound> = {}): StackCompound => ({
+    id: "c1",
+    name: "Metformin",
+    category: "oral",
+    method: "po",
+    dose: 500,
+    unit: "mg",
+    schedule: {
+      cadence: { type: "daily" },
+      timeOfDay: "08:00",
+      laterTimes: ["20:00"],
+      startDate: "2026-08-01",
+    },
+    rotationSites: [],
+    rotationIndex: 0,
+    ...over,
+  })
+  const taken = { amount: "500", time24: "08:00", siteId: null }
+  const skipped = { ...taken, status: "skipped" as const }
+
+  it("reads a twice-daily compound with ONE dose logged as 50%, not 100%", () => {
+    // The denominator counted compounds, so slot 0 alone made the day complete.
+    const pts = computeAdherenceOver(
+      [twiceDaily()],
+      { "2026-08-10": { c1: taken } },
+      "2026-08-10",
+      "2026-08-10",
+    )
+    expect(pts[0]).toMatchObject({ due: 2, logged: 1, pct: 50 })
+  })
+
+  it("reads both doses logged as 100%", () => {
+    const pts = computeAdherenceOver(
+      [twiceDaily()],
+      { "2026-08-10": { c1: taken, "c1#1": taken } },
+      "2026-08-10",
+      "2026-08-10",
+    )
+    expect(pts[0]).toMatchObject({ due: 2, logged: 2, pct: 100 })
+  })
+
+  it("counts a SKIPPED dose as due but not taken", () => {
+    const pts = computeAdherenceOver(
+      [twiceDaily()],
+      { "2026-08-10": { c1: taken, "c1#1": skipped } },
+      "2026-08-10",
+      "2026-08-10",
+    )
+    expect(pts[0]).toMatchObject({ due: 2, logged: 1, pct: 50 })
+  })
+
+  it("does not let skipping everything read as 100%", () => {
+    // The reason a skip is not excluded: if it were, the metric would mean
+    // nothing for anyone who used the button.
+    const pts = computeAdherenceOver(
+      [twiceDaily()],
+      { "2026-08-10": { c1: skipped, "c1#1": skipped } },
+      "2026-08-10",
+      "2026-08-10",
+    )
+    expect(pts[0]).toMatchObject({ due: 2, logged: 0, pct: 0 })
+  })
+
+  it("leaves a PAUSED day out of the calculation entirely", () => {
+    // The contrast that settles the skip question: a pause changes what was DUE,
+    // so the day has no denominator at all rather than a zero numerator.
+    const pts = computeAdherenceOver(
+      [twiceDaily({ pauses: [{ id: "p", startedOn: "2026-08-09", endsOn: "2026-08-11" }] })],
+      {},
+      "2026-08-10",
+      "2026-08-10",
+    )
+    expect(pts[0]).toMatchObject({ due: 0, logged: 0, pct: null })
   })
 })

@@ -15,6 +15,8 @@ import {
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
 import { capNote, type DoseLog } from "@/lib/home/mockHomeData"
 import {
+  doseAmountsOf,
+  doseTimesOf,
   formatDateKeyShort,
   formatTimeLabel,
   hasTime,
@@ -41,6 +43,10 @@ interface LogDoseSheetProps {
   compound: StackCompound | null
   /** The existing log when editing an already-logged dose; null = fresh log. */
   existing: DoseLog | null
+  /** Which of the day's scheduled doses is being logged — an index into that
+   *  day's `dose_times` (Spec w2b-13, Step 5). Defaults to 0, which is every
+   *  compound taken once a day. */
+  slot?: number
   /** The day this dose lands on, "YYYY-MM-DD" — the caller's selected day, which
    *  need NOT be today (the week strip can look back). Everything date-dependent
    *  keys off this: the notice, the default time, and which vial it draws from. */
@@ -64,7 +70,8 @@ interface LogDoseSheetProps {
     compoundId: string,
     log: DoseLog,
     landsOn: string,
-    openedOn: string
+    openedOn: string,
+    slot: number
   ) => void
   /**
    * Undo — remove the dose's log entirely, ON THE DAY THE SHEET IS SHOWING.
@@ -75,7 +82,7 @@ interface LogDoseSheetProps {
    * "Remove dose" then deleted a DIFFERENT day's dose and tombstoned it. Leaving
    * the sheet open across midnight was enough.
    */
-  onRemove: (compoundId: string, dateKey: string) => void
+  onRemove: (compoundId: string, dateKey: string, slot: number) => void
   /**
    * Whether this compound already has a dose logged on a given day.
    *
@@ -110,6 +117,7 @@ export function LogDoseSheet({
   open,
   compound,
   existing,
+  slot = 0,
   dateKey,
   todayKey,
   siteLastUsedDays,
@@ -125,12 +133,19 @@ export function LogDoseSheet({
   const [shown, setShown] = useState<{
     compound: StackCompound
     existing: DoseLog | null
-  } | null>(compound ? { compound, existing } : null)
+    /** WHICH of the day's doses is being logged (Spec w2b-13, Step 5). Retained
+     *  with the compound through the close animation for the same reason: the
+     *  sheet must commit against the dose it was opened for, not whatever is
+     *  selected by the time it finishes closing. */
+    slot: number
+  } | null>(compound ? { compound, existing, slot } : null)
   if (
     compound !== null &&
-    (compound !== shown?.compound || existing !== shown?.existing)
+    (compound !== shown?.compound ||
+      existing !== shown?.existing ||
+      slot !== shown?.slot)
   ) {
-    setShown({ compound, existing })
+    setShown({ compound, existing, slot })
   }
 
   /**
@@ -184,9 +199,10 @@ export function LogDoseSheet({
             // Keyed by the day the sheet OPENED on, so re-opening on another day
             // still starts fresh while the day moving under an open sheet cannot
             // wipe what the user has typed.
-            key={`${shown.compound.id}:${openedOn}`}
+            key={`${shown.compound.id}#${shown.slot}:${openedOn}`}
             compound={shown.compound}
             existing={shown.existing}
+            slot={shown.slot}
             dateKey={openedOn}
             todayKey={openedToday}
             siteLastUsedDays={siteLastUsedDays}
@@ -236,6 +252,7 @@ function toHHMMSS(d: Date): string {
 function LogDoseBody({
   compound,
   existing,
+  slot,
   dateKey,
   todayKey,
   siteLastUsedDays,
@@ -247,6 +264,9 @@ function LogDoseBody({
 }: {
   compound: StackCompound
   existing: DoseLog | null
+  /** Which of the day's doses this is. Committed against, so the sheet cannot
+   *  overwrite the morning dose when it was opened for the evening one. */
+  slot: number
   dateKey: string
   todayKey: string
   siteLastUsedDays: Record<string, number>
@@ -256,9 +276,10 @@ function LogDoseBody({
     compoundId: string,
     log: DoseLog,
     landsOn: string,
-    openedOn: string
+    openedOn: string,
+    slot: number
   ) => void
-  onRemove: (compoundId: string, dateKey: string) => void
+  onRemove: (compoundId: string, dateKey: string, slot: number) => void
   /** REQUIRED, not optional: a call site that forgets it silently gets back the
    *  destroy-the-other-dose behaviour with no type error. */
   hasLogOn: (dateKey: string) => boolean
@@ -304,7 +325,17 @@ function LogDoseBody({
   // `resolveScheduleOn` is what every retrospective READ already uses; the write
   // was reading the live compound, so back-dating a day recorded today's dose.
   const onDay = resolveScheduleOn(compound, logDate)
-  const [amount, setAmount] = useState(existing?.amount ?? String(onDay.dose))
+  /**
+   * The plan for THIS slot on this day: its own amount and its own time.
+   *
+   * Not the compound's, because those differ once a per-slot amount is set —
+   * 100 mg in the morning, 50 mg at night (`supabase/protocol/021`). Opening the
+   * evening dose and pre-filling the morning's figure would have the user
+   * confirm a number they never take.
+   */
+  const slotDose = doseAmountsOf(onDay.schedule, onDay.dose)[slot] ?? onDay.dose
+  const slotTime = doseTimesOf(onDay.schedule)[slot] ?? onDay.schedule.timeOfDay
+  const [amount, setAmount] = useState(existing?.amount ?? String(slotDose))
   const [editingAmount, setEditingAmount] = useState(false)
 
   // `manualTime === null` ⇒ take the day's default; any value ⇒ the user's own,
@@ -331,7 +362,7 @@ function LogDoseBody({
     return () => window.clearInterval(id)
   }, [manualTime, onToday])
   const liveTracking = manualTime === null && onToday
-  const defaultTime = onToday ? toHHMM(now) : compound.schedule.timeOfDay
+  const defaultTime = onToday ? toHHMM(now) : slotTime
   const displayTime = manualTime ?? defaultTime
 
   const [siteId, setSiteId] = useState<string | null>(existing?.siteId ?? null)
@@ -715,7 +746,7 @@ function LogDoseBody({
             if (dayTaken) return
             // Commit immediately, THEN show the success tick — so nothing about
             // dismissing the tick can undo the log.
-            onTracked(compound.id, buildLog(), logDate, dateKey)
+            onTracked(compound.id, buildLog(), logDate, dateKey, slot)
             setTracked(true)
           }}
           className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:opacity-40"
@@ -746,8 +777,8 @@ function LogDoseBody({
           // A compound may legitimately have no time, and "Scheduled Not set"
           // is not a sentence. No time means no second fact worth stating.
           detail={
-            hasTime(compound.schedule.timeOfDay)
-              ? `Scheduled ${formatTimeLabel(compound.schedule.timeOfDay)}`
+            hasTime(slotTime)
+              ? `Scheduled ${formatTimeLabel(slotTime)}`
               : undefined
           }
         />
@@ -1108,7 +1139,7 @@ function LogDoseBody({
             onClick={() => {
               // `dateKey` is the frozen day this sheet opened on — the dose the
               // user is looking at. Never the caller's live selection.
-              onRemove(compound.id, dateKey)
+              onRemove(compound.id, dateKey, slot)
               onClose()
             }}
             className="mt-4 block w-full text-center text-sm text-state-error transition-opacity hover:opacity-80"

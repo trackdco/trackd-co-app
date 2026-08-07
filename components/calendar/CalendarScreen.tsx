@@ -46,6 +46,22 @@ import { cycleColourVar, formatCyclePattern } from "@/lib/protocol/cycleRule";
 import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets";
 import { LogDoseSheet } from "@/components/home/LogDoseSheet";
 import { setSelectedDay } from "@/lib/home/selectedDay";
+import {
+  addOneOff,
+  getOneOffsSnapshot,
+  hasOneOffOn,
+  oneOffsOn,
+  recentOneOffLabels,
+  removeOneOff,
+  subscribeOneOffs,
+  type OneOffDays,
+} from "@/lib/home/oneOffLogs";
+import { OneOffSheet } from "@/components/home/OneOffSheet";
+import { OneOffDaySheet } from "@/components/calendar/OneOffDaySheet";
+import { formatJournalDate } from "@/lib/progress/journal";
+
+/** Stable empty reference for the one-off store's server snapshot. */
+const EMPTY_ONE_OFFS: OneOffDays = {};
 import { commitDoseOn, unlogDose } from "@/lib/home/doseLog";
 import type { EntryMarker } from "@/lib/progress/journal";
 import { unitForPreference } from "@/lib/weight";
@@ -123,6 +139,10 @@ export function CalendarScreen({
   });
   const [selectedKey, setSelectedKey] = useState<DateKey>(serverTodayKey);
   const [sheetOpen, setSheetOpen] = useState(false);
+  /** The day's off-plan MENU (behind the "⋯" beside Running). */
+  const [oneOffDayOpen, setOneOffDayOpen] = useState(false);
+  /** The form that records one. Opened from that menu. */
+  const [oneOffOpen, setOneOffOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   // The compound being logged from the calendar, if any.
   const [logTarget, setLogTarget] = useState<StackCompound | null>(null);
@@ -182,6 +202,14 @@ export function CalendarScreen({
     () => getDoseLogsSnapshot(userId),
     () => EMPTY_LOGS,
   );
+  // One-offs: their own store, because they are their own thing. Keeping them
+  // out of `logs` is what keeps them out of consistency, the runway and stock
+  // without a single filter being written.
+  const oneOffs = useSyncExternalStore(
+    subscribeOneOffs,
+    () => getOneOffsSnapshot(userId),
+    () => EMPTY_ONE_OFFS,
+  );
   const stack = sampleStack ?? liveStack;
   const logs = sampleLogs ?? liveLogs;
 
@@ -234,6 +262,10 @@ export function CalendarScreen({
     const scheduled =
       deviceReady &&
       activeStack.some((c) => isDueOnFor(c, dateKeyToDate(key)));
+    // ⚠️ `hasOneOff` is deliberately NOT part of `logged`. The ring answers
+    // "did I do what I planned", and a one-off is not part of any plan — folding
+    // it in would let an off-plan supplement read as protocol adherence, and
+    // would fill the ring on a day where nothing was ever scheduled.
     const logged = loggedDose || hasPhoto || hasJournal || hasWeight;
     const status = resolveDayStatus(logged, scheduled, key > todayKey);
     const kind = loggedDose
@@ -245,7 +277,7 @@ export function CalendarScreen({
           : hasWeight
             ? "weight"
             : null;
-    return { status, kind };
+    return { status, kind, oneOff: deviceReady && hasOneOffOn(oneOffs, key) };
   }
 
   // The selected day's detail.
@@ -359,6 +391,31 @@ export function CalendarScreen({
         </section>
       )}
 
+      {/* The day's off-plan entries, behind the "⋯" beside Running. */}
+      <OneOffDaySheet
+        open={oneOffDayOpen}
+        onOpenChange={setOneOffDayOpen}
+        dateLabel={formatJournalDate(selectedKey)}
+        logs={deviceReady ? oneOffsOn(oneOffs, selectedKey) : []}
+        onAdd={() => {
+          setOneOffDayOpen(false);
+          setOneOffOpen(true);
+        }}
+        onRemove={(id) => removeOneOff(userId, selectedKey, id)}
+      />
+
+      {/* Off-plan logging, against the day being VIEWED. It writes to its own
+          store and its own table, so nothing here can reach consistency, the
+          runway or stock. */}
+      <OneOffSheet
+        open={oneOffOpen}
+        onOpenChange={setOneOffOpen}
+        todayKey={todayKey}
+        dateKey={selectedKey}
+        recents={recentOneOffLabels(oneOffs, todayKey)}
+        onSave={(log) => addOneOff(userId, log)}
+      />
+
       <DayDetailSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
@@ -371,6 +428,11 @@ export function CalendarScreen({
         hasJournalEntry={Boolean(selJournal)}
         photos={photosByDate[selectedKey] ?? []}
         cycles={cyclesOnSelected}
+        // Off-plan entries for the day being viewed, plus the way to add one.
+        // The CALENDAR is the entry point (Adrian, 2026-08-07): you record a
+        // one-off against the day you are looking at, which is usually not today.
+        oneOffs={deviceReady ? oneOffsOn(oneOffs, selectedKey) : []}
+        onOpenOneOffs={() => setOneOffDayOpen(true)}
         dueToLog={dueOnSelected}
         onLogDose={(c) => {
           setSheetOpen(false);
