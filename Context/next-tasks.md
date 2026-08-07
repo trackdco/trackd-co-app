@@ -43,6 +43,20 @@ Until then the way to walk the paywall is a LAN dev server on a phone — which 
 also the only way today, because Vercel Deployment Protection means a preview
 link only opens for someone signed into Adrian's Vercel account.
 
+### ⚠️ ONE MIGRATION OWED NOW
+
+**`supabase/grants/004_gate_column_lock.sql` is NOT APPLIED.** It takes
+`is_18_plus`, `tos_accepted_at`, `tos_version` and `date_of_birth` off the
+`authenticated` grants on `profiles`, because a cold review reproduced a
+signed-in user PATCHing themselves through the 18+ gate with nothing but the
+publishable key — which opened the whole `(app)` group and the payment path to
+an account whose recorded date of birth said eleven.
+
+**Safe to apply whenever.** The two legitimate writers (`app/welcome/actions.ts`
+and the claim's `passGateFromSession`) already write via the service role
+(`lib/auth/gate-writer.ts`), so the code works either side of it. Until it is
+applied, the hole is open.
+
 ### Owed by Adrian, when he wants to go live
 
 1. **Register `trackdco.app` for Apple Pay in LIVE mode.** The test-mode

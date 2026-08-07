@@ -17,6 +17,54 @@ thing to avoid is wiring the entry point.
 **One migration, `supabase/billing/001_billing_tables.sql`, APPLIED by Adrian.**
 Shape and reasoning are in `architecture.md` → **Billing**; do not re-derive.
 
+### Four cold reviews, 2026-08-08 — SQL/money, webhook, paywall UI, security
+
+**Two CRITICALs and seven HIGHs, every one real and every one live.** None was
+caught by tsc, eslint or the 756 tests. Two of them were found only by a Stripe
+TEST CLOCK, which is now the tool of record for anything billing-shaped.
+
+| Sev | Finding | Resolution |
+|---|---|---|
+| CRITICAL | **Seven free days with no card, repeatable forever.** The trial entitled on `status: trialing`, and Stripe sets that AT CREATION — before the SetupIntent is confirmed, because the confirm needs the secret the creation returns. Type any Luhn-valid number, tap, close the tab. The day-7 auto-cancel then reopened the duplicate guard, so it was one request a week, per account, indefinitely. | A trial entitles only once Stripe reports a payment method attached OR no pending setup intent. Requiring the payment method ALONE would have withheld it from every genuine trial — `save_default_payment_method` fires on an invoice and a trial pays none. |
+| CRITICAL | **Abandon 3DS once and the next attempt took no card.** The duplicate guard counted mirror rows with `trialing`, and that row is written even when the card was never validated. Second attempt on a DIFFERENT plan → "You're in!" in 746ms, no card, old plan, unshown price, silently cancelled on day 7. | The guard asks STRIPE. Same plan → hand back the existing SetupIntent so they finish what they started. Different plan → cancel it, because they chose something else. |
+| HIGH | **Cancelling handed back the free month.** `subscription.deleted` re-granted the unpaid period — and Stripe cancelling at the end of dunning is the DEFAULT end state of a failed renewal, so it undid the claw-back. | Deletion may only ever SHORTEN. |
+| HIGH | **The claw-back was a whole billing period out.** `invoice.period_start` is the cycle just COMPLETED, not the one being billed. A customer paid through 14 Sept was locked out instantly at 17 Aug — on yearly, ~362 days in the past. | Reads the line item's period. |
+| HIGH | **A failed webhook failed forever.** The event row was inserted first, so every retry short-circuited on the primary key. `stripe events resend` delivers the SAME id, so Stripe's retries, the dashboard and the CLI were all guaranteed no-ops — the comment claiming otherwise was simply false. | A conflict means SEEN, not DONE. An unprocessed row older than 60s is re-runnable. |
+| HIGH | **No ordering protection at all.** Three measured reorderings each produced a wrong entitlement, and Stripe guarantees no ordering. | Every subscription handler re-reads the live object, so arrival order stops mattering. |
+| HIGH | **Nothing could ever revoke.** `is_active = false` was written nowhere, so a chargeback left full paid access standing. | Disputes and refunds revoke. |
+| HIGH | **The 18+ gate was a column the client could write.** One PATCH with the publishable key opened the whole `(app)` group AND the payment path to an account whose recorded date of birth said eleven, with zero consent rows. | `grants/004` takes the gate columns off `authenticated`; both legitimate writers move to the service role. |
+| HIGH | **`TrialHold` polled twice.** One `alive` boolean set true at the top of every effect run meant a cleanup followed by a re-run RESURRECTED the old loop — measured, 20 requests in 29s, in pairs. | A run token compares identity. |
+| MEDIUM | Five concurrent calls made five subscriptions (check-then-act against a mirror only the webhook writes). | A Stripe idempotency key per user+plan. |
+| MEDIUM | The wallet was never told a payment failed; Apple Pay's sheet sits above our DOM so the inline error painted behind it. | `paymentFailed()` on the confirm event. |
+| MEDIUM | The 3DS full-redirect returned to the paywall — the price list they had just paid on. | Returns to the card screen. |
+| MEDIUM | An unattributable event was stamped processed, so the only monitoring signal was permanently empty. | Left unprocessed for review. |
+| LOW | `CURRENCY_SYMBOL` hardcoded `$` while the currency was data-driven — an EUR price would have rendered dollars everywhere. | Derived from the currency. |
+
+### What the reviews could NOT break
+
+RLS and the grants (32 attacks with a real JWT across all four tables — every
+one 42501, denied at the privilege layer before RLS); cross-user reads; the
+`server-only` boundary (a deliberate client import FAILS THE BUILD); **no secret
+in the client bundle**, checked against the literal key values; the signature
+verification (a valid signature over a different payload → 400, a genuine replay
+after the tolerance → 400); concurrent duplicate delivery (12 simultaneous → one
+handler run); the hand-written schema types against the live database, column for
+column; and the disclosure requirement, re-measured against the scroll port's
+fade mask in four configurations.
+
+### Still open, deliberately
+
+- **Nothing in the app reads `entitlements`.** `hasProAccess` has one consumer:
+  the post-payment poll. `app/(app)/layout.tsx` gates on session + age only, and
+  Profile still renders the plan from `profiles.tier`. That is CORRECT while
+  Adrian is not billing — but it means the paywall is not currently enforcement,
+  and it is easy to mistake for it. Wiring the gate is a deliberate, separate
+  decision.
+- **A trial can still be restarted** after a genuine cancellation. With the
+  no-card fix that buys nothing without a card, so it is a product question
+  (should a returning customer get another trial?) rather than a hole.
+- **Apple Pay has never been driven.** It needs HTTPS and a registered domain.
+
 ### Adrian's overrides of the spec body
 
 1. **Three plans, all wired** — not "one monthly price". Annual is no longer out
