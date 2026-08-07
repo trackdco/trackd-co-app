@@ -130,3 +130,21 @@ export const STOCK_PILL_ON =
   "border-transparent bg-accent-primary font-medium text-bg-base"
 export const STOCK_PILL_OFF =
   "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+
+/**
+ * The app's primary confirm button — "Save", "Add to log", "Resume now".
+ *
+ * Written out per-sheet for a long time and drifting by a class or two each
+ * place; the Pause sheet's was missing both the press-scale and any disabled
+ * state, so a button with nothing to do looked identical to one that would act
+ * (Adrian, 2026-08-07). Width is left to the caller: some are full-width, some
+ * share a row.
+ *
+ * `--accent-primary` on `--bg-base` text, not a colour of its own — see
+ * `ui-context.md`.
+ */
+export const PRIMARY_BUTTON =
+  "flex items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 py-3 " +
+  "text-sm font-medium text-bg-base transition-opacity hover:opacity-90 " +
+  "active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 " +
+  "motion-reduce:active:scale-100"
