@@ -2,9 +2,16 @@
 --  Billing — four tables. Spec w2b-15, step 3.
 --  Migration name: `billing_tables`
 --
---  NOT YET APPLIED. Verify against the live schema, never against this comment
---  — a hand-applied migration never appears in `list_migrations`, which is
---  exactly why `supabase/onboarding/001`'s header sat stale for six days.
+--  APPLIED by Adrian, 2026-08-08, and VERIFIED live the same day by querying the
+--  schema and by attempting duplicate inserts:
+--    - the stale `cadence` column is gone, so the drop-and-recreate ran
+--    - a second `webhook_events` row with the same event id -> 23505
+--    - a second `entitlements` row for the same (user, product, source) -> 23505
+--    - a `comp` entitlement BESIDE a `stripe` one -> accepted, as intended
+--    - a second `billing_customers` row for one user -> 23505
+--  Verify against the live schema, never against this comment — a hand-applied
+--  migration never appears in `list_migrations`, which is exactly why
+--  `supabase/onboarding/001`'s header sat stale for six days.
 -- ============================================================
 --
 --  THE RULE THAT OUTRANKS EVERYTHING ELSE IN THIS SPEC

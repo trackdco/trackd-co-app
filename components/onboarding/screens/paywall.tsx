@@ -215,6 +215,55 @@ export function PaywallScreen() {
    */
   if (holding) return <TrialHold onEntitled={goNext} />;
 
+  /**
+   * THE DISCLOSURE. Every part of it is a hard requirement, and so is WHERE it
+   * ends up: it is handed to `PaymentSheet`, which renders it DIRECTLY ABOVE
+   * the CTA.
+   *
+   * All four things must be visible at the same time as that button with no
+   * scrolling to reveal any of them — the trial length, the exact renewal amount
+   * in AUD, the date of the first charge, and that it renews automatically until
+   * cancelled. A previous audit of this screen found it could be paid on without
+   * the price ever rendering; measured again on 2026-08-08 with the disclosure
+   * sitting above the Payment Element, the CTA was 550px below the last line of
+   * it at 390x844. Adjacency is the only arrangement that survives anything
+   * being added above.
+   *
+   * Every figure derives from the selected plan and from `TRIAL_DAYS`, so none
+   * of them can contradict another or the timeline at the top of the screen.
+   */
+  const disclosure = (
+    <div className="space-y-1 pt-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
+      <p>
+        <span className="text-foreground">
+          {TRIAL_DAYS}{" "}days free
+        </span>
+        , then{" "}
+        <span className="text-foreground">
+          {selected ? formatPrice(selected.price) : "—"}
+          {selected ? ` ${selected.currency.toUpperCase()}` : ""}
+        </span>
+        {" "}per{" "}
+        {selected?.period ?? "period"}
+        {selected && monthlyEquivalent(selected) !== null ? (
+          <>
+            {" "}({formatPrice(monthlyEquivalent(selected)!)}/mo)
+          </>
+        ) : null}
+        .
+      </p>
+      <p>
+        First charge{" "}
+        <span className="text-foreground">{firstChargeOn}</span>. Renews
+        automatically until you cancel.
+      </p>
+      <p>
+        Cancel any time before day{" "}
+        {TRIAL_DAYS}.
+      </p>
+    </div>
+  );
+
   return (
     /**
      * NO PINNED FOOTER (Adrian, 2026-08-05). The headline states the offer and
@@ -440,48 +489,6 @@ export function PaywallScreen() {
             what the demo had already made them do. By this screen the argument
             is made; what is left to say is what it costs and when. */}
 
-        {/* THE DISCLOSURE, and every part of it is a hard requirement.
-            All four things must be visible AT THE SAME TIME as the CTA with no
-            scrolling to reveal any of them: the trial length, the exact renewal
-            amount in AUD, the date of the first charge, and that it renews
-            automatically until cancelled.
-
-            A previous audit of this screen found it could be paid on without
-            the price ever rendering. It is also what the ACCC looks at on
-            free-trial-to-paid conversions and what Apple and Google enforce at
-            store review. So it sits immediately above the payment surface,
-            never below it, and every figure derives from the selected plan and
-            from `TRIAL_DAYS` so none of them can contradict another. */}
-        <div className="space-y-1 pt-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
-          <p>
-            <span className="text-foreground">
-              {TRIAL_DAYS}{" "}days free
-            </span>
-            , then{" "}
-            <span className="text-foreground">
-              {selected ? formatPrice(selected.price) : "—"}
-              {selected ? ` ${selected.currency.toUpperCase()}` : ""}
-            </span>
-            {" "}per{" "}
-            {selected?.period ?? "period"}
-            {selected && monthlyEquivalent(selected) !== null ? (
-              <>
-                {" "}({formatPrice(monthlyEquivalent(selected)!)}/mo)
-              </>
-            ) : null}
-            .
-          </p>
-          <p>
-            First charge{" "}
-            <span className="text-foreground">{firstChargeOn}</span>. Renews
-            automatically until you cancel.
-          </p>
-          <p>
-            Cancel any time before day{" "}
-            {TRIAL_DAYS}.
-          </p>
-        </div>
-
         {/* THE PAYMENT SURFACE, mounted in TRACKD's own screen. Not Stripe
             Hosted Checkout, not Embedded Checkout — the user never sees a
             stripe.com domain. Apple Pay and Google Pay render above the card
@@ -491,6 +498,7 @@ export function PaywallScreen() {
             plan={selected.id}
             currency={selected.currency}
             ctaLabel={`Start my ${TRIAL_DAYS}-day free trial`}
+            disclosure={disclosure}
             onOutcome={onOutcome}
           />
         ) : (

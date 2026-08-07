@@ -102,15 +102,32 @@ function toStatus(status: string): SubscriptionStatus | null {
   return STORABLE_STATUSES.has(status) ? (status as SubscriptionStatus) : null;
 }
 
-/** The statuses that mean "this person may use the app". */
-const ENTITLING: ReadonlySet<string> = new Set([
-  "trialing",
-  "active",
-  // `past_due` KEEPS access. A decline is not a decision to leave, and the
-  // entitlement stands until `active_until` passes naturally — the spec's grace
-  // window. Cards decline for boring reasons.
-  "past_due",
-]);
+/**
+ * The statuses that MOVE the entitlement's clock forward.
+ *
+ * `past_due` is deliberately NOT one of them, and that distinction was found by
+ * driving a declining card on a test clock rather than by reading this list.
+ *
+ * When a renewal fails, Stripe still advances the subscription into the new
+ * period and sends `customer.subscription.updated` with `past_due`. Treating
+ * that as entitling extended `active_until` to the end of a month **nobody
+ * paid for** — a free month per failed payment, repeatable. Measured: 14 Aug
+ * became 14 Sept on a card that declined.
+ *
+ * The spec asks for a GRACE WINDOW, not a free month: "do NOT revoke the
+ * entitlement immediately; the entitlement stands until `active_until` passes
+ * naturally". Standing still is exactly that. So a `past_due` subscription
+ * updates the MIRROR and leaves the entitlement's date alone — the user keeps
+ * what they already paid for, to the day, and loses access when that runs out
+ * rather than a month later.
+ *
+ * `is_active` is never touched here either. A decline is not a decision to
+ * leave, and cards decline for boring reasons.
+ */
+const ENTITLING: ReadonlySet<string> = new Set(["trialing", "active"]);
+
+/** Statuses that keep existing access without extending it. See `ENTITLING`. */
+const GRACE: ReadonlySet<string> = new Set(["past_due"]);
 
 /**
  * Upsert the subscription mirror and, if the status entitles, the entitlement.
@@ -165,7 +182,18 @@ export async function syncSubscription(sub: Stripe.Subscription): Promise<void> 
 
   // The mirror is written even for a status that does not entitle — a `canceled`
   // subscription is still a fact the Billing row should be able to state.
-  if (!ENTITLING.has(sub.status)) return;
+  //
+  // `past_due` stops here too: the mirror now says so, and the entitlement is
+  // left exactly as it was so the paid-for period runs out on its own date. See
+  // `ENTITLING`.
+  if (!ENTITLING.has(sub.status)) {
+    if (GRACE.has(sub.status)) {
+      console.info(
+        `[billing] ${sub.id} is ${sub.status}; entitlement left standing until its own active_until`,
+      );
+    }
+    return;
+  }
 
   await upsertEntitlement(userId, entitledUntil(sub), true);
 }
@@ -212,22 +240,92 @@ export async function extendFromInvoice(
 }
 
 /**
- * `invoice.payment_failed` — record `past_due`, and DO NOT revoke.
+ * How long access survives a failed renewal.
  *
- * The spec is explicit: leave a grace window, the entitlement stands until
- * `active_until` passes naturally. So this touches the mirror only. That is not
- * an oversight to be tidied later — a card declining is not a decision to
- * cancel, and locking someone out mid-protocol over an expired card is the worst
- * possible moment to do it.
+ * Three days: long enough that a card expiring over a weekend does not lock
+ * someone out mid-protocol, short enough that it is a grace window rather than a
+ * free month. It also lands inside Stripe's own first dunning retry, so the
+ * common case — a card that works on the second attempt — is never noticed by
+ * the user at all.
+ */
+const PAST_DUE_GRACE_DAYS = 3;
+
+/**
+ * `invoice.payment_failed` — record `past_due`, and CLAW BACK the free month.
+ *
+ * ## The sequence this exists for, measured on a test clock
+ *
+ * A renewal that is going to fail does not look like a failure straight away:
+ *
+ *   1. `customer.subscription.updated` -> **active**, period rolled forward
+ *   2. `invoice.payment_failed`
+ *   3. `customer.subscription.updated` -> `past_due`
+ *
+ * Step 1 is indistinguishable from a successful renewal, so `syncSubscription`
+ * correctly extends `active_until` into the new period. Then the charge fails.
+ * Leaving it there gave a full unpaid month of access, repeatable on every
+ * failed payment — measured: 14 Aug became 14 Sept on a card that declined.
+ *
+ * The spec wants a GRACE WINDOW, not a free month: "do NOT revoke the
+ * entitlement immediately". So this pulls the date back to the end of the last
+ * period they actually paid for, plus {@link PAST_DUE_GRACE_DAYS}.
+ *
+ * ## It can only ever SHORTEN
+ *
+ * `Math.min` against whatever is already stored. A failed payment must never be
+ * able to hand out MORE access than the user already had — which is exactly the
+ * bug being fixed, and it would be embarrassing to reintroduce from the other
+ * direction.
  */
 export async function markPastDue(invoice: Stripe.Invoice): Promise<void> {
   const subId = subscriptionIdOf(invoice);
   if (!subId) return;
-  const { error } = await serviceClient()
+
+  const db = serviceClient();
+  const { data: rows, error: readError } = await db
+    .from("subscriptions")
+    .select("user_id")
+    .eq("stripe_subscription_id", subId);
+  if (readError) throw new Error(`subscriptions read: ${readError.message}`);
+
+  const { error } = await db
     .from("subscriptions")
     .update({ status: "past_due" })
     .eq("stripe_subscription_id", subId);
   if (error) throw new Error(`subscriptions past_due: ${error.message}`);
+
+  const userId = rows?.[0]?.user_id;
+  if (!userId) return;
+
+  /**
+   * The start of the period that was NOT paid for — which is the end of the one
+   * that WAS. Falls back to now if Stripe does not give it, which errs toward
+   * the shorter window and never toward a longer one.
+   */
+  const unpaidFrom = ts(invoice.period_start) ?? new Date().toISOString();
+  const graceEnds =
+    Date.parse(unpaidFrom) + PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+
+  const { data: ents } = await db
+    .from("entitlements")
+    .select("active_until")
+    .eq("user_id", userId)
+    .eq("product", "pro")
+    .eq("source", "stripe");
+
+  const current = ents?.[0]?.active_until;
+  if (!current) return; // Nothing to shorten.
+
+  const shortened = Math.min(Date.parse(current), graceEnds);
+  if (shortened >= Date.parse(current)) return; // Already at or inside the window.
+
+  const { error: entError } = await db
+    .from("entitlements")
+    .update({ active_until: new Date(shortened).toISOString() })
+    .eq("user_id", userId)
+    .eq("product", "pro")
+    .eq("source", "stripe");
+  if (entError) throw new Error(`entitlements grace: ${entError.message}`);
 }
 
 /**

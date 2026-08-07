@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -73,12 +73,20 @@ export function PaymentSheet({
   plan,
   currency,
   ctaLabel,
+  disclosure,
   onOutcome,
 }: {
   plan: PlanId;
   /** Lowercase ISO 4217, as Stripe reports it for the selected price. */
   currency: string;
   ctaLabel: string;
+  /**
+   * The trial/price/date/auto-renewal disclosure, rendered DIRECTLY ABOVE the
+   * CTA — see `PaymentForm`. It is passed in rather than built here because the
+   * paywall owns the wording and the figures; what this component owns is that
+   * it cannot be separated from the button.
+   */
+  disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
 }) {
   if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
@@ -103,13 +111,34 @@ export function PaymentSheet({
         mode: "setup",
         currency,
         setupFutureUsage: "off_session",
+        /**
+         * CARD ONLY in this element, and the wallets live above it.
+         *
+         * Left to the account's defaults, Stripe renders LINK here — which
+         * takes over the block with a phone-number field, a full-name field and
+         * its own terms, all before a card number. Measured at 320x568: it
+         * pushed everything else off the screen and asked a user mid-signup for
+         * a phone number we do not want and have never asked for anywhere else
+         * in this product.
+         *
+         * The spec's shape is "Apple Pay and Google Pay above, card entry as the
+         * fallback beneath them", which is exactly this. Every other method
+         * Stripe might add stays off by construction rather than appearing one
+         * day because a dashboard toggle moved.
+         */
+        paymentMethodTypes: ["card"],
         appearance: paymentAppearance(),
         // Geist, into the iframe. Without this the Element falls back to a
         // system font and reads as a bolted-on third-party control.
         fonts: [{ cssSrc: "https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500&display=swap" }],
       }}
     >
-      <PaymentForm plan={plan} ctaLabel={ctaLabel} onOutcome={onOutcome} />
+      <PaymentForm
+        plan={plan}
+        ctaLabel={ctaLabel}
+        disclosure={disclosure}
+        onOutcome={onOutcome}
+      />
     </Elements>
   );
 }
@@ -117,10 +146,12 @@ export function PaymentSheet({
 function PaymentForm({
   plan,
   ctaLabel,
+  disclosure,
   onOutcome,
 }: {
   plan: PlanId;
   ctaLabel: string;
+  disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
 }) {
   const stripe = useStripe();
@@ -221,6 +252,16 @@ function PaymentForm({
           {error}
         </p>
       ) : null}
+
+      {/* THE DISCLOSURE SITS HERE, and its position is the requirement.
+          It was above the Payment Element, which measured at 390x844 as the CTA
+          being 550px below the last line of it — so the price, the charge date
+          and the auto-renewal notice were all scrolled off before the button
+          came into view. That is exactly the defect the spec's previous audit of
+          this screen found: it could be paid on without the price ever having
+          rendered. Adjacent to the button is the only arrangement that cannot
+          drift back into that, whatever is added above. */}
+      {disclosure}
 
       <button
         type="button"

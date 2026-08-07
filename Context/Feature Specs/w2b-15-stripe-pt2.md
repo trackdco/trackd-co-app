@@ -62,12 +62,24 @@ body disagree, this section wins.
    > of scope here, but whatever sends it must honour the day the SCREEN
    > promised, not the day the webhook happens to arrive.
 
-3. **Prices are created in the Stripe dashboard by Adrian**, per the body. As of
-   2026-08-08 the sandbox (`Trackd Co sandbox`, AU, default currency AUD, test
-   mode, charges enabled) holds only the two USD prices left over from the
-   abandoned `stripe` branch — $11.99/mo and $69.99/yr on product "Trackd Co".
-   Those are NOT the ones to use. Three AUD prices are owed; the env var names
-   need to grow to three.
+3. **THE CURRENCY IS USD, not AUD** (Adrian, 2026-08-08). This reverses the
+   body's "Currency is AUD" outright. Live test-mode prices on product
+   "Trackd Co": $69.99/yr, $11.99/mo, $3.99/wk, all USD. The AUD prices created
+   earlier that day are archived in Stripe, not deleted.
+
+   > **On "convert it to AUD if that makes sense" — it does not, and nothing
+   > does it.** A displayed AUD figure would be a number we invented: Stripe
+   > charges the USD amount, and the CARD ISSUER converts at its own rate on its
+   > own day, so "$110 AUD" beside a charge that lands as $107.40 is a broken
+   > promise at the worst possible moment. `cost-variants.tsx` already carries
+   > that exact warning from an earlier round. So the currency is NAMED instead —
+   > the disclosure reads "$11.99 USD per month", which is honest and is what an
+   > Australian audience used to seeing USD prices needs to know.
+   >
+   > If a real AUD price is wanted later, the correct way is a second Stripe
+   > price in AUD selected by the customer's country — a real price, really
+   > charged — never a client-side conversion. That is a product decision, not a
+   > display one.
 
 **The pricing module has to stop holding amounts.** `PLANS` in
 `lib/onboarding/pricing.ts` hardcodes `69.99 / 11.99 / 4.99`, which the body

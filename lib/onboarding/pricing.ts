@@ -36,10 +36,18 @@ export interface PricedPlan extends Plan {
   /** Charged amount in whole currency units. From Stripe, never from here. */
   price: number;
   /**
-   * Lowercase ISO 4217, as Stripe reports it. Carried because the paywall
-   * disclosure must state the renewal amount IN AUD explicitly — a bare "$"
-   * is ambiguous to an Australian audience that mostly sees USD prices, and
-   * naming the currency is part of what the ACCC looks at.
+   * Lowercase ISO 4217, as Stripe reports it.
+   *
+   * Carried so the disclosure can NAME the currency rather than printing a bare
+   * "$". Prices are in USD (Adrian, 2026-08-08) and the audience is largely
+   * Australian, so an unlabelled dollar sign is genuinely ambiguous — and what
+   * the ACCC looks at on a free-trial conversion is whether the amount was
+   * stated unambiguously.
+   *
+   * Deliberately NOT converted to AUD anywhere. Stripe charges the USD amount
+   * and the card issuer converts at its own rate on its own day, so any AUD
+   * figure we printed would be one we invented — the exact broken promise
+   * `cost-variants.tsx` already warns about.
    */
   currency: string;
 }
