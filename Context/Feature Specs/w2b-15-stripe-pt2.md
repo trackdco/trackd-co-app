@@ -36,6 +36,48 @@ Do NOT do any of the following in this spec:
 - Changing the paywall's visual design. Payment UI is added to it; nothing else changes.
 - Any dunning or churn-recovery flow beyond recording `past_due`.
 
+## Adrian's amendments (2026-08-08) — these OVERRIDE the text below
+
+Three decisions taken before implementation started. Where this section and the
+body disagree, this section wins.
+
+1. **THREE PLANS, ALL WIRED — not one monthly price.** The paywall's yearly /
+   monthly / weekly rows stay and each gets its own recurring **AUD** price in
+   Stripe. The body's "One monthly price" and its Out-of-Scope line banning
+   annual pricing are superseded. Everything else in Out of Scope stands: no
+   promo codes, no discounts, no paid trials.
+   **Weekly moves to $3.99** (was $4.99). No code change is needed for that —
+   see the pricing note below.
+
+2. **THE TRIAL IS 7 DAYS, not 5.** `TRIAL_DAYS` in `lib/onboarding/pricing.ts`
+   already says 7 and every figure the paywall prints derives from it: the
+   headline, the CTA, the reminder beat, the billing date and the legal line.
+   The reasoning is recorded on the constant — a five-day window does not cover
+   one full protocol rotation, so the customer never sees the thing they are
+   paying for, and seven unlocks "the first week is on us".
+   Read every "5-day" in the body as 7. `trial_period_days` follows the constant.
+   > Note the consequence: Stripe fires `customer.subscription.trial_will_end`
+   > **three days out**, which is day 4, while the paywall promises a reminder on
+   > **day 5** (`REMINDER_DAY = TRIAL_DAYS - 2`). The notification itself is out
+   > of scope here, but whatever sends it must honour the day the SCREEN
+   > promised, not the day the webhook happens to arrive.
+
+3. **Prices are created in the Stripe dashboard by Adrian**, per the body. As of
+   2026-08-08 the sandbox (`Trackd Co sandbox`, AU, default currency AUD, test
+   mode, charges enabled) holds only the two USD prices left over from the
+   abandoned `stripe` branch — $11.99/mo and $69.99/yr on product "Trackd Co".
+   Those are NOT the ones to use. Three AUD prices are owed; the env var names
+   need to grow to three.
+
+**The pricing module has to stop holding amounts.** `PLANS` in
+`lib/onboarding/pricing.ts` hardcodes `69.99 / 11.99 / 4.99`, which the body
+forbids outright. The labels, periods, `PLAN_ORDER`, `TRIAL_DAYS` and every
+derived helper (`monthlyEquivalent`, `yearlySavingPercent`, `weeklyAnchor`,
+`billingDate`) stay in code — none of those is an amount. Only the numbers move
+to Stripe. Note the amounts are read by three ANONYMOUS screens as well as the
+paywall (`payoff` via `weeklyAnchor`, `cost` via `cost-variants`), so they have
+to reach the client for a signed-out visitor too.
+
 ## Design Decisions
 
 **Stripe configuration**

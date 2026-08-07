@@ -18,28 +18,35 @@ Apple and Google write it later through RevenueCat and no app code changes. Any
 access check that reads a Stripe status directly fails the spec regardless of
 whether payments work.
 
-Blocked on Adrian before step 3 can start:
+**Adrian's three amendments are recorded at the top of the spec file** — three
+plans not one, a 7-day trial not 5, weekly at $3.99. Read those before the body;
+where they disagree, they win.
 
-1. **Stripe test-mode Product + monthly AUD price.** Needs the price ID,
-   publishable key, secret key and webhook signing secret. `.env.local` already
-   carries placeholder Stripe keys from the abandoned `stripe` branch — check
-   them before assuming they are live.
-2. **The Stripe account business description.** Given TRACKD's history with
+**The keys are already live.** `.env.local` carries working test keys for the
+`Trackd Co sandbox` account (AU, default currency AUD, charges enabled) and the
+Stripe CLI is installed at `/opt/homebrew/bin/stripe`. Step 2 is mostly done.
+
+Owed by Adrian:
+
+1. **Three recurring AUD prices** on the existing "Trackd Co" product — yearly,
+   monthly, weekly ($3.99) — and their three `price_...` IDs. The two prices
+   already on the account are **USD** and must not be used. He does not need to
+   supply amounts to the codebase: the spec forbids a hardcoded dollar figure, so
+   the app reads them from Stripe.
+2. **A webhook endpoint.** The account currently has NONE. `stripe listen` covers
+   local work and prints its own signing secret; the preview deploy needs a real
+   endpoint before its webhook can be tested.
+3. **The Stripe account business description.** Given TRACKD's history with
    automated enforcement elsewhere, it must state plainly that TRACKD sells a
    subscription to a logging and tracking application and does NOT sell, supply
    or facilitate the supply of any substance. Adrian writes this, not the agent.
-3. **Four migrations**, applied by hand as usual: `billing_customers`,
+4. **Four migrations**, applied by hand as usual: `billing_customers`,
    `subscriptions`, `entitlements`, `webhook_events`.
 
 Carried in from w2b-14 and **not optional**: the endpoint that creates the
 subscription must verify `profiles.is_18_plus` server-side. Rendering the paywall
 does not check it, so that endpoint is where "no payment path bypasses the age
 gate" is actually enforced.
-
-Note the trial length disagreement: the spec says **5 days**, `TRIAL_DAYS` in
-`lib/onboarding/pricing.ts` currently says 7, and the paywall derives every
-figure it prints from that constant. One of them has to move, and it changes what
-the screen promises.
 
 ---
 
