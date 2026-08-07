@@ -94,7 +94,7 @@ export function AttributionScreen() {
     return (
       <StepFrame
         center
-        title="Last thing"
+        title="Before you enter Trackd"
         sub="You came in on a creator link, so we already know where you heard about us."
         footer={<FlowCta onClick={goNext}>Continue</FlowCta>}
       >
@@ -110,7 +110,7 @@ export function AttributionScreen() {
   return (
     <StepFrame
       center
-      title="Last thing"
+      title="Before you enter Trackd"
       sub="Where did you hear about us? Optional."
       footer={
         <div className="space-y-1">

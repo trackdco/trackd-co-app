@@ -118,13 +118,19 @@ export function LetterScreen() {
               above is wider than the letter's own rhythm so the button reads as
               what happens next and not as part of the sign-off.
 
-              IT NO LONGER SAYS "Enter Trackd" (2026-08-07). Install moved to the
-              very end of the flow, so this is not the last screen any more and
-              that label was a promise the next tap did not keep. "Enter Trackd"
-              moved WITH the exit, onto the install screen, so the flow still
-              ends on the same words. */}
+              IT NO LONGER SAYS "Enter Trackd" (Adrian, 2026-08-07). Install
+              moved to the very end of the flow, so this is not the last screen
+              any more and that label was a promise the next tap did not keep.
+              "Enter Trackd" moved WITH the exit, onto the install screen, so
+              the flow still ends on the same words.
+
+              "Almost there" is his pick over an interim "One last thing",
+              which collided with the attribution screen's own heading two taps
+              earlier and was ALSO untrue, since install still follows. This
+              says where you are rather than what is next, which is the only
+              honest thing a button here can say. */}
           <div className="pt-8">
-            <FlowCta onClick={goNext}>One last thing</FlowCta>
+            <FlowCta onClick={goNext}>Almost there</FlowCta>
           </div>
         </div>
       </div>
