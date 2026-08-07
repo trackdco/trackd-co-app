@@ -5,7 +5,7 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-07 (Spec w2b-13 — compound controls, all 8 steps)
+Last updated: 2026-08-07 (every graph unified to one stroke + one gradient)
 
 ## Spec w2b-13 — compound controls (BUILT, 2026-08-07)
 
@@ -1059,6 +1059,36 @@ CENTRED dialog via a new `side="center"` on the shared Sheet, not a bottom sheet
 and runs 550ms + 300ms rather than 900 + 500; both `+` glyphs are
 `text-foreground`; and a leftover `value="Add"` was still printing the word
 beside the plus on "Another dose".
+
+## Every graph is one graph (2026-08-07)
+
+Adrian's call: **one stroke weight and one gradient for every series in the app,
+with colour as the only thing that varies.** Trend and Consistency were already
+the reference — a 2.5px monotone curve over a fill tapering from 0.35 at the
+line to 0 at the base — and everything else has been brought to it.
+
+- **`/weight` Scale** — was 1.5 and `fill="transparent"`; now 2.5 over a new
+  `weightScaleFill` in its OWN periwinkle `--chart-line`.
+- **Home glance sparkline** — the `emphasis="trend" | "raw"` prop is GONE, along
+  with the branch that drew the raw series thinner and unfilled. Both callers
+  updated.
+- **Block retrospective's window graph** — the app's last hand-rolled
+  `<polyline>`, straight-segment and unfilled. It now uses `sparkGeometry` from
+  `lib/progress/spark.ts` like the glance card, at 2.5 over a taper in
+  `--chart-line`. This closes the "ODD ONE OUT" note its own comment carried.
+- **Onboarding payoff variant D** — same treatment, so the graph the screen
+  sells looks like the graph the user gets.
+
+**`ui-context.md` → Charts was rewritten, not just appended to.** The previous
+standard actively REQUIRED the thing that was removed: raw/secondary series at
+"lower emphasis (thinner, no fill)", called out as "the one thing that must NOT
+collapse". It has collapsed, deliberately. Emphasis is now carried by **opacity**
+(the inactive series crossfades to ~0.3) and by colour — never by weight or by
+dropping a fill. A future session reading the old rule would have undone this.
+
+The progress ring in `DayStatusWidgets` is untouched: it is a ring, not a line
+graph. Colours were not touched anywhere — teal stays teal, periwinkle stays
+periwinkle.
 
 ## Environment
 

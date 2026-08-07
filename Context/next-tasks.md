@@ -4,7 +4,21 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-07 (Spec w2b-13 built, reviewed, merged; Adrian's device pass fixed)
+Last updated: 2026-08-07 (every graph unified to one stroke + one gradient)
+
+---
+
+## ✅ EVERY GRAPH IS ONE GRAPH — DONE, 2026-08-07
+
+Adrian: one thickness, one gradient, colour as the only variable. `/weight`'s
+Scale line, the Home glance sparkline's raw series, the block retrospective's
+window graph and onboarding payoff variant D all now match Trend/Consistency —
+2.5px monotone over a 0.35 → 0 taper in their own colour. State in
+`progress-tracker.md`; **the standard in `ui-context.md` → Charts was rewritten**,
+because the old one required the thinner unfilled secondary line this removed.
+
+The retrospective's hand-rolled `<polyline>`, carried here as owed work, is gone
+— it uses `lib/progress/spark.ts` like everything else. Nothing left open here.
 
 ---
 
