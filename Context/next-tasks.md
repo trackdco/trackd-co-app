@@ -40,8 +40,15 @@ Owed by Adrian:
    automated enforcement elsewhere, it must state plainly that TRACKD sells a
    subscription to a logging and tracking application and does NOT sell, supply
    or facilitate the supply of any substance. Adrian writes this, not the agent.
-4. **Four migrations**, applied by hand as usual: `billing_customers`,
-   `subscriptions`, `entitlements`, `webhook_events`.
+4. **Apply `supabase/billing/001_billing_tables.sql`** — WRITTEN, not yet
+   applied. All four tables plus three enums.
+   ⚠️ **It DROPS a stale `subscriptions` table first**, and that is not
+   theoretical: the abandoned `stripe` branch applied a differently-shaped table
+   of the same name to this database, so `CREATE TABLE IF NOT EXISTS` would have
+   skipped silently and left the webhook inserting into columns that do not
+   exist. Verified 2026-08-08: it holds **0 rows** and nothing in the codebase
+   reads it. The drop is guarded — the migration STOPS rather than destroying a
+   billing record if a row has appeared since.
 
 Carried in from w2b-14 and **not optional**: the endpoint that creates the
 subscription must verify `profiles.is_18_plus` server-side. Rendering the paywall
