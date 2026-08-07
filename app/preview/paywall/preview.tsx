@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { FlowContext, type FlowContextValue } from "@/components/onboarding/flow-context";
+import { CheckoutScreen } from "@/components/onboarding/screens/checkout";
 import { PaywallScreen } from "@/components/onboarding/screens/paywall";
 import { TrialHold } from "@/components/onboarding/trial-hold";
 import { EMPTY_SESSION, type OnboardingSession } from "@/lib/onboarding/session";
@@ -10,7 +11,8 @@ import { PLANS, type PlanId, type PricedPlan } from "@/lib/onboarding/pricing";
 import { cn } from "@/lib/utils";
 
 /**
- * The paywall and the holding state, viewable WITHOUT signing in.
+ * The paywall, the CARD SCREEN and the holding state, viewable WITHOUT signing
+ * in.
  *
  * ## Why this exists
  *
@@ -41,7 +43,7 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
     name: "Adrian",
     plan: "yearly",
   });
-  const [holding, setHolding] = useState(false);
+  const [view, setView] = useState<"paywall" | "checkout" | "holding">("paywall");
 
   const priceFor = useCallback(
     (plan: PlanId): PricedPlan | undefined => {
@@ -57,8 +59,9 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
     () => ({
       session,
       patch: (next) => setSession((s) => ({ ...s, ...next })),
-      step: "paywall",
-      goNext: () => setHolding(true),
+      step: view === "checkout" ? "checkout" : "paywall",
+      // The paywall's CTA advances to the card screen, exactly as in the flow.
+      goNext: () => setView((v) => (v === "paywall" ? "checkout" : "holding")),
       goBack: () => {},
       goTo: () => {},
       finish: () => {},
@@ -71,7 +74,7 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
       priceFor,
       todayKey: new Date().toISOString().slice(0, 10),
     }),
-    [session, priceFor],
+    [session, priceFor, view],
   );
 
   return (
@@ -84,14 +87,14 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
             Paywall · preview
           </p>
           <div className="mt-2 flex gap-1.5">
-            {(["paywall", "holding"] as const).map((v) => (
+            {(["paywall", "checkout", "holding"] as const).map((v) => (
               <button
                 key={v}
                 type="button"
-                onClick={() => setHolding(v === "holding")}
+                onClick={() => setView(v)}
                 className={cn(
                   "h-8 flex-1 rounded-lg text-xs transition-colors duration-[var(--motion-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
-                  (v === "holding") === holding
+                  v === view
                     ? "bg-accent-primary font-medium text-bg-base"
                     : "bg-bg-surface text-text-muted",
                 )}
@@ -103,12 +106,14 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
         </div>
 
         <div className="relative mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col">
-          {holding ? (
+          {view === "holding" ? (
             /* It polls a server action that answers for the CURRENT session,
                and there is none here — so it will sit on "Setting up your
                trial" and then reach the recoverable state, which is exactly the
                pair worth looking at. */
-            <TrialHold onEntitled={() => setHolding(false)} />
+            <TrialHold onEntitled={() => setView("paywall")} />
+          ) : view === "checkout" ? (
+            <CheckoutScreen />
           ) : (
             <PaywallScreen />
           )}
