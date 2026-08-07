@@ -25,6 +25,17 @@ export type OnboardingEvent =
   | "plan_selected"
   | "affiliate_code_applied"
   | "affiliate_code_invalid"
+  /**
+   * NO EMITTER, deliberately kept (Spec w2b-14).
+   *
+   * The paywall used to fire this under `method: "preview"` beside a stubbed
+   * trial, reporting a sign-in that had already happened on a different screen.
+   * It went with the rest of the dead auth code. Firing it honestly means
+   * instrumenting `GoogleSignInButton` and `EmailPasswordForm`, which are shared
+   * with `/login` and which the spec forbids redesigning without asking — so the
+   * NAME stays and the lie does not. `auth_completed` is fired by the handoff,
+   * from the only server-confirmed moment an account is known to exist.
+   */
   | "auth_started"
   | "auth_completed"
   | "trial_started"

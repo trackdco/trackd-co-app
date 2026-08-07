@@ -184,33 +184,44 @@ export function clampStep(
    */
   incomplete: StepId | null,
   /**
-   * Whether the SERVER verified a session for this request (Spec w2b-14).
+   * Whether the SERVER has verified that this account has ALREADY PASSED the
+   * 18+/ToS gate — `profiles.is_18_plus AND tos_accepted_at`, read by
+   * `getSessionContext` and handed down from `app/onboarding/page.tsx`.
    *
-   * ## Why an exemption exists at all, and why it does not weaken the gate
+   * ## This is proof of age, which is the only thing that may skip a proof of age
+   *
+   * An earlier version of this took `signedIn` instead, and a cold review showed
+   * that made the gate satisfiable by MAKING AN ACCOUNT: sign up at `/login`,
+   * never visit `/welcome`, and the paywall rendered. The predicate has to be
+   * the age, not the session.
+   *
+   * ## Why the exemption exists at all
    *
    * The claim clears `localStorage` the instant the answers reach the account —
-   * that is the whole point of it. So from the paywall onward the device holds
-   * NO date of birth, and this function, reading only the device, would clamp a
-   * paying customer back to `name` on the next reload. That is not a stricter
-   * gate; it is a lockout, and it is the same shape as the two this file's
-   * comments already record.
+   * that is the point of it. So afterwards the device holds NO date of birth,
+   * and this function, reading only the device, sends a paying customer back to
+   * "What's your name?" at 20% on any reload. That is not a stricter gate; it is
+   * a lockout, and it is the same shape as the two this file's comments already
+   * record.
    *
-   * The exemption is narrow in three ways at once:
-   *   - it applies ONLY to steps whose phase is `authed`,
-   *   - `signedIn` is resolved on the SERVER by `getUser()` (which revalidates
-   *     against the Auth server) and handed down — a client can neither guess it
-   *     nor set it, and `app/onboarding/page.tsx` refuses an authed step outright
-   *     when it is false,
-   *   - and what it exempts is a device answer, replaced by a stronger one: an
-   *     account whose age and consent are recorded in `profiles` and
-   *     `consent_records` by the same write that cleared the device.
+   * ## Why it covers EVERY step and not just the authed ones
    *
-   * Every anonymous step — which is everything up to and including the account
-   * screen, and therefore the whole demo — is clamped exactly as before.
+   * Because the lockout does. A second cold review measured it: complete the
+   * flow, sign in, then open `?step=free` — an ANONYMOUS step — and you land on
+   * `name`. Exempting only the authed half left the whole anonymous half exposed
+   * to exactly the failure the exemption was written for.
+   *
+   * Nothing is weakened by the wider scope. What this skips is a date of birth
+   * in `localStorage`; what it requires instead is a date of birth stored on the
+   * account, alongside a per-version consent record, both written server-side
+   * and both re-read on every request. That is strictly the stronger evidence.
+   *
+   * It FAILS CLOSED: the parameter defaults to false, so a caller that forgets
+   * it gates harder rather than softer.
    */
-  signedIn = false,
+  gated = false,
 ): StepId {
-  if (signedIn && stepMeta(requested)?.phase === "authed") return requested;
+  if (gated) return requested;
   if (!incomplete) return requested;
   return stepIndex(requested) > stepIndex(incomplete) ? incomplete : requested;
 }
@@ -254,15 +265,15 @@ export function clampIntent(
   requested: StepId,
   answers: { running: readonly unknown[]; struggle: readonly unknown[] },
   /**
-   * Same server-verified flag, same reason, as `clampStep`'s. The paywall is an
-   * `authed` step and the claim has emptied the device by the time it renders,
-   * so judging it on device answers would throw a signed-in customer back to the
-   * intent screens — which is precisely the hazard this function's own doc
-   * comment describes for `welcome`.
+   * The same server-verified proof of age as `clampStep`'s, for the same reason
+   * and with the same scope. A gated account's answers are ON THE ACCOUNT — the
+   * claim wrote them and then emptied the device — so judging it by what is left
+   * in `localStorage` throws a paying customer back to the intent screens.
+   * Fails closed.
    */
-  signedIn = false,
+  gated = false,
 ): StepId {
-  if (signedIn && stepMeta(requested)?.phase === "authed") return requested;
+  if (gated) return requested;
   if (!INTENT_GUARDED.includes(requested)) return requested;
   if (answers.running.length === 0) return "running";
   if (answers.struggle.length === 0) return "struggle";

@@ -221,6 +221,20 @@ export function ageInYears(dobKey: string, todayKey: string): number | null {
 
 export const MINIMUM_AGE = 18;
 
+/**
+ * The upper bound, and it exists to match `/welcome`.
+ *
+ * `app/welcome/actions.ts` rejects a birth year before 1900; this had no upper
+ * bound at all, so a hand-edited `dob: "0001-01-01"` resolved to an age of two
+ * thousand and passed the gate — and the claim then wrote that date into
+ * `profiles.date_of_birth`. Self-inflicted only, but the two gates now write the
+ * same column and disagreeing about what a date of birth is was the defect.
+ *
+ * An implausible date reads as "unknown" rather than "under": the user has not
+ * given a usable answer, which is what that verdict already means.
+ */
+export const MAXIMUM_AGE = 120;
+
 export type AgeVerdict = "ok" | "under" | "unknown" | "future";
 
 /**
@@ -233,6 +247,7 @@ export function ageVerdict(dobKey: string | null, todayKey: string): AgeVerdict 
   const age = ageInYears(dobKey, todayKey);
   if (age === null) return "unknown";
   if (age < 0) return "future";
+  if (age > MAXIMUM_AGE) return "unknown";
   return age >= MINIMUM_AGE ? "ok" : "under";
 }
 
@@ -314,6 +329,57 @@ export function firstIncompleteHousekeeping(
    --------------------------------------------------------------------------- */
 
 /**
+ * Cap a string at `max` CHARACTERS, not UTF-16 code units, and strip anything
+ * Postgres will not store.
+ *
+ * ## Both halves of this were real defects, found by a cold review
+ *
+ * `.slice(n)` counts UTF-16 code units, so it can cut an emoji in half and
+ * leave a **lone surrogate**. PostgREST rejects that outright
+ * (`PGRST102 Empty or invalid json`). A **NUL byte** survives `trim()` and
+ * Postgres refuses it too (`22P05 unsupported Unicode escape sequence`).
+ *
+ * Neither is a validation failure the app can report usefully — the claim
+ * returns `error`, the retry banner appears, and **every retry fails
+ * identically**, so the answers never land and the notice never goes away. A
+ * value this file accepts must be a value the database accepts; that is the
+ * whole contract between it and the CHECK constraints, and it was broken in the
+ * two ways a name can carry text nobody typed deliberately.
+ *
+ * `Array.from` iterates by code point, which is also exactly what Postgres's
+ * `char_length()` counts — so the cap here and the cap in the CHECK now agree
+ * about what "24" means, rather than agreeing by luck on ASCII.
+ */
+function capCharacters(value: string, max: number): string {
+  // C0/C1 controls and DEL. Deliberately NOT the whole `\p{C}` class: that
+  // includes `Cf`, which is where the zero-width joiner lives, and stripping
+  // those would break every multi-part emoji.
+  const stripped = value.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+  return Array.from(stripped).slice(0, max).join("");
+}
+
+/** How long a name may be. Matches the `signup_intake` CHECK. */
+export const NAME_MAX = 24;
+
+/**
+ * Clean up a typed name: strip what Postgres will not store, cap by CHARACTER,
+ * and treat empty as absent.
+ *
+ * Exported so the SERVER validates with this same function rather than a second
+ * copy of the rules — a cap enforced only in an input's `maxLength` is not
+ * enforced at all, and `maxLength` is exactly what a paste, a hand-edited
+ * `localStorage` key, or a direct call to the server action walks around.
+ *
+ * Trimmed AFTER the cap, so a name cut mid-word does not keep the space the cut
+ * left behind.
+ */
+export function normaliseName(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const cleaned = capCharacters(raw, NAME_MAX).trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+/**
  * Coerce whatever came back out of storage into a valid session. Anything
  * unrecognised falls back to the empty value rather than throwing: a corrupt
  * key must never be able to brick the flow (the lesson from the calculator's
@@ -346,7 +412,7 @@ export function normaliseSession(raw: unknown): OnboardingSession {
     : null;
 
   return {
-    name: typeof o.name === "string" && o.name.trim() ? o.name.trim().slice(0, 24) : null,
+    name: normaliseName(o.name),
     dob: parseDateKey(typeof o.dob === "string" ? o.dob : null) ? (o.dob as string) : null,
     sex: o.sex === "male" || o.sex === "female" ? o.sex : null,
     consent: o.consent === true,
@@ -455,7 +521,12 @@ export const ATTRIBUTION_DETAIL_MAX = DETAIL_MAX;
  */
 export function normaliseDetail(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const cleaned = raw.replace(/\s+/g, " ").trim().slice(0, DETAIL_MAX);
+  // Same two hazards as `normaliseName`, and the same fix: `capCharacters`
+  // strips what Postgres refuses and cuts by CHARACTER, so an emoji cannot be
+  // halved into a lone surrogate that PostgREST then rejects. Whitespace is
+  // collapsed FIRST — a paste out of a chat app arrives full of newlines, and
+  // those must not each eat one of the 80 characters.
+  const cleaned = capCharacters(raw.replace(/\s+/g, " "), DETAIL_MAX).trim();
   return cleaned.length > 0 ? cleaned : null;
 }
 

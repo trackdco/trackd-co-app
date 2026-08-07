@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { OnboardingFlow } from "@/components/onboarding/flow";
-import { getCurrentUser } from "@/lib/auth";
-import { isStepId, stepMeta } from "@/lib/onboarding/steps";
+import { getSessionContext } from "@/lib/auth";
+import { isStepId, stepMeta, type StepId } from "@/lib/onboarding/steps";
 
 export const metadata: Metadata = {
   title: "Get started · Trackd Co",
@@ -53,20 +53,75 @@ export const metadata: Metadata = {
 export default async function OnboardingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ step?: string }>;
+  /**
+   * `string | string[]`, and the array case is not theoretical — see
+   * `requestedStep`. Typing it as `string` is what let the guard be walked past.
+   */
+  searchParams: Promise<{ step?: string | string[] }>;
 }) {
   const { step } = await searchParams;
-  const requested = isStepId(step) ? step : null;
+  const requested = requestedStep(step);
 
-  const user = await getCurrentUser();
+  const { user, passedGate } = await getSessionContext();
   const signedIn = Boolean(user);
 
-  if (!signedIn && requested && stepMeta(requested)?.phase === "authed") {
-    redirect("/onboarding");
+  /**
+   * AN `authed` STEP NEEDS A PROVEN AGE, NOT MERELY A SESSION.
+   *
+   * This used to test `signedIn` alone, and a cold review showed that made the
+   * 18+ gate satisfiable by MAKING AN ACCOUNT: sign up at `/login`, never touch
+   * `/welcome`, and `?step=paywall` rendered. Spec §3.2 ("the age gate precedes
+   * all substance-adjacent content and all payment") and §17 ("no payment path
+   * bypasses the age gate") were both false, and it was a regression — on
+   * `main` the paywall was an anonymous step and clamped to `name`.
+   *
+   * `passedGate` is `profiles.is_18_plus AND tos_accepted_at`, read server-side
+   * by `getSessionContext`. It is the same predicate the whole `(app)` group
+   * sits behind, so the paywall is now no more reachable than the dashboard.
+   *
+   * **A signed-in user who has not passed it goes to the ACCOUNT step, not to
+   * the start.** That step is where the claim runs, and the claim is what writes
+   * the gate from the answers they already gave — so this redirect is the
+   * mechanism by which a legitimate new account becomes gated, not a rejection.
+   * Someone with nothing to claim is sent on to `/welcome` by the account screen
+   * itself.
+   */
+  if (requested && stepMeta(requested)?.phase === "authed" && !passedGate) {
+    redirect(signedIn ? "/onboarding?step=account" : "/onboarding");
   }
-  if (signedIn && requested === "account") {
+
+  // A gated user has nothing left to do on the account screen, and showing a
+  // sign-in form to someone already signed in is what §Back navigation calls out.
+  if (passedGate && requested === "account") {
     redirect("/onboarding?step=paywall");
   }
 
-  return <OnboardingFlow signedIn={signedIn} />;
+  return <OnboardingFlow signedIn={signedIn} passedGate={passedGate} />;
+}
+
+/**
+ * THE UNTRUSTED `?step=`, RESOLVED THE SAME WAY THE CLIENT RESOLVES IT.
+ *
+ * A repeated query parameter arrives as a `string[]`, and this was typed and
+ * treated as `string`. `isStepId(["paywall","paywall"])` is false — it tests
+ * `typeof value === "string"` — so `requested` fell to `null` and EVERY guard
+ * below short-circuited on it. Meanwhile the client reads
+ * `new URLSearchParams(location.search).get("step")`, which returns the FIRST
+ * value. So:
+ *
+ *     GET /onboarding?step=paywall              -> 307 /onboarding
+ *     GET /onboarding?step=paywall&step=paywall -> 200, paywall renders
+ *
+ * with no cookies at all. One duplicated parameter walked past the whole of
+ * §Route protection, and it is the assumption spec w2b-15 mounts a payment
+ * element on.
+ *
+ * Taking `[0]` is not a guess: it is precisely what `URLSearchParams.get`
+ * returns, so the server and the client now resolve the same step from the same
+ * URL. Agreeing with the client is the requirement — a guard that reads a
+ * different value than the thing it is guarding is not a guard.
+ */
+function requestedStep(step: string | string[] | undefined): StepId | null {
+  const first = Array.isArray(step) ? step[0] : step;
+  return isStepId(first) ? first : null;
 }

@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import { createContext, useContext } from "react";
 
 import type { OnboardingSession } from "@/lib/onboarding/session";
 import type { StepId } from "@/lib/onboarding/steps";
@@ -31,9 +26,22 @@ export interface FlowContextValue {
    * return false and the flow walks history as usual. Pass null to release it.
    */
   setBackHandler: (fn: (() => boolean) | null) => void;
-  /** Name from auth, once the paywall has run. Null while anonymous. */
+  /**
+   * Name resolved from the claimed account. Null while anonymous.
+   *
+   * `setAccountName` used to sit beside this and had no consumer once the
+   * paywall's `setAccountName(null)` was deleted — the flow sets it from
+   * `onClaimed` using its own setter. A shared setter nobody calls is an
+   * invitation to write to this from a leaf screen, which is the one thing it
+   * must not be.
+   */
   accountName: string | null;
-  setAccountName: Dispatch<SetStateAction<string | null>>;
+  /**
+   * Whether the SERVER saw a session for this page load. Read by the account
+   * screen to show its waiting state instead of the sign-in controls; never a
+   * substitute for a real guard, which lives in `app/onboarding/page.tsx`.
+   */
+  signedIn: boolean;
   /** "YYYY-MM-DD" for today, resolved once on mount so every screen agrees. */
   todayKey: string;
 }

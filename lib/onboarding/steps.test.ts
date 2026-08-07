@@ -222,29 +222,31 @@ describe("clampStep — the age gate, enforced", () => {
   });
 
   /**
-   * THE SIGNED-IN EXEMPTION (Spec w2b-14). The claim clears `localStorage` the
-   * moment the answers reach the account, so from the paywall onward the device
-   * holds no date of birth at all. Without this a paying customer is clamped
-   * back to `name` on the next reload — a lockout, not a stricter gate, and the
-   * same shape as the two this file already pins.
+   * THE GATED EXEMPTION (Spec w2b-14, tightened after two cold reviews).
+   *
+   * The flag is PROOF OF AGE — `profiles.is_18_plus AND tos_accepted_at`, read
+   * server-side — and not merely "a session exists". The first version took a
+   * bare `signedIn`, which made the age gate satisfiable by signing up at
+   * `/login` and never visiting `/welcome`.
+   *
+   * It also covers EVERY step, not just the authed ones. The claim clears the
+   * device the moment the answers reach the account, so afterwards there is no
+   * date of birth in `localStorage` at all — and a second review measured a
+   * gated customer being sent to "What's your name?" at 20% by opening `?step=free`.
    */
-  it("exempts an AUTHED step for a server-verified session, and nothing else", () => {
+  it("exempts every step once the SERVER has verified the age gate", () => {
     for (const incomplete of ["name", "birthday", "gender"] as const) {
       for (const meta of STEP_ORDER) {
-        if (stepIndex(meta.id) <= stepIndex(incomplete)) continue;
-        expect(clampStep(meta.id, incomplete, true)).toBe(
-          meta.phase === "authed" ? meta.id : incomplete,
-        );
+        expect(clampStep(meta.id, incomplete, true)).toBe(meta.id);
       }
     }
   });
 
-  it("still clamps EVERY anonymous step for a signed-in user, demo included", () => {
-    // The exemption must not become "signed in, therefore anywhere". The demo,
-    // the intent screens and the account screen are all anonymous-phase, and an
-    // account proves nothing about an age the device never answered for.
-    for (const step of ["gender", "greeting", "running", "demo", "cost", "free", "account"] as const) {
-      expect(clampStep(step, "birthday", true)).toBe("birthday");
+  it("clamps every step for an account that has NOT passed the gate", () => {
+    // A session is not proof of age. This is the case a cold review walked:
+    // sign up at /login, never visit /welcome, then ask for the paywall.
+    for (const step of ["gender", "greeting", "running", "demo", "cost", "free", "account", "paywall", "welcome"] as const) {
+      expect(clampStep(step, "birthday", false)).toBe("birthday");
     }
   });
 
@@ -297,15 +299,14 @@ describe("clampIntent", () => {
     }
   });
 
-  it("exempts the paywall for a signed-in user, and only then", () => {
-    // The paywall is an `authed` step since Spec w2b-14, and the claim has
-    // emptied the device by the time it renders. Judging it on device answers
-    // would throw a signed-in customer back to the intent screens — exactly the
+  it("exempts a gated account, whose answers are on the account and not the device", () => {
+    // The claim empties the device, so judging a gated customer by what is left
+    // in `localStorage` throws them back to the intent screens — exactly the
     // hazard this function's own doc describes for `welcome`.
-    expect(clampIntent("paywall", none, true)).toBe("paywall");
-    expect(clampIntent("paywall", none, false)).toBe("running");
-    // The account screen is anonymous, so being signed in buys it nothing here.
-    expect(clampIntent("account", none, true)).toBe("running");
+    for (const step of ["celebrate", "demo", "payoff", "cost", "free", "account", "paywall"] as const) {
+      expect(clampIntent(step, none, true)).toBe(step);
+      expect(clampIntent(step, none, false)).not.toBe(step);
+    }
   });
 
   it("NEVER touches a post-paywall step, whatever the answers", () => {

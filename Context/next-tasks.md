@@ -49,8 +49,16 @@ Built and verified against the real database; state + the three defects it turne
 up are in `progress-tracker.md`. Outstanding:
 
 - **Nothing is merged.** Branch `wave3/account-before-paywall`.
-- **Delete the disposable test accounts** on the PRODUCTION project when the work
-  closes: `w2b14-test@`, `w2b14-redirect@`, `w2b14-2dev@` `trackd-qa.invalid`.
+- ⚠️ **`supabase/onboarding/003_signup_intake_has_answers.sql` is NOT APPLIED.**
+  Until it is, a guard in TypeScript (`carriesAnswers`) is the only thing stopping
+  a thin row squatting the append-only primary key and destroying a real answer
+  set. Safe to run: `signup_intake` is empty, verified 2026-08-08. The file opens
+  with a `DO` block that fails loudly naming any offending row rather than with a
+  bare 23514 — it RUNS, unlike `supabase/protocol/024`'s commented-out block.
+- **Test accounts are cleaned up** — all 23 `w2b14-*@trackd-qa.invalid` deleted
+  from the production project, `signup_intake` back to 0 rows. Recreate freely on
+  that domain (`.invalid` is reserved, so it can never be a real address); the
+  helper is `scratchpad/admin.mjs`.
 - **A real Google round-trip has not been driven** — there is no Google account in
   the agent session. The mechanism was verified through `/auth/confirm`, which is
   the same exchange → cookies → 302 shape. Worth one manual pass on a phone.

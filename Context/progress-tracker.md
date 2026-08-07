@@ -79,6 +79,51 @@ is no local Supabase.
   `?step=account` → **307 to `?step=paywall`**.
 - Back walks cost → free → account → free → cost with answers intact.
 
+### Four cold reviews, 2026-08-08 — SQL, the handoff, auth/routing, the flow
+
+Run adversarially against the running app and the live database before anything
+merged. **Not one of the defects below was caught by tsc, eslint or the 732 tests
+then passing** — every one lived at a boundary. Same lesson as w2b-13, and worth
+repeating on the next spec of this size.
+
+| Sev | Finding | Resolution |
+|---|---|---|
+| CRITICAL | **A duplicated `?step=` walked past the whole of §Route protection.** `searchParams` hands back `string[]` for a repeated param, `isStepId` tests `typeof === "string"`, so `requested` fell to null and every guard short-circuited — while the client's `URLSearchParams.get` read the first value and rendered it. `?step=paywall&step=paywall` returned 200 with zero cookies. | `requestedStep` takes `[0]`, which is exactly what the client reads. A guard that resolves a different value than the thing it guards is not a guard. |
+| HIGH | **The age gate was satisfiable by making an account.** The exemption keyed off `signedIn`, so signing up at `/login` and never visiting `/welcome` rendered the paywall. A regression: on `main` the paywall was anonymous and clamped to `name`. | The clamps take `passedGate` — `is_18_plus AND tos_accepted_at`, server-read. See below for what that forced. |
+| HIGH | **A thin `signup_intake` row destroyed the real answers.** The first `carriesAnswers` was an OR, so a laptop where somebody typed a name and stopped squatted the primary key; the phone's full set then read as "already claimed" and was cleared. | An AND over both intent tag sets — `clampIntent`'s own condition, so every legitimate claimer passes by construction. Plus `003` as a CHECK, because the destructive rule must not live only in TypeScript. |
+| HIGH | **A transient auth blip was reported as "signed out", and dropped the answers in silence.** `getCurrentUser` discards `getUser`'s error, `no-session` is deliberately not a failure, so nothing retried and nothing appeared on screen. | The claim calls `getUser` itself and branches on the error. `getCurrentUser` is untouched: every other caller is a guard, and a guard that reads an unreachable auth server as "signed in" is far worse. |
+| HIGH | **One failed claim stranded the answers forever.** The retry banner was the only recovery, and tapping past it to the end of the flow destroyed it — re-entering `/onboarding` lands on `hook`, an anonymous step, so the claim never fired again. | Two backed-off automatic retries before the banner is shown at all, and the handoff fires on the SESSION rather than the step phase. |
+| HIGH | **`history.replaceState` was called during render**, setState-ing Next's Router mid-render — the exact hazard `goNext` documents and was fixed for. Pre-existing on `main`; this branch added a reachable trigger. | `resolveStep` is pure; a `syncUrlToStep` effect owns the address bar. |
+| MEDIUM | **A NUL byte or a half-cut emoji made the retry fail forever.** Both pass `normaliseSession` and both are rejected by Postgres (`22P05`, `PGRST102`), so every retry failed identically and the notice never cleared. | `capCharacters` strips C0/C1 controls and cuts by CODE POINT with `Array.from` — which is what `char_length()` counts, so the caps and the CHECKs finally agree about what "24" means. |
+| MEDIUM | **The wrong device stamped the 18+ gate.** `passGateFromSession` ran on the `already-claimed` path too, so a stale phone whose answers were discarded a line earlier still set `date_of_birth` and `sex` — and `sex` decides which body the injection-site map draws. | `answersMatch` — only the device whose answers are the ones on the account may stamp. Keeps the retry idempotent, since the same device finds its own answers stored. |
+| MEDIUM | **`readNext` accepted `/\evil.com` and tab/LF/CR.** The URL parser folds a backslash to `/` and strips controls, so `/\` IS `//` by the time a browser reads it — a prefix test checks a value nothing will ever use. | Parsed against an unreachable base; only pathname/search/hash survive. Not remotely triggerable today (the `next` is a constant), but the comment claimed a guarantee the code did not provide. |
+
+**The age-gate fix forced the auth return to move.** It cannot land on the paywall
+any more: the paywall requires a proven age, the thing that proves it is the
+claim, and the claim needs the device's `localStorage` — which the server deciding
+the redirect cannot read. So auth returns to `?step=account`, which renders a
+waiting state for a signed-in user, and the flow moves them on once the gate is
+written. Every claim outcome now has a destination (`onResolved`), because a
+spinner with no resolution was the first thing that arrangement produced.
+
+### Kept deliberately
+
+- **A device abandoned AFTER the intent screens still wins the row** over a fuller
+  set claimed later. Both are the user's own genuine answers, first-write-wins is
+  the rule the spec asked for, and the alternative is an UPDATE grant — which
+  would dismantle the structural guarantee that an existing user's data cannot be
+  overwritten. The `sex`/`dob` harm is gone with `answersMatch`.
+- **No terminal state on a deterministic claim error.** It retries forever. With
+  two silent retries first, the case that reaches a user is rare.
+- **A tab that loaded before a sign-in elsewhere still shows the sign-in form.**
+  `passedGate` is baked into that tab's render; nothing client-side can fix it,
+  because nothing asked a server. The next real request corrects it.
+- **`install` reads 100% while a screen remains**, and **a reload mid-flow drops
+  the in-app back arrow**. Both pre-existing, both outside this spec.
+- **The paywall renders six buttons**, one of which is the CTA; the others are
+  three plan radios, a disclosure and its Apply. The two-CTA ambiguity the spec
+  set out to remove is gone.
+
 ### Still open
 
 - **`auth_started` now has no emitter.** It was fired by the paywall under

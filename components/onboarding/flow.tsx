@@ -36,6 +36,8 @@ import { firstIncompleteHousekeeping } from "@/lib/onboarding/session";
 import { guessPlatform } from "@/lib/onboarding/platform";
 import { todayKey as resolveTodayKey } from "@/lib/protocol/cycle";
 
+import type { ClaimStatus } from "@/app/onboarding/actions";
+
 import { AnswerHandoff } from "./answer-handoff";
 import { FlowContext, type FlowContextValue } from "./flow-context";
 import { ProgressRail } from "./chrome";
@@ -84,7 +86,18 @@ const HOUSEKEEPING_STEPS: readonly StepId[] = [
  */
 const SETTLE_MS = 750;
 
-export function OnboardingFlow({ signedIn = false }: { signedIn?: boolean }) {
+export function OnboardingFlow({
+  signedIn = false,
+  passedGate = false,
+}: {
+  /** A session exists. Server-verified in `app/onboarding/page.tsx`. */
+  signedIn?: boolean;
+  /**
+   * The account has PASSED the 18+/ToS gate. Strictly stronger than `signedIn`,
+   * and the two are not interchangeable — see `clampStep`.
+   */
+  passedGate?: boolean;
+}) {
   // The session and the step both come from the browser (localStorage, the
   // URL). Rendering a guessed value on the server and correcting it on the
   // client is a hydration mismatch, so the flow proper does not mount until
@@ -99,14 +112,20 @@ export function OnboardingFlow({ signedIn = false }: { signedIn?: boolean }) {
   // Same near-black as the flow, so the frame this costs is invisible.
   if (!isClient) return <div className="flow-canvas flow-viewport" aria-hidden />;
 
-  return <OnboardingFlowClient signedIn={signedIn} />;
+  return <OnboardingFlowClient signedIn={signedIn} passedGate={passedGate} />;
 }
 
 /**
  * Client-only, so every initial value can be read straight out of the browser
  * in a lazy initialiser rather than being patched in from an effect.
  */
-function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
+function OnboardingFlowClient({
+  signedIn,
+  passedGate,
+}: {
+  signedIn: boolean;
+  passedGate: boolean;
+}) {
   const router = useRouter();
 
   const [session, setSession] = useState<OnboardingSession>(() => {
@@ -163,11 +182,16 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
    * A SIGNED-IN USER NEVER STANDS ON THE ACCOUNT SCREEN.
    *
    * `app/onboarding/page.tsx` enforces this for every request that reaches a
-   * server. This is the same rule for the moves that do not: pressing Back from
-   * the paywall, and walking forward from `free` in a tab that signed in
-   * somewhere else. Both are `popstate` / `pushState` inside one mounted tree,
-   * so no server sees them, and both would otherwise put a sign-in form in front
-   * of someone who is already signed in.
+   * server. This is the same rule for the moves that do not — chiefly `popstate`
+   * inside one mounted tree, which no server sees.
+   *
+   * **It does NOT cover a tab that loaded before the sign-in happened.**
+   * `passedGate` is baked into that tab's render, so it is false there and this
+   * is a no-op. A cold review measured exactly that: tab A sits on `free`, tab B
+   * signs in, tab A walks forward and gets the sign-in form. Nothing
+   * client-side can fix it, because nothing asked a server; the next real
+   * request corrects it. The earlier version of this comment claimed that case
+   * as covered, and it never was.
    *
    * It is a backstop, not the protection — the spec is explicit that a
    * client-side redirect is not protection, which is why the server rule exists
@@ -178,8 +202,8 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
    */
   const pastAccount = useCallback(
     (target: StepId): StepId =>
-      signedIn && target === "account" ? (nextStep(target) ?? target) : target,
-    [signedIn],
+      passedGate && target === "account" ? (nextStep(target) ?? target) : target,
+    [passedGate],
   );
 
   /**
@@ -197,27 +221,33 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
    * `replaceState` rather than `pushState`: the entry being corrected is the
    * one we are standing on, and pushing would add the very entry that makes
    * Back ambiguous.
+   *
+   * ## The correction happens in an EFFECT, not here
+   *
+   * This is called from a `useState` lazy initialiser, and it used to call
+   * `history.replaceState` itself. Next patches that method to update its
+   * Router, so a clamp that rewrote the URL was setState-ing the Router DURING
+   * this component's render — React says so out loud
+   * ("Cannot update a component (Router) while rendering a different
+   * component"), reproduced by opening `?step=demo` with an empty session. It is
+   * the same hazard `goNext` documents at length and was fixed for; this was the
+   * one place still doing it. So this function is now PURE and `syncUrlToStep`
+   * below owns the address bar.
    */
   const resolveStep = useCallback(
     (requested: string | null, s: OnboardingSession, today: string): StepId => {
       if (!isStepId(requested)) return FIRST_STEP;
       // A deep link cannot walk past the age gate, and cannot skip the intent
       // screens either. See `clampStep` and `clampIntent`.
-      const allowed = pastAccount(
+      return pastAccount(
         clampIntent(
-          clampStep(requested, firstIncompleteHousekeeping(s, today), signedIn),
+          clampStep(requested, firstIncompleteHousekeeping(s, today), passedGate),
           s,
-          signedIn,
+          passedGate,
         ),
       );
-      if (allowed !== requested) {
-        const url = new URL(window.location.href);
-        url.searchParams.set("step", allowed);
-        window.history.replaceState({ step: allowed }, "", url);
-      }
-      return allowed;
     },
-    [signedIn, pastAccount],
+    [passedGate, pastAccount],
   );
 
   const [step, setStep] = useState<StepId>(() =>
@@ -228,6 +258,27 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
     ),
   );
   const [accountName, setAccountName] = useState<string | null>(null);
+
+  /**
+   * THE ADDRESS BAR TELLS THE TRUTH ABOUT WHAT IS ON SCREEN.
+   *
+   * A URL that disagrees with the screen is not cosmetic — it desynchronises the
+   * flow from history, and the measured failure was: open `?step=paywall` cold,
+   * land correctly on `name` with the URL still reading `paywall`, Continue
+   * (pushes `birthday`), then press Back. `popstate` reads `paywall`, clamps to
+   * `birthday` again, and NOTHING MOVES — but a history entry has been spent.
+   * The second Back leaves the site. Two presses: one dead, one exit.
+   *
+   * In an effect rather than in `resolveStep`, so the Router is never updated
+   * mid-render. A no-op on every ordinary step change, because `pushStep` and
+   * the `popstate` handler have already written the URL by the time this runs.
+   */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("step") === step) return;
+    url.searchParams.set("step", step);
+    window.history.replaceState({ step }, "", url);
+  }, [step]);
   // Which way the last move went, so the entering screen slides in from the
   // side it came from. Forward from the right, back from the left.
   const [direction, setDirection] = useState<"forward" | "back">("forward");
@@ -289,9 +340,9 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
       const target = isStepId(requested)
         ? pastAccount(
             clampIntent(
-              clampStep(requested, gateRef.current, signedIn),
+              clampStep(requested, gateRef.current, passedGate),
               answersRef.current,
-              signedIn,
+              passedGate,
             ),
           )
         : FIRST_STEP;
@@ -321,20 +372,14 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
         setDepth((d) => (delta < 0 ? Math.max(0, d - 1) : d + 1));
       }
 
-      // Correct the address bar when the clamp refused what was asked for,
-      // for the same reason as the initial read: a URL that disagrees with the
-      // screen spends a Back press doing nothing.
-      if (isStepId(requested) && target !== requested) {
-        const url = new URL(window.location.href);
-        url.searchParams.set("step", target);
-        window.history.replaceState({ step: target }, "", url);
-      }
-
+      // The address bar is corrected by `syncUrlToStep` once this lands — see
+      // that effect for why a URL disagreeing with the screen costs a Back
+      // press. Doing it here as well would be a second writer for one value.
       setStep(target);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [beginSettle, signedIn, pastAccount]);
+  }, [beginSettle, passedGate, pastAccount]);
 
   /**
    * ONCE THE ANSWERS ARE ON THE ACCOUNT, THE DEVICE COPY STOPS BEING A RECORD.
@@ -361,21 +406,7 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
     });
   }, []);
 
-  /**
-   * The server has confirmed the answers are on the account. THIS is the only
-   * place the device copy is dropped, and it runs after the confirmation, never
-   * before it.
-   *
-   * The name comes back from whichever row won — the freshly claimed one, or an
-   * existing user's own — so the post-paywall Welcome screen greets correctly
-   * even though the session it used to read from has just been cleared, and
-   * even after a reload where there was never a device copy to read.
-   */
-  const onClaimed = useCallback((name: string | null) => {
-    claimed.current = true;
-    clearSession();
-    if (name) setAccountName(name);
-  }, []);
+
 
   /** Push a step into history and scroll to the top of the new screen. */
   const pushStep = useCallback((target: StepId) => {
@@ -388,6 +419,65 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
     // opens half-way down.
     window.scrollTo({ top: 0 });
   }, [beginSettle]);
+
+  /**
+   * EVERY NON-ERROR OUTCOME OF THE CLAIM, AND WHERE IT SENDS THE USER.
+   *
+   * The account screen is a waiting room once you are signed in — the auth
+   * redirect lands there, because the paywall requires a PROVEN age and the
+   * thing that proves it is the claim, which needs this page's `localStorage`
+   * and so cannot run before the redirect resolves. Arrive, claim, then move.
+   *
+   * Nobody is left looking at a spinner. Each outcome has a destination:
+   *
+   *   written / already-claimed  the device copy is dropped (the ONLY place
+   *                              that happens, and only after the server said
+   *                              so) and, if gated, the flow walks on to the
+   *                              paywall.
+   *   nothing-to-claim           there is nothing here and nothing on the
+   *                              account, so the gate cannot be written from
+   *                              answers that do not exist. `/welcome` is the
+   *                              screen that exists for exactly that.
+   *   no-session                 this tab's `signedIn` was stale. A full load
+   *                              of the flow re-asks the server, which is the
+   *                              only thing that can answer it.
+   */
+  const onResolved = useCallback(
+    (status: ClaimStatus, name: string | null, gated: boolean) => {
+      if (status === "no-session") {
+        // Not a client-side redirect standing in for a guard — it is a request,
+        // and the guard runs on it. See `app/onboarding/page.tsx`.
+        window.location.assign("/onboarding");
+        return;
+      }
+
+      if (status === "written" || status === "already-claimed") {
+        claimed.current = true;
+        clearSession();
+        if (name) setAccountName(name);
+      }
+
+      // Only the account screen has anywhere to be sent. Everywhere else the
+      // user is already where they should be and a navigation would be a jolt.
+      if (stepRef.current !== "account") return;
+
+      if (gated) {
+        const target = nextStep("account");
+        if (target) {
+          setDirection("forward");
+          setStep(target);
+          pushStep(target);
+        }
+        return;
+      }
+
+      // Signed in, standing on the account screen, and still not gated. Only
+      // reachable with nothing to claim; the flow cannot gate them, so hand
+      // them to the screen that can.
+      router.replace("/welcome");
+    },
+    [pushStep, router],
+  );
 
   const goTo = useCallback(
     (target: StepId) => {
@@ -460,7 +550,7 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
       goTo,
       finish,
       accountName,
-      setAccountName,
+      signedIn,
       todayKey,
       setBackHandler,
     }),
@@ -473,6 +563,7 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
       goTo,
       finish,
       accountName,
+      signedIn,
       todayKey,
       setBackHandler,
     ],
@@ -542,8 +633,13 @@ function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
               which case it is a retry notice under the progress rail. It sits
               OUTSIDE the keyed step wrapper on purpose: that wrapper remounts on
               every step change, and a retry that vanished the moment the user
-              moved would be a retry nobody ever pressed. */}
-          <AnswerHandoff step={step} onClaimed={onClaimed} />
+              moved would be a retry nobody ever pressed.
+
+              It takes the SESSION, not the step. Gating it on the step's phase
+              meant one failed claim was unrecoverable: the user taps past the
+              banner to the end of the flow, and re-entering `/onboarding` lands
+              on `hook`, an anonymous step, so it never fired again. */}
+          <AnswerHandoff signedIn={signedIn} step={step} onResolved={onResolved} />
 
           {/* `key` remounts on every step, which is what replays the entrance
               and guarantees no screen inherits another's local state. */}

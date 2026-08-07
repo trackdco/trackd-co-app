@@ -1,10 +1,12 @@
 "use client";
 
+import { CircleNotch } from "@/components/icons";
 import { EmailPasswordForm } from "@/components/auth/email-password-form";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { FLOW_EMPHASIS } from "@/lib/ui-presets";
 
 import { StepFrame } from "../chrome";
+import { useFlow } from "../flow-context";
 
 /**
  * The account screen (Spec w2b-14) — the last anonymous step, immediately
@@ -39,21 +41,54 @@ import { StepFrame } from "../chrome";
  */
 
 /**
- * WHERE AUTH RETURNS TO.
+ * WHERE AUTH RETURNS TO — AND IT IS THIS SCREEN, NOT THE PAYWALL.
  *
- * Both providers leave the page — Google navigates to accounts.google.com and
- * back, email confirmation goes via the inbox — so neither can resume the client
- * flow by calling `goNext()`. Both come back through a real HTTP request, and
- * this is the URL they come back to.
+ * Both providers leave the page: Google navigates to accounts.google.com and
+ * back, email confirmation goes via the inbox. Neither can resume the client
+ * flow by calling `goNext()`, so both come back through a real HTTP request.
  *
- * It is the paywall rather than this screen for two reasons: this screen has
- * nothing left to ask a signed-in user, and landing back here would show a
- * sign-in form to someone who is already signed in. (The redirect that enforces
- * that in the other direction is added in a later step.)
+ * It used to be `?step=paywall`, and a cold review showed why that cannot work
+ * once the paywall requires a PROVEN age rather than a bare session: the thing
+ * that proves it is the claim, the claim needs this device's `localStorage`, and
+ * `localStorage` is not readable by the server deciding the redirect. Landing on
+ * the paywall meant being bounced straight back off it.
+ *
+ * So the user returns HERE, the claim runs, and the flow moves them on once the
+ * gate is written (`onClaimed` in `flow.tsx`). A fully gated user never sees
+ * this screen at all — `app/onboarding/page.tsx` 307s them to the paywall before
+ * a byte of it renders.
  */
-const AUTH_RETURN = "/onboarding?step=paywall";
+const AUTH_RETURN = "/onboarding?step=account";
 
 export function AccountScreen() {
+  const { signedIn } = useFlow();
+
+  /**
+   * SIGNED IN, AND STILL HERE. The claim is in flight.
+   *
+   * Showing the sign-in controls to someone who has just signed in is the exact
+   * thing §Back navigation calls out, and it would also invite a second sign-in
+   * on top of the first. This is a couple of seconds at most: the handoff fires
+   * on mount and moves the user the moment the server confirms.
+   *
+   * No CTA, deliberately. There is nothing for a tap to do that waiting does not
+   * already do, and a button that appears to be the way forward while the real
+   * way forward is a network call is how a double-submit gets invented.
+   */
+  if (signedIn) {
+    return (
+      <StepFrame
+        center
+        title="Saving your setup."
+        sub="One moment — we're putting everything you've done onto your account."
+      >
+        <div className="flex justify-center pt-2" aria-hidden>
+          <CircleNotch className="h-6 w-6 animate-spin text-text-subtle" />
+        </div>
+      </StepFrame>
+    );
+  }
+
   return (
     <StepFrame
       title={

@@ -1463,7 +1463,31 @@ nothing client-side survives the redirect.
   five `profiles` columns, for the same reason `signup_attribution` is one.
   `profiles` has no name column at all, which is why the name lives here and is
   returned by the claim so Welcome can still greet correctly after the clear —
-  and after a reload, where there was never a device copy to read.
+  and after a reload, where there was never a device copy to read. **Takes the
+  live DB to 28 tables.**
+- **`supabase/onboarding/003_signup_intake_has_answers.sql`** — a claimed row
+  must carry BOTH intent answer sets. 002 constrained every value and nothing
+  about the row being worth writing, so `INSERT {user_id}` alone was accepted —
+  and a thin row squats the primary key, which on an append-only,
+  first-write-wins table destroys the real set on the device that has it. The
+  rule is `clampIntent`'s: every legitimate claimer satisfies it by
+  construction, and a half-finished device is refused at the earliest honest
+  point. `carriesAnswers` in the claim implements the same rule; the constraint
+  exists because the destructive failure must not depend on a guard in an
+  application.
+
+**A value the client accepts must be a value Postgres accepts**, and that
+contract was broken in two ways a name can carry text nobody typed. `.slice(n)`
+counts UTF-16 code units, so it could halve an emoji and leave a **lone
+surrogate** (`PGRST102`); a **NUL byte** survives `trim()` and Postgres refuses
+it (`22P05`). Neither is reportable — the claim returns `error`, the retry
+banner appears, and every retry fails identically, so the answers never land and
+the notice never clears. `capCharacters` (`lib/onboarding/session.ts`) strips
+C0/C1 controls — deliberately not the whole `\p{C}` class, which would take the
+zero-width joiner and break every multi-part emoji — and cuts with `Array.from`,
+by CODE POINT, which is what Postgres's `char_length()` counts. `normaliseName`
+and `normaliseDetail` both go through it, so the caps here and in the CHECKs now
+agree about what "24" and "80" mean rather than agreeing by luck on ASCII.
 
 ### Route protection
 
@@ -1496,7 +1520,7 @@ from `free` in a tab that signed in elsewhere.
 > before creating a subscription — §3.2's "no payment path bypasses the age gate"
 > lands there, not on the render.
 
-## Signup attribution (2026-08-01, NOT APPLIED)
+## Signup attribution (2026-08-01, APPLIED)
 
 "Where did you hear about us" is captured on the last onboarding screen. Adrian
 asked for the catch-all option to open a **typed field** and for the answer to
@@ -1511,11 +1535,27 @@ reach the database, so we can see which channels are working.
   on writes to it.
 - **A CHECK ties `detail` to `source = 'elsewhere'`**, so a client bug cannot
   file free text under "Instagram" and quietly corrupt the aggregate.
-- **APPLIED 2026-08-01.** Nothing writes it yet, though: attribution lives
-  on the anonymous device session and there is no account to attach it to until
-  auth is wired at the paywall (`startTrial()` is the seam). The migration is
-  written and waiting on Adrian; the Supabase MCP is not authorised in the agent
-  session.
+- **APPLIED, and confirmed live 2026-08-07** by querying the table with the
+  service role. This heading and this bullet contradicted each other for six
+  days — the heading said NOT APPLIED while the bullet and the migration's own
+  header said the opposite. Hand-applied migrations never appear in
+  `list_migrations`, so the file comment is the only status record there is,
+  which is exactly why it goes stale. **Verify against the schema, never against
+  a comment.**
+- **Nothing writes it yet.** The attribution screen is post-paywall and spec
+  w2b-14 stopped short of it. The creator code IS now captured, into
+  `signup_intake.affiliate_code`, because it is taken from `?code=` before the
+  account exists and would otherwise be lost by anyone who abandons after the
+  paywall.
+  > ⚠️ **The code now lives in two tables and only one copy is immutable.**
+  > `signup_intake.affiliate_code` is append-only; `signup_attribution.affiliate_code`
+  > carries a full UPDATE grant and policy, and a cold review confirmed live that
+  > `authenticated` can PATCH its own row from one creator's code to another's,
+  > repeatably. Latent today because nothing writes that table — but if
+  > commission is ever computed from it, a user can self-attribute at will.
+  > **`signup_intake` is the authority**: earliest capture, immutable, and the
+  > one the claim writes. Adrian's call whether to drop the UPDATE grant on
+  > `signup_attribution.affiliate_code` when that screen is wired.
 - **Reading it back is an open decision**, spelled out at the foot of the
   migration: service-role aggregates (no new policy, but `adminMetrics.ts`'s
   "never return a row" rule would have to be narrowed on purpose) versus a
