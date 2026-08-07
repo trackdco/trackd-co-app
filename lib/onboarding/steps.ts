@@ -35,6 +35,9 @@ export type StepId =
   // its own step rather than the top of the paywall because it has one job —
   // "$0 today" — and a screen with one job cannot be scrolled past.
   | "free"
+  // Account creation, its own screen, immediately before the paywall (Spec
+  // w2b-14). See `STEP_ORDER` for why it is not on the paywall itself.
+  | "account"
   | "paywall"
   | "welcome"
   | "install"
@@ -51,9 +54,12 @@ export interface StepMeta {
 }
 
 /**
- * The one ordered list. Phase A (0-10) runs with no account; Phase B (11-17)
- * runs in-trial. `paywall` is the boundary: it is the only step that changes
- * phase, because auth and payment are the trial button and nothing earlier.
+ * The one ordered list. Phase A runs with no account; Phase B runs signed in.
+ * **`account` is the boundary** — it is the only step that changes phase.
+ *
+ * It used to be `paywall`, because auth and payment were both the trial button.
+ * Spec w2b-14 split them: the account is made on its own screen and the paywall
+ * is payment only, so every step from `paywall` onward has a session.
  */
 export const STEP_ORDER: readonly StepMeta[] = [
   { id: "hook", phase: "anonymous" },
@@ -84,7 +90,25 @@ export const STEP_ORDER: readonly StepMeta[] = [
   // Cost makes the argument, `free` removes the risk, paywall asks for the
   // decision. Three beats, in that order (Adrian, 2026-08-05).
   { id: "free", phase: "anonymous" },
-  { id: "paywall", phase: "anonymous" },
+  /**
+   * ACCOUNT CREATION, ON ITS OWN SCREEN, BEFORE THE PRICE (Spec w2b-14).
+   *
+   * Three reasons, in the spec's priority order:
+   *
+   * 1. **The email is captured before the price is seen.** A user who walks the
+   *    whole flow and then balks at the paywall used to leave no trace at all.
+   *    Now they leave an account.
+   * 2. **Auth and payment stop colliding.** Google sign-in navigates the browser
+   *    away and back, which is a full page load — it destroys any payment UI
+   *    mounted on the same screen. Splitting the screens removes that entire bug
+   *    class before spec w2b-15 mounts a Stripe Payment Element on the paywall.
+   * 3. **The paywall gets exactly one button.** It used to carry a "Continue
+   *    with Google" control that was not the call to action.
+   *
+   * It is the LAST anonymous step. Everything after it has a session.
+   */
+  { id: "account", phase: "anonymous" },
+  { id: "paywall", phase: "authed" },
   { id: "welcome", phase: "authed" },
   { id: "notifications", phase: "authed" },
   { id: "attribution", phase: "authed" },
@@ -159,7 +183,34 @@ export function clampStep(
    * rather than recomputed here so the age rule has exactly one home.
    */
   incomplete: StepId | null,
+  /**
+   * Whether the SERVER verified a session for this request (Spec w2b-14).
+   *
+   * ## Why an exemption exists at all, and why it does not weaken the gate
+   *
+   * The claim clears `localStorage` the instant the answers reach the account —
+   * that is the whole point of it. So from the paywall onward the device holds
+   * NO date of birth, and this function, reading only the device, would clamp a
+   * paying customer back to `name` on the next reload. That is not a stricter
+   * gate; it is a lockout, and it is the same shape as the two this file's
+   * comments already record.
+   *
+   * The exemption is narrow in three ways at once:
+   *   - it applies ONLY to steps whose phase is `authed`,
+   *   - `signedIn` is resolved on the SERVER by `getUser()` (which revalidates
+   *     against the Auth server) and handed down — a client can neither guess it
+   *     nor set it, and `app/onboarding/page.tsx` refuses an authed step outright
+   *     when it is false,
+   *   - and what it exempts is a device answer, replaced by a stronger one: an
+   *     account whose age and consent are recorded in `profiles` and
+   *     `consent_records` by the same write that cleared the device.
+   *
+   * Every anonymous step — which is everything up to and including the account
+   * screen, and therefore the whole demo — is clamped exactly as before.
+   */
+  signedIn = false,
 ): StepId {
+  if (signedIn && stepMeta(requested)?.phase === "authed") return requested;
   if (!incomplete) return requested;
   return stepIndex(requested) > stepIndex(incomplete) ? incomplete : requested;
 }
@@ -190,13 +241,28 @@ const INTENT_GUARDED: readonly StepId[] = [
   "payoff",
   "cost",
   "free",
+  // The account screen is anonymous and sits between the intent screens and the
+  // paywall, so it is guarded exactly like the rest of that stretch. Nobody
+  // returns to it from an auth redirect — a signed-in user is sent forward to
+  // the paywall (see the account screen's own redirect) — so the `welcome`
+  // hazard described above does not apply here.
+  "account",
   "paywall",
 ];
 
 export function clampIntent(
   requested: StepId,
   answers: { running: readonly unknown[]; struggle: readonly unknown[] },
+  /**
+   * Same server-verified flag, same reason, as `clampStep`'s. The paywall is an
+   * `authed` step and the claim has emptied the device by the time it renders,
+   * so judging it on device answers would throw a signed-in customer back to the
+   * intent screens — which is precisely the hazard this function's own doc
+   * comment describes for `welcome`.
+   */
+  signedIn = false,
 ): StepId {
+  if (signedIn && stepMeta(requested)?.phase === "authed") return requested;
   if (!INTENT_GUARDED.includes(requested)) return requested;
   if (answers.running.length === 0) return "running";
   if (answers.struggle.length === 0) return "struggle";

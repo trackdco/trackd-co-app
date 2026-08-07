@@ -80,11 +80,27 @@ describe("STEP_ORDER", () => {
     expect(stepIndex("install")).toBeGreaterThan(stepIndex("letter"));
   });
 
-  it("has no authed step before the paywall and no anonymous step after it", () => {
-    const paywall = stepIndex("paywall");
+  /**
+   * THE PHASE BOUNDARY IS `account`, NOT `paywall` (Spec w2b-14).
+   *
+   * It was the paywall while that screen did auth AND payment. Now the account
+   * is made on its own screen before it, so the paywall is the first step that
+   * can assume a session — and spec w2b-15 builds a Stripe Payment Element on
+   * exactly that assumption.
+   */
+  it("has no authed step before the account screen and no anonymous step after it", () => {
+    const account = stepIndex("account");
     STEP_ORDER.forEach((step, i) => {
-      expect(step.phase).toBe(i <= paywall ? "anonymous" : "authed");
+      expect(step.phase).toBe(i <= account ? "anonymous" : "authed");
     });
+  });
+
+  it("puts account creation between the free screen and the paywall", () => {
+    // The whole point of the spec: the email is captured before the price is
+    // seen, and auth never shares a screen with payment UI.
+    expect(stepIndex("free")).toBeLessThan(stepIndex("account"));
+    expect(stepIndex("account")).toBeLessThan(stepIndex("paywall"));
+    expect(stepIndex("account")).toBe(stepIndex("paywall") - 1);
   });
 
   it("keeps the demo as ONE step, so logging a dose never navigates", () => {
@@ -204,6 +220,39 @@ describe("clampStep — the age gate, enforced", () => {
       expect(clampStep(step, null)).toBe(step);
     }
   });
+
+  /**
+   * THE SIGNED-IN EXEMPTION (Spec w2b-14). The claim clears `localStorage` the
+   * moment the answers reach the account, so from the paywall onward the device
+   * holds no date of birth at all. Without this a paying customer is clamped
+   * back to `name` on the next reload — a lockout, not a stricter gate, and the
+   * same shape as the two this file already pins.
+   */
+  it("exempts an AUTHED step for a server-verified session, and nothing else", () => {
+    for (const incomplete of ["name", "birthday", "gender"] as const) {
+      for (const meta of STEP_ORDER) {
+        if (stepIndex(meta.id) <= stepIndex(incomplete)) continue;
+        expect(clampStep(meta.id, incomplete, true)).toBe(
+          meta.phase === "authed" ? meta.id : incomplete,
+        );
+      }
+    }
+  });
+
+  it("still clamps EVERY anonymous step for a signed-in user, demo included", () => {
+    // The exemption must not become "signed in, therefore anywhere". The demo,
+    // the intent screens and the account screen are all anonymous-phase, and an
+    // account proves nothing about an age the device never answered for.
+    for (const step of ["gender", "greeting", "running", "demo", "cost", "free", "account"] as const) {
+      expect(clampStep(step, "birthday", true)).toBe("birthday");
+    }
+  });
+
+  it("defaults to NOT exempt, so a caller that forgets the flag gates harder", () => {
+    // The parameter is optional. A missing argument must fail closed.
+    expect(clampStep("paywall", "birthday")).toBe("birthday");
+    expect(clampStep("welcome", "birthday")).toBe("birthday");
+  });
 });
 
 describe("clampIntent", () => {
@@ -217,13 +266,19 @@ describe("clampIntent", () => {
     expect(clampIntent("celebrate", none)).toBe("running");
     expect(clampIntent("demo", none)).toBe("running");
     expect(clampIntent("paywall", none)).toBe("running");
+    // The account screen is in the same guarded stretch: a bookmarked link
+    // straight to it would otherwise offer to save answers nobody gave.
+    expect(clampIntent("account", none)).toBe("running");
     expect(clampIntent("celebrate", { running: ["trt"], struggle: [] })).toBe(
+      "struggle",
+    );
+    expect(clampIntent("account", { running: ["trt"], struggle: [] })).toBe(
       "struggle",
     );
   });
 
   it("passes a fully answered session straight through", () => {
-    for (const step of ["celebrate", "demo", "payoff", "cost", "paywall"] as const) {
+    for (const step of ["celebrate", "demo", "payoff", "cost", "account", "paywall"] as const) {
       expect(clampIntent(step, both)).toBe(step);
     }
   });
@@ -240,6 +295,17 @@ describe("clampIntent", () => {
     ] as const) {
       expect(clampIntent(step, none)).toBe(step);
     }
+  });
+
+  it("exempts the paywall for a signed-in user, and only then", () => {
+    // The paywall is an `authed` step since Spec w2b-14, and the claim has
+    // emptied the device by the time it renders. Judging it on device answers
+    // would throw a signed-in customer back to the intent screens — exactly the
+    // hazard this function's own doc describes for `welcome`.
+    expect(clampIntent("paywall", none, true)).toBe("paywall");
+    expect(clampIntent("paywall", none, false)).toBe("running");
+    // The account screen is anonymous, so being signed in buys it nothing here.
+    expect(clampIntent("account", none, true)).toBe("running");
   });
 
   it("NEVER touches a post-paywall step, whatever the answers", () => {

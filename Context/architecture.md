@@ -1391,6 +1391,111 @@ full-screen sheet, and the site picker inside the log-dose sheet.
   `[]`, helpers uncalled). `dose_logs.injection_site` + all logged history are
   untouched (Invariant 8). Spec 19 ships as one PR (not yet deployed).
 
+## Account before the paywall (Spec w2b-14, 2026-08-07)
+
+**Account creation is its own onboarding step, sitting between `free` and
+`paywall`.** It used to be a control ON the paywall; that arrangement is gone.
+`account` is now the LAST anonymous step and the phase boundary, so the paywall
+and every step after it may assume a signed-in user.
+
+Three reasons, in the spec's priority order: the email is captured **before the
+price is seen** (a user who balked used to leave no trace at all); auth and
+payment stop sharing a screen (auth is a full page load and destroys any payment
+UI mounted beside it — the bug class spec w2b-15's Payment Element would have
+walked straight into); and the paywall gets **exactly one** call to action.
+
+- **The screen is framed as KEEPING work, never as a toll.** "Let's make sure
+  this sticks" — no "sign up", no "create an account to continue", and **no
+  mention of price, trial or payment**, which is revealed on the paywall and
+  nowhere earlier. There is no skip and no guest path.
+- **The controls are MOVED, not redesigned** — the same `GoogleSignInButton` and
+  `EmailPasswordForm` `/login` mounts, in the same order, with the same divider.
+  Both gained one prop each (`next`, `defaultMode`), both defaulting to the login
+  screen's existing behaviour, so that screen is untouched.
+- **All three auth paths return through a FULL DOCUMENT LOAD** — Google via
+  `/auth/callback`, email confirmation via `/auth/confirm`, and email sign-in via
+  a deliberate hard navigate. That last one was a server `redirect()` and it
+  shipped visibly broken for one measured run: the flow is ONE client tree that
+  reads `?step=` at mount and on `popstate` only, so a SOFT navigation to
+  `?step=paywall` reused the mounted tree and left the account screen — sign-in
+  form and all — on screen with the address bar claiming otherwise. `signIn`
+  now hands the destination back for `window.location.assign` whenever a `next`
+  was supplied. One arrival shape for all three is also what gives the handoff
+  exactly one place to hook.
+
+### The answer handoff
+
+The whole pre-account half runs with no account, so the answers live in one
+`localStorage` key (`trackd.onboarding.v1`). `claimOnboardingSession`
+(`app/onboarding/actions.ts`) claims them onto the account, fired on ARRIVAL by
+`components/onboarding/answer-handoff.tsx` — never on a button press, because
+nothing client-side survives the redirect.
+
+- **Write, confirm, THEN clear.** The device copy is dropped only for a status
+  the server returned, and never for `no-session` or `error`. Until then the
+  answers exist in exactly one place, so an optimistic clear would be silent,
+  unrecoverable loss on the most invested user in the flow. A failure leaves them
+  intact and shows a retry.
+- **Every write is idempotent, because retries are the normal case.**
+  `consent_records` upserts with `ignoreDuplicates`; the `profiles` gate update
+  is conditioned on `tos_accepted_at IS NULL`; `signup_intake` is a plain INSERT
+  whose 23505 *means* "already claimed". A partial failure plus a retry finishes
+  the missing half rather than duplicating the finished one.
+- **An existing user's data always wins**, and the database enforces it rather
+  than a branch in TypeScript: `signup_intake.user_id` is the PRIMARY KEY with
+  **no UPDATE grant at all**, so a returning user's answers cannot be replaced by
+  whatever a borrowed phone had in storage. The `profiles` gate update is
+  conditioned for the same reason.
+- **It writes the 18+/ToS gate**, so a user who just answered dob, sex and the
+  consent tick is not sent to `/welcome` to answer them again. **The age is
+  re-decided on the server** (`hasAgeAndConsent`) — the value arrived from
+  `localStorage` and the client's answer is not evidence. If the server cannot
+  prove it, the answers are still claimed and the gate is simply withheld.
+- **Once claimed, the device copy stops being a record.** A `claimed` latch in
+  the flow makes `patch` stop persisting — otherwise the paywall's next plan tap
+  would write the whole answer set straight back into the key the claim had just
+  cleared. The in-memory session survives, because the paywall still needs
+  `plan`.
+- **`supabase/onboarding/002_signup_intake.sql`** — one row per user holding the
+  answers with nowhere else to go (`name`, `running[]`, `struggle[]`,
+  `struggle_detail`, `affiliate_code`). Append-only, own RLS, own GRANT, every
+  cap and tag list mirroring `lib/onboarding/session.ts`. A table rather than
+  five `profiles` columns, for the same reason `signup_attribution` is one.
+  `profiles` has no name column at all, which is why the name lives here and is
+  returned by the claim so Welcome can still greet correctly after the clear —
+  and after a reload, where there was never a device copy to read.
+
+### Route protection
+
+`app/onboarding/page.tsx` is a **server component** and holds both rules, because
+a client-side redirect is not protection. The only requests that reach it are the
+ones that matter — a typed URL, a bookmark, a reload, and the 302 that ends every
+auth round-trip — since the flow itself advances with `pushState`.
+
+1. An `authed` step with **no session** 307s to the start of the flow, not to the
+   account screen: arriving at a bare account screen with no answers to save
+   makes no sense.
+2. A **signed-in** user on the account screen 307s to the paywall.
+
+`signedIn` is then handed to the flow, and `clampStep` / `clampIntent` take it as
+a third argument that **exempts `authed` steps only**. That exemption is not a
+weakening: the claim clears the device, so from the paywall onward there is no
+date of birth on it and the age clamp would lock a paying customer out of the
+screen they just paid on. What it exempts is a device answer, replaced by a
+stronger one — a server-verified session over an account whose age and consent
+are recorded in `profiles` and `consent_records`. It **fails closed** (the
+parameter defaults to false) and every anonymous step, the whole demo included,
+is clamped exactly as before. `pastAccount` in the flow is the client backstop
+for the two moves no server sees — Back from the paywall, and walking forward
+from `free` in a tab that signed in elsewhere.
+
+> **Carried into spec w2b-15:** the paywall is reachable by a signed-in user
+> whose `profiles.is_18_plus` is false (they would have had to pass the client
+> age gate to get an account through this flow, but the server does not re-check
+> it to RENDER a price list). The **payment endpoint must verify it server-side**
+> before creating a subscription — §3.2's "no payment path bypasses the age gate"
+> lands there, not on the render.
+
 ## Signup attribution (2026-08-01, NOT APPLIED)
 
 "Where did you hear about us" is captured on the last onboarding screen. Adrian

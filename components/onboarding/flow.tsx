@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { track } from "@/lib/onboarding/analytics";
 import { codeFromSearch } from "@/lib/onboarding/affiliate";
 import {
+  clearSession,
   readSession,
   writeSession,
   type OnboardingSession,
@@ -24,6 +25,7 @@ import {
   clampStep,
   FIRST_STEP,
   isStepId,
+  nextStep,
   nextStepFor,
   prevStep,
   stepIndex,
@@ -34,6 +36,7 @@ import { firstIncompleteHousekeeping } from "@/lib/onboarding/session";
 import { guessPlatform } from "@/lib/onboarding/platform";
 import { todayKey as resolveTodayKey } from "@/lib/protocol/cycle";
 
+import { AnswerHandoff } from "./answer-handoff";
 import { FlowContext, type FlowContextValue } from "./flow-context";
 import { ProgressRail } from "./chrome";
 import { StepRenderer } from "./step-renderer";
@@ -81,7 +84,7 @@ const HOUSEKEEPING_STEPS: readonly StepId[] = [
  */
 const SETTLE_MS = 750;
 
-export function OnboardingFlow() {
+export function OnboardingFlow({ signedIn = false }: { signedIn?: boolean }) {
   // The session and the step both come from the browser (localStorage, the
   // URL). Rendering a guessed value on the server and correcting it on the
   // client is a hydration mismatch, so the flow proper does not mount until
@@ -96,14 +99,14 @@ export function OnboardingFlow() {
   // Same near-black as the flow, so the frame this costs is invisible.
   if (!isClient) return <div className="flow-canvas flow-viewport" aria-hidden />;
 
-  return <OnboardingFlowClient />;
+  return <OnboardingFlowClient signedIn={signedIn} />;
 }
 
 /**
  * Client-only, so every initial value can be read straight out of the browser
  * in a lazy initialiser rather than being patched in from an effect.
  */
-function OnboardingFlowClient() {
+function OnboardingFlowClient({ signedIn }: { signedIn: boolean }) {
   const router = useRouter();
 
   const [session, setSession] = useState<OnboardingSession>(() => {
@@ -157,6 +160,29 @@ function OnboardingFlowClient() {
   const [backOwned, setBackOwned] = useState(false);
 
   /**
+   * A SIGNED-IN USER NEVER STANDS ON THE ACCOUNT SCREEN.
+   *
+   * `app/onboarding/page.tsx` enforces this for every request that reaches a
+   * server. This is the same rule for the moves that do not: pressing Back from
+   * the paywall, and walking forward from `free` in a tab that signed in
+   * somewhere else. Both are `popstate` / `pushState` inside one mounted tree,
+   * so no server sees them, and both would otherwise put a sign-in form in front
+   * of someone who is already signed in.
+   *
+   * It is a backstop, not the protection — the spec is explicit that a
+   * client-side redirect is not protection, which is why the server rule exists
+   * and is not replaced by this.
+   *
+   * The destination is read from `STEP_ORDER` rather than named, so inserting a
+   * step after `account` later cannot leave this pointing past it.
+   */
+  const pastAccount = useCallback(
+    (target: StepId): StepId =>
+      signedIn && target === "account" ? (nextStep(target) ?? target) : target,
+    [signedIn],
+  );
+
+  /**
    * Resolve an untrusted `?step=` AND make the URL tell the truth about it.
    *
    * The clamp used to render the safe step and leave the address bar saying
@@ -177,9 +203,12 @@ function OnboardingFlowClient() {
       if (!isStepId(requested)) return FIRST_STEP;
       // A deep link cannot walk past the age gate, and cannot skip the intent
       // screens either. See `clampStep` and `clampIntent`.
-      const allowed = clampIntent(
-        clampStep(requested, firstIncompleteHousekeeping(s, today)),
-        s,
+      const allowed = pastAccount(
+        clampIntent(
+          clampStep(requested, firstIncompleteHousekeeping(s, today), signedIn),
+          s,
+          signedIn,
+        ),
       );
       if (allowed !== requested) {
         const url = new URL(window.location.href);
@@ -188,7 +217,7 @@ function OnboardingFlowClient() {
       }
       return allowed;
     },
-    [],
+    [signedIn, pastAccount],
   );
 
   const [step, setStep] = useState<StepId>(() =>
@@ -258,9 +287,12 @@ function OnboardingFlowClient() {
       // Same clamps as the initial read: history is user-editable too, and the
       // URL is corrected to whatever actually renders.
       const target = isStepId(requested)
-        ? clampIntent(
-            clampStep(requested, gateRef.current),
-            answersRef.current,
+        ? pastAccount(
+            clampIntent(
+              clampStep(requested, gateRef.current, signedIn),
+              answersRef.current,
+              signedIn,
+            ),
           )
         : FIRST_STEP;
 
@@ -302,14 +334,47 @@ function OnboardingFlowClient() {
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [beginSettle]);
+  }, [beginSettle, signedIn, pastAccount]);
+
+  /**
+   * ONCE THE ANSWERS ARE ON THE ACCOUNT, THE DEVICE COPY STOPS BEING A RECORD.
+   *
+   * Not cosmetic. `patch` persists on every call, and the paywall calls it on
+   * every plan tap. So without this latch the very next tap after a confirmed
+   * claim would write the whole answer set straight back into the key the claim
+   * had just cleared — undoing "cleared only after the write is confirmed" one
+   * render later, and leaving a stale copy on the device forever.
+   *
+   * The in-memory session deliberately survives, because the paywall still needs
+   * `plan` and nothing else has anywhere to read it from yet.
+   *
+   * A ref, not state: `patch` must not be re-created when this flips, or every
+   * screen holding it re-renders for a change none of them can see.
+   */
+  const claimed = useRef(false);
 
   const patch = useCallback((next: Partial<OnboardingSession>) => {
     setSession((current) => {
       const merged = { ...current, ...next };
-      writeSession(merged);
+      if (!claimed.current) writeSession(merged);
       return merged;
     });
+  }, []);
+
+  /**
+   * The server has confirmed the answers are on the account. THIS is the only
+   * place the device copy is dropped, and it runs after the confirmation, never
+   * before it.
+   *
+   * The name comes back from whichever row won — the freshly claimed one, or an
+   * existing user's own — so the post-paywall Welcome screen greets correctly
+   * even though the session it used to read from has just been cleared, and
+   * even after a reload where there was never a device copy to read.
+   */
+  const onClaimed = useCallback((name: string | null) => {
+    claimed.current = true;
+    clearSession();
+    if (name) setAccountName(name);
   }, []);
 
   /** Push a step into history and scroll to the top of the new screen. */
@@ -354,12 +419,15 @@ function OnboardingFlowClient() {
    * transition.
    */
   const goNext = useCallback(() => {
-    const target = nextStepFor(step, platform);
-    if (!target) return;
+    const next = nextStepFor(step, platform);
+    if (!next) return;
+    // `pastAccount` because a signed-in user walking forward from `free` must
+    // not land on a sign-in form they have no use for. See `pastAccount`.
+    const target = pastAccount(next);
     setDirection("forward");
     setStep(target);
     pushStep(target);
-  }, [step, pushStep, platform]);
+  }, [step, pushStep, platform, pastAccount]);
 
   // A screen may claim BACK for itself (the demo does, to step between its
   // stages). A ref rather than state: this is a registration, and re-rendering
@@ -469,6 +537,13 @@ function OnboardingFlowClient() {
             {/* Balances the arrow's column so the rail sits on the true centre. */}
             <span aria-hidden />
           </div>
+
+          {/* THE ANSWER HANDOFF. Renders nothing unless the claim failed, in
+              which case it is a retry notice under the progress rail. It sits
+              OUTSIDE the keyed step wrapper on purpose: that wrapper remounts on
+              every step change, and a retry that vanished the moment the user
+              moved would be a retry nobody ever pressed. */}
+          <AnswerHandoff step={step} onClaimed={onClaimed} />
 
           {/* `key` remounts on every step, which is what replays the entrance
               and guarantees no screen inherits another's local state. */}

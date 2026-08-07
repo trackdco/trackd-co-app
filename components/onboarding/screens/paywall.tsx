@@ -22,31 +22,35 @@ import { FlowCta, StepFrame } from "../chrome";
 import { useFlow } from "../flow-context";
 
 /**
- * Screen 10 — Paywall. AUTH + PAYMENT (Spec 3-01 §6, §9).
+ * The paywall — PAYMENT ONLY (Spec 3-01 §6, §9, amended by Spec w2b-14).
  *
- * This is the only place an account or a payment is asked for, and it sits
- * AFTER the whole demo by design.
+ * ## There is no auth here, and there is no longer meant to be
+ *
+ * Account creation moved to its own step immediately before this one
+ * (`screens/account.tsx`). So this screen may ASSUME A SIGNED-IN USER — the
+ * route refuses to render it otherwise, server-side, in
+ * `app/onboarding/page.tsx`. That assumption is what spec w2b-15 builds a
+ * Stripe Payment Element on.
+ *
+ * The `GoogleSignInButton` that used to sit at the bottom of this file is gone
+ * for good, and its empty placeholder slot with it. Auth navigating the browser
+ * away and back is a full page load, which destroys any payment UI mounted
+ * beside it; that bug class cannot exist once the two are on different screens.
+ *
+ * ## One button
+ *
+ * Exactly one call to action, and it is the trial CTA. The plan rows are radios
+ * and the code field is a disclosure, so there is nothing else on this screen a
+ * user could mistake for the thing that starts their trial.
  *
  * ## What is real here and what is not
  *
  * **Real:** every screen state, the plan cards, and the code
  * capture/validate/apply path.
  *
- * **There is now NO auth on this screen at all.** The `GoogleSignInButton` was
- * removed 2026-08-05 at Adrian's call, pending a decision on the billing
- * provider. It was the only thing here that ever authenticated, so the screen
- * cannot currently produce an account — which is fine while `startTrial()` is a
- * stub and is a blocker the moment it is not.
- *
- * **Stubbed, deliberately:** the RevenueCat trial-start and the payment sheet.
- * This project has no RevenueCat integration at all (`architecture.md` lists
- * Stripe as deferred and there is no RevenueCat dependency), and wiring live
- * billing from a preview branch would create real billing objects against real
- * customers. `startTrial()` below is the single seam: it is where
- * `Purchases.purchase()` goes, and nothing else needs to move.
- *
- * The preview path is explicit rather than hidden, so nobody can mistake a
- * stubbed trial for a real one.
+ * **Stubbed, deliberately:** the trial-start and the payment sheet. Spec w2b-15
+ * replaces `startTrial()` below with the real Stripe subscription + SetupIntent
+ * chain. It is the single seam; nothing else on this screen needs to move.
  */
 
 /**
@@ -100,7 +104,7 @@ function trialTimeline(now: Date) {
 }
 
 export function PaywallScreen() {
-  const { session, patch, goNext, setAccountName } = useFlow();
+  const { session, patch, goNext } = useFlow();
   const [verdict, setVerdict] = useState<CodeVerdict>({ status: "none" });
   const [codeDraft, setCodeDraft] = useState("");
   const [codeOpen, setCodeOpen] = useState(false);
@@ -160,22 +164,30 @@ export function PaywallScreen() {
   };
 
   /**
-   * THE STUB. In order, the real chain is:
-   *   1. Google OAuth / email        <- already real, see the button below
-   *   2. RevenueCat trial-start      <- goes here
-   *   3. Apple Pay / Google Pay / card sheet, $0 authorisation
-   *   4. merge the anonymous session onto the account, record attribution
+   * THE STUB. What remains of the chain, now that Spec w2b-14 has taken the
+   * first and last links off this screen:
+   *   1. auth                    <- DONE, on the account screen before this one
+   *   2. trial-start             <- goes here (spec w2b-15: Stripe subscription)
+   *   3. the payment sheet       <- and here (the Payment Element + SetupIntent)
+   *   4. claim the answers       <- DONE, by `AnswerHandoff` on arrival here
    *   5. Welcome
-   * Steps 2 and 3 currently resolve immediately. Step 4 has nowhere to write
-   * until there is an account, so it is left for the auth integration.
+   *
+   * Steps 2 and 3 currently resolve immediately.
+   *
+   * The two `auth_*` events this used to fire are gone with the auth: they
+   * reported a sign-in that had already happened on a different screen, under a
+   * `method: "preview"` that was never true. `auth_completed` is now fired once
+   * by `AnswerHandoff`, from the only moment the SERVER has confirmed an
+   * account exists.
+   *
+   * `setAccountName(null)` is gone too, and it was worse than dead — the
+   * handoff sets that name from the claimed row, and this ran afterwards and
+   * wiped it, so Welcome would have greeted a signed-in user as nobody.
    */
   const startTrial = async () => {
     setBusy(true);
-    track("auth_started", { method: "preview" });
     await new Promise((r) => setTimeout(r, 700));
-    track("auth_completed", { method: "preview" });
     track("trial_started", { plan: session.plan, days: TRIAL_DAYS });
-    setAccountName(null);
     setBusy(false);
     goNext();
   };
@@ -464,19 +476,6 @@ export function PaywallScreen() {
           </div>
         </div>
 
-        {/* AUTH GOES HERE, and nothing renders in the slot yet (Adrian,
-            2026-08-05: "remove the Continue with Google thing for now. We will
-            insert the area where we will do Google").
-            The button was real and worked — it is the ONLY thing on this screen
-            that ever authenticated — so taking it out means the screen now has
-            no auth path at all until billing is wired. That is deliberate: a
-            live Google button beside a stubbed trial CTA taught people the
-            wrong thing about which one starts the trial, and a cold reviewer
-            reading this screen as a customer said pressing the CTA with no
-            payment sheet would make him assume it was broken.
-            `startTrial()` above is the seam; whichever provider wins renders
-            its own auth here. `GoogleSignInButton` still exists and is still
-            used by /login — nothing was deleted, only unmounted from here. */}
       </div>
     </StepFrame>
   );
