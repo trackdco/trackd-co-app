@@ -1151,6 +1151,52 @@ already set is a separate decision. Flagged for Adrian.
 Gates: `tsc`, `eslint`, **727 tests**. `next build` NOT run — it cannot run
 while the phone-preview dev server is up.
 
+### Second pass, same day: install last, the carousel moves, icons stop matching
+
+**INSTALL IS THE LAST STEP.** An installed iOS home-screen app gets its own
+storage container, so a user who added the icon at step 15 and opened it arrived
+with no session and no auth cookie, hit `start_url` (`/dashboard`), and was
+bounced to `/login` by the `(app)` guard — signed out of something they had just
+paid for, with `notifications`, `attribution` and `letter` abandoned. Last is the
+only position where adding the icon costs nothing. Its CTA calls `finish()`, and
+"Enter Trackd" moved onto it from the letter, whose button now reads "One last
+thing".
+
+**The consequence, and it is a real one: `notifications` no longer asks on iOS.**
+That screen used to sit AFTER install precisely because iOS cannot grant web push
+to an uninstalled site. It now sits before it, so on iOS the screen records intent
+(`notifications_deferred`) and defers the real request to the installed app.
+Firing `Notification.requestPermission()` from an uninstalled iOS site does not
+just fail, it spends the single prompt the OS ever grants and leaves the user
+denied. **Verified by driving the tail under an iPhone UA with
+`requestPermission` instrumented: it is never called.** Android is untouched and
+still asks in place.
+
+**The carousel moved from the paywall to `free`** and `paywall-hero.tsx` became
+`app-carousel.tsx` with it (`PaywallHero` → `AppCarousel`, `.paywall-label` →
+`.carousel-label`). "We want you to have your first week on us" is the screen
+that has to show what the week contains, and a still of one Home screen said
+"there is an app" rather than "there is all of this". The paywall keeps the
+trial timeline as its only graphic, **one size up** — 40px discs, 1.05rem
+titles, `space-y-7` — since it no longer shares the screen. Its below-fold
+content dropped 505px → 224px.
+
+**No two intent options share an icon.** `Compass` was on both "First cycle" and
+"Just tracking for now", and `Pulse` on both "TRT" and "Supplements & general
+health". Now: `Plant` (Adrian's pick) / `ClipboardText` / `Cylinder` (the tub the
+category legend already uses for a supplement). Also `Drop` → `MapPin` on "last
+site" (a site is a place, not a droplet) and `Check` → `CalendarCheck` on
+"took_today", because the chip draws its OWN tick when selected and a check on
+the left made one row look permanently half-ticked. `Plant`, `MapPin` and
+`CalendarCheck` added to `components/icons.ts`.
+
+⚠️ **The stale-`.next` trap fired again and was caught by measuring.** After
+renaming `.paywall-label` → `.carousel-label`, the file on disk was correct and
+`document.styleSheets` still served the OLD selector — the labels measured 16px
+where the rule says 9.5px. A dev-server restart with `.next` cleared fixed it.
+Renaming a CSS class is a case where HMR does not reliably invalidate; assert the
+new selector is served before believing any measurement of it.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

@@ -22,8 +22,16 @@ import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 /**
- * The paywall hero: four real screens of the app on a rotating RING (Adrian,
- * 2026-08-01).
+ * Four real screens of the app on a rotating RING (Adrian, 2026-08-01).
+ *
+ * **It lives on the FREE screen, not the paywall** (Adrian, 2026-08-07). It was
+ * built for the paywall and was called `PaywallHero`; the free screen carried a
+ * single still photo of one phone instead. He swapped them, and the swap is
+ * right: "we want you to have your first week on us" is the screen that has to
+ * show what the week contains, and the paywall's job is the decision, which a
+ * turning carousel above the prices competes with. Renamed with the move rather
+ * than left as a `PaywallHero` sitting somewhere else, which is how a file ends
+ * up lying about where it is used.
  *
  * Not a cross-fade in a fixed frame, which is what this was first and what he
  * corrected. Four phones exist at once in four positions, and the whole ring
@@ -135,7 +143,7 @@ const RING = [
   { x: "-50%", scale: 0.72, opacity: 0.26, z: 20 },
 ];
 
-export function PaywallHero() {
+export function AppCarousel() {
   const [index, setIndex] = useState(0);
   const [reduced] = useState(
     () =>
@@ -278,7 +286,7 @@ export function PaywallHero() {
                 key={`${slide.id}-${l.text}`}
                 aria-hidden
                 className={cn(
-                  "paywall-label animate-flow-drift pointer-events-none absolute z-40 flex items-center gap-1.5 rounded-full bg-bg-surface/75 px-2.5 py-1.5 backdrop-blur-md",
+                  "carousel-label animate-flow-drift pointer-events-none absolute z-40 flex items-center gap-1.5 rounded-full bg-bg-surface/75 px-2.5 py-1.5 backdrop-blur-md",
                   "transition-opacity ease-[var(--motion-ease)] motion-reduce:transition-none",
                   on ? "opacity-100" : "opacity-0",
                   l.className,

@@ -61,8 +61,23 @@ describe("STEP_ORDER", () => {
     expect(clampStep("free", "name")).toBe("name");
   });
 
-  it("puts install before notifications, because iOS push needs the install", () => {
-    expect(stepIndex("install")).toBeLessThan(stepIndex("notifications"));
+  /**
+   * THIS ASSERTION IS THE REVERSE OF WHAT IT WAS (Adrian, 2026-08-07).
+   *
+   * It used to pin install BEFORE notifications, because iOS cannot grant web
+   * push to an uninstalled site. That is still true, and it is no longer the
+   * ordering constraint that wins: an installed iOS app has its own storage
+   * container, so a user who added the icon mid-flow and opened it arrived
+   * signed out at `/login` with the rest of onboarding abandoned. Being
+   * signed out of something you just paid for beats a deferred prompt.
+   *
+   * The push constraint did not disappear, it moved into the screen:
+   * `notifications` no longer calls `requestPermission()` on iOS.
+   */
+  it("puts install LAST, so nothing is left to abandon when the icon is added", () => {
+    expect(stepIndex("install")).toBe(STEP_ORDER.length - 1);
+    expect(stepIndex("install")).toBeGreaterThan(stepIndex("notifications"));
+    expect(stepIndex("install")).toBeGreaterThan(stepIndex("letter"));
   });
 
   it("has no authed step before the paywall and no anonymous step after it", () => {
@@ -95,7 +110,10 @@ describe("navigation", () => {
       seen.push(id);
     }
     expect(seen).toEqual(STEP_ORDER.map((s) => s.id));
-    expect(nextStep("letter")).toBeNull();
+    // `install` is the terminus since 2026-08-07; its CTA calls `finish()`,
+    // and there being nothing after it is exactly the point of the move.
+    expect(nextStep("install")).toBeNull();
+    expect(nextStep("letter")).toBe("install");
   });
 
   it("walks back to the start and stops", () => {
@@ -117,7 +135,7 @@ describe("isStepId", () => {
 describe("stepProgress", () => {
   it("runs 0 to 1 and never leaves the range", () => {
     expect(stepProgress("hook")).toBe(0);
-    expect(stepProgress("letter")).toBe(1);
+    expect(stepProgress("install")).toBe(1);
     // The first real step opens at 20%, not at 1/13th.
     expect(stepProgress("name")).toBeCloseTo(0.2, 5);
     for (const step of STEP_ORDER) {

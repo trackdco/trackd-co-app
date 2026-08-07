@@ -10,12 +10,30 @@ import { useFlow } from "../flow-context";
 import { NotificationMock } from "../notification-mock";
 
 /**
- * Screen 14 — Notifications (Spec 3-01 §9, §12).
+ * Notifications (Spec 3-01 §9, §12).
  *
- * Reached only after the install screen, because on iOS the permission call
- * cannot succeed before the PWA is installed.
+ * ## iOS ASKS FOR NOTHING HERE, and that is the point of the screen
  *
- * This asks the BROWSER for permission for real (`Notification.requestPermission`),
+ * This used to come after install, because iOS cannot grant web push to a site
+ * that is not on the Home Screen. Install moved to the END of the flow on
+ * 2026-08-07 (see `STEP_ORDER` — an installed iOS app has its own storage
+ * container, so installing mid-flow signed people out), which puts this screen
+ * ahead of it and inverts that constraint.
+ *
+ * So on iOS the request is NOT made. Calling `Notification.requestPermission()`
+ * from an uninstalled iOS site does not merely fail, it spends the single
+ * prompt the OS grants and leaves the user permanently denied with no way back
+ * except system settings. The screen states the intent instead, and the real
+ * request happens in the installed app where it can actually succeed.
+ *
+ * Deferring is honest rather than a downgrade: the toggle in Profile is the
+ * same one that would have been flipped here, and `components/push` owns the
+ * subscribe either way.
+ *
+ * **Android is unchanged** and still asks in place, because Chrome can grant it
+ * in a tab and there is no reason to make Android wait for iOS's problem.
+ *
+ * On Android this asks the BROWSER for permission for real (`Notification.requestPermission`),
  * because that is the one part of this screen that cannot be simulated
  * meaningfully. It does NOT subscribe a push endpoint: that writes a row to
  * `push_subscriptions` against an account, and the account here is stubbed.
@@ -35,9 +53,21 @@ export function NotificationsScreen() {
   // cannot show a user Safari's Share sheet and then an Android notification.
   const [platform] = useState(guessPlatform);
 
+  /**
+   * iOS gets ONE permission prompt per site, ever. Spending it from a browser
+   * tab that cannot receive push leaves the user denied with no route back
+   * except system settings, so the request is deferred to the installed app.
+   */
+  const deferred = platform === "ios";
+
   const onAllow = async () => {
     if (fired.current) return;
     fired.current = true;
+    if (deferred) {
+      track("notifications_deferred", { platform });
+      goNext();
+      return;
+    }
     setBusy(true);
     try {
       if (typeof Notification !== "undefined" && Notification.requestPermission) {
@@ -69,14 +99,24 @@ export function NotificationsScreen() {
     <StepFrame
       center
       title="Turn on reminders"
-      sub="A nudge on dose days. Nothing else."
+      // The iOS line says WHEN it will be asked, because the button no longer
+      // opens anything and a control that does nothing visible reads as broken.
+      sub={
+        deferred
+          ? "A nudge on dose days. Nothing else. Your phone will ask once Trackd is on your home screen."
+          : "A nudge on dose days. Nothing else."
+      }
       footer={
         <div className="space-y-1">
           {/* Measured at 1317ms to advance on a "default" outcome and 1315ms
               on "denied". Without a label the button just went flat and stayed
               there, which reads as a dead tap and invites a second one. */}
           <FlowCta onClick={onAllow} disabled={busy}>
-            {busy ? "Waiting for your answer" : "Allow notifications"}
+            {busy
+              ? "Waiting for your answer"
+              : deferred
+                ? "Yes, remind me"
+                : "Allow notifications"}
           </FlowCta>
           <SkipLink onClick={goNext}>Not now</SkipLink>
         </div>

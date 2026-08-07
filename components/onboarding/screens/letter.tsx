@@ -41,9 +41,9 @@ import { useFlow } from "../flow-context";
  * something. A button pinned under a letter is a Skip button that does not say
  * Skip: it is on screen from the first word, so the letter becomes optional.
  *
- * So "Enter Trackd" sits AFTER the sign-off, in the scroll flow, and you reach
- * it by reaching the end. `StepFrame` renders no footer at all when it is given
- * none, so the bottom safe area is handled by the scroll port instead.
+ * So the button sits AFTER the sign-off, in the scroll flow, and you reach it by
+ * reaching the end. `StepFrame` renders no footer at all when it is given none,
+ * so the bottom safe area is handled by the scroll port instead.
  *
  * Do not "fix" this back by moving it into `footer` — the pinned model is right
  * for the other thirteen screens and wrong for this one, deliberately.
@@ -53,7 +53,7 @@ const PARAGRAPH =
   "text-[1.0625rem] font-light leading-[1.7] tracking-[-0.01em] text-foreground";
 
 export function LetterScreen() {
-  const { finish } = useFlow();
+  const { goNext } = useFlow();
 
   return (
     <StepFrame>
@@ -116,9 +116,15 @@ export function LetterScreen() {
 
           {/* The way out, at the end of the letter rather than over it. The gap
               above is wider than the letter's own rhythm so the button reads as
-              what happens next and not as part of the sign-off. */}
+              what happens next and not as part of the sign-off.
+
+              IT NO LONGER SAYS "Enter Trackd" (2026-08-07). Install moved to the
+              very end of the flow, so this is not the last screen any more and
+              that label was a promise the next tap did not keep. "Enter Trackd"
+              moved WITH the exit, onto the install screen, so the flow still
+              ends on the same words. */}
           <div className="pt-8">
-            <FlowCta onClick={finish}>Enter Trackd</FlowCta>
+            <FlowCta onClick={goNext}>One last thing</FlowCta>
           </div>
         </div>
       </div>

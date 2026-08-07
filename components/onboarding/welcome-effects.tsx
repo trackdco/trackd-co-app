@@ -129,7 +129,7 @@ export function WelcomeStage({
 function Typewriter({ text }: { text: string }) {
   // Read ONCE in a lazy initialiser, not in an effect: eslint bans setState in
   // an effect body, and the answer cannot change usefully mid-animation anyway.
-  // Same idiom as `paywall-hero.tsx`.
+  // Same idiom as `app-carousel.tsx`.
   const [reduced] = useState(
     () =>
       typeof window !== "undefined" &&

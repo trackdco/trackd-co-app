@@ -19,7 +19,6 @@ import {
 import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
-import { PaywallHero } from "../paywall-hero";
 import { useFlow } from "../flow-context";
 
 /**
@@ -197,11 +196,15 @@ export function PaywallScreen() {
      */
     <StepFrame title={`Start your ${TRIAL_DAYS}-day free trial.`}>
       <div className="flex flex-1 flex-col gap-5">
-        <PaywallHero />
-
-        {/* The timeline. Rail behind the icons rather than a border on each row,
-            so the three beats read as one sequence. */}
-        <ol className="relative space-y-5">
+        {/* THE TIMELINE IS THE ONLY GRAPHIC ON THIS SCREEN NOW (Adrian,
+            2026-08-07). The carousel moved to the `free` screen, which is the
+            one selling what the week contains; this screen asks for a decision,
+            and a ring turning above the prices was competing with it.
+            "Slightly bigger, since the carousel won't be there" — so the beats
+            get the room the ring was using: 40px discs instead of 32, the type
+            up one step each, and the rhythm opened from `space-y-5` to `-7`. It
+            is the same component, not a redesign. */}
+        <ol className="relative space-y-7 py-2">
           {timeline.map((beat, i) => {
             const Icon = beat.icon;
             const last = i === timeline.length - 1;
@@ -213,8 +216,11 @@ export function PaywallScreen() {
                 {!last ? (
                   <span
                     aria-hidden
+                    /* `left-[19px]` centres the rail under a 40px disc, and
+                       `top-10` starts it below one. Both were sized for the
+                       32px disc and would have drawn the rail off-centre. */
                     className={cn(
-                      "absolute left-[15px] top-8 h-[calc(100%+0.5rem)] w-[2px] rounded-full",
+                      "absolute left-[19px] top-10 h-[calc(100%+0.75rem)] w-[2px] rounded-full",
                       beat.lit ? "bg-accent-amber/45" : "bg-bg-surface-raised",
                     )}
                   />
@@ -223,18 +229,18 @@ export function PaywallScreen() {
                 <span
                   aria-hidden
                   className={cn(
-                    "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                    "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
                     beat.lit
                       ? "bg-accent-amber text-bg-base"
                       : "bg-bg-surface-raised text-text-muted",
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-5 w-5" />
                 </span>
 
-                <div className="min-w-0 flex-1 pt-0.5">
-                  <p className="text-[0.95rem] text-foreground">{beat.title}</p>
-                  <p className="mt-1 text-[0.8rem] leading-relaxed text-text-muted">
+                <div className="min-w-0 flex-1 pt-1">
+                  <p className="text-[1.05rem] text-foreground">{beat.title}</p>
+                  <p className="mt-1 text-[0.875rem] leading-relaxed text-text-muted">
                     {beat.body}
                   </p>
                 </div>

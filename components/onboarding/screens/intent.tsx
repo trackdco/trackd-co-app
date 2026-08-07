@@ -4,14 +4,16 @@ import type { ReactNode } from "react";
 
 import {
   Barbell,
+  CalendarCheck,
   ChartLine,
   Calculator,
-  Check,
-  Compass,
+  ClipboardText,
+  Cylinder,
   DotsThree,
-  Drop,
   Flask,
+  MapPin,
   Package,
+  Plant,
   Pulse,
 } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
@@ -57,24 +59,45 @@ import { useFlow } from "../flow-context";
 
 const ICON = "h-5 w-5";
 
+/**
+ * NO TWO OPTIONS SHARE AN ICON, on either screen (Adrian, 2026-08-07: "they
+ * cannot be matching").
+ *
+ * Two pairs were duplicated here and both were on the same screen, which is the
+ * worst place for it: `Compass` sat on BOTH "First cycle" and "Just tracking for
+ * now", and `Pulse` on BOTH "TRT" and "Supplements & general health". A repeated
+ * glyph in a six-item list reads as a rendering fault, and it destroys the one
+ * thing the icons are for — being able to find your answer before you have read
+ * the labels.
+ *
+ * `Plant` on "First cycle" is Adrian's pick and it is the best of them: starting
+ * out, with nothing yet grown. `Cylinder` on supplements is not a free choice —
+ * it is the tub the category legend already uses for a supplement
+ * (`ui-context.md` → Category legend), so the flow and the app agree.
+ */
 const RUNNING_OPTIONS: { value: RunningTag; label: string; icon: ReactNode }[] = [
   { value: "comp_prep", label: "Comp prep", icon: <Barbell className={ICON} /> },
   { value: "trt", label: "TRT / hormone optimisation", icon: <Pulse className={ICON} /> },
   { value: "peptides", label: "Peptides", icon: <Flask className={ICON} /> },
-  { value: "first_cycle", label: "First cycle", icon: <Compass className={ICON} /> },
+  { value: "first_cycle", label: "First cycle", icon: <Plant className={ICON} /> },
   // Sits directly above the catch-all, because it IS the broadest real answer:
   // supplements and general health cover everyone who is not running gear at
   // all, and they are the largest slice of the compound catalogue.
-  { value: "health", label: "Supplements & general health", icon: <Pulse className={ICON} /> },
-  { value: "nothing", label: "Just tracking for now", icon: <Compass className={ICON} /> },
+  { value: "health", label: "Supplements & general health", icon: <Cylinder className={ICON} /> },
+  { value: "nothing", label: "Just tracking for now", icon: <ClipboardText className={ICON} /> },
 ];
 
 const STRUGGLE_OPTIONS: { value: StruggleTag; label: string; icon: ReactNode }[] = [
   { value: "whats_left", label: "Losing track of what's left", icon: <Package className={ICON} /> },
   { value: "recon_maths", label: "Reconstitution maths by hand", icon: <Calculator className={ICON} /> },
-  { value: "last_site", label: "Can't remember my last site", icon: <Drop className={ICON} /> },
+  // A site is a PLACE, so it gets the place glyph. `Drop` was a droplet, which
+  // is the substance and not the question being asked.
+  { value: "last_site", label: "Can't remember my last site", icon: <MapPin className={ICON} /> },
   { value: "no_history", label: "No history when I get bloods", icon: <ChartLine className={ICON} /> },
-  { value: "took_today", label: "Forgetting if I've already taken it today", icon: <Check className={ICON} /> },
+  // NOT a bare `Check`: the chip renders its own tick on the right when it is
+  // selected, so a check on the left made one row look permanently half-ticked.
+  // The question is about a DAY, which is what the calendar carries.
+  { value: "took_today", label: "Forgetting if I've already taken it today", icon: <CalendarCheck className={ICON} /> },
   { value: "other", label: "Something else", icon: <DotsThree className={ICON} /> },
 ];
 

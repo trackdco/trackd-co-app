@@ -1267,14 +1267,18 @@ svg ::-moz-selection {
   }
 }
 
-/* The paywall's floating labels. One size: the page scrolls now, so the ring
+/* The app carousel's floating labels. One size: the screen scrolls, so the ring
  * does not have to shrink to make room and these do not have to shrink with it.
  *
  * They briefly did both. The ring came down to 88px on a short viewport to keep
  * the plan cards above the fold, which left the labels bigger than the phone
  * they were labelling — Adrian, 2026-08-01: "I cannot see the carousel anymore.
- * The paywall looks really bad." */
-.paywall-label {
+ * The paywall looks really bad."
+ *
+ * Named for the paywall because that is where the ring was BUILT; it moved to
+ * the `free` screen on 2026-08-07 (see `app-carousel.tsx`) and the class name
+ * came with it rather than being renamed for the sake of it. */
+.carousel-label {
   max-width: 7rem;
   font-size: 9.5px;
 }

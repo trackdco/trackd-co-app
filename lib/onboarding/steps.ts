@@ -84,10 +84,33 @@ export const STEP_ORDER: readonly StepMeta[] = [
   { id: "free", phase: "anonymous" },
   { id: "paywall", phase: "anonymous" },
   { id: "welcome", phase: "authed" },
-  { id: "install", phase: "authed" },
   { id: "notifications", phase: "authed" },
   { id: "attribution", phase: "authed" },
   { id: "letter", phase: "authed" },
+  /**
+   * INSTALL IS LAST, and it used to be first of the post-paywall four (Adrian,
+   * 2026-08-07).
+   *
+   * An installed iOS home-screen app gets its OWN STORAGE CONTAINER, separate
+   * from Safari's: different cookies, different `localStorage`. So a user who
+   * added the icon mid-flow and then opened it arrived with no onboarding
+   * session and no auth cookie, at `start_url` (`/dashboard`), where the
+   * `(app)` guard bounced them to `/login`. They had just paid, and the icon we
+   * told them to add signed them out and abandoned the remaining screens.
+   * Nothing after install could be relied on to happen at all.
+   *
+   * Last is the only position where that costs nothing, because there is
+   * nothing left to abandon. Its CTA calls `finish()` rather than `goNext()`.
+   *
+   * **This inverts the old install-before-notifications rule, deliberately, and
+   * `notifications` absorbs the cost.** iOS cannot grant web push to an
+   * uninstalled site, so that screen no longer calls
+   * `Notification.requestPermission()` on iOS — it states the intent and defers
+   * the real request to the installed app, which is the only place it can
+   * succeed. Firing it here would burn the one prompt the OS gives you on a
+   * call that cannot work. Android is unaffected and still asks in place.
+   */
+  { id: "install", phase: "authed" },
 ] as const;
 
 export const FIRST_STEP: StepId = STEP_ORDER[0].id;

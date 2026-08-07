@@ -23,10 +23,16 @@ import { useFlow } from "../flow-context";
 /**
  * Screen 13 — Add to Home Screen (Spec 3-01 §9, §12).
  *
- * **This must precede the notification request.** An iOS PWA cannot request or
- * receive web push until it has been installed to the Home Screen, so asking
- * first fails silently and burns the one prompt the OS gives you. The order is
- * enforced by `STEP_ORDER` and pinned by a test.
+ * **This is the LAST screen of the flow** (Adrian, 2026-08-07); it used to be
+ * the first of the post-paywall four. An installed iOS app has its own storage
+ * container, so adding the icon mid-flow and opening it landed the user signed
+ * out on `/login` with the rest of onboarding abandoned. `STEP_ORDER` carries
+ * the full reasoning and a test pins the position.
+ *
+ * The old rule here was the reverse — install BEFORE notifications, because iOS
+ * cannot grant push to an uninstalled site. That constraint has not gone away,
+ * it has MOVED: `notifications` no longer makes the request on iOS, and defers
+ * it to the installed app where it is the only place it can succeed.
  *
  * ## Four states, because there are genuinely four
  *
@@ -75,7 +81,10 @@ const standaloneSnapshot = () =>
     (window.navigator as { standalone?: boolean }).standalone === true);
 
 export function InstallScreen() {
-  const { goNext } = useFlow();
+  // LAST SCREEN, so every exit calls `finish()`. There is no next step, and
+  // advancing past the end of `STEP_ORDER` is a silent no-op — the buttons
+  // would simply have stopped working.
+  const { finish } = useFlow();
   // Platform AND browser, guessed once and overridable. `device` is what every
   // piece of copy on this screen reads from, so the toggle genuinely changes
   // the instructions rather than only the label above them.
@@ -92,8 +101,8 @@ export function InstallScreen() {
 
   const confirmManually = useCallback(() => {
     track("install_confirmed", { platform, method: "self-reported" });
-    goNext();
-  }, [goNext, platform]);
+    finish();
+  }, [finish, platform]);
 
   /**
    * Has the OS dialog been tried and NOT resulted in an install?
@@ -115,12 +124,12 @@ export function InstallScreen() {
     setBusy(false);
     if (outcome === "accepted") {
       track("install_confirmed", { platform, method: "prompt" });
-      goNext();
+      finish();
       return;
     }
     track("install_prompt_failed", { platform, outcome: String(outcome) });
     setPromptFailed(true);
-  }, [goNext, platform, promptInstall]);
+  }, [finish, platform, promptInstall]);
 
   /* ---- 1. Already installed. Nothing to ask for. ---- */
   if (installed) {
@@ -129,7 +138,7 @@ export function InstallScreen() {
         center
         title="You're already set up"
         sub="Trackd is on your home screen, so reminders can reach you."
-        footer={<FlowCta onClick={confirmManually}>Continue</FlowCta>}
+        footer={<FlowCta onClick={confirmManually}>Enter Trackd</FlowCta>}
       />
     );
   }
@@ -160,7 +169,7 @@ export function InstallScreen() {
             {promptFailed ? (
               <SkipLink onClick={install}>Try again</SkipLink>
             ) : null}
-            <SkipLink onClick={goNext}>Skip for now</SkipLink>
+            <SkipLink onClick={finish}>Skip for now</SkipLink>
           </div>
         }
       >
@@ -201,7 +210,7 @@ export function InstallScreen() {
       footer={
         <div className="space-y-1">
           <FlowCta onClick={confirmManually}>I&apos;ve added it</FlowCta>
-          <SkipLink onClick={goNext}>Skip for now</SkipLink>
+          <SkipLink onClick={finish}>Skip for now</SkipLink>
         </div>
       }
     >

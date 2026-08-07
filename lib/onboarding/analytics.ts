@@ -34,6 +34,12 @@ export type OnboardingEvent =
   // "Android users never got asked", and only one of those is a copy problem.
   | "install_prompt_failed"
   | "notifications_granted"
+  // iOS said yes, but the OS was never asked: install is now the last step, and
+  // requesting push from an uninstalled iOS site spends the one prompt on a
+  // call that cannot succeed. Distinct from `notifications_granted` on purpose
+  // — this is INTENT recorded, not permission held, and conflating the two
+  // would make iOS opt-in look far healthier than the delivered-push numbers.
+  | "notifications_deferred"
   | "attribution_selected"
   | "onboarding_completed";
 

@@ -1,13 +1,11 @@
 "use client";
 
-import Image from "next/image";
-
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 import { FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
+import { AppCarousel } from "../app-carousel";
 import { FlowCta, ScrollPort } from "../chrome";
-import { DeviceFrame } from "../device-frame";
 import { useFlow } from "../flow-context";
 
 /**
@@ -39,9 +37,6 @@ import { useFlow } from "../flow-context";
  * this screen with the rest.
  */
 
-/** The screenshot behind the figure. Recapture with the others. */
-const APP_SHOT = "/onboarding/app-home.png";
-
 export function FreeScreen() {
   const { goNext } = useFlow();
 
@@ -62,55 +57,23 @@ export function FreeScreen() {
               </h1>
             </header>
 
-            {/* THE PHONE IS THE HERO. It is the only thing on this screen that
-                shows what is actually being offered, so it takes the room the
-                figure used to. */}
-            {/* SIZED BY HEIGHT, NOT WIDTH (Adrian, 2026-08-05: "big enough
-                that it looks nice, but not so big I have to scroll to see the
-                whole phone").
-                A `max-w` alone cannot promise that: how tall the phone ends up
-                is width x aspect ratio, and on a short handset that overruns the
-                space between the headline and the button. The screen area is
-                capped against the VIEWPORT instead — `100svh` minus the fixed
-                furniture above and below it — so the phone is as large as will
-                fit and no larger, on every handset rather than the one it was
-                eyeballed on. `svh`, never `dvh`, for the reason in
-                `globals.css`: `dvh` moves as Safari's bar comes and goes. */}
+            {/* THE CAROUSEL IS THE HERO (Adrian, 2026-08-07), replacing a
+                single still photo of the Home screen.
+
+                This screen is the one that has to say what the free week
+                actually contains, and one frozen screenshot says "there is an
+                app" rather than "there is all of this". The ring shows four
+                real screens with their features labelled, and it moves, which
+                is the difference between being told and being shown. It came
+                off the paywall, where it was competing with the prices for a
+                decision the user is trying to make.
+
+                No size cap needed here, unlike the still it replaces: the
+                carousel is `shrink-0` and fixed-height by construction, so it
+                cannot be squeezed to nothing on a short handset the way a
+                photo sized by aspect ratio could. */}
             <div className="flex min-h-0 flex-1 items-center justify-center">
-              <DeviceFrame className="max-w-[15.5rem]">
-                {/* EXPLICIT WIDTH/HEIGHT, NOT `fill` (2026-08-05).
-                    Adrian saw the bezel, the status bar and the home indicator
-                    with nothing between them — "a long rounded rectangle, it
-                    doesn't go down". Measured first: the asset serves 200, the
-                    optimiser serves 200, and `aspect-ratio: 390 / 660` IS in
-                    the built stylesheet, so neither the image nor Tailwind was
-                    at fault. What the broken cases had in common was `fill`,
-                    which needs a positioned ancestor with a resolved height
-                    before it can paint anything at all — and the one image
-                    construct in this flow that has always worked (`Mascot`)
-                    uses explicit dimensions. So does this now. The height comes
-                    from the image itself, which cannot collapse. */}
-                <div
-                  className="relative w-full overflow-hidden"
-                  style={{ maxHeight: "min(24rem, calc(100svh - 24rem))" }}
-                >
-                  <Image
-                    src={APP_SHOT}
-                    alt=""
-                    width={1170}
-                    height={2280}
-                    sizes="320px"
-                    priority
-                    className="h-auto w-full object-cover object-top"
-                  />
-                  {/* Sits the shot into the canvas rather than letting a bright
-                      rectangle punch out of it. */}
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 bg-gradient-to-t from-bg-base/70 via-transparent to-transparent"
-                  />
-                </div>
-              </DeviceFrame>
+              <AppCarousel />
             </div>
           </div>
         </ScrollPort>
