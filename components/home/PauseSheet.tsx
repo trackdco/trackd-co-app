@@ -11,7 +11,7 @@ import {
 import { Container } from "@/components/containers"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { DATA_MONO, SHEET_TITLE } from "@/lib/ui-presets"
+import { DATA_MONO, PRIMARY_BUTTON, SHEET_TITLE } from "@/lib/ui-presets"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { formatDateKeyShort, type StackCompound } from "@/lib/home/stack"
 import {
@@ -311,9 +311,20 @@ function PauseBody({
   const pausedMates = stackMembers.filter(
     (m) => activePause(m.pauses, referenceKey) !== null
   )
+  /** Everything the resume list offers: this compound, then its paused mates. */
+  const resumeAll = [compound, ...pausedMates]
   const [resumeTicked, setResumeTicked] = useState<Set<string>>(
-    () => new Set([compound.id, ...pausedMates.map((m) => m.id)])
+    () =>
+      // Opened from the STACK row → everything. Opened from one compound → just
+      // that one, so resuming what you tapped needs no unticking first.
+      new Set(
+        defaultStackMode
+          ? [compound.id, ...pausedMates.map((m) => m.id)]
+          : [compound.id],
+      )
   )
+  const allTicked =
+    resumeAll.length > 0 && resumeAll.every((m) => resumeTicked.has(m.id))
 
   const endsOn =
     duration === null
@@ -410,55 +421,70 @@ function PauseBody({
               never asked about. */}
           {pausedMates.length > 0 && (
             <>
+              {/* A SELECT-ALL, not a mode (Adrian, 2026-08-07). It was a toggle
+                  that hid the list when off, which made "resume the whole stack"
+                  a thing you could switch off and then have nothing to tick.
+
+                  It now READS the ticks rather than gating them: untick one and
+                  it goes off, tick them all and it comes back on, switch it off
+                  and everything unticks. The list is always here, because the
+                  toggle can no longer be what reveals it. */}
               <Row
-                label={`Resume the whole stack · ${pausedMates.length + 1}`}
-                pressed={stackMode}
-                onClick={() => setStackMode((v) => !v)}
+                label={`Resume the whole stack · ${resumeAll.length}`}
+                pressed={allTicked}
+                onClick={() =>
+                  setResumeTicked(
+                    allTicked ? new Set() : new Set(resumeAll.map((m) => m.id)),
+                  )
+                }
               >
-                {toggle(stackMode)}
+                {toggle(allTicked)}
               </Row>
-              <Drawer open={stackMode}>
-                <div className="py-1.5">
-                  {[compound, ...pausedMates].map((m) => (
-                    <label key={m.id} className="flex items-center gap-3 py-1.5 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={resumeTicked.has(m.id)}
-                        onChange={(e) =>
-                          setResumeTicked((prev) => {
-                            const next = new Set(prev)
-                            if (e.target.checked) next.add(m.id)
-                            else next.delete(m.id)
-                            return next
-                          })
-                        }
-                        className="h-4 w-4 accent-[var(--accent-primary)]"
-                      />
-                      <span className="min-w-0 flex-1 truncate text-foreground">
-                        {m.name}
-                      </span>
-                      <span className={cn(DATA_MONO, "shrink-0")}>
-                        {resumeLabel(m.pauses, referenceKey, formatDateKeyShort) ?? ""}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </Drawer>
+              <div className="pb-1.5">
+                {resumeAll.map((m) => (
+                  <label key={m.id} className="flex items-center gap-3 py-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={resumeTicked.has(m.id)}
+                      onChange={(e) =>
+                        setResumeTicked((prev) => {
+                          const next = new Set(prev)
+                          if (e.target.checked) next.add(m.id)
+                          else next.delete(m.id)
+                          return next
+                        })
+                      }
+                      className="h-4 w-4 accent-[var(--accent-primary)]"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-foreground">
+                      {m.name}
+                    </span>
+                    <span className={cn(DATA_MONO, "shrink-0")}>
+                      {resumeLabel(m.pauses, referenceKey, formatDateKeyShort) ?? ""}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </>
           )}
 
           <div className="mt-5 flex flex-col gap-2">
             <button
               type="button"
+              // Nothing ticked is a real state now that the select-all can clear
+              // the list, and it has no action behind it.
+              disabled={pausedMates.length > 0 && resumeTicked.size === 0}
               onClick={() => {
                 // Resuming TODAY makes today due: the pause ends yesterday,
                 // because both of its ends are inclusive.
                 //
-                // Each ticked member resumes on its OWN pause, one call each —
-                // they may be on different stretches, and a single group write
-                // would only end the ones sharing a group id.
-                if (stackMode) {
-                  for (const m of [compound, ...pausedMates]) {
+                // Whatever is TICKED, and nothing else — one call each, with
+                // `onlyThis` every time. Members may be on different stretches,
+                // so a single group write would only end the ones sharing a
+                // group id; and the list already shows every paused member, so
+                // an unticked one is a decision a group resume would undo.
+                if (pausedMates.length > 0) {
+                  for (const m of resumeAll) {
                     if (resumeTicked.has(m.id)) onResume(m, todayKey, true)
                   }
                 } else {
@@ -466,9 +492,13 @@ function PauseBody({
                 }
                 onClose()
               }}
-              className="rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+              className={PRIMARY_BUTTON}
             >
-              Resume now
+              {/* Says HOW MANY, because the ticks decide it now and the button
+                  is the last chance to notice you left one behind. */}
+              {resumeTicked.size > 1
+                ? `Resume ${resumeTicked.size} now`
+                : "Resume now"}
             </button>
             {/* `!== undefined`, not truthy: clearing the field is how a bounded
                 pause becomes indefinite, and testing truthiness made the save
@@ -681,7 +711,7 @@ function PauseBody({
             onPause(targets, { startedOn, endsOn })
             onClose()
           }}
-          className="mt-5 w-full rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-40"
+          className={cn(PRIMARY_BUTTON, "mt-5 w-full")}
         >
           {awaitingDate ? "Pick a date" : "Pause"}
         </button>

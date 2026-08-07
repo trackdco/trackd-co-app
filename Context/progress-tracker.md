@@ -1113,6 +1113,28 @@ Now:
 The container in the header stays the first member's: a stack has no artwork of
 its own, and inventing one would be a picture of nothing.
 
+## "Resume the whole stack" is a select-all, not a mode (2026-08-07)
+
+It was a toggle that REVEALED the member list, so switching it off left nothing
+to tick and made "resume the whole stack" a thing you could turn off with no
+alternative behind it (Adrian).
+
+It now READS the ticks instead of gating them: untick one member and it goes
+off, tick them all and it comes back on, switch it off and every member unticks.
+The list is always rendered, because the toggle can no longer be what reveals
+it, and the write follows the ticks alone — `onlyThis` on every call, so an
+unticked group-mate stays paused.
+
+Opened from a compound → only that compound is ticked. Opened from the collapsed
+STACK row (`defaultStackMode`) → all of them. Resuming what you tapped therefore
+never requires unticking anything first, and nothing-ticked disables the button.
+
+**`PRIMARY_BUTTON` now lives in `lib/ui-presets.ts`.** The confirm button was
+written out per-sheet and drifting a class at a time; the Pause sheet's had
+neither the press-scale nor any disabled state, so a button with nothing to do
+looked identical to one that would act. Width is left to the caller — some are
+full-width, some share a row.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth
