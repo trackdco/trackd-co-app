@@ -4,7 +4,7 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-07 (account creation moved off the paywall)
+Last updated: 2026-08-08 (Stripe billing built; cold reviews running)
 
 ---
 
@@ -17,6 +17,31 @@ reasoning: `progress-tracker.md` + `architecture.md` → **Billing**.
 reachable, so **nothing may point a user at `/onboarding`** until he says so.
 That is already true — the flow is additive and `/login` is untouched — so the
 task is simply: do not wire the entry point, and do not merge.
+
+### ⚠️ THE PREVIEW CANNOT SHOW THE PAYWALL YET
+
+The Stripe variables were only ever added to `.env.local`. Vercel's **Preview**
+environment almost certainly has none of them, so on a preview deploy:
+
+- `loadPricesSafe` returns nothing and the paywall renders "We couldn't load our
+  prices just now" instead of the plan rows;
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is absent, so the Payment Element renders
+  "Payments aren't available right now".
+
+Both are the deliberate honest-failure paths rather than bugs, but they mean the
+paywall cannot be judged from a preview link. To fix, add to Vercel → Settings →
+Environment Variables, scoped to **Preview** only:
+`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_YEARLY`,
+`STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_WEEKLY` (all TEST values, in `.env.local`),
+plus `STRIPE_WEBHOOK_SECRET` from a real webhook endpoint pointed at the preview
+if the webhook is to be exercised there too.
+
+**Everything before the paywall works on a preview without any of this**, since
+the flow is free until that screen.
+
+Until then the way to walk the paywall is a LAN dev server on a phone — which is
+also the only way today, because Vercel Deployment Protection means a preview
+link only opens for someone signed into Adrian's Vercel account.
 
 ### Owed by Adrian, when he wants to go live
 
