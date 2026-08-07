@@ -43,8 +43,16 @@ import { paymentAppearance } from "./stripe-appearance";
  * ## Confirming grants nothing
  *
  * A confirmed SetupIntent proves a card was accepted. Access arrives when the
- * webhook writes `entitlements`, which is why `onConfirmed` hands off to a
- * holding state rather than into the app.
+ * webhook writes `entitlements`, which is why the outcome hands off to a holding
+ * state rather than into the app.
+ *
+ * ## The floating "stripe" pill over the CTA is a TEST-MODE ARTEFACT
+ *
+ * Stripe.js injects a fixed 123x72 iframe bottom-right
+ * (`elements-inner-easel`, measured at 390x844 sitting over the button). It is
+ * the test-mode indicator and renders ONLY for a `pk_test_` key, so it is absent
+ * in production. Worth knowing before someone "fixes" the button's position for
+ * a collision that does not exist for a real customer.
  */
 
 /**
