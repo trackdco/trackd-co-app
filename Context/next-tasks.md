@@ -15,6 +15,24 @@ eight steps, ten migrations (`023`–`022`) applied by hand, four cold review
 agents run before anything was pasted. State + decisions are in
 `progress-tracker.md`; do not re-derive them.
 
+### ⚠️ OUTSTANDING SQL — apply before anything else
+
+The migrations were applied on 2026-08-07 and the cold review ran AFTER. It
+changed `014`, `016`, `018` and added `022`, so **the files on disk are correct
+and the database is not**. Re-running those files does not help — `018` opens
+with `CREATE TABLE IF NOT EXISTS` and skips.
+
+- **`022_schedule_version_dose_times.sql`** — never applied. Without it EVERY
+  multi-dose schedule version is rejected `23514` with no retry, so the version
+  trail silently stops backing up for exactly the compounds Step 5 enables.
+- **`024_review_repairs.sql`** — new, carries the four fixes the review made to
+  already-applied files. The one that matters is `compound_pauses`: as applied it
+  has a single-column FK and an unscoped unique index, which is the shape `009`
+  exists to close and lets any authenticated user permanently lock another out of
+  pausing a compound.
+
+Both are idempotent. Verification queries are at the bottom of `024`.
+
 ### What is owed next
 
 1. **Walk it on a real phone, signed in.** Everything so far is verified by
