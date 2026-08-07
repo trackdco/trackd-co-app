@@ -4,7 +4,58 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-07 (every graph unified to one stroke + one gradient)
+Last updated: 2026-08-07 (account creation moved off the paywall)
+
+---
+
+## 🔜 SPEC w2b-15 — STRIPE, IN-APP CHECKOUT, 5-DAY TRIAL
+
+Starts once w2b-14 is signed off. `Context/Feature Specs/w2b-15-stripe-pt2.md`.
+
+**The requirement that outranks everything in it:** the app never asks Stripe
+whether a user has access. It asks `entitlements`. Stripe writes that table;
+Apple and Google write it later through RevenueCat and no app code changes. Any
+access check that reads a Stripe status directly fails the spec regardless of
+whether payments work.
+
+Blocked on Adrian before step 3 can start:
+
+1. **Stripe test-mode Product + monthly AUD price.** Needs the price ID,
+   publishable key, secret key and webhook signing secret. `.env.local` already
+   carries placeholder Stripe keys from the abandoned `stripe` branch — check
+   them before assuming they are live.
+2. **The Stripe account business description.** Given TRACKD's history with
+   automated enforcement elsewhere, it must state plainly that TRACKD sells a
+   subscription to a logging and tracking application and does NOT sell, supply
+   or facilitate the supply of any substance. Adrian writes this, not the agent.
+3. **Four migrations**, applied by hand as usual: `billing_customers`,
+   `subscriptions`, `entitlements`, `webhook_events`.
+
+Carried in from w2b-14 and **not optional**: the endpoint that creates the
+subscription must verify `profiles.is_18_plus` server-side. Rendering the paywall
+does not check it, so that endpoint is where "no payment path bypasses the age
+gate" is actually enforced.
+
+Note the trial length disagreement: the spec says **5 days**, `TRIAL_DAYS` in
+`lib/onboarding/pricing.ts` currently says 7, and the paywall derives every
+figure it prints from that constant. One of them has to move, and it changes what
+the screen promises.
+
+---
+
+## 📌 w2b-14 — ACCOUNT BEFORE THE PAYWALL: what is left
+
+Built and verified against the real database; state + the three defects it turned
+up are in `progress-tracker.md`. Outstanding:
+
+- **Nothing is merged.** Branch `wave3/account-before-paywall`.
+- **Delete the disposable test accounts** on the PRODUCTION project when the work
+  closes: `w2b14-test@`, `w2b14-redirect@`, `w2b14-2dev@` `trackd-qa.invalid`.
+- **A real Google round-trip has not been driven** — there is no Google account in
+  the agent session. The mechanism was verified through `/auth/confirm`, which is
+  the same exchange → cookies → 302 shape. Worth one manual pass on a phone.
+- **Adrian's copy review of the account screen.** "Let's make sure this sticks."
+  is the agent's wording, not his.
 
 ---
 

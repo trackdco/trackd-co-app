@@ -5,7 +5,96 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-07 (every graph unified to one stroke + one gradient)
+Last updated: 2026-08-07 (account creation moved off the paywall)
+
+## Spec w2b-14 — account before the paywall (BUILT, 2026-08-07)
+
+Branch `wave3/account-before-paywall`, off `main`. **Not merged.** The spec named
+`wave3/onboarding-flow`; that branch had diverged ~20 commits of unrelated wave-2
+work and was missing main's onboarding fixes, so Adrian took a fresh branch.
+
+**One migration: `supabase/onboarding/002_signup_intake.sql`, APPLIED by Adrian
+2026-08-07.** Live DB now at 28 tables.
+
+Account creation is its own step between `free` and `paywall`. `account` is the
+new phase boundary — the paywall and everything after it may assume a session,
+which is what spec w2b-15 mounts a Payment Element on. Full shape in
+`architecture.md` → **Account before the paywall**; do not re-derive it.
+
+### What the spec assumed that was not true
+
+- **"14 steps" is 18** (19 now), and **five of them come AFTER the paywall** —
+  welcome, notifications, attribution, letter, install. The flow is one route
+  (`/onboarding`) with `?step=` in the URL, advanced by `pushState`, not
+  fourteen routes.
+- **The paywall had no auth controls to move.** They were unmounted 2026-08-05.
+  So step 3 was mounting `/login`'s components on the new screen, unrestyled.
+- **There was nowhere to put most of the answers.** No `name` column on
+  `profiles`, no table for running/struggle. Hence `signup_intake`.
+
+### The three defects that only showed up by driving it
+
+None were caught by tsc, eslint or the (then) 728 tests. Same lesson as w2b-13.
+
+1. **A server `redirect()` is a SOFT navigation.** The flow is one mounted client
+   tree that reads `?step=` at mount and on `popstate` only, so `?step=paywall`
+   appeared in the address bar while the account screen — sign-in form and all —
+   stayed on screen for a user who had just signed in. `signIn` now hands the
+   destination back for `window.location.assign`, which also makes all three auth
+   returns full document loads and gives the handoff ONE arrival to hook.
+2. **The paywall's `setAccountName(null)`** ran after the handoff had set the
+   name from the claimed row. Welcome would have greeted a signed-in user as
+   nobody. Deleted with the rest of the dead auth code.
+3. **The second-device hole, and it destroyed the whole answer set.** Sign up by
+   email on the phone, open the confirmation link on the laptop where your email
+   is — that laptop has no onboarding session, and it claimed an EMPTY
+   `signup_intake` row. The table is append-only and first-write-wins, so the
+   phone's real answers then hit a row that already existed, were reported as
+   "already claimed", and were cleared. Every individual step behaved exactly as
+   designed. `carriesAnswers` now refuses to write a claim with nothing in it.
+
+### Verified by executing, against the real database
+
+Playwright at 390×844 with the iPhone 14 insets simulated (headless Chromium
+reports a 0 inset, which is the class of bug desktop hides). Disposable accounts
+created through the admin API, since `.env.local` points at production and there
+is no local Supabase.
+
+- Progress counts the new screen: free 67% → account 72% → paywall 76% →
+  install 100%. Monotonic, never complete while a screen remains.
+- Email sign-in from the account screen lands on the paywall; `/login` unchanged.
+- Google OAuth starts with `redirect_to=/auth/callback?next=/onboarding?step=paywall`.
+- The answers survive **leaving the site and returning through a server 302** and
+  are claimed on arrival — driven through `/auth/confirm` with a real single-use
+  token rather than `/auth/callback` with a Google code, because there is no
+  Google account to drive. The two routes exchange, write cookies onto the
+  response and `NextResponse.redirect(next)` in the same order.
+- **A failed write keeps the answers and shows a retry** — verified against a
+  real failure (the missing table) rather than a simulated one.
+- **An existing user's data wins**: signing the claimed account back in carrying
+  a completely different session (different name, dob, sex, tags, code) changed
+  nothing — not the intake row, not the profile, not even `tos_accepted_at`, and
+  `consent_records` stayed at exactly four rows.
+- Anonymous `?step=paywall` → **307 to `/onboarding`** before any HTML; signed-in
+  `?step=account` → **307 to `?step=paywall`**.
+- Back walks cost → free → account → free → cost with answers intact.
+
+### Still open
+
+- **`auth_started` now has no emitter.** It was fired by the paywall under
+  `method: "preview"`, reporting a sign-in that had happened on another screen.
+  `auth_completed` moved to the handoff, which is the only server-confirmed
+  "there is an account" moment. Firing `auth_started` honestly means touching the
+  shared auth components, which the spec forbids without asking.
+- **`signup_attribution` is still unwritten.** The attribution screen is
+  post-paywall and out of this spec. `affiliate_code` is claimed into
+  `signup_intake` because it is captured before the account exists and would
+  otherwise be lost by anyone who abandons after the paywall.
+- **The paywall renders for a signed-in user whose `is_18_plus` is false.** They
+  would have had to pass the client age gate to get an account through this flow,
+  but the server does not re-check it to render a price list. **Spec w2b-15's
+  payment endpoint must verify it server-side** — that is where §3.2's "no
+  payment path bypasses the age gate" lands.
 
 ## Spec w2b-13 — compound controls (BUILT, 2026-08-07)
 

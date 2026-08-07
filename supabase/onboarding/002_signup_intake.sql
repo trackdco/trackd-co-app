@@ -3,8 +3,12 @@
 --  Spec w2b-14 (Account creation before the paywall), step 4.
 --  Migration name: `signup_intake`
 --
---  NOT YET APPLIED. Verify against the live schema, never against this comment
---  (`supabase/onboarding/001`'s header sat stale for weeks saying the opposite).
+--  APPLIED by Adrian, 2026-08-07, and verified live the same day: a real claim
+--  through the running app wrote a row and read it back. Verify against the live
+--  schema, never against this comment — `supabase/onboarding/001`'s header sat
+--  stale for weeks saying the opposite of the truth, because a hand-applied
+--  migration never shows up in `list_migrations` and the file's own note is the
+--  only status record there is.
 -- ============================================================
 --
 --  WHAT THIS IS FOR
