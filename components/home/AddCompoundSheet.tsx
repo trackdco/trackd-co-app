@@ -317,16 +317,38 @@ export function AddCompoundSheet({
     toSource(compound, editCompound, reAdded)
   )
   const next = toSource(compound, editCompound, reAdded)
-  // ⚠️ Compared by IDENTITY while open, not by id-and-name. `toSource` rebuilds
-  // a fresh object every render, so a changed dose, schedule, dose-time or
-  // per-slot amount left id and name identical — and `shown` stayed pinned to
-  // whatever was captured the FIRST time the sheet opened. Re-opening after an
-  // edit then showed the OLD values, and saving wrote them back as a new version
-  // effective today, silently reverting the edit the user had just made.
-  //
-  // The id/name test survives only for the CLOSED case, which is what keeps the
-  // body from blanking mid-animation when the target goes away.
-  if (next !== null && (open ? next !== shown : next.id !== shown?.id)) {
+  /**
+   * The source's CONTENT, as a comparable string.
+   *
+   * `toSource` builds a fresh object every render, so identity says nothing —
+   * comparing by it re-set state on every render and crashed the sheet with
+   * "maximum update depth exceeded". Comparing by id and name alone was the
+   * other failure: those stay identical across a dose or schedule edit, so the
+   * sheet kept serving the values captured the FIRST time it opened and saving
+   * wrote them back, reverting the edit.
+   *
+   * The fields listed are exactly the ones the form seeds from. Anything added
+   * to `Source` that the form reads must be added here too.
+   */
+  const sourceKey = (s: Source | null): string =>
+    s === null
+      ? ""
+      : JSON.stringify([
+          s.id,
+          s.name,
+          s.category,
+          s.readd,
+          s.dose,
+          s.unit,
+          s.unitDefault,
+          s.schedule,
+          s.rotationSites,
+          s.rotationIndex,
+          s.routeForms,
+        ])
+  // While OPEN, take the newest source whenever its content differs. While
+  // closed, hold the last one so the body does not blank mid-animation.
+  if (next !== null && (open ? sourceKey(next) !== sourceKey(shown) : next.id !== shown?.id)) {
     setShown(next)
   }
 
