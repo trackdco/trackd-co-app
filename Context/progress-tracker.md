@@ -1090,6 +1090,29 @@ The progress ring in `DayStatusWidgets` is untouched: it is a ring, not a line
 graph. Colours were not touched anywhere — teal stays teal, periwinkle stays
 periwinkle.
 
+## A paused stack opens (2026-08-07)
+
+A fully paused stack collapses to one row under Paused, and tapping it opened
+the sheet headed **"Resume Creatine"** — the stack's FIRST MEMBER, a compound the
+user never tapped. The entry acts through that member (a stack has no pause of
+its own; see `pauseCompounds`), so the sheet was naming its own implementation.
+
+Now:
+
+- `PausedEntry` carries `members` and `stackName`. The row gains a caret and
+  OPENS, on the grid-rows `0fr` ↔ `1fr` idiom, listing what is inside it.
+- Tapping the ROW means the stack: `PauseSheet` takes a `title` that overrides
+  the compound's name in both the visible header and the sr-only `SheetTitle`,
+  and `defaultStackMode` opens it already on the whole-stack list, ticked. The
+  tap already said "the stack"; a toggle asking again is a second answer to a
+  question the user has answered.
+- Tapping a MEMBER inside opens that compound's own sheet, which still offers
+  the whole stack from within — so both "resume everything" and "resume just
+  this one" are one tap from the same row.
+
+The container in the header stays the first member's: a stack has no artwork of
+its own, and inventing one would be a picture of nothing.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth
