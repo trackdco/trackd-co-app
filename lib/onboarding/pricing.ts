@@ -104,9 +104,24 @@ export function weeklyEquivalent(plan: Plan): number {
  *
  * Returns null for a plan already billed monthly: printing "$11.99 ($11.99/mo)"
  * is noise, and the caller should render nothing rather than a tautology.
+ *
+ * **And null for WEEKLY** (Adrian, 2026-08-07: "remove the $21.62 per month,
+ * that will make people not want to get weekly"). The figure was correct and
+ * that is the problem: this bracket exists to make a plan read CHEAPER than its
+ * headline number, which is what it does under yearly ($69.99 → $5.83/mo) and
+ * the exact reverse of what it does under weekly, where $4.99 grows into
+ * $21.62. Same helper, opposite job, so the weekly row simply does not get one
+ * and its own $4.99/wk stands.
+ *
+ * This is not hiding the price. Weekly is DELIBERATELY the worst value on the
+ * screen (see `PLANS`) and the yearly row's own bracket is what makes that
+ * legible, so the comparison the bracket was for is still on screen. What it
+ * stops is the cheapest-looking entry point arguing against itself in its own
+ * sub-line.
  */
 export function monthlyEquivalent(plan: Plan): number | null {
   if (plan.period === "month") return null;
+  if (plan.period === "week") return null;
   return Math.round((perYear(plan) / MONTHS_PER_YEAR) * 100) / 100;
 }
 

@@ -3,7 +3,6 @@
 import type { ReactNode } from "react";
 
 import {
-  ArrowsLeftRight,
   Barbell,
   ChartLine,
   Calculator,
@@ -12,7 +11,6 @@ import {
   DotsThree,
   Drop,
   Flask,
-  Lightning,
   Package,
   Pulse,
 } from "@/components/icons";
@@ -35,7 +33,7 @@ import { useFlow } from "../flow-context";
  * the user just said, and with nothing picked it has to invent an answer out of
  * the top-up list — so a user who skipped both got a reply to a question they
  * never answered, which is the least convincing thing on the screen. Requiring
- * one pick is also the smallest possible ask: seven and seven options, tap one,
+ * one pick is also the smallest possible ask: six and six options, tap one,
  * and there is a "Just tracking for now" and a "Something else" so nobody is
  * forced into a claim that is untrue of them.
  *
@@ -64,7 +62,6 @@ const RUNNING_OPTIONS: { value: RunningTag; label: string; icon: ReactNode }[] =
   { value: "trt", label: "TRT / hormone optimisation", icon: <Pulse className={ICON} /> },
   { value: "peptides", label: "Peptides", icon: <Flask className={ICON} /> },
   { value: "first_cycle", label: "First cycle", icon: <Compass className={ICON} /> },
-  { value: "blast_cruise", label: "Blast & cruise", icon: <Lightning className={ICON} /> },
   // Sits directly above the catch-all, because it IS the broadest real answer:
   // supplements and general health cover everyone who is not running gear at
   // all, and they are the largest slice of the compound catalogue.
@@ -78,9 +75,23 @@ const STRUGGLE_OPTIONS: { value: StruggleTag; label: string; icon: ReactNode }[]
   { value: "last_site", label: "Can't remember my last site", icon: <Drop className={ICON} /> },
   { value: "no_history", label: "No history when I get bloods", icon: <ChartLine className={ICON} /> },
   { value: "took_today", label: "Forgetting if I've already taken it today", icon: <Check className={ICON} /> },
-  { value: "cant_compare", label: "Can't compare one run to the last", icon: <ArrowsLeftRight className={ICON} /> },
   { value: "other", label: "Something else", icon: <DotsThree className={ICON} /> },
 ];
+
+/**
+ * BOTH LISTS OFFER SIX (Adrian, 2026-08-07), down from seven. He asked for
+ * "Blast & cruise" and "Can't compare one run to the last" to come off, one
+ * from each screen, so the pair stays even — which was the argument for seven
+ * in the first place and is unchanged by the number being six.
+ *
+ * REMOVED FROM THE OFFER, NOT FROM THE PARSER. `blast_cruise` and
+ * `cant_compare` are still in their unions, still in `RUNNING_TAGS` /
+ * `STRUGGLE_TAGS`, and celebrate still answers `cant_compare`. Anyone who
+ * already picked either holds it in `localStorage`, and dropping a tag from the
+ * runtime arrays makes `normaliseSession` strip it on the next read — which is
+ * the exact CRITICAL that shipped for `took_today`. `off_season` sits in
+ * `session.ts` as the worked example of this rule.
+ */
 
 /** Toggle a value in a multi-select list. */
 function toggle<T>(list: T[], value: T): T[] {

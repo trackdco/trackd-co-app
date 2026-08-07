@@ -2,7 +2,7 @@
 
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 
-import { FlowCta, FlowSub } from "../chrome";
+import { FlowCta, FlowSub, ScrollPort } from "../chrome";
 import { FLOW_DISPLAY } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 import { Confetti } from "../confetti";
@@ -33,7 +33,7 @@ export function WelcomeScreen() {
           the screen reads as him welcoming you rather than as a titled page
           with a picture on it. Everything is centred as one block. */}
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
-        <div className="flow-scroll-fade flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        <ScrollPort>
           <div className="flex w-full flex-1 flex-col items-center justify-center gap-6">
             {/* Nudged DOWN off the top of the block (Adrian, 2026-08-01). Kyle's
                 render carries transparent padding at the top, so centring the
@@ -60,7 +60,7 @@ export function WelcomeScreen() {
               </FlowSub>
             </div>
           </div>
-        </div>
+        </ScrollPort>
 
         <footer className="shrink-0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <FlowCta onClick={goNext}>Continue</FlowCta>

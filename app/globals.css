@@ -656,18 +656,72 @@ svg ::-moz-selection {
  * want it to be a gradient from where the title is"). A 10px top fade was too
  * short to read as anything and looked like no gradient at all.
  *
- * The cost of the longer top fade is on the CENTRED screens, whose headline
- * sits inside the port rather than above it — but those screens centre their
- * content, so the first 34px is empty space on all of them.
- *
  * `mask-image` rather than an overlaid gradient div: an overlay has to know the
  * background colour behind it, and on `.flow-canvas` that colour is a gradient
  * that changes down the page, so any fixed-colour overlay banded visibly
  * against it. A mask removes alpha and cannot be wrong about the backdrop.
  *
  * Pointer events and scrolling are untouched — a mask paints, it does not
- * intercept. */
+ * intercept.
+ *
+ * THE FADE IS CONDITIONAL, and that is the whole of the rule (Adrian,
+ * 2026-08-07: "the gradient overlaps the text which makes it look
+ * unprofessional"). It used to be unconditional, and the comment above claimed
+ * the cost was only borne by centred screens whose first 34px is empty. That
+ * was measured and it is FALSE: at 402x700 the top fade was washing out the
+ * `cost` headline ("The tracking is the cheap part") and the `free` headline
+ * ("We want you to have your first week on us"), and the bottom fade was
+ * washing out cost's `$69.99`, the paywall's billing line, and celebrate's last
+ * answer. Two of those screens do not scroll AT ALL, so the gradient was
+ * signalling hidden content that did not exist while degrading the one sentence
+ * the screen exists to deliver.
+ *
+ * So an edge fades only when something is actually hidden past it, and only
+ * when MORE than the fade's own depth is hidden — a 44px gradient drawn to
+ * conceal 16px of overflow is a bigger lie than the hard edge it replaced.
+ * `ScrollPort` (`components/onboarding/chrome.tsx`) writes `data-fade` from the
+ * real scroll position. **No attribute means no mask**, so the pre-hydration
+ * and no-JS renders are unfaded: never washing out a headline is the safer
+ * default, and it is the state most of these screens should be in anyway.
+ *
+ * THE GUTTER IS THE SECOND HALF OF THIS RULE (Adrian, same pass: "the borders
+ * on the left and right cut out the golden outline"). `overflow-x: hidden`
+ * clips at the PADDING box, and every port's box was flush with its full-width
+ * content — so a `focus-visible:ring-2` (2px of `--ring`, which is
+ * `--accent-amber`) was sliced off down both sides of every input, chip and
+ * plan row in the flow. Measured on the name field: input and port both spanned
+ * x=20 to x=382, so the ring had nowhere to draw. The port now bleeds to the
+ * shell's edges and re-applies its own inset, which leaves the content exactly
+ * where it was and moves the clip edge 20px clear of it.
+ *
+ * ⚠️ This makes the port assume its parent is the flow's `px-5` column. All
+ * seven live inside one; a port placed anywhere else needs the margin
+ * reconsidered, not inherited. */
 .flow-scroll-fade {
+  /* 1.25rem = the `px-5` this bleeds out of. */
+  margin-inline: -1.25rem;
+  padding-inline: 1.25rem;
+}
+
+.flow-scroll-fade[data-fade="top"] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 34px);
+  mask-image: linear-gradient(to bottom, transparent 0, black 34px);
+}
+
+.flow-scroll-fade[data-fade="bottom"] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black calc(100% - 44px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black calc(100% - 44px),
+    transparent 100%
+  );
+}
+
+.flow-scroll-fade[data-fade="both"] {
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,

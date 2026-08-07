@@ -212,8 +212,23 @@ export function BirthdayScreen() {
              full-width box that overran the column on a 390 phone. A smaller
              type size and `max-w-full` keep the control inside its own card at
              every width; `min-w-0` stops the flex parent handing it its
-             intrinsic width instead of the available one. */
-          className="h-14 w-full min-w-0 max-w-full rounded-2xl bg-bg-input px-4 text-[0.95rem] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring [color-scheme:dark]"
+             intrinsic width instead of the available one.
+
+             `appearance-none` IS WHAT MAKES THE CORNERS ROUND (Adrian,
+             2026-08-07: "the birthday thing cuts off, the corners should be
+             rounded"). With the default `appearance: auto`, iOS Safari draws
+             `input[type="date"]` as a NATIVE control and paints its own square
+             box over ours: `rounded-2xl` is on the element and simply is not
+             honoured, and the native box takes its own intrinsic width rather
+             than the one we gave it, which is the "cuts off". Desktop Chromium
+             renders the radius fine at every width, which is why this survived
+             review — measured at 402, 360 and 320 with a 16px radius and no
+             overflow on all three. It is only wrong on the device.
+
+             Stripping the appearance does NOT take the picker away: the wheel
+             still opens on tap, because that is the input TYPE, not its
+             chrome. */
+          className="h-14 w-full min-w-0 max-w-full appearance-none rounded-2xl bg-bg-input px-4 text-[0.95rem] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring [color-scheme:dark]"
         />
 
         {/* The tick sits WITH the date (Adrian, 2026-08-05). "I confirm I'm over

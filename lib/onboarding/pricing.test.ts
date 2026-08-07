@@ -63,12 +63,16 @@ describe("derived figures", () => {
    * the paywall and none had coverage, and `PLANS.weekly` was never exercised
    * at all. Every one of them is part of a payment promise.
    */
-  it("shows a monthly equivalent for every plan that is not already monthly", () => {
+  it("shows a monthly equivalent only where it makes the plan read cheaper", () => {
     expect(monthlyEquivalent(PLANS.yearly)).toBeCloseTo(5.83, 2);
-    expect(monthlyEquivalent(PLANS.weekly)).toBeCloseTo(21.62, 2);
     // Null, not "$11.99/mo" — printing "$11.99 ($11.99/mo)" is a tautology and
     // the caller renders nothing rather than repeating itself.
     expect(monthlyEquivalent(PLANS.monthly)).toBeNull();
+    // Null for WEEKLY (Adrian, 2026-08-07). The bracket exists to shrink a
+    // headline figure; on weekly it grew $4.99 into $21.62 and argued against
+    // the plan in its own sub-line. Pinned so a later "every plan should show
+    // one" tidy-up cannot quietly put it back.
+    expect(monthlyEquivalent(PLANS.weekly)).toBeNull();
   });
 
   it("prices the weekly plan as the most expensive way to buy Trackd", () => {

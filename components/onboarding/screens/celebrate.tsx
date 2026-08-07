@@ -5,7 +5,7 @@ import type { StruggleTag } from "@/lib/onboarding/session";
 import { FLOW_DISPLAY } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
-import { FlowCta } from "../chrome";
+import { FlowCta, ScrollPort } from "../chrome";
 import { Confetti } from "../confetti";
 import { useFlow } from "../flow-context";
 import { Mascot } from "../mascot";
@@ -107,7 +107,7 @@ export function CelebrateScreen() {
         {/* Scroll port + `flex-1` wrapper, as every other screen has. Kyle is
             330px before the headline and the answer list even start, so this is
             the screen most likely to run out of room on a short phone. */}
-        <div className="flow-scroll-fade flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        <ScrollPort>
           <div className="flex w-full flex-1 flex-col items-center justify-center gap-2 py-2">
           <Mascot pose="thumbs" size={330} className="-mb-4 shrink-0" />
 
@@ -150,7 +150,7 @@ export function CelebrateScreen() {
                 that job on its own. */}
           </div>
           </div>
-        </div>
+        </ScrollPort>
 
         <footer className="shrink-0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <FlowCta onClick={goNext}>Try it now</FlowCta>

@@ -6,7 +6,7 @@ import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 import { FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
-import { FlowCta } from "../chrome";
+import { FlowCta, ScrollPort } from "../chrome";
 import { DeviceFrame } from "../device-frame";
 import { useFlow } from "../flow-context";
 
@@ -48,7 +48,7 @@ export function FreeScreen() {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
-        <div className="flow-scroll-fade flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        <ScrollPort>
           <div className="flex w-full flex-1 flex-col justify-start gap-4 pt-3">
             {/* ONE line of type, not three (Adrian, 2026-08-05: "too much
                 text"). The eyebrow and the giant $0 both went: the eyebrow said
@@ -113,7 +113,7 @@ export function FreeScreen() {
               </DeviceFrame>
             </div>
           </div>
-        </div>
+        </ScrollPort>
 
         <footer className="shrink-0 space-y-3 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           {/* The terms sit ON the button, not at the top of the screen. This is

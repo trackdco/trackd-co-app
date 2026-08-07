@@ -25,7 +25,7 @@ import { sparkGeometry, sparkLastPoint } from "@/lib/progress/spark";
 import { CARD_EYEBROW, DATA_MONO, METRIC_LABEL } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
-import { FlowCta, FlowSub, FlowTitle } from "../chrome";
+import { FlowCta, FlowSub, FlowTitle, ScrollPort } from "../chrome";
 import { Segmented } from "../controls";
 import { DemoBody } from "../demo-body";
 import { useFlow } from "../flow-context";
@@ -362,10 +362,10 @@ export function DemoScreen() {
           stage one the group sits low and centred under the headline, and as
           cards arrive the padding collapses and the whole column glides up on
           the same slow-fast-slow curve the cards use. */}
-      <div
-        ref={scrollRef}
+      <ScrollPort
+        portRef={scrollRef}
         className={cn(
-          "flow-scroll-fade flex min-h-0 flex-1 flex-col justify-start gap-3 overflow-y-auto overflow-x-hidden pb-2",
+          "justify-start gap-3 pb-2",
           "transition-[padding-top] duration-[760ms] motion-reduce:transition-none",
           index === 0 ? "pt-6" : "pt-4",
         )}
@@ -427,7 +427,7 @@ export function DemoScreen() {
         )}
 
         {showHistory && <HistoryPanel cardRef={newestCardRef} />}
-      </div>
+      </ScrollPort>
 
       <footer className="shrink-0 space-y-3 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         {/* THE BUTTON IS ALWAYS THERE (Adrian, 2026-08-05: "get rid of the

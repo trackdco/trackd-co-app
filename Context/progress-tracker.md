@@ -1090,6 +1090,67 @@ The progress ring in `DayStatusWidgets` is untouched: it is a ring, not a line
 graph. Colours were not touched anywhere — teal stays teal, periwinkle stays
 periwinkle.
 
+## The onboarding phone pass (2026-08-07, `wave3/onboarding-phone-fixes`)
+
+Adrian, driving the flow on his phone. Everything here was CONFIRMED BY
+MEASUREMENT at 402x700 before and after, because two of the three faults are
+invisible in desktop Chromium and the third looks correct there.
+
+**One scroll port, seven callers.** `ScrollPort` (`components/onboarding/chrome.tsx`)
+replaces seven hand-rolled copies of the same class string in `chrome`, `hook`,
+`celebrate`, `welcome`, `free`, `greeting` and `demo`. Two separate faults were
+sitting in that string, which is how each of them reached seven screens:
+
+- **The focus ring was sliced off down both sides of every control in the
+  flow.** `overflow-x: hidden` clips at the padding box and each port's box was
+  flush with its full-width content: measured on the name field, input and port
+  both spanned x=20→382, so a 2px `--ring` (which is `--accent-amber`, hence
+  Adrian's "golden outline") had nowhere to draw. The port now bleeds `-mx-5`
+  and re-applies `px-5`, leaving content where it was and moving the clip edge
+  20px clear. Re-measured at 20px of clearance on name, birthday, gender,
+  running and paywall.
+- **The edge fade ran whether or not anything was hidden behind it.** The old
+  comment claimed the cost fell only on centred screens whose first 34px is
+  empty; that was false. The top fade was washing out the `cost` and `free`
+  headlines and the bottom fade was washing out cost's `$69.99`, the paywall's
+  billing line and celebrate's last answer — and `free` and `celebrate` do not
+  scroll at all, so the gradient was advertising content that did not exist.
+  `data-fade` is now written from the real scroll position, and an edge only
+  earns a gradient when MORE than that gradient's own depth is hidden past it.
+  After: eleven of thirteen screens carry no mask, `hook` (12px hidden) and
+  `cost` (16px) correctly carry none, and the paywall fades bottom → both → top
+  as it scrolls.
+
+**The date field's corners.** `appearance-none` on the birthday input. iOS
+Safari draws `input[type="date"]` as a native control that paints over
+`rounded-2xl` and takes its own intrinsic width — Adrian's "cuts off, the
+corners should be rounded". Desktop Chromium honours the radius at 402, 360 and
+320, which is exactly why this survived review. The wheel still opens; that is
+the input TYPE, not its chrome.
+
+**Two options off the intent screens** — "Blast & cruise" and "Can't compare one
+run to the last", one from each, so the pair stays even at six and six.
+**Removed from the OFFER, not the PARSER**: both tags stay in their unions, in
+`RUNNING_TAGS`/`STRUGGLE_TAGS` and in celebrate's answer map, per the rule
+`off_season` documents in `session.ts`. Dropping a tag from the runtime arrays
+makes `normaliseSession` strip it from anyone who already picked it, which is
+the CRITICAL that shipped once for `took_today`.
+
+**No monthly equivalent on the weekly plan.** `monthlyEquivalent` returns null
+for `period === "week"`. The bracket exists to make a headline figure read
+smaller, which it does for yearly ($69.99 → $5.83/mo) and precisely inverts for
+weekly ($4.99 → $21.62). Yearly keeps its bracket, so the comparison that
+justifies the weekly tier being poor value is still on screen. Pinned by a test
+so a "every plan should show one" tidy-up cannot put it back.
+
+⚠️ **`components/profile/PhysicalCard.tsx` still offers "Blast & cruise"** as a
+profile goal. Left alone deliberately: that is an app surface with a stored
+value behind it, not the onboarding offer, and removing an option someone has
+already set is a separate decision. Flagged for Adrian.
+
+Gates: `tsc`, `eslint`, **727 tests**. `next build` NOT run — it cannot run
+while the phone-preview dev server is up.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

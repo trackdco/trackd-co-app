@@ -1,6 +1,6 @@
 "use client";
 
-import { FlowCta } from "../chrome";
+import { FlowCta, ScrollPort } from "../chrome";
 import { useFlow } from "../flow-context";
 import { WelcomeStage, type WelcomeEffect } from "../welcome-effects";
 
@@ -34,13 +34,13 @@ export function GreetingScreen() {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
-        <div className="flow-scroll-fade flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        <ScrollPort>
           <WelcomeStage
             effect={EFFECT}
             name={session.name}
             sub="Let's learn a bit more, so Trackd can be built around what you actually run."
           />
-        </div>
+        </ScrollPort>
 
         <footer className="shrink-0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <FlowCta onClick={goNext}>Let&apos;s go</FlowCta>

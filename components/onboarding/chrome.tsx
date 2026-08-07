@@ -1,6 +1,12 @@
 "use client";
 
-import type { ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { cn } from "@/lib/utils";
 import { CARD_EYEBROW, FLOW_SUB, FLOW_TITLE } from "@/lib/ui-presets";
@@ -146,6 +152,93 @@ export function SkipLink({
   );
 }
 
+/** How much of an edge the mask eats. Must match `.flow-scroll-fade`. */
+const FADE_TOP_PX = 34;
+const FADE_BOTTOM_PX = 44;
+
+/**
+ * The scrolling body of a flow screen. ONE definition, seven callers.
+ *
+ * There were seven hand-rolled copies of this class string, which is how a
+ * fault in it reached seven screens at once and how two separate faults sat in
+ * it unnoticed. Both are described at `.flow-scroll-fade` in `globals.css`: the
+ * clipped focus ring, and a fade that ran whether or not there was anything
+ * hidden behind it.
+ *
+ * This owns the second one. `data-fade` is written from the REAL scroll
+ * position, and an edge only earns a gradient when more than that gradient's
+ * own depth is hidden past it.
+ *
+ * ## It writes the DOM directly and holds no state
+ *
+ * Deliberate, and not only for the render it saves: this has to settle on
+ * mount, on scroll, and whenever the content or the viewport resizes, and the
+ * house ESLint config forbids `setState` in an effect body. Setting an
+ * attribute is not a render, so the mount case stops being a special one.
+ */
+export function ScrollPort({
+  children,
+  className,
+  style,
+  portRef,
+}: {
+  children?: ReactNode;
+  className?: string;
+  /**
+   * Longhands only. An inline `animation` or `transition` shorthand outranks
+   * the reduced-motion block in the stylesheet and cannot be switched off from
+   * it, which is the trap `ui-context.md` → Motion names.
+   */
+  style?: CSSProperties;
+  /** Supply one only if the screen also drives the scroll itself (the demo). */
+  portRef?: RefObject<HTMLDivElement | null>;
+}) {
+  const ownRef = useRef<HTMLDivElement | null>(null);
+  const ref = portRef ?? ownRef;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const sync = () => {
+      const above = el.scrollTop;
+      const below = el.scrollHeight - el.clientHeight - el.scrollTop;
+      const top = above > FADE_TOP_PX;
+      const bottom = below > FADE_BOTTOM_PX;
+      el.dataset.fade =
+        top && bottom ? "both" : top ? "top" : bottom ? "bottom" : "none";
+    };
+
+    sync();
+    el.addEventListener("scroll", sync, { passive: true });
+
+    // The content grows and shrinks under us: images decode, Kyle arrives, the
+    // demo accumulates cards, an error line appears above the CTA. Observing
+    // the port alone catches the viewport but not the content, so both.
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    for (const child of Array.from(el.children)) observer.observe(child);
+
+    return () => {
+      el.removeEventListener("scroll", sync);
+      observer.disconnect();
+    };
+  }, [ref]);
+
+  return (
+    <div
+      ref={ref}
+      style={style}
+      className={cn(
+        "flow-scroll-fade flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 /**
  * The screen scaffold: header block, a body that takes the slack, and a footer
  * that holds the CTA above the home indicator.
@@ -213,12 +306,8 @@ export function StepFrame({
        * `overflow-x-hidden` explicitly: setting `overflow-y` alone computes
        * `overflow-x` to `auto`, which gave the hook 4px of real sideways scroll
        * at 360. The shell's `overflow-x-clip` cannot reach inside a port. */}
-      <div
+      <ScrollPort
         className={cn(
-          // Fades at both edges rather than guillotining its content. Every
-          // screen that comes through `StepFrame` gets it, which is what Adrian
-          // meant by "do that on any of the pages that have that".
-          "flow-scroll-fade flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden",
           // NO PINNED FOOTER: the safe area becomes the SCROLL PORT's problem,
           // because the element that would have held it clear of the home
           // indicator no longer exists. Without this a CTA at the end of the
@@ -237,7 +326,7 @@ export function StepFrame({
           {center && hasHeader && children ? <div className="h-8 shrink-0" /> : null}
           {children}
         </div>
-      </div>
+      </ScrollPort>
 
       {/* THE FOOTER IS OPTIONAL, and its absence is a real layout, not an empty
           box. Rendered unconditionally it contributed `pt-6` plus the whole

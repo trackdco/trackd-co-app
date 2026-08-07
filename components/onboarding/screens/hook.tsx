@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Check, X } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
-import { FlowCta, FlowSub, FlowTitle } from "../chrome";
+import { FlowCta, FlowSub, FlowTitle, ScrollPort } from "../chrome";
 import { DeviceFrame } from "../device-frame";
 import { NotesCompare } from "../notes-compare";
 import { useFlow } from "../flow-context";
@@ -125,7 +125,7 @@ export function HookScreen() {
           </FlowTitle>
         </header>
 
-        <div className="flow-scroll-fade flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        <ScrollPort>
           <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 py-5">
           {/* The phone, with a card floating off each of two opposite corners
               (Adrian, 2026-08-01). They sit on the side they describe, which is
@@ -164,7 +164,7 @@ export function HookScreen() {
               headline rather than as a label for the control. */}
           <FlowSub className="shrink-0 text-center">Slide to see the difference.</FlowSub>
           </div>
-        </div>
+        </ScrollPort>
 
         <footer className="shrink-0 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <FlowCta onClick={goNext}>Continue</FlowCta>
