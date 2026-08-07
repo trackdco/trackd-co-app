@@ -166,8 +166,25 @@ const GRACE: ReadonlySet<string> = new Set(["past_due"]);
  */
 function cardIsValidated(sub: Stripe.Subscription): boolean {
   if (sub.status !== "trialing") return true;
-  if (sub.pending_setup_intent) return false;
-  return Boolean(sub.default_payment_method ?? sub.default_source);
+  // A method is attached — settled, whatever else the object says.
+  if (sub.default_payment_method || sub.default_source) return true;
+  /**
+   * Otherwise: is Stripe still WAITING for one?
+   *
+   * `payment_behavior: "default_incomplete"` puts a `pending_setup_intent` on
+   * the subscription at creation and clears it the moment the intent succeeds,
+   * so its absence is the signal that the card step is done.
+   *
+   * Both are checked because neither is sufficient alone.
+   * `save_default_payment_method: "on_subscription"` sets the default when an
+   * INVOICE is paid, and a trial pays no invoice — so during the trial the
+   * default can legitimately still be null on a subscription whose card was
+   * confirmed. Requiring it would have withheld the entitlement from every
+   * genuine trial. Conversely `pending_setup_intent` is null on a subscription
+   * created without `default_incomplete` at all (from the dashboard, say),
+   * where there was never a card step to wait for.
+   */
+  return !sub.pending_setup_intent;
 }
 
 /**

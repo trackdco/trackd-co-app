@@ -5,6 +5,7 @@ import type { StepId } from "@/lib/onboarding/steps";
 import { AccountScreen } from "./screens/account";
 import { AttributionScreen } from "./screens/attribution";
 import { CelebrateScreen } from "./screens/celebrate";
+import { CheckoutScreen } from "./screens/checkout";
 import { CostScreen } from "./screens/cost";
 import { DemoScreen } from "./screens/demo";
 import { FreeScreen } from "./screens/free";
@@ -43,6 +44,7 @@ const SCREENS: Record<StepId, () => React.ReactElement> = {
   free: FreeScreen,
   account: AccountScreen,
   paywall: PaywallScreen,
+  checkout: CheckoutScreen,
   welcome: WelcomeScreen,
   install: InstallScreen,
   notifications: NotificationsScreen,

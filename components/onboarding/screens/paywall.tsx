@@ -17,13 +17,11 @@ import {
 } from "@/lib/onboarding/pricing";
 import { cn } from "@/lib/utils";
 
-import { StepFrame } from "../chrome";
+import { FlowCta, StepFrame } from "../chrome";
 import { useFlow } from "../flow-context";
-import { PaymentSheet, type PaymentOutcome } from "../payment-sheet";
-import { TrialHold } from "../trial-hold";
 
 /**
- * The paywall — PAYMENT ONLY (Spec 3-01 §6, §9, amended by Spec w2b-14).
+ * The paywall — THE DECISION (Spec 3-01 §6, §9, amended by w2b-14 and w2b-15).
  *
  * ## There is no auth here, and there is no longer meant to be
  *
@@ -38,20 +36,29 @@ import { TrialHold } from "../trial-hold";
  * away and back is a full page load, which destroys any payment UI mounted
  * beside it; that bug class cannot exist once the two are on different screens.
  *
+ * ## THE CARD IS NOT HERE (Adrian, 2026-08-08)
+ *
+ * It was, briefly, and the screen was doing two jobs at once: make the argument
+ * and pick a plan, AND take a card. Measured at 320x568 that put the commit
+ * button roughly 1,400px down — timeline, three plan rows, code field, card
+ * form, disclosure, button. Payment moved to `screens/checkout.tsx`, which the
+ * CTA below advances to.
+ *
+ * Nothing about the spec's rules changed: the user still never reaches a
+ * stripe.com domain, and Apple Pay and Google Pay still sit above the card
+ * fields — one screen further on.
+ *
  * ## One button
  *
- * Exactly one call to action, and it is the trial CTA. The plan rows are radios
- * and the code field is a disclosure, so there is nothing else on this screen a
- * user could mistake for the thing that starts their trial.
+ * Exactly one call to action. The plan rows are radios and the code field is a
+ * disclosure, so there is nothing else here a user could mistake for the thing
+ * that starts their trial.
  *
- * ## What is real here and what is not
+ * ## The prices come from Stripe
  *
- * **Real:** every screen state, the plan cards, and the code
- * capture/validate/apply path.
- *
- * **Stubbed, deliberately:** the trial-start and the payment sheet. Spec w2b-15
- * replaces `startTrial()` below with the real Stripe subscription + SetupIntent
- * chain. It is the single seam; nothing else on this screen needs to move.
+ * Never from the codebase — a dashboard change lands without a deploy. A plan
+ * whose price did not load is dropped rather than rendered blank, and if none
+ * load the screen says so instead of offering an empty picker.
  */
 
 /**
@@ -109,10 +116,7 @@ export function PaywallScreen() {
   const [verdict, setVerdict] = useState<CodeVerdict>({ status: "none" });
   const [codeDraft, setCodeDraft] = useState("");
   const [codeOpen, setCodeOpen] = useState(false);
-  /**
-   * The card is in and we are waiting for the webhook. See `TrialHold`.
-   */
-  const [holding, setHolding] = useState(false);
+
 
   /**
    * THE PRICES, FROM STRIPE. Never from the codebase — spec w2b-15 forbids a
@@ -132,11 +136,6 @@ export function PaywallScreen() {
   // billing date change under the user mid-session, and the whole point of
   // printing it is that it is a fixed commitment.
   const [timeline] = useState(() => trialTimeline(new Date()));
-  // The same instant the timeline was built from, so the disclosure's "first
-  // charge" date and the timeline's "Day 7 · Billing starts" can never name two
-  // different days.
-  const [firstChargeOn] = useState(() => billingDate(new Date()));
-
   useEffect(() => {
     track("paywall_viewed");
   }, []);
@@ -185,84 +184,26 @@ export function PaywallScreen() {
   };
 
   /**
-   * WHAT HAPPENS WHEN THE CARD IS ACCEPTED.
+   * THE PRICE LINE, on the DECISION screen.
    *
-   * NOT "the user is now subscribed". A confirmed SetupIntent proves a card was
-   * accepted and proves nothing about entitlement — the webhook grants that, and
-   * it lands one to three seconds later. So this hands over to `TrialHold`,
-   * which waits for the entitlement to actually appear before letting anyone
-   * into the app. Dropping them straight through would show them the paywall
-   * they just paid to escape.
+   * The full four-part disclosure lives on `checkout`, beside the button that
+   * actually takes the card — that is where the commit is and where the ACCC
+   * requirement bites. But picking a plan is a commitment too, and a price that
+   * only appears one screen later would mean choosing before seeing. So the
+   * amount, the currency and the trial length are stated here as well, derived
+   * from the same selected plan so the two screens cannot disagree.
    */
-  const onOutcome = (outcome: PaymentOutcome) => {
-    if (outcome.status === "error") return; // The sheet shows its own message.
-    if (outcome.status === "already-subscribed") {
-      // Nothing was charged; they already have access. Straight on.
-      goNext();
-      return;
-    }
-    track("trial_started", { plan: session.plan, days: TRIAL_DAYS });
-    setHolding(true);
-  };
-
-  /**
-   * THE CARD IS IN AND THE WEBHOOK HAS NOT LANDED YET.
-   *
-   * Replaces the screen rather than overlaying it. The paywall is the one thing
-   * this user must not be looking at any more — they have just paid to leave it,
-   * and a spinner floating over the prices reads as the payment not having
-   * worked.
-   */
-  if (holding) return <TrialHold onEntitled={goNext} />;
-
-  /**
-   * THE DISCLOSURE. Every part of it is a hard requirement, and so is WHERE it
-   * ends up: it is handed to `PaymentSheet`, which renders it DIRECTLY ABOVE
-   * the CTA.
-   *
-   * All four things must be visible at the same time as that button with no
-   * scrolling to reveal any of them — the trial length, the exact renewal amount
-   * in AUD, the date of the first charge, and that it renews automatically until
-   * cancelled. A previous audit of this screen found it could be paid on without
-   * the price ever rendering; measured again on 2026-08-08 with the disclosure
-   * sitting above the Payment Element, the CTA was 550px below the last line of
-   * it at 390x844. Adjacency is the only arrangement that survives anything
-   * being added above.
-   *
-   * Every figure derives from the selected plan and from `TRIAL_DAYS`, so none
-   * of them can contradict another or the timeline at the top of the screen.
-   */
-  const disclosure = (
-    <div className="space-y-1 pt-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
-      <p>
-        <span className="text-foreground">
-          {TRIAL_DAYS}{" "}days free
-        </span>
-        , then{" "}
-        <span className="text-foreground">
-          {selected ? formatPrice(selected.price) : "—"}
-          {selected ? ` ${selected.currency.toUpperCase()}` : ""}
-        </span>
-        {" "}per{" "}
-        {selected?.period ?? "period"}
-        {selected && monthlyEquivalent(selected) !== null ? (
-          <>
-            {" "}({formatPrice(monthlyEquivalent(selected)!)}/mo)
-          </>
-        ) : null}
-        .
-      </p>
-      <p>
-        First charge{" "}
-        <span className="text-foreground">{firstChargeOn}</span>. Renews
-        automatically until you cancel.
-      </p>
-      <p>
-        Cancel any time before day{" "}
-        {TRIAL_DAYS}.
-      </p>
-    </div>
-  );
+  const priceLine = selected ? (
+    <p className="text-center text-[0.75rem] leading-relaxed text-text-muted">
+      {TRIAL_DAYS}{" "}days free, then{" "}
+      <span className="text-foreground">
+        {formatPrice(selected.price)}{" "}{selected.currency.toUpperCase()}
+      </span>
+      {" "}per{" "}
+      {selected.period}. Cancel any time before day{" "}
+      {TRIAL_DAYS}.
+    </p>
+  ) : null;
 
   return (
     /**
@@ -489,26 +430,29 @@ export function PaywallScreen() {
             what the demo had already made them do. By this screen the argument
             is made; what is left to say is what it costs and when. */}
 
-        {/* THE PAYMENT SURFACE, mounted in TRACKD's own screen. Not Stripe
-            Hosted Checkout, not Embedded Checkout — the user never sees a
-            stripe.com domain. Apple Pay and Google Pay render above the card
-            fields inside it; see `payment-sheet.tsx`. */}
-        {selected ? (
-          <PaymentSheet
-            plan={selected.id}
-            currency={selected.currency}
-            ctaLabel={`Start my ${TRIAL_DAYS}-day free trial`}
-            disclosure={disclosure}
-            onOutcome={onOutcome}
-          />
-        ) : (
-          <p
-            role="alert"
-            className="text-center text-[0.8rem] text-[var(--state-error)]"
-          >
-            We couldn&apos;t load our prices just now. Please try again shortly.
-          </p>
-        )}
+        {/* THE COMMITMENT. One button, and it goes to the card screen rather
+            than taking a card here — see `checkout.tsx` for why the two were
+            split. `disabled` when no price loaded: a plan cannot be chosen if
+            none is on screen, and letting someone through to a payment form
+            with nothing behind it is worse than stopping here. */}
+        <div className="space-y-3 pt-1">
+          {selected ? (
+            <>
+              <FlowCta onClick={goNext}>
+                {`Start my ${TRIAL_DAYS}-day free trial`}
+              </FlowCta>
+              {priceLine}
+            </>
+          ) : (
+            <p
+              role="alert"
+              className="text-center text-[0.8rem] text-[var(--state-error)]"
+            >
+              We couldn&apos;t load our prices just now. Please try again
+              shortly.
+            </p>
+          )}
+        </div>
       </div>
     </StepFrame>
   );

@@ -95,6 +95,19 @@ describe("STEP_ORDER", () => {
     });
   });
 
+  it("puts payment on its own screen, after the plan is chosen", () => {
+    // Adrian, 2026-08-08. The paywall was making the argument, listing the
+    // plans AND taking a card on one screen, which measured ~1,400px to the
+    // commit button at 320x568. Splitting them is also what makes the
+    // disclosure requirement structural: on a short payment screen the four
+    // required facts sit beside the button by construction.
+    expect(stepIndex("paywall")).toBeLessThan(stepIndex("checkout"));
+    expect(stepIndex("checkout")).toBe(stepIndex("paywall") + 1);
+    // And it is behind the same guards as the paywall — a card form is at
+    // least as sensitive as a price list.
+    expect(STEP_ORDER[stepIndex("checkout")].phase).toBe("authed");
+  });
+
   it("puts account creation between the free screen and the paywall", () => {
     // The whole point of the spec: the email is captured before the price is
     // seen, and auth never shares a screen with payment UI.

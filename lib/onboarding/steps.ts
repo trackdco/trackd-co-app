@@ -39,6 +39,8 @@ export type StepId =
   // w2b-14). See `STEP_ORDER` for why it is not on the paywall itself.
   | "account"
   | "paywall"
+  // Payment is its own screen, after the plan is chosen. See `STEP_ORDER`.
+  | "checkout"
   | "welcome"
   | "install"
   | "notifications"
@@ -109,6 +111,24 @@ export const STEP_ORDER: readonly StepMeta[] = [
    */
   { id: "account", phase: "anonymous" },
   { id: "paywall", phase: "authed" },
+  /**
+   * PAYMENT IS ITS OWN SCREEN (Adrian, 2026-08-08).
+   *
+   * The paywall was doing two jobs at once: make the argument and pick a plan,
+   * AND take a card. Measured at 320x568 that put the commit button ~1,400px
+   * down a single screen — timeline, three plan rows, code field, card form,
+   * disclosure, button.
+   *
+   * Split, each screen has one job. `paywall` asks WHICH; `checkout` asks for
+   * the card. It is also what makes the disclosure requirement structural
+   * rather than something to keep re-measuring: on a short payment screen the
+   * trial length, the amount, the charge date and the auto-renewal notice sit
+   * beside the button by construction.
+   *
+   * Still inside TRACKD — the spec's rule is that the user never reaches a
+   * stripe.com domain, not that payment shares a screen with the price list.
+   */
+  { id: "checkout", phase: "authed" },
   { id: "welcome", phase: "authed" },
   { id: "notifications", phase: "authed" },
   { id: "attribution", phase: "authed" },
