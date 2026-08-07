@@ -252,6 +252,9 @@ export function HomeScreen({
   // setState-in-effect).
   /** The compound whose Pause sheet is open, if any. */
   const [pauseTarget, setPauseTarget] = useState<StackCompound | null>(null)
+  /** The STACK's name when the sheet was opened from a collapsed stack row —
+   *  which heads it, and opens it on the whole-stack list. Null for a compound. */
+  const [pauseAsStack, setPauseAsStack] = useState<string | null>(null)
   const [sitesOpen, setSitesOpen] = useState(false)
   const [mirrorTip, setMirrorTip] = useState(false)
   // Tapping a compound opens its detail; "Edit" from there opens the add sheet.
@@ -570,6 +573,10 @@ export function HomeScreen({
       compound: members[0],
       label: st.name,
       count: members.length,
+      // Carried so the row can OPEN and offer one member on its own, and so the
+      // sheet can be headed with the stack rather than with `members[0]`.
+      members,
+      stackName: st.name,
       resumesOn: resumesOn(members[0].pauses, selectedKey),
       resumeLabel:
         resumeLabel(members[0].pauses, selectedKey, formatDateKeyShort) ??
@@ -876,7 +883,22 @@ export function HomeScreen({
               // drawing — a stack made today never reaches back over history.
               dayKey={selectedKey}
               paused={[...pausedStackEntries, ...pausedEntries]}
-              onOpenPaused={(entry) => setPauseTarget(entry.compound)}
+              // The ROW is the stack: the sheet opens headed with the stack's
+              // name and already on the whole-stack list.
+              onOpenPaused={(entry) => {
+                setPauseTarget(entry.compound)
+                setPauseAsStack(
+                  entry.stackName != null && entry.count > 1
+                    ? entry.stackName
+                    : null,
+                )
+              }}
+              // A member INSIDE an opened stack row is just that compound. It
+              // still offers the whole stack from within its own sheet.
+              onOpenPausedMember={(c) => {
+                setPauseTarget(c)
+                setPauseAsStack(null)
+              }}
               // Off-plan entries for the SELECTED day. The card renders the
               // section only when this is non-empty — most days it is.
               oneOffs={oneOffsToday}
@@ -1158,9 +1180,16 @@ export function HomeScreen({
       <PauseSheet
         open={pauseTarget !== null}
         onOpenChange={(o) => {
-          if (!o) setPauseTarget(null)
+          if (!o) {
+            setPauseTarget(null)
+            setPauseAsStack(null)
+          }
         }}
         compound={pauseTarget}
+        // Set only when a collapsed STACK row was tapped, which is the one case
+        // where the sheet must not name the compound it happens to act through.
+        title={pauseAsStack ?? undefined}
+        defaultStackMode={pauseAsStack !== null}
         todayKey={todayKey}
         // The day being VIEWED. `pausedEntries` is derived against it, so the
         // sheet has to judge "already paused" against the same day or tapping a

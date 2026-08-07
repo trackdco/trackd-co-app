@@ -135,6 +135,8 @@ export function PauseSheet({
   todayKey,
   referenceKey,
   stackMembers,
+  title,
+  defaultStackMode,
   onPause,
   onResume,
 }: {
@@ -150,6 +152,18 @@ export function PauseSheet({
   /** The other compounds in this one's stack, when it is in one. Empty = the
    *  whole-stack row does not appear. */
   stackMembers?: StackCompound[]
+  /**
+   * Head the sheet with THIS instead of the compound's name.
+   *
+   * Set when a collapsed STACK row is tapped: the sheet acts on `compound`,
+   * which is the stack's first member, and headed itself "Resume Creatine" — a
+   * compound the user never tapped (Adrian, 2026-08-07). The container beside it
+   * is still the first member's, because a stack has no artwork of its own.
+   */
+  title?: string
+  /** Open on the stack checklist, ticked. Same trigger as `title`: tapping the
+   *  stack row means the stack, so the sheet should not need a toggle first. */
+  defaultStackMode?: boolean
   /** `ids` is every compound to pause — one, or a stack's ticked members. */
   onPause: (ids: string[], range: { startedOn: string; endsOn: string | null }) => void
   /**
@@ -175,7 +189,7 @@ export function PauseSheet({
         <SheetHeader className="sr-only">
           <SheetTitle>
             {compound
-              ? `${activePause(compound.pauses, referenceKey ?? todayKey) ? "Resume" : "Pause"} ${compound.name}`
+              ? `${activePause(compound.pauses, referenceKey ?? todayKey) ? "Resume" : "Pause"} ${title ?? compound.name}`
               : "Pause"}
           </SheetTitle>
         </SheetHeader>
@@ -186,6 +200,8 @@ export function PauseSheet({
             todayKey={todayKey}
             referenceKey={referenceKey ?? todayKey}
             stackMembers={stackMembers ?? []}
+            title={title}
+            defaultStackMode={defaultStackMode ?? false}
             onPause={onPause}
             onResume={onResume}
             onClose={() => onOpenChange(false)}
@@ -204,12 +220,15 @@ export function PauseSheet({
  */
 function PauseHeader({
   compound,
+  name,
   sub,
   /** What this sheet is DOING. It said "Pause X" even on the resume branch,
    *  where the only buttons are Resume and Save (Adrian, 2026-08-07). */
   verb = "Pause",
 }: {
   compound: StackCompound
+  /** Overrides the compound's own name — the stack's, when a stack was tapped. */
+  name?: string
   sub?: string
   verb?: string
 }) {
@@ -228,7 +247,7 @@ function PauseHeader({
       />
       <div className="min-w-0 flex-1">
         <h2 className={cn(SHEET_TITLE, "truncate")}>
-          {verb} {compound.name}
+          {verb} {name ?? compound.name}
         </h2>
         {sub && <p className={cn(DATA_MONO, "mt-0.5 truncate")}>{sub}</p>}
       </div>
@@ -241,6 +260,8 @@ function PauseBody({
   todayKey,
   referenceKey,
   stackMembers,
+  title,
+  defaultStackMode,
   onPause,
   onResume,
   onClose,
@@ -249,6 +270,8 @@ function PauseBody({
   todayKey: string
   referenceKey: string
   stackMembers: StackCompound[]
+  title?: string
+  defaultStackMode: boolean
   onPause: (ids: string[], range: { startedOn: string; endsOn: string | null }) => void
   /**
    * `onlyThis` ends THIS compound's pause and nothing else.
@@ -269,7 +292,10 @@ function PauseBody({
   /** Which row has opened its control. One at a time, so the sheet never grows
    *  into a wall of inputs. */
   const [openRow, setOpenRow] = useState<"length" | "starts" | "back" | null>(null)
-  const [stackMode, setStackMode] = useState(false)
+  // Opens ALREADY ON when a stack row was tapped: that tap already said "the
+  // stack", so making the user flip a toggle to confirm it is a second answer to
+  // a question they have answered.
+  const [stackMode, setStackMode] = useState(defaultStackMode)
   const [ticked, setTicked] = useState<Set<string>>(
     () =>
       new Set(
@@ -343,6 +369,7 @@ function PauseBody({
       <>
         <PauseHeader
           compound={compound}
+          name={title}
           verb="Resume"
           sub={
             back
@@ -484,7 +511,7 @@ function PauseBody({
 
   return (
     <>
-      <PauseHeader compound={compound} />
+      <PauseHeader compound={compound} name={title} />
       <div className="mt-3 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <Row
           label="How long"

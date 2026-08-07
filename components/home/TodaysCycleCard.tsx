@@ -40,12 +40,125 @@ export interface PausedEntry {
   label: string
   /** How many compounds this entry stands for. >1 = a collapsed stack. */
   count: number
+  /** A collapsed stack's members, in order, so the row can open and let one be
+   *  resumed on its own (Adrian, 2026-08-07). Absent on a loose compound. */
+  members?: StackCompound[]
+  /** The stack's name, for the sheet's heading. Opening a collapsed stack used
+   *  to head the sheet "Resume Creatine" — the first member's name, which is a
+   *  compound the user did not tap. */
+  stackName?: string
   /** The day they come back, or null for an indefinite pause. */
   resumesOn: string | null
   /** How that return READS: a date when it is far off, a countdown once it is
    *  within a week, "Indefinite" when there is none. Resolved by the caller so
    *  the date formatting stays in one place. */
   resumeLabel: string
+}
+
+/**
+ * One row in the Paused section.
+ *
+ * A loose compound is a single button. A collapsed STACK is that button plus a
+ * caret that opens its members, because "resume the stack" and "resume just this
+ * one" are both things people want and the row used to offer only the first
+ * (Adrian, 2026-08-07). Tapping the row itself is always the STACK; a member is
+ * reached inside.
+ */
+function PausedRow({
+  entry,
+  onOpen,
+  onOpenMember,
+}: {
+  entry: PausedEntry
+  onOpen: () => void
+  onOpenMember?: (compound: StackCompound) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const members = entry.members ?? []
+  const isStack = entry.count > 1 && members.length > 0
+
+  return (
+    <li>
+      <div className="flex items-center gap-3 py-2 opacity-50 transition-opacity hover:opacity-80">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          {/* A pause glyph where the tick would be — it names the state rather
+              than leaving an empty ring that reads as an unticked dose. Sized
+              and positioned exactly as the tick, so the column of controls stays
+              one straight line. */}
+          <span
+            aria-hidden
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-muted"
+          >
+            <Pause className="h-3 w-3" weight="fill" />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+            {entry.label}
+            {/* A collapsed STACK says how many it stands for, or its name reads
+                as a single compound you do not recognise. */}
+            {entry.count > 1 && (
+              <span className="ml-1.5 font-normal text-text-muted">
+                · {entry.count}
+              </span>
+            )}
+          </span>
+          {/* Railed RIGHT with the rest of the app's row-level figures. A date
+              while the return is far off, a countdown once it is within a
+              week — see `resumeLabel`. */}
+          <span className={cn(DATA_MONO, "shrink-0")}>{entry.resumeLabel}</span>
+        </button>
+        {isStack && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-label={`${open ? "Hide" : "Show"} the compounds in ${entry.label}`}
+            className="-mr-1 shrink-0 rounded-full p-1 text-text-subtle transition-colors hover:text-foreground"
+          >
+            <CaretDown
+              className={cn(
+                "h-4 w-4 transition-transform duration-200 motion-reduce:transition-none",
+                open && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+        )}
+      </div>
+      {isStack && (
+        // The app's ONE expand mechanic: grid-rows 0fr ↔ 1fr.
+        <div
+          className="grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+          style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
+        >
+          <div className="overflow-hidden" inert={!open}>
+            <ul className="pb-1 pl-9">
+              {members.map((m) => (
+                <li key={m.id}>
+                  <button
+                    type="button"
+                    onClick={() => onOpenMember?.(m)}
+                    className="flex w-full items-center gap-2 py-1.5 text-left opacity-60 transition-opacity hover:opacity-100"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                      {m.name}
+                    </span>
+                    <CaretDown
+                      className="h-3.5 w-3.5 shrink-0 -rotate-90 text-text-subtle"
+                      aria-hidden
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </li>
+  )
 }
 
 /** A due compound plus its log state. */
@@ -73,8 +186,12 @@ interface TodaysCycleCardProps {
   /** Compounds paused on the selected day, with the day they come back. Never
    *  hidden — a hidden compound reads as a deleted one. */
   paused?: PausedEntry[]
-  /** Tap a paused entry → open its Pause sheet, where Resume lives. */
+  /** Tap a paused entry → open its Pause sheet, where Resume lives. On a
+   *  collapsed stack this is the WHOLE stack; `onOpenPausedMember` is the one
+   *  member inside it. */
   onOpenPaused?: (entry: PausedEntry) => void
+  /** Tap a member inside an opened stack → its own sheet. */
+  onOpenPausedMember?: (compound: StackCompound) => void
   /** Things taken off-plan on the selected day (Spec w2b-13, Step 8). Rendered
    *  ONLY when there are some — no empty section, no permanent row (Adrian,
    *  2026-08-07). Added from the calendar, shown here. */
@@ -588,6 +705,7 @@ export function TodaysCycleCard({
   dueDoses,
   paused,
   onOpenPaused,
+  onOpenPausedMember,
   oneOffs,
   startsNext = null,
   onLog,
@@ -736,38 +854,12 @@ export function TodaysCycleCard({
           </div>
           <ul className="px-1">
             {paused.map((p) => (
-              <li key={p.compound.id}>
-                <button
-                  type="button"
-                  onClick={() => onOpenPaused?.(p)}
-                  className="flex w-full items-center gap-3 py-2 text-left opacity-50 transition-opacity hover:opacity-80"
-                >
-                  {/* A pause glyph where the tick would be — it names the state
-                      rather than leaving an empty ring that reads as an unticked
-                      dose. Sized and positioned exactly as the tick, so the
-                      column of controls stays one straight line. */}
-                  <span
-                    aria-hidden
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-muted"
-                  >
-                    <Pause className="h-3 w-3" weight="fill" />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                    {p.label}
-                    {/* A collapsed STACK says how many it stands for, or its
-                        name reads as a single compound you do not recognise. */}
-                    {p.count > 1 && (
-                      <span className="ml-1.5 font-normal text-text-muted">
-                        · {p.count}
-                      </span>
-                    )}
-                  </span>
-                  {/* Railed RIGHT with the rest of the app's row-level figures.
-                      A date while the return is far off, a countdown once it is
-                      within a week — see `resumeLabel`. */}
-                  <span className={cn(DATA_MONO, "shrink-0")}>{p.resumeLabel}</span>
-                </button>
-              </li>
+              <PausedRow
+                key={p.compound.id}
+                entry={p}
+                onOpen={() => onOpenPaused?.(p)}
+                onOpenMember={onOpenPausedMember}
+              />
             ))}
           </ul>
         </div>
