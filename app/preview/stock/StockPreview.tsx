@@ -3,16 +3,55 @@
 import { useEffect, useState } from "react"
 
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
+import { StockAddedCard } from "@/components/protocol/StockAddedCard"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Container } from "@/components/containers"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { saveStack, type StackCompound } from "@/lib/home/stack"
 import { CARD_EYEBROW, DATA_MONO, PAGE_TITLE } from "@/lib/ui-presets"
+import { cn } from "@/lib/utils"
 
 /**
  * A throwaway user id, so this harness cannot touch a real signed-in user's
  * device store. Everything it writes lives under this key alone.
  */
 const PREVIEW_USER = "preview-stock"
+
+/** One per container form, plus a part-used vial — the case that proves the
+ *  card lands on the REAL level rather than always filling to the brim. */
+const MOMENTS: Omit<
+  React.ComponentProps<typeof StockAddedCard>,
+  "onDone"
+>[] = [
+  {
+    compoundName: "Testosterone Enanthate",
+    category: "anabolic",
+    inventoryType: "preconcentrated",
+    fill: 1,
+    amountLabel: "10 mL",
+  },
+  {
+    compoundName: "BPC-157",
+    category: "peptide",
+    inventoryType: "reconstituted",
+    fill: 0.5,
+    amountLabel: "2 mL",
+  },
+  {
+    compoundName: "NAC",
+    category: "supplement",
+    inventoryType: "oral_solid",
+    fill: 1,
+    amountLabel: "120 capsules",
+  },
+  {
+    compoundName: "Creatine Monohydrate",
+    category: "supplement",
+    inventoryType: "bulk_powder",
+    fill: 0.85,
+    amountLabel: "300 g",
+  },
+]
 
 /**
  * Four compounds chosen to hit all four inventory forms and, between them, every
@@ -105,6 +144,7 @@ const WHAT_TO_LOOK_FOR: { compound: string; expect: string }[] = [
  */
 export function StockPreview() {
   const [open, setOpen] = useState(false)
+  const [moment, setMoment] = useState<(typeof MOMENTS)[number] | null>(null)
   // Seeding the device store is a write to an EXTERNAL system, which is what an
   // effect is for. It deliberately sets no state: the sheet reads the store
   // through `useSyncExternalStore`, so the seed reaches it without a re-render
@@ -164,6 +204,50 @@ export function StockPreview() {
       >
         Open the add-stock sheet
       </button>
+
+      {/* THE MOMENT AFTER A SAVE, on its own.
+
+          It cannot be reached through the sheet above — saving needs a session
+          and applied migrations, neither of which a preview has — so the one
+          thing worth watching would otherwise be the one thing invisible here
+          (Adrian, 2026-08-07). Each button mounts the real card, in the real
+          sheet, with the fill it would land on. */}
+      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+        <h2 className={CARD_EYEBROW}>The moment after a save</h2>
+        <p className="text-sm text-text-muted">
+          The container fills from empty to what was entered, holds half a
+          second, then the sheet leaves. Tapping it closes it straight away.
+        </p>
+        <div className="grid grid-cols-1 gap-2">
+          {MOMENTS.map((m) => (
+            <button
+              key={m.compoundName}
+              type="button"
+              onClick={() => setMoment(m)}
+              className="rounded-xl bg-bg-surface-raised px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-bg-input"
+            >
+              {m.compoundName}
+              <span className={cn(DATA_MONO, "ml-2")}>
+                {m.amountLabel} · {Math.round(m.fill * 100)}%
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <Sheet open={moment !== null} onOpenChange={(o) => !o && setMoment(null)}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-3xl border-border-default bg-bg-surface"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Stock added</SheetTitle>
+          </SheetHeader>
+          {moment && (
+            <StockAddedCard {...moment} onDone={() => setMoment(null)} />
+          )}
+        </SheetContent>
+      </Sheet>
 
       <AddStockSheet
         open={open}

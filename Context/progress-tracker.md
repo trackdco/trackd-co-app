@@ -992,6 +992,51 @@ whether it can be *reached*, and what a screen looks like with real data in it.
 from the first member. Members paused in one action share a group and agree;
 members paused separately do not, and one date has to be chosen.
 
+## Stock gets a moment (2026-08-07)
+
+Adding stock closed the sheet and dropped you back on a card that had silently
+changed. `ui-context.md` → Motion already says the log action "gets a moment",
+for the same reason, so stock now has one: `StockAddedCard` fills the compound's
+container from empty to the level just entered (900ms), holds 500ms, and leaves.
+Tapping anywhere skips it — a confirmation you cannot skip is one that will be
+in the way the fiftieth time (Adrian). A REFILL gets it too; an amounts
+correction does not, because that is not "you now have this".
+
+The fill it lands on is `resolveFill().percent`, the same remaining-over-total
+ratio `v_inventory_math` will report — so a vial entered as half used settles at
+half rather than filling to the brim.
+
+**How the motion works, and why not CSS.** `.container-fill` only ever animated
+the VIAL: its liquid is a `<rect>` and `y`/`height` are CSS-animatable SVG
+geometry. A tub's powder is a `<path d>` (not reliably animatable outside
+Chromium) and a bottle's contents are DISCRETE tablets. `useAnimatedFill` eases
+the NUMBER instead, which covers all three because every container derives its
+artwork from it. `AnimatedContainer` is a separate component rather than a prop
+on `Container`, which has no `"use client"` and renders from server components.
+
+Two things that were wrong on the first pass and are worth not re-introducing:
+
+- **Clearing the eased value in the effect cleanup pops.** Cleanup runs, React
+  re-renders at the new target, the browser paints it, and only then does the
+  replacement animation's first rAF fire — one frame at the destination before
+  easing there. Cancel the frame and leave the value; the new animation
+  overwrites it immediately.
+- **The dismiss timer must not depend on `onDone`.** It is an inline arrow at
+  every call site, so the timer re-armed on each parent render and the sheet
+  could stay open indefinitely. Held in a ref, written from an effect
+  (`react-hooks/refs` forbids writing one during render).
+
+It eases on CHANGE only — mounting the Protocol tab does not replay a fill on
+every card — and is instant under `prefers-reduced-motion`.
+
+Also this pass: the stock actions sheet leads with the compound's container at
+its real level instead of a bare name; "Add" as a word became a `+` glyph on
+both rows that used it (rotating 45° into an × where the row also expands); the
+detail sheet's filled button dropped its pencil and the pencil moved to "Edit
+dose & schedule", replacing a calendar that named only half of what it does.
+`/preview/stock` gained the moment on its own, because saving there needs a
+session and the real path cannot be reached in a harness.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

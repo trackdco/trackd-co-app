@@ -28,7 +28,8 @@ import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { isInventoryForm } from "@/lib/containers/form"
 import { routesOf } from "@/lib/compound-categories"
 import { todayKey } from "@/lib/protocol/cycle"
-import { resolveFill, vialBasis, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
+import { resolveFill, vialBasis, FILL_PRESETS, round3, formatGrams } from "@/lib/protocol/vialFill"
+import { StockAddedCard } from "@/components/protocol/StockAddedCard"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 
 const EMPTY: StackCompound[] = []
@@ -101,6 +102,15 @@ function formsForMethod(method: InjectionMethod): InventoryType[] {
   return ALL_FORMS
 }
 
+/** What {@link StockAddedCard} needs to draw the moment after a save. */
+interface StockAdded {
+  compoundName: string
+  category?: string | null
+  inventoryType?: string | null
+  fill: number
+  amountLabel: string | null
+}
+
 /**
  * Add stock for a compound (Protocol Cutover, Step 5). Branches by the 3-way
  * `inventory_type` union and stores ONLY raw inputs (all maths come from
@@ -143,8 +153,19 @@ export function AddStockSheet({
   editItem?: StockItem | null
   onAdded: () => void
 }) {
+  /** Set once a NEW item saves, which swaps the form for its confirmation. Null
+   *  on an edit or a refill-into-nothing: neither is a "you now have this". */
+  const [added, setAdded] = useState<StockAdded | null>(null)
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet
+      open={open}
+      onOpenChange={(o) => {
+        // Dismissing mid-confirmation must clear it, or the next open would come
+        // straight back up on someone else's celebration.
+        if (!o) setAdded(null)
+        onOpenChange(o)
+      }}
+    >
       <SheetContent
         side="bottom"
         // Don't auto-focus a field on open — otherwise the keypad pops up over the
@@ -152,12 +173,31 @@ export function AddStockSheet({
         onOpenAutoFocus={(e) => e.preventDefault()}
         className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
       >
-        <SheetHeader>
+        <SheetHeader className={added ? "sr-only" : undefined}>
           <SheetTitle className={SHEET_TITLE}>
-            {editItem ? "Edit stock" : refillFor ? "Refill stock" : "Add stock"}
+            {added
+              ? "Stock added"
+              : editItem
+                ? "Edit stock"
+                : refillFor
+                  ? "Refill stock"
+                  : "Add stock"}
           </SheetTitle>
         </SheetHeader>
-        {open && (
+        {open && added ? (
+          <StockAddedCard
+            compoundName={added.compoundName}
+            category={added.category}
+            inventoryType={added.inventoryType}
+            fill={added.fill}
+            amountLabel={added.amountLabel}
+            onDone={() => {
+              setAdded(null)
+              onOpenChange(false)
+            }}
+          />
+        ) : (
+          open && (
           <AddStockForm
             userId={userId}
             refillFor={refillFor ?? null}
@@ -166,7 +206,9 @@ export function AddStockSheet({
             editItem={editItem ?? null}
             onClose={() => onOpenChange(false)}
             onAdded={onAdded}
+            onConfirmed={setAdded}
           />
+          )
         )}
       </SheetContent>
     </Sheet>
@@ -181,6 +223,7 @@ function AddStockForm({
   editItem,
   onClose,
   onAdded,
+  onConfirmed,
 }: {
   userId: string
   refillFor: string | null
@@ -189,6 +232,8 @@ function AddStockForm({
   editItem: StockItem | null
   onClose: () => void
   onAdded: () => void
+  /** Hand the confirmation up instead of closing. Only a NEW item gets one. */
+  onConfirmed: (added: StockAdded) => void
 }) {
   const stack = useSyncExternalStore(
     subscribeStack,
@@ -406,6 +451,23 @@ function AddStockForm({
   const fillUnit =
     type === "oral_solid" ? oralForm : type === "bulk_powder" ? "g" : "mL"
 
+  /** What was added, worded the way the container would be read: "10 mL",
+   *  "60 tablets", "300 g". Null when the form has nothing quantifiable, which
+   *  cannot happen on a successful save but keeps the card honest. */
+  function addedLabel(): string | null {
+    if (type === "bulk_powder") {
+      return num(tubGrams) > 0 ? formatGrams(num(tubGrams)) : null
+    }
+    if (type === "oral_solid") {
+      const n = num(count)
+      if (n <= 0) return null
+      const word = oralForm === "tab" ? "tablet" : "capsule"
+      return `${n} ${word}${n === 1 ? "" : "s"}`
+    }
+    const ml = type === "reconstituted" ? num(bacWater) : num(oilMl)
+    return ml > 0 ? `${round3(ml)} mL` : null
+  }
+
   async function save() {
     if (!insert) return
     setSaving(true)
@@ -469,7 +531,19 @@ function AddStockForm({
         return // keep the sheet open so the input isn't lost on a failed save
       }
       onAdded()
-      onClose()
+      // THE MOMENT, in place of the sheet just vanishing. The card eases the
+      // container from empty to what was entered and then leaves; the parent
+      // owns the state so this form can unmount under it.
+      onConfirmed({
+        compoundName: compound?.name ?? "Stock",
+        category: compound?.category ?? null,
+        inventoryType: type,
+        // `percent` is remaining-against-total for exactly these inputs, which
+        // is the same ratio `v_inventory_math` will report once it lands. A
+        // full vial is 1; one entered as half used settles at 0.5.
+        fill: fill.percent != null ? fill.percent / 100 : 1,
+        amountLabel: addedLabel(),
+      })
     } finally {
       setSaving(false)
     }

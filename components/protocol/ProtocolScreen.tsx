@@ -286,7 +286,7 @@ export function ProtocolScreen({
       <StockActionsSheet
         open={stockActionsFor !== null}
         onOpenChange={(o) => !o && setStockActionsFor(null)}
-        compoundName={stockActionsFor?.name ?? ""}
+        compound={stockActionsFor}
         stock={
           stockActionsFor ? (stockByCompound?.get(stockActionsFor.id) ?? null) : null
         }

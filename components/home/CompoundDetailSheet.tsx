@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import {
-  CalendarDot,
   Package,
   Pause,
   PencilSimple,
@@ -335,7 +334,10 @@ function DetailBody({
           }
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99]"
         >
-          <PencilSimple className="h-4 w-4" aria-hidden />
+          {/* NO ICON. The filled button is already the loudest thing on the
+              sheet and its label says exactly what it does — a glyph beside it
+              was decoration, and the pencil in particular now belongs to the
+              row that actually edits (Adrian, 2026-08-07). */}
           {primaryLabel}
         </button>
 
@@ -363,7 +365,9 @@ function DetailBody({
               above already is it. */}
           {context !== "plan" && (
             <ActionRow
-              icon={<CalendarDot className="h-4 w-4" aria-hidden />}
+              // A PENCIL, not a calendar: this row edits the dose as well as the
+              // schedule, and a calendar named only half of it.
+              icon={<PencilSimple className="h-4 w-4" aria-hidden />}
               onClick={() => onEdit(compound)}
             >
               Edit dose &amp; schedule

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CalendarDots, CaretDown, PencilSimple, Trash, Warning } from "@/components/icons"
+import { CalendarDots, CaretDown, PencilSimple, Plus, Trash, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
@@ -1387,8 +1387,9 @@ function AddCompoundBody({
             <>
               <RowDivider />
               <FormRow
-                label="Add another dose"
+                label="Another dose"
                 noCaret
+                plus
                 hint={
                   laterTimes.length === 0
                     ? "Optional"
@@ -1591,12 +1592,12 @@ function AddCompoundBody({
             <FormRow
               label="Stock on hand"
               hint="Optional"
+              plus
               onPress={() => {
                 setAddStockOn((o) => !o)
                 if (errors.stock) setErrors((p) => ({ ...p, stock: undefined }))
               }}
               expanded={addStockOn}
-              value={addStockOn ? "" : "Add"}
               error={errors.stock}
             />
             {addStockOn && (
@@ -1849,6 +1850,7 @@ function FormRow({
   error,
   expanded,
   noCaret,
+  plus,
   onPress,
   children,
 }: {
@@ -1865,6 +1867,16 @@ function FormRow({
    *  appends a row below itself; a chevron there promised a disclosure that was
    *  never going to open (Adrian, 2026-08-07). */
   noCaret?: boolean
+  /**
+   * A `+` in the caret's place, for a row that ADDS something.
+   *
+   * The word "Add" was doing this job in two different ways — inside the label
+   * on one row and as the `value` on another — and neither read as a control
+   * (Adrian, 2026-08-07). One glyph, on the right, where every other row keeps
+   * its affordance. On a row that also expands it rotates 45° into an ×, so the
+   * state the caret used to carry is not lost.
+   */
+  plus?: boolean
   onPress?: () => void
   children?: React.ReactNode
 }) {
@@ -1886,7 +1898,16 @@ function FormRow({
           {value && (
             <span className="truncate text-sm text-foreground">{value}</span>
           )}
-          {onPress && !noCaret && (
+          {onPress && plus && (
+            <Plus
+              className={cn(
+                "h-4 w-4 shrink-0 text-text-subtle transition-transform duration-200 motion-reduce:transition-none",
+                expanded && "rotate-45",
+              )}
+              aria-hidden
+            />
+          )}
+          {onPress && !noCaret && !plus && (
             <CaretDown
               className={cn(
                 "h-4 w-4 shrink-0 text-text-subtle transition-transform duration-200 motion-reduce:transition-none",

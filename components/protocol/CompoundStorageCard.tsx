@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
-import { Container } from "@/components/containers"
+import { AnimatedContainer } from "@/components/containers"
 import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
 import { ILLUSTRATIVE_FILL } from "@/lib/containers/geometry"
@@ -137,7 +137,11 @@ export function CompoundStorageCard({
         aria-label={`View ${compound.name}`}
         className="flex w-full flex-col items-center gap-2 transition active:scale-[0.98]"
       >
-        <Container
+        {/* ANIMATED, so adding stock is something you watch happen rather than
+            a number that has changed by the time you look back (Adrian,
+            2026-08-07). It eases on CHANGE only — mounting the tab does not
+            replay it on every card. */}
+        <AnimatedContainer
           name={compound.name}
           inventoryType={inventoryType}
           category={compound.category}

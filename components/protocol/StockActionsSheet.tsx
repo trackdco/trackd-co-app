@@ -9,6 +9,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { CARD_EYEBROW, DATA_MONO, SHEET_TITLE } from "@/lib/ui-presets"
+import { Container } from "@/components/containers"
+import { inventoryTypeForCompound } from "@/lib/containers/form"
+import { cn } from "@/lib/utils"
+import type { StackCompound } from "@/lib/home/stack"
 import { setStockArchived, type StockItem } from "@/lib/db/inventory"
 
 /**
@@ -25,7 +29,7 @@ import { setStockArchived, type StockItem } from "@/lib/db/inventory"
 export function StockActionsSheet({
   open,
   onOpenChange,
-  compoundName,
+  compound,
   stock,
   onRefill,
   onEditAmounts,
@@ -33,7 +37,9 @@ export function StockActionsSheet({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  compoundName: string
+  /** The compound itself, not just its name — the header draws its container
+   *  (Adrian, 2026-08-07), and that needs the form and the category too. */
+  compound: StackCompound | null
   stock: StockItem | null
   onRefill: () => void
   onEditAmounts: () => void
@@ -41,6 +47,13 @@ export function StockActionsSheet({
   onDiscarded: () => void
 }) {
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  // `remaining / total`, the same ratio the storage card draws. `undefined`
+  // rather than 0 when there is no figure, so the container falls back to the
+  // illustrative level instead of claiming the vial is empty.
+  const stockFill =
+    stock?.remainingBase != null && stock.totalBase
+      ? Math.max(0, Math.min(1, stock.remainingBase / stock.totalBase))
+      : null
   const [busy, setBusy] = useState(false)
 
   async function discard() {
@@ -68,14 +81,36 @@ export function StockActionsSheet({
         side="bottom"
         className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
       >
-        <SheetHeader>
-          <SheetTitle className={SHEET_TITLE}>{compoundName}</SheetTitle>
-          {stock && (
-            <p className={DATA_MONO}>
-              {stock.remainingDisplay ?? "?"}
-              {stock.inventoryType === "oral_solid" ? "" : " mL"} left
-            </p>
+        {/* The compound's OWN container beside its name, the way the Pause
+            sheet and the detail sheet already do it — you should be able to see
+            what you are about to refill or discard, not only read it. It draws
+            its REAL level, so "8 mL left" and the picture agree. */}
+        <SheetHeader className="flex-row items-center gap-3 space-y-0">
+          {compound && (
+            <Container
+              name={compound.name}
+              inventoryType={inventoryTypeForCompound(
+                compound.name,
+                compound.method,
+                compound.inventoryForm,
+              )}
+              category={compound.category}
+              fill={stockFill ?? undefined}
+              size={44}
+              className="shrink-0"
+            />
           )}
+          <div className="min-w-0 flex-1 text-left">
+            <SheetTitle className={cn(SHEET_TITLE, "truncate")}>
+              {compound?.name ?? ""}
+            </SheetTitle>
+            {stock && (
+              <p className={DATA_MONO}>
+                {stock.remainingDisplay ?? "?"}
+                {stock.inventoryType === "oral_solid" ? "" : " mL"} left
+              </p>
+            )}
+          </div>
         </SheetHeader>
 
         {/* The bottom inset is load-bearing, not decoration. With a flat
