@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Bell, CaretDown, Check, CircleNotch, Crown, Lock } from "@/components/icons";
+import { Bell, CaretDown, Check, Crown, Lock } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
 import { validateCode, type CodeVerdict } from "@/lib/onboarding/affiliate";
 import {
@@ -17,8 +17,10 @@ import {
 } from "@/lib/onboarding/pricing";
 import { cn } from "@/lib/utils";
 
-import { FlowCta, StepFrame } from "../chrome";
+import { StepFrame } from "../chrome";
 import { useFlow } from "../flow-context";
+import { PaymentSheet, type PaymentOutcome } from "../payment-sheet";
+import { TrialHold } from "../trial-hold";
 
 /**
  * The paywall — PAYMENT ONLY (Spec 3-01 §6, §9, amended by Spec w2b-14).
@@ -107,7 +109,10 @@ export function PaywallScreen() {
   const [verdict, setVerdict] = useState<CodeVerdict>({ status: "none" });
   const [codeDraft, setCodeDraft] = useState("");
   const [codeOpen, setCodeOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  /**
+   * The card is in and we are waiting for the webhook. See `TrialHold`.
+   */
+  const [holding, setHolding] = useState(false);
 
   /**
    * THE PRICES, FROM STRIPE. Never from the codebase — spec w2b-15 forbids a
@@ -127,6 +132,10 @@ export function PaywallScreen() {
   // billing date change under the user mid-session, and the whole point of
   // printing it is that it is a fixed commitment.
   const [timeline] = useState(() => trialTimeline(new Date()));
+  // The same instant the timeline was built from, so the disclosure's "first
+  // charge" date and the timeline's "Day 7 · Billing starts" can never name two
+  // different days.
+  const [firstChargeOn] = useState(() => billingDate(new Date()));
 
   useEffect(() => {
     track("paywall_viewed");
@@ -176,33 +185,35 @@ export function PaywallScreen() {
   };
 
   /**
-   * THE STUB. What remains of the chain, now that Spec w2b-14 has taken the
-   * first and last links off this screen:
-   *   1. auth                    <- DONE, on the account screen before this one
-   *   2. trial-start             <- goes here (spec w2b-15: Stripe subscription)
-   *   3. the payment sheet       <- and here (the Payment Element + SetupIntent)
-   *   4. claim the answers       <- DONE, by `AnswerHandoff` on arrival here
-   *   5. Welcome
+   * WHAT HAPPENS WHEN THE CARD IS ACCEPTED.
    *
-   * Steps 2 and 3 currently resolve immediately.
-   *
-   * The two `auth_*` events this used to fire are gone with the auth: they
-   * reported a sign-in that had already happened on a different screen, under a
-   * `method: "preview"` that was never true. `auth_completed` is now fired once
-   * by `AnswerHandoff`, from the only moment the SERVER has confirmed an
-   * account exists.
-   *
-   * `setAccountName(null)` is gone too, and it was worse than dead — the
-   * handoff sets that name from the claimed row, and this ran afterwards and
-   * wiped it, so Welcome would have greeted a signed-in user as nobody.
+   * NOT "the user is now subscribed". A confirmed SetupIntent proves a card was
+   * accepted and proves nothing about entitlement — the webhook grants that, and
+   * it lands one to three seconds later. So this hands over to `TrialHold`,
+   * which waits for the entitlement to actually appear before letting anyone
+   * into the app. Dropping them straight through would show them the paywall
+   * they just paid to escape.
    */
-  const startTrial = async () => {
-    setBusy(true);
-    await new Promise((r) => setTimeout(r, 700));
+  const onOutcome = (outcome: PaymentOutcome) => {
+    if (outcome.status === "error") return; // The sheet shows its own message.
+    if (outcome.status === "already-subscribed") {
+      // Nothing was charged; they already have access. Straight on.
+      goNext();
+      return;
+    }
     track("trial_started", { plan: session.plan, days: TRIAL_DAYS });
-    setBusy(false);
-    goNext();
+    setHolding(true);
   };
+
+  /**
+   * THE CARD IS IN AND THE WEBHOOK HAS NOT LANDED YET.
+   *
+   * Replaces the screen rather than overlaying it. The paywall is the one thing
+   * this user must not be looking at any more — they have just paid to leave it,
+   * and a spinner floating over the prices reads as the payment not having
+   * worked.
+   */
+  if (holding) return <TrialHold onEntitled={goNext} />;
 
   return (
     /**
@@ -429,65 +440,67 @@ export function PaywallScreen() {
             what the demo had already made them do. By this screen the argument
             is made; what is left to say is what it costs and when. */}
 
-        {/* IMMEDIATELY ABOVE THE BUTTON (Adrian, 2026-08-05). It sat under the
-            plan rows, which put the code field between it and the thing it is
-            reassuring about — and the fear it answers ("am I being charged
-            right now?") is felt at the moment of pressing, not three blocks
-            earlier. */}
-        <p className="flex items-center justify-center gap-2 text-[0.85rem] text-foreground">
-          <Check className="h-3.5 w-3.5 text-accent-amber" weight="bold" aria-hidden />
-          No payment due now, and no card required
-        </p>
+        {/* THE DISCLOSURE, and every part of it is a hard requirement.
+            All four things must be visible AT THE SAME TIME as the CTA with no
+            scrolling to reveal any of them: the trial length, the exact renewal
+            amount in AUD, the date of the first charge, and that it renews
+            automatically until cancelled.
 
-        {/* The commitment, at the end of what it commits to. `pt-1` rather than
-            relying on the column gap: this is the end of the argument, not the
-            next item in a list of blocks. */}
-        <div className="space-y-3 pt-1">
-          <FlowCta onClick={startTrial} disabled={busy}>
-            {busy ? (
-              <span className="flex items-center justify-center gap-2">
-                <CircleNotch className="h-4 w-4 animate-spin" />
-                Starting
-              </span>
-            ) : (
-              `Start my ${TRIAL_DAYS}-day free trial`
-            )}
-          </FlowCta>
-          {/* The legal line, in the shape Adrian asked for: "N days free, then
-              $X per period ($Y/mo)". The bracketed monthly figure is DERIVED
-              from the selected plan, so it can never contradict the price
-              beside it, and it is omitted on the monthly plan where it would
-              just repeat itself.
-
-              Every gap around an expression is an explicit {" "}. JSX drops
-              whitespace between an expression and text across a line break, and
-              this file has now produced "5days", "$0today" and "day 5unless"
-              that way. Explicit is the only thing that holds. */}
-          {/* TWO LINES, not one wrapped paragraph (Adrian, 2026-08-05: "add a
-              line for the before day 5 sentence so it's all lined up").
-              The price and the cancellation terms are two different statements,
-              and running them together let the second half wrap into a ragged
-              tail under the first. A block each keeps both centred on their own
-              line at every width. */}
-          <div className="space-y-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
-            <p>
-              {TRIAL_DAYS}{" "}days free, then{" "}
-              {selected ? formatPrice(selected.price) : "—"}{" "}per{" "}
-              {selected?.period ?? "period"}
-              {selected && monthlyEquivalent(selected) !== null ? (
-                <>
-                  {" "}({formatPrice(monthlyEquivalent(selected)!)}/mo)
-                </>
-              ) : null}
-              .
-            </p>
-            <p>
-              Cancel any time before day{" "}
-              {TRIAL_DAYS}.
-            </p>
-          </div>
+            A previous audit of this screen found it could be paid on without
+            the price ever rendering. It is also what the ACCC looks at on
+            free-trial-to-paid conversions and what Apple and Google enforce at
+            store review. So it sits immediately above the payment surface,
+            never below it, and every figure derives from the selected plan and
+            from `TRIAL_DAYS` so none of them can contradict another. */}
+        <div className="space-y-1 pt-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
+          <p>
+            <span className="text-foreground">
+              {TRIAL_DAYS}{" "}days free
+            </span>
+            , then{" "}
+            <span className="text-foreground">
+              {selected ? formatPrice(selected.price) : "—"}
+              {selected ? ` ${selected.currency.toUpperCase()}` : ""}
+            </span>
+            {" "}per{" "}
+            {selected?.period ?? "period"}
+            {selected && monthlyEquivalent(selected) !== null ? (
+              <>
+                {" "}({formatPrice(monthlyEquivalent(selected)!)}/mo)
+              </>
+            ) : null}
+            .
+          </p>
+          <p>
+            First charge{" "}
+            <span className="text-foreground">{firstChargeOn}</span>. Renews
+            automatically until you cancel.
+          </p>
+          <p>
+            Cancel any time before day{" "}
+            {TRIAL_DAYS}.
+          </p>
         </div>
 
+        {/* THE PAYMENT SURFACE, mounted in TRACKD's own screen. Not Stripe
+            Hosted Checkout, not Embedded Checkout — the user never sees a
+            stripe.com domain. Apple Pay and Google Pay render above the card
+            fields inside it; see `payment-sheet.tsx`. */}
+        {selected ? (
+          <PaymentSheet
+            plan={selected.id}
+            currency={selected.currency}
+            ctaLabel={`Start my ${TRIAL_DAYS}-day free trial`}
+            onOutcome={onOutcome}
+          />
+        ) : (
+          <p
+            role="alert"
+            className="text-center text-[0.8rem] text-[var(--state-error)]"
+          >
+            We couldn&apos;t load our prices just now. Please try again shortly.
+          </p>
+        )}
       </div>
     </StepFrame>
   );

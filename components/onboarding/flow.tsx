@@ -293,7 +293,9 @@ function OnboardingFlowClient({
   const priceFor = useCallback(
     (plan: PlanId): PricedPlan | undefined => {
       const match = prices.find((p) => p.plan === plan);
-      return match ? { ...PLANS[plan], price: match.amount } : undefined;
+      return match
+        ? { ...PLANS[plan], price: match.amount, currency: match.currency }
+        : undefined;
     },
     [prices],
   );

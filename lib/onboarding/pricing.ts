@@ -35,6 +35,13 @@ export interface Plan {
 export interface PricedPlan extends Plan {
   /** Charged amount in whole currency units. From Stripe, never from here. */
   price: number;
+  /**
+   * Lowercase ISO 4217, as Stripe reports it. Carried because the paywall
+   * disclosure must state the renewal amount IN AUD explicitly — a bare "$"
+   * is ambiguous to an Australian audience that mostly sees USD prices, and
+   * naming the currency is part of what the ACCC looks at.
+   */
+  currency: string;
 }
 
 export const CURRENCY_SYMBOL = "$";

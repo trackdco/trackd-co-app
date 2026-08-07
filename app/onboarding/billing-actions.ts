@@ -1,6 +1,7 @@
 "use server";
 
 import { getSessionContext } from "@/lib/auth";
+import { hasProAccess } from "@/lib/billing/entitlements";
 import { serviceClient } from "@/lib/billing/service";
 import { priceIdFor, stripe, type PlanKey } from "@/lib/billing/stripe";
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
@@ -175,4 +176,21 @@ async function activeStripeSubscription(userId: string): Promise<boolean> {
     .eq("user_id", userId)
     .in("status", ["trialing", "active", "past_due"]);
   return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Has the webhook landed yet? (Spec w2b-15, step 9.)
+ *
+ * There is typically a one-to-three second gap between the card confirming and
+ * the webhook arriving. The user must not be dropped into the app during that
+ * window and shown the paywall they just paid to escape — so the client holds
+ * and asks this until it turns true.
+ *
+ * Reads `entitlements` through the same function every gate uses. Deliberately
+ * not a faster, looser check: if this said yes while the real gate said no, the
+ * holding state would hand the user straight into a redirect back to the paywall,
+ * which is the exact failure it exists to prevent.
+ */
+export async function hasEntitlement(): Promise<boolean> {
+  return hasProAccess();
 }

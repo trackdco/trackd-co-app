@@ -38,9 +38,9 @@ describe("formatPrice", () => {
  * the price printed beside it, and the part a user screenshots.
  */
 const priced = {
-  yearly: { ...PLANS.yearly, price: 69.99 },
-  monthly: { ...PLANS.monthly, price: 11.99 },
-  weekly: { ...PLANS.weekly, price: 3.99 },
+  yearly: { ...PLANS.yearly, price: 69.99, currency: "aud" },
+  monthly: { ...PLANS.monthly, price: 11.99, currency: "aud" },
+  weekly: { ...PLANS.weekly, price: 3.99, currency: "aud" },
 };
 
 describe("the module holds no dollar amounts", () => {
@@ -87,7 +87,10 @@ describe("derived figures", () => {
     expect(yearlySavingPercent(priced.yearly, undefined)).toBeNull();
     // And none when there is genuinely nothing to claim.
     expect(
-      yearlySavingPercent({ ...PLANS.yearly, price: 200 }, priced.monthly),
+      yearlySavingPercent(
+        { ...PLANS.yearly, price: 200, currency: "aud" },
+        priced.monthly,
+      ),
     ).toBeNull();
   });
 
