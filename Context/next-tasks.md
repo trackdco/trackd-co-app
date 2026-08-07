@@ -4,7 +4,7 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-07 (Spec w2b-13 built, reviewed, merged)
+Last updated: 2026-08-07 (Spec w2b-13 built, reviewed, merged; Adrian's device pass fixed)
 
 ---
 
@@ -15,23 +15,16 @@ eight steps, ten migrations (`023`–`022`) applied by hand, four cold review
 agents run before anything was pasted. State + decisions are in
 `progress-tracker.md`; do not re-derive them.
 
-### ⚠️ OUTSTANDING SQL — apply before anything else
+### ✅ SQL — all applied (2026-08-07)
 
-The migrations were applied on 2026-08-07 and the cold review ran AFTER. It
-changed `014`, `016`, `018` and added `022`, so **the files on disk are correct
-and the database is not**. Re-running those files does not help — `018` opens
-with `CREATE TABLE IF NOT EXISTS` and skips.
+`022_schedule_version_dose_times.sql` and `024_review_repairs.sql` were the two
+outstanding ones and Adrian applied both, verified against the queries at the
+bottom of `024`. The database now matches the files on disk.
 
-- **`022_schedule_version_dose_times.sql`** — never applied. Without it EVERY
-  multi-dose schedule version is rejected `23514` with no retry, so the version
-  trail silently stops backing up for exactly the compounds Step 5 enables.
-- **`024_review_repairs.sql`** — new, carries the four fixes the review made to
-  already-applied files. The one that matters is `compound_pauses`: as applied it
-  has a single-column FK and an unscoped unique index, which is the shape `009`
-  exists to close and lets any authenticated user permanently lock another out of
-  pausing a compound.
-
-Both are idempotent. Verification queries are at the bottom of `024`.
+⚠️ **The verification block in `024` is COMMENTED OUT.** Running the file gives
+"Success. No rows returned" without executing a single check — the SELECTs have
+to be pasted uncommented. Worth knowing before trusting a green result on any
+future repair file written the same way.
 
 ### What is owed next
 

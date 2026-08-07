@@ -69,11 +69,49 @@ const STACK_MATES = [
   base("p-ipa", "Ipamorelin", "peptide", "subq", 200, "mcg"),
 ]
 
+/**
+ * A paused compound whose STACK MATES are paused too, on deliberately DIFFERENT
+ * stretches — one sharing its group, one paused separately and indefinitely.
+ *
+ * This is the only fixture that reaches the resume branch's whole-stack row:
+ * that row needs at least one mate paused right now, and `PAUSED` above has no
+ * mates at all, so the section could not be previewed (Adrian, 2026-08-07).
+ * The mismatched dates are the point — the rule is that anyone paused NOW can be
+ * resumed together, whatever pause they happen to be on.
+ */
+const PAUSED_STACK: StackCompound = {
+  ...base("p-tren", "Trenbolone A", "anabolic", "im", 100, "mg"),
+  pauses: [{ id: "ps1", startedOn: shift(-5), endsOn: shift(9), groupId: "g1" }],
+}
+const PAUSED_MATES: StackCompound[] = [
+  {
+    ...base("p-mast", "Masteron E", "anabolic", "im", 200, "mg"),
+    // Same action, same group — resumes alongside by default.
+    pauses: [{ id: "ps2", startedOn: shift(-5), endsOn: shift(9), groupId: "g1" }],
+  },
+  {
+    ...base("p-anas", "Anastrozole", "ancillary", "po", 0.5, "mg"),
+    inventoryForm: "oral_solid",
+    // Paused SEPARATELY and indefinitely. Still tickable.
+    pauses: [{ id: "ps3", startedOn: shift(-12), endsOn: null }],
+  },
+  {
+    ...base("p-hcg", "HCG", "peptide", "subq", 500, "iu"),
+    inventoryForm: "reconstituted",
+    // NOT paused — must not appear in the resume list at all.
+  },
+]
+
 const OPENERS: { compound: StackCompound; note: string; mates?: StackCompound[] }[] = [
   { compound: VIAL, note: "A vial. In a stack, so the whole-stack row shows.", mates: STACK_MATES },
   { compound: BOTTLE, note: "A bottle. No stack, so no whole-stack row." },
   { compound: TUB, note: "A tub." },
   { compound: PAUSED, note: "ALREADY paused. Opens on the edit/resume branch." },
+  {
+    compound: PAUSED_STACK,
+    note: "Paused, in a stack with 2 of 3 mates also paused on different stretches. Shows 'Resume the whole stack'.",
+    mates: PAUSED_MATES,
+  },
 ]
 
 /** The paused row exactly as the dashboard renders it. */

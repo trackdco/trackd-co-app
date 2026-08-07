@@ -141,10 +141,16 @@ export function CompoundStorageCard({
           name={compound.name}
           inventoryType={inventoryType}
           category={compound.category}
-          // A vial with NO stock is drawn EMPTY, not two-thirds full: 0.62 is the
-          // illustrative level for bottles and tubs, which have no real fill, and
-          // using it on a vial drew liquid beside the words "Add stock".
-          fill={gauged ? (fill ?? 0) : ILLUSTRATIVE_FILL}
+          // NO STOCK RECORDED → the ILLUSTRATIVE level, on every container
+          // (Adrian, 2026-08-07). This drew empty for a while, on the argument
+          // that liquid beside "Add stock" is a claim; his call is that a
+          // drained vial reads as a compound in trouble rather than as one you
+          // simply have not entered yet, and the row of them looked broken.
+          //
+          // `fill` is null ONLY when there is no figure at all — a real, gauged
+          // zero is 0 and still draws empty, which is the distinction that
+          // matters.
+          fill={fill ?? ILLUSTRATIVE_FILL}
           size={80}
         />
         {/* The name WRAPS to two lines rather than truncating: an ellipsis on a

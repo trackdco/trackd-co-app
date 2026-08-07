@@ -17,6 +17,7 @@ import { formatDateKeyShort, type StackCompound } from "@/lib/home/stack"
 import {
   activePause,
   dayKeyFromNumber,
+  resumeLabel,
   resumesOn,
   type Pause,
 } from "@/lib/home/pauses"
@@ -151,7 +152,16 @@ export function PauseSheet({
   stackMembers?: StackCompound[]
   /** `ids` is every compound to pause — one, or a stack's ticked members. */
   onPause: (ids: string[], range: { startedOn: string; endsOn: string | null }) => void
-  onResume: (compound: StackCompound, on: string) => void
+  /**
+   * `onlyThis` ends THIS compound's pause and nothing else.
+   *
+   * The default resumes the whole GROUP, which is right from a single row: the
+   * other members would otherwise stay paused with no obvious way back. In the
+   * stack checklist it is wrong — the sheet lists every paused member, so an
+   * unticked one is a deliberate "leave this paused", and a group resume would
+   * bring it back anyway.
+   */
+  onResume: (compound: StackCompound, on: string, onlyThis?: boolean) => void
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -163,7 +173,11 @@ export function PauseSheet({
         {/* The visible heading lives in `PauseHeader` beside the container, so
             the accessible one here is off-screen rather than duplicated. */}
         <SheetHeader className="sr-only">
-          <SheetTitle>{compound ? `Pause ${compound.name}` : "Pause"}</SheetTitle>
+          <SheetTitle>
+            {compound
+              ? `${activePause(compound.pauses, referenceKey ?? todayKey) ? "Resume" : "Pause"} ${compound.name}`
+              : "Pause"}
+          </SheetTitle>
         </SheetHeader>
         {open && compound && (
           <PauseBody
@@ -191,9 +205,13 @@ export function PauseSheet({
 function PauseHeader({
   compound,
   sub,
+  /** What this sheet is DOING. It said "Pause X" even on the resume branch,
+   *  where the only buttons are Resume and Save (Adrian, 2026-08-07). */
+  verb = "Pause",
 }: {
   compound: StackCompound
   sub?: string
+  verb?: string
 }) {
   return (
     <div className="flex items-center gap-3 px-4 pt-3 pb-2">
@@ -209,7 +227,9 @@ function PauseHeader({
         className="shrink-0"
       />
       <div className="min-w-0 flex-1">
-        <h2 className={cn(SHEET_TITLE, "truncate")}>Pause {compound.name}</h2>
+        <h2 className={cn(SHEET_TITLE, "truncate")}>
+          {verb} {compound.name}
+        </h2>
         {sub && <p className={cn(DATA_MONO, "mt-0.5 truncate")}>{sub}</p>}
       </div>
     </div>
@@ -230,7 +250,16 @@ function PauseBody({
   referenceKey: string
   stackMembers: StackCompound[]
   onPause: (ids: string[], range: { startedOn: string; endsOn: string | null }) => void
-  onResume: (compound: StackCompound, on: string) => void
+  /**
+   * `onlyThis` ends THIS compound's pause and nothing else.
+   *
+   * The default resumes the whole GROUP, which is right from a single row: the
+   * other members would otherwise stay paused with no obvious way back. In the
+   * stack checklist it is wrong — the sheet lists every paused member, so an
+   * unticked one is a deliberate "leave this paused", and a group resume would
+   * bring it back anyway.
+   */
+  onResume: (compound: StackCompound, on: string, onlyThis?: boolean) => void
   onClose: () => void
 }) {
   const existing = activePause(compound.pauses, referenceKey)
@@ -242,9 +271,23 @@ function PauseBody({
   const [openRow, setOpenRow] = useState<"length" | "starts" | "back" | null>(null)
   const [stackMode, setStackMode] = useState(false)
   const [ticked, setTicked] = useState<Set<string>>(
-    () => new Set([compound.id, ...stackMembers.map((m) => m.id)])
+    () =>
+      new Set(
+        // Pre-tick everything EXCEPT members already on their own pause — those
+        // are not re-pausable and start out of the set, not merely unticked.
+        [compound, ...stackMembers]
+          .filter((m) => activePause(m.pauses, referenceKey) === null)
+          .map((m) => m.id)
+      )
   )
   const [newEnd, setNewEnd] = useState(existing?.endsOn ?? "")
+  /** Stack mates that are ALSO paused right now — the resume branch's list. */
+  const pausedMates = stackMembers.filter(
+    (m) => activePause(m.pauses, referenceKey) !== null
+  )
+  const [resumeTicked, setResumeTicked] = useState<Set<string>>(
+    () => new Set([compound.id, ...pausedMates.map((m) => m.id)])
+  )
 
   const endsOn =
     duration === null
@@ -272,15 +315,22 @@ function PauseBody({
     <span
       aria-hidden
       className={cn(
-        "flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors",
+        "flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors",
         // Amber marks what is LIVE (`ui-context.md` → "a switch that is ON is amber").
-        on ? "bg-accent-amber" : "bg-bg-surface-raised"
+        //
+        // OFF now carries a border and a lighter track. `bg-bg-surface-raised`
+        // on `bg-bg-surface` is a few points apart, so the switch was nearly
+        // invisible until it was on — you could not tell it was a control
+        // (Adrian, 2026-08-07). Bigger too: 5x9 was under the tap-target floor.
+        on
+          ? "bg-accent-amber"
+          : "border border-border-strong bg-bg-input"
       )}
     >
       <span
         className={cn(
-          "h-4 w-4 rounded-full bg-bg-surface transition-transform",
-          on && "translate-x-4"
+          "h-5 w-5 rounded-full transition-transform",
+          on ? "translate-x-5 bg-bg-base" : "bg-text-muted"
         )}
       />
     </span>
@@ -293,6 +343,7 @@ function PauseBody({
       <>
         <PauseHeader
           compound={compound}
+          verb="Resume"
           sub={
             back
               ? `Paused since ${formatDateKeyShort(existing.startedOn)}`
@@ -322,13 +373,70 @@ function PauseBody({
           </Drawer>
           <span aria-hidden className="hairline-t block border-border-default" />
 
+          {/* WHOLE STACK, on the resume side too — it only existed on the pause
+              side, so a stack paused in one action had to be brought back one
+              compound at a time (Adrian, 2026-08-07).
+
+              Every CURRENTLY-PAUSED member is tickable, whatever pause it is on
+              (his call). "Resume the stack" means bring it all back; whether two
+              members happen to share a pause action is bookkeeping the user
+              never asked about. */}
+          {pausedMates.length > 0 && (
+            <>
+              <Row
+                label={`Resume the whole stack · ${pausedMates.length + 1}`}
+                pressed={stackMode}
+                onClick={() => setStackMode((v) => !v)}
+              >
+                {toggle(stackMode)}
+              </Row>
+              <Drawer open={stackMode}>
+                <div className="py-1.5">
+                  {[compound, ...pausedMates].map((m) => (
+                    <label key={m.id} className="flex items-center gap-3 py-1.5 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={resumeTicked.has(m.id)}
+                        onChange={(e) =>
+                          setResumeTicked((prev) => {
+                            const next = new Set(prev)
+                            if (e.target.checked) next.add(m.id)
+                            else next.delete(m.id)
+                            return next
+                          })
+                        }
+                        className="h-4 w-4 accent-[var(--accent-primary)]"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-foreground">
+                        {m.name}
+                      </span>
+                      <span className={cn(DATA_MONO, "shrink-0")}>
+                        {resumeLabel(m.pauses, referenceKey, formatDateKeyShort) ?? ""}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </Drawer>
+            </>
+          )}
+
           <div className="mt-5 flex flex-col gap-2">
             <button
               type="button"
               onClick={() => {
                 // Resuming TODAY makes today due: the pause ends yesterday,
                 // because both of its ends are inclusive.
-                onResume(compound, todayKey)
+                //
+                // Each ticked member resumes on its OWN pause, one call each —
+                // they may be on different stretches, and a single group write
+                // would only end the ones sharing a group id.
+                if (stackMode) {
+                  for (const m of [compound, ...pausedMates]) {
+                    if (resumeTicked.has(m.id)) onResume(m, todayKey, true)
+                  }
+                } else {
+                  onResume(compound, todayKey)
+                }
                 onClose()
               }}
               className="rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
@@ -364,7 +472,15 @@ function PauseBody({
   }
 
   /* ------------------------------------------------------------ a new pause */
-  const targets = stackMode ? [...ticked] : [compound.id]
+  const targets = stackMode
+    ? [...ticked].filter(
+        (id) =>
+          activePause(
+            [compound, ...stackMembers].find((m) => m.id === id)?.pauses,
+            referenceKey
+          ) === null
+      )
+    : [compound.id]
 
   return (
     <>
@@ -419,7 +535,7 @@ function PauseBody({
               value={startedOn}
               max={todayKey}
               onChange={(e) => setStartedOn(e.target.value || todayKey)}
-              className="h-11 w-full rounded-xl border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+              className="block h-11 w-full min-w-0 rounded-xl border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
             />
           </div>
         </Drawer>
@@ -460,7 +576,7 @@ function PauseBody({
               onChange={(e) =>
                 setCustomEnd(e.target.value ? shift(e.target.value, -1) : "")
               }
-              className="h-11 w-full rounded-xl border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+              className="block h-11 w-full min-w-0 rounded-xl border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
             />
           </div>
         </Drawer>
@@ -479,26 +595,43 @@ function PauseBody({
             {/* All ticked by default: the common case is "I am away, none of
                 this is happening". Unticking one leaves it running, and a member
                 paused separately keeps its own pause when this one resumes. */}
-            {[compound, ...stackMembers].map((m) => (
-              <label key={m.id} className="flex items-center gap-3 py-1.5 text-sm">
-                <input
-                  type="checkbox"
-                  checked={ticked.has(m.id)}
-                  onChange={(e) =>
-                    setTicked((prev) => {
-                      const next = new Set(prev)
-                      if (e.target.checked) next.add(m.id)
-                      else next.delete(m.id)
-                      return next
-                    })
-                  }
-                  className="h-4 w-4 accent-[var(--accent-primary)]"
-                />
-                <span className="min-w-0 flex-1 truncate text-foreground">
-                  {m.name}
-                </span>
-              </label>
-            ))}
+            {[compound, ...stackMembers].map((m) => {
+              // ALREADY PAUSED, on its own stretch. Not tickable, and dimmed
+              // (Adrian, 2026-08-07): pausing it again is not additive — it
+              // would absorb the existing pause and silently change dates the
+              // user set deliberately. Its own row is where you edit it.
+              const own = activePause(m.pauses, referenceKey)
+              return (
+                <label
+                  key={m.id}
+                  className={cn(
+                    "flex items-center gap-3 py-1.5 text-sm",
+                    own && "opacity-45"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!own && ticked.has(m.id)}
+                    disabled={Boolean(own)}
+                    onChange={(e) =>
+                      setTicked((prev) => {
+                        const next = new Set(prev)
+                        if (e.target.checked) next.add(m.id)
+                        else next.delete(m.id)
+                        return next
+                      })
+                    }
+                    className="h-4 w-4 accent-[var(--accent-primary)] disabled:opacity-50"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-foreground">
+                    {m.name}
+                  </span>
+                  {own && (
+                    <span className={cn(DATA_MONO, "shrink-0")}>Paused</span>
+                  )}
+                </label>
+              )
+            })}
           </div>
         </Drawer>
         <span aria-hidden className="hairline-t block border-border-default" />

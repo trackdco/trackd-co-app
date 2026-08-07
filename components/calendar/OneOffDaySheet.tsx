@@ -48,7 +48,7 @@ export function OneOffDaySheet({
         className="max-h-[80dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
       >
         <SheetHeader>
-          <SheetTitle className={SHEET_TITLE}>Also taken</SheetTitle>
+          <SheetTitle className={SHEET_TITLE}>Also logged</SheetTitle>
         </SheetHeader>
         <div className="space-y-3 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
           <p className={DATA_MONO}>{dateLabel}</p>

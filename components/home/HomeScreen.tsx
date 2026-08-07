@@ -15,6 +15,12 @@ import { WeekStrip, type WeekDay } from "@/components/home/WeekStrip"
 import { HomeGreeting } from "@/components/home/HomeGreeting"
 import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
 import {
+  getOneOffsSnapshot,
+  oneOffsOn,
+  subscribeOneOffs,
+  type OneOffDays,
+} from "@/lib/home/oneOffLogs"
+import {
   EMPTY_STACKS,
   getStacksSnapshot,
   memberIdsOn,
@@ -97,6 +103,9 @@ const MONTHS = [
 
 // Stable empty-logs reference for useSyncExternalStore's server snapshot.
 const EMPTY_LOGS: DayLogs = {}
+
+// Same, for one-offs — a fresh {} each render would loop the store.
+const EMPTY_ONE_OFFS: OneOffDays = {}
 
 // Stable empty reference so a day with no resolved vials doesn't remount the rows.
 const EMPTY_DRAW_RESULT: DrawSourcesResult = { sources: {}, noVial: [] }
@@ -275,12 +284,24 @@ export function HomeScreen({
 
   // Logged doses, persisted device-local so history survives reloads — same store
   // pattern as the stack. Shape: { dateKey: { compoundId: DoseLog } }.
+  // ONE-OFFS for the selected day. Same external-store shape as the dose logs,
+  // so a one-off added on the calendar shows on Home without a reload.
+  const oneOffDays = useSyncExternalStore(
+    subscribeOneOffs,
+    () => getOneOffsSnapshot(userId),
+    () => EMPTY_ONE_OFFS
+  )
+
   const liveLogs = useSyncExternalStore(
     subscribeDoseLogs,
     () => getDoseLogsSnapshot(userId),
     () => EMPTY_LOGS
   )
   const logs = previewLogs ?? liveLogs
+  const oneOffsToday = useMemo(
+    () => oneOffsOn(oneOffDays, selectedKey),
+    [oneOffDays, selectedKey]
+  )
 
   // Restore the stack + dose logs from the user's Supabase account on load (and
   // migrate any local-only data up), so the protocol survives a PWA reinstall —
@@ -424,6 +445,34 @@ export function HomeScreen({
   const stackMemberIds = new Set(
     stacks.flatMap((st) => memberIdsOn(st, selectedKey)),
   )
+  /**
+   * Stacks with EVERY member paused on the selected day.
+   *
+   * They leave the log entirely and collapse to one entry in Paused (Adrian,
+   * 2026-08-07). A partly paused stack does not: its paused members stay in the
+   * stack row, blacked out, because the running ones still need somewhere to be
+   * and the stack still has something to say about the day.
+   *
+   * A stack with a LOG on the day is never fully paused for this purpose, even
+   * if every member is — the day still has to show what was taken, which is the
+   * same rule `dueIds` applies to a loose compound below.
+   */
+  const fullyPausedStacks = stacks
+    .map((st) => {
+      const members = memberIdsOn(st, selectedKey)
+        .map((id) => stack.find((c) => c.id === id))
+        .filter((c): c is StackCompound => c !== undefined && !c.archived)
+      if (members.length === 0) return null
+      if (members.some((c) => loggedCountFor(selectedRows, c.id) > 0)) return null
+      if (!members.every((c) => isPausedOn(c.pauses, selectedKey))) return null
+      return { stack: st, members }
+    })
+    .filter((x): x is { stack: Stack; members: StackCompound[] } => x !== null)
+  /** Members of a fully paused stack — held out of the log, since the stack is
+   *  represented once in Paused instead. */
+  const fullyPausedIds = new Set(
+    fullyPausedStacks.flatMap((g) => g.members.map((c) => c.id)),
+  )
   const dueCompounds = stack.filter((c) => {
     if (loggedCountFor(selectedRows, c.id) > 0) return true
     if (c.archived) return false
@@ -431,6 +480,10 @@ export function HomeScreen({
     // A PAUSED stack member is kept in the list so its stack still shows every
     // compound it contains; the row renders it blacked out and untickable. A
     // paused LOOSE compound is not — it moves to the Paused section instead.
+    //
+    // ...unless the WHOLE stack is paused, in which case there is nothing left
+    // for the row to show and the stack appears once under Paused.
+    if (fullyPausedIds.has(c.id)) return false
     return stackMemberIds.has(c.id) && isPausedOn(c.pauses, selectedKey)
   })
   const dueDoses = dueCompounds.map((c) => ({
@@ -508,6 +561,21 @@ export function HomeScreen({
       resumeLabel:
         resumeLabel(c.pauses, selectedKey, formatDateKeyShort) ?? "Indefinite",
     }))
+  // A fully paused stack, as ONE entry. The return date is read from the FIRST
+  // member and the entry acts on it: members paused in one action share a group
+  // and agree, and members paused separately do not, in which case one date has
+  // to be chosen and the first is the one the row is named after.
+  const pausedStackEntries: PausedEntry[] = fullyPausedStacks.map(
+    ({ stack: st, members }) => ({
+      compound: members[0],
+      label: st.name,
+      count: members.length,
+      resumesOn: resumesOn(members[0].pauses, selectedKey),
+      resumeLabel:
+        resumeLabel(members[0].pauses, selectedKey, formatDateKeyShort) ??
+        "Indefinite",
+    }),
+  )
 
   // The soonest UNLOGGED dose on the selected day, through the SHARED resolver.
   // A local sort here got this wrong: `timeOfDay` may legitimately be `""`, which
@@ -807,8 +875,11 @@ export function HomeScreen({
               // Grouping is dated, so the card has to know WHICH day it is
               // drawing — a stack made today never reaches back over history.
               dayKey={selectedKey}
-              paused={pausedEntries}
+              paused={[...pausedStackEntries, ...pausedEntries]}
               onOpenPaused={(entry) => setPauseTarget(entry.compound)}
+              // Off-plan entries for the SELECTED day. The card renders the
+              // section only when this is non-empty — most days it is.
+              oneOffs={oneOffsToday}
               stacks={stacks}
               // One tap logs every unlogged member. Each still writes its OWN
               // dose log through the same path a single tick uses, to the
@@ -1117,12 +1188,19 @@ export function HomeScreen({
           }
           notifyStackChanged()
         }}
-        onResume={(c, on) => {
+        onResume={(c, on, onlyThis) => {
           const active = activePause(c.pauses, on)
           // A group pause resumes as a GROUP, or the other members would stay
           // paused with no obvious way back.
-          if (active?.groupId) resumePauseGroup(userId, active.groupId, on)
-          else resumeCompound(userId, c.id, on)
+          //
+          // UNLESS the caller says otherwise: the stack checklist resumes each
+          // ticked member on its own, because it has already listed every paused
+          // member and an unticked one is a choice, not an oversight.
+          if (active?.groupId && !onlyThis) {
+            resumePauseGroup(userId, active.groupId, on)
+          } else {
+            resumeCompound(userId, c.id, on)
+          }
           notifyStackChanged()
         }}
       />

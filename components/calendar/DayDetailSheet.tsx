@@ -2,6 +2,8 @@
 
 import { CaretRight, DotsThree } from "@/components/icons";
 import type { OneOffLog } from "@/lib/home/oneOffLogs";
+import { Container } from "@/components/containers";
+import { inventoryTypeForCompound } from "@/lib/containers/form";
 
 import {
   Sheet,
@@ -176,25 +178,17 @@ export function DayDetailSheet({
               <Row
                 label="Running"
                 action={
-                  onOpenOneOffs && (
+                  // Only while the day HAS none. Once there are some they get a
+                  // section of their own below, and the "⋯" goes with them —
+                  // two of them on one sheet is a puzzle, not an affordance.
+                  onOpenOneOffs &&
+                  (oneOffs?.length ?? 0) === 0 && (
                     <button
                       type="button"
                       onClick={onOpenOneOffs}
-                      aria-label={
-                        // The visible "+2" is inside the button, so a bare label
-                        // OVERRODE it and the count never reached a screen
-                        // reader.
-                        (oneOffs?.length ?? 0) > 0
-                          ? `Other things logged on this day (${oneOffs?.length})`
-                          : "Log something else on this day"
-                      }
+                      aria-label="Log something else on this day"
                       className="-mr-1 flex h-7 items-center gap-1.5 rounded-full px-2 text-text-muted transition-colors hover:text-text-primary"
                     >
-                      {(oneOffs?.length ?? 0) > 0 && (
-                        <span className="font-mono text-[11px] tabular-nums">
-                          +{oneOffs?.length}
-                        </span>
-                      )}
                       <DotsThree className="h-4 w-4" aria-hidden />
                     </button>
                   )
@@ -210,6 +204,69 @@ export function DayDetailSheet({
                   </ul>
                 )}
               </Row>
+
+              {/* 1a — ALSO TAKEN. A real section, with the compound in it, and
+                  ONLY on a day that has some (Adrian, 2026-08-07). It used to
+                  live entirely behind a "+2" on the "⋯", which is too small a
+                  thing to represent something the user actually did — you could
+                  not see WHAT you had taken without opening a menu first. The
+                  empty case still costs nothing, because on a day with none this
+                  does not render at all. */}
+              {(oneOffs?.length ?? 0) > 0 && (
+                <Row
+                  label="Also logged"
+                  action={
+                    onOpenOneOffs && (
+                      <button
+                        type="button"
+                        onClick={onOpenOneOffs}
+                        aria-label={`Manage the ${oneOffs?.length} other things logged on this day`}
+                        className="-mr-1 flex h-7 items-center rounded-full px-2 text-text-muted transition-colors hover:text-text-primary"
+                      >
+                        <DotsThree className="h-4 w-4" aria-hidden />
+                      </button>
+                    )
+                  }
+                >
+                  <ul className="space-y-2">
+                    {oneOffs?.map((o) => (
+                      <li
+                        key={o.id}
+                        className="flex items-center gap-2.5 rounded-xl bg-bg-surface-raised px-4 py-3"
+                      >
+                        <Container
+                          name={o.compoundName ?? o.label}
+                          inventoryType={inventoryTypeForCompound(
+                            o.compoundName ?? o.label,
+                            o.method ?? "po",
+                          )}
+                          category={o.category ?? "supplement"}
+                          size={26}
+                          className="shrink-0"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-foreground">
+                            {o.label}
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs text-text-muted">
+                            {[
+                              o.amount
+                                ? `${o.amount}${o.unit ? ` ${o.unit}` : ""}`
+                                : null,
+                              o.time24 ? formatTimeLabel(o.time24) : null,
+                              // The one thing every row must say: this counted
+                              // toward nothing. Otherwise it reads as a dose.
+                              "off-plan",
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </Row>
+              )}
 
               {/* 1b — Due but not logged. The calendar used to be strictly
                   read-only, so a day you'd missed could be reviewed but not

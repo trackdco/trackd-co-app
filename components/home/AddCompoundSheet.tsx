@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CalendarDots, CaretDown, PencilSimple, Warning } from "@/components/icons"
+import { CalendarDots, CaretDown, PencilSimple, Trash, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
@@ -1316,7 +1316,10 @@ function AddCompoundBody({
               overwrote the first. Each time added here becomes its own tickable
               row on the day's log. */}
           {laterTimes.map((t, i) => (
-            <div key={i}>
+            // `animate-home-up` is the app's own enter animation (a fade and a
+            // small rise), so a dose added here arrives the way every other new
+            // row in the app does rather than snapping into place.
+            <div key={i} className="animate-home-up">
               <RowDivider />
               <FormRow label={`Dose ${i + 2}`}>
                 <div className="flex items-center justify-end gap-1.5">
@@ -1353,20 +1356,25 @@ function AddCompoundBody({
                     aria-label={`Dose ${i + 2} time`}
                     className="h-11 w-36 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
                   />
+                  {/* A BIN, not the word "Remove" — the row already carries an
+                      amount, a unit and a time picker, and the word was being
+                      clipped off the end (Adrian, 2026-08-07).
+
+                      Removing the LAST one only. A slot is an index, so dropping
+                      one from the middle would renumber every dose after it and
+                      silently re-point logs already written against those
+                      slots. */}
                   <button
                     type="button"
-                    // Removing the LAST one only. A slot is an index, so dropping
-                    // one from the middle would renumber every dose after it and
-                    // silently re-point logs already written against those slots.
                     onClick={() => {
                       setLaterTimes((prev) => prev.slice(0, -1))
                       setLaterDoses((prev) => prev.slice(0, -1))
                     }}
                     disabled={i !== laterTimes.length - 1}
                     aria-label={`Remove dose ${i + 2}`}
-                    className="text-xs font-medium text-text-muted transition-colors hover:text-foreground disabled:opacity-30"
+                    className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-accent-destructive disabled:opacity-25 disabled:hover:text-text-muted"
                   >
-                    Remove
+                    <Trash className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
               </FormRow>
@@ -1380,6 +1388,7 @@ function AddCompoundBody({
               <RowDivider />
               <FormRow
                 label="Add another dose"
+                noCaret
                 hint={
                   laterTimes.length === 0
                     ? "Optional"
@@ -1839,6 +1848,7 @@ function FormRow({
   swatch,
   error,
   expanded,
+  noCaret,
   onPress,
   children,
 }: {
@@ -1851,6 +1861,10 @@ function FormRow({
   error?: string
   /** Rotates the caret when the row owns an expansion. */
   expanded?: boolean
+  /** Hide the caret on a row that ACTS rather than expands. "Add another dose"
+   *  appends a row below itself; a chevron there promised a disclosure that was
+   *  never going to open (Adrian, 2026-08-07). */
+  noCaret?: boolean
   onPress?: () => void
   children?: React.ReactNode
 }) {
@@ -1872,7 +1886,7 @@ function FormRow({
           {value && (
             <span className="truncate text-sm text-foreground">{value}</span>
           )}
-          {onPress && (
+          {onPress && !noCaret && (
             <CaretDown
               className={cn(
                 "h-4 w-4 shrink-0 text-text-subtle transition-transform duration-200 motion-reduce:transition-none",

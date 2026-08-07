@@ -330,6 +330,10 @@ export function ProtocolScreen({
             ? null
             : stockTarget.id
         }
+        // The compound you tapped Stock on, whether or not it has a vial yet.
+        // `refillFor` above only fires for a REFILL, so without this a compound
+        // with no stock opened the sheet on whatever happened to be first.
+        preselectFor={stockEditItem ? null : (stockTarget?.id ?? null)}
         refillType={
           stockEditItem
             ? null

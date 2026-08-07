@@ -1,6 +1,6 @@
 "use client"
 
-import { CaretDown, Check, DotsThree, Minus, Pause } from "@/components/icons"
+import { CaretDown, Check, DotsThree, Minus, Pause, Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
@@ -18,6 +18,7 @@ import { partitionByStack, type Stack } from "@/lib/home/stacks"
 import { Container } from "@/components/containers"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import type { DaySlot } from "@/lib/home/doseLog"
+import type { OneOffLog } from "@/lib/home/oneOffLogs"
 import { paletteColourVar } from "@/lib/palette"
 import { DATA_MONO } from "@/lib/ui-presets"
 import { formatPhotoDateShort } from "@/lib/progress/photos"
@@ -74,6 +75,10 @@ interface TodaysCycleCardProps {
   paused?: PausedEntry[]
   /** Tap a paused entry → open its Pause sheet, where Resume lives. */
   onOpenPaused?: (entry: PausedEntry) => void
+  /** Things taken off-plan on the selected day (Spec w2b-13, Step 8). Rendered
+   *  ONLY when there are some — no empty section, no permanent row (Adrian,
+   *  2026-08-07). Added from the calendar, shown here. */
+  oneOffs?: OneOffLog[]
   /** The soonest compound whose start date is still ahead, when nothing is due
    *  on the selected day. Null when there is none. */
   startsNext?: { name: string; startDate: string } | null
@@ -415,12 +420,18 @@ function DoseRow({
   if (dose.paused && dose.slots.every((s) => s.log == null)) {
     return (
       <li className="flex items-center gap-3 py-2 opacity-40">
-        <span
-          aria-hidden
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-muted"
+        {/* The glyph is a BUTTON, in the tick's place — tapping it opens the
+            sheet, which on a paused compound is the resume form (Adrian,
+            2026-08-07). It was inert, so the one control where you would reach
+            for "bring this back" did nothing. */}
+        <button
+          type="button"
+          onClick={() => onOpenDetail(dose)}
+          aria-label={`Resume ${dose.name}`}
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-muted transition-colors hover:border-text-primary hover:text-foreground active:scale-90"
         >
-          <Pause className="h-3 w-3" weight="fill" />
-        </span>
+          <Pause className="h-3 w-3" weight="fill" aria-hidden />
+        </button>
         <button
           type="button"
           onClick={() => onOpenDetail(dose)}
@@ -577,6 +588,7 @@ export function TodaysCycleCard({
   dueDoses,
   paused,
   onOpenPaused,
+  oneOffs,
   startsNext = null,
   onLog,
   onUnlog,
@@ -708,10 +720,18 @@ export function TodaysCycleCard({
       {paused && paused.length > 0 && (
         <div className="mt-4">
           <div className="flex items-center gap-2 pt-3">
+            {/* An icon on the section eyebrow, matching the CategoryIcon a
+                compound row carries — HOLLOW, because the filled glyph is the
+                one on the rows below and the heading should not out-weigh its
+                own contents (Adrian, 2026-08-07). */}
+            <Pause className="h-3.5 w-3.5 shrink-0 text-text-muted" aria-hidden />
             <span className={cn(CARD_EYEBROW, "shrink-0")}>Paused</span>
             <span aria-hidden className="h-[0.5px] flex-1 bg-border-default" />
+            {/* COMPOUNDS, not entries — a collapsed stack is one row standing
+                for several, and the heading should count the things that are
+                paused rather than the rows drawn. */}
             <span className="font-mono text-[11px] tabular-nums text-text-subtle">
-              {paused.length}
+              {paused.reduce((n, p) => n + p.count, 0)}
             </span>
           </div>
           <ul className="px-1">
@@ -734,12 +754,54 @@ export function TodaysCycleCard({
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                     {p.label}
+                    {/* A collapsed STACK says how many it stands for, or its
+                        name reads as a single compound you do not recognise. */}
+                    {p.count > 1 && (
+                      <span className="ml-1.5 font-normal text-text-muted">
+                        · {p.count}
+                      </span>
+                    )}
                   </span>
                   {/* Railed RIGHT with the rest of the app's row-level figures.
                       A date while the return is far off, a countdown once it is
                       within a week — see `resumeLabel`. */}
                   <span className={cn(DATA_MONO, "shrink-0")}>{p.resumeLabel}</span>
                 </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ALSO LOGGED — off-plan entries, below Paused, and ONLY when there are
+          some. No empty state and no standing "log something else" row: most
+          days have none, and the calendar is where one is added. */}
+      {oneOffs && oneOffs.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-center gap-2 pt-3">
+            <Plus className="h-3.5 w-3.5 shrink-0 text-text-muted" aria-hidden />
+            <span className={cn(CARD_EYEBROW, "shrink-0")}>Also logged</span>
+            <span aria-hidden className="h-[0.5px] flex-1 bg-border-default" />
+          </div>
+          <ul className="px-1">
+            {oneOffs.map((o) => (
+              <li key={o.id} className="flex items-center gap-3 py-2">
+                <Container
+                  name={o.compoundName ?? o.label}
+                  inventoryType={inventoryTypeForCompound(
+                    o.compoundName ?? o.label,
+                    o.method ?? "po",
+                  )}
+                  category={o.category ?? "supplement"}
+                  size={24}
+                  className="shrink-0"
+                />
+                <span className="min-w-0 flex-1 truncate text-sm text-text-muted">
+                  {o.label}
+                </span>
+                <span className={cn(DATA_MONO, "shrink-0")}>
+                  {o.amount ? `${o.amount}${o.unit ?? ""}` : (o.unit ?? "")}
+                </span>
               </li>
             ))}
           </ul>

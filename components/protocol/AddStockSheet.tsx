@@ -114,6 +114,7 @@ export function AddStockSheet({
   onOpenChange,
   userId,
   refillFor,
+  preselectFor,
   refillType,
   editItem,
   onAdded,
@@ -123,6 +124,18 @@ export function AddStockSheet({
   userId: string
   /** Pre-select a compound id (refill flow). */
   refillFor?: string | null
+  /**
+   * Pre-select a compound WITHOUT implying a refill — you tapped Stock on that
+   * compound, so it is the one being stocked.
+   *
+   * Separate from `refillFor` because that prop conflates two things: WHICH
+   * compound, and whether this is a refill (which retitles the sheet and locks
+   * the form to the existing vial's type). A compound with no vial yet is not a
+   * refill, so `refillFor` was null for it — and the picker fell back to
+   * `compounds[0]`, quietly offering to stock a different compound than the one
+   * you tapped.
+   */
+  preselectFor?: string | null
   /** The existing vial's type on refill — locks the form (no re-choosing). */
   refillType?: InventoryType | null
   /** When set, edit THIS vial's amounts in place (correct a mistake) rather than
@@ -148,6 +161,7 @@ export function AddStockSheet({
           <AddStockForm
             userId={userId}
             refillFor={refillFor ?? null}
+            preselectFor={preselectFor ?? null}
             refillType={refillType ?? null}
             editItem={editItem ?? null}
             onClose={() => onOpenChange(false)}
@@ -162,6 +176,7 @@ export function AddStockSheet({
 function AddStockForm({
   userId,
   refillFor,
+  preselectFor,
   refillType,
   editItem,
   onClose,
@@ -169,6 +184,7 @@ function AddStockForm({
 }: {
   userId: string
   refillFor: string | null
+  preselectFor: string | null
   refillType: InventoryType | null
   editItem: StockItem | null
   onClose: () => void
@@ -211,9 +227,14 @@ function AddStockForm({
        compounds.find((c) => c.name === editItem.compoundName)?.id ??
        null)
     : null
-  const initialId = refillFor ?? editClientId ?? compounds[0]?.id ?? ""
+  // The compound you came FROM wins over the first in the list.
+  const initialId =
+    refillFor ?? preselectFor ?? editClientId ?? compounds[0]?.id ?? ""
   const presetType = refillType ?? editItem?.inventoryType ?? null
-  const compoundLocked = refillFor != null || editItem != null
+  // Locked when you arrived from a specific compound: you tapped Stock on it,
+  // so switching to another one here is a mis-tap rather than an intention.
+  const compoundLocked =
+    refillFor != null || preselectFor != null || editItem != null
   const ei = editItem
   const numStr = (v: number | null | undefined) => (v != null ? String(v) : "")
 
@@ -579,17 +600,25 @@ function AddStockForm({
 
             {type === "oral_solid" && (
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block space-y-1.5">
-                    <span className={LABEL}>Count</span>
-                    <div className="flex gap-2">
-                      <input value={count} onChange={(e) => setCount(clean(e.target.value))} inputMode="numeric" placeholder="e.g. 100" className={FIELD} />
-                      <div className="flex gap-1">
-                        <button type="button" onClick={() => setOralForm("tab")} className={pill(oralForm === "tab")}>tab</button>
-                        <button type="button" onClick={() => setOralForm("capsule")} className={pill(oralForm === "capsule")}>cap</button>
-                      </div>
-                    </div>
-                  </label>
+                {/* Count gets a FULL-WIDTH row. Sharing a half-width column with
+                    the two pills squeezed the number field to a few characters
+                    and it could not be read (Adrian, 2026-08-07). */}
+                <label className="block space-y-1.5">
+                  <span className={LABEL}>How many in the bottle</span>
+                  <input value={count} onChange={(e) => setCount(clean(e.target.value))} inputMode="numeric" placeholder="e.g. 100" className={FIELD} />
+                </label>
+                <div className="space-y-1.5">
+                  <span className={LABEL}>Tablets or capsules</span>
+                  <div className="flex flex-wrap gap-2">
+                    {/* The stored value stays `tab`/`capsule` — that is the
+                        `dose_unit` enum and a database contract. Only the WORDS
+                        change: "cap" beside a number is an abbreviation of
+                        nothing. */}
+                    <button type="button" onClick={() => setOralForm("tab")} className={pill(oralForm === "tab")}>Tablet</button>
+                    <button type="button" onClick={() => setOralForm("capsule")} className={pill(oralForm === "capsule")}>Capsule</button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
                   <label className="block space-y-1.5">
                     {/* OPTIONAL, and the unit is whatever the label says — a
                         5000 iu vitamin D tablet could not be stored at all
@@ -606,7 +635,8 @@ function AddStockForm({
                 </div>
                 {num(strength) <= 0 && num(count) > 0 && (
                   <p className="text-xs text-text-subtle">
-                    No strength stated, so doses are counted in {oralForm === "tab" ? "tabs" : "caps"}.
+                    No strength stated, so doses are counted in{" "}
+                    {oralForm === "tab" ? "tablets" : "capsules"}.
                   </p>
                 )}
               </div>

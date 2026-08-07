@@ -943,6 +943,55 @@ dashboard was showing.
   logged" IS the missed-dose concept, and day status, Consistency, the calendar
   and the Blocks retrospective all read it.
 
+## Spec w2b-13 — Adrian's device pass (2026-08-07)
+
+Sixteen fixes found by driving the built feature rather than reading it. Types,
+tests, four cold review agents and a build were all green on every one of them,
+because every one lives in a place none of those look: what a control *says*,
+whether it can be *reached*, and what a screen looks like with real data in it.
+
+- **The add-compound sheet crashed.** A review fix compared `toSource()` — a
+  fresh object every render — by identity, so `setShown` fired forever. Fixed by
+  comparing CONTENT, and shipped to `main` on its own before anything else.
+- **Stock opened on the wrong compound.** The sheet took `refillFor` but had no
+  way to say "start on this one", so every entry point landed on the first
+  compound in the list. It now takes `preselectFor` and locks the picker.
+- **Pause could not be undone from where you'd look for it.** The pause glyph on
+  a row was a `<span>`; it is a button now and opens straight to resume. The
+  sheet also said "Pause X" on the resume branch, and a paused stack member was
+  tickable in the pause checklist — pausing it again would have absorbed its
+  pause and moved dates the user set deliberately.
+- **Resume had no whole-stack option**, so a stack paused in one action came back
+  one compound at a time. Added, listing every CURRENTLY-paused member whatever
+  stretch it is on (Adrian's call: "resume the stack" means bring it all back).
+  Each ticked member resumes on its own — the sheet passes `onlyThis`, because
+  the default group resume would bring back a member the user had just unticked.
+- **A fully paused stack never moved to the Paused section**, despite the comment
+  saying it did: a later change excluded all stack members unconditionally. It
+  now collapses to one row carrying the stack's name and its count. A PARTLY
+  paused stack still keeps its paused members in the stack row, and a stack with
+  anything logged that day stays in the log regardless.
+- **Off-plan entries were reachable only through a "+2"** on the day sheet's
+  "⋯" — too small a thing to stand for something the user actually did, and you
+  could not see WHAT you had taken without opening a menu. They now get a real
+  section on days that have them, on Home and in the day sheet, and the "⋯" moves
+  onto that heading. Called **"Also logged"**, Adrian's wording.
+- **Containers drew empty with no stock recorded.** They were changed to that on
+  the argument that liquid beside "Add stock" is a claim; Adrian's call is that a
+  drained vial reads as a compound in trouble rather than one you have not
+  entered yet. Back to `ILLUSTRATIVE_FILL` — a gauged ZERO still draws empty,
+  which is the distinction that matters.
+- Section eyebrows gained icons (hollow `Pause`, `Plus`) matching `CategoryIcon`;
+  "tab"/"cap" spelled out; Count given its own row; dose-removal is a bin icon;
+  the pause toggle is visible when off; the date input stays inside its corner.
+- `app/preview/pause` gained a paused-stack fixture. The resume branch's
+  whole-stack row needs a paused MATE, and no fixture had one — the branch was
+  built and could not be looked at.
+
+**Known and accepted:** `PausedEntry` for a collapsed stack reads its return date
+from the first member. Members paused in one action share a group and agree;
+members paused separately do not, and one date has to be chosen.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth
