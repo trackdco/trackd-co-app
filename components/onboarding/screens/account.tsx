@@ -21,6 +21,13 @@ import { useFlow } from "../flow-context";
  * a price the user has not been shown yet is the fastest way to lose them at the
  * exact moment they have invested the most.
  *
+ * **The wording is Adrian's pick (2026-08-08)** from four directions: ownership,
+ * over loss-framing ("Don't lose this"), the long-game argument ("this gets more
+ * valuable the longer you keep it") and a flat functional one ("Save your
+ * setup"). It reframes what they have just driven from a demo into the thing
+ * that becomes theirs, which is the only one of the four that makes the account
+ * sound like a gain rather than an insurance policy.
+ *
  * ## Nothing here mentions money
  *
  * No price, no trial length, no "next you'll…". The price is revealed on the
@@ -93,10 +100,10 @@ export function AccountScreen() {
     <StepFrame
       title={
         <>
-          Let&apos;s make sure this <em className={FLOW_EMPHASIS}>sticks</em>.
+          Make it <em className={FLOW_EMPHASIS}>yours</em>.
         </>
       }
-      sub="Everything you've set up so far lives on this phone and nowhere else. Save it to an account and it's still here tomorrow, on whichever device you open."
+      sub="Right now this is a demo on one phone. Save it and it becomes your protocol — on every device, for as long as you want it."
     >
       <div className="flex w-full flex-1 flex-col justify-center pb-4">
         <GoogleSignInButton next={AUTH_RETURN} />

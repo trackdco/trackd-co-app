@@ -7,7 +7,9 @@ import {
   endSubscription,
   extendFromInvoice,
   markPastDue,
+  revokeForCustomer,
   syncSubscription,
+  type HandlerOutcome,
 } from "@/lib/billing/sync";
 
 /**
@@ -22,25 +24,20 @@ import {
  * Signature verification needs the bytes exactly as Stripe sent them, so the
  * body is read with `req.text()` before anything parses it. `proxy.ts` does not
  * touch bodies (it only refreshes the session cookie), so no exclusion is
- * needed — but it is worth knowing that any future body-reading middleware would
- * silently break every signature here.
+ * needed — but any future body-reading middleware would silently break every
+ * signature here.
  */
 export const runtime = "nodejs";
-// A webhook is never cacheable and never prerendered.
 export const dynamic = "force-dynamic";
 
 /**
- * The events this route acts on. Anything else is recorded and acknowledged —
- * Stripe sends a great deal we do not care about, and 400-ing on it would just
- * fill the dashboard with red.
+ * How long a claim is assumed dead.
+ *
+ * See `claimEvent`. Stripe's retries are minutes apart, so 60s comfortably
+ * separates "the previous attempt crashed" from "two deliveries are in flight
+ * right now", without leaving a failed event stuck until someone notices.
  */
-type Handled =
-  | "customer.subscription.created"
-  | "customer.subscription.updated"
-  | "customer.subscription.deleted"
-  | "customer.subscription.trial_will_end"
-  | "invoice.paid"
-  | "invoice.payment_failed";
+const STALE_CLAIM_MS = 60_000;
 
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature");
@@ -63,9 +60,9 @@ export async function POST(req: NextRequest) {
   try {
     event = stripe().webhooks.constructEvent(raw, signature, secret);
   } catch (err) {
-    // Anything that fails verification is discarded unparsed. This is also what
-    // makes a replayed body from an attacker useless: the timestamp is inside
-    // the signature.
+    // Anything failing verification is discarded unparsed. This is also what
+    // makes a replayed body useless to an attacker: the timestamp is inside the
+    // signature and the tolerance rejects it.
     console.error(
       "[stripe] signature verification failed:",
       err instanceof Error ? err.message : String(err),
@@ -73,44 +70,34 @@ export async function POST(req: NextRequest) {
     return new NextResponse("invalid signature", { status: 400 });
   }
 
-  /**
-   * IDEMPOTENCY, AND IT IS THE INSERT THAT PROVIDES IT.
-   *
-   * Stripe retries on failure and delivers out of order, so the same event WILL
-   * arrive more than once — that is normal operation. Inserting first, with
-   * `stripe_event_id` as the primary key, means a duplicate is rejected by the
-   * database and this route returns before any handler runs. No handler has to
-   * be written carefully to survive being run twice, which is exactly the kind
-   * of care that gets forgotten in the sixth one.
-   */
-  const db = serviceClient();
-  const { error: insertError } = await db.from("webhook_events").insert({
-    stripe_event_id: event.id,
-    type: event.type,
-    payload: event as unknown as Record<string, unknown>,
-  });
-
-  if (insertError) {
-    if (insertError.code === "23505") {
-      // Already seen. A clean no-op, and a 200 so Stripe stops retrying.
-      return NextResponse.json({ received: true, duplicate: true });
-    }
-    console.error("[stripe] webhook_events insert failed:", insertError.message);
+  const claim = await claimEvent(event);
+  if (claim === "duplicate") {
+    return NextResponse.json({ received: true, duplicate: true });
+  }
+  if (claim === "error") {
     // 500 so Stripe retries: we have not processed this and must not pretend to.
     return new NextResponse("could not record event", { status: 500 });
   }
 
+  let outcome: HandlerOutcome;
   try {
-    await handle(event);
+    outcome = await handle(event);
   } catch (err) {
     /**
-     * A HANDLER THAT THREW MUST NOT LEAVE A "PROCESSED" ROW.
+     * A HANDLER THAT THREW LEAVES `processed_at` NULL, AND A RETRY WILL RE-RUN.
      *
-     * `processed_at` stays NULL, which is the only signal that something arrived
-     * and did not finish. The row itself STAYS — deleting it to allow a retry
-     * would give up idempotency exactly when things are going wrong, which is
-     * when it matters most. Recovery is replaying the event from the Stripe CLI
-     * or dashboard, which mints a new event id.
+     * That second half was not true and a cold review proved it: the row was
+     * inserted first and every later delivery of the same id short-circuited on
+     * the primary key, so a single failure was PERMANENT. The comment here used
+     * to claim "recovery is replaying the event, which mints a new event id" —
+     * it does not. `stripe events resend` delivers the SAME id, so Stripe's
+     * automatic retries, the dashboard resend and the CLI resend were all
+     * guaranteed no-ops, and the only recovery was deleting the row by hand.
+     * One Supabase blip on an `invoice.paid` meant a paying customer silently
+     * lost access at period end.
+     *
+     * `claimEvent` now distinguishes "already done" from "started and did not
+     * finish". See it.
      */
     console.error(
       `[stripe] handler failed for ${event.type} (${event.id}):`,
@@ -119,53 +106,191 @@ export async function POST(req: NextRequest) {
     return new NextResponse("handler failed", { status: 500 });
   }
 
-  await db
+  /**
+   * `processed_at` MEANS "we are satisfied with what happened to this event".
+   *
+   * An event we could not attribute to a user is deliberately NOT stamped: it is
+   * a paying customer with no entitlement and nobody being told, and the
+   * `webhook_events_unprocessed_idx` partial index is the only monitoring signal
+   * this system has. Stamping it made that index permanently empty and the
+   * failure invisible. Stripe still gets a 200 — retrying will not conjure the
+   * mapping — so it surfaces as a row to look at rather than a delivery storm.
+   */
+  if (outcome === "unattributed") {
+    console.error(
+      `[stripe] ${event.type} (${event.id}) could not be attributed to a user; left unprocessed for review`,
+    );
+    return NextResponse.json({ received: true, attributed: false });
+  }
+
+  const { error } = await serviceClient()
     .from("webhook_events")
     .update({ processed_at: new Date().toISOString() })
     .eq("stripe_event_id", event.id);
+  // Checked, unlike before: an unstamped row looks exactly like a failed handler
+  // to whoever reads that index, and a silent 200 here made the two
+  // indistinguishable.
+  if (error) {
+    console.error(`[stripe] could not stamp ${event.id}:`, error.message);
+  }
 
   return NextResponse.json({ received: true });
 }
 
-async function handle(event: Stripe.Event): Promise<void> {
-  switch (event.type as Handled) {
+/**
+ * RECORD THE EVENT AND DECIDE WHETHER WE OWN THE WORK.
+ *
+ * Three answers:
+ *   "fresh"      — never seen; the row is ours and the handler should run.
+ *   "duplicate"  — already finished, or another delivery is working on it now.
+ *   "error"      — the database would not answer; Stripe should retry.
+ *
+ * The insert is still what provides idempotency, and the primary key on
+ * `stripe_event_id` is still what makes every handler safe to run twice. What
+ * changed is what a CONFLICT means: it used to mean "done", and it actually
+ * means "seen". An event that was seen and never finished has to be retryable,
+ * or a single transient failure is permanent.
+ *
+ * The window between the two is resolved by time rather than a lock, because a
+ * lock needs a column and this needs no migration: Stripe's retries are minutes
+ * apart, so a row sitting unprocessed for more than {@link STALE_CLAIM_MS} is a
+ * crashed attempt rather than a live one. Concurrent duplicates inside that
+ * window are still rejected — measured at 12 simultaneous deliveries producing
+ * exactly one handler run.
+ */
+async function claimEvent(
+  event: Stripe.Event,
+): Promise<"fresh" | "duplicate" | "error"> {
+  const db = serviceClient();
+
+  const { error } = await db.from("webhook_events").insert({
+    stripe_event_id: event.id,
+    type: event.type,
+    payload: event as unknown as Record<string, unknown>,
+  });
+
+  if (!error) return "fresh";
+
+  if (error.code !== "23505") {
+    console.error("[stripe] webhook_events insert failed:", error.message);
+    return "error";
+  }
+
+  const { data, error: readError } = await db
+    .from("webhook_events")
+    .select("processed_at, received_at")
+    .eq("stripe_event_id", event.id)
+    .maybeSingle();
+
+  if (readError || !data) {
+    console.error(
+      "[stripe] could not read the existing event row:",
+      readError?.message ?? "no row",
+    );
+    return "error";
+  }
+
+  if (data.processed_at) return "duplicate";
+
+  const age = Date.now() - Date.parse(data.received_at);
+  if (age < STALE_CLAIM_MS) return "duplicate"; // Another delivery has it.
+
+  console.warn(
+    `[stripe] retrying ${event.type} (${event.id}); the previous attempt left it unprocessed`,
+  );
+  return "fresh";
+}
+
+async function handle(event: Stripe.Event): Promise<HandlerOutcome> {
+  const client = stripe();
+
+  /**
+   * THE EVENT SAYS WHAT CHANGED. STRIPE SAYS WHAT IS TRUE.
+   *
+   * Every subscription handler re-reads the subscription rather than trusting
+   * the payload, and that is not belt-and-braces — a cold review measured three
+   * separate wrong outcomes from reordering alone, all of them normal operation
+   * because Stripe guarantees no ordering and delivers concurrently:
+   *
+   *   payment_failed then a stale updated→active  -> the unpaid month came back
+   *   a newer updated then an older one           -> a paying customer lost a month
+   *   deleted then a stale updated→active         -> access to a dead subscription
+   *
+   * Acting on the live object makes arrival order irrelevant: whatever sequence
+   * the events land in, every one of them computes the same correct answer from
+   * the same current truth. It costs one API call per subscription event, and it
+   * is what Stripe's own guidance says to do.
+   */
+  const fresh = async (sub: Stripe.Subscription) => {
+    try {
+      return await client.subscriptions.retrieve(sub.id);
+    } catch (err) {
+      // A subscription Stripe will not return (deleted long ago, or an outage).
+      // The payload is the best available truth rather than no truth at all.
+      console.warn(
+        `[stripe] could not re-read ${sub.id}, using the event payload:`,
+        err instanceof Error ? err.message : String(err),
+      );
+      return sub;
+    }
+  };
+
+  switch (event.type) {
     case "customer.subscription.created":
     case "customer.subscription.updated":
-      await syncSubscription(event.data.object as Stripe.Subscription);
-      return;
+      return syncSubscription(await fresh(event.data.object as Stripe.Subscription));
 
     case "customer.subscription.deleted":
-      await endSubscription(event.data.object as Stripe.Subscription);
-      return;
+      return endSubscription(await fresh(event.data.object as Stripe.Subscription));
 
     case "invoice.paid":
-      await extendFromInvoice(event.data.object as Stripe.Invoice, (id) =>
-        stripe().subscriptions.retrieve(id),
+      return extendFromInvoice(event.data.object as Stripe.Invoice, (id) =>
+        client.subscriptions.retrieve(id),
       );
-      return;
 
     case "invoice.payment_failed":
-      await markPastDue(event.data.object as Stripe.Invoice);
-      return;
+      return markPastDue(event.data.object as Stripe.Invoice);
+
+    /**
+     * MONEY TAKEN BACK ⇒ ACCESS TAKEN BACK.
+     *
+     * Nothing in this codebase wrote `is_active = false` before these two, so
+     * the "kill switch" the schema describes at length was wired to nothing and
+     * a chargeback left full paid access standing with manual SQL as the only
+     * lever. A dispute is the strongest possible signal that the money is not
+     * ours; a refund is us saying so ourselves.
+     */
+    case "charge.dispute.created":
+      return revokeForCustomer(
+        (event.data.object as Stripe.Dispute).charge,
+        "dispute",
+        client,
+      );
+
+    case "charge.refunded":
+      return revokeForCustomer(
+        (event.data.object as Stripe.Charge).id,
+        "refund",
+        client,
+      );
 
     /**
      * RECORDED, NOT ACTED ON — and that is the whole requirement.
      *
      * Stripe fires this three days before a trial ends. The notification itself
      * is out of scope; the spec asks only that the hook exists and is logged so
-     * it can be wired later. The `webhook_events` row above IS that log, with
-     * the full payload, so whoever builds the reminder has the real event to
-     * work from rather than a reconstruction.
+     * it can be wired later. The `webhook_events` row IS that log, with the full
+     * payload, so whoever builds the reminder works from the real event.
      *
      * Worth knowing when it is wired: on a 7-day trial this fires on DAY 4,
      * while the paywall promises a reminder on day 5 (`REMINDER_DAY`). Honour
      * the day the SCREEN promised, not the day the webhook happens to arrive.
      */
     case "customer.subscription.trial_will_end":
-      return;
+      return "handled";
 
     default:
       // Everything else is recorded and acknowledged.
-      return;
+      return "handled";
   }
 }

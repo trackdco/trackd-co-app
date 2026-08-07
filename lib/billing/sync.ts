@@ -6,6 +6,16 @@ import { serviceClient } from "./service";
 import type { SubscriptionStatus } from "./schema";
 
 /**
+ * What a handler did, so the route knows whether to mark the event processed.
+ *
+ * `unattributed` is the one that matters: an event we could not tie to a user is
+ * a paying customer with no entitlement and nobody being told. Stamping it
+ * `processed_at` made `webhook_events_unprocessed_idx` — the only monitoring
+ * signal this system has — permanently empty, and the failure invisible.
+ */
+export type HandlerOutcome = "handled" | "unattributed";
+
+/**
  * WHAT A STRIPE EVENT DOES TO OUR TABLES (Spec w2b-15).
  *
  * Separated from the route so the mapping can be reasoned about — and later
@@ -130,12 +140,45 @@ const ENTITLING: ReadonlySet<string> = new Set(["trialing", "active"]);
 const GRACE: ReadonlySet<string> = new Set(["past_due"]);
 
 /**
+ * HAS A CARD ACTUALLY BEEN VALIDATED ON THIS SUBSCRIPTION?
+ *
+ * A cold review turned this into the worst defect in the spec: **seven days of
+ * Pro with no working card, repeatable forever on one account.**
+ *
+ * `startTrial` creates the subscription BEFORE the client confirms the
+ * SetupIntent — it has to, because the confirm needs the secret the creation
+ * returns. Stripe sets a `default_incomplete` + `trial_period_days` subscription
+ * to `trialing` **at creation**, so `customer.subscription.created` arrives with
+ * an entitling status while the SetupIntent is still `requires_payment_method`.
+ * Measured live: the entitlement was granted with `cardsAttached: 0`, four
+ * seconds before `payment_method.attached` in a run that DID complete.
+ *
+ * A user only had to type a Luhn-valid number — `elements.submit()` checks
+ * format, not the bank — tap the CTA, and close the tab.
+ *
+ * So a trial entitles only once Stripe says a payment method is attached. Both
+ * signals are checked because either alone has a gap: `pending_setup_intent`
+ * goes null the moment the intent succeeds, and `default_payment_method` is what
+ * `save_default_payment_method: "on_subscription"` eventually sets.
+ *
+ * An `active` subscription is exempt — money has actually moved by then, and a
+ * subscription can legitimately be paid by invoice with no stored method.
+ */
+function cardIsValidated(sub: Stripe.Subscription): boolean {
+  if (sub.status !== "trialing") return true;
+  if (sub.pending_setup_intent) return false;
+  return Boolean(sub.default_payment_method ?? sub.default_source);
+}
+
+/**
  * Upsert the subscription mirror and, if the status entitles, the entitlement.
  *
  * Handles `customer.subscription.created` and `.updated`, which Stripe sends for
  * the same states — so they are one function rather than two that must agree.
  */
-export async function syncSubscription(sub: Stripe.Subscription): Promise<void> {
+export async function syncSubscription(
+  sub: Stripe.Subscription,
+): Promise<HandlerOutcome> {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const userId = await resolveUserId(customerId, sub.metadata?.user_id);
   if (!userId) {
@@ -145,7 +188,7 @@ export async function syncSubscription(sub: Stripe.Subscription): Promise<void> 
     console.error(
       `[billing] no user for stripe customer ${customerId} (subscription ${sub.id})`,
     );
-    return;
+    return "unattributed";
   }
 
   const status = toStatus(sub.status);
@@ -155,13 +198,13 @@ export async function syncSubscription(sub: Stripe.Subscription): Promise<void> 
     console.error(
       `[billing] unknown Stripe subscription status "${sub.status}" on ${sub.id} — no tables written`,
     );
-    return;
+    return "unattributed";
   }
 
   const priceId = sub.items.data[0]?.price?.id ?? null;
   if (!priceId) {
     console.error(`[billing] subscription ${sub.id} has no price — no tables written`);
-    return;
+    return "unattributed";
   }
 
   const db = serviceClient();
@@ -192,10 +235,20 @@ export async function syncSubscription(sub: Stripe.Subscription): Promise<void> 
         `[billing] ${sub.id} is ${sub.status}; entitlement left standing until its own active_until`,
       );
     }
-    return;
+    return "handled";
+  }
+
+  // NO CARD, NO TRIAL. See `cardIsValidated` — this is the difference between a
+  // trial and seven free days for anyone who can type sixteen digits.
+  if (!cardIsValidated(sub)) {
+    console.info(
+      `[billing] ${sub.id} is trialing with no validated payment method; no entitlement granted`,
+    );
+    return "handled";
   }
 
   await upsertEntitlement(userId, entitledUntil(sub), true);
+  return "handled";
 }
 
 /**
@@ -233,10 +286,12 @@ async function upsertEntitlement(
 export async function extendFromInvoice(
   invoice: Stripe.Invoice,
   fetchSubscription: (id: string) => Promise<Stripe.Subscription>,
-): Promise<void> {
+): Promise<HandlerOutcome> {
   const subId = subscriptionIdOf(invoice);
-  if (!subId) return; // A one-off invoice. Nothing subscribes, nothing extends.
-  await syncSubscription(await fetchSubscription(subId));
+  // A one-off invoice. Nothing subscribes, nothing extends — and it is handled,
+  // not unattributed: there was never a subscription to attribute.
+  if (!subId) return "handled";
+  return syncSubscription(await fetchSubscription(subId));
 }
 
 /**
@@ -277,9 +332,11 @@ const PAST_DUE_GRACE_DAYS = 3;
  * bug being fixed, and it would be embarrassing to reintroduce from the other
  * direction.
  */
-export async function markPastDue(invoice: Stripe.Invoice): Promise<void> {
+export async function markPastDue(
+  invoice: Stripe.Invoice,
+): Promise<HandlerOutcome> {
   const subId = subscriptionIdOf(invoice);
-  if (!subId) return;
+  if (!subId) return "handled";
 
   const db = serviceClient();
   const { data: rows, error: readError } = await db
@@ -295,14 +352,30 @@ export async function markPastDue(invoice: Stripe.Invoice): Promise<void> {
   if (error) throw new Error(`subscriptions past_due: ${error.message}`);
 
   const userId = rows?.[0]?.user_id;
-  if (!userId) return;
+  if (!userId) return "unattributed";
 
   /**
-   * The start of the period that was NOT paid for — which is the end of the one
-   * that WAS. Falls back to now if Stripe does not give it, which errs toward
-   * the shorter window and never toward a longer one.
+   * WHERE THE PAID PERIOD ENDED — which is where the unpaid one begins.
+   *
+   * This read `invoice.period_start` and a cold review measured it a whole
+   * billing period out. On a `subscription_cycle` invoice, `period_start` /
+   * `period_end` cover the cycle **just completed**; the period being billed for
+   * is on `lines.data[0].period`. Captured payload:
+   *
+   *     period      = 14 Aug .. 14 Sep      <- already paid
+   *     line.period = 14 Sep .. 14 Oct      <- the one that just failed
+   *
+   * So the grace was computed from 14 Aug and a customer paid through 14 Sep was
+   * locked out INSTANTLY, 28 days in the past — the exact opposite of the fix,
+   * and on a yearly plan it is ~362 days in the past.
+   *
+   * The line's period start is the correct anchor. `period_end` is the same
+   * instant on a normal cycle invoice and is the fallback; `now` is the last
+   * resort, which errs short rather than long.
    */
-  const unpaidFrom = ts(invoice.period_start) ?? new Date().toISOString();
+  const lineStart = invoice.lines?.data?.[0]?.period?.start;
+  const unpaidFrom =
+    ts(lineStart) ?? ts(invoice.period_end) ?? new Date().toISOString();
   const graceEnds =
     Date.parse(unpaidFrom) + PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
 
@@ -314,10 +387,11 @@ export async function markPastDue(invoice: Stripe.Invoice): Promise<void> {
     .eq("source", "stripe");
 
   const current = ents?.[0]?.active_until;
-  if (!current) return; // Nothing to shorten.
+  if (!current) return "handled"; // Nothing to shorten.
 
   const shortened = Math.min(Date.parse(current), graceEnds);
-  if (shortened >= Date.parse(current)) return; // Already at or inside the window.
+  // Already at or inside the window.
+  if (shortened >= Date.parse(current)) return "handled";
 
   const { error: entError } = await db
     .from("entitlements")
@@ -326,6 +400,7 @@ export async function markPastDue(invoice: Stripe.Invoice): Promise<void> {
     .eq("product", "pro")
     .eq("source", "stripe");
   if (entError) throw new Error(`entitlements grace: ${entError.message}`);
+  return "handled";
 }
 
 /**
@@ -340,12 +415,14 @@ export async function markPastDue(invoice: Stripe.Invoice): Promise<void> {
  * `active_until` is already in the past, so no special handling is needed and
  * none is added.
  */
-export async function endSubscription(sub: Stripe.Subscription): Promise<void> {
+export async function endSubscription(
+  sub: Stripe.Subscription,
+): Promise<HandlerOutcome> {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const userId = await resolveUserId(customerId, sub.metadata?.user_id);
   if (!userId) {
     console.error(`[billing] no user for deleted subscription ${sub.id}`);
-    return;
+    return "unattributed";
   }
 
   const db = serviceClient();
@@ -359,7 +436,44 @@ export async function endSubscription(sub: Stripe.Subscription): Promise<void> {
     .eq("stripe_subscription_id", sub.id);
   if (error) throw new Error(`subscriptions delete-sync: ${error.message}`);
 
-  await upsertEntitlement(userId, entitledUntil(sub), true);
+  /**
+   * A DELETION MAY ONLY EVER SHORTEN ACCESS. NEVER EXTEND IT.
+   *
+   * This used to upsert `entitledUntil(sub)` unconditionally, and a cold review
+   * showed that hands back the free month `markPastDue` had just taken away —
+   * because a cancelled subscription's `current_period_end` is the end of the
+   * period that was never paid for, and Stripe cancelling at the end of dunning
+   * is the DEFAULT end state of every failed renewal. Measured: clawed back to
+   * 17 Aug, then the deletion restored 14 Oct.
+   *
+   * A NULL is refused for the same family of reason: `isEntitlementActive` reads
+   * a null `active_until` as NEVER EXPIRES, so a subscription arriving with no
+   * period would have granted permanent free access.
+   */
+  const until = entitledUntil(sub);
+  if (!until) {
+    console.error(
+      `[billing] deleted subscription ${sub.id} has no period end; entitlement left untouched`,
+    );
+    return "handled";
+  }
+
+  const { data: existing } = await db
+    .from("entitlements")
+    .select("active_until")
+    .eq("user_id", userId)
+    .eq("product", "pro")
+    .eq("source", "stripe");
+
+  const current = existing?.[0]?.active_until;
+  // No row yet, or one that already ends sooner — nothing a cancellation should
+  // do. Cancelling is not a way to buy time.
+  if (!current) return "handled";
+  const shortened = Math.min(Date.parse(current), Date.parse(until));
+  if (shortened >= Date.parse(current)) return "handled";
+
+  await upsertEntitlement(userId, new Date(shortened).toISOString(), true);
+  return "handled";
 }
 
 /**
@@ -382,4 +496,71 @@ function subscriptionIdOf(invoice: Stripe.Invoice): string | null {
   if (legacy && typeof legacy === "object") return legacy.id;
 
   return null;
+}
+
+/**
+ * MONEY TAKEN BACK ⇒ ACCESS TAKEN BACK.
+ *
+ * `entitlements.is_active` is described at length in the schema as a kill
+ * switch, separate from the clock so a revocation does not have to rewrite
+ * history. A cold review pointed out that nothing in the codebase ever wrote
+ * `false` to it: a chargeback or a refund left full paid access standing, with
+ * manual SQL as the only lever.
+ *
+ * A dispute is the strongest signal there is that the money is not ours; a
+ * refund is us saying so ourselves. Both revoke immediately rather than at
+ * period end — the grace this system gives elsewhere is for a card that failed,
+ * which is an accident, and this is not one.
+ *
+ * The date is deliberately left alone. `is_active` is the switch, `active_until`
+ * is the record of what was bought, and keeping the second readable is the whole
+ * reason they are separate columns.
+ */
+export async function revokeForCustomer(
+  chargeId: string | Stripe.Charge | null,
+  reason: "dispute" | "refund",
+  client: Stripe,
+): Promise<HandlerOutcome> {
+  const id = typeof chargeId === "string" ? chargeId : chargeId?.id;
+  if (!id) return "handled";
+
+  let customerId: string | null = null;
+  try {
+    const charge = await client.charges.retrieve(id);
+    customerId =
+      typeof charge.customer === "string" ? charge.customer : (charge.customer?.id ?? null);
+  } catch (err) {
+    console.error(
+      `[billing] could not read charge ${id} for a ${reason}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    // Thrown rather than swallowed: a revocation we failed to apply must be
+    // retried, and must not be stamped as processed.
+    throw new Error(`charge lookup failed for ${reason}`);
+  }
+  if (!customerId) return "unattributed";
+
+  const db = serviceClient();
+  const { data } = await db
+    .from("billing_customers")
+    .select("user_id")
+    .eq("stripe_customer_id", customerId)
+    .maybeSingle();
+
+  const userId = data?.user_id;
+  if (!userId) {
+    console.error(`[billing] ${reason} on unmapped customer ${customerId}`);
+    return "unattributed";
+  }
+
+  const { error } = await db
+    .from("entitlements")
+    .update({ is_active: false })
+    .eq("user_id", userId)
+    .eq("product", "pro")
+    .eq("source", "stripe");
+  if (error) throw new Error(`entitlements revoke: ${error.message}`);
+
+  console.warn(`[billing] revoked pro for ${userId} after a ${reason}`);
+  return "handled";
 }

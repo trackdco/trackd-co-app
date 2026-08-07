@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server"
+import { gateWriter } from "@/lib/auth/gate-writer";
 
 export type GateState = { error?: string };
 
@@ -126,8 +127,24 @@ export async function completeGate(
     return { error: "Couldn't record your consent just now. Please try again." };
   }
 
-  // 2) Now set the access gate on the profile — this is what grants entry.
-  const { error } = await supabase
+  /**
+   * 2) Now set the access gate on the profile — this is what grants entry.
+   *
+   * **Written with the SERVICE ROLE, not this user's client** (Spec w2b-15
+   * cold-review repair, `supabase/grants/004_gate_column_lock.sql`).
+   *
+   * `is_18_plus`, `tos_accepted_at`, `tos_version` and `date_of_birth` used to
+   * be in the `authenticated` column grants, so any signed-in user could PATCH
+   * themselves through the gate with the publishable key — reproduced live, and
+   * it opened the whole `(app)` group AND the payment path to an account whose
+   * date of birth said eleven, with no `consent_records` row behind it.
+   *
+   * The age check twenty lines above is the real gate and is unchanged. What
+   * changes is who executes the write: the user may no longer set the flag that
+   * says they passed it. Using the service role here works whether or not `004`
+   * has been applied yet, so the code can land first.
+   */
+  const { error } = await gateWriter()
     .from("profiles")
     .update({
       date_of_birth: dobRaw,

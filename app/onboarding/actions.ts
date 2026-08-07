@@ -8,6 +8,7 @@ import {
   type OnboardingSession,
 } from "@/lib/onboarding/session";
 import { todayKey } from "@/lib/protocol/cycle";
+import { gateWriter } from "@/lib/auth/gate-writer";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -133,11 +134,9 @@ function isDuplicate(error: { code?: string } | null): boolean {
  * as a CHECK constraint, because a guard in an application is a convention and
  * the destructive failure must not depend on one.
  *
- * ⚠️ **That migration is NOT YET APPLIED**, so as of this writing THIS FUNCTION
- * IS THE ONLY THING ENFORCING IT — a cold review confirmed live that
- * `insert {user_id, name: 'Squatter', running: [], struggle: []}` is still
- * accepted by the database. Do not read the reference above as a safety net
- * until `003` has been run.
+ * `003` is APPLIED (2026-08-08) and verified: a thin row now fails with `23514`.
+ * So this function and the constraint agree, and the destructive case no longer
+ * depends on the one in TypeScript.
  */
 function carriesAnswers(session: OnboardingSession): boolean {
   return session.running.length > 0 && session.struggle.length > 0;
@@ -386,7 +385,14 @@ async function passGateFromSession(
   //    makes an existing user's own date of birth, sex and acceptance timestamp
   //    untouchable by a fresh anonymous session — the update matches zero rows
   //    and PostgREST reports no error, which is the correct outcome here.
-  const { error } = await supabase
+  /**
+   * WRITTEN WITH THE SERVICE ROLE, not the user's client (Spec w2b-15
+   * cold-review repair, `supabase/grants/004`). The gate columns are no longer
+   * in the `authenticated` grants, because a user who can set
+   * `is_18_plus` on themselves has not passed an age gate — they have edited
+   * one. `hasAgeAndConsent` above is still the real check and is unchanged.
+   */
+  const { error } = await gateWriter()
     .from("profiles")
     .update({
       date_of_birth: session.dob,
