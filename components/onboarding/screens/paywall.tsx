@@ -10,7 +10,6 @@ import {
   formatPrice,
   monthlyEquivalent,
   PLAN_ORDER,
-  PLANS,
   REMINDER_DAY,
   TRIAL_DAYS,
   yearlySavingPercent,
@@ -104,13 +103,26 @@ function trialTimeline(now: Date) {
 }
 
 export function PaywallScreen() {
-  const { session, patch, goNext } = useFlow();
+  const { session, patch, goNext, priceFor } = useFlow();
   const [verdict, setVerdict] = useState<CodeVerdict>({ status: "none" });
   const [codeDraft, setCodeDraft] = useState("");
   const [codeOpen, setCodeOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const saving = yearlySavingPercent();
+  /**
+   * THE PRICES, FROM STRIPE. Never from the codebase — spec w2b-15 forbids a
+   * hardcoded amount so a dashboard change lands without a deploy.
+   *
+   * A plan with no price is DROPPED from the list rather than rendered with a
+   * blank figure. If none load at all the screen says so instead of offering an
+   * empty picker: this is the one screen where silently showing nothing would
+   * be worse than an honest error, because the user is trying to pay.
+   */
+  const pricedPlans = PLAN_ORDER.map((id) => priceFor(id)).filter(
+    (p): p is NonNullable<typeof p> => Boolean(p),
+  );
+  const selected = pricedPlans.find((p) => p.id === session.plan) ?? pricedPlans[0];
+  const saving = yearlySavingPercent(priceFor("yearly"), priceFor("monthly"));
   // Resolved ONCE on mount. Reading the clock during render would let the
   // billing date change under the user mid-session, and the whole point of
   // printing it is that it is a fixed commitment.
@@ -267,9 +279,9 @@ export function PaywallScreen() {
             legible as the cheapest rather than the biggest number. Rows scale to
             any number of plans and give each one space for its own sub-line. */}
         <div role="radiogroup" aria-label="Choose a plan" className="space-y-2.5">
-          {PLAN_ORDER.map((id) => {
-            const plan = PLANS[id];
-            const active = session.plan === id;
+          {pricedPlans.map((plan) => {
+            const id = plan.id;
+            const active = selected?.id === id;
             const perMonth = monthlyEquivalent(plan);
             const suffix =
               plan.period === "year" ? "yr" : plan.period === "month" ? "mo" : "wk";
@@ -460,11 +472,11 @@ export function PaywallScreen() {
           <div className="space-y-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
             <p>
               {TRIAL_DAYS}{" "}days free, then{" "}
-              {formatPrice(PLANS[session.plan].price)}{" "}per{" "}
-              {PLANS[session.plan].period}
-              {monthlyEquivalent(PLANS[session.plan]) !== null ? (
+              {selected ? formatPrice(selected.price) : "—"}{" "}per{" "}
+              {selected?.period ?? "period"}
+              {selected && monthlyEquivalent(selected) !== null ? (
                 <>
-                  {" "}({formatPrice(monthlyEquivalent(PLANS[session.plan])!)}/mo)
+                  {" "}({formatPrice(monthlyEquivalent(selected)!)}/mo)
                 </>
               ) : null}
               .

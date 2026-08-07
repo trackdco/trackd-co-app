@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
-import { formatPrice, PLANS } from "@/lib/onboarding/pricing";
+import { formatPrice } from "@/lib/onboarding/pricing";
 import { CARD_EYEBROW, DATA_MONO, FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
@@ -22,14 +22,36 @@ import { FlowCta, StepFrame } from "../chrome";
  * in, so a pricing change moves all four at once.
  */
 
-const YEARLY = PLANS.yearly;
+/**
+ * PRICES ARRIVE AS A PROP. `PLANS` stopped carrying amounts in spec w2b-15 — a
+ * dollar figure in the codebase is exactly what that spec forbids — so the
+ * yearly price comes from whoever knows it (the flow's context, fed by Stripe)
+ * and every variant below takes it.
+ */
+
+/** Every variant takes the same two things. */
+type CostVariantProps = {
+  onContinue: () => void;
+  /**
+   * The yearly price, from Stripe. Undefined when it could not be loaded, in
+   * which case each variant renders its comparison WITHOUT our figure rather
+   * than with a blank — the point being made ("everything else costs more") does
+   * not need our number to land.
+   */
+  yearlyPrice?: number;
+};
+
+/** Our price, or an em dash. Never a blank and never a guess. */
+function ourPrice(yearlyPrice: number | undefined): string {
+  return yearlyPrice === undefined ? "—" : formatPrice(yearlyPrice);
+}
 
 /* ===========================================================================
    A — "Less than one vial a year"
    No graph and no statistic. It anchors to a thing the user already buys and
    already knows the price of, so we never have to claim a number.
    =========================================================================== */
-export function CostVariantA({ onContinue }: { onContinue: () => void }) {
+export function CostVariantA({ onContinue, yearlyPrice }: CostVariantProps) {
   return (
     <StepFrame
       center
@@ -50,7 +72,7 @@ export function CostVariantA({ onContinue }: { onContinue: () => void }) {
         </p>
 
         <p className={cn(DATA_MONO, "text-sm uppercase tracking-[0.08em]")}>
-          {formatPrice(YEARLY.price)} / year
+          {ourPrice(yearlyPrice)} / year
         </p>
       </div>
     </StepFrame>
@@ -69,7 +91,7 @@ const RECEIPT_ROWS = [
   { label: "Supplements", blocks: 6 },
 ];
 
-export function CostVariantB({ onContinue }: { onContinue: () => void }) {
+export function CostVariantB({ onContinue, yearlyPrice }: CostVariantProps) {
   return (
     <StepFrame
       title="The tracking is the cheap part."
@@ -103,7 +125,7 @@ export function CostVariantB({ onContinue }: { onContinue: () => void }) {
           <div className="mt-1 flex items-baseline justify-between gap-4 border-t-[0.5px] border-border-strong pt-4">
             <span className="text-[0.9rem] text-foreground">Trackd, per year</span>
             <span className="font-mono text-xl font-light tabular-nums text-accent-amber">
-              {formatPrice(YEARLY.price)}
+              {ourPrice(yearlyPrice)}
             </span>
           </div>
         </div>
@@ -124,12 +146,12 @@ export function CostVariantB({ onContinue }: { onContinue: () => void }) {
 const MIN_SPEND = 50;
 const MAX_SPEND = 600;
 
-export function CostVariantC({ onContinue }: { onContinue: () => void }) {
+export function CostVariantC({ onContinue, yearlyPrice }: CostVariantProps) {
   const [monthly, setMonthly] = useState(180);
   const theirYear = monthly * 12;
   // Both bars are drawn against THEIR yearly figure, so the Trackd bar shrinks
   // as they drag up. That is the whole argument, made without a word.
-  const trackdWidth = Math.max(1.5, (YEARLY.price / theirYear) * 100);
+  const trackdWidth = Math.max(1.5, ((yearlyPrice ?? 0) / theirYear) * 100);
 
   return (
     <StepFrame
@@ -176,7 +198,7 @@ export function CostVariantC({ onContinue }: { onContinue: () => void }) {
             <div className="flex items-baseline justify-between">
               <span className="text-[0.85rem] text-text-muted">Trackd</span>
               <span className="font-mono text-sm tabular-nums text-foreground">
-                {formatPrice(YEARLY.price)}
+                {ourPrice(yearlyPrice)}
               </span>
             </div>
             <div className="h-2 w-full rounded-full bg-bg-surface-raised">
@@ -266,7 +288,8 @@ function DollarFall({
   );
 }
 
-export function CostVariantD({ onContinue }: { onContinue: () => void }) {
+// Variant D shows no figure of its own, so it takes no price.
+export function CostVariantD({ onContinue }: CostVariantProps) {
   const [grown, setGrown] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setGrown(true));
@@ -366,7 +389,7 @@ const LINE_ITEMS = [
   { label: "Supplements", weight: 74 },
 ];
 
-export function CostVariantE({ onContinue }: { onContinue: () => void }) {
+export function CostVariantE({ onContinue, yearlyPrice }: CostVariantProps) {
   const [grown, setGrown] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setGrown(true));
@@ -408,7 +431,7 @@ export function CostVariantE({ onContinue }: { onContinue: () => void }) {
             <div className="flex items-baseline justify-between">
               <span className="text-[0.85rem] text-foreground">Trackd</span>
               <span className="font-mono text-lg font-light tabular-nums text-accent-amber">
-                {formatPrice(YEARLY.price)}
+                {ourPrice(yearlyPrice)}
               </span>
             </div>
             <span className="block h-2 w-full rounded-full bg-bg-base">
@@ -430,7 +453,7 @@ export function CostVariantE({ onContinue }: { onContinue: () => void }) {
    This is that: one redacted bar for what a protocol costs, one amber sliver
    for Trackd, both under "per year", and only Trackd carries a figure.
    =========================================================================== */
-export function CostVariantF({ onContinue }: { onContinue: () => void }) {
+export function CostVariantF({ onContinue, yearlyPrice }: CostVariantProps) {
   const [grown, setGrown] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setGrown(true));
@@ -465,7 +488,7 @@ export function CostVariantF({ onContinue }: { onContinue: () => void }) {
               <div className="flex items-baseline justify-between">
                 <span className="text-[0.9rem] text-foreground">Trackd</span>
                 <span className="font-mono text-lg font-light tabular-nums text-accent-amber">
-                  {formatPrice(YEARLY.price)}
+                  {ourPrice(yearlyPrice)}
                 </span>
               </div>
               <span className="block h-3 w-full rounded-full bg-bg-base">
@@ -557,7 +580,7 @@ export function CostVariantF({ onContinue }: { onContinue: () => void }) {
  * because they genuinely are, and that IS the argument the screen is making.
  * Fattening them for legibility is exactly the fudge that produced round one.
  *
- * Keep the sum at 100, and re-solve these against `PLANS.yearly.price` if the
+ * Keep the sum at 100, and re-solve these against the yearly price if the
  * price ever moves.
  */
 const TIERS = [
@@ -572,7 +595,7 @@ const TRACKD_SHARE = 100 - TIERS.reduce((sum, t) => sum + t.share, 0);
 /** How long each tier waits before it lands. The build IS the point. */
 const TIER_STAGGER_MS = 520;
 
-export function CostVariantG({ onContinue }: { onContinue: () => void }) {
+export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
   const [shown, setShown] = useState(0);
 
   useEffect(() => {
@@ -696,7 +719,7 @@ export function CostVariantG({ onContinue }: { onContinue: () => void }) {
                     "text-[1.05rem] tabular-nums tracking-[0.06em] text-accent-amber",
                   )}
                 >
-                  {formatPrice(YEARLY.price)}
+                  {ourPrice(yearlyPrice)}
                 </span>
                 <span className="text-[11px] text-text-subtle">/yr</span>
               </span>
@@ -716,7 +739,7 @@ export function CostVariantG({ onContinue }: { onContinue: () => void }) {
    only variant that cannot go stale, cannot imply a statistic, and cannot be
    misread — there is nothing on it to misread.
    =========================================================================== */
-export function CostVariantH({ onContinue }: { onContinue: () => void }) {
+export function CostVariantH({ onContinue, yearlyPrice }: CostVariantProps) {
   return (
     <StepFrame center footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}>
       <div className="space-y-9 text-center">
@@ -732,7 +755,7 @@ export function CostVariantH({ onContinue }: { onContinue: () => void }) {
         </p>
 
         <p className={cn(DATA_MONO, "text-sm uppercase tracking-[0.08em]")}>
-          Trackd · {formatPrice(YEARLY.price)} / year
+          Trackd · {ourPrice(yearlyPrice)} / year
         </p>
       </div>
     </StepFrame>

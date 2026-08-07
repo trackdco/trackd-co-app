@@ -33,6 +33,7 @@ import {
   type StepId,
 } from "@/lib/onboarding/steps";
 import { firstIncompleteHousekeeping } from "@/lib/onboarding/session";
+import { PLANS, type PlanId, type PricedPlan } from "@/lib/onboarding/pricing";
 import { guessPlatform } from "@/lib/onboarding/platform";
 import { todayKey as resolveTodayKey } from "@/lib/protocol/cycle";
 
@@ -89,6 +90,7 @@ const SETTLE_MS = 750;
 export function OnboardingFlow({
   signedIn = false,
   passedGate = false,
+  prices = [],
 }: {
   /** A session exists. Server-verified in `app/onboarding/page.tsx`. */
   signedIn?: boolean;
@@ -97,6 +99,8 @@ export function OnboardingFlow({
    * and the two are not interchangeable — see `clampStep`.
    */
   passedGate?: boolean;
+  /** What Stripe says each plan costs. Empty when Stripe could not be reached. */
+  prices?: readonly StripePlanPrice[];
 }) {
   // The session and the step both come from the browser (localStorage, the
   // URL). Rendering a guessed value on the server and correcting it on the
@@ -112,19 +116,38 @@ export function OnboardingFlow({
   // Same near-black as the flow, so the frame this costs is invisible.
   if (!isClient) return <div className="flow-canvas flow-viewport" aria-hidden />;
 
-  return <OnboardingFlowClient signedIn={signedIn} passedGate={passedGate} />;
+  return (
+    <OnboardingFlowClient
+      signedIn={signedIn}
+      passedGate={passedGate}
+      prices={prices}
+    />
+  );
 }
 
 /**
  * Client-only, so every initial value can be read straight out of the browser
  * in a lazy initialiser rather than being patched in from an effect.
  */
+/** The shape `lib/billing/prices.ts` returns. Declared structurally rather than
+ *  imported, because that module is `server-only` and this file is a client
+ *  component — importing it would fail the build. */
+export interface StripePlanPrice {
+  plan: PlanId;
+  priceId: string;
+  amount: number;
+  currency: string;
+  interval: string;
+}
+
 function OnboardingFlowClient({
   signedIn,
   passedGate,
+  prices,
 }: {
   signedIn: boolean;
   passedGate: boolean;
+  prices: readonly StripePlanPrice[];
 }) {
   const router = useRouter();
 
@@ -258,6 +281,22 @@ function OnboardingFlowClient({
     ),
   );
   const [accountName, setAccountName] = useState<string | null>(null);
+
+  /**
+   * The plan definitions joined to what Stripe says they cost.
+   *
+   * `PLANS` keeps the label, the period and the order; the amount comes from
+   * Stripe. Undefined for a plan whose price did not load — which every caller
+   * has to handle, because the loader swallows a Stripe outage on purpose so a
+   * free flow does not go down with a billing provider.
+   */
+  const priceFor = useCallback(
+    (plan: PlanId): PricedPlan | undefined => {
+      const match = prices.find((p) => p.plan === plan);
+      return match ? { ...PLANS[plan], price: match.amount } : undefined;
+    },
+    [prices],
+  );
 
   /**
    * THE ADDRESS BAR TELLS THE TRUTH ABOUT WHAT IS ON SCREEN.
@@ -551,6 +590,7 @@ function OnboardingFlowClient({
       finish,
       accountName,
       signedIn,
+      priceFor,
       todayKey,
       setBackHandler,
     }),
@@ -564,6 +604,7 @@ function OnboardingFlowClient({
       finish,
       accountName,
       signedIn,
+      priceFor,
       todayKey,
       setBackHandler,
     ],

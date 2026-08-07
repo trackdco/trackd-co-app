@@ -20,6 +20,14 @@ import { CostVariantG } from "./cost-variants";
  * winner is one import.
  */
 export function CostScreen() {
-  const { goNext } = useFlow();
-  return <CostVariantG onContinue={goNext} />;
+  const { goNext, priceFor } = useFlow();
+  /**
+   * The only real price on the screen, and it comes from Stripe rather than
+   * from a constant (spec w2b-15). Undefined if Stripe could not be reached, in
+   * which case the variant renders the comparison without our figure — the
+   * argument it makes does not depend on our number.
+   */
+  return (
+    <CostVariantG onContinue={goNext} yearlyPrice={priceFor("yearly")?.price} />
+  );
 }

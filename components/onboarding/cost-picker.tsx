@@ -10,7 +10,7 @@ import { COST_VARIANTS } from "./screens/cost-variants";
  * The switcher for the four cost-screen candidates. Each renders at full size
  * in the real flow chrome, so what Adrian sees is what would ship.
  */
-export function CostVariantPicker() {
+export function CostVariantPicker({ yearlyPrice }: { yearlyPrice?: number }) {
   const [index, setIndex] = useState(0);
   const active = COST_VARIANTS[index];
   const Screen = active.Component;
@@ -46,7 +46,7 @@ export function CostVariantPicker() {
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
         {/* Remounts per variant so entrance animations replay on each switch. */}
         <div key={active.id} className="animate-flow-in flex flex-1 flex-col">
-          <Screen onContinue={() => {}} />
+          <Screen yearlyPrice={yearlyPrice} onContinue={() => {}} />
         </div>
       </div>
     </div>

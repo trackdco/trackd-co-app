@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { OnboardingFlow } from "@/components/onboarding/flow";
 import { getSessionContext } from "@/lib/auth";
+import { loadPricesSafe } from "@/lib/billing/prices";
 import { isStepId, stepMeta, type StepId } from "@/lib/onboarding/steps";
 
 export const metadata: Metadata = {
@@ -66,6 +67,18 @@ export default async function OnboardingPage({
   const signedIn = Boolean(user);
 
   /**
+   * THE PRICES COME FROM STRIPE, NOT FROM THE CODEBASE (spec w2b-15).
+   *
+   * Fetched here because three ANONYMOUS screens need them — the payoff
+   * screen's weekly anchor and the cost comparison, both well before the
+   * paywall — so they cannot wait for a session. Memoised for five minutes in
+   * `lib/billing/prices.ts`, and `loadPricesSafe` swallows a Stripe outage:
+   * this flow is free until the paywall and must not go down with a billing
+   * provider.
+   */
+  const prices = await loadPricesSafe();
+
+  /**
    * AN `authed` STEP NEEDS A PROVEN AGE, NOT MERELY A SESSION.
    *
    * This used to test `signedIn` alone, and a cold review showed that made the
@@ -96,7 +109,13 @@ export default async function OnboardingPage({
     redirect("/onboarding?step=paywall");
   }
 
-  return <OnboardingFlow signedIn={signedIn} passedGate={passedGate} />;
+  return (
+    <OnboardingFlow
+      signedIn={signedIn}
+      passedGate={passedGate}
+      prices={prices}
+    />
+  );
 }
 
 /**

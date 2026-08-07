@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react";
 
 import type { OnboardingSession } from "@/lib/onboarding/session";
+import type { PlanId, PricedPlan } from "@/lib/onboarding/pricing";
 import type { StepId } from "@/lib/onboarding/steps";
 
 /**
@@ -36,6 +37,20 @@ export interface FlowContextValue {
    * must not be.
    */
   accountName: string | null;
+  /**
+   * THE PRICES, AS STRIPE REPORTS THEM.
+   *
+   * Not in the codebase — spec w2b-15 forbids a hardcoded dollar amount so a
+   * dashboard change takes effect without a deploy. Fetched server-side in
+   * `app/onboarding/page.tsx` and handed down, because three ANONYMOUS screens
+   * need them well before there is a session.
+   *
+   * **A plan may be `undefined`**, and every caller has to handle that rather
+   * than assert it away: the loader deliberately swallows a Stripe outage so a
+   * free flow does not go down with a billing provider. A missing price means
+   * render nothing, never render a blank number.
+   */
+  priceFor: (plan: PlanId) => PricedPlan | undefined;
   /**
    * Whether the SERVER saw a session for this page load. Read by the account
    * screen to show its waiting state instead of the sign-in controls; never a

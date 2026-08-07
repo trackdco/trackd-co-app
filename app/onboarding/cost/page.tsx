@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CostVariantPicker } from "@/components/onboarding/cost-picker";
+import { loadPricesSafe } from "@/lib/billing/prices";
 
 export const metadata: Metadata = {
   title: "Cost screen options · Trackd Co",
@@ -33,8 +34,13 @@ export const metadata: Metadata = {
  * reviewed through. `robots: noindex` on top, because a route that 404s in
  * production should never have been indexed from a preview either.
  */
-export default function CostOptionsPage() {
+export default async function CostOptionsPage() {
   if (process.env.VERCEL_ENV === "production") notFound();
 
-  return <CostVariantPicker />;
+  // The real price, from Stripe (spec w2b-15). A harness showing a made-up
+  // figure is a harness you cannot judge the screen by.
+  const prices = await loadPricesSafe();
+  const yearly = prices.find((p) => p.plan === "yearly");
+
+  return <CostVariantPicker yearlyPrice={yearly?.amount} />;
 }

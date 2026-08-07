@@ -1,15 +1,22 @@
 /**
- * Paywall pricing (Spec 3-01 · §15 step 5 and Open Decision D-4).
+ * Paywall pricing — everything about a plan EXCEPT what it costs.
  *
- * **These figures are PLACEHOLDERS pending a pricing lock.** They live here,
- * once, so changing them is one edit and no screen carries a hardcoded price.
- * The spec's "Check When Done" requires prices to render from config rather
- * than being hardcoded as final, which is what this file is.
+ * ## The amounts are gone, and that is spec w2b-15
  *
- * The weekly figure is DERIVED, never written down twice: a hand-typed
- * "$1.35/wk" beside a $70 annual price is one pricing change away from being a
- * lie, and the two disagreeing is exactly the class of bug this project keeps
- * finding.
+ * *"There must be no dollar amount hardcoded anywhere in the codebase — the
+ * price shown on the paywall is read from Stripe, so a dashboard change takes
+ * effect without a deploy."*
+ *
+ * So `PLANS` no longer carries a `price`. It carries what a price is not: the
+ * label, the period, the order they are offered in. The numbers come from
+ * `lib/billing/prices.ts`, which reads them from Stripe, and every derived
+ * figure in this file now takes the amount as an argument instead of reaching
+ * for a constant.
+ *
+ * That split is what keeps the derivations honest. The per-month equivalent, the
+ * saving badge and the weekly anchor are still computed here, still from one
+ * source, and still incapable of contradicting the price they sit beside — they
+ * just get told what the price is rather than deciding it.
  */
 
 export type PlanId = "yearly" | "monthly" | "weekly";
@@ -17,23 +24,28 @@ export type PlanId = "yearly" | "monthly" | "weekly";
 export interface Plan {
   id: PlanId;
   label: string;
-  /** Charged amount in whole currency units. */
-  price: number;
   /** What the price buys, for the "per month" / "per year" suffix. */
   period: "year" | "month" | "week";
 }
 
+/**
+ * A plan with the amount Stripe says it costs. The shape every display helper
+ * below takes, so none of them can be called without a real price in hand.
+ */
+export interface PricedPlan extends Plan {
+  /** Charged amount in whole currency units. From Stripe, never from here. */
+  price: number;
+}
+
 export const CURRENCY_SYMBOL = "$";
 
-/** Placeholder figures. D-4: not final. */
 export const PLANS: Record<PlanId, Plan> = {
-  yearly: { id: "yearly", label: "Yearly", price: 69.99, period: "year" },
-  monthly: { id: "monthly", label: "Monthly", price: 11.99, period: "month" },
-  // Weekly added 2026-08-05 (Adrian). Deliberately poor value against the other
-  // two — that is what a weekly tier is FOR: it lowers the entry price for
-  // someone who will not commit to a year, and it makes the yearly saving
-  // legible. Nothing derives from it, so it cannot skew the badge.
-  weekly: { id: "weekly", label: "Weekly", price: 4.99, period: "week" },
+  yearly: { id: "yearly", label: "Yearly", period: "year" },
+  monthly: { id: "monthly", label: "Monthly", period: "month" },
+  // Weekly (Adrian, 2026-08-05). Deliberately poor value against the other two —
+  // that is what a weekly tier is FOR: it lowers the entry price for someone who
+  // will not commit to a year, and it makes the yearly saving legible.
+  weekly: { id: "weekly", label: "Weekly", period: "week" },
 };
 
 /**
@@ -82,14 +94,14 @@ export function formatPrice(amount: number): string {
 }
 
 /** Whatever a plan costs, expressed as a yearly figure. The one conversion. */
-function perYear(plan: Plan): number {
+function perYear(plan: PricedPlan): number {
   if (plan.period === "year") return plan.price;
   if (plan.period === "month") return plan.price * MONTHS_PER_YEAR;
   return plan.price * WEEKS_PER_YEAR;
 }
 
 /** Any plan expressed per week, to two decimals. Derived, not stored. */
-export function weeklyEquivalent(plan: Plan): number {
+export function weeklyEquivalent(plan: PricedPlan): number {
   return Math.round((perYear(plan) / WEEKS_PER_YEAR) * 100) / 100;
 }
 
@@ -119,7 +131,7 @@ export function weeklyEquivalent(plan: Plan): number {
  * stops is the cheapest-looking entry point arguing against itself in its own
  * sub-line.
  */
-export function monthlyEquivalent(plan: Plan): number | null {
+export function monthlyEquivalent(plan: PricedPlan): number | null {
   if (plan.period === "month") return null;
   if (plan.period === "week") return null;
   return Math.round((perYear(plan) / MONTHS_PER_YEAR) * 100) / 100;
@@ -149,17 +161,30 @@ export function billingDate(now: Date): string {
  * them. Returns null when there is no saving to claim, so the badge simply
  * does not render rather than showing "Save 0%".
  */
-export function yearlySavingPercent(): number | null {
-  const yearlyCost = PLANS.yearly.price;
-  const monthlyCost = PLANS.monthly.price * MONTHS_PER_YEAR;
+export function yearlySavingPercent(
+  yearly: PricedPlan | undefined,
+  monthly: PricedPlan | undefined,
+): number | null {
+  // Null rather than a guess when the prices have not arrived. The badge simply
+  // does not render, which is the same behaviour as "there is no saving to
+  // claim" and is strictly better than printing a number derived from nothing.
+  if (!yearly || !monthly) return null;
+  const yearlyCost = yearly.price;
+  const monthlyCost = monthly.price * MONTHS_PER_YEAR;
   if (monthlyCost <= yearlyCost) return null;
   return Math.round(((monthlyCost - yearlyCost) / monthlyCost) * 100);
 }
 
-/** The price anchor line under the payoff graph, e.g. "Under $1.35 a week". */
-export function weeklyAnchor(): string {
-  const weekly = weeklyEquivalent(PLANS.yearly);
+/**
+ * The price anchor line under the payoff graph, e.g. "Under $1.35 a week".
+ *
+ * Returns null when the yearly price has not arrived, so the caller renders
+ * nothing rather than an anchor with no number in it. That case is real: the
+ * payoff screen is ANONYMOUS and reachable before Stripe has answered.
+ */
+export function weeklyAnchor(yearly: PricedPlan | undefined): string | null {
+  if (!yearly) return null;
   // Round UP to the next 5c so "under" is always literally true.
-  const ceiling = Math.ceil(weekly * 20) / 20;
+  const ceiling = Math.ceil(weeklyEquivalent(yearly) * 20) / 20;
   return `Under ${formatPrice(ceiling)} a week to keep all of it.`;
 }
