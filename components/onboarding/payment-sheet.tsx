@@ -174,10 +174,25 @@ function PaymentForm({
    * Stripe requires before confirming. Then the server creates the subscription.
    * Then the client confirms the SetupIntent it handed back.
    */
-  const run = useCallback(async () => {
+  const run = useCallback(async (onFail?: () => void) => {
     if (!stripe || !elements) return;
     setBusy(true);
     setError(null);
+
+    /**
+     * TELL THE WALLET, not just the page.
+     *
+     * Apple Pay and Google Pay render in an OS sheet that sits ABOVE our DOM, so
+     * the inline error below is painted behind it — invisible, while the sheet
+     * spins forever. `ExpressCheckoutElement`'s confirm event carries
+     * `paymentFailed()` and it is the only way to dismiss that sheet. Not
+     * calling it left the spec's "primary conversion path on mobile" hanging on
+     * every decline.
+     */
+    const fail = (message: string) => {
+      setError(message);
+      onFail?.();
+    };
 
     try {
       const { error: submitError } = await elements.submit();
@@ -185,7 +200,7 @@ function PaymentForm({
         // A field-level problem — a missing number, a bad expiry. Stripe's own
         // message is the useful one here and is safe to show: it is about what
         // the user typed, not about our account.
-        setError(submitError.message ?? "Please check your card details.");
+        fail(submitError.message ?? "Please check your card details.");
         return;
       }
 
@@ -196,7 +211,7 @@ function PaymentForm({
         return;
       }
       if (result.status === "error") {
-        setError(result.message);
+        fail(result.message);
         return;
       }
 
@@ -207,7 +222,10 @@ function PaymentForm({
           // Only used if the bank forces a full redirect for 3D Secure. Coming
           // back to the paywall is right: the holding state picks up from there
           // and polls for the entitlement, exactly as it would have done inline.
-          return_url: `${window.location.origin}/onboarding?step=paywall`,
+          // The CARD screen, not the paywall. Payment moved to its own step,
+          // and coming back to the price list someone has just paid on is
+          // precisely what the spec forbids.
+          return_url: `${window.location.origin}/onboarding?step=checkout`,
         },
         // Keep the user on THIS page wherever the bank allows it. The spec's
         // rule is that they never leave for a stripe.com domain, and most 3DS
@@ -216,7 +234,7 @@ function PaymentForm({
       });
 
       if (confirmError) {
-        setError(confirmError.message ?? "That card couldn't be confirmed.");
+        fail(confirmError.message ?? "That card couldn't be confirmed.");
         return;
       }
 
@@ -224,7 +242,7 @@ function PaymentForm({
       onOutcome({ status: "confirmed" });
     } catch (err) {
       console.error("[billing] confirm failed:", err);
-      setError("Something went wrong. Please try again.");
+      fail("Something went wrong. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -242,7 +260,7 @@ function PaymentForm({
           buttonTheme: { applePay: "white-outline", googlePay: "white" },
           buttonHeight: 48,
         }}
-        onConfirm={() => void run()}
+        onConfirm={(event) => void run(() => event.paymentFailed({ reason: "fail" }))}
       />
 
       <PaymentElement

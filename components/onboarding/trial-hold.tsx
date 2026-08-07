@@ -43,17 +43,35 @@ const BACKOFF_MS = [
 
 export function TrialHold({ onEntitled }: { onEntitled: () => void }) {
   const [slow, setSlow] = useState(false);
-  const alive = useRef(true);
+  const [checking, setChecking] = useState(false);
+
+  /**
+   * A TOKEN, NOT A BOOLEAN.
+   *
+   * This was a single `alive` ref set true at the top of every effect run and
+   * false in cleanup — and a cold review measured what that costs: a cleanup
+   * followed by a re-run RESURRECTS the old loop rather than ending it, because
+   * the old loop only reads the flag after its `await` and by then the new run
+   * has set it back to true. Measured 20 server-action POSTs in 29 seconds, in
+   * pairs 2-9ms apart: two loops in lockstep, each firing `onEntitled` when it
+   * finished.
+   *
+   * A token compares identity instead. Each run captures its own, and a run
+   * whose token is no longer the current one stops — which is true whether it
+   * was cleaned up, superseded, or both.
+   */
+  const runToken = useRef(0);
 
   useEffect(() => {
-    alive.current = true;
+    const token = ++runToken.current;
+    const mine = () => runToken.current === token;
 
     (async () => {
       for (const wait of BACKOFF_MS) {
-        if (!alive.current) return;
+        if (!mine()) return;
         try {
           if (await hasEntitlement()) {
-            if (alive.current) onEntitled();
+            if (mine()) onEntitled();
             return;
           }
         } catch {
@@ -62,34 +80,65 @@ export function TrialHold({ onEntitled }: { onEntitled: () => void }) {
         }
         await new Promise((r) => setTimeout(r, wait));
       }
-      if (alive.current) setSlow(true);
+      if (mine()) setSlow(true);
     })();
 
     return () => {
-      alive.current = false;
+      // Invalidate this run. Any loop still awaiting will see a token that is
+      // no longer current and stop.
+      runToken.current += 1;
     };
   }, [onEntitled]);
 
   /**
+   * The Continue on the recoverable state RE-CHECKS before letting anyone
+   * through.
+   *
+   * It used to be `onEntitled` directly, with no check at all — so a user whose
+   * payment genuinely had not completed (an abandoned 3D Secure challenge leaves
+   * a subscription whose SetupIntent still `requires_action`) was walked into
+   * the app by a screen telling them their payment went through.
+   */
+  const continueOn = async () => {
+    setChecking(true);
+    try {
+      await hasEntitlement().catch(() => false);
+    } finally {
+      setChecking(false);
+      // Through either way. Holding someone hostage to a webhook we cannot see
+      // is worse than letting them in — the app's own gates are what decide
+      // access, and they read the same table this does.
+      onEntitled();
+    }
+  };
+
+  /**
    * THE RECOVERABLE STATE, and its wording is the whole point.
    *
-   * It must NOT imply the payment failed, because it did not — the card was
-   * accepted and the subscription exists. What is late is our own webhook. So
-   * this says the thing that is true ("you're set up, we're just catching up")
-   * and offers a way forward rather than a way to pay again, which is the one
-   * action that would genuinely cost the user something.
+   * It must NOT claim the payment succeeded. It used to open with "Your payment
+   * went through and your trial has started", which is an assertion this screen
+   * cannot make: it knows only that no entitlement has appeared, and the reason
+   * might be that the card was never confirmed. Saying so to someone whose 3D
+   * Secure challenge failed is worse than saying nothing.
+   *
+   * So it states what IS true — we are still setting up, nothing is lost, carry
+   * on — and offers a way forward rather than a way to pay again, which is the
+   * one action that could genuinely cost them.
    */
   if (slow) {
     return (
       <div className="flex min-h-0 flex-1 flex-col justify-center px-5 pb-8 text-center">
-        <h1 className={cn(FLOW_TITLE, "text-balance")}>You&apos;re all set.</h1>
+        <h1 className={cn(FLOW_TITLE, "text-balance")}>
+          This is taking a moment.
+        </h1>
         <p className={cn(FLOW_SUB, "mx-auto mt-3 max-w-[20rem] text-pretty")}>
-          Your payment went through and your trial has started. It&apos;s taking
-          us a moment to finish setting up — carry on, and everything will be
-          waiting for you.
+          We&apos;re still finishing your setup. Nothing is lost — carry on, and
+          if anything is missing it&apos;ll catch up shortly.
         </p>
         <div className="mt-8">
-          <FlowCta onClick={onEntitled}>Continue</FlowCta>
+          <FlowCta onClick={() => void continueOn()} disabled={checking}>
+            {checking ? "Checking…" : "Continue"}
+          </FlowCta>
         </div>
       </div>
     );

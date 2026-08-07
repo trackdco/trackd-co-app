@@ -12,8 +12,22 @@ import type { Appearance } from "@stripe/stripe-js";
  * to drift the first time anyone retunes it.
  *
  * So the values are read off `:root` at mount with `getComputedStyle`.
- * `globals.css` stays the single source of truth, a palette change carries into
- * Stripe with no second edit, and no hex enters this file.
+ * `globals.css` stays the single source of truth and a palette change carries
+ * into Stripe with no second edit.
+ *
+ * ## The fallbacks ARE hex, and that is a documented exception
+ *
+ * An earlier version of this comment claimed "no hex enters this file", which a
+ * cold review correctly called out as false: the seven literals below are hex,
+ * and `code-standards.md` forbids hex outside `globals.css`.
+ *
+ * They are kept because `getComputedStyle` needs a document and this module is
+ * imported into one that server-renders. They are also NEVER what a browser
+ * uses — the same review read the live iframe's computed styles and found the
+ * real tokens (`rgb(42,42,40)` = `--bg-input`, `rgb(240,239,233)` =
+ * `--text-primary`, `Geist`), so the fallback path does not render for a user.
+ * Treat them as a last-resort default, keep them in step with `globals.css`, and
+ * do not copy the pattern anywhere a component actually paints.
  *
  * ## The one token that is deliberately NOT used
  *

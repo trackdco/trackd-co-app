@@ -82,13 +82,13 @@ export function CheckoutScreen() {
         </span>
         , then{" "}
         <span className="text-foreground">
-          {formatPrice(selected.price)}{" "}{selected.currency.toUpperCase()}
+          {formatPrice(selected.price, selected.currency)}{" "}{selected.currency.toUpperCase()}
         </span>
         {" "}per{" "}
         {selected.period}
         {monthlyEquivalent(selected) !== null ? (
           <>
-            {" "}({formatPrice(monthlyEquivalent(selected)!)}/mo)
+            {" "}({formatPrice(monthlyEquivalent(selected)!, selected.currency)}/mo)
           </>
         ) : null}
         .

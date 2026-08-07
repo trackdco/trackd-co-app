@@ -197,7 +197,7 @@ export function PaywallScreen() {
     <p className="text-center text-[0.75rem] leading-relaxed text-text-muted">
       {TRIAL_DAYS}{" "}days free, then{" "}
       <span className="text-foreground">
-        {formatPrice(selected.price)}{" "}{selected.currency.toUpperCase()}
+        {formatPrice(selected.price, selected.currency)}{" "}{selected.currency.toUpperCase()}
       </span>
       {" "}per{" "}
       {selected.period}. Cancel any time before day{" "}
@@ -327,14 +327,14 @@ export function PaywallScreen() {
                       expensive option when it is the cheapest. */}
                   {perMonth !== null ? (
                     <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-text-muted">
-                      ({formatPrice(perMonth)}/mo)
+                      ({formatPrice(perMonth, plan.currency)}/mo)
                     </span>
                   ) : null}
                 </span>
 
                 <span className="shrink-0 text-right">
                   <span className="block font-mono text-lg font-light tabular-nums text-foreground">
-                    {formatPrice(plan.price)}
+                    {formatPrice(plan.price, plan.currency)}
                     <span className="ml-1 text-[11px] text-text-muted">/{suffix}</span>
                   </span>
                 </span>

@@ -52,6 +52,38 @@ export interface PricedPlan extends Plan {
   currency: string;
 }
 
+/**
+ * The symbol for a currency, from the currency itself.
+ *
+ * This was a hardcoded `"$"` while `PricedPlan.currency` was data-driven, and a
+ * cold review named the consequence: change the Stripe price to EUR — exactly
+ * the "dashboard change without a deploy" this whole design is built around —
+ * and every plan row, the per-month bracket, the saving badge and the cost
+ * screen would read `$` while only the disclosure named the real currency.
+ *
+ * `Intl` already knows. Formatting 0 and stripping the digits is the reliable
+ * way to get just the symbol, since the position differs by locale.
+ */
+export function currencySymbol(currency: string): string {
+  try {
+    return (
+      new Intl.NumberFormat("en-AU", {
+        style: "currency",
+        currency: currency.toUpperCase(),
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })
+        .format(0)
+        .replace(/[\d\s.,]/g, "") || "$"
+    );
+  } catch {
+    // An unknown code. A bare "$" beside an explicitly named currency is still
+    // honest, and throwing on a price screen is not an option.
+    return "$";
+  }
+}
+
+/** @deprecated Use `currencySymbol(plan.currency)`. Kept for the anchor line. */
 export const CURRENCY_SYMBOL = "$";
 
 export const PLANS: Record<PlanId, Plan> = {
@@ -102,10 +134,17 @@ export const REMINDER_DAY = Math.max(1, TRIAL_DAYS - 2);
 const WEEKS_PER_YEAR = 52;
 const MONTHS_PER_YEAR = 12;
 
-/** "$70" / "$9.99" — no trailing ".00" on a whole number. */
-export function formatPrice(amount: number): string {
+/**
+ * "$70" / "$9.99" — no trailing ".00" on a whole number.
+ *
+ * Takes the currency so the symbol follows the price rather than being assumed.
+ * It defaults to AUD/USD's `$` for the handful of callers that have no plan in
+ * hand (the weekly anchor, the cost comparison), which are all rendering our own
+ * price in the one currency we sell in.
+ */
+export function formatPrice(amount: number, currency?: string): string {
   const body = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
-  return `${CURRENCY_SYMBOL}${body}`;
+  return `${currency ? currencySymbol(currency) : CURRENCY_SYMBOL}${body}`;
 }
 
 /** Whatever a plan costs, expressed as a yearly figure. The one conversion. */
@@ -132,13 +171,14 @@ export function weeklyEquivalent(plan: PricedPlan): number {
  * Returns null for a plan already billed monthly: printing "$11.99 ($11.99/mo)"
  * is noise, and the caller should render nothing rather than a tautology.
  *
- * **And null for WEEKLY** (Adrian, 2026-08-07: "remove the $21.62 per month,
+ * **And null for WEEKLY** (Adrian, 2026-08-07: "remove the per-month figure,
  * that will make people not want to get weekly"). The figure was correct and
  * that is the problem: this bracket exists to make a plan read CHEAPER than its
- * headline number, which is what it does under yearly ($69.99 → $5.83/mo) and
- * the exact reverse of what it does under weekly, where $4.99 grows into
- * $21.62. Same helper, opposite job, so the weekly row simply does not get one
- * and its own $4.99/wk stands.
+ * headline number, which is what it does under yearly and the exact reverse of
+ * what it does under weekly, where a small weekly price grows into a large
+ * monthly one. Same helper, opposite job, so the weekly row does not get one and
+ * its own per-week price stands. (No amounts here — they live in Stripe now, and
+ * the ones this comment used to quote went stale the day weekly moved to $3.99.)
  *
  * This is not hiding the price. Weekly is DELIBERATELY the worst value on the
  * screen (see `PLANS`) and the yearly row's own bracket is what makes that

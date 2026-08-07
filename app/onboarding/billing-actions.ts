@@ -3,6 +3,8 @@
 import { getSessionContext } from "@/lib/auth";
 import { hasProAccess } from "@/lib/billing/entitlements";
 import { serviceClient } from "@/lib/billing/service";
+import type Stripe from "stripe";
+
 import { priceIdFor, stripe, type PlanKey } from "@/lib/billing/stripe";
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 
@@ -55,33 +57,111 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
     };
   }
 
-  // Guard against paying twice. Cheap, and the alternative is a second live
-  // subscription on one account and a refund conversation.
-  const existing = await activeStripeSubscription(user.id);
-  if (existing) return { status: "already-subscribed" };
-
   try {
     const customerId = await findOrCreateCustomer(user.id, user.email);
     const client = stripe();
+    const wantedPrice = priceIdFor(plan);
 
-    const subscription = await client.subscriptions.create({
+    /**
+     * WHAT IS ALREADY ON THIS CUSTOMER — asked of STRIPE, not of the mirror.
+     *
+     * The guard used to count `subscriptions` rows with status `trialing`, and a
+     * cold review turned that into the worst bug in the flow. The mirror row is
+     * written for a subscription whose card was NEVER validated (only the
+     * entitlement is withheld), so:
+     *
+     *   1. Someone starts a trial, the bank opens a 3D Secure challenge, they
+     *      close the tab. A `trialing` mirror row now exists with an
+     *      unconfirmed SetupIntent and no payment method.
+     *   2. They come back and pick a DIFFERENT plan.
+     *   3. The guard sees `trialing`, answers "already subscribed", and the UI
+     *      walks them to "You're in!" — **in 746ms, having taken no card**, on
+     *      the plan they did not choose, at a price they were not shown.
+     *   4. On day 7 `missing_payment_method: cancel` silently cancels them,
+     *      against a screen that promised a charge on that date.
+     *
+     * Stripe is the only place that knows whether a subscription is real, so it
+     * is asked. `incomplete` is deliberately included in the list retrieved:
+     * those are exactly the abandoned attempts that have to be found.
+     */
+    const { data: existing } = await client.subscriptions.list({
       customer: customerId,
-      items: [{ price: priceIdFor(plan) }],
-      trial_period_days: TRIAL_DAYS,
-      // Nothing is owed today, so Stripe leaves the subscription incomplete
-      // until the SetupIntent is confirmed. Without this it would activate with
-      // no payment method attached and simply fail on day 7.
-      payment_behavior: "default_incomplete",
-      payment_settings: { save_default_payment_method: "on_subscription" },
-      // No card confirmed by the end of the trial ⇒ cancel rather than bill a
-      // method that was never verified.
-      trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
-      // The webhook resolves the user from `billing_customers`; this is the
-      // fallback for an event that outruns that row, which does happen because
-      // Stripe fires webhooks concurrently with the call that creates the object.
-      metadata: { user_id: user.id },
-      expand: ["pending_setup_intent"],
+      status: "all",
+      limit: 20,
+      expand: ["data.pending_setup_intent"],
     });
+
+    const live = existing.filter((sub) =>
+      ["trialing", "active", "past_due"].includes(sub.status),
+    );
+
+    // A subscription with a card behind it. Nothing more to sell them.
+    if (live.some(hasValidatedCard)) return { status: "already-subscribed" };
+
+    /**
+     * An ABANDONED attempt — trialing, but the card step never completed.
+     *
+     * If it is for the plan they are asking for again, hand back its existing
+     * SetupIntent so they simply finish what they started. If it is for a
+     * different plan, cancel it: they have chosen something else, and leaving it
+     * would both block them and quietly bill the wrong thing at the trial end.
+     */
+    for (const abandoned of live) {
+      const samePlan = abandoned.items.data[0]?.price?.id === wantedPrice;
+      const secret =
+        abandoned.pending_setup_intent &&
+        typeof abandoned.pending_setup_intent !== "string"
+          ? abandoned.pending_setup_intent.client_secret
+          : null;
+
+      if (samePlan && secret) {
+        return {
+          status: "ok",
+          clientSecret: secret,
+          subscriptionId: abandoned.id,
+        };
+      }
+      await client.subscriptions.cancel(abandoned.id).catch((err) => {
+        console.error(
+          `[billing] could not cancel abandoned ${abandoned.id}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      });
+    }
+
+    const subscription = await client.subscriptions.create(
+      {
+        customer: customerId,
+        items: [{ price: wantedPrice }],
+        trial_period_days: TRIAL_DAYS,
+        // Nothing is owed today, so Stripe leaves the subscription incomplete
+        // until the SetupIntent is confirmed. Without this it would activate
+        // with no payment method attached and simply fail on day 7.
+        payment_behavior: "default_incomplete",
+        payment_settings: { save_default_payment_method: "on_subscription" },
+        // No card confirmed by the end of the trial ⇒ cancel rather than bill a
+        // method that was never verified.
+        trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+        // The webhook resolves the user from `billing_customers`; this is the
+        // fallback for an event that outruns that row, which does happen because
+        // Stripe fires webhooks concurrently with the call that creates it.
+        metadata: { user_id: user.id },
+        expand: ["pending_setup_intent"],
+      },
+      {
+        /**
+         * ONE SUBSCRIPTION PER USER PER PLAN, enforced by Stripe.
+         *
+         * A cold review fired five concurrent calls on one session and got FIVE
+         * trialing subscriptions, because the duplicate guard is a read followed
+         * by a write and the mirror it read is only written by the webhook
+         * seconds later. An idempotency key closes the double-tap — by far the
+         * common case — without a lock: Stripe returns the FIRST subscription
+         * for a repeat of the same key.
+         */
+        idempotencyKey: `trial:${user.id}:${plan}`,
+      },
+    );
 
     const setupIntent = subscription.pending_setup_intent;
     const clientSecret =
@@ -162,20 +242,20 @@ async function findOrCreateCustomer(
 }
 
 /**
- * Does this user already have a Stripe subscription worth honouring?
+ * Does this Stripe subscription have a card behind it?
  *
- * Reads the MIRROR, not `entitlements`, and that is deliberate: the question
- * here is "would starting another subscription double-charge them", which is a
- * question about Stripe. Access is a different question with a different table,
- * and conflating the two is exactly what this spec forbids.
+ * The same rule as `cardIsValidated` in `lib/billing/sync.ts`, and it has to
+ * agree with it: that one decides whether to GRANT access, this one decides
+ * whether to refuse a second subscription. If they disagreed, a user could be
+ * simultaneously "already subscribed" and unentitled — which is precisely the
+ * state the abandoned-3DS bug left people in.
+ *
+ * Anything past `trialing` has had money move, so it counts regardless.
  */
-async function activeStripeSubscription(userId: string): Promise<boolean> {
-  const { data } = await serviceClient()
-    .from("subscriptions")
-    .select("status")
-    .eq("user_id", userId)
-    .in("status", ["trialing", "active", "past_due"]);
-  return (data?.length ?? 0) > 0;
+function hasValidatedCard(sub: Stripe.Subscription): boolean {
+  if (sub.status !== "trialing") return true;
+  if (sub.default_payment_method || sub.default_source) return true;
+  return !sub.pending_setup_intent;
 }
 
 /**
