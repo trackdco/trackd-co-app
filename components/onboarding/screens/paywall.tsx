@@ -197,10 +197,11 @@ export function PaywallScreen() {
     <p className="text-center text-[0.75rem] leading-relaxed text-text-muted">
       {TRIAL_DAYS}{" "}days free, then{" "}
       <span className="text-foreground">
-        {formatPrice(selected.price, selected.currency)}{" "}{selected.currency.toUpperCase()}
+        {formatPrice(selected.price, selected.currency)}{" "}
+        {selected.currency.toUpperCase()}/
+        {selected.period === "year" ? "yr" : selected.period === "month" ? "mo" : "wk"}
       </span>
-      {" "}per{" "}
-      {selected.period}. Cancel any time before day{" "}
+      . Cancel any time before day{" "}
       {TRIAL_DAYS}.
     </p>
   ) : null;

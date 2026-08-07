@@ -79,6 +79,31 @@ applied, the hole is open.
    configuration API — NOT the Wallets panel, which is why it cannot be found by
    hunting the dashboard).
 
+### 🔴 THE REMINDER IS A PROMISE NOTHING KEEPS — next session's first job
+
+Two screens now say it out loud: the paywall's timeline ("Day 5 · Reminder —
+We'll notify you that your trial is ending, before anything changes") and the
+checkout disclosure ("We'll remind you on day 5 — cancel any time before then").
+**Nothing sends it.**
+
+Adrian asked for the copy deliberately (2026-08-08) and parked the mechanism for
+the next session. What exists to build on:
+
+- `customer.subscription.trial_will_end` is received, verified on a test clock,
+  and stored in `webhook_events` with its **full payload**, so the real event is
+  there rather than a reconstruction.
+- The push pipeline is already live end to end — `lib/notifications/`,
+  `supabase/functions/send-push`, VAPID, quiet hours, per-user timezone on
+  `profiles.timezone`, and a secured cron at `/api/notifications/run`.
+
+**The trap:** Stripe fires `trial_will_end` THREE DAYS out, which on a 7-day
+trial is **day 4**. Both screens promise **day 5** (`REMINDER_DAY = TRIAL_DAYS - 2`).
+Honour the SCREEN. The webhook is a signal that a trial is ending, not the
+schedule — store the trial end and let the existing reminder scheduler fire on
+the promised day, in the user's own timezone and outside quiet hours.
+
+Until it is built, the paywall is making a commitment the product does not keep.
+
 ### Owed by whoever picks this up
 
 - **The trial reminder.** The paywall promises "Day 5 · Reminder" out loud and

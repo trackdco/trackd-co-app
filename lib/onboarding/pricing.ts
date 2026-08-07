@@ -67,9 +67,20 @@ export interface PricedPlan extends Plan {
 export function currencySymbol(currency: string): string {
   try {
     return (
-      new Intl.NumberFormat("en-AU", {
+      new Intl.NumberFormat("en", {
         style: "currency",
         currency: currency.toUpperCase(),
+        /**
+         * NARROW, and this is the whole trick.
+         *
+         * The default `currencyDisplay` disambiguates against the locale's own
+         * currency, so an `en-AU` formatter renders USD as the literal string
+         * "USD" — which produced "USD69.99 USD/yr (USD5.83/mo)" on the checkout
+         * screen. Narrow gives the bare symbol ("$", "€", "£") and lets the
+         * disclosure name the currency exactly once, beside the price, which is
+         * where it belongs.
+         */
+        currencyDisplay: "narrowSymbol",
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
       })

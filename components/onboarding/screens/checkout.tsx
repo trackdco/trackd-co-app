@@ -7,6 +7,7 @@ import {
   billingDate,
   formatPrice,
   monthlyEquivalent,
+  REMINDER_DAY,
   TRIAL_DAYS,
 } from "@/lib/onboarding/pricing";
 import { FLOW_EMPHASIS } from "@/lib/ui-presets";
@@ -74,6 +75,10 @@ export function CheckoutScreen() {
    * Every figure derives from the selected plan and from `TRIAL_DAYS`, so none
    * can contradict another or the summary above it.
    */
+  /** "yr" / "mo" / "wk" — the compact suffix, so the line stays one line. */
+  const suffix =
+    selected?.period === "year" ? "yr" : selected?.period === "month" ? "mo" : "wk";
+
   const disclosure = selected ? (
     <div className="space-y-1 pt-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
       <p>
@@ -82,10 +87,9 @@ export function CheckoutScreen() {
         </span>
         , then{" "}
         <span className="text-foreground">
-          {formatPrice(selected.price, selected.currency)}{" "}{selected.currency.toUpperCase()}
+          {formatPrice(selected.price, selected.currency)}{" "}
+          {selected.currency.toUpperCase()}/{suffix}
         </span>
-        {" "}per{" "}
-        {selected.period}
         {monthlyEquivalent(selected) !== null ? (
           <>
             {" "}({formatPrice(monthlyEquivalent(selected)!, selected.currency)}/mo)
@@ -95,12 +99,23 @@ export function CheckoutScreen() {
       </p>
       <p>
         First charge{" "}
-        <span className="text-foreground">{firstChargeOn}</span>. Renews
-        automatically until you cancel.
+        <span className="text-foreground">{firstChargeOn}</span>, then renews
+        until you cancel.
       </p>
+      {/* THE REMINDER, promised on this screen too (Adrian, 2026-08-08).
+          The paywall's timeline already says it, and the fear it answers — "am
+          I going to be charged without noticing" — is felt hardest with a card
+          on screen, so it is stated where the card is.
+
+          ⚠️ NOTHING SENDS THIS YET. `customer.subscription.trial_will_end` is
+          received and logged with its full payload, and no notification is
+          built on top of it. This is a commitment, not copy: honour DAY
+          {REMINDER_DAY} — the day the screen promises — not day 4, which is
+          where Stripe's webhook happens to fire. It is the top item in
+          `next-tasks.md`. */}
       <p>
-        Cancel any time before day{" "}
-        {TRIAL_DAYS}.
+        We&apos;ll remind you on day{" "}
+        {REMINDER_DAY} — cancel any time before then.
       </p>
     </div>
   ) : null;
@@ -112,12 +127,11 @@ export function CheckoutScreen() {
           Nothing to pay <em className={FLOW_EMPHASIS}>today</em>.
         </>
       }
-      /* ONE LINE. At 320x568 a three-line subcopy under a 2rem headline pushed
-         the card fields off the top of the port — measured — leaving a payment
-         screen whose payment form you had to scroll UP to find. The reassurance
-         only has one job here, and the disclosure above the button says the
-         rest properly. */
-      sub={selected ? `Just a card, so nothing stops on day ${TRIAL_DAYS}.` : undefined}
+      /* ONE SHORT LINE. At 320x568 a three-line subcopy under a 2rem headline
+         pushed the card fields off the top of the port — measured — leaving a
+         payment screen whose form you had to scroll UP to find. The reassurance
+         has one job here; the disclosure above the button says the rest. */
+      sub={selected ? "Just a card to keep your trial going." : undefined}
     >
       <div className="flex w-full flex-1 flex-col justify-center pb-2">
         {selected ? (
