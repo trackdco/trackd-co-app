@@ -10,6 +10,8 @@ import {
   firstIncompleteHousekeeping,
   hasAgeAndConsent,
   normaliseAttributionDetail,
+  normaliseDetail,
+  normaliseName,
   normaliseSession,
   parseDateKey,
   RUNNING_TAGS,
@@ -414,3 +416,72 @@ describe("every tag survives a round-trip", () => {
     ]);
   });
 });
+
+/**
+ * WHAT POSTGRES WILL NOT STORE, PINNED.
+ *
+ * Both of these were live defects found by a cold review of spec w2b-14, and
+ * both are the same shape: `normaliseSession` accepted a value the database
+ * then rejected, which is the exact contract this file's caps exist to hold.
+ * The failure was not a validation message — it was `status: "error"` from the
+ * claim, a retry banner, and every retry failing identically, so the answers
+ * never landed and the notice never went away.
+ */
+describe("normaliseName / normaliseDetail — values Postgres refuses", () => {
+  it("strips a NUL byte, which trim() does not", () => {
+    // Postgres: 22P05 unsupported Unicode escape sequence.
+    expect(normaliseName("a\u0000b")).toBe("ab");
+    expect(normaliseDetail("a\u0000b")).toBe("ab");
+  });
+
+  it("strips other control characters without touching the joiner", () => {
+    expect(normaliseName("a\u0007b\u001Fc")).toBe("abc");
+    // U+200D ZERO WIDTH JOINER is Cf, not a control. Stripping the whole \p{C}
+    // class would take it and break every multi-part emoji.
+    expect(normaliseName("\u{1F468}\u200D\u{1F4BB}")).toBe("\u{1F468}\u200D\u{1F4BB}");
+  });
+
+  it("never cuts an emoji in half into a lone surrogate", () => {
+    // 23 chars + an astral emoji + a tail. A UTF-16 slice at 24 lands INSIDE
+    // the surrogate pair; PostgREST answers PGRST102 Empty or invalid json.
+    const name = normaliseName("a".repeat(23) + "\u{1F600}" + "tail");
+    expect(name).not.toBeNull();
+    expect(isWellFormed(name!)).toBe(true);
+    expect([...name!]).toHaveLength(24);
+  });
+
+  it("caps by CHARACTER, which is what Postgres char_length counts", () => {
+    // 24 emoji is 48 UTF-16 units and 24 Postgres characters, so it must pass.
+    const name = normaliseName("\u{1F600}".repeat(30));
+    expect([...name!]).toHaveLength(24);
+    expect(isWellFormed(name!)).toBe(true);
+
+    const detail = normaliseDetail("\u{1F600}".repeat(100));
+    expect([...detail!]).toHaveLength(DETAIL_MAX);
+    expect(isWellFormed(detail!)).toBe(true);
+  });
+
+  it("still treats an empty or whitespace-only value as absent", () => {
+    expect(normaliseName("   ")).toBeNull();
+    expect(normaliseName("\u0000")).toBeNull();
+    expect(normaliseName(null)).toBeNull();
+    expect(normaliseName(7)).toBeNull();
+  });
+
+  it("carries the same protection through a full session round-trip", () => {
+    const session = normaliseSession({
+      name: "Adrian\u0000",
+      struggle: ["other"],
+      struggleDetail: "two\u0000vials",
+    });
+    expect(session.name).toBe("Adrian");
+    expect(session.struggleDetail).toBe("twovials");
+  });
+});
+
+/** Does this string contain a lone surrogate? (Node 20 lacks isWellFormed.) */
+function isWellFormed(value: string): boolean {
+  return !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(
+    value,
+  );
+}

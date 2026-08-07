@@ -5,7 +5,246 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-07 (every graph unified to one stroke + one gradient)
+Last updated: 2026-08-08 (Stripe billing built and verified end to end)
+
+## Spec w2b-15 — Stripe billing (BUILT, 2026-08-08)
+
+Same branch, `wave3/account-before-paywall`. **Not merged, and deliberately so —
+Adrian is not billing yet, so nothing may route a user at `/onboarding`.** The
+flow is still additive and `/login` is untouched, so that is already true; the
+thing to avoid is wiring the entry point.
+
+**One migration, `supabase/billing/001_billing_tables.sql`, APPLIED by Adrian.**
+Shape and reasoning are in `architecture.md` → **Billing**; do not re-derive.
+
+### Four cold reviews, 2026-08-08 — SQL/money, webhook, paywall UI, security
+
+**Two CRITICALs and seven HIGHs, every one real and every one live.** None was
+caught by tsc, eslint or the 756 tests. Two of them were found only by a Stripe
+TEST CLOCK, which is now the tool of record for anything billing-shaped.
+
+| Sev | Finding | Resolution |
+|---|---|---|
+| CRITICAL | **Seven free days with no card, repeatable forever.** The trial entitled on `status: trialing`, and Stripe sets that AT CREATION — before the SetupIntent is confirmed, because the confirm needs the secret the creation returns. Type any Luhn-valid number, tap, close the tab. The day-7 auto-cancel then reopened the duplicate guard, so it was one request a week, per account, indefinitely. | A trial entitles only once Stripe reports a payment method attached OR no pending setup intent. Requiring the payment method ALONE would have withheld it from every genuine trial — `save_default_payment_method` fires on an invoice and a trial pays none. |
+| CRITICAL | **Abandon 3DS once and the next attempt took no card.** The duplicate guard counted mirror rows with `trialing`, and that row is written even when the card was never validated. Second attempt on a DIFFERENT plan → "You're in!" in 746ms, no card, old plan, unshown price, silently cancelled on day 7. | The guard asks STRIPE. Same plan → hand back the existing SetupIntent so they finish what they started. Different plan → cancel it, because they chose something else. |
+| HIGH | **Cancelling handed back the free month.** `subscription.deleted` re-granted the unpaid period — and Stripe cancelling at the end of dunning is the DEFAULT end state of a failed renewal, so it undid the claw-back. | Deletion may only ever SHORTEN. |
+| HIGH | **The claw-back was a whole billing period out.** `invoice.period_start` is the cycle just COMPLETED, not the one being billed. A customer paid through 14 Sept was locked out instantly at 17 Aug — on yearly, ~362 days in the past. | Reads the line item's period. |
+| HIGH | **A failed webhook failed forever.** The event row was inserted first, so every retry short-circuited on the primary key. `stripe events resend` delivers the SAME id, so Stripe's retries, the dashboard and the CLI were all guaranteed no-ops — the comment claiming otherwise was simply false. | A conflict means SEEN, not DONE. An unprocessed row older than 60s is re-runnable. |
+| HIGH | **No ordering protection at all.** Three measured reorderings each produced a wrong entitlement, and Stripe guarantees no ordering. | Every subscription handler re-reads the live object, so arrival order stops mattering. |
+| HIGH | **Nothing could ever revoke.** `is_active = false` was written nowhere, so a chargeback left full paid access standing. | Disputes and refunds revoke. |
+| HIGH | **The 18+ gate was a column the client could write.** One PATCH with the publishable key opened the whole `(app)` group AND the payment path to an account whose recorded date of birth said eleven, with zero consent rows. | `grants/004` takes the gate columns off `authenticated`; both legitimate writers move to the service role. |
+| HIGH | **`TrialHold` polled twice.** One `alive` boolean set true at the top of every effect run meant a cleanup followed by a re-run RESURRECTED the old loop — measured, 20 requests in 29s, in pairs. | A run token compares identity. |
+| MEDIUM | Five concurrent calls made five subscriptions (check-then-act against a mirror only the webhook writes). | A Stripe idempotency key per user+plan. |
+| MEDIUM | The wallet was never told a payment failed; Apple Pay's sheet sits above our DOM so the inline error painted behind it. | `paymentFailed()` on the confirm event. |
+| MEDIUM | The 3DS full-redirect returned to the paywall — the price list they had just paid on. | Returns to the card screen. |
+| MEDIUM | An unattributable event was stamped processed, so the only monitoring signal was permanently empty. | Left unprocessed for review. |
+| LOW | `CURRENCY_SYMBOL` hardcoded `$` while the currency was data-driven — an EUR price would have rendered dollars everywhere. | Derived from the currency. |
+
+### What the reviews could NOT break
+
+RLS and the grants (32 attacks with a real JWT across all four tables — every
+one 42501, denied at the privilege layer before RLS); cross-user reads; the
+`server-only` boundary (a deliberate client import FAILS THE BUILD); **no secret
+in the client bundle**, checked against the literal key values; the signature
+verification (a valid signature over a different payload → 400, a genuine replay
+after the tolerance → 400); concurrent duplicate delivery (12 simultaneous → one
+handler run); the hand-written schema types against the live database, column for
+column; and the disclosure requirement, re-measured against the scroll port's
+fade mask in four configurations.
+
+### Still open, deliberately
+
+- **Nothing in the app reads `entitlements`.** `hasProAccess` has one consumer:
+  the post-payment poll. `app/(app)/layout.tsx` gates on session + age only, and
+  Profile still renders the plan from `profiles.tier`. That is CORRECT while
+  Adrian is not billing — but it means the paywall is not currently enforcement,
+  and it is easy to mistake for it. Wiring the gate is a deliberate, separate
+  decision.
+- **A trial can still be restarted** after a genuine cancellation. With the
+  no-card fix that buys nothing without a card, so it is a product question
+  (should a returning customer get another trial?) rather than a hole.
+- **Apple Pay has never been driven.** It needs HTTPS and a registered domain.
+
+### Adrian's overrides of the spec body
+
+1. **Three plans, all wired** — not "one monthly price". Annual is no longer out
+   of scope.
+2. **7-day trial**, not 5. Every figure on the paywall derives from `TRIAL_DAYS`.
+3. **USD, not AUD**, and **no conversion to AUD anywhere**. The card issuer
+   converts at its own rate on its own day, so a printed AUD figure would be
+   invented. The currency is NAMED instead ("$69.99 USD per year"). A real AUD
+   price selected by country is the correct future answer, not a client-side sum.
+
+### What was found by driving it rather than reading it
+
+- **Every declined card bought a free month.** The full write-up is in
+  `architecture.md`; the short version is that Stripe reports `active` for a
+  moment when the period rolls, BEFORE attempting the charge, so the extension
+  looked legitimate at the time. Only a test clock surfaces this.
+- **The paywall could be paid on with the price scrolled off.** The disclosure
+  sat above the Payment Element, which measured 550px above the CTA at 390x844 —
+  the exact defect the spec's own previous audit records. It is now passed INTO
+  `PaymentSheet` and rendered directly above the button, so nothing added above
+  can separate them again.
+- **Link took over the payment block** with a phone-number field, a full-name
+  field and its own terms before a card number. Disabled on the payment method
+  configuration (API, not the Wallets panel — which is why it could not be found
+  in the dashboard).
+- **`interface` collapses a Supabase schema generic to `never`**, silently, with
+  the error surfacing on an unrelated insert. Type aliases have the implicit
+  index signature `Record<string, unknown>` needs.
+- **`current_period_end` moved onto subscription ITEMS.** Reading the top-level
+  field returns undefined → a NULL `active_until` → which the access rule reads
+  as NEVER EXPIRES. A billing bug that grants forever is the expensive direction.
+
+### Known and accepted
+
+- **Apple Pay cannot be verified on a preview.** Each preview deploy gets a new
+  hostname and every one would need registering with Stripe. `trackdco.app` is
+  registered (`pmd_1U1q10Em…`) and the verification file is committed at
+  `public/.well-known/`, so LIVE registration is a click — but test mode does not
+  enforce verification at all, so "active" there proves nothing. Google Pay has
+  no such requirement and is the one to check a preview with.
+- **The floating "stripe" pill over the CTA is `elements-inner-easel`**, Stripe's
+  test-mode indicator. Only renders for a `pk_test_` key.
+- **The trial reminder is still a promise nothing keeps.** The paywall says "Day
+  5 · Reminder" out loud. Stripe's `trial_will_end` fires on day 4 and is
+  recorded; whatever sends the notification must honour the day the SCREEN
+  promised, not the day the webhook arrived.
+
+## Spec w2b-14 — account before the paywall (BUILT, 2026-08-07)
+
+Branch `wave3/account-before-paywall`, off `main`. **Not merged.** The spec named
+`wave3/onboarding-flow`; that branch had diverged ~20 commits of unrelated wave-2
+work and was missing main's onboarding fixes, so Adrian took a fresh branch.
+
+**One migration: `supabase/onboarding/002_signup_intake.sql`, APPLIED by Adrian
+2026-08-07.** Live DB now at 28 tables.
+
+Account creation is its own step between `free` and `paywall`. `account` is the
+new phase boundary — the paywall and everything after it may assume a session,
+which is what spec w2b-15 mounts a Payment Element on. Full shape in
+`architecture.md` → **Account before the paywall**; do not re-derive it.
+
+### What the spec assumed that was not true
+
+- **"14 steps" is 18** (19 now), and **five of them come AFTER the paywall** —
+  welcome, notifications, attribution, letter, install. The flow is one route
+  (`/onboarding`) with `?step=` in the URL, advanced by `pushState`, not
+  fourteen routes.
+- **The paywall had no auth controls to move.** They were unmounted 2026-08-05.
+  So step 3 was mounting `/login`'s components on the new screen, unrestyled.
+- **There was nowhere to put most of the answers.** No `name` column on
+  `profiles`, no table for running/struggle. Hence `signup_intake`.
+
+### The three defects that only showed up by driving it
+
+None were caught by tsc, eslint or the (then) 728 tests. Same lesson as w2b-13.
+
+1. **A server `redirect()` is a SOFT navigation.** The flow is one mounted client
+   tree that reads `?step=` at mount and on `popstate` only, so `?step=paywall`
+   appeared in the address bar while the account screen — sign-in form and all —
+   stayed on screen for a user who had just signed in. `signIn` now hands the
+   destination back for `window.location.assign`, which also makes all three auth
+   returns full document loads and gives the handoff ONE arrival to hook.
+2. **The paywall's `setAccountName(null)`** ran after the handoff had set the
+   name from the claimed row. Welcome would have greeted a signed-in user as
+   nobody. Deleted with the rest of the dead auth code.
+3. **The second-device hole, and it destroyed the whole answer set.** Sign up by
+   email on the phone, open the confirmation link on the laptop where your email
+   is — that laptop has no onboarding session, and it claimed an EMPTY
+   `signup_intake` row. The table is append-only and first-write-wins, so the
+   phone's real answers then hit a row that already existed, were reported as
+   "already claimed", and were cleared. Every individual step behaved exactly as
+   designed. `carriesAnswers` now refuses to write a claim with nothing in it.
+
+### Verified by executing, against the real database
+
+Playwright at 390×844 with the iPhone 14 insets simulated (headless Chromium
+reports a 0 inset, which is the class of bug desktop hides). Disposable accounts
+created through the admin API, since `.env.local` points at production and there
+is no local Supabase.
+
+- Progress counts the new screen: free 67% → account 72% → paywall 76% →
+  install 100%. Monotonic, never complete while a screen remains.
+- Email sign-in from the account screen lands on the paywall; `/login` unchanged.
+- Google OAuth starts with `redirect_to=/auth/callback?next=/onboarding?step=paywall`.
+- The answers survive **leaving the site and returning through a server 302** and
+  are claimed on arrival — driven through `/auth/confirm` with a real single-use
+  token rather than `/auth/callback` with a Google code, because there is no
+  Google account to drive. The two routes exchange, write cookies onto the
+  response and `NextResponse.redirect(next)` in the same order.
+- **A failed write keeps the answers and shows a retry** — verified against a
+  real failure (the missing table) rather than a simulated one.
+- **An existing user's data wins**: signing the claimed account back in carrying
+  a completely different session (different name, dob, sex, tags, code) changed
+  nothing — not the intake row, not the profile, not even `tos_accepted_at`, and
+  `consent_records` stayed at exactly four rows.
+- Anonymous `?step=paywall` → **307 to `/onboarding`** before any HTML; signed-in
+  `?step=account` → **307 to `?step=paywall`**.
+- Back walks cost → free → account → free → cost with answers intact.
+
+### Four cold reviews, 2026-08-08 — SQL, the handoff, auth/routing, the flow
+
+Run adversarially against the running app and the live database before anything
+merged. **Not one of the defects below was caught by tsc, eslint or the 732 tests
+then passing** — every one lived at a boundary. Same lesson as w2b-13, and worth
+repeating on the next spec of this size.
+
+| Sev | Finding | Resolution |
+|---|---|---|
+| CRITICAL | **A duplicated `?step=` walked past the whole of §Route protection.** `searchParams` hands back `string[]` for a repeated param, `isStepId` tests `typeof === "string"`, so `requested` fell to null and every guard short-circuited — while the client's `URLSearchParams.get` read the first value and rendered it. `?step=paywall&step=paywall` returned 200 with zero cookies. | `requestedStep` takes `[0]`, which is exactly what the client reads. A guard that resolves a different value than the thing it guards is not a guard. |
+| HIGH | **The age gate was satisfiable by making an account.** The exemption keyed off `signedIn`, so signing up at `/login` and never visiting `/welcome` rendered the paywall. A regression: on `main` the paywall was anonymous and clamped to `name`. | The clamps take `passedGate` — `is_18_plus AND tos_accepted_at`, server-read. See below for what that forced. |
+| HIGH | **A thin `signup_intake` row destroyed the real answers.** The first `carriesAnswers` was an OR, so a laptop where somebody typed a name and stopped squatted the primary key; the phone's full set then read as "already claimed" and was cleared. | An AND over both intent tag sets — `clampIntent`'s own condition, so every legitimate claimer passes by construction. Plus `003` as a CHECK, because the destructive rule must not live only in TypeScript. |
+| HIGH | **A transient auth blip was reported as "signed out", and dropped the answers in silence.** `getCurrentUser` discards `getUser`'s error, `no-session` is deliberately not a failure, so nothing retried and nothing appeared on screen. | The claim calls `getUser` itself and branches on the error. `getCurrentUser` is untouched: every other caller is a guard, and a guard that reads an unreachable auth server as "signed in" is far worse. |
+| HIGH | **One failed claim stranded the answers forever.** The retry banner was the only recovery, and tapping past it to the end of the flow destroyed it — re-entering `/onboarding` lands on `hook`, an anonymous step, so the claim never fired again. | Two backed-off automatic retries before the banner is shown at all, and the handoff fires on the SESSION rather than the step phase. |
+| HIGH | **`history.replaceState` was called during render**, setState-ing Next's Router mid-render — the exact hazard `goNext` documents and was fixed for. Pre-existing on `main`; this branch added a reachable trigger. | `resolveStep` is pure; a `syncUrlToStep` effect owns the address bar. |
+| MEDIUM | **A NUL byte or a half-cut emoji made the retry fail forever.** Both pass `normaliseSession` and both are rejected by Postgres (`22P05`, `PGRST102`), so every retry failed identically and the notice never cleared. | `capCharacters` strips C0/C1 controls and cuts by CODE POINT with `Array.from` — which is what `char_length()` counts, so the caps and the CHECKs finally agree about what "24" means. |
+| MEDIUM | **The wrong device stamped the 18+ gate.** `passGateFromSession` ran on the `already-claimed` path too, so a stale phone whose answers were discarded a line earlier still set `date_of_birth` and `sex` — and `sex` decides which body the injection-site map draws. | `answersMatch` — only the device whose answers are the ones on the account may stamp. Keeps the retry idempotent, since the same device finds its own answers stored. |
+| MEDIUM | **`readNext` accepted `/\evil.com` and tab/LF/CR.** The URL parser folds a backslash to `/` and strips controls, so `/\` IS `//` by the time a browser reads it — a prefix test checks a value nothing will ever use. | Parsed against an unreachable base; only pathname/search/hash survive. Not remotely triggerable today (the `next` is a constant), but the comment claimed a guarantee the code did not provide. |
+
+**The age-gate fix forced the auth return to move.** It cannot land on the paywall
+any more: the paywall requires a proven age, the thing that proves it is the
+claim, and the claim needs the device's `localStorage` — which the server deciding
+the redirect cannot read. So auth returns to `?step=account`, which renders a
+waiting state for a signed-in user, and the flow moves them on once the gate is
+written. Every claim outcome now has a destination (`onResolved`), because a
+spinner with no resolution was the first thing that arrangement produced.
+
+### Kept deliberately
+
+- **A device abandoned AFTER the intent screens still wins the row** over a fuller
+  set claimed later. Both are the user's own genuine answers, first-write-wins is
+  the rule the spec asked for, and the alternative is an UPDATE grant — which
+  would dismantle the structural guarantee that an existing user's data cannot be
+  overwritten. The `sex`/`dob` harm is gone with `answersMatch`.
+- **No terminal state on a deterministic claim error.** It retries forever. With
+  two silent retries first, the case that reaches a user is rare.
+- **A tab that loaded before a sign-in elsewhere still shows the sign-in form.**
+  `passedGate` is baked into that tab's render; nothing client-side can fix it,
+  because nothing asked a server. The next real request corrects it.
+- **`install` reads 100% while a screen remains**, and **a reload mid-flow drops
+  the in-app back arrow**. Both pre-existing, both outside this spec.
+- **The paywall renders six buttons**, one of which is the CTA; the others are
+  three plan radios, a disclosure and its Apply. The two-CTA ambiguity the spec
+  set out to remove is gone.
+
+### Still open
+
+- **`auth_started` now has no emitter.** It was fired by the paywall under
+  `method: "preview"`, reporting a sign-in that had happened on another screen.
+  `auth_completed` moved to the handoff, which is the only server-confirmed
+  "there is an account" moment. Firing `auth_started` honestly means touching the
+  shared auth components, which the spec forbids without asking.
+- **`signup_attribution` is still unwritten.** The attribution screen is
+  post-paywall and out of this spec. `affiliate_code` is claimed into
+  `signup_intake` because it is captured before the account exists and would
+  otherwise be lost by anyone who abandons after the paywall.
+- **The paywall renders for a signed-in user whose `is_18_plus` is false.** They
+  would have had to pass the client age gate to get an account through this flow,
+  but the server does not re-check it to render a price list. **Spec w2b-15's
+  payment endpoint must verify it server-side** — that is where §3.2's "no
+  payment path bypasses the age gate" lands.
 
 ## Spec w2b-13 — compound controls (BUILT, 2026-08-07)
 

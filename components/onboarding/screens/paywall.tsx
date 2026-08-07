@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Bell, CaretDown, Check, CircleNotch, Crown, Lock } from "@/components/icons";
+import { Bell, CaretDown, Check, Crown, Lock } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
 import { validateCode, type CodeVerdict } from "@/lib/onboarding/affiliate";
 import {
@@ -10,7 +10,6 @@ import {
   formatPrice,
   monthlyEquivalent,
   PLAN_ORDER,
-  PLANS,
   REMINDER_DAY,
   TRIAL_DAYS,
   yearlySavingPercent,
@@ -22,31 +21,44 @@ import { FlowCta, StepFrame } from "../chrome";
 import { useFlow } from "../flow-context";
 
 /**
- * Screen 10 — Paywall. AUTH + PAYMENT (Spec 3-01 §6, §9).
+ * The paywall — THE DECISION (Spec 3-01 §6, §9, amended by w2b-14 and w2b-15).
  *
- * This is the only place an account or a payment is asked for, and it sits
- * AFTER the whole demo by design.
+ * ## There is no auth here, and there is no longer meant to be
  *
- * ## What is real here and what is not
+ * Account creation moved to its own step immediately before this one
+ * (`screens/account.tsx`). So this screen may ASSUME A SIGNED-IN USER — the
+ * route refuses to render it otherwise, server-side, in
+ * `app/onboarding/page.tsx`. That assumption is what spec w2b-15 builds a
+ * Stripe Payment Element on.
  *
- * **Real:** every screen state, the plan cards, and the code
- * capture/validate/apply path.
+ * The `GoogleSignInButton` that used to sit at the bottom of this file is gone
+ * for good, and its empty placeholder slot with it. Auth navigating the browser
+ * away and back is a full page load, which destroys any payment UI mounted
+ * beside it; that bug class cannot exist once the two are on different screens.
  *
- * **There is now NO auth on this screen at all.** The `GoogleSignInButton` was
- * removed 2026-08-05 at Adrian's call, pending a decision on the billing
- * provider. It was the only thing here that ever authenticated, so the screen
- * cannot currently produce an account — which is fine while `startTrial()` is a
- * stub and is a blocker the moment it is not.
+ * ## THE CARD IS NOT HERE (Adrian, 2026-08-08)
  *
- * **Stubbed, deliberately:** the RevenueCat trial-start and the payment sheet.
- * This project has no RevenueCat integration at all (`architecture.md` lists
- * Stripe as deferred and there is no RevenueCat dependency), and wiring live
- * billing from a preview branch would create real billing objects against real
- * customers. `startTrial()` below is the single seam: it is where
- * `Purchases.purchase()` goes, and nothing else needs to move.
+ * It was, briefly, and the screen was doing two jobs at once: make the argument
+ * and pick a plan, AND take a card. Measured at 320x568 that put the commit
+ * button roughly 1,400px down — timeline, three plan rows, code field, card
+ * form, disclosure, button. Payment moved to `screens/checkout.tsx`, which the
+ * CTA below advances to.
  *
- * The preview path is explicit rather than hidden, so nobody can mistake a
- * stubbed trial for a real one.
+ * Nothing about the spec's rules changed: the user still never reaches a
+ * stripe.com domain, and Apple Pay and Google Pay still sit above the card
+ * fields — one screen further on.
+ *
+ * ## One button
+ *
+ * Exactly one call to action. The plan rows are radios and the code field is a
+ * disclosure, so there is nothing else here a user could mistake for the thing
+ * that starts their trial.
+ *
+ * ## The prices come from Stripe
+ *
+ * Never from the codebase — a dashboard change lands without a deploy. A plan
+ * whose price did not load is dropped rather than rendered blank, and if none
+ * load the screen says so instead of offering an empty picker.
  */
 
 /**
@@ -100,18 +112,30 @@ function trialTimeline(now: Date) {
 }
 
 export function PaywallScreen() {
-  const { session, patch, goNext, setAccountName } = useFlow();
+  const { session, patch, goNext, priceFor } = useFlow();
   const [verdict, setVerdict] = useState<CodeVerdict>({ status: "none" });
   const [codeDraft, setCodeDraft] = useState("");
   const [codeOpen, setCodeOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
 
-  const saving = yearlySavingPercent();
+
+  /**
+   * THE PRICES, FROM STRIPE. Never from the codebase — spec w2b-15 forbids a
+   * hardcoded amount so a dashboard change lands without a deploy.
+   *
+   * A plan with no price is DROPPED from the list rather than rendered with a
+   * blank figure. If none load at all the screen says so instead of offering an
+   * empty picker: this is the one screen where silently showing nothing would
+   * be worse than an honest error, because the user is trying to pay.
+   */
+  const pricedPlans = PLAN_ORDER.map((id) => priceFor(id)).filter(
+    (p): p is NonNullable<typeof p> => Boolean(p),
+  );
+  const selected = pricedPlans.find((p) => p.id === session.plan) ?? pricedPlans[0];
+  const saving = yearlySavingPercent(priceFor("yearly"), priceFor("monthly"));
   // Resolved ONCE on mount. Reading the clock during render would let the
   // billing date change under the user mid-session, and the whole point of
   // printing it is that it is a fixed commitment.
   const [timeline] = useState(() => trialTimeline(new Date()));
-
   useEffect(() => {
     track("paywall_viewed");
   }, []);
@@ -160,25 +184,27 @@ export function PaywallScreen() {
   };
 
   /**
-   * THE STUB. In order, the real chain is:
-   *   1. Google OAuth / email        <- already real, see the button below
-   *   2. RevenueCat trial-start      <- goes here
-   *   3. Apple Pay / Google Pay / card sheet, $0 authorisation
-   *   4. merge the anonymous session onto the account, record attribution
-   *   5. Welcome
-   * Steps 2 and 3 currently resolve immediately. Step 4 has nowhere to write
-   * until there is an account, so it is left for the auth integration.
+   * THE PRICE LINE, on the DECISION screen.
+   *
+   * The full four-part disclosure lives on `checkout`, beside the button that
+   * actually takes the card — that is where the commit is and where the ACCC
+   * requirement bites. But picking a plan is a commitment too, and a price that
+   * only appears one screen later would mean choosing before seeing. So the
+   * amount, the currency and the trial length are stated here as well, derived
+   * from the same selected plan so the two screens cannot disagree.
    */
-  const startTrial = async () => {
-    setBusy(true);
-    track("auth_started", { method: "preview" });
-    await new Promise((r) => setTimeout(r, 700));
-    track("auth_completed", { method: "preview" });
-    track("trial_started", { plan: session.plan, days: TRIAL_DAYS });
-    setAccountName(null);
-    setBusy(false);
-    goNext();
-  };
+  const priceLine = selected ? (
+    <p className="text-center text-[0.75rem] leading-relaxed text-text-muted">
+      {TRIAL_DAYS}{" "}days free, then{" "}
+      <span className="text-foreground">
+        {formatPrice(selected.price, selected.currency)}{" "}
+        {selected.currency.toUpperCase()}/
+        {selected.period === "year" ? "yr" : selected.period === "month" ? "mo" : "wk"}
+      </span>
+      . Cancel any time before day{" "}
+      {TRIAL_DAYS}.
+    </p>
+  ) : null;
 
   return (
     /**
@@ -255,9 +281,9 @@ export function PaywallScreen() {
             legible as the cheapest rather than the biggest number. Rows scale to
             any number of plans and give each one space for its own sub-line. */}
         <div role="radiogroup" aria-label="Choose a plan" className="space-y-2.5">
-          {PLAN_ORDER.map((id) => {
-            const plan = PLANS[id];
-            const active = session.plan === id;
+          {pricedPlans.map((plan) => {
+            const id = plan.id;
+            const active = selected?.id === id;
             const perMonth = monthlyEquivalent(plan);
             const suffix =
               plan.period === "year" ? "yr" : plan.period === "month" ? "mo" : "wk";
@@ -302,14 +328,14 @@ export function PaywallScreen() {
                       expensive option when it is the cheapest. */}
                   {perMonth !== null ? (
                     <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-text-muted">
-                      ({formatPrice(perMonth)}/mo)
+                      ({formatPrice(perMonth, plan.currency)}/mo)
                     </span>
                   ) : null}
                 </span>
 
                 <span className="shrink-0 text-right">
                   <span className="block font-mono text-lg font-light tabular-nums text-foreground">
-                    {formatPrice(plan.price)}
+                    {formatPrice(plan.price, plan.currency)}
                     <span className="ml-1 text-[11px] text-text-muted">/{suffix}</span>
                   </span>
                 </span>
@@ -405,78 +431,29 @@ export function PaywallScreen() {
             what the demo had already made them do. By this screen the argument
             is made; what is left to say is what it costs and when. */}
 
-        {/* IMMEDIATELY ABOVE THE BUTTON (Adrian, 2026-08-05). It sat under the
-            plan rows, which put the code field between it and the thing it is
-            reassuring about — and the fear it answers ("am I being charged
-            right now?") is felt at the moment of pressing, not three blocks
-            earlier. */}
-        <p className="flex items-center justify-center gap-2 text-[0.85rem] text-foreground">
-          <Check className="h-3.5 w-3.5 text-accent-amber" weight="bold" aria-hidden />
-          No payment due now, and no card required
-        </p>
-
-        {/* The commitment, at the end of what it commits to. `pt-1` rather than
-            relying on the column gap: this is the end of the argument, not the
-            next item in a list of blocks. */}
+        {/* THE COMMITMENT. One button, and it goes to the card screen rather
+            than taking a card here — see `checkout.tsx` for why the two were
+            split. `disabled` when no price loaded: a plan cannot be chosen if
+            none is on screen, and letting someone through to a payment form
+            with nothing behind it is worse than stopping here. */}
         <div className="space-y-3 pt-1">
-          <FlowCta onClick={startTrial} disabled={busy}>
-            {busy ? (
-              <span className="flex items-center justify-center gap-2">
-                <CircleNotch className="h-4 w-4 animate-spin" />
-                Starting
-              </span>
-            ) : (
-              `Start my ${TRIAL_DAYS}-day free trial`
-            )}
-          </FlowCta>
-          {/* The legal line, in the shape Adrian asked for: "N days free, then
-              $X per period ($Y/mo)". The bracketed monthly figure is DERIVED
-              from the selected plan, so it can never contradict the price
-              beside it, and it is omitted on the monthly plan where it would
-              just repeat itself.
-
-              Every gap around an expression is an explicit {" "}. JSX drops
-              whitespace between an expression and text across a line break, and
-              this file has now produced "5days", "$0today" and "day 5unless"
-              that way. Explicit is the only thing that holds. */}
-          {/* TWO LINES, not one wrapped paragraph (Adrian, 2026-08-05: "add a
-              line for the before day 5 sentence so it's all lined up").
-              The price and the cancellation terms are two different statements,
-              and running them together let the second half wrap into a ragged
-              tail under the first. A block each keeps both centred on their own
-              line at every width. */}
-          <div className="space-y-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
-            <p>
-              {TRIAL_DAYS}{" "}days free, then{" "}
-              {formatPrice(PLANS[session.plan].price)}{" "}per{" "}
-              {PLANS[session.plan].period}
-              {monthlyEquivalent(PLANS[session.plan]) !== null ? (
-                <>
-                  {" "}({formatPrice(monthlyEquivalent(PLANS[session.plan])!)}/mo)
-                </>
-              ) : null}
-              .
+          {selected ? (
+            <>
+              <FlowCta onClick={goNext}>
+                {`Start my ${TRIAL_DAYS}-day free trial`}
+              </FlowCta>
+              {priceLine}
+            </>
+          ) : (
+            <p
+              role="alert"
+              className="text-center text-[0.8rem] text-[var(--state-error)]"
+            >
+              We couldn&apos;t load our prices just now. Please try again
+              shortly.
             </p>
-            <p>
-              Cancel any time before day{" "}
-              {TRIAL_DAYS}.
-            </p>
-          </div>
+          )}
         </div>
-
-        {/* AUTH GOES HERE, and nothing renders in the slot yet (Adrian,
-            2026-08-05: "remove the Continue with Google thing for now. We will
-            insert the area where we will do Google").
-            The button was real and worked — it is the ONLY thing on this screen
-            that ever authenticated — so taking it out means the screen now has
-            no auth path at all until billing is wired. That is deliberate: a
-            live Google button beside a stubbed trial CTA taught people the
-            wrong thing about which one starts the trial, and a cold reviewer
-            reading this screen as a customer said pressing the CTA with no
-            payment sheet would make him assume it was broken.
-            `startTrial()` above is the seam; whichever provider wins renders
-            its own auth here. `GoogleSignInButton` still exists and is still
-            used by /login — nothing was deleted, only unmounted from here. */}
       </div>
     </StepFrame>
   );

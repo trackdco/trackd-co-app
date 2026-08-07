@@ -35,7 +35,12 @@ export type StepId =
   // its own step rather than the top of the paywall because it has one job —
   // "$0 today" — and a screen with one job cannot be scrolled past.
   | "free"
+  // Account creation, its own screen, immediately before the paywall (Spec
+  // w2b-14). See `STEP_ORDER` for why it is not on the paywall itself.
+  | "account"
   | "paywall"
+  // Payment is its own screen, after the plan is chosen. See `STEP_ORDER`.
+  | "checkout"
   | "welcome"
   | "install"
   | "notifications"
@@ -51,9 +56,12 @@ export interface StepMeta {
 }
 
 /**
- * The one ordered list. Phase A (0-10) runs with no account; Phase B (11-17)
- * runs in-trial. `paywall` is the boundary: it is the only step that changes
- * phase, because auth and payment are the trial button and nothing earlier.
+ * The one ordered list. Phase A runs with no account; Phase B runs signed in.
+ * **`account` is the boundary** — it is the only step that changes phase.
+ *
+ * It used to be `paywall`, because auth and payment were both the trial button.
+ * Spec w2b-14 split them: the account is made on its own screen and the paywall
+ * is payment only, so every step from `paywall` onward has a session.
  */
 export const STEP_ORDER: readonly StepMeta[] = [
   { id: "hook", phase: "anonymous" },
@@ -84,7 +92,43 @@ export const STEP_ORDER: readonly StepMeta[] = [
   // Cost makes the argument, `free` removes the risk, paywall asks for the
   // decision. Three beats, in that order (Adrian, 2026-08-05).
   { id: "free", phase: "anonymous" },
-  { id: "paywall", phase: "anonymous" },
+  /**
+   * ACCOUNT CREATION, ON ITS OWN SCREEN, BEFORE THE PRICE (Spec w2b-14).
+   *
+   * Three reasons, in the spec's priority order:
+   *
+   * 1. **The email is captured before the price is seen.** A user who walks the
+   *    whole flow and then balks at the paywall used to leave no trace at all.
+   *    Now they leave an account.
+   * 2. **Auth and payment stop colliding.** Google sign-in navigates the browser
+   *    away and back, which is a full page load — it destroys any payment UI
+   *    mounted on the same screen. Splitting the screens removes that entire bug
+   *    class before spec w2b-15 mounts a Stripe Payment Element on the paywall.
+   * 3. **The paywall gets exactly one button.** It used to carry a "Continue
+   *    with Google" control that was not the call to action.
+   *
+   * It is the LAST anonymous step. Everything after it has a session.
+   */
+  { id: "account", phase: "anonymous" },
+  { id: "paywall", phase: "authed" },
+  /**
+   * PAYMENT IS ITS OWN SCREEN (Adrian, 2026-08-08).
+   *
+   * The paywall was doing two jobs at once: make the argument and pick a plan,
+   * AND take a card. Measured at 320x568 that put the commit button ~1,400px
+   * down a single screen — timeline, three plan rows, code field, card form,
+   * disclosure, button.
+   *
+   * Split, each screen has one job. `paywall` asks WHICH; `checkout` asks for
+   * the card. It is also what makes the disclosure requirement structural
+   * rather than something to keep re-measuring: on a short payment screen the
+   * trial length, the amount, the charge date and the auto-renewal notice sit
+   * beside the button by construction.
+   *
+   * Still inside TRACKD — the spec's rule is that the user never reaches a
+   * stripe.com domain, not that payment shares a screen with the price list.
+   */
+  { id: "checkout", phase: "authed" },
   { id: "welcome", phase: "authed" },
   { id: "notifications", phase: "authed" },
   { id: "attribution", phase: "authed" },
@@ -159,7 +203,45 @@ export function clampStep(
    * rather than recomputed here so the age rule has exactly one home.
    */
   incomplete: StepId | null,
+  /**
+   * Whether the SERVER has verified that this account has ALREADY PASSED the
+   * 18+/ToS gate — `profiles.is_18_plus AND tos_accepted_at`, read by
+   * `getSessionContext` and handed down from `app/onboarding/page.tsx`.
+   *
+   * ## This is proof of age, which is the only thing that may skip a proof of age
+   *
+   * An earlier version of this took `signedIn` instead, and a cold review showed
+   * that made the gate satisfiable by MAKING AN ACCOUNT: sign up at `/login`,
+   * never visit `/welcome`, and the paywall rendered. The predicate has to be
+   * the age, not the session.
+   *
+   * ## Why the exemption exists at all
+   *
+   * The claim clears `localStorage` the instant the answers reach the account —
+   * that is the point of it. So afterwards the device holds NO date of birth,
+   * and this function, reading only the device, sends a paying customer back to
+   * "What's your name?" at 20% on any reload. That is not a stricter gate; it is
+   * a lockout, and it is the same shape as the two this file's comments already
+   * record.
+   *
+   * ## Why it covers EVERY step and not just the authed ones
+   *
+   * Because the lockout does. A second cold review measured it: complete the
+   * flow, sign in, then open `?step=free` — an ANONYMOUS step — and you land on
+   * `name`. Exempting only the authed half left the whole anonymous half exposed
+   * to exactly the failure the exemption was written for.
+   *
+   * Nothing is weakened by the wider scope. What this skips is a date of birth
+   * in `localStorage`; what it requires instead is a date of birth stored on the
+   * account, alongside a per-version consent record, both written server-side
+   * and both re-read on every request. That is strictly the stronger evidence.
+   *
+   * It FAILS CLOSED: the parameter defaults to false, so a caller that forgets
+   * it gates harder rather than softer.
+   */
+  gated = false,
 ): StepId {
+  if (gated) return requested;
   if (!incomplete) return requested;
   return stepIndex(requested) > stepIndex(incomplete) ? incomplete : requested;
 }
@@ -190,13 +272,28 @@ const INTENT_GUARDED: readonly StepId[] = [
   "payoff",
   "cost",
   "free",
+  // The account screen is anonymous and sits between the intent screens and the
+  // paywall, so it is guarded exactly like the rest of that stretch. Nobody
+  // returns to it from an auth redirect — a signed-in user is sent forward to
+  // the paywall (see the account screen's own redirect) — so the `welcome`
+  // hazard described above does not apply here.
+  "account",
   "paywall",
 ];
 
 export function clampIntent(
   requested: StepId,
   answers: { running: readonly unknown[]; struggle: readonly unknown[] },
+  /**
+   * The same server-verified proof of age as `clampStep`'s, for the same reason
+   * and with the same scope. A gated account's answers are ON THE ACCOUNT — the
+   * claim wrote them and then emptied the device — so judging it by what is left
+   * in `localStorage` throws a paying customer back to the intent screens.
+   * Fails closed.
+   */
+  gated = false,
 ): StepId {
+  if (gated) return requested;
   if (!INTENT_GUARDED.includes(requested)) return requested;
   if (answers.running.length === 0) return "running";
   if (answers.struggle.length === 0) return "struggle";

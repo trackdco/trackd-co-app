@@ -4,7 +4,137 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-07 (every graph unified to one stroke + one gradient)
+Last updated: 2026-08-08 (Stripe billing built; cold reviews running)
+
+---
+
+## ⚠️ BILLING IS BUILT AND MUST NOT BE ROUTED TO YET
+
+**Spec w2b-15 is BUILT and verified end to end against real Stripe.** State and
+reasoning: `progress-tracker.md` + `architecture.md` → **Billing**.
+
+**Adrian is not billing yet.** The paywall takes real payments the moment it is
+reachable, so **nothing may point a user at `/onboarding`** until he says so.
+That is already true — the flow is additive and `/login` is untouched — so the
+task is simply: do not wire the entry point, and do not merge.
+
+### ⚠️ THE PREVIEW CANNOT SHOW THE PAYWALL YET
+
+The Stripe variables were only ever added to `.env.local`. Vercel's **Preview**
+environment almost certainly has none of them, so on a preview deploy:
+
+- `loadPricesSafe` returns nothing and the paywall renders "We couldn't load our
+  prices just now" instead of the plan rows;
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is absent, so the Payment Element renders
+  "Payments aren't available right now".
+
+Both are the deliberate honest-failure paths rather than bugs, but they mean the
+paywall cannot be judged from a preview link. To fix, add to Vercel → Settings →
+Environment Variables, scoped to **Preview** only:
+`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_YEARLY`,
+`STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_WEEKLY` (all TEST values, in `.env.local`),
+plus `STRIPE_WEBHOOK_SECRET` from a real webhook endpoint pointed at the preview
+if the webhook is to be exercised there too.
+
+**Everything before the paywall works on a preview without any of this**, since
+the flow is free until that screen.
+
+Until then the way to walk the paywall is a LAN dev server on a phone — which is
+also the only way today, because Vercel Deployment Protection means a preview
+link only opens for someone signed into Adrian's Vercel account.
+
+### ⚠️ ONE MIGRATION OWED NOW
+
+**`supabase/grants/004_gate_column_lock.sql` is NOT APPLIED.** It takes
+`is_18_plus`, `tos_accepted_at`, `tos_version` and `date_of_birth` off the
+`authenticated` grants on `profiles`, because a cold review reproduced a
+signed-in user PATCHing themselves through the 18+ gate with nothing but the
+publishable key — which opened the whole `(app)` group and the payment path to
+an account whose recorded date of birth said eleven.
+
+**Safe to apply whenever.** The two legitimate writers (`app/welcome/actions.ts`
+and the claim's `passGateFromSession`) already write via the service role
+(`lib/auth/gate-writer.ts`), so the code works either side of it. Until it is
+applied, the hole is open.
+
+### Owed by Adrian, when he wants to go live
+
+1. **Register `trackdco.app` for Apple Pay in LIVE mode.** The test-mode
+   registration proves nothing (test mode does not enforce domain verification).
+   The verification file is already committed and served at
+   `public/.well-known/apple-developer-merchantid-domain-association`, so this is
+   one click with no deploy.
+2. **A live webhook endpoint** pointing at `/api/stripe/webhook`, and its signing
+   secret into Vercel as `STRIPE_WEBHOOK_SECRET`. Local work uses `stripe listen`,
+   which prints its own.
+3. **Live-mode keys and three live price IDs** into Vercel Production. The env
+   var names are the same; the VALUES are scoped per environment. There is no
+   `_TEST`/`_LIVE` selector on purpose — `lib/billing/stripe.ts` asserts the
+   key's mode matches the price's `livemode`, which catches the real mistake.
+4. **The Stripe account business description.** Given TRACKD's history with
+   automated enforcement elsewhere, it must state plainly that TRACKD sells a
+   subscription to a logging and tracking application and does NOT sell, supply
+   or facilitate the supply of any substance. Adrian writes this, not the agent.
+5. **Turn Link off in LIVE mode too.** It is off in test (via the payment method
+   configuration API — NOT the Wallets panel, which is why it cannot be found by
+   hunting the dashboard).
+
+### 🔴 THE REMINDER IS A PROMISE NOTHING KEEPS — next session's first job
+
+Two screens now say it out loud: the paywall's timeline ("Day 5 · Reminder —
+We'll notify you that your trial is ending, before anything changes") and the
+checkout disclosure ("We'll remind you on day 5 — cancel any time before then").
+**Nothing sends it.**
+
+Adrian asked for the copy deliberately (2026-08-08) and parked the mechanism for
+the next session. What exists to build on:
+
+- `customer.subscription.trial_will_end` is received, verified on a test clock,
+  and stored in `webhook_events` with its **full payload**, so the real event is
+  there rather than a reconstruction.
+- The push pipeline is already live end to end — `lib/notifications/`,
+  `supabase/functions/send-push`, VAPID, quiet hours, per-user timezone on
+  `profiles.timezone`, and a secured cron at `/api/notifications/run`.
+
+**The trap:** Stripe fires `trial_will_end` THREE DAYS out, which on a 7-day
+trial is **day 4**. Both screens promise **day 5** (`REMINDER_DAY = TRIAL_DAYS - 2`).
+Honour the SCREEN. The webhook is a signal that a trial is ending, not the
+schedule — store the trial end and let the existing reminder scheduler fire on
+the promised day, in the user's own timezone and outside quiet hours.
+
+Until it is built, the paywall is making a commitment the product does not keep.
+
+### Owed by whoever picks this up
+
+- **The trial reminder.** The paywall promises "Day 5 · Reminder" out loud and
+  nothing sends one. `trial_will_end` is received and logged with its full
+  payload, so the data is there. **Honour the day the SCREEN promised (5), not
+  the day Stripe fires (4).**
+- **`profiles.tier` vs `entitlements`.** `project-overview.md` still describes
+  `tier` as the entitlement column; that is now historical. Gates read
+  `entitlements`. Reconciling the two was deliberately not done in the same
+  change as the tables.
+- **Apple Pay on a real device.** Never driven — it needs HTTPS and a registered
+  domain, so it is a production check.
+
+## 📌 w2b-14 — ACCOUNT BEFORE THE PAYWALL: what is left
+
+Built and verified against the real database; state + the three defects it turned
+up are in `progress-tracker.md`. Outstanding:
+
+- **Nothing is merged.** Branch `wave3/account-before-paywall`.
+- ✅ **`003_signup_intake_has_answers.sql` APPLIED by Adrian, 2026-08-08** and
+  verified live: a thin row now fails with `23514`, a real one still inserts. The
+  destructive rule no longer depends on TypeScript alone.
+- **Test accounts are cleaned up** — all 23 `w2b14-*@trackd-qa.invalid` deleted
+  from the production project, `signup_intake` back to 0 rows. Recreate freely on
+  that domain (`.invalid` is reserved, so it can never be a real address); the
+  helper is `scratchpad/admin.mjs`.
+- **A real Google round-trip has not been driven** — there is no Google account in
+  the agent session. The mechanism was verified through `/auth/confirm`, which is
+  the same exchange → cookies → 302 shape. Worth one manual pass on a phone.
+- **Adrian's copy review of the account screen.** "Let's make sure this sticks."
+  is the agent's wording, not his.
 
 ---
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { CircleNotch, EnvelopeSimpleOpen } from "@/components/icons";
 
@@ -21,13 +21,42 @@ const INPUT_CLASS =
  * On a successful sign-up (email confirmation is ON) there's no session yet —
  * we swap the form for a "check your inbox" card. A successful sign-in redirects
  * server-side, so this component never sees that state.
+ *
+ * TWO CALLERS since Spec w2b-14: /login, and the onboarding account screen.
+ * The onboarding one is mid-flow, so it needs a different landing path and
+ * opens on sign-UP rather than sign-in — both are props, and both default to
+ * the login screen's existing behaviour so that screen is untouched. NOTHING
+ * about the treatment is per-caller: the spec moves these controls, it does not
+ * redesign them.
  */
-export function EmailPasswordForm() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+export function EmailPasswordForm({
+  next,
+  defaultMode = "signin",
+}: {
+  /** Internal path to land on after auth. Validated server-side. */
+  next?: string;
+  /** Which half the form opens on. `/login` opens on sign-in; onboarding on sign-up. */
+  defaultMode?: "signin" | "signup";
+} = {}) {
+  const [mode, setMode] = useState<"signin" | "signup">(defaultMode);
   const [state, formAction, isPending] = useActionState(
     authenticate,
     initialState,
   );
+
+  /**
+   * A FULL DOCUMENT LOAD, not a router push.
+   *
+   * Only set when the caller supplied a `next` (the onboarding account screen).
+   * `router.push` would be a soft navigation, and the onboarding flow is one
+   * mounted client tree that reads `?step=` at mount — so a soft nav leaves the
+   * screen showing this form with the address bar claiming otherwise. See
+   * `signIn` in `app/login/actions.ts`.
+   */
+  const redirectTo = state.redirectTo;
+  useEffect(() => {
+    if (redirectTo) window.location.assign(redirectTo);
+  }, [redirectTo]);
 
   if (state.emailSent) {
     return (
@@ -50,6 +79,7 @@ export function EmailPasswordForm() {
   return (
     <form action={formAction} className="flex flex-col gap-3 text-left">
       <input type="hidden" name="intent" value={mode} />
+      {next ? <input type="hidden" name="next" value={next} /> : null}
 
       <input
         type="email"

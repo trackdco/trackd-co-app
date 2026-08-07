@@ -1391,7 +1391,214 @@ full-screen sheet, and the site picker inside the log-dose sheet.
   `[]`, helpers uncalled). `dose_logs.injection_site` + all logged history are
   untouched (Invariant 8). Spec 19 ships as one PR (not yet deployed).
 
-## Signup attribution (2026-08-01, NOT APPLIED)
+## Billing — Stripe, in-app checkout, 7-day trial (Spec w2b-15, 2026-08-08)
+
+**THE APP NEVER ASKS STRIPE WHETHER A USER HAS ACCESS. IT ASKS `entitlements`.**
+Stripe writes that table through the webhook; Apple and Google will write the
+same rows through RevenueCat when TRACKD reaches the App Store, and not one line
+of `lib/billing/access.ts` changes. If any access check anywhere reads a Stripe
+subscription status, a `stripe_` column, or the `subscriptions` table, the spec
+has failed regardless of whether payments work.
+
+`subscriptions` and `entitlements` are two tables and they look redundant. They
+are not: one MIRRORS a provider, the other DECIDES access. Collapsing them makes
+the provider authoritative again and Apple could never sit beside it.
+
+- **`supabase/billing/001_billing_tables.sql`** (APPLIED 2026-08-08) —
+  `billing_customers`, `subscriptions`, `entitlements`, `webhook_events`, plus
+  three enums. Takes the live DB to **32 tables**. It DROPS a stale
+  `subscriptions` table first: the abandoned `stripe` branch had applied a
+  differently-shaped one of the same name, so `CREATE TABLE IF NOT EXISTS` would
+  have skipped silently and left the webhook writing to columns that never
+  existed. Guarded — it stops rather than dropping a table with rows in it.
+- **`entitlements` has no write policy and no write grant.** The spec's hardest
+  rule — "do NOT write entitlements or set any access flag from client-side code
+  under any circumstances" — is therefore enforced by the database, not by a
+  convention. `webhook_events` has no policies or grants at all: it holds
+  Stripe's raw payloads and `authenticated` has no business reading them.
+- **The read path** is `lib/billing/access.ts` (pure, 15 tests) + `entitlements.ts`
+  (reads, request-`cache()`d, identity from the verified session and never a
+  parameter). Active is computed on read from `is_active` and `active_until`,
+  never stored — the same no-stored-derived-values rule as everywhere else.
+  `active_until` NULL means no expiry, which is what a `comp` is.
+- **The webhook** (`app/api/stripe/webhook/route.ts`) verifies the signature
+  before parsing, then inserts into `webhook_events` FIRST and returns on a
+  duplicate. Idempotency is the primary key doing the work rather than six
+  handlers each being written carefully. A handler that throws leaves
+  `processed_at` NULL, which is the only signal that something arrived and did
+  not finish.
+- **Payment happens on TRACKD's own screen.** The Payment Element mounts in
+  deferred `mode: "setup"` with no client secret, so nothing is created in Stripe
+  until the user commits — the alternative mints a subscription for every visitor
+  who merely looked at the price. A SetupIntent rather than a PaymentIntent
+  because nothing is owed today, which is better than a workaround: it runs 3D
+  Secure while the user is present rather than against a sleeping phone on day 7.
+  Wallets render ABOVE the card fields and are switched off inside it.
+- **The prices are NOT in the codebase.** `PLANS` keeps labels, periods and
+  order; the amounts come from Stripe (`lib/billing/prices.ts`, memoised five
+  minutes) so a dashboard change lands without a deploy. Three plans, all wired,
+  **USD** (Adrian, overriding the spec's AUD). Deliberately no AUD conversion
+  anywhere — the card issuer converts at its own rate on its own day, so any AUD
+  figure we printed would be one we invented.
+- **`TrialHold`** covers the one-to-three second gap between the card confirming
+  and the webhook landing, polling `entitlements` through the same function every
+  gate uses. Past ~30 seconds it says "you're all set, we're catching up" and
+  lets the user through. It never implies the payment failed, because it did not.
+
+### The billing bug a test clock found, and would not have been found otherwise
+
+A renewal that is going to fail does not announce itself. Measured sequence:
+`customer.subscription.updated` → **active** with the period rolled forward,
+THEN `invoice.payment_failed`, THEN `past_due`. The first event is
+indistinguishable from a successful renewal, so the entitlement was correctly
+extended into the new period — and then the charge failed and nothing took it
+back. **Every declined card bought a free month, repeatably** (14 Aug became 14
+Sept). `invoice.payment_failed` now claws `active_until` back to the end of the
+period actually paid for plus three days, and can only ever SHORTEN.
+
+### Verified by executing, against real Stripe and the live database
+
+Test card → subscription `trialing` with a 7-day trial; the entitlement created
+BY THE WEBHOOK at the trial end; the same event resent twice producing exactly
+one of everything; a forged and a missing signature both 400 with nothing
+written; `trial_will_end` received on day 4 and correctly not acted on;
+`invoice.paid` extending 14 Aug → 14 Sept on conversion; a declining card leaving
+`past_due` with three days of grace; cancellation keeping access to the period
+end; a `comp` granting with no Stripe records at all; 3D Secure challenged and
+completed without ever leaving our domain; and a deliberately stopped webhook
+forwarder leaving the user in the holding state — never back on the paywall —
+then resolving when the missed event was replayed.
+
+## Account before the paywall (Spec w2b-14, 2026-08-07)
+
+**Account creation is its own onboarding step, sitting between `free` and
+`paywall`.** It used to be a control ON the paywall; that arrangement is gone.
+`account` is now the LAST anonymous step and the phase boundary, so the paywall
+and every step after it may assume a signed-in user.
+
+Three reasons, in the spec's priority order: the email is captured **before the
+price is seen** (a user who balked used to leave no trace at all); auth and
+payment stop sharing a screen (auth is a full page load and destroys any payment
+UI mounted beside it — the bug class spec w2b-15's Payment Element would have
+walked straight into); and the paywall gets **exactly one** call to action.
+
+- **The screen is framed as KEEPING work, never as a toll.** "Let's make sure
+  this sticks" — no "sign up", no "create an account to continue", and **no
+  mention of price, trial or payment**, which is revealed on the paywall and
+  nowhere earlier. There is no skip and no guest path.
+- **The controls are MOVED, not redesigned** — the same `GoogleSignInButton` and
+  `EmailPasswordForm` `/login` mounts, in the same order, with the same divider.
+  Both gained one prop each (`next`, `defaultMode`), both defaulting to the login
+  screen's existing behaviour, so that screen is untouched.
+- **All three auth paths return through a FULL DOCUMENT LOAD** — Google via
+  `/auth/callback`, email confirmation via `/auth/confirm`, and email sign-in via
+  a deliberate hard navigate. That last one was a server `redirect()` and it
+  shipped visibly broken for one measured run: the flow is ONE client tree that
+  reads `?step=` at mount and on `popstate` only, so a SOFT navigation to
+  `?step=paywall` reused the mounted tree and left the account screen — sign-in
+  form and all — on screen with the address bar claiming otherwise. `signIn`
+  now hands the destination back for `window.location.assign` whenever a `next`
+  was supplied. One arrival shape for all three is also what gives the handoff
+  exactly one place to hook.
+
+### The answer handoff
+
+The whole pre-account half runs with no account, so the answers live in one
+`localStorage` key (`trackd.onboarding.v1`). `claimOnboardingSession`
+(`app/onboarding/actions.ts`) claims them onto the account, fired on ARRIVAL by
+`components/onboarding/answer-handoff.tsx` — never on a button press, because
+nothing client-side survives the redirect.
+
+- **Write, confirm, THEN clear.** The device copy is dropped only for a status
+  the server returned, and never for `no-session` or `error`. Until then the
+  answers exist in exactly one place, so an optimistic clear would be silent,
+  unrecoverable loss on the most invested user in the flow. A failure leaves them
+  intact and shows a retry.
+- **Every write is idempotent, because retries are the normal case.**
+  `consent_records` upserts with `ignoreDuplicates`; the `profiles` gate update
+  is conditioned on `tos_accepted_at IS NULL`; `signup_intake` is a plain INSERT
+  whose 23505 *means* "already claimed". A partial failure plus a retry finishes
+  the missing half rather than duplicating the finished one.
+- **An existing user's data always wins**, and the database enforces it rather
+  than a branch in TypeScript: `signup_intake.user_id` is the PRIMARY KEY with
+  **no UPDATE grant at all**, so a returning user's answers cannot be replaced by
+  whatever a borrowed phone had in storage. The `profiles` gate update is
+  conditioned for the same reason.
+- **It writes the 18+/ToS gate**, so a user who just answered dob, sex and the
+  consent tick is not sent to `/welcome` to answer them again. **The age is
+  re-decided on the server** (`hasAgeAndConsent`) — the value arrived from
+  `localStorage` and the client's answer is not evidence. If the server cannot
+  prove it, the answers are still claimed and the gate is simply withheld.
+- **Once claimed, the device copy stops being a record.** A `claimed` latch in
+  the flow makes `patch` stop persisting — otherwise the paywall's next plan tap
+  would write the whole answer set straight back into the key the claim had just
+  cleared. The in-memory session survives, because the paywall still needs
+  `plan`.
+- **`supabase/onboarding/002_signup_intake.sql`** — one row per user holding the
+  answers with nowhere else to go (`name`, `running[]`, `struggle[]`,
+  `struggle_detail`, `affiliate_code`). Append-only, own RLS, own GRANT, every
+  cap and tag list mirroring `lib/onboarding/session.ts`. A table rather than
+  five `profiles` columns, for the same reason `signup_attribution` is one.
+  `profiles` has no name column at all, which is why the name lives here and is
+  returned by the claim so Welcome can still greet correctly after the clear —
+  and after a reload, where there was never a device copy to read. **Takes the
+  live DB to 28 tables.**
+- **`supabase/onboarding/003_signup_intake_has_answers.sql`** — a claimed row
+  must carry BOTH intent answer sets. 002 constrained every value and nothing
+  about the row being worth writing, so `INSERT {user_id}` alone was accepted —
+  and a thin row squats the primary key, which on an append-only,
+  first-write-wins table destroys the real set on the device that has it. The
+  rule is `clampIntent`'s: every legitimate claimer satisfies it by
+  construction, and a half-finished device is refused at the earliest honest
+  point. `carriesAnswers` in the claim implements the same rule; the constraint
+  exists because the destructive failure must not depend on a guard in an
+  application.
+
+**A value the client accepts must be a value Postgres accepts**, and that
+contract was broken in two ways a name can carry text nobody typed. `.slice(n)`
+counts UTF-16 code units, so it could halve an emoji and leave a **lone
+surrogate** (`PGRST102`); a **NUL byte** survives `trim()` and Postgres refuses
+it (`22P05`). Neither is reportable — the claim returns `error`, the retry
+banner appears, and every retry fails identically, so the answers never land and
+the notice never clears. `capCharacters` (`lib/onboarding/session.ts`) strips
+C0/C1 controls — deliberately not the whole `\p{C}` class, which would take the
+zero-width joiner and break every multi-part emoji — and cuts with `Array.from`,
+by CODE POINT, which is what Postgres's `char_length()` counts. `normaliseName`
+and `normaliseDetail` both go through it, so the caps here and in the CHECKs now
+agree about what "24" and "80" mean rather than agreeing by luck on ASCII.
+
+### Route protection
+
+`app/onboarding/page.tsx` is a **server component** and holds both rules, because
+a client-side redirect is not protection. The only requests that reach it are the
+ones that matter — a typed URL, a bookmark, a reload, and the 302 that ends every
+auth round-trip — since the flow itself advances with `pushState`.
+
+1. An `authed` step with **no session** 307s to the start of the flow, not to the
+   account screen: arriving at a bare account screen with no answers to save
+   makes no sense.
+2. A **signed-in** user on the account screen 307s to the paywall.
+
+`signedIn` is then handed to the flow, and `clampStep` / `clampIntent` take it as
+a third argument that **exempts `authed` steps only**. That exemption is not a
+weakening: the claim clears the device, so from the paywall onward there is no
+date of birth on it and the age clamp would lock a paying customer out of the
+screen they just paid on. What it exempts is a device answer, replaced by a
+stronger one — a server-verified session over an account whose age and consent
+are recorded in `profiles` and `consent_records`. It **fails closed** (the
+parameter defaults to false) and every anonymous step, the whole demo included,
+is clamped exactly as before. `pastAccount` in the flow is the client backstop
+for the two moves no server sees — Back from the paywall, and walking forward
+from `free` in a tab that signed in elsewhere.
+
+> **Carried into spec w2b-15:** the paywall is reachable by a signed-in user
+> whose `profiles.is_18_plus` is false (they would have had to pass the client
+> age gate to get an account through this flow, but the server does not re-check
+> it to RENDER a price list). The **payment endpoint must verify it server-side**
+> before creating a subscription — §3.2's "no payment path bypasses the age gate"
+> lands there, not on the render.
+
+## Signup attribution (2026-08-01, APPLIED)
 
 "Where did you hear about us" is captured on the last onboarding screen. Adrian
 asked for the catch-all option to open a **typed field** and for the answer to
@@ -1406,11 +1613,27 @@ reach the database, so we can see which channels are working.
   on writes to it.
 - **A CHECK ties `detail` to `source = 'elsewhere'`**, so a client bug cannot
   file free text under "Instagram" and quietly corrupt the aggregate.
-- **APPLIED 2026-08-01.** Nothing writes it yet, though: attribution lives
-  on the anonymous device session and there is no account to attach it to until
-  auth is wired at the paywall (`startTrial()` is the seam). The migration is
-  written and waiting on Adrian; the Supabase MCP is not authorised in the agent
-  session.
+- **APPLIED, and confirmed live 2026-08-07** by querying the table with the
+  service role. This heading and this bullet contradicted each other for six
+  days — the heading said NOT APPLIED while the bullet and the migration's own
+  header said the opposite. Hand-applied migrations never appear in
+  `list_migrations`, so the file comment is the only status record there is,
+  which is exactly why it goes stale. **Verify against the schema, never against
+  a comment.**
+- **Nothing writes it yet.** The attribution screen is post-paywall and spec
+  w2b-14 stopped short of it. The creator code IS now captured, into
+  `signup_intake.affiliate_code`, because it is taken from `?code=` before the
+  account exists and would otherwise be lost by anyone who abandons after the
+  paywall.
+  > ⚠️ **The code now lives in two tables and only one copy is immutable.**
+  > `signup_intake.affiliate_code` is append-only; `signup_attribution.affiliate_code`
+  > carries a full UPDATE grant and policy, and a cold review confirmed live that
+  > `authenticated` can PATCH its own row from one creator's code to another's,
+  > repeatably. Latent today because nothing writes that table — but if
+  > commission is ever computed from it, a user can self-attribute at will.
+  > **`signup_intake` is the authority**: earliest capture, immutable, and the
+  > one the claim writes. Adrian's call whether to drop the UPDATE grant on
+  > `signup_attribution.affiliate_code` when that screen is wired.
 - **Reading it back is an open decision**, spelled out at the foot of the
   migration: service-role aggregates (no new policy, but `adminMetrics.ts`'s
   "never return a row" rule would have to be narrowed on purpose) versus a
