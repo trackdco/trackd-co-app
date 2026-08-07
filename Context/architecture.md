@@ -1391,6 +1391,84 @@ full-screen sheet, and the site picker inside the log-dose sheet.
   `[]`, helpers uncalled). `dose_logs.injection_site` + all logged history are
   untouched (Invariant 8). Spec 19 ships as one PR (not yet deployed).
 
+## Billing — Stripe, in-app checkout, 7-day trial (Spec w2b-15, 2026-08-08)
+
+**THE APP NEVER ASKS STRIPE WHETHER A USER HAS ACCESS. IT ASKS `entitlements`.**
+Stripe writes that table through the webhook; Apple and Google will write the
+same rows through RevenueCat when TRACKD reaches the App Store, and not one line
+of `lib/billing/access.ts` changes. If any access check anywhere reads a Stripe
+subscription status, a `stripe_` column, or the `subscriptions` table, the spec
+has failed regardless of whether payments work.
+
+`subscriptions` and `entitlements` are two tables and they look redundant. They
+are not: one MIRRORS a provider, the other DECIDES access. Collapsing them makes
+the provider authoritative again and Apple could never sit beside it.
+
+- **`supabase/billing/001_billing_tables.sql`** (APPLIED 2026-08-08) —
+  `billing_customers`, `subscriptions`, `entitlements`, `webhook_events`, plus
+  three enums. Takes the live DB to **32 tables**. It DROPS a stale
+  `subscriptions` table first: the abandoned `stripe` branch had applied a
+  differently-shaped one of the same name, so `CREATE TABLE IF NOT EXISTS` would
+  have skipped silently and left the webhook writing to columns that never
+  existed. Guarded — it stops rather than dropping a table with rows in it.
+- **`entitlements` has no write policy and no write grant.** The spec's hardest
+  rule — "do NOT write entitlements or set any access flag from client-side code
+  under any circumstances" — is therefore enforced by the database, not by a
+  convention. `webhook_events` has no policies or grants at all: it holds
+  Stripe's raw payloads and `authenticated` has no business reading them.
+- **The read path** is `lib/billing/access.ts` (pure, 15 tests) + `entitlements.ts`
+  (reads, request-`cache()`d, identity from the verified session and never a
+  parameter). Active is computed on read from `is_active` and `active_until`,
+  never stored — the same no-stored-derived-values rule as everywhere else.
+  `active_until` NULL means no expiry, which is what a `comp` is.
+- **The webhook** (`app/api/stripe/webhook/route.ts`) verifies the signature
+  before parsing, then inserts into `webhook_events` FIRST and returns on a
+  duplicate. Idempotency is the primary key doing the work rather than six
+  handlers each being written carefully. A handler that throws leaves
+  `processed_at` NULL, which is the only signal that something arrived and did
+  not finish.
+- **Payment happens on TRACKD's own screen.** The Payment Element mounts in
+  deferred `mode: "setup"` with no client secret, so nothing is created in Stripe
+  until the user commits — the alternative mints a subscription for every visitor
+  who merely looked at the price. A SetupIntent rather than a PaymentIntent
+  because nothing is owed today, which is better than a workaround: it runs 3D
+  Secure while the user is present rather than against a sleeping phone on day 7.
+  Wallets render ABOVE the card fields and are switched off inside it.
+- **The prices are NOT in the codebase.** `PLANS` keeps labels, periods and
+  order; the amounts come from Stripe (`lib/billing/prices.ts`, memoised five
+  minutes) so a dashboard change lands without a deploy. Three plans, all wired,
+  **USD** (Adrian, overriding the spec's AUD). Deliberately no AUD conversion
+  anywhere — the card issuer converts at its own rate on its own day, so any AUD
+  figure we printed would be one we invented.
+- **`TrialHold`** covers the one-to-three second gap between the card confirming
+  and the webhook landing, polling `entitlements` through the same function every
+  gate uses. Past ~30 seconds it says "you're all set, we're catching up" and
+  lets the user through. It never implies the payment failed, because it did not.
+
+### The billing bug a test clock found, and would not have been found otherwise
+
+A renewal that is going to fail does not announce itself. Measured sequence:
+`customer.subscription.updated` → **active** with the period rolled forward,
+THEN `invoice.payment_failed`, THEN `past_due`. The first event is
+indistinguishable from a successful renewal, so the entitlement was correctly
+extended into the new period — and then the charge failed and nothing took it
+back. **Every declined card bought a free month, repeatably** (14 Aug became 14
+Sept). `invoice.payment_failed` now claws `active_until` back to the end of the
+period actually paid for plus three days, and can only ever SHORTEN.
+
+### Verified by executing, against real Stripe and the live database
+
+Test card → subscription `trialing` with a 7-day trial; the entitlement created
+BY THE WEBHOOK at the trial end; the same event resent twice producing exactly
+one of everything; a forged and a missing signature both 400 with nothing
+written; `trial_will_end` received on day 4 and correctly not acted on;
+`invoice.paid` extending 14 Aug → 14 Sept on conversion; a declining card leaving
+`past_due` with three days of grace; cancellation keeping access to the period
+end; a `comp` granting with no Stripe records at all; 3D Secure challenged and
+completed without ever leaving our domain; and a deliberately stopped webhook
+forwarder leaving the user in the holding state — never back on the paywall —
+then resolving when the missed event was replayed.
+
 ## Account before the paywall (Spec w2b-14, 2026-08-07)
 
 **Account creation is its own onboarding step, sitting between `free` and

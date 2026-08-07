@@ -8,54 +8,50 @@ Last updated: 2026-08-07 (account creation moved off the paywall)
 
 ---
 
-## 🔜 SPEC w2b-15 — STRIPE, IN-APP CHECKOUT, 5-DAY TRIAL
+## ⚠️ BILLING IS BUILT AND MUST NOT BE ROUTED TO YET
 
-Starts once w2b-14 is signed off. `Context/Feature Specs/w2b-15-stripe-pt2.md`.
+**Spec w2b-15 is BUILT and verified end to end against real Stripe.** State and
+reasoning: `progress-tracker.md` + `architecture.md` → **Billing**.
 
-**The requirement that outranks everything in it:** the app never asks Stripe
-whether a user has access. It asks `entitlements`. Stripe writes that table;
-Apple and Google write it later through RevenueCat and no app code changes. Any
-access check that reads a Stripe status directly fails the spec regardless of
-whether payments work.
+**Adrian is not billing yet.** The paywall takes real payments the moment it is
+reachable, so **nothing may point a user at `/onboarding`** until he says so.
+That is already true — the flow is additive and `/login` is untouched — so the
+task is simply: do not wire the entry point, and do not merge.
 
-**Adrian's three amendments are recorded at the top of the spec file** — three
-plans not one, a 7-day trial not 5, weekly at $3.99. Read those before the body;
-where they disagree, they win.
+### Owed by Adrian, when he wants to go live
 
-**The keys are already live.** `.env.local` carries working test keys for the
-`Trackd Co sandbox` account (AU, default currency AUD, charges enabled) and the
-Stripe CLI is installed at `/opt/homebrew/bin/stripe`. Step 2 is mostly done.
-
-Owed by Adrian:
-
-1. **Three recurring AUD prices** on the existing "Trackd Co" product — yearly,
-   monthly, weekly ($3.99) — and their three `price_...` IDs. The two prices
-   already on the account are **USD** and must not be used. He does not need to
-   supply amounts to the codebase: the spec forbids a hardcoded dollar figure, so
-   the app reads them from Stripe.
-2. **A webhook endpoint.** The account currently has NONE. `stripe listen` covers
-   local work and prints its own signing secret; the preview deploy needs a real
-   endpoint before its webhook can be tested.
-3. **The Stripe account business description.** Given TRACKD's history with
+1. **Register `trackdco.app` for Apple Pay in LIVE mode.** The test-mode
+   registration proves nothing (test mode does not enforce domain verification).
+   The verification file is already committed and served at
+   `public/.well-known/apple-developer-merchantid-domain-association`, so this is
+   one click with no deploy.
+2. **A live webhook endpoint** pointing at `/api/stripe/webhook`, and its signing
+   secret into Vercel as `STRIPE_WEBHOOK_SECRET`. Local work uses `stripe listen`,
+   which prints its own.
+3. **Live-mode keys and three live price IDs** into Vercel Production. The env
+   var names are the same; the VALUES are scoped per environment. There is no
+   `_TEST`/`_LIVE` selector on purpose — `lib/billing/stripe.ts` asserts the
+   key's mode matches the price's `livemode`, which catches the real mistake.
+4. **The Stripe account business description.** Given TRACKD's history with
    automated enforcement elsewhere, it must state plainly that TRACKD sells a
    subscription to a logging and tracking application and does NOT sell, supply
    or facilitate the supply of any substance. Adrian writes this, not the agent.
-4. **Apply `supabase/billing/001_billing_tables.sql`** — WRITTEN, not yet
-   applied. All four tables plus three enums.
-   ⚠️ **It DROPS a stale `subscriptions` table first**, and that is not
-   theoretical: the abandoned `stripe` branch applied a differently-shaped table
-   of the same name to this database, so `CREATE TABLE IF NOT EXISTS` would have
-   skipped silently and left the webhook inserting into columns that do not
-   exist. Verified 2026-08-08: it holds **0 rows** and nothing in the codebase
-   reads it. The drop is guarded — the migration STOPS rather than destroying a
-   billing record if a row has appeared since.
+5. **Turn Link off in LIVE mode too.** It is off in test (via the payment method
+   configuration API — NOT the Wallets panel, which is why it cannot be found by
+   hunting the dashboard).
 
-Carried in from w2b-14 and **not optional**: the endpoint that creates the
-subscription must verify `profiles.is_18_plus` server-side. Rendering the paywall
-does not check it, so that endpoint is where "no payment path bypasses the age
-gate" is actually enforced.
+### Owed by whoever picks this up
 
----
+- **The trial reminder.** The paywall promises "Day 5 · Reminder" out loud and
+  nothing sends one. `trial_will_end` is received and logged with its full
+  payload, so the data is there. **Honour the day the SCREEN promised (5), not
+  the day Stripe fires (4).**
+- **`profiles.tier` vs `entitlements`.** `project-overview.md` still describes
+  `tier` as the entitlement column; that is now historical. Gates read
+  `entitlements`. Reconciling the two was deliberately not done in the same
+  change as the tables.
+- **Apple Pay on a real device.** Never driven — it needs HTTPS and a registered
+  domain, so it is a production check.
 
 ## 📌 w2b-14 — ACCOUNT BEFORE THE PAYWALL: what is left
 

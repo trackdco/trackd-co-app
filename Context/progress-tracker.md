@@ -5,7 +5,64 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-07 (account creation moved off the paywall)
+Last updated: 2026-08-08 (Stripe billing built and verified end to end)
+
+## Spec w2b-15 — Stripe billing (BUILT, 2026-08-08)
+
+Same branch, `wave3/account-before-paywall`. **Not merged, and deliberately so —
+Adrian is not billing yet, so nothing may route a user at `/onboarding`.** The
+flow is still additive and `/login` is untouched, so that is already true; the
+thing to avoid is wiring the entry point.
+
+**One migration, `supabase/billing/001_billing_tables.sql`, APPLIED by Adrian.**
+Shape and reasoning are in `architecture.md` → **Billing**; do not re-derive.
+
+### Adrian's overrides of the spec body
+
+1. **Three plans, all wired** — not "one monthly price". Annual is no longer out
+   of scope.
+2. **7-day trial**, not 5. Every figure on the paywall derives from `TRIAL_DAYS`.
+3. **USD, not AUD**, and **no conversion to AUD anywhere**. The card issuer
+   converts at its own rate on its own day, so a printed AUD figure would be
+   invented. The currency is NAMED instead ("$69.99 USD per year"). A real AUD
+   price selected by country is the correct future answer, not a client-side sum.
+
+### What was found by driving it rather than reading it
+
+- **Every declined card bought a free month.** The full write-up is in
+  `architecture.md`; the short version is that Stripe reports `active` for a
+  moment when the period rolls, BEFORE attempting the charge, so the extension
+  looked legitimate at the time. Only a test clock surfaces this.
+- **The paywall could be paid on with the price scrolled off.** The disclosure
+  sat above the Payment Element, which measured 550px above the CTA at 390x844 —
+  the exact defect the spec's own previous audit records. It is now passed INTO
+  `PaymentSheet` and rendered directly above the button, so nothing added above
+  can separate them again.
+- **Link took over the payment block** with a phone-number field, a full-name
+  field and its own terms before a card number. Disabled on the payment method
+  configuration (API, not the Wallets panel — which is why it could not be found
+  in the dashboard).
+- **`interface` collapses a Supabase schema generic to `never`**, silently, with
+  the error surfacing on an unrelated insert. Type aliases have the implicit
+  index signature `Record<string, unknown>` needs.
+- **`current_period_end` moved onto subscription ITEMS.** Reading the top-level
+  field returns undefined → a NULL `active_until` → which the access rule reads
+  as NEVER EXPIRES. A billing bug that grants forever is the expensive direction.
+
+### Known and accepted
+
+- **Apple Pay cannot be verified on a preview.** Each preview deploy gets a new
+  hostname and every one would need registering with Stripe. `trackdco.app` is
+  registered (`pmd_1U1q10Em…`) and the verification file is committed at
+  `public/.well-known/`, so LIVE registration is a click — but test mode does not
+  enforce verification at all, so "active" there proves nothing. Google Pay has
+  no such requirement and is the one to check a preview with.
+- **The floating "stripe" pill over the CTA is `elements-inner-easel`**, Stripe's
+  test-mode indicator. Only renders for a `pk_test_` key.
+- **The trial reminder is still a promise nothing keeps.** The paywall says "Day
+  5 · Reminder" out loud. Stripe's `trial_will_end` fires on day 4 and is
+  recorded; whatever sends the notification must honour the day the SCREEN
+  promised, not the day the webhook arrived.
 
 ## Spec w2b-14 — account before the paywall (BUILT, 2026-08-07)
 
