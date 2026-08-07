@@ -49,12 +49,9 @@ Built and verified against the real database; state + the three defects it turne
 up are in `progress-tracker.md`. Outstanding:
 
 - **Nothing is merged.** Branch `wave3/account-before-paywall`.
-- ⚠️ **`supabase/onboarding/003_signup_intake_has_answers.sql` is NOT APPLIED.**
-  Until it is, a guard in TypeScript (`carriesAnswers`) is the only thing stopping
-  a thin row squatting the append-only primary key and destroying a real answer
-  set. Safe to run: `signup_intake` is empty, verified 2026-08-08. The file opens
-  with a `DO` block that fails loudly naming any offending row rather than with a
-  bare 23514 — it RUNS, unlike `supabase/protocol/024`'s commented-out block.
+- ✅ **`003_signup_intake_has_answers.sql` APPLIED by Adrian, 2026-08-08** and
+  verified live: a thin row now fails with `23514`, a real one still inserts. The
+  destructive rule no longer depends on TypeScript alone.
 - **Test accounts are cleaned up** — all 23 `w2b14-*@trackd-qa.invalid` deleted
   from the production project, `signup_intake` back to 0 rows. Recreate freely on
   that domain (`.invalid` is reserved, so it can never be a real address); the

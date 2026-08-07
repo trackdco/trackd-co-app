@@ -2,7 +2,11 @@
 --  signup_intake — a claimed row must actually CARRY the answers.
 --  Spec w2b-14, cold-review repair. Migration name: `signup_intake_has_answers`
 --
---  NOT YET APPLIED. Verify against the live schema, never against this comment.
+--  APPLIED by Adrian, 2026-08-08, and VERIFIED live the same day: a thin row
+--  (`running: [], struggle: []`) is now rejected by the database with
+--  `23514 violates check constraint "signup_intake_has_answers"`, and a real
+--  one still inserts. Verify against the live schema, never against this
+--  comment — a hand-applied migration never appears in `list_migrations`.
 -- ============================================================
 --
 --  THE DEFECT (found by a cold review of 002, reproduced live)
@@ -45,7 +49,7 @@
 --    and adding it as a third condition would only create a way for a real
 --    answer set to be rejected.
 --
---  SAFE TO APPLY — and the first draft of this header was WRONG, which is why
+--  IT WAS SAFE TO APPLY — and the first draft of this header was WRONG, which is why
 --  the guard below exists.
 --    That draft claimed "every existing row carries both tag sets". A query said
 --    otherwise: of the 8 rows then present, ONE violated it — the
