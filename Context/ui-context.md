@@ -474,32 +474,34 @@ per screen. This is the rule that stops drift at the source.
 Data graphs are **line / area charts** (recharts), kept visually identical
 across the app so they read as one system:
 
-- **Trend line:** the teal `--chart-trend`, a smooth `type="monotone"` stroke
-  (~2.5px), over a **downward linear-gradient fill** that fades **thick → thin**
-  (`--chart-trend` at ~0.35 opacity at the line → 0 at the base). Define the
-  gradient in the chart's `<defs>` (e.g. `weightTrendFill` /
-  `consistencyFill`) — a flat fill token reads uniform, not tapered.
-- **Raw / secondary series** (e.g. the Weight "Scale" line) use the periwinkle
-  `--chart-line` at lower emphasis (thinner, no fill), crossfading by opacity.
+- **One line treatment, every series, every graph.** A smooth `type="monotone"`
+  stroke at **2.5px** over a **downward linear-gradient fill** that fades
+  **thick → thin** (the series' own colour at ~0.35 opacity at the line → 0 at
+  the base). Define the gradient in the chart's `<defs>` (e.g.
+  `weightTrendFill` / `weightScaleFill` / `consistencyFill`) — a flat fill token
+  reads uniform, not tapered.
+- **Only the COLOUR varies between series:** the teal `--chart-trend` for the
+  trend and for consistency, the periwinkle `--chart-line` for the raw / scale
+  series. Weight, curve and fill are identical (Adrian, 2026-08-07). The earlier
+  rule gave the raw series "lower emphasis (thinner, no fill)" at 1.5 — that is
+  **superseded**: the graphs read as one system, and which series you are
+  looking at is carried by its colour and by the crossfade, not by a thinner
+  stroke.
+- **Emphasis is opacity, not weight.** A series that is not the active mode
+  crossfades down (~0.3) rather than changing thickness or dropping its fill.
 - **Affordances:** a press-and-drag **scrub tooltip** and a **range selector**
   (e.g. 30D / 90D / All) are the shared graph controls.
 - **No bar charts for trends** — the Weight and Consistency graphs both use the
   line+gradient style above.
-- **Glance sparklines** are the ONE sanctioned exception: a compact preview (e.g.
-  the Home Weight glance card) draws a minimal token-coloured sparkline — same
-  neutral `--chart-line` / `--chart-trend` hues, no scrub / range, with a small
-  `--accent-primary` dot on the latest point — because it only teases the full
-  graph one tap away (`/weight`). It stays non-evaluative.
-  **The glance TREND line carries the same tapered gradient fill as the full
-  graph** (`--chart-trend` at 0.35 opacity at the line → 0 at the base, a
-  monotone curve at 2.5): the Weight and Consistency cards sat side by side on
-  Home speaking two different visual languages, and a glance that previews a
-  graph should look like the graph (Adrian, 2026-07-31). The earlier rule said
-  "no fill" and a bare `<polyline>`; that is superseded.
-  **The raw / secondary series inside a glance is still unfilled and thinner**
-  (1.5), exactly as it is at full size — the trend/raw distinction is the one
-  thing that must NOT collapse, or the Scale line changes weight when you tap
-  through to `/weight`.
+- **Glance sparklines** are the ONE sanctioned exception, and only in what they
+  OMIT: a compact preview (e.g. the Home Weight glance card, the block
+  retrospective's window graph) drops the scrub and range controls and adds a
+  small `--accent-primary` dot on the latest point, because it only teases the
+  full graph one tap away (`/weight`). The line itself is the same 2.5px
+  monotone curve over the same tapered fill, in the same neutral
+  `--chart-line` / `--chart-trend` hues — a glance that previews a graph should
+  look like the graph. It stays non-evaluative. Shared geometry lives in
+  `lib/progress/spark.ts`, so hand-rolled `<polyline>` sparklines are out.
 
 Chart hues are a deliberately **neutral** teal/periwinkle (never red/green),
 because trend visuals must stay **non-evaluative** per the health-data rule

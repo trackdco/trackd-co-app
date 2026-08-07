@@ -52,7 +52,10 @@ function SheetContent({
   onOpenAutoFocus,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
-  side?: "top" | "right" | "bottom" | "left"
+  /** `center` is a CENTRED dialog rather than an edge sheet — for a short
+   *  confirmation that is not a form, where sliding up from the bottom reads as
+   *  "here is more to do" (Adrian, 2026-08-07). */
+  side?: "top" | "right" | "bottom" | "left" | "center"
   showCloseButton?: boolean
 }) {
   return (
@@ -76,6 +79,8 @@ function SheetContent({
             "inset-x-0 top-0 h-auto border-b border-border-default data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
           side === "bottom" &&
             "inset-x-0 bottom-0 h-auto rounded-t-3xl border-t border-border-default data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          side === "center" &&
+            "top-1/2 left-1/2 h-auto w-[min(20rem,calc(100vw-3rem))] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-border-default data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           className
         )}
         {...props}

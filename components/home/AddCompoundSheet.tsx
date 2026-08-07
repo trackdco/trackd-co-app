@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState } from "react"
 import { CalendarDots, CaretDown, PencilSimple, Plus, Trash, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import {
+  STOCK_FIELD,
+  STOCK_FIELD_LABEL,
+  STOCK_PILL,
+  STOCK_PILL_OFF,
+  STOCK_PILL_ON,
+} from "@/lib/ui-presets"
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
 import { isInventoryForm, isStockableForm } from "@/lib/containers/form"
 import { Input } from "@/components/ui/input"
@@ -1406,7 +1413,6 @@ function AddCompoundBody({
                   ])
                   setLaterDoses((prev) => [...prev, ""])
                 }}
-                value="Add"
               />
             </>
           )}
@@ -1605,9 +1611,9 @@ function AddCompoundBody({
                 {stockType === "reconstituted" && (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="mb-1 block text-xs text-text-muted">Powder in vial</span>
+                      <span className={STOCK_FIELD_LABEL}>Powder in vial</span>
                       <div className="flex gap-1.5">
-                        <Input inputMode="decimal" value={stPowder} onChange={(e) => setStPowder(sanitizeDoseInput(e.target.value))} placeholder="5" className="h-11 min-w-0 flex-1 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                        <Input inputMode="decimal" value={stPowder} onChange={(e) => setStPowder(sanitizeDoseInput(e.target.value))} placeholder="5" className={cn(STOCK_FIELD, "flex-1")} />
                         <div className="flex gap-1">
                           <button type="button" onClick={() => setStPowderUnit("mg")} className={cn(STOCK_PILL, stPowderUnit === "mg" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>mg</button>
                           <button type="button" onClick={() => setStPowderUnit("iu")} className={cn(STOCK_PILL, stPowderUnit === "iu" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>iu</button>
@@ -1615,29 +1621,29 @@ function AddCompoundBody({
                       </div>
                     </label>
                     <label className="block">
-                      <span className="mb-1 block text-xs text-text-muted">BAC water (mL)</span>
-                      <Input inputMode="decimal" value={stBac} onChange={(e) => setStBac(sanitizeDoseInput(e.target.value))} placeholder="2" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                      <span className={STOCK_FIELD_LABEL}>BAC water (mL)</span>
+                      <Input inputMode="decimal" value={stBac} onChange={(e) => setStBac(sanitizeDoseInput(e.target.value))} placeholder="2" className={STOCK_FIELD} />
                     </label>
                   </div>
                 )}
                 {stockType === "preconcentrated" && (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="mb-1 block text-xs text-text-muted">Volume (mL)</span>
-                      <Input inputMode="decimal" value={stMl} onChange={(e) => setStMl(sanitizeDoseInput(e.target.value))} placeholder="10" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                      <span className={STOCK_FIELD_LABEL}>Volume (mL)</span>
+                      <Input inputMode="decimal" value={stMl} onChange={(e) => setStMl(sanitizeDoseInput(e.target.value))} placeholder="10" className={STOCK_FIELD} />
                     </label>
                     <label className="block">
-                      <span className="mb-1 block text-xs text-text-muted">Strength (mg/mL)</span>
-                      <Input inputMode="decimal" value={stConc} onChange={(e) => setStConc(sanitizeDoseInput(e.target.value))} placeholder="250" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                      <span className={STOCK_FIELD_LABEL}>Strength (mg/mL)</span>
+                      <Input inputMode="decimal" value={stConc} onChange={(e) => setStConc(sanitizeDoseInput(e.target.value))} placeholder="250" className={STOCK_FIELD} />
                     </label>
                   </div>
                 )}
                 {stockType === "oral_solid" && (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="mb-1 block text-xs text-text-muted">Count</span>
+                      <span className={STOCK_FIELD_LABEL}>Count</span>
                       <div className="flex gap-1.5">
-                        <Input inputMode="numeric" value={stCount} onChange={(e) => setStCount(sanitizeDoseInput(e.target.value))} placeholder="100" className="h-11 min-w-0 flex-1 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                        <Input inputMode="numeric" value={stCount} onChange={(e) => setStCount(sanitizeDoseInput(e.target.value))} placeholder="100" className={cn(STOCK_FIELD, "flex-1")} />
                         <div className="flex gap-1">
                           <button type="button" onClick={() => setStOralForm("tab")} className={cn(STOCK_PILL, stOralForm === "tab" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>tab</button>
                           <button type="button" onClick={() => setStOralForm("capsule")} className={cn(STOCK_PILL, stOralForm === "capsule" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>cap</button>
@@ -1646,9 +1652,9 @@ function AddCompoundBody({
                     </label>
                     <label className="block">
                       {/* Optional, and not always mg — see `supabase/protocol/016`. */}
-                      <span className="mb-1 block text-xs text-text-muted">Strength each</span>
+                      <span className={STOCK_FIELD_LABEL}>Strength each</span>
                       <div className="flex gap-1.5">
-                        <Input inputMode="decimal" value={stStrength} onChange={(e) => setStStrength(sanitizeDoseInput(e.target.value))} placeholder="optional" className="h-11 min-w-0 flex-1 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                        <Input inputMode="decimal" value={stStrength} onChange={(e) => setStStrength(sanitizeDoseInput(e.target.value))} placeholder="optional" className={cn(STOCK_FIELD, "flex-1")} />
                         <div className="flex gap-1">
                           <button type="button" onClick={() => setStStrengthUnit("mg")} className={cn(STOCK_PILL, stStrengthUnit === "mg" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>mg</button>
                           <button type="button" onClick={() => setStStrengthUnit("iu")} className={cn(STOCK_PILL, stStrengthUnit === "iu" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>iu</button>
@@ -1660,12 +1666,12 @@ function AddCompoundBody({
                 {stockType === "bulk_powder" && (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="mb-1 block text-xs text-text-muted">Tub weight (g)</span>
-                      <Input inputMode="decimal" value={stTubGrams} onChange={(e) => setStTubGrams(sanitizeDoseInput(e.target.value))} placeholder="1000" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                      <span className={STOCK_FIELD_LABEL}>Tub weight (g)</span>
+                      <Input inputMode="decimal" value={stTubGrams} onChange={(e) => setStTubGrams(sanitizeDoseInput(e.target.value))} placeholder="1000" className={STOCK_FIELD} />
                     </label>
                     <label className="block">
-                      <span className="mb-1 block text-xs text-text-muted">Serving (g)</span>
-                      <Input inputMode="decimal" value={stServingG} onChange={(e) => setStServingG(sanitizeDoseInput(e.target.value))} placeholder="optional" className="h-11 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input" />
+                      <span className={STOCK_FIELD_LABEL}>Serving (g)</span>
+                      <Input inputMode="decimal" value={stServingG} onChange={(e) => setStServingG(sanitizeDoseInput(e.target.value))} placeholder="optional" className={STOCK_FIELD} />
                     </label>
                   </div>
                 )}
@@ -1801,9 +1807,6 @@ function amt(s: string): number {
   return Number.isFinite(v) ? v : 0
 }
 
-const STOCK_PILL = "rounded-full border px-2.5 py-1 text-sm transition-colors"
-const STOCK_PILL_ON = "border-transparent bg-accent-primary font-medium text-bg-base"
-const STOCK_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
 
 /* ── The row language of the restructured form (spec 10) ────────────
    Label on the left, value or control on the right, ONE height and ONE divider
@@ -1901,7 +1904,10 @@ function FormRow({
           {onPress && plus && (
             <Plus
               className={cn(
-                "h-4 w-4 shrink-0 text-text-subtle transition-transform duration-200 motion-reduce:transition-none",
+                // WHITE, not subtle (Adrian, 2026-08-07). It is the only thing
+                // on the row that acts, and at `--text-subtle` it read as
+                // decoration beside a label that is itself muted.
+                "h-4 w-4 shrink-0 text-foreground transition-transform duration-200 motion-reduce:transition-none",
                 expanded && "rotate-45",
               )}
               aria-hidden

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { CalendarDots, Check, Flask, Syringe } from "@/components/icons";
 import { CARD_EYEBROW, DATA_MONO, FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
+import { sparkGeometry } from "@/lib/progress/spark";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
@@ -266,13 +267,9 @@ export function PayoffVariantD({ onContinue }: { onContinue: () => void }) {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const min = Math.min(...SPARK);
-  const max = Math.max(...SPARK);
-  const points = SPARK.map((v, i) => {
-    const x = (i / (SPARK.length - 1)) * 100;
-    const y = 100 - ((v - min) / (max - min)) * 100;
-    return `${x},${y}`;
-  }).join(" ");
+  // Same geometry the real graphs use, so the artefact this screen sells looks
+  // like the artefact the user gets — a monotone curve at 2.5 over a taper.
+  const { line, area } = sparkGeometry(SPARK, 100, 100);
 
   return (
     <StepFrame footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}>
@@ -280,17 +277,28 @@ export function PayoffVariantD({ onContinue }: { onContinue: () => void }) {
         <div className="rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>Weight</p>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="mt-3 h-16 w-full" aria-hidden>
-            <polyline
-              points={points}
-              fill="none"
-              stroke="var(--chart-trend)"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
+            <defs>
+              {/* Same stops as `consistencyFill`: 0.35 at the line, 0 at base. */}
+              <linearGradient id="payoffSparkFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="var(--chart-trend)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <g
               className="transition-opacity duration-[900ms] motion-reduce:transition-none"
               style={{ opacity: grown ? 1 : 0 }}
-            />
+            >
+              <path d={area} fill="url(#payoffSparkFill)" stroke="none" />
+              <path
+                d={line}
+                fill="none"
+                stroke="var(--chart-trend)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
           </svg>
         </div>
 

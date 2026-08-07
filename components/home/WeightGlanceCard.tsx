@@ -125,7 +125,6 @@ export function WeightGlanceCard({
                   color="var(--chart-line)"
                   gradientId="weightSparkScaleCompact"
                   active={mode === "scale"}
-                  emphasis="raw"
                 />
                 <SparkLine
                   vals={trendW}
@@ -226,7 +225,6 @@ export function WeightGlanceCard({
                 color="var(--chart-line)"
                 gradientId="weightSparkScale"
                 active={mode === "scale"}
-                emphasis="raw"
               />
               <SparkLine
                 vals={trendW}
@@ -287,29 +285,25 @@ function ValueBlock({
  * beside it on Progress (Adrian, 2026-07-31): a monotone curve at 2.5, over a
  * gradient that fades from the line down to the baseline. It was a straight
  * 2px polyline with no fill, so the two charts on that screen read as two
- * different products. Only the colour differs, which is the one thing that
+ * different products. Only the COLOUR differs, which is the one thing that
  * should — scale and trend keep their own.
+ *
+ * That now holds for the raw Scale line too (Adrian, 2026-08-07). It used to
+ * draw thinner and unfilled, matching `/weight`; both screens have since moved
+ * to one weight and one fill for every series, so the distinction the old
+ * `emphasis` prop encoded is gone. Which series you are reading is carried by
+ * the crossfade and the colour, not by the stroke.
  */
 function SparkLine({
   vals,
   color,
   gradientId,
   active,
-  emphasis = "trend",
 }: {
   vals: number[]
   color: string
   gradientId: string
   active: boolean
-  /**
-   * `trend` is the teal trend line: 2.5 stroke over a tapered fill. `raw` is the
-   * periwinkle Scale line, which `ui-context.md` → Charts requires to be
-   * "thinner, no fill" so the two never read as equals. Unifying the sparkline
-   * with the consistency graph accidentally gave BOTH series the trend
-   * treatment, so tapping from this card into `/weight` showed the Scale line
-   * change weight and lose its fill. `/weight` was right; this now matches it.
-   */
-  emphasis?: "trend" | "raw"
 }) {
   const cls = cn("transition-opacity duration-300 ease-out", active ? "opacity-100" : "opacity-0")
   if (vals.length <= 1) {
@@ -327,14 +321,12 @@ function SparkLine({
           <stop offset="100%" stopColor={color} stopOpacity={0} />
         </linearGradient>
       </defs>
-      {emphasis === "trend" ? (
-        <path d={area} fill={`url(#${gradientId})`} stroke="none" />
-      ) : null}
+      <path d={area} fill={`url(#${gradientId})`} stroke="none" />
       <path
         d={line}
         fill="none"
         stroke={color}
-        strokeWidth={emphasis === "trend" ? 2.5 : 1.5}
+        strokeWidth={2.5}
         strokeLinejoin="round"
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"

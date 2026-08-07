@@ -21,6 +21,7 @@ import { blockWindow, formatDuration, type Block } from "@/lib/blocks/block"
 import { buildRetrospective, comparePair } from "@/lib/blocks/retrospective"
 import { computeAdherenceOver } from "@/lib/progress/consistency"
 import { formatPhotoDateShort, poseLabel } from "@/lib/progress/photos"
+import { sparkGeometry } from "@/lib/progress/spark"
 import { kgToUnit, type WeightUnit } from "@/lib/weight"
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork"
 import type { JournalEntry } from "@/lib/progress/journal"
@@ -441,17 +442,13 @@ const SPARK_H = 44
 /**
  * The weight graph, clipped to the block.
  *
- * **This is now the ODD ONE OUT and the comment used to deny it.** It claimed
- * "the same polyline idiom as the dashboard's glance sparkline"; 6b221b0 then
- * moved that sparkline to a smooth monotone curve at 2.5 over a tapered
- * gradient, and this was left as a straight 2px polyline with no fill. So one
- * screen does draw weight differently from another, which is exactly what the
- * old comment said must not happen.
- *
- * Left as-is deliberately for now rather than changed in the same breath as a
- * production merge: `lib/progress/spark.ts` already exports the geometry, so
- * unifying it is small, but it is a VISUAL change to a screen and belongs in
- * its own pass with eyes on it. Recorded in `next-tasks.md`.
+ * This was the ODD ONE OUT: a straight 2px `<polyline>` with no fill, while
+ * every other weight line in the app had moved to a smooth monotone curve at
+ * 2.5 over a tapered gradient. One screen drawing weight differently from
+ * another is exactly what the old comment said must not happen, and the note
+ * left in `next-tasks.md` asked for it to be unified in its own pass — this is
+ * that pass (Adrian, 2026-08-07). It now shares `lib/progress/spark.ts` with
+ * the glance card, so all four graphs are one shape at one weight.
  *
  * `--chart-line` is the token, not `--accent-primary`: `ui-context.md` names
  * glance sparklines as the ONE sanctioned exception and gives them the neutral
@@ -462,17 +459,9 @@ const SPARK_H = 44
  * them is good is not the app's call.
  */
 function WindowSparkline({ values }: { values: number[] }) {
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
-  const step = values.length > 1 ? SPARK_W / (values.length - 1) : 0
-  const points = values
-    .map((v, i) => {
-      const x = i * step
-      const y = SPARK_H - ((v - min) / range) * (SPARK_H - 4) - 2
-      return `${x.toFixed(1)},${y.toFixed(1)}`
-    })
-    .join(" ")
+  // The caller only renders this with more than one reading, so there is always
+  // a line; `sparkGeometry` returns empty strings below that.
+  const { line, area } = sparkGeometry(values, SPARK_W, SPARK_H)
 
   return (
     <svg
@@ -481,15 +470,27 @@ function WindowSparkline({ values }: { values: number[] }) {
       className="mt-3 h-11 w-full"
       aria-hidden
     >
-      <polyline
-        points={points}
-        fill="none"
-        stroke="var(--chart-line)"
-        strokeWidth={2}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
+      <defs>
+        {/* Same stops as `consistencyFill`: 0.35 at the line, 0 at the base. */}
+        <linearGradient id="blockWindowSparkFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--chart-line)" stopOpacity={0.35} />
+          <stop offset="100%" stopColor="var(--chart-line)" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      {line ? (
+        <>
+          <path d={area} fill="url(#blockWindowSparkFill)" stroke="none" />
+          <path
+            d={line}
+            fill="none"
+            stroke="var(--chart-line)"
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </>
+      ) : null}
     </svg>
   )
 }

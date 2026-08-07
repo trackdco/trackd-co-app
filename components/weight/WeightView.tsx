@@ -505,11 +505,18 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
               margin={{ top: 6, right: 6, bottom: 0, left: 6 }}
             >
               <defs>
-                {/* Trend fill fades from the line down to the base — "thick to
-                    thin" — the shared app graph treatment (see Consistency). */}
+                {/* Both series get the same treatment — a fill fading from the
+                    line down to the base, "thick to thin" — the shared app graph
+                    style (see Consistency). Only the COLOUR differs between them
+                    (Adrian, 2026-08-07); weight and fill no longer do, so the
+                    two series read as one chart rather than two idioms. */}
                 <linearGradient id="weightTrendFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity={0.35} />
                   <stop offset="100%" stopColor="var(--chart-trend)" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="weightScaleFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--chart-line)" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="var(--chart-line)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="i" hide />
@@ -521,13 +528,15 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                 position={{ y: 0 }}
                 offset={0}
               />
-              {/* Raw scale — dims via opacity crossfade when Trend is active. */}
+              {/* Raw scale — dims via opacity crossfade when Trend is active.
+                  Same 2.5 stroke and tapered fill as the trend, in its own
+                  periwinkle: the ACTIVE mode is what tells them apart now. */}
               <Area
                 type="monotone"
                 dataKey="scale"
                 stroke="var(--chart-line)"
-                strokeWidth={1.5}
-                fill="transparent"
+                strokeWidth={2.5}
+                fill="url(#weightScaleFill)"
                 dot={false}
                 activeDot={
                   mode === "scale"

@@ -108,3 +108,25 @@ export const DATA_MONO = "font-mono text-xs tabular-nums text-text-muted"
  *  destructive actions, not a general accent. */
 export const DANGER_ROW =
   "flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-accent-destructive outline-none transition-colors hover:bg-accent-destructive/10 active:bg-accent-destructive/10 focus-visible:bg-accent-destructive/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+
+/* ------------------------------------------------ stock entry (shared) --- */
+
+/**
+ * The stock form's field styling, shared by the two places you can enter it:
+ * the "Stock on hand" panel inside Add-a-compound, and the standalone Add-stock
+ * sheet (Adrian, 2026-08-07 — "make the stock thing the same layout").
+ *
+ * They were written months apart and drifted: uppercase tracked labels against
+ * sentence-case ones, mono figures against proportional, `px-3 py-1.5` pills
+ * against `px-2.5 py-1`. Same fields, same units, same task — so one definition.
+ * Add-a-compound's version won, because it is the one most people meet first.
+ */
+export const STOCK_FIELD_LABEL = "mb-1 block text-xs text-text-muted"
+/** Pair with the `Input` component, which supplies the base. */
+export const STOCK_FIELD =
+  "h-11 min-w-0 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input"
+export const STOCK_PILL = "rounded-full border px-2.5 py-1 text-sm transition-colors"
+export const STOCK_PILL_ON =
+  "border-transparent bg-accent-primary font-medium text-bg-base"
+export const STOCK_PILL_OFF =
+  "border-border-default bg-bg-input text-text-muted hover:text-text-primary"

@@ -211,16 +211,22 @@ export function CompoundStorageCard({
               introduces is what you actually read. As one string ("Runs dry Wed
               16 Sep") it wrapped mid-date and broke the month onto its own line,
               which read like two separate facts.
-              The date stays white in every state: the low-stock signal lives on
-              the BAR below instead, which keeps amber to one beat per card and
-              puts it on the gauge rather than on a piece of text. */}
+              LOW STOCK READS ON THE DATE, and the gauge stays white
+              (Adrian, 2026-08-07 — the reverse of the earlier call). An amber
+              bar is a colour you have to decode; an amber DATE is the actual
+              fact, coloured. Still one amber beat per card. */}
           <span className="mt-0.5 flex w-full flex-col items-center leading-tight">
             <span className="text-[10px] lowercase text-text-subtle">runs dry</span>
             {/* Same weight as the "8.5 mL left" line above it (`--text-muted`,
-                what DATA_MONO uses) rather than full white. The card's figures are
-                one family and should read as one; white made the date the loudest
-                thing on the card, which it is not. */}
-            <span className="font-mono text-[11px] tabular-nums text-text-muted">
+                what DATA_MONO uses) rather than full white — the card's figures
+                are one family. AMBER once it is inside the reorder window, which
+                is the one time this line is the point of the card. */}
+            <span
+              className={cn(
+                "font-mono text-[11px] tabular-nums",
+                runningOut ? "text-accent-amber" : "text-text-muted",
+              )}
+            >
               {formatRunsDry(emptyDate, daysLeft)}
             </span>
           </span>
@@ -236,12 +242,9 @@ export function CompoundStorageCard({
               >
                 <span
                   className={cn(
-                    "block h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none",
-                    // THE gauge is where low stock reads (Adrian's call): amber on
-                    // the bar rather than on the date, so the signal sits on the
-                    // thing that measures rather than on a label, and the card
-                    // keeps a single amber beat.
-                    runningOut ? "bg-accent-amber" : "bg-accent-primary"
+                    // The gauge is WHITE in every state now. It measures; it does
+                    // not warn. The warning is the date above it.
+                    "block h-full rounded-full bg-accent-primary transition-[width] duration-500 ease-out motion-reduce:transition-none",
                   )}
                   style={{ width: `${Math.round(fill * 100)}%` }}
                 />

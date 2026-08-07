@@ -9,9 +9,11 @@ import { DATA_MONO, SHEET_TITLE } from "@/lib/ui-presets";
 /** How long the container takes to fill. Longer than `FILL_EASE_MS`, because
  *  here the fill IS the confirmation rather than a level quietly correcting
  *  itself — it has to be watchable. */
-const FILL_MS = 900;
-/** The beat after it settles, before the sheet goes. Adrian, 2026-08-07. */
-const HOLD_MS = 500;
+const FILL_MS = 550;
+/** The beat after it settles, before it goes. Adrian, 2026-08-07: the first cut
+ *  (900 + 500) was a second and a half of standing still, which is a long time
+ *  to be told something you already know. */
+const HOLD_MS = 300;
 
 /**
  * The moment after stock is added.
@@ -75,7 +77,7 @@ export function StockAddedCard({
     // sheet's own Escape, which is already there.
     <div
       onClick={onDone}
-      className="flex flex-col items-center gap-4 px-6 pt-2 pb-[calc(env(safe-area-inset-bottom)+2rem)]"
+      className="flex flex-col items-center gap-3 px-6 pt-6 pb-7"
     >
       <AnimatedContainer
         name={compoundName}
@@ -83,7 +85,7 @@ export function StockAddedCard({
         category={category}
         fill={target}
         durationMs={FILL_MS}
-        size={120}
+        size={104}
       />
       <div className="space-y-1 text-center">
         <p className={cn(SHEET_TITLE, "text-foreground")}>Stock added</p>

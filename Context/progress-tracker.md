@@ -1037,6 +1037,29 @@ dose & schedule", replacing a calendar that named only half of what it does.
 `/preview/stock` gained the moment on its own, because saving there needs a
 session and the real path cannot be reached in a harness.
 
+## The two stock forms became one layout (2026-08-07)
+
+`STOCK_FIELD`, `STOCK_FIELD_LABEL` and `STOCK_PILL{,_ON,_OFF}` now live in
+`lib/ui-presets.ts` and both stock forms import them — the "Stock on hand" panel
+in Add-a-compound and the standalone Add-stock sheet. They were written months
+apart and had drifted: uppercase tracked labels against sentence case,
+proportional figures against mono, `px-3 py-1.5` pills against `px-2.5 py-1`.
+Add-a-compound's version won, being the one most people meet first, and the
+standalone sheet's raw `<input>`s became the `Input` component to match.
+
+⚠️ **`STOCK_FIELD` assumes `Input`'s base underneath it.** It carries no
+`border` keyword and no width, because the component supplies both. A `<select>`
+or a bare `<input>` wearing it needs `border` and a width added back — and needs
+`font-sans` restated if it holds a NAME rather than a figure, which the compound
+picker does.
+
+Also: low stock moved from the gauge to the "runs dry" DATE (Adrian reversed the
+earlier call — the bar measures, the date warns); the stock confirmation is a
+CENTRED dialog via a new `side="center"` on the shared Sheet, not a bottom sheet,
+and runs 550ms + 300ms rather than 900 + 500; both `+` glyphs are
+`text-foreground`; and a leftover `value="Add"` was still printing the word
+beside the plus on "Another dose".
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

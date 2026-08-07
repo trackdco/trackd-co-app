@@ -10,7 +10,15 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
-import { SHEET_TITLE } from "@/lib/ui-presets"
+import {
+  SHEET_TITLE,
+  STOCK_FIELD,
+  STOCK_FIELD_LABEL,
+  STOCK_PILL,
+  STOCK_PILL_OFF,
+  STOCK_PILL_ON,
+} from "@/lib/ui-presets"
+import { Input } from "@/components/ui/input"
 import {
   addStockItem,
   updateStockItem,
@@ -33,9 +41,6 @@ import { StockAddedCard } from "@/components/protocol/StockAddedCard"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 
 const EMPTY: StackCompound[] = []
-const FIELD =
-  "h-11 w-full min-w-0 rounded-xl border border-border-default bg-bg-input px-3 text-base text-foreground shadow-xs outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong"
-const LABEL = "text-xs font-medium uppercase tracking-[0.14em] text-text-muted"
 
 /**
  * The four inventory forms, as the picker names them.
@@ -157,61 +162,81 @@ export function AddStockSheet({
    *  on an edit or a refill-into-nothing: neither is a "you now have this". */
   const [added, setAdded] = useState<StockAdded | null>(null)
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(o) => {
-        // Dismissing mid-confirmation must clear it, or the next open would come
-        // straight back up on someone else's celebration.
-        if (!o) setAdded(null)
-        onOpenChange(o)
-      }}
-    >
-      <SheetContent
-        side="bottom"
-        // Don't auto-focus a field on open — otherwise the keypad pops up over the
-        // form (esp. on refill/edit, where the compound select is disabled).
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
+    <>
+      <Sheet
+        open={open && added === null}
+        onOpenChange={(o) => {
+          // Dismissing mid-confirmation must clear it, or the next open would
+          // come straight back up on someone else's celebration.
+          if (!o) setAdded(null)
+          onOpenChange(o)
+        }}
       >
-        <SheetHeader className={added ? "sr-only" : undefined}>
-          <SheetTitle className={SHEET_TITLE}>
-            {added
-              ? "Stock added"
-              : editItem
-                ? "Edit stock"
-                : refillFor
-                  ? "Refill stock"
-                  : "Add stock"}
-          </SheetTitle>
-        </SheetHeader>
-        {open && added ? (
-          <StockAddedCard
-            compoundName={added.compoundName}
-            category={added.category}
-            inventoryType={added.inventoryType}
-            fill={added.fill}
-            amountLabel={added.amountLabel}
-            onDone={() => {
-              setAdded(null)
-              onOpenChange(false)
-            }}
-          />
-        ) : (
-          open && (
-          <AddStockForm
-            userId={userId}
-            refillFor={refillFor ?? null}
-            preselectFor={preselectFor ?? null}
-            refillType={refillType ?? null}
-            editItem={editItem ?? null}
-            onClose={() => onOpenChange(false)}
-            onAdded={onAdded}
-            onConfirmed={setAdded}
-          />
-          )
-        )}
-      </SheetContent>
-    </Sheet>
+        <SheetContent
+          side="bottom"
+          // Don't auto-focus a field on open — otherwise the keypad pops up over the
+          // form (esp. on refill/edit, where the compound select is disabled).
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
+        >
+          <SheetHeader>
+            <SheetTitle className={SHEET_TITLE}>
+              {editItem ? "Edit stock" : refillFor ? "Refill stock" : "Add stock"}
+            </SheetTitle>
+          </SheetHeader>
+          {open && added === null && (
+            <AddStockForm
+              userId={userId}
+              refillFor={refillFor ?? null}
+              preselectFor={preselectFor ?? null}
+              refillType={refillType ?? null}
+              editItem={editItem ?? null}
+              onClose={() => onOpenChange(false)}
+              onAdded={onAdded}
+              onConfirmed={setAdded}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* THE CONFIRMATION, centred rather than sliding up from the bottom
+          (Adrian, 2026-08-07). A bottom sheet is the app's "here is more to do"
+          gesture, and this is the opposite — it is done. Its own Sheet, not a
+          swapped body, so the form leaves the screen the instant you save
+          instead of the two states sharing one panel. */}
+      <Sheet
+        open={added !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setAdded(null)
+            onOpenChange(false)
+          }
+        }}
+      >
+        <SheetContent
+          side="center"
+          showCloseButton={false}
+          className="bg-bg-surface"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Stock added</SheetTitle>
+          </SheetHeader>
+          {added && (
+            <StockAddedCard
+              compoundName={added.compoundName}
+              category={added.category}
+              inventoryType={added.inventoryType}
+              fill={added.fill}
+              amountLabel={added.amountLabel}
+              onDone={() => {
+                setAdded(null)
+                onOpenChange(false)
+              }}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }
 
@@ -549,13 +574,11 @@ function AddStockForm({
     }
   }
 
+  // The SAME pill the add-compound stock panel uses. It was a few pixels
+  // bigger here and coloured its border rather than dropping it — near enough
+  // to look like a mistake rather than a variant (Adrian, 2026-08-07).
   const pill = (active: boolean) =>
-    cn(
-      "rounded-full border px-3 py-1.5 text-sm transition-colors",
-      active
-        ? "border-accent-primary bg-accent-primary text-bg-base"
-        : "border-border-default bg-bg-input text-text-muted hover:text-foreground",
-    )
+    cn(STOCK_PILL, active ? STOCK_PILL_ON : STOCK_PILL_OFF)
 
   return (
     <>
@@ -566,8 +589,8 @@ function AddStockForm({
           </p>
         ) : (
           <>
-            <label className="block space-y-1.5">
-              <span className={LABEL}>Compound</span>
+            <label className="block">
+              <span className={STOCK_FIELD_LABEL}>Compound</span>
               <select
                 value={compoundId}
                 onChange={(e) => {
@@ -580,7 +603,16 @@ function AddStockForm({
                   setPicker(forms.length > 1 ? "compound" : "hidden")
                 }}
                 disabled={compoundLocked}
-                className={cn(FIELD, compoundLocked && "opacity-60")}
+                // NOT mono: `STOCK_FIELD` is mono because every field it was
+                // written for holds a figure, and this one holds a compound
+                // name. `border` and the text colour come back because the
+                // preset expects the `Input` component's base underneath it,
+                // and a <select> has none.
+                className={cn(
+                  STOCK_FIELD,
+                  "w-full border px-3 font-sans text-base text-foreground outline-none [color-scheme:dark]",
+                  compoundLocked && "opacity-60",
+                )}
               >
                 {compounds.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -591,8 +623,8 @@ function AddStockForm({
             {picker === "hidden" ? (
               // One obvious form (or a refill keeping its vial's form): no choice to
               // make — just name it, with a quiet way out if they track it differently.
-              <div className="space-y-1.5">
-                <span className={LABEL}>Type</span>
+              <div>
+                <span className={STOCK_FIELD_LABEL}>Type</span>
                 <div className="flex items-center justify-between gap-2">
                   <p className="min-w-0 text-sm text-foreground">
                     {TYPES.find((t) => t.value === type)?.label}
@@ -612,8 +644,8 @@ function AddStockForm({
                 </div>
               </div>
             ) : (
-              <div className="space-y-1.5">
-                <span className={LABEL}>Type</span>
+              <div>
+                <span className={STOCK_FIELD_LABEL}>Type</span>
                 <div className="flex flex-wrap gap-2">
                   {formsToShow.map((v) => (
                     <button key={v} type="button" onClick={() => setType(v)} className={pill(type === v)}>
@@ -641,33 +673,33 @@ function AddStockForm({
             )}
 
             {type === "reconstituted" && (
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block space-y-1.5">
-                  <span className={LABEL}>Powder</span>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className={STOCK_FIELD_LABEL}>Powder</span>
                   <div className="flex gap-2">
-                    <input value={powder} onChange={(e) => setPowder(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 5" className={FIELD} />
+                    <Input value={powder} onChange={(e) => setPowder(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 5"  className={STOCK_FIELD} />
                     <div className="flex gap-1">
                       <button type="button" onClick={() => setPowderUnit("mg")} className={pill(powderUnit === "mg")}>mg</button>
                       <button type="button" onClick={() => setPowderUnit("iu")} className={pill(powderUnit === "iu")}>iu</button>
                     </div>
                   </div>
                 </label>
-                <label className="block space-y-1.5">
-                  <span className={LABEL}>BAC water (mL)</span>
-                  <input value={bacWater} onChange={(e) => setBacWater(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 2" className={FIELD} />
+                <label className="block">
+                  <span className={STOCK_FIELD_LABEL}>BAC water (mL)</span>
+                  <Input value={bacWater} onChange={(e) => setBacWater(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 2"  className={STOCK_FIELD} />
                 </label>
               </div>
             )}
 
             {type === "preconcentrated" && (
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block space-y-1.5">
-                  <span className={LABEL}>Volume (mL)</span>
-                  <input value={oilMl} onChange={(e) => setOilMl(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 10" className={FIELD} />
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className={STOCK_FIELD_LABEL}>Volume (mL)</span>
+                  <Input value={oilMl} onChange={(e) => setOilMl(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 10"  className={STOCK_FIELD} />
                 </label>
-                <label className="block space-y-1.5">
-                  <span className={LABEL}>Strength (mg/mL)</span>
-                  <input value={concentration} onChange={(e) => setConcentration(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 250" className={FIELD} />
+                <label className="block">
+                  <span className={STOCK_FIELD_LABEL}>Strength (mg/mL)</span>
+                  <Input value={concentration} onChange={(e) => setConcentration(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 250"  className={STOCK_FIELD} />
                 </label>
               </div>
             )}
@@ -677,12 +709,12 @@ function AddStockForm({
                 {/* Count gets a FULL-WIDTH row. Sharing a half-width column with
                     the two pills squeezed the number field to a few characters
                     and it could not be read (Adrian, 2026-08-07). */}
-                <label className="block space-y-1.5">
-                  <span className={LABEL}>How many in the bottle</span>
-                  <input value={count} onChange={(e) => setCount(clean(e.target.value))} inputMode="numeric" placeholder="e.g. 100" className={FIELD} />
+                <label className="block">
+                  <span className={STOCK_FIELD_LABEL}>How many in the bottle</span>
+                  <Input value={count} onChange={(e) => setCount(clean(e.target.value))} inputMode="numeric" placeholder="e.g. 100"  className={STOCK_FIELD} />
                 </label>
-                <div className="space-y-1.5">
-                  <span className={LABEL}>Tablets or capsules</span>
+                <div>
+                  <span className={STOCK_FIELD_LABEL}>Tablets or capsules</span>
                   <div className="flex flex-wrap gap-2">
                     {/* The stored value stays `tab`/`capsule` — that is the
                         `dose_unit` enum and a database contract. Only the WORDS
@@ -692,14 +724,14 @@ function AddStockForm({
                     <button type="button" onClick={() => setOralForm("capsule")} className={pill(oralForm === "capsule")}>Capsule</button>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-3">
-                  <label className="block space-y-1.5">
+                <div className="grid grid-cols-1 gap-2">
+                  <label className="block">
                     {/* OPTIONAL, and the unit is whatever the label says — a
                         5000 iu vitamin D tablet could not be stored at all
                         before `supabase/protocol/016`. */}
-                    <span className={LABEL}>Strength each</span>
+                    <span className={STOCK_FIELD_LABEL}>Strength each</span>
                     <div className="flex gap-2">
-                      <input value={strength} onChange={(e) => setStrength(clean(e.target.value))} inputMode="decimal" placeholder="optional" className={FIELD} />
+                      <Input value={strength} onChange={(e) => setStrength(clean(e.target.value))} inputMode="decimal" placeholder="optional"  className={STOCK_FIELD} />
                       <div className="flex gap-1">
                         <button type="button" onClick={() => setStrengthUnit("mg")} className={pill(strengthUnit === "mg")}>mg</button>
                         <button type="button" onClick={() => setStrengthUnit("iu")} className={pill(strengthUnit === "iu")}>iu</button>
@@ -720,14 +752,14 @@ function AddStockForm({
                 removed: same LABEL + FIELD markup, same clean/num handling, one
                 amount row instead of two, and no derived readout. */}
             {type === "bulk_powder" && (
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block space-y-1.5">
-                  <span className={LABEL}>Tub weight (g)</span>
-                  <input value={tubGrams} onChange={(e) => setTubGrams(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 1000" className={FIELD} />
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className={STOCK_FIELD_LABEL}>Tub weight (g)</span>
+                  <Input value={tubGrams} onChange={(e) => setTubGrams(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 1000"  className={STOCK_FIELD} />
                 </label>
-                <label className="block space-y-1.5">
-                  <span className={LABEL}>Serving (g)</span>
-                  <input value={servingG} onChange={(e) => setServingG(clean(e.target.value))} inputMode="decimal" placeholder="optional" className={FIELD} />
+                <label className="block">
+                  <span className={STOCK_FIELD_LABEL}>Serving (g)</span>
+                  <Input value={servingG} onChange={(e) => setServingG(clean(e.target.value))} inputMode="decimal" placeholder="optional"  className={STOCK_FIELD} />
                 </label>
               </div>
             )}
@@ -736,7 +768,7 @@ function AddStockForm({
                 than assuming it's full. Full = no offset (existing behaviour). */}
             {fill.basis && (
               <div className="space-y-2 rounded-2xl bg-bg-surface-raised/40 p-3">
-                <span className={LABEL}>How much is in it?</span>
+                <span className={STOCK_FIELD_LABEL}>How much is in it?</span>
                 <div className="flex flex-wrap items-center gap-2">
                   {FILL_PRESETS.map((p) => (
                     <button
@@ -758,7 +790,7 @@ function AddStockForm({
                       onChange={(e) => setExactLeft(clean(e.target.value))}
                       inputMode="decimal"
                       placeholder={String(round3(fill.basis.fullNative))}
-                      className={cn(FIELD, "h-10 w-20")}
+                      className={cn(STOCK_FIELD, "h-10 w-20 border px-2 text-base text-foreground outline-none [color-scheme:dark]")}
                     />
                     <span className="whitespace-nowrap text-xs text-text-subtle">{fillUnit} left</span>
                   </div>
