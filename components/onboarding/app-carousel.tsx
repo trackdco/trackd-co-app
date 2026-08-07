@@ -18,7 +18,6 @@ import {
   TestTube,
   type Icon,
 } from "@/components/icons";
-import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 /**
@@ -68,7 +67,6 @@ import { cn } from "@/lib/utils";
 interface Slide {
   id: string;
   src: string;
-  caption: string;
   labels: { text: string; icon: Icon; className: string; drift: [string, string, string] }[];
 }
 
@@ -76,7 +74,6 @@ const SLIDES: Slide[] = [
   {
     id: "home",
     src: "/onboarding/app-home.png",
-    caption: "Track the protocol",
     labels: [
       { text: "Log a dose", icon: Syringe, className: "left-1 top-1", drift: ["5px", "-6px", "8600ms"] },
       { text: "What's due today", icon: ListChecks, className: "right-1 top-14", drift: ["-5px", "7px", "10200ms"] },
@@ -87,7 +84,6 @@ const SLIDES: Slide[] = [
   {
     id: "protocol",
     src: "/onboarding/app-protocol.png",
-    caption: "Everything in one place",
     labels: [
       { text: "Compounds", icon: TestTube, className: "left-1 top-1", drift: ["5px", "-7px", "9000ms"] },
       { text: "Stacks", icon: Package, className: "right-1 top-14", drift: ["-6px", "6px", "10800ms"] },
@@ -98,10 +94,6 @@ const SLIDES: Slide[] = [
   {
     id: "calculator",
     src: "/onboarding/app-calculator.png",
-    // NOT "never do the maths". Adrian killed that and he was right: for a
-    // dosing tool it reads as "do not check your work", which is the last
-    // thing this app should ever imply. This states what it does and stops.
-    caption: "Powder to units",
     labels: [
       { text: "Powder and water", icon: Flask, className: "left-1 top-1", drift: ["5px", "-6px", "8800ms"] },
       { text: "Dose in units", icon: Calculator, className: "right-1 top-14", drift: ["-5px", "7px", "10400ms"] },
@@ -112,7 +104,6 @@ const SLIDES: Slide[] = [
   {
     id: "progress",
     src: "/onboarding/app-progress.png",
-    caption: "See it change over time",
     labels: [
       { text: "Progress photos", icon: ImageSquare, className: "left-1 top-1", drift: ["5px", "-7px", "8400ms"] },
       { text: "Weight", icon: Scales, className: "right-1 top-14", drift: ["-6px", "6px", "10600ms"] },
@@ -208,23 +199,19 @@ export function AppCarousel() {
     // it a short viewport squeezed it toward nothing. Adrian could not see the
     // carousel AT ALL on his phone (2026-08-01) — not clipped, compressed.
     <div className="w-full shrink-0">
-      {/* The caption. Given room to breathe above and below (Adrian,
-          2026-08-01): at `mb-3` it was crowding the top of the phone and read
-          as a label stuck to it rather than as a line about it. */}
-      <div className="mb-5 flex h-5 items-center justify-center [@media(max-height:700px)]:mb-2" aria-hidden>
-        <p
-          key={active.id}
-          className={cn(CARD_EYEBROW, "animate-flow-caption")}
-          style={{ animationDuration: reduced ? "0ms" : `${CAPTION_MS}ms` }}
-        >
-          {active.caption}
-        </p>
-      </div>
+      {/* NO CAPTION (Adrian, 2026-08-07: "remove the little text above the
+          carousel ... we don't need that anymore"). "Track the protocol" and
+          the other three named what the phone underneath was already showing,
+          and on the `free` screen they sat directly under a headline, so the
+          screen opened with two lines of small type before the thing it is
+          selling. The labels ON the phone still say what each screen does,
+          which is the same information in the place it belongs.
 
+          `CAPTION_MS` survives: the floating labels cross-fade on it too. */}
       {/* Sized so the phone reads as the hero of the screen. The page scrolls,
           so this does not have to fight the plan cards for room. */}
       <div
-        className="relative mx-auto h-[16.5rem] w-full max-w-[24rem] shrink-0 touch-pan-y select-none"
+        className="relative mx-auto h-[18.75rem] w-full max-w-[24rem] shrink-0 touch-pan-y select-none"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerCancel={() => { drag.current = null; }}
@@ -232,10 +219,10 @@ export function AppCarousel() {
         {/* A pool of light under the front phone. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-1/2 h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-70 blur-3xl"
+          className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-70 blur-3xl"
           style={{
             background:
-              "radial-gradient(circle, color-mix(in srgb, var(--accent-amber) 16%, transparent), transparent 70%)",
+              "radial-gradient(circle, color-mix(in srgb, var(--accent-amber) 26%, transparent), transparent 70%)",
           }}
         />
 
@@ -246,7 +233,7 @@ export function AppCarousel() {
             <div
               key={slide.id}
               aria-hidden
-              className="pointer-events-none absolute left-1/2 top-1/2 w-[9.5rem] rounded-[1.5rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
+              className="pointer-events-none absolute left-1/2 top-1/2 w-[11.4rem] rounded-[1.5rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
               style={{
                 transitionDuration: reduced ? "0ms" : `${TURN_MS}ms`,
                 transform: `translate(-50%, -50%) translateX(${pos.x}) scale(${pos.scale})`,
@@ -317,7 +304,7 @@ export function AppCarousel() {
             key={slide.id}
             type="button"
             onClick={() => setIndex(i)}
-            aria-label={`Show ${slide.caption}`}
+            aria-label={`Show screen ${i + 1}`}
             className={cn(
               "h-1.5 rounded-full transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
               i === index ? "w-5 bg-accent-amber" : "w-1.5 bg-border-strong",

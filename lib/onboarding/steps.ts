@@ -12,6 +12,8 @@
  * folded into Welcome, so screen 12 has no step of its own.
  */
 
+import type { Platform } from "./platform";
+
 export type StepId =
   | "hook"
   // HOUSEKEEPING IS FOUR SCREENS, not one (Adrian, 2026-08-05). One page
@@ -207,6 +209,37 @@ export function stepMeta(id: StepId): StepMeta | null {
 }
 
 /** The step after `id`, or null at the end of the flow (which hands off). */
+/**
+ * Does a step exist for this platform at all?
+ *
+ * **`notifications` does not, on iOS** (Adrian, 2026-08-07). iOS cannot grant
+ * web push to a site that is not on the Home Screen, and install is now the
+ * LAST step, so on iOS that screen could only ever record an intention and
+ * defer. His call was to drop it rather than show a screen that cannot do its
+ * job: the installed app asks, which is the only place the ask can succeed.
+ * Android reaches it unchanged and still gets the real prompt in place.
+ *
+ * The step stays in `STEP_ORDER`. That list is the canonical sequence and the
+ * thing `clampStep` and `stepProgress` read; making it platform-dependent would
+ * mean a user's progress bar and a deep link disagreed about what the flow is.
+ * Only FORWARD WALKING skips, which is the one place the difference is real.
+ * A deep link to `?step=notifications` on iOS still renders, and the screen
+ * keeps its deferred copy for exactly that case.
+ */
+export function stepAppliesTo(id: StepId, platform: Platform): boolean {
+  if (id === "notifications") return platform !== "ios";
+  return true;
+}
+
+/** `nextStep`, skipping anything this platform does not have. */
+export function nextStepFor(id: StepId, platform: Platform): StepId | null {
+  let candidate = nextStep(id);
+  while (candidate !== null && !stepAppliesTo(candidate, platform)) {
+    candidate = nextStep(candidate);
+  }
+  return candidate;
+}
+
 export function nextStep(id: StepId): StepId | null {
   const i = stepIndex(id);
   if (i === -1 || i >= STEP_ORDER.length - 1) return null;

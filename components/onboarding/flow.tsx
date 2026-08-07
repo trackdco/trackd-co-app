@@ -24,13 +24,14 @@ import {
   clampStep,
   FIRST_STEP,
   isStepId,
-  nextStep,
+  nextStepFor,
   prevStep,
   stepIndex,
   stepProgress,
   type StepId,
 } from "@/lib/onboarding/steps";
 import { firstIncompleteHousekeeping } from "@/lib/onboarding/session";
+import { guessPlatform } from "@/lib/onboarding/platform";
 import { todayKey as resolveTodayKey } from "@/lib/protocol/cycle";
 
 import { FlowContext, type FlowContextValue } from "./flow-context";
@@ -121,6 +122,18 @@ function OnboardingFlowClient() {
   });
 
   const [todayKey] = useState(resolveTodayKey);
+
+  /**
+   * Guessed ONCE, and only ever read by `goNext` — never rendered.
+   *
+   * It decides whether the forward walk skips `notifications` (see
+   * `stepAppliesTo`). Nothing on screen depends on it, so the server's guess
+   * differing from the device's cannot produce a hydration mismatch; the
+   * initialiser re-runs on the client during hydration and that value is the
+   * one that sticks. Same idiom as `install.tsx` and `notifications.tsx`, from
+   * the same helper, so no two screens can disagree about the device.
+   */
+  const [platform] = useState(guessPlatform);
 
   /**
    * How many history entries THIS flow has pushed.
@@ -341,12 +354,12 @@ function OnboardingFlowClient() {
    * transition.
    */
   const goNext = useCallback(() => {
-    const target = nextStep(step);
+    const target = nextStepFor(step, platform);
     if (!target) return;
     setDirection("forward");
     setStep(target);
     pushStep(target);
-  }, [step, pushStep]);
+  }, [step, pushStep, platform]);
 
   // A screen may claim BACK for itself (the demo does, to step between its
   // stages). A ref rather than state: this is a registration, and re-rendering

@@ -33,7 +33,7 @@ export function CostVariantA({ onContinue }: { onContinue: () => void }) {
   return (
     <StepFrame
       center
-      footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
+      footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}
     >
       <div className="space-y-8 text-center">
         <p className={CARD_EYEBROW}>A year of Trackd</p>
@@ -74,7 +74,7 @@ export function CostVariantB({ onContinue }: { onContinue: () => void }) {
     <StepFrame
       title="The tracking is the cheap part."
       sub="Everything above the line, you are already paying for."
-      footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
+      footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
         <div className="flow-card rounded-2xl bg-bg-surface p-5">
@@ -135,7 +135,7 @@ export function CostVariantC({ onContinue }: { onContinue: () => void }) {
     <StepFrame
       title="Put your own number on it."
       sub="Whatever you spend a month, on everything."
-      footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
+      footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center gap-8">
         <div className="text-center">
@@ -274,7 +274,7 @@ export function CostVariantD({ onContinue }: { onContinue: () => void }) {
   }, []);
 
   return (
-    <StepFrame footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}>
+    <StepFrame footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}>
       <div className="flex flex-1 flex-col justify-center">
         <div className="flow-card rounded-2xl bg-bg-surface p-5">
           <div className="flex h-56 items-end justify-center gap-10">
@@ -377,7 +377,7 @@ export function CostVariantE({ onContinue }: { onContinue: () => void }) {
     <StepFrame
       title="The tracking is the cheap part."
       sub="Everything above the line, you are already paying for."
-      footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
+      footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
         <div className="flow-card rounded-2xl bg-bg-surface p-5">
@@ -441,7 +441,7 @@ export function CostVariantF({ onContinue }: { onContinue: () => void }) {
     <StepFrame
       title="It is not the expensive part."
       sub="Next to what a protocol costs to run, the tracking is a rounding error."
-      footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
+      footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
         <div className="flow-card rounded-2xl bg-bg-surface p-5">
@@ -585,7 +585,7 @@ export function CostVariantG({ onContinue }: { onContinue: () => void }) {
 
   return (
     <StepFrame
-      footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}
+      footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}
     >
       {/* THE CARD FILLS THE SCREEN (Adrian, 2026-08-05) and the type sits lower
           than the flow's default rhythm, so the headline is not hard against
@@ -718,7 +718,7 @@ export function CostVariantG({ onContinue }: { onContinue: () => void }) {
    =========================================================================== */
 export function CostVariantH({ onContinue }: { onContinue: () => void }) {
   return (
-    <StepFrame center footer={<FlowCta onClick={onContinue}>See plans</FlowCta>}>
+    <StepFrame center footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}>
       <div className="space-y-9 text-center">
         <p className={cn(FLOW_TITLE, "text-[2.5rem] leading-[1.08]")}>
           The tracking is the{" "}
