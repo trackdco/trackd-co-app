@@ -11,6 +11,7 @@ import {
 import { CARD_EYEBROW, DATA_MONO, SHEET_TITLE } from "@/lib/ui-presets"
 import { Container } from "@/components/containers"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
+import { containerNoun, remainingLabel } from "@/lib/containers/labels"
 import { cn } from "@/lib/utils"
 import type { StackCompound } from "@/lib/home/stack"
 import { setStockArchived, type StockItem } from "@/lib/db/inventory"
@@ -54,6 +55,20 @@ export function StockActionsSheet({
     stock?.remainingBase != null && stock.totalBase
       ? Math.max(0, Math.min(1, stock.remainingBase / stock.totalBase))
       : null
+  // Every noun in this sheet comes from the compound's own container. It said
+  // "vial" throughout — so discarding a tub of creatine offered to discard a
+  // vial, and the header priced its 1 kg in millilitres (Adrian, 2026-08-12).
+  const noun = compound
+    ? containerNoun({
+        inventoryType: inventoryTypeForCompound(
+          compound.name,
+          compound.method,
+          compound.inventoryForm,
+        ),
+        category: compound.category,
+        name: compound.name,
+      })
+    : "vial"
   const [busy, setBusy] = useState(false)
 
   async function discard() {
@@ -104,12 +119,7 @@ export function StockActionsSheet({
             <SheetTitle className={cn(SHEET_TITLE, "truncate")}>
               {compound?.name ?? ""}
             </SheetTitle>
-            {stock && (
-              <p className={DATA_MONO}>
-                {stock.remainingDisplay ?? "?"}
-                {stock.inventoryType === "oral_solid" ? "" : " mL"} left
-              </p>
-            )}
+            {stock && <p className={DATA_MONO}>{remainingLabel(stock) ?? "? left"}</p>}
           </div>
         </SheetHeader>
 
@@ -121,7 +131,7 @@ export function StockActionsSheet({
         <div className="space-y-3 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <p className={CARD_EYEBROW}>Stock</p>
           <div className="divide-y divide-border-default rounded-2xl bg-bg-surface-raised">
-            <Row label="Refill" hint="A new vial replaces this one" onClick={onRefill} />
+            <Row label="Refill" hint={`A new ${noun} replaces this one`} onClick={onRefill} />
             <Row
               label="Correct the amounts"
               hint="Fix a number you typed wrong"
@@ -135,12 +145,12 @@ export function StockActionsSheet({
               onClick={() => setConfirmDiscard(true)}
               className="w-full rounded-xl px-4 py-3 text-left text-sm text-text-muted transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
             >
-              Discard this vial
+              Discard this {noun}
             </button>
           ) : (
             <div className="space-y-3 rounded-2xl border border-accent-destructive p-4">
               <p className="text-sm text-foreground">
-                Discard this vial? Doses already logged against it are kept.
+                Discard this {noun}? Doses already logged against it are kept.
               </p>
               <div className="flex gap-2">
                 <button

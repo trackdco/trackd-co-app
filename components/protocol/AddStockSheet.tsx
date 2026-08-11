@@ -34,6 +34,8 @@ import {
 } from "@/lib/home/stack"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { isInventoryForm } from "@/lib/containers/form"
+import { containerNoun } from "@/lib/containers/labels"
+import { powderUnitsFor, resolvePowderUnit } from "@/lib/protocol/stockUnits"
 import { routesOf } from "@/lib/compound-categories"
 import { todayKey } from "@/lib/protocol/cycle"
 import { resolveFill, vialBasis, FILL_PRESETS, round3, formatGrams } from "@/lib/protocol/vialFill"
@@ -403,9 +405,9 @@ function AddStockForm({
       return {
         ...base,
         inventory_type: "reconstituted",
-        base_unit: powderUnit,
+        base_unit: powderUnitToSave,
         total_amount: num(powder),
-        total_amount_unit: powderUnit,
+        total_amount_unit: powderUnitToSave,
         bac_water_ml: num(bacWater),
         reconstituted_on: todayKey(),
         prior_used_base,
@@ -466,6 +468,35 @@ function AddStockForm({
       prior_used_base,
     }
   }
+
+  const selected = compounds.find((c) => c.id === compoundId)
+  /**
+   * What to call the container the user ALREADY has — the one a refill or an
+   * edit is locked to. Read from `presetType` rather than from `type`, because
+   * the sentence is about the container on the shelf, not the form currently
+   * selected in the picker.
+   *
+   * It said "vial" flat out, so editing a tub of creatine read "Powder · same as
+   * your current vial" (Adrian, 2026-08-12).
+   */
+  const lockedNoun = containerNoun({
+    inventoryType: presetType,
+    category: selected?.category,
+    name: selected?.name,
+  })
+
+  // `iu` is offered only where something is genuinely sold in it — see
+  // `powderUnitsFor`. One option ⇒ no toggle, just the unit.
+  const powderUnits = powderUnitsFor(selected?.name, ei?.baseUnit)
+  /**
+   * The unit actually written to `base_unit`.
+   *
+   * Resolved rather than trusted: switching the sheet from HCG to a peptide with
+   * `iu` still selected would otherwise save the peptide's vial as `iu`, and
+   * `unit_family_compatible` (016) pairs `iu` only with `iu` — so every dose
+   * would log cleanly and the vial would never go down. See `stockUnits.ts`.
+   */
+  const powderUnitToSave = resolvePowderUnit(powderUnit, powderUnits)
 
   const insert = buildInsert()
   const allowedForms = formsForId(compoundId)
@@ -630,7 +661,7 @@ function AddStockForm({
                     {TYPES.find((t) => t.value === type)?.label}
                     {lockedType && (
                       <span className="text-text-subtle">
-                        {" · same as your current vial"}
+                        {` · same as your current ${lockedNoun}`}
                       </span>
                     )}
                   </p>
@@ -676,12 +707,20 @@ function AddStockForm({
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
                   <span className={STOCK_FIELD_LABEL}>Powder</span>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <Input value={powder} onChange={(e) => setPowder(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 5"  className={STOCK_FIELD} />
-                    <div className="flex gap-1">
-                      <button type="button" onClick={() => setPowderUnit("mg")} className={pill(powderUnit === "mg")}>mg</button>
-                      <button type="button" onClick={() => setPowderUnit("iu")} className={pill(powderUnit === "iu")}>iu</button>
-                    </div>
+                    {/* One unit ⇒ state it, don't ask. A toggle with nothing to
+                        toggle to is a question about a compound the user has
+                        already named. */}
+                    {powderUnits.length === 1 ? (
+                      <span className="shrink-0 text-sm text-text-muted">{powderUnits[0]}</span>
+                    ) : (
+                      <div className="flex gap-1">
+                        {powderUnits.map((u) => (
+                          <button key={u} type="button" onClick={() => setPowderUnit(u)} className={pill(powderUnit === u)}>{u}</button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </label>
                 <label className="block">

@@ -27,6 +27,8 @@ import {
 } from "@/lib/home/stack"
 import { siteLabel, sitesForSex } from "@/lib/home/siteCatalog"
 import { listStock, type StockItem } from "@/lib/db/inventory"
+import { inventoryTypeForCompound } from "@/lib/containers/form"
+import { containerNoun, containerNounTitle, remainingLabel } from "@/lib/containers/labels"
 import { resolveDrawSources, resolveVialForDate } from "@/lib/home/protocolSync"
 import { formatDraw, type DrawSource } from "@/lib/home/draw"
 import { BodyMap } from "@/components/sites/BodyMap"
@@ -520,6 +522,17 @@ function LogDoseBody({
 
   const [tracked, setTracked] = useState(false)
 
+  /** What this compound's container is called, for the sentences below. */
+  const containerWord = containerNoun({
+    inventoryType: inventoryTypeForCompound(
+      compound.name,
+      compound.method,
+      compound.inventoryForm,
+    ),
+    category: compound.category,
+    name: compound.name,
+  })
+
   /**
    * What the vial card says, if anything.
    *
@@ -536,12 +549,14 @@ function LogDoseBody({
     choices?: { key: string; label: string; active: boolean; onPick: () => void }[]
     toggle?: { label: string; onPress: () => void }
   } | null = (() => {
-    const stockLabel = (v: StockItem) =>
-      v.remainingDisplay == null
-        ? "Vial"
-        : v.inventoryType === "oral_solid"
-          ? `${v.remainingDisplay} left`
-          : `${v.remainingDisplay} mL left`
+    // Worded from the container, not assumed to be a vial: a tub of creatine
+    // read "1000 mL left" here, and the no-figure fallback said "Vial" about a
+    // bottle of tablets (Adrian, 2026-08-12).
+    const stockLabel = (v: StockItem) => remainingLabel(v) ?? containerNounTitle({
+      inventoryType: v.inventoryType,
+      category: compound.category,
+      name: compound.name,
+    })
 
     if (!onToday) {
       if (dateVialId == null) return null
@@ -556,7 +571,7 @@ function LogDoseBody({
           }
         : {
             value: "Counted",
-            note: `Comes off the vial you were using on ${formatDateKeyShort(logDate)}.`,
+            note: `Comes off the ${containerWord} you were using on ${formatDateKeyShort(logDate)}.`,
             toggle: {
               label: "Don't count this one",
               onPress: () => setInventoryItemId(null),
@@ -590,7 +605,7 @@ function LogDoseBody({
     if (vials.length > 1) {
       return {
         value: inventoryItemId === null ? "Not counted" : "Counted",
-        note: "Which vial this dose comes off.",
+        note: `Which ${containerWord} this dose comes off.`,
         choices: [
           ...vials.map((v) => ({
             key: v.id,

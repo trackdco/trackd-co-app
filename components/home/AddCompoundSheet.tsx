@@ -13,6 +13,8 @@ import {
 } from "@/lib/ui-presets"
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
 import { isInventoryForm, isStockableForm } from "@/lib/containers/form"
+import { containerNoun } from "@/lib/containers/labels"
+import { powderUnitsFor, resolvePowderUnit } from "@/lib/protocol/stockUnits"
 import { Input } from "@/components/ui/input"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
 import type { InventoryType } from "@/lib/db/types"
@@ -666,6 +668,18 @@ function AddCompoundBody({
   // longer always millilitres now that this form covers all four types.
   const stFillUnit =
     stockType === "oral_solid" ? stOralForm : stockType === "bulk_powder" ? "g" : "mL"
+  // What the thing being filled is CALLED, so the fullness gauge isn't announced
+  // as a vial when it is a tub. The visible heading ("How much is in it?") was
+  // already form-neutral; only the screen-reader label was not.
+  const stContainerNoun = containerNoun({
+    inventoryType: stockType || null,
+    category: source.category,
+    name: source.name,
+  })
+  // `iu` only where something is genuinely sold in it (see `powderUnitsFor`).
+  // This is an ADD, so there is never an existing row's unit to preserve.
+  const stPowderUnits = powderUnitsFor(source.name)
+  const stPowderUnitToSave = resolvePowderUnit(stPowderUnit, stPowderUnits)
 
   function buildStockInsert():
     | Omit<StockInsert, "id" | "protocol_compound_id">
@@ -676,9 +690,11 @@ function AddCompoundBody({
       if (n(stPowder) <= 0 || n(stBac) <= 0) return null
       return {
         inventory_type: "reconstituted",
-        base_unit: stPowderUnit,
+        // Resolved, not trusted — a hidden `iu` must never reach `base_unit`,
+        // or the vial silently never decrements. See `stockUnits.ts`.
+        base_unit: stPowderUnitToSave,
         total_amount: n(stPowder),
-        total_amount_unit: stPowderUnit,
+        total_amount_unit: stPowderUnitToSave,
         bac_water_ml: n(stBac),
         reconstituted_on: todayKey,
         prior_used_base,
@@ -1612,12 +1628,18 @@ function AddCompoundBody({
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>Powder in vial</span>
-                      <div className="flex gap-1.5">
+                      <div className="flex items-center gap-1.5">
                         <Input inputMode="decimal" value={stPowder} onChange={(e) => setStPowder(sanitizeDoseInput(e.target.value))} placeholder="5" className={cn(STOCK_FIELD, "flex-1")} />
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => setStPowderUnit("mg")} className={cn(STOCK_PILL, stPowderUnit === "mg" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>mg</button>
-                          <button type="button" onClick={() => setStPowderUnit("iu")} className={cn(STOCK_PILL, stPowderUnit === "iu" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>iu</button>
-                        </div>
+                        {/* One unit ⇒ state it rather than ask. */}
+                        {stPowderUnits.length === 1 ? (
+                          <span className="shrink-0 text-sm text-text-muted">{stPowderUnits[0]}</span>
+                        ) : (
+                          <div className="flex gap-1">
+                            {stPowderUnits.map((u) => (
+                              <button key={u} type="button" onClick={() => setStPowderUnit(u)} className={cn(STOCK_PILL, stPowderUnit === u ? STOCK_PILL_ON : STOCK_PILL_OFF)}>{u}</button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </label>
                     <label className="block">
@@ -1690,7 +1712,7 @@ function AddCompoundBody({
                         aria-valuenow={Math.round(stockFill.percent ?? 100)}
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        aria-label="Vial fullness"
+                        aria-label={`How full the ${stContainerNoun} is`}
                       >
                         <div
                           className="h-full rounded-full bg-foreground/80 transition-[width] duration-300 ease-out"

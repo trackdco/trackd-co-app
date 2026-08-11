@@ -14,6 +14,7 @@ import {
 import type { DateKey, DoseLog } from "@/lib/home/mockHomeData"
 import { formatDraw, type Draw, type DrawSource } from "@/lib/home/draw"
 import { formatTimeLabel, type StackCompound } from "@/lib/home/stack"
+import { stackLogTargets, stackProgress, stackUnlogTargets } from "@/lib/home/stackTicks"
 import { partitionByStack, type Stack } from "@/lib/home/stacks"
 import { Container } from "@/components/containers"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
@@ -227,6 +228,15 @@ interface TodaysCycleCardProps {
   stacks?: Stack[]
   /** Log every unlogged member of a stack in one action, on the selected day. */
   onLogStack?: (members: StackCompound[]) => void
+  /**
+   * Untick a whole stack — the exact slots to remove, already filtered by the
+   * row (paused members and Skipped doses are never in the list).
+   *
+   * Slots rather than compounds, because a twice-daily member has two and only
+   * the row knows which of them carry a log. Handing the caller compounds would
+   * make it re-derive that and get it subtly wrong.
+   */
+  onUnlogStack?: (targets: { compound: StackCompound; slot: number }[]) => void
 }
 
 function formatDose(dose: number): string {
@@ -717,6 +727,7 @@ export function TodaysCycleCard({
   dayKey,
   stacks,
   onLogStack,
+  onUnlogStack,
   greeting,
 }: TodaysCycleCardProps) {
   // ONE partition: a member appears in its stack row and therefore cannot also
@@ -760,6 +771,7 @@ export function TodaysCycleCard({
               onUnlog={onUnlog}
               onOpenDetail={onOpenDetail}
               onLogStack={onLogStack}
+              onUnlogStack={onUnlogStack}
               drawSources={drawSources}
               noVialIds={noVialIds}
               onAddStock={onAddStock}
@@ -926,6 +938,7 @@ function StackDoseRow({
   onUnlog,
   onOpenDetail,
   onLogStack,
+  onUnlogStack,
   drawSources,
   noVialIds,
   onAddStock,
@@ -936,6 +949,7 @@ function StackDoseRow({
   onUnlog: (dose: StackCompound, slot: number) => void
   onOpenDetail: (dose: StackCompound) => void
   onLogStack?: (members: StackCompound[]) => void
+  onUnlogStack?: (targets: { compound: StackCompound; slot: number }[]) => void
   drawSources: Record<string, DrawSource>
   noVialIds: ReadonlySet<string>
   onAddStock: (dose: StackCompound) => void
@@ -943,32 +957,39 @@ function StackDoseRow({
   const [open, setOpen] = useState(false)
   const colour = paletteColourVar(stack.colour)
 
-  // Counted in DOSES, not members: a twice-daily member contributes two, so the
-  // stack cannot read complete with its evening dose still untaken.
-  // Paused members are still LISTED (blacked out) but count for nothing: with
-  // them in the total the stack could never read complete, and its "N due"
-  // would nag about doses nobody is taking.
-  const live = members.filter((m) => !m.paused)
-  const logged = live.reduce(
-    (n, m) => n + m.slots.filter((sl) => sl.log != null).length,
-    0,
-  )
-  const total = live.reduce((n, m) => n + m.slots.length, 0)
-  const complete = logged === total && total > 0
-  const partial = logged > 0 && !complete
+  // Counted in DOSES, not members, and paused members count for nothing — see
+  // `stackProgress`. The rules live in `lib/home/stackTicks.ts` because getting
+  // them wrong deletes doses, which is worth a test rather than a comment.
+  const { logged, total, complete, partial } = stackProgress(members)
+  /**
+   * What a whole-stack untick would remove — never a paused member, never a
+   * Skipped dose. See {@link stackUnlogTargets} for why those two are spared and
+   * why a hand-picked injection site is not.
+   */
+  const unlogTargets = stackUnlogTargets(members)
+  /** A stack that is complete only because every live member was SKIPPED has
+   *  nothing to untick, so its tick stays inert rather than becoming a button
+   *  that does nothing. */
+  const canUnlogAll = complete && unlogTargets.length > 0
 
   /**
    * Log every member that isn't logged yet.
    *
-   * There is deliberately NO bulk untick. Each member's log carries its own
-   * edited amount, real time and injection site, and one mis-tap would delete
-   * all of it with nothing to undo. Spec 05 asks for logging in one tap;
-   * un-logging in one tap is the direction that destroys data. The button that
-   * calls this is hidden once the stack is complete, so there is nothing to
-   * guard against here.
+   * ~~There is deliberately NO bulk untick.~~ **Reversed** (Adrian, 2026-08-12):
+   * "if I tick a stack, it ticks them all. If I untick a stack, I want it to
+   * untick them all … if they want to re-log it, they can always re-log it."
+   * The asymmetry was the surprise — the one control that acts on every member
+   * worked in one direction only, and there was no way to undo a mis-tapped
+   * stack tick short of opening the row and unticking five compounds by hand.
+   *
+   * The original worry (each log carries its own amount, time and site, and
+   * there is no undo anywhere in this app) is real and is answered by scope
+   * rather than by a confirm step: {@link stackUnlogTargets} excludes exactly the
+   * things that were decided separately, and a single row's tick has always
+   * unticked in one tap with no confirmation either.
    */
   function logRemaining() {
-    const unlogged = live.filter((m) => m.slots.some((sl) => sl.log == null))
+    const unlogged = stackLogTargets(members)
     if (onLogStack) onLogStack(unlogged)
     // The fallback logs each member's FIRST unlogged dose, matching what
     // `onLogStack` does. One tap advances every member by one dose; it does not
@@ -979,6 +1000,13 @@ function StackDoseRow({
         if (next) onLog(m, next.slot)
       }
     }
+  }
+
+  /** Untick the whole stack — the mirror of {@link logRemaining}. */
+  function unlogAll() {
+    if (unlogTargets.length === 0) return
+    if (onUnlogStack) onUnlogStack(unlogTargets)
+    else for (const t of unlogTargets) onUnlog(t.compound, t.slot)
   }
 
   return (
@@ -1019,8 +1047,8 @@ function StackDoseRow({
             (Adrian, 2026-07-31). It was a text link on the far right while every
             row beneath it ticked on the left, so the one control that acts on all
             of them was the one control that did not look like the others.
-            Complete → the filled tick, and tapping it does nothing: un-logging in
-            bulk would destroy each dose's own amount, time and site. */}
+            Complete → the filled tick, and tapping it unticks the stack, exactly
+            as tapping a finished compound's tick unticks that compound. */}
         {total === 0 ? (
           // Nothing live to log, so the pause glyph rather than a tick that
           // would call `onLogStack([])` and do nothing at all.
@@ -1030,7 +1058,18 @@ function StackDoseRow({
           >
             <Pause className="h-3 w-3" weight="fill" />
           </span>
+        ) : canUnlogAll ? (
+          <button
+            type="button"
+            onClick={unlogAll}
+            aria-label={`Untick all ${unlogTargets.length} in ${stack.name}`}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-bg-base transition-all duration-200 ease-out active:scale-90"
+          >
+            <Check className="h-3.5 w-3.5" aria-hidden />
+          </button>
         ) : complete ? (
+          // Complete only because every live member was SKIPPED — nothing to
+          // untick, so the mark stays a mark rather than a dead button.
           <span
             aria-hidden
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-bg-base"

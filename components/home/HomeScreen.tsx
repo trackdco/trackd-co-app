@@ -951,6 +951,17 @@ export function HomeScreen({
                   )
                 }
               }}
+              // The mirror of `onLogStack`, and deliberately the same shape: each
+              // slot is removed through the SAME `unlogDose` a single row's tick
+              // uses, so the tombstone, the Postgres delete and the vial's
+              // restored runway all behave identically whether one dose was
+              // unticked or five. A stack is a grouping, never a shared entry.
+              //
+              // Which slots is not decided here — the row hands over exactly the
+              // ones it means (never a paused member, never a Skipped dose).
+              onUnlogStack={(targets) => {
+                for (const t of targets) handleRemove(t.compound.id, selectedKey, t.slot)
+              }}
             />
           )}
         </div>
