@@ -5,7 +5,7 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-08 (Stripe billing built and verified end to end)
+Last updated: 2026-08-12 (container wording, powder units, whole-stack untick)
 
 ## Spec w2b-15 — Stripe billing (BUILT, 2026-08-08)
 
@@ -1480,6 +1480,100 @@ written out per-sheet and drifting a class at a time; the Pause sheet's had
 neither the press-scale nor any disabled state, so a button with nothing to do
 looked identical to one that would act. Width is left to the caller — some are
 full-width, some share a row.
+
+## Container wording, powder units, whole-stack untick (2026-08-12)
+
+Branch `fix/container-wording-and-stack-untick`, from three reports by Adrian.
+Not merged; he merges. Six cold reviews across two rounds.
+
+### A tub is not a vial — `lib/containers/labels.ts`
+
+"Powder · same as your current vial" about a tub of creatine. The same
+assumption was in six places, and two of them printed a **unit the thing has
+never been measured in**: a 1 kg tub read "1000 mL left" in `StockActionsSheet`
+and in `LogDoseSheet`.
+
+No new taxonomy was added. `containerFormFor` already resolves vial/bottle/tub
+for the ARTWORK and its three values are already the three English nouns, so
+`containerNoun` names that existing answer and `remainingLabel` holds the one
+amount-left implementation. **The wording had been written seven times and was
+right twice.** Anything that needs it now imports it — a compound can no longer
+be drawn as a tub and described as a vial in the same row.
+
+The noun prefers the STOCK ROW's own `inventory_type` where a caller has one. It
+is a fact about the container in hand, where `inventoryTypeForCompound` is an
+inference, and the two disagree for an off-catalogue oral supplement
+(`isScoopedPowder` answers "tub" for any name it cannot resolve).
+
+### `iu` is not a unit you offer — `lib/protocol/stockUnits.ts`
+
+Both add-stock paths offered `mg | iu` beside "Powder in vial" for every
+injectable. **It was never cosmetic.** `base_unit` is written straight from that
+toggle and `unit_family_compatible` (016) pairs `iu` with `iu` alone, so a 5 mg
+peptide saved as `iu` never links to a dose in mg or mcg: every dose logs
+cleanly, reports no error, and the vial stays permanently full.
+
+**The offer derives from the compound's own DOSE UNIT** — the thing the database
+actually pairs `base_unit` against. Keying it off the catalogue (the first
+attempt, caught in review) denied `iu` to a custom compound dosed in `iu`, which
+"Make your own" allows and which cannot be fixed by editing `compounds.csv`. An
+iu-dosed compound is offered `iu` ALONE: offering `mg` beside it is offering the
+broken state. So there is no toggle here any more, for anything — the field
+states its unit. A unit already on a row is preserved, appended not substituted.
+
+### Unticking a stack
+
+Ticking a stack ticked every member; nothing unticked it. Reversed on Adrian's
+call — "if they want to re-log it, they can always re-log it."
+
+The old refusal (each log carries its own amount, time and site; there is no
+undo anywhere in this app) is answered by **scope, not by a confirm step**. A
+whole-stack untick spares what was decided SEPARATELY: paused members, doses
+marked Skipped, and historic slots — the last because a historic slot exists
+only by carrying a log, so deleting it removes the slot and nothing in the app
+can re-create it. Injection sites are NOT spared; a stack tick never records
+one, so a site means that member was ticked individually, and its own row
+already discards it in one tap.
+
+Rules live in `lib/home/stackTicks.ts`, not in the component: picking the wrong
+slots deletes doses, so it is worth a test rather than a comment.
+
+**A 600 ms guard refuses the second half of a double-tap.** Unticking flips the
+same 24px target to "log all", so two quick taps deleted five doses and re-logged
+them from the plan — losing every edited amount, real time, site and note, with
+the row looking exactly as before and nothing on screen to show it.
+
+### Stock figures re-read when a write LANDS — `subscribeDoseSynced`
+
+Ticking a stack always did come off the stock (`logDose` has the server resolve
+the vial). The dashboard simply never asked again: its figures were read on
+mount, on a day change and on focus, and none of those is a dose being logged.
+
+**Coalesced by COUNTING writes in flight, not by a timer.** The first attempt
+debounced the subscriber at 250 ms; every `"use server"` call is a Server Action,
+Next runs those strictly FIFO on one queue, and `logDose` enqueues two per dose —
+so consecutive events are **two round trips** apart. It coalesced on localhost
+and made exactly the five duplicate reads it existed to prevent on a phone. Fires
+only when something actually landed, so an offline tick issues no doomed request.
+
+### Two pre-existing bugs, fixed because this made them easier to hit
+
+- **`unlogDose` waits for BOTH deletes.** The jsonb mirror's delete was fired and
+  forgotten while the tombstone dropped on the canonical one alone — and
+  hydration merges the mirror, so a failed mirror delete brought the dose back
+  with its original amount, time and site, unreported. One tap now issues five.
+- **`unitFamilyOk` moved to `lib/db/doseUnits.ts`.** `LogDoseSheet` carried a
+  private copy that had drifted to mg/iu only, so a tub and a strengthless bottle
+  never appeared in its stock picker though the server linked them anyway.
+  `protocolSync.ts` is `"use server"` and could not export it; both share it now.
+
+### Housekeeping
+
+26 iCloud conflicted-copy files (`<name> 2.ext`) deleted from the working tree,
+plus an empty `app/api/stripe/webhook 2/`. All were untracked, gitignored and
+byte-identical to committed originals — `.gitignore` already documents them and
+says to delete them freely. ~18 more sit in `.git/objects` and make `git fsck`
+report "bad sha1 file"; harmless, left alone.
 
 ## Environment
 
