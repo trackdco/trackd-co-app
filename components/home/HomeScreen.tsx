@@ -86,6 +86,7 @@ import {
   nextUnloggedSlot,
   slotsForDay,
   subscribeDoseLogs,
+  subscribeDoseSynced,
   unlogDose,
   type DayLogs,
 } from "@/lib/home/doseLog"
@@ -621,8 +622,28 @@ export function HomeScreen({
     void read()
     const onFocus = () => void read()
     window.addEventListener("focus", onFocus)
+    // Re-read when a dose actually LANDS in Postgres. These figures are derived
+    // by `v_inventory_math` from `dose_logs`, and the vial behind a dose is
+    // usually resolved server-side, so ticking something cannot update them
+    // locally — the screen has to ask again. Before this it only asked on mount,
+    // on a day change and on focus, so ticking a stack left every "left in the
+    // vial" figure untouched until the app was backgrounded and reopened, which
+    // reads as the dose not having come off the stock at all.
+    //
+    // DEBOUNCED because a five-member stack tick fires five writes: without it,
+    // one tap would make five identical round trips. The delay is deliberately
+    // longer than the gap between those writes and shorter than a person can
+    // notice.
+    let coalesce: ReturnType<typeof setTimeout> | undefined
+    const onSynced = () => {
+      clearTimeout(coalesce)
+      coalesce = setTimeout(() => void read(), 250)
+    }
+    const unsubscribe = subscribeDoseSynced(onSynced)
     return () => {
       cancelled = true
+      clearTimeout(coalesce)
+      unsubscribe()
       window.removeEventListener("focus", onFocus)
     }
   }, [drawKey, dueIdsKey, selectedKey])

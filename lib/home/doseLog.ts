@@ -313,6 +313,47 @@ export function subscribeDoseLogs(callback: () => void): () => void {
   }
 }
 
+/**
+ * A SECOND signal, fired once a dose write has actually landed in Postgres —
+ * not when the device store changed.
+ *
+ * The two are days apart in meaning and both are needed. {@link CHANGED_EVENT}
+ * fires synchronously so the tick fills in instantly (the whole point of the
+ * device-local store). But anything DERIVED FROM THE SERVER cannot move until
+ * the server knows: `v_inventory_math` recomputes what is left in a vial from
+ * `dose_logs`, and the vial behind a dose is often resolved server-side
+ * (`autoLinkVialForDate`), so the client cannot predict the new figure even in
+ * principle.
+ *
+ * Without this, the dashboard read its stock figures on mount, on a day change
+ * and on window focus — and on nothing else. Ticking a stack therefore left
+ * every "left in the vial" figure exactly where it was, and the stock looked
+ * like it had not been touched until the user backgrounded the app and came
+ * back. The doses were linked and the maths was right the whole time; the screen
+ * simply never asked again. (Adrian, 2026-08-12: "It should automatically log
+ * from the stock of the vials … if I click the whole stack.")
+ */
+const SYNCED_EVENT = "trackd:dose-synced"
+
+function notifySynced() {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent(SYNCED_EVENT))
+}
+
+/**
+ * Wake when a dose write reaches Postgres, so server-derived figures can be
+ * re-read.
+ *
+ * **Debounce the callback.** Ticking a five-member stack fires five separate
+ * writes and therefore five of these; a subscriber that re-reads on each will
+ * make five identical round trips for one tap.
+ */
+export function subscribeDoseSynced(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {}
+  window.addEventListener(SYNCED_EVENT, callback)
+  return () => window.removeEventListener(SYNCED_EVENT, callback)
+}
+
 // Stable snapshot for useSyncExternalStore — cached by the raw stored string.
 let cache: { userId: string; raw: string | null; value: DayLogs } | null = null
 
@@ -376,7 +417,10 @@ export function logDose(
       true,
       slot
     )
-  )
+    // The vial this dose comes off is usually resolved BY THE SERVER (the final
+    // `true` above), so the amount left in it cannot be known here — only asked
+    // for again once the write has landed. See `subscribeDoseSynced`.
+  ).then(notifySynced)
 }
 
 export function unlogDose(
@@ -410,7 +454,9 @@ export function unlogDose(
       if (res.ok && !res.skipped) clearTombstone(userId, dateKey, compoundId, slot)
       return res
     })
-  )
+    // An un-log GIVES the vial its dose back, so the same re-read is owed here
+    // as on the way in — otherwise unticking left the stock reading low.
+  ).then(notifySynced)
 }
 
 /**
