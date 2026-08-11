@@ -91,6 +91,7 @@ import {
   type DayLogs,
 } from "@/lib/home/doseLog"
 import { resolveDrawSources, type DrawSourcesResult } from "@/lib/home/protocolSync"
+import { remainingLabel } from "@/lib/containers/labels"
 import { siteDaysSince } from "@/lib/home/siteRecency"
 import { setSelectedDay } from "@/lib/home/selectedDay"
 
@@ -616,8 +617,16 @@ export function HomeScreen({
     let latestRequest = 0
     const read = async () => {
       const request = ++latestRequest
-      const result = await resolveDrawSources(dueIdsKey.split(","), selectedKey)
-      if (!cancelled && request === latestRequest) setDrawState({ key: drawKey, result })
+      try {
+        const result = await resolveDrawSources(dueIdsKey.split(","), selectedKey)
+        if (!cancelled && request === latestRequest) setDrawState({ key: drawKey, result })
+      } catch {
+        // A Server Action REJECTS client-side when the POST itself fails —
+        // offline, a 5xx, or an action-id skew right after a deploy. Unhandled,
+        // that surfaced as a rejection in the console and the dev overlay on the
+        // most ordinary offline action there is. Swallowed deliberately: the
+        // figures simply stay as they were, which is what a failed read means.
+      }
     }
     void read()
     const onFocus = () => void read()
@@ -630,19 +639,15 @@ export function HomeScreen({
     // vial" figure untouched until the app was backgrounded and reopened, which
     // reads as the dose not having come off the stock at all.
     //
-    // DEBOUNCED because a five-member stack tick fires five writes: without it,
-    // one tap would make five identical round trips. The delay is deliberately
-    // longer than the gap between those writes and shorter than a person can
-    // notice.
-    let coalesce: ReturnType<typeof setTimeout> | undefined
-    const onSynced = () => {
-      clearTimeout(coalesce)
-      coalesce = setTimeout(() => void read(), 250)
-    }
-    const unsubscribe = subscribeDoseSynced(onSynced)
+    // No debounce here on purpose. The signal is already coalesced AT THE
+    // SOURCE, by counting writes still in flight — a five-member stack tick
+    // fires it exactly once, when the last write settles. A timer cannot do that
+    // job: Server Actions are serialized by Next, so consecutive writes are two
+    // round trips apart, and any delay short enough to feel instant is far too
+    // short to span them.
+    const unsubscribe = subscribeDoseSynced(() => void read())
     return () => {
       cancelled = true
-      clearTimeout(coalesce)
       unsubscribe()
       window.removeEventListener("focus", onFocus)
     }
@@ -1137,8 +1142,15 @@ export function HomeScreen({
               : null
           return {
             fill,
-            remaining: src.remainingDisplay,
-            unit: src.inventoryType === "oral_solid" ? src.oralForm : null,
+            // ONE worded string, not a number plus a unit the caller guesses.
+            // This built the unit itself and got two of three forms wrong: a tub
+            // fell to `null` and read "990 left" with no unit at all, and an
+            // oral used the raw stored value for "60 capsule left".
+            label: remainingLabel({
+              inventoryType: src.inventoryType,
+              remainingDisplay: src.remainingDisplay,
+              totalAmountUnit: src.oralForm,
+            }),
             // A DrawSource only exists where a vial resolved, so reaching here
             // is itself the proof.
             exists: true,

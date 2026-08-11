@@ -14,6 +14,7 @@ import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
 import { StockActionsSheet } from "@/components/protocol/StockActionsSheet"
 import { listStock, type StockItem } from "@/lib/db/inventory"
+import { remainingLabel } from "@/lib/containers/labels"
 import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
 import {
   archiveInStack,
@@ -260,13 +261,10 @@ export function ProtocolScreen({
           return {
             fill,
             exists: true,
-            remaining: item.remainingDisplay,
-            unit:
-              item.inventoryType === "oral_solid"
-                ? item.totalAmountUnit
-                : item.inventoryType === "bulk_powder"
-                  ? "g"
-                  : "mL",
+            // The shared wording — this branch was the closest of the copies but
+            // still read "1000 g left" where the Storage card one row up said
+            // "1 kg left", and "30 tab left" in the singular.
+            label: remainingLabel(item),
           }
         })()}
         onAddStock={(c) => {

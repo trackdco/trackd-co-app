@@ -103,6 +103,21 @@ describe("stackUnlogTargets", () => {
   it("is empty for a wholly paused stack", () => {
     expect(stackUnlogTargets([member("test-e", [slot(0, taken())], true)])).toEqual([])
   })
+
+  it("never touches a HISTORIC dose — nothing could re-create it", () => {
+    // A historic slot exists ONLY because it carries a log (a dose taken under
+    // an older, longer schedule). Delete the log and the slot vanishes from
+    // `slotsForDay`, and no control in the app can add it back — so "they can
+    // always re-log it" is false for exactly these.
+    const members = [
+      member("mk-677", [
+        slot(0, taken()),
+        slot(1, taken()),
+        { ...slot(2, taken()), historic: true },
+      ]),
+    ]
+    expect(stackUnlogTargets(members).map((t) => t.slot)).toEqual([0, 1])
+  })
 })
 
 describe("stackLogTargets", () => {

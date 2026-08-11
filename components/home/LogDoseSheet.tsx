@@ -27,6 +27,7 @@ import {
 } from "@/lib/home/stack"
 import { siteLabel, sitesForSex } from "@/lib/home/siteCatalog"
 import { listStock, type StockItem } from "@/lib/db/inventory"
+import { unitFamilyOk } from "@/lib/db/doseUnits"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { containerNoun, containerNounTitle, remainingLabel } from "@/lib/containers/labels"
 import { resolveDrawSources, resolveVialForDate } from "@/lib/home/protocolSync"
@@ -469,11 +470,16 @@ function LogDoseBody({
       try {
         const all = await listStock()
         if (cancelled) return
+        // The SAME unit-family rule the server links by (`unitFamilyOk` /
+        // `unit_family_compatible`, `supabase/protocol/016`). This listed only
+        // the mg and iu families, so a TUB (`g`) and a strengthless bottle
+        // (`tab`/`capsule`) never matched — their stock card never appeared, and
+        // the user could neither see the figure nor opt this dose out of coming
+        // off it, while the server linked and decremented it anyway.
         const mine = all.filter(
           (v) =>
             v.protocolCompoundId === compound.id &&
-            ((v.baseUnit === "mg" && (compound.unit === "mg" || compound.unit === "mcg")) ||
-              (v.baseUnit === "iu" && compound.unit === "iu"))
+            unitFamilyOk(v.baseUnit, compound.unit)
         )
         setVials(mine)
         if (existing == null && onToday && mine.length > 0) {
@@ -1050,7 +1056,7 @@ function LogDoseBody({
             )
           : dateVialId === undefined && (
               <p className="mt-5 px-1 text-xs text-text-subtle">
-                Checking which vial you were using…
+                Checking which {containerWord} you were using…
               </p>
             )}
 
@@ -1093,7 +1099,11 @@ function LogDoseBody({
             keep an explicit chooser. Only the presentation moved. */}
         {vialCard && (
           <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
-            <LogRow label="From vial" value={vialCard.value} />
+            {/* The LABEL was the one part of this card still hardcoded, so a tub
+                read "From vial · 1 kg left" with the note directly underneath
+                saying "Comes off the tub…" — the same card contradicting itself
+                (cold review, 2026-08-12). */}
+            <LogRow label={`From ${containerWord}`} value={vialCard.value} />
             {vialCard.note && (
               <p className="px-4 pb-3 text-xs text-text-subtle">{vialCard.note}</p>
             )}

@@ -197,8 +197,15 @@ describe("push copy stays readable", () => {
 
   it("stops listing names once the list would run long", () => {
     const body = lowStockMessage(vials(10))?.body ?? "";
-    expect(body).toBe("10 vials are running low.");
+    expect(body).toBe("10 compounds are running low.");
     expect(body).not.toContain("Compound number");
+  });
+
+  it("never calls them vials — the set can hold tubs and bottles too", () => {
+    // The feeding query filters on no `inventory_type`, so creatine and vitamin
+    // D3 reach this message and were announced as "2 vials are running low".
+    expect(lowStockMessage(vials(3))?.body).not.toContain("vial");
+    expect(lowStockMessage(vials(10))?.body).not.toContain("vial");
   });
 
   it("caps the dose digest the same way", () => {

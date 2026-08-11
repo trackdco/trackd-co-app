@@ -335,6 +335,48 @@ export function subscribeDoseLogs(callback: () => void): () => void {
  */
 const SYNCED_EVENT = "trackd:dose-synced"
 
+/**
+ * Dose writes still in flight, and whether any of them actually landed.
+ *
+ * **Counted, not timed.** The first version debounced the SUBSCRIBER on a 250 ms
+ * timer, on the assumption that a stack's writes go out together. They do not:
+ * every `"use server"` call is a Server Action, and Next runs those strictly
+ * FIFO on one queue (`app-router-instance.js` → `runRemainingActions`), one at a
+ * time. `logDose` enqueues two per dose, so consecutive events are **two network
+ * round trips** apart — a wall-clock debounce coalesces them only on a fast
+ * connection, and on a real phone a five-member stack produced exactly the five
+ * duplicate reads the debounce existed to prevent. (Found by two independent
+ * cold reviews, 2026-08-12.)
+ *
+ * Counting cannot be fooled by latency: the burst's writes are all registered
+ * synchronously by the loop, long before the first can resolve, so the count
+ * reaches zero exactly once — when the last one settles.
+ */
+let pendingDoseWrites = 0
+let anyDoseWriteLanded = false
+
+/** Register a dose write and fire the signal when the last one settles. */
+function trackDoseWrite(op: Promise<{ ok: boolean; skipped?: boolean }>): void {
+  pendingDoseWrites += 1
+  const settle = (landed: boolean) => {
+    if (landed) anyDoseWriteLanded = true
+    pendingDoseWrites = Math.max(0, pendingDoseWrites - 1)
+    if (pendingDoseWrites > 0) return
+    const landedAny = anyDoseWriteLanded
+    anyDoseWriteLanded = false
+    // Nothing reached Postgres — offline, or every write was a custom compound
+    // that has no row to write. Re-reading server-derived figures would learn
+    // nothing and, offline, issues a request that cannot succeed.
+    if (landedAny) notifySynced()
+  }
+  // Both arms, or a rejected write leaks the count and the signal never fires
+  // again for the rest of the session.
+  void op.then(
+    (r) => settle(r.ok && !r.skipped),
+    () => settle(false),
+  )
+}
+
 function notifySynced() {
   if (typeof window === "undefined") return
   window.dispatchEvent(new CustomEvent(SYNCED_EVENT))
@@ -344,9 +386,9 @@ function notifySynced() {
  * Wake when a dose write reaches Postgres, so server-derived figures can be
  * re-read.
  *
- * **Debounce the callback.** Ticking a five-member stack fires five separate
- * writes and therefore five of these; a subscriber that re-reads on each will
- * make five identical round trips for one tap.
+ * Fires ONCE per burst and only when something actually landed — see
+ * {@link trackDoseWrite}. Subscribers need no debounce of their own, and must
+ * not assume one: the guarantee here is coalescing, not delay.
  */
 export function subscribeDoseSynced(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {}
@@ -405,22 +447,24 @@ export function logDose(
   // dropped.
   const onDevice = (loadStack(userId) ?? []).find((c) => c.id === compoundId)
   const method = onDevice?.method ?? "po"
-  void trackSync(
-    pushProtocolDoseLog(
-      compoundId,
-      dateKey,
-      log,
-      combineLocalDateTime(dateKey, log.time24),
-      method,
-      true,
-      onDevice?.name ?? null,
-      true,
-      slot
-    )
-    // The vial this dose comes off is usually resolved BY THE SERVER (the final
-    // `true` above), so the amount left in it cannot be known here — only asked
-    // for again once the write has landed. See `subscribeDoseSynced`.
-  ).then(notifySynced)
+  const push = pushProtocolDoseLog(
+    compoundId,
+    dateKey,
+    log,
+    combineLocalDateTime(dateKey, log.time24),
+    method,
+    true,
+    onDevice?.name ?? null,
+    true,
+    slot
+  )
+  void trackSync(push)
+  // The vial this dose comes off is usually resolved BY THE SERVER (the
+  // `autoLinkVialForDate` argument above), so the amount left in it cannot be
+  // known here — only asked for again once the write has landed. Registered on
+  // the RAW promise rather than on `trackSync`, which swallows the outcome and
+  // would report a failed write as a landed one.
+  trackDoseWrite(push)
 }
 
 export function unlogDose(
@@ -437,7 +481,6 @@ export function unlogDose(
   else next[dateKey] = day
   saveDoseLogs(userId, next)
   notify()
-  void deleteDoseLog(dateKey, slotKey(compoundId, slot))
   // CRITICAL, not ordinary: `hydrateFromPostgres` awaits only critical syncs, so
   // an un-log tracked as ordinary let a pull that overlapped it read the row as
   // still present and write it straight back. Unticking then backgrounding the app
@@ -448,15 +491,35 @@ export function unlogDose(
   // clear on a delete that removed nothing and the next pull would resurrect the
   // dose the user just unticked.
   const name = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.name ?? null
-  void trackCriticalSync(
-    deleteProtocolDoseLog(compoundId, dateKey, name, slot).then((res) => {
-      // Only drop the tombstone once Postgres has actually forgotten the dose.
-      if (res.ok && !res.skipped) clearTombstone(userId, dateKey, compoundId, slot)
-      return res
-    })
-    // An un-log GIVES the vial its dose back, so the same re-read is owed here
-    // as on the way in — otherwise unticking left the stock reading low.
-  ).then(notifySynced)
+  /**
+   * BOTH deletes, and the tombstone waits for both.
+   *
+   * An un-log has to remove the dose from two places: `dose_logs` (canonical)
+   * and the `user_dose_logs` jsonb mirror. The mirror's delete used to be fired
+   * and forgotten while the tombstone was dropped on the strength of the
+   * canonical one alone — so a mirror delete that failed left the row there with
+   * nothing suppressing it, and `hydrateFromPostgres` merges the MIRROR
+   * (`remapLogs(cloud.doseLogs)`) as one of its sources. The dose came back on
+   * the next pull with its original amount, time and site, and the failure was
+   * never even reported: the discarded result never reached `trackSync`, so not
+   * even the "didn't sync" notice fired.
+   *
+   * One tap on a stack now issues five of these at once, which is five chances
+   * per tap rather than one. (Cold review, 2026-08-12.)
+   */
+  const mirror = deleteDoseLog(dateKey, slotKey(compoundId, slot))
+  const canonical = deleteProtocolDoseLog(compoundId, dateKey, name, slot)
+  const op = Promise.all([mirror, canonical]).then(([mirrorRes, res]) => {
+    // Only drop the tombstone once BOTH have actually forgotten the dose.
+    if (mirrorRes.ok && res.ok && !res.skipped) {
+      clearTombstone(userId, dateKey, compoundId, slot)
+    }
+    return res
+  })
+  void trackCriticalSync(op)
+  // An un-log GIVES the vial its dose back, so the same re-read is owed here as
+  // on the way in — otherwise unticking left the stock reading low.
+  trackDoseWrite(op)
 }
 
 /**

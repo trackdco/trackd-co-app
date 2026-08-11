@@ -249,7 +249,14 @@ export function lowStockMessage(items: LowStockItem[]): PushMessage | null {
             : "."
         }`
       : items.length <= NAME_LIST_MAX
-        ? `${items.length} vials are running low: ${items.map((i) => i.name).join(", ")}.`
-        : `${items.length} vials are running low.`;
+        ? // "compounds", not "vials". The feeding query (`runner.ts`) selects
+          // `inventory_items` with NO `inventory_type` filter, so tubs and
+          // bottles are in scope — a user low on creatine and vitamin D3 was
+          // told "2 vials are running low", naming two things that are neither.
+          // There is no per-item form here to word it from (`LowStockItem` is a
+          // name and a runway), and the message covers a mixed set anyway, so it
+          // uses the one noun that is true of all three.
+          `${items.length} compounds are running low: ${items.map((i) => i.name).join(", ")}.`
+        : `${items.length} compounds are running low.`;
   return { title: "Running low", body, url: "/protocol", tag: "trackd-lowstock" };
 }

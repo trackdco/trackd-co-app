@@ -23,7 +23,14 @@ import type { OneOffLog } from "@/lib/home/oneOffLogs"
 import { paletteColourVar } from "@/lib/palette"
 import { DATA_MONO } from "@/lib/ui-presets"
 import { formatPhotoDateShort } from "@/lib/progress/photos"
-import { useState, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
+
+/**
+ * How long after a whole-stack untick a tap on the same target is treated as a
+ * stray second tap rather than a fresh "log all". Long enough to swallow a
+ * double-tap, short enough that a deliberate re-tick never feels blocked.
+ */
+const RELOG_GUARD_MS = 600
 
 /**
  * One paused thing on the dashboard — a compound, or a whole stack collapsed to
@@ -956,6 +963,10 @@ function StackDoseRow({
 }) {
   const [open, setOpen] = useState(false)
   const colour = paletteColourVar(stack.colour)
+  /** When this stack was last unticked as a whole — see {@link logRemaining}. A
+   *  ref, not state: it must not re-render, and it is only ever read at the
+   *  moment of a click. */
+  const untickedAt = useRef(0)
 
   // Counted in DOSES, not members, and paused members count for nothing — see
   // `stackProgress`. The rules live in `lib/home/stackTicks.ts` because getting
@@ -989,6 +1000,17 @@ function StackDoseRow({
    * unticked in one tap with no confirmation either.
    */
   function logRemaining() {
+    // A tap landing here moments after an untick-all is the SECOND HALF OF A
+    // DOUBLE-TAP, not a decision. Unticking flips this same 24px target from
+    // "untick all" to "log all", so two quick taps deleted five doses and then
+    // re-logged them from the plan — losing every edited amount, the real time
+    // each was taken, every injection site and every note, and leaving the row
+    // looking exactly as it did before. Nothing on screen would have shown it,
+    // and there is no undo. (Cold review, 2026-08-12.)
+    //
+    // A deliberate re-tick a moment later still works; only the reflex one is
+    // refused.
+    if (Date.now() - untickedAt.current < RELOG_GUARD_MS) return
     const unlogged = stackLogTargets(members)
     if (onLogStack) onLogStack(unlogged)
     // The fallback logs each member's FIRST unlogged dose, matching what
@@ -1005,6 +1027,7 @@ function StackDoseRow({
   /** Untick the whole stack — the mirror of {@link logRemaining}. */
   function unlogAll() {
     if (unlogTargets.length === 0) return
+    untickedAt.current = Date.now()
     if (onUnlogStack) onUnlogStack(unlogTargets)
     else for (const t of unlogTargets) onUnlog(t.compound, t.slot)
   }
@@ -1062,7 +1085,13 @@ function StackDoseRow({
           <button
             type="button"
             onClick={unlogAll}
-            aria-label={`Untick all ${unlogTargets.length} in ${stack.name}`}
+            // DOSES, which is what is actually removed — a two-member stack with
+            // one twice-daily member has three. Said "all N in <stack>", which
+            // read as a member count and matched neither the members on screen
+            // nor the "N of M logged" line below.
+            aria-label={`Untick the ${unlogTargets.length} logged ${
+              unlogTargets.length === 1 ? "dose" : "doses"
+            } in ${stack.name}`}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-bg-base transition-all duration-200 ease-out active:scale-90"
           >
             <Check className="h-3.5 w-3.5" aria-hidden />

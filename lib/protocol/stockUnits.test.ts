@@ -8,9 +8,11 @@ import {
 
 describe("powderUnitsFor", () => {
   it("offers iu for the three injectables actually sold in it", () => {
-    expect(powderUnitsFor("HCG")).toEqual(["mg", "iu"])
-    expect(powderUnitsFor("hMG")).toEqual(["mg", "iu"])
-    expect(powderUnitsFor("Somatropin (HGH)")).toEqual(["mg", "iu"])
+    // `iu` ALONE: these are dosed in iu, and an mg vial on an iu dose is the
+    // pairing that never links. There is nothing to toggle to.
+    expect(powderUnitsFor("HCG")).toEqual(["iu"])
+    expect(powderUnitsFor("hMG")).toEqual(["iu"])
+    expect(powderUnitsFor("Somatropin (HGH)")).toEqual(["iu"])
   })
 
   it("offers mg alone for a peptide — the noise Adrian reported", () => {
@@ -26,18 +28,58 @@ describe("powderUnitsFor", () => {
   })
 
   it("matches the catalogue case- and space-insensitively", () => {
-    expect(powderUnitsFor("  hcg  ")).toEqual(["mg", "iu"])
+    expect(powderUnitsFor("  hcg  ")).toEqual(["iu"])
   })
 
   it("keeps iu for stock ALREADY saved in it, whatever the catalogue says", () => {
     // Correcting an unrelated number on an existing vial must not silently
     // relabel what is on the user's shelf.
-    expect(powderUnitsFor("BPC-157", "iu")).toEqual(["mg", "iu"])
+    expect(powderUnitsFor("BPC-157", { storedUnit: "iu" })).toEqual(["mg", "iu"])
   })
 
   it("does not widen the offer for stock saved in mg", () => {
-    expect(powderUnitsFor("BPC-157", "mg")).toEqual(["mg"])
-    expect(powderUnitsFor("BPC-157", null)).toEqual(["mg"])
+    expect(powderUnitsFor("BPC-157", { storedUnit: "mg" })).toEqual(["mg"])
+    expect(powderUnitsFor("BPC-157", { storedUnit: null })).toEqual(["mg"])
+  })
+
+  /**
+   * The regression the first cold review caught. "Make your own" offers dose
+   * unit `iu` and inventory type `Reconstituted` as free choices, so a user's
+   * own HGH is off-catalogue AND dosed in iu. Keying the offer off the catalogue
+   * alone gave it `mg`, and `unit_family_compatible` pairs `iu` only with `iu` —
+   * so every dose logged fine and the vial never went down. That is the exact
+   * failure this module exists to prevent, reintroduced for the one case that
+   * cannot be fixed by editing `compounds.csv`.
+   */
+  describe("the compound's own dose unit wins over the catalogue", () => {
+    it("offers iu to an OFF-CATALOGUE compound dosed in iu", () => {
+      expect(powderUnitsFor("My Own HGH", { doseUnit: "iu" })).toEqual(["iu"])
+    })
+
+    it("offers iu ALONE for an iu-dosed compound — mg could never link", () => {
+      // `baseUnitsForDose("iu")` is `["iu"]`. Offering mg here would let the
+      // user build a vial that silently never depletes.
+      expect(powderUnitsFor("HCG", { doseUnit: "iu" })).toEqual(["iu"])
+    })
+
+    it("offers mg alone for mg- and mcg-dosed compounds", () => {
+      expect(powderUnitsFor("BPC-157", { doseUnit: "mcg" })).toEqual(["mg"])
+      expect(powderUnitsFor("My Own Peptide", { doseUnit: "mg" })).toEqual(["mg"])
+    })
+
+    it("still preserves a disagreeing stored unit, appended not substituted", () => {
+      // A legacy row saved as `iu` on a compound now dosed in mg: the user must
+      // still be able to see and keep it.
+      expect(powderUnitsFor("BPC-157", { doseUnit: "mg", storedUnit: "iu" }))
+        .toEqual(["mg", "iu"])
+      expect(powderUnitsFor("HCG", { doseUnit: "iu", storedUnit: "mg" }))
+        .toEqual(["iu", "mg"])
+    })
+
+    it("falls back to the catalogue when no dose unit is supplied", () => {
+      expect(powderUnitsFor("HCG")).toEqual(["iu"])
+      expect(powderUnitsFor("BPC-157")).toEqual(["mg"])
+    })
   })
 })
 

@@ -33,6 +33,7 @@ import {
   upsertProtocolCompounds,
 } from "@/lib/db/protocolCompounds"
 import { deleteDoseLog, upsertDoseLog, upsertDoseLogs } from "@/lib/db/doseLogs"
+import { unitFamilyOk } from "@/lib/db/doseUnits"
 import {
   coerceDoseUnit,
   localSiteToInjectionSite,
@@ -172,19 +173,9 @@ function parseAmount(raw: string, fallback: number): number {
 
 /** Mirrors the DB `unit_family_compatible`: an mg-tracked vial takes mg/mcg doses;
  *  an iu-tracked vial takes iu doses. Guards the dose↔inventory link. */
-function unitFamilyOk(base: string, dose: string): boolean {
-  // The TS mirror of `unit_family_compatible` (`supabase/protocol/016`). It must
-  // list every family the database does, or a legitimate pairing is rejected
-  // here and the dose is written with NO vial link — so the container never
-  // depletes, which is the entire point of 014/015.
-  return (
-    (base === "mg" && (dose === "mg" || dose === "mcg")) ||
-    (base === "iu" && dose === "iu") ||
-    (base === "g" && (dose === "g" || dose === "mg")) ||
-    (base === "tab" && dose === "tab") ||
-    (base === "capsule" && dose === "capsule")
-  )
-}
+// `unitFamilyOk` now lives in `lib/db/doseUnits.ts` — the log sheet needs the
+// same rule on the client, and this file is `"use server"`, so it could not be
+// exported from here. Imported below; there is exactly one implementation.
 
 /* --------------------------------------------------------------- compounds */
 

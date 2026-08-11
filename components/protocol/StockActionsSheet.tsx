@@ -58,13 +58,21 @@ export function StockActionsSheet({
   // Every noun in this sheet comes from the compound's own container. It said
   // "vial" throughout — so discarding a tub of creatine offered to discard a
   // vial, and the header priced its 1 kg in millilitres (Adrian, 2026-08-12).
+  //
+  // The STOCK ROW's own form wins when there is one. It is a fact about the
+  // container being acted on, where `inventoryTypeForCompound` is an inference
+  // from the catalogue — and the two disagree for an off-catalogue supplement
+  // taken by mouth, where `isScoopedPowder` answers "tub" for any name it cannot
+  // resolve. That sheet read "60 caps left … Discard this tub?".
   const noun = compound
     ? containerNoun({
-        inventoryType: inventoryTypeForCompound(
-          compound.name,
-          compound.method,
-          compound.inventoryForm,
-        ),
+        inventoryType:
+          stock?.inventoryType ??
+          inventoryTypeForCompound(
+            compound.name,
+            compound.method,
+            compound.inventoryForm,
+          ),
         category: compound.category,
         name: compound.name,
       })

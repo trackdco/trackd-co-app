@@ -676,9 +676,11 @@ function AddCompoundBody({
     category: source.category,
     name: source.name,
   })
-  // `iu` only where something is genuinely sold in it (see `powderUnitsFor`).
-  // This is an ADD, so there is never an existing row's unit to preserve.
-  const stPowderUnits = powderUnitsFor(source.name)
+  // Driven by the dose unit BEING CHOSEN on this form, not by the catalogue —
+  // "Make your own" lets a compound be dosed in `iu`, and such a compound must
+  // be able to hold an `iu` vial or its doses can never link to it. This is an
+  // ADD, so there is no existing row's unit to preserve.
+  const stPowderUnits = powderUnitsFor(source.name, { doseUnit: unit })
   const stPowderUnitToSave = resolvePowderUnit(stPowderUnit, stPowderUnits)
 
   function buildStockInsert():

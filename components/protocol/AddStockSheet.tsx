@@ -485,9 +485,22 @@ function AddStockForm({
     name: selected?.name,
   })
 
-  // `iu` is offered only where something is genuinely sold in it — see
-  // `powderUnitsFor`. One option ⇒ no toggle, just the unit.
-  const powderUnits = powderUnitsFor(selected?.name, ei?.baseUnit)
+  /**
+   * Units on offer for the powder — driven by the COMPOUND'S OWN dose unit,
+   * which is the thing `unit_family_compatible` actually pairs `base_unit`
+   * against. Reading the catalogue alone denied `iu` to a custom compound dosed
+   * in `iu` (a user's own HGH), which is precisely the never-links-never-
+   * depletes bug this is meant to prevent.
+   *
+   * `storedUnit` is passed only on an EDIT. A REFILL deliberately does not carry
+   * the old vial's unit: it is a NEW container, and it should match what the
+   * compound is dosed in rather than inherit a unit the previous row may have
+   * had wrong.
+   */
+  const powderUnits = powderUnitsFor(selected?.name, {
+    doseUnit: selected?.unit,
+    storedUnit: ei?.baseUnit,
+  })
   /**
    * The unit actually written to `base_unit`.
    *

@@ -53,6 +53,15 @@ export function liveMembers<M extends StackTickMember>(members: M[]): M[] {
  *    passed on that compound — which is information the tick never created and
  *    has no standing to delete.
  *
+ *  - A HISTORIC slot is one the schedule no longer has — a dose taken under an
+ *    older, longer schedule, which `slotsForDay` appends **only because it
+ *    carries a log**. Delete that log and the slot itself disappears on the next
+ *    render, and nothing in the app can re-create it: there is no control for
+ *    "add a fourth dose to a compound that is now taken three times a day". The
+ *    justification for one-tap unticking is "they can always re-log it", and for
+ *    these alone that is simply false, so the bulk control leaves them to the
+ *    individual tick that can still reach them. (Cold review, 2026-08-12.)
+ *
  * Doses carrying an INJECTION SITE are removed. A stack tick never records one
  * (`onLogStack` passes `siteId: null`, because a bulk tick has no body map and
  * inventing a site would corrupt the rotation view), so a site can only be there
@@ -68,7 +77,7 @@ export function stackUnlogTargets<M extends StackTickMember>(
 ): StackTickTarget<M>[] {
   return liveMembers(members).flatMap((m) =>
     m.slots
-      .filter((sl) => sl.log != null && sl.log.status !== "skipped")
+      .filter((sl) => sl.log != null && sl.log.status !== "skipped" && !sl.historic)
       .map((sl) => ({ compound: m, slot: sl.slot })),
   )
 }
