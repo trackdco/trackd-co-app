@@ -99,6 +99,21 @@ const SEED: StackCompound[] = [
     inventoryForm: "oral_solid",
   },
   {
+    // Dosed in iu and SOLD in mg, which is unique in the catalogue and is the
+    // only compound whose ENTRY unit differs from its stored one — the powder
+    // field offers both and converts (Adrian, 2026-08-12).
+    id: "prev-hgh",
+    name: "Somatropin (HGH)",
+    category: "peptide",
+    method: "subq",
+    dose: 2,
+    unit: "iu",
+    schedule: { cadence: { type: "daily" }, timeOfDay: "21:00", startDate: "2026-08-01" },
+    rotationSites: [],
+    rotationIndex: 0,
+    inventoryForm: "reconstituted",
+  },
+  {
     id: "prev-creatine",
     name: "Creatine Monohydrate",
     category: "supplement",
@@ -114,6 +129,11 @@ const SEED: StackCompound[] = [
 
 const WHAT_TO_LOOK_FOR: { compound: string; expect: string }[] = [
   {
+    compound: "Somatropin (HGH)",
+    expect:
+      "Powder offers iu AND mg — the only compound that does. Typing 10 with mg selected reads back “= 30 iu, which is what gets stored”, because base_unit must be iu to link.",
+  },
+  {
     compound: "Creatine Monohydrate",
     expect:
       "Opens on Powder. Asks for a tub weight in grams and an optional serving size. Never mentions BAC water.",
@@ -121,7 +141,7 @@ const WHAT_TO_LOOK_FOR: { compound: string; expect: string }[] = [
   {
     compound: "Vitamin D3",
     expect:
-      "Opens on Oral. Strength is optional and carries an mg / iu toggle, so a 5000 iu tablet can be entered at all.",
+      "Opens on Oral. Strength is REQUIRED and reads iu with no toggle: it is dosed in iu, and a tablet-based row cannot pair with an iu dose, so a blank strength was rejected by the database with nothing on screen to explain it.",
   },
   {
     compound: "BPC-157",

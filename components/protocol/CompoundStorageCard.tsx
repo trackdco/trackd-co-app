@@ -6,7 +6,7 @@ import { AnimatedContainer } from "@/components/containers"
 import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
 import { ILLUSTRATIVE_FILL } from "@/lib/containers/geometry"
-import { formatGrams } from "@/lib/protocol/vialFill"
+import { remainingLabel } from "@/lib/containers/labels"
 import { activePause } from "@/lib/home/pauses"
 
 /**
@@ -269,22 +269,16 @@ function fillOf(stock: StockItem | null): number | null {
   return Math.max(0, Math.min(1, stock.remainingBase / stock.totalBase))
 }
 
-/** How much is physically left — "8 mL", or a tablet count for orals. */
+/**
+ * How much is physically left — "8 mL", or a tablet count for orals.
+ *
+ * The wording now comes from the SHARED {@link remainingLabel}; this card and
+ * `ProtocolScreen` were the only two of six places that got it right, and the
+ * other four have been moved onto the same function rather than corrected in
+ * place. Only the empty case stays local, because it is this card's own copy.
+ */
 function formatRemaining(stock: StockItem | null): string {
-  if (!stock || stock.remainingDisplay == null) return "Add stock"
-  // A tub is weighed, and it is worded as the tub is labelled — grams up to a
-  // kilo, kilograms above it. Storage is grams throughout; see `formatGrams`.
-  if (stock.inventoryType === "bulk_powder") {
-    return `${formatGrams(stock.remainingDisplay)} left`
-  }
-  // Orals are stored as "tab" OR "capsule"; using the stored unit stops 60
-  // capsules of NAC reading as "30 tabs left".
-  const one = stock.remainingDisplay === 1
-  const unit =
-    stock.inventoryType === "oral_solid"
-      ? ` ${stock.totalAmountUnit === "capsule" ? (one ? "cap" : "caps") : one ? "tab" : "tabs"}`
-      : " mL"
-  return `${stock.remainingDisplay}${unit} left`
+  return remainingLabel(stock) ?? "Add stock"
 }
 
 /** How many DOSES that is — the figure people actually plan around. */

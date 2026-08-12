@@ -27,6 +27,9 @@ import {
 } from "@/lib/home/stack"
 import { siteLabel, sitesForSex } from "@/lib/home/siteCatalog"
 import { listStock, type StockItem } from "@/lib/db/inventory"
+import { unitFamilyOk } from "@/lib/db/doseUnits"
+import { inventoryTypeForCompound } from "@/lib/containers/form"
+import { containerNoun, containerNounTitle, remainingLabel } from "@/lib/containers/labels"
 import { resolveDrawSources, resolveVialForDate } from "@/lib/home/protocolSync"
 import { formatDraw, type DrawSource } from "@/lib/home/draw"
 import { BodyMap } from "@/components/sites/BodyMap"
@@ -467,11 +470,16 @@ function LogDoseBody({
       try {
         const all = await listStock()
         if (cancelled) return
+        // The SAME unit-family rule the server links by (`unitFamilyOk` /
+        // `unit_family_compatible`, `supabase/protocol/016`). This listed only
+        // the mg and iu families, so a TUB (`g`) and a strengthless bottle
+        // (`tab`/`capsule`) never matched — their stock card never appeared, and
+        // the user could neither see the figure nor opt this dose out of coming
+        // off it, while the server linked and decremented it anyway.
         const mine = all.filter(
           (v) =>
             v.protocolCompoundId === compound.id &&
-            ((v.baseUnit === "mg" && (compound.unit === "mg" || compound.unit === "mcg")) ||
-              (v.baseUnit === "iu" && compound.unit === "iu"))
+            unitFamilyOk(v.baseUnit, compound.unit)
         )
         setVials(mine)
         if (existing == null && onToday && mine.length > 0) {
@@ -521,6 +529,29 @@ function LogDoseBody({
   const [tracked, setTracked] = useState(false)
 
   /**
+   * What this compound's container is called, for the sentences below.
+   *
+   * Read from the RESOLVED STOCK ROW where there is one, exactly as
+   * `StockActionsSheet` does — the figure beside this noun already comes from
+   * that row, and wording the two from different sources is how the card ended
+   * up saying "From tub · 60 caps left". Falls back to the catalogue inference
+   * when no row has loaded, which is all a back-dated log has to go on.
+   */
+  const nounSource = vials[0]
+  const containerWord = containerNoun({
+    inventoryType:
+      nounSource?.inventoryType ??
+      inventoryTypeForCompound(
+        compound.name,
+        compound.method,
+        compound.inventoryForm,
+      ),
+    totalAmountUnit: nounSource?.totalAmountUnit,
+    category: compound.category,
+    name: compound.name,
+  })
+
+  /**
    * What the vial card says, if anything.
    *
    * One model for three situations that used to be three separate blocks of
@@ -536,12 +567,14 @@ function LogDoseBody({
     choices?: { key: string; label: string; active: boolean; onPick: () => void }[]
     toggle?: { label: string; onPress: () => void }
   } | null = (() => {
-    const stockLabel = (v: StockItem) =>
-      v.remainingDisplay == null
-        ? "Vial"
-        : v.inventoryType === "oral_solid"
-          ? `${v.remainingDisplay} left`
-          : `${v.remainingDisplay} mL left`
+    // Worded from the container, not assumed to be a vial: a tub of creatine
+    // read "1000 mL left" here, and the no-figure fallback said "Vial" about a
+    // bottle of tablets (Adrian, 2026-08-12).
+    const stockLabel = (v: StockItem) => remainingLabel(v) ?? containerNounTitle({
+      inventoryType: v.inventoryType,
+      category: compound.category,
+      name: compound.name,
+    })
 
     if (!onToday) {
       if (dateVialId == null) return null
@@ -556,7 +589,7 @@ function LogDoseBody({
           }
         : {
             value: "Counted",
-            note: `Comes off the vial you were using on ${formatDateKeyShort(logDate)}.`,
+            note: `Comes off the ${containerWord} you were using on ${formatDateKeyShort(logDate)}.`,
             toggle: {
               label: "Don't count this one",
               onPress: () => setInventoryItemId(null),
@@ -590,7 +623,7 @@ function LogDoseBody({
     if (vials.length > 1) {
       return {
         value: inventoryItemId === null ? "Not counted" : "Counted",
-        note: "Which vial this dose comes off.",
+        note: `Which ${containerWord} this dose comes off.`,
         choices: [
           ...vials.map((v) => ({
             key: v.id,
@@ -1035,7 +1068,7 @@ function LogDoseBody({
             )
           : dateVialId === undefined && (
               <p className="mt-5 px-1 text-xs text-text-subtle">
-                Checking which vial you were using…
+                Checking which {containerWord} you were using…
               </p>
             )}
 
@@ -1078,7 +1111,11 @@ function LogDoseBody({
             keep an explicit chooser. Only the presentation moved. */}
         {vialCard && (
           <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
-            <LogRow label="From vial" value={vialCard.value} />
+            {/* The LABEL was the one part of this card still hardcoded, so a tub
+                read "From vial · 1 kg left" with the note directly underneath
+                saying "Comes off the tub…" — the same card contradicting itself
+                (cold review, 2026-08-12). */}
+            <LogRow label={`From ${containerWord}`} value={vialCard.value} />
             {vialCard.note && (
               <p className="px-4 pb-3 text-xs text-text-subtle">{vialCard.note}</p>
             )}

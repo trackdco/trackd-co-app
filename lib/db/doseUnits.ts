@@ -23,6 +23,32 @@ export const DOSE_UNITS: readonly DoseUnit[] = [
   "g",
 ]
 
+/**
+ * Can a container measured in `base` supply a dose measured in `dose`?
+ *
+ * **The TS mirror of `unit_family_compatible` (`supabase/protocol/016`)**, and
+ * it must list every family the database does — a pairing rejected here is a
+ * dose written with NO vial link, so the container never depletes, which is the
+ * entire point of 014/015.
+ *
+ * It lives in this module, not beside its first caller, because that caller is
+ * `lib/home/protocolSync.ts` — a `"use server"` file, whose exports must all be
+ * async. The log sheet needs the same rule on the CLIENT to decide which stock
+ * to offer, and its private copy had drifted: it listed only the mg and iu
+ * families, so a tub (`g`) and a strengthless bottle (`tab`/`capsule`) never
+ * appeared in the picker even though the server linked and decremented them.
+ * One exported rule, two callers, no room to drift again.
+ */
+export function unitFamilyOk(base: string, dose: string): boolean {
+  return (
+    (base === "mg" && (dose === "mg" || dose === "mcg")) ||
+    (base === "iu" && dose === "iu") ||
+    (base === "g" && (dose === "g" || dose === "mg")) ||
+    (base === "tab" && dose === "tab") ||
+    (base === "capsule" && dose === "capsule")
+  )
+}
+
 /** Coerce the live store's free-string `unit` to a valid `dose_unit` (fallback
  *  `mg`). The Add flow already locks the unit to the compound's catalogue value,
  *  so this is a defensive normaliser — but it must accept EVERY valid unit, or a

@@ -95,7 +95,10 @@ export function ReminderSettings({
         />
         <SwitchRow
           label="Low stock"
-          hint="When a vial is about to run out"
+          // ONE setting covering every container the user owns, so it cannot
+          // name one of the three. It said "vial" and the reminder fires for
+          // tubs and bottles too.
+          hint="When your stock is about to run out"
           on={lowStockOn}
           onToggle={() => setLowStock((v) => !v)}
         />

@@ -23,6 +23,7 @@ import {
   deleteProtocolDoseLog,
 } from "@/lib/home/protocolSync"
 import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
+import { createWriteCoalescer } from "@/lib/home/writeCoalescer"
 
 /**
  * `{ "YYYY-MM-DD": { slotKey: DoseLog } }`, where `slotKey` is a compound id for
@@ -313,6 +314,62 @@ export function subscribeDoseLogs(callback: () => void): () => void {
   }
 }
 
+/**
+ * A SECOND signal, fired once a dose write has actually landed in Postgres —
+ * not when the device store changed.
+ *
+ * The two are days apart in meaning and both are needed. {@link CHANGED_EVENT}
+ * fires synchronously so the tick fills in instantly (the whole point of the
+ * device-local store). But anything DERIVED FROM THE SERVER cannot move until
+ * the server knows: `v_inventory_math` recomputes what is left in a vial from
+ * `dose_logs`, and the vial behind a dose is often resolved server-side
+ * (`autoLinkVialForDate`), so the client cannot predict the new figure even in
+ * principle.
+ *
+ * Without this, the dashboard read its stock figures on mount, on a day change
+ * and on window focus — and on nothing else. Ticking a stack therefore left
+ * every "left in the vial" figure exactly where it was, and the stock looked
+ * like it had not been touched until the user backgrounded the app and came
+ * back. The doses were linked and the maths was right the whole time; the screen
+ * simply never asked again. (Adrian, 2026-08-12: "It should automatically log
+ * from the stock of the vials … if I click the whole stack.")
+ */
+const SYNCED_EVENT = "trackd:dose-synced"
+
+/**
+ * Dose writes still in flight, coalesced into ONE signal per burst.
+ *
+ * The counting rule and the reasons a timer cannot do this job live in
+ * {@link createWriteCoalescer}, where they are tested. This module just owns the
+ * app's single instance of it and says what "landed" means: the write reached
+ * Postgres and was not a no-op skip.
+ */
+const doseWrites = createWriteCoalescer(() => notifySynced())
+
+/** Register a dose write and fire the signal when the last one settles. */
+function trackDoseWrite(op: Promise<{ ok: boolean; skipped?: boolean }>): void {
+  doseWrites.track(op)
+}
+
+function notifySynced() {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent(SYNCED_EVENT))
+}
+
+/**
+ * Wake when a dose write reaches Postgres, so server-derived figures can be
+ * re-read.
+ *
+ * Fires ONCE per burst and only when something actually landed — see
+ * {@link trackDoseWrite}. Subscribers need no debounce of their own, and must
+ * not assume one: the guarantee here is coalescing, not delay.
+ */
+export function subscribeDoseSynced(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {}
+  window.addEventListener(SYNCED_EVENT, callback)
+  return () => window.removeEventListener(SYNCED_EVENT, callback)
+}
+
 // Stable snapshot for useSyncExternalStore — cached by the raw stored string.
 let cache: { userId: string; raw: string | null; value: DayLogs } | null = null
 
@@ -364,19 +421,24 @@ export function logDose(
   // dropped.
   const onDevice = (loadStack(userId) ?? []).find((c) => c.id === compoundId)
   const method = onDevice?.method ?? "po"
-  void trackSync(
-    pushProtocolDoseLog(
-      compoundId,
-      dateKey,
-      log,
-      combineLocalDateTime(dateKey, log.time24),
-      method,
-      true,
-      onDevice?.name ?? null,
-      true,
-      slot
-    )
+  const push = pushProtocolDoseLog(
+    compoundId,
+    dateKey,
+    log,
+    combineLocalDateTime(dateKey, log.time24),
+    method,
+    true,
+    onDevice?.name ?? null,
+    true,
+    slot
   )
+  void trackSync(push)
+  // The vial this dose comes off is usually resolved BY THE SERVER (the
+  // `autoLinkVialForDate` argument above), so the amount left in it cannot be
+  // known here — only asked for again once the write has landed. Registered on
+  // the RAW promise rather than on `trackSync`, which swallows the outcome and
+  // would report a failed write as a landed one.
+  trackDoseWrite(push)
 }
 
 export function unlogDose(
@@ -393,7 +455,6 @@ export function unlogDose(
   else next[dateKey] = day
   saveDoseLogs(userId, next)
   notify()
-  void deleteDoseLog(dateKey, slotKey(compoundId, slot))
   // CRITICAL, not ordinary: `hydrateFromPostgres` awaits only critical syncs, so
   // an un-log tracked as ordinary let a pull that overlapped it read the row as
   // still present and write it straight back. Unticking then backgrounding the app
@@ -404,13 +465,45 @@ export function unlogDose(
   // clear on a delete that removed nothing and the next pull would resurrect the
   // dose the user just unticked.
   const name = (loadStack(userId) ?? []).find((c) => c.id === compoundId)?.name ?? null
-  void trackCriticalSync(
-    deleteProtocolDoseLog(compoundId, dateKey, name, slot).then((res) => {
-      // Only drop the tombstone once Postgres has actually forgotten the dose.
-      if (res.ok && !res.skipped) clearTombstone(userId, dateKey, compoundId, slot)
-      return res
-    })
-  )
+  /**
+   * BOTH deletes, and the tombstone waits for both.
+   *
+   * An un-log has to remove the dose from two places: `dose_logs` (canonical)
+   * and the `user_dose_logs` jsonb mirror. The mirror's delete used to be fired
+   * and forgotten while the tombstone was dropped on the strength of the
+   * canonical one alone — so a mirror delete that failed left the row there with
+   * nothing suppressing it, and `hydrateFromPostgres` merges the MIRROR
+   * (`remapLogs(cloud.doseLogs)`) as one of its sources. The dose came back on
+   * the next pull with its original amount, time and site, and the failure was
+   * never even reported: the discarded result never reached `trackSync`, so not
+   * even the "didn't sync" notice fired.
+   *
+   * One tap on a stack now issues five of these at once, which is five chances
+   * per tap rather than one. (Cold review, 2026-08-12.)
+   */
+  const mirror = deleteDoseLog(dateKey, slotKey(compoundId, slot))
+  const canonical = deleteProtocolDoseLog(compoundId, dateKey, name, slot)
+  const op = Promise.all([mirror, canonical]).then(([mirrorRes, res]) => {
+    // Only drop the tombstone once BOTH have actually forgotten the dose.
+    if (mirrorRes.ok && res.ok && !res.skipped) {
+      clearTombstone(userId, dateKey, compoundId, slot)
+    }
+    // REPORT both too. Returning the canonical result alone still told
+    // `trackSync` the un-log had succeeded when only half of it had, so the
+    // "didn't sync" notice stayed silent about a mirror row that will resurrect
+    // the dose on the next pull. `skipped` stays the canonical write's, since
+    // that is the one that legitimately no-ops for a custom compound.
+    return { ok: mirrorRes.ok && res.ok, skipped: res.skipped }
+  })
+  void trackCriticalSync(op)
+  // An un-log GIVES the vial its dose back, so the same re-read is owed here as
+  // on the way in — otherwise unticking left the stock reading low.
+  //
+  // Registered on the CANONICAL delete alone, not on `op`. `op` reports the pair
+  // (so a failed mirror delete raises the sync notice), but `dose_logs` is what
+  // `v_inventory_math` counts — if that succeeded the runway has genuinely moved
+  // and the figures must be re-read, whatever the mirror did.
+  trackDoseWrite(canonical)
 }
 
 /**

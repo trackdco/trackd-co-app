@@ -70,10 +70,15 @@ interface CompoundDetailSheetProps {
    */
   stock?: {
     fill: number | null
-    remaining: number | null
-    unit: string | null
-    /** Does a container EXIST for this compound? Distinct from `remaining`,
-     *  which is a display figure and legitimately null on an item that exists —
+    /** The amount left, ALREADY WORDED — "8.5 mL left", "60 caps left", "1 kg
+     *  left". A pre-built string rather than a number and a unit, because both
+     *  callers used to assemble it themselves and both got it wrong: a tub had
+     *  no unit ("990 left") and an oral used the raw stored one ("60 capsule
+     *  left"). Built by the shared `remainingLabel`. Null when there is no
+     *  figure to state. */
+    label: string | null
+    /** Does a container EXIST for this compound? Distinct from `label`, which is
+     *  a display figure and legitimately null on an item that exists —
      *  branching on it sent a compound with a vial to the ADD form. */
     exists?: boolean
   }
@@ -180,8 +185,7 @@ function DetailBody({
   onCorrectStock?: (compound: StackCompound) => void
   stock?: {
     fill: number | null
-    remaining: number | null
-    unit: string | null
+    label: string | null
     exists?: boolean
   }
   todaysLog?: { status?: "taken" | "skipped" } | null
@@ -275,11 +279,10 @@ function DetailBody({
             </p>
             <p className="font-mono text-sm tabular-nums text-text-muted">
               {formatDose(compound.dose)} {compound.unit}
-              {stock?.remaining != null && (
+              {stock?.label != null && (
                 <span className="text-text-subtle">
                   {" · "}
-                  {stock.remaining}
-                  {stock.unit ? ` ${stock.unit}` : ""} left
+                  {stock.label}
                 </span>
               )}
             </p>
@@ -392,9 +395,9 @@ function DetailBody({
             <ActionRow
               icon={<Package className="h-4 w-4" aria-hidden />}
               onClick={() => {
-                // Existence, not a display figure. `remaining` is nullable on an
+                // Existence, not a display figure. `label` is nullable on an
                 // item that genuinely exists.
-                const hasStock = stock?.exists ?? stock?.remaining != null
+                const hasStock = stock?.exists ?? stock?.label != null
                 if (hasStock && onCorrectStock) onCorrectStock(compound)
                 else if (onAddStock) onAddStock(compound)
                 else onCorrectStock?.(compound)

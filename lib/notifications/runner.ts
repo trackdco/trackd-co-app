@@ -224,7 +224,9 @@ async function collectUserData(
     const pc = r.protocol_compounds as { compounds?: { name?: string } } | null;
     const m = mathById.get(r.id as string) ?? {};
     return {
-      name: pc?.compounds?.name ?? "a vial",
+      // Not "a vial" — this row may be a tub or a bottle, and the fallback also
+      // has to read as a NAME, since it is dropped into a comma-joined list.
+      name: pc?.compounds?.name ?? "Something",
       // Its compound is paused, so the stock is not moving and "running low" is
       // noise. `019` already returns a longer (or null) runway for these; this
       // is the belt to that braces, and it holds even before 019 is applied.
