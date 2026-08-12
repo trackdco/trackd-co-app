@@ -222,6 +222,51 @@ have announced "Your free trial ends 13 Aug 2027".
 | mid-grace / expired grace | writable / refused, dashboard 200 either way |
 | the banner on a grace | "Your free trial ends tomorrow." with no subscription row anywhere |
 
+### The cold review, 2026-08-13 — three adversarial agents, and they were right
+
+Security/payment, the gate + entitlements, and UI at 390x844. **Every finding
+below was found by EXECUTING** — driving real Stripe, the live database and a
+headless Chromium at `http://localhost` with the iPhone 14 safe-area insets
+injected. tsc, eslint and 949 tests were green throughout and caught none of it.
+Same lesson as every wave before.
+
+| Sev | Finding | Resolution |
+|---|---|---|
+| CRITICAL | **The pop-up was completely dead on a phone.** Radix sets an inline `pointer-events: none` on `<body>` while a sheet is open; the pop-up portals to `<body>` and inherited it. Measured: it paints correctly on top, `elementFromPoint` at every button returns the sheet underneath, ZERO hit-testable elements, real taps time out. Escape worked, and **a phone has no Escape key** — the only way out was to reload the app. | `pointer-events-auto` on all three backdrops. Re-measured: 5/5 reachable, a real tap closes it. |
+| CRITICAL | **A read-only user could log a dose that never reached the cloud, and was told the app would keep trying.** The tick was guarded; "Log today's dose" on the compound detail sheet was not. `localStorage` written, server refuses, toast says *"Still syncing. We'll keep trying."* It never syncs — not on reload, not on an `online` event, **not after they resubscribe**. | `handleTracked` (the COMMIT) is guarded as well as every entry point, so a route added later is covered by construction. |
+| HIGH | **The gate wrapped wrappers, not writes.** Every export of a `"use server"` module is a dispatchable action, so `startBlockAction` refused while `startBlock` wrote the row. It reached dose logging: `ensureActiveCycle` + `upsertProtocolCompound` + `upsertDoseLog` wrote what `pushDoseLog` refused. | The guard moved to the write itself: 34 functions across 13 modules. A 23-call sweep now refuses every one with nothing landing in any table. |
+| HIGH | **A paying subscriber was told they were on a free trial, with no cancel button.** `strongestEntitlement` preferred the longest row, so a 14-day beta grace outranked a fresh 7-day Stripe trial: `manageActionFor` saw `comp`, returned `{kind:"none"}`, and `/billing` read "Complimentary" with NO CANCEL CONTROL for somebody whose card was on file. | Ordered by KIND first, date second. A forever comp still wins; a real subscription beats a time-limited comp; the grace is weakest. Six tests. |
+| HIGH | **The day-5 push told the ninety beta accounts money was about to move.** *"Day 5 of 7 … and billing starts then."* They are on day 12 of 14, never had a trial, have no card, and will not be charged. It also contradicted the notice they were shown a fortnight earlier. | The grace gets its own words, in the same phrasing the notice and the pop-up use. |
+| HIGH | **The beta notice rebuilt the entire app shell on every dashboard load.** Server returned `null`, client returned a portal. Measured: `<main>` created TWICE instead of once, one hydration error naming the frame, for all ~90 accounts until dismissed. Larger than the trial-banner defect this branch already paid to fix. | Gated on mount via `useSyncExternalStore`. Re-measured: `<main>` created 0 times, 0 hydration errors. |
+| HIGH | **The focus trap let go for the whole 2s "Working…" window.** Both buttons go disabled, `button:not([disabled])` matches zero, the handler stood aside. Five Tabs walked out of a dialog still claiming `aria-modal="true"`. The exact defect the file's own comment says was fixed — it was fixed for the idle state only. | Focus goes to the dialog itself; the initial focus targets an ENABLED button. 0 escapes. |
+| HIGH | **The app refused to CLOSE a block and allowed DELETING one.** A lapsed user could destroy a block but not end it, and was left with one reading "running" forever. | `closeBlock`/`extendBlock` ungated: both wind down something that exists. |
+| HIGH | **The `?stock=` deep link walked past the guard**, and the save then blamed the user's connection. | Guarded on `canWrite` (not `guard()` — it runs during render). |
+| HIGH | **The save offer's week never reached the mirror or the entitlement.** Only the webhook writes them; a lost one meant read-only on the old date having been promised a week in writing. | `syncSubscription` immediately, the way `applyCancelFlag` already did. Driven with no webhook: Stripe, mirror and entitlement all agree. |
+| MEDIUM | **Two live billable subscriptions, through the `incomplete` blind spot.** Stripe keeps an `incomplete` subscription's first invoice payable ~23h; it was missing from `BILLABLE_STATUSES`, so neither the duplicate guard nor the pre-deletion sweep could see one. | `incomplete` is billable now, and `hasValidatedCard` treats it as "has not paid" so the abandoned-attempt retry still works. |
+| MEDIUM | **The retention week was claimable by somebody who was not leaving** — cancel, un-cancel, claim; or cancel, let it die, start a new one, claim. | `grantExtraTime` requires `cancel_at_period_end` at grant time. |
+| MEDIUM | **The host allowlist let two kinds of stranger through.** `192.168.evil.com` matched the private-IP prefix test (and was served over PLAINTEXT); `.endsWith(".vercel.app")` accepted anybody's deployment. The comment claimed an unrecognised host fell back to production. | `lib/billing/originAllowlist.ts`, pure and tested. ⚠️ **`fix/host-header-allowlist` has the `.vercel.app` hole too, where the value becomes a password-reset email link.** |
+| MEDIUM | **`gate.ts`'s coverage doc was wrong in BOTH directions** — seven documented-ungated functions were gated, four gated ones were in neither list, and a paragraph described the opposite of the code. | Rewritten from the code; `scratchpad/gate-audit.mjs` regenerates it by parsing function bodies. |
+| MEDIUM | **The backfill re-granted a fresh fortnight to everybody whose grace had expired**, on every re-run, and adding a friend to `COMP_EMAILS` afterwards did nothing for them. | Skips any account with a row; a comp-list member on a time-limited row is UPGRADED to no-expiry. |
+| MEDIUM | **The grace banner and push fired regardless of `BILLING_GATE_ENABLED`** while the notice explaining them required it — so the documented go-live order produced warnings with no explanation. | Both gated on the switch. |
+| MEDIUM | Fourteen refusals returned a bare `{ok:false}`, so the UI said "check your connection". | `readOnly: true` on the refusal; `AddStockSheet` reads it. |
+| LOW | Orphan Stripe customers: 15 concurrent calls made 15 customers, 14 orphans, on demand. | An idempotency key on the customer create. |
+| LOW | The live backfill returned every account's email address. | Names on the dry run only. |
+
+**What they could NOT break**, worth not re-reviewing: every read for a lapsed
+user (SSR byte-identical entitled vs lapsed on all ten screens except the plan
+label); every delete; every profile setting; cross-user attacks on all three
+billing actions; RLS on all four billing tables with a real JWT; the step alias
+resolver across 24 hostile inputs with server and client agreeing on every one;
+the age gate on the payment endpoint; timezone handling across +14, -11, Sydney
+and LA walked hour by hour over the final 84 hours; and the duplicate-subscription
+invariant under 15 concurrent calls.
+
+**A mistake of mine the drive caught**, worth keeping: un-gating two functions by
+exact-string replacement removed the FIRST match in the file rather than the
+named one — the guard text is identical everywhere — so it silently un-gated
+`startBlock` and left `closeBlock` gated, the exact inverse of the intent, inside
+the commit fixing it. Every gated function is now audited by PARSING each body.
+
 ### Two defects the build itself produced, both found by EXECUTING
 
 Neither was caught by tsc, eslint or the tests. Same lesson as every spec before.
