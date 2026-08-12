@@ -95,14 +95,23 @@ export async function liveSubscriptionsForUser(userId: string): Promise<string[]
  * and `paused` and `unpaid` both can once Stripe resumes or retries them. A
  * cancel-before-delete that leaves either behind is the exact failure the
  * deletion path exists to prevent.
+ *
+ * ⚠️ EXPORTED, and `startTrial` reads the same set. The two questions are the
+ * same question from opposite ends — "what would I have to stop?" and "what
+ * stops me selling another one?" — and a status in one list but not the other
+ * is, precisely, a subscription that can be created on top of an existing one
+ * and then bills alongside it. `startTrial` used to check a narrower three, so a
+ * `paused` or `unpaid` subscription did not block a second trial.
  */
-const BILLABLE = new Set<string>([
+export const BILLABLE_STATUSES: ReadonlySet<string> = new Set<string>([
   "trialing",
   "active",
   "past_due",
   "paused",
   "unpaid",
 ]);
+
+const BILLABLE = BILLABLE_STATUSES;
 
 /**
  * Set (or clear) `cancel_at_period_end` on a subscription, and mirror it.
