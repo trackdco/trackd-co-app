@@ -3,6 +3,7 @@ import "server-only"
 import {
   AGE_BRACKETS,
   ageBracket,
+  safeCode,
   seriesByDay,
   tally,
   timezoneRegion,
@@ -205,6 +206,8 @@ export async function attributionMetrics(
       rows.map((r) => r.source),
       (k) => labelFor(ATTRIBUTION_LABELS, k)
     ),
-    codes: tally(rows.map((r) => r.affiliate_code)),
+    // Re-shaped here: the code's format is enforced on the client only, and a
+    // user can write their own attribution row through the Data API.
+    codes: tally(rows.map((r) => safeCode(r.affiliate_code))),
   }
 }

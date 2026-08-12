@@ -40,7 +40,16 @@ import { createClient } from "@/lib/supabase/server"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-/** The only two things that may be exported, and exactly how. */
+/**
+ * The only two things that may be exported, and exactly how.
+ *
+ * `maxRows` is per-dataset because the two have very different row weights. A
+ * waitlist row is three short fields; a feedback row carries a `message` capped
+ * at 4,000 characters, so 10,000 of them is a ~40 MB single response. The
+ * feedback cap is set so the worst case stays in the low megabytes. Only a
+ * founder can trigger it, so this is a self-inflicted ceiling rather than an
+ * attack surface — but an endpoint that can emit 40 MB is worth not having.
+ */
 const DATASETS = {
   waitlist: {
     table: "waitlist",
@@ -48,6 +57,7 @@ const DATASETS = {
     headers: ["email", "source", "created_at"],
     filename: "trackd-waitlist.csv",
     order: "created_at",
+    maxRows: 10_000,
   },
   feedback: {
     table: "beta_feedback",
@@ -55,13 +65,11 @@ const DATASETS = {
     headers: ["created_at", "path", "email", "message", "resolved_at"],
     filename: "trackd-feedback.csv",
     order: "created_at",
+    maxRows: 2_000,
   },
 } as const
 
 type DatasetKey = keyof typeof DATASETS
-
-/** Belt and braces against an unbounded response. */
-const MAX_ROWS = 10_000
 
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -86,7 +94,7 @@ export async function GET(request: Request) {
     .from(spec.table)
     .select(spec.columns)
     .order(spec.order, { ascending: false })
-    .limit(MAX_ROWS)
+    .limit(spec.maxRows)
 
   if (error) {
     return NextResponse.json({ error: "query failed" }, { status: 500 })

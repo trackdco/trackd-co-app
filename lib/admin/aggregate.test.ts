@@ -7,7 +7,9 @@ import {
   funnel,
   intersect,
   median,
+  normalisePath,
   percent,
+  safeCode,
   safeFilename,
   seriesByDay,
   tally,
@@ -103,9 +105,69 @@ describe("timezoneRegion", () => {
     expect(timezoneRegion("UTC")).toBe("UTC")
   })
 
+  // `profiles.timezone` is plain text with a column-level UPDATE grant, so the
+  // value is user-writable and is about to become a chart label.
+  it("buckets anything that is not shaped like an IANA region", () => {
+    expect(timezoneRegion("<script>/Sydney")).toBe("other")
+    expect(timezoneRegion("A".repeat(50))).toBe("other")
+    expect(timezoneRegion("123")).toBe("other")
+  })
+
   it("returns null for nothing", () => {
     expect(timezoneRegion(null)).toBeNull()
     expect(timezoneRegion("  ")).toBeNull()
+  })
+})
+
+describe("normalisePath", () => {
+  // `beta_feedback.path` is written from the client with no validation at all,
+  // so anything a ranked tally renders from it must come off an allowlist.
+  it("keeps a known route", () => {
+    expect(normalisePath("/protocol")).toBe("/protocol")
+    expect(normalisePath("/")).toBe("/")
+  })
+
+  it("collapses to the first segment, so no id can ever reach the chart", () => {
+    expect(normalisePath("/protocol/6f1b2c3d-dead-beef")).toBe("/protocol")
+    expect(normalisePath("/weight?tab=trend")).toBe("/weight")
+    expect(normalisePath("/progress#photos")).toBe("/progress")
+  })
+
+  it("buckets anything not on the allowlist", () => {
+    expect(normalisePath("/not-a-real-route")).toBe("other")
+    expect(normalisePath("javascript:alert(1)")).toBe("other")
+    expect(normalisePath("<script>alert(1)</script>")).toBe("other")
+    expect(normalisePath("x".repeat(200))).toBe("other")
+  })
+
+  it("returns null for nothing", () => {
+    expect(normalisePath(null)).toBeNull()
+    expect(normalisePath("   ")).toBeNull()
+  })
+})
+
+describe("safeCode", () => {
+  it("upper-cases and keeps a well-formed code", () => {
+    expect(safeCode("angus10")).toBe("ANGUS10")
+    expect(safeCode("SUMMER-25")).toBe("SUMMER-25")
+  })
+
+  it("strips characters the client-side validator would have rejected", () => {
+    expect(safeCode("<script>")).toBe("SCRIPT")
+    expect(safeCode("a b/c")).toBe("ABC")
+  })
+
+  it("caps the length", () => {
+    expect(safeCode("A".repeat(100))).toHaveLength(24)
+  })
+
+  it("buckets a code with nothing usable left", () => {
+    expect(safeCode("!!!")).toBe("other")
+  })
+
+  it("returns null for nothing", () => {
+    expect(safeCode(null)).toBeNull()
+    expect(safeCode("  ")).toBeNull()
   })
 })
 

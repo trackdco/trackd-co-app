@@ -3,6 +3,7 @@ import "server-only"
 import {
   consentExpectations,
   median,
+  normalisePath,
   percent,
   tally,
   type Tally,
@@ -81,7 +82,8 @@ export async function feedbackSla(
     oldestOpenDays:
       oldestOpenMs === null ? null : Math.floor((now - oldestOpenMs) / DAY_MS),
     medianResolveHours: medianMs === null ? null : Math.round(medianMs / 3_600_000),
-    byPath: tally(rows.map((r) => r.path)),
+    // Through the allowlist — `path` is written from the client unvalidated.
+    byPath: tally(rows.map((r) => normalisePath(r.path))),
     lastWeek: rows.filter((r) => {
       const ms = r.created_at ? Date.parse(r.created_at) : NaN
       return !Number.isNaN(ms) && ms >= weekAgo

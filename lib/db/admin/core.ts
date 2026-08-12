@@ -48,7 +48,17 @@ import { createClient } from "@/lib/supabase/server"
 export interface AdminIssue {
   /** What was being read, in words that mean something on the page. */
   label: string
-  /** The database's complaint, truncated. Never contains user data. */
+  /**
+   * The database's complaint, truncated to 200 characters.
+   *
+   * NOT guaranteed to be free of user data, and an earlier draft of this comment
+   * claimed it was. Postgres and PostgREST echo offending VALUES in some error
+   * text (a failed cast, an out-of-range number), so a message can carry a
+   * fragment of a row. It is acceptable here for one specific reason: this
+   * string is only ever rendered on /admin, behind the founder gate, to the same
+   * two people who are already authorised to see the aggregates. It must not be
+   * logged, forwarded, or surfaced anywhere less restricted.
+   */
   detail: string
 }
 

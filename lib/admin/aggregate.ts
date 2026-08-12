@@ -95,8 +95,14 @@ export function ageBracket(
 export function timezoneRegion(tz: string | null | undefined): string | null {
   const trimmed = (tz ?? "").trim()
   if (!trimmed) return null
-  const region = trimmed.split("/")[0]?.trim()
-  return region ? region : null
+  const region = trimmed.split("/")[0]?.trim() ?? ""
+  if (!region) return null
+  // `profiles.timezone` is plain `text` with no CHECK, and `authenticated` holds
+  // a column-level UPDATE grant on it — so this value is user-writable and is
+  // about to become a chart label. An IANA region is letters and underscores;
+  // anything else is not one, whatever it claims to be.
+  if (!/^[A-Za-z_]{1,40}$/.test(region)) return "other"
+  return region
 }
 
 /** Median of a numeric list, or null when there is nothing to take a median of. */
@@ -192,6 +198,78 @@ export function toCsv(headers: string[], rows: (string | null | undefined)[][]):
 export function safeFilename(name: string, fallback = "export.csv"): string {
   const cleaned = name.replace(/[^A-Za-z0-9._-]/g, "")
   return cleaned.length > 0 ? cleaned.slice(0, 100) : fallback
+}
+
+// ── Untrusted keys ───────────────────────────────────────────────────────────
+
+/**
+ * Every top-level route the app serves, derived from the `page.tsx` files
+ * under `app/`.
+ *
+ * The allowlist exists so a ranked tally can never render a string a stranger
+ * chose. See {@link normalisePath}.
+ */
+const KNOWN_PATHS = new Set([
+  "/",
+  "/admin",
+  "/blocks",
+  "/calculator",
+  "/calendar",
+  "/dashboard",
+  "/forgot-password",
+  "/login",
+  "/medical-disclaimer",
+  "/notifications",
+  "/onboarding",
+  "/preview",
+  "/privacy",
+  "/profile",
+  "/progress",
+  "/protocol",
+  "/reset-password",
+  "/terms",
+  "/waitlist",
+  "/weight",
+  "/welcome",
+])
+
+/**
+ * Reduce a feedback `path` to a known route, or "other".
+ *
+ * `beta_feedback.path` is written from the client as
+ * `context?.path?.slice(0, 200)` with no validation, so ANY authenticated
+ * caller can put 200 arbitrary characters in it. Ranking it raw would render a
+ * stranger's string on the dashboard.
+ *
+ * It also future-proofs one specific escalation. The app currently has **zero**
+ * dynamic route segments, so an honest path carries no resource ids — but the
+ * day a `/protocol/[id]` route ships, another user's id would land on the
+ * founder dashboard by construction. Collapsing to the first segment means that
+ * never happens, whoever writes that route later.
+ */
+export function normalisePath(raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? "").trim()
+  if (!trimmed) return null
+  if (!trimmed.startsWith("/")) return "other"
+  const firstSegment = trimmed.split(/[?#]/)[0].split("/")[1] ?? ""
+  const candidate = firstSegment ? `/${firstSegment}` : "/"
+  return KNOWN_PATHS.has(candidate) ? candidate : "other"
+}
+
+/**
+ * Clamp a short, user-writable identifier before it becomes a chart label.
+ *
+ * `signup_intake.affiliate_code` and `signup_attribution.affiliate_code` are
+ * validated to `^[A-Z0-9][A-Z0-9-]{1,23}$` on the CLIENT only — the database
+ * CHECK is a length bound and nothing more, and the INSERT policies let a user
+ * write their own row through the Data API. So the shape is re-imposed here,
+ * where the value is about to be displayed.
+ */
+export function safeCode(raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? "").trim().toUpperCase()
+  if (!trimmed) return null
+  const cleaned = trimmed.replace(/[^A-Z0-9-]/g, "").slice(0, 24)
+  return cleaned.length > 0 ? cleaned : "other"
 }
 
 // ── Consent ──────────────────────────────────────────────────────────────────
