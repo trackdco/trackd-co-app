@@ -41,7 +41,8 @@ Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormo
 - Manual entry (week 3) against the biomarkers catalogue; results expressed categorically via `v_biomarker_position` (below/within/above — never high/bad).
 
 ### Entitlements
-- Feature gates read `profiles.tier` and nothing else. Beta defaults everyone to `'paid'`. Stripe (post-trip) becomes the column's only writer; gating logic never changes. Default flips to `'free'` before public launch.
+- **Feature gates read `entitlements`, not `profiles.tier`.** (Superseded 2026-08-12; the old line said `tier` and nothing else.) `entitlements` is the only table that decides access, and Stripe writes it through the webhook while Apple and Google will write the same rows through RevenueCat with no application change. `profiles.tier` is historical: `grants/003` locked it to the service role, and as of 2026-08-12 nothing reads it for display either. See `architecture.md` -> Billing.
+- **Nothing actually gates yet.** `app/(app)/layout.tsx` still checks session + age only, so every account has the whole product. Wiring `hasProAccess` into that layout is a deliberate, separate decision, and the commit that does it must also change `NO_ENTITLEMENT_LABEL` in `lib/billing/manage.ts`.
 
 ## Scope
 
@@ -54,7 +55,7 @@ Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormo
 - PWA install tested on Android and iOS.
 
 ### Out of Scope (do not build during the sprint)
-- Stripe, payments, founding-member tier (post-trip; tier column already models it).
+- ~~Stripe, payments~~ **BUILT 2026-08-08/12**: subscriptions, a 7-day trial, the trial reminder, cancel and resume, and the Stripe Customer Portal for cards and invoices. Not switched on: no Stripe keys in production and nothing routes a user at `/onboarding`. Founding-member access is an `entitlements` row with `source = 'comp'`, not a `tier` value.
 - Marketing site and waitlist (post-trip).
 - Push notification delivery (post-trip; `push_subscriptions` table already exists in schema — storage only).
 - Bloodwork AI analyser (v1.5; Claude Sonnet).

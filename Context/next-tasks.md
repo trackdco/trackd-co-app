@@ -221,12 +221,24 @@ Stripe's hosted portal** (Adrian's call): it never leaves the PWA, the copy is
 ours at the moment that most needs it, and the capability is exactly two fields
 wide.
 
-State and the reasoning are in `progress-tracker.md`. What is NOT built, and is
-the natural follow-up: the Stripe billing portal for **updating a failing card
-and reading invoices**. A `past_due` user still has no way to fix their card from
-inside the app, which is a different unkept thing from cancelling and wants its
-own pass. It needs a portal configuration in the Stripe dashboard, in test and
-again in live.
+**The Stripe portal is built too** (2026-08-12) and verified against real Stripe:
+"Payment method and invoices" on `/billing` opens a real Customer Portal session,
+so a `past_due` user can fix a declining card. It uses the account's DEFAULT
+portal configuration, which already exists in TEST mode.
+
+**⚠️ Two things about the portal are owed:**
+
+1. **LIVE mode needs its own portal configuration.** Stripe keeps them per mode.
+   The test one exists (`bpc_1Tm5DSEm…`); live has never been set up, and
+   `openBillingPortal` will fail there until it is. Stripe → Settings → Billing →
+   Customer portal.
+2. **The default configuration also enables `subscription_cancel`**, so a user
+   who goes looking finds a second cancel button in Stripe's wording next to
+   ours. Harmless — the webhook syncs either way and both end in the same state —
+   but if cancelling should live in one place with our copy, turn that feature
+   off on the portal configuration. Dashboard change, not a code change.
+
+State and the reasoning are in `progress-tracker.md`.
 
 ### 📝 ADRIAN'S NOTES, 2026-08-12 — decisions still to make
 
@@ -311,12 +323,16 @@ call it when it is built.
 
 ### Owed by whoever picks this up
 
-- **`profiles.tier` vs `entitlements`.** `project-overview.md` still describes
-  `tier` as the entitlement column; that is now historical. Gates read
-  `entitlements`. Reconciling the two was deliberately not done in the same
-  change as the tables. **Profile's plan pill still reads `tier`** and hardcodes
-  "Beta · Pro"; `/billing` reads the entitlement. The two can disagree the day
-  billing starts.
+- ✅ ~~**`profiles.tier` vs `entitlements`.**~~ **DONE 2026-08-12.** Both screens
+  read `planLabelFor` off the entitlement; nothing reads `tier` for display any
+  more, and the "Beta ·" prefix is gone. **`project-overview.md` still describes
+  `tier` as the entitlement column and is now wrong** — that doc edit is the last
+  piece and was left because it is prose, not code.
+- 🔴 **`NO_ENTITLEMENT_LABEL` in `lib/billing/manage.ts` is a tripwire.** It says
+  "Pro", which is TRUE only because nothing gates on `entitlements` yet. The
+  commit that wires `hasProAccess` into `app/(app)/layout.tsx` **must change it
+  in the same commit**, or every locked-out user reads a screen saying they are
+  on Pro.
 - **Apple Pay on a real device.** Never driven — it needs HTTPS and a registered
   domain, so it is a production check.
 - **Sixteen `w2b15-*@trackd-qa.invalid` accounts from the 2026-08-08 session are

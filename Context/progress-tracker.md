@@ -47,6 +47,63 @@ capability is exactly two fields wide. The portal remains the right answer for
   `/notifications` keeps its subtitle because it introduces a screen of switches
   whose purpose is not self-evident; this one does not.
 
+### The Stripe portal, for the job we did NOT rebuild
+
+`openBillingPortal` opens Stripe's Customer Portal for **payment method and
+invoices only**. Cancelling stays in the app because the copy at that moment
+matters; updating a card means handling card details, which is exactly the thing
+to hand to Stripe and never touch, and a `past_due` user previously had no way to
+fix a declining card from inside the app at all.
+
+- **Returns a URL rather than redirecting.** A `redirect()` inside a server
+  action throws a control-flow signal that a caller's `try/catch` swallows, and
+  the failure mode is a button that silently does nothing.
+- **`siteOrigin()` reads the request headers**, so a LAN dev server and a preview
+  deploy return to themselves rather than bouncing a tester to production.
+- The row is hidden unless the user actually has a `billing_customers` row, and
+  hidden for an Apple/Google subscription, where Stripe holds no card.
+- ⚠️ The account's DEFAULT portal configuration also enables
+  `subscription_cancel`, so a user who goes looking finds a second cancel button
+  in Stripe's wording. Harmless (the webhook syncs either way) but it is two
+  paths to one outcome. Disabling that feature on the portal configuration is a
+  dashboard change, not a code change. Carried in `next-tasks.md`.
+
+**Verified against real Stripe:** a real portal session URL was created for the
+owner and resolved 200; the attacker got "There's nothing to manage on this
+account yet." with no customer id leaked; anonymous got "You need to be signed
+in."; and a user with no Stripe customer never sees the row.
+
+### `profiles.tier` is no longer read, and the beta label is gone
+
+Profile hardcoded `"Beta · Pro"` from `profiles.tier` while `/billing` read the
+entitlement, so one user could be told two different things on two screens.
+`planLabelFor` (pure, in `manage.ts`) is now the single answer both ask for, and
+it reads the ENTITLEMENT's source, so a founder who also subscribes reads as
+`Complimentary` rather than being described by the subscription.
+
+The "Beta ·" prefix is gone (Adrian, 2026-08-12: "we won't be in beta by then").
+
+⚠️ **`NO_ENTITLEMENT_LABEL` is `"Pro"` and that is true only today.** Nothing in
+the app reads `entitlements`, so all 106 accounts genuinely have the whole
+product; saying "Free" would be the app lying about what it is giving away.
+**Whoever wires `hasProAccess` into `app/(app)/layout.tsx` must change that
+constant in the same commit**, or every locked-out user sees a screen telling
+them they are on Pro. The comment beside it says so.
+
+### Deleting an account must cancel the subscription FIRST
+
+`lib/billing/cancel.ts` holds the shared path. `applyCancelFlag` is what the user
+action uses; `cancelNowForUser` is the immediate cancel a deletion needs and it
+**throws rather than returning** on any failure, because a deletion must be able
+to stop.
+
+The danger it exists for: `billing_customers`, `subscriptions` and `entitlements`
+all cascade from `profiles`, so deleting an account erases the only mapping from
+a Stripe customer back to a user **while the Stripe subscription keeps billing**,
+and every later webhook is permanently `unattributed`. There is no self-serve
+deletion today (it is a `mailto:` to support), so this currently binds whoever
+processes that email by hand.
+
 ### The trial notice on screen
 
 The push reaches 17 of 106 accounts. The same promise is now stated on Home for
