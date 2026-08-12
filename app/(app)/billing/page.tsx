@@ -147,6 +147,10 @@ export default async function BillingPage() {
               endsOn={formatAccessDate(action.endsOn, tz)}
               endsOnShort={formatAccessDateShort(action.endsOn, tz)}
               isTrial={action.isTrial}
+              // For the paid save offer's wording ("your next year, free?").
+              // Null when Stripe's prices could not be loaded, which the copy
+              // handles by saying "next payment" rather than guessing a period.
+              renewalNoun={price?.interval ?? null}
             />
           </div>
           {action.kind === "resume" ? (

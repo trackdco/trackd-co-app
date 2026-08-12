@@ -2,9 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import type Stripe from "stripe";
 
 import { getCurrentUser } from "@/lib/auth";
 import { applyCancelFlag, liveSubscriptionsForUser } from "@/lib/billing/cancel";
+import { formatAccessDate, type SaveOfferKind } from "@/lib/billing/manage";
+import {
+  EXTRA_TRIAL_DAYS,
+  grantExtraTime,
+  markOfferShown,
+  readSaveOffer,
+} from "@/lib/billing/saveOffer";
 import { stripe } from "@/lib/billing/stripe";
 import { createClient } from "@/lib/supabase/server";
 
@@ -53,6 +61,18 @@ export interface BillingActionResult {
   savedAt?: number;
 }
 
+export interface CancelResult extends BillingActionResult {
+  /**
+   * Whether to follow the cancellation with the save offer, and which one.
+   *
+   * ⚠️ ONLY MEANINGFUL WHEN `ok` IS TRUE, and only after the cancellation has
+   * actually been written to Stripe. That ordering is the point: the offer is
+   * something that happens to a cancelled user, never something standing between
+   * a user and cancelling. See `lib/billing/saveOffer.ts`.
+   */
+  offer?: { kind: SaveOfferKind; days: number };
+}
+
 /**
  * Resolve the caller's own live subscriptions, or say why not.
  *
@@ -78,7 +98,7 @@ export interface BillingActionResult {
  * scoping. Nothing about which subscription to act on comes from the client.
  */
 async function ownSubscriptions(): Promise<
-  { ids: string[]; userId: string } | { error: string }
+  { ids: string[]; userId: string; customerId: string } | { error: string }
 > {
   const user = await getCurrentUser();
   if (!user) return { error: "You need to be signed in." };
@@ -112,11 +132,24 @@ async function ownSubscriptions(): Promise<
   }
 
   if (ids.length === 0) return { error: "There's no active subscription on this account." };
-  return { ids, userId: user.id };
+  return { ids, userId: user.id, customerId: data.stripe_customer_id as string };
 }
 
-/** Stop the next charge. Access continues to the end of what is already paid for. */
-export async function cancelSubscription(): Promise<BillingActionResult> {
+/**
+ * Stop the next charge. Access continues to the end of what is already paid for.
+ *
+ * ## The cancellation is FINISHED before the offer is even looked up
+ *
+ * `applyCancelFlag` has returned for every subscription by the time anything
+ * below happens, and the offer lookup is in its own `try` that can only affect
+ * what this returns in the `offer` field. There is no arrangement of failures
+ * where the user ends this call still subscribed: if the offer check throws, the
+ * result is `{ok: true}` with no offer, and they are cancelled.
+ *
+ * That is the property the click-to-cancel rules actually care about, and it is
+ * worth stating because it is easy to break later by moving one line up.
+ */
+export async function cancelSubscription(): Promise<CancelResult> {
   const found = await ownSubscriptions();
   if ("error" in found) return { ok: false, error: found.error };
 
@@ -137,8 +170,172 @@ export async function cancelSubscription(): Promise<BillingActionResult> {
   console.info(`[billing] ${found.userId} cancelled ${found.ids.length} subscription(s) at period end`);
   revalidatePath("/billing");
   revalidatePath("/profile");
-  return { ok: true, savedAt: Date.now() };
+
+  const offer = await offerAfterCancel(found.customerId);
+  return { ok: true, savedAt: Date.now(), ...(offer ? { offer } : {}) };
 }
+
+/**
+ * Is there an offer to make, and of which kind?
+ *
+ * Wrapped so that NOTHING in here can fail the cancellation. Every path returns
+ * undefined rather than throwing; the user is already cancelled and an error
+ * about a retention offer is not theirs to see.
+ */
+async function offerAfterCancel(
+  customerId: string,
+): Promise<{ kind: SaveOfferKind; days: number } | undefined> {
+  try {
+    const primary = await primarySubscription(customerId);
+    if (!primary) return undefined;
+
+    const kind: SaveOfferKind = primary.status === "trialing" ? "trial" : "paid";
+    const state = await readSaveOffer(customerId, kind);
+    if (!state.available || !state.kind) return undefined;
+
+    // Recorded as SHOWN here rather than when the dialog opens: a separate
+    // "I saw it" call is one anybody who wanted the offer twice could simply
+    // not make. See `saveOffer.ts`.
+    await markOfferShown(customerId);
+    return { kind: state.kind, days: EXTRA_TRIAL_DAYS };
+  } catch (err) {
+    console.error(
+      `[billing] the save-offer check failed for ${customerId} (the cancellation stands):`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return undefined;
+  }
+}
+
+/**
+ * The subscription the screen is about: the one ending SOONEST.
+ *
+ * Same ordering as `/billing` and the reminder runner, so all three describe the
+ * same subscription. Since `startTrial`'s lease and reconcile there should only
+ * ever be one, and more than one is logged as the anomaly it now is.
+ */
+async function primarySubscription(customerId: string) {
+  const list = await stripe().subscriptions.list({
+    customer: customerId,
+    status: "all",
+    limit: 100,
+  });
+  const live = list.data.filter((s) =>
+    ["trialing", "active", "past_due"].includes(s.status),
+  );
+  if (live.length > 1) {
+    console.error(
+      `[billing] ${customerId} still holds ${live.length} live subscriptions; the save offer will act on the soonest-ending one`,
+    );
+  }
+  return (
+    [...live].sort((a, b) => endSeconds(a) - endSeconds(b))[0] ?? null
+  );
+}
+
+function endSeconds(sub: Stripe.Subscription): number {
+  return (
+    (sub.status === "trialing" ? sub.trial_end : null) ??
+    sub.items.data[0]?.current_period_end ??
+    sub.trial_end ??
+    Number.MAX_SAFE_INTEGER
+  );
+}
+
+/**
+ * TAKE THE OFFER. Seven more free days on a trial, or the next period free.
+ *
+ * ## It takes no argument, for the same reason cancel does not
+ *
+ * A server action is a public HTTP endpoint. A `subscriptionId` parameter would
+ * be an "extend anyone's subscription" endpoint with a reasonable-looking
+ * signature. Identity comes from the session and the subscription from the
+ * caller's own customer row, every time.
+ *
+ * ## It refuses if the offer was never made
+ *
+ * `grantExtraTime` requires the SHOWN flag, which only `cancelSubscription`
+ * writes. Without that check this action would hand a free week to anybody who
+ * POSTed to it, because "the dialog only appears when the offer is available" is
+ * a fact about the screen and not about the endpoint.
+ */
+export async function claimExtraTime(): Promise<
+  BillingActionResult & { endsOn?: string; kind?: SaveOfferKind }
+> {
+  /**
+   * ⚠️ `endsOn` COMES BACK ALREADY FORMATTED, IN THE USER'S OWN TIMEZONE.
+   *
+   * Handing the client an ISO string and letting it format would use the
+   * BROWSER's zone, and every other date on this screen is rendered server-side
+   * in `profiles.timezone`. A phone in a different zone from the profile would
+   * then show two different days for one subscription on one page — and the
+   * whole reason this screen states dates is that somebody is checking when
+   * money moves.
+   */
+  const found = await ownSubscriptions();
+  if ("error" in found) return { ok: false, error: found.error };
+
+  let primary: Stripe.Subscription | null;
+  try {
+    primary = await primarySubscription(found.customerId);
+  } catch (err) {
+    console.error(
+      `[billing] could not resolve a subscription to extend for ${found.userId}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return { ok: false, error: "We couldn't add the extra time just now." };
+  }
+  if (!primary) return { ok: false, error: "There's no active subscription on this account." };
+
+  const result = await grantExtraTime(found.userId, found.customerId, primary);
+  if (!result.ok) {
+    console.warn(`[billing] extra time refused for ${found.userId}: ${result.reason}`);
+    return {
+      ok: false,
+      error:
+        result.reason === "already-claimed"
+          ? "That's already been added to this account."
+          : "We couldn't add the extra time just now.",
+    };
+  }
+
+  console.info(
+    `[billing] ${found.userId} took the save offer (${result.kind}); access now runs to ${result.endsOn}`,
+  );
+  revalidatePath("/billing");
+  revalidatePath("/profile");
+  return {
+    ok: true,
+    savedAt: Date.now(),
+    endsOn: formatAccessDate(result.endsOn, await ownTimezone(found.userId)),
+    kind: result.kind,
+  };
+}
+
+/**
+ * The user's own timezone, defaulted the same way `/billing` defaults it.
+ *
+ * Read with the SERVICE client rather than the session client: this runs after
+ * a successful grant, and a profile read that fails RLS for some unrelated
+ * reason must not turn a granted week into an error. Scoped by the id resolved
+ * from the verified session, so it reads exactly one row and it is the caller's.
+ */
+async function ownTimezone(userId: string): Promise<string> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("profiles")
+      .select("timezone")
+      .eq("id", userId)
+      .maybeSingle();
+    return (data?.timezone as string | null) || DEFAULT_TIMEZONE;
+  } catch {
+    return DEFAULT_TIMEZONE;
+  }
+}
+
+/** The same fallback `/billing` uses, so the two cannot print different days. */
+const DEFAULT_TIMEZONE = "Australia/Sydney";
 
 /**
  * A Stripe Customer Portal session, for the jobs we deliberately do NOT rebuild.

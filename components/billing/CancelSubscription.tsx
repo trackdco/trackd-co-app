@@ -3,10 +3,15 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 
-import { cancelSubscription, resumeSubscription } from "@/app/(app)/billing/actions";
+import {
+  cancelSubscription,
+  claimExtraTime,
+  resumeSubscription,
+} from "@/app/(app)/billing/actions";
+import type { SaveOfferKind } from "@/lib/billing/manage";
 
 /**
- * The cancel control, and its undo.
+ * The cancel control, its undo, and the one offer that follows a cancellation.
  *
  * ## Where it sits in the visual hierarchy, and why
  *
@@ -29,12 +34,29 @@ import { cancelSubscription, resumeSubscription } from "@/app/(app)/billing/acti
  * consequence. Portaled to `<body>` for the reason `SignOutConfirm` documents at
  * length: inside a transformed ancestor, `position: fixed` is contained by it
  * and the modal lands behind the fixed bottom nav.
+ *
+ * ## ⚠️ THE SAVE OFFER COMES AFTER THE CANCELLATION, NEVER BEFORE IT
+ *
+ * `confirm` -> the cancellation is written to Stripe -> `offer`. By the time the
+ * second dialog exists the user is cancelled, and every way out of it — "No
+ * thanks", Escape, the backdrop, closing the tab, losing signal — leaves them
+ * cancelled. Nothing here can gate the exit, structurally, which is the property
+ * the click-to-cancel rules are about.
+ *
+ * ONE extra step and exactly one (Adrian, 2026-08-13), and "Yes, cancel" on the
+ * confirm keeps its full weight and its plain wording. A second cancellation
+ * later goes straight through with no offer at all; see `lib/billing/saveOffer.ts`
+ * for why that is decided by "was it shown" rather than "was it taken".
  */
+
+type Phase = "closed" | "confirm" | "offer" | "granted";
+
 export function CancelSubscription({
   mode,
   endsOn,
   endsOnShort,
   isTrial,
+  renewalNoun,
 }: {
   mode: "cancel" | "resume";
   /** Already formatted in the user's own timezone by the server. */
@@ -42,9 +64,17 @@ export function CancelSubscription({
   /** The same date without the year, for the control's own label. */
   endsOnShort: string;
   isTrial: boolean;
+  /**
+   * "year" / "month" / "week", from the Stripe price, for the paid offer's
+   * wording. Null when prices could not be loaded, which the copy handles rather
+   * than guessing — see `offerCopy`.
+   */
+  renewalNoun?: string | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [phase, setPhase] = useState<Phase>("closed");
   const [error, setError] = useState<string | null>(null);
+  const [offer, setOffer] = useState<{ kind: SaveOfferKind; days: number } | null>(null);
+  const [grantedUntil, setGrantedUntil] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -55,7 +85,7 @@ export function CancelSubscription({
 
   /** Close, and put focus back where it came from. */
   const close = useCallback(() => {
-    setOpen(false);
+    setPhase("closed");
     triggerRef.current?.focus();
   }, []);
 
@@ -72,9 +102,14 @@ export function CancelSubscription({
    *
    * So: focus moves in on open, Tab cycles within the dialog, and focus returns
    * to the trigger on close.
+   *
+   * Keyed on `phase`, not on a boolean. The dialog's contents are REPLACED when
+   * the offer follows the confirm, and focus keyed on "is it open" would have
+   * stayed on a button that no longer exists — leaving a keyboard user on the
+   * body while a new dialog they were never told about sat on screen.
    */
   useEffect(() => {
-    if (!open) return;
+    if (phase === "closed") return;
     const node = dialogRef.current;
     node?.querySelector<HTMLElement>("button")?.focus();
 
@@ -101,7 +136,7 @@ export function CancelSubscription({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, pending, close]);
+  }, [phase, pending, close]);
 
   const noun = isTrial ? "trial" : "subscription";
 
@@ -125,21 +160,73 @@ export function CancelSubscription({
     ? `Keep Trackd after ${endsOnShort}`
     : "Keep my subscription";
 
-  function run() {
+  /** The confirm's action: cancel, or resume. */
+  function runConfirm() {
     if (inFlight.current) return;
     inFlight.current = true;
     setError(null);
     startTransition(async () => {
-      const result =
-        mode === "cancel" ? await cancelSubscription() : await resumeSubscription();
-      inFlight.current = false;
-      if (result.ok) {
+      // The two branches are written out rather than sharing a call site, so
+      // each keeps its own result type. `cancelSubscription` is the only one
+      // that can carry an offer.
+      if (mode === "cancel") {
+        const result = await cancelSubscription();
+        inFlight.current = false;
+        if (!result.ok) {
+          setError(result.error ?? "Something went wrong.");
+          return;
+        }
+        /**
+         * The cancellation has landed at Stripe by the time this runs.
+         * Everything below is about what to show NEXT, and nothing below can
+         * undo it.
+         */
+        if (result.offer) {
+          setOffer(result.offer);
+          setPhase("offer");
+          return;
+        }
         close();
-      } else {
-        setError(result.error ?? "Something went wrong.");
+        return;
       }
+
+      const result = await resumeSubscription();
+      inFlight.current = false;
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong.");
+        return;
+      }
+      close();
     });
   }
+
+  /** The offer's action. Failing here leaves them cancelled, which is correct. */
+  function runClaim() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setError(null);
+    startTransition(async () => {
+      const result = await claimExtraTime();
+      inFlight.current = false;
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong.");
+        return;
+      }
+      setGrantedUntil(result.endsOn ?? null);
+      setPhase("granted");
+    });
+  }
+
+  const copy = dialogCopy({
+    phase,
+    mode,
+    noun,
+    endsOn,
+    resumeLabel,
+    offer,
+    grantedUntil,
+    renewalNoun: renewalNoun ?? null,
+  });
 
   return (
     <>
@@ -148,14 +235,17 @@ export function CancelSubscription({
         ref={triggerRef}
         onClick={() => {
           setError(null);
-          setOpen(true);
+          setOffer(null);
+          setGrantedUntil(null);
+          setPhase("confirm");
         }}
         className="w-full rounded-xl px-1 py-3 text-left text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         {mode === "cancel" ? `Cancel my ${noun}` : resumeLabel}
       </button>
 
-      {open &&
+      {phase !== "closed" &&
+        copy &&
         typeof document !== "undefined" &&
         createPortal(
           <div
@@ -177,44 +267,44 @@ export function CancelSubscription({
               className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
             >
               <h2 id="cancel-title" className="text-base font-medium text-foreground">
-                {mode === "cancel" ? `Cancel your ${noun}?` : `${resumeLabel}?`}
+                {copy.title}
               </h2>
-              <p className="mt-1.5 text-sm text-text-muted">
-                {mode === "cancel"
-                  ? // The date is the whole point of this sentence. Somebody
-                    // cancelling on day 2 of a paid year needs to know they are
-                    // not throwing away eleven months.
-                    `You'll keep Trackd until ${endsOn}, and you won't be charged after that.`
-                  : `Billing will carry on as normal from ${endsOn}.`}
-              </p>
+              <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{copy.body}</p>
 
               {error ? (
                 <p className="mt-3 text-sm text-accent-destructive">{error}</p>
               ) : null}
 
               <div className="mt-5 flex gap-3">
+                {copy.dismiss ? (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={close}
+                    className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                  >
+                    {/* On the confirm, the stay-put option keeps its full
+                        weight. Not a trick: it is also the shorter path, and it
+                        is what most people who open this dialog by accident
+                        want. On the OFFER it is the plain decline, worded so
+                        nobody has to work out which button ends the
+                        conversation. */}
+                    {copy.dismiss}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   disabled={pending}
-                  onClick={close}
-                  className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                >
-                  {/* The stay-put option is the one that keeps its full weight.
-                      Not a trick: it is also the shorter path, and it is what
-                      most people who open this dialog by accident want. */}
-                  {mode === "cancel" ? `Keep my ${noun}` : "Not now"}
-                </button>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={run}
+                  onClick={
+                    phase === "granted"
+                      ? close
+                      : phase === "offer"
+                        ? runClaim
+                        : runConfirm
+                  }
                   className="flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
-                  {pending
-                    ? "Working…"
-                    : mode === "cancel"
-                      ? "Yes, cancel"
-                      : "Yes, keep it"}
+                  {pending ? "Working…" : copy.confirm}
                 </button>
               </div>
             </div>
@@ -223,4 +313,114 @@ export function CancelSubscription({
         )}
     </>
   );
+}
+
+/* ── the words ───────────────────────────────────────────────────── */
+
+interface DialogCopy {
+  title: string;
+  body: string;
+  /** The left-hand button. Absent on the acknowledgement, which has one way out. */
+  dismiss: string | null;
+  confirm: string;
+}
+
+/**
+ * Every dialog's words in one place, so the three states cannot drift apart.
+ *
+ * NO EM DASHES: house rule, and these are as user-facing as a string gets.
+ */
+function dialogCopy({
+  phase,
+  mode,
+  noun,
+  endsOn,
+  resumeLabel,
+  offer,
+  grantedUntil,
+  renewalNoun,
+}: {
+  phase: Phase;
+  mode: "cancel" | "resume";
+  noun: string;
+  endsOn: string;
+  resumeLabel: string;
+  offer: { kind: SaveOfferKind; days: number } | null;
+  grantedUntil: string | null;
+  renewalNoun: string | null;
+}): DialogCopy | null {
+  if (phase === "confirm") {
+    return mode === "cancel"
+      ? {
+          title: `Cancel your ${noun}?`,
+          // The date is the whole point of this sentence. Somebody cancelling
+          // on day 2 of a paid year needs to know they are not throwing away
+          // eleven months.
+          body: `You'll keep Trackd until ${endsOn}, and you won't be charged after that.`,
+          dismiss: `Keep my ${noun}`,
+          confirm: "Yes, cancel",
+        }
+      : {
+          title: `${resumeLabel}?`,
+          body: `Billing will carry on as normal from ${endsOn}.`,
+          dismiss: "Not now",
+          confirm: "Yes, keep it",
+        };
+  }
+
+  if (phase === "offer" && offer) {
+    /**
+     * THE TRIAL OFFER CHANGES NOTHING ABOUT THE CANCELLATION, and says so.
+     *
+     * Seven more free days, and it still ends. That is the whole offer: no
+     * re-commitment, no billing, no small print, so the sentence can say
+     * "you still won't be charged" and be completely true. It is also why this
+     * one is safe to put in front of somebody who has just cancelled.
+     */
+    if (offer.kind === "trial") {
+      return {
+        title: `Want another ${offer.days} days?`,
+        body: `Your trial is cancelled, and that stands. If you'd like longer to decide, we'll add ${offer.days} more free days. You still won't be charged.`,
+        dismiss: "No thanks",
+        confirm: `Add ${offer.days} days`,
+      };
+    }
+
+    /**
+     * THE PAID OFFER DOES RE-ENABLE BILLING, and says THAT.
+     *
+     * There is no way to give a paying customer extra free time without
+     * un-cancelling, because the thing they cancelled IS the next period. So the
+     * sentence states it in the same breath as the offer rather than in a
+     * footnote: free period, then billing resumes, cancel any time.
+     */
+    const period = renewalNoun ? `next ${renewalNoun}` : "next payment";
+    return {
+      title: `Your ${period}, free?`,
+      body: `Your subscription is cancelled, and that stands unless you choose this. If you'd rather stay, your ${period} is on us. Billing carries on after that, and you can cancel again any time.`,
+      dismiss: "No thanks",
+      confirm: "Yes, stay",
+    };
+  }
+
+  if (phase === "granted") {
+    const until = grantedUntil ? ` until ${grantedUntil}` : "";
+    return offer?.kind === "paid"
+      ? {
+          title: "Done.",
+          body: grantedUntil
+            ? `Your next payment is on us, so nothing will be charged on ${grantedUntil}.`
+            : "Your next payment is on us.",
+          dismiss: null,
+          confirm: "Close",
+        }
+      : {
+          title: "Done.",
+          body: `You've got Trackd${until}, free. We won't charge you.`,
+          dismiss: null,
+          confirm: "Close",
+        };
+  }
+
+  return null;
 }

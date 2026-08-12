@@ -24,6 +24,22 @@
 
 import type { EntitlementSource } from "./access";
 
+/**
+ * WHICH SAVE OFFER a cancelling user is shown.
+ *
+ * Declared HERE, in the pure module, rather than beside the Stripe code that
+ * acts on it. `lib/billing/saveOffer.ts` is `server-only`, and the dialog that
+ * renders the offer is a client component: importing the type from there would
+ * be a type-only import into a client bundle from a module whose whole job is to
+ * fail that build. A type has no runtime and belongs where both sides can reach
+ * it.
+ *
+ * `trial` and `paid` are genuinely different offers, not one offer with two
+ * labels. See `saveOffer.ts` for what each one does and `CancelSubscription`
+ * for what each one says.
+ */
+export type SaveOfferKind = "trial" | "paid";
+
 /** The mirror row, as much as the screen needs. Never an access decision. */
 export interface ManageableSubscription {
   status: string;
