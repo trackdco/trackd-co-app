@@ -32,6 +32,7 @@ import {
 } from "@/lib/notifications/trialReminder";
 import { cycleRuleFromColumns, type CycleColumns } from "@/lib/protocol/cycleRule";
 import { graceAsTrial } from "@/lib/billing/betaGrace";
+import { billingGateEnabled } from "@/lib/billing/gate";
 
 const VAPID_PUBLIC =
   process.env.VAPID_PUBLIC_KEY ?? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
@@ -167,7 +168,14 @@ async function collectTrial(
      * folding it into the subscriptions select would let one failure take the
      * whole trial reminder down, and the two facts are independent.
      */
-    supabase
+    /**
+     * ⚠️ ONLY WHEN THE GATE IS ON. With `BILLING_GATE_ENABLED` unset the grace
+     * period ends nothing, so a push saying access is about to stop would be a
+     * warning about a deadline that is not enforced. Skipped as an empty result
+     * rather than a branch, so the `Promise.all` shape does not change.
+     */
+    billingGateEnabled()
+      ? supabase
       .from("entitlements")
       .select("source, active_until, is_active, product")
       .eq("user_id", userId)
@@ -177,7 +185,8 @@ async function collectTrial(
       .not("active_until", "is", null)
       // SOONEST-ENDING first, the same rule as the subscription read above.
       .order("active_until", { ascending: true })
-      .limit(1),
+      .limit(1)
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   const row = subRes.data?.[0] as Record<string, unknown> | undefined;

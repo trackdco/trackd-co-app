@@ -107,7 +107,21 @@ export default async function DashboardPage() {
    * has both, and the one about to take money is the one worth naming.
    */
   const trialRow = trialRows?.[0];
-  const graceTrial = trialRow ? null : graceAsTrial(await currentEntitlement());
+  /**
+   * ⚠️ AND ONLY WHEN THE GATE IS ACTUALLY ON.
+   *
+   * A cold review found the ordering hazard: the grace banner and the day-5 push
+   * both fire off the entitlement regardless of `BILLING_GATE_ENABLED`, while
+   * the NOTICE that explains them requires it. So a backfill run before the
+   * switch is flipped — which is exactly the documented go-live order — gives
+   * every beta account "Your free trial ends tomorrow" and a push about billing,
+   * with the one screen that explains any of it suppressed.
+   *
+   * With the switch off nothing ends. Warning somebody about a deadline that is
+   * not enforced is the same lie as not warning them about one that is.
+   */
+  const graceTrial =
+    trialRow || !billingGateEnabled() ? null : graceAsTrial(await currentEntitlement());
   // Scoped to the account here, where the user id is known, rather than inside
   // the pure date module which deliberately knows nothing about accounts.
   const dismissedFor = dismissedTrialNoticeDate(

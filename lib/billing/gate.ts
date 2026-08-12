@@ -113,10 +113,19 @@ export async function requireWriteAccess(): Promise<
 }
 
 /**
- * ⚠️ WHAT IS COVERED, AND WHAT IS NOT. Read this before assuming.
+ * ⚠️ WHAT IS COVERED, AND WHAT IS NOT.
  *
- * Adrian's instruction was to cover the logging paths properly and DOCUMENT the
- * rest rather than half-wire it. This is the rest.
+ * ## This list is CHECKED, not remembered
+ *
+ * The first version was written by hand and a cold review found it wrong IN BOTH
+ * DIRECTIONS — seven functions documented as ungated were gated, four gated ones
+ * appeared in neither list, and a whole paragraph explaining why the protocol
+ * pushes were left open described the opposite of what the code did.
+ *
+ * `scratchpad/gate-audit.mjs` regenerates it by PARSING each function body
+ * rather than grepping the file. Re-run it after touching any of these modules.
+ * A doc that quietly goes stale about which writes are enforced is worse than no
+ * doc at all, and this one already had been.
  *
  * ## Two layers, and only one of them is enforcement
  *
@@ -124,47 +133,78 @@ export async function requireWriteAccess(): Promise<
  * it stops the action before a sheet opens and shows the pop-up with the real
  * prices. It is a UX affordance and it is not a security boundary.
  *
- * The SERVER layer is the rule. Every function below calls `requireWriteAccess`
- * or `canWriteData` and refuses regardless of what the browser thinks:
+ * The SERVER layer is the rule, and it sits on the WRITE ITSELF rather than on a
+ * wrapper. Every export of a `"use server"` module is a dispatchable action with
+ * its own id, so gating `startBlockAction` while leaving `startBlock` open is a
+ * lock on a door beside an open window. A cold review drove exactly that.
  *
- *   app/(app)/weight/actions.ts    logWeight
+ * ## GATED — 34 functions (8 route actions + 26 in the data layer)
+ *
+ *   app/(app)/blocks/actions.ts    startBlockAction, saveReflectionAction
  *   app/(app)/progress/actions.ts  addBloodworkPhoto, saveJournalEntry,
  *                                  createCustomMarker, addProgressPhoto,
  *                                  addProgressPhotos
- *   app/(app)/blocks/actions.ts    startBlockAction, saveReflectionAction
+ *   app/(app)/weight/actions.ts    logWeight
+ *   lib/db/blocks.ts               startBlock, saveReflection
+ *   lib/db/compoundPauses.ts       upsertPause, endPause, endPauseGroup
+ *   lib/db/cycles.ts               ensureActiveCycle, updateCycle
+ *   lib/db/doseLogs.ts             upsertDoseLog, upsertDoseLogs
  *   lib/db/inventory.ts            addStockItem, updateStockItem
  *   lib/db/oneOffLogs.ts           upsertOneOffLog
- *   lib/home/syncActions.ts        pushDoseLog
- *   lib/home/protocolSync.ts       pushProtocolDoseLog
+ *   lib/db/protocolCompounds.ts    upsertProtocolCompound,
+ *                                  upsertProtocolCompounds,
+ *                                  setProtocolCompoundActive
+ *   lib/home/protocolSync.ts       pushProtocolCompound, pushProtocolBatch,
+ *                                  pushCompoundPause, pushPauseEnd,
+ *                                  pushPauseGroupEnd, pushScheduleVersions,
+ *                                  pushProtocolDoseLog
+ *   lib/home/stackSync.ts          pushStacks
+ *   lib/home/syncActions.ts        pushStackCompound, pushDoseLog, pushCustom
  *
- * ## Deliberately NOT gated, with the reason
+ * Fourteen of them return a bare `Ok`, so they carry `readOnly: true` on the
+ * refusal. Without it the UI cannot tell the gate from a dropped connection, and
+ * a cold review watched `AddStockSheet` tell a lapsed user to check their
+ * connection and try again.
  *
- * **Every delete.** `deleteWeight`, `deleteJournalEntry`, `deleteProgressPhoto`,
- * `deleteBloodworkPhoto`, `deleteDoseLog`, `deleteProtocolDoseLog`,
- * `deleteOneOffLog`, `removeCustomMarker`, `setStockArchived`,
- * `archiveProtocolCompound`, `deleteBlockAction`, `closeBlockAction`. Removing
- * data you put in is yours to do, and refusing it serves no commercial purpose.
+ * ## NOT GATED, and why
  *
- * **The profile.** `updatePhysical`, `setAvatarPath`, `clearAvatar`,
- * `saveTimezone`, `saveReminderPrefs`, push subscriptions. These are settings,
- * not the product. A read-only user must still be able to fix their timezone,
- * turn off notifications about a subscription they no longer have, and sign out.
+ * **Every delete, and everything that winds something down.** `deleteWeight`,
+ * `deleteJournalEntry`, `deleteProgressPhoto`, `deleteBloodworkPhoto`,
+ * `deleteDoseLog`, `deleteProtocolDoseLog`, `deleteOneOffLog`,
+ * `removeCustomMarker`, `deletePause`, `pushPauseDelete`, `deleteStockItem`,
+ * `setStockArchived`, `archiveProtocolCompound`, `deleteCustom`,
+ * `deleteBlock(Action)`, `extendBlock(Action)`, `closeBlock(Action)`.
  *
- * **The protocol PLAN writes** — `pushProtocolCompound`, `pushStackCompound`,
- * `pushScheduleVersions`, `pushStacks`, `pushCustom`, the pause pushes. Client
- * guarded (Protocol's "add compound", the add-stock entry) but NOT server
- * guarded, and that is a judgement rather than an oversight: those functions are
- * shared with `hydrateProtocol` and `migrateDeviceState`, which REPLAY data the
- * user already owns. Refusing them would break a returning subscriber's
- * device-to-cloud repair rather than stop a new write.
+ * Removing data you put in is yours to do. A cold review found the version that
+ * gated `closeBlockAction` while leaving `deleteBlockAction` open, so the app
+ * REFUSED the non-destructive action and PERMITTED the destructive one, leaving
+ * a lapsed user with a block that said "running" forever.
  *
- * The dose pushes are gated even though `repushDoseLogs` shares them, because
- * that path is genuinely safe to refuse: it reads `localStorage` fresh on every
- * reconnect and upserts on a deterministic id, so a refused dose stays on the
- * device and syncs the moment the account is entitled again. Nothing is lost.
- * The protocol pushes have no equivalent guarantee, which is the difference.
+ * **Every read.** All `list*`, `pull*`, `get*`, `resolve*`. The core promise is
+ * that nothing is hidden.
  *
- * **Anything a future session adds.** A new write action is not gated by
- * default. There is no interceptor and no route middleware doing this; it is an
- * explicit call in each function, which is legible but is not automatic.
+ * **The profile and its settings.** `updatePhysical`, `setAvatarPath`,
+ * `clearAvatar`, `saveTimezone`, `saveReminderPrefs`, `savePushSubscription`,
+ * `removePushSubscription`, `sendMyRemindersNow`, `sendTestNotification`. A
+ * read-only user must still be able to fix their timezone and turn off
+ * notifications about a subscription they no longer have.
+ *
+ * **`submitBetaFeedback`.** Blocking a lapsed user from telling us why they left
+ * would be actively stupid.
+ *
+ * **`markMigratedInCloud`.** A flag, not user data.
+ *
+ * ## The one that changed its mind, and why
+ *
+ * `pushProtocolBatch` IS gated, reversing an earlier note here. It is the
+ * migration path, and the argument for leaving it open was that
+ * `migrateDeviceState` replays data the user already owns. That does not
+ * survive contact: it writes compounds AND dose logs, and the migration only
+ * ever runs on a first session, when the user is inside a trial or the beta
+ * grace and therefore entitled. A lapsed user's migration ran months ago.
+ *
+ * ## Anything a future session adds is NOT gated by default
+ *
+ * There is no interceptor and no middleware doing this. It is an explicit call
+ * in each function, which is legible and is not automatic.
  */
