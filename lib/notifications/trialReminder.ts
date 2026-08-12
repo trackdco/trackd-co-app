@@ -309,6 +309,26 @@ function formatDateKey(dateKey: string): string {
 export function trialReminderMessage(
   trial: TrialForReminder,
   tz: string,
+  /**
+   * ⚠️ IS THIS THE BETA GRACE RATHER THAN A REAL TRIAL?
+   *
+   * The two need different words, and a cold review found out how differently.
+   * The grace is described to this module as a trial (`graceAsTrial`), which
+   * costs the DATE maths nothing — but it made the copy say, to the ~90 accounts
+   * that were here before billing:
+   *
+   *     "Day 5 of 7. Your trial ends on 28 Aug, and BILLING STARTS THEN."
+   *
+   * They are on day 12 of 14, they were never on a trial, they have no card on
+   * file, and nothing will be charged. It also directly contradicts the notice
+   * they were shown a fortnight earlier, which says "you just won't be able to
+   * log anything new".
+   *
+   * Telling somebody money is about to move when it is not is the same class of
+   * failure as not telling them when it is. Both end in a support ticket, and
+   * this one ends in a support ticket from a person who has done nothing wrong.
+   */
+  isBetaGrace = false,
 ): PushMessage | null {
   if (!trial.trialEndsAt) return null;
   const endsAt = new Date(Date.parse(trial.trialEndsAt));
@@ -321,6 +341,21 @@ export function trialReminderMessage(
     day: "numeric",
     month: "short",
   }).format(endsAt);
+
+  if (isBetaGrace) {
+    return {
+      title: "Your free access ends soon",
+      /**
+       * No day count: "day 5 of 7" is the trial's shape and the grace is
+       * fourteen days. No "billing starts then", because it does not. What
+       * happens instead is stated plainly, in the same words the notice and the
+       * pop-up use, so the three surfaces agree.
+       */
+      body: `Trackd stays free until ${when}. After that you can still read everything, but not log anything new.`,
+      url: "/profile",
+      tag: "trackd-trial-ending",
+    };
+  }
 
   return {
     title: "Your free trial ends soon",

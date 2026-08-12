@@ -93,6 +93,15 @@ interface UserData {
   /** The user's trialing subscription, if they have one. */
   trial: TrialForReminder | null;
   /**
+   * Whether `trial` is the BETA GRACE rather than a real Stripe trial.
+   *
+   * The two are deliberately the same shape so the date maths does not have to
+   * know the difference — but the COPY does, because a grace ends in read-only
+   * and a trial ends in a charge, and telling somebody money is about to move
+   * when it is not is its own kind of wrong.
+   */
+  isBetaGrace: boolean;
+  /**
    * The reminder date already sent for, from `trial_reminder_sent_for`.
    *
    * `undefined` is a THIRD state and not the same as null: it means
@@ -118,7 +127,11 @@ interface UserData {
 async function collectTrial(
   supabase: Client,
   userId: string,
-): Promise<{ trial: TrialForReminder | null; sentFor: string | null | undefined }> {
+): Promise<{
+  trial: TrialForReminder | null;
+  isBetaGrace: boolean;
+  sentFor: string | null | undefined;
+}> {
   const [subRes, stampRes, graceRes] = await Promise.all([
     supabase
       .from("subscriptions")
@@ -210,7 +223,7 @@ async function collectTrial(
         | null
         | undefined) ?? null;
 
-  return { trial, sentFor };
+  return { trial, isBetaGrace: Boolean(grace) && trial === grace, sentFor };
 }
 
 /**
@@ -436,7 +449,7 @@ async function collectUserData(
     };
   });
 
-  const { trial, sentFor } = await collectTrial(supabase, userId);
+  const { trial, isBetaGrace, sentFor } = await collectTrial(supabase, userId);
 
   return {
     prefs: prefsRes.data as Record<string, unknown> | null,
@@ -449,6 +462,7 @@ async function collectUserData(
     nowMinutes,
     trial,
     trialSentFor: sentFor,
+    isBetaGrace,
   };
 }
 
@@ -692,7 +706,11 @@ export async function runForUser(
         data.trialSentFor,
       );
       if (verdict.send && data.trial) {
-        const m = trialReminderMessage(data.trial, data.tz);
+        // The grace and a real trial need different words. `data.trial` is the
+        // same shape either way (see `graceAsTrial`), so the flag rides along
+        // rather than being re-derived from a shape that deliberately hides the
+        // difference.
+        const m = trialReminderMessage(data.trial, data.tz, data.isBetaGrace);
         if (!m) {
           trialReason = "no-message";
         } else if (await claimTrialReminder(supabase, userId, verdict.forDate, data.trialSentFor)) {

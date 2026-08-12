@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { grantsPro, isEntitlementActive, strongestEntitlement } from "./access";
+import { grantsPro, isEntitlementActive, PRO, strongestEntitlement } from "./access";
+import type { Entitlement, EntitlementSource } from "./access";
 
 /**
  * The access rule, pinned.
@@ -176,5 +177,68 @@ describe("strongestEntitlement", () => {
     const paid = { ...base, activeUntil: "2027-01-01T00:00:00.000Z", isActive: true };
     expect(strongestEntitlement([comp, paid], now)).toBe(comp);
     expect(strongestEntitlement([paid, comp], now)).toBe(comp);
+  });
+});
+
+describe("⚠️ strongestEntitlement — the beta grace must not outrank a subscription", () => {
+  const at = (days: number) => new Date(now.getTime() + days * 86400_000).toISOString();
+  const row = (source: EntitlementSource, activeUntil: string | null): Entitlement => ({
+    product: PRO,
+    source,
+    activeUntil,
+    isActive: true,
+  });
+
+  it("a paying subscription beats a LONGER beta grace", () => {
+    // The defect, measured by a cold review: a 14-day `comp` grace outranked a
+    // fresh 7-day Stripe trial, so `manageActionFor` saw `comp`, returned
+    // `{kind:"none"}`, and /billing rendered "Complimentary" with NO CANCEL
+    // CONTROL for somebody whose card was on file. The dashboard told a paying
+    // subscriber "Your free trial ends 15 Aug."
+    const grace = row("comp", at(14));
+    const trial = row("stripe", at(7));
+    expect(strongestEntitlement([grace, trial], now)).toBe(trial);
+    expect(strongestEntitlement([trial, grace], now)).toBe(trial);
+  });
+
+  it("...for apple and google too", () => {
+    for (const source of ["apple", "google"] as const) {
+      const paid = row(source, at(3));
+      expect(strongestEntitlement([row("comp", at(14)), paid], now)).toBe(paid);
+    }
+  });
+
+  it("but a FOREVER comp still beats everything", () => {
+    // Unchanged, and the reason the original rule existed: a founder's access is
+    // not described by a subscription they also happen to have.
+    const forever = row("comp", null);
+    expect(strongestEntitlement([forever, row("stripe", at(365))], now)).toBe(forever);
+    expect(strongestEntitlement([row("stripe", at(365)), forever], now)).toBe(forever);
+    expect(strongestEntitlement([forever, row("comp", at(14))], now)).toBe(forever);
+  });
+
+  it("within a tier, longest still wins", () => {
+    const near = row("stripe", at(3));
+    const far = row("stripe", at(30));
+    expect(strongestEntitlement([near, far], now)).toBe(far);
+    expect(strongestEntitlement([far, near], now)).toBe(far);
+  });
+
+  it("an EXPIRED subscription does not outrank a live grace", () => {
+    // Tiering must never resurrect a dead row: the active filter runs first.
+    const grace = row("comp", at(14));
+    expect(strongestEntitlement([row("stripe", at(-1)), grace], now)).toBe(grace);
+  });
+
+  it("the order the rows arrive in never changes the answer", () => {
+    const rows = [row("comp", at(14)), row("stripe", at(7)), row("comp", null)];
+    for (const p of [
+      rows,
+      [rows[2], rows[0], rows[1]],
+      [rows[1], rows[2], rows[0]],
+      [rows[0], rows[2], rows[1]],
+    ]) {
+      expect(strongestEntitlement(p, now)?.activeUntil).toBeNull();
+    }
   });
 });

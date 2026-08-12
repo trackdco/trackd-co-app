@@ -537,12 +537,37 @@ async function findOrCreateCustomer(
     .maybeSingle();
   if (existing?.stripe_customer_id) return existing.stripe_customer_id;
 
-  const customer = await stripe().customers.create({
-    email,
-    // So a human looking at the Stripe dashboard can tell who this is without
-    // a second lookup. Stripe metadata is not user-visible.
-    metadata: { user_id: userId },
-  });
+  const customer = await stripe().customers.create(
+    {
+      email,
+      // So a human looking at the Stripe dashboard can tell who this is without
+      // a second lookup. Stripe metadata is not user-visible.
+      metadata: { user_id: userId },
+    },
+    {
+      /**
+       * ⚠️ ONE CUSTOMER PER USER, enforced by Stripe.
+       *
+       * This runs BEFORE the lease and cannot be inside it — the lease lives on
+       * the `billing_customers` row, so there has to be a row first. That makes
+       * it the one unserialised step, and a cold review measured what that
+       * costs: fifteen concurrent `startTrial` calls made FIFTEEN Stripe
+       * customers, fourteen of them orphans, and any signed-in account can do it
+       * on demand.
+       *
+       * The unique constraint below already stops two of them becoming the
+       * mapping, so the orphans were harmless in the sense that none could ever
+       * bill — but they are unbounded clutter in the account of record, and
+       * "harmless clutter anybody can generate" is a poor thing to leave in a
+       * payment provider.
+       *
+       * An idempotency key closes it without a lock: concurrent calls send the
+       * same key with the same body, and Stripe creates one and returns it to
+       * all of them. Keys live 24 hours, which is far longer than any burst.
+       */
+      idempotencyKey: `customer:${userId}`,
+    },
+  );
 
   const { error } = await db
     .from("billing_customers")

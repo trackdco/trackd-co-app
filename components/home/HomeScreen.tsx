@@ -787,6 +787,26 @@ export function HomeScreen({
     openedOn: string,
     slot = 0
   ) {
+    /**
+     * ⚠️ GUARDED HERE TOO, not only at the tick that opens the sheet.
+     *
+     * A cold review found the hole: the tick is guarded, and "Log today's dose"
+     * on the COMPOUND DETAIL SHEET was not — so a lapsed user reached this
+     * function, `commitDoseOn` wrote `localStorage`, the server refused the
+     * mirror, and the toast told them **"Saved on your device. Still syncing to
+     * your account. We'll keep trying."**
+     *
+     * It never syncs. Not on reload, not on focus, not on an `online` event, and
+     * NOT AFTER THEY RESUBSCRIBE. A dose on the phone that the cloud has refused
+     * is exactly the two-sources-of-truth state `ReadOnlyGate.tsx` says the
+     * client layer exists to prevent, and the message is a promise the app
+     * cannot keep.
+     *
+     * The entry points are guarded as well, so a user meets the pop-up at the
+     * door rather than after filling in a sheet. This is the backstop for every
+     * route into the sheet, including ones added later.
+     */
+    if (!guard(() => {})) return
     commitDoseOn(userId, compoundId, log, landsOn, openedOn, slot)
     // Follow the dose to its new day — but only AFTER the sheet has closed. The
     // sheet freezes the day it opened on for exactly this reason: moving the
@@ -1143,9 +1163,11 @@ export function HomeScreen({
         onOpenChange={(open) => {
           if (!open) setDetailTarget(null)
         }}
-        onEditTodaysDose={(c) => {
+        onEditTodaysDose={(c) => guard(() => {
           // "Edit today's dose" → open the Log sheet for today's entry (edit if
           // already logged, fresh otherwise), the same site/time flow as logging.
+          // GUARDED: it is the same write as the tick, reached from the detail
+          // sheet, and a cold review found it open while the tick was closed.
           setDetailTarget(null)
           setLogTarget({
             compound: c,
@@ -1155,11 +1177,12 @@ export function HomeScreen({
             // sub-rows, where it is unambiguous which one is meant.
             slot: 0,
           })
-        }}
-        onPause={(c) => {
+        })}
+        onPause={(c) => guard(() => {
+          // Pausing EDITS THE PROTOCOL, which is on the gated list.
           setDetailTarget(null)
           setPauseTarget(c)
-        }}
+        })}
         // The container's REAL fill, from the same `v_inventory_math` figures
         // the Protocol storage card reads (Spec w2b-13, Step 7). Undefined when
         // this compound has no vial resolved, and the artwork then falls back to
