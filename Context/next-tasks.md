@@ -120,7 +120,40 @@ Options, roughly in order of how much they cost to build:
    `incomplete_expired` case handled. A returning customer pays from day one.
 3. **One trial per customer per year.** More generous, more code.
 
-### 6. THE STRIPE PORTAL'S SECOND CANCEL BUTTON
+### 6. 🟡 FOUR THINGS THE COLD REVIEW FOUND THAT ARE JUDGED, NOT FIXED
+
+Every CRITICAL and HIGH from all three reviewers is fixed and re-driven. These
+four are real, are recorded so nobody has to re-find them, and each needs a
+decision rather than a patch.
+
+**1. A cancelled trial gets no warning that access is about to end.**
+`trialNoticeFor` and the push both go silent on `cancel_at_period_end`,
+justified as "nothing is about to change for them: they will not be charged."
+That was true before the gate. With the gate on, something DOES change on that
+date: the app goes read only. The honest fix is a second, different notice for
+somebody who has cancelled ("you keep everything, but you won't be able to log
+after the 19th") and that is new copy, which is Adrian's.
+
+**2. The beta notice is once per BROWSER, not once per account.** A second
+device shows it again, and on a shared browser two accounts clobber each other's
+cookie (it holds one user id). Fixing it properly means a column on `profiles`
+and a migration. The failure mode is somebody seeing a one-time notice twice,
+which is mild, and the cookie was chosen to avoid the hydration flash that cost
+the trial banner a 166ms paint and a 68px jump on every load.
+
+**3. An in-session expiry produces silent failures until the page reloads.** The
+server flips at the instant (measured: ok at t=0s, refused at t=7s), but the
+browser holds the `canWrite` the layout rendered. A user whose grace runs out
+while they are looking at the app gets refusals with no pop-up. Narrow (a
+14-day or annual boundary has to land inside one session) and self-correcting on
+the next navigation.
+
+**4. `graceAsTrial` describes an ALREADY-EXPIRED grace as a trial.** Contained
+today — the caller reports `trial-over` — but it makes `RunResult.trialReminder`
+report trial reasons for users who have no trial, and an expired comp sorts
+first under the runner's `order("active_until").limit(1)`.
+
+### 7. THE STRIPE PORTAL'S SECOND CANCEL BUTTON
 
 The account's DEFAULT portal configuration enables `subscription_cancel`, so a
 user who opens "Payment method and invoices" finds a cancel button in Stripe's
