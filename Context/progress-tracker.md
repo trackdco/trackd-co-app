@@ -7,6 +7,37 @@ session needs at hand.
 
 Last updated: 2026-08-12 (the cancel control + the in-app trial notice)
 
+## The cold review of the billing branch (2026-08-12)
+
+Three adversarial agents against the running app, the live database and real
+Stripe test clocks. **Everything below was found by EXECUTING; tsc, eslint and
+908 tests were green throughout.** The same lesson as every wave before it.
+
+| Sev | Finding | Resolution |
+|---|---|---|
+| CRITICAL | **Cancel took the money anyway.** `limit(1)` off the mirror ordered by `updated_at`, while one user can hold two live trials (the duplicate guard keys on user AND plan). Cancel stopped the wrong one, returned `{ok:true}`, and the mirror write bumped `updated_at` on the row it had just cancelled — pinning `limit(1)` to the dead row, swapping the screen to "Restart my trial", and removing the only control that could have stopped it. Test clock to day 8: **$69.99 taken** from somebody who pressed Cancel and was told in writing they would not be charged. | Asks STRIPE, not the mirror, and cancels **all** billable subscriptions. `liveSubscriptionsForUser` is shared with the deletion path. |
+| CRITICAL | **The reminder fired AFTER the charge.** `trial_ends_at` is an instant; the stop condition compared day numbers. Every trial ends in the small hours of its final local day (7×24h from a signup at any time), so a 09:00 send on that day is after the money moved. Measured: a real encrypted push delivered **7h21m after the charge**, announcing it. | Compares against the instant. The banner too. |
+| CRITICAL | **Two overlapping cron ticks each sent one**, and **a failed stamp write reported `"sent"` and re-sent every tick** — ~96 notifications a day about somebody's money, while the cron's own JSON said everything was fine. | Claim-before-send: a conditional UPDATE whose row count decides who owns the send. A send that lands keeps the claim; one that does not hands it back. |
+| HIGH | **`cancelNowForUser` read the mirror** — the thing it exists to distrust. With one subscription mirrored and one not (a webhook in flight, or left `unattributed`), it returned a clean success with a live subscription still billing, clearing a deletion to cascade away the only row connecting it to a person. | Asks Stripe. And a WIDER status set than the cancel button uses: `paused` and `unpaid` can still take money. |
+| HIGH | **The page and the action selected different rows.** The page had no status filter, so a dead `incomplete_expired` row (which `startTrial` creates when it cancels an abandoned attempt) rendered "This one can't be changed from here. Email support" for a user with a perfectly live trial. | One filter, one ordering, soonest-ending first. |
+| HIGH | **A `reminder_time` inside quiet hours killed the reminder permanently.** 23:00 with quiet 22:00→08:00: every tick is either "too early" or "quiet hours" and the two gates never open together. Three trial days walked, zero pushes, no error anywhere. Reachable — the settings screen offers three unconstrained time inputs. | The trial reminder falls back to `quiet_end` when its time is unreachable. |
+| HIGH | **A trial-stamp failure knocked out the other three reminders**, because all four stamps went in one UPDATE — the exact outcome `004`'s header claims it avoids (true of the read, false of the write). | The trial stamp is its own write. |
+| MEDIUM | **The Stripe `return_url` trusted `X-Forwarded-Host`.** Poisoned to an arbitrary origin; Stripe validates nothing. | Allowlist, falling back to production. **The same pattern is still live in `forgot-password` and `login`, where it becomes an email link** — flagged, not fixed. |
+| MEDIUM | **Both new migration headers said "NOT YET APPLIED"** about migrations applied hours earlier — the same error this branch had just repaired for `grants/004`. | Corrected, with what was executed to verify them. |
+| MEDIUM | A stale trialing row could hide an imminent one (`updated_at` ordering) in the runner and on the dashboard. | Soonest-ending first, everywhere. |
+| LOW | `012`'s own VERIFY block expected `0` em dashes where a correct apply leaves `1` (the heading line it deliberately keeps), so anyone following it would see a failure and reach for the blanket replace the file forbids. | Corrected to expect 1, with why. |
+
+**What they could NOT break** (worth not re-reviewing): cross-user and anonymous
+calls to all three actions, with forged arguments, the victim's subscription id,
+the victim's customer id, tampered cookies, and from four different routes —
+every one refused, nothing leaked, the owner's subscription untouched. RLS denied
+every billing write with a real JWT including a user's own `cancel_at_period_end`.
+Cancel+resume fired together six times and five concurrent cancels: Stripe and
+the mirror agreed every time. Cancelling never revoked access. `trial_will_end`
+granted nothing to a card-less trial at day 0 or day 4 on a test clock. Timezone
+handling across +14, −11, +05:45 and +10:30, and DST transitions in four zones,
+all correct.
+
 ## The cancel control, and the trial notice on screen (BUILT, 2026-08-12)
 
 Three surfaces promised "cancel any time before then" and nothing in the app

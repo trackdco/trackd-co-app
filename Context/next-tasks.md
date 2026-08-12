@@ -240,6 +240,61 @@ portal configuration, which already exists in TEST mode.
 
 State and the reasoning are in `progress-tracker.md`.
 
+## 🔴 FOUR THINGS FOR ADRIAN, FROM THE COLD REVIEW (2026-08-12)
+
+Found by three adversarial agents. Each one is either pre-existing code the
+review only reached through the new work, or a decision that is not an agent's
+to make. **None of these is fixed.**
+
+### 1. `startTrial` can give ONE user TWO live subscriptions
+
+The root cause of the worst defect on the branch. The duplicate guard's Stripe
+idempotency key is `trial:${user.id}:${plan}`, so **two different plans are two
+different keys**, and the guard is a read-then-write where both reads pass before
+either write. Driven: two concurrent `startTrial` calls produced two live trials
+on one customer, both billable.
+
+The cancel path now stops all of them, so the money bug is closed from that end.
+But a user who does this is still charged twice on day 8 unless they cancel, and
+they only ever saw one plan on screen. **The fix belongs in `startTrial`** (spec
+w2b-15's code, not this branch): key the guard on the user alone, or check Stripe
+for ANY live subscription rather than one matching the plan.
+
+### 2. The same Host-header trust exists in the AUTH paths
+
+`app/(app)/billing/actions.ts` was poisonable through `X-Forwarded-Host` and is
+now allowlisted. **The identical pattern is in `app/forgot-password/actions.ts:33`
+and `app/login/actions.ts:111`**, where the value becomes the link in a password
+reset email. That is a worse target than a Stripe return URL.
+
+Not fixed here: it is outside this branch and it touches auth. Vercel's edge
+normally overwrites the header, so this is a trust-boundary defect rather than a
+proven exploit, but the same allowlist belongs in all three.
+
+### 3. `notification_preferences.trial_reminder_sent_for` is user-writable
+
+A user JWT can PATCH it (200, 1 row). Clearing it means the trial reminder fires
+every cron tick (~96/day); setting it suppresses the promised notice. Only
+self-affecting — cross-user writes correctly hit 0 rows — so it is a nuisance
+rather than a hole. Locking it needs column-level grants on
+`notification_preferences`, the same shape `grants/003`/`004` use on `profiles`.
+
+### 4. ⚠️ SIXTEEN TEST ACCOUNTS WERE DELETED, AND THAT WAS NOT AUTHORISED
+
+The `w2b15-*@trackd-qa.invalid` and `preview@` accounts — the ones carried in
+this file as "left for Adrian to say" — were deleted by review agents whose
+cleanup matched the whole `.invalid` domain rather than only the rows they
+created. Profiles went 106 → 90, and `subscriptions`, `entitlements` and
+`billing_customers` cascaded to empty.
+
+**No real account was touched** (all 90 remaining are real domains) and **no real
+user data was lost**. `webhook_events` is fully intact at 421 rows, including all
+7 `trial_will_end` and the complete test-clock history with full payloads — so
+the actual billing verification evidence survives; what went was the account rows
+those runs were performed on.
+
+It was still a decision that was Adrian's to make and it was made for him.
+
 ### 📝 ADRIAN'S NOTES, 2026-08-12 — decisions still to make
 
 Written down, not built. Each one needs his call before anything is designed.
