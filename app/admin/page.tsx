@@ -1,37 +1,66 @@
-import type { Metadata } from "next";
-import Link from "next/link";
+import type { Metadata } from "next"
+import Link from "next/link"
 
-import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
-import { FeedbackList, type AdminFeedback } from "@/components/admin/FeedbackList";
-import { isFounder } from "@/lib/admin";
-import { getAdminMetrics } from "@/lib/db/adminMetrics";
-import { createClient } from "@/lib/supabase/server";
-import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
+import { AutoRefresh } from "@/components/admin/AutoRefresh"
+import { Funnel, RankedBars, Sparkline, SplitBar } from "@/components/admin/charts"
+import { FeedbackList, type AdminFeedback } from "@/components/admin/FeedbackList"
+import { Card, Empty, KeyRow, Note, Section, Stat, StatGrid } from "@/components/admin/ui"
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button"
+import { isFounder } from "@/lib/admin"
+import { getAdminMetrics } from "@/lib/db/admin"
+import { createClient } from "@/lib/supabase/server"
+import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets"
 
 export const metadata: Metadata = {
   title: "Admin · Trackd Co",
   robots: { index: false, follow: false },
-};
+}
 
-/** Signups-over-time ranges. `null` days = all time. */
+/**
+ * The range control. `null` days = all time.
+ *
+ * Unlike the first cut of this page, the selected range drives EVERY section
+ * that has a time dimension — signups, new accounts, the activity curve — rather
+ * than only the one chart it sat above. A control that visibly changes one card
+ * and silently ignores the rest reads as a bug, because it is one.
+ */
 const RANGES = [
+  { key: "7", label: "7D", days: 7 },
   { key: "30", label: "30D", days: 30 },
   { key: "90", label: "90D", days: 90 },
   { key: "all", label: "All", days: null },
-] as const;
+] as const
+
+/** Anchors for the sticky section nav. */
+const NAV = [
+  { id: "overview", label: "Overview" },
+  { id: "growth", label: "Growth" },
+  { id: "funnel", label: "Funnel" },
+  { id: "retention", label: "Retention" },
+  { id: "revenue", label: "Revenue" },
+  { id: "product", label: "Product" },
+  { id: "adoption", label: "Adoption" },
+  { id: "answers", label: "Answers" },
+  { id: "people", label: "People" },
+  { id: "health", label: "Health" },
+  { id: "feedback", label: "Feedback" },
+  { id: "legal", label: "Legal" },
+  { id: "emails", label: "Emails" },
+] as const
 
 /**
- * Founder-only operational dashboard (Spec 06 — was the waitlist view).
+ * Founder-only operational dashboard (Spec 06, rebuilt 2026-08-13).
  *
  * ACCESS: enforced SERVER-SIDE, in three layers.
- *  1. This is a Server Component: it calls the verified `getUser()` and returns a
- *     blocked view BEFORE any query runs, so a non-founder's request never fetches
- *     and nothing reaches the client bundle.
+ *  1. This is a Server Component: it calls the verified `getUser()` and returns
+ *     a blocked view BEFORE any query runs, so a non-founder's request never
+ *     fetches and nothing reaches the client bundle.
  *  2. RLS: `waitlist` SELECT and `beta_feedback` SELECT ("own OR founder") both
  *     gate on the founder email list in the database — so even without (1), a
  *     non-founder reads zero rows.
  *  3. `getAdminMetrics` re-checks the caller against the session independently,
- *     because a server action is reachable on its own and must not trust the page.
+ *     and `lib/db/admin/` is `server-only` so none of it can be reached from a
+ *     browser at all.
  *
  * Self-contained so it works on desktop (exempt from the phone-only gate): a
  * logged-out visitor gets a Google sign-in here rather than a bounce to the
@@ -40,12 +69,12 @@ const RANGES = [
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const supabase = await createClient();
+  const supabase = await createClient()
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await supabase.auth.getUser()
 
   // Logged out → sign in right here (no bounce to the phone-only /login).
   if (!user) {
@@ -60,7 +89,7 @@ export default async function AdminPage({
           <GoogleSignInButton next="/admin" />
         </div>
       </Shell>
-    );
+    )
   }
 
   // Signed in but not a founder → blocked (no data fetched, nothing leaked).
@@ -78,23 +107,20 @@ export default async function AdminPage({
           Go to the app →
         </Link>
       </Shell>
-    );
+    )
   }
 
-  const sp = await searchParams;
-  const rawRange = typeof sp.range === "string" ? sp.range : "30";
-  const range = RANGES.find((r) => r.key === rawRange) ?? RANGES[0];
+  const sp = await searchParams
+  const rawRange = typeof sp.range === "string" ? sp.range : "30"
+  const range = RANGES.find((r) => r.key === rawRange) ?? RANGES[1]
 
   // ── Founder: load the numbers ─────────────────────────────────────────────
-  // The waitlist + feedback reads stay on the founder's OWN RLS-scoped client
-  // (they're the two places rows are legitimately shown). Only the cross-user
-  // AGGREGATES go through `getAdminMetrics`, which never returns a row.
-  const [metrics, bySourceRes, recentRes, feedbackRes] = await Promise.all([
+  // The waitlist + feedback ROW reads stay on the founder's OWN RLS-scoped
+  // client (they're the two places rows are legitimately shown). Every
+  // cross-user AGGREGATE goes through `getAdminMetrics`, which never returns a
+  // row — see `lib/db/admin/core.ts`.
+  const [metrics, recentRes, feedbackRes, bySourceRes] = await Promise.all([
     getAdminMetrics(range.days),
-    supabase
-      .from("v_waitlist_by_source")
-      .select("source, signups")
-      .order("signups", { ascending: false }),
     supabase
       .from("waitlist")
       .select("email, source, created_at")
@@ -105,70 +131,51 @@ export default async function AdminPage({
       .select("id, message, email, path, created_at, resolved_at")
       .order("created_at", { ascending: false })
       .limit(100),
-  ]);
+    supabase
+      .from("v_waitlist_by_source")
+      .select("source, signups")
+      .order("signups", { ascending: false }),
+  ])
 
-  const leaderboard = (bySourceRes.data ?? []) as {
-    source: string;
-    signups: number;
-  }[];
-  const maxN = leaderboard[0]?.signups ?? 0;
   const recent = (recentRes.data ?? []) as {
-    email: string;
-    source: string | null;
-    created_at: string;
-  }[];
-  const feedback = (feedbackRes.data ?? []) as AdminFeedback[];
-  const totalSignups = metrics.signupsByDay.reduce((n, d) => n + d.count, 0);
-  const peakDay = metrics.signupsByDay.reduce((n, d) => Math.max(n, d.count), 0);
+    email: string
+    source: string | null
+    created_at: string
+  }[]
+  const feedback = (feedbackRes.data ?? []) as AdminFeedback[]
+  const channels = ((bySourceRes.data ?? []) as { source: string; signups: number }[]).map(
+    (c) => ({ key: c.source, label: c.source, count: c.signups })
+  )
+
+  const { users, usage, growth, billing, webhooks, push, compounds, inventory } = metrics
+  const rangeLabel = range.label === "All" ? "all time" : `last ${range.label.toLowerCase()}`
 
   return (
-    <main className="min-h-dvh bg-bg-base px-6 py-10">
-      <div className="mx-auto w-full max-w-2xl">
-        <div className="flex items-baseline justify-between">
+    <main className="min-h-dvh bg-bg-base">
+      {/* ── Header ────────────────────────────────────────────────────────── */}
+      <div className="mx-auto w-full max-w-6xl px-6 pt-10">
+        <div className="flex items-baseline justify-between gap-4">
           <p className={CARD_EYEBROW}>Trackd</p>
-          <Link
-            href="/dashboard"
-            className="text-xs text-text-muted transition-colors hover:text-foreground"
-          >
-            ← App
-          </Link>
-        </div>
-        <h1 className={`mt-2 ${PAGE_TITLE}`}>Admin</h1>
-
-        {metrics.unavailable && (
-          <div className="mt-6 rounded-2xl bg-bg-surface p-5 text-sm">
-            <p className="font-medium text-foreground">Metrics unavailable</p>
-            <p className="mt-2 text-text-muted">
-              Cross-user counts need <code className="text-foreground">SUPABASE_SECRET_KEY</code>{" "}
-              set in this environment. The lists below still work.
-            </p>
+          <div className="flex items-center gap-4">
+            <AutoRefresh />
+            <Link
+              href="/dashboard"
+              className="text-xs text-text-muted transition-colors hover:text-foreground"
+            >
+              ← App
+            </Link>
           </div>
-        )}
-
-        {/* ── 1. Users ──────────────────────────────────────────────────── */}
-        <Section title="Users" />
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label="Active today" value={metrics.activeDaily} />
-          <Stat label="Active 7 days" value={metrics.activeWeekly} />
-          <Stat label="Accounts" value={metrics.totalAccounts} />
         </div>
-        {/* Stated on the page deliberately, so the number is read the same way
-            every time — and so nobody mistakes it for "opened the app". */}
-        <p className="mt-2 px-1 text-xs text-text-subtle">
-          Active = wrote something that period: a dose, weight, journal entry,
-          photo or compound. It does not count opening the app to look.
-        </p>
 
-        {/* ── 2. Signups over time ──────────────────────────────────────── */}
-        <div className="mt-10 flex items-baseline justify-between gap-3">
-          <h2 className={CARD_EYEBROW}>Signups over time</h2>
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-4">
+          <h1 className={PAGE_TITLE}>Admin</h1>
           <div className="flex gap-1">
             {RANGES.map((r) => (
               <Link
                 key={r.key}
                 href={`/admin?range=${r.key}`}
                 scroll={false}
-                className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
+                className={`rounded-full px-3 py-1 text-xs transition-colors ${
                   r.key === range.key
                     ? "bg-bg-surface-raised text-foreground"
                     : "text-text-muted hover:text-foreground"
@@ -179,136 +186,607 @@ export default async function AdminPage({
             ))}
           </div>
         </div>
-        <div className="mt-3 rounded-2xl bg-bg-surface p-5">
-          {totalSignups === 0 ? (
-            <p className="text-sm text-text-muted">
-              No signups in this range.
+      </div>
+
+      {/* Sticky section nav — the page is long enough to need one. */}
+      <nav className="sticky top-0 z-10 mt-6 border-b border-border-default bg-bg-base/90 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-6xl gap-4 overflow-x-auto px-6 py-3">
+          {NAV.map((n) => (
+            <a
+              key={n.id}
+              href={`#${n.id}`}
+              className="shrink-0 text-xs text-text-muted transition-colors hover:text-foreground"
+            >
+              {n.label}
+            </a>
+          ))}
+        </div>
+      </nav>
+
+      <div className="mx-auto w-full max-w-6xl space-y-12 px-6 py-8">
+        {metrics.unavailable && (
+          <Card>
+            <p className="font-medium text-foreground">Metrics unavailable</p>
+            <p className="mt-2 text-sm text-text-muted">
+              Cross-user counts need{" "}
+              <code className="text-foreground">SUPABASE_SECRET_KEY</code> set in this
+              environment. The lists at the bottom still work.
             </p>
+          </Card>
+        )}
+
+        {/* A source that failed to read is SHOWN. The predecessor swallowed
+            these, and hid a broken weight-logs query for over a month. */}
+        {metrics.issues.length > 0 && (
+          <Card>
+            <p className="font-medium text-admin-negative">
+              {metrics.issues.length} source
+              {metrics.issues.length === 1 ? "" : "s"} failed to read
+            </p>
+            <p className="mt-1.5 text-xs text-text-muted">
+              The numbers below are missing whatever these would have contributed.
+            </p>
+            <div className="mt-3 space-y-1.5">
+              {metrics.issues.map((issue, i) => (
+                <p key={`${issue.label}-${i}`} className="font-mono text-[11px] text-text-subtle">
+                  <span className="text-text-muted">{issue.label}</span> — {issue.detail}
+                </p>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* ── 1. Overview ─────────────────────────────────────────────────── */}
+        <Section id="overview" title="Overview">
+          <StatGrid>
+            <Stat label="Accounts" value={users.totalAccounts} />
+            <Stat label="Active today" value={users.activeDaily} />
+            <Stat label="Active 7 days" value={users.activeWeekly} />
+            <Stat
+              label="Paying or trialing"
+              value={billing.live}
+              hint={`${billing.entitledAccounts.toLocaleString()} hold an entitlement`}
+            />
+          </StatGrid>
+          <Note>
+            Active = wrote something that period: a dose, weight, journal entry, photo
+            or compound. It does not count opening the app to look.
+          </Note>
+        </Section>
+
+        {/* ── 2. Growth ───────────────────────────────────────────────────── */}
+        <Section id="growth" title="Growth" hint={`Waitlist and accounts, ${rangeLabel}.`}>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Card>
+              <p className={CARD_EYEBROW}>Waitlist signups</p>
+              <p className="mt-2 font-mono text-2xl font-light tabular-nums text-foreground">
+                {growth.signupsInRange.toLocaleString()}
+                <span className="ml-2 text-xs text-text-muted">
+                  of {growth.waitlistTotal.toLocaleString()} all time
+                </span>
+              </p>
+              <div className="mt-4">
+                <Sparkline id="spark-signups" points={growth.signupsByDay} />
+              </div>
+              <RangeAxis points={growth.signupsByDay} />
+            </Card>
+
+            <Card>
+              <p className={CARD_EYEBROW}>New accounts</p>
+              <p className="mt-2 font-mono text-2xl font-light tabular-nums text-foreground">
+                {users.newAccounts.toLocaleString()}
+                <span className="ml-2 text-xs text-text-muted">
+                  of {users.totalAccounts.toLocaleString()} all time
+                </span>
+              </p>
+              <div className="mt-4">
+                <Sparkline
+                  id="spark-accounts"
+                  points={users.accountsByDay}
+                  color="var(--admin-series-2)"
+                />
+              </div>
+              <RangeAxis points={users.accountsByDay} />
+            </Card>
+          </div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Waitlist by channel</p>
+              <RankedBars items={channels} showPct />
+            </Card>
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Where accounts say they came from</p>
+              {metrics.attribution.answered === 0 ? (
+                <Empty>Nobody has answered the attribution screen yet.</Empty>
+              ) : (
+                <>
+                  <RankedBars
+                    items={metrics.attribution.sources}
+                    total={metrics.attribution.answered}
+                    showPct
+                  />
+                  {metrics.attribution.codes.length > 0 && (
+                    <>
+                      <p className={`mt-6 mb-3 ${CARD_EYEBROW}`}>Creator codes</p>
+                      <RankedBars items={metrics.attribution.codes} limit={6} />
+                    </>
+                  )}
+                </>
+              )}
+            </Card>
+          </div>
+        </Section>
+
+        {/* ── 3. Funnel ───────────────────────────────────────────────────── */}
+        <Section
+          id="funnel"
+          title="Onboarding funnel"
+          hint="All time, not the selected range — a funnel over a window would drop everyone who signed up before it."
+        >
+          <Card>
+            <Funnel steps={metrics.funnel} />
+          </Card>
+        </Section>
+
+        {/* ── 4. Retention ────────────────────────────────────────────────── */}
+        <Section id="retention" title="Retention & engagement">
+          <StatGrid>
+            <Stat label="Active 30 days" value={users.activeMonthly} />
+            <Stat
+              label="Came back"
+              value={users.returningWeekly}
+              hint="Active this week and last week"
+            />
+            <Stat
+              label="Weekly retention"
+              value={users.retentionPct}
+              suffix="%"
+              tone={
+                users.retentionPct === null
+                  ? "neutral"
+                  : users.retentionPct >= 50
+                    ? "positive"
+                    : "negative"
+              }
+              hint="Of last week's actives"
+            />
+            <Stat
+              label="Never written"
+              value={users.neverWritten}
+              tone={users.neverWritten > 0 ? "negative" : "neutral"}
+              hint="Accounts that have logged nothing, ever"
+            />
+          </StatGrid>
+          <div className="mt-3">
+            <Card>
+              <p className={CARD_EYEBROW}>Writes per day</p>
+              <div className="mt-4">
+                <Sparkline
+                  id="spark-activity"
+                  points={users.activityByDay}
+                  color="var(--admin-series-2)"
+                />
+              </div>
+              <RangeAxis points={users.activityByDay} />
+            </Card>
+          </div>
+        </Section>
+
+        {/* ── 5. Revenue ──────────────────────────────────────────────────── */}
+        <Section
+          id="revenue"
+          title="Revenue"
+          hint="`subscriptions` mirrors Stripe; `entitlements` is what the app actually gates on. They are shown separately on purpose — if they disagree, that is the thing to see."
+        >
+          <StatGrid>
+            <Stat label="Active" value={billing.active} />
+            <Stat label="Trialing" value={billing.trialing} />
+            <Stat
+              label="Trials ending 7d"
+              value={billing.trialsEndingSoon}
+              hint="Convert or churn this week"
+            />
+            <Stat
+              label="Cancelling"
+              value={billing.cancelling}
+              tone={billing.cancelling > 0 ? "negative" : "neutral"}
+              hint="Set to end at the period boundary"
+            />
+          </StatGrid>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Subscriptions by status</p>
+              <RankedBars items={billing.byStatus} showPct />
+            </Card>
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Active entitlements by source</p>
+              {billing.entitlementsBySource.length === 0 ? (
+                <Empty>No active entitlements.</Empty>
+              ) : (
+                <SplitBar items={billing.entitlementsBySource} />
+              )}
+              <div className="mt-5 hairline-t pt-3">
+                <KeyRow
+                  label="Accounts with access"
+                  value={billing.entitledAccounts.toLocaleString()}
+                />
+                <KeyRow
+                  label="Reached Stripe checkout"
+                  value={billing.customers.toLocaleString()}
+                  muted
+                />
+              </div>
+            </Card>
+          </div>
+        </Section>
+
+        {/* ── 6. Product ──────────────────────────────────────────────────── */}
+        <Section id="product" title="What people run">
+          <StatGrid cols={4}>
+            <Stat label="Protocol entries" value={compounds.totalEntries} />
+            <Stat label="Running now" value={compounds.activeEntries} />
+            <Stat label="Doses logged" value={usage.dosesLogged} />
+            <Stat
+              label="Custom compounds"
+              value={compounds.customEntries}
+              hint="Not in the catalogue"
+            />
+          </StatGrid>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Top compounds</p>
+              <RankedBars items={compounds.topCompounds} limit={12} />
+            </Card>
+            <div className="space-y-3">
+              <Card>
+                <p className={`mb-4 ${CARD_EYEBROW}`}>By category</p>
+                <SplitBar items={compounds.categories} />
+              </Card>
+              <Card>
+                <p className={`mb-4 ${CARD_EYEBROW}`}>By route</p>
+                <SplitBar items={compounds.routes} />
+              </Card>
+              <Card>
+                <p className={`mb-4 ${CARD_EYEBROW}`}>By schedule</p>
+                <SplitBar items={compounds.schedules} />
+              </Card>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Inventory</p>
+              <KeyRow label="Items tracked" value={inventory.total.toLocaleString()} />
+              <KeyRow label="Still active" value={inventory.active.toLocaleString()} muted />
+              <KeyRow
+                label="Accounts tracking stock"
+                value={inventory.accounts.toLocaleString()}
+                muted
+              />
+              <div className="mt-4">
+                <SplitBar items={inventory.byType} />
+              </div>
+            </Card>
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Everything else logged</p>
+              <KeyRow label="Journal entries" value={usage.journalEntries.toLocaleString()} />
+              <KeyRow label="Weight logs" value={usage.weightLogs.toLocaleString()} />
+              <KeyRow label="Progress photos" value={usage.progressPhotos.toLocaleString()} />
+              <KeyRow label="Lab panels" value={usage.labPanels.toLocaleString()} />
+              <KeyRow
+                label="Accounts with an active compound"
+                value={usage.usersWithActiveCompound.toLocaleString()}
+                muted
+              />
+            </Card>
+          </div>
+        </Section>
+
+        {/* ── 7. Feature adoption ─────────────────────────────────────────── */}
+        <Section
+          id="adoption"
+          title="Feature adoption"
+          hint="Distinct accounts that have touched each feature, as a share of all accounts. The point of this list is finding the dead ones."
+        >
+          <Card>
+            {metrics.adoption.length === 0 ? (
+              <Empty>No accounts yet.</Empty>
+            ) : (
+              <RankedBars
+                items={metrics.adoption.map((a) => ({
+                  key: a.label,
+                  label: a.label,
+                  count: a.users,
+                }))}
+                limit={20}
+                total={users.totalAccounts}
+                showPct
+              />
+            )}
+          </Card>
+        </Section>
+
+        {/* ── 8. Onboarding answers ───────────────────────────────────────── */}
+        <Section
+          id="answers"
+          title="What they told us on the way in"
+          hint="Counts only. The free-text 'Something else' box is deliberately never read here."
+        >
+          {metrics.intake.answered === 0 ? (
+            <Card>
+              <Empty>No onboarding answers claimed onto an account yet.</Empty>
+            </Card>
           ) : (
             <>
-              <p className="font-mono text-sm tabular-nums text-foreground">
-                {totalSignups.toLocaleString()}
-                <span className="text-text-muted"> in {range.label.toLowerCase()}</span>
-              </p>
-              {/* One bar per day. No trend arrow and no percentage change: with
-                  single-digit numbers both would be noise, and a percentage over a
-                  zero baseline is undefined (Spec 06 → small-number states). */}
-              <div className="mt-4 flex h-16 items-end gap-px">
-                {metrics.signupsByDay.map((d) => (
-                  <div
-                    key={d.day}
-                    title={`${d.day}: ${d.count}`}
-                    className="flex-1 rounded-t-sm bg-text-muted/70"
-                    style={{
-                      height: peakDay > 0 ? `${Math.max(2, (d.count / peakDay) * 100)}%` : "2%",
-                    }}
+              <div className="grid gap-3 lg:grid-cols-2">
+                <Card>
+                  <p className={`mb-4 ${CARD_EYEBROW}`}>What they&apos;re running</p>
+                  <RankedBars
+                    items={metrics.intake.running}
+                    limit={10}
+                    total={metrics.intake.answered}
+                    showPct
                   />
-                ))}
+                </Card>
+                <Card>
+                  <p className={`mb-4 ${CARD_EYEBROW}`}>What they struggle with</p>
+                  <RankedBars
+                    items={metrics.intake.struggle}
+                    limit={10}
+                    total={metrics.intake.answered}
+                    showPct
+                  />
+                </Card>
               </div>
-              <div className="mt-1.5 flex justify-between font-mono text-[10px] tabular-nums text-text-subtle">
-                <span>{metrics.signupsByDay[0]?.day ?? ""}</span>
-                <span>{metrics.signupsByDay.at(-1)?.day ?? ""}</span>
+              <div className="mt-3">
+                <Card>
+                  <KeyRow
+                    label="Answered onboarding"
+                    value={metrics.intake.answered.toLocaleString()}
+                  />
+                  <KeyRow
+                    label="Typed something in 'Something else'"
+                    value={metrics.intake.wroteDetail.toLocaleString()}
+                    muted
+                  />
+                  <KeyRow
+                    label="Arrived with a creator code"
+                    value={metrics.intake.withAffiliateCode.toLocaleString()}
+                    muted
+                  />
+                </Card>
               </div>
             </>
           )}
-        </div>
+        </Section>
 
-        {/* By channel — kept (genuinely useful), moved UNDER signups over time
-            rather than heading the page. */}
-        <h3 className={`mt-6 mb-3 ${CARD_EYEBROW}`}>By channel</h3>
-        {leaderboard.length === 0 ? (
-          <p className="text-sm text-text-muted">No channels yet.</p>
-        ) : (
-          <div className="overflow-hidden rounded-2xl bg-bg-surface">
-            {leaderboard.map(({ source, signups }, i) => (
-              <div key={source} className={i > 0 ? "hairline-t" : ""}>
-                <div className="flex items-center justify-between gap-4 px-4 pt-3">
-                  <span className="truncate text-sm text-foreground">{source}</span>
-                  <span className="shrink-0 font-mono text-sm tabular-nums text-foreground">
-                    {signups.toLocaleString()}
+        {/* ── 9. Demographics ─────────────────────────────────────────────── */}
+        <Section
+          id="people"
+          title="Who they are"
+          hint="Bucketed counts. No date of birth or individual age is ever read out of the database into this page."
+        >
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Sex</p>
+              <SplitBar items={metrics.demographics.sex} />
+              <p className={`mt-6 mb-4 ${CARD_EYEBROW}`}>Units</p>
+              <SplitBar items={metrics.demographics.units} />
+            </Card>
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Age</p>
+              <RankedBars items={metrics.demographics.ageBrackets} showPct />
+              {metrics.demographics.missingDob > 0 && (
+                <p className="mt-3 text-xs text-text-subtle">
+                  {metrics.demographics.missingDob.toLocaleString()} account
+                  {metrics.demographics.missingDob === 1 ? "" : "s"} with no date of birth
+                  recorded.
+                </p>
+              )}
+            </Card>
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Goal</p>
+              <RankedBars items={metrics.demographics.goals} showPct />
+            </Card>
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Region</p>
+              <RankedBars items={metrics.demographics.regions} showPct />
+            </Card>
+          </div>
+        </Section>
+
+        {/* ── 10. System health ───────────────────────────────────────────── */}
+        <Section id="health" title="System health">
+          <StatGrid>
+            <Stat
+              label="Unprocessed webhooks"
+              value={webhooks.unprocessed}
+              tone={webhooks.unprocessed > 0 ? "negative" : "positive"}
+              hint="Accepted but never handled"
+            />
+            <Stat label="Webhook events" value={webhooks.total} />
+            <Stat label="Push devices" value={push.devices} hint={`${push.accounts} accounts`} />
+            <Stat
+              label="Stale devices"
+              value={push.stale}
+              hint="Not seen in 30 days"
+              tone={push.stale > 0 ? "negative" : "neutral"}
+            />
+          </StatGrid>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Last Stripe event</p>
+              <p className="font-mono text-sm tabular-nums text-foreground">
+                {webhooks.lastReceivedAt ? fmtDateTime(webhooks.lastReceivedAt) : "—"}
+              </p>
+              <p className="mt-2 text-xs text-text-subtle">
+                A webhook that stops arriving means entitlements stop being written while
+                payments keep succeeding.
+              </p>
+            </Card>
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Event types</p>
+              <RankedBars items={webhooks.byType} limit={6} />
+            </Card>
+          </div>
+        </Section>
+
+        {/* ── 11. Feedback ────────────────────────────────────────────────── */}
+        <Section
+          id="feedback"
+          title={`Feedback${feedback.length > 0 ? ` · ${feedback.length}` : ""}`}
+          action={
+            feedback.length > 0 ? <ExportLink dataset="feedback" /> : undefined
+          }
+        >
+          <StatGrid>
+            <Stat
+              label="Open"
+              value={metrics.feedback.open}
+              tone={metrics.feedback.open > 0 ? "negative" : "positive"}
+            />
+            <Stat label="Resolved" value={metrics.feedback.resolved} />
+            <Stat
+              label="Oldest open"
+              value={metrics.feedback.oldestOpenDays}
+              suffix="d"
+              hint="Age of the longest-waiting note"
+            />
+            <Stat
+              label="Median fix time"
+              value={metrics.feedback.medianResolveHours}
+              suffix="h"
+              hint={`${metrics.feedback.lastWeek} arrived this week`}
+            />
+          </StatGrid>
+          {metrics.feedback.byPath.length > 0 && (
+            <div className="mt-3">
+              <Card>
+                <p className={`mb-4 ${CARD_EYEBROW}`}>Which screens generate it</p>
+                <RankedBars items={metrics.feedback.byPath} limit={8} showPct />
+              </Card>
+            </div>
+          )}
+          <div className="mt-3">
+            <FeedbackList items={feedback} />
+          </div>
+        </Section>
+
+        {/* ── 12. Legal ───────────────────────────────────────────────────── */}
+        <Section
+          id="legal"
+          title="Consent & legal"
+          hint="Republishing a document does not re-prompt anyone. This is how you see the size of the stale cohort."
+        >
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Accepted versions</p>
+              <RankedBars items={metrics.consent.byVersion} limit={10} />
+            </Card>
+            <Card>
+              <p className={`mb-4 ${CARD_EYEBROW}`}>Coverage</p>
+              <KeyRow
+                label="Accounts with a consent record"
+                value={metrics.consent.accountsWithConsent.toLocaleString()}
+              />
+              <KeyRow
+                label="Accounts with none"
+                value={metrics.consent.accountsMissing.toLocaleString()}
+                muted
+              />
+              <KeyRow
+                label="On every current version"
+                value={
+                  metrics.consent.onCurrentPct === null
+                    ? "—"
+                    : `${metrics.consent.onCurrentPct}%`
+                }
+                muted
+              />
+              {metrics.consent.currentVersions.length > 0 && (
+                <div className="mt-4 hairline-t pt-3">
+                  <p className="mb-2 text-[11px] text-text-subtle">Live versions</p>
+                  {metrics.consent.currentVersions.map((d) => (
+                    <KeyRow key={d.document} label={d.document} value={`v${d.version}`} muted />
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        </Section>
+
+        {/* ── 13. Email list — a reference list, so it sits last. ──────────── */}
+        <Section
+          id="emails"
+          title={`Emails${recent.length > 0 ? ` · ${recent.length}` : ""}`}
+          action={recent.length > 0 ? <ExportLink dataset="waitlist" /> : undefined}
+        >
+          {recent.length === 0 ? (
+            <Empty>
+              No signups yet. Share{" "}
+              <span className="text-foreground">trackdco.app/waitlist?ref=…</span> to start
+              filling this up.
+            </Empty>
+          ) : (
+            <div className="overflow-hidden rounded-2xl bg-bg-surface">
+              {recent.map((r, i) => (
+                <div
+                  key={`${r.email}-${i}`}
+                  className={`flex items-center justify-between gap-3 px-4 py-3 ${
+                    i > 0 ? "hairline-t" : ""
+                  }`}
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {r.email}
+                  </span>
+                  <span className="shrink-0 text-xs text-text-muted">
+                    {(r.source ?? "").trim() || "(direct)"}
+                  </span>
+                  <span className="shrink-0 font-mono text-xs tabular-nums text-text-subtle">
+                    {fmtDate(r.created_at)}
                   </span>
                 </div>
-                <div className="mx-4 mt-2 mb-3 h-1 overflow-hidden rounded-full bg-bg-input">
-                  <div
-                    className="h-full rounded-full bg-text-muted"
-                    style={{ width: `${maxN ? Math.round((signups / maxN) * 100) : 0}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </Section>
 
-        {/* ── 3. Usage ──────────────────────────────────────────────────── */}
-        <Section title="Usage" />
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label="Compounds" value={metrics.compoundsLogged} />
-          <Stat label="Doses" value={metrics.dosesLogged} />
-          <Stat label="Running now" value={metrics.usersWithActiveCompound} />
-        </div>
-        <p className="mt-2 px-1 text-xs text-text-subtle">
-          All-time totals. Running now = accounts with at least one active compound.
-        </p>
-
-        {/* ── 4. Feedback queue ─────────────────────────────────────────── */}
-        <Section title={`Feedback${feedback.length > 0 ? ` · ${feedback.length}` : ""}`} />
-        <FeedbackList items={feedback} />
-
-        {/* ── 5. Email list — a reference list, so it sits last. ─────────── */}
-        <Section title={`Emails${recent.length > 0 ? ` · ${recent.length}` : ""}`} />
-        {recent.length === 0 ? (
-          <p className="text-sm text-text-muted">
-            No signups yet. Share{" "}
-            <span className="text-foreground">trackdco.app/waitlist?ref=…</span> to
-            start filling this up.
-          </p>
-        ) : (
-          <div className="overflow-hidden rounded-2xl bg-bg-surface">
-            {recent.map((r, i) => (
-              <div
-                key={`${r.email}-${i}`}
-                className={`flex items-center justify-between gap-3 px-4 py-3 ${
-                  i > 0 ? "hairline-t" : ""
-                }`}
-              >
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                  {r.email}
-                </span>
-                <span className="shrink-0 text-xs text-text-muted">
-                  {(r.source ?? "").trim() || "(direct)"}
-                </span>
-                <span className="shrink-0 font-mono text-xs tabular-nums text-text-subtle">
-                  {fmtDate(r.created_at)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <p className="mt-10 text-center text-xs text-text-subtle">
+        <p className="pt-4 text-center text-xs text-text-subtle">
           Founder-only · signed in as {user.email}
         </p>
       </div>
     </main>
-  );
+  )
 }
 
-function Section({ title }: { title: string }) {
-  return <h2 className={`mt-10 mb-3 ${CARD_EYEBROW}`}>{title}</h2>;
-}
-
-/** A metric tile. Reads correctly at zero — no percentages, no trend arrows. */
-function Stat({ label, value }: { label: string; value: number }) {
+/** The first and last day under a sparkline, so the curve has a scale. */
+function RangeAxis({ points }: { points: { day: string; count: number }[] }) {
+  if (points.length === 0) return null
   return (
-    <div className="rounded-2xl bg-bg-surface p-4">
-      <p className="text-[10px] font-sans uppercase tracking-[0.2em] text-text-subtle">
-        {label}
-      </p>
-      <p className="mt-1 text-[28px] font-light tracking-[-0.02em] tabular-nums text-foreground">
-        {value.toLocaleString()}
-      </p>
+    <div className="mt-1.5 flex justify-between font-mono text-[10px] tabular-nums text-text-subtle">
+      <span>{points[0]?.day ?? ""}</span>
+      <span>{points.at(-1)?.day ?? ""}</span>
     </div>
-  );
+  )
+}
+
+/**
+ * A CSV download.
+ *
+ * A plain link, not a fetch: the route sets `Content-Disposition: attachment`
+ * and the browser handles it. Nothing about the export needs client JavaScript,
+ * and the founder gate lives at the route, not here.
+ */
+function ExportLink({ dataset }: { dataset: "waitlist" | "feedback" }) {
+  return (
+    <a
+      href={`/admin/export?dataset=${dataset}`}
+      className="text-xs text-text-muted underline-offset-4 transition-colors hover:text-foreground hover:underline"
+    >
+      Export CSV
+    </a>
+  )
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -316,13 +794,26 @@ function Shell({ children }: { children: React.ReactNode }) {
     <main className="grid min-h-dvh place-items-center bg-bg-base px-6 text-center">
       <div className="w-full max-w-sm">{children}</div>
     </main>
-  );
+  )
 }
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
+  if (!iso) return ""
+  const d = new Date(iso)
   return Number.isNaN(d.getTime())
     ? ""
-    : d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+    : d.toLocaleDateString("en-AU", { day: "numeric", month: "short" })
+}
+
+function fmtDateTime(iso: string | null): string {
+  if (!iso) return "—"
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleString("en-AU", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
 }

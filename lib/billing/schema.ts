@@ -5,7 +5,7 @@
  *
  * `createClient()` with no schema generic resolves every table to `never`, so an
  * insert type-checks against nothing and a misspelled column is a runtime
- * surprise. The existing service-role client (`lib/db/adminMetrics.ts`) gets
+ * surprise. The existing service-role client (`lib/db/admin/`) gets
  * away with it because it only ever counts rows; the webhook WRITES, and a
  * webhook that writes the wrong column name fails on a real payment.
  *

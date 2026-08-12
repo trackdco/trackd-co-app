@@ -4,7 +4,45 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-12 (container wording / powder units / stack untick — awaiting Adrian's merge)
+Last updated: 2026-08-13 (/admin dashboard rebuilt and merged to main)
+
+---
+
+## /admin — what is owed next
+
+The dashboard was rebuilt 2026-08-13 (see `progress-tracker.md`). What was
+deliberately NOT done:
+
+- **The onboarding free-text is still not readable anywhere.**
+  `signup_intake.struggle_detail` is the single most useful field in the flow —
+  it is the only one the user writes themselves — and the dashboard only shows
+  how many people filled it in. Adrian chose counts-only to keep the
+  service-role layer's no-rows invariant intact. To read the text properly, add
+  a founder-scoped RLS SELECT policy on `signup_intake` (mirroring
+  `supabase/waitlist/002_founder_read.sql`) and read it on the page through the
+  founder's OWN client. **Do not widen `lib/db/admin/` to return it** — that
+  directory's whole safety argument is that it never returns a row.
+
+- **Aggregates are computed in TypeScript, not SQL.** PostgREST cannot express
+  `count(distinct …)` or `group by`, so the distinct-user and ranked-tally reads
+  pull one narrow column (capped at `ROW_CAP` = 20,000) and reduce it in memory.
+  At today's size that is a few thousand rows. A read that comes back exactly at
+  the cap now records an issue and the page says the number is a floor — so the
+  failure is visible rather than silent. When that starts firing, replace the
+  hot ones with SQL views or RPCs; nothing on the page has to change.
+
+- **Waitlist → account conversion is not shown, on purpose.** The two are only
+  joinable on email, and matching them would mean reading both lists in full to
+  compare addresses. The counts are shown side by side and no conversion rate is
+  claimed, because the honest version of that number needs a decision about
+  matching emails first.
+
+- **The funnel is all-time, not range-filtered.** A funnel over a 30-day window
+  would drop everyone who signed up before it and read as a collapse. If a
+  cohort funnel is wanted, it needs a cohort definition first.
+
+- **`profiles.tier` is still not shown.** Gates read `entitlements`; tier is
+  historical (Spec 16). Showing it would invite reading it as truth.
 
 ---
 

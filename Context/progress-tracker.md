@@ -5,7 +5,85 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-12 (container wording, powder units, whole-stack untick)
+Last updated: 2026-08-13 (the /admin dashboard rebuild)
+
+## /admin — the founder dashboard, rebuilt (BUILT, 2026-08-13)
+
+Branch `admin/dashboard`, cut from `main`. Deliberately NOT built on
+`wave3/billing-cancel`: that branch is nine commits of billing work with a dirty
+tree, and Adrian's instruction was to leave it alone.
+
+### The bug that was already there, and had been for a month
+
+`lib/db/adminMetrics.ts` counted an "active user" across five tables and
+selected `user_id` from all five. **`weight_logs` keys on `profile_id`.** The
+query returned 42703, the error was swallowed by a bare `continue`, and
+bodyweight logging never once counted toward an active user. The live table
+holds 51 rows, so the daily and weekly active numbers on that page were
+understated for the whole time it shipped.
+
+Fixed three ways, because the column was the symptom and the swallow was the
+cause: each activity source now carries its own user-id column, every failed read
+is collected in an `IssueLog`, and the page renders the failures in red at the
+top. A broken source is now visible the same day instead of looking like a quiet
+week.
+
+### Structure
+
+`lib/db/adminMetrics.ts` is gone, replaced by `lib/db/admin/`:
+`core.ts` (client, founder gate, the query boundary type, `IssueLog`),
+`activity.ts`, `billing.ts`, `people.ts`, `product.ts`, `ops.ts`, `index.ts`.
+Pure helpers that can be unit-tested live in `lib/admin/aggregate.ts` and
+`lib/admin/labels.ts` — 40 new tests.
+
+**The counts-only invariant is unchanged and now written down where it is
+enforced** (`lib/db/admin/core.ts`): nothing in that directory may return a row.
+Columns are read, tallied and dropped inside the module. Adrian's call on the
+onboarding free-text field (`signup_intake.struggle_detail`) was counts-only, so
+the page shows how many people typed something and never what they typed.
+
+### `"use server"` → `server-only`
+
+The old module was marked `"use server"`, which made every export a publicly
+reachable server action guarded only by its own founder check. Nothing calls it
+from the browser, so it is now `server-only`: unreachable from the client, and
+importing it into a client bundle fails the build. The founder re-check stayed.
+
+### What the page shows now
+
+Overview, growth (waitlist + accounts sparklines, channels, attribution),
+onboarding funnel, retention (incl. weekly return rate and never-written
+accounts), revenue (subscription statuses, trials ending, cancelling,
+entitlements by source), what people run (compound leaderboard, category/route/
+schedule splits, inventory), feature adoption across 11 features, onboarding
+answers, demographics (bucketed ages — no DOB or individual age is ever
+returned), system health (unprocessed webhooks, push staleness), feedback SLA,
+consent coverage, and the email list. The range control (7D/30D/90D/All) now
+drives every time-based section rather than one chart.
+
+### CSV export
+
+`app/admin/export/route.ts`, founder-gated, allowlisted datasets, reading through
+the caller's OWN RLS-scoped client rather than the service role — so the SQL
+policies decide, not the app. Every field goes through `csvField`, which
+neutralises spreadsheet formula injection: the waitlist email and the feedback
+body are stranger-controlled, and `=HYPERLINK(...)` in a feedback note would
+otherwise be a live formula when the download opened in Excel.
+
+### Styling
+
+`ui-context.md` gained an **Admin** section: /admin is the one documented
+exception to "new screens reuse the system", scoped to `app/admin/**` and
+`components/admin/**`. Seven `--admin-*` tokens, **none of them a new hex** —
+every one aliases an existing palette colour. Bar charts and directional colour
+are permitted there (business metrics, never health readings) and nowhere else.
+
+### Verified
+
+`tsc` clean, `eslint` clean, 895 tests pass, `next build` succeeds. All 43 live
+queries were fired against the real schema with the service role before commit —
+that check is what proves the column names, which TypeScript cannot see through
+PostgREST's strings.
 
 ## Spec w2b-15 — Stripe billing (BUILT, 2026-08-08)
 

@@ -507,6 +507,82 @@ Chart hues are a deliberately **neutral** teal/periwinkle (never red/green),
 because trend visuals must stay **non-evaluative** per the health-data rule
 above — a graph shows *movement*, never "good" or "bad".
 
+## Admin — the one surface with its own rules (`/admin`)
+
+`/admin` is the founder-only operations dashboard. It is the **single documented
+exception** to "new screens reuse the system", and the exception is **scoped, not
+open**: everything below applies to `app/admin/**` and `components/admin/**` and
+**nowhere else**. A token or pattern from this section appearing on a user-facing
+screen is a bug, not a precedent.
+
+**Why it gets an exception at all.** Every other screen is a phone surface shown
+to a customer, carrying one or two numbers about their own body. /admin is a
+desktop surface shown to two people, carrying roughly ninety numbers about the
+business. The app's rules — one amber beat, values as the display layer, a card
+per idea — are tuned for the first job and actively fail at the second: at this
+density, "restrained" becomes "unreadable".
+
+**What is deliberately kept.** The dark ground, the surface/hairline card
+treatment, `rounded-2xl`, the eyebrow-titles-and-large-values hierarchy, mono
+tabular figures, Geist at Light/Regular, and the `lib/ui-presets.ts` presets.
+/admin should still look like Trackd.
+
+### Admin-only tokens
+
+Defined in `app/globals.css` beside the palette and namespaced `--admin-*`:
+
+| Role                  | Token              | Aliases            |
+| --------------------- | ------------------ | ------------------ |
+| Series 1 (periwinkle) | `--admin-series-1` | `--chart-line`     |
+| Series 2 (teal)       | `--admin-series-2` | `--chart-trend`    |
+| Series 3 (tan)        | `--admin-series-3` | `--cat-oral`       |
+| Series 4 (violet)     | `--admin-series-4` | `--cat-sarm`       |
+| Metric up             | `--admin-positive` | `--state-success`  |
+| Metric down           | `--admin-negative` | `--state-error`    |
+| Chart gridline        | `--admin-grid`     | `--border-default` |
+
+**Not one new hex value.** Every one aliases a colour the palette already
+defines, so the dashboard cannot drift away from the product's hues and a retune
+carries automatically.
+
+### Rule: directional colour is allowed here, on business metrics only
+
+Retention, churn and unprocessed-webhook counts may be coloured with
+`--admin-positive` / `--admin-negative`. This does **not** breach "categorical,
+never evaluative": that invariant governs **biomarker and marker readings**, and
+**no health reading is rendered on /admin, ever**. The numbers here are
+operational facts about a business, shown to its operators — exactly the
+"system/UI feedback" the state colours already exist for. Colour is also never
+the only signal: a direction always carries its arrow and its figure.
+
+### Rule: a categorical series palette is allowed here
+
+Ranked bars (signup channels, subscription statuses, compound categories) cycle
+`--admin-series-1..4`. In the app a categorical palette would compete with the
+category legend and the user palette; on /admin neither is present.
+
+### Rule: bar charts are allowed here
+
+The app bans bar charts for trends (line + tapered fill only). /admin uses
+**horizontal ranked bars** for categorical comparisons — which is what a ranked
+tally is — and keeps the app's line/sparkline treatment for anything over TIME.
+Sparklines reuse `lib/progress/spark.ts`; hand-rolled `<polyline>` is still out.
+
+### Rule: a number that was not measured prints "—", never "0"
+
+A percentage over a zero baseline is undefined, and a dashboard that renders it
+as "0%" states a measurement nobody made. `percent()` in `lib/admin/aggregate.ts`
+returns `null` for an empty denominator and the tiles print an em dash. The same
+reasoning as the weight card refusing "+0.0 kg" on a first weigh-in.
+
+### Rule: a failed query is shown, not swallowed
+
+Every source that fails to read is listed on the page. A dashboard whose broken
+queries fall back to zero silently is worse than no dashboard: it looks like
+data. This rule exists because a `weight_logs` query was wrong for over a month,
+its error was skipped by a bare `continue`, and every active-user number was
+quietly too low the whole time.
+
 ## Styling Notes
 
 - Tailwind **v4** (CSS-first). The colour tokens above are defined
