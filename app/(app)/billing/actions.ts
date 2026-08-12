@@ -7,6 +7,7 @@ import type Stripe from "stripe";
 import { getCurrentUser } from "@/lib/auth";
 import { applyCancelFlag, liveSubscriptionsForUser } from "@/lib/billing/cancel";
 import { formatAccessDate, type SaveOfferKind } from "@/lib/billing/manage";
+import { originFromHost } from "@/lib/billing/originAllowlist";
 import {
   EXTRA_TRIAL_DAYS,
   grantExtraTime,
@@ -418,47 +419,31 @@ export async function openBillingPortal(): Promise<
  * deploy return to themselves instead of bouncing the tester to production. The
  * value is only ever used as a `return_url`, and Stripe requires it to be
  * absolute.
+ *
+ * ⚠️ THE HOST HEADER IS ATTACKER-CONTROLLED. IT IS CHECKED, NOT TRUSTED.
+ *
+ * This returned whatever the header said, and a cold review poisoned it:
+ *
+ *     X-Forwarded-Host: evil-attacker.example.com
+ *       -> return_url: http://evil-attacker.example.com/billing
+ *
+ * Stripe performs no validation of its own — it accepted an arbitrary origin
+ * outright — so the header was the only thing standing between a request and
+ * Stripe bouncing a signed-in user onto somebody else's site straight after a
+ * billing action.
+ *
+ * The allowlist itself moved to `lib/billing/originAllowlist.ts`, PURE AND
+ * TESTED, because a second cold review found two holes in the inline version
+ * (a domain beginning "192.168." was treated as a LAN address and served over
+ * plaintext, and `.endsWith(".vercel.app")` accepted anybody's deployment). A
+ * rule that can be wrong in a way its own comment cannot notice belongs beside
+ * tests. It cannot be exported from here: this is a `"use server"` module, so
+ * every export is a dispatchable action and a non-async one fails the build.
  */
 async function siteOrigin(): Promise<string> {
   const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (!host) return PRODUCTION_ORIGIN;
-
-  /**
-   * ⚠️ THE HOST HEADER IS ATTACKER-CONTROLLED. IT IS CHECKED, NOT TRUSTED.
-   *
-   * This returned whatever the header said, and a cold review poisoned it:
-   *
-   *     X-Forwarded-Host: evil-attacker.example.com
-   *       -> return_url: http://evil-attacker.example.com/billing
-   *
-   * Stripe performs no validation of its own — it accepted an arbitrary origin
-   * outright — so the header was the only thing standing between a request and
-   * Stripe bouncing a signed-in user onto somebody else's site straight after a
-   * billing action. A browser cannot set that header cross-origin and Vercel's
-   * edge normally overwrites it, so this was a trust-boundary defect rather than
-   * a proven remote exploit. It is still not a header worth trusting.
-   *
-   * An allowlist, so an unrecognised host falls back to production rather than
-   * being echoed. Preview deploys get their own hostname per build, hence the
-   * `.vercel.app` suffix rule rather than a fixed list.
-   */
-  const hostname = host.split(":")[0].toLowerCase();
-  const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || /^192\.168\./.test(hostname);
-  const allowed =
-    hostname === "trackdco.app" ||
-    hostname === "www.trackdco.app" ||
-    hostname.endsWith(".vercel.app") ||
-    isLocal;
-
-  if (!allowed) {
-    console.error(`[billing] refusing a return_url for an unrecognised host: ${host}`);
-    return PRODUCTION_ORIGIN;
-  }
-  return `${isLocal ? "http" : "https"}://${host}`;
+  return originFromHost(h.get("x-forwarded-host") ?? h.get("host"));
 }
-
-const PRODUCTION_ORIGIN = "https://trackdco.app";
 
 /** Undo a scheduled cancellation, any time before the date. */
 export async function resumeSubscription(): Promise<BillingActionResult> {
