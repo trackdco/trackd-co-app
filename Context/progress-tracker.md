@@ -26,6 +26,20 @@ Stripe test clocks. **Everything below was found by EXECUTING; tsc, eslint and
 | MEDIUM | **Both new migration headers said "NOT YET APPLIED"** about migrations applied hours earlier — the same error this branch had just repaired for `grants/004`. | Corrected, with what was executed to verify them. |
 | MEDIUM | A stale trialing row could hide an imminent one (`updated_at` ordering) in the runner and on the dashboard. | Soonest-ending first, everywhere. |
 | LOW | `012`'s own VERIFY block expected `0` em dashes where a correct apply leaves `1` (the heading line it deliberately keeps), so anyone following it would see a failure and reach for the blanket replace the file forbids. | Corrected to expect 1, with why. |
+| HIGH | **The dismissed banner was painted on every load and then yanked.** `localStorage` cannot be read on the server, so `getServerSnapshot` returned null, the server rendered the banner every time, and the client removed it after hydration. Measured in headless Chrome: in the DOM 200ms, **painted ~166ms**, then content below jumped **806px → 738px**. Every dashboard load, for the whole window, about being charged. Both docstrings claimed the opposite. | A COOKIE, read in `cookies()` before the page is built, so a dismissed banner is never sent to the browser. The external store is gone. |
+| MEDIUM | **The dismiss X was a 24×24 target** with the `/billing` link 12px away. A real dispatched touch grid: 18px left of centre the LINK won and the user was navigated instead of closing the notice. | 44px, Apple's floor. Icon and optical spacing unchanged. |
+| MEDIUM | **The confirm dialog had no focus management** while claiming `aria-modal="true"`. Focus never entered it; six Tabs walked out onto the portal row, the back link and all four nav tabs; Escape left focus in the tab bar. For a screen-reader user `aria-modal` made it worse than silence. | Focus moves in, Tab cycles, focus returns to the trigger. |
+| MEDIUM | **The resume screen printed the same date three times** under two labels, to somebody re-reading it to be sure they had cancelled. The guard covered `cancel` only. | Suppressed for the whole trial case. |
+| LOW | **One account's dismissal hid another's banner** on a shared browser. **The first fix — matching the cookie by its `:${date}` suffix — did not fix it** (same date, any account), and the same driver caught that too. | The account is compared where the account is known; the pure module still knows nothing about accounts. Pinned by tests. |
+| LOW | Two clicks in the SAME TICK fired the action twice (`useTransition`'s `pending` has not committed yet), and a same-tick backdrop tap closed the dialog mid-flight so a failure had nowhere to render. Neither is thumb-reachable. | An `inFlight` ref guards both. |
+
+**⚠️ A TRAP WORTH KEEPING: the app does not hydrate on `http://127.0.0.1:3100`,
+only on `http://localhost:3100`.** No `__reactFiber$` key on any node, zero
+DevTools renderers, HMR socket fails. Every scratchpad driver points at
+`127.0.0.1`, which is fine for SSR and server-action assertions — those go over
+the same HTTP surface a browser uses — but **no conclusion about clicking,
+tapping or dismissing can be drawn through them.** It produced one false critical
+before it was caught.
 
 **What they could NOT break** (worth not re-reviewing): cross-user and anonymous
 calls to all three actions, with forged arguments, the victim's subscription id,
@@ -37,6 +51,15 @@ the mirror agreed every time. Cancelling never revoked access. `trial_will_end`
 granted nothing to a card-less trial at day 0 or day 4 on a test clock. Timezone
 handling across +14, −11, +05:45 and +10:30, and DST transitions in four zones,
 all correct.
+
+On the UI side: the modal really is above the nav and the FAB (`elementFromPoint`
+at the centre of both returns the backdrop); `prefers-reduced-motion` genuinely
+wins (`animationName: none` on dialog AND backdrop); nothing on `/billing` sits
+under the bottom nav (the page ends 266px clear of the FAB); every App-card row
+on Profile measures 48px with the caret at 354 for both `Free trial` and
+`Complimentary`; tap heights are 44px and 46px; the error path keeps the dialog
+open, shows the message and re-enables both buttons; and the module-level
+`sessionDismissed` never leaked across users on the server.
 
 ## The cancel control, and the trial notice on screen (BUILT, 2026-08-12)
 
