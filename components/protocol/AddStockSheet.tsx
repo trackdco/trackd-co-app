@@ -884,9 +884,14 @@ function AddStockForm({
                 </div>
                 {oralRule.baseUnit === null ? (
                   <p className="text-xs text-state-warning">
+                    {/* Names the control that is actually on screen. With one
+                        obvious form the picker is collapsed to a label and there
+                        are no type pills "above" to change — the way out is the
+                        escape-hatch link beside it. */}
                     {selected?.name ?? "This compound"} is dosed by weight, so it
-                    is tracked as a Powder rather than as tablets. Change the type
-                    above.
+                    is tracked as a Powder rather than as tablets. Use{" "}
+                    {picker === "hidden" ? "“Track it a different way?”" : "the type above"}{" "}
+                    to switch.
                   </p>
                 ) : num(strength) <= 0 && num(count) > 0 && strengthRequired ? (
                   <p className="text-xs text-text-subtle">
