@@ -12,6 +12,29 @@ Last updated: 2026-08-13 (/admin dashboard rebuilt and merged to main)
 
 The dashboard was rebuilt 2026-08-13 (see `progress-tracker.md`).
 
+### 📊 WHAT THE FUNNEL SAYS RIGHT NOW (measured 2026-08-13, live data)
+
+```
+Created an account         90   100%
+Passed the legal gate      76    84%   84% of the step above
+Added a compound           27    30%   36% of the step above   <-- the leak
+Logged a dose              14    16%   52% of the step above
+Still dosing (7d)           8     9%   57% of the step above
+```
+
+**56 of 90 accounts have never written anything at all**, across all eleven
+feature surfaces.
+
+The gate is not the problem: 84% get through it. The drop is **76 → 27 at
+"added a compound"** — roughly two thirds of the people who finish onboarding
+never add a single compound, and adding one is the thing the whole app is for.
+Everything downstream of that step converts reasonably (36% → 52% → 57%), so
+this is an activation problem at one specific screen, not a general leak.
+
+This is a product question, not a dashboard one, and it is the first thing the
+dashboard was built to be able to say. Worth deciding what to do about before
+adding features further down the funnel.
+
 ### 🔴 FOUND WHILE BUILDING IT: `profiles.onboarding_completed_at` is a dead column
 
 Nothing in the codebase writes it. **All 90 live accounts have it null.** It is

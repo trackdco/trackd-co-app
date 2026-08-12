@@ -78,12 +78,52 @@ exception to "new screens reuse the system", scoped to `app/admin/**` and
 every one aliases an existing palette colour. Bar charts and directional colour
 are permitted there (business metrics, never health readings) and nowhere else.
 
+### Three cold reviews, 2026-08-13 — security, correctness, UI
+
+**Security: no critical, no high.** The counts-only invariant was traced field by
+field and holds; auth gates run before every query; `server-only` is effective
+(Next aliases it, and the client layer throws at build); the CSV route is sound.
+Three low findings, all fixed: `beta_feedback.path`, `affiliate_code` and
+`profiles.timezone` are all user-writable and were being rendered raw as chart
+labels — they now go through allowlists and shape checks. `IssueLog.detail`
+claimed "never contains user data" and could not promise it; the comment now says
+what is true.
+
+**One medium was NOT fixed, deliberately** — the founder gate keys on an email
+string in `lib/admin.ts` and three SQL policies, so it depends on Supabase Auth
+project settings that are not in this repo. Moving it to two fixed `auth.uid()`s
+is a change to the auth model and a migration. Written up in `next-tasks.md` for
+Adrian to decide.
+
+**Correctness found five real bugs beyond the three already caught:**
+- `entitledAccounts` filtered on `is_active` alone. `sync.ts` deliberately leaves
+  that true on cancellation and lets `active_until` lapse, so users who cancelled
+  months ago still counted as having access, forever. Now calls
+  `isEntitlementActive` from `lib/billing/access.ts` — the product's own gate.
+- Truncation detection compared against the client limit, which cannot see
+  PostgREST's own `max-rows` ceiling (Supabase default 1,000). Now compares
+  against the server's exact count. Verified: nothing truncates today.
+- Dose activity keyed on `taken_at`, which the user picks — back-logging made you
+  active in the past, future-dating made you active in advance. Now `created_at`.
+- "Never written" came from 5 tables while adoption came from 11, so the same
+  account could appear in both. Both now derive from one set of reads.
+- The page's own three queries still did `data ?? []` with the error dropped —
+  the exact pattern this work removed, surviving one file away.
+
+**UI found eight**, the substantive ones being: directional colour with no arrow
+(colour as the only signal), `--admin-series-4` at ΔE 14.5 from series-1 (they
+read as one colour at legend size, now `--cat-thyroid`), `SplitBar` cycling four
+colours over up to nine unlabelled categories, a fourth per-screen switch variant
+where the app documents none, and a 120-char waitlist `source` silently clipping
+the date column off its row.
+
 ### Verified
 
-`tsc` clean, `eslint` clean, 895 tests pass, `next build` succeeds. All 43 live
-queries were fired against the real schema with the service role before commit —
+`tsc` clean, `eslint` clean, **915 tests** pass, `next build` succeeds. Every live
+query was fired against the real schema with the service role before each commit —
 that check is what proves the column names, which TypeScript cannot see through
-PostgREST's strings.
+PostgREST's strings. The funnel was additionally checked against live data to
+confirm it is monotonic.
 
 ## Spec w2b-15 — Stripe billing (BUILT, 2026-08-08)
 
