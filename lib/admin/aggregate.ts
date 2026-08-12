@@ -194,7 +194,66 @@ export function safeFilename(name: string, fallback = "export.csv"): string {
   return cleaned.length > 0 ? cleaned.slice(0, 100) : fallback
 }
 
+// ── Consent ──────────────────────────────────────────────────────────────────
+
+/**
+ * `legal_documents.doc_type` → the `consent_records.document` rows it requires.
+ *
+ * THESE ARE TWO DIFFERENT VOCABULARIES AND NOTHING IN THE SCHEMA SAYS SO.
+ * `legal_doc_type` is `terms_of_service | privacy_policy | medical_disclaimer`;
+ * `consent_document` is `tos | privacy | disclaimer | health_data_consent`.
+ * Comparing them directly — which is the obvious thing to write — matches
+ * nothing, always, and renders a confident "0% on the current version".
+ *
+ * The mapping is taken from the code that WRITES the records
+ * (`app/welcome/actions.ts` and `app/onboarding/actions.ts`), which is the only
+ * real source of truth for it. Note the one-to-many: `health_data_consent` is
+ * tied to the Privacy Policy and carries the PRIVACY version, so publishing a
+ * new privacy policy makes two consent rows stale, not one.
+ */
+const CONSENT_FOR_LEGAL_DOC: Record<string, string[]> = {
+  terms_of_service: ["tos"],
+  privacy_policy: ["privacy", "health_data_consent"],
+  medical_disclaimer: ["disclaimer"],
+}
+
+/** One `document@version` a fully-consented account is expected to hold. */
+export interface ConsentExpectation {
+  document: string
+  version: string
+}
+
+/**
+ * Expand the live legal documents into the consent rows an up-to-date account
+ * must hold. A `doc_type` with no mapping contributes nothing rather than an
+ * unsatisfiable requirement that would drag the percentage to zero.
+ */
+export function consentExpectations(
+  currentDocs: { document: string; version: string }[]
+): ConsentExpectation[] {
+  const out: ConsentExpectation[] = []
+  for (const doc of currentDocs) {
+    for (const consentDoc of CONSENT_FOR_LEGAL_DOC[doc.document] ?? []) {
+      out.push({ document: consentDoc, version: doc.version })
+    }
+  }
+  return out
+}
+
 // ── Funnel ───────────────────────────────────────────────────────────────────
+
+/**
+ * The members of `a` that are also in `b`.
+ *
+ * Used to build the funnel by construction rather than by hope — see `funnel()`.
+ */
+export function intersect<T>(a: Set<T>, b: Set<T>): Set<T> {
+  const out = new Set<T>()
+  // Iterate the smaller side; membership tests are O(1) either way.
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a]
+  for (const item of small) if (large.has(item)) out.add(item)
+  return out
+}
 
 /** One step of the onboarding funnel. */
 export interface FunnelStep {

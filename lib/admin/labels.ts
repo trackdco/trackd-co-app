@@ -98,6 +98,21 @@ export const CONSENT_DOC_LABELS: Record<string, string> = {
   health_data_consent: "Health data consent",
 }
 
+/**
+ * Published legal documents (`legal_documents.doc_type`).
+ *
+ * A SEPARATE VOCABULARY from `CONSENT_DOC_LABELS` above, and that is the whole
+ * trap: `legal_doc_type` is `terms_of_service | privacy_policy |
+ * medical_disclaimer` while `consent_document` is `tos | privacy | disclaimer |
+ * health_data_consent`. The two share no values. `consentExpectations()` in
+ * `lib/admin/aggregate.ts` is what bridges them.
+ */
+export const LEGAL_DOC_LABELS: Record<string, string> = {
+  terms_of_service: "Terms of service",
+  privacy_policy: "Privacy policy",
+  medical_disclaimer: "Medical disclaimer",
+}
+
 /** Look a label up, falling back to the raw key so nothing renders blank. */
 export function labelFor(map: Record<string, string>, key: string): string {
   return map[key] ?? key

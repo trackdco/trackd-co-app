@@ -38,7 +38,6 @@ interface ProfileRow {
   goal: string | null
   units_preference: string | null
   timezone: string | null
-  onboarding_completed_at: string | null
   created_at: string | null
 }
 
@@ -57,8 +56,6 @@ export interface PeopleMetrics {
   totalAccounts: number
   /** Accounts created inside the selected range. */
   newAccounts: number
-  /** Accounts with `onboarding_completed_at` set. */
-  completedOnboarding: number
   /** Account creations per UTC day across the range, for the sparkline. */
   accountsByDay: { day: string; count: number }[]
   demographics: Demographics
@@ -74,7 +71,11 @@ export async function peopleMetrics(
   const rows = await columnValues<ProfileRow>(
     supabase,
     "profiles",
-    "id, sex, date_of_birth, goal, units_preference, timezone, onboarding_completed_at, created_at",
+    // NOT `onboarding_completed_at`. The column exists on `profiles` and NOTHING
+    // WRITES IT — every live account has it null — so a "finished onboarding"
+    // number read from it would be a confident zero forever. The funnel uses
+    // `consent_records` instead; see `index.ts`.
+    "id, sex, date_of_birth, goal, units_preference, timezone, created_at",
     issues,
     "Accounts"
   )
@@ -101,7 +102,6 @@ export async function peopleMetrics(
   return {
     totalAccounts: rows.length,
     newAccounts: inRange.length,
-    completedOnboarding: rows.filter((r) => Boolean(r.onboarding_completed_at)).length,
     accountsByDay: seriesByDay(
       inRange.map((r) => r.created_at),
       since

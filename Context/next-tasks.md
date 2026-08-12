@@ -10,8 +10,30 @@ Last updated: 2026-08-13 (/admin dashboard rebuilt and merged to main)
 
 ## /admin — what is owed next
 
-The dashboard was rebuilt 2026-08-13 (see `progress-tracker.md`). What was
-deliberately NOT done:
+The dashboard was rebuilt 2026-08-13 (see `progress-tracker.md`).
+
+### 🔴 FOUND WHILE BUILDING IT: `profiles.onboarding_completed_at` is a dead column
+
+Nothing in the codebase writes it. **All 90 live accounts have it null.** It is
+in the schema, it is in both grant lists, and it is the obvious column to reach
+for when asking "did they finish onboarding" — which is exactly the trap. The
+funnel now uses `consent_records` instead, because `app/welcome/actions.ts`
+writes that and only then grants app access, so it is the signal that actually
+means "got through".
+
+**Decide one of two things, and do it deliberately:**
+- **Write it.** Stamp `onboarding_completed_at` at the end of the onboarding
+  flow, and the funnel can use the honest column. Note the grant lists already
+  include it, so no new migration is needed for the write path.
+- **Drop it.** Remove the column so the next person does not read it and get a
+  confident zero.
+
+Leaving it as-is is the one option that keeps the trap armed. Related: two live
+accounts hold a protocol compound with **no consent record at all** (they predate
+the gate) — the funnel intersects sets so they simply drop out at that step, but
+it is worth knowing they exist.
+
+### What was deliberately NOT done:
 
 - **The onboarding free-text is still not readable anywhere.**
   `signup_intake.struggle_detail` is the single most useful field in the flow —

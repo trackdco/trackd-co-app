@@ -708,7 +708,7 @@ export default async function AdminPage({
                 <div className="mt-4 hairline-t pt-3">
                   <p className="mb-2 text-[11px] text-text-subtle">Live versions</p>
                   {metrics.consent.currentVersions.map((d) => (
-                    <KeyRow key={d.document} label={d.document} value={`v${d.version}`} muted />
+                    <KeyRow key={d.document} label={d.label} value={`v${d.version}`} muted />
                   ))}
                 </div>
               )}

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import {
   ageBracket,
+  consentExpectations,
   csvField,
   funnel,
+  intersect,
   median,
   percent,
   safeFilename,
@@ -214,6 +216,73 @@ describe("safeFilename", () => {
 
   it("falls back when nothing survives", () => {
     expect(safeFilename("///")).toBe("export.csv")
+  })
+})
+
+describe("consentExpectations", () => {
+  // The bridge between two enums that share NO values. Comparing
+  // `legal_documents.doc_type` to `consent_records.document` directly matches
+  // nothing, always — which renders a confident "0% on the current version".
+  it("translates legal doc types into the consent rows they require", () => {
+    expect(
+      consentExpectations([{ document: "terms_of_service", version: "1.3" }])
+    ).toEqual([{ document: "tos", version: "1.3" }])
+  })
+
+  it("expands the privacy policy into TWO consent rows at the privacy version", () => {
+    // health_data_consent is tied to the Privacy Policy and carries its version,
+    // so publishing a new privacy policy makes two rows stale, not one.
+    expect(
+      consentExpectations([{ document: "privacy_policy", version: "2.0" }])
+    ).toEqual([
+      { document: "privacy", version: "2.0" },
+      { document: "health_data_consent", version: "2.0" },
+    ])
+  })
+
+  it("covers all three published document types", () => {
+    const out = consentExpectations([
+      { document: "terms_of_service", version: "1.3" },
+      { document: "privacy_policy", version: "1.0" },
+      { document: "medical_disclaimer", version: "1.1" },
+    ])
+    expect(out).toEqual([
+      { document: "tos", version: "1.3" },
+      { document: "privacy", version: "1.0" },
+      { document: "health_data_consent", version: "1.0" },
+      { document: "disclaimer", version: "1.1" },
+    ])
+  })
+
+  it("ignores an unmapped doc type instead of making the bar unreachable", () => {
+    expect(consentExpectations([{ document: "cookie_policy", version: "1.0" }])).toEqual([])
+  })
+
+  it("returns nothing for nothing", () => {
+    expect(consentExpectations([])).toEqual([])
+  })
+})
+
+describe("intersect", () => {
+  it("keeps only the shared members", () => {
+    expect([...intersect(new Set([1, 2, 3]), new Set([2, 3, 4]))]).toEqual([2, 3])
+  })
+
+  it("is empty when nothing is shared", () => {
+    expect(intersect(new Set([1]), new Set([2])).size).toBe(0)
+  })
+
+  it("handles an empty side", () => {
+    expect(intersect(new Set<number>(), new Set([1, 2])).size).toBe(0)
+  })
+
+  // The property the funnel relies on: the result can never be larger than
+  // either input, so successive intersections can only ever shrink.
+  it("never grows", () => {
+    const a = new Set([1, 2, 3, 4])
+    const b = new Set([3, 4, 5])
+    const out = intersect(a, b)
+    expect(out.size).toBeLessThanOrEqual(Math.min(a.size, b.size))
   })
 })
 

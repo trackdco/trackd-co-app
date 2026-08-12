@@ -41,11 +41,13 @@ export const ACTIVITY_SOURCES = [
   { table: "protocol_compounds", dateColumn: "created_at", userColumn: "user_id", label: "Compounds" },
 ] as const
 
-/** One write, reduced to the only two things any window calculation needs. */
-interface Write {
+/** One write, reduced to the only three things a window calculation needs. */
+export interface Write {
   userId: string
   /** ISO timestamp of the write. */
   at: string
+  /** Which table it came from, so a window can be narrowed to one kind of write. */
+  table: string
 }
 
 /**
@@ -76,7 +78,7 @@ export async function recentWrites(
       for (const row of rows) {
         const userId = row?.[userColumn]
         const at = row?.[dateColumn]
-        if (userId && at) out.push({ userId, at })
+        if (userId && at) out.push({ userId, at, table })
       }
       return out
     })
@@ -84,12 +86,25 @@ export async function recentWrites(
   return perSource.flat()
 }
 
-/** Distinct users who wrote within the window `[from, to)`. */
-export function activeIn(writes: Write[], from: Date, to?: Date): Set<string> {
+/**
+ * Distinct users who wrote within the window `[from, to)`.
+ *
+ * `tables` narrows it to one kind of write. That exists for the funnel: its last
+ * step has to be a SUBSET of "logged a dose", and "wrote anything" is not —
+ * somebody can log a weight without ever logging a dose, which would put the
+ * final bar above the one before it and print a percentage over 100.
+ */
+export function activeIn(
+  writes: Write[],
+  from: Date,
+  to?: Date,
+  tables?: readonly string[]
+): Set<string> {
   const fromMs = from.getTime()
   const toMs = to ? to.getTime() : Number.POSITIVE_INFINITY
   const seen = new Set<string>()
   for (const w of writes) {
+    if (tables && !tables.includes(w.table)) continue
     const ms = Date.parse(w.at)
     if (Number.isNaN(ms)) continue
     if (ms >= fromMs && ms < toMs) seen.add(w.userId)

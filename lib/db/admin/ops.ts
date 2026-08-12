@@ -1,7 +1,13 @@
 import "server-only"
 
-import { median, percent, tally, type Tally } from "@/lib/admin/aggregate"
-import { CONSENT_DOC_LABELS, labelFor } from "@/lib/admin/labels"
+import {
+  consentExpectations,
+  median,
+  percent,
+  tally,
+  type Tally,
+} from "@/lib/admin/aggregate"
+import { CONSENT_DOC_LABELS, LEGAL_DOC_LABELS, labelFor } from "@/lib/admin/labels"
 import { columnValues, type AdminClient, type IssueLog } from "./core"
 
 /**
@@ -93,7 +99,7 @@ export interface ConsentCoverage {
   /** Share of accounts on the CURRENT version of every current document. */
   onCurrentPct: number | null
   /** The live version of each document, from `legal_documents`. */
-  currentVersions: { document: string; version: string }[]
+  currentVersions: { document: string; label: string; version: string }[]
 }
 
 /**
@@ -131,29 +137,34 @@ export async function consentCoverage(
     .filter((d): d is { doc_type: string; version: string } =>
       Boolean(d.doc_type && d.version)
     )
-    .map((d) => ({ document: d.doc_type, version: d.version }))
+    .map((d) => ({
+      document: d.doc_type,
+      label: labelFor(LEGAL_DOC_LABELS, d.doc_type),
+      version: d.version,
+    }))
 
   const withConsent = new Set(
     records.map((r) => r.user_id).filter((id): id is string => Boolean(id))
   )
 
-  // "On current" means: for every document that HAS a current version, this
-  // account holds a record at that version. Anything less is a stale acceptance.
-  const currentByDoc = new Map(currentVersions.map((d) => [d.document, d.version]))
+  // "On current" means: this account holds a consent record at the live version
+  // of every live document. The expansion through `consentExpectations` is what
+  // makes that comparable at all — `legal_documents.doc_type` and
+  // `consent_records.document` are two different vocabularies that share no
+  // values, so comparing them directly matches nothing and would render a
+  // confident 0% forever.
+  const expectations = consentExpectations(currentVersions)
   const acceptedByUser = new Map<string, Set<string>>()
   for (const r of records) {
     if (!r.user_id || !r.document || !r.version) continue
-    const key = `${r.document}@${r.version}`
     const set = acceptedByUser.get(r.user_id) ?? new Set<string>()
-    set.add(key)
+    set.add(`${r.document}@${r.version}`)
     acceptedByUser.set(r.user_id, set)
   }
   let onCurrent = 0
-  if (currentByDoc.size > 0) {
+  if (expectations.length > 0) {
     for (const [, accepted] of acceptedByUser) {
-      const hasAll = [...currentByDoc.entries()].every(([doc, version]) =>
-        accepted.has(`${doc}@${version}`)
-      )
+      const hasAll = expectations.every((e) => accepted.has(`${e.document}@${e.version}`))
       if (hasAll) onCurrent += 1
     }
   }
@@ -168,7 +179,8 @@ export async function consentCoverage(
     ),
     accountsWithConsent: withConsent.size,
     accountsMissing: Math.max(0, totalAccounts - withConsent.size),
-    onCurrentPct: currentByDoc.size === 0 ? null : percent(onCurrent, totalAccounts),
+    // Null, not 0, when there is nothing live to be current WITH.
+    onCurrentPct: expectations.length === 0 ? null : percent(onCurrent, totalAccounts),
     currentVersions,
   }
 }

@@ -1,6 +1,12 @@
 import "server-only"
 
-import { funnel, percent, seriesByDay, type FunnelStep } from "@/lib/admin/aggregate"
+import {
+  funnel,
+  intersect,
+  percent,
+  seriesByDay,
+  type FunnelStep,
+} from "@/lib/admin/aggregate"
 import {
   activeIn,
   everActiveUsers,
@@ -22,6 +28,7 @@ import {
   countRows,
   daysAgo,
   serviceClient,
+  userIdSet,
   type AdminIssue,
 } from "./core"
 import {
@@ -209,14 +216,21 @@ const EMPTY: AdminMetrics = {
 /**
  * How far back the activity read goes.
  *
- * Retention needs two consecutive weeks, so 14 is the floor whatever the
- * selected range. "All time" is capped at 90 rather than reading every write
- * ever made: the activity sparkline is a recent-behaviour chart, and an
- * unbounded read here is the one query on the page that would grow without limit.
+ * THE FLOOR IS 30, AND IT HAS TO BE. Every activity window on the page is sliced
+ * from this one read, and the widest of them is `activeMonthly` at 30 days. A
+ * floor of 14 (retention's requirement) meant that selecting 7D quietly gave
+ * "Active 30 days" only 14 days of writes to count — a smaller range control
+ * silently shrinking an all-time-shaped number.
+ *
+ * "All time" is capped at 90 rather than reading every write ever made: the
+ * activity sparkline is a recent-behaviour chart, and an unbounded read here is
+ * the one query on this page that would grow without limit.
  */
+const WIDEST_ACTIVITY_WINDOW_DAYS = 30
+
 function activityWindow(rangeDays: number | null): number {
   if (rangeDays === null) return 90
-  return Math.min(365, Math.max(14, rangeDays))
+  return Math.min(365, Math.max(WIDEST_ACTIVITY_WINDOW_DAYS, rangeDays))
 }
 
 /**
@@ -312,17 +326,43 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
   )
 
   // ── The onboarding funnel ─────────────────────────────────────────────────
-  // Each step is a SUBSET of the one above it by construction (an account that
-  // logged a dose necessarily has a protocol compound), so the percentages read
-  // as drop-off rather than as unrelated ratios.
-  const withProtocol = adoption.find((a) => a.label === "Protocol")?.users ?? 0
-  const withDose = adoption.find((a) => a.label === "Dose logging")?.users ?? 0
+  //
+  // BUILT BY SET INTERSECTION, NOT BY COMPARING INDEPENDENT COUNTS. Each step is
+  // the previous step's members who also did the next thing, so the funnel
+  // decreases monotonically because of how it is constructed rather than because
+  // the data happened to cooperate. Two things made the naive version wrong:
+  //
+  //  - The live data is NOT naturally nested. Two accounts hold a protocol
+  //    compound with no consent record at all (they predate the gate), which
+  //    made "% of the step above" exceed 100 — a funnel bar longer than the one
+  //    it descends from.
+  //  - The last step counts a DOSE this week, not "wrote anything" this week.
+  //    Somebody can log a weight without ever logging a dose.
+  //
+  // "Passed the legal gate" replaces what was going to be `onboarding_completed_at`.
+  // THAT COLUMN IS DEAD: it exists in `profiles`, nothing in the codebase writes
+  // it, and all 90 live accounts have it null. A funnel step reading it would
+  // have printed a confident 0 forever. `consent_records` is the real signal —
+  // `app/welcome/actions.ts` writes it and only then grants app access, so a
+  // consent record is what "got through onboarding" actually means.
+  const [consentIds, protocolIds, doseIds] = await Promise.all([
+    userIdSet(supabase, "consent_records", "user_id", issues, "Funnel: legal gate"),
+    userIdSet(supabase, "protocol_compounds", "user_id", issues, "Funnel: protocol"),
+    userIdSet(supabase, "dose_logs", "user_id", issues, "Funnel: doses"),
+  ])
+  const dosedThisWeek = activeIn(writes, thisWeekStart, undefined, ["dose_logs"])
+
+  const reachedGate = intersect(people.accountIds, consentIds)
+  const reachedProtocol = intersect(reachedGate, protocolIds)
+  const reachedDose = intersect(reachedProtocol, doseIds)
+  const stillDosing = intersect(reachedDose, dosedThisWeek)
+
   const steps = funnel([
-    { label: "Created an account", count: people.totalAccounts },
-    { label: "Finished onboarding", count: people.completedOnboarding },
-    { label: "Added a compound", count: withProtocol },
-    { label: "Logged a dose", count: withDose },
-    { label: "Still logging (7d)", count: activeThisWeek.size },
+    { label: "Created an account", count: people.accountIds.size },
+    { label: "Passed the legal gate", count: reachedGate.size },
+    { label: "Added a compound", count: reachedProtocol.size },
+    { label: "Logged a dose", count: reachedDose.size },
+    { label: "Still dosing (7d)", count: stillDosing.size },
   ])
 
   return {
