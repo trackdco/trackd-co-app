@@ -15,6 +15,7 @@ import {
   readSaveOffer,
 } from "@/lib/billing/saveOffer";
 import { stripe } from "@/lib/billing/stripe";
+import { syncSubscription } from "@/lib/billing/sync";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -304,6 +305,39 @@ export async function claimExtraTime(): Promise<
             ? "Your subscription is already running, so there's nothing to add."
             : "We couldn't add the extra time just now.",
     };
+  }
+
+  /**
+   * ⚠️ MIRROR THE GRANT IMMEDIATELY. DO NOT WAIT FOR THE WEBHOOK.
+   *
+   * A cold review measured the gap: `claimExtraTime` returned "22 Aug 2026" while
+   * the screen behind the dialog still read "Trial ends 15 Aug 2026 / Keep
+   * Trackd after 15 Aug", and `entitlements.active_until` was still 15 Aug.
+   * Neither is written by this action; only the Stripe webhook writes them.
+   *
+   * Usually that lands a second later and nobody notices. When it does not —
+   * lost, `unattributed`, or 500'd — the user goes READ-ONLY ON THE OLD DATE,
+   * having been told in writing they had another week. That is the same shape
+   * as the $69.99 defect: a promise on screen and a different truth in the
+   * database.
+   *
+   * `applyCancelFlag` already mirrors its own change for exactly this reason.
+   * This does the same, through `syncSubscription`, which is the one function
+   * that writes both the mirror and the entitlement from a live Stripe object —
+   * so the row the webhook eventually writes is byte-identical and the replay is
+   * a no-op rather than a second opinion.
+   *
+   * Logged and not thrown on failure. Stripe has already granted the week and it
+   * is real; failing here would tell the user their extra time did not happen
+   * when it did, which is the worst available lie. The webhook still reconciles.
+   */
+  try {
+    await syncSubscription(await stripe().subscriptions.retrieve(primary.id));
+  } catch (err) {
+    console.error(
+      `[billing] extra time granted on ${primary.id} but the mirror was not updated:`,
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   console.info(
