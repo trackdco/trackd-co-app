@@ -4,7 +4,85 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-12 (the trial reminder built; `grants/004` verified applied)
+Last updated: 2026-08-13 (the read-only gate, the save offer, the beta grace)
+
+---
+
+## 🔴 ADRIAN'S LIST — everything owed by him, in one place
+
+Nothing below can be done by an agent. Everything else on this branch is built.
+
+### 1. ⚠️ THE LIST OF FRIENDS FOR FREE ACCESS
+
+`COMP_EMAILS` in **`lib/billing/betaGrace.ts`**. One address per line, lowercase.
+It currently holds two:
+
+```ts
+export const COMP_EMAILS: readonly string[] = [
+  "admin@trackdco.app",
+  "adrianschimizzi1@gmail.com",
+  // ADD FRIENDS HERE, one per line, lowercase.
+];
+```
+
+**Anybody not on it gets 14 free days and then read-only.** So a friend left off
+this list is a friend who gets locked out a fortnight after billing switches on.
+Fill it in **before** running the backfill — the backfill skips accounts that
+already have access, so adding somebody afterwards means editing their
+entitlement row by hand.
+
+**Do NOT put them in `FOUNDER_EMAILS` (`lib/admin.ts`) instead.** That list also
+opens `/admin`, which shows every waitlist sign-up, and it is duplicated into an
+RLS policy in `supabase/waitlist/002_founder_read.sql`. Free forever and "can
+see everyone's data" are different things.
+
+### 2. STRIPE OFF SANDBOX
+
+Nothing on this branch may merge until this is done. Detail further down under
+"Owed by Adrian, when he wants to go live" — live keys, live prices, a live
+webhook endpoint and its secret, a LIVE portal configuration, Apple Pay domain
+registration, Link off in live mode, and the account business description.
+
+### 3. TWO MIGRATIONS TO APPLY BY HAND
+
+Both are written, neither is applied. Each carries its own VERIFY block; run
+those rather than trusting the header.
+
+| File | What it does | If not applied |
+|---|---|---|
+| `supabase/billing/002_trial_start_lease.sql` | One column, `billing_customers.trial_lock_until`. The per-user lease `startTrial` holds across its Stripe check-and-create. | **Safe.** The code detects it and proceeds without the lease; the reconcile still stops a second live subscription. Driven, and it holds. |
+| `supabase/notifications/005_trial_stamp_lock.sql` | A trigger + a revoke, so a user cannot clear, set or delete their own trial-reminder stamp. | **Safe, but the hole stays open.** A user can silence the promised trial notice or make it fire ~96 times a day. Only self-affecting. |
+
+Re-run `scratchpad/stamp-attack.mjs` after applying `005` — the five attacks in
+it must turn 403, and the four legitimate operations must stay green. **The
+service-role stamp is the one that matters most**: a lock that also stops the
+runner turns "96 notifications a day" into "none, ever".
+
+### 4. THE GO-LIVE ORDER, AND IT IS NOT NEGOTIABLE
+
+```
+1. Stripe off sandbox. Live keys + prices + webhook secret into Vercel.
+2. Apply supabase/billing/002 and supabase/notifications/005.
+3. Fill in COMP_EMAILS.
+4. Merge, deploy.
+5. POST /api/billing/beta-grace?dry=1  with  Authorization: Bearer $CRON_SECRET
+   -> READ the output. It should say ~90 accounts, N comp, the rest grace.
+6. POST /api/billing/beta-grace       (no ?dry) — grants the rows.
+7. Verify: select count(*) from entitlements;   must be ~90, not 0.
+8. ONLY THEN set BILLING_GATE_ENABLED=true in Vercel Production.
+```
+
+**Step 8 before step 6 puts every one of the ~90 real accounts into read-only
+with no notice.** That is why the gate is an environment variable and not a
+constant: merging this branch changes nothing at all until that switch is set.
+
+### 5. THE STRIPE PORTAL'S SECOND CANCEL BUTTON
+
+The account's DEFAULT portal configuration enables `subscription_cancel`, so a
+user who opens "Payment method and invoices" finds a cancel button in Stripe's
+wording next to ours. Harmless (the webhook syncs either way) but it bypasses
+the save offer entirely. Turn the feature off on the portal configuration if
+cancelling should live in one place. Dashboard change, not a code change.
 
 ---
 
@@ -156,6 +234,13 @@ are comments, test names, `console.error` strings, and the `/preview/*` +
 `NODE_ENV` and 404 in production. The `"—"` empty-value glyph stays: it is a
 typographic blank, not prose (Adrian, 2026-08-12).
 
+### ⚠️ THE GATE IS BUILT AND IS SWITCHED OFF
+
+`BILLING_GATE_ENABLED` is unset, so `canWriteData()` returns true for everybody
+and the whole read-only gate is inert. Merging this branch changes nothing for
+any of the 90 accounts. See "the go-live order" at the top of this file for when
+and in what order to turn it on.
+
 ### ⚠️ ONE MIGRATION OWED NOW
 
 **`supabase/notifications/004_trial_reminder.sql` is NOT APPLIED** (verified
@@ -240,103 +325,90 @@ portal configuration, which already exists in TEST mode.
 
 State and the reasoning are in `progress-tracker.md`.
 
-## 🔴 FOUR THINGS FOR ADRIAN, FROM THE COLD REVIEW (2026-08-12)
+## ✅ THE COLD REVIEW'S FOUR THINGS — THREE ARE NOW BUILT (2026-08-13)
 
-Found by three adversarial agents. Each one is either pre-existing code the
-review only reached through the new work, or a decision that is not an agent's
-to make. **None of these is fixed.**
+### 1. ✅ `startTrial` could give ONE user TWO live subscriptions — CLOSED
 
-### 1. `startTrial` can give ONE user TWO live subscriptions
+The root cause of the $69.99 defect. The idempotency key was
+`trial:${user}:${plan}`, so two plans were two keys and two concurrent calls both
+passed the read and both created.
 
-The root cause of the worst defect on the branch. The duplicate guard's Stripe
-idempotency key is `trial:${user.id}:${plan}`, so **two different plans are two
-different keys**, and the guard is a read-then-write where both reads pass before
-either write. Driven: two concurrent `startTrial` calls produced two live trials
-on one customer, both billable.
+Now: a per-user LEASE across the whole check-and-create
+(`lib/billing/trialLease.ts`), the live-subscription check widened to the shared
+`BILLABLE_STATUSES` (it missed `paused` and `unpaid`), and a RECONCILE after
+every create that keeps the oldest and cancels the rest.
 
-The cancel path now stops all of them, so the money bug is closed from that end.
-But a user who does this is still charged twice on day 8 unless they cancel, and
-they only ever saw one plan on screen. **The fix belongs in `startTrial`** (spec
-w2b-15's code, not this branch): key the guard on the user alone, or check Stripe
-for ANY live subscription rather than one matching the plan.
+NOT `pg_advisory_lock`, and that is the interesting part: the session-scoped one
+leaks permanently over PostgREST's connection pool (acquired on one backend,
+released on another, `pg_advisory_unlock` fails) and the transaction-scoped one
+releases before the Stripe call it exists to guard. The thing being protected is
+an HTTP round-trip and no Postgres lock spans one.
 
-### 2. The same Host-header trust exists in the AUTH paths
+Driven against real Stripe five ways, including NINE concurrent calls across all
+three plans: at most one billable subscription survived every time.
 
-`app/(app)/billing/actions.ts` was poisonable through `X-Forwarded-Host` and is
-now allowlisted. **The identical pattern is in `app/forgot-password/actions.ts:33`
-and `app/login/actions.ts:111`**, where the value becomes the link in a password
-reset email. That is a worse target than a Stripe return URL.
+### 2. 🔴 The same Host-header trust exists in the AUTH paths — STILL OPEN
 
-Not fixed here: it is outside this branch and it touches auth. Vercel's edge
-normally overwrites the header, so this is a trust-boundary defect rather than a
-proven exploit, but the same allowlist belongs in all three.
+`app/forgot-password/actions.ts:33` and `app/login/actions.ts:111`, where the
+value becomes the link in a password reset email. **The fix is written and
+committed on branch `fix/host-header-allowlist`** (off main, 1 commit, 10 tests)
+and is mergeable on its own whenever Adrian wants it.
 
-### 3. `notification_preferences.trial_reminder_sent_for` is user-writable
+### 3. ✅ `trial_reminder_sent_for` is user-writable — FIXED, awaiting the migration
 
-A user JWT can PATCH it (200, 1 row). Clearing it means the trial reminder fires
-every cron tick (~96/day); setting it suppresses the promised notice. Only
-self-affecting — cross-user writes correctly hit 0 rows — so it is a nuisance
-rather than a hole. Locking it needs column-level grants on
-`notification_preferences`, the same shape `grants/003`/`004` use on `profiles`.
+`supabase/notifications/005_trial_stamp_lock.sql`. And it was worse than
+reported: the UPDATE was one of THREE routes. A user can also INSERT a row
+already stamped, and — the one nobody had noticed — simply DELETE the row, which
+silences the reminder permanently on its own, because the claim is a conditional
+UPDATE and against a missing row it matches nothing and reports no error at all.
+One request, permanent, silent. All three are closed by the migration.
 
 ### 4. ⚠️ SIXTEEN TEST ACCOUNTS WERE DELETED, AND THAT WAS NOT AUTHORISED
 
-The `w2b15-*@trackd-qa.invalid` and `preview@` accounts — the ones carried in
-this file as "left for Adrian to say" — were deleted by review agents whose
-cleanup matched the whole `.invalid` domain rather than only the rows they
-created. Profiles went 106 → 90, and `subscriptions`, `entitlements` and
-`billing_customers` cascaded to empty.
+Unchanged from the last write-up. The `w2b15-*@trackd-qa.invalid` and `preview@`
+accounts were deleted by review agents whose cleanup matched the whole
+`.invalid` domain rather than the rows they created. Profiles went 106 to 90.
 
-**No real account was touched** (all 90 remaining are real domains) and **no real
-user data was lost**. `webhook_events` is fully intact at 421 rows, including all
-7 `trial_will_end` and the complete test-clock history with full payloads — so
-the actual billing verification evidence survives; what went was the account rows
-those runs were performed on.
+No real account was touched and no real user data was lost; `webhook_events` is
+intact at 421 rows including the full test-clock history, so the billing
+evidence survives. It was still a decision that was Adrian's to make.
 
-It was still a decision that was Adrian's to make and it was made for him.
+**The harness now refuses to do it again**: `dropUser` takes an id and nothing
+else, and every driver on this branch cleans up by id. Every review agent this
+session was told the same in its brief.
 
 ### 📝 ADRIAN'S NOTES, 2026-08-12 — decisions still to make
 
 Written down, not built. Each one needs his call before anything is designed.
 
-#### 1. What current beta users see when we go public
+#### 1. ✅ What current beta users see when we go public — DECIDED AND BUILT
 
-There are **106 accounts** on production today and every one of them has been
-using the whole app for free. The moment billing is switched on, each one needs
-an answer to "what happens to me", and the app currently has nothing to say.
+Adrian, 2026-08-13. `COMP_EMAILS` free forever, everybody else 14 days then
+read-only, and a one-time modal explaining it. `lib/billing/betaGrace.ts` +
+`app/api/billing/beta-grace/route.ts`. The list of friends is item 1 at the top
+of this file and is the only part still owed.
 
-The shape of the decision, not the answer:
+The count is **90**, not 106 — sixteen were test accounts deleted by a review
+agent on 2026-08-12 (see below). The dry run confirms it.
 
-- **Are they grandfathered, or converted?** A `comp` entitlement per beta account
-  is one line of SQL and needs no product work at all — `entitlement_source` has
-  `comp` precisely for this, and `strongestEntitlement` already prefers it. A
-  conversion needs a screen, a deadline and a price.
-- **If converted, what is the notice?** They agreed to nothing. Charging, or
-  removing access, from people who tested it for free with no warning is the
-  fastest way to a support queue and a dispute rate.
-- **Where is it said?** There is no in-app announcement surface at all. The
-  trial banner's slot on Home is the only precedent.
-- **Founder and cofounder accounts are a separate case** and already have one:
-  `comp`, never expiring.
+#### 2. ✅ How the app behaves AFTER a subscription lapses — DECIDED AND BUILT
 
-#### 2. How the app behaves AFTER a subscription is cancelled
+Adrian, 2026-08-13. **Read-only, never locked out.** Every screen opens, every
+dose, photo, reading and block stays visible. What stops is ADDING: logging a
+dose, adding a compound, a weigh-in, a journal entry, a photo, a protocol edit.
+Any blocked action opens a centred pop-up with the real plan rows.
 
-Cancelling is built; what happens when the date arrives is not. Today the
-entitlement simply expires and **nothing in the app reads entitlements**, so the
-practical answer right now is "nothing happens, they keep everything".
+Two layers: a provider + `useWriteAccess()` hook client-side (which is UX, and
+also keeps the device store from being written for something that will never
+sync), and `requireWriteAccess()` on thirteen server functions, which is the
+rule. `lib/billing/gate.ts` carries the full list of what is covered and what is
+deliberately not, with the reason for each.
 
-That is fine while nobody is billed and wrong the moment somebody is. The
-decision needed:
+**Deletes are not gated** and neither are settings: removing data you put in is
+yours to do, and a read-only user must still be able to fix their timezone.
 
-- **What does a lapsed user lose?** Read-only? Nothing new logged? A frozen
-  protocol they can still look at? Their data must not be deleted or hidden.
-- **What do they SEE?** A locked screen, a banner, a paywall on re-entry.
-- **Where does the gate live?** `app/(app)/layout.tsx` gates on session + age
-  only. Adding `hasProAccess` there is the one-line version and locks the whole
-  app; a per-feature gate is a bigger design.
-- **Coming back.** A lapsed user who resubscribes should land back on their own
-  data, untouched. That falls out of the current model for free (nothing is
-  deleted), but it should be stated rather than assumed.
+**Coming back** falls out for free — nothing is ever deleted, so resubscribing
+restores writing to data that never moved. Verified by executing.
 
 #### 3. Put the new legal docs through, and update them if needed
 
@@ -383,17 +455,19 @@ call it when it is built.
   more, and the "Beta ·" prefix is gone. **`project-overview.md` still describes
   `tier` as the entitlement column and is now wrong** — that doc edit is the last
   piece and was left because it is prose, not code.
-- 🔴 **`NO_ENTITLEMENT_LABEL` in `lib/billing/manage.ts` is a tripwire.** It says
-  "Pro", which is TRUE only because nothing gates on `entitlements` yet. The
-  commit that wires `hasProAccess` into `app/(app)/layout.tsx` **must change it
-  in the same commit**, or every locked-out user reads a screen saying they are
-  on Pro.
+- ✅ ~~**`NO_ENTITLEMENT_LABEL` is a tripwire.**~~ **DISARMED 2026-08-13**, in
+  the same commit as the gate, exactly as its comment required. It is now two
+  constants behind one switch: `BILLING_GATE_ENABLED` off reads "Pro" (true —
+  nothing gates, so the account genuinely has the whole product), on reads
+  "Read only". A test pins that the switch changes NOTHING for anybody who
+  actually has access.
 - **Apple Pay on a real device.** Never driven — it needs HTTPS and a registered
   domain, so it is a production check.
-- **Sixteen `w2b15-*@trackd-qa.invalid` accounts from the 2026-08-08 session are
-  still on production**, holding the billing verification history (test clocks,
-  3DS abandons, the declined-card runs). Deleting them is one line and it also
-  destroys that evidence, so it was left for Adrian to say.
+- ~~**Sixteen `w2b15-*@trackd-qa.invalid` accounts are still on production.**~~
+  **They are gone** — deleted by a review agent on 2026-08-12 without being
+  asked (see the cold-review section above). `webhook_events` survives intact at
+  421 rows, so the billing evidence itself is not lost; what went was the account
+  rows those runs were performed on.
 - **Ten untracked `* 2.ts` files sit in `lib/`** (`labels 2.ts`,
   `stockUnits 2.ts`, `writeCoalescer.test 2.ts` and seven more). Finder/iCloud
   duplication artifacts: none is tracked by git, so none ships, but `tsc` and the

@@ -42,7 +42,8 @@ Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormo
 
 ### Entitlements
 - **Feature gates read `entitlements`, not `profiles.tier`.** (Superseded 2026-08-12; the old line said `tier` and nothing else.) `entitlements` is the only table that decides access, and Stripe writes it through the webhook while Apple and Google will write the same rows through RevenueCat with no application change. `profiles.tier` is historical: `grants/003` locked it to the service role, and as of 2026-08-12 nothing reads it for display either. See `architecture.md` -> Billing.
-- **Nothing actually gates yet.** `app/(app)/layout.tsx` still checks session + age only, so every account has the whole product. Wiring `hasProAccess` into that layout is a deliberate, separate decision, and the commit that does it must also change `NO_ENTITLEMENT_LABEL` in `lib/billing/manage.ts`.
+- **A lapsed account is READ-ONLY, never locked out** (Adrian, 2026-08-13). Every screen opens and every dose, photo, reading and block stays visible; what stops is ADDING to it. Nothing is ever hidden or deleted. The gate is a provider around the `(app)` tree plus `requireWriteAccess()` on the write actions, NOT a redirect in the layout — `app/(app)/layout.tsx` still checks session + age only for ROUTING, and deliberately so. See `lib/billing/gate.ts` for the full list of what is covered and what is not.
+- **The gate is OFF unless `BILLING_GATE_ENABLED=true`.** ~90 real accounts have no `entitlements` row, so turning it on before the beta backfill (`/api/billing/beta-grace`) has run would put all of them into read-only overnight. The same switch decides whether an account with no entitlement is described as "Pro" or "Read only", which is what disarmed the `NO_ENTITLEMENT_LABEL` tripwire.
 
 ## Scope
 

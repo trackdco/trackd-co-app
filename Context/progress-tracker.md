@@ -5,7 +5,251 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-12 (the cancel control + the in-app trial notice)
+Last updated: 2026-08-13 (the read-only gate, the save offer, the beta grace)
+
+## Billing, finished: one subscription, one offer, and read-only after (2026-08-13)
+
+Six steps on `wave3/billing-cancel`, all committed, **nothing pushed, `main`
+untouched**. tsc, eslint, 940 tests green throughout. Every one of them was
+verified by DRIVING the running app against real Stripe and the live database;
+the gates caught none of what follows.
+
+### 1. The URL stops saying "paywall", and the undo says what it gives you
+
+`?step=paywall` -> `?step=plans`, `?step=checkout` -> `?step=start`. Step VALUES
+only: `screens/paywall.tsx` and `PaywallScreen` are untouched, so it stayed a
+copy change rather than a refactor of thirty files. Every screen puts its own id
+in the address bar, so the id IS copy — it is on screen for the whole time
+somebody is deciding whether to pay, and "paywall" is the industry's word for
+the thing standing between a person and what they want.
+
+The retired ids still RESOLVE, through `resolveStepId`, used by the only two
+places that read a raw URL. Not politeness: a Stripe `return_url` written before
+this change carries `?step=checkout`, and a user coming back from a 3DS
+challenge they had already passed would have been dropped at the start of the
+flow.
+
+**The alias map is a `Map`, and that is load-bearing.** On an object literal
+`LEGACY["constructor"]` returns a function and `LEGACY["__proto__"]` returns
+`Object.prototype` — both truthy, both would have been handed back as a `StepId`
+and looked up in `SCREENS` as `undefined`. `?step=constructor` would have
+rendered a crash.
+
+**"Restart my trial" is gone** (Adrian: it is meaningless, nothing has stopped).
+Trial: "Keep Trackd after 19 Aug". Paid: "Keep my subscription". On a trial the
+date is the only thing that changes, and it is the day the two futures separate;
+on a paid plan there is no comparable cliff.
+
+### 2. ONE SUBSCRIPTION PER USER, EVER
+
+The root of the $69.99 defect. `startTrial`'s guard was a read of Stripe then a
+write to Stripe, serialised only by an idempotency key of
+`trial:${user}:${plan}` — **two plans are two keys**.
+
+Three changes:
+
+- **A per-user LEASE** across the whole check-and-create
+  (`lib/billing/trialLease.ts`, `supabase/billing/002`). One conditional UPDATE
+  on `billing_customers`, held across the Stripe round-trip, expiring after 90s.
+- **The live-subscription check widened** to `BILLABLE_STATUSES`, now exported
+  from `cancel.ts` and shared. It was a narrower literal three, so a `paused` or
+  `unpaid` subscription did not block a second trial, and both of those can
+  charge once Stripe resumes or retries them.
+- **A RECONCILE after every create.** Re-lists and, if more than one is live,
+  keeps the OLDEST and cancels the rest. Unreachable while the lease is
+  enforced; it is what closes the race in the window before `002` is applied.
+
+**Why not `pg_advisory_lock`.** It is the textbook answer and it cannot work
+over this stack. The session-scoped one is taken on one pooled PostgREST backend
+and released on another, so `pg_advisory_unlock` fails and the lock leaks
+PERMANENTLY. The transaction-scoped one releases when the RPC returns, which is
+before the Stripe call it exists to guard. The thing being protected is an HTTP
+round-trip to a third party and no Postgres lock spans one.
+
+`survivorOf` is pure and tested, and the property tested is not "it sorts" but
+that TWO RACERS REACH THE SAME VERDICT — if they disagree they cancel each
+other's subscription and the user ends up with none. `created` is
+second-resolution and the race is milliseconds wide, so ties are the norm; the
+id breaks them by code unit, not `localeCompare`, which is locale-dependent and
+could order two servers differently.
+
+### 3. The trial reminder's stamp stops being the user's to write, OR DELETE
+
+`notification_preferences.trial_reminder_sent_for` was writable by the account it
+is about. Reproduced live with a user JWT and the publishable key: clearing it
+(the reminder then fires every cron tick, ~96 pushes a day about somebody's
+money), setting it forward (the promised notice is silenced and they are charged
+with no warning), smuggling it inside a legitimate settings payload, INSERTING a
+row already stamped, and — the one nobody had spotted — **simply DELETING the
+row**, which silences it permanently on its own, because the claim is a
+conditional UPDATE and against a missing row it matches nothing and reports NO
+ERROR at all. One request, permanent, silent.
+
+`supabase/notifications/005` closes all three verbs: a BEFORE INSERT OR UPDATE
+trigger, plus `revoke delete`.
+
+**A trigger, not column grants.** Postgres has no "revoke one column": the only
+way to say it is to revoke the table privilege and re-grant an explicit list of
+every other column, which goes stale the moment a column is added. That trap has
+bitten `profiles` twice.
+
+**`current_user`, not `auth.role()`.** They agree for every request that reaches
+this table, but `current_user` is the role PostgREST actually switched into and
+it is a built-in that cannot be missing — `auth.role()` lives in the `auth`
+schema, and if it were ever absent the trigger would throw on EVERY write and
+take the settings screen and the reminder cron down together.
+
+### 4. One save offer, AFTER the cancellation, once ever
+
+Adrian's shape: "Cancel my trial" -> confirm naming the date -> a second pop-up
+offering EXTRA TIME -> done.
+
+**The order is the whole compliance story.** The cancellation is written to
+Stripe and `cancelSubscription` has returned before the offer is even looked up.
+Verified rather than asserted: `cancel_at_period_end` reads TRUE at Stripe in the
+same breath as the offer comes back. "No thanks", Escape, the backdrop, a killed
+tab and a dropped connection all leave the user cancelled, and the offer lookup
+lives in its own try/catch that can only affect one optional field.
+
+Two offers, because they are genuinely different:
+
+- **TRIAL:** seven more free days, and the cancellation STANDS.
+  `cancel_at_period_end` is deliberately untouched, so the copy can say "you
+  still won't be charged" and be completely true. Computed from the CURRENT
+  trial end rather than from today, so cancelling on day 1 buys a fourteen-day
+  trial instead of shortening it.
+- **PAID:** the next period free, and taking it DOES un-cancel, because the thing
+  they cancelled is the next period. There is no honest way around that, so the
+  dialog states it in the same sentence rather than a footnote. A 100%-off
+  `duration: once` coupon, so the invoice literally reads $0.00 and the renewal
+  date does not shift.
+
+Once ever, in Stripe CUSTOMER metadata (no migration). `shown_at` is written when
+the offer is PRESENTED and is what decides availability, so **a second
+cancellation goes straight through with no offer** even if the first was
+declined — re-offering every time is exactly the friction click-to-cancel exists
+to stop.
+
+Two guards over two windows: the metadata flag for coming back tomorrow, and a
+Stripe idempotency key for two taps in the same tick, which the flag cannot
+cover because metadata has no compare-and-swap.
+
+`claimExtraTime` refuses a caller who was never OFFERED it. A server action is a
+public HTTP endpoint, and "the dialog only appears when the offer is available"
+is a fact about the screen.
+
+### 5. Read-only when it lapses, and a pop-up with the real prices
+
+A lapsed trial or subscription does not lock anybody out. Every screen opens,
+every dose, photo, reading and block stays exactly where it was. What stops is
+ADDING. **Nothing is hidden and nothing is deleted** — this is health data
+somebody entered about their own body, and withholding it to apply commercial
+pressure is the one thing this product must never do. So the gate is a PROVIDER,
+not a third redirect in `app/(app)/layout.tsx`.
+
+**Two layers, and only one is enforcement.** The client provider + `useWriteAccess()`
+hook is what a user meets: it stops the action before a sheet opens, and it keeps
+the DEVICE STORE from being written for something that will never sync (the home
+and protocol domain writes localStorage first and mirrors afterwards). The server
+layer is the rule — thirteen write functions call `requireWriteAccess`.
+
+**Deletes are NOT gated**, and neither are settings. Removing data you put in is
+yours to do; a read-only user must still be able to fix their timezone and turn
+off notifications about a subscription they no longer have. `lib/billing/gate.ts`
+carries the full list of what is covered and what is not, with the reason for
+each — including why the protocol PLAN pushes are deliberately left ungated
+(they are shared with `hydrateProtocol` and `migrateDeviceState`, which REPLAY
+data the user already owns) while the DOSE pushes are gated (that path re-reads
+localStorage on every reconnect and upserts on a deterministic id, so a refused
+dose stays on the device and syncs the moment the account is entitled again).
+
+**It is OFF unless `BILLING_GATE_ENABLED=true`.** There are ~90 real accounts and
+NOT ONE has an `entitlements` row. Merging changes nothing until the switch is
+set, which is the point: a gate that goes live as a side effect of a deploy goes
+live at the wrong moment.
+
+`NO_ENTITLEMENT_LABEL`'s tripwire was disarmed in the same commit, as its comment
+had required for four days. It cannot be one string: gate off, the account
+genuinely has the whole product; gate on, "Pro" would be a lie on the one screen
+they opened to find out why they are locked out.
+
+`PlanRows` was extracted from the paywall and the paywall now renders it too, so
+the pop-up's prices cannot drift from the checkout's.
+
+### 6. What happens to the ninety people who were already here
+
+`COMP_EMAILS` free forever, everybody else **14 days** then the gate, and a
+one-time modal explaining it. Fourteen is double the trial deliberately: a notice
+shorter than a stranger's trial would read as worse treatment for having been
+early, and people who feel ambushed dispute charges.
+
+**`COMP_EMAILS` is deliberately not `FOUNDER_EMAILS`.** That list also opens
+`/admin` and is duplicated into an RLS policy in SQL. Adding a friend to a comp
+list must not hand them the admin dashboard.
+
+The backfill is a ROUTE, not a SQL file, because the comp list is TypeScript and
+Adrian is going to edit it — a SQL file would put the same addresses in two
+languages with no way for one to notice the other changed. Secured with the same
+Bearer `CRON_SECRET` as the cron, `?dry=1` writes nothing, idempotent, and it
+never shortens anybody's access.
+
+**The grace drives the trial banner and the day-5 push.** Adrian expected that to
+fall out of the entitlement machinery; it did not quite, because both read the
+`subscriptions` MIRROR and a graced account has no Stripe subscription at all.
+`graceAsTrial` describes it as the trial it functionally is, which costs both
+nothing. ⚠️ The `comp` test in there is load-bearing: a PAID subscriber's
+entitlement also carries an `active_until`, so without it their dashboard would
+have announced "Your free trial ends 13 Aug 2027".
+
+### What the drives actually showed
+
+| Drive | Result |
+|---|---|
+| NINE concurrent `startTrial` across three plans | 3 created, 2 cancelled by the reconcile, **1 live** |
+| five concurrent, same plan | 1 live, all five got the SAME subscription id |
+| yearly, abandon, back for monthly | yearly cancelled, monthly live |
+| an already-paying customer | `already-subscribed`, nothing created |
+| ten concurrent lease claims | exactly ONE winner, nine losers |
+| the stamp attack | 5 routes succeed today; recorded as the baseline for `005` |
+| cancel -> offer (trial) | cancelled at Stripe BEFORE the offer returned; +7 days; `cancel_at_period_end` still true |
+| cancel -> offer (paid) | one 100%-off discount, un-cancelled, renewal date unchanged, **next invoice total 0 USD** |
+| two concurrent claims | 7 days, not 14 |
+| a different user claiming | refused, nothing leaked, victim could still claim their own |
+| gate OFF | lapsed and entitled identical. Merging is inert. |
+| gate ON, lapsed | all ten screens 200, every write refused, `deleteWeight` still works, /billing reads "Read only" |
+| gate ON, entitled comp | completely unaffected, reads "Complimentary" |
+| beta backfill dry run | **90 accounts, 2 comp, 88 grace, 0 already entitled**, nothing written |
+| mid-grace / expired grace | writable / refused, dashboard 200 either way |
+| the banner on a grace | "Your free trial ends tomorrow." with no subscription row anywhere |
+
+### Two defects the build itself produced, both found by EXECUTING
+
+Neither was caught by tsc, eslint or the tests. Same lesson as every spec before.
+
+- **The unapplied-migration branch tested the wrong error code.** `trialLease.ts`
+  caught Postgres's `42703`; the real answer is PostgREST's **`PGRST204`**, which
+  validates the request body against its schema cache and rejects before
+  Postgres sees the statement. So an unapplied `002` fell through to the generic
+  branch, returned "busy", retried five times over two seconds and then
+  **REFUSED TO START ANY TRIAL AT ALL** — the exact fail-closed outcome the
+  tolerance exists to prevent, on a payment path. (`runner.ts` already handled
+  both codes, which is how the right answer was found.)
+- **The alias map's prototype chain.** `?step=constructor` would have rendered a
+  crash. Caught by writing the test before the implementation.
+
+### Two traps worth keeping
+
+- **A portal renders NOTHING on the server.** `BetaLaunchNotice` and the
+  read-only pop-up are portals, so no amount of reading the served HTML can
+  confirm them. What CAN be confirmed over HTTP is the server's DECISION —
+  the component's reference is in the RSC payload, and is completely ABSENT once
+  the seen cookie is set. The rendering itself is a browser check.
+- **`server-only` is not a real package outside a Next bundle.** Sixteen suites
+  died with "Cannot find package 'server-only'" the moment `gate.ts` entered the
+  dose-sync import graph. Aliased to a stub in `vitest.config.ts` rather than
+  removed from the source: the marker fails the BUILD if a client component
+  imports a server module, which is what keeps the service-role key out of a
+  browser bundle.
 
 ## The cold review of the billing branch (2026-08-12)
 
