@@ -109,6 +109,30 @@ export const BILLABLE_STATUSES: ReadonlySet<string> = new Set<string>([
   "past_due",
   "paused",
   "unpaid",
+  /**
+   * ⚠️ `incomplete` IS BILLABLE, and leaving it out was a real hole.
+   *
+   * It reads like "an attempt that did not happen", and it is not: Stripe keeps
+   * an `incomplete` subscription's FIRST INVOICE PAYABLE for about 23 hours.
+   * Anything that pays it — the customer finishing a 3DS challenge in another
+   * tab, a retry, a dashboard action — turns it `active` immediately.
+   *
+   * A cold review drove it: seed an `incomplete` subscription (from the Stripe
+   * dashboard, a webhook replay, an import — exactly the cases the reconcile
+   * exists for), then `startTrial`. Neither the duplicate guard nor the
+   * reconcile could SEE it, so a second subscription was created; paying the
+   * first invoice then left **two live billable subscriptions on one user**,
+   * which is the precise state that produced the $69.99 defect.
+   *
+   * It is worse on the deletion path. `cancelNowForUser` sweeps this same set
+   * before an account is erased, and `billing_customers` cascades away with it —
+   * so an `incomplete` subscription left behind bills a person whose only
+   * mapping back to a Stripe customer has just been deleted.
+   *
+   * `incomplete_expired` is deliberately NOT here: Stripe has finished with
+   * those and they can never charge.
+   */
+  "incomplete",
 ]);
 
 const BILLABLE = BILLABLE_STATUSES;

@@ -572,6 +572,25 @@ async function findOrCreateCustomer(
  * Anything past `trialing` has had money move, so it counts regardless.
  */
 function hasValidatedCard(sub: Stripe.Subscription): boolean {
+  /**
+   * ⚠️ `incomplete` IS NEVER "already subscribed", whatever else is true.
+   *
+   * It means Stripe issued the first invoice and it has NOT been paid. Nobody in
+   * that state has bought anything.
+   *
+   * This branch arrived with `incomplete` joining {@link BILLABLE_STATUSES},
+   * which was itself a cold-review fix: an `incomplete` subscription's first
+   * invoice stays payable for ~23 hours, so one left behind can turn `active`
+   * and bill alongside another. Making it visible was the fix; without this line
+   * it would have become visible as "this customer already has one", and the
+   * abandoned-attempt retry — the whole reason the guard asks Stripe rather than
+   * the mirror — would refuse every user whose first attempt failed.
+   *
+   * Falling through to `false` puts it on the abandoned pile, where it is
+   * cancelled and replaced. That is the same treatment an abandoned 3DS trial
+   * gets, and for the same reason.
+   */
+  if (sub.status === "incomplete") return false;
   if (sub.status !== "trialing") return true;
   if (sub.default_payment_method || sub.default_source) return true;
   return !sub.pending_setup_intent;
