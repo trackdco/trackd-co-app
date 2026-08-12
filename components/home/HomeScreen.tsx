@@ -187,6 +187,7 @@ export function HomeScreen({
   firstName,
   injectionCatalogue,
   bodySex,
+  trialBanner,
   notificationsBanner,
   previewStack,
   previewStacks,
@@ -202,6 +203,11 @@ export function HomeScreen({
   injectionCatalogue: InjectionSiteRow[]
   /** Which figure every body map on Home draws (from the user's profile). */
   bodySex: BodySex
+  /** "Your free trial ends …", rendered above the notifications prompt in the
+   *  trial's final stretch. Sits HIGHER because it is time-bound and about
+   *  money, where the notifications prompt is persistent and about setup. Both
+   *  self-hide, so the two are never stacked for long. */
+  trialBanner?: ReactNode
   /** Slim "Enable notifications" prompt, rendered above Today's Log. Self-hides
    *  (renders null) when there's nothing to do, so it never leaves a gap. */
   notificationsBanner?: ReactNode
@@ -870,6 +876,16 @@ export function HomeScreen({
           </div>
         </div>
 
+
+        {/* The trial's final stretch, above the notifications prompt: it is
+            time-bound and about money, and it disappears on its own. Wrapped so
+            it animates in like every other block; renders null outside the
+            window, so `space-y-5` never opens a gap. */}
+        {trialBanner ? (
+          <div className="animate-home-up" style={{ animationDelay: "95ms" }}>
+            {trialBanner}
+          </div>
+        ) : null}
 
         {/* Slim, persistent "Enable notifications" prompt (brings its own
             animate-home-up wrapper; renders null when there's nothing to do, so

@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
+import { TrialEndingBanner } from "@/components/billing/TrialEndingBanner";
 import { EnableNotificationsStep } from "@/components/push/EnableNotificationsStep";
 import { InstallHomeScreenPopup } from "@/components/pwa/InstallHomeScreenPopup";
+import { localParts } from "@/lib/notifications/reminders";
+import { trialNoticeFor, trialNoticeLine } from "@/lib/notifications/trialReminder";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import { createClient } from "@/lib/supabase/server";
 import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites";
@@ -45,9 +48,47 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("units_preference, notifications_enabled, sex")
+    // `timezone` rides along for the trial notice below: the day a trial ends is
+    // a CALENDAR day and it is a different one either side of midnight, so the
+    // server must resolve it in the user's own zone rather than in Vercel's.
+    .select("units_preference, notifications_enabled, sex, timezone")
     .eq("id", user.id)
     .maybeSingle();
+
+  /**
+   * THE TRIAL'S FINAL STRETCH.
+   *
+   * The push only reaches the minority who granted notification permission, so
+   * the same promise is stated on the one surface everybody has. Decided by
+   * `trialNoticeFor`, which shares its date maths with the push so the two
+   * cannot disagree about which day was promised.
+   *
+   * `dismissedFor` is null here on purpose: dismissal is a DEVICE preference and
+   * the server cannot read `localStorage`. The banner component asks the device
+   * and hides itself. That means the server does this small read for a dismissed
+   * banner too, which is one indexed lookup on a table with eleven rows.
+   */
+  const trialTz = (profile?.timezone as string | null) || "Australia/Sydney";
+  const { data: trialRows } = await supabase
+    .from("subscriptions")
+    .select("status, trial_ends_at, cancel_at_period_end")
+    .eq("user_id", user.id)
+    .eq("status", "trialing")
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  const trialRow = trialRows?.[0];
+  const trialNotice = trialNoticeFor(
+    trialRow
+      ? {
+          status: trialRow.status as string,
+          trialEndsAt: (trialRow.trial_ends_at as string | null) ?? null,
+          cancelAtPeriodEnd: Boolean(trialRow.cancel_at_period_end),
+        }
+      : null,
+    trialTz,
+    localParts(new Date(), trialTz).dateKey,
+    null,
+  );
 
   // Set by the auth callback on a fresh sign-in / sign-up — drives the one-time
   // (per-login) "Add to Home Screen" popup below.
@@ -86,6 +127,18 @@ export default async function DashboardPage() {
         firstName={firstName}
         injectionCatalogue={injectionCatalogueForSex}
         bodySex={bodySex}
+        // Keyed for the same reason `notificationsBanner` is: this element
+        // crosses the server/client boundary, so React counts it as an unkeyed
+        // list child and warns on every load.
+        trialBanner={
+          trialNotice ? (
+            <TrialEndingBanner
+              key="trial-ending"
+              line={trialNoticeLine(trialNotice)}
+              forDate={trialNotice.forDate}
+            />
+          ) : null
+        }
         // Slim, persistent "Enable notifications" prompt, rendered above Today's
         // Log. Notifications are core to the app, so it stays until turned on (no
         // dismiss); self-hides when already on / not actionable.
