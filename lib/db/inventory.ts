@@ -62,8 +62,30 @@ function isUndefinedColumn(error: { code?: string } | null): boolean {
  * tablet count and quietly corrupt the maths. The caller gets a specific answer
  * instead, so the sheet can say what is actually wrong.
  */
-function isPendingEnumValue(error: { code?: string } | null): boolean {
-  return error?.code === "22P02" || error?.code === "23514"
+function isPendingEnumValue(
+  error: { code?: string } | null,
+  row: StockInsert,
+): boolean {
+  // A value the `inventory_type` enum has never heard of — unambiguous.
+  if (error?.code === "22P02") return true
+  if (error?.code !== "23514") return false
+  /**
+   * `23514` is EVERY check violation on this table, plus both unit-family
+   * triggers, which `RAISE ... USING ERRCODE = '23514'`. Treating all of it as
+   * "your database is behind" meant a row rejected for a perfectly ordinary
+   * reason — a strength of 0 (`strength_positive`), or a `base_unit` that cannot
+   * pair with the compound's dose unit — told the user:
+   *
+   *   "This container type isn't available yet. Try Reconstituted, Pre-mixed or
+   *    Oral for now."
+   *
+   * …on a sheet where Oral was already selected. A dead end, and a false one.
+   *
+   * The pending-migration reading only ever made sense for the case it was
+   * written for: a database with no `bulk_powder` enum value rejects a tub via
+   * the type CHECK. So it is claimed for a tub and nothing else.
+   */
+  return row.inventory_type === "bulk_powder"
 }
 
 /**
@@ -317,7 +339,7 @@ export async function addStockItem(
       // write. Reported distinctly so the sheet can name the real reason —
       // there is nothing to retry, and silently degrading a tub to a tablet
       // count would corrupt its maths. See `isPendingEnumValue`.
-      if (isPendingEnumValue(error)) {
+      if (isPendingEnumValue(error, row)) {
         console.error("addStockItem: form not available until 014/016", error)
         return { ok: false, pendingMigration: true }
       }

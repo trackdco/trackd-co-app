@@ -35,7 +35,12 @@ import {
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { isInventoryForm } from "@/lib/containers/form"
 import { containerNoun } from "@/lib/containers/labels"
-import { needsIuFromMgHint, powderUnitsFor, resolvePowderUnit } from "@/lib/protocol/stockUnits"
+import {
+  needsIuFromMgHint,
+  oralStockRule,
+  powderUnitsFor,
+  resolvePowderUnit,
+} from "@/lib/protocol/stockUnits"
 import { routesOf } from "@/lib/compound-categories"
 import { todayKey } from "@/lib/protocol/cycle"
 import { resolveFill, vialBasis, FILL_PRESETS, round3, formatGrams } from "@/lib/protocol/vialFill"
@@ -441,38 +446,37 @@ function AddStockForm({
       }
     }
     if (num(count) <= 0) return null
-    // Oral with NO stated strength: the tablet is the unit, so the base unit
-    // becomes the tab/cap itself and there is no strength to store
-    // (`supabase/protocol/016`). This is a complete, valid item — a multivitamin
-    // — not a half-filled form, which is why it returns rather than nulling.
-    //
-    // NOT available to a compound dosed in `iu`, though: `base_unit` would be
-    // `tab`, and `unit_family_compatible('tab','iu')` is false, so the DB
-    // trigger rejects the row. `strengthRequired` says so on the form instead of
-    // letting the save fail with a message the user can do nothing about.
-    if (num(strength) <= 0 && !strengthRequired) {
+    // No oral shape can satisfy this compound's dose unit (it is dosed in grams
+    // — a tub, not a bottle). Refuse rather than write a row the trigger rejects.
+    if (oralRule.baseUnit === null) return null
+    // Oral with NO stated strength: the tablet IS the unit, so `base_unit` and
+    // `total_amount_unit` are both the tab/cap itself (`supabase/protocol/016`).
+    // A complete, valid item — a multivitamin — not a half-filled form.
+    if (!oralRule.strengthRequired) {
       return {
         ...base,
         inventory_type: "oral_solid",
-        base_unit: oralForm as DoseUnit,
+        base_unit: oralRule.baseUnit as DoseUnit,
         total_amount: num(count),
-        total_amount_unit: oralForm as DoseUnit,
+        total_amount_unit: oralRule.baseUnit as DoseUnit,
         strength_per_unit: null,
         prior_used_base,
       }
     }
+    // Strength REQUIRED here, and it must be positive: `strength_positive`
+    // rejects 0, and falling through with a blank field wrote exactly that —
+    // a save that could never succeed, reported as a container type that "isn't
+    // available yet" while the user was looking at it. Null keeps the button
+    // disabled and lets the form say what is missing.
+    if (num(strength) <= 0) return null
     return {
       ...base,
       inventory_type: "oral_solid",
       // The base is the unit the STRENGTH is in, which is what the dose will be
-      // logged in — mg for vitamin C, iu for vitamin D. Resolved against what is
-      // on offer for the same reason the powder field is: this column is
-      // constrained against the compound's dose unit by a DB trigger, and a
-      // mismatch is not a soft failure but a 23514 the sheet can only report as
-      // "Couldn't save this stock."
+      // logged in — mg for vitamin C, iu for vitamin D.
       base_unit: strengthUnitToSave,
       total_amount: num(count),
-      total_amount_unit: oralForm as DoseUnit,
+      total_amount_unit: effectiveOralForm as DoseUnit,
       strength_per_unit: num(strength),
       prior_used_base,
     }
@@ -490,6 +494,10 @@ function AddStockForm({
    */
   const lockedNoun = containerNoun({
     inventoryType: presetType,
+    // The row being refilled or edited knows whether it is counted out — without
+    // it, editing a bottle of off-catalogue capsules read "Oral · same as your
+    // current tub", the exact contradiction the override exists to kill.
+    totalAmountUnit: ei?.totalAmountUnit,
     category: selected?.category,
     name: selected?.name,
   })
@@ -530,14 +538,16 @@ function AddStockForm({
    * this stock. Please try again.", which would have failed identically
    * forever. Same for Vitamin A and Vitamin E. (Second cold review, 2026-08-12.)
    */
-  const strengthUnits = powderUnitsFor(selected?.name, {
+  const oralRule = oralStockRule(selected?.name, {
     doseUnit: selected?.unit,
     storedUnit: ei?.baseUnit,
   })
+  const strengthUnits = oralRule.strengthUnits
   const strengthUnitToSave = resolvePowderUnit(strengthUnit, strengthUnits)
-  /** An iu-dosed oral MUST state a strength — the strengthless form stores the
-   *  tablet as the base unit, which cannot pair with an iu dose. */
-  const strengthRequired = strengthUnits.length === 1 && strengthUnits[0] === "iu"
+  const strengthRequired = oralRule.strengthRequired
+  /** The tab/cap choice is the user's UNLESS the compound is dosed in one of
+   *  them, in which case `total_amount_unit` must equal `base_unit`. */
+  const effectiveOralForm = oralRule.countUnit ?? oralForm
   const showIuFromMgHint = needsIuFromMgHint(selected?.name, powderUnits)
 
   const insert = buildInsert()
@@ -547,7 +557,9 @@ function AddStockForm({
   // Live "how much is in it?" feedback: the picker only appears once the type's
   // amounts are entered (no capacity → nothing to be a fraction of).
   const fillUnit =
-    type === "oral_solid" ? oralForm : type === "bulk_powder" ? "g" : "mL"
+    // `effectiveOralForm`, so a capsule-dosed compound does not read "tab left"
+    // while its row is stored in capsules.
+    type === "oral_solid" ? effectiveOralForm : type === "bulk_powder" ? "g" : "mL"
 
   /** What was added, worded the way the container would be read: "10 mL",
    *  "60 tablets", "300 g". Null when the form has nothing quantifiable, which
@@ -559,7 +571,7 @@ function AddStockForm({
     if (type === "oral_solid") {
       const n = num(count)
       if (n <= 0) return null
-      const word = oralForm === "tab" ? "tablet" : "capsule"
+      const word = effectiveOralForm === "tab" ? "tablet" : "capsule"
       return `${n} ${word}${n === 1 ? "" : "s"}`
     }
     const ml = type === "reconstituted" ? num(bacWater) : num(oilMl)
@@ -805,20 +817,36 @@ function AddStockForm({
                 </label>
                 <div>
                   <span className={STOCK_FIELD_LABEL}>Tablets or capsules</span>
-                  <div className="flex flex-wrap gap-2">
-                    {/* The stored value stays `tab`/`capsule` — that is the
-                        `dose_unit` enum and a database contract. Only the WORDS
-                        change: "cap" beside a number is an abbreviation of
-                        nothing. */}
-                    <button type="button" onClick={() => setOralForm("tab")} className={pill(oralForm === "tab")}>Tablet</button>
-                    <button type="button" onClick={() => setOralForm("capsule")} className={pill(oralForm === "capsule")}>Capsule</button>
-                  </div>
+                  {oralRule.countUnit ? (
+                    // FORCED, not chosen. When the compound is dosed in tablets
+                    // or capsules the tablet IS the unit, so `total_amount_unit`
+                    // must equal `base_unit` — picking the other pill wrote a row
+                    // the unit-family trigger rejects, and `tab` and `capsule`
+                    // are deliberately not interchangeable (016 §3).
+                    <p className="text-sm text-foreground">
+                      {oralRule.countUnit === "tab" ? "Tablets" : "Capsules"}
+                      <span className="text-text-subtle">
+                        {` · how ${selected?.name ?? "this"} is dosed`}
+                      </span>
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {/* The stored value stays `tab`/`capsule` — that is the
+                          `dose_unit` enum and a database contract. Only the WORDS
+                          change: "cap" beside a number is an abbreviation of
+                          nothing. */}
+                      <button type="button" onClick={() => setOralForm("tab")} className={pill(oralForm === "tab")}>Tablet</button>
+                      <button type="button" onClick={() => setOralForm("capsule")} className={pill(oralForm === "capsule")}>Capsule</button>
+                    </div>
+                  )}
                 </div>
-                <div className="grid grid-cols-1 gap-2">
+                <div className={cn("grid grid-cols-1 gap-2", !strengthRequired && "hidden")}>
                   <label className="block">
-                    {/* OPTIONAL, and the unit is whatever the label says — a
-                        5000 iu vitamin D tablet could not be stored at all
-                        before `supabase/protocol/016`. */}
+                    {/* REQUIRED wherever it appears, and the unit is whatever the
+                        label says — a 5000 iu vitamin D tablet could not be
+                        stored at all before `supabase/protocol/016`. It is hidden
+                        entirely for a compound dosed in tablets, where the
+                        tablet is the unit and a strength may not be stored. */}
                     <span className={STOCK_FIELD_LABEL}>Strength each</span>
                     <div className="flex items-center gap-2">
                       <Input value={strength} onChange={(e) => setStrength(clean(e.target.value))} inputMode="decimal" placeholder={strengthRequired ? "e.g. 5000" : "optional"}  className={STOCK_FIELD} />
@@ -834,16 +862,26 @@ function AddStockForm({
                     </div>
                   </label>
                 </div>
-                {num(strength) <= 0 && num(count) > 0 && (
-                  <p className="text-xs text-text-subtle">
-                    {strengthRequired
-                      ? // Not a preference — the strengthless form stores the tablet
-                        // itself as the base unit, and that cannot pair with an iu
-                        // dose. Said here rather than as a failed save.
-                        `${selected?.name ?? "This"} is dosed in iu, so state the strength of one ${oralForm === "tab" ? "tablet" : "capsule"}.`
-                      : `No strength stated, so doses are counted in ${oralForm === "tab" ? "tablets" : "capsules"}.`}
+                {oralRule.baseUnit === null ? (
+                  <p className="text-xs text-state-warning">
+                    {selected?.name ?? "This compound"} is dosed by weight, so it
+                    is tracked as a Powder rather than as tablets. Change the type
+                    above.
                   </p>
-                )}
+                ) : num(strength) <= 0 && num(count) > 0 && strengthRequired ? (
+                  <p className="text-xs text-text-subtle">
+                    {/* Not a preference. The strengthless shape stores the TABLET
+                        as the base unit, and that pairs only with a compound
+                        dosed in tablets — which is 2 of the catalogue's 125
+                        orals. For the rest the row is rejected outright, and the
+                        field said "optional". */}
+                    {`${selected?.name ?? "This"} is dosed in ${selected?.unit ?? "mg"}, so state the strength of one ${effectiveOralForm === "tab" ? "tablet" : "capsule"}.`}
+                  </p>
+                ) : !strengthRequired && num(count) > 0 ? (
+                  <p className="text-xs text-text-subtle">
+                    {`Doses are counted in ${effectiveOralForm === "tab" ? "tablets" : "capsules"}.`}
+                  </p>
+                ) : null}
               </div>
             )}
 

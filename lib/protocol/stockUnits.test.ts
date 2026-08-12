@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest"
 
+import { COMPOUNDS } from "@/lib/compounds-catalogue"
+import { unitFamilyOk } from "@/lib/db/doseUnits"
 import {
   catalogueDoseUnit,
   needsIuFromMgHint,
+  oralStockRule,
   powderUnitsFor,
   resolvePowderUnit,
 } from "@/lib/protocol/stockUnits"
@@ -158,5 +161,79 @@ describe("needsIuFromMgHint", () => {
     expect(needsIuFromMgHint("BPC-157", ["mg"])).toBe(false)
     expect(needsIuFromMgHint("Somatropin (HGH)", ["mg", "iu"])).toBe(false)
     expect(needsIuFromMgHint(null, ["iu"])).toBe(false)
+  })
+})
+
+/**
+ * The shape an oral row must take, derived from the two `inv_type_fields` cases
+ * plus the unit-family trigger. Two live bugs came from not having it written
+ * down — a bottle that never linked, and a save that could never succeed.
+ */
+describe("oralStockRule", () => {
+  it("REQUIRES a strength for an mg-dosed oral — 123 of the catalogue's 125", () => {
+    // The strengthless shape stores the TABLET as the base unit, and
+    // `unit_family_compatible('tab','mg')` is false, so the row was rejected
+    // outright while the field called the strength "optional".
+    const r = oralStockRule("Anastrozole", { doseUnit: "mg" })
+    expect(r).toMatchObject({ baseUnit: "mg", strengthRequired: true, countUnit: null })
+    expect(r.strengthUnits).toEqual(["mg"])
+  })
+
+  it("REQUIRES a strength for an mcg-dosed oral too", () => {
+    expect(oralStockRule("Cabergoline", { doseUnit: "mcg" })).toMatchObject({
+      baseUnit: "mg",
+      strengthRequired: true,
+    })
+  })
+
+  it("REQUIRES an iu strength for Vitamin D3 — the unsavable case", () => {
+    const r = oralStockRule("Vitamin D3", { doseUnit: "iu" })
+    expect(r).toMatchObject({ baseUnit: "iu", strengthRequired: true })
+    expect(r.strengthUnits).toEqual(["iu"])
+  })
+
+  it("FORBIDS a strength when the compound is dosed in capsules", () => {
+    // The tablet IS the unit: `base_unit` = `total_amount_unit` = capsule.
+    const r = oralStockRule("Probiotics", { doseUnit: "capsule" })
+    expect(r).toEqual({
+      baseUnit: "capsule",
+      strengthRequired: false,
+      strengthUnits: [],
+      countUnit: "capsule",
+    })
+  })
+
+  it("FORCES the count unit to match the dose unit", () => {
+    // `tab` and `capsule` are deliberately different families (016 §3), so
+    // picking the other pill wrote a row that could never link.
+    expect(oralStockRule("Vitamin B Complex", { doseUnit: "capsule" }).countUnit).toBe("capsule")
+    expect(oralStockRule("Something", { doseUnit: "tab" }).countUnit).toBe("tab")
+  })
+
+  it("refuses an oral row entirely for a gram-dosed compound", () => {
+    // Creatine is a tub, not a bottle. Nothing an oral row may hold pairs with
+    // a gram dose, so the form must refuse rather than write a rejected row.
+    expect(oralStockRule("Creatine Monohydrate", { doseUnit: "g" }).baseUnit).toBeNull()
+  })
+
+  it("reads the catalogue when no dose unit is supplied", () => {
+    expect(oralStockRule("Probiotics").countUnit).toBe("capsule")
+    expect(oralStockRule("Anastrozole").strengthRequired).toBe(true)
+  })
+
+  it("every catalogue oral gets a shape the database would accept", () => {
+    // The real assertion behind all of the above: for each oral compound, the
+    // rule's answer satisfies BOTH `inv_type_fields` and the unit-family check.
+    for (const c of COMPOUNDS.filter((x) => x.defaultInventoryType === "oral_solid")) {
+      const r = oralStockRule(c.name)
+      if (r.baseUnit === null) {
+        // Only legitimate for a dose unit no oral row can carry.
+        expect(["g", "ml"]).toContain(c.defaultUnit)
+        continue
+      }
+      expect(unitFamilyOk(r.baseUnit, c.defaultUnit)).toBe(true)
+      if (r.strengthRequired) expect(["mg", "iu"]).toContain(r.baseUnit)
+      else expect(["tab", "capsule"]).toContain(r.baseUnit)
+    }
   })
 })

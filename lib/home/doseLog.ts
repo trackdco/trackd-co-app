@@ -498,7 +498,12 @@ export function unlogDose(
   void trackCriticalSync(op)
   // An un-log GIVES the vial its dose back, so the same re-read is owed here as
   // on the way in — otherwise unticking left the stock reading low.
-  trackDoseWrite(op)
+  //
+  // Registered on the CANONICAL delete alone, not on `op`. `op` reports the pair
+  // (so a failed mirror delete raises the sync notice), but `dose_logs` is what
+  // `v_inventory_math` counts — if that succeeded the runway has genuinely moved
+  // and the figures must be re-read, whatever the mirror did.
+  trackDoseWrite(canonical)
 }
 
 /**

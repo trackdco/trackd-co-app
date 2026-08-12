@@ -158,3 +158,81 @@ export function resolvePowderUnit(
 ): PowderUnit {
   return offered.includes(selected) ? selected : (offered[0] ?? "mg")
 }
+
+/* ------------------------------------------------------------------- orals */
+
+/** What an `oral_solid` row's `base_unit` may be. */
+export type OralBaseUnit = PowderUnit | "tab" | "capsule"
+
+export interface OralStockRule {
+  /**
+   * The `base_unit` this row MUST be written with, or null when no oral row can
+   * satisfy this compound's dose unit at all (a gram-dosed compound — that is a
+   * tub, not a bottle).
+   */
+  baseUnit: OralBaseUnit | null
+  /** Must a per-unit strength be stated? */
+  strengthRequired: boolean
+  /** Units to offer for the strength, empty when no strength applies. */
+  strengthUnits: readonly PowderUnit[]
+  /** When the tab/capsule choice is FORCED, which it must be. Null ⇒ the user
+   *  picks, because it only names the count and nothing depends on it. */
+  countUnit: "tab" | "capsule" | null
+}
+
+/**
+ * The one shape an oral stock row may take for a given compound — derived from
+ * the database's own two rules rather than guessed at, because every wrong
+ * combination is either a save that cannot succeed or a bottle that silently
+ * never depletes.
+ *
+ * `inv_type_fields` (`supabase/protocol/016`) allows exactly two oral shapes:
+ *
+ *  - **strength STATED** ⇒ `base_unit IN ('mg','iu')`, and `strength_per_unit`
+ *    non-null and `> 0` (`strength_positive`).
+ *  - **strength NOT stated** ⇒ `base_unit IN ('tab','capsule')` and
+ *    `total_amount_unit = base_unit` — the tablet itself is the unit.
+ *
+ * `check_inventory_unit_family` then requires `base_unit` to pair with the
+ * compound's `dose_unit`. Together those pin the answer completely:
+ *
+ * | dosed in | base_unit | strength |
+ * |---|---|---|
+ * | `mg` / `mcg` | `mg` | REQUIRED |
+ * | `iu` | `iu` | REQUIRED |
+ * | `tab` / `capsule` | the same | must be ABSENT, and the count unit is forced |
+ * | `g` | — | no oral row is possible |
+ *
+ * Two live bugs came from not having this written down. A compound dosed in
+ * `capsule` got the tab/cap pill's default `tab`, and `unit_family_compatible`
+ * treats those as different families **by design** (016 §3), so the bottle never
+ * linked to a dose and never went down — silently, permanently, with Home then
+ * offering "add stock" for a compound that had stock. And a strength left blank
+ * on an mg- or iu-dosed compound wrote `strength_per_unit: 0`, which
+ * `strength_positive` rejects, surfacing as a save that could never succeed.
+ */
+export function oralStockRule(
+  name: string | null | undefined,
+  { doseUnit, storedUnit }: PowderUnitContext = {},
+): OralStockRule {
+  const dose = doseUnit ?? catalogueDoseUnit(name)
+
+  // The tablet IS the unit. No strength may be stored, and the count unit is not
+  // a preference — `total_amount_unit` must equal `base_unit`.
+  if (dose === "tab" || dose === "capsule") {
+    return { baseUnit: dose, strengthRequired: false, strengthUnits: [], countUnit: dose }
+  }
+
+  const strengthUnits = powderUnitsFor(name, { doseUnit, storedUnit })
+  // Nothing an oral row can hold pairs with this dose (grams). Refuse rather
+  // than write a row the trigger will reject.
+  if (!POWDER_UNITS.some((u) => unitFamilyOk(u, dose ?? ""))) {
+    return { baseUnit: null, strengthRequired: true, strengthUnits, countUnit: null }
+  }
+  return {
+    baseUnit: strengthUnits[0] ?? "mg",
+    strengthRequired: true,
+    strengthUnits,
+    countUnit: null,
+  }
+}

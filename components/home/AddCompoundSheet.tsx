@@ -14,7 +14,12 @@ import {
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
 import { isInventoryForm, isStockableForm } from "@/lib/containers/form"
 import { containerNoun } from "@/lib/containers/labels"
-import { needsIuFromMgHint, powderUnitsFor, resolvePowderUnit } from "@/lib/protocol/stockUnits"
+import {
+  needsIuFromMgHint,
+  oralStockRule,
+  powderUnitsFor,
+  resolvePowderUnit,
+} from "@/lib/protocol/stockUnits"
 import { Input } from "@/components/ui/input"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
 import type { InventoryType } from "@/lib/db/types"
@@ -31,6 +36,7 @@ import {
 } from "@/lib/protocol/cycleRule"
 import { newId } from "@/lib/home/id"
 import { pushProtocolCompound } from "@/lib/home/protocolSync"
+import { trackSync } from "@/lib/home/syncStatus"
 import {
   Sheet,
   SheetContent,
@@ -673,6 +679,9 @@ function AddCompoundBody({
   // already form-neutral; only the screen-reader label was not.
   const stContainerNoun = containerNoun({
     inventoryType: stockType || null,
+    // The count unit the user is choosing right now is the same evidence a
+    // stored row gives: a bottle of capsules is not a tub.
+    totalAmountUnit: stockType === "oral_solid" ? stOralForm : null,
     category: source.category,
     name: source.name,
   })
@@ -685,12 +694,14 @@ function AddCompoundBody({
   // The oral strength writes the SAME `base_unit` column under the same DB
   // trigger — see `AddStockSheet`. Left free, a Vitamin D3 bottle defaulted to
   // `mg` against an iu dose and could not be saved at all.
-  const stStrengthUnits = stPowderUnits
+  /** The one shape an oral row may take for this compound — see `oralStockRule`. */
+  const stOralRule = oralStockRule(source.name, { doseUnit: unit })
+  const stStrengthUnits = stOralRule.strengthUnits
   const stStrengthUnitToSave = resolvePowderUnit(stStrengthUnit, stStrengthUnits)
-  /** An iu-dosed oral must state a strength: the strengthless form stores the
-   *  tablet as the base unit, which cannot pair with an iu dose. */
-  const stStrengthRequired =
-    stStrengthUnits.length === 1 && stStrengthUnits[0] === "iu"
+  const stStrengthRequired = stOralRule.strengthRequired
+  /** Forced when the compound is dosed in tablets or capsules, where
+   *  `total_amount_unit` must equal `base_unit`. */
+  const stEffectiveOralForm = stOralRule.countUnit ?? stOralForm
   const showStIuFromMgHint = needsIuFromMgHint(source.name, stPowderUnits)
 
   function buildStockInsert():
@@ -737,25 +748,32 @@ function AddCompoundBody({
     }
     if (stockType === "oral_solid") {
       if (n(stCount) <= 0) return null
-      // No stated strength: the tablet is the unit (`supabase/protocol/016`).
-      // A complete item, not a half-filled form — but NOT available to an
-      // iu-dosed compound, whose `base_unit` would then be `tab` and be
-      // rejected by the DB trigger. See `stStrengthRequired`.
-      if (n(stStrength) <= 0 && !stStrengthRequired) {
+      // No oral shape fits this compound's dose unit (it is dosed by weight).
+      if (stOralRule.baseUnit === null) return null
+      // No stated strength: the tablet IS the unit (`supabase/protocol/016`), so
+      // `base_unit` and `total_amount_unit` are both it. Available ONLY to a
+      // compound dosed in tablets or capsules — 2 of the catalogue's 125 orals.
+      // For the other 123 this shape is rejected by the unit-family trigger, and
+      // the field still called the strength "optional".
+      if (!stOralRule.strengthRequired) {
         return {
           inventory_type: "oral_solid",
-          base_unit: stOralForm,
+          base_unit: stOralRule.baseUnit,
           total_amount: n(stCount),
-          total_amount_unit: stOralForm,
+          total_amount_unit: stOralRule.baseUnit,
           strength_per_unit: null,
           prior_used_base,
         }
       }
+      // `strength_positive` rejects 0, so a blank strength here is not a row —
+      // returning one meant `stockError` saw a valid insert, the save proceeded,
+      // and the stock was dropped without a word.
+      if (n(stStrength) <= 0) return null
       return {
         inventory_type: "oral_solid",
         base_unit: stStrengthUnitToSave,
         total_amount: n(stCount),
-        total_amount_unit: stOralForm,
+        total_amount_unit: stEffectiveOralForm,
         strength_per_unit: n(stStrength),
         prior_used_base,
       }
@@ -792,8 +810,11 @@ function AddCompoundBody({
         // An iu-dosed oral has a SECOND way to be incomplete, and saying "how
         // many are in the bottle" when the count is already filled in would send
         // the user to the wrong field.
+        if (stOralRule.baseUnit === null) {
+          return `${source.name} is dosed by weight — track it as a Powder rather than tablets.`
+        }
         return stStrengthRequired && amt(stStrength) <= 0
-          ? `Enter the strength of one ${stOralForm === "tab" ? "tablet" : "capsule"} — ${source.name} is dosed in iu.`
+          ? `Enter the strength of one ${stEffectiveOralForm === "tab" ? "tablet" : "capsule"} — ${source.name} is dosed in ${unit}.`
           : "Enter how many are in the bottle, or clear this."
       }
     }
@@ -959,12 +980,33 @@ function AddCompoundBody({
     const stock = canStock && addStockOn ? buildStockInsert() : null
     onAdded(saved)
     if (stock) {
-      // Use the RESOLVED protocol_compound id (it can differ from saved.id for a
-      // non-uuid client id) so the inventory FK always resolves.
-      const r = await pushProtocolCompound(saved)
-      if (r.ok && r.protocolCompoundId) {
-        await addStockItem({ ...stock, id: newId(), protocol_compound_id: r.protocolCompoundId })
-      }
+      /**
+       * TRACKED, not discarded.
+       *
+       * Both results were thrown away, so a stock row the database refused —
+       * or one whose compound push failed — vanished with no signal of any
+       * kind: the compound appeared, Protocol said "Add stock", and the user
+       * believed they had recorded it. That is the exact failure `stockError`
+       * was written to prevent, happening one step later than it looks for.
+       *
+       * `trackSync` is the right reporter rather than this sheet's own notice,
+       * because `onAdded` has already closed the sheet by now — it raises the
+       * app-shell "didn't sync" notice, which outlives it. Still not awaited,
+       * so nobody is kept waiting.
+       */
+      void trackSync(
+        (async () => {
+          // Use the RESOLVED protocol_compound id (it can differ from saved.id
+          // for a non-uuid client id) so the inventory FK always resolves.
+          const r = await pushProtocolCompound(saved)
+          if (!r.ok || !r.protocolCompoundId) return { ok: false }
+          return await addStockItem({
+            ...stock,
+            id: newId(),
+            protocol_compound_id: r.protocolCompoundId,
+          })
+        })()
+      )
     }
   }
 
@@ -1692,14 +1734,26 @@ function AddCompoundBody({
                       <span className={STOCK_FIELD_LABEL}>Count</span>
                       <div className="flex gap-1.5">
                         <Input inputMode="numeric" value={stCount} onChange={(e) => setStCount(sanitizeDoseInput(e.target.value))} placeholder="100" className={cn(STOCK_FIELD, "flex-1")} />
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => setStOralForm("tab")} className={cn(STOCK_PILL, stOralForm === "tab" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>tab</button>
-                          <button type="button" onClick={() => setStOralForm("capsule")} className={cn(STOCK_PILL, stOralForm === "capsule" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>cap</button>
-                        </div>
+                        {stOralRule.countUnit ? (
+                          // Forced: `total_amount_unit` must equal `base_unit`
+                          // for a compound dosed in tablets or capsules, and the
+                          // two are deliberately not interchangeable (016 §3).
+                          <span className="shrink-0 self-center text-sm text-text-muted">
+                            {stOralRule.countUnit === "tab" ? "tab" : "cap"}
+                          </span>
+                        ) : (
+                          <div className="flex gap-1">
+                            <button type="button" onClick={() => setStOralForm("tab")} className={cn(STOCK_PILL, stOralForm === "tab" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>tab</button>
+                            <button type="button" onClick={() => setStOralForm("capsule")} className={cn(STOCK_PILL, stOralForm === "capsule" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>cap</button>
+                          </div>
+                        )}
                       </div>
                     </label>
-                    <label className="block">
-                      {/* Optional, and not always mg — see `supabase/protocol/016`. */}
+                    <label className={cn("block", !stStrengthRequired && "hidden")}>
+                      {/* REQUIRED where it shows, and not always mg — see
+                          `supabase/protocol/016`. Hidden entirely for a compound
+                          dosed in tablets, where the tablet is the unit and a
+                          strength may not be stored at all. */}
                       <span className={STOCK_FIELD_LABEL}>Strength each</span>
                       <div className="flex items-center gap-1.5">
                         <Input inputMode="decimal" value={stStrength} onChange={(e) => setStStrength(sanitizeDoseInput(e.target.value))} placeholder={stStrengthRequired ? "5000" : "optional"} className={cn(STOCK_FIELD, "flex-1")} />
@@ -1714,13 +1768,18 @@ function AddCompoundBody({
                         )}
                       </div>
                     </label>
+                    {stOralRule.baseUnit === null ? (
+                      <p className="col-span-2 text-xs text-state-warning">
+                        {source.name} is dosed by weight — track it as a Powder
+                        rather than tablets.
+                      </p>
+                    ) : stStrengthRequired && amt(stStrength) <= 0 && amt(stCount) > 0 ? (
+                      <p className="col-span-2 text-xs text-text-subtle">
+                        {source.name} is dosed in {unit}, so state the strength of
+                        one {stEffectiveOralForm === "tab" ? "tablet" : "capsule"}.
+                      </p>
+                    ) : null}
                   </div>
-                )}
-                {stStrengthRequired && amt(stStrength) <= 0 && amt(stCount) > 0 && (
-                  <p className="text-xs text-text-subtle">
-                    {source.name} is dosed in iu, so state the strength of one{" "}
-                    {stOralForm === "tab" ? "tablet" : "capsule"}.
-                  </p>
                 )}
                 {stockType === "bulk_powder" && (
                   <div className="grid grid-cols-2 gap-2">

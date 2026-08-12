@@ -80,6 +80,11 @@ export function createWriteCoalescer(
         if (landedAny) notify()
       }
 
+      // A write that lands AFTER the deadline finds `done` already true, so it
+      // cannot set `anyLanded` and its burst never fires. Deliberate: by then
+      // the figures are a focus or a navigation away from refreshing anyway, and
+      // the alternative — leaving the count open — is the permanent stall this
+      // watchdog exists to prevent.
       const watchdog = setTimeout(() => settle(false), timeoutMs)
       // BOTH arms. A rejected write that only had a success handler would leak
       // the count, and the signal would never fire again.
