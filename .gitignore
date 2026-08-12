@@ -63,3 +63,7 @@ condensed_GLBX-*
 # (it starts pairing real files with the copies). Delete them freely.
 * 2.*
 * 2
+
+# The verification harness. Rebuilt per session, drives PRODUCTION Supabase and
+# real Stripe, and holds nothing worth keeping between sessions.
+/scratchpad/

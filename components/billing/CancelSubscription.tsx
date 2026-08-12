@@ -33,11 +33,14 @@ import { cancelSubscription, resumeSubscription } from "@/app/(app)/billing/acti
 export function CancelSubscription({
   mode,
   endsOn,
+  endsOnShort,
   isTrial,
 }: {
   mode: "cancel" | "resume";
   /** Already formatted in the user's own timezone by the server. */
   endsOn: string;
+  /** The same date without the year, for the control's own label. */
+  endsOnShort: string;
   isTrial: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -102,6 +105,26 @@ export function CancelSubscription({
 
   const noun = isTrial ? "trial" : "subscription";
 
+  /**
+   * THE UNDO CONTROL SAYS WHAT IT GIVES YOU, NOT WHAT IT DOES TO A RECORD.
+   *
+   * It read "Restart my trial", and Adrian's objection (2026-08-13) was that it
+   * is meaningless: nothing has stopped. The user cancelled ten seconds ago, the
+   * trial is still running, and "restart" describes an operation on a Stripe
+   * flag rather than anything happening to them.
+   *
+   * On a TRIAL the honest thing is the date, because that is the only thing that
+   * changes: today is identical either way, and 19 Aug is the day the two
+   * futures separate. On a PAID subscription there is no comparable cliff — the
+   * plan simply continues — so it names the plan instead.
+   *
+   * The cancel side is untouched. "Cancel my trial" is already exactly what it
+   * does.
+   */
+  const resumeLabel = isTrial
+    ? `Keep Trackd after ${endsOnShort}`
+    : "Keep my subscription";
+
   function run() {
     if (inFlight.current) return;
     inFlight.current = true;
@@ -129,7 +152,7 @@ export function CancelSubscription({
         }}
         className="w-full rounded-xl px-1 py-3 text-left text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {mode === "cancel" ? `Cancel my ${noun}` : `Restart my ${noun}`}
+        {mode === "cancel" ? `Cancel my ${noun}` : resumeLabel}
       </button>
 
       {open &&
@@ -154,7 +177,7 @@ export function CancelSubscription({
               className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
             >
               <h2 id="cancel-title" className="text-base font-medium text-foreground">
-                {mode === "cancel" ? `Cancel your ${noun}?` : `Restart your ${noun}?`}
+                {mode === "cancel" ? `Cancel your ${noun}?` : `${resumeLabel}?`}
               </h2>
               <p className="mt-1.5 text-sm text-text-muted">
                 {mode === "cancel"
@@ -191,7 +214,7 @@ export function CancelSubscription({
                     ? "Working…"
                     : mode === "cancel"
                       ? "Yes, cancel"
-                      : "Yes, restart"}
+                      : "Yes, keep it"}
                 </button>
               </div>
             </div>

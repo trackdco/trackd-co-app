@@ -38,9 +38,25 @@ export type StepId =
   // Account creation, its own screen, immediately before the paywall (Spec
   // w2b-14). See `STEP_ORDER` for why it is not on the paywall itself.
   | "account"
-  | "paywall"
+  /**
+   * THE PRICE LIST. Called `plans` in the URL, not `paywall` (Adrian,
+   * 2026-08-13).
+   *
+   * Every step puts its own id in the address bar, so the id is COPY: it is on
+   * screen for the whole time somebody is deciding whether to pay. "Paywall" is
+   * the industry's word for the thing standing between a person and what they
+   * want, and printing it above a price list tells the user exactly how the
+   * business thinks of the moment. "Plans" is what the screen actually shows.
+   *
+   * The SCREEN is still `screens/paywall.tsx` and `PaywallScreen` — the rename
+   * is the user-visible value only, deliberately, so this stays a copy change
+   * rather than a refactor of every file that mentions the word.
+   */
+  | "plans"
   // Payment is its own screen, after the plan is chosen. See `STEP_ORDER`.
-  | "checkout"
+  // `start` rather than `checkout` for the same reason as `plans`: the screen
+  // starts a free trial, and "checkout" names a till.
+  | "start"
   | "welcome"
   | "install"
   | "notifications"
@@ -59,9 +75,9 @@ export interface StepMeta {
  * The one ordered list. Phase A runs with no account; Phase B runs signed in.
  * **`account` is the boundary** — it is the only step that changes phase.
  *
- * It used to be `paywall`, because auth and payment were both the trial button.
- * Spec w2b-14 split them: the account is made on its own screen and the paywall
- * is payment only, so every step from `paywall` onward has a session.
+ * It used to be the price list, because auth and payment were both the trial
+ * button. Spec w2b-14 split them: the account is made on its own screen and the
+ * price list is payment only, so every step from `plans` onward has a session.
  */
 export const STEP_ORDER: readonly StepMeta[] = [
   { id: "hook", phase: "anonymous" },
@@ -110,7 +126,7 @@ export const STEP_ORDER: readonly StepMeta[] = [
    * It is the LAST anonymous step. Everything after it has a session.
    */
   { id: "account", phase: "anonymous" },
-  { id: "paywall", phase: "authed" },
+  { id: "plans", phase: "authed" },
   /**
    * PAYMENT IS ITS OWN SCREEN (Adrian, 2026-08-08).
    *
@@ -119,7 +135,7 @@ export const STEP_ORDER: readonly StepMeta[] = [
    * down a single screen — timeline, three plan rows, code field, card form,
    * disclosure, button.
    *
-   * Split, each screen has one job. `paywall` asks WHICH; `checkout` asks for
+   * Split, each screen has one job. `plans` asks WHICH; `start` asks for
    * the card. It is also what makes the disclosure requirement structural
    * rather than something to keep re-measuring: on a short payment screen the
    * trial length, the amount, the charge date and the auto-renewal notice sit
@@ -128,7 +144,7 @@ export const STEP_ORDER: readonly StepMeta[] = [
    * Still inside TRACKD — the spec's rule is that the user never reaches a
    * stripe.com domain, not that payment shares a screen with the price list.
    */
-  { id: "checkout", phase: "authed" },
+  { id: "start", phase: "authed" },
   { id: "welcome", phase: "authed" },
   { id: "notifications", phase: "authed" },
   { id: "attribution", phase: "authed" },
@@ -186,7 +202,7 @@ export function stepIndex(id: StepId): number {
  *
  * It used to be one screen and one boolean: past `housekeeping`, or not. Now it
  * is four screens, and the clamp walks to the EARLIEST unanswered one rather
- * than to a fixed step — so a deep link to `?step=paywall` with an empty
+ * than to a fixed step — so a deep link to `?step=plans` with an empty
  * session lands on `name`, not on a later page with holes behind it.
  *
  * The legally load-bearing predicate is unchanged and is still expressed once,
@@ -278,7 +294,7 @@ const INTENT_GUARDED: readonly StepId[] = [
   // the paywall (see the account screen's own redirect) — so the `welcome`
   // hazard described above does not apply here.
   "account",
-  "paywall",
+  "plans",
 ];
 
 export function clampIntent(
@@ -353,6 +369,47 @@ export function prevStep(id: StepId): StepId | null {
 /** Narrowing guard for an untrusted `?step=` value off the URL. */
 export function isStepId(value: unknown): value is StepId {
   return typeof value === "string" && INDEX_BY_ID.has(value as StepId);
+}
+
+/**
+ * THE OLD NAMES, STILL HONOURED.
+ *
+ * `paywall` and `checkout` were the ids until 2026-08-13. They appear in
+ * bookmarks, in anything anybody has shared, in the browser history of every
+ * tester, and — the one that is not cosmetic — in a Stripe `return_url` that a
+ * 3DS redirect written before this change may still be carrying. A renamed step
+ * that 404s to `hook` would drop a user out of a payment they had just
+ * authenticated.
+ *
+ * They resolve, they are not steps. `isStepId("paywall")` is false, so nothing
+ * inside the flow can be handed an old id by mistake; only the two places that
+ * read a raw URL go through `resolveStepId`, and both of them then hold a real
+ * `StepId` and correct the address bar to it.
+ *
+ * ONE-WAY. Nothing writes an old id, and this map only ever shrinks.
+ *
+ * A `Map`, not an object literal, and that is not a style choice. This is a
+ * lookup keyed on a string straight off the URL, and on a plain object
+ * `LEGACY["constructor"]` returns a function and `LEGACY["__proto__"]` returns
+ * `Object.prototype` — both truthy, both would be handed back as a `StepId`,
+ * and `SCREENS[thatValue]` is `undefined`. `?step=constructor` would have
+ * rendered a crash. A `Map` has no prototype chain to walk.
+ */
+const LEGACY_STEP_IDS = new Map<string, StepId>([
+  ["paywall", "plans"],
+  ["checkout", "start"],
+]);
+
+/**
+ * Resolve an untrusted `?step=` to a real step, accepting the retired names.
+ *
+ * Returns null for anything that is neither, which every caller already treats
+ * as "start at the beginning".
+ */
+export function resolveStepId(value: unknown): StepId | null {
+  if (isStepId(value)) return value;
+  if (typeof value !== "string") return null;
+  return LEGACY_STEP_IDS.get(value) ?? null;
 }
 
 /**

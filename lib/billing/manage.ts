@@ -181,3 +181,29 @@ export function formatAccessDate(iso: string, tz: string): string {
     year: "numeric",
   }).format(when);
 }
+
+/**
+ * The same date with the YEAR DROPPED, for a control label.
+ *
+ * "Keep Trackd after 19 Aug" is a button, and a button is read at a glance. The
+ * year is noise there: the date being named is inside the next twelve months by
+ * construction (it is a trial end or a billing period end), so "2026" carries no
+ * information and costs the label a third of its width on a 390px phone.
+ *
+ * Every place the date is the SUBJECT rather than a label — the confirm dialog,
+ * the plan card, the sentence under the control — still uses the full form,
+ * because that is where somebody is checking a date rather than reading a
+ * button.
+ *
+ * Same timezone contract as `formatAccessDate`, and both are fed the same ISO
+ * string, so the two forms cannot name different days.
+ */
+export function formatAccessDateShort(iso: string, tz: string): string {
+  const when = new Date(Date.parse(iso));
+  if (Number.isNaN(when.getTime())) return "";
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: tz,
+    day: "numeric",
+    month: "short",
+  }).format(when);
+}

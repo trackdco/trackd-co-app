@@ -5,7 +5,12 @@ import { redirect } from "next/navigation";
 import { CancelSubscription } from "@/components/billing/CancelSubscription";
 import { ManagePaymentRow } from "@/components/billing/ManagePaymentRow";
 import { currentEntitlement } from "@/lib/billing/entitlements";
-import { formatAccessDate, manageActionFor, planLabelFor } from "@/lib/billing/manage";
+import {
+  formatAccessDate,
+  formatAccessDateShort,
+  manageActionFor,
+  planLabelFor,
+} from "@/lib/billing/manage";
 import { loadPricesSafe } from "@/lib/billing/prices";
 import { formatPrice } from "@/lib/onboarding/pricing";
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
@@ -140,14 +145,18 @@ export default async function BillingPage() {
             <CancelSubscription
               mode={action.kind}
               endsOn={formatAccessDate(action.endsOn, tz)}
+              endsOnShort={formatAccessDateShort(action.endsOn, tz)}
               isTrial={action.isTrial}
             />
           </div>
           {action.kind === "resume" ? (
             <p className="mt-3 px-1 text-xs leading-relaxed text-text-muted">
+              {/* The tail used to end "unless you restart it", which named a
+                  control that no longer says restart. It now states the two
+                  facts and stops: what you keep, and that nothing is coming. */}
               You&apos;ll keep everything until{" "}
-              {formatAccessDate(action.endsOn, tz)}. Nothing more will be charged
-              unless you restart it.
+              {formatAccessDate(action.endsOn, tz)}, and nothing more will be
+              charged. You can change your mind until then.
             </p>
           ) : null}
         </section>
