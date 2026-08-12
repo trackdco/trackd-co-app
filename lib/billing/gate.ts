@@ -75,12 +75,26 @@ export const canWriteData = cache(async (): Promise<boolean> => {
  * What a refused write says. One string, so every surface refuses in the same
  * words and a future session cannot invent a second phrasing.
  *
- * It names the state and not the remedy. The remedy is the pop-up, which has the
- * real prices on it; a server action's error string is the fallback for the
- * paths the pop-up does not cover, and it should not try to sell anything.
+ * ## It does NOT say "your subscription has ended"
+ *
+ * That was the first draft and it is false for most of the people who will read
+ * it. The ~90 beta accounts reach read-only when their fourteen-day grace runs
+ * out, and **they never had a subscription** — telling them one of theirs ended
+ * is the app describing a transaction that never happened, in the message
+ * explaining why they cannot log a dose.
+ *
+ * "Trackd is read only until you subscribe" is true for a lapsed subscriber, a
+ * lapsed trial and a lapsed beta account alike, and it is the same sentence the
+ * pop-up leads with, so the two surfaces cannot describe the same state
+ * differently.
+ *
+ * The reassurance comes second and it is the true one. It names the state and
+ * not the remedy: the remedy is the pop-up, which has the real prices on it, and
+ * a server action's error string is the fallback for paths the pop-up does not
+ * cover. It should not try to sell anything.
  */
 export const READ_ONLY_MESSAGE =
-  "Your Trackd subscription has ended, so this is read only. Everything you've logged is still here.";
+  "Trackd is read only until you subscribe. Everything you've logged is still here.";
 
 /**
  * The guard a server action calls.

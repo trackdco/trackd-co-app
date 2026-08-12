@@ -315,10 +315,13 @@ export async function claimExtraTime(): Promise<
 /**
  * The user's own timezone, defaulted the same way `/billing` defaults it.
  *
- * Read with the SERVICE client rather than the session client: this runs after
- * a successful grant, and a profile read that fails RLS for some unrelated
- * reason must not turn a granted week into an error. Scoped by the id resolved
- * from the verified session, so it reads exactly one row and it is the caller's.
+ * The SESSION client, so RLS scopes the read independently of the `eq` — the
+ * same two-layer arrangement `ownSubscriptions` uses, and the service role would
+ * be elevation bought for a display string.
+ *
+ * Every failure returns the default rather than throwing. This runs AFTER a
+ * successful grant, so a profile read that goes wrong for some unrelated reason
+ * must not turn a week the user has already been given into an error message.
  */
 async function ownTimezone(userId: string): Promise<string> {
   try {
