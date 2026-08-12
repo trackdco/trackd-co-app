@@ -11,6 +11,7 @@
  * is a no-op rather than an error and the device store carries the logs alone.
  */
 import { createClient } from "@/lib/supabase/server"
+import { canWriteData } from "@/lib/billing/gate"
 
 export interface OneOffRow {
   /** Client-generated and RANDOM — see `lib/home/oneOffLogs.ts`. */
@@ -83,6 +84,9 @@ export async function listOneOffLogs(): Promise<OneOffRow[]> {
  * is held from the moment of writing rather than generated per attempt.
  */
 export async function upsertOneOffLog(row: OneOffRow): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
+  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
+  if (!(await canWriteData())) return { ok: false }
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }

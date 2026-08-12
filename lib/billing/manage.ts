@@ -146,6 +146,17 @@ export function manageActionFor(
 export function planLabelFor(
   source: EntitlementSource | null,
   subscription: Pick<ManageableSubscription, "status"> | null,
+  /**
+   * Is the read-only gate switched on? (`billingGateEnabled()`.)
+   *
+   * Passed in rather than read, because this module is pure and the switch is
+   * server-side. Defaults to FALSE, which is the pre-gate world and the safe
+   * direction for a caller that forgets: it can only ever make the label more
+   * generous than reality, never less, and a screen that under-promises to a
+   * paying user is a support email while one that over-promises to a locked-out
+   * user is a lie at the worst moment.
+   */
+  gateEnabled = false,
 ): string {
   if (source === "comp") return "Complimentary";
   // A running trial says so whether or not the entitlement row has caught up.
@@ -153,32 +164,35 @@ export function planLabelFor(
   // the gap the screen used to read "Pro" beside its own "Trial ends 19 Aug".
   if (subscription?.status === "trialing") return "Free trial";
   if (source) return "Pro";
-  return NO_ENTITLEMENT_LABEL;
+  return gateEnabled ? NO_ACCESS_LABEL : FULL_ACCESS_LABEL;
 }
 
 /**
- * ⚠️ WHAT SOMEBODY WITH NO ENTITLEMENT IS TOLD, AND WHY IT IS "Pro".
+ * ⚠️ WHAT SOMEBODY WITH NO ENTITLEMENT IS TOLD. TWO ANSWERS, ONE SWITCH.
  *
- * It said "Beta · Pro". Adrian removed the beta (2026-08-12): "we won't be in
- * beta by then."
+ * This was a single constant reading `"Pro"`, with a comment saying it was true
+ * only because nothing gated on `entitlements` yet and that whoever wired the
+ * gate had to change it IN THE SAME COMMIT. This is that commit.
  *
- * "Pro" is the TRUE answer today and that is the only reason it is here.
- * **Nothing in the app reads `entitlements`** — `app/(app)/layout.tsx` gates on
- * session and age only — so all 106 accounts genuinely have the whole product,
- * entitlement row or not. Saying "Free" would be the app lying about what it is
- * currently giving away.
+ * It cannot be one string, because the same state means two different things
+ * either side of `BILLING_GATE_ENABLED`:
  *
- * **It stops being true the moment a gate is added.** Whoever wires
- * `hasProAccess` into the layout must change this in the same commit, or every
- * locked-out user will be looking at a screen that says they are on Pro. There
- * is no way to make this constant correct for both worlds, which is why it is a
- * named constant with this comment rather than a string inline.
+ *   OFF — nothing gates, so an account with no entitlement row genuinely has
+ *         the whole product. All ~90 real accounts are in this state today.
+ *         Saying "Free" would be the app lying about what it is giving away.
+ *   ON  — the same account is read-only. Saying "Pro" would be the app telling
+ *         a locked-out user they are on the paid plan, on the one screen they
+ *         went to in order to find out why they are locked out.
  *
- * See `next-tasks.md` → "what current beta users see when we go public": the
- * real answer is probably a `comp` entitlement per existing account, at which
- * point every one of them has a source and this constant stops being reachable.
+ * So the switch that decides the gate decides the label, which is why it lives
+ * in `lib/billing/gate.ts` and is threaded through rather than read twice.
+ *
+ * "Read only" and not "Free" or "Expired". It names what the account can
+ * currently DO, which is the question somebody on this screen is asking, and it
+ * is the same phrase the pop-up and the refusal message use.
  */
-const NO_ENTITLEMENT_LABEL = "Pro";
+const FULL_ACCESS_LABEL = "Pro";
+const NO_ACCESS_LABEL = "Read only";
 
 /**
  * A date for a human, in the user's own timezone.

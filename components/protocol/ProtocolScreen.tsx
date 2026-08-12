@@ -31,6 +31,7 @@ import {
 } from "@/lib/home/doseLog"
 import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
 import type { Stack } from "@/lib/home/stacks"
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 
 const EMPTY_STACK: StackCompound[] = []
 const EMPTY_LOGS: DayLogs = {}
@@ -69,6 +70,12 @@ export function ProtocolScreen({
   previewStacks?: Stack[]
   previewLogs?: DayLogs
 }) {
+  /**
+   * Guarded: adding a compound and adding or editing stock. Both EDIT THE
+   * PROTOCOL, which is on Adrian's list. Archiving is not guarded.
+   */
+  const { guard } = useWriteAccess()
+
   useCloudHydration(userId)
 
   const [detailTarget, setDetailTarget] = useState<StackCompound | null>(null)
@@ -215,14 +222,16 @@ export function ProtocolScreen({
           stockKnown={stockKnown}
           todayKey={todayKey}
           onOpen={setDetailTarget}
-          onAddCompound={() => setPickerOpen(true)}
-          onAddStock={(c) => {
-            // A compound that already has a vial gets the actions sheet (refill /
-            // correct / discard); one that does not goes straight to adding.
-            const existing = stockByCompound?.get(c.id) ?? null
-            if (existing) setStockActionsFor(c)
-            else setStockTarget(c)
-          }}
+          onAddCompound={() => guard(() => setPickerOpen(true))}
+          onAddStock={(c) =>
+            guard(() => {
+              // A compound that already has a vial gets the actions sheet (refill /
+              // correct / discard); one that does not goes straight to adding.
+              const existing = stockByCompound?.get(c.id) ?? null
+              if (existing) setStockActionsFor(c)
+              else setStockTarget(c)
+            })
+          }
         />
       </div>
 

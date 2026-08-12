@@ -64,6 +64,7 @@ import {
   doseLogRowId,
   recoverLoggedDay,
 } from "@/lib/home/doseLogIds"
+import { canWriteData } from "@/lib/billing/gate"
 
 type Ok = { ok: boolean; skipped?: boolean }
 
@@ -904,6 +905,9 @@ export async function pushProtocolDoseLog(
    *  and seeds the row id exactly as it did then. */
   slot = 0
 ): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
+  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
+  if (!(await canWriteData())) return { ok: false }
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }

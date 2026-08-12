@@ -17,6 +17,7 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
+import { canWriteData } from "@/lib/billing/gate"
 
 /**
  * `inventory_items` + its joined compound, as of `supabase/protocol/016`.
@@ -321,6 +322,9 @@ export async function listStock(): Promise<StockItem[]> {
 export async function addStockItem(
   row: StockInsert
 ): Promise<{ ok: boolean; pendingMigration?: boolean; rejectedShape?: boolean }> {
+  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
+  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
+  if (!(await canWriteData())) return { ok: false }
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }
@@ -382,6 +386,9 @@ export async function updateStockItem(
   id: string,
   row: Omit<StockInsert, "id" | "protocol_compound_id">
 ): Promise<{ ok: boolean; rejectedShape?: boolean }> {
+  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
+  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
+  if (!(await canWriteData())) return { ok: false }
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }

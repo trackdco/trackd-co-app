@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { CancelSubscription } from "@/components/billing/CancelSubscription";
 import { ManagePaymentRow } from "@/components/billing/ManagePaymentRow";
 import { currentEntitlement } from "@/lib/billing/entitlements";
+import { billingGateEnabled } from "@/lib/billing/gate";
 import {
   formatAccessDate,
   formatAccessDateShort,
@@ -114,7 +115,17 @@ export default async function BillingPage() {
       <section className="mt-6">
         <p className={`mb-3 ${CARD_EYEBROW}`}>Plan</p>
         <div className="overflow-hidden rounded-2xl bg-bg-surface">
-          <Row label="Access" value={planLabelFor(entitlement?.source ?? null, subscription)} />
+          <Row
+            label="Access"
+            value={planLabelFor(
+              entitlement?.source ?? null,
+              subscription,
+              // See `planLabelFor`: the same switch that decides the read-only
+              // gate decides whether "no entitlement" reads as "Pro" or
+              // "Read only". They cannot be allowed to disagree.
+              billingGateEnabled(),
+            )}
+          />
           {price ? (
             <>
               <Divider />

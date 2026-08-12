@@ -7,6 +7,7 @@ import { CalendarDots, CaretDown, NotePencil, User } from "@/components/icons"
 import { requestProgressAction } from "@/lib/progress/progressAction"
 import { computeNextDose } from "@/lib/home/nextDose"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { cn } from "@/lib/utils"
 
 import { useCloudHydration } from "@/components/home/useCloudHydration"
@@ -219,6 +220,16 @@ export function HomeScreen({
   previewLogs?: DayLogs
 }) {
   const router = useRouter()
+  /**
+   * THE READ-ONLY GATE. Wraps the write-initiating handlers on this screen and
+   * nothing else.
+   *
+   * GUARDED: the dose tick, the whole-stack tick, Skip. All three CREATE a dose
+   * log. NOT GUARDED: un-ticking, un-ticking a stack, archiving a compound.
+   * Those remove data the user already put in, which is theirs to do whatever
+   * their subscription says (see `lib/billing/gate.ts`).
+   */
+  const { guard } = useWriteAccess()
 
   // "Today", corrected to the device's local date after mount (the server seed is
   // UTC and can read as yesterday/tomorrow). See the foreground/midnight sync
@@ -907,8 +918,14 @@ export function HomeScreen({
               title={cycleTitle}
               dueDoses={dueDoses}
               startsNext={startsNext}
+              /* GUARDED. The tick is the app's primary write, so a read-only
+                 account meets the pop-up here rather than after filling in a
+                 sheet. Un-ticking below is NOT guarded: removing a dose you
+                 logged is yours to do whatever your subscription says. */
               onLog={(dose, slot) =>
-                setLogTarget({ compound: dose, existing: null, slot })
+                guard(() =>
+                  setLogTarget({ compound: dose, existing: null, slot }),
+                )
               }
               /* From the ROW, so the day is the one the row is rendered for. */
               onUnlog={(dose, slot) => handleRemove(dose.id, selectedKey, slot)}
@@ -948,7 +965,7 @@ export function HomeScreen({
               // One tap logs every unlogged member. Each still writes its OWN
               // dose log through the same path a single tick uses, to the
               // SELECTED day — a stack is a grouping, never a shared entry.
-              onLogStack={(members) => {
+              onLogStack={(members) => guard(() => {
                 // The time a stack is logged is the time it was TAKEN, not the
                 // time it was scheduled for. Using `schedule.timeOfDay` stamped
                 // an 08:00 stack as 08:00 even when tapped at 22:00 — and where
@@ -992,7 +1009,7 @@ export function HomeScreen({
                     slot,
                   )
                 }
-              }}
+              })}
               // The mirror of `onLogStack`, and deliberately the same shape: each
               // slot is removed through the SAME `unlogDose` a single row's tick
               // uses, so the tombstone, the Postgres delete and the vial's
@@ -1183,7 +1200,9 @@ export function HomeScreen({
         // What is on the day already, so the primary button can say "Log" or
         // "Edit" rather than both.
         todaysLog={detailTarget ? (selectedRows[detailTarget.id] ?? null) : null}
-        onSkip={(c) => {
+        onSkip={(c) => guard(() => {
+          // A skip WRITES a dose log (status: "skipped"), so it is a write like
+          // any other and is gated like one.
           const resolved = resolveScheduleOn(c, selectedKey)
           const slot = nextUnloggedSlot(
             selectedRows,
@@ -1211,7 +1230,7 @@ export function HomeScreen({
             },
             slot,
           )
-        }}
+        })}
         onEdit={(c) => {
           setDetailTarget(null)
           setEditTarget(c)

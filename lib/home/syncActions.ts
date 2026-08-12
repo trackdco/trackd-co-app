@@ -25,6 +25,7 @@ import { guard } from "@/lib/resilience/circuitBreaker"
 import type { StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
 import type { DoseLog } from "@/lib/home/mockHomeData"
+import { canWriteData } from "@/lib/billing/gate"
 
 type Ok = { ok: boolean }
 
@@ -64,6 +65,9 @@ export async function pushDoseLog(
   compoundId: string,
   log: DoseLog,
 ): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
+  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
+  if (!(await canWriteData())) return { ok: false }
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }

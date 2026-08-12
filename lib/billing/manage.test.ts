@@ -141,15 +141,52 @@ describe("planLabelFor — Profile and Billing must agree", () => {
     }
   });
 
-  it("tells a user with no entitlement they are on Pro", () => {
-    // TRUE today and only today: nothing in the app reads `entitlements`, so
-    // every account genuinely has the whole product. Whoever wires `hasProAccess`
-    // into the layout must change this in the same commit. See the constant's
-    // comment in manage.ts.
+  it("tells a user with no entitlement they are on Pro WHILE NOTHING GATES", () => {
+    // With `BILLING_GATE_ENABLED` off, nothing in the app reads `entitlements`
+    // for access, so an account with no row genuinely has the whole product.
+    // Saying "Free" would be the app lying about what it is giving away.
     expect(planLabelFor(null, null)).toBe("Pro");
     expect(planLabelFor(null, { status: "canceled" })).toBe("Pro");
     // But a live trial is named as one, entitlement row or not.
     expect(planLabelFor(null, { status: "trialing" })).toBe("Free trial");
+  });
+
+  it("⚠️ tells the SAME user they are READ ONLY once the gate is on", () => {
+    // The tripwire the old single constant carried in its comment for four
+    // days. With the gate on, that account cannot log a dose, and a screen
+    // reading "Pro" would be a lie told on the one page they opened to find out
+    // why they are locked out.
+    expect(planLabelFor(null, null, true)).toBe("Read only");
+    expect(planLabelFor(null, { status: "canceled" }, true)).toBe("Read only");
+  });
+
+  it("the gate switch changes NOTHING for anybody who actually has access", () => {
+    // The switch may only ever affect the no-entitlement case. If it moved any
+    // of these, turning the gate on would relabel paying customers.
+    const cases: Array<[Parameters<typeof planLabelFor>[0], string | null]> = [
+      ["comp", "active"],
+      ["comp", null],
+      ["stripe", "active"],
+      ["stripe", "past_due"],
+      ["stripe", "trialing"],
+      ["apple", "active"],
+      ["google", "active"],
+      // A trial with no entitlement row yet: still a trial either way. The
+      // webhook lands a second later and the screen must not flicker to
+      // "Read only" in the gap.
+      [null, "trialing"],
+    ];
+    for (const [source, status] of cases) {
+      const sub = status ? { status } : null;
+      expect(planLabelFor(source, sub, true)).toBe(planLabelFor(source, sub, false));
+    }
+  });
+
+  it("defaults to the pre-gate answer when the switch is not passed", () => {
+    // Fails in the GENEROUS direction on purpose. A caller that forgets the
+    // argument over-describes access, which is a support email; the other
+    // default would tell a paying user they were read-only.
+    expect(planLabelFor(null, null)).toBe(planLabelFor(null, null, false));
   });
 
   it("a comp beside a live trial still reads as the comp", () => {

@@ -2,20 +2,20 @@
 
 import { useEffect, useState } from "react";
 
-import { Bell, CaretDown, Check, Crown, Lock } from "@/components/icons";
+import { Bell, CaretDown, Crown, Lock } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
 import { validateCode, type CodeVerdict } from "@/lib/onboarding/affiliate";
 import {
   billingDate,
   formatPrice,
-  monthlyEquivalent,
   PLAN_ORDER,
   REMINDER_DAY,
   TRIAL_DAYS,
-  yearlySavingPercent,
   type PlanId,
 } from "@/lib/onboarding/pricing";
 import { cn } from "@/lib/utils";
+
+import { PlanRows } from "@/components/billing/PlanRows";
 
 import { FlowCta, StepFrame } from "../chrome";
 import { useFlow } from "../flow-context";
@@ -135,7 +135,6 @@ export function PaywallScreen() {
     (p): p is NonNullable<typeof p> => Boolean(p),
   );
   const selected = pricedPlans.find((p) => p.id === session.plan) ?? pricedPlans[0];
-  const saving = yearlySavingPercent(priceFor("yearly"), priceFor("monthly"));
   // Resolved ONCE on mount. Reading the clock during render would let the
   // billing date change under the user mid-session, and the whole point of
   // printing it is that it is a fixed commitment.
@@ -280,79 +279,17 @@ export function PaywallScreen() {
         </ol>
 
         {/* PLANS AS STACKED ROWS, not side-by-side cards (Adrian, 2026-08-05).
-            Three columns at 390px is cramped, and it kills both the saving badge
-            and the per-month line — the two things that make the yearly plan
-            legible as the cheapest rather than the biggest number. Rows scale to
-            any number of plans and give each one space for its own sub-line. */}
-        <div role="radiogroup" aria-label="Choose a plan" className="space-y-2.5">
-          {pricedPlans.map((plan) => {
-            const id = plan.id;
-            const active = selected?.id === id;
-            const perMonth = monthlyEquivalent(plan);
-            const suffix =
-              plan.period === "year" ? "yr" : plan.period === "month" ? "mo" : "wk";
-            return (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => selectPlan(id)}
-                /* No border on any row. Selection is carried by SURFACE plus
-                   the tick — `ui-context.md` says cards are borderless, and a
-                   ring around a full-width row reads as a rule across the
-                   screen (which is what Adrian saw with the old two-up grid). */
-                className={cn(
-                  "relative flex w-full items-center gap-4 rounded-2xl px-4 py-3.5 text-left",
-                  "transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  "motion-reduce:transition-none active:scale-[0.99]",
-                  active ? "bg-bg-surface-raised" : "bg-bg-surface/40",
-                )}
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors duration-[var(--motion-fast)] motion-reduce:transition-none",
-                    active
-                      ? "bg-accent-primary text-bg-base"
-                      : "border border-border-strong",
-                  )}
-                >
-                  {active ? <Check className="h-3 w-3" weight="bold" /> : null}
-                </span>
-
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[0.95rem] text-foreground">
-                    {plan.label}
-                  </span>
-                  {/* The monthly equivalent, in brackets, on anything not
-                      already billed monthly (Adrian). A yearly figure is the
-                      biggest number on the screen and reads as the most
-                      expensive option when it is the cheapest. */}
-                  {perMonth !== null ? (
-                    <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-text-muted">
-                      ({formatPrice(perMonth, plan.currency)}/mo)
-                    </span>
-                  ) : null}
-                </span>
-
-                <span className="shrink-0 text-right">
-                  <span className="block font-mono text-lg font-light tabular-nums text-foreground">
-                    {formatPrice(plan.price, plan.currency)}
-                    <span className="ml-1 text-[11px] text-text-muted">/{suffix}</span>
-                  </span>
-                </span>
-
-                {id === "yearly" && saving !== null ? (
-                  <span className="absolute -top-2 right-3 rounded-full bg-accent-amber px-2 py-0.5 text-[10px] font-medium text-bg-base">
-                    Save {saving}%
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
+            The rows moved to `components/billing/PlanRows.tsx` so the read-only
+            gate's pop-up can render THE SAME ONES. The figures were never at
+            risk (both read the same Stripe prices) but the saving badge, the
+            per-month line and the currency suffix are decisions, and two copies
+            of a decision drift the first time one is edited. Lift and shift,
+            nothing redesigned. */}
+        <PlanRows
+          plans={pricedPlans}
+          selectedId={selected?.id ?? null}
+          onSelect={selectPlan}
+        />
 
         {/* Affiliate code. A card you can see, that unfolds when tapped
             (Adrian, 2026-08-01) — a bare link was too quiet for the one action

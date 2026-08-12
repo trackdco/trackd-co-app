@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { ProfileScreen } from "@/components/profile/ProfileScreen";
 import { currentEntitlement } from "@/lib/billing/entitlements";
+import { billingGateEnabled } from "@/lib/billing/gate";
 import { planLabelFor } from "@/lib/billing/manage";
 import { createClient } from "@/lib/supabase/server";
 
@@ -88,6 +89,11 @@ export default async function ProfilePage() {
   const planLabel = planLabelFor(
     entitlement?.source ?? null,
     subRow?.[0] ? { status: subRow[0].status as string } : null,
+    // The gate's switch decides this too. With it off, an account with no
+    // entitlement genuinely has the whole product and the pill says "Pro"; with
+    // it on, the same account is read-only and saying "Pro" would be a lie on
+    // the screen somebody opened to find out why. See `lib/billing/manage.ts`.
+    billingGateEnabled(),
   );
 
   return (
