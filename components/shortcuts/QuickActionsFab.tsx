@@ -73,7 +73,7 @@ const prefersReducedMotion = () =>
  */
 export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps) {
   const router = useRouter()
-  const { guard } = useWriteAccess()
+  const { canWrite, guard } = useWriteAccess()
   const fabRef = useRef<HTMLButtonElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const firstActionRef = useRef<HTMLButtonElement>(null)
@@ -192,6 +192,27 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
       if (item.href) router.push(item.href)
       return
     }
+
+    /**
+     * ⚠️ THE TILE THAT FIRED THIS IS ALREADY GONE, so focus is moved BEFORE the
+     * guard rather than after it.
+     *
+     * `close(false)` above unmounts the menu, deliberately — an action is about
+     * to hand focus to the flow it opens, and pulling focus back to the FAB
+     * first would only fight that.
+     *
+     * When the guard REFUSES, no flow opens. The pop-up captures whatever has
+     * focus so it can give it back on close, and what it captured was a tile
+     * that had just been unmounted — so on close it correctly declined to focus
+     * a detached node and a cold review measured the result: `activeElement` is
+     * `<body>`, a keyboard user dumped at the top of the document.
+     *
+     * Focusing the FAB first means the capture lands on a control that is still
+     * there. Ordered on `canWrite` rather than on the guard's return value,
+     * because the capture happens INSIDE `guard` and anything afterwards is too
+     * late. Nothing changes at all for a user who can write.
+     */
+    if (!canWrite) fabRef.current?.focus()
 
     guard(() => {
       switch (item.action) {

@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 
 import { markBetaNoticeSeen } from "@/lib/billing/betaNoticeStore";
@@ -46,6 +52,9 @@ import { markBetaNoticeSeen } from "@/lib/billing/betaNoticeStore";
  * that person needs. Email is the right channel for reaching somebody who is not
  * opening the app, and there is none wired for this.
  */
+/** Never notifies: whether a browser exists cannot change after hydration. */
+const subscribeNever = () => () => {};
+
 export function BetaLaunchNotice({
   userId,
   /** Formatted server-side in the user's own timezone. Null for a comp. */
@@ -58,6 +67,33 @@ export function BetaLaunchNotice({
   isComp: boolean;
 }) {
   const [open, setOpen] = useState(true);
+  /**
+   * ⚠️ NOTHING RENDERS UNTIL AFTER MOUNT, AND THIS IS NOT A STYLE CHOICE.
+   *
+   * This component returns `null` on the server (there is no `document`) and a
+   * PORTAL on the client. Those are different trees at the same position, and a
+   * cold review measured what React does about it: it discards the hydration and
+   * REBUILDS THE WHOLE APP SHELL.
+   *
+   *     control (notice suppressed)  <main> created ONCE,  t=818ms, 0 errors
+   *     treatment (notice renders)   <main> created TWICE, t=629ms and t=847ms,
+   *                                  1 hydration error naming <BetaLaunchNotice>
+   *
+   * Every dashboard load, for every one of the ~90 beta accounts, until they
+   * dismiss it. That is the same class of defect as the trial banner's 166ms
+   * paint and 68px jump that this branch already paid to fix, and larger: the
+   * banner re-rendered itself, this re-renders the entire application.
+   *
+   * A mount flag makes the server render and the FIRST client render agree
+   * (both nothing), and the portal appears on the second.
+   *
+   * `useSyncExternalStore` rather than `useState` + an effect: setState in an
+   * effect body is a cascading render and the lint rule rightly refuses it. This
+   * is the same idiom `components/onboarding/flow.tsx` uses for exactly the same
+   * question, and it is the sanctioned way to ask "is there a browser yet"
+   * without a setState in an effect.
+   */
+  const mounted = useSyncExternalStore(subscribeNever, () => true, () => false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
 
   const close = useCallback(() => {
@@ -74,7 +110,10 @@ export function BetaLaunchNotice({
   useEffect(() => {
     if (!open) return;
     const node = dialogRef.current;
-    node?.querySelector<HTMLElement>("button")?.focus();
+    // An ENABLED button, falling back to the dialog. `querySelector("button")`
+    // returned a disabled one during the pending window, and `.focus()` on a
+    // disabled button is a no-op — so focus stayed wherever the click left it.
+    (node?.querySelector<HTMLElement>("button:not([disabled])") ?? node)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -85,7 +124,28 @@ export function BetaLaunchNotice({
       const focusable = Array.from(
         node.querySelectorAll<HTMLElement>("button:not([disabled])"),
       );
-      if (focusable.length === 0) return;
+      /**
+       * ⚠️ NOTHING ENABLED IS NOT PERMISSION TO LEAVE.
+       *
+       * This used to `return`, and a cold review measured what that cost during
+       * the ~2s "Working…" window: both buttons go `disabled`, the clicked one
+       * drops focus to `<body>`, `button:not([disabled])` matches ZERO, and the
+       * handler stood aside. Five Tab presses then walked out of a dialog still
+       * claiming `aria-modal="true"` — onto the trigger behind the backdrop, the
+       * Stripe portal row, "Back to profile" and the Dashboard tab.
+       *
+       * That is the exact defect this effect's own comment says was fixed. It
+       * was fixed for the IDLE state only.
+       *
+       * Focus goes to the dialog itself instead, which is `tabIndex={-1}` and so
+       * is a legitimate focus target. It comes back to a button the moment one
+       * is enabled again.
+       */
+      if (focusable.length === 0) {
+        e.preventDefault();
+        node.focus();
+        return;
+      }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (e.shiftKey && (document.activeElement === first || !node.contains(document.activeElement))) {
@@ -100,7 +160,7 @@ export function BetaLaunchNotice({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
 
-  if (!open || typeof document === "undefined") return null;
+  if (!mounted || !open || typeof document === "undefined") return null;
 
   /**
    * `z-[60]` is THE APP'S MODAL LAYER — the same one `SignOutConfirm`,
@@ -118,7 +178,7 @@ export function BetaLaunchNotice({
    */
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
+      className="pointer-events-auto fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
       onClick={close}
     >
       <div

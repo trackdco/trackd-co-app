@@ -117,8 +117,38 @@ export function ReadOnlyProvider({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  /**
+   * WHERE FOCUS CAME FROM, so it can be given back.
+   *
+   * `CancelSubscription` holds a `triggerRef` because it owns its own trigger.
+   * This one does not: it is opened by `guard()` from nine different call sites,
+   * and the control that fired it may be a FAB tile, a row inside a sheet, or a
+   * tick on the dashboard. So the trigger is whatever had focus at the moment it
+   * opened, which is exactly what the browser already knows.
+   *
+   * A cold review measured the version without it: after Escape,
+   * `document.activeElement` was `<body>`, so a keyboard or switch-control user
+   * was dropped at the top of the document having lost their place entirely.
+   */
+  const returnFocusTo = useRef<HTMLElement | null>(null);
 
-  const show = useCallback(() => setOpen(true), []);
+  const openPopup = useCallback(() => {
+    returnFocusTo.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setOpen(true);
+  }, []);
+
+  const closePopup = useCallback(() => {
+    setOpen(false);
+    // `isConnected`, because the control that opened this can legitimately be
+    // gone: `guard()` often fires from inside a sheet, and closing the pop-up
+    // can leave a trigger that has since unmounted.
+    const target = returnFocusTo.current;
+    if (target?.isConnected) target.focus();
+    returnFocusTo.current = null;
+  }, []);
+
+  const show = useCallback(() => openPopup(), [openPopup]);
 
   const guard = useCallback(
     (action: () => void) => {
@@ -126,10 +156,10 @@ export function ReadOnlyProvider({
         action();
         return true;
       }
-      setOpen(true);
+      openPopup();
       return false;
     },
-    [canWrite],
+    [canWrite, openPopup],
   );
 
   const value = useMemo<ReadOnlyContextValue>(
@@ -141,7 +171,7 @@ export function ReadOnlyProvider({
     <ReadOnlyContext.Provider value={value}>
       {children}
       {open ? (
-        <SubscribePopup prices={prices} onClose={() => setOpen(false)} />
+        <SubscribePopup prices={prices} onClose={closePopup} />
       ) : null}
     </ReadOnlyContext.Provider>
   );
@@ -202,7 +232,10 @@ function SubscribePopup({
    */
   useEffect(() => {
     const node = dialogRef.current;
-    node?.querySelector<HTMLElement>("button")?.focus();
+    // An ENABLED button, falling back to the dialog. `querySelector("button")`
+    // returned a disabled one during the pending window, and `.focus()` on a
+    // disabled button is a no-op — so focus stayed wherever the click left it.
+    (node?.querySelector<HTMLElement>("button:not([disabled])") ?? node)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -213,7 +246,28 @@ function SubscribePopup({
       const focusable = Array.from(
         node.querySelectorAll<HTMLElement>("button:not([disabled])"),
       );
-      if (focusable.length === 0) return;
+      /**
+       * ⚠️ NOTHING ENABLED IS NOT PERMISSION TO LEAVE.
+       *
+       * This used to `return`, and a cold review measured what that cost during
+       * the ~2s "Working…" window: both buttons go `disabled`, the clicked one
+       * drops focus to `<body>`, `button:not([disabled])` matches ZERO, and the
+       * handler stood aside. Five Tab presses then walked out of a dialog still
+       * claiming `aria-modal="true"` — onto the trigger behind the backdrop, the
+       * Stripe portal row, "Back to profile" and the Dashboard tab.
+       *
+       * That is the exact defect this effect's own comment says was fixed. It
+       * was fixed for the IDLE state only.
+       *
+       * Focus goes to the dialog itself instead, which is `tabIndex={-1}` and so
+       * is a legitimate focus target. It comes back to a button the moment one
+       * is enabled again.
+       */
+      if (focusable.length === 0) {
+        e.preventDefault();
+        node.focus();
+        return;
+      }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (e.shiftKey && (document.activeElement === first || !node.contains(document.activeElement))) {
@@ -258,9 +312,30 @@ function SubscribePopup({
 
   if (typeof document === "undefined") return null;
 
+  /**
+   * ⚠️ `pointer-events-auto` ON THE BACKDROP IS LOAD-BEARING, NOT DEFENSIVE.
+   *
+   * A Radix modal Dialog sets an inline `pointer-events: none` on `<body>` for
+   * as long as it is open, and re-enables it only on its own overlay. This
+   * portals to `document.body`, so without the class it INHERITS that and every
+   * control inside it goes dead.
+   *
+   * A cold review measured the result on a phone: lapsed user, Progress,
+   * "Attach bloodwork", "Attach" — the pop-up paints correctly on top (z-60 over
+   * Radix's z-50, stacking verified independently) and NOTHING in it can be
+   * touched. `elementFromPoint` at each button returned the sheet underneath;
+   * zero hit-testable elements inside the dialog; real taps on "Not now" and
+   * "Subscribe" both timed out. Escape still worked, and **a phone has no
+   * Escape key**, so the only way out was to reload the app.
+   *
+   * Every guarded control that lives inside an already-open sheet reaches this:
+   * bloodwork attach, the calendar's one-off add, Skip on the dose detail sheet,
+   * add-stock on Protocol. The same class is applied to the other two modals for
+   * the same reason.
+   */
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
+      className="pointer-events-auto fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
       onClick={onClose}
     >
       <div

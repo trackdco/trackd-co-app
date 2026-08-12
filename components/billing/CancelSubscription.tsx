@@ -111,7 +111,10 @@ export function CancelSubscription({
   useEffect(() => {
     if (phase === "closed") return;
     const node = dialogRef.current;
-    node?.querySelector<HTMLElement>("button")?.focus();
+    // An ENABLED button, falling back to the dialog. `querySelector("button")`
+    // returned a disabled one during the pending window, and `.focus()` on a
+    // disabled button is a no-op — so focus stayed wherever the click left it.
+    (node?.querySelector<HTMLElement>("button:not([disabled])") ?? node)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !pending) {
@@ -122,7 +125,28 @@ export function CancelSubscription({
       const focusable = Array.from(
         node.querySelectorAll<HTMLElement>("button:not([disabled])"),
       );
-      if (focusable.length === 0) return;
+      /**
+       * ⚠️ NOTHING ENABLED IS NOT PERMISSION TO LEAVE.
+       *
+       * This used to `return`, and a cold review measured what that cost during
+       * the ~2s "Working…" window: both buttons go `disabled`, the clicked one
+       * drops focus to `<body>`, `button:not([disabled])` matches ZERO, and the
+       * handler stood aside. Five Tab presses then walked out of a dialog still
+       * claiming `aria-modal="true"` — onto the trigger behind the backdrop, the
+       * Stripe portal row, "Back to profile" and the Dashboard tab.
+       *
+       * That is the exact defect this effect's own comment says was fixed. It
+       * was fixed for the IDLE state only.
+       *
+       * Focus goes to the dialog itself instead, which is `tabIndex={-1}` and so
+       * is a legitimate focus target. It comes back to a button the moment one
+       * is enabled again.
+       */
+      if (focusable.length === 0) {
+        e.preventDefault();
+        node.focus();
+        return;
+      }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       // Wrap at both ends, and pull focus back in if it has escaped.
@@ -249,7 +273,7 @@ export function CancelSubscription({
         typeof document !== "undefined" &&
         createPortal(
           <div
-            className="fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
+            className="pointer-events-auto fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
             onClick={() => {
               // `inFlight` as well as `pending`: a backdrop tap in the SAME TICK
               // as "Yes, cancel" closed the dialog mid-request, and a failure
