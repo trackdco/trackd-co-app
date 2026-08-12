@@ -76,7 +76,51 @@ runner turns "96 notifications a day" into "none, ever".
 with no notice.** That is why the gate is an environment variable and not a
 constant: merging this branch changes nothing at all until that switch is set.
 
-### 5. THE STRIPE PORTAL'S SECOND CANCEL BUTTON
+### 5. 🔴 A DECISION, WITH MONEY ON IT: does a returning customer get a SECOND free trial?
+
+**Right now they do, every time, and I have not changed it — it is your call.**
+
+Verified against real Stripe on 2026-08-13:
+
+```
+trial 1 -> trialing, trial_end 19 Aug        (7 free days)
+cancel it, let it lapse
+trial 2 -> trialing, trial_end 19 Aug        (7 MORE free days)
+```
+
+`startTrial` passes `trial_period_days: TRIAL_DAYS` unconditionally, so the loop
+is: subscribe, cancel, wait for it to lapse, subscribe again. Free forever, in
+seven-day steps, with no card ever charged.
+
+**This was known before and it did not matter.** The earlier review recorded it
+as "a product question rather than a hole", and it was, because nothing gated:
+another free trial bought you exactly what you already had. **The read-only gate
+changes that.** The gate is now the thing driving people to subscribe, and the
+button it drives them to hands out another free week.
+
+The fix is small and the decision is not. Roughly:
+
+```ts
+// in startTrial, where `all` is every subscription this customer has ever had
+const hadATrial = all.some((s) => s.trial_end !== null);
+trial_period_days: hadATrial ? undefined : TRIAL_DAYS,
+```
+
+⚠️ Note the direction of the risk. `all` includes `incomplete_expired` rows,
+which `startTrial` itself creates when it cancels an abandoned 3DS attempt — so
+a naive version denies a genuine first-timer their trial because their bank
+challenge timed out once. That is the expensive direction, and it is why this is
+worth ten minutes of your attention rather than a one-line patch from me.
+
+Options, roughly in order of how much they cost to build:
+
+1. **Leave it.** Repeat trials stay possible. Cheapest, and the abuse needs
+   somebody to care enough to do it every week.
+2. **One trial per customer, ever.** The snippet above, with the
+   `incomplete_expired` case handled. A returning customer pays from day one.
+3. **One trial per customer per year.** More generous, more code.
+
+### 6. THE STRIPE PORTAL'S SECOND CANCEL BUTTON
 
 The account's DEFAULT portal configuration enables `subscription_cancel`, so a
 user who opens "Payment method and invoices" finds a cancel button in Stripe's
