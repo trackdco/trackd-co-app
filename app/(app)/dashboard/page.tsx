@@ -2,9 +2,15 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
+import { BetaLaunchNotice } from "@/components/billing/BetaLaunchNotice";
 import { TrialEndingBanner } from "@/components/billing/TrialEndingBanner";
 import { EnableNotificationsStep } from "@/components/push/EnableNotificationsStep";
 import { InstallHomeScreenPopup } from "@/components/pwa/InstallHomeScreenPopup";
+import { graceAsTrial } from "@/lib/billing/betaGrace";
+import { BETA_NOTICE_COOKIE, betaNoticeSeen } from "@/lib/billing/betaNoticeStore";
+import { billingGateEnabled } from "@/lib/billing/gate";
+import { formatAccessDate } from "@/lib/billing/manage";
+import { currentEntitlement } from "@/lib/billing/entitlements";
 import { dismissedTrialNoticeDate } from "@/lib/billing/trialNoticeStore";
 import { trialNoticeFor, trialNoticeLine } from "@/lib/notifications/trialReminder";
 import { toDateKey } from "@/lib/home/mockHomeData";
@@ -81,7 +87,27 @@ export default async function DashboardPage() {
     // to bill.
     .order("trial_ends_at", { ascending: true })
     .limit(1);
+  /**
+   * THE BETA GRACE PERIOD DRIVES THIS BANNER TOO.
+   *
+   * The ~90 accounts that were here before billing get an `entitlements` row and
+   * no Stripe subscription, so the mirror read above finds nothing and the one
+   * in-app warning that their access is about to end would never appear — the
+   * exact silence the grace period exists to avoid.
+   *
+   * `graceAsTrial` describes it as the trial it functionally is, which costs the
+   * banner and the push nothing: both already take
+   * `{status, trialEndsAt, cancelAtPeriodEnd}` and neither cares where it came
+   * from. It returns null for anything that is not a grace, and that guard is
+   * load-bearing rather than defensive — a PAID subscriber's entitlement also
+   * carries an `active_until`, so without the `comp` test their dashboard would
+   * announce "Your free trial ends 13 Aug 2027".
+   *
+   * A real trialing subscription WINS. Somebody on the grace who then subscribes
+   * has both, and the one about to take money is the one worth naming.
+   */
   const trialRow = trialRows?.[0];
+  const graceTrial = trialRow ? null : graceAsTrial(await currentEntitlement());
   // Scoped to the account here, where the user id is known, rather than inside
   // the pure date module which deliberately knows nothing about accounts.
   const dismissedFor = dismissedTrialNoticeDate(
@@ -95,7 +121,7 @@ export default async function DashboardPage() {
           trialEndsAt: (trialRow.trial_ends_at as string | null) ?? null,
           cancelAtPeriodEnd: Boolean(trialRow.cancel_at_period_end),
         }
-      : null,
+      : graceTrial,
     trialTz,
     // The INSTANT, not the local day. The banner must vanish the moment the
     // charge lands, not at the end of the calendar day it landed on: a trial
@@ -104,6 +130,26 @@ export default async function DashboardPage() {
     new Date(),
     dismissedFor,
   );
+
+  /**
+   * THE ONE-TIME BETA NOTICE. Once ever, per account, decided on the server.
+   *
+   * Only shown once the gate is switched on: before that nothing has changed for
+   * anybody and announcing a change would be announcing nothing. Only shown to
+   * somebody whose access rests on a `comp` row, which is exactly what the beta
+   * backfill writes and is nobody who has actually subscribed.
+   *
+   * Read from a COOKIE, so a notice already seen is never sent to the browser at
+   * all. The trial banner learned this the expensive way — `localStorage` meant
+   * the server rendered it every time and the client removed it after hydration,
+   * measured at a 166ms paint and a 68px page jump on every load. As a MODAL
+   * that would be a dialog flashing across the screen on every app open.
+   */
+  const betaEntitlement = await currentEntitlement();
+  const showBetaNotice =
+    billingGateEnabled() &&
+    betaEntitlement?.source === "comp" &&
+    !betaNoticeSeen(cookieStore.get(BETA_NOTICE_COOKIE)?.value, user.id);
 
   // Set by the auth callback on a fresh sign-in / sign-up — drives the one-time
   // (per-login) "Add to Home Screen" popup below.
@@ -135,6 +181,21 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {showBetaNotice ? (
+        <BetaLaunchNotice
+          userId={user.id}
+          // Formatted here, in the user's own timezone, for the same reason
+          // every other date on this screen is: the server renders in whatever
+          // region Vercel chose, and this is a deadline.
+          endsOn={
+            betaEntitlement?.activeUntil
+              ? formatAccessDate(betaEntitlement.activeUntil, trialTz)
+              : null
+          }
+          // A comp with NO expiry is free forever. With one, it is the grace.
+          isComp={!betaEntitlement?.activeUntil}
+        />
+      ) : null}
       <HomeScreen
         todayKey={todayKey}
         userId={user?.id ?? "anon"}

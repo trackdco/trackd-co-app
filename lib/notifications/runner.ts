@@ -31,6 +31,7 @@ import {
   type TrialForReminder,
 } from "@/lib/notifications/trialReminder";
 import { cycleRuleFromColumns, type CycleColumns } from "@/lib/protocol/cycleRule";
+import { graceAsTrial } from "@/lib/billing/betaGrace";
 
 const VAPID_PUBLIC =
   process.env.VAPID_PUBLIC_KEY ?? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
@@ -118,7 +119,7 @@ async function collectTrial(
   supabase: Client,
   userId: string,
 ): Promise<{ trial: TrialForReminder | null; sentFor: string | null | undefined }> {
-  const [subRes, stampRes] = await Promise.all([
+  const [subRes, stampRes, graceRes] = await Promise.all([
     supabase
       .from("subscriptions")
       // Reading the MIRROR, which no access check may read. This is not an
@@ -136,6 +137,34 @@ async function collectTrial(
       .select("trial_reminder_sent_for")
       .eq("user_id", userId)
       .maybeSingle(),
+    /**
+     * THE BETA GRACE PERIOD, which has no Stripe subscription at all.
+     *
+     * The ~90 accounts that were here before billing get an `entitlements` row
+     * and nothing in the mirror, so the read above finds nothing and the day-5
+     * warning that their access is about to end would never send. That is the
+     * exact silence the grace period exists to prevent, and it is worse here
+     * than on the banner: a push is the only channel that reaches somebody who
+     * has not opened the app.
+     *
+     * `comp` WITH an expiry is the grace and nothing else produces that shape;
+     * `graceAsTrial` enforces it. See `lib/billing/betaGrace.ts`.
+     *
+     * Its OWN query, beside the stamp's, for the reason `004` gives at length:
+     * folding it into the subscriptions select would let one failure take the
+     * whole trial reminder down, and the two facts are independent.
+     */
+    supabase
+      .from("entitlements")
+      .select("source, active_until, is_active, product")
+      .eq("user_id", userId)
+      .eq("product", "pro")
+      .eq("source", "comp")
+      .eq("is_active", true)
+      .not("active_until", "is", null)
+      // SOONEST-ENDING first, the same rule as the subscription read above.
+      .order("active_until", { ascending: true })
+      .limit(1),
   ]);
 
   const row = subRes.data?.[0] as Record<string, unknown> | undefined;
@@ -145,13 +174,29 @@ async function collectTrial(
   // September beside a live one ending in August and the reminder went to the
   // stale one, reporting "too-early" and sending nothing on the real trial's
   // promised day.
+  /**
+   * A REAL TRIAL WINS. Somebody on the grace who then starts a trial has both,
+   * and the one about to take money is the one worth warning about.
+   */
+  const graceRow = graceRes.data?.[0] as Record<string, unknown> | undefined;
+  const grace = row
+    ? null
+    : graceAsTrial(
+        graceRow
+          ? {
+              source: graceRow.source as string,
+              activeUntil: (graceRow.active_until as string | null) ?? null,
+            }
+          : null,
+      );
+
   const trial: TrialForReminder | null = row
     ? {
         status: row.status as string,
         trialEndsAt: (row.trial_ends_at as string | null) ?? null,
         cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
       }
-    : null;
+    : grace;
 
   // `42703` is Postgres's undefined_column. PostgREST also reports it as
   // `PGRST204` on some shapes, so both are read as "the migration is not applied
