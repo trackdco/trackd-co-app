@@ -124,8 +124,14 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
      *      against a screen that promised a charge on that date.
      *
      * Stripe is the only place that knows whether a subscription is real, so it
-     * is asked. `incomplete` is deliberately included in the list retrieved:
-     * those are exactly the abandoned attempts that have to be found.
+     * is asked.
+     *
+     * `incomplete` IS in the set (see `BILLABLE_STATUSES`), and this comment
+     * used to say so while `listLiveSubscriptions` and `cancel.ts` both said the
+     * opposite — the code followed those two, and a cold review turned the gap
+     * into two live billable subscriptions on one customer. One set now, in one
+     * place, with `hasValidatedCard` treating `incomplete` as "has not paid"
+     * rather than "already subscribed".
      */
     const { all, live } = await listSubscriptions(client, customerId);
 

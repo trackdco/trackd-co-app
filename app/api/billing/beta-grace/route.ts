@@ -130,6 +130,26 @@ export async function POST(req: Request) {
    * expired, every time this is re-run.
    */
   const answered = new Set<string>((existing ?? []).map((row) => row.user_id));
+  /**
+   * Accounts whose ONLY entitlement is a `comp` with an expiry — the shape the
+   * first run writes for everybody not on the comp list. These are the ones a
+   * later addition to `COMP_EMAILS` can be upgraded from.
+   *
+   * A `stripe`/`apple`/`google` row disqualifies: somebody who has actually
+   * subscribed is not a beta account waiting to be comped, and turning them into
+   * one would stop billing them.
+   */
+  const timeLimitedComp = new Set<string>(
+    (existing ?? [])
+      .filter((row) => {
+        const rows = (existing ?? []).filter((r) => r.user_id === row.user_id);
+        return (
+          rows.every((r) => r.source === "comp") &&
+          rows.some((r) => r.active_until !== null)
+        );
+      })
+      .map((row) => row.user_id),
+  );
   /** Kept separately, so the summary can distinguish "already paying" from
    *  "already had their fortnight and it ran out". */
   const stillActive = new Set<string>(
@@ -156,16 +176,53 @@ export async function POST(req: Request) {
   const grace: string[] = [];
   const skipped: string[] = [];
   const skippedLapsed: string[] = [];
+  const upgraded: string[] = [];
   const rows: BillingDatabase["public"]["Tables"]["entitlements"]["Insert"][] = [];
 
   for (const account of accounts) {
+    const grant = betaGrantFor(account.email);
+
+    /**
+     * ⚠️ SOMEBODY ADDED TO `COMP_EMAILS` AFTER THE FIRST RUN IS UPGRADED, NOT
+     * SKIPPED.
+     *
+     * This is the case Adrian will actually hit: he owes a list of friends, he
+     * will add one after go-live, and re-running this is the only way to grant
+     * them. With a plain "has a row" skip they would be skipped forever, because
+     * the first run already gave them a fourteen-day grace — so the friend he
+     * meant to give Trackd to for good would quietly lapse instead.
+     *
+     * A cold review found the same thing from the other end and called it "the
+     * comp list does nothing on a re-run", which it did.
+     *
+     * Only ever LENGTHENS. It clears `active_until` on a row that has one; it
+     * never shortens anybody, never touches a `stripe`/`apple`/`google` row, and
+     * never turns a paying customer into a comp.
+     */
+    if (grant.kind === "comp" && timeLimitedComp.has(account.id)) {
+      upgraded.push(account.email ?? account.id);
+      if (!dry) {
+        const { error } = await supabase
+          .from("entitlements")
+          .update({ active_until: null, is_active: true })
+          .eq("user_id", account.id)
+          .eq("source", "comp");
+        if (error) {
+          return NextResponse.json(
+            { error: `upgrade failed for ${account.id}: ${error.message}` },
+            { status: 500 },
+          );
+        }
+      }
+      continue;
+    }
+
     if (answered.has(account.id)) {
       (stillActive.has(account.id) ? skipped : skippedLapsed).push(
         account.email ?? account.id,
       );
       continue;
     }
-    const grant = betaGrantFor(account.email);
     (grant.kind === "comp" ? comp : grace).push(account.email ?? account.id);
     rows.push({
       user_id: account.id,
@@ -188,13 +245,32 @@ export async function POST(req: Request) {
      *  the subscribe pop-up rather than another fortnight nobody told them
      *  about. */
     skippedLapsed: skippedLapsed.length,
+    /** On the comp list, and their time-limited grace was lifted to forever. */
+    upgraded: upgraded.length,
     graceDays: BETA_GRACE_DAYS,
     graceEndsOn: grantExpiry({ kind: "grace", days: BETA_GRACE_DAYS }, now),
     compList: COMP_EMAILS,
-    /** Named, so a dry run can be READ rather than trusted. */
-    compAccounts: comp,
-    skippedAccounts: skipped,
-    skippedLapsedAccounts: skippedLapsed,
+    /**
+     * ⚠️ EMAIL ADDRESSES, AND ONLY ON A DRY RUN.
+     *
+     * A dry run exists to be READ before anything is permanent — `compAccounts`
+     * is how a typo in the comp list becomes visible before somebody is given
+     * Trackd for good by accident, and `upgradedAccounts` is how you check the
+     * right friend was upgraded. That needs names.
+     *
+     * A cold review pointed out that the live run was returning the same thing:
+     * every account's address, in one response, behind one shared secret. The
+     * live run does not need them — its job is done by then — so it returns
+     * counts only. Same reasoning as any other log that could become a dump.
+     */
+    ...(dry
+      ? {
+          compAccounts: comp,
+          upgradedAccounts: upgraded,
+          skippedAccounts: skipped,
+          skippedLapsedAccounts: skippedLapsed,
+        }
+      : {}),
   };
 
   if (dry || rows.length === 0) return NextResponse.json(summary);
