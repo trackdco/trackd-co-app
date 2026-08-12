@@ -74,7 +74,7 @@ export function ProtocolScreen({
    * Guarded: adding a compound and adding or editing stock. Both EDIT THE
    * PROTOCOL, which is on Adrian's list. Archiving is not guarded.
    */
-  const { guard } = useWriteAccess()
+  const { canWrite, guard } = useWriteAccess()
 
   useCloudHydration(userId)
 
@@ -116,7 +116,26 @@ export function ProtocolScreen({
   if (!stockDeepLinkDone && initialStockFor && active.length > 0) {
     setStockDeepLinkDone(true)
     const target = active.find((c) => c.id === initialStockFor)
-    if (target) setStockTarget(target)
+    /**
+     * ⚠️ `canWrite`, NOT `guard()`, AND THAT IS FORCED.
+     *
+     * This runs DURING RENDER (React's documented pattern for reacting to a
+     * changed input, so there is no paint without the sheet). `guard()` calls
+     * `setOpen` on the provider, and setState-ing another component mid-render
+     * is the hazard `flow.tsx` documents at length and was fixed for.
+     *
+     * So the deep link simply does not open the sheet for a read-only account.
+     * The pop-up is one tap away on the "Add stock" control beside it, which IS
+     * guarded, and that is the right place to meet it anyway.
+     *
+     * The hole this closes, driven by a cold review: Home's "add stock" on a
+     * dose row `router.push`es to `?stock=<id>`, which set `stockTarget`
+     * directly. A lapsed user got the sheet with no pop-up, filled it in,
+     * pressed Add stock, and was told **"Couldn't sync this compound. Check
+     * your connection and try again."** Zero rows written, and the user blamed
+     * for their connection.
+     */
+    if (target && canWrite) setStockTarget(target)
   }
 
 

@@ -321,10 +321,16 @@ export async function listStock(): Promise<StockItem[]> {
  */
 export async function addStockItem(
   row: StockInsert
-): Promise<{ ok: boolean; pendingMigration?: boolean; rejectedShape?: boolean }> {
+): Promise<{
+  ok: boolean
+  pendingMigration?: boolean
+  rejectedShape?: boolean
+  /** Refused by the read-only gate, not by a network or a database. */
+  readOnly?: boolean
+}> {
   // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
   // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
-  if (!(await canWriteData())) return { ok: false }
+  if (!(await canWriteData())) return { ok: false, readOnly: true }
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }
@@ -385,10 +391,15 @@ export async function addStockItem(
 export async function updateStockItem(
   id: string,
   row: Omit<StockInsert, "id" | "protocol_compound_id">
-): Promise<{ ok: boolean; rejectedShape?: boolean }> {
+): Promise<{
+  ok: boolean
+  rejectedShape?: boolean
+  /** Refused by the read-only gate, not by a network or a database. */
+  readOnly?: boolean
+}> {
   // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
   // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
-  if (!(await canWriteData())) return { ok: false }
+  if (!(await canWriteData())) return { ok: false, readOnly: true }
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }

@@ -66,7 +66,7 @@ import {
 } from "@/lib/home/doseLogIds"
 import { canWriteData } from "@/lib/billing/gate"
 
-type Ok = { ok: boolean; skipped?: boolean }
+type Ok = { ok: boolean; skipped?: boolean; /** Refused by the read-only gate, not by a network or a database. */ readOnly?: boolean }
 
 async function ctx() {
   const supabase = await createClient()
@@ -278,7 +278,7 @@ export async function pushProtocolCompound(
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false };
+  if (!(await canWriteData())) return { ok: false, readOnly: true };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -529,7 +529,7 @@ export async function pushCompoundPause(
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false };
+  if (!(await canWriteData())) return { ok: false, readOnly: true };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -559,7 +559,7 @@ export async function pushPauseEnd(id: string, endsOn: string): Promise<Ok> {
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false };
+  if (!(await canWriteData())) return { ok: false, readOnly: true };
   return await endPause(id, endsOn)
 }
 
@@ -582,7 +582,7 @@ export async function pushPauseGroupEnd(
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false };
+  if (!(await canWriteData())) return { ok: false, readOnly: true };
   return await endPauseGroup(groupId, endsOn)
 }
 
@@ -952,7 +952,7 @@ export async function pushProtocolDoseLog(
 ): Promise<Ok> {
   // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
   // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
-  if (!(await canWriteData())) return { ok: false }
+  if (!(await canWriteData())) return { ok: false, readOnly: true }
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -1215,7 +1215,7 @@ export async function pushScheduleVersions(
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false };
+  if (!(await canWriteData())) return { ok: false, readOnly: true };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
