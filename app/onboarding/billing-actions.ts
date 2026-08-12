@@ -127,7 +127,7 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
      * is asked. `incomplete` is deliberately included in the list retrieved:
      * those are exactly the abandoned attempts that have to be found.
      */
-    const live = await listLiveSubscriptions(client, customerId);
+    const { all, live } = await listSubscriptions(client, customerId);
 
     // A subscription with a card behind it. Nothing more to sell them.
     if (live.some(hasValidatedCard)) return { status: "already-subscribed" };
@@ -191,8 +191,8 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
       },
       {
         /**
-         * THE DOUBLE-TAP, enforced by Stripe. Still keyed on user AND plan, and
-         * that is no longer the duplicate guard — the lease is.
+         * THE DOUBLE-TAP, enforced by Stripe. Keyed on the user, the plan, AND
+         * WHAT THE CUSTOMER ALREADY HAD when this request looked.
          *
          * A cold review fired five concurrent calls on one session and got FIVE
          * trialing subscriptions, because the duplicate guard is a read followed
@@ -201,17 +201,39 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
          * request: Stripe returns the first subscription for a repeat of the
          * same key.
          *
-         * What it never closed is two DIFFERENT plans, which are two different
-         * keys and therefore two subscriptions. Keying on the user alone does
-         * not fix that either — Stripe rejects a repeated key carrying different
-         * parameters with a 400, and keys live 24 hours, so a user who
-         * legitimately abandoned yearly and came back for monthly would be
-         * locked out of their own second choice for a day.
+         * ## ⚠️ WHY THE FINGERPRINT IS THERE, measured
          *
-         * So the plan stays in the key, and the cross-plan race is closed one
-         * layer up by the lease this whole call is running inside.
+         * Without it the key is `trial:${user}:${plan}` for 24 hours, and that
+         * turned RESUBSCRIBING into a broken screen — which is the exact path
+         * the new read-only gate drives everybody down:
+         *
+         *   1. start a trial, then let it lapse (or cancel it outright);
+         *   2. come back the same day and try to subscribe again;
+         *   3. Stripe replays the cached FIRST response, so this returns the
+         *      client secret of a subscription that is now `canceled`.
+         *
+         * Driven: trial 2 came back with byte-for-byte the same `clientSecret`
+         * and `subscriptionId` as trial 1, on a subscription Stripe reported as
+         * `canceled`. The user confirms a card against nothing and cannot get
+         * out of it for a day.
+         *
+         * The fingerprint is the sorted ids of every subscription this customer
+         * had at the moment of the read, so:
+         *
+         *   - two CONCURRENT calls see the same state, compute the same key, and
+         *     Stripe dedupes them. The double-tap is still closed.
+         *   - a call made AFTER something changed sees a different state and
+         *     gets a genuinely new subscription. The retry works.
+         *
+         * Keying on the user alone was the other candidate and is worse: Stripe
+         * rejects a repeated key carrying different parameters with a 400, so a
+         * user who abandoned yearly and came back for monthly would be locked
+         * out of their own second choice for a day.
+         *
+         * The cross-plan race is closed one layer up, by the lease this whole
+         * call runs inside.
          */
-        idempotencyKey: `trial:${user.id}:${plan}`,
+        idempotencyKey: `trial:${user.id}:${plan}:${fingerprint(all)}`,
       },
     );
 
@@ -329,18 +351,53 @@ async function waitForTrialLease(userId: string): Promise<LeaseOutcome> {
  * Stripe has already given up on, and treating one as live would refuse a user
  * their own retry.
  */
-async function listLiveSubscriptions(
+async function listSubscriptions(
   client: ReturnType<typeof stripe>,
   customerId: string,
-): Promise<Stripe.Subscription[]> {
+): Promise<{ all: Stripe.Subscription[]; live: Stripe.Subscription[] }> {
   const { data } = await client.subscriptions.list({
     customer: customerId,
     status: "all",
     limit: 100,
     expand: ["data.pending_setup_intent"],
   });
-  return data.filter((sub) => BILLABLE_STATUSES.has(sub.status));
+  return { all: data, live: data.filter((sub) => BILLABLE_STATUSES.has(sub.status)) };
 }
+
+/** Just the live ones, for callers that do not need the whole history. */
+async function listLiveSubscriptions(
+  client: ReturnType<typeof stripe>,
+  customerId: string,
+): Promise<Stripe.Subscription[]> {
+  return (await listSubscriptions(client, customerId)).live;
+}
+
+/**
+ * WHAT THIS CUSTOMER HAD, as one stable string.
+ *
+ * Feeds the create's idempotency key. Sorted so two requests reading the same
+ * state compute the same value regardless of the order Stripe's list returned
+ * them in — the same total-ordering requirement `survivorOf` documents, and for
+ * the same reason: two racers that disagree here would each make their own
+ * subscription.
+ *
+ * Cancelled subscriptions are deliberately INCLUDED. They are exactly what makes
+ * a resubscribe different from the attempt before it, which is the whole point.
+ */
+function fingerprint(subscriptions: readonly Stripe.Subscription[]): string {
+  return subscriptions.map((s) => s.id).sort().join(",");
+}
+
+/**
+ * Statuses Stripe has finished with. A subscription in one of these can never
+ * take a card again, so handing back its setup intent is always wrong.
+ *
+ * Narrower than "not billable" on purpose: `incomplete` is NOT here, because
+ * that is exactly the state a fresh `default_incomplete` create lands in when
+ * there is an amount due, and it is waiting for the card this call is about to
+ * collect.
+ */
+const DEAD_STATUSES = new Set<string>(["canceled", "incomplete_expired"]);
 
 /**
  * ⚠️ LEAVE THIS CUSTOMER WITH AT MOST ONE LIVE SUBSCRIPTION.
@@ -396,6 +453,29 @@ async function reconcileToOne(
    * refusing here would turn a working trial start into an error.
    */
   const mine = live.find((s) => s.id === created.id) ?? created;
+
+  /**
+   * ⚠️ NEVER HAND BACK A DEAD SUBSCRIPTION.
+   *
+   * `mine` falls back to `created`, and `created` is whatever the create call
+   * returned — which, under an idempotency key, can be a REPLAY of an earlier
+   * response describing a subscription that has since been cancelled. Driven:
+   * lapse a trial, come back the same day, and this returned the original
+   * client secret on a `canceled` subscription. The card confirms against
+   * nothing.
+   *
+   * The fingerprint in the key is what stops that happening; this is the second
+   * line, because "the key is right" is a claim about a string and this is a
+   * check on the object. A subscription Stripe has finished with can never
+   * usefully take a card, whatever the key said.
+   */
+  if (DEAD_STATUSES.has(mine.status)) {
+    console.error(
+      `[billing] refusing to hand back ${mine.id}, which Stripe reports as ${mine.status}`,
+    );
+    return null;
+  }
+
   if (live.length <= 1) return mine;
 
   const { winner, losers } = survivorOf(live);
