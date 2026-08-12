@@ -223,6 +223,12 @@ export function trialNoticeFor(
   if (!trial || trial.status !== "trialing" || trial.cancelAtPeriodEnd) return null;
 
   const forDate = trialReminderDateKey(trial, tz);
+  // `dismissedFor` is a plain date key. The caller has ALREADY checked that the
+  // dismissal belongs to this account — see `dismissedTrialNoticeDate`. Matching
+  // a `${userId}:${date}` cookie by its suffix here looked equivalent and was
+  // not: it matches on the date alone, so a cold review's second account was
+  // silenced by the first one's dismissal. The account check needs the account,
+  // and this module deliberately does not know about accounts.
   if (!forDate || dismissedFor === forDate) return null;
 
   // Gone the moment the charge lands, not at the end of that calendar day. See

@@ -210,9 +210,13 @@ function LinkRow({
       className="flex items-center gap-3 px-4 py-3.5 outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
     >
       <RowIcon className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-      <span className="flex-1 text-sm text-foreground">{children}</span>
+      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{children}</span>
       {value ? (
-        <span className="shrink-0 text-sm text-text-muted">{value}</span>
+        // `max-w-[55%]` + truncate: a long label used to win the flex fight and
+        // push the caret off the row (measured at 35 characters). No current
+        // label does, but `NO_ENTITLEMENT_LABEL` is documented as something the
+        // next person must change.
+        <span className="max-w-[55%] shrink truncate text-sm text-text-muted">{value}</span>
       ) : null}
       <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
     </Link>

@@ -1,87 +1,77 @@
 /**
- * WHETHER THIS DEVICE HAS CLOSED THE TRIAL NOTICE — a device-local preference,
- * in the same `useSyncExternalStore` shape as the stack and dose stores.
+ * WHETHER THIS BROWSER HAS CLOSED THE TRIAL NOTICE — a COOKIE, not
+ * `localStorage`, and that choice is the whole point of this file.
  *
- * ## Why it is a store and not `useState` + an effect
+ * ## What `localStorage` cost, measured
  *
- * The value has to be read from `localStorage`, which only exists after mount,
- * and setting state inside an effect to reflect it is both a lint error
- * (`react-hooks/set-state-in-effect`) and a real double render on every load.
- * `useSyncExternalStore` reads the device directly and gives the server its own
- * snapshot, so SSR and the first client render agree without a flash.
+ * The first version used `localStorage` behind `useSyncExternalStore`, with a
+ * server snapshot of `null` because the server cannot read a device. Both
+ * docstrings claimed that made SSR and the first client render agree. A cold
+ * review measured the opposite, because a null server snapshot means the server
+ * renders the banner **every time**:
  *
- * ## The rule this obeys, from `architecture.md`
+ *     appeared: 414ms   removed: 614ms   FCP: 448ms
+ *     -> a DISMISSED banner sat in the DOM for 200ms, painted for ~166ms
+ *     -> content below it then jumped 806px -> 738px, a 68px reflow
  *
- * **A refused `localStorage` write must never break the screen.** Reading a
- * preference back OUT of storage to decide what to render is what bricked the
- * calculator's syringe gate when a device refused the write. So every access
- * here is wrapped, and every failure resolves to NOT DISMISSED — the direction
- * that keeps showing a notice about money rather than silently swallowing it.
+ * Every dashboard load, for the whole three-day window, a notice about being
+ * charged flashed up and vanished and the page lurched under the user's thumb.
+ * In the one part of the product that has to look trustworthy.
+ *
+ * ## A cookie is readable on the server, so there is nothing to correct
+ *
+ * The dashboard reads it in `cookies()` and simply does not render the banner.
+ * No flash, no reflow, no hydration mismatch, and no external store at all.
+ *
+ * ## It is scoped to the ACCOUNT as well as the trial
+ *
+ * The value is `${userId}:${forDate}`. Keyed on the date alone, a cold review
+ * signed two accounts into one browser and account A's dismissal hid account
+ * B's billing notice. Narrow, but the thing being suppressed is the only in-app
+ * warning that a card is about to be charged.
  */
 
-const KEY = "trackd.trialNotice.dismissed.v1";
-const CHANGED_EVENT = "trackd:trial-notice-changed";
+const COOKIE = "trackd_trial_notice_dismissed";
 
-/** Same-tab (our own event) and cross-tab (the native `storage` event). */
-export function subscribeTrialNotice(callback: () => void): () => void {
-  if (typeof window === "undefined") return () => {};
-  window.addEventListener(CHANGED_EVENT, callback);
-  window.addEventListener("storage", callback);
-  return () => {
-    window.removeEventListener(CHANGED_EVENT, callback);
-    window.removeEventListener("storage", callback);
-  };
+/** How long the dismissal outlives the trial it belongs to. */
+const MAX_AGE_DAYS = 30;
+
+/** The value a dismissal stores. */
+export function trialNoticeDismissalValue(userId: string, forDate: string): string {
+  return `${userId}:${forDate}`;
 }
 
 /**
- * Dismissed in THIS session, whether or not the device would store it.
+ * The dismissed DATE from a cookie, but only if it belongs to THIS account.
  *
- * Without this, a device that refuses `localStorage` (private mode, a blocked
- * origin, a full quota) would take the tap, fail the write, read back null and
- * re-render the banner exactly as it was — a close button that visibly does
- * nothing. Holding it in memory means the tap always works now, and the comment
- * on the write is honest that it only fails to persist to the NEXT load.
+ * Split out and given the user id because the obvious shortcut is wrong: a
+ * suffix match on `:${date}` looks equivalent and matches on the date alone, so
+ * a second account signed into the same browser is silenced by the first one's
+ * dismissal. A cold review measured exactly that. The account has to be
+ * compared, so the account has to be passed.
  */
-let sessionDismissed: string | null = null;
-
-/**
- * The reminder date this device has dismissed, or null.
- *
- * A plain string or null, so the snapshot reference is stable between reads by
- * construction and `useSyncExternalStore` cannot loop on it. (The stack store
- * needs a cache for exactly this reason; a primitive does not.)
- */
-export function getTrialNoticeDismissed(): string | null {
-  if (typeof window === "undefined") return null;
-  if (sessionDismissed) return sessionDismissed;
-  try {
-    return window.localStorage.getItem(KEY);
-  } catch {
-    // Private mode, a blocked origin, a full quota. Not dismissed.
-    return null;
-  }
+export function dismissedTrialNoticeDate(
+  cookieValue: string | null | undefined,
+  userId: string,
+): string | null {
+  if (!cookieValue) return null;
+  const separator = cookieValue.indexOf(":");
+  if (separator === -1) return null;
+  const owner = cookieValue.slice(0, separator);
+  return owner === userId ? cookieValue.slice(separator + 1) : null;
 }
 
 /**
- * The SERVER's snapshot. Always null: the server cannot read the device, and
- * claiming "dismissed" there would hide the notice for one render and then pop
- * it in on hydration.
+ * Close the notice for one trial, on one account.
+ *
+ * `SameSite=Lax` and no `Secure` on localhost, so it works on a LAN dev server
+ * over plain HTTP as well as in production. It carries no personal data beyond
+ * an id the browser already holds a session for.
  */
-export function getTrialNoticeServerSnapshot(): null {
-  return null;
-}
-
-/** Close the notice for one trial, identified by its promised reminder date. */
-export function dismissTrialNotice(forDate: string): void {
-  if (typeof window === "undefined") return;
-  sessionDismissed = forDate;
-  try {
-    window.localStorage.setItem(KEY, forDate);
-  } catch {
-    // Refused. The notice comes back on the next load, which is the safe
-    // direction for a notice about a charge.
-  }
-  // Fired even if the write failed, so the current render still responds to the
-  // tap. The store is the source of truth for the NEXT load, not for this one.
-  window.dispatchEvent(new CustomEvent(CHANGED_EVENT));
+export function dismissTrialNotice(userId: string, forDate: string): void {
+  if (typeof document === "undefined") return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie =
+    `${COOKIE}=${encodeURIComponent(trialNoticeDismissalValue(userId, forDate))}` +
+    `; path=/; max-age=${MAX_AGE_DAYS * 24 * 60 * 60}; SameSite=Lax${secure}`;
 }

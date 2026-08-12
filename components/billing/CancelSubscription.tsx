@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 
 import { cancelSubscription, resumeSubscription } from "@/app/(app)/billing/actions";
@@ -43,25 +43,75 @@ export function CancelSubscription({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  /** Guards the same-TICK double fire that `pending` cannot: `useTransition`
+   *  has not committed within the same tick, so `disabled` is still false and
+   *  two clicks in one tick sent two requests (measured at a 0ms gap). */
+  const inFlight = useRef(false);
 
+  /** Close, and put focus back where it came from. */
+  const close = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
+
+  /**
+   * FOCUS MANAGEMENT, because `aria-modal="true"` is otherwise a lie.
+   *
+   * A cold review measured what this dialog did without it: focus never entered
+   * it, six Tab presses walked straight out onto the Stripe portal row, the
+   * "Back to profile" link and all four nav tabs, and Escape left focus in the
+   * tab bar. Meanwhile `aria-modal` told assistive tech the rest of the page was
+   * inert. A screen-reader or switch-control user got no announcement that a
+   * dialog about cancelling their subscription had opened, then operated
+   * controls hidden behind a backdrop they could not see.
+   *
+   * So: focus moves in on open, Tab cycles within the dialog, and focus returns
+   * to the trigger on close.
+   */
   useEffect(() => {
     if (!open) return;
+    const node = dialogRef.current;
+    node?.querySelector<HTMLElement>("button")?.focus();
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !pending) setOpen(false);
+      if (e.key === "Escape" && !pending) {
+        close();
+        return;
+      }
+      if (e.key !== "Tab" || !node) return;
+      const focusable = Array.from(
+        node.querySelectorAll<HTMLElement>("button:not([disabled])"),
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      // Wrap at both ends, and pull focus back in if it has escaped.
+      if (e.shiftKey && (document.activeElement === first || !node.contains(document.activeElement))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !node.contains(document.activeElement))) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, pending]);
+  }, [open, pending, close]);
 
   const noun = isTrial ? "trial" : "subscription";
 
   function run() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setError(null);
     startTransition(async () => {
       const result =
         mode === "cancel" ? await cancelSubscription() : await resumeSubscription();
+      inFlight.current = false;
       if (result.ok) {
-        setOpen(false);
+        close();
       } else {
         setError(result.error ?? "Something went wrong.");
       }
@@ -72,6 +122,7 @@ export function CancelSubscription({
     <>
       <button
         type="button"
+        ref={triggerRef}
         onClick={() => {
           setError(null);
           setOpen(true);
@@ -87,13 +138,18 @@ export function CancelSubscription({
           <div
             className="fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
             onClick={() => {
-              if (!pending) setOpen(false);
+              // `inFlight` as well as `pending`: a backdrop tap in the SAME TICK
+              // as "Yes, cancel" closed the dialog mid-request, and a failure
+              // then had nowhere to render its message.
+              if (!pending && !inFlight.current) close();
             }}
           >
             <div
+              ref={dialogRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby="cancel-title"
+              tabIndex={-1}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
             >
@@ -117,7 +173,7 @@ export function CancelSubscription({
                 <button
                   type="button"
                   disabled={pending}
-                  onClick={() => setOpen(false)}
+                  onClick={close}
                   className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
                   {/* The stay-put option is the one that keeps its full weight.

@@ -204,9 +204,19 @@ function renewalRow(
   if (action.kind !== "cancel" && action.kind !== "resume") return null;
   const when = formatAccessDate(action.endsOn, tz);
   if (!when) return null;
-  // On a trial the date is already stated above as "Trial ends", so this row
-  // would repeat it. What changes is only the WORD, so only the word is shown.
-  if (action.isTrial && action.kind === "cancel") return null;
+  /**
+   * On a trial the date is already stated above as "Trial ends", so this row
+   * would repeat it. The guard covered `cancel` only, and a cold review loaded
+   * the RESUME screen and got the same date three times:
+   *
+   *     Trial ends  13 Aug 2026
+   *     Ends on     13 Aug 2026
+   *     "You'll keep everything until 13 Aug 2026."
+   *
+   * Two rows, two labels, one date, read as two different deadlines to somebody
+   * who has just cancelled and is re-reading the screen to be sure.
+   */
+  if (action.isTrial) return null;
   return (
     <>
       <Divider />

@@ -5,6 +5,7 @@ import { HomeScreen } from "@/components/home/HomeScreen";
 import { TrialEndingBanner } from "@/components/billing/TrialEndingBanner";
 import { EnableNotificationsStep } from "@/components/push/EnableNotificationsStep";
 import { InstallHomeScreenPopup } from "@/components/pwa/InstallHomeScreenPopup";
+import { dismissedTrialNoticeDate } from "@/lib/billing/trialNoticeStore";
 import { trialNoticeFor, trialNoticeLine } from "@/lib/notifications/trialReminder";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import { createClient } from "@/lib/supabase/server";
@@ -62,11 +63,13 @@ export default async function DashboardPage() {
    * `trialNoticeFor`, which shares its date maths with the push so the two
    * cannot disagree about which day was promised.
    *
-   * `dismissedFor` is null here on purpose: dismissal is a DEVICE preference and
-   * the server cannot read `localStorage`. The banner component asks the device
-   * and hides itself. That means the server does this small read for a dismissed
-   * banner too, which is one indexed lookup on a table with eleven rows.
+   * DISMISSAL IS RESOLVED HERE, on the server, from a cookie. It used to be
+   * `localStorage` read by the component after hydration, which meant the server
+   * rendered the banner every time and the client removed it — measured at a
+   * 166ms paint of a dismissed notice and a 68px page jump, on every load, for
+   * the whole trial window. A dismissed banner is now never sent to the browser.
    */
+  const cookieStore = await cookies();
   const trialTz = (profile?.timezone as string | null) || "Australia/Sydney";
   const { data: trialRows } = await supabase
     .from("subscriptions")
@@ -79,6 +82,12 @@ export default async function DashboardPage() {
     .order("trial_ends_at", { ascending: true })
     .limit(1);
   const trialRow = trialRows?.[0];
+  // Scoped to the account here, where the user id is known, rather than inside
+  // the pure date module which deliberately knows nothing about accounts.
+  const dismissedFor = dismissedTrialNoticeDate(
+    cookieStore.get("trackd_trial_notice_dismissed")?.value,
+    user.id,
+  );
   const trialNotice = trialNoticeFor(
     trialRow
       ? {
@@ -93,12 +102,11 @@ export default async function DashboardPage() {
     // ending 01:39 local otherwise showed "Your free trial ends today" for the
     // rest of a day on which the money had already moved.
     new Date(),
-    null,
+    dismissedFor,
   );
 
   // Set by the auth callback on a fresh sign-in / sign-up — drives the one-time
   // (per-login) "Add to Home Screen" popup below.
-  const cookieStore = await cookies();
   const freshSignIn = cookieStore.get("trackd-install-hint")?.value === "1";
 
   // First name for the greeting — from Google auth metadata (display only, never
@@ -142,6 +150,7 @@ export default async function DashboardPage() {
               key="trial-ending"
               line={trialNoticeLine(trialNotice)}
               forDate={trialNotice.forDate}
+              userId={user.id}
             />
           ) : null
         }

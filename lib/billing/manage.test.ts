@@ -6,6 +6,10 @@ import {
   planLabelFor,
   type ManageableSubscription,
 } from "@/lib/billing/manage";
+import {
+  dismissedTrialNoticeDate,
+  trialNoticeDismissalValue,
+} from "@/lib/billing/trialNoticeStore";
 
 function sub(over: Partial<ManageableSubscription> = {}): ManageableSubscription {
   return {
@@ -166,5 +170,39 @@ describe("formatAccessDate", () => {
 
   it("returns empty for an unparseable date rather than 'Invalid Date'", () => {
     expect(formatAccessDate("nope", "UTC")).toBe("");
+  });
+});
+
+describe("dismissedTrialNoticeDate — a dismissal belongs to ONE account", () => {
+  const A = "11111111-1111-1111-1111-111111111111";
+  const B = "22222222-2222-2222-2222-222222222222";
+
+  it("returns the date for the account that dismissed it", () => {
+    expect(dismissedTrialNoticeDate(`${A}:2026-08-13`, A)).toBe("2026-08-13");
+  });
+
+  it("returns NOTHING for a different account on the same browser", () => {
+    /**
+     * The leak a cold review found. Two accounts signed into one browser, both
+     * trials ending on the same day: A's dismissal hid B's banner, and the thing
+     * being hidden is the only in-app warning that a card is about to be charged.
+     *
+     * The first fix matched the cookie by its `:${date}` suffix, which looks
+     * equivalent and matches on the date alone — so it did not fix this at all.
+     * Measured again after the real fix.
+     */
+    expect(dismissedTrialNoticeDate(`${A}:2026-08-13`, B)).toBeNull();
+  });
+
+  it("ignores a malformed or absent cookie rather than trusting it", () => {
+    for (const value of [null, undefined, "", "2026-08-13", "garbage"]) {
+      expect(dismissedTrialNoticeDate(value, A)).toBeNull();
+    }
+  });
+
+  it("round-trips whatever the writer stored", () => {
+    expect(dismissedTrialNoticeDate(trialNoticeDismissalValue(A, "2026-12-01"), A)).toBe(
+      "2026-12-01",
+    );
   });
 });
