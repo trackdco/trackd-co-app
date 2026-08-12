@@ -5,7 +5,214 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-12 (container wording, powder units, whole-stack untick)
+Last updated: 2026-08-12 (the cancel control + the in-app trial notice)
+
+## The cancel control, and the trial notice on screen (BUILT, 2026-08-12)
+
+Three surfaces promised "cancel any time before then" and nothing in the app
+could do it. `/billing` now can.
+
+### In-app, not Stripe's hosted portal (Adrian's call)
+
+The portal was offered and rejected in favour of a narrow in-app control. It
+never leaves the PWA, the copy at the moment that most needs it is ours, and the
+capability is exactly two fields wide. The portal remains the right answer for
+**card updates and invoices**, which is a different job and is still owed.
+
+### The shape
+
+- **`/billing`**, its own route beside `/notifications`, opened from Profile's
+  Billing row. States access, price, trial end, renewal date.
+- **`cancelSubscription` / `resumeSubscription`** (`app/(app)/billing/actions.ts`)
+  set `cancel_at_period_end` and nothing else. **Neither takes an argument**: the
+  subscription is resolved from the verified session every time, because a server
+  action is a public HTTP endpoint and an id parameter would be an
+  "cancel anyone's subscription" endpoint with a reasonable-looking signature.
+  The READ goes through the session client so RLS refuses another user's row
+  independently of the scoping; the service client appears only for the mirror
+  write.
+- **Cancelling never revokes.** `entitlements` is not written by this path at
+  all: `active_until` already holds the date and `isEntitlementActive` lets the
+  clock do the work. Cancel on day 3 of a paid year, keep the year.
+- **`manageActionFor`** (`lib/billing/manage.ts`, pure) decides which control to
+  render from the ENTITLEMENT's source, not the subscription's status. A comp
+  gets nothing (there is nothing to cancel), Apple/Google get pointed at the
+  store, and a comp held beside a live Stripe row is still a comp.
+- **`/billing` cannot start billing.** No upgrade control, no link to
+  `/onboarding`, by construction. A user with no subscription is told what they
+  are on and nothing else.
+- **No subtitle under the title** (Adrian, 2026-08-12). It read "Your plan and
+  when it renews." and the Plan card directly beneath already states the plan and
+  the date, so the line was a caption for something that captions itself.
+  `/notifications` keeps its subtitle because it introduces a screen of switches
+  whose purpose is not self-evident; this one does not.
+
+### The trial notice on screen
+
+The push reaches 17 of 106 accounts. The same promise is now stated on Home for
+everyone, in the trial's final stretch, dismissible per-trial.
+
+**Audience: everyone, not only users who cannot be pushed.** Adrian raised the
+conversion worry — reminding people invites them to leave. The answer taken was
+that the wording is the lever, not the silence: the people most likely to cancel
+when reminded are the same people most likely to DISPUTE the charge when not,
+and a dispute rate is what closes a payment processor account. Reminding
+converts a chargeback into a voluntary non-purchase.
+
+**The copy is ONE sentence.** Two drafts died to get there, both cut by Adrian on
+sight the same day:
+
+1. `"Your free trial ends 15 Aug. Everything you've logged stays."` — reassurance
+   nobody asked for. Softening a billing notice is how a billing notice stops
+   being believed.
+2. `"Your free trial ends 15 Aug. Billing starts then."` — the app explaining its
+   own warning. "Just your free trial ends whenever it ends. A warning."
+
+It now reads `"Your free trial ends 15 Aug."`, and "tomorrow" / "today" on the
+last two days. `/billing` is one tap away and states the money in full. The word
+"cancel" is on neither surface, and `trialReminder.test.ts` pins the whole shape:
+one sentence, no tail, no "billing", no "stays", no em dash.
+
+`trialNoticeFor` lives in `lib/notifications/trialReminder.ts` beside the push
+and shares `trialReminderDateKey` with it, so the two surfaces cannot compute
+different days for the same promise.
+
+### Verified by executing
+
+Real Stripe trials, a real signed-in session against a dev server, the real
+server actions invoked over their real HTTP surface (the `next-action` header).
+
+- `/billing` renders **"Free trial · $69.99 USD / year · Trial ends 19 Aug
+  2026 · Cancel my trial"**. Anonymous → **307 `/login`**. No `/onboarding` link.
+- Cancel → **Stripe `cancel_at_period_end = true`**, mirror updated, and the
+  entitlement **still active with its date intact**. The page flips to "Ends on
+  … / Restart my trial". Resume → back to false.
+- **A different signed-in user calling `cancelSubscription` left the owner's
+  subscription untouched**, returned `{"ok":false,"error":"There's no active
+  subscription on this account."}`, and leaked neither the subscription id nor
+  the customer id. Anonymous got `"You need to be signed in."`.
+- **The banner window, walked day by day**: silent at 7, 4 and 3 days out; at 2
+  days "ends 14 Aug", at 1 "ends tomorrow", at 0 "ends today", silent at -1.
+  Silent for an already-cancelled trial inside the window. Links to `/billing`.
+
+### One trap worth keeping
+
+**A test account cannot reach `/billing` without passing the 18+ gate first**,
+and since `grants/004` those columns are service-only — so a harness must write
+`is_18_plus` / `tos_accepted_at` / `date_of_birth` with the SERVICE ROLE. The
+first run of this driver reported the page as broken when it had simply been
+redirected to `/welcome`.
+
+Server action ids are addressable for driving: Turbopack stamps them into the
+client chunk as `__next_internal_action_entry_do_not_use__ [{"<id>":{"name":…}}]`.
+
+## The trial reminder (BUILT, 2026-08-12)
+
+## The trial reminder (BUILT, 2026-08-12)
+
+The paywall timeline ("Day 5 · Reminder") and the checkout disclosure ("We'll
+remind you on day 5") both promised a notification out loud and nothing sent one.
+It sends now.
+
+### The shape, and why it is not the obvious one
+
+**Stripe's `trial_will_end` is a SIGNAL, not the schedule.** It fires three days
+before the trial ends, which on a 7-day trial is DAY 4, and both screens promise
+day 5. So the handler does one thing: `syncSubscription` on the re-read live
+object, which refreshes `subscriptions.trial_ends_at`. It sends nothing.
+
+`lib/notifications/trialReminder.ts` then decides the day from that stored end
+date, and the existing reminder cron sends it — after the user's `reminder_time`,
+outside their quiet hours, in `profiles.timezone`.
+
+**It counts BACK from the trial end, not forward from the start**
+(`TRIAL_REMINDER_LEAD_DAYS = TRIAL_DAYS - REMINDER_DAY`, derived). The sender
+never sees the start day; all it holds is the end. Counting back is also the more
+honest of the two if a trial is ever not exactly `TRIAL_DAYS` long (a coupon, a
+support extension): "day 5" would then describe a schedule that no longer exists,
+while "two days before you are charged" is still exactly what the screen said.
+
+### The decisions worth not re-deriving
+
+- **It fires ON OR AFTER the promised day, never after the charge.** An exact
+  `today === reminderDate` rule turns any missed cron tick — a deploy, an outage
+  — into no warning at all before money moves. A late warning is worth a great
+  deal; a missed one is the thing the screen promised would not happen.
+- **The stamp is the reminder's DATE, not the day it was sent**, which is why the
+  column is `trial_reminder_sent_for` and not `last_trial_reminder_on`. A
+  catch-up send on day 6 stamps DAY 5, so the next tick sees its own work. It
+  also means a returning customer's second trial has a different reminder date
+  and correctly gets its own reminder.
+- **Somebody who has already cancelled gets nothing.** The promise is "before
+  anything changes", and for them nothing is about to.
+- **It is not behind the three content toggles** (`dose_reminders_on` and the
+  rest). Those are preferences about protocol nudges; turning off dose reminders
+  is not consent to be charged without warning. It IS behind the master switch
+  and quiet hours.
+- **The copy says nothing about cancelling and quotes no price.** There is no
+  cancel control in the app to send anyone to (see `next-tasks.md` — this is now
+  the largest unkept promise left), and the runner holds the subscription mirror,
+  not the plan's amount, so any figure here could contradict checkout.
+
+### Two defects the build itself produced, both found by executing
+
+Neither was caught by tsc, eslint or the tests. Same lesson as every spec before.
+
+- **A stamp was advanced on the TOTAL send count**, so a message that reached no
+  device was recorded as delivered. Pre-existing shape, and it never mattered
+  while all three messages were protocol nudges that come round again tomorrow.
+  The trial reminder has no tomorrow. Each stamp is now gated on its own
+  message's delivery, via `SendReport.byTag`.
+- **A composed-but-undelivered reminder reported `undefined`** — identical, from
+  outside, to a user with no trial. Surfaced by pointing the real runner at a
+  push endpoint returning 410. It reports `send-failed` now, and does not stamp,
+  so the next tick retries.
+
+### Verified by executing, against the live database and real Stripe
+
+A local HTTPS endpoint stood in for a push service, so the payloads below were
+really encrypted by `web-push`, really delivered over the wire, and decrypted
+with the subscription's own keys rather than asserted from the composer.
+
+- **The real payload**, off the wire: `{"title":"Your free trial ends soon",`
+  `"body":"Day 5 of 7. Your trial ends on 15 Aug, and billing starts then.",`
+  `"url":"/profile","tag":"trackd-trial-ending"}`
+- **Two users, one subscription, different promised days.** A trial ending
+  14 Aug 15:39 UTC is the 15th in Sydney and the 14th in Los Angeles: Sydney was
+  reminded on 13 Aug and told "15 Aug", LA on 12 Aug and told "14 Aug".
+- Sends **once**: every later tick that day, and on the 14th and 15th, returned
+  `already-sent`. Silent on the 12th (`too-early`) and the 16th (`trial-over`).
+- **The catch-up holds**: nothing ran on the 13th, the 14th still warned, and it
+  stamped 13 Aug so the 15th did not fire again.
+- **A dead endpoint does not stamp** — `sent: 0`, `send-failed`, stamp still null.
+- **`trial_will_end` through the real route**: a mirror deliberately seeded with
+  `1999-01-01` was refreshed to the true trial end; a replay of the same event id
+  returned `duplicate`; a forged signature returned 400.
+- **The whole chain in one run**: real Stripe trial with an attached card →
+  signed `trial_will_end` → the real webhook route created the mirror from
+  nothing → the real secured cron at `/api/notifications/run` picked the user up
+  and reached the reminder decision. Unauthorised cron still 401s.
+
+### Known and accepted
+
+- ~~**A trialing user with notifications off is never reminded.**~~ **CLOSED the
+  same day** by the in-app notice on Home (see the section above). The push still
+  only reaches opted-in users; the banner reaches everyone.
+- **`supabase/notifications/004` is unapplied**, so it withholds today and says
+  so in the cron's own output. Deliberately read in its own query so the
+  unapplied state cannot take quiet hours and the other three stamps down with it.
+
+## `grants/004` was ALREADY APPLIED — the header was stale (2026-08-12)
+
+The file still said "NOT YET APPLIED" and `next-tasks.md` carried it as owed. It
+is applied. Proven by running the attack: all four gate columns 42501 to a real
+user JWT with the publishable key, `sex` still 200. Then all 23 `profiles`
+columns swept against the enumerated grants in `003` + `004` — 18 writable, 5
+denied, zero mismatches either way.
+
+**The rule this re-earns:** a hand-applied migration's file header is a claim,
+never a record. Two sessions carried this as outstanding work that was already
+done.
 
 ## Spec w2b-15 — Stripe billing (BUILT, 2026-08-08)
 
@@ -107,10 +314,10 @@ fade mask in four configurations.
   no such requirement and is the one to check a preview with.
 - **The floating "stripe" pill over the CTA is `elements-inner-easel`**, Stripe's
   test-mode indicator. Only renders for a `pk_test_` key.
-- **The trial reminder is still a promise nothing keeps.** The paywall says "Day
-  5 · Reminder" out loud. Stripe's `trial_will_end` fires on day 4 and is
-  recorded; whatever sends the notification must honour the day the SCREEN
-  promised, not the day the webhook arrived.
+- ~~**The trial reminder is still a promise nothing keeps.**~~ **BUILT
+  2026-08-12** — see the section at the top of this file. `trial_will_end` now
+  refreshes the stored trial end and sends nothing; the existing reminder cron
+  fires on the day the SCREEN promised.
 
 ## Spec w2b-14 — account before the paywall (BUILT, 2026-08-07)
 

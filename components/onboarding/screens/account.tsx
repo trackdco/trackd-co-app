@@ -87,7 +87,7 @@ export function AccountScreen() {
       <StepFrame
         center
         title="Saving your setup."
-        sub="One moment — we're putting everything you've done onto your account."
+        sub="One moment. We're putting everything you've done onto your account."
       >
         <div className="flex justify-center pt-2" aria-hidden>
           <CircleNotch className="h-6 w-6 animate-spin text-text-subtle" />
@@ -103,7 +103,7 @@ export function AccountScreen() {
           Make it <em className={FLOW_EMPHASIS}>yours</em>.
         </>
       }
-      sub="Right now this is a demo on one phone. Save it and it becomes your protocol — on every device, for as long as you want it."
+      sub="Right now this is a demo on one phone. Save it and it becomes your protocol, on every device, for as long as you want it."
     >
       <div className="flex w-full flex-1 flex-col justify-center pb-4">
         <GoogleSignInButton next={AUTH_RETURN} />

@@ -79,11 +79,15 @@ import { useFlow } from "../flow-context";
  * loud, so a hardcoded number is a promise that silently breaks the moment the
  * trial length changes.
  *
- * NOTE: the reminder beat is a COMMITMENT, not decoration. It promises a
- * notification before billing, and nothing currently sends one — the trial
- * reminder is built after billing is wired, because it needs a real trial end
- * date to fire against. Do not ship this screen to paying users until that
- * exists, or the paywall is making a promise the product does not keep.
+ * NOTE: the reminder beat is a COMMITMENT, not decoration, and as of 2026-08-12
+ * it is kept. `lib/notifications/trialReminder.ts` decides the day and the
+ * existing reminder cron sends the push, off `subscriptions.trial_ends_at`, on
+ * day `REMINDER_DAY` in the user's own timezone and outside their quiet hours.
+ * Stripe's `trial_will_end` fires on day 4 and is deliberately not the trigger.
+ *
+ * It still rests on two things outside this file, both in `next-tasks.md`:
+ * `supabase/notifications/004_trial_reminder.sql` being applied, and the user
+ * having granted notification permission, since a push is the only channel.
  */
 function trialTimeline(now: Date) {
   return [
