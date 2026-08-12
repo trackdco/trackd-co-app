@@ -7,6 +7,7 @@ import { FeedbackList, type AdminFeedback } from "@/components/admin/FeedbackLis
 import { Card, Empty, KeyRow, Note, Section, Stat, StatGrid } from "@/components/admin/ui"
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button"
 import { isFounder } from "@/lib/admin"
+import { safeLabel } from "@/lib/admin/aggregate"
 import { getAdminMetrics } from "@/lib/db/admin"
 import { createClient } from "@/lib/supabase/server"
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets"
@@ -143,9 +144,16 @@ export default async function AdminPage({
     created_at: string
   }[]
   const feedback = (feedbackRes.data ?? []) as AdminFeedback[]
-  const channels = ((bySourceRes.data ?? []) as { source: string; signups: number }[]).map(
-    (c) => ({ key: c.source, label: c.source, count: c.signups })
-  )
+  // `waitlist.source` is the ONE user-controlled string on this page written by
+  // someone who is not even logged in: `anon` holds `insert … with check (true)`
+  // on that table, and the column is free `text` up to 120 chars. Sanitised
+  // before it becomes a chart label.
+  const channels = ((bySourceRes.data ?? []) as { source: string; signups: number }[])
+    .map((c) => ({
+      key: c.source,
+      label: safeLabel(c.source) ?? "(direct)",
+      count: c.signups,
+    }))
 
   /**
    * The page's OWN three reads get the same treatment as the aggregate layer's.
@@ -387,6 +395,13 @@ export default async function AdminPage({
                   : users.retentionPct >= 50
                     ? "positive"
                     : "negative"
+              }
+              direction={
+                users.retentionPct === null
+                  ? undefined
+                  : users.retentionPct >= 50
+                    ? "up"
+                    : "down"
               }
               hint="Of last week's actives"
             />
@@ -785,7 +800,7 @@ export default async function AdminPage({
                       `overflow-hidden` silently clipped the date column off
                       the end. */}
                   <span className="min-w-0 max-w-[10rem] shrink truncate text-xs text-text-muted">
-                    {(r.source ?? "").trim() || "(direct)"}
+                    {safeLabel(r.source, 24) ?? "(direct)"}
                   </span>
                   <span className="shrink-0 font-mono text-xs tabular-nums text-text-subtle">
                     {fmtDate(r.created_at)}

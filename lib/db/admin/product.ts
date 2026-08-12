@@ -149,17 +149,27 @@ export async function inventoryMetrics(
  * `user_id`. See `activity.ts` for what assuming otherwise already cost.
  */
 const FEATURES = [
-  { label: "Protocol", table: "protocol_compounds", column: "user_id" },
-  { label: "Dose logging", table: "dose_logs", column: "user_id" },
-  { label: "Inventory", table: "inventory_items", column: "user_id" },
-  { label: "Weight", table: "weight_logs", column: "profile_id" },
-  { label: "Journal", table: "journal_entries", column: "user_id" },
-  { label: "Progress photos", table: "progress_photos", column: "user_id" },
-  { label: "Stacks", table: "stacks", column: "user_id" },
-  { label: "Blocks", table: "blocks", column: "user_id" },
-  { label: "Bloodwork", table: "lab_panels", column: "user_id" },
-  { label: "Side-effect markers", table: "user_markers", column: "user_id" },
-  { label: "Push notifications", table: "push_subscriptions", column: "user_id" },
+  { label: "Protocol", table: "protocol_compounds", column: "user_id", isWrite: true },
+  { label: "Dose logging", table: "dose_logs", column: "user_id", isWrite: true },
+  { label: "Inventory", table: "inventory_items", column: "user_id", isWrite: true },
+  { label: "Weight", table: "weight_logs", column: "profile_id", isWrite: true },
+  { label: "Journal", table: "journal_entries", column: "user_id", isWrite: true },
+  { label: "Progress photos", table: "progress_photos", column: "user_id", isWrite: true },
+  { label: "Stacks", table: "stacks", column: "user_id", isWrite: true },
+  { label: "Blocks", table: "blocks", column: "user_id", isWrite: true },
+  { label: "Bloodwork", table: "lab_panels", column: "user_id", isWrite: true },
+  { label: "Side-effect markers", table: "user_markers", column: "user_id", isWrite: true },
+  /**
+   * `isWrite: false` — this is ADOPTION but not a WRITE.
+   *
+   * A push subscription row appears when the browser grants notification
+   * permission. The user recorded nothing; they answered a permission prompt.
+   * Counting it as "has written something" would let an account that only
+   * tapped Allow fall out of "never written", whose tile says "logged nothing,
+   * ever". It still belongs in the adoption chart, which asks a different
+   * question.
+   */
+  { label: "Push notifications", table: "push_subscriptions", column: "user_id", isWrite: false },
 ] as const
 
 export interface FeatureAdoption {
@@ -206,9 +216,19 @@ export function featureAdoption(
   }).sort((a, b) => b.users - a.users)
 }
 
-/** Every account that has left a trace on ANY feature surface. */
-export function everTouchedAnything(sets: FeatureSets): Set<string> {
+/**
+ * Every account that has WRITTEN something, on any surface.
+ *
+ * Skips the surfaces flagged `isWrite: false` — granting notification
+ * permission is adoption, not a record the user made. This is the set
+ * "never written" subtracts, so the two numbers stay honest against the
+ * wording of the tile that shows them.
+ */
+export function everWrittenAnything(sets: FeatureSets): Set<string> {
   const all = new Set<string>()
-  for (const set of sets.values()) for (const id of set) all.add(id)
+  for (const feature of FEATURES) {
+    if (!feature.isWrite) continue
+    for (const id of sets.get(feature.label) ?? []) all.add(id)
+  }
   return all
 }

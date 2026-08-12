@@ -551,8 +551,16 @@ Retention, churn and unprocessed-webhook counts may be coloured with
 never evaluative": that invariant governs **biomarker and marker readings**, and
 **no health reading is rendered on /admin, ever**. The numbers here are
 operational facts about a business, shown to its operators — exactly the
-"system/UI feedback" the state colours already exist for. Colour is also never
-the only signal: a direction always carries its arrow and its figure.
+"system/UI feedback" the state colours already exist for.
+
+**Colour is never the only signal, and the second signal depends on what the
+number is.** A metric that MOVED carries a caret (`direction="up" | "down"`) — a
+retention rate that crossed its threshold. A metric that is merely in a good or
+bad STATE carries a WORD instead ("Clear" / "Check this"), because an upward
+arrow on "Unprocessed webhooks: 0" says something false: that count did not go
+up, it is simply fine. Both are implemented in `Stat` (`components/admin/ui.tsx`),
+which keeps `tone` (colour) and `direction` (arrow) as separate props for exactly
+this reason.
 
 ### Rule: a categorical series palette is allowed here
 

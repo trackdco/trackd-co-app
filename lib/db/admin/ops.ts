@@ -5,6 +5,7 @@ import {
   median,
   normalisePath,
   percent,
+  safeVersion,
   tally,
   type Tally,
 } from "@/lib/admin/aggregate"
@@ -105,6 +106,19 @@ export interface ConsentCoverage {
 }
 
 /**
+ * `consentCoverage`'s result, split so the id set cannot leak.
+ *
+ * `coverage` is what the page renders. `userIds` is the set of accounts holding
+ * any consent record, returned ONLY so `index.ts` can build the funnel's legal-
+ * gate step from it instead of reading `consent_records` a second time. It stays
+ * inside `lib/db/admin/` and is never part of `AdminMetrics`.
+ */
+export interface ConsentResult {
+  coverage: ConsentCoverage
+  userIds: Set<string>
+}
+
+/**
  * Who has accepted what, and who is on an old version.
  *
  * This is the number that matters the next time a legal document is republished:
@@ -116,7 +130,7 @@ export async function consentCoverage(
   supabase: AdminClient,
   totalAccounts: number,
   issues: IssueLog
-): Promise<ConsentCoverage> {
+): Promise<ConsentResult> {
   const [records, current] = await Promise.all([
     columnValues<{ user_id: string | null; document: string | null; version: string | null }>(
       supabase,
@@ -142,7 +156,7 @@ export async function consentCoverage(
     .map((d) => ({
       document: d.doc_type,
       label: labelFor(LEGAL_DOC_LABELS, d.doc_type),
-      version: d.version,
+      version: safeVersion(d.version) ?? d.version,
     }))
 
   const withConsent = new Set(
@@ -158,9 +172,10 @@ export async function consentCoverage(
   const expectations = consentExpectations(currentVersions)
   const acceptedByUser = new Map<string, Set<string>>()
   for (const r of records) {
-    if (!r.user_id || !r.document || !r.version) continue
+    const version = safeVersion(r.version)
+    if (!r.user_id || !r.document || !version) continue
     const set = acceptedByUser.get(r.user_id) ?? new Set<string>()
-    set.add(`${r.document}@${r.version}`)
+    set.add(`${r.document}@${version}`)
     acceptedByUser.set(r.user_id, set)
   }
   let onCurrent = 0
@@ -171,11 +186,20 @@ export async function consentCoverage(
     }
   }
 
-  return {
+  const coverage: ConsentCoverage = {
     byVersion: tally(
-      records.map((r) => (r.document && r.version ? `${r.document}@${r.version}` : null)),
+      // `version` is `text NOT NULL` with no CHECK and `authenticated` may INSERT
+      // its own rows, so it is user-chosen: sanitised before it becomes a label.
+      // Sanitising also fixes the composite key — a version containing "@" used
+      // to truncate its own label when the key was split back apart.
+      records.map((r) => {
+        const version = safeVersion(r.version)
+        return r.document && version ? `${r.document}@${version}` : null
+      }),
       (k) => {
-        const [doc, version] = k.split("@")
+        const at = k.indexOf("@")
+        const doc = k.slice(0, at)
+        const version = k.slice(at + 1)
         return `${labelFor(CONSENT_DOC_LABELS, doc)} v${version}`
       }
     ),
@@ -185,4 +209,6 @@ export async function consentCoverage(
     onCurrentPct: expectations.length === 0 ? null : percent(onCurrent, totalAccounts),
     currentVersions,
   }
+
+  return { coverage, userIds: withConsent }
 }

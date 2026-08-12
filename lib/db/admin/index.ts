@@ -23,7 +23,6 @@ import {
   countRows,
   daysAgo,
   serviceClient,
-  userIdSet,
   type AdminIssue,
 } from "./core"
 import {
@@ -42,7 +41,7 @@ import {
 } from "./people"
 import {
   compoundMetrics,
-  everTouchedAnything,
+  everWrittenAnything,
   featureAdoption,
   featureUserSets,
   inventoryMetrics,
@@ -86,7 +85,6 @@ export interface UserMetrics {
 }
 
 export interface UsageMetrics {
-  compoundsLogged: number
   dosesLogged: number
   usersWithActiveCompound: number
   journalEntries: number
@@ -155,7 +153,6 @@ const EMPTY: AdminMetrics = {
     activityByDay: [],
   },
   usage: {
-    compoundsLogged: 0,
     dosesLogged: 0,
     usersWithActiveCompound: 0,
     journalEntries: 0,
@@ -253,7 +250,6 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
     waitlistRows,
     waitlistTotal,
     dosesLogged,
-    compoundsLogged,
     activeCompoundRows,
     journalEntries,
     weightLogs,
@@ -281,7 +277,6 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
     ),
     countRows(supabase, "waitlist", issues, "Waitlist total"),
     countRows(supabase, "dose_logs", issues, "Dose count"),
-    countRows(supabase, "protocol_compounds", issues, "Compound count"),
     columnValues<{ user_id: string | null }>(
       supabase,
       "protocol_compounds",
@@ -307,6 +302,7 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
   // Depends on the account total, so it runs after `peopleMetrics`.
   const consent = await consentCoverage(supabase, people.totalAccounts, issues)
   const adoption = featureAdoption(featureSets, people.totalAccounts)
+  const everWritten = everWrittenAnything(featureSets)
 
   // ── Activity windows, all sliced from the one `writes` read ────────────────
   const thisWeekStart = daysAgo(6)
@@ -319,7 +315,6 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
   const activeOwners = new Set(
     activeCompoundRows.map((r) => r.user_id).filter((id): id is string => Boolean(id))
   )
-  const everTouched = everTouchedAnything(featureSets)
 
   // ── The onboarding funnel ─────────────────────────────────────────────────
   //
@@ -341,13 +336,9 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
   // have printed a confident 0 forever. `consent_records` is the real signal —
   // `app/welcome/actions.ts` writes it and only then grants app access, so a
   // consent record is what "got through onboarding" actually means.
-  const consentIds = await userIdSet(
-    supabase,
-    "consent_records",
-    "user_id",
-    issues,
-    "Funnel: legal gate"
-  )
+  // `consent.userIds` rather than a second read of `consent_records` — two
+  // unordered reads of one table can also disagree with each other.
+  const consentIds = consent.userIds
   const dosedThisWeek = activeIn(writes, thisWeekStart, undefined, ["dose_logs"])
 
   // Reuses the sets already read for adoption rather than re-reading
@@ -386,14 +377,13 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
       // Measured against EVERY feature surface, not just the five "activity"
       // tables, so this cannot contradict the adoption chart beside it.
       neverWritten: [...people.accountIds].filter(
-        (id) => !everTouched.has(id)
+        (id) => !everWritten.has(id)
       ).length,
       newAccounts: people.newAccounts,
       accountsByDay: people.accountsByDay,
       activityByDay: writesByDay(writes, daysAgo(window - 1)),
     },
     usage: {
-      compoundsLogged,
       dosesLogged,
       usersWithActiveCompound: activeOwners.size,
       journalEntries,
@@ -420,7 +410,7 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
     intake,
     attribution,
     feedback,
-    consent,
+    consent: consent.coverage,
   }
 }
 

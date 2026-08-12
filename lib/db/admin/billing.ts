@@ -119,19 +119,32 @@ export async function billingMetrics(
   const trialing = accountsWith("trialing")
   const active = accountsWith("active")
 
+  /** Distinct ACCOUNTS behind a set of subscription rows. */
+  const accountsIn = (rows: typeof subRows) =>
+    new Set(rows.map((r) => r.user_id).filter((id): id is string => Boolean(id))).size
+
+  // ACCOUNTS, not rows — the same reason `active`/`trialing` count accounts.
+  // These four tiles sit in one grid; three counting people and one counting
+  // rows would be worse than either choice made consistently.
   const nowMs = Date.now()
   const soonMs = soon.getTime()
-  const trialsEndingSoon = subRows.filter((r) => {
-    if (r.status !== "trialing" || !r.trial_ends_at) return false
-    const ms = Date.parse(r.trial_ends_at)
-    return !Number.isNaN(ms) && ms >= nowMs && ms <= soonMs
-  }).length
+  const trialsEndingSoon = accountsIn(
+    subRows.filter((r) => {
+      if (r.status !== "trialing" || !r.trial_ends_at) return false
+      const ms = Date.parse(r.trial_ends_at)
+      return !Number.isNaN(ms) && ms >= nowMs && ms <= soonMs
+    })
+  )
 
   // Only counts against a subscription that is still live — a `cancel_at_period_end`
   // flag left set on an already-canceled row is history, not pending churn.
-  const cancelling = subRows.filter(
-    (r) => r.cancel_at_period_end === true && (r.status === "active" || r.status === "trialing")
-  ).length
+  const cancelling = accountsIn(
+    subRows.filter(
+      (r) =>
+        r.cancel_at_period_end === true &&
+        (r.status === "active" || r.status === "trialing")
+    )
+  )
 
   /**
    * `is_active` ALONE IS NOT ENTITLEMENT, and reading it as if it were made this

@@ -155,7 +155,7 @@ export function AutoRefresh() {
         role="switch"
         aria-checked={on}
         aria-labelledby="auto-refresh-label"
-        aria-label="Auto refresh, every minute"
+        title="Refresh this page every minute"
         onClick={toggle}
         className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 ${
           on ? "bg-accent-amber" : "bg-bg-input border border-border-strong"

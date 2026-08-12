@@ -279,6 +279,39 @@ export function safeCode(raw: string | null | undefined): string | null {
   return cleaned.length > 0 ? cleaned : "other"
 }
 
+/**
+ * Clamp a short free-text value that is about to be rendered as a chart label.
+ *
+ * For values with no enum and no CHECK behind them. The worst of these is
+ * `waitlist.source`: `anon` holds `insert … with check (true)` on that table, so
+ * an **unauthenticated** stranger with the public URL chooses a string that
+ * appears on the founders' dashboard. It is `text` up to 120 characters with no
+ * shape constraint at all.
+ *
+ * Collapses whitespace (a value of newlines is not a label), strips control
+ * characters, and caps the length so one entry cannot dominate a ranked list.
+ */
+export function safeLabel(raw: string | null | undefined, maxLength = 40): string | null {
+  const collapsed = (raw ?? "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (!collapsed) return null
+  return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength)}…` : collapsed
+}
+
+/**
+ * Clamp a document version before it is rendered as "v1.3".
+ *
+ * `consent_records.version` is `text NOT NULL` with no CHECK, and
+ * `authenticated` may INSERT its own rows — so the string is user-chosen. A
+ * version is digits and dots; anything else is not one.
+ */
+export function safeVersion(raw: string | null | undefined): string | null {
+  const cleaned = (raw ?? "").trim().replace(/[^0-9.]/g, "").slice(0, 12)
+  return cleaned.length > 0 ? cleaned : null
+}
+
 // ── Consent ──────────────────────────────────────────────────────────────────
 
 /**

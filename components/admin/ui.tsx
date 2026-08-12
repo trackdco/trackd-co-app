@@ -84,6 +84,7 @@ export function Stat({
   hint,
   spark,
   tone = "neutral",
+  direction,
 }: {
   label: string
   value: number | string | null
@@ -92,6 +93,15 @@ export function Stat({
   spark?: ReactNode
   /** Directional colour is for BUSINESS metrics only — never a health value. */
   tone?: "neutral" | "positive" | "negative"
+  /**
+   * Whether this metric MOVED, and which way. Separate from `tone` on purpose.
+   *
+   * "Unprocessed webhooks: 0" is good news, so it is toned positive — but it has
+   * not gone up, and drawing a rising arrow on it says something false. Only a
+   * metric that genuinely has a direction passes this; the rest get a status
+   * word instead, so colour is still never the only signal.
+   */
+  direction?: "up" | "down"
 }) {
   const toneClass =
     tone === "positive"
@@ -107,10 +117,16 @@ export function Stat({
         ? value.toLocaleString()
         : value
 
-  // Colour is NEVER the only signal (`ui-context.md` → Admin). Without the
-  // caret, "Weekly retention 47%" and "62%" are typographically identical to a
-  // red/green-blind reader and the threshold is carried by hue alone.
-  const Arrow = tone === "positive" ? CaretUp : tone === "negative" ? CaretDown : null
+  /**
+   * Colour is NEVER the only signal (`ui-context.md` → Admin).
+   *
+   * A metric that moved gets an arrow. A metric that is simply in a good or bad
+   * STATE gets a word. Either way a reader who cannot distinguish red from green
+   * gets the same meaning the colour carries.
+   */
+  const Arrow = direction === "up" ? CaretUp : direction === "down" ? CaretDown : null
+  const statusWord =
+    Arrow || tone === "neutral" ? null : tone === "positive" ? "Clear" : "Check this"
 
   return (
     <div className="flex flex-col justify-between rounded-2xl bg-bg-surface p-4">
@@ -124,8 +140,14 @@ export function Stat({
           {suffix && value !== null && <span className={UNIT_SUFFIX}>{suffix}</span>}
         </span>
       </p>
+      {(hint || statusWord) && (
+        <p className="mt-2 text-[11px] leading-snug text-text-muted">
+          {statusWord && <span className={toneClass}>{statusWord}</span>}
+          {statusWord && hint ? " · " : ""}
+          {hint}
+        </p>
+      )}
       {spark && <div className="mt-3">{spark}</div>}
-      {hint && <p className="mt-2 text-[11px] leading-snug text-text-muted">{hint}</p>}
     </div>
   )
 }
