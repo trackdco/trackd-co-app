@@ -23,6 +23,7 @@ import {
   deleteProtocolDoseLog,
 } from "@/lib/home/protocolSync"
 import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
+import { createWriteCoalescer } from "@/lib/home/writeCoalescer"
 
 /**
  * `{ "YYYY-MM-DD": { slotKey: DoseLog } }`, where `slotKey` is a compound id for
@@ -336,64 +337,18 @@ export function subscribeDoseLogs(callback: () => void): () => void {
 const SYNCED_EVENT = "trackd:dose-synced"
 
 /**
- * Dose writes still in flight, and whether any of them actually landed.
+ * Dose writes still in flight, coalesced into ONE signal per burst.
  *
- * **Counted, not timed.** The first version debounced the SUBSCRIBER on a 250 ms
- * timer, on the assumption that a stack's writes go out together. They do not:
- * every `"use server"` call is a Server Action, and Next runs those strictly
- * FIFO on one queue (`app-router-instance.js` → `runRemainingActions`), one at a
- * time. `logDose` enqueues two per dose, so consecutive events are **two network
- * round trips** apart — a wall-clock debounce coalesces them only on a fast
- * connection, and on a real phone a five-member stack produced exactly the five
- * duplicate reads the debounce existed to prevent. (Found by two independent
- * cold reviews, 2026-08-12.)
- *
- * Counting cannot be fooled by latency: the burst's writes are all registered
- * synchronously by the loop, long before the first can resolve, so the count
- * reaches zero exactly once — when the last one settles.
+ * The counting rule and the reasons a timer cannot do this job live in
+ * {@link createWriteCoalescer}, where they are tested. This module just owns the
+ * app's single instance of it and says what "landed" means: the write reached
+ * Postgres and was not a no-op skip.
  */
-let pendingDoseWrites = 0
-let anyDoseWriteLanded = false
-
-/**
- * A write that never settles must not disarm the signal for the whole session.
- *
- * The count only falls when a promise resolves or rejects, and a Server Action
- * fetch has no client timeout anywhere — one stalled across an iOS Safari
- * suspend would pin the count above zero forever, and `notifySynced` would never
- * fire again. That is exactly the stale-stock bug this mechanism exists to fix,
- * coming back silently and permanently. So each write is given a deadline, after
- * which it is counted as settled-and-not-landed. Generous: this is a backstop
- * against a hang, not a latency budget. (Second cold review, 2026-08-12.)
- */
-const DOSE_WRITE_TIMEOUT_MS = 30_000
+const doseWrites = createWriteCoalescer(() => notifySynced())
 
 /** Register a dose write and fire the signal when the last one settles. */
 function trackDoseWrite(op: Promise<{ ok: boolean; skipped?: boolean }>): void {
-  pendingDoseWrites += 1
-  let done = false
-  const settle = (landed: boolean) => {
-    // The watchdog and the promise race; whichever is first owns the decrement.
-    if (done) return
-    done = true
-    clearTimeout(watchdog)
-    if (landed) anyDoseWriteLanded = true
-    pendingDoseWrites = Math.max(0, pendingDoseWrites - 1)
-    if (pendingDoseWrites > 0) return
-    const landedAny = anyDoseWriteLanded
-    anyDoseWriteLanded = false
-    // Nothing reached Postgres — offline, or every write was a custom compound
-    // that has no row to write. Re-reading server-derived figures would learn
-    // nothing and, offline, issues a request that cannot succeed.
-    if (landedAny) notifySynced()
-  }
-  const watchdog = setTimeout(() => settle(false), DOSE_WRITE_TIMEOUT_MS)
-  // Both arms, or a rejected write leaks the count and the signal never fires
-  // again for the rest of the session.
-  void op.then(
-    (r) => settle(r.ok && !r.skipped),
-    () => settle(false),
-  )
+  doseWrites.track(op)
 }
 
 function notifySynced() {
