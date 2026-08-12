@@ -15,6 +15,7 @@
  * once the migration lands.
  */
 import { createClient } from "@/lib/supabase/server"
+import { canWriteData } from "@/lib/billing/gate"
 
 /** A pause row, in the shape the device model uses. */
 export interface PauseRow {
@@ -78,6 +79,15 @@ export async function listPauses(): Promise<PauseRow[]> {
  * twice cannot leave two pauses where the user made one.
  */
 export async function upsertPause(row: PauseRow): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -114,6 +124,15 @@ export async function upsertPause(row: PauseRow): Promise<Ok> {
  * turning back into missed days.
  */
 export async function endPause(id: string, endsOn: string): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -170,6 +189,15 @@ export async function endPauseGroup(
   groupId: string,
   endsOn: string
 ): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }

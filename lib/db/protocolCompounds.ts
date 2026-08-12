@@ -10,6 +10,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { CYCLE_COLUMNS } from "@/lib/db/types"
 import type { ProtocolCompound, ProtocolCompoundInsert } from "@/lib/db/types"
+import { canWriteData } from "@/lib/billing/gate"
 
 /**
  * "That column doesn't exist" — the 006 cycle columns before the migration runs.
@@ -102,6 +103,15 @@ export async function listProtocolCompounds(
 export async function upsertProtocolCompound(
   row: ProtocolCompoundInsert
 ): Promise<ProtocolCompound | null> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return null;
   try {
     const ctx = await sessionCtx()
     if (!ctx) return null
@@ -170,6 +180,15 @@ const UPSERT_CHUNK = 200
 export async function upsertProtocolCompounds(
   rows: ProtocolCompoundInsert[]
 ): Promise<{ ok: boolean; count: number }> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, count: 0 };
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false, count: 0 }
@@ -210,6 +229,15 @@ export async function setProtocolCompoundActive(
   id: string,
   isActive: boolean
 ): Promise<ProtocolCompound | null> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return null;
   try {
     const ctx = await sessionCtx()
     if (!ctx) return null

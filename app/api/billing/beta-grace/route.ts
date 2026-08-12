@@ -27,19 +27,35 @@
  * must not be one — it acts on every account, so "is the caller allowed" cannot
  * be answered by whose session it is.
  *
- * ## Idempotent, and it never SHORTENS anybody's access
+ * ## ⚠️ IT SKIPS ANY ACCOUNT THAT HAS AN ENTITLEMENT ROW AT ALL, active or not
  *
- * Safe to run twice, and safe to run after somebody has already subscribed:
+ * The first version skipped only accounts with an ACTIVE one, which is the
+ * obvious reading and is wrong on the second run. Adrian will re-run this — he
+ * is going to add a friend to `COMP_EMAILS` after go-live, and re-running is the
+ * only way to grant them. With an "active" test, that second run would hand a
+ * fresh fourteen days to **everybody whose grace had already expired**, silently
+ * un-locking every lapsed account in the process. A month later it would do it
+ * again.
  *
- *   - An account that already has an ACTIVE `pro` entitlement is skipped
- *     entirely. A real subscriber must not be handed a comp, and somebody
- *     already granted the grace must not have their clock restarted (or, worse,
- *     cut short) by a second run.
- *   - `?dry=1` reports what it WOULD do and writes nothing. Run that first.
+ * "Has a row" is the correct backfill predicate. A row means this account has
+ * already been answered — by the first run, by a subscription, or by a comp —
+ * and being answered once is the whole point.
  *
- * The direction of every judgement call here is "grant more, never less". A
- * mistake that gives somebody an extra fortnight is a rounding error; one that
- * locks a paying customer out is a support queue and a refund.
+ * A lapsed grace is therefore left lapsed, which is right: they had their
+ * fortnight and the answer to what happens next is the subscribe pop-up, not
+ * another fortnight nobody told them about.
+ *
+ * ## The rest of the safety
+ *
+ *   - `?dry=1` reports what it WOULD do and writes nothing. Run that first, and
+ *     READ it: `compAccounts` names every address about to be given Trackd for
+ *     good, so a typo in the comp list is visible before it is permanent.
+ *   - A real subscriber is never handed a comp.
+ *   - Nobody's clock is restarted, or cut short.
+ *
+ * Every other judgement here runs "grant more, never less". A mistake that gives
+ * somebody an extra fortnight is a rounding error; one that locks a paying
+ * customer out is a support queue and a refund.
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -98,7 +114,7 @@ export async function POST(req: Request) {
     if (users.length < PAGE_SIZE) break;
   }
 
-  /* ── who already has access ───────────────────────────────────── */
+  /* ── who has already been answered ────────────────────────────── */
 
   const { data: existing, error: entErr } = await supabase
     .from("entitlements")
@@ -108,12 +124,17 @@ export async function POST(req: Request) {
   }
 
   const now = new Date();
-  const activeByUser = new Map<string, boolean>();
-  for (const row of existing ?? []) {
-    const already = activeByUser.get(row.user_id) ?? false;
-    activeByUser.set(
-      row.user_id,
-      already ||
+  /**
+   * ANY row, not just an active one. See the note at the top of this file: an
+   * "active" test would re-grant a fresh fortnight to everybody whose grace had
+   * expired, every time this is re-run.
+   */
+  const answered = new Set<string>((existing ?? []).map((row) => row.user_id));
+  /** Kept separately, so the summary can distinguish "already paying" from
+   *  "already had their fortnight and it ran out". */
+  const stillActive = new Set<string>(
+    (existing ?? [])
+      .filter((row) =>
         grantsPro(
           [
             {
@@ -125,19 +146,23 @@ export async function POST(req: Request) {
           ],
           now,
         ),
-    );
-  }
+      )
+      .map((row) => row.user_id),
+  );
 
   /* ── what each one gets ───────────────────────────────────────── */
 
   const comp: string[] = [];
   const grace: string[] = [];
   const skipped: string[] = [];
+  const skippedLapsed: string[] = [];
   const rows: BillingDatabase["public"]["Tables"]["entitlements"]["Insert"][] = [];
 
   for (const account of accounts) {
-    if (activeByUser.get(account.id)) {
-      skipped.push(account.email ?? account.id);
+    if (answered.has(account.id)) {
+      (stillActive.has(account.id) ? skipped : skippedLapsed).push(
+        account.email ?? account.id,
+      );
       continue;
     }
     const grant = betaGrantFor(account.email);
@@ -158,12 +183,18 @@ export async function POST(req: Request) {
     comp: comp.length,
     grace: grace.length,
     skipped: skipped.length,
+    /** Already answered, and their answer has since run out. Left alone on
+     *  purpose: they had their fortnight, and the answer to what comes next is
+     *  the subscribe pop-up rather than another fortnight nobody told them
+     *  about. */
+    skippedLapsed: skippedLapsed.length,
     graceDays: BETA_GRACE_DAYS,
     graceEndsOn: grantExpiry({ kind: "grace", days: BETA_GRACE_DAYS }, now),
     compList: COMP_EMAILS,
     /** Named, so a dry run can be READ rather than trusted. */
     compAccounts: comp,
     skippedAccounts: skipped,
+    skippedLapsedAccounts: skippedLapsed,
   };
 
   if (dry || rows.length === 0) return NextResponse.json(summary);

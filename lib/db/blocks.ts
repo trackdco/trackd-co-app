@@ -17,6 +17,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import type { Block, BlockTarget } from "@/lib/blocks/block"
+import { canWriteData, READ_ONLY_MESSAGE } from "@/lib/billing/gate"
 
 /** Matches the column's own CHECK (`001_blocks.sql`: length <= 4000). */
 const REFLECTION_MAX = 4000
@@ -146,6 +147,15 @@ function closeDateFor(startedOn: string, todayKey: string): string {
 export async function startBlock(
   input: StartBlockInput,
 ): Promise<{ ok: true; block: Block } | { ok: false; error: string }> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, error: READ_ONLY_MESSAGE };
   const ctx = await sessionCtx()
   if (!ctx) return { ok: false, error: "Not signed in." }
 
@@ -282,6 +292,15 @@ export async function extendBlock(
   blockId: string,
   endsOn: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, error: READ_ONLY_MESSAGE };
   const ctx = await sessionCtx()
   if (!ctx) return { ok: false, error: "Not signed in." }
   // A server action is a public endpoint, and this one validated nothing: it
@@ -340,6 +359,15 @@ export async function closeBlock(
   todayKey: string,
   opts: { reflection?: string; abandoned?: boolean } = {},
 ): Promise<{ ok: boolean; error?: string }> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, error: READ_ONLY_MESSAGE };
   const ctx = await sessionCtx()
   if (!ctx) return { ok: false, error: "Not signed in." }
 
@@ -436,6 +464,15 @@ export async function saveReflection(
   blockId: string,
   reflection: string,
 ): Promise<{ ok: boolean }> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false };
   const ctx = await sessionCtx()
   if (!ctx) return { ok: false }
   // Truncated to the column's own CHECK rather than sent and rejected, so a long
