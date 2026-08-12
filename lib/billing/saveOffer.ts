@@ -130,7 +130,7 @@ export async function markOfferShown(customerId: string): Promise<void> {
 
 export type GrantResult =
   | { ok: true; endsOn: string; kind: SaveOfferKind }
-  | { ok: false; reason: "already-claimed" | "not-offered" | "failed" };
+  | { ok: false; reason: "already-claimed" | "not-offered" | "not-cancelled" | "failed" };
 
 /**
  * Give the week (or the free period), once.
@@ -177,6 +177,32 @@ export async function grantExtraTime(
    * offer is available" is a statement about the screen, not about the action.
    */
   if (!customer.metadata?.[SHOWN_KEY]) return { ok: false, reason: "not-offered" };
+
+  /**
+   * ⚠️ AND THEY HAVE TO STILL BE CANCELLED.
+   *
+   * A cold review found two ways round the flags alone, because `SHOWN_KEY` is
+   * customer-scoped and permanent while the subscription underneath it is not:
+   *
+   *   (a) cancel, take the un-cancel ("Keep Trackd after 19 Aug"), THEN claim.
+   *       Result: a free week on a subscription nobody is leaving.
+   *   (b) cancel, let it die, start a NEW subscription, claim on that one.
+   *       Result: the same, on a subscription that was never cancelled at all.
+   *
+   * Both were driven: "trial moved by 7 days; cancel_at_period_end = false".
+   *
+   * Neither is a way to get TWO weeks — `CLAIMED_KEY` still holds — so this is a
+   * retention offer being spent by somebody who was not leaving rather than a
+   * grant that repeats. It is still wrong: the offer exists to catch a person on
+   * their way out, and the sentence on the dialog says "your trial is cancelled,
+   * and that stands", which is false for both of them.
+   *
+   * The subscription is read fresh by the caller immediately before this, so
+   * this is the state at grant time and not at offer time.
+   */
+  if (!subscription.cancel_at_period_end) {
+    return { ok: false, reason: "not-cancelled" };
+  }
 
   const kind: SaveOfferKind = subscription.status === "trialing" ? "trial" : "paid";
 

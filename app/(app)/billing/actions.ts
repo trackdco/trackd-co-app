@@ -296,7 +296,13 @@ export async function claimExtraTime(): Promise<
       error:
         result.reason === "already-claimed"
           ? "That's already been added to this account."
-          : "We couldn't add the extra time just now.",
+          : result.reason === "not-cancelled"
+            // They un-cancelled, or started a new subscription, between being
+            // offered the week and claiming it. Nothing is wrong with their
+            // account and nothing needs doing, so the message says that rather
+            // than implying a failure.
+            ? "Your subscription is already running, so there's nothing to add."
+            : "We couldn't add the extra time just now.",
     };
   }
 
