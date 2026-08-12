@@ -5,7 +5,6 @@ import { HomeScreen } from "@/components/home/HomeScreen";
 import { TrialEndingBanner } from "@/components/billing/TrialEndingBanner";
 import { EnableNotificationsStep } from "@/components/push/EnableNotificationsStep";
 import { InstallHomeScreenPopup } from "@/components/pwa/InstallHomeScreenPopup";
-import { localParts } from "@/lib/notifications/reminders";
 import { trialNoticeFor, trialNoticeLine } from "@/lib/notifications/trialReminder";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import { createClient } from "@/lib/supabase/server";
@@ -74,7 +73,10 @@ export default async function DashboardPage() {
     .select("status, trial_ends_at, cancel_at_period_end")
     .eq("user_id", user.id)
     .eq("status", "trialing")
-    .order("updated_at", { ascending: false })
+    // SOONEST-ENDING first, matching the runner and the Billing screen. Ordered
+    // by `updated_at` it named a stale trial's date while a real one was about
+    // to bill.
+    .order("trial_ends_at", { ascending: true })
     .limit(1);
   const trialRow = trialRows?.[0];
   const trialNotice = trialNoticeFor(
@@ -86,7 +88,11 @@ export default async function DashboardPage() {
         }
       : null,
     trialTz,
-    localParts(new Date(), trialTz).dateKey,
+    // The INSTANT, not the local day. The banner must vanish the moment the
+    // charge lands, not at the end of the calendar day it landed on: a trial
+    // ending 01:39 local otherwise showed "Your free trial ends today" for the
+    // rest of a day on which the money had already moved.
+    new Date(),
     null,
   );
 

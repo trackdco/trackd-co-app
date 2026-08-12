@@ -45,13 +45,24 @@ export default async function BillingPage() {
   const [{ data: profile }, { data: subs }, { data: customer }, entitlement] =
     await Promise.all([
       supabase.from("profiles").select("timezone").eq("id", user.id).maybeSingle(),
+      // ⚠️ FILTERED AND ORDERED THE SAME WAY THE ACTION DECIDES.
+      //
+      // This had NO status filter and ordered by `updated_at`, while the action
+      // filtered to live statuses. A cold review put a dead `incomplete_expired`
+      // row (which `startTrial` creates when it cancels an abandoned attempt)
+      // beside a live trial: the page rendered "This one can't be changed from
+      // here. Email support@trackdco.app" and offered no cancel control, for a
+      // user whose trial Stripe said was perfectly live and about to bill.
+      //
+      // Soonest-ending first, so an imminent charge is what the screen shows.
       supabase
         .from("subscriptions")
         .select(
           "status, trial_ends_at, current_period_end, cancel_at_period_end, stripe_price_id",
         )
         .eq("user_id", user.id)
-        .order("updated_at", { ascending: false })
+        .in("status", ["trialing", "active", "past_due"])
+        .order("current_period_end", { ascending: true })
         .limit(1),
       // Whether there is anything for the Stripe portal to open onto. A user can
       // legitimately have a customer row and no live subscription (they

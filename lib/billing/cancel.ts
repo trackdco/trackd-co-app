@@ -29,6 +29,82 @@ import { stripe } from "./stripe";
 export const CANCELLABLE_STATUSES = ["trialing", "active", "past_due"] as const;
 
 /**
+ * ⚠️ EVERY SUBSCRIPTION THAT CAN STILL TAKE MONEY, ACCORDING TO STRIPE.
+ *
+ * ## The bug this exists for, measured end to end
+ *
+ * A cold review drove two concurrent `startTrial` calls for DIFFERENT plans from
+ * one signed-in user. The duplicate guard keys on `trial:${user}:${plan}`, so two
+ * plans are two keys, and both reads passed before either write: **one user, two
+ * live trials.**
+ *
+ * Everything downstream took `limit(1)` off the mirror. So:
+ *
+ *   1. `/billing` showed the wrong plan ($11.99/mo for a user on the $69.99/yr);
+ *   2. Cancel cancelled the wrong subscription and returned `{ok: true}`;
+ *   3. the mirror write bumped `updated_at` on the row it had just cancelled,
+ *      which PINNED `limit(1)` to that dead row, so the screen swapped to
+ *      "Restart my trial" and the cancel control was gone;
+ *   4. the test clock rolled to day 8 and took **$69.99**.
+ *
+ * The user pressed Cancel, was told in writing they would not be charged, was
+ * charged, and had no control left to try again.
+ *
+ * ## So: ask Stripe, and take ALL of them
+ *
+ * Two changes, both load-bearing. **Stripe rather than the mirror**, because the
+ * mirror is written by a webhook that can be in flight, can have been left
+ * `unattributed`, or can have 500'd — the same reason every handler in
+ * `sync.ts` re-reads the live object. And **all of them, not one**: somebody
+ * pressing Cancel means "stop billing me", not "stop billing me for whichever
+ * row sorted first".
+ *
+ * The mirror is still what the SCREEN reads. It is display, and it does not
+ * decide anything. This is the decision.
+ */
+export async function liveSubscriptionsForUser(userId: string): Promise<string[]> {
+  const { data, error } = await serviceClient()
+    .from("billing_customers")
+    .select("stripe_customer_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw new Error(`billing_customers read failed for ${userId}: ${error.message}`);
+  const customer = data?.stripe_customer_id;
+  if (!customer) return [];
+
+  // `status: "all"` then filtered here, rather than one request per status:
+  // Stripe's list endpoint takes a single status, and asking for each of them
+  // separately is three round-trips that can disagree with each other.
+  const list = await stripe().subscriptions.list({
+    customer,
+    status: "all",
+    limit: 100,
+  });
+
+  return list.data
+    .filter((s) => BILLABLE.has(s.status))
+    .map((s) => s.id);
+}
+
+/**
+ * Statuses that can still result in a charge.
+ *
+ * WIDER than {@link CANCELLABLE_STATUSES}, deliberately. That list is about what
+ * a user may press a button on; this is about what could still take their money,
+ * and `paused` and `unpaid` both can once Stripe resumes or retries them. A
+ * cancel-before-delete that leaves either behind is the exact failure the
+ * deletion path exists to prevent.
+ */
+const BILLABLE = new Set<string>([
+  "trialing",
+  "active",
+  "past_due",
+  "paused",
+  "unpaid",
+]);
+
+/**
  * Set (or clear) `cancel_at_period_end` on a subscription, and mirror it.
  *
  * Takes an id that the CALLER has already proved belongs to whoever is asking.
@@ -103,28 +179,24 @@ export async function cancelNowForUser(userId: string): Promise<{
   cancelled: string[];
   failed: string[];
 }> {
-  const db = serviceClient();
-  const { data, error } = await db
-    .from("subscriptions")
-    .select("stripe_subscription_id, status")
-    .eq("user_id", userId);
-
-  if (error) {
-    // Thrown, unlike the mirror write above. A deletion must NOT proceed on the
-    // assumption that there was nothing to cancel when the database would not
-    // say. Failing loudly here leaves the account intact and billable, which is
-    // recoverable; the alternative is not.
-    throw new Error(`could not read subscriptions for ${userId}: ${error.message}`);
-  }
-
-  const live = (data ?? []).filter((r) =>
-    (CANCELLABLE_STATUSES as readonly string[]).includes(r.status as string),
-  );
+  /**
+   * ASKS STRIPE, NOT THE MIRROR.
+   *
+   * This read `subscriptions` and a cold review measured what that costs: with
+   * one subscription mirrored and one not — the state that exists whenever a
+   * webhook is in flight, was left `unattributed`, or 500'd — it returned
+   * `{cancelled: [one], failed: []}`. A clean success, with a live subscription
+   * still billing and the deletion flow cleared to proceed and cascade away the
+   * only row connecting it to a person. Exactly the outcome this function's own
+   * warning describes.
+   *
+   * Thrown rather than returned on failure: a deletion must be able to STOP.
+   */
+  const live = await liveSubscriptionsForUser(userId);
 
   const cancelled: string[] = [];
   const failed: string[] = [];
-  for (const row of live) {
-    const id = row.stripe_subscription_id as string;
+  for (const id of live) {
     try {
       await stripe().subscriptions.cancel(id);
       cancelled.push(id);

@@ -1,9 +1,13 @@
 -- ============================================================
 --  The trial reminder's dedupe stamp. Migration: `trial_reminder`
 --
---  NOT YET APPLIED.  ← verify against the live schema, never against this line.
---                       A hand-applied migration never shows in list_migrations,
---                       so this header is a claim, not a record.
+--  APPLIED by Adrian, 2026-08-12. VERIFIED against the live schema the same day
+--  by executing, not by trusting this line: the column selects without a 42703,
+--  accepts a date, reads the same date back, and no row is stamped yet.
+--
+--  A hand-applied migration never shows in list_migrations, so this header is a
+--  claim and it goes stale. `grants/004` said NOT YET APPLIED for four days
+--  after it was applied and two sessions carried the work as outstanding.
 -- ============================================================
 --
 --  WHAT IT IS FOR

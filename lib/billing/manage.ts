@@ -132,7 +132,10 @@ export function planLabelFor(
   subscription: Pick<ManageableSubscription, "status"> | null,
 ): string {
   if (source === "comp") return "Complimentary";
-  if (source && subscription?.status === "trialing") return "Free trial";
+  // A running trial says so whether or not the entitlement row has caught up.
+  // The webhook writes that row moments after the subscription exists, and in
+  // the gap the screen used to read "Pro" beside its own "Trial ends 19 Aug".
+  if (subscription?.status === "trialing") return "Free trial";
   if (source) return "Pro";
   return NO_ENTITLEMENT_LABEL;
 }

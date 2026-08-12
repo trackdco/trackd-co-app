@@ -120,7 +120,7 @@ export type TrialReminderVerdict =
 export function trialReminderVerdict(
   trial: TrialForReminder | null,
   tz: string,
-  todayKey: string,
+  now: Date,
   sentFor: string | null,
 ): TrialReminderVerdict {
   if (!trial) return { send: false, reason: "no-trial" };
@@ -131,13 +131,27 @@ export function trialReminderVerdict(
   if (!forDate) return { send: false, reason: "no-trial-end" };
   if (sentFor === forDate) return { send: false, reason: "already-sent" };
 
-  const today = dayNumber(todayKey);
-  if (today < dayNumber(forDate)) return { send: false, reason: "too-early" };
+  /**
+   * ⚠️ THE TRIAL IS OVER AT AN INSTANT, NOT AT THE END OF A CALENDAR DAY.
+   *
+   * This compared DAY NUMBERS, and a cold review measured what that costs: a
+   * trial ending 01:39 local on the 15th, with a 09:00 reminder time, sent a
+   * real push at 09:00 on the 15th — **seven hours and twenty-one minutes after
+   * the card had been charged** — saying "your trial ends today, and billing
+   * starts then". Every trial the app creates ends at the small hours of its
+   * final local day, because the trial is seven times twenty-four hours from a
+   * signup that could be any time, so this was not an edge case. It was most of
+   * them, reachable through the deliberate catch-up path.
+   *
+   * The comparison is now against the instant Stripe will actually bill on.
+   * A reminder about a charge that has already happened is worse than no
+   * reminder: it tells somebody they still have time to decide when they do not.
+   */
+  const endsAt = Date.parse(trial.trialEndsAt!);
+  if (now.getTime() >= endsAt) return { send: false, reason: "trial-over" };
 
-  // The last day it can still be true. `trial_ends_at` is an instant, so the
-  // user's local day it lands on is the last day the trial is running at all.
-  const endDateKey = localParts(new Date(Date.parse(trial.trialEndsAt!)), tz).dateKey;
-  if (today > dayNumber(endDateKey)) return { send: false, reason: "trial-over" };
+  const today = dayNumber(localParts(now, tz).dateKey);
+  if (today < dayNumber(forDate)) return { send: false, reason: "too-early" };
 
   return { send: true, forDate };
 }
@@ -203,7 +217,7 @@ export interface TrialNotice {
 export function trialNoticeFor(
   trial: TrialForReminder | null,
   tz: string,
-  todayKey: string,
+  now: Date,
   dismissedFor: string | null,
 ): TrialNotice | null {
   if (!trial || trial.status !== "trialing" || trial.cancelAtPeriodEnd) return null;
@@ -211,10 +225,15 @@ export function trialNoticeFor(
   const forDate = trialReminderDateKey(trial, tz);
   if (!forDate || dismissedFor === forDate) return null;
 
-  const endDateKey = localParts(new Date(Date.parse(trial.trialEndsAt!)), tz).dateKey;
-  const today = dayNumber(todayKey);
+  // Gone the moment the charge lands, not at the end of that calendar day. See
+  // the same check in `trialReminderVerdict` — the banner said "Your free trial
+  // ends today" for the whole of a day on which the money had already moved.
+  const endsAt = Date.parse(trial.trialEndsAt!);
+  if (now.getTime() >= endsAt) return null;
+
+  const endDateKey = localParts(new Date(endsAt), tz).dateKey;
+  const today = dayNumber(localParts(now, tz).dateKey);
   if (today < dayNumber(forDate)) return null; // not yet the promised day
-  if (today > dayNumber(endDateKey)) return null; // the trial is over
 
   return { endDateKey, daysLeft: dayNumber(endDateKey) - today, forDate };
 }

@@ -18,6 +18,24 @@ import {
 const SYD = "Australia/Sydney";
 const LA = "America/Los_Angeles";
 
+/**
+ * 10:00 on a given LOCAL day, as a real instant.
+ *
+ * The verdict takes an instant now, not a date key, because `trial_ends_at` is
+ * an instant and the old day-number comparison sent a reminder seven hours
+ * AFTER the charge on the final day. Ten in the morning is after the default
+ * 09:00 reminder time and safely inside the day in both test zones.
+ */
+function at(dateKey: string, tz: string): Date {
+  const offset = tz === SYD ? "+10:00" : tz === LA ? "-07:00" : "Z";
+  return new Date(`${dateKey}T10:00:00${offset}`);
+}
+
+/** An instant `minutes` before the trial actually ends. */
+function before(t: TrialForReminder, minutes: number): Date {
+  return new Date(Date.parse(t.trialEndsAt!) - minutes * 60_000);
+}
+
 function trial(over: Partial<TrialForReminder> = {}): TrialForReminder {
   return {
     status: "trialing",
@@ -83,14 +101,14 @@ describe("trialReminderVerdict", () => {
   const LAST_DAY = "2026-08-15";
 
   it("sends on the promised day", () => {
-    expect(trialReminderVerdict(trial(), tz, REMIND_ON, null)).toEqual({
+    expect(trialReminderVerdict(trial(), tz, at(REMIND_ON, tz), null)).toEqual({
       send: true,
       forDate: REMIND_ON,
     });
   });
 
   it("says nothing before the promised day", () => {
-    const v = trialReminderVerdict(trial(), tz, shiftDateKey(REMIND_ON, -1), null);
+    const v = trialReminderVerdict(trial(), tz, at(shiftDateKey(REMIND_ON, -1), tz), null);
     expect(v).toEqual({ send: false, reason: "too-early" });
   });
 
@@ -98,32 +116,50 @@ describe("trialReminderVerdict", () => {
     // A deploy, an outage, a phone with no subscription registered that morning.
     // A late warning is worth a lot; a missed one is the thing the screen
     // promised would not happen. It still stamps the PROMISED day.
-    const v = trialReminderVerdict(trial(), tz, shiftDateKey(REMIND_ON, 1), null);
+    const v = trialReminderVerdict(trial(), tz, at(shiftDateKey(REMIND_ON, 1), tz), null);
     expect(v).toEqual({ send: true, forDate: REMIND_ON });
   });
 
-  it("still sends on the trial's last local day", () => {
-    expect(trialReminderVerdict(trial(), tz, LAST_DAY, null)).toEqual({
+  it("sends right up to the minute before the charge", () => {
+    expect(trialReminderVerdict(trial(), tz, before(trial(), 1), null)).toEqual({
       send: true,
       forDate: REMIND_ON,
     });
   });
 
-  it("stops once the trial is over", () => {
-    // Past that instant the money has moved. "Your trial is ending" would be a
-    // notification about the past.
-    const v = trialReminderVerdict(trial(), tz, shiftDateKey(LAST_DAY, 1), null);
-    expect(v).toEqual({ send: false, reason: "trial-over" });
+  it("STOPS AT THE INSTANT OF THE CHARGE, not at the end of that day", () => {
+    /**
+     * The critical defect a cold review measured. This compared DAY NUMBERS, so
+     * on the trial's final local day it kept sending all day — and every trial
+     * the app creates ends in the small hours of that day, because it is seven
+     * times twenty-four hours from a signup at any time. Measured: a real push
+     * delivered at 09:00 saying "your trial ends today, and billing starts then"
+     * SEVEN HOURS AND TWENTY-ONE MINUTES after the card was charged.
+     */
+    const t = trial(); // ends 01:39 Sydney on the 15th
+    expect(trialReminderVerdict(t, tz, before(t, -1), null)).toEqual({
+      send: false,
+      reason: "trial-over",
+    });
+    // 09:00 on the final local day is AFTER the charge, and must say nothing.
+    expect(trialReminderVerdict(t, tz, at(LAST_DAY, tz), null)).toEqual({
+      send: false,
+      reason: "trial-over",
+    });
+    // And every later day, obviously.
+    expect(
+      trialReminderVerdict(t, tz, at(shiftDateKey(LAST_DAY, 1), tz), null),
+    ).toEqual({ send: false, reason: "trial-over" });
   });
 
   it("sends once and only once", () => {
-    const first = trialReminderVerdict(trial(), tz, REMIND_ON, null);
+    const first = trialReminderVerdict(trial(), tz, at(REMIND_ON, tz), null);
     expect(first.send).toBe(true);
     // The stamp is the reminder's own date, so the next tick sees its own work.
-    const second = trialReminderVerdict(trial(), tz, REMIND_ON, REMIND_ON);
+    const second = trialReminderVerdict(trial(), tz, at(REMIND_ON, tz), REMIND_ON);
     expect(second).toEqual({ send: false, reason: "already-sent" });
     // And so does every tick for the rest of the trial.
-    expect(trialReminderVerdict(trial(), tz, LAST_DAY, REMIND_ON)).toEqual({
+    expect(trialReminderVerdict(trial(), tz, before(trial(), 60), REMIND_ON)).toEqual({
       send: false,
       reason: "already-sent",
     });
@@ -133,52 +169,52 @@ describe("trialReminderVerdict", () => {
     // The regression this shape exists to prevent: stamping "today" on a
     // catch-up would leave the promised day unstamped and fire again tomorrow.
     const late = shiftDateKey(REMIND_ON, 1);
-    const v = trialReminderVerdict(trial(), tz, late, null);
+    const v = trialReminderVerdict(trial(), tz, at(late, tz), null);
     expect(v).toEqual({ send: true, forDate: REMIND_ON });
-    expect(trialReminderVerdict(trial(), tz, late, REMIND_ON).send).toBe(false);
+    expect(trialReminderVerdict(trial(), tz, at(late, tz), REMIND_ON).send).toBe(false);
   });
 
   it("a NEW trial gets its own reminder despite an old stamp", () => {
     // A returning customer. The old stamp is a different date, so it cannot
     // suppress a genuinely new trial.
     const second = trial({ trialEndsAt: "2026-12-14T15:39:23.000Z" });
-    const v = trialReminderVerdict(second, tz, "2026-12-13", REMIND_ON);
+    const v = trialReminderVerdict(second, tz, at("2026-12-13", tz), REMIND_ON);
     expect(v).toEqual({ send: true, forDate: "2026-12-13" });
   });
 
   it("says nothing to somebody who has already cancelled", () => {
     // Nothing is about to change for them, and telling them billing starts
     // would send them rushing to cancel a thing they already cancelled.
-    const v = trialReminderVerdict(trial({ cancelAtPeriodEnd: true }), tz, REMIND_ON, null);
+    const v = trialReminderVerdict(trial({ cancelAtPeriodEnd: true }), tz, at(REMIND_ON, tz), null);
     expect(v).toEqual({ send: false, reason: "already-cancelled" });
   });
 
   it("says nothing when there is no trial at all", () => {
-    expect(trialReminderVerdict(null, tz, REMIND_ON, null)).toEqual({
+    expect(trialReminderVerdict(null, tz, at(REMIND_ON, tz), null)).toEqual({
       send: false,
       reason: "no-trial",
     });
   });
 
   it("says nothing once the subscription has converted", () => {
-    const v = trialReminderVerdict(trial({ status: "active" }), tz, REMIND_ON, null);
+    const v = trialReminderVerdict(trial({ status: "active" }), tz, at(REMIND_ON, tz), null);
     expect(v).toEqual({ send: false, reason: "status-active" });
   });
 
   it("says nothing when the trial has no end date", () => {
-    const v = trialReminderVerdict(trial({ trialEndsAt: null }), tz, REMIND_ON, null);
+    const v = trialReminderVerdict(trial({ trialEndsAt: null }), tz, at(REMIND_ON, tz), null);
     expect(v).toEqual({ send: false, reason: "no-trial-end" });
   });
 
   it("gives two users in different zones their own promised day", () => {
     // Same subscription, same instant. Neither is sent on the other's day.
-    expect(trialReminderVerdict(trial(), SYD, "2026-08-13", null).send).toBe(true);
-    expect(trialReminderVerdict(trial(), LA, "2026-08-13", null).send).toBe(true); // catch-up
-    expect(trialReminderVerdict(trial(), LA, "2026-08-12", null)).toEqual({
+    expect(trialReminderVerdict(trial(), SYD, at("2026-08-13", SYD), null).send).toBe(true);
+    expect(trialReminderVerdict(trial(), LA, at("2026-08-13", LA), null).send).toBe(true); // catch-up
+    expect(trialReminderVerdict(trial(), LA, at("2026-08-12", LA), null)).toEqual({
       send: true,
       forDate: "2026-08-12",
     });
-    expect(trialReminderVerdict(trial(), SYD, "2026-08-12", null)).toEqual({
+    expect(trialReminderVerdict(trial(), SYD, at("2026-08-12", SYD), null)).toEqual({
       send: false,
       reason: "too-early",
     });
@@ -193,48 +229,55 @@ describe("the in-app notice", () => {
   it("opens on the SAME day the push is promised for", () => {
     // Two surfaces, one promise. If these could differ, one of them would be
     // lying about which day was committed to on the paywall.
-    const notice = trialNoticeFor(trial(), tz, REMIND_ON, null);
+    const notice = trialNoticeFor(trial(), tz, at(REMIND_ON, tz), null);
     expect(notice?.forDate).toBe(REMIND_ON);
-    expect(trialReminderVerdict(trial(), tz, REMIND_ON, null)).toEqual({
+    expect(trialReminderVerdict(trial(), tz, at(REMIND_ON, tz), null)).toEqual({
       send: true,
       forDate: REMIND_ON,
     });
   });
 
   it("is absent before the promised day", () => {
-    expect(trialNoticeFor(trial(), tz, "2026-08-12", null)).toBeNull();
+    expect(trialNoticeFor(trial(), tz, at("2026-08-12", tz), null)).toBeNull();
   });
 
   it("stays up for the whole final stretch, unlike the push", () => {
     // The push fires once. The banner is the standing statement of the fact.
-    expect(trialNoticeFor(trial(), tz, "2026-08-13", null)?.daysLeft).toBe(2);
-    expect(trialNoticeFor(trial(), tz, "2026-08-14", null)?.daysLeft).toBe(1);
-    expect(trialNoticeFor(trial(), tz, LAST_DAY, null)?.daysLeft).toBe(0);
+    expect(trialNoticeFor(trial(), tz, at("2026-08-13", tz), null)?.daysLeft).toBe(2);
+    expect(trialNoticeFor(trial(), tz, at("2026-08-14", tz), null)?.daysLeft).toBe(1);
+    // The final day exists only between midnight and the 01:39 charge.
+    expect(trialNoticeFor(trial(), tz, before(trial(), 30), null)?.daysLeft).toBe(0);
   });
 
-  it("goes once the trial is over", () => {
-    expect(trialNoticeFor(trial(), tz, "2026-08-16", null)).toBeNull();
+  it("VANISHES THE MOMENT THE CHARGE LANDS", () => {
+    // Not at the end of that calendar day. The banner said "Your free trial ends
+    // today" for the whole of a day on which the money had already moved.
+    const t = trial();
+    expect(trialNoticeFor(t, tz, before(t, 1), null)).not.toBeNull();
+    expect(trialNoticeFor(t, tz, before(t, -1), null)).toBeNull();
+    expect(trialNoticeFor(t, tz, at(LAST_DAY, tz), null)).toBeNull();
+    expect(trialNoticeFor(t, tz, at("2026-08-16", tz), null)).toBeNull();
   });
 
   it("says nothing to somebody who has already cancelled", () => {
     expect(
-      trialNoticeFor(trial({ cancelAtPeriodEnd: true }), tz, REMIND_ON, null),
+      trialNoticeFor(trial({ cancelAtPeriodEnd: true }), tz, at(REMIND_ON, tz), null),
     ).toBeNull();
   });
 
   it("a dismissal is scoped to ONE trial", () => {
-    expect(trialNoticeFor(trial(), tz, REMIND_ON, REMIND_ON)).toBeNull();
+    expect(trialNoticeFor(trial(), tz, at(REMIND_ON, tz), REMIND_ON)).toBeNull();
     // A returning customer's second trial has its own date, so it is announced
     // again rather than being silenced by a stamp from months ago.
     const second = trial({ trialEndsAt: "2026-12-14T15:39:23.000Z" });
-    expect(trialNoticeFor(second, tz, "2026-12-13", REMIND_ON)?.forDate).toBe(
+    expect(trialNoticeFor(second, tz, at("2026-12-13", tz), REMIND_ON)?.forDate).toBe(
       "2026-12-13",
     );
   });
 
   it("gives two zones their own window", () => {
-    expect(trialNoticeFor(trial(), LA, "2026-08-12", null)?.forDate).toBe("2026-08-12");
-    expect(trialNoticeFor(trial(), SYD, "2026-08-12", null)).toBeNull();
+    expect(trialNoticeFor(trial(), LA, at("2026-08-12", LA), null)?.forDate).toBe("2026-08-12");
+    expect(trialNoticeFor(trial(), SYD, at("2026-08-12", SYD), null)).toBeNull();
   });
 });
 
@@ -242,15 +285,15 @@ describe("trialNoticeLine", () => {
   const tz = SYD;
 
   it("states when the trial ends, and nothing else", () => {
-    const line = trialNoticeLine(trialNoticeFor(trial(), tz, "2026-08-13", null)!);
+    const line = trialNoticeLine(trialNoticeFor(trial(), tz, at("2026-08-13", tz), null)!);
     expect(line).toBe("Your free trial ends 15 Aug.");
   });
 
   it("reads naturally on the last two days", () => {
-    expect(trialNoticeLine(trialNoticeFor(trial(), tz, "2026-08-14", null)!)).toBe(
+    expect(trialNoticeLine(trialNoticeFor(trial(), tz, at("2026-08-14", tz), null)!)).toBe(
       "Your free trial ends tomorrow.",
     );
-    expect(trialNoticeLine(trialNoticeFor(trial(), tz, "2026-08-15", null)!)).toBe(
+    expect(trialNoticeLine(trialNoticeFor(trial(), tz, before(trial(), 30), null)!)).toBe(
       "Your free trial ends today.",
     );
   });
@@ -260,8 +303,13 @@ describe("trialNoticeLine", () => {
     // nobody asked for; "Billing starts then." was the app explaining its own
     // warning. A banner is a glance, and everything after the first full stop is
     // something the reader has to decide whether to care about.
-    for (const day of ["2026-08-13", "2026-08-14", "2026-08-15"]) {
-      const line = trialNoticeLine(trialNoticeFor(trial(), tz, day, null)!);
+    const moments = [
+      at("2026-08-13", tz),
+      at("2026-08-14", tz),
+      before(trial(), 30), // the sliver of the final day before the charge
+    ];
+    for (const moment of moments) {
+      const line = trialNoticeLine(trialNoticeFor(trial(), tz, moment, null)!);
       expect(line).toMatch(/^Your free trial ends [^.]+\.$/);
       expect(line.toLowerCase()).not.toContain("cancel");
       expect(line.toLowerCase()).not.toContain("stays");
@@ -271,7 +319,7 @@ describe("trialNoticeLine", () => {
   });
 
   it("names the date in the user's own zone", () => {
-    expect(trialNoticeLine(trialNoticeFor(trial(), LA, "2026-08-12", null)!)).toContain(
+    expect(trialNoticeLine(trialNoticeFor(trial(), LA, at("2026-08-12", LA), null)!)).toContain(
       "14 Aug",
     );
   });

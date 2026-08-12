@@ -1,7 +1,16 @@
 -- ============================================================
 --  Em dashes out of the LIVE legal documents. Migration: `legal_em_dashes`
 --
---  NOT YET APPLIED.  ← verify against the live rows, never against this line.
+--  APPLIED by Adrian, 2026-08-12. VERIFIED by executing: all 13 replacement
+--  strings are present in the live rows, 0 originals remain, the 6 superseded
+--  rows still hold their 67 em dashes, and all three current rows are still
+--  v1.3 (no version bump, so consent_records still point at live documents).
+--
+--  NOTE: the live PAGES lag by up to an hour. `getLegalDocument` wraps the read
+--  in `unstable_cache` with a 3600s revalidate, so /terms, /privacy and
+--  /medical-disclaimer serve the previous text until it expires. Nothing to do;
+--  it self-heals. `revalidateTag('legal-documents')` would be instant if a
+--  publish flow ever needs it.
 -- ============================================================
 --
 --  WHY
@@ -138,11 +147,17 @@ update public.legal_documents set body = replace(
 --  which is how `protocol/024` reported success without executing an assertion.
 -- ------------------------------------------------------------
 --
--- select version, position('—' in body) as first_em_dash,
---        (length(body) - length(replace(body, '—', ''))) as em_dashes_left
+-- select version, (length(body) - length(replace(body, '—', ''))) as em_dashes_left
 -- from public.legal_documents
 -- where is_current;
--- -- expect em_dashes_left = 0 on all three rows.
+-- -- EXPECT 1 ON EACH, NOT 0.
+-- --
+-- -- The one that remains is the heading line at the top of the body ("Trackd Co
+-- -- — Privacy Policy"), which this migration deliberately leaves alone because
+-- -- `renderBody` drops that line before rendering (it matches `title`). This
+-- -- block previously said "expect 0", so anyone following it saw a failure on a
+-- -- CORRECT apply, and the obvious fix is the blanket replace this file spends a
+-- -- whole warning block forbidding.
 --
 -- select version, (length(title) - length(replace(title, '—', ''))) as title_dashes
 -- from public.legal_documents where is_current;

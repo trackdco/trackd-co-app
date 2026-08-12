@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
 import { getCurrentUser } from "@/lib/auth";
-import { applyCancelFlag, CANCELLABLE_STATUSES } from "@/lib/billing/cancel";
+import { applyCancelFlag, liveSubscriptionsForUser } from "@/lib/billing/cancel";
 import { stripe } from "@/lib/billing/stripe";
 import { createClient } from "@/lib/supabase/server";
 
@@ -53,71 +53,88 @@ export interface BillingActionResult {
   savedAt?: number;
 }
 
-/** One list, in `lib/billing/cancel.ts`, so the guard here and the one the
- *  deletion path uses cannot drift apart. */
-const CANCELLABLE = new Set<string>(CANCELLABLE_STATUSES);
-
 /**
- * Resolve the caller's own Stripe subscription, or say why not.
+ * Resolve the caller's own live subscriptions, or say why not.
  *
- * Returns the id and status rather than the whole row: the id is all Stripe
- * needs and the status is all the guard needs, and handing back more would
- * invite a caller to make a decision from a mirror that nothing may gate on.
+ * ## It returns ALL of them, and it asks STRIPE
+ *
+ * It used to take `limit(1)` off the mirror ordered by `updated_at`, and a cold
+ * review turned that into the worst defect on this branch: two concurrent
+ * `startTrial` calls for different plans produce two live trials (the duplicate
+ * guard keys on user+plan), Cancel then cancelled the wrong one and returned
+ * success, the mirror write bumped `updated_at` on the dead row so the screen
+ * swapped to "Restart my trial", and the test clock took $69.99 from somebody
+ * who had pressed Cancel and been told in writing they would not be charged.
+ *
+ * So: every billable subscription, from Stripe, which is the only thing that
+ * knows what is real. `liveSubscriptionsForUser` is shared with the deletion
+ * path so the two cannot drift.
+ *
+ * ## Identity still comes from the session, through RLS
+ *
+ * The ownership check is unchanged and is still the important part: the caller's
+ * OWN `billing_customers` row is what resolves the Stripe customer, read with
+ * the session client so Postgres refuses a stranger's row independently of the
+ * scoping. Nothing about which subscription to act on comes from the client.
  */
-async function ownSubscription(): Promise<
-  { id: string; status: string; userId: string } | { error: string }
+async function ownSubscriptions(): Promise<
+  { ids: string[]; userId: string } | { error: string }
 > {
   const user = await getCurrentUser();
   if (!user) return { error: "You need to be signed in." };
 
   const supabase = await createClient();
+  // Through RLS: proves the caller owns the customer before anything is
+  // resolved against it.
   const { data, error } = await supabase
-    .from("subscriptions")
-    .select("stripe_subscription_id, status")
-    // Scoped explicitly AND covered by RLS. The house pattern is defence in
-    // depth, and this is the one query in the app where the backstop failing
-    // would mean cancelling a stranger's subscription.
+    .from("billing_customers")
+    .select("stripe_customer_id")
     .eq("user_id", user.id)
-    .in("status", [...CANCELLABLE_STATUSES])
-    .order("updated_at", { ascending: false })
-    .limit(1);
+    .maybeSingle();
 
   if (error) {
-    console.error("[billing] could not read the caller's subscription:", error.message);
+    console.error("[billing] could not read the caller's customer:", error.message);
+    return { error: "We couldn't reach your billing details just now." };
+  }
+  if (!data?.stripe_customer_id) {
+    return { error: "There's no active subscription on this account." };
+  }
+
+  let ids: string[];
+  try {
+    ids = await liveSubscriptionsForUser(user.id);
+  } catch (err) {
+    console.error(
+      `[billing] could not list subscriptions for ${user.id}:`,
+      err instanceof Error ? err.message : String(err),
+    );
     return { error: "We couldn't reach your billing details just now." };
   }
 
-  const row = data?.[0];
-  if (!row) return { error: "There's no active subscription on this account." };
-  if (!CANCELLABLE.has(row.status)) {
-    return { error: "This subscription can't be changed from here." };
-  }
-
-  return {
-    id: row.stripe_subscription_id as string,
-    status: row.status as string,
-    userId: user.id,
-  };
+  if (ids.length === 0) return { error: "There's no active subscription on this account." };
+  return { ids, userId: user.id };
 }
 
 /** Stop the next charge. Access continues to the end of what is already paid for. */
 export async function cancelSubscription(): Promise<BillingActionResult> {
-  const found = await ownSubscription();
+  const found = await ownSubscriptions();
   if ("error" in found) return { ok: false, error: found.error };
 
   try {
-    await applyCancelFlag(found.id, true);
+    // EVERY one of them. "Cancel my subscription" means stop billing me, not
+    // stop billing me for whichever row happened to sort first.
+    for (const id of found.ids) await applyCancelFlag(id, true);
   } catch (err) {
     // Stripe's own message can name internal ids and price objects, so it is
     // logged and not returned.
     console.error(
-      `[billing] cancel failed for ${found.id}:`,
+      `[billing] cancel failed for ${found.ids.join(", ")}:`,
       err instanceof Error ? err.message : String(err),
     );
     return { ok: false, error: "We couldn't cancel just now. Please try again." };
   }
 
-  console.info(`[billing] ${found.userId} cancelled at period end`);
+  console.info(`[billing] ${found.userId} cancelled ${found.ids.length} subscription(s) at period end`);
   revalidatePath("/billing");
   revalidatePath("/profile");
   return { ok: true, savedAt: Date.now() };
@@ -205,27 +222,60 @@ export async function openBillingPortal(): Promise<
 async function siteOrigin(): Promise<string> {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (!host) return "https://trackdco.app";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
-  return `${proto}://${host}`;
+  if (!host) return PRODUCTION_ORIGIN;
+
+  /**
+   * ⚠️ THE HOST HEADER IS ATTACKER-CONTROLLED. IT IS CHECKED, NOT TRUSTED.
+   *
+   * This returned whatever the header said, and a cold review poisoned it:
+   *
+   *     X-Forwarded-Host: evil-attacker.example.com
+   *       -> return_url: http://evil-attacker.example.com/billing
+   *
+   * Stripe performs no validation of its own — it accepted an arbitrary origin
+   * outright — so the header was the only thing standing between a request and
+   * Stripe bouncing a signed-in user onto somebody else's site straight after a
+   * billing action. A browser cannot set that header cross-origin and Vercel's
+   * edge normally overwrites it, so this was a trust-boundary defect rather than
+   * a proven remote exploit. It is still not a header worth trusting.
+   *
+   * An allowlist, so an unrecognised host falls back to production rather than
+   * being echoed. Preview deploys get their own hostname per build, hence the
+   * `.vercel.app` suffix rule rather than a fixed list.
+   */
+  const hostname = host.split(":")[0].toLowerCase();
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || /^192\.168\./.test(hostname);
+  const allowed =
+    hostname === "trackdco.app" ||
+    hostname === "www.trackdco.app" ||
+    hostname.endsWith(".vercel.app") ||
+    isLocal;
+
+  if (!allowed) {
+    console.error(`[billing] refusing a return_url for an unrecognised host: ${host}`);
+    return PRODUCTION_ORIGIN;
+  }
+  return `${isLocal ? "http" : "https"}://${host}`;
 }
+
+const PRODUCTION_ORIGIN = "https://trackdco.app";
 
 /** Undo a scheduled cancellation, any time before the date. */
 export async function resumeSubscription(): Promise<BillingActionResult> {
-  const found = await ownSubscription();
+  const found = await ownSubscriptions();
   if ("error" in found) return { ok: false, error: found.error };
 
   try {
-    await applyCancelFlag(found.id, false);
+    for (const id of found.ids) await applyCancelFlag(id, false);
   } catch (err) {
     console.error(
-      `[billing] resume failed for ${found.id}:`,
+      `[billing] resume failed for ${found.ids.join(", ")}:`,
       err instanceof Error ? err.message : String(err),
     );
     return { ok: false, error: "We couldn't restart it just now. Please try again." };
   }
 
-  console.info(`[billing] ${found.userId} resumed`);
+  console.info(`[billing] ${found.userId} resumed ${found.ids.length} subscription(s)`);
   revalidatePath("/billing");
   revalidatePath("/profile");
   return { ok: true, savedAt: Date.now() };

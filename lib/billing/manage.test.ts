@@ -112,6 +112,8 @@ describe("planLabelFor — Profile and Billing must agree", () => {
       ["comp", "trialing", "Complimentary"],
       ["comp", null, "Complimentary"],
       ["stripe", "trialing", "Free trial"],
+      // A running trial says so even before the entitlement row lands.
+      [null, "trialing", "Free trial"],
       ["stripe", "active", "Pro"],
       ["stripe", "past_due", "Pro"],
       ["apple", "active", "Pro"],
@@ -142,6 +144,8 @@ describe("planLabelFor — Profile and Billing must agree", () => {
     // comment in manage.ts.
     expect(planLabelFor(null, null)).toBe("Pro");
     expect(planLabelFor(null, { status: "canceled" })).toBe("Pro");
+    // But a live trial is named as one, entitlement row or not.
+    expect(planLabelFor(null, { status: "trialing" })).toBe("Free trial");
   });
 
   it("a comp beside a live trial still reads as the comp", () => {

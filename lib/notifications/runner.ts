@@ -127,9 +127,9 @@ async function collectTrial(
       .select("status, trial_ends_at, cancel_at_period_end")
       .eq("user_id", userId)
       .eq("status", "trialing")
-      // A user should only ever have one. If a stale row somehow survives, the
-      // most recently updated one is the live truth.
-      .order("updated_at", { ascending: false })
+      // SOONEST-ENDING first. A user should only ever have one, but if a stale
+      // row survives, the trial about to bill is the one that matters.
+      .order("trial_ends_at", { ascending: true })
       .limit(1),
     supabase
       .from("notification_preferences")
@@ -139,6 +139,12 @@ async function collectTrial(
   ]);
 
   const row = subRes.data?.[0] as Record<string, unknown> | undefined;
+  // Ordered by `trial_ends_at` ASCENDING by the query below, so a stale trialing
+  // row cannot hide an imminent charge. It was ordered by `updated_at`, which is
+  // bookkeeping rather than truth: a cold review put a stale row ending in
+  // September beside a live one ending in August and the reminder went to the
+  // stale one, reporting "too-early" and sending nothing on the real trial's
+  // promised day.
   const trial: TrialForReminder | null = row
     ? {
         status: row.status as string,
@@ -160,6 +166,86 @@ async function collectTrial(
         | undefined) ?? null;
 
   return { trial, sentFor };
+}
+
+/**
+ * CLAIM THE TRIAL REMINDER BEFORE SENDING IT, NOT AFTER.
+ *
+ * ## The two failures this replaces, both measured
+ *
+ * The old order was send, then stamp, and a cold review broke it twice:
+ *
+ *   - **Two overlapping cron ticks each sent one.** Read-then-write with nothing
+ *     between them. Measured: two pushes, same tag, one trial.
+ *   - **A stamp write that failed re-sent forever.** The outcome was derived
+ *     from what the push service said, never from whether the stamp persisted,
+ *     so eight consecutive ticks each reported `"sent"` and delivered eight
+ *     pushes. At a fifteen-minute cron that is ~96 notifications in a day, about
+ *     somebody's money, while the cron's own JSON said everything was fine.
+ *
+ * A conditional UPDATE settles both: Postgres applies it atomically, and the
+ * returned row count says whether THIS tick won. A tick that did not win does
+ * not send.
+ *
+ * ## The failure direction, chosen deliberately
+ *
+ * Claiming first means a claim that succeeds and a send that fails would lose
+ * the reminder. So a failed send RELEASES the claim and the next tick retries.
+ * If the release also fails, the reminder is missed — and that is the right way
+ * round: the banner on Home reaches everybody regardless, and a missed push is
+ * recoverable where ninety-six pushes about a charge is not.
+ *
+ * ## Its own write, which is what makes the isolation real
+ *
+ * The three older stamps are still batched into one update. This one is
+ * separate, so a failure here cannot take quiet hours and the dose stamps with
+ * it — the containment `supabase/notifications/004` claims, which was true of
+ * the read and false of the write until now.
+ */
+async function claimTrialReminder(
+  supabase: Client,
+  userId: string,
+  forDate: string,
+  previous: string | null,
+): Promise<boolean> {
+  let query = supabase
+    .from("notification_preferences")
+    .update({ trial_reminder_sent_for: forDate })
+    .eq("user_id", userId);
+  // Only claim from the exact value we read. Another tick that got there first
+  // has already changed it, so this matches nothing.
+  query = previous === null
+    ? query.is("trial_reminder_sent_for", null)
+    : query.eq("trial_reminder_sent_for", previous);
+
+  const { data, error } = await query.select("user_id");
+  if (error) {
+    console.error(`[reminders] could not claim the trial reminder for ${userId}:`, error.message);
+    return false;
+  }
+  // Zero rows means somebody else claimed it, or the row does not exist. A
+  // PostgREST update that matches nothing reports no error at all, which is
+  // exactly how the old code mistook a no-op for a stamp.
+  return (data ?? []).length > 0;
+}
+
+/** Hand the claim back when the send did not reach a device, so the next tick
+ *  can try again. */
+async function releaseTrialReminder(
+  supabase: Client,
+  userId: string,
+  previous: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("notification_preferences")
+    .update({ trial_reminder_sent_for: previous })
+    .eq("user_id", userId);
+  if (error) {
+    console.error(
+      `[reminders] the trial reminder for ${userId} was claimed but not delivered, and the claim could not be released:`,
+      error.message,
+    );
+  }
 }
 
 async function collectUserData(
@@ -420,14 +506,24 @@ export async function runForUser(
   const data = await collectUserData(supabase, userId, now);
   const p = data.prefs ?? {};
 
+  // `trialReminder` rides on the early returns too. Without it, a user whose
+  // trial reminder was swallowed by quiet hours reported exactly the same shape
+  // as a user with no trial at all, which is the blindness `RunResult` says it
+  // exists to remove.
   if (!force && !data.notificationsEnabled) {
-    return { ok: true, sent: 0, dueCount: 0, lowCount: 0, reason: "disabled" };
+    return {
+      ok: true, sent: 0, dueCount: 0, lowCount: 0, reason: "disabled",
+      trialReminder: data.trial ? "notifications-disabled" : undefined,
+    };
   }
 
   const quietStart = toMinutes((p.quiet_start as string) ?? "22:00:00");
   const quietEnd = toMinutes((p.quiet_end as string) ?? "08:00:00");
   if (!force && inQuietHours(data.nowMinutes, quietStart, quietEnd)) {
-    return { ok: true, sent: 0, dueCount: 0, lowCount: 0, reason: "quiet-hours" };
+    return {
+      ok: true, sent: 0, dueCount: 0, lowCount: 0, reason: "quiet-hours",
+      trialReminder: data.trial ? "quiet-hours" : undefined,
+    };
   }
 
   const due = dueUnlogged(data.compounds, data.loggedTodayIds, data.todayKey);
@@ -446,9 +542,32 @@ export async function runForUser(
 
   /** Why the trial reminder did not go out, for {@link RunResult.trialReminder}. */
   let trialReason: string | undefined;
+  /** Set once the reminder is CLAIMED, so a failed send can hand the claim back. */
+  let trialClaim: { forDate: string; previous: string | null; tag: string } | null = null;
 
   const reminderMin = toMinutes((p.reminder_time as string) ?? "09:00:00");
   const missedMin = toMinutes((p.missed_cutoff_time as string) ?? "20:00:00");
+
+  /**
+   * WHEN THE TRIAL REMINDER MAY FIRE, WHICH IS NOT ALWAYS `reminder_time`.
+   *
+   * A cold review found a configuration that killed it permanently: a
+   * `reminder_time` of 23:00 with quiet hours 22:00 to 08:00. Every tick before
+   * 23:00 is "too early" and every tick from 22:00 is "quiet hours", so the two
+   * gates never open at once and the reminder is never sent, on any day, with no
+   * error anywhere. Three trial days were walked and zero pushes went out.
+   *
+   * It is reachable: `ReminderSettings` offers three unconstrained time inputs
+   * and `prefsActions` validates only the HH:MM shape.
+   *
+   * The dose reminders can live with this — they come round again tomorrow. This
+   * one has one promised day and is about money, so when the chosen time falls
+   * inside the user's own quiet window it fires at the END of that window
+   * instead. That is the earliest moment they have said they are willing to be
+   * disturbed, which is the closest thing to their intent that still keeps the
+   * promise.
+   */
+  const trialMin = inQuietHours(reminderMin, quietStart, quietEnd) ? quietEnd : reminderMin;
   const doseOn = p.dose_reminders_on !== false;
   const missedOn = p.unlogged_alert_on !== false;
   const lowOn = p.low_inventory_alert_on !== false;
@@ -494,58 +613,59 @@ export async function runForUser(
     /**
      * THE TRIAL REMINDER — the promise the paywall makes out loud.
      *
-     * Three things about where this sits.
+     * **Not behind any of the three content toggles.** `dose_reminders_on` and
+     * its siblings are preferences about PROTOCOL nudges. This is a notice that
+     * money is about to leave someone's account, promised on the screen where
+     * they entered their card, and turning off dose reminders is not consent to
+     * be charged without warning.
      *
-     * **It is not behind any of the three content toggles.** `dose_reminders_on`,
-     * `unlogged_alert_on` and `low_inventory_alert_on` are preferences about
-     * PROTOCOL nudges. This is a notice that money is about to leave someone's
-     * account, promised on the screen where they entered their card, and turning
-     * off dose reminders is not consent to be charged without warning.
+     * **Behind the master switch and quiet hours**, both of which returned
+     * above. That is the honest limit of a push: someone who never granted
+     * permission has no channel, and the banner on Home exists for them.
      *
-     * **It IS behind the master switch and quiet hours**, both of which have
-     * already returned above. That is the honest limit of a push-only reminder:
-     * a user who never granted notification permission has no channel, and there
-     * is nothing here that can invent one. `next-tasks.md` carries that gap.
-     *
-     * **It fires from the same `reminder_time` as the morning digest**, so it
-     * arrives at a chosen hour rather than at whatever minute of the night the
-     * cron happened to tick over into the promised day.
+     * **CLAIMED BEFORE IT IS SENT**, and sent FIRST of the four. Both are
+     * repairs from a cold review — see `claimTrialReminder`, and the ordering
+     * note below.
      */
     if (data.trialSentFor === undefined) {
       // `supabase/notifications/004` is not applied — there is nowhere to record
       // a send, and sending without recording would repeat every fifteen
-      // minutes for a whole day. Withholding is the safe direction, and it is
-      // exactly today's behaviour rather than a regression.
+      // minutes for a whole day. Withholding is the safe direction.
       if (data.trial) {
         console.warn(
           "[reminders] a trial is running but `trial_reminder_sent_for` is missing; apply supabase/notifications/004_trial_reminder.sql",
         );
         trialReason = "migration-004-not-applied";
       }
-    } else if (data.nowMinutes < reminderMin) {
+    } else if (data.nowMinutes < trialMin) {
       if (data.trial) trialReason = "before-reminder-time";
     } else {
       const verdict = trialReminderVerdict(
         data.trial,
         data.tz,
-        data.todayKey,
+        now,
         data.trialSentFor,
       );
       if (verdict.send && data.trial) {
         const m = trialReminderMessage(data.trial, data.tz);
-        if (m) {
-          messages.push(m);
-          // The reminder's own DATE, not today. See `trialReminderVerdict` and
-          // `supabase/notifications/004` — a catch-up send on day 6 stamps day 5,
-          // so the next tick sees its own work.
-          stamps.push({
-            column: "trial_reminder_sent_for",
-            // The reminder's own DATE, not today. See `trialReminderVerdict` and
-            // `supabase/notifications/004` — a catch-up send on day 6 stamps day
-            // 5, so the next tick sees its own work.
-            value: verdict.forDate,
-            tag: m.tag,
-          });
+        if (!m) {
+          trialReason = "no-message";
+        } else if (await claimTrialReminder(supabase, userId, verdict.forDate, data.trialSentFor)) {
+          /**
+           * SENT FIRST, not last.
+           *
+           * `sendMessages` walks the messages in order per device and STOPS on a
+           * dead endpoint, pruning it. Queued last, the trial reminder was the
+           * first casualty of an endpoint that died mid-loop: the dose reminder
+           * went out, the trial one did not, and the device was then pruned so
+           * "the next tick retries" retried to nobody. The three protocol nudges
+           * come round again tomorrow. This one has one promised day.
+           */
+          messages.unshift(m);
+          trialClaim = { forDate: verdict.forDate, previous: data.trialSentFor, tag: m.tag };
+        } else {
+          // Another tick got there first, or the row would not take the write.
+          trialReason = "not-claimed";
         }
       } else if (!verdict.send) {
         trialReason = verdict.reason;
@@ -555,9 +675,29 @@ export async function runForUser(
 
   const report = await sendMessages(supabase, userId, messages);
 
-  // Advance a dedupe stamp only for the scheduled path, and only for a message
-  // that actually reached at least one device — so a transient send failure
-  // retries next tick rather than silently claiming to have been delivered.
+  /**
+   * THE TRIAL REMINDER'S CLAIM IS RELEASED IF IT DID NOT LAND.
+   *
+   * Claiming first is what stops a duplicate send and a stamp-failure storm, but
+   * it moves the risk: a claim that sticks while the push fails would lose the
+   * reminder silently. So a claim with nothing delivered is handed straight
+   * back and the next tick tries again.
+   */
+  let trialOutcome: string | undefined;
+  if (trialClaim) {
+    const delivered = (report.byTag[trialClaim.tag] ?? 0) > 0;
+    if (delivered) {
+      trialOutcome = "sent";
+    } else {
+      await releaseTrialReminder(supabase, userId, trialClaim.previous);
+      trialOutcome = "send-failed";
+    }
+  }
+
+  // Advance the three OLDER stamps, each only for a message that actually
+  // reached a device. The trial stamp is deliberately not in here: it is claimed
+  // before the send and released above, in its own write, so a failure on either
+  // side cannot take quiet hours and the dose stamps down with it.
   const earned = stamps.filter((s) => (report.byTag[s.tag] ?? 0) > 0);
   if (!force && earned.length > 0) {
     const patch = Object.fromEntries(earned.map((s) => [s.column, s.value]));
@@ -577,26 +717,7 @@ export async function runForUser(
     sent: report.total,
     dueCount: due.length,
     lowCount: low.length,
-    trialReminder: trialOutcome(report, stamps) ?? trialReason,
+    trialReminder: trialOutcome ?? trialReason,
   };
 }
 
-/**
- * What became of the trial reminder's message, if one was built.
- *
- * `"send-failed"` is a state this originally could not express, and driving the
- * real runner against a real push endpoint is what surfaced it: a reminder that
- * was decided on, composed, and then reached no device at all reported
- * `undefined` — exactly the same as a user with no trial. The one case that most
- * needs to be visible was the one case that looked like nothing had happened.
- *
- * It is deliberately NOT stamped, so the next tick tries again.
- */
-function trialOutcome(
-  report: SendReport,
-  stamps: Array<{ column: string; tag: string }>,
-): string | undefined {
-  const s = stamps.find((x) => x.column === "trial_reminder_sent_for");
-  if (!s) return undefined;
-  return (report.byTag[s.tag] ?? 0) > 0 ? "sent" : "send-failed";
-}
