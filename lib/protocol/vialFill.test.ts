@@ -113,3 +113,53 @@ describe("formatGrams — the kilo boundary", () => {
     expect(formatGrams(999.9)).toBe("999.9 g")
   })
 })
+
+/**
+ * The scale trap behind the strengthless oral shape.
+ *
+ * `v_inventory_math` sizes a strengthless oral row as `total_base = count` —
+ * the tablet IS the unit. `vialBasis` sizes it as `count × strength` whenever a
+ * strength is supplied. So a caller that still has a strength in hand for a row
+ * it is about to save WITHOUT one writes `prior_used_base` at strength× the
+ * right scale, and the view subtracts that from remaining for the life of the
+ * bottle.
+ *
+ * Reachable through the add-stock sheets: the strength field is hidden for a
+ * compound dosed in tablets, but its state survives a change of compound. Both
+ * sheets therefore pass `strength: 0` unless the row will really store one.
+ */
+describe("an oral's basis follows the shape the row is SAVED in", () => {
+  const oral = (strength: number) =>
+    vialBasis("oral_solid", {
+      powder: 0, bacWater: 0, oilMl: 0, concentration: 0,
+      count: 100, strength, tubGrams: 0,
+    })
+
+  it("sizes a strengthless bottle by the COUNT — one tab is one base unit", () => {
+    expect(oral(0)).toEqual({ totalBase: 100, perNative: 1, fullNative: 100 })
+  })
+
+  it("sizes a stated-strength bottle by count × strength", () => {
+    expect(oral(500)).toEqual({ totalBase: 50_000, perNative: 500, fullNative: 100 })
+  })
+
+  it("a leaked strength would store a half-full bottle 500× out", () => {
+    // What the bug looked like: the row saves strengthless (base 100), so half
+    // used is 50 — but a basis built with the stale strength calls it 25,000.
+    const half = 0.5
+    const correct = resolveFill(
+      "oral_solid",
+      { powder: 0, bacWater: 0, oilMl: 0, concentration: 0, count: 100, strength: 0, tubGrams: 0 },
+      "",
+      half,
+    )
+    const leaked = resolveFill(
+      "oral_solid",
+      { powder: 0, bacWater: 0, oilMl: 0, concentration: 0, count: 100, strength: 500, tubGrams: 0 },
+      "",
+      half,
+    )
+    expect(correct.priorUsed).toBe(50)
+    expect(leaked.priorUsed).toBe(25_000)
+  })
+})

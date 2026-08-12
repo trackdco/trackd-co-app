@@ -656,27 +656,8 @@ function AddCompoundBody({
   // The part-used estimate for the inline vial (mirrors the Stock tab). When the
   // compound isn't stockable (stockType ""), the control is hidden and the insert is
   // null, so the fallback type here is inert.
-  const stockFill = resolveFill(
-    stockType === "" ? "reconstituted" : stockType,
-    {
-      powder: amt(stPowder),
-      bacWater: amt(stBac),
-      oilMl: amt(stMl),
-      concentration: amt(stConc),
-      count: amt(stCount),
-      strength: amt(stStrength),
-      tubGrams: amt(stTubGrams),
-    },
-    stExactLeft,
-    stFillPreset,
-  )
-  // The part-used amount is entered in the container's OWN measure, which is no
-  // longer always millilitres now that this form covers all four types.
-  const stFillUnit =
-    stockType === "oral_solid" ? stOralForm : stockType === "bulk_powder" ? "g" : "mL"
-  // What the thing being filled is CALLED, so the fullness gauge isn't announced
-  // as a vial when it is a tub. The visible heading ("How much is in it?") was
-  // already form-neutral; only the screen-reader label was not.
+  // The compound's derived units — ABOVE the fill maths, which depends on
+  // `stStrengthRequired` to size an oral's capacity correctly.
   const stContainerNoun = containerNoun({
     inventoryType: stockType || null,
     // The count unit the user is choosing right now is the same evidence a
@@ -704,6 +685,30 @@ function AddCompoundBody({
   const stEffectiveOralForm = stOralRule.countUnit ?? stOralForm
   const showStIuFromMgHint = needsIuFromMgHint(source.name, stPowderUnits)
 
+  const stockFill = resolveFill(
+    stockType === "" ? "reconstituted" : stockType,
+    {
+      powder: amt(stPowder),
+      bacWater: amt(stBac),
+      oilMl: amt(stMl),
+      concentration: amt(stConc),
+      count: amt(stCount),
+      // Only when the row will store one — see `AddStockSheet`. A strength left
+      // in state after a compound change would size the fill against
+      // `count × strength` while the saved row is sized against `count`.
+      strength: stStrengthRequired ? amt(stStrength) : 0,
+      tubGrams: amt(stTubGrams),
+    },
+    stExactLeft,
+    stFillPreset,
+  )
+  // The part-used amount is entered in the container's OWN measure, which is no
+  // longer always millilitres now that this form covers all four types.
+  const stFillUnit =
+    stockType === "oral_solid" ? stOralForm : stockType === "bulk_powder" ? "g" : "mL"
+  // What the thing being filled is CALLED, so the fullness gauge isn't announced
+  // as a vial when it is a tub. The visible heading ("How much is in it?") was
+  // already form-neutral; only the screen-reader label was not.
   function buildStockInsert():
     | Omit<StockInsert, "id" | "protocol_compound_id">
     | null {

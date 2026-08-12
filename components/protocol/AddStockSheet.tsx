@@ -386,6 +386,78 @@ function AddStockForm({
 
   // The "how much is in it?" estimate → the stored part-vial offset (base-unit amount
   // already gone). Full (or no inputs yet) → null, the existing full-vial behaviour.
+  // The compound and everything derived from it — declared ABOVE the fill
+  // maths, which now depends on `strengthRequired` to size an oral's capacity
+  // correctly.
+  const selected = compounds.find((c) => c.id === compoundId)
+  /**
+   * What to call the container the user ALREADY has — the one a refill or an
+   * edit is locked to. Read from `presetType` rather than from `type`, because
+   * the sentence is about the container on the shelf, not the form currently
+   * selected in the picker.
+   *
+   * It said "vial" flat out, so editing a tub of creatine read "Powder · same as
+   * your current vial" (Adrian, 2026-08-12).
+   */
+  const lockedNoun = containerNoun({
+    inventoryType: presetType,
+    // The row being refilled or edited knows whether it is counted out — without
+    // it, editing a bottle of off-catalogue capsules read "Oral · same as your
+    // current tub", the exact contradiction the override exists to kill.
+    totalAmountUnit: ei?.totalAmountUnit,
+    category: selected?.category,
+    name: selected?.name,
+  })
+
+  /**
+   * Units on offer for the powder — driven by the COMPOUND'S OWN dose unit,
+   * which is the thing `unit_family_compatible` actually pairs `base_unit`
+   * against. Reading the catalogue alone denied `iu` to a custom compound dosed
+   * in `iu` (a user's own HGH), which is precisely the never-links-never-
+   * depletes bug this is meant to prevent.
+   *
+   * `storedUnit` is passed only on an EDIT. A REFILL deliberately does not carry
+   * the old vial's unit: it is a NEW container, and it should match what the
+   * compound is dosed in rather than inherit a unit the previous row may have
+   * had wrong.
+   */
+  const powderUnits = powderUnitsFor(selected?.name, {
+    doseUnit: selected?.unit,
+    storedUnit: ei?.baseUnit,
+  })
+  /**
+   * The unit actually written to `base_unit`.
+   *
+   * Resolved rather than trusted: switching the sheet from HCG to a peptide with
+   * `iu` still selected would otherwise save the peptide's vial as `iu`, and
+   * `unit_family_compatible` (016) pairs `iu` only with `iu` — so every dose
+   * would log cleanly and the vial would never go down. See `stockUnits.ts`.
+   */
+  const powderUnitToSave = resolvePowderUnit(powderUnit, powderUnits)
+  /**
+   * The SAME narrowing for the oral strength's unit, which writes the same
+   * `base_unit` column and is guarded by the same DB trigger.
+   *
+   * Fixing only the powder field left this one a free `mg | iu` toggle
+   * defaulting to `mg` — so a bottle of **Vitamin D3** (dosed in iu, and its
+   * dose unit is not even selectable) hit `unit_family_compatible('mg','iu')`
+   * = false and could not be saved AT ALL. The sheet reported "Couldn't save
+   * this stock. Please try again.", which would have failed identically
+   * forever. Same for Vitamin A and Vitamin E. (Second cold review, 2026-08-12.)
+   */
+  const oralRule = oralStockRule(selected?.name, {
+    doseUnit: selected?.unit,
+    storedUnit: ei?.baseUnit,
+  })
+  const strengthUnits = oralRule.strengthUnits
+  const strengthUnitToSave = resolvePowderUnit(strengthUnit, strengthUnits)
+  const strengthRequired = oralRule.strengthRequired
+  /** The tab/cap choice is the user's UNLESS the compound is dosed in one of
+   *  them, in which case `total_amount_unit` must equal `base_unit`. */
+  const effectiveOralForm = oralRule.countUnit ?? oralForm
+  const showIuFromMgHint = needsIuFromMgHint(selected?.name, powderUnits)
+
+
   const fill = resolveFill(
     type,
     {
@@ -394,7 +466,13 @@ function AddStockForm({
       oilMl: num(oilMl),
       concentration: num(concentration),
       count: num(count),
-      strength: num(strength),
+      // ONLY when the row will actually store one. The field is hidden for a
+      // compound dosed in tablets, but its state survives a compound change —
+      // and `vialBasis` sizes an oral's capacity as `count × strength`, while
+      // the strengthless row it is about to save is sized as `count`. A stale
+      // figure here writes `prior_used_base` at strength× the right scale, and
+      // the view then subtracts that from remaining forever.
+      strength: strengthRequired ? num(strength) : 0,
       tubGrams: num(tubGrams),
     },
     exactLeft,
@@ -481,74 +559,6 @@ function AddStockForm({
       prior_used_base,
     }
   }
-
-  const selected = compounds.find((c) => c.id === compoundId)
-  /**
-   * What to call the container the user ALREADY has — the one a refill or an
-   * edit is locked to. Read from `presetType` rather than from `type`, because
-   * the sentence is about the container on the shelf, not the form currently
-   * selected in the picker.
-   *
-   * It said "vial" flat out, so editing a tub of creatine read "Powder · same as
-   * your current vial" (Adrian, 2026-08-12).
-   */
-  const lockedNoun = containerNoun({
-    inventoryType: presetType,
-    // The row being refilled or edited knows whether it is counted out — without
-    // it, editing a bottle of off-catalogue capsules read "Oral · same as your
-    // current tub", the exact contradiction the override exists to kill.
-    totalAmountUnit: ei?.totalAmountUnit,
-    category: selected?.category,
-    name: selected?.name,
-  })
-
-  /**
-   * Units on offer for the powder — driven by the COMPOUND'S OWN dose unit,
-   * which is the thing `unit_family_compatible` actually pairs `base_unit`
-   * against. Reading the catalogue alone denied `iu` to a custom compound dosed
-   * in `iu` (a user's own HGH), which is precisely the never-links-never-
-   * depletes bug this is meant to prevent.
-   *
-   * `storedUnit` is passed only on an EDIT. A REFILL deliberately does not carry
-   * the old vial's unit: it is a NEW container, and it should match what the
-   * compound is dosed in rather than inherit a unit the previous row may have
-   * had wrong.
-   */
-  const powderUnits = powderUnitsFor(selected?.name, {
-    doseUnit: selected?.unit,
-    storedUnit: ei?.baseUnit,
-  })
-  /**
-   * The unit actually written to `base_unit`.
-   *
-   * Resolved rather than trusted: switching the sheet from HCG to a peptide with
-   * `iu` still selected would otherwise save the peptide's vial as `iu`, and
-   * `unit_family_compatible` (016) pairs `iu` only with `iu` — so every dose
-   * would log cleanly and the vial would never go down. See `stockUnits.ts`.
-   */
-  const powderUnitToSave = resolvePowderUnit(powderUnit, powderUnits)
-  /**
-   * The SAME narrowing for the oral strength's unit, which writes the same
-   * `base_unit` column and is guarded by the same DB trigger.
-   *
-   * Fixing only the powder field left this one a free `mg | iu` toggle
-   * defaulting to `mg` — so a bottle of **Vitamin D3** (dosed in iu, and its
-   * dose unit is not even selectable) hit `unit_family_compatible('mg','iu')`
-   * = false and could not be saved AT ALL. The sheet reported "Couldn't save
-   * this stock. Please try again.", which would have failed identically
-   * forever. Same for Vitamin A and Vitamin E. (Second cold review, 2026-08-12.)
-   */
-  const oralRule = oralStockRule(selected?.name, {
-    doseUnit: selected?.unit,
-    storedUnit: ei?.baseUnit,
-  })
-  const strengthUnits = oralRule.strengthUnits
-  const strengthUnitToSave = resolvePowderUnit(strengthUnit, strengthUnits)
-  const strengthRequired = oralRule.strengthRequired
-  /** The tab/cap choice is the user's UNLESS the compound is dosed in one of
-   *  them, in which case `total_amount_unit` must equal `base_unit`. */
-  const effectiveOralForm = oralRule.countUnit ?? oralForm
-  const showIuFromMgHint = needsIuFromMgHint(selected?.name, powderUnits)
 
   const insert = buildInsert()
   const allowedForms = formsForId(compoundId)
