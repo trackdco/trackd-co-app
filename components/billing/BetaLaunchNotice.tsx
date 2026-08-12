@@ -33,6 +33,18 @@ import { markBetaNoticeSeen } from "@/lib/billing/betaNoticeStore";
  * read or not. Escape and the backdrop close it too, and all three mark it seen,
  * because a notice that reappears until it is dismissed the "right" way is a
  * notice that reappears.
+ *
+ * ## ⚠️ ONE PERSON THIS NEVER REACHES, and it is accepted
+ *
+ * Somebody who does not open the app AT ALL during their fourteen days. It
+ * renders only for an ACTIVE entitlement, so once the grace has lapsed there is
+ * nothing left to announce and they meet the read-only pop-up instead, cold.
+ *
+ * Keeping it alive past the expiry would mean telling somebody "you've got until
+ * 27 Aug to decide" on 3 Sep, which is worse than saying nothing. The pop-up
+ * explains the state they are actually in and offers the way out, which is what
+ * that person needs. Email is the right channel for reaching somebody who is not
+ * opening the app, and there is none wired for this.
  */
 export function BetaLaunchNotice({
   userId,
@@ -90,9 +102,23 @@ export function BetaLaunchNotice({
 
   if (!open || typeof document === "undefined") return null;
 
+  /**
+   * `z-[60]` is THE APP'S MODAL LAYER — the same one `SignOutConfirm`,
+   * `BlockDeleteConfirm`, `PhysicalCard`, `FirstRunDisclaimer` and the read-only
+   * pop-up all use, above the `z-40` nav and the FAB's `z-45` scrim.
+   *
+   * It was briefly `z-[70]`, which is the TOAST layer (`amber-notice`), and
+   * would have put a modal in front of the notifications it is meant to sit
+   * above.
+   *
+   * It cannot collide with the read-only pop-up: this renders only for an
+   * entitlement whose source is `comp`, and `currentEntitlement` returns only
+   * ACTIVE ones, so anybody seeing this can still write and the pop-up has
+   * nothing to fire on.
+   */
   return createPortal(
     <div
-      className="fixed inset-0 z-[70] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
+      className="fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
       onClick={close}
     >
       <div
