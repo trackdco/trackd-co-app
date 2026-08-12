@@ -96,15 +96,57 @@ export function isValidTimeZone(tz: unknown): tz is string {
   }
 }
 
+/**
+ * The user-local date key (YYYY-MM-DD) and minutes-since-midnight for an instant.
+ *
+ * Lives in this pure module rather than in the runner because it is now read by
+ * two callers — the runner's "what time is it for this user" and the trial
+ * reminder's "which calendar day does this trial end on" — and a second copy of
+ * a timezone conversion is precisely how the push pipeline fell out of step with
+ * the client once already. One implementation, one set of tests.
+ */
+export function localParts(now: Date, tz: string): { dateKey: string; minutes: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const hour = Number(get("hour")) % 24; // some runtimes emit "24" at midnight
+  return {
+    dateKey: `${get("year")}-${get("month")}-${get("day")}`,
+    minutes: hour * 60 + Number(get("minute")),
+  };
+}
+
 /* --------------------------------------------------------------- schedule */
 
 const mod = (a: number, n: number) => ((a % n) + n) % n;
 
 /** Days since the Unix epoch for a YYYY-MM-DD (treated as UTC midnight, so the
  *  integer is tz-independent and safe to difference). */
-function dayNumber(dateKey: string): number {
+export function dayNumber(dateKey: string): number {
   const [y, m, d] = dateKey.split("-").map(Number);
   return Math.floor(Date.UTC(y, m - 1, d) / 86_400_000);
+}
+
+/**
+ * A date key shifted by whole CALENDAR days. `shiftDateKey("2026-03-01", -2)`
+ * is `"2026-02-27"`, and it crosses months, years and leap days by construction
+ * because the arithmetic is done on the epoch day integer.
+ *
+ * Deliberately NOT `new Date(iso)` + `setDate`: a date-only string parses as UTC
+ * midnight and `setDate` then works in the RUNTIME's zone, which is the exact
+ * shape of the `logged_for` backfill bug (`supabase/protocol/012`). Nothing here
+ * has a timezone at all — the caller resolves the local day first, then shifts.
+ */
+export function shiftDateKey(dateKey: string, days: number): string {
+  const shifted = new Date((dayNumber(dateKey) + days) * 86_400_000);
+  return shifted.toISOString().slice(0, 10);
 }
 
 /** ISO weekday (Mon=1 … Sun=7) for a YYYY-MM-DD. */

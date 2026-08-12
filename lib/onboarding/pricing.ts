@@ -141,6 +141,26 @@ export const TRIAL_DAYS = 7;
  */
 export const REMINDER_DAY = Math.max(1, TRIAL_DAYS - 2);
 
+/**
+ * How many days BEFORE the charge the reminder goes out. The same promise as
+ * {@link REMINDER_DAY}, expressed from the other end.
+ *
+ * Both are needed and neither is redundant. The SCREENS count forward from day
+ * one, because that is how a person reads a timeline. The SENDER counts back
+ * from the trial end, because that is the only anchor it actually holds: what it
+ * has is `subscriptions.trial_ends_at`, and it never sees the day the trial
+ * started.
+ *
+ * Counting back is also the more honest of the two if the two ever disagree. If
+ * Stripe's trial is not exactly `TRIAL_DAYS` long — a coupon, a support
+ * extension, a subscription made by hand in the dashboard — then "day 5" is a
+ * number about a schedule that no longer exists, while "two days before you are
+ * charged" is still exactly the thing the screen promised. So the sender uses
+ * this, and it is DERIVED, so the paywall's number and the push's timing cannot
+ * drift apart.
+ */
+export const TRIAL_REMINDER_LEAD_DAYS = TRIAL_DAYS - REMINDER_DAY;
+
 /** Weeks in a year, for the per-week anchor. */
 const WEEKS_PER_YEAR = 52;
 const MONTHS_PER_YEAR = 12;
