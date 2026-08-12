@@ -3,8 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { CancelSubscription } from "@/components/billing/CancelSubscription";
+import { ManagePaymentRow } from "@/components/billing/ManagePaymentRow";
 import { currentEntitlement } from "@/lib/billing/entitlements";
-import { formatAccessDate, manageActionFor } from "@/lib/billing/manage";
+import { formatAccessDate, manageActionFor, planLabelFor } from "@/lib/billing/manage";
 import { loadPricesSafe } from "@/lib/billing/prices";
 import { formatPrice } from "@/lib/onboarding/pricing";
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
@@ -41,18 +42,28 @@ export default async function BillingPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: profile }, { data: subs }, entitlement] = await Promise.all([
-    supabase.from("profiles").select("timezone").eq("id", user.id).maybeSingle(),
-    supabase
-      .from("subscriptions")
-      .select(
-        "status, trial_ends_at, current_period_end, cancel_at_period_end, stripe_price_id",
-      )
-      .eq("user_id", user.id)
-      .order("updated_at", { ascending: false })
-      .limit(1),
-    currentEntitlement(),
-  ]);
+  const [{ data: profile }, { data: subs }, { data: customer }, entitlement] =
+    await Promise.all([
+      supabase.from("profiles").select("timezone").eq("id", user.id).maybeSingle(),
+      supabase
+        .from("subscriptions")
+        .select(
+          "status, trial_ends_at, current_period_end, cancel_at_period_end, stripe_price_id",
+        )
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(1),
+      // Whether there is anything for the Stripe portal to open onto. A user can
+      // legitimately have a customer row and no live subscription (they
+      // cancelled and it lapsed), and their invoices are still theirs to read.
+      supabase
+        .from("billing_customers")
+        .select("stripe_customer_id")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      currentEntitlement(),
+    ]);
+  const hasStripeCustomer = Boolean(customer?.stripe_customer_id);
 
   const tz = (profile?.timezone as string | null) || "Australia/Sydney";
   const row = subs?.[0];
@@ -87,7 +98,7 @@ export default async function BillingPage() {
       <section className="mt-6">
         <p className={`mb-3 ${CARD_EYEBROW}`}>Plan</p>
         <div className="overflow-hidden rounded-2xl bg-bg-surface">
-          <Row label="Access" value={planLabel(action, entitlement?.source ?? null)} />
+          <Row label="Access" value={planLabelFor(entitlement?.source ?? null, subscription)} />
           {price ? (
             <>
               <Divider />
@@ -131,6 +142,19 @@ export default async function BillingPage() {
         </section>
       ) : null}
 
+      {/* Handing card details to Stripe rather than touching them. Shown only to
+          someone who HAS a Stripe customer, since there is nothing to manage
+          otherwise. Not shown for an App Store subscription: Apple holds the
+          payment method there, and a Stripe portal would be about a customer
+          that has no card on it. */}
+      {hasStripeCustomer && action.kind !== "store" ? (
+        <section className="mt-6">
+          <div className="overflow-hidden rounded-2xl bg-bg-surface">
+            <ManagePaymentRow />
+          </div>
+        </section>
+      ) : null}
+
       {action.kind === "store" ? (
         <p className="mt-6 px-1 text-sm leading-relaxed text-text-muted">
           This subscription is managed by{" "}
@@ -159,28 +183,6 @@ export default async function BillingPage() {
 }
 
 /* ── Pure display helpers ────────────────────────────────────────── */
-
-/**
- * What the user is on, in words.
- *
- * Reads the ENTITLEMENT's source rather than the subscription's status, because
- * that is what their access actually rests on. A founder who also subscribes is
- * on a comp, and describing them by the subscription would be wrong.
- */
-function planLabel(
-  action: ReturnType<typeof manageActionFor>,
-  source: string | null,
-): string {
-  if (source === "comp") return "Complimentary";
-  if (action.kind === "none" && action.reason === "no-subscription") {
-    // BETA: everybody today. Stated as the fact it is, with no upgrade prompt.
-    return "Beta · Pro";
-  }
-  if (action.kind === "cancel" || action.kind === "resume") {
-    return action.isTrial ? "Free trial" : "Pro";
-  }
-  return "Pro";
-}
 
 /** "Renews on" / "Ends on", depending on whether a cancellation is scheduled. */
 function renewalRow(

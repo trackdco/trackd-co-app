@@ -110,6 +110,58 @@ export function manageActionFor(
 }
 
 /**
+ * WHAT THE USER IS ON, IN ONE WORD OR TWO. The label Profile's pill and the
+ * Billing screen both show.
+ *
+ * ## It reads `entitlements`, and no longer `profiles.tier`
+ *
+ * Profile hardcoded `"Beta · Pro"` from `profiles.tier` while `/billing` read
+ * the entitlement, so one user could be told two different things on two
+ * screens. `tier` is historical: `grants/003` locked it to the service role and
+ * `architecture.md` makes `entitlements` the only table that decides access.
+ * One function, both screens, one answer.
+ *
+ * ## The source is what matters, not the subscription's status
+ *
+ * A founder who also subscribes is on a `comp`, and describing them by the
+ * subscription would be wrong. `strongestEntitlement` has already picked which
+ * row their access actually rests on before this is called.
+ */
+export function planLabelFor(
+  source: EntitlementSource | null,
+  subscription: Pick<ManageableSubscription, "status"> | null,
+): string {
+  if (source === "comp") return "Complimentary";
+  if (source && subscription?.status === "trialing") return "Free trial";
+  if (source) return "Pro";
+  return NO_ENTITLEMENT_LABEL;
+}
+
+/**
+ * ⚠️ WHAT SOMEBODY WITH NO ENTITLEMENT IS TOLD, AND WHY IT IS "Pro".
+ *
+ * It said "Beta · Pro". Adrian removed the beta (2026-08-12): "we won't be in
+ * beta by then."
+ *
+ * "Pro" is the TRUE answer today and that is the only reason it is here.
+ * **Nothing in the app reads `entitlements`** — `app/(app)/layout.tsx` gates on
+ * session and age only — so all 106 accounts genuinely have the whole product,
+ * entitlement row or not. Saying "Free" would be the app lying about what it is
+ * currently giving away.
+ *
+ * **It stops being true the moment a gate is added.** Whoever wires
+ * `hasProAccess` into the layout must change this in the same commit, or every
+ * locked-out user will be looking at a screen that says they are on Pro. There
+ * is no way to make this constant correct for both worlds, which is why it is a
+ * named constant with this comment rather than a string inline.
+ *
+ * See `next-tasks.md` → "what current beta users see when we go public": the
+ * real answer is probably a `comp` entitlement per existing account, at which
+ * point every one of them has a source and this constant stops being reachable.
+ */
+const NO_ENTITLEMENT_LABEL = "Pro";
+
+/**
  * A date for a human, in the user's own timezone.
  *
  * Takes the zone explicitly rather than reading the runtime's, because this is

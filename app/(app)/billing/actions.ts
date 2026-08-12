@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import { getCurrentUser } from "@/lib/auth";
-import { serviceClient } from "@/lib/billing/service";
+import { applyCancelFlag, CANCELLABLE_STATUSES } from "@/lib/billing/cancel";
 import { stripe } from "@/lib/billing/stripe";
 import { createClient } from "@/lib/supabase/server";
 
@@ -52,8 +53,9 @@ export interface BillingActionResult {
   savedAt?: number;
 }
 
-/** The statuses a cancellation can act on. Mirrors `CANCELLABLE` in `manage.ts`. */
-const CANCELLABLE = new Set(["trialing", "active", "past_due"]);
+/** One list, in `lib/billing/cancel.ts`, so the guard here and the one the
+ *  deletion path uses cannot drift apart. */
+const CANCELLABLE = new Set<string>(CANCELLABLE_STATUSES);
 
 /**
  * Resolve the caller's own Stripe subscription, or say why not.
@@ -76,7 +78,7 @@ async function ownSubscription(): Promise<
     // depth, and this is the one query in the app where the backstop failing
     // would mean cancelling a stranger's subscription.
     .eq("user_id", user.id)
-    .in("status", ["trialing", "active", "past_due"])
+    .in("status", [...CANCELLABLE_STATUSES])
     .order("updated_at", { ascending: false })
     .limit(1);
 
@@ -98,44 +100,13 @@ async function ownSubscription(): Promise<
   };
 }
 
-/**
- * Write the mirror from what Stripe just handed back.
- *
- * The webhook will say the same thing a moment later and is still the
- * authority. This is written anyway so the screen is correct on the very next
- * render rather than whenever the delivery lands — a cancel button that appears
- * to do nothing for two seconds gets pressed twice.
- *
- * Only `cancel_at_period_end` is written. The status, the dates and the price
- * are the webhook's to move, and writing them from here would mean two writers
- * for the same fact.
- */
-async function mirrorCancelFlag(
-  stripeSubscriptionId: string,
-  cancelAtPeriodEnd: boolean,
-): Promise<void> {
-  const { error } = await serviceClient()
-    .from("subscriptions")
-    .update({ cancel_at_period_end: cancelAtPeriodEnd })
-    .eq("stripe_subscription_id", stripeSubscriptionId);
-  // Logged, not thrown. Stripe has already accepted the change and it is real;
-  // failing the action here would tell the user their cancellation did not go
-  // through when it did, which is the worst available lie.
-  if (error) {
-    console.error("[billing] mirror not updated after a cancel toggle:", error.message);
-  }
-}
-
 /** Stop the next charge. Access continues to the end of what is already paid for. */
 export async function cancelSubscription(): Promise<BillingActionResult> {
   const found = await ownSubscription();
   if ("error" in found) return { ok: false, error: found.error };
 
   try {
-    const updated = await stripe().subscriptions.update(found.id, {
-      cancel_at_period_end: true,
-    });
-    await mirrorCancelFlag(found.id, updated.cancel_at_period_end);
+    await applyCancelFlag(found.id, true);
   } catch (err) {
     // Stripe's own message can name internal ids and price objects, so it is
     // logged and not returned.
@@ -152,16 +123,100 @@ export async function cancelSubscription(): Promise<BillingActionResult> {
   return { ok: true, savedAt: Date.now() };
 }
 
+/**
+ * A Stripe Customer Portal session, for the jobs we deliberately do NOT rebuild.
+ *
+ * ## What this is for, and what it is not for
+ *
+ * Updating a failing card, and reading invoices and receipts. Nothing else.
+ *
+ * Cancelling stays in the app (`cancelSubscription` above) because Adrian chose
+ * it there: it never leaves the PWA and the words at that moment are ours. But
+ * updating a card is the opposite case — it means handling card details, which
+ * is precisely the thing to hand to Stripe and never touch — and a `past_due`
+ * user currently has NO way to fix a declining card from inside the app at all.
+ * That gap outlives any copy preference.
+ *
+ * ⚠️ The account's DEFAULT portal configuration also has `subscription_cancel`
+ * enabled, so a user who goes looking will find a second cancel button wearing
+ * Stripe's wording. It is harmless — Stripe fires
+ * `customer.subscription.updated` and the webhook syncs the mirror, so both
+ * routes end in the same state — but if the two paths should be one, the fix is
+ * to disable that feature on the portal configuration in the Stripe dashboard
+ * rather than to change anything here. Carried in `next-tasks.md`.
+ *
+ * ## Returns a URL rather than redirecting
+ *
+ * A `redirect()` inside a server action throws a control-flow signal that a
+ * caller's `try/catch` will swallow, and the failure mode is a button that
+ * silently does nothing. The client navigates instead, which also keeps this
+ * testable without a browser.
+ */
+export async function openBillingPortal(): Promise<
+  BillingActionResult & { url?: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You need to be signed in." };
+
+  const supabase = await createClient();
+  // The caller's OWN customer row, through RLS. Same reasoning as
+  // `ownSubscription`: a portal session is a signed, time-limited key to
+  // somebody's billing history, and handing one out for the wrong customer would
+  // be the most serious leak in this codebase.
+  const { data, error } = await supabase
+    .from("billing_customers")
+    .select("stripe_customer_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[billing] could not read the caller's customer:", error.message);
+    return { ok: false, error: "We couldn't reach your billing details just now." };
+  }
+  const customer = data?.stripe_customer_id as string | undefined;
+  if (!customer) return { ok: false, error: "There's nothing to manage on this account yet." };
+
+  try {
+    const session = await stripe().billingPortal.sessions.create({
+      customer,
+      return_url: `${await siteOrigin()}/billing`,
+    });
+    return { ok: true, url: session.url, savedAt: Date.now() };
+  } catch (err) {
+    // The commonest cause is no portal CONFIGURATION on the Stripe account,
+    // which is a dashboard setting and not something the code can fix. Named in
+    // the log so it is not mistaken for a bug here.
+    console.error(
+      "[billing] portal session failed (is a Customer Portal configuration saved in Stripe?):",
+      err instanceof Error ? err.message : String(err),
+    );
+    return { ok: false, error: "We couldn't open billing just now. Please try again." };
+  }
+}
+
+/**
+ * Where Stripe sends the user back to.
+ *
+ * Read from the request rather than hardcoded, so a LAN dev server and a preview
+ * deploy return to themselves instead of bouncing the tester to production. The
+ * value is only ever used as a `return_url`, and Stripe requires it to be
+ * absolute.
+ */
+async function siteOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return "https://trackdco.app";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
 /** Undo a scheduled cancellation, any time before the date. */
 export async function resumeSubscription(): Promise<BillingActionResult> {
   const found = await ownSubscription();
   if ("error" in found) return { ok: false, error: found.error };
 
   try {
-    const updated = await stripe().subscriptions.update(found.id, {
-      cancel_at_period_end: false,
-    });
-    await mirrorCancelFlag(found.id, updated.cancel_at_period_end);
+    await applyCancelFlag(found.id, false);
   } catch (err) {
     console.error(
       `[billing] resume failed for ${found.id}:`,

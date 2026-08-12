@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatAccessDate,
   manageActionFor,
+  planLabelFor,
   type ManageableSubscription,
 } from "@/lib/billing/manage";
 
@@ -98,6 +99,55 @@ describe("who gets a cancel control", () => {
     // The ordering that matters: a comp with a live Stripe row is still a comp.
     expect(manageActionFor("comp", sub({ status: "trialing" })).kind).toBe("none");
     expect(manageActionFor("apple", sub({ cancelAtPeriodEnd: true })).kind).toBe("store");
+  });
+});
+
+describe("planLabelFor — Profile and Billing must agree", () => {
+  it("says the same thing on both screens for the same user", () => {
+    // The defect this replaced: Profile hardcoded "Beta · Pro" from
+    // `profiles.tier` while /billing read the entitlement, so one user was told
+    // two different things depending which screen they were on.
+    const cases: Array<[Parameters<typeof planLabelFor>[0], string | null, string]> = [
+      ["comp", "active", "Complimentary"],
+      ["comp", "trialing", "Complimentary"],
+      ["comp", null, "Complimentary"],
+      ["stripe", "trialing", "Free trial"],
+      ["stripe", "active", "Pro"],
+      ["stripe", "past_due", "Pro"],
+      ["apple", "active", "Pro"],
+      ["google", "active", "Pro"],
+    ];
+    for (const [source, status, expected] of cases) {
+      expect(planLabelFor(source, status ? { status } : null)).toBe(expected);
+    }
+  });
+
+  it("carries NO 'Beta' anywhere", () => {
+    // Adrian, 2026-08-12: "we won't be in beta by then."
+    const sources = ["comp", "stripe", "apple", "google", null] as const;
+    const statuses = ["trialing", "active", "past_due", "canceled", null];
+    for (const s of sources) {
+      for (const st of statuses) {
+        const label = planLabelFor(s, st ? { status: st } : null);
+        expect(label.toLowerCase()).not.toContain("beta");
+        expect(label).not.toContain("·");
+      }
+    }
+  });
+
+  it("tells a user with no entitlement they are on Pro", () => {
+    // TRUE today and only today: nothing in the app reads `entitlements`, so
+    // every account genuinely has the whole product. Whoever wires `hasProAccess`
+    // into the layout must change this in the same commit. See the constant's
+    // comment in manage.ts.
+    expect(planLabelFor(null, null)).toBe("Pro");
+    expect(planLabelFor(null, { status: "canceled" })).toBe("Pro");
+  });
+
+  it("a comp beside a live trial still reads as the comp", () => {
+    // Their access rests on the comp; describing them by the subscription would
+    // be wrong, and `strongestEntitlement` has already made that choice.
+    expect(planLabelFor("comp", { status: "trialing" })).toBe("Complimentary");
   });
 });
 
