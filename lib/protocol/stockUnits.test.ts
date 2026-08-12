@@ -4,10 +4,12 @@ import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { unitFamilyOk } from "@/lib/db/doseUnits"
 import {
   catalogueDoseUnit,
-  needsIuFromMgHint,
   oralStockRule,
+  powderAmountInBase,
+  powderEntryUnits,
   powderUnitsFor,
   resolvePowderUnit,
+  SOMATROPIN_IU_PER_MG,
 } from "@/lib/protocol/stockUnits"
 
 describe("powderUnitsFor", () => {
@@ -147,23 +149,6 @@ describe("units that no vial can supply", () => {
   })
 })
 
-describe("needsIuFromMgHint", () => {
-  it("warns on HGH, which is dosed in iu and sold in mg", () => {
-    expect(needsIuFromMgHint("Somatropin (HGH)", ["iu"])).toBe(true)
-  })
-
-  it("stays quiet for HCG and hMG, whose boxes state iu", () => {
-    expect(needsIuFromMgHint("HCG", ["iu"])).toBe(false)
-    expect(needsIuFromMgHint("hMG", ["iu"])).toBe(false)
-  })
-
-  it("stays quiet wherever mg is the offer anyway", () => {
-    expect(needsIuFromMgHint("BPC-157", ["mg"])).toBe(false)
-    expect(needsIuFromMgHint("Somatropin (HGH)", ["mg", "iu"])).toBe(false)
-    expect(needsIuFromMgHint(null, ["iu"])).toBe(false)
-  })
-})
-
 /**
  * The shape an oral row must take, derived from the two `inv_type_fields` cases
  * plus the unit-family trigger. Two live bugs came from not having it written
@@ -235,5 +220,55 @@ describe("oralStockRule", () => {
       if (r.strengthRequired) expect(["mg", "iu"]).toContain(r.baseUnit)
       else expect(["tab", "capsule"]).toContain(r.baseUnit)
     }
+  })
+})
+
+describe("powderEntryUnits — what the user may TYPE", () => {
+  it("offers HGH both units, iu first because that is what gets stored", () => {
+    // Adrian, 2026-08-12: "just have the IU milligram slider, people can choose
+    // that". The choice is of ENTRY unit; `base_unit` stays iu either way,
+    // because an mg row on an iu dose never links to a single dose.
+    expect(powderEntryUnits("Somatropin (HGH)")).toEqual(["iu", "mg"])
+  })
+
+  it("does NOT offer mg for HCG or hMG — those boxes state iu", () => {
+    expect(powderEntryUnits("HCG")).toEqual(["iu"])
+    expect(powderEntryUnits("hMG")).toEqual(["iu"])
+  })
+
+  it("offers exactly what it stores for everything else", () => {
+    expect(powderEntryUnits("BPC-157")).toEqual(["mg"])
+    expect(powderEntryUnits("My Own Blend")).toEqual(["mg"])
+  })
+
+  it("keeps the stored unit first on an edit, so the shown number is the row's", () => {
+    expect(powderEntryUnits("Somatropin (HGH)", { storedUnit: "iu" })[0]).toBe("iu")
+  })
+
+  it("never lets the ENTRY choice change what is STORED", () => {
+    // The guarantee that makes the toggle safe: whatever is typed in, the base
+    // unit is the one the unit-family rule allows.
+    expect(powderUnitsFor("Somatropin (HGH)")).toEqual(["iu"])
+  })
+})
+
+describe("powderAmountInBase — the conversion behind the choice", () => {
+  it("turns a 10 mg HGH pen into the 30 iu that gets stored", () => {
+    expect(powderAmountInBase(10, "mg", "iu")).toBe(30)
+    expect(SOMATROPIN_IU_PER_MG).toBe(3)
+  })
+
+  it("leaves an iu entry alone", () => {
+    expect(powderAmountInBase(30, "iu", "iu")).toBe(30)
+  })
+
+  it("is the identity whenever entry and base agree", () => {
+    expect(powderAmountInBase(5, "mg", "mg")).toBe(5)
+    expect(powderAmountInBase(0, "mg", "iu")).toBe(0)
+  })
+
+  it("round-trips, so an edit does not drift the stored figure", () => {
+    const stored = powderAmountInBase(10, "mg", "iu")
+    expect(powderAmountInBase(stored, "iu", "mg")).toBe(10)
   })
 })

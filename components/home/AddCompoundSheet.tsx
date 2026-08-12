@@ -15,8 +15,9 @@ import { CompoundHeader } from "@/components/compounds/CompoundHeader"
 import { isInventoryForm, isStockableForm } from "@/lib/containers/form"
 import { containerNoun } from "@/lib/containers/labels"
 import {
-  needsIuFromMgHint,
   oralStockRule,
+  powderAmountInBase,
+  powderEntryUnits,
   powderUnitsFor,
   resolvePowderUnit,
 } from "@/lib/protocol/stockUnits"
@@ -659,8 +660,21 @@ function AddCompoundBody({
   // "Make your own" lets a compound be dosed in `iu`, and such a compound must
   // be able to hold an `iu` vial or its doses can never link to it. This is an
   // ADD, so there is no existing row's unit to preserve.
-  const stPowderUnits = powderUnitsFor(source.name, { doseUnit: unit })
-  const stPowderUnitToSave = resolvePowderUnit(stPowderUnit, stPowderUnits)
+  /** What the powder is TYPED in; HGH is dosed in iu and sold in mg. */
+  const stPowderUnits = powderEntryUnits(source.name, { doseUnit: unit })
+  /** What `base_unit` will be — constrained by the unit family, never picked. */
+  const stPowderBaseUnit = resolvePowderUnit(
+    "mg",
+    powderUnitsFor(source.name, { doseUnit: unit }),
+  )
+  const stPowderEntryUnit = resolvePowderUnit(stPowderUnit, stPowderUnits)
+  /** The typed amount in the STORED unit — 10 mg of HGH becomes 30 iu. Fed to
+   *  the fill maths too, or `prior_used_base` lands 3× out. */
+  const stPowderInBase = powderAmountInBase(
+    amt(stPowder),
+    stPowderEntryUnit,
+    stPowderBaseUnit,
+  )
   // The oral strength writes the SAME `base_unit` column under the same DB
   // trigger — see `AddStockSheet`. Left free, a Vitamin D3 bottle defaulted to
   // `mg` against an iu dose and could not be saved at all.
@@ -672,7 +686,6 @@ function AddCompoundBody({
   /** Forced when the compound is dosed in tablets or capsules, where
    *  `total_amount_unit` must equal `base_unit`. */
   const stEffectiveOralForm = stOralRule.countUnit ?? stOralForm
-  const showStIuFromMgHint = needsIuFromMgHint(source.name, stPowderUnits)
   // What the thing being filled is CALLED, so the fullness gauge isn't announced
   // as a vial when it is a tub. Reads the EFFECTIVE count unit, which is the
   // same evidence a stored row gives: a bottle of capsules is not a tub.
@@ -689,7 +702,9 @@ function AddCompoundBody({
   const stockFill = resolveFill(
     stockType === "" ? "reconstituted" : stockType,
     {
-      powder: amt(stPowder),
+      // Converted, for the same reason as the save: `vialBasis` sizes a vial by
+      // its powder mass in the STORED unit.
+      powder: stPowderInBase,
       bacWater: amt(stBac),
       oilMl: amt(stMl),
       concentration: amt(stConc),
@@ -721,11 +736,11 @@ function AddCompoundBody({
       if (n(stPowder) <= 0 || n(stBac) <= 0) return null
       return {
         inventory_type: "reconstituted",
-        // Resolved, not trusted — a hidden `iu` must never reach `base_unit`,
-        // or the vial silently never decrements. See `stockUnits.ts`.
-        base_unit: stPowderUnitToSave,
-        total_amount: n(stPowder),
-        total_amount_unit: stPowderUnitToSave,
+        // The BASE unit, never the entry unit — a `mg` row on an iu-dosed
+        // compound silently never decrements. See `stockUnits.ts`.
+        base_unit: stPowderBaseUnit,
+        total_amount: stPowderInBase,
+        total_amount_unit: stPowderBaseUnit,
         bac_water_ml: n(stBac),
         reconstituted_on: todayKey,
         prior_used_base,
@@ -1714,11 +1729,11 @@ function AddCompoundBody({
                           </div>
                         )}
                       </div>
-                      {/* HGH is dosed in iu and sold in mg — see
-                          `needsIuFromMgHint`. */}
-                      {showStIuFromMgHint && (
+                      {/* The conversion, shown as it happens — HGH's box says
+                          mg and the row stores iu. */}
+                      {stPowderEntryUnit !== stPowderBaseUnit && amt(stPowder) > 0 && (
                         <p className="mt-1 text-xs text-text-subtle">
-                          Boxes often state mg — 1 mg is about 3 iu.
+                          = {round3(stPowderInBase)} {stPowderBaseUnit}, which is what gets stored.
                         </p>
                       )}
                     </label>

@@ -114,6 +114,16 @@ export function powderUnitsFor(
 }
 
 /**
+ * International units per milligram of somatropin — the WHO standard, and the
+ * figure every HGH product is labelled against.
+ *
+ * A constant rather than an input: it is a property of the substance, not of the
+ * user's vial. Anyone whose product states something else can type the iu figure
+ * directly, which is why the choice exists at all.
+ */
+export const SOMATROPIN_IU_PER_MG = 3
+
+/**
  * Compounds whose vial is commonly LABELLED in milligrams while the compound is
  * dosed in international units.
  *
@@ -123,19 +133,62 @@ export function powderUnitsFor(
  * dose unit is not selectable (`unitOptionsFor("iu")` is `["iu"]`, iu being its
  * own family). So the one number the user is asked for is in a unit their box
  * does not print.
- *
- * Typing the mg figure into an iu field is a silent 3× error running through the
- * fill gauge, the doses-remaining estimate and the low-stock reminder, so the
- * field says so. A HINT and not a conversion: the factor is a standard
- * (1 mg ≈ 3 iu) but the arithmetic stays the user's, beside the box in their
- * hand. HCG and hMG need nothing — those are labelled in iu.
  */
-export function needsIuFromMgHint(
-  name: string | null | undefined,
-  offered: readonly PowderUnit[],
-): boolean {
-  if (!(offered.length === 1 && offered[0] === "iu")) return false
+export function isMgLabelledIuCompound(name: string | null | undefined): boolean {
   return catalogueDoseUnit(name) === "iu" && /somatropin|hgh/i.test(name ?? "")
+}
+
+/**
+ * Units the user may TYPE the powder amount in — which is not always the unit it
+ * is STORED in.
+ *
+ * **The distinction is the whole point** (Adrian, 2026-08-12: "just have the IU
+ * milligram slider, people can choose that"). `base_unit` is constrained: an
+ * iu-dosed compound must store `iu`, because `unit_family_compatible` pairs `iu`
+ * with `iu` alone and a vial saved as `mg` would never link to a single dose. So
+ * the choice cannot be a choice of `base_unit` — offering that would just move
+ * the failure to the save.
+ *
+ * It can be a choice of ENTRY unit. Someone holding a 10 mg Norditropin pen
+ * types 10, picks mg, and {@link powderAmountInBase} converts it to the 30 iu
+ * that gets stored. The alternative — asking for a number their box does not
+ * print — is what made this worth fixing: typing the mg figure into an iu field
+ * is a silent 3× error running through the fill gauge, the doses-remaining
+ * estimate and the low-stock reminder.
+ *
+ * Everything else offers exactly what it stores, so entry and base coincide.
+ */
+export function powderEntryUnits(
+  name: string | null | undefined,
+  ctx: PowderUnitContext = {},
+): readonly PowderUnit[] {
+  const base = powderUnitsFor(name, ctx)
+  // Only where the substance is genuinely sold in the other unit. The stored
+  // unit stays FIRST, so it remains the default.
+  if (base.length === 1 && base[0] === "iu" && isMgLabelledIuCompound(name)) {
+    return ["iu", "mg"]
+  }
+  return base
+}
+
+/**
+ * The typed amount, converted into the unit the row is stored in.
+ *
+ * Identity in every case but one — mg typed against an iu base, which is
+ * somatropin and nothing else. It must be applied to the amount BEFORE it
+ * reaches `vialBasis` as well as before it is saved: the fill maths sizes a
+ * reconstituted vial by its powder mass, so converting only on save would write
+ * `prior_used_base` three times too small.
+ */
+export function powderAmountInBase(
+  amount: number,
+  entryUnit: PowderUnit,
+  baseUnit: PowderUnit,
+): number {
+  if (entryUnit === baseUnit) return amount
+  if (entryUnit === "mg" && baseUnit === "iu") return amount * SOMATROPIN_IU_PER_MG
+  if (entryUnit === "iu" && baseUnit === "mg") return amount / SOMATROPIN_IU_PER_MG
+  return amount
 }
 
 /**

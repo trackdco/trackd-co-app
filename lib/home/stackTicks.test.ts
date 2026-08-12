@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import type { DoseLog } from "@/lib/home/mockHomeData"
 import type { DaySlot } from "@/lib/home/doseLog"
 import {
+  isReflexReversal,
   liveMembers,
+  REVERSE_GUARD_MS,
   stackLogTargets,
   stackProgress,
   stackUnlogTargets,
@@ -220,5 +222,56 @@ describe("tick then untick", () => {
     // The skip and the paused member are untouched by both directions.
     expect(toUnlog.some((t) => t.compound.id === "creatine")).toBe(false)
     expect(toUnlog.some((t) => t.compound.id === "hcg")).toBe(false)
+  })
+})
+
+/**
+ * The double-tap guard. Extracted here because it was the one piece of the
+ * untick with no coverage at all — the preview harness freezes its logs as a
+ * prop, so a browser cannot exercise the stack row, and the live dashboard needs
+ * a signed-in session.
+ */
+describe("isReflexReversal", () => {
+  const at = (n: number, kind: "log" | "unlog") => ({ at: n, kind })
+
+  it("refuses an untick moments after a tick", () => {
+    // The destructive half: tap one logs everything, which turns the same target
+    // into "untick all", and tap two deletes it.
+    expect(isReflexReversal(at(1000, "log"), "unlog", 1200)).toBe(true)
+  })
+
+  it("refuses a tick moments after an untick", () => {
+    // The other half — deletes five doses and re-logs them from the plan,
+    // leaving the row looking exactly as it did.
+    expect(isReflexReversal(at(1000, "unlog"), "log", 1200)).toBe(true)
+  })
+
+  it("allows a DELIBERATE reversal once the window has passed", () => {
+    expect(isReflexReversal(at(1000, "log"), "unlog", 1000 + REVERSE_GUARD_MS)).toBe(false)
+    expect(isReflexReversal(at(1000, "log"), "unlog", 5000)).toBe(false)
+  })
+
+  it("never blocks repeated taps the SAME way", () => {
+    // Legitimate: one tap advances a twice-daily member to its second dose.
+    expect(isReflexReversal(at(1000, "log"), "log", 1001)).toBe(false)
+    expect(isReflexReversal(at(1000, "unlog"), "unlog", 1001)).toBe(false)
+  })
+
+  it("never blocks the first action on a row", () => {
+    expect(isReflexReversal(null, "log", 1000)).toBe(false)
+    expect(isReflexReversal(null, "unlog", 1000)).toBe(false)
+  })
+
+  it("is exclusive at the boundary, so the guard cannot outlast its window", () => {
+    expect(isReflexReversal(at(0, "log"), "unlog", REVERSE_GUARD_MS - 1)).toBe(true)
+    expect(isReflexReversal(at(0, "log"), "unlog", REVERSE_GUARD_MS)).toBe(false)
+  })
+
+  it("does not deadlock on a clock that goes BACKWARDS", () => {
+    // Why the caller must pass `performance.now()`. With a wall clock an NTP
+    // correction makes elapsed time negative, which reads as "inside the
+    // window" — and the control stays dead until the clock catches up.
+    expect(isReflexReversal(at(10_000, "log"), "unlog", 9_000)).toBe(true)
+    // Monotonic time never does this; the test pins the hazard, not the fix.
   })
 })

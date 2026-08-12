@@ -36,8 +36,9 @@ import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { isInventoryForm } from "@/lib/containers/form"
 import { containerNoun } from "@/lib/containers/labels"
 import {
-  needsIuFromMgHint,
   oralStockRule,
+  powderAmountInBase,
+  powderEntryUnits,
   powderUnitsFor,
   resolvePowderUnit,
 } from "@/lib/protocol/stockUnits"
@@ -333,6 +334,8 @@ function AddStockForm({
   const [powder, setPowder] = useState(
     ei?.inventoryType === "reconstituted" ? numStr(ei.totalAmount) : "",
   )
+  // Starts on the STORED unit, so an edit shows the number that is on the row
+  // rather than silently reinterpreting it.
   const [powderUnit, setPowderUnit] = useState<"mg" | "iu">(ei?.baseUnit === "iu" ? "iu" : "mg")
   const [bacWater, setBacWater] = useState(numStr(ei?.bacWaterMl))
   // preconcentrated
@@ -421,10 +424,13 @@ function AddStockForm({
    * compound is dosed in rather than inherit a unit the previous row may have
    * had wrong.
    */
-  const powderUnits = powderUnitsFor(selected?.name, {
-    doseUnit: selected?.unit,
-    storedUnit: ei?.baseUnit,
-  })
+  const unitCtx = { doseUnit: selected?.unit, storedUnit: ei?.baseUnit }
+  /** What the powder is TYPED in. Not always what it is stored in — see
+   *  `powderEntryUnits`; HGH is dosed in iu and sold in mg. */
+  const powderUnits = powderEntryUnits(selected?.name, unitCtx)
+  /** What `base_unit` will actually be. Constrained by the unit family, so it is
+   *  never the user's to pick. */
+  const powderBaseUnit = resolvePowderUnit("mg", powderUnitsFor(selected?.name, unitCtx))
   /**
    * The unit actually written to `base_unit`.
    *
@@ -433,7 +439,11 @@ function AddStockForm({
    * `unit_family_compatible` (016) pairs `iu` only with `iu` — so every dose
    * would log cleanly and the vial would never go down. See `stockUnits.ts`.
    */
-  const powderUnitToSave = resolvePowderUnit(powderUnit, powderUnits)
+  /** The entry unit, resolved against what is actually on offer. */
+  const powderEntryUnit = resolvePowderUnit(powderUnit, powderUnits)
+  /** The typed amount in the STORED unit — 10 mg of HGH becomes 30 iu. Used by
+   *  the fill maths as well as the save, or `prior_used_base` lands 3× out. */
+  const powderInBase = powderAmountInBase(num(powder), powderEntryUnit, powderBaseUnit)
   /**
    * The SAME narrowing for the oral strength's unit, which writes the same
    * `base_unit` column and is guarded by the same DB trigger.
@@ -455,13 +465,14 @@ function AddStockForm({
   /** The tab/cap choice is the user's UNLESS the compound is dosed in one of
    *  them, in which case `total_amount_unit` must equal `base_unit`. */
   const effectiveOralForm = oralRule.countUnit ?? oralForm
-  const showIuFromMgHint = needsIuFromMgHint(selected?.name, powderUnits)
 
 
   const fill = resolveFill(
     type,
     {
-      powder: num(powder),
+      // Converted: `vialBasis` sizes a vial by its powder mass in the STORED
+      // unit, so a mg entry on an iu vial must be 3× before it gets here.
+      powder: powderInBase,
       bacWater: num(bacWater),
       oilMl: num(oilMl),
       concentration: num(concentration),
@@ -488,9 +499,9 @@ function AddStockForm({
       return {
         ...base,
         inventory_type: "reconstituted",
-        base_unit: powderUnitToSave,
-        total_amount: num(powder),
-        total_amount_unit: powderUnitToSave,
+        base_unit: powderBaseUnit,
+        total_amount: powderInBase,
+        total_amount_unit: powderBaseUnit,
         bac_water_ml: num(bacWater),
         reconstituted_on: todayKey(),
         prior_used_base,
@@ -796,13 +807,13 @@ function AddStockForm({
                       </div>
                     )}
                   </div>
-                  {/* HGH is dosed in iu and SOLD in mg — see `needsIuFromMgHint`.
-                      Without this the user types the number off the box into a
-                      field measuring something else, and is wrong by 3× in the
-                      fill gauge, the runway and the low-stock reminder. */}
-                  {showIuFromMgHint && (
+                  {/* The conversion, shown as it happens. HGH is dosed in iu
+                      and sold in mg, so the box says one thing and the row
+                      stores another — this is what keeps that from being
+                      something the user has to take on trust. */}
+                  {powderEntryUnit !== powderBaseUnit && num(powder) > 0 && (
                     <p className="mt-1 text-xs text-text-subtle">
-                      Boxes often state mg — 1 mg is about 3 iu.
+                      = {round3(powderInBase)} {powderBaseUnit}, which is what gets stored.
                     </p>
                   )}
                 </label>

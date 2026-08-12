@@ -113,3 +113,52 @@ export function stackProgress<M extends StackTickMember>(
   const complete = logged === total && total > 0
   return { logged, total, complete, partial: logged > 0 && !complete }
 }
+
+/* --------------------------------------------------- the double-tap guard */
+
+/** Which direction a whole-stack action went. */
+export type BulkTickKind = "log" | "unlog"
+
+/** The last whole-stack action taken on a row, and when. */
+export interface BulkTickMark {
+  /** A MONOTONIC timestamp (`performance.now()`), never a wall clock — see
+   *  {@link isReflexReversal}. */
+  at: number
+  kind: BulkTickKind
+}
+
+/**
+ * How long after one whole-stack action the OPPOSITE one is treated as a stray
+ * second tap. Long enough to swallow a double-tap, short enough that a
+ * deliberate reversal never feels blocked.
+ */
+export const REVERSE_GUARD_MS = 600
+
+/**
+ * Is this tap the reflex second half of a double-tap, rather than a decision?
+ *
+ * Ticking a stack flips the SAME 24px target from "log all" to "untick all", and
+ * unticking flips it back — so two quick taps in the same place do opposite
+ * things. On a partial stack that logged five doses and immediately deleted
+ * them, planting five fourteen-day tombstones and destroying any hand-edited
+ * amount, time or site; on a complete one it deleted five doses and re-logged
+ * them from the plan, leaving the row looking exactly as it had. Both directions
+ * need the guard, which the first attempt got wrong by covering only one.
+ *
+ * Only a REVERSAL is refused. Repeated taps the same way are legitimate — one
+ * advances a twice-daily member to its second dose — and are let through.
+ *
+ * `now` is passed in, and must come from a MONOTONIC clock. A wall clock can
+ * step backwards (an NTP correction, a manual change), and a negative elapsed
+ * time reads as "inside the window", which would leave the control dead until
+ * the clock caught up.
+ */
+export function isReflexReversal(
+  previous: BulkTickMark | null,
+  kind: BulkTickKind,
+  now: number,
+  windowMs: number = REVERSE_GUARD_MS,
+): boolean {
+  if (!previous || previous.kind === kind) return false
+  return now - previous.at < windowMs
+}

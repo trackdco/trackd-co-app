@@ -14,7 +14,14 @@ import {
 import type { DateKey, DoseLog } from "@/lib/home/mockHomeData"
 import { formatDraw, type Draw, type DrawSource } from "@/lib/home/draw"
 import { formatTimeLabel, type StackCompound } from "@/lib/home/stack"
-import { stackLogTargets, stackProgress, stackUnlogTargets } from "@/lib/home/stackTicks"
+import {
+  isReflexReversal,
+  stackLogTargets,
+  stackProgress,
+  stackUnlogTargets,
+  type BulkTickKind,
+  type BulkTickMark,
+} from "@/lib/home/stackTicks"
 import { partitionByStack, type Stack } from "@/lib/home/stacks"
 import { Container } from "@/components/containers"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
@@ -24,21 +31,6 @@ import { paletteColourVar } from "@/lib/palette"
 import { DATA_MONO } from "@/lib/ui-presets"
 import { formatPhotoDateShort } from "@/lib/progress/photos"
 import { useRef, useState, type ReactNode } from "react"
-
-/**
- * How long after one whole-stack action the OPPOSITE one is treated as a stray
- * second tap rather than a decision. Long enough to swallow a double-tap, short
- * enough that a deliberate reversal never feels blocked.
- *
- * It has to guard BOTH directions, which the first attempt did not. Logging a
- * stack flips the same 24px target from "log all" to "untick all", so a
- * double-tap on a PARTIAL stack logged five doses and immediately deleted them
- * again — planting five fourteen-day tombstones and, where members had been
- * ticked individually, destroying hand-edited amounts, times and sites. Guarding
- * only the re-log direction protected the cheaper mistake and left the
- * destructive one open. (Both second-round cold reviews, 2026-08-12.)
- */
-const REVERSE_GUARD_MS = 600
 
 /**
  * One paused thing on the dashboard — a compound, or a whole stack collapsed to
@@ -981,14 +973,12 @@ function StackDoseRow({
    * "inside the window", which would have left the control dead until the clock
    * caught up.
    */
-  const lastBulk = useRef<{ at: number; kind: "log" | "unlog" } | null>(null)
+  const lastBulk = useRef<BulkTickMark | null>(null)
 
-  /** Is this the reflex second half of a double-tap in the other direction? */
-  function reversingTooFast(kind: "log" | "unlog"): boolean {
-    const prev = lastBulk.current
-    if (!prev || prev.kind === kind) return false
-    return performance.now() - prev.at < REVERSE_GUARD_MS
-  }
+  /** Is this the reflex second half of a double-tap in the other direction? The
+   *  rule lives in `stackTicks.ts`, where it is tested. */
+  const reversingTooFast = (kind: BulkTickKind) =>
+    isReflexReversal(lastBulk.current, kind, performance.now())
 
   // Counted in DOSES, not members, and paused members count for nothing — see
   // `stackProgress`. The rules live in `lib/home/stackTicks.ts` because getting
