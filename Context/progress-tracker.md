@@ -1500,10 +1500,13 @@ amount-left implementation. **The wording had been written seven times and was
 right twice.** Anything that needs it now imports it — a compound can no longer
 be drawn as a tub and described as a vial in the same row.
 
-The noun prefers the STOCK ROW's own `inventory_type` where a caller has one. It
-is a fact about the container in hand, where `inventoryTypeForCompound` is an
-inference, and the two disagree for an off-catalogue oral supplement
-(`isScoopedPowder` answers "tub" for any name it cannot resolve).
+The noun prefers everything the STOCK ROW knows over what the catalogue infers.
+Its `totalAmountUnit` is what actually fixes the off-catalogue oral supplement:
+both sides agree on `oral_solid` there, and the tub comes from `isScoopedPowder`
+answering TRUE for any name it cannot resolve. A stored tab/cap count is the
+evidence that settles it. (An earlier version of this note blamed the
+`inventoryType`, which was wrong — preferring the row's type matters separately,
+for a compound stocked in a form the catalogue does not expect.)
 
 ### `iu` is not a unit you offer — `lib/protocol/stockUnits.ts`
 
@@ -1555,6 +1558,43 @@ Next runs those strictly FIFO on one queue, and `logDose` enqueues two per dose 
 so consecutive events are **two round trips** apart. It coalesced on localhost
 and made exactly the five duplicate reads it existed to prevent on a phone. Fires
 only when something actually landed, so an offline tick issues no doomed request.
+
+### Oral stock had ONE legal shape and the form offered four
+
+Found by the third cold review, going past the change to the thing under it.
+`inv_type_fields` allows exactly two oral rows — strength STATED with
+`base_unit IN ('mg','iu')`, or strength ABSENT with `base_unit IN
+('tab','capsule')` and `total_amount_unit = base_unit` — and
+`check_inventory_unit_family` then requires `base_unit` to pair with the
+compound's `dose_unit`. Together those pin the answer completely.
+
+**123 of the catalogue's 125 orals are dosed in mg or mcg**, so the strengthless
+shape was rejected for all but Probiotics and Vitamin B Complex — while the
+field said "optional" and the form reassured "No strength stated, so doses are
+counted in tablets". In `AddStockSheet` that surfaced as a message about a
+container type being unavailable; in `AddCompoundSheet` the compound saved, the
+sheet closed and **the stock row silently never existed**, because both writes
+had their results discarded.
+
+`oralStockRule` derives the shape once and both sheets build from it. A test
+walks every oral in the catalogue and asserts the result satisfies both
+constraints. The discarded write is now `trackSync`ed, so a failure raises the
+app-shell notice that outlives the closed sheet.
+
+**Also: a hidden field kept feeding the maths that sizes the bottle.** The
+strength input is hidden for a compound dosed in tablets, and hiding an input
+does not clear it — `vialBasis` sizes an oral as `count × strength`, while a
+strengthless row is sized as `count`. Switching compounds mid-sheet wrote
+`prior_used_base` at strength× the right scale (25,000 instead of 50 on a
+half-full bottle of 100), which `v_inventory_math` then subtracts forever.
+
+**`isPendingEnumValue` claimed too much.** It read ALL of `23514` as "your
+database is behind", and both unit-family triggers raise with that code — so an
+ordinary constraint rejection told the user "This container type isn't available
+yet. Try Reconstituted, Pre-mixed or Oral for now." on a sheet with Oral already
+selected. It now claims that only for a tub, which is the one case it was written
+for, and a constraint rejection says the numbers don't fit rather than promising
+that retrying will help.
 
 ### Two pre-existing bugs, fixed because this made them easier to hit
 

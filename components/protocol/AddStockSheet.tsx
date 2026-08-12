@@ -606,7 +606,11 @@ function AddStockForm({
         }
         const r = await updateStockItem(editItem.id, fields)
         if (!r.ok) {
-          setError("Couldn’t save your changes. Please try again.")
+          setError(
+            r.rejectedShape
+              ? "These numbers don’t fit together. Check the amount, the strength and its unit."
+              : "Couldn’t save your changes. Please try again."
+          )
           return
         }
         onAdded()
@@ -646,7 +650,13 @@ function AddStockForm({
         setError(
           r.pendingMigration
             ? "This container type isn’t available yet. Try Reconstituted, Pre-mixed or Oral for now."
-            : "Couldn’t save this stock. Please try again."
+            : r.rejectedShape
+              ? // A constraint said no, so "try again" would be a lie — the same
+                // input fails identically every time. The form now prevents every
+                // shape we know of, so reaching here means one we don't; name the
+                // fields it could be rather than promising a retry.
+                "These numbers don’t fit together. Check the amount, the strength and its unit."
+              : "Couldn’t save this stock. Please try again."
         )
         return // keep the sheet open so the input isn't lost on a failed save
       }

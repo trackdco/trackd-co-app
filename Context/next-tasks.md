@@ -47,6 +47,13 @@ where i.is_active
   );
 ```
 
+**One product call owed from Adrian.** HGH is dosed in iu and SOLD in mg —
+Norditropin, Genotropin and Jintropin are all aliases on the Somatropin entry
+and all mg pens. The field now hints "Boxes often state mg — 1 mg is about
+3 iu" rather than converting, so the arithmetic stays with whoever is holding
+the box. If he would rather the app accept mg and convert, that is a change to
+`needsIuFromMgHint` plus a conversion at save time.
+
 **Not fixed, deliberately — flagged for a later pass:**
 
 - A wholly-paused stack whose day already had logs renders a "Paused" header and
@@ -56,6 +63,12 @@ where i.is_active
   row for 14 days and then self-prunes, so an un-log that failed silently
   resurfaces a fortnight later. Pre-existing and architectural.
 - Nothing on screen says a filled stack tick can be tapped to untick.
+- `UNIT_FAMILIES` lets the dose-unit dropdown swap `tab` and `capsule`, which
+  `unit_family_compatible` deliberately does not. Switching a stocked compound
+  between them is rejected by `check_protocol_unit_family` with a generic notice.
+- The EDIT path reads the CLIENT stack's unit while the trigger reads the
+  server's `protocol_compounds.dose_unit`, and does not push the compound first —
+  so an unpushed local unit change can still produce a rejected `base_unit`.
 
 ---
 

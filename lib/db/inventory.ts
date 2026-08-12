@@ -320,7 +320,7 @@ export async function listStock(): Promise<StockItem[]> {
  */
 export async function addStockItem(
   row: StockInsert
-): Promise<{ ok: boolean; pendingMigration?: boolean }> {
+): Promise<{ ok: boolean; pendingMigration?: boolean; rejectedShape?: boolean }> {
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }
@@ -344,7 +344,10 @@ export async function addStockItem(
         return { ok: false, pendingMigration: true }
       }
       console.error("addStockItem failed", error)
-      return { ok: false }
+      // A CHECK or a unit-family trigger said no. Distinguished from a transient
+      // failure because retrying identical input cannot help, and telling the
+      // user to "try again" sends them round a loop that never ends.
+      return { ok: false, rejectedShape: error.code === "23514" }
     }
     // Archive the compound's prior active vials so only this new one stays active
     // (one card per compound). Best-effort: the new vial is already in, so a failure
@@ -378,7 +381,7 @@ export async function addStockItem(
 export async function updateStockItem(
   id: string,
   row: Omit<StockInsert, "id" | "protocol_compound_id">
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; rejectedShape?: boolean }> {
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }
@@ -408,7 +411,9 @@ export async function updateStockItem(
     }
     if (error) {
       console.error("updateStockItem failed", error)
-      return { ok: false }
+      // Same distinction as `addStockItem`: a constraint rejection cannot be
+      // retried into success, so the caller must not offer that as the remedy.
+      return { ok: false, rejectedShape: error.code === "23514" }
     }
     return { ok: true }
   } catch (e) {

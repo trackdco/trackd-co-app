@@ -653,19 +653,8 @@ function AddCompoundBody({
       ? []
       : upcomingDoseDates(previewSchedule, dateKeyToDate(startDate), 4, cycleDraft)
 
-  // The part-used estimate for the inline vial (mirrors the Stock tab). When the
-  // compound isn't stockable (stockType ""), the control is hidden and the insert is
-  // null, so the fallback type here is inert.
-  // The compound's derived units — ABOVE the fill maths, which depends on
-  // `stStrengthRequired` to size an oral's capacity correctly.
-  const stContainerNoun = containerNoun({
-    inventoryType: stockType || null,
-    // The count unit the user is choosing right now is the same evidence a
-    // stored row gives: a bottle of capsules is not a tub.
-    totalAmountUnit: stockType === "oral_solid" ? stOralForm : null,
-    category: source.category,
-    name: source.name,
-  })
+  // The compound's derived units. ABOVE the part-used estimate below, which
+  // depends on `stStrengthRequired` to size an oral's capacity correctly.
   // Driven by the dose unit BEING CHOSEN on this form, not by the catalogue —
   // "Make your own" lets a compound be dosed in `iu`, and such a compound must
   // be able to hold an `iu` vial or its doses can never link to it. This is an
@@ -684,7 +673,19 @@ function AddCompoundBody({
    *  `total_amount_unit` must equal `base_unit`. */
   const stEffectiveOralForm = stOralRule.countUnit ?? stOralForm
   const showStIuFromMgHint = needsIuFromMgHint(source.name, stPowderUnits)
+  // What the thing being filled is CALLED, so the fullness gauge isn't announced
+  // as a vial when it is a tub. Reads the EFFECTIVE count unit, which is the
+  // same evidence a stored row gives: a bottle of capsules is not a tub.
+  const stContainerNoun = containerNoun({
+    inventoryType: stockType || null,
+    totalAmountUnit: stockType === "oral_solid" ? stEffectiveOralForm : null,
+    category: source.category,
+    name: source.name,
+  })
 
+  // The part-used estimate for the inline container (mirrors the Stock tab).
+  // When the compound isn't stockable (stockType ""), the control is hidden and
+  // the insert is null, so the fallback type here is inert.
   const stockFill = resolveFill(
     stockType === "" ? "reconstituted" : stockType,
     {
@@ -705,7 +706,9 @@ function AddCompoundBody({
   // The part-used amount is entered in the container's OWN measure, which is no
   // longer always millilitres now that this form covers all four types.
   const stFillUnit =
-    stockType === "oral_solid" ? stOralForm : stockType === "bulk_powder" ? "g" : "mL"
+    // `stEffectiveOralForm`: a capsule-dosed compound showed a forced "cap" pill
+    // while this row read "tab left". `AddStockSheet` fixed the identical line.
+    stockType === "oral_solid" ? stEffectiveOralForm : stockType === "bulk_powder" ? "g" : "mL"
   // What the thing being filled is CALLED, so the fullness gauge isn't announced
   // as a vial when it is a tub. The visible heading ("How much is in it?") was
   // already form-neutral; only the screen-reader label was not.
@@ -816,7 +819,11 @@ function AddCompoundBody({
         // many are in the bottle" when the count is already filled in would send
         // the user to the wrong field.
         if (stOralRule.baseUnit === null) {
-          return `${source.name} is dosed by weight — track it as a Powder rather than tablets.`
+          // This sheet has no type picker — the form follows the compound's
+          // route — so "track it as a Powder" named something the user cannot do
+          // from here. Say what they CAN do, since the alternative is blocking
+          // the whole compound save with no way forward.
+          return `${source.name} is dosed in ${unit}, so its stock can't be recorded as tablets. Turn off "Stock on hand" to save, then add it from Protocol.`
         }
         return stStrengthRequired && amt(stStrength) <= 0
           ? `Enter the strength of one ${stEffectiveOralForm === "tab" ? "tablet" : "capsule"} — ${source.name} is dosed in ${unit}.`
@@ -1775,8 +1782,9 @@ function AddCompoundBody({
                     </label>
                     {stOralRule.baseUnit === null ? (
                       <p className="col-span-2 text-xs text-state-warning">
-                        {source.name} is dosed by weight — track it as a Powder
-                        rather than tablets.
+                        {source.name} is dosed in {unit}, so its stock can&apos;t be
+                        recorded as tablets. Turn off &ldquo;Stock on hand&rdquo; to
+                        save, then add it from Protocol.
                       </p>
                     ) : stStrengthRequired && amt(stStrength) <= 0 && amt(stCount) > 0 ? (
                       <p className="col-span-2 text-xs text-text-subtle">
