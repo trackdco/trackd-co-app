@@ -7,12 +7,7 @@ import {
   seriesByDay,
   type FunnelStep,
 } from "@/lib/admin/aggregate"
-import {
-  activeIn,
-  everActiveUsers,
-  recentWrites,
-  writesByDay,
-} from "./activity"
+import { activeIn, recentWrites, writesByDay } from "./activity"
 import {
   billingMetrics,
   pushHealth,
@@ -47,7 +42,9 @@ import {
 } from "./people"
 import {
   compoundMetrics,
+  everTouchedAnything,
   featureAdoption,
+  featureUserSets,
   inventoryMetrics,
   type CompoundMetrics,
   type FeatureAdoption,
@@ -252,7 +249,7 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
   const [
     people,
     writes,
-    everActive,
+    featureSets,
     waitlistRows,
     waitlistTotal,
     dosesLogged,
@@ -273,7 +270,7 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
   ] = await Promise.all([
     peopleMetrics(supabase, since, issues),
     recentWrites(supabase, window, issues),
-    everActiveUsers(supabase, issues),
+    featureUserSets(supabase, issues),
     columnValues<{ created_at: string | null }>(
       supabase,
       "waitlist",
@@ -307,11 +304,9 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
     feedbackSla(supabase, issues),
   ])
 
-  // These two depend on the account total, so they run after `peopleMetrics`.
-  const [adoption, consent] = await Promise.all([
-    featureAdoption(supabase, people.totalAccounts, issues),
-    consentCoverage(supabase, people.totalAccounts, issues),
-  ])
+  // Depends on the account total, so it runs after `peopleMetrics`.
+  const consent = await consentCoverage(supabase, people.totalAccounts, issues)
+  const adoption = featureAdoption(featureSets, people.totalAccounts)
 
   // ── Activity windows, all sliced from the one `writes` read ────────────────
   const thisWeekStart = daysAgo(6)
@@ -324,6 +319,7 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
   const activeOwners = new Set(
     activeCompoundRows.map((r) => r.user_id).filter((id): id is string => Boolean(id))
   )
+  const everTouched = everTouchedAnything(featureSets)
 
   // ── The onboarding funnel ─────────────────────────────────────────────────
   //
@@ -345,16 +341,26 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
   // have printed a confident 0 forever. `consent_records` is the real signal —
   // `app/welcome/actions.ts` writes it and only then grants app access, so a
   // consent record is what "got through onboarding" actually means.
-  const [consentIds, protocolIds, doseIds] = await Promise.all([
-    userIdSet(supabase, "consent_records", "user_id", issues, "Funnel: legal gate"),
-    userIdSet(supabase, "protocol_compounds", "user_id", issues, "Funnel: protocol"),
-    userIdSet(supabase, "dose_logs", "user_id", issues, "Funnel: doses"),
-  ])
+  const consentIds = await userIdSet(
+    supabase,
+    "consent_records",
+    "user_id",
+    issues,
+    "Funnel: legal gate"
+  )
   const dosedThisWeek = activeIn(writes, thisWeekStart, undefined, ["dose_logs"])
 
+  // Reuses the sets already read for adoption rather than re-reading
+  // `protocol_compounds` and `dose_logs` all-time a second time.
   const reachedGate = intersect(people.accountIds, consentIds)
-  const reachedProtocol = intersect(reachedGate, protocolIds)
-  const reachedDose = intersect(reachedProtocol, doseIds)
+  const reachedProtocol = intersect(
+    reachedGate,
+    featureSets.get("Protocol") ?? new Set<string>()
+  )
+  const reachedDose = intersect(
+    reachedProtocol,
+    featureSets.get("Dose logging") ?? new Set<string>()
+  )
   const stillDosing = intersect(reachedDose, dosedThisWeek)
 
   const steps = funnel([
@@ -377,10 +383,11 @@ export async function getAdminMetrics(rangeDays: number | null): Promise<AdminMe
       returningWeekly,
       retentionPct: percent(returningWeekly, activePrevWeek.size),
       // Set difference, computed and discarded here — no id is returned.
-      neverWritten: Math.max(
-        0,
-        [...people.accountIds].filter((id) => !everActive.has(id)).length
-      ),
+      // Measured against EVERY feature surface, not just the five "activity"
+      // tables, so this cannot contradict the adoption chart beside it.
+      neverWritten: [...people.accountIds].filter(
+        (id) => !everTouched.has(id)
+      ).length,
       newAccounts: people.newAccounts,
       accountsByDay: people.accountsByDay,
       activityByDay: writesByDay(writes, daysAgo(window - 1)),

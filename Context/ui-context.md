@@ -536,10 +536,9 @@ Defined in `app/globals.css` beside the palette and namespaced `--admin-*`:
 | Series 1 (periwinkle) | `--admin-series-1` | `--chart-line`     |
 | Series 2 (teal)       | `--admin-series-2` | `--chart-trend`    |
 | Series 3 (tan)        | `--admin-series-3` | `--cat-oral`       |
-| Series 4 (violet)     | `--admin-series-4` | `--cat-sarm`       |
+| Series 4 (dusty rose) | `--admin-series-4` | `--cat-thyroid`    |
 | Metric up             | `--admin-positive` | `--state-success`  |
 | Metric down           | `--admin-negative` | `--state-error`    |
-| Chart gridline        | `--admin-grid`     | `--border-default` |
 
 **Not one new hex value.** Every one aliases a colour the palette already
 defines, so the dashboard cannot drift away from the product's hues and a retune

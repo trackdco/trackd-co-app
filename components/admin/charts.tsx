@@ -1,5 +1,4 @@
-import type { Tally } from "@/lib/admin/aggregate"
-import type { FunnelStep } from "@/lib/admin/aggregate"
+import { percent, type FunnelStep, type Tally } from "@/lib/admin/aggregate"
 import { sparkGeometry, sparkLastPoint } from "@/lib/progress/spark"
 
 /**
@@ -54,37 +53,55 @@ export function Sparkline({
   const { line, area } = sparkGeometry(values, width, height)
   const last = sparkLastPoint(values, width, height)
 
+  /**
+   * The latest-point dot is drawn in CSS, OUTSIDE the SVG's coordinate space.
+   *
+   * `preserveAspectRatio="none"` stretches this 260-wide viewBox to the card's
+   * real width — roughly 506px in the two-column layout, a ~1.95x horizontal
+   * scale — so a `<circle r="2.5">` inside the SVG renders as a 10x5 smear. The
+   * app's glance spark gets away with an in-SVG circle only because it renders
+   * at 1.1x. Positioning the dot with CSS makes it round at any card width.
+   *
+   * `sparkLastPoint` always returns `x === width`, i.e. the right edge, and the
+   * vertical scale is 1:1 because the height attribute matches the viewBox
+   * height — so `top` is the y value in pixels, unconverted.
+   */
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      width="100%"
-      height={height}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={`${points.length} days, ending at ${values[values.length - 1]}`}
-      className="overflow-visible"
-    >
-      <defs>
-        <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill={`url(#${id}-fill)`} />
-      <path
-        d={line}
-        fill="none"
-        stroke={color}
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-      />
+    <div className="relative" style={{ height }}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width="100%"
+        height={height}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={`${points.length} days, ending at ${values[values.length - 1]}`}
+        className="block"
+      >
+        <defs>
+          <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill={`url(#${id}-fill)`} />
+        <path
+          d={line}
+          fill="none"
+          stroke={color}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
       {last && (
-        // The latest-point dot, exactly as the app's glance sparklines carry.
-        <circle cx={last.x - 2} cy={last.y} r="2.5" fill="var(--accent-primary)" />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute size-[5px] -translate-x-full -translate-y-1/2 rounded-full bg-accent-primary"
+          style={{ left: "100%", top: last.y }}
+        />
       )}
-    </svg>
+    </div>
   )
 }
 
@@ -119,7 +136,9 @@ export function RankedBars({
   return (
     <div className="space-y-3">
       {shown.map((item, i) => {
-        const pct = denominator > 0 ? Math.round((item.count / denominator) * 100) : null
+        // `percent()` rather than a local copy of the same arithmetic — it is
+        // the tested one, and it is what the "— never 0" rule is implemented in.
+        const pct = percent(item.count, denominator)
         return (
           <div key={item.key}>
             <div className="flex items-baseline justify-between gap-4">
@@ -201,30 +220,61 @@ export function Funnel({ steps }: { steps: FunnelStep[] }) {
 }
 
 /**
- * A labelled split as one stacked bar — for two-to-four mutually exclusive
- * categories where the ranked-bar list would be heavier than the fact deserves.
+ * A labelled split as one stacked bar, for a small number of mutually exclusive
+ * categories.
+ *
+ * CAPPED AT FOUR SEGMENTS, WITH THE REST ROLLED INTO "OTHER". There are exactly
+ * four series colours, and the segments carry no inline label — the only way to
+ * read one is to match its colour to the legend. Cycling `i % 4` past four
+ * therefore produced two periwinkle segments and two periwinkle legend dots,
+ * making the mapping ambiguous and breaking "colour is never the only signal".
+ * Both real call sites overflowed: "By category" tallies up to nine categories
+ * and "By route" five.
+ *
+ * Every segment also carries a `<title>`, so hovering names it and assistive
+ * tech can read it without the legend at all.
  */
+const MAX_SEGMENTS = 4
+
 export function SplitBar({ items }: { items: Tally[] }) {
   const total = items.reduce((n, i) => n + i.count, 0)
   if (total === 0) {
     return <p className="text-sm text-text-muted">Nothing recorded yet.</p>
   }
 
+  const head = items.slice(0, MAX_SEGMENTS - 1)
+  const tail = items.slice(MAX_SEGMENTS - 1)
+  const segments =
+    tail.length > 1
+      ? [
+          ...head,
+          {
+            key: "__other",
+            label: `Other (${tail.length})`,
+            count: tail.reduce((n, i) => n + i.count, 0),
+          },
+        ]
+      : items
+
   return (
     <div>
       <div className="flex h-2 overflow-hidden rounded-full bg-bg-input">
-        {items.map((item, i) => (
-          <div
-            key={item.key}
-            style={{
-              width: `${(item.count / total) * 100}%`,
-              backgroundColor: SERIES[i % SERIES.length],
-            }}
-          />
-        ))}
+        {segments.map((item, i) => {
+          const pct = Math.round((item.count / total) * 100)
+          return (
+            <div
+              key={item.key}
+              title={`${item.label}: ${item.count.toLocaleString()} (${pct}%)`}
+              style={{
+                width: `${(item.count / total) * 100}%`,
+                backgroundColor: SERIES[i % SERIES.length],
+              }}
+            />
+          )
+        })}
       </div>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-        {items.map((item, i) => (
+        {segments.map((item, i) => (
           <span key={item.key} className="flex items-center gap-1.5 text-xs">
             <span
               className="size-2 shrink-0 rounded-full"

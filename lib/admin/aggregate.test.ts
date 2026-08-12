@@ -209,9 +209,26 @@ describe("seriesByDay", () => {
     expect(out[0].day).toBe("2026-08-02")
   })
 
-  it("returns nothing when there is nothing", () => {
-    expect(seriesByDay([], new Date("2026-08-01T00:00:00Z"))).toEqual([])
-    expect(seriesByDay([null, undefined], new Date("2026-08-01T00:00:00Z"))).toEqual([])
+  // "Nothing happened" and "we didn't look" are different facts. When the window
+  // is known, an empty one is a flat line at zero, not an absent chart.
+  it("draws a flat zero line for a known window with no data", () => {
+    const out = seriesByDay(
+      [],
+      new Date("2026-08-01T00:00:00Z"),
+      new Date("2026-08-03T00:00:00Z")
+    )
+    expect(out).toEqual([
+      { day: "2026-08-01", count: 0 },
+      { day: "2026-08-02", count: 0 },
+      { day: "2026-08-03", count: 0 },
+    ])
+  })
+
+  it("returns nothing only when there is no window AND no data", () => {
+    // All-time range: without a start date and without a datapoint there is no
+    // window to draw.
+    expect(seriesByDay([], null)).toEqual([])
+    expect(seriesByDay([null, undefined], null)).toEqual([])
   })
 })
 

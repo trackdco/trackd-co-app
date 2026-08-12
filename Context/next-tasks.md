@@ -33,6 +33,26 @@ accounts hold a protocol compound with **no consent record at all** (they predat
 the gate) — the funnel intersects sets so they simply drop out at that step, but
 it is worth knowing they exist.
 
+### 🟠 SECURITY, from the cold review: the founder gate keys on an email STRING
+
+`lib/admin.ts` and three SQL policies gate on `auth.jwt() ->> 'email'`. That is
+only as strong as the Supabase Auth project settings, which are **not in this
+repo**. Today it holds — email confirmation is on and Google OAuth verifies — but:
+
+- if "Confirm email" is ever switched off, anyone can register an unclaimed
+  founder address and read every cross-user aggregate, the whole waitlist and
+  the whole feedback queue;
+- `admin@trackdco.app` is squattable if no account holds it yet;
+- Supabase's email-change flow is a second path in.
+
+**Fix, when Adrian wants it:** gate on the two fixed `auth.uid()` UUIDs instead
+of the email. One migration, and it removes the dependency on a dashboard
+setting entirely. NOT done here — it is a change to the auth model, not a
+tidy-up, and it touches three RLS policies.
+
+Credit where due: the policies read the **top-level** `email` claim, not
+`user_metadata`, so they are not client-spoofable.
+
 ### What was deliberately NOT done:
 
 - **The onboarding free-text is still not readable anywhere.**

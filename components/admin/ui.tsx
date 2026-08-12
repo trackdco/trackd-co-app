@@ -1,6 +1,8 @@
 import type { ReactNode } from "react"
 
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CaretDown, CaretUp } from "@/components/icons"
+import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets"
+import { cn } from "@/lib/utils"
 
 /**
  * Layout primitives for the founder dashboard.
@@ -105,21 +107,25 @@ export function Stat({
         ? value.toLocaleString()
         : value
 
+  // Colour is NEVER the only signal (`ui-context.md` → Admin). Without the
+  // caret, "Weekly retention 47%" and "62%" are typographically identical to a
+  // red/green-blind reader and the threshold is carried by hue alone.
+  const Arrow = tone === "positive" ? CaretUp : tone === "negative" ? CaretDown : null
+
   return (
     <div className="flex flex-col justify-between rounded-2xl bg-bg-surface p-4">
-      <p className="text-[10px] font-sans uppercase tracking-[0.2em] text-text-subtle">
-        {label}
-      </p>
-      <p
-        className={`mt-1 text-[28px] font-light leading-none tracking-[-0.02em] tabular-nums ${toneClass}`}
-      >
-        {display}
-        {suffix && value !== null && (
-          <span className="text-sm text-text-muted">{suffix}</span>
-        )}
+      {/* CARD_EYEBROW, not METRIC_LABEL: this is a standalone tile's only
+          title, and the dimmer variant measures 1.92:1 on this surface. */}
+      <p className={CARD_EYEBROW}>{label}</p>
+      <p className={cn(METRIC_VALUE, "mt-1 flex items-center gap-1.5 leading-none", toneClass)}>
+        {Arrow && <Arrow className="size-4 shrink-0" weight="bold" aria-hidden />}
+        <span>
+          {display}
+          {suffix && value !== null && <span className={UNIT_SUFFIX}>{suffix}</span>}
+        </span>
       </p>
       {spark && <div className="mt-3">{spark}</div>}
-      {hint && <p className="mt-2 text-[11px] leading-snug text-text-subtle">{hint}</p>}
+      {hint && <p className="mt-2 text-[11px] leading-snug text-text-muted">{hint}</p>}
     </div>
   )
 }

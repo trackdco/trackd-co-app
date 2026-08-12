@@ -135,9 +135,16 @@ export function seriesByDay(
     const key = ts.slice(0, 10)
     if (key.length === 10) counts.set(key, (counts.get(key) ?? 0) + 1)
   }
-  if (counts.size === 0) return []
 
   const keys = [...counts.keys()].sort()
+  // A window with NO data still has a shape when the window itself is known: a
+  // genuinely quiet 30 days is a flat line at zero, which is a fact, and
+  // returning nothing made the card say "Not enough days yet" instead — the
+  // difference between "nothing happened" and "we didn't look". Only the
+  // all-time range (`from` null) has nothing to draw, because without a start
+  // date and without a datapoint there is no window at all.
+  if (counts.size === 0 && !from) return []
+
   const start = from ? dayKey(from) : keys[0]
   const end = new Date(to)
   end.setUTCHours(0, 0, 0, 0)

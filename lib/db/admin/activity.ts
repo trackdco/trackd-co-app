@@ -1,13 +1,7 @@
 import "server-only"
 
 import { seriesByDay } from "@/lib/admin/aggregate"
-import {
-  columnValues,
-  daysAgo,
-  userIdSet,
-  type AdminClient,
-  type IssueLog,
-} from "./core"
+import { columnValues, daysAgo, type AdminClient, type IssueLog } from "./core"
 
 /**
  * "Active" users, retention, and the accounts that have never written anything.
@@ -34,7 +28,17 @@ import {
  * failures are now recorded and shown rather than skipped.
  */
 export const ACTIVITY_SOURCES = [
-  { table: "dose_logs", dateColumn: "taken_at", userColumn: "user_id", label: "Doses" },
+  /**
+   * `created_at`, NOT `taken_at`.
+   *
+   * `taken_at` is when the user says the dose happened, and the app lets them
+   * adjust it. Keying activity off it means back-logging a dose from five days
+   * ago marks the user active five days ago rather than today — so it cannot
+   * move them into the current retention week — while a future-dated dose counts
+   * toward "active today" before it has happened. Activity is a question about
+   * when somebody USED the app, which is what the write timestamp records.
+   */
+  { table: "dose_logs", dateColumn: "created_at", userColumn: "user_id", label: "Doses" },
   { table: "weight_logs", dateColumn: "created_at", userColumn: "profile_id", label: "Weight logs" },
   { table: "journal_entries", dateColumn: "created_at", userColumn: "user_id", label: "Journal" },
   { table: "progress_photos", dateColumn: "created_at", userColumn: "user_id", label: "Photos" },
@@ -118,25 +122,4 @@ export function writesByDay(writes: Write[], from: Date) {
     writes.map((w) => w.at),
     from
   )
-}
-
-/**
- * Every user id that has EVER written anything, across all sources.
- *
- * Used only to subtract from the account total, to answer "how many signups
- * never did anything at all" — the number that says whether the product is
- * failing at activation rather than at acquisition.
- */
-export async function everActiveUsers(
-  supabase: AdminClient,
-  issues: IssueLog
-): Promise<Set<string>> {
-  const sets = await Promise.all(
-    ACTIVITY_SOURCES.map(({ table, userColumn, label }) =>
-      userIdSet(supabase, table, userColumn, issues, `${label} (all time)`)
-    )
-  )
-  const all = new Set<string>()
-  for (const set of sets) for (const id of set) all.add(id)
-  return all
 }

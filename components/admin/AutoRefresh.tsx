@@ -84,15 +84,24 @@ export function AutoRefresh() {
     if (!on) return
 
     let timer: ReturnType<typeof setInterval> | null = null
+    /**
+     * The counter lives in a ref as well as in state.
+     *
+     * `router.refresh()` used to be called INSIDE the `setElapsed` updater,
+     * which is a side effect in a function React requires to be pure — and
+     * StrictMode double-invokes updaters in development, so every refresh fired
+     * the entire aggregate round twice. The ref carries the count for the
+     * decision; the state exists only to re-render the label.
+     */
+    let seconds = 0
 
     const tick = () => {
-      setElapsed((seconds) => {
-        if (seconds + 1 >= REFRESH_AFTER_SECONDS) {
-          router.refresh()
-          return 0
-        }
-        return seconds + 1
-      })
+      seconds += 1
+      if (seconds >= REFRESH_AFTER_SECONDS) {
+        seconds = 0
+        router.refresh()
+      }
+      setElapsed(seconds)
     }
 
     const start = () => {
@@ -110,6 +119,7 @@ export function AutoRefresh() {
         stop()
       } else {
         // Catch up on whatever was missed while hidden, then resume.
+        seconds = 0
         router.refresh()
         setElapsed(0)
         start()
@@ -131,20 +141,31 @@ export function AutoRefresh() {
           {elapsed}s
         </span>
       )}
-      <span className="text-xs text-text-muted">Auto</span>
+      {/* The accessible name CONTAINS the visible label (WCAG 2.5.3), so voice
+          control saying "Auto" reaches this control. */}
+      <span id="auto-refresh-label" className="text-xs text-text-muted">
+        Auto
+      </span>
+      {/* Geometry copied from the three shipped switches
+          (`components/settings/NotificationsToggle.tsx` and friends), which are
+          identical to each other by deliberate decision. ui-context.md: "No
+          exceptions, and no per-screen variants." */}
       <button
         type="button"
         role="switch"
         aria-checked={on}
-        aria-label="Refresh this page every minute"
+        aria-labelledby="auto-refresh-label"
+        aria-label="Auto refresh, every minute"
         onClick={toggle}
-        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors duration-[var(--motion-base)] ease-motion ${
-          on ? "bg-accent-amber" : "border border-border-strong bg-bg-input"
+        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 ${
+          on ? "bg-accent-amber" : "bg-bg-input border border-border-strong"
         }`}
       >
+        {/* Knob: flex-centered vertically; travel is exact so the 4px inset is
+            equal on both ends (off → translate-x-1, on → translate-x-6). */}
         <span
-          className={`absolute top-1/2 size-3.5 -translate-y-1/2 rounded-full bg-accent-primary transition-[left] duration-[var(--motion-base)] ease-motion ${
-            on ? "left-[1.125rem]" : "left-0.5"
+          className={`pointer-events-none inline-block size-5 rounded-full bg-primary shadow-sm transition-transform duration-200 ${
+            on ? "translate-x-6" : "translate-x-1"
           }`}
         />
       </button>

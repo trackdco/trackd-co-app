@@ -147,6 +147,27 @@ export default async function AdminPage({
     (c) => ({ key: c.source, label: c.source, count: c.signups })
   )
 
+  /**
+   * The page's OWN three reads get the same treatment as the aggregate layer's.
+   *
+   * `getAdminMetrics` collects its failures and this page prints them — but these
+   * three queries live here, not in there, and were still doing `data ?? []`
+   * with the error dropped on the floor. That is precisely the pattern this work
+   * set out to remove, surviving one file away from where it was removed. If
+   * `v_waitlist_by_source` were never applied, or the `beta_feedback` founder
+   * policy drifted from `FOUNDER_EMAILS`, those cards would sit empty forever
+   * and look like "no data" rather than "broken".
+   */
+  const pageIssues = [
+    { label: "Waitlist emails", error: recentRes.error },
+    { label: "Feedback queue rows", error: feedbackRes.error },
+    { label: "Waitlist channels", error: bySourceRes.error },
+  ]
+    .filter((i) => i.error)
+    .map((i) => ({ label: i.label, detail: String(i.error?.message ?? "unknown error").slice(0, 200) }))
+
+  const issues = [...metrics.issues, ...pageIssues]
+
   const { users, usage, growth, billing, webhooks, push, compounds, inventory } = metrics
   const rangeLabel = range.label === "All" ? "all time" : `last ${range.label.toLowerCase()}`
 
@@ -175,6 +196,10 @@ export default async function AdminPage({
                 key={r.key}
                 href={`/admin?range=${r.key}`}
                 scroll={false}
+                // Without this a screen reader hears four identical links and
+                // cannot tell which range is showing — the selected state is
+                // otherwise carried by background colour alone.
+                aria-current={r.key === range.key ? "page" : undefined}
                 className={`rounded-full px-3 py-1 text-xs transition-colors ${
                   r.key === range.key
                     ? "bg-bg-surface-raised text-foreground"
@@ -189,8 +214,15 @@ export default async function AdminPage({
       </div>
 
       {/* Sticky section nav — the page is long enough to need one. */}
-      <nav className="sticky top-0 z-10 mt-6 border-b border-border-default bg-bg-base/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl gap-4 overflow-x-auto px-6 py-3">
+      <nav
+        aria-label="Dashboard sections"
+        className="sticky top-0 z-10 mt-6 border-b border-border-default bg-bg-base/90 backdrop-blur"
+      >
+        {/* Scrollbars are hidden app-wide, so on a phone the 13 items give no
+            hint that more exist past the edge. The right-hand mask does. */}
+        <div
+          className="mx-auto flex w-full max-w-6xl gap-4 overflow-x-auto px-6 py-3 [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] lg:[mask-image:none]"
+        >
           {NAV.map((n) => (
             <a
               key={n.id}
@@ -217,19 +249,21 @@ export default async function AdminPage({
 
         {/* A source that failed to read is SHOWN. The predecessor swallowed
             these, and hid a broken weight-logs query for over a month. */}
-        {metrics.issues.length > 0 && (
+        {issues.length > 0 && (
           <Card>
             <p className="font-medium text-admin-negative">
-              {metrics.issues.length} source
-              {metrics.issues.length === 1 ? "" : "s"} failed to read
+              {issues.length} source{issues.length === 1 ? "" : "s"} failed to read
             </p>
             <p className="mt-1.5 text-xs text-text-muted">
               The numbers below are missing whatever these would have contributed.
             </p>
+            {/* `text-text-muted`, not `text-text-subtle`. The whole point of
+                showing a failure is that it cannot hide, and subtle measures
+                1.92:1 against this surface. */}
             <div className="mt-3 space-y-1.5">
-              {metrics.issues.map((issue, i) => (
-                <p key={`${issue.label}-${i}`} className="font-mono text-[11px] text-text-subtle">
-                  <span className="text-text-muted">{issue.label}</span> — {issue.detail}
+              {issues.map((issue, i) => (
+                <p key={`${issue.label}-${i}`} className="font-mono text-[11px] text-text-muted">
+                  <span className="text-foreground">{issue.label}</span> · {issue.detail}
                 </p>
               ))}
             </div>
@@ -248,9 +282,14 @@ export default async function AdminPage({
               hint={`${billing.entitledAccounts.toLocaleString()} hold an entitlement`}
             />
           </StatGrid>
+          {/* The UTC caveat is stated rather than hidden. Days here start at
+              00:00 UTC, which is 10:00 in Sydney, so between local midnight and
+              10am "today" still means yesterday. Fixing that properly means
+              choosing a reporting timezone, which is a decision, not a tweak. */}
           <Note>
             Active = wrote something that period: a dose, weight, journal entry, photo
-            or compound. It does not count opening the app to look.
+            or compound. It does not count opening the app to look. Days start at
+            00:00 UTC, not local midnight.
           </Note>
         </Section>
 
@@ -322,7 +361,7 @@ export default async function AdminPage({
         <Section
           id="funnel"
           title="Onboarding funnel"
-          hint="All time, not the selected range — a funnel over a window would drop everyone who signed up before it."
+          hint="All time, not the selected range. A funnel over a window would drop everyone who signed up before it."
         >
           <Card>
             <Funnel steps={metrics.funnel} />
@@ -377,7 +416,7 @@ export default async function AdminPage({
         <Section
           id="revenue"
           title="Revenue"
-          hint="`subscriptions` mirrors Stripe; `entitlements` is what the app actually gates on. They are shown separately on purpose — if they disagree, that is the thing to see."
+          hint="`subscriptions` mirrors Stripe; `entitlements` is what the app actually gates on. They are shown separately on purpose: if they disagree, that is the thing to see."
         >
           <StatGrid>
             <Stat label="Active" value={billing.active} />
@@ -635,7 +674,7 @@ export default async function AdminPage({
         {/* ── 11. Feedback ────────────────────────────────────────────────── */}
         <Section
           id="feedback"
-          title={`Feedback${feedback.length > 0 ? ` · ${feedback.length}` : ""}`}
+          title={`Feedback${metrics.feedback.total > 0 ? ` · ${metrics.feedback.total}` : ""}`}
           action={
             feedback.length > 0 ? <ExportLink dataset="feedback" /> : undefined
           }
@@ -719,7 +758,7 @@ export default async function AdminPage({
         {/* ── 13. Email list — a reference list, so it sits last. ──────────── */}
         <Section
           id="emails"
-          title={`Emails${recent.length > 0 ? ` · ${recent.length}` : ""}`}
+          title={`Emails${growth.waitlistTotal > 0 ? ` · ${growth.waitlistTotal}` : ""}`}
           action={recent.length > 0 ? <ExportLink dataset="waitlist" /> : undefined}
         >
           {recent.length === 0 ? (
@@ -740,7 +779,12 @@ export default async function AdminPage({
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                     {r.email}
                   </span>
-                  <span className="shrink-0 text-xs text-text-muted">
+                  {/* `source` is arbitrary user-supplied text up to 120 chars,
+                      captured from `?ref=`. Left unbounded and `shrink-0` it
+                      pushed the row past its container, and the wrapper's
+                      `overflow-hidden` silently clipped the date column off
+                      the end. */}
+                  <span className="min-w-0 max-w-[10rem] shrink truncate text-xs text-text-muted">
                     {(r.source ?? "").trim() || "(direct)"}
                   </span>
                   <span className="shrink-0 font-mono text-xs tabular-nums text-text-subtle">

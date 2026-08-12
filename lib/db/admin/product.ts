@@ -8,7 +8,7 @@ import {
   labelFor,
 } from "@/lib/admin/labels"
 import { CATEGORY_META } from "@/lib/compound-categories"
-import { columnValues, distinctUsers, type AdminClient, type IssueLog } from "./core"
+import { columnValues, userIdSet, type AdminClient, type IssueLog } from "./core"
 
 /**
  * What people actually run, and which features they actually touch.
@@ -136,11 +136,14 @@ export async function inventoryMetrics(
 }
 
 /**
- * Which features have users, as a share of all accounts.
+ * Every surface a user can leave a trace on, and the column holding the user id.
  *
- * The point of this list is to find the DEAD ones. A feature sitting at 2%
- * adoption after a month is either undiscoverable or unwanted, and both of those
- * are worth knowing before building the next thing beside it.
+ * This list is the single source for THREE numbers that must agree with each
+ * other: feature adoption, the funnel's protocol and dose steps, and "never
+ * written". They used to come from two different lists — adoption from these 11
+ * tables, "never written" from activity's 5 — so an account whose only activity
+ * was bloodwork, inventory, stacks, blocks or markers appeared in the adoption
+ * chart AND in "accounts that have logged nothing, ever", on the same page.
  *
  * Note the user column per feature — `weight_logs` keys on `profile_id`, not
  * `user_id`. See `activity.ts` for what assuming otherwise already cost.
@@ -165,19 +168,47 @@ export interface FeatureAdoption {
   pct: number | null
 }
 
-export async function featureAdoption(
+/** The distinct user ids behind each feature. Read ONCE, reused three ways. */
+export type FeatureSets = Map<string, Set<string>>
+
+/**
+ * Who has touched each feature.
+ *
+ * Returns the id SETS rather than counts because the callers need set maths:
+ * adoption wants sizes, the funnel wants intersections, and "never written"
+ * wants the union subtracted from all accounts. Reading each table once and
+ * sharing the result is also what stopped `dose_logs` and `protocol_compounds`
+ * being read all-time twice per page render.
+ *
+ * The sets stay INSIDE `lib/db/admin/`. Nothing here is returned to the page —
+ * see the invariant in `core.ts`.
+ */
+export async function featureUserSets(
   supabase: AdminClient,
-  totalAccounts: number,
   issues: IssueLog
-): Promise<FeatureAdoption[]> {
-  const counts = await Promise.all(
+): Promise<FeatureSets> {
+  const sets = await Promise.all(
     FEATURES.map(({ label, table, column }) =>
-      distinctUsers(supabase, table, column, issues, `${label} adoption`)
+      userIdSet(supabase, table, column, issues, `${label} adoption`)
     )
   )
-  return FEATURES.map((f, i) => ({
-    label: f.label,
-    users: counts[i],
-    pct: percent(counts[i], totalAccounts),
-  })).sort((a, b) => b.users - a.users)
+  return new Map(FEATURES.map((f, i) => [f.label, sets[i]]))
+}
+
+/** Feature adoption as a share of all accounts, ranked. */
+export function featureAdoption(
+  sets: FeatureSets,
+  totalAccounts: number
+): FeatureAdoption[] {
+  return FEATURES.map((f) => {
+    const users = sets.get(f.label)?.size ?? 0
+    return { label: f.label, users, pct: percent(users, totalAccounts) }
+  }).sort((a, b) => b.users - a.users)
+}
+
+/** Every account that has left a trace on ANY feature surface. */
+export function everTouchedAnything(sets: FeatureSets): Set<string> {
+  const all = new Set<string>()
+  for (const set of sets.values()) for (const id of set) all.add(id)
+  return all
 }

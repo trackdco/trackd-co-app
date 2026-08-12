@@ -198,51 +198,48 @@ export async function columnValues<T>(
   columns: string,
   issues: IssueLog,
   label: string,
-  refine?: Refine
+  refine?: Refine,
+  /**
+   * This read is a DELIBERATE sample (e.g. "the most recent 500 events"), so
+   * returning fewer rows than exist is the intent rather than a fault. Suppresses
+   * the truncation issue only; a query error is still reported.
+   */
+  sample = false
 ): Promise<T[]> {
-  let query = supabase.from(table).select(columns).limit(ROW_CAP) as unknown as AdminQuery
+  // `count: "exact"` returns the TOTAL matching rows in `Content-Range`,
+  // independent of whatever limit actually applied. That is what makes the
+  // truncation check below trustworthy.
+  let query = supabase
+    .from(table)
+    .select(columns, { count: "exact" })
+    .limit(ROW_CAP) as unknown as AdminQuery
   if (refine) query = refine(query)
-  const { data, error } = await run<T>(query)
+  const { data, count, error } = await run<T>(query)
   if (issues.record(label, error)) return []
   const rows = data ?? []
-  if (rows.length >= ROW_CAP) {
+
+  /**
+   * TRUNCATION IS DETECTED AGAINST THE SERVER'S COUNT, NOT AGAINST `ROW_CAP`.
+   *
+   * The obvious check — `rows.length >= ROW_CAP` — cannot see the failure it is
+   * meant to catch. PostgREST applies its OWN `max-rows` ceiling on top of the
+   * client limit, and Supabase's hosted default for that is 1,000. With a
+   * client limit of 20,000 and a server ceiling of 1,000, every read would
+   * silently return 1,000 rows, `rows.length >= 20000` would be false, and the
+   * dashboard would report confidently wrong numbers with no issue raised —
+   * exactly the class of failure this module exists to prevent.
+   *
+   * Comparing against `count` catches truncation from ANY source: the client
+   * limit, the server ceiling, or a `refine` that set its own smaller limit.
+   * A deliberate sample passes `sample: true` and is exempt, because "I asked
+   * for 500 and got 500" is not a fault.
+   */
+  if (!sample && typeof count === "number" && count > rows.length) {
     issues.record(label, {
-      message: `read hit the ${ROW_CAP.toLocaleString()}-row cap — this number is a floor, not a total`,
+      message: `read ${rows.length.toLocaleString()} of ${count.toLocaleString()} rows — this figure is a floor, not a total`,
     })
   }
   return rows
-}
-
-/**
- * How many DISTINCT users appear in a table.
- *
- * The ids are counted into a Set and dropped here; only the size is returned.
- * `column` is a parameter because the schema is not consistent — `weight_logs`
- * keys on `profile_id` while everything else keys on `user_id`, and hardcoding
- * `user_id` is exactly the bug this signature prevents from recurring.
- */
-export async function distinctUsers(
-  supabase: AdminClient,
-  table: string,
-  column: string,
-  issues: IssueLog,
-  label: string,
-  refine?: Refine
-): Promise<number> {
-  const rows = await columnValues<Record<string, string | null>>(
-    supabase,
-    table,
-    column,
-    issues,
-    label,
-    refine
-  )
-  const seen = new Set<string>()
-  for (const row of rows) {
-    const id = row?.[column]
-    if (id) seen.add(id)
-  }
-  return seen.size
 }
 
 /** The set of distinct user ids in a table — for cross-table set maths only. */

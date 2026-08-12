@@ -1,6 +1,7 @@
 import "server-only"
 
 import { tally, type Tally } from "@/lib/admin/aggregate"
+import { isEntitlementActive } from "@/lib/billing/access"
 import { columnValues, countRows, daysAgo, type AdminClient, type IssueLog } from "./core"
 
 /**
@@ -37,13 +38,21 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 export interface BillingMetrics {
-  /** Subscription rows by Stripe status, ranked. */
+  /** Subscription ROWS by Stripe status, ranked. */
   byStatus: Tally[]
-  /** Currently `trialing`. */
-  trialing: number
-  /** Currently `active`. */
+  /** ACCOUNTS with an `active` subscription. */
   active: number
-  /** Paying OR trialing — the number that matters for "is this working". */
+  /** ACCOUNTS with a `trialing` subscription. */
+  trialing: number
+  /**
+   * ACCOUNTS paying or trialing — the number that matters for "is this working".
+   *
+   * Counted as distinct `user_id`s, not rows. `subscriptions` has `id` as its
+   * primary key with `user_id` merely indexed, so one account can hold several
+   * rows (a resubscribe after a cancellation is the ordinary case). This number
+   * sits in the Overview grid beside "Accounts", where it reads as a count of
+   * people — so it has to be one.
+   */
   live: number
   /** Set to end at the period boundary: churn that has not landed yet. */
   cancelling: number
@@ -66,20 +75,27 @@ export async function billingMetrics(
 
   const [subRows, entRows, customers] = await Promise.all([
     columnValues<{
+      user_id: string | null
       status: string | null
       cancel_at_period_end: boolean | null
       trial_ends_at: string | null
     }>(
       supabase,
       "subscriptions",
-      "status, cancel_at_period_end, trial_ends_at",
+      "user_id, status, cancel_at_period_end, trial_ends_at",
       issues,
       "Subscriptions"
     ),
-    columnValues<{ source: string | null; user_id: string | null; is_active: boolean | null }>(
+    // `active_until` is not decoration — see the filter below.
+    columnValues<{
+      source: string | null
+      user_id: string | null
+      is_active: boolean | null
+      active_until: string | null
+    }>(
       supabase,
       "entitlements",
-      "source, user_id, is_active",
+      "source, user_id, is_active, active_until",
       issues,
       "Entitlements",
       (q) => q.eq("is_active", true)
@@ -91,11 +107,17 @@ export async function billingMetrics(
     subRows.map((r) => r.status),
     (k) => STATUS_LABELS[k] ?? k
   )
-  const countOf = (status: string) =>
-    subRows.filter((r) => r.status === status).length
+  /** Distinct ACCOUNTS holding a subscription in any of these statuses. */
+  const accountsWith = (...statuses: string[]) =>
+    new Set(
+      subRows
+        .filter((r) => r.status && statuses.includes(r.status))
+        .map((r) => r.user_id)
+        .filter((id): id is string => Boolean(id))
+    ).size
 
-  const trialing = countOf("trialing")
-  const active = countOf("active")
+  const trialing = accountsWith("trialing")
+  const active = accountsWith("active")
 
   const nowMs = Date.now()
   const soonMs = soon.getTime()
@@ -111,19 +133,45 @@ export async function billingMetrics(
     (r) => r.cancel_at_period_end === true && (r.status === "active" || r.status === "trialing")
   ).length
 
+  /**
+   * `is_active` ALONE IS NOT ENTITLEMENT, and reading it as if it were made this
+   * number monotonically increasing.
+   *
+   * `lib/billing/sync.ts` deliberately leaves `is_active = true` on cancellation
+   * and lets `active_until` lapse naturally, so the user keeps what they paid
+   * for to the end of the period. That means a row belonging to someone who
+   * cancelled in June still has `is_active = true` today. Filtering on it alone
+   * counted every user who has EVER been entitled, forever, under a heading that
+   * says "Accounts with access".
+   *
+   * `isEntitlementActive` is the app's own gate (`lib/billing/access.ts`) — the
+   * exact function `hasProAccess()` uses. Importing it rather than restating the
+   * rule is the point: a dashboard that computes access differently from the
+   * product is a dashboard that disagrees with the product.
+   */
+  const now = new Date()
+  const liveEntitlements = entRows.filter((r) =>
+    isEntitlementActive(
+      { isActive: r.is_active ?? false, activeUntil: r.active_until },
+      now
+    )
+  )
+
   const entitledAccounts = new Set(
-    entRows.map((r) => r.user_id).filter((id): id is string => Boolean(id))
+    liveEntitlements.map((r) => r.user_id).filter((id): id is string => Boolean(id))
   ).size
 
   return {
     byStatus,
     trialing,
     active,
-    live: trialing + active,
+    // NOT `trialing + active`: one account can hold both (a trial row left
+    // behind by a resubscribe), and adding the two would double-count them.
+    live: accountsWith("trialing", "active"),
     cancelling,
     trialsEndingSoon,
     entitlementsBySource: tally(
-      entRows.map((r) => r.source),
+      liveEntitlements.map((r) => r.source),
       (k) => SOURCE_LABELS[k] ?? k
     ),
     entitledAccounts,
@@ -170,7 +218,8 @@ export async function webhookHealth(
       "type, received_at",
       issues,
       "Webhook types",
-      (q) => q.order("received_at", { ascending: false }).limit(500)
+      (q) => q.order("received_at", { ascending: false }).limit(500),
+      true // a deliberate sample: the most recent 500, not every event ever
     ),
   ])
 
