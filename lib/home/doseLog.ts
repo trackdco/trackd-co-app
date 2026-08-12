@@ -355,10 +355,28 @@ const SYNCED_EVENT = "trackd:dose-synced"
 let pendingDoseWrites = 0
 let anyDoseWriteLanded = false
 
+/**
+ * A write that never settles must not disarm the signal for the whole session.
+ *
+ * The count only falls when a promise resolves or rejects, and a Server Action
+ * fetch has no client timeout anywhere — one stalled across an iOS Safari
+ * suspend would pin the count above zero forever, and `notifySynced` would never
+ * fire again. That is exactly the stale-stock bug this mechanism exists to fix,
+ * coming back silently and permanently. So each write is given a deadline, after
+ * which it is counted as settled-and-not-landed. Generous: this is a backstop
+ * against a hang, not a latency budget. (Second cold review, 2026-08-12.)
+ */
+const DOSE_WRITE_TIMEOUT_MS = 30_000
+
 /** Register a dose write and fire the signal when the last one settles. */
 function trackDoseWrite(op: Promise<{ ok: boolean; skipped?: boolean }>): void {
   pendingDoseWrites += 1
+  let done = false
   const settle = (landed: boolean) => {
+    // The watchdog and the promise race; whichever is first owns the decrement.
+    if (done) return
+    done = true
+    clearTimeout(watchdog)
     if (landed) anyDoseWriteLanded = true
     pendingDoseWrites = Math.max(0, pendingDoseWrites - 1)
     if (pendingDoseWrites > 0) return
@@ -369,6 +387,7 @@ function trackDoseWrite(op: Promise<{ ok: boolean; skipped?: boolean }>): void {
     // nothing and, offline, issues a request that cannot succeed.
     if (landedAny) notifySynced()
   }
+  const watchdog = setTimeout(() => settle(false), DOSE_WRITE_TIMEOUT_MS)
   // Both arms, or a rejected write leaks the count and the signal never fires
   // again for the rest of the session.
   void op.then(
@@ -514,7 +533,12 @@ export function unlogDose(
     if (mirrorRes.ok && res.ok && !res.skipped) {
       clearTombstone(userId, dateKey, compoundId, slot)
     }
-    return res
+    // REPORT both too. Returning the canonical result alone still told
+    // `trackSync` the un-log had succeeded when only half of it had, so the
+    // "didn't sync" notice stayed silent about a mirror row that will resurrect
+    // the dose on the next pull. `skipped` stays the canonical write's, since
+    // that is the one that legitimately no-ops for a custom compound.
+    return { ok: mirrorRes.ok && res.ok, skipped: res.skipped }
   })
   void trackCriticalSync(op)
   // An un-log GIVES the vial its dose back, so the same re-read is owed here as

@@ -59,11 +59,13 @@ export function StockActionsSheet({
   // "vial" throughout — so discarding a tub of creatine offered to discard a
   // vial, and the header priced its 1 kg in millilitres (Adrian, 2026-08-12).
   //
-  // The STOCK ROW's own form wins when there is one. It is a fact about the
-  // container being acted on, where `inventoryTypeForCompound` is an inference
-  // from the catalogue — and the two disagree for an off-catalogue supplement
-  // taken by mouth, where `isScoopedPowder` answers "tub" for any name it cannot
-  // resolve. That sheet read "60 caps left … Discard this tub?".
+  // Everything the STOCK ROW knows is preferred over what the catalogue infers.
+  // Its `totalAmountUnit` is what actually fixes "60 caps left … Discard this
+  // tub?": both sides agreed on `oral_solid` there, and the tub came from
+  // `isScoopedPowder` further down, which answers TRUE for any name it cannot
+  // resolve. A stored tab/cap count is the evidence that settles it — see
+  // `containerNoun`. Preferring the row's `inventoryType` matters separately,
+  // for a compound stocked in a form the catalogue does not expect.
   const noun = compound
     ? containerNoun({
         inventoryType:
@@ -73,6 +75,7 @@ export function StockActionsSheet({
             compound.method,
             compound.inventoryForm,
           ),
+        totalAmountUnit: stock?.totalAmountUnit,
         category: compound.category,
         name: compound.name,
       })

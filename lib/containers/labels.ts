@@ -2,7 +2,7 @@
  * How a container is WORDED — the noun it is called by ("vial" / "bottle" /
  * "tub") and the amount-left line ("8.5 mL left", "60 caps left", "1 kg left").
  *
- * This exists because the wording was written six times and got it right twice.
+ * This exists because the wording was written seven times and got it right twice.
  * `CompoundStorageCard` and `ProtocolScreen` both branched on `inventory_type`
  * correctly; `StockActionsSheet` and `LogDoseSheet` did not, and said "1000 mL
  * left" for a tub of creatine — a unit the thing has never been measured in.
@@ -13,10 +13,16 @@
  *
  * **The noun is not a new taxonomy.** {@link containerFormFor} already answers
  * "which container is this" for the ARTWORK, and its three answers are already
- * the three English nouns. Wording therefore reads the same function the picture
- * does, so a compound can never be drawn as a tub and described as a vial in the
- * same row. Do not add a second mapping here — if the noun is wrong, the
- * container is wrong, and the fix belongs in `form.ts`.
+ * the three English nouns, so the wording reads the same function the picture
+ * does. Do not add a second mapping here: if the noun is wrong, the container is
+ * wrong, and the fix belongs in `form.ts`.
+ *
+ * The ONE exception is documented on {@link containerNoun} — a stored tab/cap
+ * count overrules the form for an oral, because `form.ts` has a known,
+ * deliberately-unfixed gap there and this module was otherwise contradicting
+ * itself inside a single line of UI ("From tub · 60 caps left"). It is an
+ * override on EVIDENCE the caller holds, not a parallel taxonomy, and it only
+ * ever moves a wrongly-scooped oral to "bottle".
  *
  * Pure helpers; no React, no side effects (code-standards.md).
  */
@@ -31,18 +37,48 @@ import { formatGrams } from "@/lib/protocol/vialFill"
  * What to CALL this compound's container, mid-sentence: "vial", "bottle" or
  * "tub".
  *
- * A thin, deliberately-named alias over {@link containerFormFor} — the form
- * values are already the nouns, and naming the call site's intent is what stops
- * the next person hand-rolling `inventoryType === "bulk_powder" ? "tub" : …` for
- * the seventh time.
+ * Almost always {@link containerFormFor}, whose values are already the nouns —
+ * naming the call site's intent is what stops the next person hand-rolling
+ * `inventoryType === "bulk_powder" ? "tub" : …` for the eighth time. The single
+ * override below is the exception, and it is evidence-driven.
+ *
+ * **Pass the stock row's fields whenever you have them.** A caller holding a
+ * real `inventory_items` row knows what the container IS; one holding only a
+ * compound is asking the catalogue to guess.
  */
-export function containerNoun(input: ContainerFormInput): ContainerForm {
+export function containerNoun(input: NounInput): ContainerForm {
+  // A COUNT is proof the thing is counted out, not scooped, and it beats the
+  // inference — because that inference is knowingly wrong here.
+  // `containerFormFor` sends an `oral_solid` supplement to `isScoopedPowder`,
+  // which answers TRUE for any name the catalogue cannot resolve, so every
+  // off-catalogue oral supplement is called a tub. With `remainingLabel` reading
+  // the same row's `tab`/`capsule` and correctly saying "caps", this module
+  // contradicted itself in a single line of UI: "From tub · 60 caps left".
+  //
+  // The gap is documented in `form.ts` and deliberately not fixed there — its
+  // blast radius is every container drawn for a custom supplement. Fixing it
+  // HERE is safe and narrow: it needs evidence the caller already has, and it
+  // only ever moves a wrongly-scooped oral to "bottle".
+  if (
+    input.inventoryType === "oral_solid" &&
+    (input.totalAmountUnit === "tab" || input.totalAmountUnit === "capsule")
+  ) {
+    return "bottle"
+  }
   return containerFormFor(input)
+}
+
+/** {@link ContainerFormInput} plus the stored count unit, when the caller has a
+ *  stock row to read it from. */
+export interface NounInput extends ContainerFormInput {
+  /** `tab` or `capsule` from `inventory_items.total_amount_unit`. Its presence is
+   *  evidence the container is counted out — see {@link containerNoun}. */
+  totalAmountUnit?: string | null
 }
 
 /** The same noun, capitalised, for a standalone value or the start of a
  *  sentence: "Vial", "Bottle", "Tub". */
-export function containerNounTitle(input: ContainerFormInput): string {
+export function containerNounTitle(input: NounInput): string {
   const noun = containerNoun(input)
   return noun.charAt(0).toUpperCase() + noun.slice(1)
 }

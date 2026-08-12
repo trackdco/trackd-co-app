@@ -14,7 +14,7 @@ import {
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
 import { isInventoryForm, isStockableForm } from "@/lib/containers/form"
 import { containerNoun } from "@/lib/containers/labels"
-import { powderUnitsFor, resolvePowderUnit } from "@/lib/protocol/stockUnits"
+import { needsIuFromMgHint, powderUnitsFor, resolvePowderUnit } from "@/lib/protocol/stockUnits"
 import { Input } from "@/components/ui/input"
 import { addStockItem, type StockInsert } from "@/lib/db/inventory"
 import type { InventoryType } from "@/lib/db/types"
@@ -682,6 +682,16 @@ function AddCompoundBody({
   // ADD, so there is no existing row's unit to preserve.
   const stPowderUnits = powderUnitsFor(source.name, { doseUnit: unit })
   const stPowderUnitToSave = resolvePowderUnit(stPowderUnit, stPowderUnits)
+  // The oral strength writes the SAME `base_unit` column under the same DB
+  // trigger — see `AddStockSheet`. Left free, a Vitamin D3 bottle defaulted to
+  // `mg` against an iu dose and could not be saved at all.
+  const stStrengthUnits = stPowderUnits
+  const stStrengthUnitToSave = resolvePowderUnit(stStrengthUnit, stStrengthUnits)
+  /** An iu-dosed oral must state a strength: the strengthless form stores the
+   *  tablet as the base unit, which cannot pair with an iu dose. */
+  const stStrengthRequired =
+    stStrengthUnits.length === 1 && stStrengthUnits[0] === "iu"
+  const showStIuFromMgHint = needsIuFromMgHint(source.name, stPowderUnits)
 
   function buildStockInsert():
     | Omit<StockInsert, "id" | "protocol_compound_id">
@@ -728,8 +738,10 @@ function AddCompoundBody({
     if (stockType === "oral_solid") {
       if (n(stCount) <= 0) return null
       // No stated strength: the tablet is the unit (`supabase/protocol/016`).
-      // A complete item, not a half-filled form.
-      if (n(stStrength) <= 0) {
+      // A complete item, not a half-filled form — but NOT available to an
+      // iu-dosed compound, whose `base_unit` would then be `tab` and be
+      // rejected by the DB trigger. See `stStrengthRequired`.
+      if (n(stStrength) <= 0 && !stStrengthRequired) {
         return {
           inventory_type: "oral_solid",
           base_unit: stOralForm,
@@ -741,7 +753,7 @@ function AddCompoundBody({
       }
       return {
         inventory_type: "oral_solid",
-        base_unit: stStrengthUnit,
+        base_unit: stStrengthUnitToSave,
         total_amount: n(stCount),
         total_amount_unit: stOralForm,
         strength_per_unit: n(stStrength),
@@ -777,7 +789,12 @@ function AddCompoundBody({
       // error. Typing a strength and no count is the half-filled case.
       const started = stCount.trim() !== "" || stStrength.trim() !== ""
       if (started && buildStockInsert() === null) {
-        return "Enter how many are in the bottle, or clear this."
+        // An iu-dosed oral has a SECOND way to be incomplete, and saying "how
+        // many are in the bottle" when the count is already filled in would send
+        // the user to the wrong field.
+        return stStrengthRequired && amt(stStrength) <= 0
+          ? `Enter the strength of one ${stOralForm === "tab" ? "tablet" : "capsule"} — ${source.name} is dosed in iu.`
+          : "Enter how many are in the bottle, or clear this."
       }
     }
     if (stockType === "bulk_powder") {
@@ -1631,7 +1648,7 @@ function AddCompoundBody({
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>Powder in vial</span>
                       <div className="flex items-center gap-1.5">
-                        <Input inputMode="decimal" value={stPowder} onChange={(e) => setStPowder(sanitizeDoseInput(e.target.value))} placeholder="5" className={cn(STOCK_FIELD, "flex-1")} />
+                        <Input inputMode="decimal" value={stPowder} onChange={(e) => setStPowder(sanitizeDoseInput(e.target.value))} placeholder={stPowderUnits[0] === "iu" ? "5000" : "5"} className={cn(STOCK_FIELD, "flex-1")} />
                         {/* One unit ⇒ state it rather than ask. */}
                         {stPowderUnits.length === 1 ? (
                           <span className="shrink-0 text-sm text-text-muted">{stPowderUnits[0]}</span>
@@ -1643,6 +1660,13 @@ function AddCompoundBody({
                           </div>
                         )}
                       </div>
+                      {/* HGH is dosed in iu and sold in mg — see
+                          `needsIuFromMgHint`. */}
+                      {showStIuFromMgHint && (
+                        <p className="mt-1 text-xs text-text-subtle">
+                          Boxes often state mg — 1 mg is about 3 iu.
+                        </p>
+                      )}
                     </label>
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>BAC water (mL)</span>
@@ -1677,15 +1701,26 @@ function AddCompoundBody({
                     <label className="block">
                       {/* Optional, and not always mg — see `supabase/protocol/016`. */}
                       <span className={STOCK_FIELD_LABEL}>Strength each</span>
-                      <div className="flex gap-1.5">
-                        <Input inputMode="decimal" value={stStrength} onChange={(e) => setStStrength(sanitizeDoseInput(e.target.value))} placeholder="optional" className={cn(STOCK_FIELD, "flex-1")} />
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => setStStrengthUnit("mg")} className={cn(STOCK_PILL, stStrengthUnit === "mg" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>mg</button>
-                          <button type="button" onClick={() => setStStrengthUnit("iu")} className={cn(STOCK_PILL, stStrengthUnit === "iu" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>iu</button>
-                        </div>
+                      <div className="flex items-center gap-1.5">
+                        <Input inputMode="decimal" value={stStrength} onChange={(e) => setStStrength(sanitizeDoseInput(e.target.value))} placeholder={stStrengthRequired ? "5000" : "optional"} className={cn(STOCK_FIELD, "flex-1")} />
+                        {stStrengthUnits.length === 1 ? (
+                          <span className="shrink-0 text-sm text-text-muted">{stStrengthUnits[0]}</span>
+                        ) : (
+                          <div className="flex gap-1">
+                            {stStrengthUnits.map((u) => (
+                              <button key={u} type="button" onClick={() => setStStrengthUnit(u)} className={cn(STOCK_PILL, stStrengthUnit === u ? STOCK_PILL_ON : STOCK_PILL_OFF)}>{u}</button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </label>
                   </div>
+                )}
+                {stStrengthRequired && amt(stStrength) <= 0 && amt(stCount) > 0 && (
+                  <p className="text-xs text-text-subtle">
+                    {source.name} is dosed in iu, so state the strength of one{" "}
+                    {stOralForm === "tab" ? "tablet" : "capsule"}.
+                  </p>
                 )}
                 {stockType === "bulk_powder" && (
                   <div className="grid grid-cols-2 gap-2">

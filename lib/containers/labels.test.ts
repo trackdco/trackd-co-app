@@ -29,6 +29,51 @@ describe("containerNoun", () => {
       .toBe("bottle")
   })
 
+  it("calls a counted oral a BOTTLE even when the catalogue cannot place it", () => {
+    // `containerFormFor` sends an unresolvable oral supplement to
+    // `isScoopedPowder`, which answers "tub" for any name it does not know — so
+    // this module said "tub" while `remainingLabel` said "caps", in one line of
+    // UI. A stored tab/cap count is the evidence that settles it.
+    expect(
+      containerNoun({
+        inventoryType: "oral_solid",
+        category: "supplement",
+        name: "My Own Greens",
+        totalAmountUnit: "capsule",
+      }),
+    ).toBe("bottle")
+    expect(
+      containerNoun({
+        inventoryType: "oral_solid",
+        category: "supplement",
+        name: "My Own Greens",
+        totalAmountUnit: "tab",
+      }),
+    ).toBe("bottle")
+  })
+
+  it("agrees with remainingLabel for that compound — the contradiction", () => {
+    const row = {
+      inventoryType: "oral_solid",
+      totalAmountUnit: "capsule",
+      remainingDisplay: 60,
+      category: "supplement",
+      name: "My Own Greens",
+    }
+    expect(containerNoun(row)).toBe("bottle")
+    expect(remainingLabel(row)).toBe("60 caps left")
+  })
+
+  it("still scoops a genuine powder with no count unit", () => {
+    expect(
+      containerNoun({
+        inventoryType: "bulk_powder",
+        category: "supplement",
+        name: "My Own Greens",
+      }),
+    ).toBe("tub")
+  })
+
   it("capitalises for a standalone value", () => {
     expect(containerNounTitle({ inventoryType: "bulk_powder", name: "Creatine Monohydrate" })).toBe("Tub")
     expect(containerNounTitle({ inventoryType: "reconstituted", name: "BPC-157" })).toBe("Vial")

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   catalogueDoseUnit,
+  needsIuFromMgHint,
   powderUnitsFor,
   resolvePowderUnit,
 } from "@/lib/protocol/stockUnits"
@@ -105,5 +106,57 @@ describe("catalogueDoseUnit", () => {
 
   it("is null off-catalogue", () => {
     expect(catalogueDoseUnit("My Own Blend")).toBeNull()
+  })
+})
+
+/**
+ * The oral strength field writes the SAME `base_unit` column under the same DB
+ * trigger, and fixing only the powder field left Vitamin D3 unsavable: dosed in
+ * iu, `mg` pre-selected, `unit_family_compatible('mg','iu')` false, so the
+ * insert was rejected with a message the user could do nothing about.
+ */
+describe("the oral strength unit — the same column", () => {
+  it("offers iu alone for the iu-dosed vitamins", () => {
+    expect(powderUnitsFor("Vitamin D3", { doseUnit: "iu" })).toEqual(["iu"])
+    expect(powderUnitsFor("Vitamin A", { doseUnit: "iu" })).toEqual(["iu"])
+    expect(powderUnitsFor("Vitamin E", { doseUnit: "iu" })).toEqual(["iu"])
+  })
+
+  it("resolves a stale mg selection onto iu, so the save is never rejected", () => {
+    expect(resolvePowderUnit("mg", powderUnitsFor("Vitamin D3"))).toBe("iu")
+  })
+
+  it("leaves mg-dosed orals alone", () => {
+    expect(powderUnitsFor("Vitamin C", { doseUnit: "mg" })).toEqual(["mg"])
+  })
+})
+
+describe("units that no vial can supply", () => {
+  it("never offers a unit that could not link", () => {
+    // A `g`-dosed compound stocked as reconstituted is already broken; the point
+    // is that the offer is derived from the shared family rule rather than a
+    // hand-rolled `=== "iu"`, which answered `mg` here and called it valid.
+    for (const dose of ["g", "tab", "capsule", "ml", ""]) {
+      const offered = powderUnitsFor("Whatever", { doseUnit: dose })
+      expect(offered).toHaveLength(1)
+      expect(["mg", "iu"]).toContain(offered[0])
+    }
+  })
+})
+
+describe("needsIuFromMgHint", () => {
+  it("warns on HGH, which is dosed in iu and sold in mg", () => {
+    expect(needsIuFromMgHint("Somatropin (HGH)", ["iu"])).toBe(true)
+  })
+
+  it("stays quiet for HCG and hMG, whose boxes state iu", () => {
+    expect(needsIuFromMgHint("HCG", ["iu"])).toBe(false)
+    expect(needsIuFromMgHint("hMG", ["iu"])).toBe(false)
+  })
+
+  it("stays quiet wherever mg is the offer anyway", () => {
+    expect(needsIuFromMgHint("BPC-157", ["mg"])).toBe(false)
+    expect(needsIuFromMgHint("Somatropin (HGH)", ["mg", "iu"])).toBe(false)
+    expect(needsIuFromMgHint(null, ["iu"])).toBe(false)
   })
 })

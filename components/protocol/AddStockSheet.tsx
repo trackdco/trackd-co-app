@@ -35,7 +35,7 @@ import {
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { isInventoryForm } from "@/lib/containers/form"
 import { containerNoun } from "@/lib/containers/labels"
-import { powderUnitsFor, resolvePowderUnit } from "@/lib/protocol/stockUnits"
+import { needsIuFromMgHint, powderUnitsFor, resolvePowderUnit } from "@/lib/protocol/stockUnits"
 import { routesOf } from "@/lib/compound-categories"
 import { todayKey } from "@/lib/protocol/cycle"
 import { resolveFill, vialBasis, FILL_PRESETS, round3, formatGrams } from "@/lib/protocol/vialFill"
@@ -445,7 +445,12 @@ function AddStockForm({
     // becomes the tab/cap itself and there is no strength to store
     // (`supabase/protocol/016`). This is a complete, valid item — a multivitamin
     // — not a half-filled form, which is why it returns rather than nulling.
-    if (num(strength) <= 0) {
+    //
+    // NOT available to a compound dosed in `iu`, though: `base_unit` would be
+    // `tab`, and `unit_family_compatible('tab','iu')` is false, so the DB
+    // trigger rejects the row. `strengthRequired` says so on the form instead of
+    // letting the save fail with a message the user can do nothing about.
+    if (num(strength) <= 0 && !strengthRequired) {
       return {
         ...base,
         inventory_type: "oral_solid",
@@ -460,8 +465,12 @@ function AddStockForm({
       ...base,
       inventory_type: "oral_solid",
       // The base is the unit the STRENGTH is in, which is what the dose will be
-      // logged in — mg for vitamin C, iu for vitamin D.
-      base_unit: strengthUnit,
+      // logged in — mg for vitamin C, iu for vitamin D. Resolved against what is
+      // on offer for the same reason the powder field is: this column is
+      // constrained against the compound's dose unit by a DB trigger, and a
+      // mismatch is not a soft failure but a 23514 the sheet can only report as
+      // "Couldn't save this stock."
+      base_unit: strengthUnitToSave,
       total_amount: num(count),
       total_amount_unit: oralForm as DoseUnit,
       strength_per_unit: num(strength),
@@ -510,6 +519,26 @@ function AddStockForm({
    * would log cleanly and the vial would never go down. See `stockUnits.ts`.
    */
   const powderUnitToSave = resolvePowderUnit(powderUnit, powderUnits)
+  /**
+   * The SAME narrowing for the oral strength's unit, which writes the same
+   * `base_unit` column and is guarded by the same DB trigger.
+   *
+   * Fixing only the powder field left this one a free `mg | iu` toggle
+   * defaulting to `mg` — so a bottle of **Vitamin D3** (dosed in iu, and its
+   * dose unit is not even selectable) hit `unit_family_compatible('mg','iu')`
+   * = false and could not be saved AT ALL. The sheet reported "Couldn't save
+   * this stock. Please try again.", which would have failed identically
+   * forever. Same for Vitamin A and Vitamin E. (Second cold review, 2026-08-12.)
+   */
+  const strengthUnits = powderUnitsFor(selected?.name, {
+    doseUnit: selected?.unit,
+    storedUnit: ei?.baseUnit,
+  })
+  const strengthUnitToSave = resolvePowderUnit(strengthUnit, strengthUnits)
+  /** An iu-dosed oral MUST state a strength — the strengthless form stores the
+   *  tablet as the base unit, which cannot pair with an iu dose. */
+  const strengthRequired = strengthUnits.length === 1 && strengthUnits[0] === "iu"
+  const showIuFromMgHint = needsIuFromMgHint(selected?.name, powderUnits)
 
   const insert = buildInsert()
   const allowedForms = formsForId(compoundId)
@@ -721,7 +750,7 @@ function AddStockForm({
                 <label className="block">
                   <span className={STOCK_FIELD_LABEL}>Powder</span>
                   <div className="flex items-center gap-2">
-                    <Input value={powder} onChange={(e) => setPowder(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 5"  className={STOCK_FIELD} />
+                    <Input value={powder} onChange={(e) => setPowder(clean(e.target.value))} inputMode="decimal" placeholder={powderUnits[0] === "iu" ? "e.g. 5000" : "e.g. 5"}  className={STOCK_FIELD} />
                     {/* One unit ⇒ state it, don't ask. A toggle with nothing to
                         toggle to is a question about a compound the user has
                         already named. */}
@@ -735,6 +764,15 @@ function AddStockForm({
                       </div>
                     )}
                   </div>
+                  {/* HGH is dosed in iu and SOLD in mg — see `needsIuFromMgHint`.
+                      Without this the user types the number off the box into a
+                      field measuring something else, and is wrong by 3× in the
+                      fill gauge, the runway and the low-stock reminder. */}
+                  {showIuFromMgHint && (
+                    <p className="mt-1 text-xs text-text-subtle">
+                      Boxes often state mg — 1 mg is about 3 iu.
+                    </p>
+                  )}
                 </label>
                 <label className="block">
                   <span className={STOCK_FIELD_LABEL}>BAC water (mL)</span>
@@ -782,19 +820,28 @@ function AddStockForm({
                         5000 iu vitamin D tablet could not be stored at all
                         before `supabase/protocol/016`. */}
                     <span className={STOCK_FIELD_LABEL}>Strength each</span>
-                    <div className="flex gap-2">
-                      <Input value={strength} onChange={(e) => setStrength(clean(e.target.value))} inputMode="decimal" placeholder="optional"  className={STOCK_FIELD} />
-                      <div className="flex gap-1">
-                        <button type="button" onClick={() => setStrengthUnit("mg")} className={pill(strengthUnit === "mg")}>mg</button>
-                        <button type="button" onClick={() => setStrengthUnit("iu")} className={pill(strengthUnit === "iu")}>iu</button>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <Input value={strength} onChange={(e) => setStrength(clean(e.target.value))} inputMode="decimal" placeholder={strengthRequired ? "e.g. 5000" : "optional"}  className={STOCK_FIELD} />
+                      {strengthUnits.length === 1 ? (
+                        <span className="shrink-0 text-sm text-text-muted">{strengthUnits[0]}</span>
+                      ) : (
+                        <div className="flex gap-1">
+                          {strengthUnits.map((u) => (
+                            <button key={u} type="button" onClick={() => setStrengthUnit(u)} className={pill(strengthUnit === u)}>{u}</button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </label>
                 </div>
                 {num(strength) <= 0 && num(count) > 0 && (
                   <p className="text-xs text-text-subtle">
-                    No strength stated, so doses are counted in{" "}
-                    {oralForm === "tab" ? "tablets" : "capsules"}.
+                    {strengthRequired
+                      ? // Not a preference — the strengthless form stores the tablet
+                        // itself as the base unit, and that cannot pair with an iu
+                        // dose. Said here rather than as a failed save.
+                        `${selected?.name ?? "This"} is dosed in iu, so state the strength of one ${oralForm === "tab" ? "tablet" : "capsule"}.`
+                      : `No strength stated, so doses are counted in ${oralForm === "tab" ? "tablets" : "capsules"}.`}
                   </p>
                 )}
               </div>

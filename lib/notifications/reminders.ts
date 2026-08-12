@@ -232,11 +232,11 @@ export function missedNudgeMessage(due: ReminderCompound[]): PushMessage | null 
 }
 
 /**
- * Combined low-stock heads-up (one message even for several vials).
+ * Combined low-stock heads-up (one message even for several compounds).
  *
  * Names are listed only while the list stays readable, then the count speaks for
  * itself — the same rule `doseReminderMessage` uses, so the three messages read
- * as one voice. Joining every name grew without bound: ten low vials produced a
+ * as one voice. Joining every name grew without bound: ten low items produced a
  * 146-character body that the notification shade truncates mid-list anyway.
  */
 export function lowStockMessage(items: LowStockItem[]): PushMessage | null {

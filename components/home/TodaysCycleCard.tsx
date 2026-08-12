@@ -26,11 +26,19 @@ import { formatPhotoDateShort } from "@/lib/progress/photos"
 import { useRef, useState, type ReactNode } from "react"
 
 /**
- * How long after a whole-stack untick a tap on the same target is treated as a
- * stray second tap rather than a fresh "log all". Long enough to swallow a
- * double-tap, short enough that a deliberate re-tick never feels blocked.
+ * How long after one whole-stack action the OPPOSITE one is treated as a stray
+ * second tap rather than a decision. Long enough to swallow a double-tap, short
+ * enough that a deliberate reversal never feels blocked.
+ *
+ * It has to guard BOTH directions, which the first attempt did not. Logging a
+ * stack flips the same 24px target from "log all" to "untick all", so a
+ * double-tap on a PARTIAL stack logged five doses and immediately deleted them
+ * again — planting five fourteen-day tombstones and, where members had been
+ * ticked individually, destroying hand-edited amounts, times and sites. Guarding
+ * only the re-log direction protected the cheaper mistake and left the
+ * destructive one open. (Both second-round cold reviews, 2026-08-12.)
  */
-const RELOG_GUARD_MS = 600
+const REVERSE_GUARD_MS = 600
 
 /**
  * One paused thing on the dashboard — a compound, or a whole stack collapsed to
@@ -963,10 +971,24 @@ function StackDoseRow({
 }) {
   const [open, setOpen] = useState(false)
   const colour = paletteColourVar(stack.colour)
-  /** When this stack was last unticked as a whole — see {@link logRemaining}. A
-   *  ref, not state: it must not re-render, and it is only ever read at the
-   *  moment of a click. */
-  const untickedAt = useRef(0)
+  /**
+   * The last whole-stack action and when it happened — see
+   * {@link REVERSE_GUARD_MS}. A ref, not state: it must not re-render, and it is
+   * only ever read at the moment of a click.
+   *
+   * `performance.now()`, not `Date.now()`: a wall clock can step BACKWARDS (an
+   * NTP correction, a manual change), and a negative elapsed time reads as
+   * "inside the window", which would have left the control dead until the clock
+   * caught up.
+   */
+  const lastBulk = useRef<{ at: number; kind: "log" | "unlog" } | null>(null)
+
+  /** Is this the reflex second half of a double-tap in the other direction? */
+  function reversingTooFast(kind: "log" | "unlog"): boolean {
+    const prev = lastBulk.current
+    if (!prev || prev.kind === kind) return false
+    return performance.now() - prev.at < REVERSE_GUARD_MS
+  }
 
   // Counted in DOSES, not members, and paused members count for nothing — see
   // `stackProgress`. The rules live in `lib/home/stackTicks.ts` because getting
@@ -1010,7 +1032,8 @@ function StackDoseRow({
     //
     // A deliberate re-tick a moment later still works; only the reflex one is
     // refused.
-    if (Date.now() - untickedAt.current < RELOG_GUARD_MS) return
+    if (reversingTooFast("log")) return
+    lastBulk.current = { at: performance.now(), kind: "log" }
     const unlogged = stackLogTargets(members)
     if (onLogStack) onLogStack(unlogged)
     // The fallback logs each member's FIRST unlogged dose, matching what
@@ -1027,7 +1050,9 @@ function StackDoseRow({
   /** Untick the whole stack — the mirror of {@link logRemaining}. */
   function unlogAll() {
     if (unlogTargets.length === 0) return
-    untickedAt.current = Date.now()
+    // The destructive direction, and the one the guard exists for.
+    if (reversingTooFast("unlog")) return
+    lastBulk.current = { at: performance.now(), kind: "unlog" }
     if (onUnlogStack) onUnlogStack(unlogTargets)
     else for (const t of unlogTargets) onUnlog(t.compound, t.slot)
   }
@@ -1097,8 +1122,9 @@ function StackDoseRow({
             <Check className="h-3.5 w-3.5" aria-hidden />
           </button>
         ) : complete ? (
-          // Complete only because every live member was SKIPPED — nothing to
-          // untick, so the mark stays a mark rather than a dead button.
+          // Complete with nothing the bulk control may touch — every live
+          // member either SKIPPED or on a HISTORIC slot. The mark stays a mark
+          // rather than becoming a button that does nothing.
           <span
             aria-hidden
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-bg-base"

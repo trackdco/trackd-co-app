@@ -528,13 +528,25 @@ function LogDoseBody({
 
   const [tracked, setTracked] = useState(false)
 
-  /** What this compound's container is called, for the sentences below. */
+  /**
+   * What this compound's container is called, for the sentences below.
+   *
+   * Read from the RESOLVED STOCK ROW where there is one, exactly as
+   * `StockActionsSheet` does — the figure beside this noun already comes from
+   * that row, and wording the two from different sources is how the card ended
+   * up saying "From tub · 60 caps left". Falls back to the catalogue inference
+   * when no row has loaded, which is all a back-dated log has to go on.
+   */
+  const nounSource = vials[0]
   const containerWord = containerNoun({
-    inventoryType: inventoryTypeForCompound(
-      compound.name,
-      compound.method,
-      compound.inventoryForm,
-    ),
+    inventoryType:
+      nounSource?.inventoryType ??
+      inventoryTypeForCompound(
+        compound.name,
+        compound.method,
+        compound.inventoryForm,
+      ),
+    totalAmountUnit: nounSource?.totalAmountUnit,
     category: compound.category,
     name: compound.name,
   })

@@ -171,8 +171,6 @@ function parseAmount(raw: string, fallback: number): number {
   return fallback > 0 ? fallback : 0.001
 }
 
-/** Mirrors the DB `unit_family_compatible`: an mg-tracked vial takes mg/mcg doses;
- *  an iu-tracked vial takes iu doses. Guards the dose↔inventory link. */
 // `unitFamilyOk` now lives in `lib/db/doseUnits.ts` — the log sheet needs the
 // same rule on the client, and this file is `"use server"`, so it could not be
 // exported from here. Imported below; there is exactly one implementation.

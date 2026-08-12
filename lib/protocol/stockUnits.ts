@@ -12,23 +12,32 @@
  *
  * **It is not only noise — a wrong pick silently stops the stock decrementing.**
  * `base_unit` is written straight from this toggle, and `unit_family_compatible`
- * (`supabase/protocol/016`, mirrored by `unitFamilyOk` in `protocolSync.ts`)
+ * (`supabase/protocol/016`, mirrored by `unitFamilyOk` in `lib/db/doseUnits.ts`)
  * pairs `iu` with `iu` and nothing else. A 5 mg peptide vial saved as `iu`
  * therefore never links to a dose in mg or mcg: every dose logs fine, reports no
  * error, and the vial stays permanently full. Removing the pill removes that
  * whole failure mode for new stock rather than merely tidying the row.
  *
- * The unit is read from the CATALOGUE's `defaultUnit`, which is a fact already
- * in `compounds.csv` — no new column, no migration, and a compound retyped there
- * corrects itself here. An off-catalogue "make your own" compound gets mg only:
- * there is no evidence for anything else, and mg is what its own dose is in.
+ * The unit is read from the COMPOUND'S OWN DOSE UNIT, falling back to the
+ * catalogue's `defaultUnit` when a caller has none to hand. Not the other way
+ * round: the dose unit is what the database pairs `base_unit` against, and the
+ * catalogue cannot speak for a compound it has never seen — "Make your own"
+ * offers `iu` and `Reconstituted` as free choices, so a user's own HGH is
+ * off-catalogue and genuinely dosed in iu. No new column and no migration; a
+ * compound retyped in `compounds.csv` still corrects itself here.
  *
  * Pure helpers; no React, no side effects (code-standards.md).
  */
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
+import { unitFamilyOk } from "@/lib/db/doseUnits"
 
 /** The units the powder field can offer, in the order they are shown. */
 export type PowderUnit = "mg" | "iu"
+
+/** Everything a reconstituted vial's `base_unit` is allowed to be — the
+ *  `inv_type_fields` CHECK in `supabase/protocol/016` permits these two and
+ *  nothing else. Which of them applies is asked of {@link unitFamilyOk}. */
+const POWDER_UNITS: readonly PowderUnit[] = ["mg", "iu"]
 
 /** The catalogue's dose unit for `name`, or null when it is off-catalogue. */
 export function catalogueDoseUnit(name: string | null | undefined): string | null {
@@ -81,17 +90,52 @@ export function powderUnitsFor(
   { doseUnit, storedUnit }: PowderUnitContext = {},
 ): readonly PowderUnit[] {
   const dose = doseUnit ?? catalogueDoseUnit(name)
-  // `iu` pairs only with `iu`; everything a vial can hold otherwise is `mg`
-  // (a reconstituted row's `base_unit` is `mg` or `iu` — nothing else, per the
-  // `inv_type_fields` CHECK in `supabase/protocol/016`).
+  // ASKED, not re-encoded. A reconstituted row's `base_unit` is `mg` or `iu` and
+  // nothing else (the `inv_type_fields` CHECK, `supabase/protocol/016`), so the
+  // question is simply which of those two can supply this dose — and
+  // `unitFamilyOk` is the shared mirror of the constraint that decides it.
   //
-  // So an iu-dosed compound gets `iu` ALONE, not a choice. Offering `mg` beside
-  // it would be offering the broken state outright: an mg vial on an iu dose is
-  // exactly the pairing that never links and never depletes. There is normally
-  // no toggle here at all — the field states its unit and moves on.
-  const derived: PowderUnit = dose === "iu" ? "iu" : "mg"
+  // Hand-rolling `dose === "iu" ? "iu" : "mg"` here was a THIRD copy of that
+  // knowledge, and it was lossy: it answered `mg` for a `g`-dosed compound,
+  // which the dose-unit dropdown genuinely allows, and an mg vial can no more
+  // supply a gram dose than an iu one can. Same class of silent never-links bug,
+  // one path over. (Second cold review, 2026-08-12.)
+  //
+  // One answer, normally: an iu-dosed compound gets `iu` ALONE, not a choice —
+  // offering `mg` beside it offers the broken pairing outright. So there is no
+  // toggle here at all; the field states its unit and moves on.
+  const usable = POWDER_UNITS.filter((base) => unitFamilyOk(base, dose ?? ""))
+  // Nothing can serve this dose unit from a vial (a `g`- or `tab`-dosed compound
+  // stocked as reconstituted — already broken, and not this function's to fix).
+  // `mg` is the least surprising thing to show rather than an empty row.
+  const derived: PowderUnit = usable[0] ?? "mg"
   const other: PowderUnit = derived === "iu" ? "mg" : "iu"
   return storedUnit === other ? [derived, other] : [derived]
+}
+
+/**
+ * Compounds whose vial is commonly LABELLED in milligrams while the compound is
+ * dosed in international units.
+ *
+ * Somatropin is the only one. Its brands — Norditropin, Genotropin, Jintropin,
+ * all aliases on the catalogue entry — are sold as "5 mg", "10 mg", "12 mg"
+ * pens, but growth hormone is dosed in iu everywhere including here, and the
+ * dose unit is not selectable (`unitOptionsFor("iu")` is `["iu"]`, iu being its
+ * own family). So the one number the user is asked for is in a unit their box
+ * does not print.
+ *
+ * Typing the mg figure into an iu field is a silent 3× error running through the
+ * fill gauge, the doses-remaining estimate and the low-stock reminder, so the
+ * field says so. A HINT and not a conversion: the factor is a standard
+ * (1 mg ≈ 3 iu) but the arithmetic stays the user's, beside the box in their
+ * hand. HCG and hMG need nothing — those are labelled in iu.
+ */
+export function needsIuFromMgHint(
+  name: string | null | undefined,
+  offered: readonly PowderUnit[],
+): boolean {
+  if (!(offered.length === 1 && offered[0] === "iu")) return false
+  return catalogueDoseUnit(name) === "iu" && /somatropin|hgh/i.test(name ?? "")
 }
 
 /**

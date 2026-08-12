@@ -15,6 +15,7 @@ import { AddStockSheet } from "@/components/protocol/AddStockSheet"
 import { StockActionsSheet } from "@/components/protocol/StockActionsSheet"
 import { listStock, type StockItem } from "@/lib/db/inventory"
 import { remainingLabel } from "@/lib/containers/labels"
+import { subscribeDoseSynced } from "@/lib/home/doseLog"
 import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
 import {
   archiveInStack,
@@ -144,6 +145,17 @@ export function ProtocolScreen({
     null
   )
   const [stockTick, setStockTick] = useState(0)
+  /**
+   * Re-read stock when a dose write LANDS, the same signal the dashboard uses.
+   *
+   * These figures come from `v_inventory_math`, so a dose logged from the FAB's
+   * quick-track sheet while standing on this tab left every "8 mL left" and
+   * every doses-remaining estimate at its pre-dose value until the user
+   * navigated away and back — the identical symptom that was just fixed on Home,
+   * one tab over. The signal is already coalesced at the source, so this is one
+   * read per burst. (Second cold review, 2026-08-12.)
+   */
+  useEffect(() => subscribeDoseSynced(() => setStockTick((t) => t + 1)), [])
   // Preview data is DERIVED, not set into state from an effect — a synchronous
   // setState there cascades an extra render for no reason.
   const stockByCompound = useMemo(
