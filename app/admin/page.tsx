@@ -741,12 +741,27 @@ export default async function AdminPage({
             <Card>
               <p className={`mb-4 ${CARD_EYEBROW}`}>Coverage</p>
               <KeyRow
-                label="Accounts with a consent record"
-                value={metrics.consent.accountsWithConsent.toLocaleString()}
+                label="Consented (either mechanism)"
+                value={metrics.consent.consented.toLocaleString()}
               />
               <KeyRow
-                label="Accounts with none"
-                value={metrics.consent.accountsMissing.toLocaleString()}
+                label="With a granular audit row"
+                value={metrics.consent.withAuditTrail.toLocaleString()}
+                muted
+              />
+              <KeyRow
+                label="Consented before the audit table existed"
+                value={metrics.consent.preAuditTrail.toLocaleString()}
+                muted
+              />
+              <KeyRow
+                label="Never finished onboarding (no access)"
+                value={metrics.consent.neverReachedGate.toLocaleString()}
+                muted
+              />
+              <KeyRow
+                label="Has data but never consented"
+                value={metrics.consent.unconsentedWithData.toLocaleString()}
                 muted
               />
               <KeyRow

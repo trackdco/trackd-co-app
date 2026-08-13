@@ -123,3 +123,42 @@ export function writesByDay(writes: Write[], from: Date) {
     from
   )
 }
+
+/**
+ * Doses per UTC day across ALL of history, for the "best day ever" record.
+ *
+ * ── WHY THIS IS A SEPARATE READ FROM `recentWrites` ────────────────────────
+ * `recentWrites` is deliberately bounded — the activity sparkline is a
+ * recent-behaviour chart and an unbounded read there is the one query on this
+ * page that would grow without limit. A RECORD is the opposite question: "best
+ * day ever" that silently means "best day in the last 60 days" is a record that
+ * gets quietly broken every time the window slides, which is worse than not
+ * having one.
+ *
+ * ⚠️ SCALE: this pulls one timestamp column from the highest-volume table in the
+ * schema, so it is the read most likely to hit `ROW_CAP` first. When it does,
+ * `columnValues` records the truncation and the page says the figure is a floor
+ * rather than printing a confident wrong record. The fix that day is the same
+ * one `core.ts` names: a SQL view or an RPC that groups by day server-side, and
+ * nothing above this function has to change.
+ *
+ * `created_at`, not `taken_at` — same reasoning as `ACTIVITY_SOURCES`: the
+ * record is about the day the app was used, and `taken_at` is user-adjustable.
+ */
+export async function doseHistoryByDay(
+  supabase: AdminClient,
+  issues: IssueLog
+): Promise<{ day: string; count: number }[]> {
+  const rows = await columnValues<{ created_at: string | null }>(
+    supabase,
+    "dose_logs",
+    "created_at",
+    issues,
+    "Dose history"
+  )
+  // `from` null: start the series at the first dose ever logged.
+  return seriesByDay(
+    rows.map((r) => r.created_at),
+    null
+  )
+}

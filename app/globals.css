@@ -109,6 +109,71 @@
   --admin-positive: var(--state-success);
   --admin-negative: var(--state-error);
 
+  /* ---- /admin ONLY — the "GLASS CONSOLE" surface (Adrian, 2026-08-13) ----
+     Same scope rule as the series tokens above: `app/admin/**` and
+     `components/admin/**`, nowhere else. And the same hex rule — NOT ONE NEW
+     HEX. Every value here is `color-mix`ed FROM a palette colour, so a retune of
+     the palette carries into the glass automatically.
+
+     THE DIRECTION: translucent layered panels over a very faint engineering
+     grid, with two or three large soft radial washes in the periwinkle / amber
+     / teal the product already owns. Adrian chose it over a flat coloured wash
+     because /admin is a desktop instrument surface and the layering is what
+     separates ninety numbers into readable groups without drawing ninety boxes.
+
+     THE GRID IS TEXTURE, NOT STRUCTURE. At 2.5% of `--text-primary` over
+     `--bg-base` it is roughly a four-step lift in luminance: a woven ground at
+     arm's length, gone at a glance. **If the grid is the first thing you
+     notice, it is too strong** — turn it down, do not turn the panels up.
+
+     WHY `--text-primary` (#F0EFE9) AND NOT PURE WHITE. The brief said
+     rgba(255,255,255,0.04); mixing from `--text-primary` instead keeps the glass
+     in the palette's warm-neutral family rather than introducing a cold white
+     the rest of the app does not use, and it matches the inset highlight
+     `.flow-card` already ships. The delta at these alphas is under two levels.
+
+     CONTRAST WARNING. Translucency lowers text contrast, and `--text-subtle`
+     already measures ~1.9:1 on `--bg-surface`. **No small text on glass in
+     `--text-subtle`** — `--text-muted` is the floor. See `glass.tsx`.
+
+     COST. `backdrop-filter` rasterises what is behind each panel. This is a
+     founder-only desktop surface seen by two people, which is the only reason a
+     page-full of blurred panels is an acceptable trade; do not carry it into the
+     app, where it would be paid on a phone by every user. */
+  --admin-glass-bg: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  /* One step up, for a surface that floats ABOVE a panel (the command palette). */
+  --admin-glass-bg-raised: color-mix(in srgb, var(--text-primary) 9%, transparent);
+  /* The 1px hairline around a panel, and the softer one between grouped rows. */
+  --admin-glass-line: color-mix(in srgb, var(--text-primary) 9%, transparent);
+  --admin-glass-line-soft: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  /* The light a source would catch along a panel's top edge. */
+  --admin-glass-top: color-mix(in srgb, var(--text-primary) 11%, transparent);
+  /* The inset well a grouped list sits in, INSIDE a panel. */
+  --admin-glass-well: color-mix(in srgb, var(--text-primary) 3%, transparent);
+  /* A row being pointed at (hover, or the command palette's selection). */
+  --admin-glass-hover: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  --admin-glass-blur: 16px;
+  --admin-glass-radius: 20px;
+  --admin-glass-radius-inner: 14px;
+  /* Deep and soft rather than dark and tight: the shadow is what says "above the
+     grid" on a surface with no border to say it. */
+  --admin-glass-shadow:
+    0 26px 60px -34px rgb(0 0 0 / 0.9), 0 4px 14px -8px rgb(0 0 0 / 0.55);
+
+  /* The ground behind the glass. */
+  --admin-grid-line: color-mix(in srgb, var(--text-primary) 2.5%, transparent);
+  --admin-grid-pitch: 16px;
+  --admin-wash-1: color-mix(in srgb, var(--chart-line) 14%, transparent);
+  --admin-wash-2: color-mix(in srgb, var(--accent-amber) 9%, transparent);
+  --admin-wash-3: color-mix(in srgb, var(--chart-trend) 10%, transparent);
+
+  /* World map (`components/admin/WorldMap.tsx`). Land with nobody on it is a
+     lift in the glass, not a colour; land WITH people lights up in the
+     periwinkle series hue at an opacity ramped by share. */
+  --admin-map-land: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  --admin-map-line: color-mix(in srgb, var(--text-primary) 13%, transparent);
+  --admin-map-on: var(--admin-series-1);
+
   /* Deep red for genuinely destructive actions (sign out, delete). Darker than
      --state-error so it reads as "deliberate", not a transient error toast. */
   --accent-destructive: #b91c1c;
@@ -1325,4 +1390,275 @@ svg ::-moz-selection {
 .carousel-label {
   max-width: 7rem;
   font-size: 9.5px;
+}
+
+/* ===========================================================================
+   /admin ONLY — THE GLASS CONSOLE
+   ===========================================================================
+   Tokens live in `:root` above (search `--admin-glass-bg`) with the reasoning.
+   These are the classes that spend them. Plain (unlayered) so they win over
+   Tailwind's layered utilities, exactly like `.hairline` and `.flow-card`.
+
+   SCOPED BY RULE, like every other `--admin-*` thing: `app/admin/**` and
+   `components/admin/**`. A `.glass-panel` on a user-facing screen is a bug.
+   =========================================================================== */
+
+/* THE GROUND. One element wraps the whole dashboard and carries the grid and
+ * the washes for the entire page.
+ *
+ * `position: fixed` on the pseudo-element, not `background-attachment: fixed`
+ * on the canvas: the texture then does not travel with the content, so a long
+ * scroll reads as panels moving over a still backdrop rather than as the whole
+ * world sliding. It also means the grid is painted once at viewport size
+ * instead of at document size.
+ *
+ * `isolation: isolate` IS LOAD-BEARING and is the classic trap here. Without a
+ * stacking context on `.admin-canvas`, `z-index: -1` puts the pseudo-element
+ * behind the BODY's background (`bg-background`, i.e. `--bg-base`) and nothing
+ * renders at all. `isolation` is used rather than `transform` or `filter`
+ * because those two would also make the canvas a containing block for
+ * `position: fixed`, which would defeat the point above.
+ *
+ * It does not break `backdrop-filter` on the panels: the pseudo-element is
+ * painted INSIDE the isolated group, so it is part of the backdrop the panels
+ * sample. */
+.admin-canvas {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--bg-base);
+}
+
+.admin-canvas::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--bg-base);
+  /* Grid FIRST (i.e. on top) so the texture reads evenly across the washes
+     rather than being eaten wherever a wash is strongest. */
+  background-image:
+    linear-gradient(to right, var(--admin-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--admin-grid-line) 1px, transparent 1px),
+    radial-gradient(68rem 44rem at 10% -10%, var(--admin-wash-1), transparent 62%),
+    radial-gradient(54rem 40rem at 94% 4%, var(--admin-wash-2), transparent 60%),
+    radial-gradient(62rem 46rem at 58% 106%, var(--admin-wash-3), transparent 64%);
+  background-size:
+    var(--admin-grid-pitch) var(--admin-grid-pitch),
+    var(--admin-grid-pitch) var(--admin-grid-pitch),
+    auto,
+    auto,
+    auto;
+}
+
+/* THE PANEL. Translucent fill, a 1px hairline, a caught top edge, and a deep
+ * soft shadow.
+ *
+ * The hairline is an INSET box-shadow rather than a `border`, so it costs no
+ * layout: a panel can be swapped in and out of a grid without every child
+ * shifting by a pixel, and it composites in the same pass as the shadow. This
+ * is the glass equivalent of the app's "cards are borderless" rule — the ring
+ * is light on glass, not a drawn frame. */
+.glass-panel,
+.glass-panel-raised {
+  position: relative;
+  border-radius: var(--admin-glass-radius);
+  background-color: var(--admin-glass-bg);
+  -webkit-backdrop-filter: blur(var(--admin-glass-blur)) saturate(1.4);
+  backdrop-filter: blur(var(--admin-glass-blur)) saturate(1.4);
+  box-shadow:
+    inset 0 0 0 1px var(--admin-glass-line),
+    inset 0 1px 0 0 var(--admin-glass-top),
+    var(--admin-glass-shadow);
+}
+
+.glass-panel-raised {
+  background-color: var(--admin-glass-bg-raised);
+  -webkit-backdrop-filter: blur(28px) saturate(1.5);
+  backdrop-filter: blur(28px) saturate(1.5);
+}
+
+/* A small glass CONTROL — the command palette's trigger.
+ *
+ * A separate class rather than `.glass-panel rounded-full`, because these are
+ * PLAIN (unlayered) rules and Tailwind's utilities are layered: `.glass-panel`
+ * would beat `rounded-full` and quietly serve a 20px-cornered rectangle. Any
+ * future glass control with a non-default radius needs the same treatment. */
+.glass-pill {
+  border-radius: 9999px;
+  background-color: var(--admin-glass-bg);
+  -webkit-backdrop-filter: blur(var(--admin-glass-blur)) saturate(1.4);
+  backdrop-filter: blur(var(--admin-glass-blur)) saturate(1.4);
+  box-shadow: inset 0 0 0 1px var(--admin-glass-line);
+}
+
+/* The row a pointer or the palette's selection is on. */
+.glass-row-on {
+  background-color: var(--admin-glass-hover);
+}
+
+/* WITHOUT `backdrop-filter` THE PANELS ARE ALMOST INVISIBLE. A 5% white fill
+ * only reads as a surface because it is blurring something; where the property
+ * is unsupported the whole page collapses to near-flat. Fall back to the app's
+ * real surface token, which is opaque and always legible. */
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .glass-panel,
+  .glass-pill {
+    background-color: var(--bg-surface);
+  }
+  .glass-panel-raised {
+    background-color: var(--bg-surface-raised);
+  }
+}
+
+/* A grouped list's well, INSIDE a panel — the iOS-Settings inset. No blur of
+ * its own: it is already behind the panel's blur, and stacking a second
+ * backdrop-filter buys nothing but another rasterised layer. */
+.glass-inset {
+  border-radius: var(--admin-glass-radius-inner);
+  background-color: var(--admin-glass-well);
+  box-shadow: inset 0 0 0 1px var(--admin-glass-line-soft);
+  overflow: hidden;
+}
+
+/* Rows inside a group. `.divide-hairline` at the glass line colour — the same
+ * true-0.5px rule the app uses, in the one colour that reads on glass. */
+.glass-divide > :not([hidden]) ~ :not([hidden]) {
+  border-top: 0.5px solid var(--admin-glass-line-soft);
+}
+
+/* ---------------------------------------------------------------------------
+   ARRIVAL MOTION — /admin, first paint only.
+   BIG ON ARRIVAL, STILL AFTERWARDS. Every animation here is `both`-filled and
+   runs exactly once. Nothing loops, nothing moves while someone is reading a
+   figure — the ambient-motion ban in ui-context.md → Motion is at its strongest
+   on a screen that is ninety numbers.
+
+   The stagger is driven by an INLINE CUSTOM PROPERTY, `--admin-delay`, not an
+   inline `animation-delay` and never an inline `animation` shorthand: a
+   shorthand outranks the reduced-motion block below and cannot be switched off
+   from the stylesheet (ui-context.md names this trap). `riseStyle()` in
+   `components/admin/glass.tsx` writes the property.
+   --------------------------------------------------------------------------- */
+
+/* Panels rise and fade in. Slightly under-scaled at the start so a wide panel
+   reads as coming FORWARD rather than sliding up a track. */
+@keyframes admin-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.animate-admin-rise {
+  animation: admin-rise var(--motion-slow) var(--motion-ease) both;
+  animation-delay: var(--admin-delay, 0ms);
+}
+
+/* THE CHART DRAW-IN. The chart is revealed left to right, in the direction time
+ * runs, so the newest reading is the last thing to land.
+ *
+ * A CLIP RECT THAT WIDENS, NOT A `stroke-dashoffset` REVEAL, AND THE REASON IS
+ * `vector-effect: non-scaling-stroke`. Every /admin spark sets it, because the
+ * viewBox is stretched by `preserveAspectRatio="none"` and without it the pen
+ * goes elliptical. But non-scaling-stroke computes the stroke — INCLUDING the
+ * dash pattern — in device space, so a `stroke-dasharray` written in user units
+ * is off by the card's own stretch factor, which is not knowable when this
+ * renders on the server. Under-estimate and the dash repeats and the line
+ * flickers instead of drawing; over-estimate and two thirds of the animation is
+ * an empty box. A clip has no length to get wrong.
+ *
+ * Put the class on a `<rect>` inside a `<clipPath>` and set
+ * `--admin-draw-width` to the viewBox width IN PIXELS (`"260px"` — a geometry
+ * property needs a unit; SVG user units are px). Give the rect the same value
+ * as its `width` attribute: under `prefers-reduced-motion` the animation is
+ * dropped and the attribute is what is left holding the chart open.
+ *
+ * `width` as an animatable CSS geometry property is the same mechanism
+ * `.container-fill` above already uses for `y` / `height`. */
+@keyframes admin-draw {
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--admin-draw-width, 100%);
+  }
+}
+.animate-admin-draw {
+  animation: admin-draw 900ms var(--motion-ease) both;
+  animation-delay: var(--admin-delay, 0ms);
+}
+
+/* THE COUNT-UP SLOT. The figure fades and lifts a few pixels on the same clock
+ * as its panel.
+ *
+ * This is the SETUP for a count-up, not the count itself: counting requires a
+ * client hook and every one of these primitives is a Server Component. What the
+ * class guarantees is that a counting figure will not reflow — `body` carries
+ * `font-variant-numeric: tabular-nums` app-wide, so every digit is the same
+ * width and 9 → 10 → 100 does not shove the layout — and that the figure's
+ * entrance is on the same delay as the panel's. Drop a client count-up inside
+ * and it lands on the beat. */
+@keyframes admin-value {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+.animate-admin-value {
+  animation: admin-value var(--motion-base) var(--motion-ease) both;
+  animation-delay: var(--admin-delay, 0ms);
+}
+
+/* The command palette arriving. Scaled from slightly small and dropped a few
+   pixels, so it reads as coming toward you out of the page. */
+@keyframes admin-palette-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.animate-admin-palette-in {
+  animation: admin-palette-in var(--motion-fast) var(--motion-ease) both;
+}
+
+/* `<dialog>` paints its own backdrop; this is the only way to reach it. The
+   token is on `:root`, which `::backdrop` inherits from. */
+.admin-palette::backdrop {
+  background-color: var(--overlay-backdrop);
+  animation: shortcut-fade var(--motion-fast) var(--motion-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-admin-rise,
+  .animate-admin-value,
+  .animate-admin-palette-in {
+    animation: none;
+  }
+
+  .admin-palette::backdrop {
+    animation: none;
+  }
+
+  /* This one ends WIDE rather than starting wide, so dropping the animation
+     leaves the clip rect at its `width` ATTRIBUTE — the full chart. Worth
+     checking whenever this keyframe changes: an entrance that animates a
+     reveal open must never be switched off in its closed state, which is the
+     same trap `.animate-flow-confetti` needs `display: none` for. */
+  .animate-admin-draw {
+    animation: none;
+  }
 }
