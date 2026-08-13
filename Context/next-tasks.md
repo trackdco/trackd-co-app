@@ -8,6 +8,52 @@ Last updated: 2026-08-13 (/admin dashboard rebuilt and merged to main)
 
 ---
 
+## 💳 WHEN BILLING IS SORTED — come straight back here
+
+Adrian is sorting billing (2026-08-14 onward). The /admin dashboard already
+reads billing and is currently reporting an empty but CORRECT picture. The
+moment real money moves, these need revisiting **in this order**:
+
+1. **Verify MRR against Stripe's own number.** `/admin` computes MRR from the
+   local `subscriptions` mirror joined to prices fetched from Stripe
+   (`lib/db/admin/billing.ts` → `revenue`). It counts `status = 'active'` only.
+   The first time a real payment lands, open the Stripe dashboard and check the
+   two agree. If they drift, the mirror is the suspect, not the maths — see (2).
+
+2. **🔴 THE OPEN QUESTION: 29 subscription webhooks, 0 subscription rows.**
+   `webhook_events` holds 424 events including 29 `customer.subscription.created`
+   and 29 `invoice.paid`, while `subscriptions`, `entitlements` and
+   `billing_customers` are all **empty**. Those events carry
+   `test_helpers.test_clock.*`, so they are test-mode traffic and the rows were
+   most likely cleaned up — but the alternative is that the handler is not
+   persisting, and that would be a live billing bug hiding behind an empty
+   table. **Confirm which before trusting any revenue number.**
+
+3. **Adrian's call: consider reading MRR from Stripe directly** rather than from
+   the local mirror ("you could just merge Stripe and be like, okay, how much
+   MRR"). Sensible once billing is real. Trade-off: authoritative and immune to
+   webhook drift, but it puts a paginated Stripe API call on the dashboard's
+   critical path. Suggested shape — keep the mirror for the fast render, and add
+   a "reconcile with Stripe" action that fetches the truth on demand and shows
+   any disagreement. Never on the sandbox.
+
+4. **`/admin` already makes one outbound Stripe call** per render
+   (`loadPricesSafe()`, memoised 5 min) to price subscriptions. It cannot throw
+   and cannot fail the page — an outage renders "could not price these" rather
+   than zero revenue — but it is a new external dependency on this page.
+
+5. **`interval_count` is now handled** (fixed 2026-08-13). Stripe writes "every
+   3 months" as `interval: month` + `interval_count: 3`; nothing read the count,
+   so a quarterly plan would have reported 3× the real MRR. If you add a plan in
+   the Stripe dashboard with any interval other than 1, the maths is already
+   right — but add a test if you add a new interval shape.
+
+6. **The revenue tab is built for the empty state on purpose.** The MRR hero
+   reads "awaiting first customer" with trials in flight beside it, and converts
+   to a real figure by itself the day money lands. No code change needed.
+
+---
+
 ## /admin — what is owed next
 
 The dashboard was rebuilt 2026-08-13 (see `progress-tracker.md`).
