@@ -590,6 +590,57 @@ data. This rule exists because a `weight_logs` query was wrong for over a month,
 its error was skipped by a bare `continue`, and every active-user number was
 quietly too low the whole time.
 
+
+### The Glass Console (the /admin visual system)
+
+Adrian chose this direction from four samples (2026-08-13). Translucent panels
+over a coloured wash, with a very faint engineering grid showing through.
+
+- **Panels** are `--admin-glass-bg` (5% of `--text-primary`) behind a hairline at
+  9%, `backdrop-filter: blur(16px)`, `--admin-glass-radius` 20px, deep soft
+  shadow. `.glass-panel`, `.glass-panel-raised`, `.glass-pill`, `.glass-inset`,
+  `.glass-divide`.
+- **The ground** is `.admin-canvas`: a fixed 16px grid at 2.5% plus three large
+  radial washes (periwinkle / amber / teal, all under 15%). The grid must read
+  as TEXTURE. If it is the first thing you notice it is too strong.
+- **Not one new hex.** Every `--admin-glass-*` and `--admin-wash-*` token is
+  `color-mix`ed from `--text-primary`, `--chart-line`, `--accent-amber`,
+  `--chart-trend` or the `--bg-*` set. Mixed from `--text-primary` rather than
+  pure white on purpose: it keeps the glass in the palette's warm family.
+- **Contrast on glass.** `--text-subtle` measures about 1.9:1 on surface and is
+  worse behind translucency. **Never put small text on glass in `--text-subtle`**
+  — the glass components use `--text-muted` as their floor, and every label is
+  `CARD_EYEBROW` rather than the dimmer `METRIC_LABEL`.
+- **`isolation: isolate` on `.admin-canvas` is load-bearing.** Without a stacking
+  context the `z-index: -1` backdrop hides behind the body background. It cannot
+  be a `transform` or `filter` instead, because either would make the canvas a
+  containing block for the `position: fixed` backdrop.
+- **Motion is big on arrival, still afterwards.** Panels stagger in via
+  `.animate-admin-rise` on an inline `--admin-delay`, charts draw with
+  `.animate-admin-draw`, figures land a beat later with `.animate-admin-value`.
+  Nothing loops and nothing moves while you read. All of it is disabled under
+  `prefers-reduced-motion: reduce`.
+- **The chart draw-in is a widening clip rect, not `stroke-dashoffset`.** Under
+  `vector-effect: non-scaling-stroke` the dash pattern is computed in device
+  space, so a server-rendered `stroke-dasharray` is wrong by the card's unknown
+  stretch factor. A clip has no length to get wrong.
+
+### Rule: /admin is five tabs, never one long page
+
+Overview, Money, Users, Product, System. Tabs are local state so switching is
+instant; the RANGE control stays a real link because it changes what is fetched.
+Overview's order is fixed and deliberate: **what needs you, then what changed,
+then the headline numbers, then the funnel** — that is the order those questions
+actually get asked.
+
+### Rule: an alert says what to do, not that something is wrong
+
+Every entry in the alert strip carries three things: the fact with its number,
+what it means in one sentence, and the next concrete step. The version this
+replaced coloured a number red and wrote "Check this", which told Adrian
+something was wrong and nothing about how to check it. Wording lives in
+`lib/admin/alerts.ts` and is unit-tested.
+
 ## Styling Notes
 
 - Tailwind **v4** (CSS-first). The colour tokens above are defined

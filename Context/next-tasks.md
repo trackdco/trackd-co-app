@@ -8,6 +8,37 @@ Last updated: 2026-08-13 (/admin dashboard rebuilt and merged to main)
 
 ---
 
+## 🎮 THE ARCADE — what is left
+
+Behind the header "Arcade" control, or ⌘K → "games". Built: **Chess** (11 bots,
+250-2000 Elo), **Vial Stack**, **Dose 2048**, **Vial Snake**, **Titration**,
+**Kyle Run**, **Draw Time**.
+
+**Not yet built, and Adrian asked for them:**
+- **Block Blast** — drag 8×8 block shapes onto a grid, clear rows and columns.
+  Adrian rated this the best "on a call" game of the set.
+- **Connect Four vs Will** — amber discs vs grey pills, decent AI.
+- **Solitaire** — Klondike with **amber-suited** cards. Explicitly NOT
+  compound-suited; Adrian changed his mind on that.
+
+**Scores are not persisted yet.** They live in component state and die on close.
+Adrian's call was a small table keyed to the founder account so it survives a
+browser change and works across both his devices — that needs one migration
+(`arcade_scores`: user_id, game, score, achieved_at) plus RLS. He also said "it's
+just a game to win and lose" about chess specifically, so chess may not need it.
+
+**Kyle does not react to the data yet.** The idea: the footer/menu Kyle idles
+normally, slumps when there is open feedback, and celebrates the day MRR first
+goes above zero — a status indicator you read without reading. Cheap now that
+`drawKyle` takes a pose.
+
+**Chess ideas not done:** a slight piece-slide animation between squares (Adrian
+said "doesn't need to be that"), and the roster sprites are still 16×18 while the
+chess pieces went to 24×24 — bumping the roster would make the ladder portraits
+match the board.
+
+---
+
 ## 💳 WHEN BILLING IS SORTED — come straight back here
 
 Adrian is sorting billing (2026-08-14 onward). The /admin dashboard already

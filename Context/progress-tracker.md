@@ -5,7 +5,7 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-13 (the /admin dashboard rebuild)
+Last updated: 2026-08-13 (the /admin dashboard rebuild + the Glass Console + the arcade)
 
 ## /admin — the founder dashboard, rebuilt (BUILT, 2026-08-13)
 
@@ -124,6 +124,83 @@ query was fired against the real schema with the service role before each commit
 that check is what proves the column names, which TypeScript cannot see through
 PostgREST's strings. The funnel was additionally checked against live data to
 confirm it is monotonic.
+
+
+## /admin — the Glass Console rebuild + the arcade (BUILT, 2026-08-13, later)
+
+A second pass, after Adrian looked at the first one and said it read as "a lot
+of data and I don't know where to start".
+
+### Structure
+
+**Five tabs, never one long page.** Overview, Money, Users, Product, System.
+Tabs are local state (instant); the range control stays a real link because it
+changes what is fetched. Overview's order is fixed: what needs you, what
+changed, the four numbers, the funnel.
+
+Adrian picked the **Glass Console** direction from four rendered samples. See
+`ui-context.md` → The Glass Console for the tokens and the rules. Not one new
+hex — everything is `color-mix`ed from the existing palette.
+
+### What the data layer gained
+
+Period-over-period deltas (+1 query total: existing reads are widened to 2× the
+window and split in memory), MRR priced off live Stripe prices, ranked movers, a
+one-sentence auto-headline that refuses to speak unless a change clears a
+percentage bar AND an absolute bar AND a baseline, all-time records, and a
+cohort retention grid whose cells distinguish "not observed" from a real 0%.
+
+**A quarterly plan would have tripled MRR.** Stripe writes "every 3 months" as
+`interval: month` + `interval_count: 3` and nothing read the count. Every price
+configured today is 1, which is precisely why it would have gone unnoticed.
+Fixed on `PlanPrice`, divided out in `monthlyAmount`, tested.
+
+### "Check this" is gone
+
+Every alert now carries the fact, what it means, and the next concrete step.
+`lib/admin/alerts.ts` is pure and unit-tested. Adrian's exact objection — "how
+am I meant to check that" — was correct and the two-word status deserved to go.
+
+### The consent number, corrected
+
+84% was two unrelated things counted as one. Consent has TWO mechanisms:
+`consent_records` (granular, earliest row 2026-06-24) and the original
+`profiles.is_18_plus` + `tos_accepted_at`, which is still what
+`getSessionContext` reads to grant access. Counting only the newer one said the
+two oldest accounts never agreed to terms they demonstrably accepted. Live now:
+**78 consented, 12 never finished onboarding (no data, no access), 0 with data
+and no consent.** That last is the only alarming number and it has its own row.
+
+### The arcade
+
+Behind an "Arcade" control in the header, or by typing "games" into ⌘K. Not a
+tab and not a footer button — a takeover, so the dashboard stays a dashboard.
+
+**Chess has a real engine** in `lib/admin/arcade/chess.ts`: 27 tests including a
+400-position perft, so move generation is provably correct. Castling through
+check, en passant, promotion, stalemate, fifty-move draw.
+
+**The Elo was wrong by ~1000 points and is now researched.** Stockfish skill
+level 0 searches to depth 1 and rates ~1100-1250; lichess level 1 is under 400;
+chess.com's Martin at 250 shows no development at all and lets you take every
+piece for free. So a genuine 250 must blunder nearly every move rather than
+merely search shallowly. **Quiescence search was added** — a fixed-depth engine
+stops at the horizon and scores "I take your queen" without seeing the
+recapture, worth roughly 300 points on its own. Eleven rungs, 250 → 2000.
+
+Pieces went 16×16 → 24×24: at 16 a horse head is nine pixels of head, which is
+why the knight was unrecognisable. Drag as well as tap, a 600ms thinking pause
+(an instant reply reads as a script), amber confetti on a win, a per-character
+taunt on a loss, and nothing locked.
+
+Plus Vial Stack (a perfect drop grows the vial back and the pitch climbs), Dose
+2048, Vial Snake, Titration on a real exponential half-life, Kyle Run and Draw
+Time. All sound is generated live via Web Audio — no files to load or block.
+
+### Verified
+
+`tsc`, `eslint`, **1045 tests**, `next build`, 31 live reads validated against
+the real schema, and every range variant smoke-tested against a running server.
 
 ## Spec w2b-15 — Stripe billing (BUILT, 2026-08-08)
 
