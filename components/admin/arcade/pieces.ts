@@ -166,17 +166,35 @@ export interface Bot {
  *   depth 1, ~90% random   ~250   Martin territory: hangs everything
  *   depth 1, ~70% random   ~450   takes a free piece if it happens to look
  *   depth 1, ~45% random   ~650   half-decent, half-catastrophic
- *   depth 1, clean         ~850   sees one move; misses every reply
- *   depth 2, ~30% random  ~1000   sees an exchange, then forgets
- *   depth 2, ~12% random  ~1200   punishes an obvious blunder
- *   depth 2, clean        ~1350   solid, unimaginative
- *   depth 3, ~8% random   ~1500   coherent middlegame
- *   depth 3, clean        ~1650   you have to pay attention
- *   depth 4, ~5% random   ~1850   you have to actually try
- *   depth 4 + quiescence  ~2000   you are not beating this casually
+ *   depth 1, near-clean    ~800   sees one move; misses every reply
+ *   depth 2, ~35% random   ~950   sees an exchange, then forgets
+ *   depth 2, ~18% random  ~1100   punishes an obvious blunder
+ *   depth 2, clean        ~1250   solid, unimaginative
+ *   depth 3, ~12% random  ~1400   coherent middlegame
+ *   depth 3, clean        ~1550   you have to pay attention
+ *   depth 4, ~8% random   ~1700   you have to actually try
+ *   depth 4, clean        ~1850   you are not beating this casually
  *
- * These remain APPROXIMATE and are deliberately conservative. Nobody should
- * quote them anywhere real; the ordering and the feel are what a ladder needs.
+ * ── REVISED DOWN AGAIN, 2026-08-14 ────────────────────────────────────────
+ * Adrian said three times that Kyle Prime did not feel like 2000, and he was
+ * right twice over.
+ *
+ * FIRST, the top bots were not actually searching to depth 4. A complete
+ * depth-4 pass measured ~4.7s against a 1600ms budget, so iterative deepening
+ * always ran out and returned the depth-3 answer — Cal and Prime were the same
+ * bot as The Panel, separated only by blunder rate. Carrying beta at the root
+ * and re-ordering best-first between iterations brought a complete depth-4 pass
+ * to **1763ms**, inside its budget, so they now play the depth they claim.
+ *
+ * SECOND, even a genuine depth 4 here is not 2000. The evaluation is material
+ * plus three piece-square tables — no king safety, no pawn structure, no
+ * mobility term. Stockfish at skill 0 rates ~1100-1250 on ONE ply because its
+ * evaluation is an order of magnitude better than this one. So the ceiling came
+ * down to 1850, which is still comfortably above any casual player and is a
+ * number that can be defended.
+ *
+ * These remain APPROXIMATE and deliberately conservative. Nobody should quote
+ * them anywhere real; the ordering and the feel are what a ladder needs.
  */
 
 const CAP: Palette = { G: "#3a3a35", L: "#c9c9c2", D: "#6e6e66", d: "#525249", E: "#1b1a17", S: "#ffffff" }
@@ -216,7 +234,7 @@ export const LADDER: Bot[] = [
     "..GDDDDDDDDDDG..", "..GDDDDDDDDDDG..", "..GDDDDDDDDDDG..", "..GGGGGGGGGGGG..",
     "................", "................"] },
 
-  { id: "calc", name: "The Calculator", who: "recon maths", elo: 850, depth: 1, blunder: 0.0,
+  { id: "calc", name: "The Calculator", who: "recon maths", elo: 800, depth: 1, blunder: 0.1,
     taunt: "I did the maths. You are not the variable that mattered.", pal: CAL, rows: [
     "................", "..GGGGGGGGGGGG..", "..GccccccccccG..", "..GcSSSSSSSScG..",
     "..GccccccccccG..", "..GGGGGGGGGGGG..", "..GbEEbbbbEEbG..", "..GbESbbbbESbG..",
@@ -224,7 +242,7 @@ export const LADDER: Bot[] = [
     "..GKKbKKbKKbbG..", "..GKKbKKbKKbbG..", "..GbbbbbbbbbbG..", "..GGGGGGGGGGGG..",
     "................", "................"] },
 
-  { id: "greens", name: "The Greens", who: "greens powder", elo: 1000, depth: 2, blunder: 0.3,
+  { id: "greens", name: "The Greens", who: "greens powder", elo: 950, depth: 2, blunder: 0.35,
     taunt: "Not enough micronutrients in that opening.", pal: GRN, rows: [
     "................", "...GGG....GGG...", "...GcG....GcG...", "..GGGGGGGGGGGG..",
     "..GLAAAAAAAALG..", "..GAAAAAAAAAAG..", "..GAAEEAAEEAAG..", "..GAAESAAESAAG..",
@@ -232,7 +250,7 @@ export const LADDER: Bot[] = [
     "..GaaaaaaaaaaG..", "..GaaaaaaaaaaG..", "..GaaaaaaaaaaG..", "..GGGGGGGGGGGG..",
     "................", "................"] },
 
-  { id: "map", name: "The Map", who: "site rotation", elo: 1200, depth: 2, blunder: 0.12,
+  { id: "map", name: "The Map", who: "site rotation", elo: 1100, depth: 2, blunder: 0.18,
     taunt: "Wrong site. Wrong square. Same problem.", pal: MAP, rows: [
     "................", "......GGGG......", "......GbbG......", "......GEEG......",
     "......GSSG......", "....GGGGGGGG....", "...GbAbbbbAbG...", "...GbbbbbbbbG...",
@@ -240,7 +258,7 @@ export const LADDER: Bot[] = [
     "....GbbbbbbG....", "....GGbbbbGG....", "...GbbG..GbbG...", "...GbbG..GbbG...",
     "...GGGG..GGGG...", "................"] },
 
-  { id: "spike", name: "Spike", who: "GHK-Cu", elo: 1350, depth: 2, blunder: 0.0,
+  { id: "spike", name: "Spike", who: "GHK-Cu", elo: 1250, depth: 2, blunder: 0.02,
     taunt: "Copper peptides. Copper brain.", pal: SPK, rows: [
     "................", ".......GG.......", ".......GG.......", ".......GG.......",
     "......GccG......", "....GGGGGGGG....", "....GbbbbbbG....", "....GbEEbEEG....",
@@ -248,7 +266,7 @@ export const LADDER: Bot[] = [
     "....GAAAAAAG....", "....GaaaaaaG....", "....GGGGGGGG....", "....GccccccG....",
     "....GGGGGGGG....", "................"] },
 
-  { id: "gauge", name: "The Gauge", who: "the draw", elo: 1500, depth: 3, blunder: 0.08,
+  { id: "gauge", name: "The Gauge", who: "the draw", elo: 1400, depth: 3, blunder: 0.12,
     taunt: "Drawn up, pushed out. Same as your position.", pal: GAU, gauge: true, rows: [
     "................", ".......GG.......", ".......GG.......", "......GccG......",
     "....GGGGGGGG....", "....GbEEbEEG....", "....GbESbESG....", "....GbbbbbbG....",
@@ -256,7 +274,7 @@ export const LADDER: Bot[] = [
     "....GAAAAAAG....", "....GAAAAAAG....", "....GGGGGGGG....", "....GccccccG....",
     "....GGGGGGGG....", "................"] },
 
-  { id: "panel", name: "The Panel", who: "bloodwork", elo: 1650, depth: 3, blunder: 0.0,
+  { id: "panel", name: "The Panel", who: "bloodwork", elo: 1550, depth: 3, blunder: 0.0,
     taunt: "Your markers are fine. Your chess is not.", pal: PAN, rows: [
     "................", ".....CCCCCC.....", ".....cccccc.....", ".....CCCCCC.....",
     "....GGGGGGGG....", "....GbbbbbbG....", "....GbEEbEEG....", "....GbESbESG....",
@@ -264,7 +282,7 @@ export const LADDER: Bot[] = [
     "....GAAAAAAG....", "....GaaaaaaG....", "....GaaaaaaG....", "....GGGGGGGG....",
     ".....GGGGGG.....", "................"] },
 
-  { id: "cal", name: "Cal", who: "Cal AI", elo: 1850, depth: 4, blunder: 0.05,
+  { id: "cal", name: "Cal", who: "Cal AI", elo: 1700, depth: 4, blunder: 0.08,
     taunt: "I counted every calorie and every one of your mistakes.", pal: APL, rows: [
     "................", "........s.......", ".......ss.......", "......LLss......",
     "....GGAAAAGG....", "...GAAAAAAAAG...", "..GAAAAAAAAAAG..", "..GAAEEAAEEAAG..",
@@ -272,7 +290,7 @@ export const LADDER: Bot[] = [
     "..GaaaaAAaaaaG..", "...GaaaaaaaaG...", "....GGaaaaGG....", "......GGGG......",
     "................", "................"] },
 
-  { id: "prime", name: "KYLE PRIME", who: "you, if you'd tracked everything", elo: 2000, depth: 4, blunder: 0.0,
+  { id: "prime", name: "KYLE PRIME", who: "you, if you'd tracked everything", elo: 1850, depth: 4, blunder: 0.0,
     taunt: "You never logged a single dose. I logged all of them.", pal: PRM, rows: [
     "....................", "......CCCCCCCC......", "......cccccccc......", "......CCCCCCCC......",
     "....GGGGGGGGGGGG....", "...GGWWWWWWWWWWGG...", "..GG.GWEEWWEEWG.GG..", "..GG.GWSEWWESWG.GG..",

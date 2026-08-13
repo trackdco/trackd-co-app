@@ -624,9 +624,22 @@ export function KyleRun() {
       st.obs = st.obs
         .map((o) => ({ ...o, x: o.x - st.speed * dt }))
         .filter((o) => o.x > -40)
+      /**
+       * Spacing varies, and sometimes obstacles come in PAIRS.
+       *
+       * Evenly spaced hurdles turn into a metronome — once you find the rhythm
+       * the game stops asking anything. A gap that ranges from tight to loose,
+       * plus the occasional double, means you have to keep reading the screen.
+       * The tightest gap is still clearable at the current speed: it scales with
+       * `st.speed` rather than being a fixed pixel count.
+       */
       const lastO = st.obs[st.obs.length - 1]
-      if (!lastO || lastO.x < W - 200 - Math.random() * 150) {
-        st.obs.push({ x: W + 20, h: 20 + Math.round(Math.random() * 18) })
+      const minGap = 110 + st.speed * 22
+      if (!lastO || lastO.x < W - minGap - Math.random() * 190) {
+        const h = 18 + Math.round(Math.random() * 22)
+        st.obs.push({ x: W + 20, h })
+        // A double now and then, close enough to read as one obstacle to clear.
+        if (Math.random() < 0.18) st.obs.push({ x: W + 20 + 26, h: 18 + Math.round(Math.random() * 14) })
       }
       setScore(Math.floor(st.n))
     }

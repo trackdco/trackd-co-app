@@ -44,92 +44,97 @@ const REGIONS: { key: string; label: string; d: string }[] = [
   {
     key: "antarctica",
     label: "Antarctica",
-    d: "M 6,178 L 6,158 L 60,152 L 130,157 L 200,150 L 268,156 L 330,151 L 354,160 L 354,178 Z",
+    d: "M 4,176 L 30,166 L 62,161 L 96,164 L 132,159 L 168,163 L 204,158 L 240,163 L 274,159 L 308,164 L 340,168 L 356,176 L 356,180 L 4,180 Z",
   },
   {
     key: "america",
     label: "America",
-    // North and South America as one region, because IANA files both under
-    // `America/` — plus Greenland (`America/Nuuk`) as a second subpath.
+    // North America, Central America, South America and Greenland — IANA files
+    // all of them under `America/`. Traced from real coastline coordinates on an
+    // equirectangular projection (x = lon + 180, y = 90 − lat), which is why the
+    // Gulf of Mexico, Florida, Baja, the Brazilian bulge and the taper to Tierra
+    // del Fuego all land where an atlas puts them.
     d:
-      "M 12,25 L 40,20 L 80,18 L 125,38 L 105,52 L 99,65 L 101,81 L 118,80 L 145,96 " +
-      "L 132,115 L 114,142 L 106,140 L 110,110 L 99,96 L 102,86 L 85,75 L 75,68 " +
-      "L 56,50 L 50,35 L 15,30 Z " +
-      "M 138,14 L 158,10 L 163,24 L 149,32 L 137,25 Z",
+      "M 11,24 L 22,21 L 33,23 L 44,20 L 52,24 L 47,29 L 55,31 L 66,26 L 78,22 " +
+      "L 92,20 L 104,23 L 112,28 L 120,26 L 126,31 L 124,38 L 118,44 L 121,47 " +
+      "L 113,46 L 106,52 L 101,60 L 99,66 L 96,63 L 92,64 L 86,61 L 80,63 " +
+      "L 74,70 L 79,74 L 88,78 L 95,80 L 101,82 L 105,80 L 112,79 L 118,80 " +
+      "L 126,84 L 137,88 L 145,93 L 146,99 L 141,106 L 137,113 L 131,119 " +
+      "L 124,125 L 119,131 L 115,139 L 112,146 L 108,142 L 108,133 L 105,124 " +
+      "L 103,112 L 101,101 L 99,92 L 96,85 L 89,79 L 82,74 L 74,68 L 68,61 " +
+      "L 63,55 L 57,49 L 53,42 L 47,37 L 38,34 L 27,32 L 16,30 Z " +
+      "M 133,29 L 141,22 L 150,12 L 158,8 L 164,12 L 162,20 L 155,27 L 148,33 L 139,34 Z",
   },
   {
     key: "europe",
     label: "Europe",
-    d: "M 172,42 L 176,32 L 188,22 L 202,20 L 210,30 L 220,36 L 222,46 L 210,52 L 194,54 L 180,50 Z",
+    d:
+      "M 170,54 L 175,49 L 172,45 L 178,43 L 176,39 L 180,37 L 178,33 L 184,31 " +
+      "L 189,26 L 194,20 L 199,17 L 204,20 L 202,26 L 208,24 L 214,22 L 221,24 " +
+      "L 228,28 L 232,34 L 228,40 L 222,43 L 216,45 L 210,47 L 205,51 L 199,53 " +
+      "L 193,50 L 188,53 L 182,52 L 177,55 Z " +
+      "M 175,35 L 179,32 L 181,36 L 177,38 Z",
   },
   {
     key: "africa",
     label: "Africa",
     d:
-      "M 166,56 L 190,52 L 214,56 L 224,64 L 233,72 L 226,88 L 214,106 L 205,122 " +
-      "L 196,124 L 189,104 L 178,84 L 168,70 Z",
+      "M 166,68 L 170,60 L 176,56 L 184,54 L 192,53 L 200,54 L 208,56 L 214,59 " +
+      "L 219,64 L 223,70 L 226,76 L 231,79 L 234,84 L 230,88 L 225,92 L 222,98 " +
+      "L 219,105 L 215,112 L 210,119 L 204,124 L 197,126 L 192,121 L 190,113 " +
+      "L 188,105 L 186,97 L 184,90 L 181,86 L 176,84 L 172,80 L 168,76 L 165,72 Z",
   },
   {
     key: "asia",
     label: "Asia",
     d:
-      "M 222,46 L 236,26 L 276,14 L 326,14 L 356,24 L 348,42 L 330,50 L 316,58 " +
-      "L 300,68 L 288,78 L 283,89 L 276,80 L 264,72 L 258,84 L 250,68 L 240,66 " +
-      "L 232,74 L 225,78 L 218,60 Z",
+      "M 231,32 L 238,26 L 246,21 L 256,17 L 268,15 L 280,14 L 292,16 L 304,19 " +
+      "L 316,22 L 328,26 L 338,31 L 344,37 L 340,42 L 332,45 L 324,48 L 318,52 " +
+      "L 312,56 L 306,59 L 300,62 L 296,68 L 290,72 L 284,77 L 278,82 L 272,79 " +
+      "L 268,73 L 262,70 L 258,76 L 254,82 L 250,77 L 248,71 L 244,66 L 238,63 " +
+      "L 232,60 L 226,56 L 220,52 L 216,47 L 222,44 L 228,41 L 232,36 Z " +
+      "M 318,50 L 323,45 L 327,49 L 323,55 Z",
   },
   {
     key: "australia",
     label: "Australia",
-    // Mainland plus Tasmania. Tasmania is here because leaving it off is the
-    // one omission an Australian founder would notice immediately.
     d:
-      "M 292,114 L 300,104 L 312,100 L 326,104 L 334,112 L 330,124 L 316,128 L 300,124 Z " +
-      "M 324,130 L 329,130 L 328,135 L 323,134 Z",
+      "M 293,113 L 299,107 L 306,103 L 313,101 L 320,103 L 326,106 L 331,111 " +
+      "L 334,117 L 332,123 L 327,127 L 320,129 L 312,128 L 305,126 L 298,123 " +
+      "L 294,118 Z " +
+      "M 324,132 L 329,131 L 330,136 L 325,137 Z",
   },
   {
     key: "pacific",
     label: "Pacific",
-    // New Zealand, Fiji, Melanesia, Micronesia, Hawaii.
+    // Real inhabited zones — Pacific/Auckland, /Fiji, /Honolulu, /Guam.
     d:
-      "M 344,126 L 350,122 L 354,132 L 348,138 L 344,134 Z " +
-      "M 356,106 L 360,105 L 359,111 L 355,110 Z " +
-      "M 318,94 L 332,91 L 334,96 L 320,99 Z " +
-      "M 326,82 L 334,80 L 334,85 L 326,86 Z " +
-      "M 20,68 L 26,66 L 27,71 L 21,72 Z",
+      "M 337,124 L 342,121 L 345,126 L 340,130 Z " +
+      "M 348,110 L 352,108 L 354,113 L 349,114 Z " +
+      "M 22,63 L 27,61 L 29,65 L 24,67 Z " +
+      "M 330,84 L 334,82 L 336,86 L 331,88 Z",
   },
   {
     key: "indian",
     label: "Indian",
-    // Madagascar, the Maldives, Mauritius, Cocos.
+    // Indian/Antananarivo, /Maldives, /Mauritius.
     d:
-      "M 224,102 L 231,107 L 229,117 L 223,113 Z " +
-      "M 251,84 L 254,83 L 254,88 L 251,89 Z " +
-      "M 237,109 L 241,108 L 241,113 L 237,114 Z " +
-      "M 274,100 L 278,99 L 278,104 L 274,105 Z",
+      "M 227,108 L 231,103 L 234,108 L 231,115 L 228,113 Z " +
+      "M 253,88 L 256,87 L 257,91 L 254,92 Z " +
+      "M 240,112 L 243,111 L 244,115 L 241,116 Z",
   },
   {
     key: "atlantic",
     label: "Atlantic",
-    // Iceland, the Azores, the Canaries, Cape Verde, Bermuda, South Georgia.
+    // Atlantic/Reykjavik, /Azores, /Cape_Verde, /South_Georgia.
     d:
-      "M 157,22 L 165,20 L 166,27 L 157,28 Z " +
-      "M 149,50 L 154,49 L 154,54 L 149,55 Z " +
-      "M 158,62 L 163,61 L 163,66 L 158,67 Z " +
-      "M 152,72 L 157,71 L 157,76 L 152,77 Z " +
-      "M 112,55 L 117,54 L 117,59 L 112,60 Z " +
-      "M 138,140 L 144,139 L 144,145 L 138,146 Z",
+      "M 156,25 L 163,22 L 166,27 L 159,30 Z " +
+      "M 152,49 L 156,47 L 158,51 L 153,53 Z " +
+      "M 158,71 L 162,69 L 164,73 L 159,75 Z " +
+      "M 143,144 L 147,142 L 149,146 L 144,148 Z",
   },
 ]
 
-/**
- * `UTC` is a real IANA region and it is NOT A PLACE.
- *
- * A browser reports it when the machine is set to UTC, when the timezone is
- * unavailable, or when something upstream defaulted. Drawing it anywhere on the
- * map would invent a location; dropping it silently would quietly shrink the
- * total the shares are computed against. So it is counted, listed, and labelled
- * as what it is. Anything unrecognised is treated the same way.
- */
 const OFF_MAP = "Not located"
 
 interface Bucket {

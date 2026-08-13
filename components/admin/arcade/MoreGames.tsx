@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { LADDER } from "@/components/admin/arcade/pieces"
+import { Portrait } from "@/components/admin/arcade/Portrait"
 import { sfx, wakeAudio } from "@/lib/admin/arcade/audio"
 import { drawGrid } from "@/lib/admin/arcade/kyle"
 
@@ -45,7 +47,7 @@ export function BlockBlast() {
   const g = useRef({
     cells: new Array(N * N).fill("") as string[],
     tray: [] as { shape: number[][]; colour: string; used: boolean }[],
-    drag: null as { idx: number; x: number; y: number } | null,
+    drag: null as { idx: number; x: number; y: number; held: number } | null,
     score: 0,
     over: false,
   })
@@ -135,13 +137,13 @@ export function BlockBlast() {
       if (y < TRAY_Y) return
       const idx = Math.floor(x / (W / 3))
       if (idx < 0 || idx > 2 || g.current.tray[idx]?.used) return
-      g.current.drag = { idx, x, y }
+      g.current.drag = { idx, x, y, held: 0 }
       el.setPointerCapture(e.pointerId)
     }
     const move = (e: PointerEvent) => {
       if (!g.current.drag) return
       const { x, y } = local(e)
-      g.current.drag = { ...g.current.drag, x, y }
+      g.current.drag = { ...g.current.drag, x, y, held: g.current.drag.held + 1 }
     }
     const up = (e: PointerEvent) => {
       const d = g.current.drag
@@ -152,7 +154,7 @@ export function BlockBlast() {
       if (!shape) return
       // Anchor on the shape's centre so the piece lands where it looks.
       const gx = Math.round((d.x - (shape[0].length * CELL) / 2) / CELL)
-      const gy = Math.round((d.y - (shape.length * CELL) / 2 - CELL) / CELL)
+      const gy = Math.round((d.y - (shape.length * CELL) / 2 - CELL * 0.6) / CELL)
       place(d.idx, gx, gy)
     }
     el.addEventListener("pointerdown", down)
@@ -185,13 +187,13 @@ export function BlockBlast() {
           ctx.fillRect(x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4)
         }
       }
-      // Ghost of where the dragged piece would land.
+      // Ghost of where the lifted piece would land.
       const d = st.drag
       if (d) {
         const shape = st.tray[d.idx]?.shape
         if (shape) {
           const gx = Math.round((d.x - (shape[0].length * CELL) / 2) / CELL)
-          const gy = Math.round((d.y - (shape.length * CELL) / 2 - CELL) / CELL)
+          const gy = Math.round((d.y - (shape.length * CELL) / 2 - CELL * 0.6) / CELL)
           const ok = fits(shape, gx, gy, st.cells)
           for (let r = 0; r < shape.length; r++) {
             for (let c = 0; c < shape[r].length; c++) {
@@ -202,9 +204,18 @@ export function BlockBlast() {
           }
         }
       }
-      // The tray.
+      /**
+       * The tray. A piece being dragged is NOT drawn here — it is lifted out and
+       * follows the pointer at full board size below.
+       *
+       * Adrian's note: dragging showed a small tray shape staying put while a
+       * ghost appeared on the grid, so you were reading two things at once and
+       * guessing which stock you had picked up. Lifting the actual piece and
+       * growing it to the size it will BE removes the guess.
+       */
       st.tray.forEach((t, i) => {
         if (t.used) return
+        if (d && d.idx === i) return
         const bw = W / 3
         const cell = 14
         const ox = i * bw + bw / 2 - (t.shape[0].length * cell) / 2
@@ -217,6 +228,26 @@ export function BlockBlast() {
           }
         }
       })
+
+      // The lifted piece, under the pointer, at the size it will occupy. It
+      // grows from tray size to full size over the first few frames so the
+      // pick-up reads as a lift rather than a teleport.
+      if (d) {
+        const piece = st.tray[d.idx]
+        if (piece) {
+          const grow = Math.min(1, d.held / 6)
+          const cell = 14 + (CELL - 14) * grow
+          const ox = d.x - (piece.shape[0].length * cell) / 2
+          const oy = d.y - (piece.shape.length * cell) / 2 - CELL * 0.6 * grow
+          for (let r = 0; r < piece.shape.length; r++) {
+            for (let c = 0; c < piece.shape[r].length; c++) {
+              if (!piece.shape[r][c]) continue
+              ctx.fillStyle = piece.colour
+              ctx.fillRect(ox + c * cell + 2, oy + r * cell + 2, cell - 4, cell - 4)
+            }
+          }
+        }
+      }
       if (st.over) {
         ctx.fillStyle = "rgba(17,17,16,.8)"; ctx.fillRect(0, 0, W, H)
         ctx.fillStyle = "#f0efe9"; ctx.textAlign = "center"
@@ -248,23 +279,22 @@ export function BlockBlast() {
 
 /* ══════════════════════════ CONNECT FOUR ════════════════════════════════ */
 /**
- * Amber discs against Will's grey pills.
+ * Amber discs against a character from the chess ladder, at four difficulties.
  *
- * The AI is a 4-ply minimax over a window-scoring evaluation — it will take a
- * win, block yours, and set up a double threat. Deliberately not perfect: a
- * solved-game player would be unbeatable and no fun.
- */
+ * The discs FALL — the board is not updated until one lands, so the animation
+ * is the real state rather than a flourish over an already-decided move.
+ *
+ * Pure Connect Four engine, at module scope so the component's callbacks
+ *  have no unstable dependencies and the search can be reasoned about alone. */
 const C4W = 7, C4H = 6
 
-/** Pure Connect Four engine, at module scope so the component's callbacks
- *  have no unstable dependencies and the search can be reasoned about alone. */
-const drop = (cells: number[], col: number, player: number): number => {
+function drop(cells: number[], col: number, player: number): number {
   for (let r = C4H - 1; r >= 0; r--) {
     if (!cells[r * C4W + col]) { cells[r * C4W + col] = player; return r }
   }
   return -1
 }
-const winner = (cells: number[]): number => {
+function winner(cells: number[]): number {
   const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]]
   for (let r = 0; r < C4H; r++) {
     for (let c = 0; c < C4W; c++) {
@@ -283,7 +313,7 @@ const winner = (cells: number[]): number => {
   }
   return 0
 }
-const scoreWindow = (w: number[], me: number) => {
+function scoreWindow(w: number[], me: number) {
   const foe = me === 1 ? 2 : 1
   const mine = w.filter((x) => x === me).length
   const theirs = w.filter((x) => x === foe).length
@@ -296,7 +326,7 @@ const scoreWindow = (w: number[], me: number) => {
   if (theirs === 2) return -6
   return 0
 }
-const evaluate = (cells: number[], me: number) => {
+function evaluate(cells: number[], me: number) {
   let s = 0
   for (let r = 0; r < C4H; r++) {
     for (let c = 0; c < C4W; c++) {
@@ -311,15 +341,15 @@ const evaluate = (cells: number[], me: number) => {
       }
     }
   }
-  // Centre control is worth real points in connect four.
   for (let r = 0; r < C4H; r++) if (cells[r * C4W + 3] === me) s += 4
   return s
 }
 const legal = (cells: number[]) => [3, 2, 4, 1, 5, 0, 6].filter((c) => !cells[c])
-const search = (cells: number[], depth: number, a: number, b: number, maxing: boolean): number => {
+
+function search(cells: number[], depth: number, a: number, b: number, maxing: boolean): number {
   const w = winner(cells)
-  if (w === 2) return 100000 - (4 - depth)
-  if (w === 1) return -100000 + (4 - depth)
+  if (w === 2) return 100000 - (8 - depth)
+  if (w === 1) return -100000 + (8 - depth)
   const moves = legal(cells)
   if (depth === 0 || moves.length === 0) return evaluate(cells, 2)
   if (maxing) {
@@ -340,46 +370,102 @@ const search = (cells: number[], depth: number, a: number, b: number, maxing: bo
   return best
 }
 
+/**
+ * The four difficulties.
+ *
+ * `blunder` is the same lever as chess: how often it throws away the move it
+ * found. EXTREME IS DELIBERATELY NOT PERFECT — connect four is a solved game
+ * and a true solver playing first wins every single time, which is not a game,
+ * it is a wall. Depth 6 with a real evaluation will punish anything careless
+ * and can still be beaten by someone paying attention, which is what "hard but
+ * beatable" actually means.
+ */
+export interface C4Level { id: string; name: string; depth: number; blunder: number; botIdx: number }
+export const C4_LEVELS: C4Level[] = [
+  { id: "easy",    name: "Easy",    depth: 1, blunder: 0.55, botIdx: 0 },
+  { id: "medium",  name: "Medium",  depth: 3, blunder: 0.20, botIdx: 2 },
+  { id: "hard",    name: "Hard",    depth: 5, blunder: 0.05, botIdx: 6 },
+  { id: "extreme", name: "Extreme", depth: 6, blunder: 0.00, botIdx: 10 },
+]
+
+function chooseColumn(cells: number[], level: C4Level): number {
+  const moves = legal(cells)
+  if (moves.length === 0) return -1
+  if (Math.random() < level.blunder) return moves[Math.floor(Math.random() * moves.length)]
+  let best = moves[0], bestScore = -Infinity
+  for (const c of moves) {
+    const next = cells.slice(); drop(next, c, 2)
+    const sc = search(next, level.depth - 1, -Infinity, Infinity, false)
+    if (sc > bestScore) { bestScore = sc; best = c }
+  }
+  return best
+}
 
 export function ConnectFour() {
-  const W = 420, H = 380
+  const W = 460, H = 420
+  const [level, setLevel] = useState<C4Level>(C4_LEVELS[1])
   const [status, setStatus] = useState("Your move")
-  const g = useRef({ cells: new Array(C4W * C4H).fill(0) as number[], over: false, busy: false, hover: -1, last: -1 })
+  const [over, setOver] = useState<null | "win" | "lose" | "draw">(null)
   const cv = useRef<HTMLCanvasElement | null>(null)
+  const bot = LADDER[level.botIdx] ?? LADDER[0]
+
+  const g = useRef({
+    cells: new Array(C4W * C4H).fill(0) as number[],
+    over: false,
+    busy: false,
+    /** The disc currently falling — the board is not updated until it lands. */
+    falling: null as { col: number; row: number; y: number; vy: number; player: number } | null,
+    last: -1,
+  })
 
   const reset = useCallback(() => {
-    g.current = { cells: new Array(C4W * C4H).fill(0), over: false, busy: false, hover: -1, last: -1 }
-    setStatus("Your move"); sfx.start()
+    g.current = { cells: new Array(C4W * C4H).fill(0), over: false, busy: false, falling: null, last: -1 }
+    setStatus("Your move"); setOver(null); sfx.start()
   }, [])
+
+  /** Land the falling disc, then decide what happens next. */
+  const land = useCallback(() => {
+    const st = g.current
+    const f = st.falling
+    if (!f) return
+    st.falling = null
+    const cells = st.cells.slice()
+    cells[f.row * C4W + f.col] = f.player
+    st.cells = cells
+    st.last = f.col
+    sfx.drop()
+
+    const w = winner(cells)
+    if (w) {
+      st.over = true
+      setOver(w === 1 ? "win" : "lose")
+      setStatus(w === 1 ? "You win" : `${bot.name} wins`)
+      if (w === 1) sfx.win()
+      else sfx.lose()
+      return
+    }
+    if (legal(cells).length === 0) {
+      st.over = true; setOver("draw"); setStatus("Full board — draw"); return
+    }
+    if (f.player === 1) {
+      st.busy = true
+      setStatus(`${bot.name} is thinking`)
+      setTimeout(() => {
+        const col = chooseColumn(st.cells, level)
+        if (col < 0) { st.busy = false; return }
+        const row = drop(st.cells.slice(), col, 2)
+        st.falling = { col, row, y: -40, vy: 0, player: 2 }
+        st.busy = false
+      }, 320)
+    } else setStatus("Your move")
+  }, [bot.name, level])
 
   const play = useCallback((col: number) => {
     const st = g.current
-    if (st.over || st.busy || st.cells[col]) return
-    const cells = st.cells.slice()
-    drop(cells, col, 1)
-    st.cells = cells; st.last = col
-    sfx.drop()
-    if (winner(cells) === 1) { st.over = true; setStatus("You win"); sfx.win(); return }
-    if (legal(cells).length === 0) { st.over = true; setStatus("Full board — draw"); return }
-    st.busy = true
-    setStatus("Will is thinking")
-    setTimeout(() => {
-      let best = legal(st.cells)[0], bestScore = -Infinity
-      for (const c of legal(st.cells)) {
-        const next = st.cells.slice(); drop(next, c, 2)
-        const sc = search(next, 3, -Infinity, Infinity, false)
-        if (sc > bestScore) { bestScore = sc; best = c }
-      }
-      const cells2 = st.cells.slice()
-      drop(cells2, best, 2)
-      st.cells = cells2; st.last = best; st.busy = false
-      sfx.drop()
-      if (winner(cells2) === 2) { st.over = true; setStatus("Will wins — “Milligram does this better too.”"); sfx.lose() }
-      else if (legal(cells2).length === 0) { st.over = true; setStatus("Full board — draw") }
-      else setStatus("Your move")
-    }, 420)
-    // `search`, `drop`, `winner` and `legal` are module-level pure functions —
-    // nothing here closes over changing state, so the empty deps are correct.
+    if (st.over || st.busy || st.falling || st.cells[col]) return
+    const row = drop(st.cells.slice(), col, 1)
+    if (row < 0) return
+    st.falling = { col, row, y: -40, vy: 0, player: 1 }
   }, [])
 
   useEffect(() => {
@@ -388,52 +474,110 @@ export function ConnectFour() {
     const ctx = el.getContext("2d")
     if (!ctx) return
     let raf = 0
+    const pad = 16
+    const cw = (W - pad * 2) / C4W
+    const r = Math.min(cw, (H - pad * 2 - 34) / C4H) / 2 - 3
+    const cx = (c: number) => pad + cw * c + cw / 2
+    const cy = (row: number) => 44 + row * (r * 2 + 6) + r
+
     const frame = () => {
       const st = g.current
+      // Gravity on the falling disc. It lands when it reaches its slot.
+      const f = st.falling
+      if (f) {
+        f.vy += 1.6
+        f.y += f.vy
+        if (f.y >= cy(f.row)) { f.y = cy(f.row); land() }
+      }
       ctx.fillStyle = "#111110"; ctx.fillRect(0, 0, W, H)
       drawGrid(ctx, W, H)
-      const pad = 14, cw = (W - pad * 2) / C4W, r = Math.min(cw, (H - pad * 2 - 30) / C4H) / 2 - 3
+      // The falling disc is drawn BEHIND the board face, so it reads as sliding
+      // down inside the slot rather than floating over the front of it.
+      if (f) {
+        ctx.beginPath(); ctx.arc(cx(f.col), f.y, r, 0, Math.PI * 2)
+        ctx.fillStyle = f.player === 1 ? "#c8861a" : "#9a9a90"; ctx.fill()
+      }
       ctx.fillStyle = "#26261f"
-      ctx.fillRect(pad - 6, 30, W - pad * 2 + 12, H - 40)
+      ctx.fillRect(pad - 8, 34, W - pad * 2 + 16, H - 46)
       for (let row = 0; row < C4H; row++) {
         for (let c = 0; c < C4W; c++) {
           const v = st.cells[row * C4W + c]
-          ctx.beginPath()
-          ctx.arc(pad + cw * c + cw / 2, 46 + row * (r * 2 + 6) + r, r, 0, Math.PI * 2)
+          ctx.beginPath(); ctx.arc(cx(c), cy(row), r, 0, Math.PI * 2)
           ctx.fillStyle = v === 1 ? "#c8861a" : v === 2 ? "#9a9a90" : "#111110"
           ctx.fill()
-          if (v === 2) { ctx.fillStyle = "#6e6e66"; ctx.fillRect(pad + cw * c + cw / 2 - r, 46 + row * (r * 2 + 6) + r - 1, r * 2, 2) }
+          if (v === 2) {
+            ctx.fillStyle = "#6e6e66"
+            ctx.fillRect(cx(c) - r, cy(row) - 1, r * 2, 2)
+          }
         }
-      }
-      if (st.over) {
-        ctx.fillStyle = "rgba(17,17,16,.78)"; ctx.fillRect(0, 0, W, H)
-        ctx.fillStyle = "#f0efe9"; ctx.textAlign = "center"
-        ctx.font = "500 14px ui-monospace,Menlo,monospace"
-        ctx.fillText("TAP TO PLAY AGAIN", W / 2, H / 2)
       }
       raf = requestAnimationFrame(frame)
     }
     raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf)
-  }, [H, W])
+  }, [H, W, land])
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3">
-      <canvas
-        ref={cv}
-        width={W}
-        height={H}
-        aria-label="Connect Four"
-        onPointerDown={(e) => {
-          e.preventDefault(); wakeAudio()
-          if (g.current.over) { reset(); return }
-          const r = e.currentTarget.getBoundingClientRect()
-          const col = Math.floor((((e.clientX - r.left) / r.width) * W - 14) / ((W - 28) / C4W))
-          if (col >= 0 && col < C4W) play(col)
-        }}
-        className="block w-full max-w-[min(90vw,min(460px,66vh))] rounded-xl [touch-action:none]"
-      />
-      <p className="text-center text-[11px] text-text-muted">{status} · tap a column</p>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <div className="glass-pill grid size-16 place-items-center overflow-hidden p-1">
+          <Portrait bot={bot} scale={3} mood={over === "lose" ? "gloat" : over === "win" ? "beaten" : "idle"} />
+        </div>
+        <div className="flex gap-1">
+          {C4_LEVELS.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              onClick={() => { wakeAudio(); setLevel(l); reset() }}
+              aria-pressed={l.id === level.id}
+              className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                l.id === level.id ? "bg-accent-amber text-bg-base" : "glass-pill text-text-muted hover:text-foreground"
+              }`}
+            >
+              {l.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative w-full max-w-[min(90vw,min(460px,60vh))]">
+        <canvas
+          ref={cv}
+          width={W}
+          height={H}
+          aria-label="Connect Four"
+          onPointerDown={(e) => {
+            e.preventDefault(); wakeAudio()
+            if (g.current.over) { reset(); return }
+            const rect = e.currentTarget.getBoundingClientRect()
+            const col = Math.floor((((e.clientX - rect.left) / rect.width) * W - 16) / ((W - 32) / C4W))
+            if (col >= 0 && col < C4W) play(col)
+          }}
+          className="block w-full rounded-xl [touch-action:none]"
+        />
+        {over && (
+          <div className="absolute inset-0 grid place-items-center rounded-xl bg-bg-base/85 px-4 text-center">
+            <div>
+              <div className="flex items-end justify-center gap-3">
+                <Portrait bot={bot} scale={4} mood={over === "lose" ? "gloat" : "beaten"} />
+                {over === "lose" && (
+                  <div className="relative mb-3 max-w-[14rem] rounded-2xl rounded-bl-sm bg-[#f0efe9] px-3 py-2 text-left">
+                    <p className="text-sm leading-snug text-[#1b1a17]">“{bot.taunt}”</p>
+                    <span className="absolute -bottom-1.5 left-2 size-3 rotate-45 bg-[#f0efe9]" />
+                  </div>
+                )}
+              </div>
+              <p className="mt-3 font-mono text-base text-foreground">{status}</p>
+              <button type="button" onClick={reset} className="glass-pill mt-3 px-4 py-1.5 text-xs text-foreground">
+                Play again
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      <p className="text-center text-[11px] text-text-muted">
+        {status} · tap a column · {level.name} is {bot.name}
+      </p>
     </div>
   )
 }
@@ -492,7 +636,7 @@ const canFound = (card: PlayCard, pile: PlayCard[]) =>
 function CardFace({ c }: { c: PlayCard }) {
   return (
     <span
-      className={`inline-flex h-11 w-8 flex-col items-center justify-center rounded-[5px] border font-mono text-[11px] leading-none ${
+      className={`inline-flex h-[68px] w-[48px] flex-col items-center justify-center gap-0.5 rounded-md border font-mono text-[15px] leading-none ${
         c.up
           ? `border-[#3b3b36] bg-[#f0efe9] ${isRed(c.suit) ? "text-[#b5391f]" : "text-[#1b1a17]"}`
           : "border-[#4a4a45] bg-[#2b2a24] text-[#4a4a45]"
@@ -512,12 +656,36 @@ function CardFace({ c }: { c: PlayCard }) {
 
 export function Solitaire() {
   const [st, setSt] = useState<SolState>(freshDeal)
+  /**
+   * Every state before the current one, newest last.
+   *
+   * Klondike is unwinnable often enough that a wrong move can end the deal, and
+   * without an undo the only recovery is a new game — which throws away the
+   * whole board for one mistake. Capped so a very long session cannot grow the
+   * array without bound.
+   */
+  const [history, setHistory] = useState<SolState[]>([])
+  const remember = useCallback(
+    (prev: SolState) => setHistory((h) => [...h, prev].slice(-60)),
+    []
+  )
 
-  const deal = useCallback(() => { setSt(freshDeal()); sfx.start() }, [])
+  const undo = useCallback(() => {
+    wakeAudio()
+    setHistory((h) => {
+      if (h.length === 0) { sfx.bad(); return h }
+      setSt(h[h.length - 1])
+      sfx.place()
+      return h.slice(0, -1)
+    })
+  }, [])
+
+  const deal = useCallback(() => { setSt(freshDeal()); setHistory([]); sfx.start() }, [])
 
   const draw = useCallback(() => {
     wakeAudio()
     setSt((s) => {
+      remember(s)
       if (s.stock.length === 0) {
         // Recycling the waste is a legal Klondike move, not a reset.
         return { ...s, stock: [...s.waste].reverse().map((c) => ({ ...c, up: false })), waste: [], sel: null }
@@ -527,12 +695,13 @@ export function Solitaire() {
       return { ...s, stock, waste: [...s.waste, { ...c, up: true }], sel: null }
     })
     sfx.place()
-  }, [])
+  }, [remember])
 
   const moveTo = useCallback((to: { kind: "tab" | "found"; pile: number }) => {
     wakeAudio()
     setSt((s) => {
       if (!s.sel) return s
+      const before = s
       const src = s.sel.from === "waste" ? s.waste : s.tab[s.sel.pile]
       const moving = src.slice(s.sel.idx)
       if (moving.length === 0) return { ...s, sel: null }
@@ -561,11 +730,12 @@ export function Solitaire() {
         }
       }
       const won = found.every((f) => f.length === 13)
+      remember(before)
       sfx.place()
       if (won) sfx.win()
       return { ...s, waste, tab, found, sel: null, moves: s.moves + 1, won }
     })
-  }, [])
+  }, [remember])
 
   return (
     <div className="flex h-full flex-col items-center gap-3 overflow-x-auto">
@@ -574,7 +744,7 @@ export function Solitaire() {
           type="button"
           onClick={draw}
           title={st.stock.length ? `${st.stock.length} left` : "Recycle the waste"}
-          className="glass-pill h-11 w-8 text-[10px] text-text-muted"
+          className="glass-pill h-[68px] w-[48px] text-xs text-text-muted"
         >
           {st.stock.length || "↺"}
         </button>
@@ -586,7 +756,7 @@ export function Solitaire() {
           {st.waste.length ? (
             <CardFace c={st.waste[st.waste.length - 1]} />
           ) : (
-            <span className="inline-block h-11 w-8 rounded-[5px] border border-dashed border-[#3b3b36]" />
+            <span className="inline-block h-[68px] w-[48px] rounded-md border border-dashed border-[#3b3b36]" />
           )}
         </button>
         <span className="w-4" />
@@ -608,14 +778,14 @@ export function Solitaire() {
           <div key={p} className="flex flex-col">
             {pile.length === 0 ? (
               <button type="button" onClick={() => moveTo({ kind: "tab", pile: p })}>
-                <span className="inline-block h-11 w-8 rounded-[5px] border border-dashed border-[#3b3b36]" />
+                <span className="inline-block h-[68px] w-[48px] rounded-md border border-dashed border-[#3b3b36]" />
               </button>
             ) : (
               pile.map((c, i) => (
                 <button
                   key={i}
                   type="button"
-                  style={{ marginTop: i === 0 ? 0 : -26 }}
+                  style={{ marginTop: i === 0 ? 0 : c.up ? -42 : -54 }}
                   onClick={() => {
                     if (!c.up) return
                     if (st.sel) moveTo({ kind: "tab", pile: p })
@@ -635,12 +805,20 @@ export function Solitaire() {
         ))}
       </div>
 
-      <p className="text-center text-[11px] text-text-muted">
-        {st.won ? "Solved." : `${st.moves} moves · tap a card, then tap where it goes`} ·{" "}
-        <button type="button" onClick={deal} className="underline underline-offset-2 hover:text-foreground">
-          new deal
+      <div className="flex items-center gap-2 text-[11px] text-text-muted">
+        <span>{st.won ? "Solved." : `${st.moves} moves · tap a card, then tap where it goes`}</span>
+        <button
+          type="button"
+          onClick={undo}
+          disabled={history.length === 0}
+          className="glass-pill px-3 py-1 text-[11px] text-text-muted enabled:hover:text-foreground disabled:opacity-40"
+        >
+          Undo
         </button>
-      </p>
+        <button type="button" onClick={deal} className="glass-pill px-3 py-1 text-[11px] text-text-muted hover:text-foreground">
+          New deal
+        </button>
+      </div>
     </div>
   )
 }

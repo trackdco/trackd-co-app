@@ -13,6 +13,7 @@ import {
   legalMoves,
   newGame,
   outcome,
+  budgetFor,
   pickMoveTimed,
   rank,
   sq,
@@ -143,7 +144,7 @@ export function ChessGame() {
     const mine = generation.current
     setTimeout(() => {
       if (mine !== generation.current) return
-      void pickMoveTimed(g.current, { depth: bot.depth, blunder: bot.blunder })
+      void pickMoveTimed(g.current, { depth: bot.depth, blunder: bot.blunder }, budgetFor(bot.depth))
         .then((m) => {
       if (mine !== generation.current) return
       const elapsed = performance.now() - startedAt
@@ -364,16 +365,16 @@ export function ChessGame() {
       {/* Who you are actually fighting, with their face on it. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="glass-pill grid size-14 shrink-0 place-items-center overflow-hidden p-1">
+          <div className="glass-pill grid size-24 shrink-0 place-items-center overflow-hidden p-1">
             <Portrait
               bot={bot}
-              scale={2}
+              scale={4}
               mood={status.over ? (status.won ? "beaten" : "gloat") : "idle"}
             />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">{bot.name}</p>
-            <p className="text-[11px] text-text-muted">
+            <p className="text-base font-medium text-foreground">{bot.name}</p>
+            <p className="text-xs text-text-muted">
               {bot.elo} elo · {bot.who}
             </p>
           </div>
@@ -392,16 +393,26 @@ export function ChessGame() {
           className="block w-full rounded-xl [image-rendering:pixelated] [touch-action:none]"
         />
         {status.over && (
-          <div className="absolute inset-0 grid place-items-center rounded-xl bg-bg-base/80 px-6 text-center">
-            <div>
-              <p className={`font-mono text-lg ${status.won ? "text-accent-amber" : "text-foreground"}`}>
+          <div className="absolute inset-0 grid place-items-center rounded-xl bg-bg-base/85 px-4 text-center">
+            <div className="w-full max-w-sm">
+              {/* The scene: they laugh at you, and the line comes out of their
+                  mouth rather than sitting in a caption underneath. */}
+              <div className="flex items-end justify-center gap-3">
+                <Portrait bot={bot} scale={5} mood={status.won ? "beaten" : "gloat"} />
+                {taunt && !status.won && (
+                  <div className="relative mb-4 max-w-[15rem] rounded-2xl rounded-bl-sm bg-[#f0efe9] px-3.5 py-2.5 text-left">
+                    <p className="text-sm leading-snug text-[#1b1a17]">“{taunt}”</p>
+                    <span className="absolute -bottom-1.5 left-2 size-3 rotate-45 bg-[#f0efe9]" />
+                  </div>
+                )}
+              </div>
+              <p
+                className={`mt-4 font-mono text-lg ${
+                  status.won ? "text-accent-amber" : "text-foreground"
+                }`}
+              >
                 {status.text}
               </p>
-              {taunt && (
-                <p className="mx-auto mt-3 max-w-[26ch] text-sm leading-relaxed text-text-muted">
-                  <span className="text-foreground">{bot.name}:</span> “{taunt}”
-                </p>
-              )}
               <button
                 type="button"
                 onClick={reset}
@@ -424,15 +435,15 @@ export function ChessGame() {
             onClick={() => { wakeAudio(); setBot(b); reset() }}
             aria-pressed={b.id === bot.id}
             title={`${b.name} · ${b.elo} elo · ${b.who}`}
-            className={`flex w-[62px] shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors ${
+            className={`flex w-[74px] shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-2 transition-colors ${
               b.id === bot.id
                 ? "bg-accent-amber/15 ring-1 ring-accent-amber"
                 : "glass-pill hover:bg-[var(--admin-glass-hover)]"
             }`}
           >
-            <Portrait bot={b} scale={1} mood="idle" />
+            <Portrait bot={b} scale={2} mood="idle" />
             <span
-              className={`font-mono text-[9px] tabular-nums ${
+              className={`font-mono text-[10px] tabular-nums ${
                 b.id === bot.id ? "text-accent-amber" : "text-text-muted"
               }`}
             >

@@ -42,15 +42,23 @@ export function Portrait({
     const frame = (t: number) => {
       ctx.clearRect(0, 0, w, h)
       const m = moodRef.current
-      // Gloating bounces hard and fast; beaten slumps and stops moving.
+      /**
+       * The laugh is a BOUNCE PLUS A SQUASH, not just a bob.
+       *
+       * A character that only moves up and down reads as floating. Squashing on
+       * the way down and stretching on the way up is what makes it read as
+       * someone actually laughing at you — the same squash-and-stretch that
+       * makes Kyle's jump work.
+       */
+      const laugh = Math.abs(Math.sin(t / 115))
       const bob =
-        m === "gloat" ? Math.round(Math.abs(Math.sin(t / 130)) * -3)
-        : m === "beaten" ? 2
+        m === "gloat" ? Math.round(-laugh * 4)
+        : m === "beaten" ? 3
         : Math.round(Math.sin(t / 460 + bot.elo) * 1.2)
       const rows = bot.gauge ? gaugeRows(bot, t) : bot.rows
       drawPixels(ctx, rows, bot.pal, scale, 0, (2 + bob) * scale, {
-        sx: m === "beaten" ? 1.08 : 1,
-        sy: m === "beaten" ? 0.92 : 1,
+        sx: m === "gloat" ? 1 + laugh * 0.06 : m === "beaten" ? 1.1 : 1,
+        sy: m === "gloat" ? 1 - laugh * 0.08 : m === "beaten" ? 0.9 : 1,
       })
       raf = requestAnimationFrame(frame)
     }
