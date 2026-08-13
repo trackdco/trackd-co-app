@@ -215,8 +215,8 @@ export async function requireWriteAccess(): Promise<
  *
  * **The profile and its settings.** `updatePhysical`, `setAvatarPath`,
  * `clearAvatar`, `saveTimezone`, `saveReminderPrefs`, `savePushSubscription`,
- * `removePushSubscription`, `releaseDeviceSubscription`, `sendMyRemindersNow`,
- * `sendTestNotification`. A
+ * `removePushSubscription`, `releaseDeviceSubscription`,
+ * `refreshDeviceSubscription`, `sendMyRemindersNow`, `sendTestNotification`. A
  * read-only user must still be able to fix their timezone and turn off
  * notifications about a subscription they no longer have.
  *
