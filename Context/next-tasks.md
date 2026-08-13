@@ -8,20 +8,41 @@ Last updated: 2026-08-13 (notification fixes merged; the read-only gate, the sav
 
 ---
 
-## ⚠️ OWED ON NOTIFICATIONS — one SQL file, and a list of knowns (2026-08-13)
+## ⚠️ NOTIFICATIONS — fixed, NOT on `main`, and a list of knowns (2026-08-13)
 
-The push engine's `stopped`/pause/version gates are fixed and merged (see
-`progress-tracker.md`). What is left is **not** in the code:
+The push engine's `stopped`/pause/version gates are fixed and reviewed (see
+`progress-tracker.md`), and they live on **`wave3/billing-cancel`**, not on
+`main`.
 
-### 1. Apply `supabase/notifications/005_trial_stamp_lock.sql` — ADRIAN
+**⚠️ They are not separable from the billing work.** They were built on top of
+it in the same branch, so merging them means merging billing, and Adrian's call
+is that nothing billing-shaped goes to `main` until billing is finished. A merge
+to `main` happened once tonight and was reverted for exactly that reason.
 
-Written, never run. Its own header says so. Until it runs, a signed-in user can
-`PATCH` their own `trial_reminder_sent_for`: clearing it produces roughly 96
-pushes a day about their own money, and setting it forward permanently silences
-the notice that they are about to be charged — which the paywall and the
-checkout both promise out loud. Self-inflicted only (RLS holds across users),
-but it is also the precondition for the stamp-storm below. Paste it into the SQL
-Editor; it is idempotent.
+So the notification fixes are NOT live. Until the branch lands, production still
+runs the engine that announces a compound whose `is_active` never caught up with
+its delete, and that drifts off the app's grid after a pause. Nobody is
+currently in either state (checked: 17 push-enabled accounts, 51 active
+compounds, zero affected), which is what makes waiting acceptable.
+
+What is left that is **not** in the code:
+
+### 1. ✅ `005_trial_stamp_lock.sql` — APPLIED AND VERIFIED (2026-08-13, Adrian)
+
+Pasted into the SQL Editor and proven the same night with
+`scratchpad/stamp-attack.mjs` against the live database: all five attacks
+refused with 403/42501 (clear the stamp, set it forward, smuggle it into a
+settings save, insert a row pre-stamped, delete the row), and all five
+legitimate writes still succeeded — including the service role stamping AND
+releasing, which is the one that would have turned "~96 notifications a day"
+into "none, ever".
+
+The lesson, now a standard in `code-standards.md`: he had pasted "just the
+bottom bit", and the bottom of that file is entirely comments. It would have
+reported "Success. No rows returned" — which is also what a correct run reports
+— while doing nothing. Every hand-applied SQL file now opens with a
+`▶ HOW TO RUN THIS` block: paste the whole file, no rows returned is success,
+and here is a check that actually returns something.
 
 ### 2. Known and NOT fixed — findings from four cold reviews, ranked
 
