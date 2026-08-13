@@ -18,9 +18,19 @@ export function deltaLabel(d: Delta | null | undefined, unit: "count" | "points"
   const sign = d.absolute > 0 ? "+" : "−"
   const mag = Math.abs(d.absolute)
   if (unit === "points") return `${sign}${mag} pts`
-  // Prefer the percentage when there is a real baseline; fall back to the
-  // absolute when there isn't, because "+∞%" is not a number anybody wants.
-  if (d.pct !== null && Math.abs(d.pct) < 1000) return `${sign}${Math.abs(d.pct)}%`
+  /**
+   * The percentage is only used when it ROUNDS to something.
+   *
+   * `pct` is rounded independently of `absolute`, so a real but tiny move —
+   * 1000 → 1003 — gives `absolute: 3` and `pct: 0`, and the old guard let that
+   * through as "+0%" with a green up-caret beside it. That is precisely the
+   * thing this function exists to prevent: a tile that prints "+0%" trains you
+   * to ignore the row it sits in. When the percentage rounds away, show the
+   * absolute instead, which is the honest number at that scale.
+   */
+  if (d.pct !== null && d.pct !== 0 && Math.abs(d.pct) < 1000) {
+    return `${sign}${Math.abs(d.pct)}%`
+  }
   return `${sign}${mag}`
 }
 
@@ -53,7 +63,14 @@ export function currencySymbol(code: string | null): string {
   return map[code.toLowerCase()] ?? code.toUpperCase() + " "
 }
 
-/** Money, with the symbol its currency actually implies. Never a hardcoded "$". */
+/**
+ * Money, with the symbol its currency actually implies. Never a hardcoded "$".
+ *
+ * With no subscriptions there is no currency to report, and Stripe is the only
+ * thing that knows which one this account bills in — so a zero renders as a
+ * bare "0" rather than guessing a symbol. The empty state beside it says
+ * "awaiting first customer", which is the honest framing anyway.
+ */
 export function money(amount: number, code: string | null): string {
   const sym = currencySymbol(code)
   const whole = Number.isInteger(amount)

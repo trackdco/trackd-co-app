@@ -48,6 +48,7 @@ export const sq = (f: number, r: number) => r * 8 + f
 
 const ROOK_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const
 const BISHOP_DIRS = [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const
+const PROMOTIONS: PieceType[] = ["q", "r", "b", "n"]
 const KNIGHT_JUMPS = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]] as const
 
 /** Every move the pieces can make, ignoring whether it leaves the king in check. */
@@ -68,9 +69,16 @@ export function pseudoMoves(g: Game, colour: Colour): Move[] {
       const dir = colour === "w" ? -1 : 1
       const startRank = colour === "w" ? 6 : 1
       const lastRank = colour === "w" ? 0 : 7
+      // Queen FIRST in every promotion list: the UI takes the first move that
+      // matches a target square, so the human always gets a queen without a
+      // picker, while the engine still gets to consider the underpromotions.
+      const pushPromos = (to: number) => {
+        for (const t of PROMOTIONS) out.push({ from: i, to, promo: t })
+      }
       if (on(f, r + dir) && !g.board[sq(f, r + dir)]) {
-        const promo = r + dir === lastRank
-        out.push({ from: i, to: sq(f, r + dir), ...(promo ? { promo: "q" as PieceType } : {}) })
+        const to = sq(f, r + dir)
+        if (r + dir === lastRank) pushPromos(to)
+        else out.push({ from: i, to })
         if (r === startRank && !g.board[sq(f, r + 2 * dir)])
           out.push({ from: i, to: sq(f, r + 2 * dir), dbl: true })
       }
@@ -78,9 +86,10 @@ export function pseudoMoves(g: Game, colour: Colour): Move[] {
         const tf = f + df, tr = r + dir
         if (!on(tf, tr)) continue
         const t = sq(tf, tr), q = g.board[t]
-        if (q && q.c !== colour)
-          out.push({ from: i, to: t, ...(tr === lastRank ? { promo: "q" as PieceType } : {}) })
-        else if (!q && g.ep === t) out.push({ from: i, to: t, ep: true })
+        if (q && q.c !== colour) {
+          if (tr === lastRank) pushPromos(t)
+          else out.push({ from: i, to: t })
+        } else if (!q && g.ep === t) out.push({ from: i, to: t, ep: true })
       }
     } else if (p.t === "n") {
       for (const [df, dr] of KNIGHT_JUMPS) add(f + df, r + dr)
@@ -97,8 +106,62 @@ export function pseudoMoves(g: Game, colour: Colour): Move[] {
   return out
 }
 
+/**
+ * Is `square` attacked by `by`?
+ *
+ * COMPUTED DIRECTLY, NOT DERIVED FROM `pseudoMoves`. Deriving it was a real bug:
+ * a pawn's diagonal is only emitted as a MOVE when the target square is
+ * occupied, so an empty square was never seen as pawn-attacked. Castling transit
+ * and destination squares are empty by definition, which meant both sides could
+ * castle straight through a pawn's control — the king walking into check, which
+ * is the one thing castling rules exist to prevent. The depth-2 perft could not
+ * catch it because the opening position has no castling in it.
+ *
+ * A pawn ATTACKS its diagonals whether or not anything is standing there, and
+ * does not attack the square directly in front of it. That distinction is the
+ * whole fix.
+ */
 export function attacks(g: Game, square: number, by: Colour): boolean {
-  for (const m of pseudoMoves(g, by)) if (m.to === square) return true
+  const tf = file(square), tr = rank(square)
+
+  // Pawns: does an enemy pawn sit on a square that attacks this one?
+  const back = by === "w" ? 1 : -1 // where such a pawn would have to stand
+  for (const df of [-1, 1]) {
+    const pf = tf + df, pr = tr + back
+    if (!on(pf, pr)) continue
+    const p = g.board[sq(pf, pr)]
+    if (p && p.c === by && p.t === "p") return true
+  }
+
+  for (const [df, dr] of KNIGHT_JUMPS) {
+    const f = tf + df, r = tr + dr
+    if (!on(f, r)) continue
+    const p = g.board[sq(f, r)]
+    if (p && p.c === by && p.t === "n") return true
+  }
+
+  for (let df = -1; df <= 1; df++) {
+    for (let dr = -1; dr <= 1; dr++) {
+      if (!df && !dr) continue
+      const f = tf + df, r = tr + dr
+      if (!on(f, r)) continue
+      const p = g.board[sq(f, r)]
+      if (p && p.c === by && p.t === "k") return true
+    }
+  }
+
+  for (const [df, dr] of [...ROOK_DIRS, ...BISHOP_DIRS]) {
+    const straight = df === 0 || dr === 0
+    let f = tf + df, r = tr + dr
+    while (on(f, r)) {
+      const p = g.board[sq(f, r)]
+      if (p) {
+        if (p.c === by && (p.t === "q" || p.t === (straight ? "r" : "b"))) return true
+        break
+      }
+      f += df; r += dr
+    }
+  }
   return false
 }
 
@@ -222,6 +285,36 @@ export function evaluate(g: Game): number {
 const MAX_QUIESCE = 4
 
 function quiesce(g: Game, alpha: number, beta: number, maximising: boolean, ply = 0): number {
+  /**
+   * IN CHECK, THERE IS NO STANDING PAT.
+   *
+   * Two bugs lived here. Standing pat while in check lets the side to move
+   * "pass" on a static score it cannot legally claim. And because a quiet
+   * position simply returned `evaluate()`, a checkmate at the leaf scored as
+   * material — so a depth-1 bot would not play mate in one, and a winning bot
+   * could walk into a stalemate at its horizon. Searching every evasion fixes
+   * both: no legal reply while in check IS mate, and no legal reply otherwise
+   * IS stalemate.
+   */
+  if (inCheck(g, g.turn)) {
+    const evasions = legalMoves(g)
+    if (evasions.length === 0) return g.turn === "w" ? -99999 - ply : 99999 + ply
+    if (ply >= MAX_QUIESCE) return evaluate(g)
+    let best = maximising ? -Infinity : Infinity
+    for (const m of evasions) {
+      const score = quiesce(applyMove(g, m), alpha, beta, !maximising, ply + 1)
+      if (maximising) {
+        if (score > best) best = score
+        if (best > alpha) alpha = best
+      } else {
+        if (score < best) best = score
+        if (best < beta) beta = best
+      }
+      if (beta <= alpha) break
+    }
+    return best
+  }
+
   const standPat = evaluate(g)
   if (ply >= MAX_QUIESCE) return standPat
   // Stand-pat: you are never forced to capture, so the static score is a floor

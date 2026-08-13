@@ -1,5 +1,5 @@
 import { AlertStrip } from "@/components/admin/AlertStrip"
-import { Funnel, RankedBars } from "@/components/admin/charts"
+import { Funnel } from "@/components/admin/charts"
 import { GlassGrid, GlassGroup, GlassPanel, GlassRow, GlassStat } from "@/components/admin/glass"
 import { Sparkline } from "@/components/admin/Sparkline"
 import type { Alert } from "@/lib/admin/alerts"
@@ -30,7 +30,7 @@ export function OverviewTab({
 
   return (
     <div className="space-y-5">
-      <AlertStrip alerts={alerts} />
+      <AlertStrip alerts={alerts} issues={metrics.issues} />
 
       {/* The dashboard's own reading of itself. Absent on a quiet week rather
           than reaching for a filler line — see `headline` in insights.ts. */}
@@ -47,7 +47,7 @@ export function OverviewTab({
       <GlassPanel index={1} className="relative overflow-hidden">
         <p className={CARD_EYEBROW}>Monthly recurring revenue</p>
         <p className="mt-2 text-[52px] leading-none font-extralight tracking-[-0.035em] tabular-nums text-foreground">
-          {hasMoney ? money(rev.mrr, rev.currency) : "$0"}
+          {money(rev.mrr, rev.currency)}
         </p>
         {hasMoney ? (
           <p className="mt-3 text-sm text-text-muted">
@@ -146,14 +146,47 @@ export function OverviewTab({
                 Nothing moved enough to be worth reporting.
               </p>
             ) : (
-              <RankedBars
-                items={movers.slice(0, 5).map((m) => ({
-                  key: m.key,
-                  label: `${m.label} ${deltaLabel(m.delta, m.unit === "points" ? "points" : "count") ?? ""}`,
-                  count: Math.abs(m.delta.current),
-                }))}
-                limit={5}
-              />
+              /* The bar measures the MOVEMENT, not the metric's current level.
+                 It used to pass `delta.current`, so a row read "Waitlist
+                 signups +34% · 128" — the 128 being the total, not the change —
+                 and every bar was scaled against the top mover's unrelated
+                 current value, which pegged most of them at full width. */
+              <div className="space-y-3">
+                {movers.slice(0, 5).map((m) => {
+                  const label = deltaLabel(m.delta, m.unit === "points" ? "points" : "count")
+                  const up = m.delta.absolute > 0
+                  const biggest = Math.max(
+                    ...movers.slice(0, 5).map((x) => Math.abs(x.delta.absolute))
+                  )
+                  const width = biggest > 0 ? Math.max(4, (Math.abs(m.delta.absolute) / biggest) * 100) : 0
+                  return (
+                    <div key={m.key}>
+                      <div className="flex items-baseline justify-between gap-4">
+                        <span className="min-w-0 truncate text-sm text-foreground">{m.label}</span>
+                        <span
+                          className={`shrink-0 font-mono text-sm tabular-nums ${
+                            up ? "text-admin-positive" : "text-admin-negative"
+                          }`}
+                        >
+                          {label}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-bg-input">
+                        <div
+                          className={`h-full rounded-full ${
+                            up ? "bg-admin-positive" : "bg-admin-negative"
+                          }`}
+                          style={{ width: `${width}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-[11px] text-text-muted">
+                        {m.delta.previous} → {m.delta.current}
+                        {m.previousLabel ? ` · ${m.previousLabel}` : ""}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </GlassPanel>
 

@@ -8,6 +8,7 @@ import {
   outcome,
   pickMove,
   pickMoveTimed,
+  attacks,
   pseudoMoves,
   sq,
   type Game,
@@ -260,5 +261,83 @@ describe("pickMoveTimed", () => {
   it("returns null when there is nothing to play", async () => {
     const g = position({ h1: "K", g3: "q", e8: "k" }, "w")
     expect(await pickMoveTimed(g, { depth: 2, blunder: 0 })).toBeNull()
+  })
+})
+
+describe("pawn attacks on EMPTY squares", () => {
+  /**
+   * The bug this pins: `attacks()` used to be derived from `pseudoMoves`, and a
+   * pawn's diagonal is only emitted as a move when something is standing there.
+   * Castling squares are empty by definition, so a pawn guarding one was
+   * invisible and both sides could castle through check.
+   */
+  it("sees a pawn attacking an empty square", () => {
+    const g = position({ e1: "K", e8: "k", b2: "p" })
+    expect(attacks(g, at("a1"), "b")).toBe(true)
+    expect(attacks(g, at("c1"), "b")).toBe(true)
+    // Straight ahead is a MOVE, never an attack.
+    expect(attacks(g, at("b1"), "b")).toBe(false)
+  })
+
+  it("refuses queenside castling through a pawn's control", () => {
+    const g = position({ e1: "K", a1: "R", e8: "k", b2: "p" })
+    g.cast = { wK: false, wQ: true, bK: false, bQ: false }
+    expect(has(legalMoves(g), "e1", "c1")).toBe(false)
+  })
+
+  it("refuses kingside castling through a pawn's control", () => {
+    const g = position({ e1: "K", h1: "R", e8: "k", e2: "p" })
+    g.cast = { wK: true, wQ: false, bK: false, bQ: false }
+    expect(has(legalMoves(g), "e1", "g1")).toBe(false)
+  })
+
+  it("still allows castling when no pawn covers the path", () => {
+    const g = position({ e1: "K", h1: "R", e8: "k", a7: "p" })
+    g.cast = { wK: true, wQ: false, bK: false, bQ: false }
+    expect(has(legalMoves(g), "e1", "g1")).toBe(true)
+  })
+
+  // Uppercase is WHITE in `position()`, so these are white pieces attacking.
+  it("still detects every other attacker", () => {
+    expect(attacks(position({ a1: "R", e8: "k" }), at("a8"), "w")).toBe(true)
+    expect(attacks(position({ c3: "N", e8: "k" }), at("e4"), "w")).toBe(true)
+    expect(attacks(position({ c1: "B", e8: "k" }), at("h6"), "w")).toBe(true)
+    expect(attacks(position({ d1: "Q", e8: "k" }), at("d8"), "w")).toBe(true)
+    expect(attacks(position({ e1: "K", e8: "k" }), at("e2"), "w")).toBe(true)
+    // A blocked ray is not an attack.
+    expect(attacks(position({ a1: "R", a4: "P", e8: "k" }), at("a8"), "w")).toBe(false)
+    // And the colour matters: black's rook does not attack for white.
+    expect(attacks(position({ a1: "r", e8: "k" }), at("a8"), "w")).toBe(false)
+    expect(attacks(position({ a1: "r", e8: "k" }), at("a8"), "b")).toBe(true)
+  })
+})
+
+describe("mate at the horizon", () => {
+  /**
+   * Quiescence used to return a static evaluation for any quiet position,
+   * including a checkmated one — so a depth-1 bot scored mate as material and
+   * declined to play it.
+   */
+  it("lets a depth-1 bot deliver mate in one", () => {
+    const g = position({ h1: "K", g2: "P", h2: "P", a8: "r", b8: "r", g8: "k" }, "b")
+    const m = pickMove(g, { depth: 1, blunder: 0 }, () => 0.99)
+    expect(m).not.toBeNull()
+    expect(outcome(applyMove(g, m!))).toEqual({ kind: "checkmate", winner: "b" })
+  })
+})
+
+describe("underpromotion", () => {
+  it("offers all four pieces", () => {
+    const g = position({ a7: "P", e1: "K", e8: "k" })
+    const promos = legalMoves(g)
+      .filter((m) => m.from === at("a7") && m.to === at("a8"))
+      .map((m) => m.promo)
+    expect(promos.sort()).toEqual(["b", "n", "q", "r"])
+  })
+
+  it("lists the queen first, so the UI never needs a picker", () => {
+    const g = position({ a7: "P", e1: "K", e8: "k" })
+    const first = legalMoves(g).find((m) => m.from === at("a7") && m.to === at("a8"))
+    expect(first?.promo).toBe("q")
   })
 })

@@ -59,6 +59,18 @@ export function ChessGame() {
   const drag = useRef<{ from: number; x: number; y: number } | null>(null)
   const busy = useRef(false)
   /**
+   * Cancels an in-flight bot move.
+   *
+   * The search is async and now runs for up to 2.2s (1.6s budget + the 600ms
+   * thinking pause). Restart, switching opponent, or closing the arcade during
+   * that window used to apply the stale move to a board that no longer matched
+   * it: either `applyMove` threw on an empty from-square — inside a timer, so
+   * nothing caught it and the board locked on "thinking…" forever — or it
+   * succeeded, flipped the turn to black, and silently froze input. Every async
+   * continuation now checks it is still the generation that started it.
+   */
+  const generation = useRef(0)
+  /**
    * Amber confetti, drawn on the board canvas itself.
    *
    * On the canvas rather than in the DOM so it lands over the pieces without a
@@ -82,6 +94,7 @@ export function ChessGame() {
   }, [])
 
   const reset = useCallback(() => {
+    generation.current += 1
     g.current = newGame()
     sel.current = null
     targets.current = []
@@ -126,11 +139,16 @@ export function ChessGame() {
     const startedAt = performance.now()
     // Yield first so the board repaints with your move before the search blocks
     // the thread, then hold the reply for a beat regardless of how fast it was.
+    const mine = generation.current
     setTimeout(() => {
-      void pickMoveTimed(g.current, { depth: bot.depth, blunder: bot.blunder }).then((m) => {
+      if (mine !== generation.current) return
+      void pickMoveTimed(g.current, { depth: bot.depth, blunder: bot.blunder })
+        .then((m) => {
+      if (mine !== generation.current) return
       const elapsed = performance.now() - startedAt
       const wait = Math.max(0, MIN_THINK_MS - elapsed)
       setTimeout(() => {
+        if (mine !== generation.current) return
         if (!m) { setThinking(false); settle("bot"); return }
         const capture = Boolean(g.current.board[m.to]) || m.ep
         g.current = applyMove(g.current, m)
@@ -143,7 +161,14 @@ export function ChessGame() {
         busy.current = false
         settle("bot")
       }, wait)
-      })
+        })
+        .catch(() => {
+          // A search should not be able to throw, but if it ever does the board
+          // must not be left stuck on "thinking…" with input blocked.
+          if (mine !== generation.current) return
+          setThinking(false)
+          busy.current = false
+        })
     }, 30)
   }, [bot, settle])
 
@@ -174,6 +199,10 @@ export function ChessGame() {
     else sfx.select()
     return true
   }, [])
+
+  // Leaving the game invalidates anything still in flight, so a stale reply
+  // cannot play a chess sound over the dashboard or set state after unmount.
+  useEffect(() => () => { generation.current += 1 }, [])
 
   /* ── Input: tap and drag, both feeding the same move list ─────────────── */
   useEffect(() => {

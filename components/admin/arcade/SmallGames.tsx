@@ -244,12 +244,16 @@ export function Dose2048() {
         cells[cellIdx] = out[k]
       })
     }
-    for (let r = 0; r < 4; r++) {
-      const row = [0, 1, 2, 3].map((c) => r * 4 + c)
-      line(dir === "l" ? row : dir === "r" ? row.slice().reverse() : row)
-      if (dir === "u" || dir === "d") break
-    }
-    if (dir === "u" || dir === "d") {
+    // Rows for a horizontal swipe, columns for a vertical one — and NEVER both.
+    // The first cut ran the row pass unconditionally and only then checked the
+    // direction, so an up or down swipe also compacted and merged row 0
+    // sideways: two separate tiles merged and scored on a vertical input.
+    if (dir === "l" || dir === "r") {
+      for (let r = 0; r < 4; r++) {
+        const row = [0, 1, 2, 3].map((c) => r * 4 + c)
+        line(dir === "l" ? row : row.slice().reverse())
+      }
+    } else {
       for (let c = 0; c < 4; c++) {
         const col = [0, 1, 2, 3].map((r) => r * 4 + c)
         line(dir === "u" ? col : col.slice().reverse())
@@ -486,14 +490,22 @@ export function Titration() {
     }
   }, W, H)
 
-  const down = () => { wakeAudio(); if (g.current.over) reset(); else g.current.hold = true }
-  const up = () => { g.current.hold = false }
+  const down = useCallback(() => {
+    wakeAudio()
+    if (g.current.over) reset()
+    else g.current.hold = true
+  }, [reset])
+  const up = useCallback(() => { g.current.hold = false }, [])
+
+  // `[down, up]`, not a bare effect. Without a dependency array this
+  // re-subscribed both window listeners on every render — and `setSecs` runs
+  // once per frame, so that was ~120 listener swaps a second.
   useEffect(() => {
     const kd = (e: KeyboardEvent) => { if (e.code === "Space") { e.preventDefault(); down() } }
     const ku = (e: KeyboardEvent) => { if (e.code === "Space") up() }
     window.addEventListener("keydown", kd); window.addEventListener("keyup", ku)
     return () => { window.removeEventListener("keydown", kd); window.removeEventListener("keyup", ku) }
-  })
+  }, [down, up])
 
   return (
     <div onPointerDown={down} onPointerUp={up} onPointerLeave={up} className="h-full">
@@ -526,7 +538,14 @@ export function DrawTime() {
   const press = useCallback(() => {
     const st = g.current
     if (st.state === "ready" || st.state === "done") { st.times = []; setAvg(null); setLast(null); arm(); return }
-    if (st.state === "wait") { st.state = "early"; sfx.bad(); setTimeout(arm, 900); return }
+    if (st.state === "wait") {
+      st.state = "early"; sfx.bad()
+      // Tracked, so leaving the game during a false start cannot fire `arm()`
+      // after unmount and play a start sound over the dashboard.
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = setTimeout(arm, 900)
+      return
+    }
     if (st.state === "go") {
       const ms = Math.round(performance.now() - st.at)
       st.times.push(ms); setLast(ms); sfx.good()

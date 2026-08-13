@@ -31,7 +31,7 @@ interface Entry {
 }
 
 const GAMES: Entry[] = [
-  { id: "chess", name: "Chess", blurb: "Climb eight bots, 250 to 2400 Elo", Component: ChessGame },
+  { id: "chess", name: "Chess", blurb: "Eleven opponents, 250 to 2000 Elo", Component: ChessGame },
   { id: "stack", name: "Vial Stack", blurb: "Perfect drops grow the vial back", Component: VialStack },
   { id: "2048", name: "Dose 2048", blurb: "5mg + 5mg = 10mg, all the way up", Component: Dose2048 },
   { id: "snake", name: "Vial Snake", blurb: "Collect doses, don't eat yourself", Component: VialSnake },
@@ -74,7 +74,7 @@ export function Arcade({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="admin-canvas fixed inset-0 z-50 overflow-y-auto">
+    <div className="admin-overlay">
       <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-5 py-6 sm:px-6">
         <header className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">

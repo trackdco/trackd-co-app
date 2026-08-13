@@ -25,7 +25,7 @@ export function MoneyTab({ metrics }: { metrics: AdminMetrics }) {
               Monthly recurring revenue
             </p>
             <p className="mt-2 text-[56px] leading-none font-extralight tracking-[-0.035em] tabular-nums text-foreground">
-              {hasMoney ? money(rev.mrr, rev.currency) : "$0"}
+              {money(rev.mrr, rev.currency)}
             </p>
           </div>
           {hasMoney && (

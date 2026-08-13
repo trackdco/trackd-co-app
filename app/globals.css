@@ -1451,6 +1451,44 @@ svg ::-moz-selection {
     auto;
 }
 
+/* THE ARCADE OVERLAY — a full-screen takeover.
+ *
+ * DELIBERATELY NOT `.admin-canvas`, and this cost a real bug. That class is the
+ * page GROUND: it sets `position: relative` and paints its texture through a
+ * `position: fixed` pseudo-element at `z-index: -1`. Reusing it for an overlay
+ * fails twice over:
+ *
+ *   1. `.admin-canvas` is declared AFTER Tailwind's utilities in this file, so
+ *      at equal specificity its `position: relative` WINS over a `fixed`
+ *      utility on the same element. The overlay stops being an overlay and
+ *      lands in normal flow underneath the dashboard.
+ *   2. Its pseudo-element paints an OPAQUE `--bg-base` across the viewport, so
+ *      a second `.admin-canvas` on the page covers everything already rendered
+ *      with a bare grid.
+ *
+ * Together those are precisely the "the arcade is just a grid" symptom. This
+ * class paints the same texture directly on itself and stays fixed, so it
+ * cannot be un-fixed by declaration order.
+ */
+.admin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow-y: auto;
+  background-color: var(--bg-base);
+  background-image:
+    linear-gradient(to right, var(--admin-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--admin-grid-line) 1px, transparent 1px),
+    radial-gradient(68rem 44rem at 10% -10%, var(--admin-wash-1), transparent 62%),
+    radial-gradient(54rem 40rem at 94% 4%, var(--admin-wash-2), transparent 60%),
+    radial-gradient(62rem 46rem at 58% 106%, var(--admin-wash-3), transparent 64%);
+  background-size:
+    var(--admin-grid-pitch) var(--admin-grid-pitch),
+    var(--admin-grid-pitch) var(--admin-grid-pitch),
+    auto, auto, auto;
+  background-attachment: fixed;
+}
+
 /* THE PANEL. Translucent fill, a 1px hairline, a caught top edge, and a deep
  * soft shadow.
  *
