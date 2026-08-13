@@ -110,23 +110,39 @@ function resolvePcId(userId: string, clientId: string): string {
  *     de-dupes by name).
  *
  * Prefers an ACTIVE row, then the most recently updated, so a leftover row from
- * an older cycle can never shadow the live one. Returns null when the user
- * genuinely has no row for this compound — a real answer, not a failure.
+ * an older cycle can never shadow the live one.
+ *
+ * ## `{ id: null }` IS TWO DIFFERENT ANSWERS, AND THEY ARE REPORTED APART
+ *
+ * "This user has no row for this compound" is a real answer — a custom compound
+ * that never needed one, say — and the callers correctly treat it as `skipped`,
+ * which `trackSync` does not count as a failure.
+ *
+ * "The lookup itself failed" is not that. It used to return the same bare null,
+ * so a delete that could not even find its row reported `{ ok: true, skipped:
+ * true }` — a silent success, no failure notice, nothing to retry — while
+ * Postgres kept the compound ACTIVE and the push runner went on announcing it as
+ * due. `failed` separates them, so a lookup that fell over is surfaced as the
+ * failure it is.
  */
 async function findProtocolCompoundId(
   cx: { supabase: Awaited<ReturnType<typeof createClient>>; userId: string },
   clientId: string,
   name: string | null
-): Promise<string | null> {
+): Promise<{ id: string | null; failed: boolean }> {
   const derived = resolvePcId(cx.userId, clientId)
-  const { data: byId } = await cx.supabase
+  const { data: byId, error: byIdError } = await cx.supabase
     .from("protocol_compounds")
     .select("id")
     .eq("id", derived)
     .eq("user_id", cx.userId)
     .maybeSingle()
-  if (byId?.id) return byId.id as string
-  if (!name) return null
+  if (byIdError) {
+    console.error("findProtocolCompoundId failed", byIdError)
+    return { id: null, failed: true }
+  }
+  if (byId?.id) return { id: byId.id as string, failed: false }
+  if (!name) return { id: null, failed: false }
 
   const { data: rows, error } = await cx.supabase
     .from("protocol_compounds")
@@ -134,7 +150,7 @@ async function findProtocolCompoundId(
     .eq("user_id", cx.userId)
   if (error) {
     console.error("findProtocolCompoundId failed", error)
-    return null
+    return { id: null, failed: true }
   }
   const target = name.trim().toLowerCase()
   type Row = {
@@ -149,7 +165,7 @@ async function findProtocolCompoundId(
     const rowName = r.compounds?.name ?? r.custom_name ?? ""
     return rowName.trim().toLowerCase() === target
   })
-  if (matches.length === 0) return null
+  if (matches.length === 0) return { id: null, failed: false }
   // Active first, then the OLDEST row — deliberately not the most recently
   // updated. The dose-log id is derived from whichever row wins here, so a rank
   // that moves over time moves the id with it: touching the losing row would
@@ -160,7 +176,10 @@ async function findProtocolCompoundId(
   const rank = (r: Row) =>
     (r.is_active === false ? 0 : 1) * 1e15 -
     (Date.parse((r.created_at ?? r.updated_at ?? "") as string) || 0)
-  return matches.reduce((best, r) => (rank(r) > rank(best) ? r : best)).id
+  return {
+    id: matches.reduce((best, r) => (rank(r) > rank(best) ? r : best)).id,
+    failed: false,
+  }
 }
 
 /** Generous, and only here so a runaway paste cannot bloat a row. */
@@ -492,7 +511,12 @@ export async function archiveProtocolCompound(
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    const pcId = await findProtocolCompoundId(cx, clientId, name)
+    const { id: pcId, failed } = await findProtocolCompoundId(cx, clientId, name)
+    // A lookup that FELL OVER is a failure, not a compound with no row. Reporting
+    // it as `skipped` told `trackSync` everything was fine, so the delete showed
+    // no notice and left Postgres holding the compound active — see
+    // `findProtocolCompoundId`.
+    if (failed) return { ok: false }
     if (!pcId) return { ok: true, skipped: true }
     const saved = await setProtocolCompoundActive(pcId, !archived)
     return { ok: saved !== null }
@@ -533,7 +557,8 @@ export async function pushCompoundPause(
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    const pcId = await findProtocolCompoundId(cx, clientCompoundId, name)
+    const { id: pcId, failed } = await findProtocolCompoundId(cx, clientCompoundId, name)
+    if (failed) return { ok: false }
     if (!pcId) return { ok: true, skipped: true }
     return await upsertPause({
       id: pause.id,
@@ -986,7 +1011,7 @@ export async function pushProtocolDoseLog(
       // `protocol_compounds` row at all and its logs stay device-local. That is why
       // this resolves by name first and only then gives up.
       const resolved = compoundName
-        ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
+        ? (await findProtocolCompoundId(cx, clientCompoundId, compoundName)).id
         : null
       if (resolved) {
         pcId = resolved
@@ -1131,7 +1156,7 @@ export async function deleteProtocolDoseLog(
     // before the deletion is still keyed that way and must still be removable.
     const pcId =
       (compoundName
-        ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
+        ? (await findProtocolCompoundId(cx, clientCompoundId, compoundName)).id
         : null) ?? resolvePcId(cx.userId, clientCompoundId)
     const dlId = doseLogRowId(cx.userId, dateKey, pcId, slot)
     const res = await deleteDoseLog(dlId)
@@ -1220,7 +1245,8 @@ export async function pushScheduleVersions(
     const cx = await ctx()
     if (!cx) return { ok: false }
     if (versions.length === 0) return { ok: true, skipped: true }
-    const pcId = await findProtocolCompoundId(cx, clientId, name)
+    const { id: pcId, failed } = await findProtocolCompoundId(cx, clientId, name)
+    if (failed) return { ok: false }
     if (!pcId) return { ok: true, skipped: true } // custom / unmigrated compound
     const { error } = await cx.supabase.from("protocol_compound_schedules").upsert(
       versions.map((v) => ({

@@ -138,7 +138,7 @@ export async function requireWriteAccess(): Promise<
  * its own id, so gating `startBlockAction` while leaving `startBlock` open is a
  * lock on a door beside an open window. A cold review drove exactly that.
  *
- * ## GATED — 34 functions (8 route actions + 26 in the data layer)
+ * ## GATED — 33 functions (8 route actions + 25 in the data layer)
  *
  *   app/(app)/blocks/actions.ts    startBlockAction, saveReflectionAction
  *   app/(app)/progress/actions.ts  addBloodworkPhoto, saveJournalEntry,
@@ -152,8 +152,7 @@ export async function requireWriteAccess(): Promise<
  *   lib/db/inventory.ts            addStockItem, updateStockItem
  *   lib/db/oneOffLogs.ts           upsertOneOffLog
  *   lib/db/protocolCompounds.ts    upsertProtocolCompound,
- *                                  upsertProtocolCompounds,
- *                                  setProtocolCompoundActive
+ *                                  upsertProtocolCompounds
  *   lib/home/protocolSync.ts       pushProtocolCompound, pushProtocolBatch,
  *                                  pushCompoundPause, pushPauseEnd,
  *                                  pushPauseGroupEnd, pushScheduleVersions,
@@ -165,6 +164,26 @@ export async function requireWriteAccess(): Promise<
  * refusal. Without it the UI cannot tell the gate from a dropped connection, and
  * a cold review watched `AddStockSheet` tell a lapsed user to check their
  * connection and try again.
+ *
+ * ## CONDITIONALLY GATED — 1, and the condition is the whole point
+ *
+ *   lib/db/protocolCompounds.ts    setProtocolCompoundActive (`is_active = true`
+ *                                  only — the re-add. The DELETE direction is
+ *                                  open.)
+ *
+ * One function serves both directions, so gating the function gated the delete.
+ * That contradicted the rule below and it would have failed SILENTLY: the
+ * compound disappears from the app on the device's own copy, `is_active` stays
+ * true in Postgres, and the reminder engine goes on announcing it as due. A real
+ * account ran in exactly that state for thirteen days for an unrelated reason
+ * (the write was fire-and-forget and simply never landed), which is what
+ * `lib/notifications/reminders.ts`'s `stopped` gate now catches. Switching
+ * `BILLING_GATE_ENABLED` on with the function-level gate in place would have
+ * reproduced it deliberately, for every lapsed account at once.
+ *
+ * `scratchpad/gate-audit.mjs` reports this bucket separately for the same reason
+ * it exists at all: "gated" would be true of half the calls and misleading about
+ * the other half.
  *
  * ## NOT GATED, and why
  *

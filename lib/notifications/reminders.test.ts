@@ -19,6 +19,7 @@ import {
   type LowStockItem,
 } from "@/lib/notifications/reminders";
 import { CYCLE_COLUMNS, type CycleRule } from "@/lib/protocol/cycleRule";
+import { isStoppedOn } from "@/lib/protocol/scheduleVersions";
 import { isDueOnFor, type StackCompound } from "@/lib/home/stack";
 
 /* ------------------------------------------------------------ fixtures */
@@ -121,6 +122,101 @@ describe("isDueToday — the cycle gate", () => {
     expect(isDueToday(c, "2026-01-11")).toBe(false); // cadence-due, cycle off
     expect(isDueToday(c, "2026-01-05")).toBe(true); // cadence-due, cycle on
     expect(isDueToday(c, "2026-01-06")).toBe(false); // cycle on, cadence rest day
+  });
+});
+
+/* ----------------------------------------------------- the stopped gate */
+
+describe("isDueToday — the stopped gate", () => {
+  /**
+   * The bug this pins, measured on a real account: four compounds were DELETED
+   * on 31 July and 7 August, and `protocol_compounds.is_active` stayed true
+   * because that one write never landed. For up to thirteen days the runner read
+   * the stale flag, announced them as due every morning and nagged for "missing"
+   * them every evening — while the app, which reads the schedule trail, had
+   * correctly shown nothing. The trail was in Postgres the whole time.
+   */
+  const deletedOn = (dateKey: string) => ({
+    effectiveFrom: dateKey,
+    cadence: { type: "daily" as const },
+    timeOfDay: "08:00",
+    dose: 250,
+    unit: "mg",
+    stopped: true,
+  });
+
+  const client = (history: unknown[]) =>
+    ({
+      id: "pc1",
+      name: "Testosterone E",
+      category: "anabolic",
+      method: "im",
+      dose: 250,
+      unit: "mg",
+      schedule: {
+        cadence: { type: "daily" },
+        timeOfDay: "08:00",
+        startDate: "2026-01-01",
+      },
+      rotationSites: [],
+      rotationIndex: 0,
+      scheduleHistory: history,
+    }) as unknown as StackCompound;
+
+  it("never announces a compound the trail says was deleted", () => {
+    expect(isDueToday(compound({ stopped: true }), "2026-01-05")).toBe(false);
+  });
+
+  it("cannot report a deleted compound as missed either", () => {
+    expect(dueUnlogged([compound({ stopped: true })], new Set(), "2026-01-05")).toEqual([]);
+  });
+
+  it("agrees with the client on every day around the delete", () => {
+    // The whole point: one predicate, two readers. `isStoppedOn` decides for the
+    // server exactly what `resolveScheduleOn` decides for the client.
+    const history = [
+      { ...deletedOn("2026-01-01"), stopped: false },
+      deletedOn("2026-01-10"),
+    ];
+    for (let i = 0; i < 20; i++) {
+      const d = new Date(2026, 0, 1 + i);
+      const key = `2026-01-${String(d.getDate()).padStart(2, "0")}`;
+      const server = compound({ stopped: isStoppedOn(history, key) });
+      expect(isDueToday(server, key), `server/client disagree on ${key}`).toBe(
+        isDueOnFor(client(history), dateOf(key)),
+      );
+    }
+  });
+
+  it("comes back when the compound is re-added", () => {
+    // A re-add records its own version and `recordScheduleVersion` drops every
+    // version dated after it, so the stop stops governing. If this ever fails,
+    // the gate is silencing compounds the user is actually running — the exact
+    // opposite failure, and a worse one.
+    const history = [deletedOn("2026-01-10"), { ...deletedOn("2026-01-15"), stopped: false }];
+    expect(isStoppedOn(history, "2026-01-12")).toBe(true);
+    expect(isStoppedOn(history, "2026-01-20")).toBe(false);
+    expect(isDueToday(compound({ stopped: isStoppedOn(history, "2026-01-20") }), "2026-01-20")).toBe(
+      true,
+    );
+  });
+
+  it("leaves a compound with no trail alone", () => {
+    // Every compound until one is edited. No versions must read as running.
+    expect(isStoppedOn([], "2026-01-05")).toBe(false);
+    expect(isDueToday(compound(), "2026-01-05")).toBe(true);
+  });
+
+  it("suppresses the low-stock nudge for a deleted compound's vials", () => {
+    const vial: LowStockItem = {
+      name: "Testosterone E",
+      stopped: true,
+      estEmptyDate: null,
+      daysToEmpty: 1,
+      dosesRemaining: 2,
+    };
+    expect(lowStock([vial], "2026-01-05", 7)).toEqual([]);
+    expect(lowStock([{ ...vial, stopped: false }], "2026-01-05", 7)).toHaveLength(1);
   });
 });
 

@@ -24,6 +24,24 @@ export interface ReminderCompound {
    * while the notification announces the dose and then nags for "missing" it.
    */
   paused?: boolean;
+  /**
+   * True when the schedule trail says the compound was STOPPED — deleted, and not
+   * since re-added (`supabase/protocol/005`, resolved by `isStoppedOn`).
+   *
+   * Resolved by the caller for the same reason `paused` and `cycle` are: this
+   * module is pure and the versions live in another table. It exists because
+   * DELETING a compound writes two facts and only one of them is
+   * `protocol_compounds.is_active` — the other is a `stopped` version, and when
+   * the first write does not land the second is the only record of the user's
+   * intent that reached Postgres at all.
+   *
+   * Measured, on the founder's own account: four compounds deleted on 31 July and
+   * 7 August kept `is_active = true` for up to thirteen days because that one
+   * write failed silently, and every day of it this runner announced them as due
+   * and then nagged for "missing" them — while the app, which reads the trail,
+   * had correctly shown nothing. The trail was in Postgres the whole time.
+   */
+  stopped?: boolean;
   schedule_type: ScheduleType;
   days_of_week: number[] | null; // ISO weekday (Mon=1 … Sun=7) for specific_days
   interval_days: number | null;
@@ -62,6 +80,11 @@ export interface LowStockItem {
   /** True when the compound this stock belongs to is paused today. Its stock is
    *  not moving, so "running low" is noise rather than news. */
   paused?: boolean;
+  /** True when the compound this stock belongs to was DELETED (see
+   *  {@link ReminderCompound.stopped}). Its vials belong to something the user
+   *  stopped running, and "you're running low" about it is worse than noise —
+   *  it names a compound they have already removed from the app. */
+  stopped?: boolean;
   estEmptyDate: string | null; // YYYY-MM-DD from v_inventory_math
   /**
    * The view's own day COUNT (`supabase/protocol/010`), which is what the
@@ -158,9 +181,10 @@ function isoWeekday(dateKey: string): number {
 
 /**
  * Whether a compound is due on `todayKey`. Mirrors the client `isDueOnFor`
- * (lib/home/stack.ts) but reads the Postgres schedule columns directly: nothing
- * before first_dose_on or after end_date; off-cycle days are not due;
- * every_n_days counts FROM first_dose_on; specific_days matches the ISO weekday.
+ * (lib/home/stack.ts) but reads the Postgres schedule columns directly: a stopped
+ * (deleted) compound is never due; nothing before first_dose_on or after
+ * end_date; a paused or off-cycle day is not due; every_n_days counts FROM
+ * first_dose_on; specific_days matches the ISO weekday.
  *
  * The cycle gate is applied with the SAME `isOnCycle` the client uses rather
  * than a second implementation of the on/off maths — a parallel copy here is
@@ -168,6 +192,11 @@ function isoWeekday(dateKey: string): number {
  */
 export function isDueToday(c: ReminderCompound, todayKey: string): boolean {
   const today = dayNumber(todayKey);
+  // STOPPED: the compound was not being run at all, so nothing was due and
+  // nothing can be missed. FIRST, and above the date window, exactly where the
+  // client puts it (`isDueOnFor` gates on `resolved.stopped` before anything
+  // else) — a deleted compound has no schedule left to consult.
+  if (c.stopped) return false;
   if (c.first_dose_on && today < dayNumber(c.first_dose_on)) return false;
   if (c.end_date && today > dayNumber(c.end_date)) return false;
   // PAUSED: nothing is due, so nothing is announced and nothing is nagged about.
@@ -226,8 +255,8 @@ export function lowStock(
   return stock.filter((s) => {
     // A paused compound is consuming nothing, so its stock is not running out —
     // it is simply sitting there. Nudging about it is noise, and the user has
-    // already told us they are not taking it.
-    if (s.paused) return false;
+    // already told us they are not taking it. A DELETED one said so louder.
+    if (s.paused || s.stopped) return false;
     const daysLeft =
       s.daysToEmpty ??
       (s.estEmptyDate ? dayNumber(s.estEmptyDate) - today : null);

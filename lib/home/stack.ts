@@ -39,6 +39,7 @@ import {
 } from "@/lib/home/protocolSync"
 import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
 import { dropMember } from "@/lib/home/stacks"
+import { versionInForceOn } from "@/lib/protocol/scheduleVersions"
 import {
   cycleRuleFromColumns,
   cycleRuleToColumns,
@@ -267,12 +268,12 @@ export function resolveScheduleOn(
   // that predates every version falls back to the earliest, because that is the
   // oldest rule we know of — never the current one, which is exactly the
   // retroactive rewrite versioning exists to stop.
-  let best: ScheduleVersion | null = null
-  for (const v of sorted) {
-    if (v.effectiveFrom > dateKey) continue
-    if (!best || v.effectiveFrom > best.effectiveFrom) best = v
-  }
-  const version = best ?? sorted[0]
+  //
+  // ⚠️ SHARED with the push runner (`lib/protocol/scheduleVersions.ts`), which
+  // needs the same answer about `stopped`. A second copy of this selection is how
+  // the mirror fell out of step over cycles and pauses; it is not being written a
+  // third time.
+  const version = versionInForceOn(sorted, dateKey) ?? sorted[0]
 
   return {
     schedule: {

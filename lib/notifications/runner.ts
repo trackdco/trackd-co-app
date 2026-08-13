@@ -31,6 +31,7 @@ import {
   type TrialForReminder,
 } from "@/lib/notifications/trialReminder";
 import { cycleRuleFromColumns, type CycleColumns } from "@/lib/protocol/cycleRule";
+import { isStoppedOn, type DatedVersion } from "@/lib/protocol/scheduleVersions";
 import { graceAsTrial } from "@/lib/billing/betaGrace";
 import { billingGateEnabled } from "@/lib/billing/gate";
 
@@ -342,7 +343,7 @@ async function collectUserData(
   // Active compounds (+ catalogue name) and recent "taken" logs to detect what's
   // already logged today. A 36h window covers any timezone offset around midnight.
   const since = new Date(now.getTime() - 36 * 3_600_000).toISOString();
-  const [pcRes, logRes, invRes, pauseRes] = await Promise.all([
+  const [pcRes, logRes, invRes, pauseRes, verRes] = await Promise.all([
     supabase
       .from("protocol_compounds")
       // The `cycle_*` columns ride along because an off-cycle day is NOT due
@@ -383,6 +384,26 @@ async function collectUserData(
       .eq("user_id", userId)
       .eq("is_active", true)
       .lte("started_on", todayKey),
+    // THE SCHEDULE TRAIL, which is where a DELETE leaves its second mark.
+    //
+    // Deleting writes `is_active = false` AND a `stopped` version. The two are
+    // separate writes and only one of them is on `protocol_compounds`, so a
+    // delete whose flag write does not land still leaves the intent recorded
+    // here — and this runner used to read only the flag. Four compounds deleted
+    // on 31 July and 7 August were announced as due every day for up to thirteen
+    // days because of exactly that.
+    //
+    // NOT filtered to `effective_from <= todayKey`: `versionInForceOn` falls back
+    // to the EARLIEST version for a day that predates them all, which is the
+    // client's rule, and filtering here would quietly drop the row that fallback
+    // needs. The trail is a handful of rows per compound.
+    //
+    // Tolerant of `005` not being applied, the same bargain the pauses read
+    // makes: the error is swallowed and the stopped set is simply empty.
+    supabase
+      .from("protocol_compound_schedules")
+      .select("protocol_compound_id, effective_from, stopped")
+      .eq("user_id", userId),
   ]);
 
   const pausedIds = new Set<string>();
@@ -394,6 +415,21 @@ async function collectUserData(
     if (endsOn === null || endsOn >= todayKey) {
       pausedIds.add(r.protocol_compound_id as string);
     }
+  }
+
+  // The trail, grouped by compound. Only `effective_from` and `stopped` matter
+  // here — the rest of the version (dose, cadence, cycle) is what the CLIENT
+  // reads off it, and mirroring that too would be a second schedule engine.
+  const versionsById = new Map<string, DatedVersion[]>();
+  for (const row of verRes.data ?? []) {
+    const r = row as Record<string, unknown>;
+    const pcId = r.protocol_compound_id as string;
+    const list = versionsById.get(pcId) ?? [];
+    list.push({
+      effectiveFrom: r.effective_from as string,
+      stopped: r.stopped === true,
+    });
+    versionsById.set(pcId, list);
   }
 
   const compounds: ReminderCompound[] = (pcRes.data ?? []).map((row) => {
@@ -411,6 +447,9 @@ async function collectUserData(
       // the same seven columns differently.
       cycle: cycleRuleFromColumns(r as Partial<CycleColumns>),
       paused: pausedIds.has(r.id as string),
+      // Resolved with the SAME predicate the client's `resolveScheduleOn` uses,
+      // so the two cannot read one trail two ways.
+      stopped: isStoppedOn(versionsById.get(r.id as string) ?? [], todayKey),
     };
   });
 
@@ -452,6 +491,12 @@ async function collectUserData(
       // noise. `019` already returns a longer (or null) runway for these; this
       // is the belt to that braces, and it holds even before 019 is applied.
       paused: pausedIds.has(r.protocol_compound_id as string),
+      // Same trail, same predicate. A vial whose compound was deleted is not
+      // "running low" — the thing it feeds is gone.
+      stopped: isStoppedOn(
+        versionsById.get(r.protocol_compound_id as string) ?? [],
+        todayKey,
+      ),
       estEmptyDate: (m.est_empty_date as string | null) ?? null,
       daysToEmpty: m.days_to_empty == null ? null : Number(m.days_to_empty),
       dosesRemaining: m.doses_remaining == null ? null : Number(m.doses_remaining),
