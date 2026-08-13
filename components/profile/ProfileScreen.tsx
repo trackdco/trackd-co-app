@@ -105,15 +105,12 @@ export function ProfileScreen({
       <div className="animate-home-up" style={{ animationDelay: "115ms" }}>
         <p className={`mb-3 ${CARD_EYEBROW}`}>App</p>
         <div className="overflow-hidden rounded-2xl bg-bg-surface">
-          {/* Billing HAS a destination now (2026-08-12): `/billing` states the
-              plan, the dates, and carries the cancel control. It was an
-              `InfoRow` going nowhere for as long as there was nothing to
-              manage; three surfaces promise "cancel any time before then" and a
-              promise you cannot reach is not kept. The plan still rides on the
-              row, so nothing about it reads differently at a glance. */}
-          <LinkRow href="/billing" icon={CreditCard} value={planLabel}>
-            Billing
-          </LinkRow>
+          {/* Billing reads as INFORMATION, not a disabled control: it states the
+              plan and goes nowhere, because there is nowhere to go until
+              RevenueCat lands. Greying it out would say "broken" about something
+              that is working exactly as intended. When it gains a destination
+              nothing else about it changes. */}
+          <InfoRow icon={CreditCard} label="Billing" value={planLabel} />
           <Divider />
           <LinkRow href="/notifications" icon={Bell}>
             Notifications
@@ -183,25 +180,36 @@ function DangerDivider() {
   return <div className="mx-4 border-t border-accent-destructive/25" aria-hidden />;
 }
 
-/* `InfoRow` lived here: a row that stated a fact and went nowhere, which is what
-   Billing was until it gained `/billing` (2026-08-12). It was the only user, so
-   it is gone rather than left as an unused shape for somebody to reach for. */
-
 /**
- * `value` is optional and only Billing uses it: the row states the plan AND goes
- * somewhere, which is the one case in this card where a fact and a destination
- * belong on the same line. Without it the plan would either move off the row or
- * need a second row to sit on.
+ * An App-card row that states a fact and goes nowhere. Same height, padding and
+ * icon slot as `LinkRow` — the spec's "one consistent row treatment" is the
+ * point, so the only difference is the caret's absence.
  */
+function InfoRow({
+  icon: RowIcon,
+  label,
+  value,
+}: {
+  icon: Icon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3.5">
+      <RowIcon className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+      <span className="flex-1 text-sm text-foreground">{label}</span>
+      <span className="shrink-0 text-sm text-text-muted">{value}</span>
+    </div>
+  );
+}
+
 function LinkRow({
   href,
   icon: RowIcon,
-  value,
   children,
 }: {
   href: string;
   icon: Icon;
-  value?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -210,14 +218,7 @@ function LinkRow({
       className="flex items-center gap-3 px-4 py-3.5 outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
     >
       <RowIcon className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{children}</span>
-      {value ? (
-        // `max-w-[55%]` + truncate: a long label used to win the flex fight and
-        // push the caret off the row (measured at 35 characters). No current
-        // label does, but `NO_ENTITLEMENT_LABEL` is documented as something the
-        // next person must change.
-        <span className="max-w-[55%] shrink truncate text-sm text-text-muted">{value}</span>
-      ) : null}
+      <span className="flex-1 text-sm text-foreground">{children}</span>
       <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
     </Link>
   );

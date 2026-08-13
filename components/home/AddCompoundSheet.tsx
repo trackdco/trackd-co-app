@@ -841,7 +841,7 @@ function AddCompoundBody({
           return `${source.name} is dosed in ${unit}, so its stock can't be recorded as tablets. Turn off "Stock on hand" to save, then add it from Protocol.`
         }
         return stStrengthRequired && amt(stStrength) <= 0
-          ? `Enter the strength of one ${stEffectiveOralForm === "tab" ? "tablet" : "capsule"}. ${source.name} is dosed in ${unit}.`
+          ? `Enter the strength of one ${stEffectiveOralForm === "tab" ? "tablet" : "capsule"} — ${source.name} is dosed in ${unit}.`
           : "Enter how many are in the bottle, or clear this."
       }
     }

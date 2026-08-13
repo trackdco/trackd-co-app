@@ -18,11 +18,6 @@ const eslintConfig = defineConfig([
     // Supabase Edge Functions are Deno (npm: imports, Deno globals) — not part of
     // the Next.js app's TS program; linting them here would false-positive.
     "supabase/functions/**",
-    // The verification harness. Throwaway Node scripts that drive the running
-    // app against PRODUCTION Supabase and real Stripe; rebuilt per session,
-    // gitignored, and never shipped. Linting them puts warnings on the gate for
-    // code that is not part of the app.
-    "scratchpad/**",
   ]),
 ]);
 

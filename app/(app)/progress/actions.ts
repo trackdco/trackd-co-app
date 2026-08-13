@@ -10,7 +10,6 @@ import {
   isCustomMarkerKey,
   type MarkerOption,
 } from "@/lib/progress/journal";
-import { requireWriteAccess } from "@/lib/billing/gate";
 
 /**
  * Server actions for the Progress bloodwork photo store (Context/Feature
@@ -51,10 +50,6 @@ export async function addBloodworkPhoto(
   storagePath: string,
   note?: string,
 ): Promise<BloodworkResult> {
-  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
-  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
-  const writable = await requireWriteAccess()
-  if (!writable.ok) return writable
   if (!isValidDateKey(drawnOn)) return { ok: false, error: "Invalid date." };
   if (isFuture(drawnOn)) {
     return { ok: false, error: "You can't use a future date." };
@@ -144,10 +139,6 @@ export async function saveJournalEntry(input: {
   /** Existing journal_attachments ids to remove (row + storage bytes). */
   attachmentsRemove?: string[];
 }): Promise<{ ok: boolean; error?: string }> {
-  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
-  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
-  const writable = await requireWriteAccess()
-  if (!writable.ok) return writable
   const { entryDate, touchBody } = input;
   if (!isValidDateKey(entryDate)) return { ok: false, error: "Invalid date." };
   if (isFuture(entryDate)) {
@@ -415,10 +406,6 @@ export async function createCustomMarker(input: {
   labels: string[];
   polarity: string;
 }): Promise<{ ok: boolean; marker?: MarkerOption; error?: string }> {
-  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
-  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
-  const writable = await requireWriteAccess()
-  if (!writable.ok) return writable
   const name = typeof input?.name === "string" ? input.name.trim() : "";
   const labels = Array.isArray(input?.labels)
     ? input.labels
@@ -569,10 +556,6 @@ export async function addProgressPhoto(
   takenOn: string,
   storagePath: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
-  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
-  const writable = await requireWriteAccess()
-  if (!writable.ok) return writable
   const cleanPose = typeof pose === "string" ? pose.trim().slice(0, 60) : "";
   if (!cleanPose) return { ok: false, error: "Pick a pose." };
   if (!isValidDateKey(takenOn)) return { ok: false, error: "Invalid date." };
@@ -613,10 +596,6 @@ export async function addProgressPhotos(
   note: string,
   items: { pose: string; storagePath: string }[],
 ): Promise<{ ok: boolean; error?: string }> {
-  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
-  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
-  const writable = await requireWriteAccess()
-  if (!writable.ok) return writable
   if (!isValidDateKey(takenOn)) return { ok: false, error: "Invalid date." };
   if (isFuture(takenOn)) return { ok: false, error: "You can't use a future date." };
   if (!Array.isArray(items) || items.length === 0) {

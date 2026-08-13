@@ -7,7 +7,6 @@ import {
   isStepId,
   nextStep,
   prevStep,
-  resolveStepId,
   STEP_ORDER,
   stepIndex,
   stepProgress,
@@ -26,7 +25,7 @@ describe("STEP_ORDER", () => {
   });
 
   it("runs the demo before the paywall", () => {
-    expect(stepIndex("demo")).toBeLessThan(stepIndex("plans"));
+    expect(stepIndex("demo")).toBeLessThan(stepIndex("paywall"));
   });
 
   it("orders the demo and the paywall after the age gate", () => {
@@ -34,7 +33,7 @@ describe("STEP_ORDER", () => {
     // used to be NAMED "gates the demo behind the age gate" and asserted
     // nothing of the sort, which is how a bypass shipped under a green suite.
     expect(stepIndex("birthday")).toBeLessThan(stepIndex("demo"));
-    expect(stepIndex("birthday")).toBeLessThan(stepIndex("plans"));
+    expect(stepIndex("birthday")).toBeLessThan(stepIndex("paywall"));
   });
 
   it("keeps the four housekeeping screens in order, with consent on birthday", () => {
@@ -52,7 +51,7 @@ describe("STEP_ORDER", () => {
     // step precisely so "$0 today" cannot be scrolled past on the way to the
     // prices; folding it back into the paywall would undo that.
     expect(stepIndex("cost")).toBeLessThan(stepIndex("free"));
-    expect(stepIndex("free")).toBeLessThan(stepIndex("plans"));
+    expect(stepIndex("free")).toBeLessThan(stepIndex("paywall"));
   });
 
   it("gates the free-trial screen behind the age gate like every payment step", () => {
@@ -102,19 +101,19 @@ describe("STEP_ORDER", () => {
     // commit button at 320x568. Splitting them is also what makes the
     // disclosure requirement structural: on a short payment screen the four
     // required facts sit beside the button by construction.
-    expect(stepIndex("plans")).toBeLessThan(stepIndex("start"));
-    expect(stepIndex("start")).toBe(stepIndex("plans") + 1);
+    expect(stepIndex("paywall")).toBeLessThan(stepIndex("checkout"));
+    expect(stepIndex("checkout")).toBe(stepIndex("paywall") + 1);
     // And it is behind the same guards as the paywall — a card form is at
     // least as sensitive as a price list.
-    expect(STEP_ORDER[stepIndex("start")].phase).toBe("authed");
+    expect(STEP_ORDER[stepIndex("checkout")].phase).toBe("authed");
   });
 
   it("puts account creation between the free screen and the paywall", () => {
     // The whole point of the spec: the email is captured before the price is
     // seen, and auth never shares a screen with payment UI.
     expect(stepIndex("free")).toBeLessThan(stepIndex("account"));
-    expect(stepIndex("account")).toBeLessThan(stepIndex("plans"));
-    expect(stepIndex("account")).toBe(stepIndex("plans") - 1);
+    expect(stepIndex("account")).toBeLessThan(stepIndex("paywall"));
+    expect(stepIndex("account")).toBe(stepIndex("paywall") - 1);
   });
 
   it("keeps the demo as ONE step, so logging a dose never navigates", () => {
@@ -154,54 +153,11 @@ describe("navigation", () => {
 
 describe("isStepId", () => {
   it("rejects an untrusted value off the URL", () => {
-    expect(isStepId("plans")).toBe(true);
+    expect(isStepId("paywall")).toBe(true);
     expect(isStepId("dashboard")).toBe(false);
     expect(isStepId("")).toBe(false);
     expect(isStepId(null)).toBe(false);
     expect(isStepId(7)).toBe(false);
-  });
-
-  it("does NOT accept the retired ids as steps", () => {
-    // The rename is one-way. Nothing inside the flow may be handed `paywall`
-    // or `checkout`; only the two URL readers resolve them, via `resolveStepId`.
-    expect(isStepId("paywall")).toBe(false);
-    expect(isStepId("checkout")).toBe(false);
-  });
-});
-
-describe("resolveStepId", () => {
-  it("resolves a current id to itself", () => {
-    expect(resolveStepId("plans")).toBe("plans");
-    expect(resolveStepId("start")).toBe("start");
-    expect(resolveStepId("hook")).toBe("hook");
-  });
-
-  it("resolves the RETIRED ids, so old links keep working", () => {
-    // A bookmark, a shared link, a tester's history, and — the one that is not
-    // cosmetic — a Stripe `return_url` written before the rename, carrying a
-    // user back from a 3DS challenge they have already passed.
-    expect(resolveStepId("paywall")).toBe("plans");
-    expect(resolveStepId("checkout")).toBe("start");
-  });
-
-  it("refuses everything else", () => {
-    expect(resolveStepId("dashboard")).toBe(null);
-    expect(resolveStepId("")).toBe(null);
-    expect(resolveStepId(null)).toBe(null);
-    expect(resolveStepId(undefined)).toBe(null);
-    expect(resolveStepId(7)).toBe(null);
-    // An array is what a REPEATED query parameter arrives as, and treating it
-    // as a string is what once walked past every guard on the page. Callers
-    // take `[0]` first; this must not accept the array itself.
-    expect(resolveStepId(["plans", "plans"])).toBe(null);
-  });
-
-  it("does not inherit Object.prototype keys", () => {
-    // The alias map is a plain object literal, so a lookup of "constructor" or
-    // "toString" would otherwise return a function and pass a truthy check.
-    expect(resolveStepId("constructor")).toBe(null);
-    expect(resolveStepId("toString")).toBe(null);
-    expect(resolveStepId("__proto__")).toBe(null);
   });
 });
 
@@ -252,14 +208,14 @@ describe("clampStep — the age gate, enforced", () => {
     // the paywall lands there — not on a later housekeeping screen with holes
     // behind it, which is what a fixed clamp target would have allowed.
     expect(clampStep("demo", "name")).toBe("name");
-    expect(clampStep("plans", "name")).toBe("name");
+    expect(clampStep("paywall", "name")).toBe("name");
   });
 
   it("never lets an unproven age past the birthday screen", () => {
     // The legally load-bearing case, stated on its own: name given, age or
     // consent still missing. Everything substance-adjacent and every payment
     // path is after this and must be unreachable.
-    for (const step of ["gender", "greeting", "running", "demo", "cost", "plans"] as const) {
+    for (const step of ["gender", "greeting", "running", "demo", "cost", "paywall"] as const) {
       expect(clampStep(step, "birthday")).toBe("birthday");
     }
   });
@@ -302,14 +258,14 @@ describe("clampStep — the age gate, enforced", () => {
   it("clamps every step for an account that has NOT passed the gate", () => {
     // A session is not proof of age. This is the case a cold review walked:
     // sign up at /login, never visit /welcome, then ask for the paywall.
-    for (const step of ["gender", "greeting", "running", "demo", "cost", "free", "account", "plans", "welcome"] as const) {
+    for (const step of ["gender", "greeting", "running", "demo", "cost", "free", "account", "paywall", "welcome"] as const) {
       expect(clampStep(step, "birthday", false)).toBe("birthday");
     }
   });
 
   it("defaults to NOT exempt, so a caller that forgets the flag gates harder", () => {
     // The parameter is optional. A missing argument must fail closed.
-    expect(clampStep("plans", "birthday")).toBe("birthday");
+    expect(clampStep("paywall", "birthday")).toBe("birthday");
     expect(clampStep("welcome", "birthday")).toBe("birthday");
   });
 });
@@ -324,7 +280,7 @@ describe("clampIntent", () => {
     // disabled button only covers the forward path.
     expect(clampIntent("celebrate", none)).toBe("running");
     expect(clampIntent("demo", none)).toBe("running");
-    expect(clampIntent("plans", none)).toBe("running");
+    expect(clampIntent("paywall", none)).toBe("running");
     // The account screen is in the same guarded stretch: a bookmarked link
     // straight to it would otherwise offer to save answers nobody gave.
     expect(clampIntent("account", none)).toBe("running");
@@ -337,7 +293,7 @@ describe("clampIntent", () => {
   });
 
   it("passes a fully answered session straight through", () => {
-    for (const step of ["celebrate", "demo", "payoff", "cost", "account", "plans"] as const) {
+    for (const step of ["celebrate", "demo", "payoff", "cost", "account", "paywall"] as const) {
       expect(clampIntent(step, both)).toBe(step);
     }
   });
@@ -360,7 +316,7 @@ describe("clampIntent", () => {
     // The claim empties the device, so judging a gated customer by what is left
     // in `localStorage` throws them back to the intent screens — exactly the
     // hazard this function's own doc describes for `welcome`.
-    for (const step of ["celebrate", "demo", "payoff", "cost", "free", "account", "plans"] as const) {
+    for (const step of ["celebrate", "demo", "payoff", "cost", "free", "account", "paywall"] as const) {
       expect(clampIntent(step, none, true)).toBe(step);
       expect(clampIntent(step, none, false)).not.toBe(step);
     }

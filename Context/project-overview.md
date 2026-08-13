@@ -41,9 +41,7 @@ Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormo
 - Manual entry (week 3) against the biomarkers catalogue; results expressed categorically via `v_biomarker_position` (below/within/above — never high/bad).
 
 ### Entitlements
-- **Feature gates read `entitlements`, not `profiles.tier`.** (Superseded 2026-08-12; the old line said `tier` and nothing else.) `entitlements` is the only table that decides access, and Stripe writes it through the webhook while Apple and Google will write the same rows through RevenueCat with no application change. `profiles.tier` is historical: `grants/003` locked it to the service role, and as of 2026-08-12 nothing reads it for display either. See `architecture.md` -> Billing.
-- **A lapsed account is READ-ONLY, never locked out** (Adrian, 2026-08-13). Every screen opens and every dose, photo, reading and block stays visible; what stops is ADDING to it. Nothing is ever hidden or deleted. The gate is a provider around the `(app)` tree plus `requireWriteAccess()` on the write actions, NOT a redirect in the layout — `app/(app)/layout.tsx` still checks session + age only for ROUTING, and deliberately so. See `lib/billing/gate.ts` for the full list of what is covered and what is not.
-- **The gate is OFF unless `BILLING_GATE_ENABLED=true`.** ~90 real accounts have no `entitlements` row, so turning it on before the beta backfill (`/api/billing/beta-grace`) has run would put all of them into read-only overnight. The same switch decides whether an account with no entitlement is described as "Pro" or "Read only", which is what disarmed the `NO_ENTITLEMENT_LABEL` tripwire.
+- Feature gates read `profiles.tier` and nothing else. Beta defaults everyone to `'paid'`. Stripe (post-trip) becomes the column's only writer; gating logic never changes. Default flips to `'free'` before public launch.
 
 ## Scope
 
@@ -56,7 +54,7 @@ Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormo
 - PWA install tested on Android and iOS.
 
 ### Out of Scope (do not build during the sprint)
-- ~~Stripe, payments~~ **BUILT 2026-08-08/12**: subscriptions, a 7-day trial, the trial reminder, cancel and resume, and the Stripe Customer Portal for cards and invoices. Not switched on: no Stripe keys in production and nothing routes a user at `/onboarding`. Founding-member access is an `entitlements` row with `source = 'comp'`, not a `tier` value.
+- Stripe, payments, founding-member tier (post-trip; tier column already models it).
 - Marketing site and waitlist (post-trip).
 - Push notification delivery (post-trip; `push_subscriptions` table already exists in schema — storage only).
 - Bloodwork AI analyser (v1.5; Claude Sonnet).

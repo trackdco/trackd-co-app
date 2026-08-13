@@ -5,24 +5,6 @@
  * (reusing the schema's existing booleans), the daily reminder time, and the quiet
  * window. RLS scopes the write to the user's own notification_preferences row;
  * identity comes from the verified session, never the client.
- *
- * ## ⚠️ TWO THINGS THIS ROW WILL NOT LET YOU DO
- *
- * Both arrive with `supabase/notifications/005`, and both will surface as a bare
- * `42501` if a later change walks into them:
- *
- *   1. **`trial_reminder_sent_for` cannot be written from here.** A BEFORE
- *      trigger refuses any change to it from the `authenticated` role. It is the
- *      reminder cron's dedupe stamp: clearing it fires the trial reminder every
- *      fifteen minutes (~96 pushes a day about somebody's money) and setting it
- *      forward silences a notice the paywall and the checkout disclosure both
- *      promise out loud. The runner writes it as the service role.
- *   2. **The row cannot be DELETED from here.** DELETE is revoked for
- *      `authenticated`, the same way `profiles` already is. A "reset my
- *      notification settings" feature has to UPDATE the columns back to their
- *      defaults; deleting the row would silence the trial reminder outright,
- *      because the claim is a conditional UPDATE and against a missing row it
- *      matches nothing and reports no error at all.
  */
 import { revalidatePath } from "next/cache";
 

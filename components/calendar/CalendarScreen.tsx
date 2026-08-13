@@ -66,7 +66,6 @@ import { commitDoseOn, unlogDose } from "@/lib/home/doseLog";
 import type { EntryMarker } from "@/lib/progress/journal";
 import { unitForPreference } from "@/lib/weight";
 import type { BodySex } from "@/lib/db/types";
-import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
 
 const EMPTY_LOGS: DayLogs = {};
 
@@ -122,11 +121,6 @@ export function CalendarScreen({
   sampleLogs,
 }: CalendarScreenProps) {
   const router = useRouter();
-  /**
-   * Guarded: back-logging a dose, and adding an off-plan one-off. Both CREATE.
-   * Removing either is not guarded.
-   */
-  const { guard } = useWriteAccess();
   const mounted = useMounted();
   const unit = unitForPreference(unitPreference);
   const deviceReady = sampleStack || sampleLogs ? true : mounted;
@@ -403,12 +397,10 @@ export function CalendarScreen({
         onOpenChange={setOneOffDayOpen}
         dateLabel={formatJournalDate(selectedKey)}
         logs={deviceReady ? oneOffsOn(oneOffs, selectedKey) : []}
-        onAdd={() =>
-          guard(() => {
-            setOneOffDayOpen(false);
-            setOneOffOpen(true);
-          })
-        }
+        onAdd={() => {
+          setOneOffDayOpen(false);
+          setOneOffOpen(true);
+        }}
         onRemove={(id) => removeOneOff(userId, selectedKey, id)}
       />
 
@@ -421,7 +413,7 @@ export function CalendarScreen({
         todayKey={todayKey}
         dateKey={selectedKey}
         recents={recentOneOffLabels(oneOffs, todayKey)}
-        onSave={(log) => guard(() => addOneOff(userId, log))}
+        onSave={(log) => addOneOff(userId, log)}
       />
 
       <DayDetailSheet
@@ -484,7 +476,7 @@ export function CalendarScreen({
             }
           }
         }}
-        onTracked={(compoundId, log, landsOn, openedOn) => guard(() => {
+        onTracked={(compoundId, log, landsOn, openedOn) => {
           // ONE shared implementation with Home and quick-track — three copies
           // of this had already drifted, and the drift silently dropped the day
           // the user had just edited.
@@ -492,7 +484,7 @@ export function CalendarScreen({
           // Deferred until the sheet closes, so following the dose cannot
           // remount the sheet and wipe what is in it.
           if (landsOn !== openedOn) setPendingDay(landsOn as DateKey)
-        })}
+        }}
         hasLogOn={(day) => Boolean(logs[day]?.[logTarget?.id ?? ""])}
         /* The day the SHEET is showing, not the live selection — see Home. */
         onRemove={(compoundId, day) => unlogDose(userId, day, compoundId)}

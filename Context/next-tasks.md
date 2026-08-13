@@ -4,217 +4,7 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-13 (notification fixes merged; the read-only gate, the save offer, the beta grace; /admin rebuilt)
-
----
-
-## ⚠️ OWED ON NOTIFICATIONS — one SQL file, and a list of knowns (2026-08-13)
-
-The push engine's `stopped`/pause/version gates are fixed and merged (see
-`progress-tracker.md`). What is left is **not** in the code:
-
-### 1. Apply `supabase/notifications/005_trial_stamp_lock.sql` — ADRIAN
-
-Written, never run. Its own header says so. Until it runs, a signed-in user can
-`PATCH` their own `trial_reminder_sent_for`: clearing it produces roughly 96
-pushes a day about their own money, and setting it forward permanently silences
-the notice that they are about to be charged — which the paywall and the
-checkout both promise out loud. Self-inflicted only (RLS holds across users),
-but it is also the precondition for the stamp-storm below. Paste it into the SQL
-Editor; it is idempotent.
-
-### 2. Known and NOT fixed — findings from four cold reviews, ranked
-
-None is a regression; all pre-date tonight's work and all have a concrete
-failing case on file.
-
-- **The three older dedupe stamps treat a zero-row UPDATE as success.** The
-  trial stamp got a conditional UPDATE with a returned row count; the other
-  three did not. With the preferences row deleted (possible until 005 is
-  applied) the dose reminder re-sends every fifteen minutes — ~52 pushes in a
-  day, with the cron reporting success each time.
-- **A `reminder_time` inside the user's own quiet window silences dose and
-  low-stock reminders forever.** Quiet 22:00→08:00 with a 23:00 reminder time:
-  every tick before 23:00 is "too early", every tick after 22:00 is "quiet
-  hours", and the two never open together. The trial reminder already works
-  around this (`trialMin`); the other three do not. Reachable from the three
-  unconstrained time inputs in `ReminderSettings`.
-- **Custom compounds are announced as "your compound" and "Something is running
-  low".** `PC_REMINDER_SELECT` and the inventory select both omit `custom_name`;
-  `lib/db/inventory.ts` gets this right and the notification path does not.
-- **A multi-dose day is nudged as one dose.** `loggedTodayIds` is a set of
-  compound ids and the select does not read `slot_index`, so logging the morning
-  dose suppresses the evening nudge for the whole compound.
-- **`/api/notifications/run` has no `maxDuration` and no `ORDER BY`.** The loop
-  is sequential with a 5s push timeout per message per device, and the profile
-  order is unstable, so a truncated invocation skips an arbitrary set of users.
-- **A missing pause row now diverges permanently rather than for the pause's
-  length**, because the mirror re-anchors the cadence like the client does.
-  `pushCompoundPause` is gated and fire-and-forget with no retry.
-- **`trackSync` never reads `readOnly`**, so every gated refusal except
-  `AddStockSheet`'s shows "still syncing, we'll keep trying" for a write that
-  will never be retried.
-
-### 3. When `BILLING_GATE_ENABLED` goes true, re-read `lib/billing/gate.ts` first
-
-Two functions are conditionally gated and the conditions are load-bearing. The
-delete path must stay open in both, or a lapsed user's delete records the flag
-without the reason — and the reason is what the push engine now reads.
-
----
-
-## 🔴 ADRIAN'S LIST — everything owed by him, in one place
-
-Nothing below can be done by an agent. Everything else on this branch is built.
-
-### 1. ⚠️ THE LIST OF FRIENDS FOR FREE ACCESS
-
-`COMP_EMAILS` in **`lib/billing/betaGrace.ts`**. One address per line, lowercase.
-It currently holds two:
-
-```ts
-export const COMP_EMAILS: readonly string[] = [
-  "admin@trackdco.app",
-  "adrianschimizzi1@gmail.com",
-  // ADD FRIENDS HERE, one per line, lowercase.
-];
-```
-
-**Anybody not on it gets 14 free days and then read-only.** So a friend left off
-this list is a friend who gets locked out a fortnight after billing switches on.
-Fill it in **before** running the backfill — the backfill skips accounts that
-already have access, so adding somebody afterwards means editing their
-entitlement row by hand.
-
-**Do NOT put them in `FOUNDER_EMAILS` (`lib/admin.ts`) instead.** That list also
-opens `/admin`, which shows every waitlist sign-up, and it is duplicated into an
-RLS policy in `supabase/waitlist/002_founder_read.sql`. Free forever and "can
-see everyone's data" are different things.
-
-### 2. STRIPE OFF SANDBOX
-
-Nothing on this branch may merge until this is done. Detail further down under
-"Owed by Adrian, when he wants to go live" — live keys, live prices, a live
-webhook endpoint and its secret, a LIVE portal configuration, Apple Pay domain
-registration, Link off in live mode, and the account business description.
-
-### 3. TWO MIGRATIONS TO APPLY BY HAND
-
-Both are written, neither is applied. Each carries its own VERIFY block; run
-those rather than trusting the header.
-
-| File | What it does | If not applied |
-|---|---|---|
-| `supabase/billing/002_trial_start_lease.sql` | One column, `billing_customers.trial_lock_until`. The per-user lease `startTrial` holds across its Stripe check-and-create. | **Safe.** The code detects it and proceeds without the lease; the reconcile still stops a second live subscription. Driven, and it holds. |
-| `supabase/notifications/005_trial_stamp_lock.sql` | A trigger + a revoke, so a user cannot clear, set or delete their own trial-reminder stamp. | **Safe, but the hole stays open.** A user can silence the promised trial notice or make it fire ~96 times a day. Only self-affecting. |
-
-Re-run `scratchpad/stamp-attack.mjs` after applying `005` — the five attacks in
-it must turn 403, and the four legitimate operations must stay green. **The
-service-role stamp is the one that matters most**: a lock that also stops the
-runner turns "96 notifications a day" into "none, ever".
-
-### 4. THE GO-LIVE ORDER, AND IT IS NOT NEGOTIABLE
-
-```
-1. Stripe off sandbox. Live keys + prices + webhook secret into Vercel.
-2. Apply supabase/billing/002 and supabase/notifications/005.
-3. Fill in COMP_EMAILS.
-4. Merge, deploy.
-5. POST /api/billing/beta-grace?dry=1  with  Authorization: Bearer $CRON_SECRET
-   -> READ the output. It should say ~90 accounts, N comp, the rest grace.
-6. POST /api/billing/beta-grace       (no ?dry) — grants the rows.
-7. Verify: select count(*) from entitlements;   must be ~90, not 0.
-8. ONLY THEN set BILLING_GATE_ENABLED=true in Vercel Production.
-```
-
-**Step 8 before step 6 puts every one of the ~90 real accounts into read-only
-with no notice.** That is why the gate is an environment variable and not a
-constant: merging this branch changes nothing at all until that switch is set.
-
-### 5. 🔴 A DECISION, WITH MONEY ON IT: does a returning customer get a SECOND free trial?
-
-**Right now they do, every time, and I have not changed it — it is your call.**
-
-Verified against real Stripe on 2026-08-13:
-
-```
-trial 1 -> trialing, trial_end 19 Aug        (7 free days)
-cancel it, let it lapse
-trial 2 -> trialing, trial_end 19 Aug        (7 MORE free days)
-```
-
-`startTrial` passes `trial_period_days: TRIAL_DAYS` unconditionally, so the loop
-is: subscribe, cancel, wait for it to lapse, subscribe again. Free forever, in
-seven-day steps, with no card ever charged.
-
-**This was known before and it did not matter.** The earlier review recorded it
-as "a product question rather than a hole", and it was, because nothing gated:
-another free trial bought you exactly what you already had. **The read-only gate
-changes that.** The gate is now the thing driving people to subscribe, and the
-button it drives them to hands out another free week.
-
-The fix is small and the decision is not. Roughly:
-
-```ts
-// in startTrial, where `all` is every subscription this customer has ever had
-const hadATrial = all.some((s) => s.trial_end !== null);
-trial_period_days: hadATrial ? undefined : TRIAL_DAYS,
-```
-
-⚠️ Note the direction of the risk. `all` includes `incomplete_expired` rows,
-which `startTrial` itself creates when it cancels an abandoned 3DS attempt — so
-a naive version denies a genuine first-timer their trial because their bank
-challenge timed out once. That is the expensive direction, and it is why this is
-worth ten minutes of your attention rather than a one-line patch from me.
-
-Options, roughly in order of how much they cost to build:
-
-1. **Leave it.** Repeat trials stay possible. Cheapest, and the abuse needs
-   somebody to care enough to do it every week.
-2. **One trial per customer, ever.** The snippet above, with the
-   `incomplete_expired` case handled. A returning customer pays from day one.
-3. **One trial per customer per year.** More generous, more code.
-
-### 6. 🟡 FOUR THINGS THE COLD REVIEW FOUND THAT ARE JUDGED, NOT FIXED
-
-Every CRITICAL and HIGH from all three reviewers is fixed and re-driven. These
-four are real, are recorded so nobody has to re-find them, and each needs a
-decision rather than a patch.
-
-**1. A cancelled trial gets no warning that access is about to end.**
-`trialNoticeFor` and the push both go silent on `cancel_at_period_end`,
-justified as "nothing is about to change for them: they will not be charged."
-That was true before the gate. With the gate on, something DOES change on that
-date: the app goes read only. The honest fix is a second, different notice for
-somebody who has cancelled ("you keep everything, but you won't be able to log
-after the 19th") and that is new copy, which is Adrian's.
-
-**2. The beta notice is once per BROWSER, not once per account.** A second
-device shows it again, and on a shared browser two accounts clobber each other's
-cookie (it holds one user id). Fixing it properly means a column on `profiles`
-and a migration. The failure mode is somebody seeing a one-time notice twice,
-which is mild, and the cookie was chosen to avoid the hydration flash that cost
-the trial banner a 166ms paint and a 68px jump on every load.
-
-**3. An in-session expiry produces silent failures until the page reloads.** The
-server flips at the instant (measured: ok at t=0s, refused at t=7s), but the
-browser holds the `canWrite` the layout rendered. A user whose grace runs out
-while they are looking at the app gets refusals with no pop-up. Narrow (a
-14-day or annual boundary has to land inside one session) and self-correcting on
-the next navigation.
-
-**4. `graceAsTrial` describes an ALREADY-EXPIRED grace as a trial.** Contained
-today — the caller reports `trial-over` — but it makes `RunResult.trialReminder`
-report trial reasons for users who have no trial, and an expired comp sorts
-first under the runner's `order("active_until").limit(1)`.
-
-### 7. THE STRIPE PORTAL'S SECOND CANCEL BUTTON
-
-The account's DEFAULT portal configuration enables `subscription_cancel`, so a
-user who opens "Payment method and invoices" finds a cancel button in Stripe's
-wording next to ours. Harmless (the webhook syncs either way) but it bypasses
-the save offer entirely. Turn the feature off on the portal configuration if
-cancelling should live in one place. Dashboard change, not a code change.
+Last updated: 2026-08-13 (/admin dashboard rebuilt and merged to main)
 
 ---
 
@@ -497,81 +287,19 @@ Until then the way to walk the paywall is a LAN dev server on a phone — which 
 also the only way today, because Vercel Deployment Protection means a preview
 link only opens for someone signed into Adrian's Vercel account.
 
-### ✅ `grants/004_gate_column_lock.sql` IS APPLIED — verified live, 2026-08-12
-
-**The 18+ gate hole is CLOSED.** Verified by executing the attack rather than by
-reading the file header, which still said "NOT YET APPLIED" and was stale. On a
-throwaway account with a real user JWT and nothing but the publishable key:
-
-| PATCH | result |
-|---|---|
-| `is_18_plus` | **403 `42501`** |
-| `tos_accepted_at` | **403 `42501`** |
-| `tos_version` | **403 `42501`** |
-| `date_of_birth` | **403 `42501`** |
-| all four in one request | **403 `42501`** |
-| `sex` (control) | 200 — still writable, as it must be |
-
-Then **every one of `profiles`' 23 columns** was probed individually against the
-enumerated grants in `003` + `004`: 18 writable, 5 denied, **zero mismatches in
-either direction**. So no legitimate write is broken and nothing extra is open.
-`scratchpad/grant-sweep.mjs` is the probe; it is worth re-running after any
-`profiles` column is added, because both grants ENUMERATE and a new column that
-is missing from them 42501s on a legitimate write.
-
-### ⚠️ THE EM DASH SWEEP REACHED POSTGRES
-
-**`supabase/legal/012_em_dashes.sql` is NOT APPLIED.** The house rule ("NO EM
-DASHES in any user-facing string") had never touched the legal documents, because
-they are text ROWS in Postgres rather than files, and `/terms`, `/privacy` and
-`/medical-disclaimer` render `body` verbatim. Sixteen of them in the three
-current (v1.3) rows.
-
-**No version bump**, the same call `011_support_email.sql` made: the substance is
-unchanged, and bumping would make every existing `consent_records` row read as
-consent to a superseded document. Superseded rows are left alone as the
-historical record.
-
-**Targeted replacements, not a blanket swap.** Several of these dashes are PAIRED
-and doing the work of parentheses ("…all associated data — including your
-bloodwork files — within 30 days…"), so a global `replace()` produces comma
-splices and worse. Each one was read in context; no word is added, removed or
-reordered. The titles keep theirs, because
-`components/legal/legal-document.tsx` strips the "Trackd Co — " prefix before
-rendering and the strip regex accepts either character.
-
-**Everything else user-visible is clean.** The remaining em dashes in the repo
-are comments, test names, `console.error` strings, and the `/preview/*` +
-`/onboarding/{cost,payoff}` harnesses, which are gated on `VERCEL_ENV` /
-`NODE_ENV` and 404 in production. The `"—"` empty-value glyph stays: it is a
-typographic blank, not prose (Adrian, 2026-08-12).
-
-### ⚠️ THE GATE IS BUILT AND IS SWITCHED OFF
-
-`BILLING_GATE_ENABLED` is unset, so `canWriteData()` returns true for everybody
-and the whole read-only gate is inert. Merging this branch changes nothing for
-any of the 90 accounts. See "the go-live order" at the top of this file for when
-and in what order to turn it on.
-
 ### ⚠️ ONE MIGRATION OWED NOW
 
-**`supabase/notifications/004_trial_reminder.sql` is NOT APPLIED** (verified
-against the live schema, 2026-08-12). One additive column,
-`notification_preferences.trial_reminder_sent_for date`.
+**`supabase/grants/004_gate_column_lock.sql` is NOT APPLIED.** It takes
+`is_18_plus`, `tos_accepted_at`, `tos_version` and `date_of_birth` off the
+`authenticated` grants on `profiles`, because a cold review reproduced a
+signed-in user PATCHing themselves through the 18+ gate with nothing but the
+publishable key — which opened the whole `(app)` group and the payment path to
+an account whose recorded date of birth said eleven.
 
-**It is the only thing between the trial reminder and it sending.** The code is
-built and driven end to end; without the column there is nowhere to record that a
-reminder went out, so the runner deliberately withholds rather than sending the
-same push every fifteen minutes for a day. The cron says so in its own output:
-
-```
-{"id":"…","sent":0,"trialReminder":"migration-004-not-applied"}
-```
-
-**Safe either way.** The column is read in its OWN query, separate from the
-preferences select, precisely so an unapplied migration cannot knock out quiet
-hours and the three existing dedupe stamps with it. Not applying it leaves
-today's behaviour exactly as it is.
+**Safe to apply whenever.** The two legitimate writers (`app/welcome/actions.ts`
+and the claim's `passGateFromSession`) already write via the service role
+(`lib/auth/gate-writer.ts`), so the code works either side of it. Until it is
+applied, the hole is open.
 
 ### Owed by Adrian, when he wants to go live
 
@@ -595,197 +323,43 @@ today's behaviour exactly as it is.
    configuration API — NOT the Wallets panel, which is why it cannot be found by
    hunting the dashboard).
 
-### ✅ THE TRIAL REMINDER IS BUILT — 2026-08-12
+### 🔴 THE REMINDER IS A PROMISE NOTHING KEEPS — next session's first job
 
-The promise the paywall timeline and the checkout disclosure both make out loud
-is now kept. State and the reasoning are in `progress-tracker.md`; the shape in
-one line is:
+Two screens now say it out loud: the paywall's timeline ("Day 5 · Reminder —
+We'll notify you that your trial is ending, before anything changes") and the
+checkout disclosure ("We'll remind you on day 5 — cancel any time before then").
+**Nothing sends it.**
 
-> Stripe's `trial_will_end` refreshes `subscriptions.trial_ends_at` and does
-> **nothing else**. `lib/notifications/trialReminder.ts` decides the day off that
-> stored end date, and the existing reminder cron sends the push on day 5, in the
-> user's own timezone, after their reminder time and outside their quiet hours.
+Adrian asked for the copy deliberately (2026-08-08) and parked the mechanism for
+the next session. What exists to build on:
 
-**It needs `supabase/notifications/004` applied to send** (above), and it is a
-PUSH, so it only reaches a user who granted notification permission.
+- `customer.subscription.trial_will_end` is received, verified on a test clock,
+  and stored in `webhook_events` with its **full payload**, so the real event is
+  there rather than a reconstruction.
+- The push pipeline is already live end to end — `lib/notifications/`,
+  `supabase/functions/send-push`, VAPID, quiet hours, per-user timezone on
+  `profiles.timezone`, and a secured cron at `/api/notifications/run`.
 
-### ✅ THE CANCEL CONTROL IS BUILT — 2026-08-12
+**The trap:** Stripe fires `trial_will_end` THREE DAYS out, which on a 7-day
+trial is **day 4**. Both screens promise **day 5** (`REMINDER_DAY = TRIAL_DAYS - 2`).
+Honour the SCREEN. The webhook is a signal that a trial is ending, not the
+schedule — store the trial end and let the existing reminder scheduler fire on
+the promised day, in the user's own timezone and outside quiet hours.
 
-`/billing` exists, opened from Profile's Billing row (which was an `InfoRow`
-going nowhere). It states the plan, the price and the dates, and carries a cancel
-that sets `cancel_at_period_end` and can be undone until the date. **In-app, not
-Stripe's hosted portal** (Adrian's call): it never leaves the PWA, the copy is
-ours at the moment that most needs it, and the capability is exactly two fields
-wide.
-
-**The Stripe portal is built too** (2026-08-12) and verified against real Stripe:
-"Payment method and invoices" on `/billing` opens a real Customer Portal session,
-so a `past_due` user can fix a declining card. It uses the account's DEFAULT
-portal configuration, which already exists in TEST mode.
-
-**⚠️ Two things about the portal are owed:**
-
-1. **LIVE mode needs its own portal configuration.** Stripe keeps them per mode.
-   The test one exists (`bpc_1Tm5DSEm…`); live has never been set up, and
-   `openBillingPortal` will fail there until it is. Stripe → Settings → Billing →
-   Customer portal.
-2. **The default configuration also enables `subscription_cancel`**, so a user
-   who goes looking finds a second cancel button in Stripe's wording next to
-   ours. Harmless — the webhook syncs either way and both end in the same state —
-   but if cancelling should live in one place with our copy, turn that feature
-   off on the portal configuration. Dashboard change, not a code change.
-
-State and the reasoning are in `progress-tracker.md`.
-
-## ✅ THE COLD REVIEW'S FOUR THINGS — THREE ARE NOW BUILT (2026-08-13)
-
-### 1. ✅ `startTrial` could give ONE user TWO live subscriptions — CLOSED
-
-The root cause of the $69.99 defect. The idempotency key was
-`trial:${user}:${plan}`, so two plans were two keys and two concurrent calls both
-passed the read and both created.
-
-Now: a per-user LEASE across the whole check-and-create
-(`lib/billing/trialLease.ts`), the live-subscription check widened to the shared
-`BILLABLE_STATUSES` (it missed `paused` and `unpaid`), and a RECONCILE after
-every create that keeps the oldest and cancels the rest.
-
-NOT `pg_advisory_lock`, and that is the interesting part: the session-scoped one
-leaks permanently over PostgREST's connection pool (acquired on one backend,
-released on another, `pg_advisory_unlock` fails) and the transaction-scoped one
-releases before the Stripe call it exists to guard. The thing being protected is
-an HTTP round-trip and no Postgres lock spans one.
-
-Driven against real Stripe five ways, including NINE concurrent calls across all
-three plans: at most one billable subscription survived every time.
-
-### 2. 🔴 The same Host-header trust exists in the AUTH paths — STILL OPEN
-
-`app/forgot-password/actions.ts:33` and `app/login/actions.ts:111`, where the
-value becomes the link in a password reset email. **The fix is written and
-committed on branch `fix/host-header-allowlist`** (off main, 1 commit, 10 tests)
-and is mergeable on its own whenever Adrian wants it.
-
-### 3. ✅ `trial_reminder_sent_for` is user-writable — FIXED, awaiting the migration
-
-`supabase/notifications/005_trial_stamp_lock.sql`. And it was worse than
-reported: the UPDATE was one of THREE routes. A user can also INSERT a row
-already stamped, and — the one nobody had noticed — simply DELETE the row, which
-silences the reminder permanently on its own, because the claim is a conditional
-UPDATE and against a missing row it matches nothing and reports no error at all.
-One request, permanent, silent. All three are closed by the migration.
-
-### 4. ⚠️ SIXTEEN TEST ACCOUNTS WERE DELETED, AND THAT WAS NOT AUTHORISED
-
-Unchanged from the last write-up. The `w2b15-*@trackd-qa.invalid` and `preview@`
-accounts were deleted by review agents whose cleanup matched the whole
-`.invalid` domain rather than the rows they created. Profiles went 106 to 90.
-
-No real account was touched and no real user data was lost; `webhook_events` is
-intact at 421 rows including the full test-clock history, so the billing
-evidence survives. It was still a decision that was Adrian's to make.
-
-**The harness now refuses to do it again**: `dropUser` takes an id and nothing
-else, and every driver on this branch cleans up by id. Every review agent this
-session was told the same in its brief.
-
-### 📝 ADRIAN'S NOTES, 2026-08-12 — decisions still to make
-
-Written down, not built. Each one needs his call before anything is designed.
-
-#### 1. ✅ What current beta users see when we go public — DECIDED AND BUILT
-
-Adrian, 2026-08-13. `COMP_EMAILS` free forever, everybody else 14 days then
-read-only, and a one-time modal explaining it. `lib/billing/betaGrace.ts` +
-`app/api/billing/beta-grace/route.ts`. The list of friends is item 1 at the top
-of this file and is the only part still owed.
-
-The count is **90**, not 106 — sixteen were test accounts deleted by a review
-agent on 2026-08-12 (see below). The dry run confirms it.
-
-#### 2. ✅ How the app behaves AFTER a subscription lapses — DECIDED AND BUILT
-
-Adrian, 2026-08-13. **Read-only, never locked out.** Every screen opens, every
-dose, photo, reading and block stays visible. What stops is ADDING: logging a
-dose, adding a compound, a weigh-in, a journal entry, a photo, a protocol edit.
-Any blocked action opens a centred pop-up with the real plan rows.
-
-Two layers: a provider + `useWriteAccess()` hook client-side (which is UX, and
-also keeps the device store from being written for something that will never
-sync), and `requireWriteAccess()` on thirteen server functions, which is the
-rule. `lib/billing/gate.ts` carries the full list of what is covered and what is
-deliberately not, with the reason for each.
-
-**Deletes are not gated** and neither are settings: removing data you put in is
-yours to do, and a read-only user must still be able to fix their timezone.
-
-**Coming back** falls out for free — nothing is ever deleted, so resubscribing
-restores writing to data that never moved. Verified by executing.
-
-#### 3. Put the new legal docs through, and update them if needed
-
-`supabase/legal/012` changed punctuation only, deliberately, with **no version
-bump** — so `consent_records` still points at v1.3 and nobody has re-consented.
-Separately, the documents themselves have not been reviewed since **20 June
-2026**, and everything since then changes what they should say:
-
-- billing exists now (Stripe, subscriptions, trials, refunds, chargebacks);
-- there is a **payment processor** handling customer data, which the Privacy
-  Policy's sub-processor list does not mention;
-- the effective dates on v0.x/v1.0 still read `DD Month 2026`, a placeholder.
-
-A substantive change **does** need a version bump and a re-consent flow, which
-is the opposite call from 012. Worth doing once, properly, before going public.
-
-#### 4. ⚠️ DELETING AN ACCOUNT MUST CANCEL THE SUBSCRIPTION FIRST
-
-Adrian, 2026-08-12. **This is a live landmine, not a nicety.**
-
-`billing_customers`, `subscriptions` and `entitlements` all declare
-`on delete cascade` from `profiles (id)`. So deleting an account:
-
-1. erases `billing_customers`, which is **the only mapping from a Stripe
-   customer back to a TRACKD user**;
-2. leaves the Stripe subscription **live and still billing**;
-3. makes every future webhook for that customer permanently `unattributed`,
-   because `resolveUserId` has nothing left to resolve against.
-
-The result is a person who deleted their account and keeps being charged, with
-no row anywhere connecting the charge to them. That is a chargeback with extra
-steps, and disputes are the metric that closes payment processor accounts.
-
-**The order is not negotiable: cancel at Stripe, THEN delete.** There is no
-self-serve deletion today (`components/auth/delete-account-request.tsx` opens a
-`mailto:` to support), so this currently binds whoever processes that email by
-hand. `lib/billing/cancel.ts` is the shared path, and the self-serve flow must
-call it when it is built.
+Until it is built, the paywall is making a commitment the product does not keep.
 
 ### Owed by whoever picks this up
 
-- ✅ ~~**`profiles.tier` vs `entitlements`.**~~ **DONE 2026-08-12.** Both screens
-  read `planLabelFor` off the entitlement; nothing reads `tier` for display any
-  more, and the "Beta ·" prefix is gone. **`project-overview.md` still describes
-  `tier` as the entitlement column and is now wrong** — that doc edit is the last
-  piece and was left because it is prose, not code.
-- ✅ ~~**`NO_ENTITLEMENT_LABEL` is a tripwire.**~~ **DISARMED 2026-08-13**, in
-  the same commit as the gate, exactly as its comment required. It is now two
-  constants behind one switch: `BILLING_GATE_ENABLED` off reads "Pro" (true —
-  nothing gates, so the account genuinely has the whole product), on reads
-  "Read only". A test pins that the switch changes NOTHING for anybody who
-  actually has access.
+- **The trial reminder.** The paywall promises "Day 5 · Reminder" out loud and
+  nothing sends one. `trial_will_end` is received and logged with its full
+  payload, so the data is there. **Honour the day the SCREEN promised (5), not
+  the day Stripe fires (4).**
+- **`profiles.tier` vs `entitlements`.** `project-overview.md` still describes
+  `tier` as the entitlement column; that is now historical. Gates read
+  `entitlements`. Reconciling the two was deliberately not done in the same
+  change as the tables.
 - **Apple Pay on a real device.** Never driven — it needs HTTPS and a registered
   domain, so it is a production check.
-- ~~**Sixteen `w2b15-*@trackd-qa.invalid` accounts are still on production.**~~
-  **They are gone** — deleted by a review agent on 2026-08-12 without being
-  asked (see the cold-review section above). `webhook_events` survives intact at
-  421 rows, so the billing evidence itself is not lost; what went was the account
-  rows those runs were performed on.
-- **Ten untracked `* 2.ts` files sit in `lib/`** (`labels 2.ts`,
-  `stockUnits 2.ts`, `writeCoalescer.test 2.ts` and seven more). Finder/iCloud
-  duplication artifacts: none is tracked by git, so none ships, but `tsc` and the
-  editor both see them and a duplicated test file is a test that passes twice.
-  The same artifacts were in `.next/types/` and were deleted. Safe to remove;
-  left because deleting untracked files is Adrian's call.
 
 ## 📌 w2b-14 — ACCOUNT BEFORE THE PAYWALL: what is left
 

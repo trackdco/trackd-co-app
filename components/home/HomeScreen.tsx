@@ -7,7 +7,6 @@ import { CalendarDots, CaretDown, NotePencil, User } from "@/components/icons"
 import { requestProgressAction } from "@/lib/progress/progressAction"
 import { computeNextDose } from "@/lib/home/nextDose"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
-import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { cn } from "@/lib/utils"
 
 import { useCloudHydration } from "@/components/home/useCloudHydration"
@@ -188,7 +187,6 @@ export function HomeScreen({
   firstName,
   injectionCatalogue,
   bodySex,
-  trialBanner,
   notificationsBanner,
   previewStack,
   previewStacks,
@@ -204,11 +202,6 @@ export function HomeScreen({
   injectionCatalogue: InjectionSiteRow[]
   /** Which figure every body map on Home draws (from the user's profile). */
   bodySex: BodySex
-  /** "Your free trial ends …", rendered above the notifications prompt in the
-   *  trial's final stretch. Sits HIGHER because it is time-bound and about
-   *  money, where the notifications prompt is persistent and about setup. Both
-   *  self-hide, so the two are never stacked for long. */
-  trialBanner?: ReactNode
   /** Slim "Enable notifications" prompt, rendered above Today's Log. Self-hides
    *  (renders null) when there's nothing to do, so it never leaves a gap. */
   notificationsBanner?: ReactNode
@@ -220,16 +213,6 @@ export function HomeScreen({
   previewLogs?: DayLogs
 }) {
   const router = useRouter()
-  /**
-   * THE READ-ONLY GATE. Wraps the write-initiating handlers on this screen and
-   * nothing else.
-   *
-   * GUARDED: the dose tick, the whole-stack tick, Skip. All three CREATE a dose
-   * log. NOT GUARDED: un-ticking, un-ticking a stack, archiving a compound.
-   * Those remove data the user already put in, which is theirs to do whatever
-   * their subscription says (see `lib/billing/gate.ts`).
-   */
-  const { guard } = useWriteAccess()
 
   // "Today", corrected to the device's local date after mount (the server seed is
   // UTC and can read as yesterday/tomorrow). See the foreground/midnight sync
@@ -787,26 +770,6 @@ export function HomeScreen({
     openedOn: string,
     slot = 0
   ) {
-    /**
-     * ⚠️ GUARDED HERE TOO, not only at the tick that opens the sheet.
-     *
-     * A cold review found the hole: the tick is guarded, and "Log today's dose"
-     * on the COMPOUND DETAIL SHEET was not — so a lapsed user reached this
-     * function, `commitDoseOn` wrote `localStorage`, the server refused the
-     * mirror, and the toast told them **"Saved on your device. Still syncing to
-     * your account. We'll keep trying."**
-     *
-     * It never syncs. Not on reload, not on focus, not on an `online` event, and
-     * NOT AFTER THEY RESUBSCRIBE. A dose on the phone that the cloud has refused
-     * is exactly the two-sources-of-truth state `ReadOnlyGate.tsx` says the
-     * client layer exists to prevent, and the message is a promise the app
-     * cannot keep.
-     *
-     * The entry points are guarded as well, so a user meets the pop-up at the
-     * door rather than after filling in a sheet. This is the backstop for every
-     * route into the sheet, including ones added later.
-     */
-    if (!guard(() => {})) return
     commitDoseOn(userId, compoundId, log, landsOn, openedOn, slot)
     // Follow the dose to its new day — but only AFTER the sheet has closed. The
     // sheet freezes the day it opened on for exactly this reason: moving the
@@ -908,16 +871,6 @@ export function HomeScreen({
         </div>
 
 
-        {/* The trial's final stretch, above the notifications prompt: it is
-            time-bound and about money, and it disappears on its own. Wrapped so
-            it animates in like every other block; renders null outside the
-            window, so `space-y-5` never opens a gap. */}
-        {trialBanner ? (
-          <div className="animate-home-up" style={{ animationDelay: "95ms" }}>
-            {trialBanner}
-          </div>
-        ) : null}
-
         {/* Slim, persistent "Enable notifications" prompt (brings its own
             animate-home-up wrapper; renders null when there's nothing to do, so
             space-y-5 never opens a gap here). */}
@@ -938,14 +891,8 @@ export function HomeScreen({
               title={cycleTitle}
               dueDoses={dueDoses}
               startsNext={startsNext}
-              /* GUARDED. The tick is the app's primary write, so a read-only
-                 account meets the pop-up here rather than after filling in a
-                 sheet. Un-ticking below is NOT guarded: removing a dose you
-                 logged is yours to do whatever your subscription says. */
               onLog={(dose, slot) =>
-                guard(() =>
-                  setLogTarget({ compound: dose, existing: null, slot }),
-                )
+                setLogTarget({ compound: dose, existing: null, slot })
               }
               /* From the ROW, so the day is the one the row is rendered for. */
               onUnlog={(dose, slot) => handleRemove(dose.id, selectedKey, slot)}
@@ -985,7 +932,7 @@ export function HomeScreen({
               // One tap logs every unlogged member. Each still writes its OWN
               // dose log through the same path a single tick uses, to the
               // SELECTED day — a stack is a grouping, never a shared entry.
-              onLogStack={(members) => guard(() => {
+              onLogStack={(members) => {
                 // The time a stack is logged is the time it was TAKEN, not the
                 // time it was scheduled for. Using `schedule.timeOfDay` stamped
                 // an 08:00 stack as 08:00 even when tapped at 22:00 — and where
@@ -1029,7 +976,7 @@ export function HomeScreen({
                     slot,
                   )
                 }
-              })}
+              }}
               // The mirror of `onLogStack`, and deliberately the same shape: each
               // slot is removed through the SAME `unlogDose` a single row's tick
               // uses, so the tombstone, the Postgres delete and the vial's
@@ -1163,11 +1110,9 @@ export function HomeScreen({
         onOpenChange={(open) => {
           if (!open) setDetailTarget(null)
         }}
-        onEditTodaysDose={(c) => guard(() => {
+        onEditTodaysDose={(c) => {
           // "Edit today's dose" → open the Log sheet for today's entry (edit if
           // already logged, fresh otherwise), the same site/time flow as logging.
-          // GUARDED: it is the same write as the tick, reached from the detail
-          // sheet, and a cold review found it open while the tick was closed.
           setDetailTarget(null)
           setLogTarget({
             compound: c,
@@ -1177,12 +1122,11 @@ export function HomeScreen({
             // sub-rows, where it is unambiguous which one is meant.
             slot: 0,
           })
-        })}
-        onPause={(c) => guard(() => {
-          // Pausing EDITS THE PROTOCOL, which is on the gated list.
+        }}
+        onPause={(c) => {
           setDetailTarget(null)
           setPauseTarget(c)
-        })}
+        }}
         // The container's REAL fill, from the same `v_inventory_math` figures
         // the Protocol storage card reads (Spec w2b-13, Step 7). Undefined when
         // this compound has no vial resolved, and the artwork then falls back to
@@ -1223,9 +1167,7 @@ export function HomeScreen({
         // What is on the day already, so the primary button can say "Log" or
         // "Edit" rather than both.
         todaysLog={detailTarget ? (selectedRows[detailTarget.id] ?? null) : null}
-        onSkip={(c) => guard(() => {
-          // A skip WRITES a dose log (status: "skipped"), so it is a write like
-          // any other and is gated like one.
+        onSkip={(c) => {
           const resolved = resolveScheduleOn(c, selectedKey)
           const slot = nextUnloggedSlot(
             selectedRows,
@@ -1253,7 +1195,7 @@ export function HomeScreen({
             },
             slot,
           )
-        })}
+        }}
         onEdit={(c) => {
           setDetailTarget(null)
           setEditTarget(c)

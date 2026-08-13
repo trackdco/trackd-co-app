@@ -64,7 +64,6 @@ export {
   GearSix,
   GenderFemale,
   GenderMale,
-  Hourglass,
   ImageSquare,
   Info,
   InstagramLogo,

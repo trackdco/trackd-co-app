@@ -8,7 +8,6 @@ import { JournalEntrySheet } from "@/components/progress/JournalEntrySheet";
 import { JournalViewSheet } from "@/components/progress/JournalViewSheet";
 import { useProgressAction } from "@/components/progress/useProgressAction";
 import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
-import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
 
 type EditorConfig = { mode: "write" | "markers" | "edit"; initialDate: string };
 
@@ -43,8 +42,6 @@ export function JournalSection({
   /** Progress's two-up grid (spec 08 · part two). */
   compact?: boolean;
 }) {
-  /** Guarded: opening the journal EDITOR. Reading is never guarded. */
-  const { guard } = useWriteAccess();
   const [feedOpen, setFeedOpen] = useState(false);
   const [feedCompose, setFeedCompose] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -90,22 +87,11 @@ export function JournalSection({
     setViewing(entry);
   }
 
-  /**
-   * THE ONE FUNNEL that opens the journal EDITOR, from all four of its callers
-   * (the FAB, the calendar deep link, the dashboard card, the feed). Guarding it
-   * here rather than at each caller is what makes "no leaks past" true of this
-   * screen: a fifth caller added later is guarded by construction.
-   *
-   * Reading a journal entry is NOT guarded and never will be. `openViewer` is
-   * untouched.
-   */
   function openEditor(config: EditorConfig, fromFeed: boolean) {
-    guard(() => {
-      setReturnToFeed(fromFeed);
-      setEditor(config);
-      setFeedOpen(false);
-      setEditorOpen(true);
-    });
+    setReturnToFeed(fromFeed);
+    setEditor(config);
+    setFeedOpen(false);
+    setEditorOpen(true);
   }
 
   return (

@@ -132,7 +132,7 @@ export function TrialHold({ onEntitled }: { onEntitled: () => void }) {
           This is taking a moment.
         </h1>
         <p className={cn(FLOW_SUB, "mx-auto mt-3 max-w-[20rem] text-pretty")}>
-          We&apos;re still finishing your setup. Nothing is lost, so carry on, and
+          We&apos;re still finishing your setup. Nothing is lost — carry on, and
           if anything is missing it&apos;ll catch up shortly.
         </p>
         <div className="mt-8">
@@ -155,7 +155,7 @@ export function TrialHold({ onEntitled }: { onEntitled: () => void }) {
         Setting up your trial.
       </h1>
       <p className={cn(FLOW_SUB, "mx-auto mt-3 max-w-[20rem] text-pretty")}>
-        One moment. We&apos;re just confirming everything.
+        One moment — we&apos;re just confirming everything.
       </p>
     </div>
   );

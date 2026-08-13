@@ -11,7 +11,6 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import type { Cycle, CycleInsert } from "@/lib/db/types"
-import { canWriteData } from "@/lib/billing/gate"
 
 /** The verified session + user id, or null when signed out. Not exported, so it
  *  is exempt from "use server" serialisation and may return a client. */
@@ -53,15 +52,6 @@ async function readActiveCycle(
  * error.
  */
 export async function ensureActiveCycle(): Promise<Cycle | null> {
-  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
-  //
-  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
-  // action with its own id, so gating `startBlockAction` while leaving
-  // `startBlock` open is a lock on a door beside an open window. A cold review
-  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
-  //
-  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return null;
   try {
     const ctx = await sessionCtx()
     if (!ctx) return null
@@ -123,15 +113,6 @@ export async function updateCycle(
   id: string,
   patch: Partial<Omit<CycleInsert, "id">>
 ): Promise<Cycle | null> {
-  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
-  //
-  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
-  // action with its own id, so gating `startBlockAction` while leaving
-  // `startBlock` open is a lock on a door beside an open window. A cold review
-  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
-  //
-  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return null;
   try {
     const ctx = await sessionCtx()
     if (!ctx) return null

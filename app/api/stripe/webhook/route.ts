@@ -275,28 +275,19 @@ async function handle(event: Stripe.Event): Promise<HandlerOutcome> {
       );
 
     /**
-     * A SIGNAL THAT A TRIAL IS ENDING. NOT THE SCHEDULE FOR SAYING SO.
+     * RECORDED, NOT ACTED ON — and that is the whole requirement.
      *
-     * Stripe fires this THREE DAYS before the trial ends, which on a 7-day
-     * trial is DAY 4. Both screens promise day 5 (`REMINDER_DAY`) — the paywall
-     * timeline and the checkout disclosure. Sending the push from here would be
-     * a day early every time, and at whatever hour of the user's night Stripe
-     * happened to fire.
+     * Stripe fires this three days before a trial ends. The notification itself
+     * is out of scope; the spec asks only that the hook exists and is logged so
+     * it can be wired later. The `webhook_events` row IS that log, with the full
+     * payload, so whoever builds the reminder works from the real event.
      *
-     * So this does the one thing it is actually good for: it refreshes the
-     * subscription mirror, which is where `trial_ends_at` lives. The reminder
-     * itself is decided by `lib/notifications/trialReminder.ts` and sent by the
-     * existing reminder cron, off that stored date, on the promised day, in the
-     * user's own timezone and outside their quiet hours.
-     *
-     * `syncSubscription` rather than a targeted write, for the reason every
-     * other handler here uses it: it re-reads the live object, so this event
-     * cannot record a stale trial end just because it arrived out of order. It
-     * is the same call `customer.subscription.updated` makes and is idempotent
-     * with it.
+     * Worth knowing when it is wired: on a 7-day trial this fires on DAY 4,
+     * while the paywall promises a reminder on day 5 (`REMINDER_DAY`). Honour
+     * the day the SCREEN promised, not the day the webhook happens to arrive.
      */
     case "customer.subscription.trial_will_end":
-      return syncSubscription(await fresh(event.data.object as Stripe.Subscription));
+      return "handled";
 
     default:
       // Everything else is recorded and acknowledged.

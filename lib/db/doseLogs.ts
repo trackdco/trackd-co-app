@@ -11,7 +11,6 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import type { DoseLog, DoseLogInsert } from "@/lib/db/types"
-import { canWriteData } from "@/lib/billing/gate"
 
 /**
  * "That column doesn't exist" — `slot_index` before `supabase/protocol/017`.
@@ -64,15 +63,6 @@ export async function listDoseLogs(
  * or null on failure.
  */
 export async function upsertDoseLog(row: DoseLogInsert): Promise<DoseLog | null> {
-  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
-  //
-  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
-  // action with its own id, so gating `startBlockAction` while leaving
-  // `startBlock` open is a lock on a door beside an open window. A cold review
-  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
-  //
-  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return null;
   try {
     const ctx = await sessionCtx()
     if (!ctx) return null
@@ -122,15 +112,6 @@ const UPSERT_CHUNK = 200
 export async function upsertDoseLogs(
   rows: DoseLogInsert[]
 ): Promise<{ ok: boolean; count: number }> {
-  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
-  //
-  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
-  // action with its own id, so gating `startBlockAction` while leaving
-  // `startBlock` open is a lock on a door beside an open window. A cold review
-  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
-  //
-  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false, count: 0 };
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false, count: 0 }

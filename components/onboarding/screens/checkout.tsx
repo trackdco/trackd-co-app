@@ -107,20 +107,15 @@ export function CheckoutScreen() {
           I going to be charged without noticing" — is felt hardest with a card
           on screen, so it is stated where the card is.
 
-          THIS IS NOW SENT (2026-08-12). `lib/notifications/trialReminder.ts`
-          decides it and the existing reminder cron sends it, off
-          `subscriptions.trial_ends_at`, on day {REMINDER_DAY} in the user's own
-          timezone and outside their quiet hours. Stripe's `trial_will_end`
-          fires on day 4 and is deliberately NOT the trigger; it only refreshes
-          the stored trial end.
-
-          ⚠️ Two conditions on the promise, both carried in `next-tasks.md`:
-          it needs `supabase/notifications/004_trial_reminder.sql` applied, and
-          it is a PUSH, so a user who never granted notification permission has
-          no channel to receive it on. */}
+          ⚠️ NOTHING SENDS THIS YET. `customer.subscription.trial_will_end` is
+          received and logged with its full payload, and no notification is
+          built on top of it. This is a commitment, not copy: honour DAY
+          {REMINDER_DAY} — the day the screen promises — not day 4, which is
+          where Stripe's webhook happens to fire. It is the top item in
+          `next-tasks.md`. */}
       <p>
         We&apos;ll remind you on day{" "}
-        {REMINDER_DAY}. Cancel any time before then.
+        {REMINDER_DAY} — cancel any time before then.
       </p>
     </div>
   ) : null;

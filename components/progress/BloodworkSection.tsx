@@ -8,7 +8,6 @@ import { AttachBloodworkSheet } from "@/components/progress/AttachBloodworkSheet
 import { BloodworkPhotoViewer } from "@/components/progress/BloodworkPhotoViewer";
 import { useProgressAction } from "@/components/progress/useProgressAction";
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
-import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
 
 /**
  * The Progress bloodwork section (Step 4, revised — a dated photo store). The card
@@ -30,8 +29,6 @@ export function BloodworkSection({
   /** Progress's two-up grid (spec 08 · part two). */
   compact?: boolean;
 }) {
-  /** Guarded: attaching a bloodwork photo. The gallery is not. */
-  const { guard } = useWriteAccess();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [viewing, setViewing] = useState<BloodworkPhoto | null>(null);
@@ -65,14 +62,10 @@ export function BloodworkSection({
         open={galleryOpen}
         onOpenChange={setGalleryOpen}
         photos={photos}
-        onAttach={() =>
-          guard(() => {
-            // Attaching a photo writes. The GALLERY above is not guarded: the
-            // bloodwork somebody already uploaded stays readable.
-            setGalleryOpen(false);
-            setAttachOpen(true);
-          })
-        }
+        onAttach={() => {
+          setGalleryOpen(false);
+          setAttachOpen(true);
+        }}
         onView={(photo) => {
           setGalleryOpen(false);
           setReturnToGallery(true);

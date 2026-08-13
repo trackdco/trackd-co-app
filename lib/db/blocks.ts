@@ -17,7 +17,6 @@
 
 import { createClient } from "@/lib/supabase/server"
 import type { Block, BlockTarget } from "@/lib/blocks/block"
-import { canWriteData, READ_ONLY_MESSAGE } from "@/lib/billing/gate"
 
 /** Matches the column's own CHECK (`001_blocks.sql`: length <= 4000). */
 const REFLECTION_MAX = 4000
@@ -144,36 +143,9 @@ function closeDateFor(startedOn: string, todayKey: string): string {
  * insert alongside a live one is rejected. Marking the old one `completed` is
  * also the honest reading — you did run it, right up until you started this.
  */
-/**
- * ⚠️ `extendBlock` AND `closeBlock` ARE DELIBERATELY NOT GATED.
- *
- * A cold review put it plainly: the gated version refused `closeBlockAction` and
- * allowed `deleteBlockAction`, so the app **refused the non-destructive action
- * and permitted the destructive one**. Somebody whose subscription lapsed
- * mid-block could delete the block entirely but not close it, which is the
- * opposite of what a read-only mode is for.
- *
- * Both are ways of WINDING SOMETHING DOWN that already exists. Ending a block on
- * the day it actually ended is bookkeeping about the past, not new tracking, and
- * a lapsed user who cannot do it is left with a block that says "running"
- * forever.
- *
- * `startBlock` (creates one) and `saveReflection` (writes new prose) stay gated.
- * That is the line everywhere else on this branch: ADDING stops, tidying does
- * not.
- */
 export async function startBlock(
   input: StartBlockInput,
 ): Promise<{ ok: true; block: Block } | { ok: false; error: string }> {
-  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
-  //
-  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
-  // action with its own id, so gating `startBlockAction` while leaving
-  // `startBlock` open is a lock on a door beside an open window. A cold review
-  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
-  //
-  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false, error: READ_ONLY_MESSAGE };
   const ctx = await sessionCtx()
   if (!ctx) return { ok: false, error: "Not signed in." }
 
@@ -464,15 +436,6 @@ export async function saveReflection(
   blockId: string,
   reflection: string,
 ): Promise<{ ok: boolean }> {
-  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
-  //
-  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
-  // action with its own id, so gating `startBlockAction` while leaving
-  // `startBlock` open is a lock on a door beside an open window. A cold review
-  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
-  //
-  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false };
   const ctx = await sessionCtx()
   if (!ctx) return { ok: false }
   // Truncated to the column's own CHECK rather than sent and rejected, so a long

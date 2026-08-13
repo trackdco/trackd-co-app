@@ -640,22 +640,7 @@ function AddStockForm({
       if (compound) {
         const pushed = await pushProtocolCompound(compound)
         if (!pushed.ok) {
-          /**
-           * ⚠️ THE READ-ONLY GATE IS NOT A CONNECTION PROBLEM.
-           *
-           * A cold review reached this sheet through the `?stock=` deep link,
-           * which was not guarded, and got "Check your connection and try
-           * again." Nothing was wrong with their connection, trying again would
-           * fail identically, and the message blamed them for it.
-           *
-           * The deep link is guarded now, so this is the backstop for any route
-           * that is not. `readOnly` is set by the gate and by nothing else.
-           */
-          setError(
-            pushed.readOnly
-              ? "Trackd is read only until you subscribe."
-              : "Couldn’t sync this compound. Check your connection and try again.",
-          )
+          setError("Couldn’t sync this compound. Check your connection and try again.")
           return
         }
         pcId = pushed.protocolCompoundId ?? null
@@ -674,11 +659,7 @@ function AddStockForm({
         // own words. "Please try again" is a lie there — trying again will fail
         // identically, and the user has no way to know it is not their input.
         setError(
-          // Same reasoning as the push above: the gate is not a failure and not
-          // the user's fault, so it does not get a "please try again".
-          r.readOnly
-            ? "Trackd is read only until you subscribe."
-            : r.pendingMigration
+          r.pendingMigration
             ? "This container type isn’t available yet. Try Reconstituted, Pre-mixed or Oral for now."
             : r.rejectedShape
               ? // A constraint said no, so "try again" would be a lie — the same

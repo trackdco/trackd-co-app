@@ -24,10 +24,10 @@ import {
   clampIntent,
   clampStep,
   FIRST_STEP,
+  isStepId,
   nextStep,
   nextStepFor,
   prevStep,
-  resolveStepId,
   stepIndex,
   stepProgress,
   type StepId,
@@ -259,17 +259,12 @@ function OnboardingFlowClient({
    */
   const resolveStep = useCallback(
     (requested: string | null, s: OnboardingSession, today: string): StepId => {
-      // `resolveStepId`, so a bookmark or a Stripe return carrying the retired
-      // `paywall` / `checkout` ids still lands on the right screen. The URL is
-      // then corrected to the real id by `syncUrlToStep`, which is why the old
-      // name never survives past the first render.
-      const resolved = resolveStepId(requested);
-      if (!resolved) return FIRST_STEP;
+      if (!isStepId(requested)) return FIRST_STEP;
       // A deep link cannot walk past the age gate, and cannot skip the intent
       // screens either. See `clampStep` and `clampIntent`.
       return pastAccount(
         clampIntent(
-          clampStep(resolved, firstIncompleteHousekeeping(s, today), passedGate),
+          clampStep(requested, firstIncompleteHousekeeping(s, today), passedGate),
           s,
           passedGate,
         ),
@@ -382,14 +377,11 @@ function OnboardingFlowClient({
       beginSettle();
 
       // Same clamps as the initial read: history is user-editable too, and the
-      // URL is corrected to whatever actually renders. `resolveStepId` for the
-      // same reason as the initial read — a history entry pushed before the
-      // rename still carries an old id.
-      const resolved = resolveStepId(requested);
-      const target = resolved
+      // URL is corrected to whatever actually renders.
+      const target = isStepId(requested)
         ? pastAccount(
             clampIntent(
-              clampStep(resolved, gateRef.current, passedGate),
+              clampStep(requested, gateRef.current, passedGate),
               answersRef.current,
               passedGate,
             ),
