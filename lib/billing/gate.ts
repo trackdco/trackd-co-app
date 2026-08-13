@@ -122,10 +122,14 @@ export async function requireWriteAccess(): Promise<
  * appeared in neither list, and a whole paragraph explaining why the protocol
  * pushes were left open described the opposite of what the code did.
  *
- * `scratchpad/gate-audit.mjs` regenerates it by PARSING each function body
- * rather than grepping the file. Re-run it after touching any of these modules.
- * A doc that quietly goes stale about which writes are enforced is worse than no
- * doc at all, and this one already had been.
+ * `scripts/gate-audit.mjs` regenerates it by PARSING each function body rather
+ * than grepping the file. Re-run it after touching any of these modules. A doc
+ * that quietly goes stale about which writes are enforced is worse than no doc at
+ * all, and this one already had been.
+ *
+ * It lived in `scratchpad/`, which `.gitignore` excludes — so the script this
+ * paragraph rests its credibility on was on one machine and in nobody's clone. A
+ * cold review pointed that out. It is tracked now.
  *
  * ## Two layers, and only one of them is enforcement
  *
@@ -138,7 +142,7 @@ export async function requireWriteAccess(): Promise<
  * its own id, so gating `startBlockAction` while leaving `startBlock` open is a
  * lock on a door beside an open window. A cold review drove exactly that.
  *
- * ## GATED — 33 functions (8 route actions + 25 in the data layer)
+ * ## GATED — 32 functions (8 route actions + 24 in the data layer)
  *
  *   app/(app)/blocks/actions.ts    startBlockAction, saveReflectionAction
  *   app/(app)/progress/actions.ts  addBloodworkPhoto, saveJournalEntry,
@@ -155,35 +159,42 @@ export async function requireWriteAccess(): Promise<
  *                                  upsertProtocolCompounds
  *   lib/home/protocolSync.ts       pushProtocolCompound, pushProtocolBatch,
  *                                  pushCompoundPause, pushPauseEnd,
- *                                  pushPauseGroupEnd, pushScheduleVersions,
- *                                  pushProtocolDoseLog
+ *                                  pushPauseGroupEnd, pushProtocolDoseLog
  *   lib/home/stackSync.ts          pushStacks
  *   lib/home/syncActions.ts        pushStackCompound, pushDoseLog, pushCustom
  *
- * Fourteen of them return a bare `Ok`, so they carry `readOnly: true` on the
+ * Sixteen of them return a bare `Ok`, so they carry `readOnly: true` on the
  * refusal. Without it the UI cannot tell the gate from a dropped connection, and
  * a cold review watched `AddStockSheet` tell a lapsed user to check their
- * connection and try again.
+ * connection and try again. ⚠️ Only `AddStockSheet` actually READS that flag;
+ * `trackSync` does not, so every other refusal still shows the generic
+ * "still syncing, we'll keep trying" notice for a write that will never be
+ * retried. Known, and not fixed here.
  *
- * ## CONDITIONALLY GATED — 1, and the condition is the whole point
+ * ## CONDITIONALLY GATED — 2, and in both cases the condition is the whole point
  *
  *   lib/db/protocolCompounds.ts    setProtocolCompoundActive (`is_active = true`
  *                                  only — the re-add. The DELETE direction is
  *                                  open.)
+ *   lib/home/protocolSync.ts       pushScheduleVersions (a trail ending in a
+ *                                  `stopped` version is the second half of a
+ *                                  DELETE, and goes through. Adds and edits are
+ *                                  gated.)
  *
- * One function serves both directions, so gating the function gated the delete.
- * That contradicted the rule below and it would have failed SILENTLY: the
- * compound disappears from the app on the device's own copy, `is_active` stays
- * true in Postgres, and the reminder engine goes on announcing it as due. A real
- * account ran in exactly that state for thirteen days for an unrelated reason
- * (the write was fire-and-forget and simply never landed), which is what
+ * One function serves both directions in each case, so gating the function gated
+ * the delete. That contradicted the rule below and it would have failed SILENTLY:
+ * the compound disappears from the app on the device's own copy, `is_active`
+ * stays true in Postgres, and the reminder engine goes on announcing it as due. A
+ * real account ran in exactly that state for thirteen days for an unrelated
+ * reason (the write was fire-and-forget and simply never landed), which is what
  * `lib/notifications/reminders.ts`'s `stopped` gate now catches. Switching
- * `BILLING_GATE_ENABLED` on with the function-level gate in place would have
- * reproduced it deliberately, for every lapsed account at once.
+ * `BILLING_GATE_ENABLED` on with the function-level gates in place would have
+ * reproduced it deliberately, for every lapsed account at once — and worse for
+ * the versions half, since the `stopped` row is what that new gate READS.
  *
- * `scratchpad/gate-audit.mjs` reports this bucket separately for the same reason
- * it exists at all: "gated" would be true of half the calls and misleading about
- * the other half.
+ * `scripts/gate-audit.mjs` reports this bucket separately for the same reason it
+ * exists at all: "gated" would be true of half the calls and misleading about the
+ * other half.
  *
  * ## NOT GATED, and why
  *
@@ -204,7 +215,8 @@ export async function requireWriteAccess(): Promise<
  *
  * **The profile and its settings.** `updatePhysical`, `setAvatarPath`,
  * `clearAvatar`, `saveTimezone`, `saveReminderPrefs`, `savePushSubscription`,
- * `removePushSubscription`, `sendMyRemindersNow`, `sendTestNotification`. A
+ * `removePushSubscription`, `releaseDeviceSubscription`, `sendMyRemindersNow`,
+ * `sendTestNotification`. A
  * read-only user must still be able to fix their timezone and turn off
  * notifications about a subscription they no longer have.
  *

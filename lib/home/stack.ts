@@ -19,6 +19,7 @@ import { coerceDoseUnit } from "@/lib/db/doseUnits"
 import { isInventoryForm } from "@/lib/containers/form"
 import {
   activePause,
+  cyclePauseContext,
   dayBefore,
   effectiveCadenceStart,
   isPausedOn,
@@ -364,13 +365,11 @@ export function pauseContext(
   dateKey: string,
   base?: CycleContext
 ): CycleContext | undefined {
-  if (!c.pauses || c.pauses.length === 0 || !cycle) return base
-  const pausedDays = pausedDaysBetween(c.pauses, cycle.anchor, dateKey)
-  const pausedBeforeEnd =
-    cycle.end.type === "onDate"
-      ? pausedDaysBetween(c.pauses, cycle.anchor, cycle.end.date)
-      : 0
-  return { ...base, pausedDays, pausedBeforeEnd }
+  // The arithmetic lives in the pause module, because the push runner needs the
+  // identical context and has no `StackCompound` to hand — only Postgres rows.
+  // A second copy there is how the mirror ended up calling `isOnCycle` with no
+  // context at all, announcing doses on days the app showed as off-cycle.
+  return cyclePauseContext(c.pauses, cycle, dateKey, base)
 }
 
 /**

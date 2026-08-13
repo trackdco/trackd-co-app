@@ -19,6 +19,8 @@
  * function is pure and synchronous by contract — the week strip, the calendar
  * grid, consistency and Next Dose all go through it.
  */
+// Type-only, so this module still pulls in nothing at runtime.
+import type { CycleContext } from "@/lib/protocol/cycleRule"
 
 /**
  * One stretch during which a compound is not being taken.
@@ -152,6 +154,35 @@ export function pausedDaysBetween(
     if (end > start) total += end - start
   }
   return total
+}
+
+/**
+ * The cycle context a set of pauses produces on a day — the paused-day counts
+ * `isOnCycle` subtracts so a pause does not advance the cycle clock.
+ *
+ * Takes the PAUSES rather than a compound, so the push runner can build the same
+ * context from Postgres rows. It lived on `StackCompound` and only ever read
+ * `c.pauses`, and the mirror consequently called `isOnCycle` with no context at
+ * all: a cycled compound that had been paused was announced as due on days the
+ * app greyed out as off-cycle, and then nagged for missing them. Same shape of
+ * failure as the cycle gate before it existed, one layer down.
+ *
+ * Cheap on the common path: no pauses or no cycle returns the caller's own
+ * context untouched.
+ */
+export function cyclePauseContext(
+  pauses: readonly Pause[] | undefined,
+  cycle: { anchor: string; end: { type: string; date?: string } } | undefined,
+  dateKey: string,
+  base?: CycleContext
+): CycleContext | undefined {
+  if (!pauses || pauses.length === 0 || !cycle) return base
+  const pausedDays = pausedDaysBetween(pauses, cycle.anchor, dateKey)
+  const pausedBeforeEnd =
+    cycle.end.type === "onDate" && cycle.end.date
+      ? pausedDaysBetween(pauses, cycle.anchor, cycle.end.date)
+      : 0
+  return { ...base, pausedDays, pausedBeforeEnd }
 }
 
 /** The pause covering this day, if any — what the sheet opens on when the user

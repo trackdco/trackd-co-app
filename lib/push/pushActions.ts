@@ -140,6 +140,58 @@ export async function removePushSubscription(endpoint: string): Promise<Ok> {
 }
 
 /**
+ * RELEASE THIS DEVICE ON SIGN-OUT — delete the row, keep the intent flag.
+ *
+ * ## The failure this closes
+ *
+ * A browser's `PushSubscription` belongs to the service-worker registration and
+ * the origin, not to the session. Signing out cleared the Supabase cookies and
+ * left the `push_subscriptions` row standing, so the cron went on posting to that
+ * endpoint under the DEPARTED user's id. Sign in as somebody else on the same
+ * phone — a beta tester, a second account, a handed-over device — and their phone
+ * receives the first user's compound names, their missed-dose nudges, and their
+ * trial notice, which deep-links into the NEW user's billing screen. The runner
+ * then reads the successful send as delivery and stamps the trial reminder as
+ * sent, so the person whose card is about to be charged is never warned.
+ *
+ * `supabase/trackd_schema_v0_4_2.sql` already specified this: delete the row "when
+ * a send returns HTTP 404/410 **or the user logs out on a device**". Only the
+ * first half was built.
+ *
+ * ## Why the intent flag is deliberately left alone
+ *
+ * `removePushSubscription` is the user saying "stop sending me things" and turns
+ * `notifications_enabled` off. Signing out says nothing of the kind, and clearing
+ * it would silently disarm reminders on the user's OTHER devices, and on this one
+ * when they sign back in — a notification outage nobody asked for, discovered
+ * only by the doses that went un-nudged. The row is what makes a send reach this
+ * phone; removing it is exactly enough.
+ *
+ * Best-effort by design: it runs immediately before a sign-out that must proceed
+ * regardless. A failure here is logged, not surfaced.
+ */
+export async function releaseDeviceSubscription(endpoint: string): Promise<Ok> {
+  try {
+    if (!endpoint) return { ok: false };
+    const ctx = await sessionCtx();
+    if (!ctx) return { ok: false };
+    const { error } = await ctx.supabase
+      .from("push_subscriptions")
+      .delete()
+      .eq("user_id", ctx.userId)
+      .eq("endpoint", endpoint);
+    if (error) {
+      console.error("releaseDeviceSubscription failed", error.message);
+      return { ok: false };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error("releaseDeviceSubscription failed", e);
+    return { ok: false };
+  }
+}
+
+/**
  * Fire a real test push to the CURRENT user's devices — the "Send test
  * notification" affordance in Settings, and the proof the pipeline works
  * end-to-end. Sends in-app via web-push (Node), so it ships with the Vercel

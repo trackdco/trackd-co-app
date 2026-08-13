@@ -6,13 +6,49 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { DANGER_ROW } from "@/lib/ui-presets";
 import { signOut } from "@/app/(app)/actions";
+import { releaseDeviceSubscription } from "@/lib/push/pushActions";
+
+/**
+ * Hand this device's push subscription back before the session goes.
+ *
+ * A `PushSubscription` belongs to the service-worker registration, not to the
+ * session, so signing out used to leave the row behind and the cron kept posting
+ * this user's doses to this phone — which the NEXT person to sign in on it then
+ * received. The endpoint is only knowable in the browser, so the release has to
+ * happen here, in the form action, before `signOut` clears the cookies that
+ * authorise the delete.
+ *
+ * Every step is best-effort and swallowed: no failure of the push plumbing may
+ * ever stop somebody signing out. Without a service worker (every non-PWA
+ * browser) there is nothing to release and this costs one `undefined` check.
+ */
+async function signOutThisDevice() {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    const sub = await reg?.pushManager?.getSubscription();
+    if (sub?.endpoint) {
+      await releaseDeviceSubscription(sub.endpoint);
+      // Also drop the browser-side subscription, so the next account on this
+      // device is issued its own endpoint rather than inheriting this one.
+      await sub.unsubscribe().catch(() => {});
+    }
+  } catch {
+    // Ignored on purpose — see above.
+  }
+  await signOut();
+}
 
 /**
  * Sign out with a confirm step (Context/Feature Specs/08 → B6). Used on every
  * entry point — the shell header link and the Profile bottom button — so a tap
- * can never sign you out by accident. The actual sign-out is the `signOut` server
- * action (submitted from the Confirm button's form, so it still works without
- * client JS once the confirm is shown).
+ * can never sign you out by accident. The Confirm button submits
+ * `signOutThisDevice`, which releases this device's push subscription and then
+ * calls the `signOut` server action.
+ *
+ * The form action is a CLIENT function rather than the server action directly,
+ * because the push endpoint is only knowable in the browser. Nothing is lost by
+ * it: the confirm dialog is `useState` + a portal, so a no-JS session could never
+ * reach this button in the first place.
  *
  * `variant`:
  *  - `link`   — the quiet header text link.
@@ -93,7 +129,7 @@ export function SignOutConfirm({
                 >
                   Cancel
                 </button>
-                <form action={signOut} className="flex-1">
+                <form action={signOutThisDevice} className="flex-1">
                   <button
                     type="submit"
                     className="w-full rounded-xl bg-accent-destructive py-2.5 text-sm font-medium text-text-primary transition-opacity hover:opacity-90"

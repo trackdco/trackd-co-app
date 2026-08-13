@@ -32,6 +32,7 @@ import {
 } from "@/lib/notifications/trialReminder";
 import { cycleRuleFromColumns, type CycleColumns } from "@/lib/protocol/cycleRule";
 import { isStoppedOn, type DatedVersion } from "@/lib/protocol/scheduleVersions";
+import { isPausedOn, type Pause } from "@/lib/home/pauses";
 import { graceAsTrial } from "@/lib/billing/betaGrace";
 import { billingGateEnabled } from "@/lib/billing/gate";
 
@@ -378,12 +379,17 @@ async function collectUserData(
     //
     // Tolerant of `018` not being applied: the error is swallowed below and the
     // paused set is simply empty, which is exactly today's behaviour.
+    // ⚠️ NOT filtered to pauses that have already STARTED. A cycle ending on a
+    // fixed date counts the paused days before that date (`cyclePauseContext` →
+    // `pausedBeforeEnd`), and that date is in the future, so a future pause is
+    // part of the arithmetic. The `started_on <= today` filter that used to be
+    // here was correct only for the "is it paused right now" boolean this no
+    // longer computes.
     supabase
       .from("compound_pauses")
-      .select("protocol_compound_id, started_on, ends_on")
+      .select("id, protocol_compound_id, started_on, ends_on")
       .eq("user_id", userId)
-      .eq("is_active", true)
-      .lte("started_on", todayKey),
+      .eq("is_active", true),
     // THE SCHEDULE TRAIL, which is where a DELETE leaves its second mark.
     //
     // Deleting writes `is_active = false` AND a `stopped` version. The two are
@@ -400,26 +406,47 @@ async function collectUserData(
     //
     // Tolerant of `005` not being applied, the same bargain the pauses read
     // makes: the error is swallowed and the stopped set is simply empty.
+    //
+    // NEWEST FIRST, deliberately. Nothing configures a PostgREST `max-rows` on
+    // this project today, but if one ever is, truncation keeps the rows that come
+    // back first — and losing the newest is the dangerous direction: a resuming
+    // version dropped while an older stop survives silences a compound the user
+    // is actually running. Keeping the newest can only cost the
+    // fallback-to-earliest, which decides days that predate the whole trail and
+    // never decides today. `versionInForceOn` itself is order-independent.
     supabase
       .from("protocol_compound_schedules")
       .select("protocol_compound_id, effective_from, stopped")
-      .eq("user_id", userId),
+      .eq("user_id", userId)
+      .order("effective_from", { ascending: false }),
   ]);
 
-  const pausedIds = new Set<string>();
+  /**
+   * Pauses as SPANS, grouped by compound — not as a "paused today" boolean.
+   *
+   * The boolean answered only the first of the three things a pause does. The
+   * other two — re-anchoring the cadence to the resume day, and stopping paused
+   * days from advancing the cycle clock — need the dates, and without them the
+   * app and the phone disagreed on most days of a paused compound's run. See
+   * `ReminderCompound.pauses`.
+   */
+  const pausesById = new Map<string, Pause[]>();
   for (const row of pauseRes.data ?? []) {
     const r = row as Record<string, unknown>;
-    const endsOn = r.ends_on as string | null;
-    // `ends_on` is the LAST paused day, inclusive — so a pause ending today
-    // still covers today.
-    if (endsOn === null || endsOn >= todayKey) {
-      pausedIds.add(r.protocol_compound_id as string);
-    }
+    const pcId = r.protocol_compound_id as string;
+    const list = pausesById.get(pcId) ?? [];
+    list.push({
+      id: r.id as string,
+      startedOn: r.started_on as string,
+      endsOn: (r.ends_on as string | null) ?? null,
+    });
+    pausesById.set(pcId, list);
   }
 
-  // The trail, grouped by compound. Only `effective_from` and `stopped` matter
-  // here — the rest of the version (dose, cadence, cycle) is what the CLIENT
-  // reads off it, and mirroring that too would be a second schedule engine.
+  // The trail, grouped by compound. `effective_from` decides two things: whether
+  // the compound is stopped today, and where the cadence is anchored. The rest of
+  // the version (dose, cadence, cycle) is what the CLIENT reads off it, and
+  // mirroring that too would be a second schedule engine.
   const versionsById = new Map<string, DatedVersion[]>();
   for (const row of verRes.data ?? []) {
     const r = row as Record<string, unknown>;
@@ -431,6 +458,14 @@ async function collectUserData(
     });
     versionsById.set(pcId, list);
   }
+  /** The earliest recorded version's day — the client's cadence origin. */
+  const originOf = (pcId: string): string | null => {
+    let earliest: string | null = null;
+    for (const v of versionsById.get(pcId) ?? []) {
+      if (!earliest || v.effectiveFrom < earliest) earliest = v.effectiveFrom;
+    }
+    return earliest;
+  };
 
   const compounds: ReminderCompound[] = (pcRes.data ?? []).map((row) => {
     const r = row as Record<string, unknown>;
@@ -446,10 +481,11 @@ async function collectUserData(
       // Resolved with the SAME mapper the client uses, so the two cannot read
       // the same seven columns differently.
       cycle: cycleRuleFromColumns(r as Partial<CycleColumns>),
-      paused: pausedIds.has(r.id as string),
+      pauses: pausesById.get(r.id as string),
       // Resolved with the SAME predicate the client's `resolveScheduleOn` uses,
       // so the two cannot read one trail two ways.
       stopped: isStoppedOn(versionsById.get(r.id as string) ?? [], todayKey),
+      scheduleOrigin: originOf(r.id as string),
     };
   });
 
@@ -490,7 +526,7 @@ async function collectUserData(
       // Its compound is paused, so the stock is not moving and "running low" is
       // noise. `019` already returns a longer (or null) runway for these; this
       // is the belt to that braces, and it holds even before 019 is applied.
-      paused: pausedIds.has(r.protocol_compound_id as string),
+      paused: isPausedOn(pausesById.get(r.protocol_compound_id as string), todayKey),
       // Same trail, same predicate. A vial whose compound was deleted is not
       // "running low" — the thing it feeds is gone.
       stopped: isStoppedOn(

@@ -9,21 +9,44 @@
  */
 import type { ScheduleType } from "@/lib/db/types";
 import { isOnCycle, type CycleRule } from "@/lib/protocol/cycleRule";
+import {
+  cyclePauseContext,
+  effectiveCadenceStart,
+  isPausedOn,
+  type Pause,
+} from "@/lib/home/pauses";
 
 /** Minimal shape of an active protocol_compound the schedule logic needs. */
 export interface ReminderCompound {
   id: string;
   name: string;
   /**
-   * True when a pause covers today (`supabase/protocol/018`).
+   * The compound's pauses (`supabase/protocol/018`), passed as SPANS rather than
+   * as a "paused today" boolean.
    *
-   * Resolved by the caller, because this module is pure and the pause lives in
+   * Resolved by the caller, because this module is pure and pauses live in
    * another table. It exists for the same reason `cycle` does: this file is the
    * SERVER-SIDE MIRROR of the client's `isDueOnFor`, and a gate the client
    * applies but the push does not means the app correctly shows nothing due
    * while the notification announces the dose and then nags for "missing" it.
+   *
+   * ⚠️ IT WAS A BOOLEAN, AND THAT WAS NOT ENOUGH. A pause does three things on
+   * the client and only the first survived the trip here:
+   *
+   *  1. today is not due while the pause covers it (`isPausedOn`);
+   *  2. the CADENCE RE-ANCHORS to the day the compound came back
+   *     (`effectiveCadenceStart`), so an every-third-day compound is due on the
+   *     day it resumes rather than on whatever day the untouched grid picked;
+   *  3. paused days do not advance the CYCLE clock (`cyclePauseContext`).
+   *
+   * Dropping 2 and 3 left the two grids permanently offset after any pause: a
+   * cold review walked eleven days of an every-3-days compound paused for two and
+   * found the app and the phone disagreeing on seven of them — announcing doses
+   * the app never asked for, and staying silent on the days it did. Spans carry
+   * everything all three need, so the mirror now runs the client's own functions
+   * instead of a boolean's worth of them.
    */
-  paused?: boolean;
+  pauses?: readonly Pause[];
   /**
    * True when the schedule trail says the compound was STOPPED — deleted, and not
    * since re-added (`supabase/protocol/005`, resolved by `isStoppedOn`).
@@ -47,6 +70,17 @@ export interface ReminderCompound {
   interval_days: number | null;
   first_dose_on: string; // YYYY-MM-DD
   end_date: string | null; // YYYY-MM-DD
+  /**
+   * The EARLIEST recorded schedule version's day, when the compound has a trail.
+   *
+   * The client anchors the cadence on the earlier of this and the compound's
+   * current start date (`resolveScheduleOn`), deliberately: re-adding a deleted
+   * compound writes a NEW `first_dose_on`, and anchoring on that alone shifts the
+   * every-N-days grid onto a different residue — so the app and the phone pick
+   * different days, every day, for the rest of the run. Absent = no trail, and
+   * `first_dose_on` is then the whole truth.
+   */
+  scheduleOrigin?: string | null;
   /**
    * The compound's on/off cycle, resolved from the `cycle_*` columns by the
    * caller (`cycleRuleFromColumns`). Absent = uncycled, which is every compound
@@ -182,13 +216,16 @@ function isoWeekday(dateKey: string): number {
 /**
  * Whether a compound is due on `todayKey`. Mirrors the client `isDueOnFor`
  * (lib/home/stack.ts) but reads the Postgres schedule columns directly: a stopped
- * (deleted) compound is never due; nothing before first_dose_on or after
- * end_date; a paused or off-cycle day is not due; every_n_days counts FROM
- * first_dose_on; specific_days matches the ISO weekday.
+ * (deleted) compound is never due; nothing before the run's start or after
+ * end_date; a paused or off-cycle day is not due; every_n_days counts from the
+ * start, re-anchored to the last resume; specific_days matches the ISO weekday.
  *
- * The cycle gate is applied with the SAME `isOnCycle` the client uses rather
- * than a second implementation of the on/off maths — a parallel copy here is
- * exactly how this mirror fell out of step with the client in the first place.
+ * EVERY GATE HERE RUNS THE CLIENT'S OWN FUNCTION — `isOnCycle`, `isPausedOn`,
+ * `effectiveCadenceStart`, `cyclePauseContext`, `isStoppedOn`. Not one of them is
+ * reimplemented, because a parallel copy is exactly how this mirror fell out of
+ * step with the client three times: cycles, then pauses, then deletes. What is
+ * left here is the mapping from Postgres columns to those functions' arguments,
+ * which is the only thing that genuinely differs between the two callers.
  */
 export function isDueToday(c: ReminderCompound, todayKey: string): boolean {
   const today = dayNumber(todayKey);
@@ -197,17 +234,30 @@ export function isDueToday(c: ReminderCompound, todayKey: string): boolean {
   // client puts it (`isDueOnFor` gates on `resolved.stopped` before anything
   // else) — a deleted compound has no schedule left to consult.
   if (c.stopped) return false;
-  if (c.first_dose_on && today < dayNumber(c.first_dose_on)) return false;
+  // The run's REAL beginning, which is not always `first_dose_on`: re-adding a
+  // deleted compound writes a NEW start date, and the client deliberately keeps
+  // the earliest recorded version as the anchor so the cadence phase does not
+  // shift under a re-add. Same rule here, or the two disagree on every dose day
+  // of the new run. See `ReminderCompound.scheduleOrigin`.
+  const startKey =
+    c.scheduleOrigin && c.scheduleOrigin < c.first_dose_on
+      ? c.scheduleOrigin
+      : c.first_dose_on;
+  if (startKey && today < dayNumber(startKey)) return false;
   if (c.end_date && today > dayNumber(c.end_date)) return false;
   // PAUSED: nothing is due, so nothing is announced and nothing is nagged about.
   // Mirrors the client's gate, which sits in the same position — above the
   // cycle check and below the stopped one.
-  if (c.paused) return false;
+  if (isPausedOn(c.pauses, todayKey)) return false;
   // Off-cycle means the user is not taking it: nothing is due, so nothing can be
-  // announced and nothing can be nagged about. No `CycleContext` is passed for
-  // the same reason the client passes none — the "ends when the vial runs out"
-  // condition is withheld behind `VIAL_END_SUPPORTED = false`.
-  if (!isOnCycle(c.cycle, todayKey)) return false;
+  // announced and nothing can be nagged about. Paused days do not advance the
+  // cycle clock, which is what the context carries — without it a cycled
+  // compound that had been paused was announced on days the app greyed out. No
+  // `vialEmptyOn` for the same reason the client passes none: the "ends when the
+  // vial runs out" condition is withheld behind `VIAL_END_SUPPORTED = false`.
+  if (!isOnCycle(c.cycle, todayKey, cyclePauseContext(c.pauses, c.cycle, todayKey))) {
+    return false;
+  }
 
   switch (c.schedule_type) {
     case "every_day":
@@ -215,7 +265,13 @@ export function isDueToday(c: ReminderCompound, todayKey: string): boolean {
     case "every_n_days": {
       const n = c.interval_days ?? 1;
       if (n <= 0) return false;
-      const anchor = c.first_dose_on ? dayNumber(c.first_dose_on) : 0;
+      // The cadence RE-ANCHORS to the day the last pause ended, so a compound is
+      // due on the day it comes back rather than on whatever day the untouched
+      // grid would have picked. The client's own function, not a copy of it.
+      const anchorKey = startKey
+        ? effectiveCadenceStart(startKey, c.pauses, todayKey)
+        : null;
+      const anchor = anchorKey ? dayNumber(anchorKey) : 0;
       return mod(today - anchor, n) === 0;
     }
     case "specific_days":
