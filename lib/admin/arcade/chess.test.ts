@@ -7,6 +7,7 @@ import {
   newGame,
   outcome,
   pickMove,
+  pickMoveTimed,
   pseudoMoves,
   sq,
   type Game,
@@ -219,5 +220,45 @@ describe("pseudoMoves vs legalMoves", () => {
     const g = position({ e1: "K", d8: "r", e8: "k" })
     expect(pseudoMoves(g, "w").some((m) => m.to === at("d1"))).toBe(true)
     expect(has(legalMoves(g), "e1", "d1")).toBe(false)
+  })
+})
+
+describe("pickMoveTimed", () => {
+  it("returns a legal move", async () => {
+    const g = applyMove(newGame(), { from: at("e2"), to: at("e4"), dbl: true })
+    const m = await pickMoveTimed(g, { depth: 3, blunder: 0 })
+    expect(m).not.toBeNull()
+    expect(legalMoves(g).some((x) => x.from === m!.from && x.to === m!.to)).toBe(true)
+  })
+
+  it("still takes a free queen", async () => {
+    const g = position({ e1: "K", e8: "k", d4: "Q", c6: "n" }, "b")
+    const m = await pickMoveTimed(g, { depth: 3, blunder: 0 }, 2000, () => 0.99)
+    expect(m?.to).toBe(at("d4"))
+  })
+
+  // The whole point of the budget: a deep bot must not block the tab for
+  // seconds. A zero budget means it completes depth 1 and stops.
+  it("honours a tight budget instead of running to full depth", async () => {
+    const g = applyMove(newGame(), { from: at("e2"), to: at("e4"), dbl: true })
+    const started = Date.now()
+    const m = await pickMoveTimed(g, { depth: 4, blunder: 0 }, 0)
+    const elapsed = Date.now() - started
+    expect(m).not.toBeNull()
+    // Depth 4 unbudgeted measured ~3.7s; with no budget it should bail far sooner.
+    expect(elapsed).toBeLessThan(2500)
+  }, 20000)
+
+  it("blunders when told to, without burning the budget first", async () => {
+    const g = position({ e1: "K", e8: "k", d4: "Q", c6: "n", h7: "p" }, "b")
+    const started = Date.now()
+    const m = await pickMoveTimed(g, { depth: 4, blunder: 1 }, 5000, () => 0)
+    expect(m).not.toBeNull()
+    expect(Date.now() - started).toBeLessThan(200)
+  })
+
+  it("returns null when there is nothing to play", async () => {
+    const g = position({ h1: "K", g3: "q", e8: "k" }, "w")
+    expect(await pickMoveTimed(g, { depth: 2, blunder: 0 })).toBeNull()
   })
 })

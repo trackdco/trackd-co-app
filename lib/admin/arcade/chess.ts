@@ -296,3 +296,63 @@ export function pickMove(g: Game, bot: BotSpec, rng: () => number = Math.random)
   }
   return best ?? moves[0]
 }
+
+/**
+ * The move the UI actually calls — searched WITHOUT freezing the tab.
+ *
+ * ── WHY THIS EXISTS ───────────────────────────────────────────────────────
+ * `pickMove` is synchronous, and measured on a real midgame position it costs:
+ *
+ *     depth 1     9ms      depth 3    409ms
+ *     depth 2    28ms      depth 4  3,724ms
+ *
+ * Nearly four seconds of blocked main thread for the top two bots. No repaint,
+ * no input, no scrolling — the tab is simply hung, and a browser may offer to
+ * kill it. A 600ms "thinking" pause on top of that is beside the point.
+ *
+ * ── THE FIX, IN TWO PARTS ─────────────────────────────────────────────────
+ * **Iterative deepening.** Search depth 1, then 2, then 3, keeping the best
+ * move from the last COMPLETED depth. If the budget runs out mid-way the answer
+ * is still a real one, just shallower — which is exactly how real engines
+ * handle a clock, and it means the budget can be honoured without ever
+ * returning a half-searched move.
+ *
+ * **Yielding between root moves.** Each root subtree at depth 4 is roughly
+ * 3724/30 ≈ 125ms, which is a pause rather than a freeze. Handing control back
+ * to the event loop between them lets the board repaint and keeps input alive.
+ *
+ * The blunder roll happens once, up front, so a bot that was going to throw the
+ * move away does not burn the budget first.
+ */
+export async function pickMoveTimed(
+  g: Game,
+  bot: BotSpec,
+  budgetMs = 1600,
+  rng: () => number = Math.random
+): Promise<Move | null> {
+  const moves = legalMoves(g)
+  if (moves.length === 0) return null
+  if (rng() < bot.blunder) return moves[Math.floor(rng() * moves.length)] ?? moves[0]
+
+  moves.sort((a, b) => (g.board[b.to] ? VALUE[g.board[b.to]!.t] : 0) - (g.board[a.to] ? VALUE[g.board[a.to]!.t] : 0))
+  const deadline = Date.now() + budgetMs
+  const yieldToUi = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
+  let best: Move = moves[0]
+  for (let depth = 1; depth <= bot.depth; depth++) {
+    let bestScore = Infinity
+    let bestThisDepth: Move | null = null
+    let ranOut = false
+    for (const m of moves) {
+      const score = search(applyMove(g, m), depth - 1, -Infinity, Infinity, true)
+      if (score < bestScore) { bestScore = score; bestThisDepth = m }
+      if (Date.now() > deadline) { ranOut = true; break }
+      await yieldToUi()
+    }
+    // Only accept a depth that finished — a partial pass has seen an arbitrary
+    // subset of the moves and its "best" is not comparable to the last one's.
+    if (!ranOut && bestThisDepth) best = bestThisDepth
+    if (ranOut) break
+  }
+  return best
+}

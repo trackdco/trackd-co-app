@@ -12,7 +12,7 @@ import {
   legalMoves,
   newGame,
   outcome,
-  pickMove,
+  pickMoveTimed,
   rank,
   sq,
   type Game,
@@ -127,7 +127,7 @@ export function ChessGame() {
     // Yield first so the board repaints with your move before the search blocks
     // the thread, then hold the reply for a beat regardless of how fast it was.
     setTimeout(() => {
-      const m = pickMove(g.current, { depth: bot.depth, blunder: bot.blunder })
+      void pickMoveTimed(g.current, { depth: bot.depth, blunder: bot.blunder }).then((m) => {
       const elapsed = performance.now() - startedAt
       const wait = Math.max(0, MIN_THINK_MS - elapsed)
       setTimeout(() => {
@@ -143,6 +143,7 @@ export function ChessGame() {
         busy.current = false
         settle("bot")
       }, wait)
+      })
     }, 30)
   }, [bot, settle])
 
