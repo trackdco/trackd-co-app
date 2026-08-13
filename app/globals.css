@@ -75,6 +75,40 @@
   --state-success: #4ade80;
   --state-warning: #f59e0b;
 
+  /* ---- /admin ONLY — the founder dashboard (see ui-context.md → Admin) ----
+     SCOPED BY RULE: these tokens may be referenced from `app/admin/**` and
+     `components/admin/**` and nowhere else. /admin is an internal operations
+     surface seen by two people; it carries denser data than any user screen and
+     is deliberately allowed a categorical series palette and directional
+     colour, neither of which belongs in the app itself.
+
+     NOT ONE NEW HEX. Every token below aliases a colour the palette already
+     defines, so the dashboard cannot drift away from the product's own hues and
+     a retune of those hues carries automatically.
+
+     The series colours are for CATEGORICAL business data — signup channels,
+     subscription statuses, compound categories. The "categorical, never
+     evaluative" invariant governs BIOMARKER AND MARKER READINGS; no health
+     reading is rendered anywhere on /admin, and none may be. */
+  /* Four series that stay distinguishable at an 8px bar segment and a 8px
+     legend dot. `--cat-sarm` (#9b7fd4) was the first choice for series 4 and is
+     WRONG here: it shares its green and blue channels with `--chart-line`
+     (#6b7fd4) and measures ΔE76 14.5 against it, where every other pair in this
+     set is 55-77. At legend-dot size they read as one colour. `--cat-thyroid`
+     sits at a minimum ΔE 43 against the other three. Not chosen for prettiness —
+     `--cat-anabolic` is the amber accent's value, and `--cat-supplement` is
+     green, which already means "positive" on this page. */
+  --admin-series-1: var(--chart-line); /* periwinkle */
+  --admin-series-2: var(--chart-trend); /* teal */
+  --admin-series-3: var(--cat-oral); /* tan */
+  --admin-series-4: var(--cat-thyroid); /* dusty rose */
+
+  /* Direction of a BUSINESS metric (retention up, churn up) — never a health
+     value. Aliases the system-state colours because that is exactly what these
+     are: operational feedback to an operator, on a screen no user ever sees. */
+  --admin-positive: var(--state-success);
+  --admin-negative: var(--state-error);
+
   /* Deep red for genuinely destructive actions (sign out, delete). Darker than
      --state-error so it reads as "deliberate", not a transient error toast. */
   --accent-destructive: #b91c1c;
@@ -160,6 +194,16 @@
   --color-state-success: var(--state-success);
   --color-state-warning: var(--state-warning);
   --color-accent-destructive: var(--accent-destructive);
+
+  /* /admin ONLY → utilities (bg-admin-series-1, text-admin-positive, …).
+     Referencing any of these outside app/admin/** or components/admin/** is a
+     rule violation, not a style choice — see ui-context.md → Admin. */
+  --color-admin-series-1: var(--admin-series-1);
+  --color-admin-series-2: var(--admin-series-2);
+  --color-admin-series-3: var(--admin-series-3);
+  --color-admin-series-4: var(--admin-series-4);
+  --color-admin-positive: var(--admin-positive);
+  --color-admin-negative: var(--admin-negative);
 
   /* Category legend dots → utilities (bg-cat-anabolic, …) */
   --color-cat-anabolic: var(--cat-anabolic);

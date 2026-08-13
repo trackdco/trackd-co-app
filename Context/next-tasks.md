@@ -4,7 +4,62 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-13 (the read-only gate, the save offer, the beta grace)
+Last updated: 2026-08-13 (notification fixes merged; the read-only gate, the save offer, the beta grace; /admin rebuilt)
+
+---
+
+## ⚠️ OWED ON NOTIFICATIONS — one SQL file, and a list of knowns (2026-08-13)
+
+The push engine's `stopped`/pause/version gates are fixed and merged (see
+`progress-tracker.md`). What is left is **not** in the code:
+
+### 1. Apply `supabase/notifications/005_trial_stamp_lock.sql` — ADRIAN
+
+Written, never run. Its own header says so. Until it runs, a signed-in user can
+`PATCH` their own `trial_reminder_sent_for`: clearing it produces roughly 96
+pushes a day about their own money, and setting it forward permanently silences
+the notice that they are about to be charged — which the paywall and the
+checkout both promise out loud. Self-inflicted only (RLS holds across users),
+but it is also the precondition for the stamp-storm below. Paste it into the SQL
+Editor; it is idempotent.
+
+### 2. Known and NOT fixed — findings from four cold reviews, ranked
+
+None is a regression; all pre-date tonight's work and all have a concrete
+failing case on file.
+
+- **The three older dedupe stamps treat a zero-row UPDATE as success.** The
+  trial stamp got a conditional UPDATE with a returned row count; the other
+  three did not. With the preferences row deleted (possible until 005 is
+  applied) the dose reminder re-sends every fifteen minutes — ~52 pushes in a
+  day, with the cron reporting success each time.
+- **A `reminder_time` inside the user's own quiet window silences dose and
+  low-stock reminders forever.** Quiet 22:00→08:00 with a 23:00 reminder time:
+  every tick before 23:00 is "too early", every tick after 22:00 is "quiet
+  hours", and the two never open together. The trial reminder already works
+  around this (`trialMin`); the other three do not. Reachable from the three
+  unconstrained time inputs in `ReminderSettings`.
+- **Custom compounds are announced as "your compound" and "Something is running
+  low".** `PC_REMINDER_SELECT` and the inventory select both omit `custom_name`;
+  `lib/db/inventory.ts` gets this right and the notification path does not.
+- **A multi-dose day is nudged as one dose.** `loggedTodayIds` is a set of
+  compound ids and the select does not read `slot_index`, so logging the morning
+  dose suppresses the evening nudge for the whole compound.
+- **`/api/notifications/run` has no `maxDuration` and no `ORDER BY`.** The loop
+  is sequential with a 5s push timeout per message per device, and the profile
+  order is unstable, so a truncated invocation skips an arbitrary set of users.
+- **A missing pause row now diverges permanently rather than for the pause's
+  length**, because the mirror re-anchors the cadence like the client does.
+  `pushCompoundPause` is gated and fire-and-forget with no retry.
+- **`trackSync` never reads `readOnly`**, so every gated refusal except
+  `AddStockSheet`'s shows "still syncing, we'll keep trying" for a write that
+  will never be retried.
+
+### 3. When `BILLING_GATE_ENABLED` goes true, re-read `lib/billing/gate.ts` first
+
+Two functions are conditionally gated and the conditions are load-bearing. The
+delete path must stay open in both, or a lapsed user's delete records the flag
+without the reason — and the reason is what the push engine now reads.
 
 ---
 
@@ -160,6 +215,109 @@ user who opens "Payment method and invoices" finds a cancel button in Stripe's
 wording next to ours. Harmless (the webhook syncs either way) but it bypasses
 the save offer entirely. Turn the feature off on the portal configuration if
 cancelling should live in one place. Dashboard change, not a code change.
+
+---
+
+## /admin — what is owed next
+
+The dashboard was rebuilt 2026-08-13 (see `progress-tracker.md`).
+
+### 📊 WHAT THE FUNNEL SAYS RIGHT NOW (measured 2026-08-13, live data)
+
+```
+Created an account         90   100%
+Passed the legal gate      76    84%   84% of the step above
+Added a compound           27    30%   36% of the step above   <-- the leak
+Logged a dose              14    16%   52% of the step above
+Still dosing (7d)           8     9%   57% of the step above
+```
+
+**56 of 90 accounts have never written anything at all**, across all eleven
+feature surfaces.
+
+The gate is not the problem: 84% get through it. The drop is **76 → 27 at
+"added a compound"** — roughly two thirds of the people who finish onboarding
+never add a single compound, and adding one is the thing the whole app is for.
+Everything downstream of that step converts reasonably (36% → 52% → 57%), so
+this is an activation problem at one specific screen, not a general leak.
+
+This is a product question, not a dashboard one, and it is the first thing the
+dashboard was built to be able to say. Worth deciding what to do about before
+adding features further down the funnel.
+
+### 🔴 FOUND WHILE BUILDING IT: `profiles.onboarding_completed_at` is a dead column
+
+Nothing in the codebase writes it. **All 90 live accounts have it null.** It is
+in the schema, it is in both grant lists, and it is the obvious column to reach
+for when asking "did they finish onboarding" — which is exactly the trap. The
+funnel now uses `consent_records` instead, because `app/welcome/actions.ts`
+writes that and only then grants app access, so it is the signal that actually
+means "got through".
+
+**Decide one of two things, and do it deliberately:**
+- **Write it.** Stamp `onboarding_completed_at` at the end of the onboarding
+  flow, and the funnel can use the honest column. Note the grant lists already
+  include it, so no new migration is needed for the write path.
+- **Drop it.** Remove the column so the next person does not read it and get a
+  confident zero.
+
+Leaving it as-is is the one option that keeps the trap armed. Related: two live
+accounts hold a protocol compound with **no consent record at all** (they predate
+the gate) — the funnel intersects sets so they simply drop out at that step, but
+it is worth knowing they exist.
+
+### 🟠 SECURITY, from the cold review: the founder gate keys on an email STRING
+
+`lib/admin.ts` and three SQL policies gate on `auth.jwt() ->> 'email'`. That is
+only as strong as the Supabase Auth project settings, which are **not in this
+repo**. Today it holds — email confirmation is on and Google OAuth verifies — but:
+
+- if "Confirm email" is ever switched off, anyone can register an unclaimed
+  founder address and read every cross-user aggregate, the whole waitlist and
+  the whole feedback queue;
+- `admin@trackdco.app` is squattable if no account holds it yet;
+- Supabase's email-change flow is a second path in.
+
+**Fix, when Adrian wants it:** gate on the two fixed `auth.uid()` UUIDs instead
+of the email. One migration, and it removes the dependency on a dashboard
+setting entirely. NOT done here — it is a change to the auth model, not a
+tidy-up, and it touches three RLS policies.
+
+Credit where due: the policies read the **top-level** `email` claim, not
+`user_metadata`, so they are not client-spoofable.
+
+### What was deliberately NOT done:
+
+- **The onboarding free-text is still not readable anywhere.**
+  `signup_intake.struggle_detail` is the single most useful field in the flow —
+  it is the only one the user writes themselves — and the dashboard only shows
+  how many people filled it in. Adrian chose counts-only to keep the
+  service-role layer's no-rows invariant intact. To read the text properly, add
+  a founder-scoped RLS SELECT policy on `signup_intake` (mirroring
+  `supabase/waitlist/002_founder_read.sql`) and read it on the page through the
+  founder's OWN client. **Do not widen `lib/db/admin/` to return it** — that
+  directory's whole safety argument is that it never returns a row.
+
+- **Aggregates are computed in TypeScript, not SQL.** PostgREST cannot express
+  `count(distinct …)` or `group by`, so the distinct-user and ranked-tally reads
+  pull one narrow column (capped at `ROW_CAP` = 20,000) and reduce it in memory.
+  At today's size that is a few thousand rows. A read that comes back exactly at
+  the cap now records an issue and the page says the number is a floor — so the
+  failure is visible rather than silent. When that starts firing, replace the
+  hot ones with SQL views or RPCs; nothing on the page has to change.
+
+- **Waitlist → account conversion is not shown, on purpose.** The two are only
+  joinable on email, and matching them would mean reading both lists in full to
+  compare addresses. The counts are shown side by side and no conversion rate is
+  claimed, because the honest version of that number needs a decision about
+  matching emails first.
+
+- **The funnel is all-time, not range-filtered.** A funnel over a 30-day window
+  would drop everyone who signed up before it and read as a collapse. If a
+  cohort funnel is wanted, it needs a cohort definition first.
+
+- **`profiles.tier` is still not shown.** Gates read `entitlements`; tier is
+  historical (Spec 16). Showing it would invite reading it as truth.
 
 ---
 

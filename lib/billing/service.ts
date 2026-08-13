@@ -22,7 +22,7 @@ import type { BillingDatabase } from "./schema";
  * billing does not crash a deploy that has not set it.
  *
  * TYPED against `BillingDatabase`, unlike the older service client in
- * `lib/db/adminMetrics.ts`. That one only ever counts rows, so an untyped client
+ * `lib/db/admin/`. That one only ever counts rows, so an untyped client
  * costs it nothing; this one WRITES, and an untyped client resolves every table
  * to `never` — which means a misspelled column type-checks fine and fails on a
  * real payment instead.

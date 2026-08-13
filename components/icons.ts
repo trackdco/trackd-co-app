@@ -37,6 +37,9 @@ export {
   CaretDown,
   CaretLeft,
   CaretRight,
+  // /admin stat tiles: a directional business metric carries an arrow as well
+  // as a colour, so the direction is not conveyed by hue alone.
+  CaretUp,
   ChartLine,
   ChatCircleDots,
   Check,

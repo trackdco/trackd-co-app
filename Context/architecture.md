@@ -955,7 +955,7 @@ Email list**. Title is "Admin".
   `security_invoker` so it inherits that, and `beta_feedback` SELECT is
   "own OR founder". Remove the page check entirely and a non-founder still reads
   **zero rows**.
-- **Cross-user aggregates run as the SERVICE ROLE** (`lib/db/adminMetrics.ts`,
+- **Cross-user aggregates run as the SERVICE ROLE** (`lib/db/admin/`,
   `"use server"`). Every user table is RLS'd to own-rows, so a founder's own client
   can see exactly one user's data — correct, and precisely why these counts can't
   be read normally. The alternative, granting founders SELECT on `dose_logs` /
@@ -1660,7 +1660,7 @@ reach the database, so we can see which channels are working.
   > one the claim writes. Adrian's call whether to drop the UPDATE grant on
   > `signup_attribution.affiliate_code` when that screen is wired.
 - **Reading it back is an open decision**, spelled out at the foot of the
-  migration: service-role aggregates (no new policy, but `adminMetrics.ts`'s
+  migration: service-role aggregates (no new policy, but `lib/db/admin/`'s
   "never return a row" rule would have to be narrowed on purpose) versus a
   founder-only SELECT policy (reads normally, but a third place the founder
   emails are hardcoded).

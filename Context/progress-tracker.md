@@ -5,7 +5,61 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-13 (the read-only gate, the save offer, the beta grace)
+Last updated: 2026-08-13 (the notification mirror's third missing gate; the read-only gate, the save offer, the beta grace; the /admin dashboard rebuild)
+
+## The push engine was announcing compounds deleted in July (2026-08-13, evening)
+
+Adrian's phone said "4 doses are still unlogged today" at 20:00 while his
+dashboard showed everything logged. Both were right, about different things.
+
+**What the data said.** Deleting a compound writes three facts — `archived` on
+the device, a `stopped` version in `protocol_compound_schedules`, and
+`is_active = false` on `protocol_compounds` — and all three are fire-and-forget.
+Two landed and the third did not: Nandrolone on 31 July, and Ipamorelin, Test E
+and Anastrozole on 7 August, seventeen minutes after he added them for the
+onboarding screenshots. Those rows stayed `is_active = true` for six to thirteen
+days, and every day of it the runner announced them and then nagged for missing
+them. They were reconciled at 20:32 that night — half an hour AFTER the push —
+when a hydration noticed the mismatch and re-pushed the archive.
+
+**The gate the mirror never had.** `lib/notifications/reminders.ts` is the
+server-side mirror of the client's `isDueOnFor`, and this was its THIRD missing
+gate after cycles (31 July) and pauses (7 August). The rule now: every gate in
+`isDueToday` runs the client's own function — `isOnCycle`, `isPausedOn`,
+`effectiveCadenceStart`, `cyclePauseContext`, `isStoppedOn`. Nothing in that
+file is reimplemented; what is left is the mapping from Postgres columns to
+those functions' arguments. `lib/protocol/scheduleVersions.ts` holds the
+version-in-force rule both sides read.
+
+**Three cold reviews, then a fourth on the fixes.** They found, in order: the
+`stopped` gate silencing a live compound after a BACK-DATED re-add (the client
+drops superseded versions with a local array filter; the push only ever
+upserted, so Postgres kept the stop as the newest row — and the hydration union
+then restored it to the device, un-fixing the client too); the mirror's pause
+handling being a boolean where the client has three behaviours, leaving the two
+grids offset on 7 of 11 days after any pause; sign-out leaving the push
+subscription so one user's reminders reached the next user's phone; and then two
+regressions in those fixes — `unsubscribe()` on sign-out silently killing push
+for the same user signing back in, and the supersede sweep deleting history when
+a stale device merely tapped Pause.
+
+**Decisions worth keeping.**
+- The sweep in `pushScheduleVersions` is OPT-IN (`supersede`). Only the three
+  paths that record a version ask for it. A pause re-pushes the trail — which is
+  how a failed sync heals — and never deletes.
+- The read-only gate is DIRECTIONAL on two functions now
+  (`setProtocolCompoundActive`, `pushScheduleVersions`), because each serves both
+  a delete and an add. `scripts/gate-audit.mjs` reports a third bucket for that,
+  and it moved out of `scratchpad/` — which is gitignored, so the doc in
+  `gate.ts` rested on a file nobody else had.
+- Sign-out deletes the subscription ROW but does not revoke the browser's
+  subscription; `usePushNotifications` re-registers on mount. Deleting the row is
+  what stops the leak; revoking the subscription is what broke the common case.
+
+**Measured against production.** Across 17 push-enabled accounts and 51 active
+compounds, over a fortnight, the new mirror changes nobody's due days. It differs
+only where it was broken. Replayed at the exact instant of the 20:00 push: four
+due before, none after, no push at all.
 
 ## Billing, finished: one subscription, one offer, and read-only after (2026-08-13)
 
@@ -613,6 +667,124 @@ denied, zero mismatches either way.
 **The rule this re-earns:** a hand-applied migration's file header is a claim,
 never a record. Two sessions carried this as outstanding work that was already
 done.
+
+## /admin — the founder dashboard, rebuilt (BUILT, 2026-08-13)
+
+Branch `admin/dashboard`, cut from `main`. Deliberately NOT built on
+`wave3/billing-cancel`: that branch is nine commits of billing work with a dirty
+tree, and Adrian's instruction was to leave it alone.
+
+### The bug that was already there, and had been for a month
+
+`lib/db/adminMetrics.ts` counted an "active user" across five tables and
+selected `user_id` from all five. **`weight_logs` keys on `profile_id`.** The
+query returned 42703, the error was swallowed by a bare `continue`, and
+bodyweight logging never once counted toward an active user. The live table
+holds 51 rows, so the daily and weekly active numbers on that page were
+understated for the whole time it shipped.
+
+Fixed three ways, because the column was the symptom and the swallow was the
+cause: each activity source now carries its own user-id column, every failed read
+is collected in an `IssueLog`, and the page renders the failures in red at the
+top. A broken source is now visible the same day instead of looking like a quiet
+week.
+
+### Structure
+
+`lib/db/adminMetrics.ts` is gone, replaced by `lib/db/admin/`:
+`core.ts` (client, founder gate, the query boundary type, `IssueLog`),
+`activity.ts`, `billing.ts`, `people.ts`, `product.ts`, `ops.ts`, `index.ts`.
+Pure helpers that can be unit-tested live in `lib/admin/aggregate.ts` and
+`lib/admin/labels.ts` — 40 new tests.
+
+**The counts-only invariant is unchanged and now written down where it is
+enforced** (`lib/db/admin/core.ts`): nothing in that directory may return a row.
+Columns are read, tallied and dropped inside the module. Adrian's call on the
+onboarding free-text field (`signup_intake.struggle_detail`) was counts-only, so
+the page shows how many people typed something and never what they typed.
+
+### `"use server"` → `server-only`
+
+The old module was marked `"use server"`, which made every export a publicly
+reachable server action guarded only by its own founder check. Nothing calls it
+from the browser, so it is now `server-only`: unreachable from the client, and
+importing it into a client bundle fails the build. The founder re-check stayed.
+
+### What the page shows now
+
+Overview, growth (waitlist + accounts sparklines, channels, attribution),
+onboarding funnel, retention (incl. weekly return rate and never-written
+accounts), revenue (subscription statuses, trials ending, cancelling,
+entitlements by source), what people run (compound leaderboard, category/route/
+schedule splits, inventory), feature adoption across 11 features, onboarding
+answers, demographics (bucketed ages — no DOB or individual age is ever
+returned), system health (unprocessed webhooks, push staleness), feedback SLA,
+consent coverage, and the email list. The range control (7D/30D/90D/All) now
+drives every time-based section rather than one chart.
+
+### CSV export
+
+`app/admin/export/route.ts`, founder-gated, allowlisted datasets, reading through
+the caller's OWN RLS-scoped client rather than the service role — so the SQL
+policies decide, not the app. Every field goes through `csvField`, which
+neutralises spreadsheet formula injection: the waitlist email and the feedback
+body are stranger-controlled, and `=HYPERLINK(...)` in a feedback note would
+otherwise be a live formula when the download opened in Excel.
+
+### Styling
+
+`ui-context.md` gained an **Admin** section: /admin is the one documented
+exception to "new screens reuse the system", scoped to `app/admin/**` and
+`components/admin/**`. Seven `--admin-*` tokens, **none of them a new hex** —
+every one aliases an existing palette colour. Bar charts and directional colour
+are permitted there (business metrics, never health readings) and nowhere else.
+
+### Three cold reviews, 2026-08-13 — security, correctness, UI
+
+**Security: no critical, no high.** The counts-only invariant was traced field by
+field and holds; auth gates run before every query; `server-only` is effective
+(Next aliases it, and the client layer throws at build); the CSV route is sound.
+Three low findings, all fixed: `beta_feedback.path`, `affiliate_code` and
+`profiles.timezone` are all user-writable and were being rendered raw as chart
+labels — they now go through allowlists and shape checks. `IssueLog.detail`
+claimed "never contains user data" and could not promise it; the comment now says
+what is true.
+
+**One medium was NOT fixed, deliberately** — the founder gate keys on an email
+string in `lib/admin.ts` and three SQL policies, so it depends on Supabase Auth
+project settings that are not in this repo. Moving it to two fixed `auth.uid()`s
+is a change to the auth model and a migration. Written up in `next-tasks.md` for
+Adrian to decide.
+
+**Correctness found five real bugs beyond the three already caught:**
+- `entitledAccounts` filtered on `is_active` alone. `sync.ts` deliberately leaves
+  that true on cancellation and lets `active_until` lapse, so users who cancelled
+  months ago still counted as having access, forever. Now calls
+  `isEntitlementActive` from `lib/billing/access.ts` — the product's own gate.
+- Truncation detection compared against the client limit, which cannot see
+  PostgREST's own `max-rows` ceiling (Supabase default 1,000). Now compares
+  against the server's exact count. Verified: nothing truncates today.
+- Dose activity keyed on `taken_at`, which the user picks — back-logging made you
+  active in the past, future-dating made you active in advance. Now `created_at`.
+- "Never written" came from 5 tables while adoption came from 11, so the same
+  account could appear in both. Both now derive from one set of reads.
+- The page's own three queries still did `data ?? []` with the error dropped —
+  the exact pattern this work removed, surviving one file away.
+
+**UI found eight**, the substantive ones being: directional colour with no arrow
+(colour as the only signal), `--admin-series-4` at ΔE 14.5 from series-1 (they
+read as one colour at legend size, now `--cat-thyroid`), `SplitBar` cycling four
+colours over up to nine unlabelled categories, a fourth per-screen switch variant
+where the app documents none, and a 120-char waitlist `source` silently clipping
+the date column off its row.
+
+### Verified
+
+`tsc` clean, `eslint` clean, **915 tests** pass, `next build` succeeds. Every live
+query was fired against the real schema with the service role before each commit —
+that check is what proves the column names, which TypeScript cannot see through
+PostgREST's strings. The funnel was additionally checked against live data to
+confirm it is monotonic.
 
 ## Spec w2b-15 — Stripe billing (BUILT, 2026-08-08)
 
