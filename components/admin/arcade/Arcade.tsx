@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 
 import { ChessGame } from "@/components/admin/arcade/ChessGame"
+import { BlockBlast, ConnectFour, Solitaire } from "@/components/admin/arcade/MoreGames"
 import {
   Dose2048,
   DrawTime,
@@ -11,6 +12,7 @@ import {
   VialSnake,
   VialStack,
 } from "@/components/admin/arcade/SmallGames"
+import { TileArt } from "@/components/admin/arcade/TileArt"
 import { isMuted, setMuted, sfx, wakeAudio } from "@/lib/admin/arcade/audio"
 
 /**
@@ -32,6 +34,9 @@ interface Entry {
 
 const GAMES: Entry[] = [
   { id: "chess", name: "Chess", blurb: "Eleven opponents, 250 to 2000 Elo", Component: ChessGame },
+  { id: "blocks", name: "Block Blast", blurb: "Drag shapes in, clear rows and columns", Component: BlockBlast },
+  { id: "connect", name: "Connect Four", blurb: "Amber discs against Will's grey pills", Component: ConnectFour },
+  { id: "solitaire", name: "Solitaire", blurb: "Klondike, draw one, amber suits", Component: Solitaire },
   { id: "stack", name: "Vial Stack", blurb: "Perfect drops grow the vial back", Component: VialStack },
   { id: "2048", name: "Dose 2048", blurb: "5mg + 5mg = 10mg, all the way up", Component: Dose2048 },
   { id: "snake", name: "Vial Snake", blurb: "Collect doses, don't eat yourself", Component: VialSnake },
@@ -129,15 +134,16 @@ export function Arcade({ onClose }: { onClose: () => void }) {
                   type="button"
                   onClick={() => { wakeAudio(); setOpenId(g.id) }}
                   style={{ "--admin-delay": `${i * 50}ms` } as React.CSSProperties}
-                  className="glass-panel animate-admin-rise px-5 py-4 text-left transition-colors hover:bg-[var(--admin-glass-hover)]"
+                  className="glass-panel animate-admin-rise overflow-hidden p-3 text-left transition-colors hover:bg-[var(--admin-glass-hover)]"
                 >
-                  <p className="text-base font-medium text-foreground">{g.name}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-text-muted">{g.blurb}</p>
+                  <TileArt id={g.id} />
+                  <p className="mt-2.5 text-base font-medium text-foreground">{g.name}</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-text-muted">{g.blurb}</p>
                 </button>
               ))}
             </div>
             <p className="mt-8 text-xs text-text-muted">
-              More on the way: Block Blast, Connect Four vs Will, and Solitaire.
+              Ten games. Escape backs out; ⌘K → “games” gets you back here.
             </p>
           </>
         )}

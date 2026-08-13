@@ -40,19 +40,27 @@ export const PIECES: Record<string, Pixels> = {
   ],
 
   /**
-   * Knight — a horse head in profile. Ears up, mane down the back, muzzle to
-   * the left, and a flared neck into the base. This is the piece the extra
-   * resolution was for.
+   * Knight — a horse head in profile, facing left.
+   *
+   * THE FACE AND THE MANE ARE TWO DIFFERENT TONES, and that is the whole trick.
+   * Three earlier attempts drew the head as one solid mass and every one of them
+   * read as a lump with a snout. A Staunton knight is legible because the mane
+   * sweeps down the back of the neck as a distinct plane behind the face — so
+   * the face is `H` (light) and the mane is `A` (mid), with the boundary running
+   * diagonally from the crown down to the shoulder.
+   *
+   * Generated from geometry rather than hand-counted, and checked by rendering
+   * it as text blocks before it went anywhere near the board.
    */
   n: [
-    "........................", "........................", ".........GG....GG.......",
-    "........GHHG..GHHG......", "........GHHGGGGHHG......", ".......GHHHHHHHHHG......",
-    "......GHHHHHHHHHHHG.....", ".....GHHHHHHHHHHHHG.....", "....GAHHHHHHHHHHHHG.....",
-    "...GAAEHHHHHHHHHHHG.....", "...GASAAAHHHHHHHHHG.....", "..GAAAAAAAHHHHHHHHG.....",
-    "..GAAAAAAAAAHHHHHHG.....", ".GAAGGGAAAAAAHHHHHG.....", ".GAGG..GAAAAAAHHHHG.....",
-    ".GG.....GAAAAAAHHHG.....", "........GAAAAAAAHHG.....", "........GAAAAAAAAHG.....",
-    ".......GGAAAAAAAAAGG....", "......GAAAAAAAAAAAAAG...", ".....GAAAAAAAAAAAAAAAG..",
-    ".....GaaaaaaaaaaaaaaaG..", ".....GGGGGGGGGGGGGGGGG..", "........................",
+    "........................", "..............GA.AG.....", "............GHHAGAAG....",
+    "..........GHHHHAAAAAG...", ".........GHHHHHAAAAAG...", ".......GHHHHHHAAAAAAG...",
+    "......GHHHHHHHAAAAAAG...", ".....GHEEHHHHHAAAAAAG...", "....GHHESHHHHHAAAAAAG...",
+    "...GHHHHHHHHHAAAAAAAG...", "..GHHHHHHHHHHAAAAAAAG...", "..GHmHHHHHHHHAAAAAAAG...",
+    "..GGGHHHHHHHHAAAAAAG....", "...GHHHHHHHHHAAAAAAG....", ".....GHHHHHHAAAAAAAG....",
+    "........GHHHAAAAAAAG....", "..........GHAAAAAAAG....", "...........GAAAAAAAG....",
+    "..........GAAAAAAAAG....", "..........GAAAAAAAAG....", "......GAAAAAAAAAAAAG....",
+    "....GAAAAAAAAAAAAAAG....", "...GaaaaaaaaaaaaaaaaG...", "...GGGGGGGGGGGGGGGGGG...",
   ],
 
   /** Bishop — a dropper. Narrow, precise, cuts on the diagonal. */

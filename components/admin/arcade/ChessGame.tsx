@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { AMBER, GREY, LADDER, PIECES, PIECE_SIZE, type Bot } from "@/components/admin/arcade/pieces"
+import { Portrait } from "@/components/admin/arcade/Portrait"
 import { sfx, wakeAudio } from "@/lib/admin/arcade/audio"
 import {
   applyMove,
@@ -360,11 +361,26 @@ export function ChessGame() {
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
-        <span>
-          <b className="font-medium text-foreground">{bot.name}</b> · {bot.elo} elo · {bot.who}
+      {/* Who you are actually fighting, with their face on it. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="glass-pill grid size-14 shrink-0 place-items-center overflow-hidden p-1">
+            <Portrait
+              bot={bot}
+              scale={2}
+              mood={status.over ? (status.won ? "beaten" : "gloat") : "idle"}
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">{bot.name}</p>
+            <p className="text-[11px] text-text-muted">
+              {bot.elo} elo · {bot.who}
+            </p>
+          </div>
+        </div>
+        <span className="font-mono text-xs text-text-muted">
+          {thinking ? "thinking…" : status.text}
         </span>
-        <span className="font-mono">{thinking ? "thinking…" : status.text}</span>
       </div>
 
       <div className="relative mx-auto w-full max-w-[min(88vw,min(560px,68vh))]">
@@ -398,22 +414,30 @@ export function ChessGame() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-1.5">
-        {/* No locks. Adrian's call: pick a fight with anyone you like. */}
+      <div className="flex flex-wrap items-start justify-center gap-1.5">
+        {/* No locks — pick a fight with anyone. Each one shows its own face,
+            because a row of Elo numbers tells you nothing about who they are. */}
         {LADDER.map((b) => (
           <button
             key={b.id}
             type="button"
             onClick={() => { wakeAudio(); setBot(b); reset() }}
             aria-pressed={b.id === bot.id}
-            title={`${b.name} · ${b.elo} · ${b.who}`}
-            className={`rounded-full px-2.5 py-1 font-mono text-[10px] transition-colors ${
+            title={`${b.name} · ${b.elo} elo · ${b.who}`}
+            className={`flex w-[62px] shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors ${
               b.id === bot.id
-                ? "bg-accent-amber text-bg-base"
-                : "glass-pill text-text-muted hover:text-foreground"
+                ? "bg-accent-amber/15 ring-1 ring-accent-amber"
+                : "glass-pill hover:bg-[var(--admin-glass-hover)]"
             }`}
           >
-            {b.elo}
+            <Portrait bot={b} scale={1} mood="idle" />
+            <span
+              className={`font-mono text-[9px] tabular-nums ${
+                b.id === bot.id ? "text-accent-amber" : "text-text-muted"
+              }`}
+            >
+              {b.elo}
+            </span>
           </button>
         ))}
         <button
