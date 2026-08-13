@@ -31,6 +31,7 @@ import {
 } from "@/lib/home/doseLog"
 import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
 import type { Stack } from "@/lib/home/stacks"
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 
 const EMPTY_STACK: StackCompound[] = []
 const EMPTY_LOGS: DayLogs = {}
@@ -69,6 +70,12 @@ export function ProtocolScreen({
   previewStacks?: Stack[]
   previewLogs?: DayLogs
 }) {
+  /**
+   * Guarded: adding a compound and adding or editing stock. Both EDIT THE
+   * PROTOCOL, which is on Adrian's list. Archiving is not guarded.
+   */
+  const { canWrite, guard } = useWriteAccess()
+
   useCloudHydration(userId)
 
   const [detailTarget, setDetailTarget] = useState<StackCompound | null>(null)
@@ -109,7 +116,26 @@ export function ProtocolScreen({
   if (!stockDeepLinkDone && initialStockFor && active.length > 0) {
     setStockDeepLinkDone(true)
     const target = active.find((c) => c.id === initialStockFor)
-    if (target) setStockTarget(target)
+    /**
+     * ⚠️ `canWrite`, NOT `guard()`, AND THAT IS FORCED.
+     *
+     * This runs DURING RENDER (React's documented pattern for reacting to a
+     * changed input, so there is no paint without the sheet). `guard()` calls
+     * `setOpen` on the provider, and setState-ing another component mid-render
+     * is the hazard `flow.tsx` documents at length and was fixed for.
+     *
+     * So the deep link simply does not open the sheet for a read-only account.
+     * The pop-up is one tap away on the "Add stock" control beside it, which IS
+     * guarded, and that is the right place to meet it anyway.
+     *
+     * The hole this closes, driven by a cold review: Home's "add stock" on a
+     * dose row `router.push`es to `?stock=<id>`, which set `stockTarget`
+     * directly. A lapsed user got the sheet with no pop-up, filled it in,
+     * pressed Add stock, and was told **"Couldn't sync this compound. Check
+     * your connection and try again."** Zero rows written, and the user blamed
+     * for their connection.
+     */
+    if (target && canWrite) setStockTarget(target)
   }
 
 
@@ -215,14 +241,16 @@ export function ProtocolScreen({
           stockKnown={stockKnown}
           todayKey={todayKey}
           onOpen={setDetailTarget}
-          onAddCompound={() => setPickerOpen(true)}
-          onAddStock={(c) => {
-            // A compound that already has a vial gets the actions sheet (refill /
-            // correct / discard); one that does not goes straight to adding.
-            const existing = stockByCompound?.get(c.id) ?? null
-            if (existing) setStockActionsFor(c)
-            else setStockTarget(c)
-          }}
+          onAddCompound={() => guard(() => setPickerOpen(true))}
+          onAddStock={(c) =>
+            guard(() => {
+              // A compound that already has a vial gets the actions sheet (refill /
+              // correct / discard); one that does not goes straight to adding.
+              const existing = stockByCompound?.get(c.id) ?? null
+              if (existing) setStockActionsFor(c)
+              else setStockTarget(c)
+            })
+          }
         />
       </div>
 

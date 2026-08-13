@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 
 import { ProfileScreen } from "@/components/profile/ProfileScreen";
+import { currentEntitlement } from "@/lib/billing/entitlements";
+import { billingGateEnabled } from "@/lib/billing/gate";
+import { planLabelFor } from "@/lib/billing/manage";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Profile · Trackd Co" };
@@ -23,8 +26,9 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
+    // `tier` is no longer read: the plan label comes from `entitlements`.
     .select(
-      "tier, created_at, sex, date_of_birth, height_cm, weight_kg, goal, units_preference, avatar_path",
+      "created_at, sex, date_of_birth, height_cm, weight_kg, goal, units_preference, avatar_path",
     )
     .eq("id", user!.id)
     .maybeSingle();
@@ -62,9 +66,35 @@ export default async function ProfilePage() {
   const hasName = Boolean(fullName?.trim());
   const email = user?.email ?? "";
 
-  // BETA: tier defaults to 'paid'. A missing profile row falls back to Pro and
-  // renders "—" for the data rows rather than throwing.
-  const isPaid = (profile?.tier ?? "paid") === "paid";
+  /**
+   * THE PLAN LABEL COMES FROM `entitlements` NOW, NOT `profiles.tier`.
+   *
+   * This read `tier` and hardcoded "Beta · Pro" while `/billing` read the
+   * entitlement, so one user could be told two different things on two screens.
+   * `tier` is historical — `grants/003` locked it to the service role and
+   * `architecture.md` makes `entitlements` the only table that decides anything
+   * — and `planLabelFor` is now the single answer both screens ask for.
+   *
+   * The "Beta ·" prefix is gone on Adrian's call (2026-08-12): "we won't be in
+   * beta by then." What somebody with no entitlement is told is a named constant
+   * in `manage.ts`, with the reason it is currently "Pro" written next to it.
+   */
+  const entitlement = await currentEntitlement();
+  const { data: subRow } = await supabase
+    .from("subscriptions")
+    .select("status")
+    .eq("user_id", user!.id)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  const planLabel = planLabelFor(
+    entitlement?.source ?? null,
+    subRow?.[0] ? { status: subRow[0].status as string } : null,
+    // The gate's switch decides this too. With it off, an account with no
+    // entitlement genuinely has the whole product and the pill says "Pro"; with
+    // it on, the same account is read-only and saying "Pro" would be a lie on
+    // the screen somebody opened to find out why. See `lib/billing/manage.ts`.
+    billingGateEnabled(),
+  );
 
   return (
     <ProfileScreen
@@ -74,7 +104,7 @@ export default async function ProfilePage() {
       displayName={hasName ? fullName!.trim() : email || "Your account"}
       hasName={hasName}
       email={email}
-      planLabel={isPaid ? "Beta · Pro" : "Free"}
+      planLabel={planLabel}
       physical={{
         sex: profile?.sex ?? null,
         goal: profile?.goal ?? null,

@@ -2,7 +2,15 @@
 --  The 18+/ToS gate columns become service-only.
 --  Spec w2b-15 cold-review repair. Migration: `gate_column_lock`
 --
---  NOT YET APPLIED.
+--  APPLIED. Verified against the LIVE database 2026-08-12 by running the attack,
+--  not by trusting this line: with a real user JWT and only the publishable key,
+--  PATCHing `is_18_plus`, `tos_accepted_at`, `tos_version`, `date_of_birth` and
+--  all four together each returned 403 `42501`, while `sex` still returned 200.
+--  All 23 `profiles` columns were then swept against the two lists below — 18
+--  writable, 5 denied, no mismatch in either direction.
+--
+--  This header said "NOT YET APPLIED" for four days after it was applied, and
+--  two sessions carried the work as outstanding. Verify against the live schema.
 -- ============================================================
 --
 --  THE HOLE (reproduced live, 2026-08-08)

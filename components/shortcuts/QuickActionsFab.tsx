@@ -12,6 +12,7 @@ import {
   QUICK_ACTIONS,
   type ShortcutItem,
 } from "@/components/shortcuts/shortcutItems"
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { requestProgressAction } from "@/lib/progress/progressAction"
 import type { WeightUnit } from "@/lib/weight"
 import type { BodySex } from "@/lib/db/types"
@@ -72,6 +73,7 @@ const prefersReducedMotion = () =>
  */
 export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps) {
   const router = useRouter()
+  const { canWrite, guard } = useWriteAccess()
   const fabRef = useRef<HTMLButtonElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const firstActionRef = useRef<HTMLButtonElement>(null)
@@ -167,34 +169,76 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
     if (open) firstActionRef.current?.focus()
   }, [open])
 
+  /**
+   * ⚠️ THE READ-ONLY GATE'S BIGGEST SINGLE CHOKEPOINT.
+   *
+   * Five of the six tiles here start a WRITE — a dose, a compound, a weigh-in, a
+   * journal entry, a bloodwork photo — so guarding this one switch covers five
+   * entry points at once and stops them BEFORE a sheet opens rather than after
+   * the user has filled one in. Being told at the save button that the last two
+   * minutes were wasted is worse than being told at the door.
+   *
+   * `route` is deliberately NOT guarded. It is navigation to the Calendar, and
+   * a read-only account may go anywhere it likes.
+   *
+   * `bloodwork` is a judgement call and is guarded: the tile opens the gallery,
+   * which can be READ, but its purpose from this menu is adding a photo. The
+   * gallery is still reachable from Progress itself, unguarded, so nothing is
+   * hidden by this — see the file-level note in `ReadOnlyGate.tsx`.
+   */
   function handlePress(item: ShortcutItem) {
     close(false)
-    switch (item.action) {
-      case "route":
-        if (item.href) router.push(item.href)
-        break
-      case "quick-track":
-        // The quick "What would you like to track?" popup — log today's doses
-        // in place instead of routing to the dashboard.
-        setQuickTrackOpen(true)
-        break
-      case "add-stack":
-        setAddOpen(true)
-        break
-      case "weight":
-        setWeightOpen(true)
-        break
-      case "journal":
-        // Open the real journal compose on the Progress screen (Write / Markers).
-        requestProgressAction("journal-compose")
-        router.push("/progress")
-        break
-      case "bloodwork":
-        // Open the real bloodwork gallery on the Progress screen (view + add).
-        requestProgressAction("bloodwork-gallery")
-        router.push("/progress")
-        break
+    if (item.action === "route") {
+      if (item.href) router.push(item.href)
+      return
     }
+
+    /**
+     * ⚠️ THE TILE THAT FIRED THIS IS ALREADY GONE, so focus is moved BEFORE the
+     * guard rather than after it.
+     *
+     * `close(false)` above unmounts the menu, deliberately — an action is about
+     * to hand focus to the flow it opens, and pulling focus back to the FAB
+     * first would only fight that.
+     *
+     * When the guard REFUSES, no flow opens. The pop-up captures whatever has
+     * focus so it can give it back on close, and what it captured was a tile
+     * that had just been unmounted — so on close it correctly declined to focus
+     * a detached node and a cold review measured the result: `activeElement` is
+     * `<body>`, a keyboard user dumped at the top of the document.
+     *
+     * Focusing the FAB first means the capture lands on a control that is still
+     * there. Ordered on `canWrite` rather than on the guard's return value,
+     * because the capture happens INSIDE `guard` and anything afterwards is too
+     * late. Nothing changes at all for a user who can write.
+     */
+    if (!canWrite) fabRef.current?.focus()
+
+    guard(() => {
+      switch (item.action) {
+        case "quick-track":
+          // The quick "What would you like to track?" popup — log today's doses
+          // in place instead of routing to the dashboard.
+          setQuickTrackOpen(true)
+          break
+        case "add-stack":
+          setAddOpen(true)
+          break
+        case "weight":
+          setWeightOpen(true)
+          break
+        case "journal":
+          // Open the real journal compose on the Progress screen (Write / Markers).
+          requestProgressAction("journal-compose")
+          router.push("/progress")
+          break
+        case "bloodwork":
+          // Open the real bloodwork gallery on the Progress screen (view + add).
+          requestProgressAction("bloodwork-gallery")
+          router.push("/progress")
+          break
+      }
+    })
   }
 
   const mounted = open || closing

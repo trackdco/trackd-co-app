@@ -10,6 +10,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { CYCLE_COLUMNS } from "@/lib/db/types"
 import type { ProtocolCompound, ProtocolCompoundInsert } from "@/lib/db/types"
+import { canWriteData } from "@/lib/billing/gate"
 
 /**
  * "That column doesn't exist" — the 006 cycle columns before the migration runs.
@@ -102,6 +103,15 @@ export async function listProtocolCompounds(
 export async function upsertProtocolCompound(
   row: ProtocolCompoundInsert
 ): Promise<ProtocolCompound | null> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return null;
   try {
     const ctx = await sessionCtx()
     if (!ctx) return null
@@ -170,6 +180,15 @@ const UPSERT_CHUNK = 200
 export async function upsertProtocolCompounds(
   rows: ProtocolCompoundInsert[]
 ): Promise<{ ok: boolean; count: number }> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, count: 0 };
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false, count: 0 }
@@ -210,6 +229,28 @@ export async function setProtocolCompoundActive(
   id: string,
   isActive: boolean
 ): Promise<ProtocolCompound | null> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER — AND IT IS DIRECTIONAL.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // ONLY the `true` direction. This one function serves both a DELETE (→ false)
+  // and a re-add (→ true), and `lib/billing/gate.ts` is explicit that every
+  // delete stays open: removing your own data is a data-rights matter, and it
+  // lists `archiveProtocolCompound` — which reaches Postgres through here — as
+  // ungated. Gating the whole function contradicted that and would have been
+  // silent, because the delete's cloud write is fire-and-forget: the compound
+  // vanishes from the app, `is_active` stays true, and the push runner keeps
+  // announcing it as due. That is not hypothetical — it is precisely the failure
+  // the `stopped` gate in `lib/notifications/reminders.ts` was added for, after
+  // it ran for thirteen days on a real account, and switching
+  // `BILLING_GATE_ENABLED` on would have reproduced it for every lapsed user at
+  // once.
+  //
+  // See `lib/billing/gate.ts` for the full list of what is and is not gated.
+  if (isActive && !(await canWriteData())) return null;
   try {
     const ctx = await sessionCtx()
     if (!ctx) return null

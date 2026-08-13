@@ -17,8 +17,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
 import type { Stack, StackMembership } from "@/lib/home/stacks"
+import { canWriteData } from "@/lib/billing/gate"
 
-type Ok = { ok: boolean; skipped?: boolean }
+type Ok = { ok: boolean; skipped?: boolean; /** Refused by the read-only gate, not by a network or a database. */ readOnly?: boolean }
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -66,6 +67,15 @@ export async function pushStacks(
    *  id-only resolution, which is correct in the common case. */
   names: Record<string, string> = {}
 ): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, readOnly: true };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }

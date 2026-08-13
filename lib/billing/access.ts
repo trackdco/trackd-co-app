@@ -83,10 +83,40 @@ export function grantsPro(
  * The entitlement a user's access actually rests on, for DISPLAY. Null when none
  * is active.
  *
- * Prefers the one lasting longest, so "renews on the 14th" names the date access
- * really ends rather than whichever row came back first. A `comp` (no expiry)
- * always wins, which is right: a founder's access is not described by the
- * subscription they also happen to have.
+ * ## ⚠️ "LONGEST WINS" WAS WRONG, AND IT COST A PAYING CUSTOMER THEIR CANCEL BUTTON
+ *
+ * The original rule was: prefer the row lasting longest, with a no-expiry `comp`
+ * always winning. That was correct while `comp` meant one thing — a founder,
+ * free forever, whose access is genuinely not described by a subscription they
+ * also happen to have.
+ *
+ * The beta grace made `comp` mean two things. It is written as `comp` WITH an
+ * expiry, fourteen days out, and a cold review measured what "longest wins" then
+ * did to somebody who subscribed during their fortnight:
+ *
+ *   - a 14-day grace outranks a fresh 7-day Stripe trial;
+ *   - `manageActionFor` sees `source: "comp"` and returns `{kind: "none"}`;
+ *   - `/billing` reads **"Access: Complimentary"** with **NO CANCEL CONTROL**,
+ *     for a user whose card is on file and who will be charged;
+ *   - the dashboard tells a PAYING subscriber **"Your free trial ends 15 Aug."**
+ *
+ * Anyone converting during days 1 to 7 of the fortnight hits it. A user who
+ * cannot find the cancel button and is then charged is the exact chargeback this
+ * whole area exists to avoid.
+ *
+ * ## So the order is by KIND first, and only then by date
+ *
+ *   1. **A comp with NO expiry.** Free forever. A founder or a friend, and their
+ *      access really is not described by anything else.
+ *   2. **A real subscription** (`stripe` / `apple` / `google`). Somebody is
+ *      paying, or about to be, and everything on screen must be about THAT: the
+ *      price, the renewal date, and the way out.
+ *   3. **A time-limited comp.** The beta grace. A bridge, and the weakest claim
+ *      of the three, because it is the one that is about to end with nothing
+ *      behind it.
+ *
+ * Within a tier, longest still wins, so "renews on the 14th" still names the
+ * date access really ends.
  */
 export function strongestEntitlement(
   entitlements: readonly Entitlement[],
@@ -98,8 +128,23 @@ export function strongestEntitlement(
   if (active.length === 0) return null;
 
   return active.reduce((best, e) => {
+    const byTier = entitlementTier(e) - entitlementTier(best);
+    if (byTier !== 0) return byTier < 0 ? e : best;
+    // Same tier: the one lasting longest, with no-expiry beating any date.
     if (best.activeUntil === null) return best;
     if (e.activeUntil === null) return e;
     return Date.parse(e.activeUntil) > Date.parse(best.activeUntil) ? e : best;
   });
+}
+
+/**
+ * Lower is stronger. See {@link strongestEntitlement} for why this exists.
+ *
+ * A `comp` is split by whether it EXPIRES, which is the only thing that
+ * distinguishes "free forever" from "the beta grace" without a migration to add
+ * a fourth `entitlement_source`.
+ */
+function entitlementTier(e: Entitlement): number {
+  if (e.source === "comp") return e.activeUntil === null ? 0 : 2;
+  return 1;
 }

@@ -19,6 +19,7 @@ import {
   type LowStockItem,
 } from "@/lib/notifications/reminders";
 import { CYCLE_COLUMNS, type CycleRule } from "@/lib/protocol/cycleRule";
+import { isStoppedOn } from "@/lib/protocol/scheduleVersions";
 import { isDueOnFor, type StackCompound } from "@/lib/home/stack";
 
 /* ------------------------------------------------------------ fixtures */
@@ -121,6 +122,240 @@ describe("isDueToday — the cycle gate", () => {
     expect(isDueToday(c, "2026-01-11")).toBe(false); // cadence-due, cycle off
     expect(isDueToday(c, "2026-01-05")).toBe(true); // cadence-due, cycle on
     expect(isDueToday(c, "2026-01-06")).toBe(false); // cycle on, cadence rest day
+  });
+});
+
+/* ------------------------------------------------------- the pause gates */
+
+describe("isDueToday — pauses do all three of the things they do on the client", () => {
+  /**
+   * A pause is not one gate but three, and this mirror had only the first: the
+   * day is not due; the CADENCE re-anchors to the resume day; paused days do not
+   * advance the CYCLE clock. A cold review walked an every-3-days compound
+   * paused for two days and found the app and the phone disagreeing on seven of
+   * the next eleven days — the phone announcing doses the app never asked for,
+   * and silent on the days it did ask.
+   */
+  const pause = (startedOn: string, endsOn: string | null) => ({
+    id: `p-${startedOn}`,
+    startedOn,
+    endsOn,
+  });
+
+  const clientOf = (over: Record<string, unknown> = {}) =>
+    ({
+      id: "pc1",
+      name: "Testosterone E",
+      category: "anabolic",
+      method: "im",
+      dose: 250,
+      unit: "mg",
+      schedule: {
+        cadence: { type: "everyNDays", n: 3 },
+        timeOfDay: "08:00",
+        startDate: "2026-08-01",
+      },
+      rotationSites: [],
+      rotationIndex: 0,
+      ...over,
+    }) as unknown as StackCompound;
+
+  const serverOf = (over: Partial<ReminderCompound> = {}) =>
+    compound({
+      schedule_type: "every_n_days",
+      interval_days: 3,
+      first_dose_on: "2026-08-01",
+      ...over,
+    });
+
+  it("re-anchors the cadence to the resume day, exactly as the client does", () => {
+    const pauses = [pause("2026-08-04", "2026-08-05")];
+    const server = serverOf({ pauses });
+    const client = clientOf({ pauses });
+    for (let i = 1; i <= 20; i++) {
+      const key = `2026-08-${String(i).padStart(2, "0")}`;
+      expect(isDueToday(server, key), `server/client disagree on ${key}`).toBe(
+        isDueOnFor(client, dateOf(key)),
+      );
+    }
+    // And concretely, so a future edit cannot make both sides wrong together:
+    // the compound comes back on the 6th and runs 6, 9, 12 — not 7, 10, 13.
+    expect(isDueToday(server, "2026-08-06")).toBe(true);
+    expect(isDueToday(server, "2026-08-07")).toBe(false);
+    expect(isDueToday(server, "2026-08-09")).toBe(true);
+  });
+
+  it("does not let paused days advance the cycle clock", () => {
+    const pauses = [pause("2026-08-03", "2026-08-05")];
+    const cycle: CycleRule = {
+      pattern: { type: "onOff", onDays: 5, offDays: 2 },
+      end: { type: "never" },
+      colour: "slate",
+      anchor: "2026-08-01",
+    };
+    const server = serverOf({ schedule_type: "every_day", interval_days: null, cycle, pauses });
+    const client = clientOf({
+      schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: "2026-08-01" },
+      cycle,
+      pauses,
+    });
+    for (let i = 1; i <= 21; i++) {
+      const key = `2026-08-${String(i).padStart(2, "0")}`;
+      expect(isDueToday(server, key), `server/client disagree on ${key}`).toBe(
+        isDueOnFor(client, dateOf(key)),
+      );
+    }
+  });
+
+  it("still refuses the days the pause itself covers", () => {
+    const server = serverOf({
+      schedule_type: "every_day",
+      interval_days: null,
+      pauses: [pause("2026-08-04", "2026-08-06")],
+    });
+    expect(isDueToday(server, "2026-08-04")).toBe(false);
+    expect(isDueToday(server, "2026-08-06")).toBe(false); // ends_on is inclusive
+    expect(isDueToday(server, "2026-08-07")).toBe(true);
+  });
+
+  it("handles an open-ended pause, which has no resume day to anchor to", () => {
+    const pauses = [pause("2026-08-04", null)];
+    const server = serverOf({ pauses });
+    const client = clientOf({ pauses });
+    for (const key of ["2026-08-05", "2026-08-10", "2026-09-01"]) {
+      expect(isDueToday(server, key), `disagree on ${key}`).toBe(
+        isDueOnFor(client, dateOf(key)),
+      );
+      expect(isDueToday(server, key)).toBe(false);
+    }
+  });
+
+  it("anchors on the earliest recorded version, so a re-add cannot shift the grid", () => {
+    // `first_dose_on` is rewritten by a re-add; the client keeps the original
+    // origin as the anchor. Anchored on the new date alone the two land on
+    // different residues mod 3 and disagree on every dose day of the new run.
+    const server = serverOf({ first_dose_on: "2026-08-04", scheduleOrigin: "2026-08-01" });
+    const client = clientOf({
+      schedule: { cadence: { type: "everyNDays", n: 3 }, timeOfDay: "08:00", startDate: "2026-08-04" },
+      scheduleHistory: [
+        {
+          effectiveFrom: "2026-08-01",
+          cadence: { type: "everyNDays", n: 3 },
+          timeOfDay: "08:00",
+          dose: 250,
+          unit: "mg",
+        },
+      ],
+    });
+    for (let i = 1; i <= 20; i++) {
+      const key = `2026-08-${String(i).padStart(2, "0")}`;
+      expect(isDueToday(server, key), `server/client disagree on ${key}`).toBe(
+        isDueOnFor(client, dateOf(key)),
+      );
+    }
+  });
+
+  it("leaves a compound with no pauses exactly as it was", () => {
+    const server = serverOf();
+    for (const key of ["2026-08-01", "2026-08-04", "2026-08-07"]) {
+      expect(isDueToday(server, key)).toBe(true);
+    }
+    expect(isDueToday(server, "2026-08-05")).toBe(false);
+  });
+});
+
+/* ----------------------------------------------------- the stopped gate */
+
+describe("isDueToday — the stopped gate", () => {
+  /**
+   * The bug this pins, measured on a real account: four compounds were DELETED
+   * on 31 July and 7 August, and `protocol_compounds.is_active` stayed true
+   * because that one write never landed. For up to thirteen days the runner read
+   * the stale flag, announced them as due every morning and nagged for "missing"
+   * them every evening — while the app, which reads the schedule trail, had
+   * correctly shown nothing. The trail was in Postgres the whole time.
+   */
+  const deletedOn = (dateKey: string) => ({
+    effectiveFrom: dateKey,
+    cadence: { type: "daily" as const },
+    timeOfDay: "08:00",
+    dose: 250,
+    unit: "mg",
+    stopped: true,
+  });
+
+  const client = (history: unknown[]) =>
+    ({
+      id: "pc1",
+      name: "Testosterone E",
+      category: "anabolic",
+      method: "im",
+      dose: 250,
+      unit: "mg",
+      schedule: {
+        cadence: { type: "daily" },
+        timeOfDay: "08:00",
+        startDate: "2026-01-01",
+      },
+      rotationSites: [],
+      rotationIndex: 0,
+      scheduleHistory: history,
+    }) as unknown as StackCompound;
+
+  it("never announces a compound the trail says was deleted", () => {
+    expect(isDueToday(compound({ stopped: true }), "2026-01-05")).toBe(false);
+  });
+
+  it("cannot report a deleted compound as missed either", () => {
+    expect(dueUnlogged([compound({ stopped: true })], new Set(), "2026-01-05")).toEqual([]);
+  });
+
+  it("agrees with the client on every day around the delete", () => {
+    // The whole point: one predicate, two readers. `isStoppedOn` decides for the
+    // server exactly what `resolveScheduleOn` decides for the client.
+    const history = [
+      { ...deletedOn("2026-01-01"), stopped: false },
+      deletedOn("2026-01-10"),
+    ];
+    for (let i = 0; i < 20; i++) {
+      const d = new Date(2026, 0, 1 + i);
+      const key = `2026-01-${String(d.getDate()).padStart(2, "0")}`;
+      const server = compound({ stopped: isStoppedOn(history, key) });
+      expect(isDueToday(server, key), `server/client disagree on ${key}`).toBe(
+        isDueOnFor(client(history), dateOf(key)),
+      );
+    }
+  });
+
+  it("comes back when the compound is re-added", () => {
+    // A re-add records its own version and `recordScheduleVersion` drops every
+    // version dated after it, so the stop stops governing. If this ever fails,
+    // the gate is silencing compounds the user is actually running — the exact
+    // opposite failure, and a worse one.
+    const history = [deletedOn("2026-01-10"), { ...deletedOn("2026-01-15"), stopped: false }];
+    expect(isStoppedOn(history, "2026-01-12")).toBe(true);
+    expect(isStoppedOn(history, "2026-01-20")).toBe(false);
+    expect(isDueToday(compound({ stopped: isStoppedOn(history, "2026-01-20") }), "2026-01-20")).toBe(
+      true,
+    );
+  });
+
+  it("leaves a compound with no trail alone", () => {
+    // Every compound until one is edited. No versions must read as running.
+    expect(isStoppedOn([], "2026-01-05")).toBe(false);
+    expect(isDueToday(compound(), "2026-01-05")).toBe(true);
+  });
+
+  it("suppresses the low-stock nudge for a deleted compound's vials", () => {
+    const vial: LowStockItem = {
+      name: "Testosterone E",
+      stopped: true,
+      estEmptyDate: null,
+      daysToEmpty: 1,
+      dosesRemaining: 2,
+    };
+    expect(lowStock([vial], "2026-01-05", 7)).toEqual([]);
+    expect(lowStock([{ ...vial, stopped: false }], "2026-01-05", 7)).toHaveLength(1);
   });
 });
 

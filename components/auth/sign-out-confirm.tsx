@@ -6,13 +6,80 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { DANGER_ROW } from "@/lib/ui-presets";
 import { signOut } from "@/app/(app)/actions";
+import { releaseDeviceSubscription } from "@/lib/push/pushActions";
+
+/**
+ * Hand this device's push subscription back before the session goes.
+ *
+ * A `PushSubscription` belongs to the service-worker registration, not to the
+ * session, so signing out used to leave the row behind and the cron kept posting
+ * this user's doses to this phone — which the NEXT person to sign in on it then
+ * received. The endpoint is only knowable in the browser, so the release has to
+ * happen here, in the form action, before `signOut` clears the cookies that
+ * authorise the delete.
+ *
+ * Every step is best-effort and swallowed: no failure of the push plumbing may
+ * ever stop somebody signing out. Without a service worker (every non-PWA
+ * browser) there is nothing to release and this costs one `undefined` check.
+ */
+async function signOutThisDevice() {
+  try {
+    // Each step is TIME-BOXED separately, and both boxes are on the one control a
+    // user must always be able to reach. `getRegistration` waits on the service
+    // worker, which can sit pending forever if the worker is installing or
+    // wedged; the delete is a network round-trip. Boxing them together would let
+    // a slow lookup eat the delete's whole budget, which is the half that
+    // actually closes the leak.
+    const endpoint = await withTimeout(readEndpoint(), 2000);
+    if (endpoint) await withTimeout(releaseDeviceSubscription(endpoint), 3000);
+  } catch {
+    // Swallowed on purpose: no failure of the push plumbing may stop a sign-out.
+    // The cost of the timeout path is the row surviving — the bug this closes —
+    // and being unable to sign out at all is worse.
+  }
+  await signOut();
+}
+
+/**
+ * This device's push endpoint, or null. Deliberately does NOT unsubscribe the
+ * browser: the row is what makes a send reach this phone, and dropping it is
+ * exactly enough to stop the next account receiving the last one's doses.
+ * Revoking the browser subscription as well left the SAME user, signing back in
+ * a minute later, with an intent flag saying "notify me" and nothing to notify —
+ * silently, because only a tap in Settings ever calls `subscribe()` again.
+ * `usePushNotifications` re-registers what the browser still holds on mount.
+ */
+async function readEndpoint(): Promise<string | null> {
+  const reg = await navigator.serviceWorker?.getRegistration();
+  const sub = await reg?.pushManager?.getSubscription();
+  return sub?.endpoint ?? null;
+}
+
+/** Resolve to null if `p` hasn't settled in `ms`. Never rejects. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(null), ms);
+    p.then((v) => {
+      clearTimeout(t);
+      resolve(v);
+    }).catch(() => {
+      clearTimeout(t);
+      resolve(null);
+    });
+  });
+}
 
 /**
  * Sign out with a confirm step (Context/Feature Specs/08 → B6). Used on every
  * entry point — the shell header link and the Profile bottom button — so a tap
- * can never sign you out by accident. The actual sign-out is the `signOut` server
- * action (submitted from the Confirm button's form, so it still works without
- * client JS once the confirm is shown).
+ * can never sign you out by accident. The Confirm button submits
+ * `signOutThisDevice`, which releases this device's push subscription and then
+ * calls the `signOut` server action.
+ *
+ * The form action is a CLIENT function rather than the server action directly,
+ * because the push endpoint is only knowable in the browser. Nothing is lost by
+ * it: the confirm dialog is `useState` + a portal, so a no-JS session could never
+ * reach this button in the first place.
  *
  * `variant`:
  *  - `link`   — the quiet header text link.
@@ -93,7 +160,7 @@ export function SignOutConfirm({
                 >
                   Cancel
                 </button>
-                <form action={signOut} className="flex-1">
+                <form action={signOutThisDevice} className="flex-1">
                   <button
                     type="submit"
                     className="w-full rounded-xl bg-accent-destructive py-2.5 text-sm font-medium text-text-primary transition-opacity hover:opacity-90"

@@ -5,7 +5,668 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-13 (the /admin dashboard rebuild + the Glass Console + the arcade)
+Last updated: 2026-08-13 (the notification mirror's third missing gate; the read-only gate, the save offer, the beta grace; the /admin dashboard rebuild + the Glass Console + the arcade)
+
+## The push engine was announcing compounds deleted in July (2026-08-13, evening)
+
+Adrian's phone said "4 doses are still unlogged today" at 20:00 while his
+dashboard showed everything logged. Both were right, about different things.
+
+**What the data said.** Deleting a compound writes three facts — `archived` on
+the device, a `stopped` version in `protocol_compound_schedules`, and
+`is_active = false` on `protocol_compounds` — and all three are fire-and-forget.
+Two landed and the third did not: Nandrolone on 31 July, and Ipamorelin, Test E
+and Anastrozole on 7 August, seventeen minutes after he added them for the
+onboarding screenshots. Those rows stayed `is_active = true` for six to thirteen
+days, and every day of it the runner announced them and then nagged for missing
+them. They were reconciled at 20:32 that night — half an hour AFTER the push —
+when a hydration noticed the mismatch and re-pushed the archive.
+
+**The gate the mirror never had.** `lib/notifications/reminders.ts` is the
+server-side mirror of the client's `isDueOnFor`, and this was its THIRD missing
+gate after cycles (31 July) and pauses (7 August). The rule now: every gate in
+`isDueToday` runs the client's own function — `isOnCycle`, `isPausedOn`,
+`effectiveCadenceStart`, `cyclePauseContext`, `isStoppedOn`. Nothing in that
+file is reimplemented; what is left is the mapping from Postgres columns to
+those functions' arguments. `lib/protocol/scheduleVersions.ts` holds the
+version-in-force rule both sides read.
+
+**Three cold reviews, then a fourth on the fixes.** They found, in order: the
+`stopped` gate silencing a live compound after a BACK-DATED re-add (the client
+drops superseded versions with a local array filter; the push only ever
+upserted, so Postgres kept the stop as the newest row — and the hydration union
+then restored it to the device, un-fixing the client too); the mirror's pause
+handling being a boolean where the client has three behaviours, leaving the two
+grids offset on 7 of 11 days after any pause; sign-out leaving the push
+subscription so one user's reminders reached the next user's phone; and then two
+regressions in those fixes — `unsubscribe()` on sign-out silently killing push
+for the same user signing back in, and the supersede sweep deleting history when
+a stale device merely tapped Pause.
+
+**Decisions worth keeping.**
+- The sweep in `pushScheduleVersions` is OPT-IN (`supersede`). Only the three
+  paths that record a version ask for it. A pause re-pushes the trail — which is
+  how a failed sync heals — and never deletes.
+- The read-only gate is DIRECTIONAL on two functions now
+  (`setProtocolCompoundActive`, `pushScheduleVersions`), because each serves both
+  a delete and an add. `scripts/gate-audit.mjs` reports a third bucket for that,
+  and it moved out of `scratchpad/` — which is gitignored, so the doc in
+  `gate.ts` rested on a file nobody else had.
+- Sign-out deletes the subscription ROW but does not revoke the browser's
+  subscription; `usePushNotifications` re-registers on mount. Deleting the row is
+  what stops the leak; revoking the subscription is what broke the common case.
+
+**Measured against production.** Across 17 push-enabled accounts and 51 active
+compounds, over a fortnight, the new mirror changes nobody's due days. It differs
+only where it was broken. Replayed at the exact instant of the 20:00 push: four
+due before, none after, no push at all.
+
+## Billing, finished: one subscription, one offer, and read-only after (2026-08-13)
+
+Six steps on `wave3/billing-cancel`, all committed, **nothing pushed, `main`
+untouched**. tsc, eslint, 940 tests green throughout. Every one of them was
+verified by DRIVING the running app against real Stripe and the live database;
+the gates caught none of what follows.
+
+### 1. The URL stops saying "paywall", and the undo says what it gives you
+
+`?step=paywall` -> `?step=plans`, `?step=checkout` -> `?step=start`. Step VALUES
+only: `screens/paywall.tsx` and `PaywallScreen` are untouched, so it stayed a
+copy change rather than a refactor of thirty files. Every screen puts its own id
+in the address bar, so the id IS copy — it is on screen for the whole time
+somebody is deciding whether to pay, and "paywall" is the industry's word for
+the thing standing between a person and what they want.
+
+The retired ids still RESOLVE, through `resolveStepId`, used by the only two
+places that read a raw URL. Not politeness: a Stripe `return_url` written before
+this change carries `?step=checkout`, and a user coming back from a 3DS
+challenge they had already passed would have been dropped at the start of the
+flow.
+
+**The alias map is a `Map`, and that is load-bearing.** On an object literal
+`LEGACY["constructor"]` returns a function and `LEGACY["__proto__"]` returns
+`Object.prototype` — both truthy, both would have been handed back as a `StepId`
+and looked up in `SCREENS` as `undefined`. `?step=constructor` would have
+rendered a crash.
+
+**"Restart my trial" is gone** (Adrian: it is meaningless, nothing has stopped).
+Trial: "Keep Trackd after 19 Aug". Paid: "Keep my subscription". On a trial the
+date is the only thing that changes, and it is the day the two futures separate;
+on a paid plan there is no comparable cliff.
+
+### 2. ONE SUBSCRIPTION PER USER, EVER
+
+The root of the $69.99 defect. `startTrial`'s guard was a read of Stripe then a
+write to Stripe, serialised only by an idempotency key of
+`trial:${user}:${plan}` — **two plans are two keys**.
+
+Three changes:
+
+- **A per-user LEASE** across the whole check-and-create
+  (`lib/billing/trialLease.ts`, `supabase/billing/002`). One conditional UPDATE
+  on `billing_customers`, held across the Stripe round-trip, expiring after 90s.
+- **The live-subscription check widened** to `BILLABLE_STATUSES`, now exported
+  from `cancel.ts` and shared. It was a narrower literal three, so a `paused` or
+  `unpaid` subscription did not block a second trial, and both of those can
+  charge once Stripe resumes or retries them.
+- **A RECONCILE after every create.** Re-lists and, if more than one is live,
+  keeps the OLDEST and cancels the rest. Unreachable while the lease is
+  enforced; it is what closes the race in the window before `002` is applied.
+
+**Why not `pg_advisory_lock`.** It is the textbook answer and it cannot work
+over this stack. The session-scoped one is taken on one pooled PostgREST backend
+and released on another, so `pg_advisory_unlock` fails and the lock leaks
+PERMANENTLY. The transaction-scoped one releases when the RPC returns, which is
+before the Stripe call it exists to guard. The thing being protected is an HTTP
+round-trip to a third party and no Postgres lock spans one.
+
+`survivorOf` is pure and tested, and the property tested is not "it sorts" but
+that TWO RACERS REACH THE SAME VERDICT — if they disagree they cancel each
+other's subscription and the user ends up with none. `created` is
+second-resolution and the race is milliseconds wide, so ties are the norm; the
+id breaks them by code unit, not `localeCompare`, which is locale-dependent and
+could order two servers differently.
+
+### 3. The trial reminder's stamp stops being the user's to write, OR DELETE
+
+`notification_preferences.trial_reminder_sent_for` was writable by the account it
+is about. Reproduced live with a user JWT and the publishable key: clearing it
+(the reminder then fires every cron tick, ~96 pushes a day about somebody's
+money), setting it forward (the promised notice is silenced and they are charged
+with no warning), smuggling it inside a legitimate settings payload, INSERTING a
+row already stamped, and — the one nobody had spotted — **simply DELETING the
+row**, which silences it permanently on its own, because the claim is a
+conditional UPDATE and against a missing row it matches nothing and reports NO
+ERROR at all. One request, permanent, silent.
+
+`supabase/notifications/005` closes all three verbs: a BEFORE INSERT OR UPDATE
+trigger, plus `revoke delete`.
+
+**A trigger, not column grants.** Postgres has no "revoke one column": the only
+way to say it is to revoke the table privilege and re-grant an explicit list of
+every other column, which goes stale the moment a column is added. That trap has
+bitten `profiles` twice.
+
+**`current_user`, not `auth.role()`.** They agree for every request that reaches
+this table, but `current_user` is the role PostgREST actually switched into and
+it is a built-in that cannot be missing — `auth.role()` lives in the `auth`
+schema, and if it were ever absent the trigger would throw on EVERY write and
+take the settings screen and the reminder cron down together.
+
+### 4. One save offer, AFTER the cancellation, once ever
+
+Adrian's shape: "Cancel my trial" -> confirm naming the date -> a second pop-up
+offering EXTRA TIME -> done.
+
+**The order is the whole compliance story.** The cancellation is written to
+Stripe and `cancelSubscription` has returned before the offer is even looked up.
+Verified rather than asserted: `cancel_at_period_end` reads TRUE at Stripe in the
+same breath as the offer comes back. "No thanks", Escape, the backdrop, a killed
+tab and a dropped connection all leave the user cancelled, and the offer lookup
+lives in its own try/catch that can only affect one optional field.
+
+Two offers, because they are genuinely different:
+
+- **TRIAL:** seven more free days, and the cancellation STANDS.
+  `cancel_at_period_end` is deliberately untouched, so the copy can say "you
+  still won't be charged" and be completely true. Computed from the CURRENT
+  trial end rather than from today, so cancelling on day 1 buys a fourteen-day
+  trial instead of shortening it.
+- **PAID:** the next period free, and taking it DOES un-cancel, because the thing
+  they cancelled is the next period. There is no honest way around that, so the
+  dialog states it in the same sentence rather than a footnote. A 100%-off
+  `duration: once` coupon, so the invoice literally reads $0.00 and the renewal
+  date does not shift.
+
+Once ever, in Stripe CUSTOMER metadata (no migration). `shown_at` is written when
+the offer is PRESENTED and is what decides availability, so **a second
+cancellation goes straight through with no offer** even if the first was
+declined — re-offering every time is exactly the friction click-to-cancel exists
+to stop.
+
+Two guards over two windows: the metadata flag for coming back tomorrow, and a
+Stripe idempotency key for two taps in the same tick, which the flag cannot
+cover because metadata has no compare-and-swap.
+
+`claimExtraTime` refuses a caller who was never OFFERED it. A server action is a
+public HTTP endpoint, and "the dialog only appears when the offer is available"
+is a fact about the screen.
+
+### 5. Read-only when it lapses, and a pop-up with the real prices
+
+A lapsed trial or subscription does not lock anybody out. Every screen opens,
+every dose, photo, reading and block stays exactly where it was. What stops is
+ADDING. **Nothing is hidden and nothing is deleted** — this is health data
+somebody entered about their own body, and withholding it to apply commercial
+pressure is the one thing this product must never do. So the gate is a PROVIDER,
+not a third redirect in `app/(app)/layout.tsx`.
+
+**Two layers, and only one is enforcement.** The client provider + `useWriteAccess()`
+hook is what a user meets: it stops the action before a sheet opens, and it keeps
+the DEVICE STORE from being written for something that will never sync (the home
+and protocol domain writes localStorage first and mirrors afterwards). The server
+layer is the rule — thirteen write functions call `requireWriteAccess`.
+
+**Deletes are NOT gated**, and neither are settings. Removing data you put in is
+yours to do; a read-only user must still be able to fix their timezone and turn
+off notifications about a subscription they no longer have. `lib/billing/gate.ts`
+carries the full list of what is covered and what is not, with the reason for
+each — including why the protocol PLAN pushes are deliberately left ungated
+(they are shared with `hydrateProtocol` and `migrateDeviceState`, which REPLAY
+data the user already owns) while the DOSE pushes are gated (that path re-reads
+localStorage on every reconnect and upserts on a deterministic id, so a refused
+dose stays on the device and syncs the moment the account is entitled again).
+
+**It is OFF unless `BILLING_GATE_ENABLED=true`.** There are ~90 real accounts and
+NOT ONE has an `entitlements` row. Merging changes nothing until the switch is
+set, which is the point: a gate that goes live as a side effect of a deploy goes
+live at the wrong moment.
+
+`NO_ENTITLEMENT_LABEL`'s tripwire was disarmed in the same commit, as its comment
+had required for four days. It cannot be one string: gate off, the account
+genuinely has the whole product; gate on, "Pro" would be a lie on the one screen
+they opened to find out why they are locked out.
+
+`PlanRows` was extracted from the paywall and the paywall now renders it too, so
+the pop-up's prices cannot drift from the checkout's.
+
+### 6. What happens to the ninety people who were already here
+
+`COMP_EMAILS` free forever, everybody else **14 days** then the gate, and a
+one-time modal explaining it. Fourteen is double the trial deliberately: a notice
+shorter than a stranger's trial would read as worse treatment for having been
+early, and people who feel ambushed dispute charges.
+
+**`COMP_EMAILS` is deliberately not `FOUNDER_EMAILS`.** That list also opens
+`/admin` and is duplicated into an RLS policy in SQL. Adding a friend to a comp
+list must not hand them the admin dashboard.
+
+The backfill is a ROUTE, not a SQL file, because the comp list is TypeScript and
+Adrian is going to edit it — a SQL file would put the same addresses in two
+languages with no way for one to notice the other changed. Secured with the same
+Bearer `CRON_SECRET` as the cron, `?dry=1` writes nothing, idempotent, and it
+never shortens anybody's access.
+
+**The grace drives the trial banner and the day-5 push.** Adrian expected that to
+fall out of the entitlement machinery; it did not quite, because both read the
+`subscriptions` MIRROR and a graced account has no Stripe subscription at all.
+`graceAsTrial` describes it as the trial it functionally is, which costs both
+nothing. ⚠️ The `comp` test in there is load-bearing: a PAID subscriber's
+entitlement also carries an `active_until`, so without it their dashboard would
+have announced "Your free trial ends 13 Aug 2027".
+
+### What the drives actually showed
+
+| Drive | Result |
+|---|---|
+| NINE concurrent `startTrial` across three plans | 3 created, 2 cancelled by the reconcile, **1 live** |
+| five concurrent, same plan | 1 live, all five got the SAME subscription id |
+| yearly, abandon, back for monthly | yearly cancelled, monthly live |
+| an already-paying customer | `already-subscribed`, nothing created |
+| ten concurrent lease claims | exactly ONE winner, nine losers |
+| the stamp attack | 5 routes succeed today; recorded as the baseline for `005` |
+| cancel -> offer (trial) | cancelled at Stripe BEFORE the offer returned; +7 days; `cancel_at_period_end` still true |
+| cancel -> offer (paid) | one 100%-off discount, un-cancelled, renewal date unchanged, **next invoice total 0 USD** |
+| two concurrent claims | 7 days, not 14 |
+| a different user claiming | refused, nothing leaked, victim could still claim their own |
+| gate OFF | lapsed and entitled identical. Merging is inert. |
+| gate ON, lapsed | all ten screens 200, every write refused, `deleteWeight` still works, /billing reads "Read only" |
+| gate ON, entitled comp | completely unaffected, reads "Complimentary" |
+| beta backfill dry run | **90 accounts, 2 comp, 88 grace, 0 already entitled**, nothing written |
+| mid-grace / expired grace | writable / refused, dashboard 200 either way |
+| the banner on a grace | "Your free trial ends tomorrow." with no subscription row anywhere |
+
+### The cold review, 2026-08-13 — three adversarial agents, and they were right
+
+Security/payment, the gate + entitlements, and UI at 390x844. **Every finding
+below was found by EXECUTING** — driving real Stripe, the live database and a
+headless Chromium at `http://localhost` with the iPhone 14 safe-area insets
+injected. tsc, eslint and 949 tests were green throughout and caught none of it.
+Same lesson as every wave before.
+
+| Sev | Finding | Resolution |
+|---|---|---|
+| CRITICAL | **The pop-up was completely dead on a phone.** Radix sets an inline `pointer-events: none` on `<body>` while a sheet is open; the pop-up portals to `<body>` and inherited it. Measured: it paints correctly on top, `elementFromPoint` at every button returns the sheet underneath, ZERO hit-testable elements, real taps time out. Escape worked, and **a phone has no Escape key** — the only way out was to reload the app. | `pointer-events-auto` on all three backdrops. Re-measured: 5/5 reachable, a real tap closes it. |
+| CRITICAL | **A read-only user could log a dose that never reached the cloud, and was told the app would keep trying.** The tick was guarded; "Log today's dose" on the compound detail sheet was not. `localStorage` written, server refuses, toast says *"Still syncing. We'll keep trying."* It never syncs — not on reload, not on an `online` event, **not after they resubscribe**. | `handleTracked` (the COMMIT) is guarded as well as every entry point, so a route added later is covered by construction. |
+| HIGH | **The gate wrapped wrappers, not writes.** Every export of a `"use server"` module is a dispatchable action, so `startBlockAction` refused while `startBlock` wrote the row. It reached dose logging: `ensureActiveCycle` + `upsertProtocolCompound` + `upsertDoseLog` wrote what `pushDoseLog` refused. | The guard moved to the write itself: 34 functions across 13 modules. A 23-call sweep now refuses every one with nothing landing in any table. |
+| HIGH | **A paying subscriber was told they were on a free trial, with no cancel button.** `strongestEntitlement` preferred the longest row, so a 14-day beta grace outranked a fresh 7-day Stripe trial: `manageActionFor` saw `comp`, returned `{kind:"none"}`, and `/billing` read "Complimentary" with NO CANCEL CONTROL for somebody whose card was on file. | Ordered by KIND first, date second. A forever comp still wins; a real subscription beats a time-limited comp; the grace is weakest. Six tests. |
+| HIGH | **The day-5 push told the ninety beta accounts money was about to move.** *"Day 5 of 7 … and billing starts then."* They are on day 12 of 14, never had a trial, have no card, and will not be charged. It also contradicted the notice they were shown a fortnight earlier. | The grace gets its own words, in the same phrasing the notice and the pop-up use. |
+| HIGH | **The beta notice rebuilt the entire app shell on every dashboard load.** Server returned `null`, client returned a portal. Measured: `<main>` created TWICE instead of once, one hydration error naming the frame, for all ~90 accounts until dismissed. Larger than the trial-banner defect this branch already paid to fix. | Gated on mount via `useSyncExternalStore`. Re-measured: `<main>` created 0 times, 0 hydration errors. |
+| HIGH | **The focus trap let go for the whole 2s "Working…" window.** Both buttons go disabled, `button:not([disabled])` matches zero, the handler stood aside. Five Tabs walked out of a dialog still claiming `aria-modal="true"`. The exact defect the file's own comment says was fixed — it was fixed for the idle state only. | Focus goes to the dialog itself; the initial focus targets an ENABLED button. 0 escapes. |
+| HIGH | **The app refused to CLOSE a block and allowed DELETING one.** A lapsed user could destroy a block but not end it, and was left with one reading "running" forever. | `closeBlock`/`extendBlock` ungated: both wind down something that exists. |
+| HIGH | **The `?stock=` deep link walked past the guard**, and the save then blamed the user's connection. | Guarded on `canWrite` (not `guard()` — it runs during render). |
+| HIGH | **The save offer's week never reached the mirror or the entitlement.** Only the webhook writes them; a lost one meant read-only on the old date having been promised a week in writing. | `syncSubscription` immediately, the way `applyCancelFlag` already did. Driven with no webhook: Stripe, mirror and entitlement all agree. |
+| MEDIUM | **Two live billable subscriptions, through the `incomplete` blind spot.** Stripe keeps an `incomplete` subscription's first invoice payable ~23h; it was missing from `BILLABLE_STATUSES`, so neither the duplicate guard nor the pre-deletion sweep could see one. | `incomplete` is billable now, and `hasValidatedCard` treats it as "has not paid" so the abandoned-attempt retry still works. |
+| MEDIUM | **The retention week was claimable by somebody who was not leaving** — cancel, un-cancel, claim; or cancel, let it die, start a new one, claim. | `grantExtraTime` requires `cancel_at_period_end` at grant time. |
+| MEDIUM | **The host allowlist let two kinds of stranger through.** `192.168.evil.com` matched the private-IP prefix test (and was served over PLAINTEXT); `.endsWith(".vercel.app")` accepted anybody's deployment. The comment claimed an unrecognised host fell back to production. | `lib/billing/originAllowlist.ts`, pure and tested. ⚠️ **`fix/host-header-allowlist` has the `.vercel.app` hole too, where the value becomes a password-reset email link.** |
+| MEDIUM | **`gate.ts`'s coverage doc was wrong in BOTH directions** — seven documented-ungated functions were gated, four gated ones were in neither list, and a paragraph described the opposite of the code. | Rewritten from the code; `scratchpad/gate-audit.mjs` regenerates it by parsing function bodies. |
+| MEDIUM | **The backfill re-granted a fresh fortnight to everybody whose grace had expired**, on every re-run, and adding a friend to `COMP_EMAILS` afterwards did nothing for them. | Skips any account with a row; a comp-list member on a time-limited row is UPGRADED to no-expiry. |
+| MEDIUM | **The grace banner and push fired regardless of `BILLING_GATE_ENABLED`** while the notice explaining them required it — so the documented go-live order produced warnings with no explanation. | Both gated on the switch. |
+| MEDIUM | Fourteen refusals returned a bare `{ok:false}`, so the UI said "check your connection". | `readOnly: true` on the refusal; `AddStockSheet` reads it. |
+| LOW | Orphan Stripe customers: 15 concurrent calls made 15 customers, 14 orphans, on demand. | An idempotency key on the customer create. |
+| LOW | The live backfill returned every account's email address. | Names on the dry run only. |
+
+**What they could NOT break**, worth not re-reviewing: every read for a lapsed
+user (SSR byte-identical entitled vs lapsed on all ten screens except the plan
+label); every delete; every profile setting; cross-user attacks on all three
+billing actions; RLS on all four billing tables with a real JWT; the step alias
+resolver across 24 hostile inputs with server and client agreeing on every one;
+the age gate on the payment endpoint; timezone handling across +14, -11, Sydney
+and LA walked hour by hour over the final 84 hours; and the duplicate-subscription
+invariant under 15 concurrent calls.
+
+**A mistake of mine the drive caught**, worth keeping: un-gating two functions by
+exact-string replacement removed the FIRST match in the file rather than the
+named one — the guard text is identical everywhere — so it silently un-gated
+`startBlock` and left `closeBlock` gated, the exact inverse of the intent, inside
+the commit fixing it. Every gated function is now audited by PARSING each body.
+
+### Two defects the build itself produced, both found by EXECUTING
+
+Neither was caught by tsc, eslint or the tests. Same lesson as every spec before.
+
+- **The unapplied-migration branch tested the wrong error code.** `trialLease.ts`
+  caught Postgres's `42703`; the real answer is PostgREST's **`PGRST204`**, which
+  validates the request body against its schema cache and rejects before
+  Postgres sees the statement. So an unapplied `002` fell through to the generic
+  branch, returned "busy", retried five times over two seconds and then
+  **REFUSED TO START ANY TRIAL AT ALL** — the exact fail-closed outcome the
+  tolerance exists to prevent, on a payment path. (`runner.ts` already handled
+  both codes, which is how the right answer was found.)
+- **The alias map's prototype chain.** `?step=constructor` would have rendered a
+  crash. Caught by writing the test before the implementation.
+
+### Two traps worth keeping
+
+- **A portal renders NOTHING on the server.** `BetaLaunchNotice` and the
+  read-only pop-up are portals, so no amount of reading the served HTML can
+  confirm them. What CAN be confirmed over HTTP is the server's DECISION —
+  the component's reference is in the RSC payload, and is completely ABSENT once
+  the seen cookie is set. The rendering itself is a browser check.
+- **`server-only` is not a real package outside a Next bundle.** Sixteen suites
+  died with "Cannot find package 'server-only'" the moment `gate.ts` entered the
+  dose-sync import graph. Aliased to a stub in `vitest.config.ts` rather than
+  removed from the source: the marker fails the BUILD if a client component
+  imports a server module, which is what keeps the service-role key out of a
+  browser bundle.
+
+## The cold review of the billing branch (2026-08-12)
+
+Three adversarial agents against the running app, the live database and real
+Stripe test clocks. **Everything below was found by EXECUTING; tsc, eslint and
+908 tests were green throughout.** The same lesson as every wave before it.
+
+| Sev | Finding | Resolution |
+|---|---|---|
+| CRITICAL | **Cancel took the money anyway.** `limit(1)` off the mirror ordered by `updated_at`, while one user can hold two live trials (the duplicate guard keys on user AND plan). Cancel stopped the wrong one, returned `{ok:true}`, and the mirror write bumped `updated_at` on the row it had just cancelled — pinning `limit(1)` to the dead row, swapping the screen to "Restart my trial", and removing the only control that could have stopped it. Test clock to day 8: **$69.99 taken** from somebody who pressed Cancel and was told in writing they would not be charged. | Asks STRIPE, not the mirror, and cancels **all** billable subscriptions. `liveSubscriptionsForUser` is shared with the deletion path. |
+| CRITICAL | **The reminder fired AFTER the charge.** `trial_ends_at` is an instant; the stop condition compared day numbers. Every trial ends in the small hours of its final local day (7×24h from a signup at any time), so a 09:00 send on that day is after the money moved. Measured: a real encrypted push delivered **7h21m after the charge**, announcing it. | Compares against the instant. The banner too. |
+| CRITICAL | **Two overlapping cron ticks each sent one**, and **a failed stamp write reported `"sent"` and re-sent every tick** — ~96 notifications a day about somebody's money, while the cron's own JSON said everything was fine. | Claim-before-send: a conditional UPDATE whose row count decides who owns the send. A send that lands keeps the claim; one that does not hands it back. |
+| HIGH | **`cancelNowForUser` read the mirror** — the thing it exists to distrust. With one subscription mirrored and one not (a webhook in flight, or left `unattributed`), it returned a clean success with a live subscription still billing, clearing a deletion to cascade away the only row connecting it to a person. | Asks Stripe. And a WIDER status set than the cancel button uses: `paused` and `unpaid` can still take money. |
+| HIGH | **The page and the action selected different rows.** The page had no status filter, so a dead `incomplete_expired` row (which `startTrial` creates when it cancels an abandoned attempt) rendered "This one can't be changed from here. Email support" for a user with a perfectly live trial. | One filter, one ordering, soonest-ending first. |
+| HIGH | **A `reminder_time` inside quiet hours killed the reminder permanently.** 23:00 with quiet 22:00→08:00: every tick is either "too early" or "quiet hours" and the two gates never open together. Three trial days walked, zero pushes, no error anywhere. Reachable — the settings screen offers three unconstrained time inputs. | The trial reminder falls back to `quiet_end` when its time is unreachable. |
+| HIGH | **A trial-stamp failure knocked out the other three reminders**, because all four stamps went in one UPDATE — the exact outcome `004`'s header claims it avoids (true of the read, false of the write). | The trial stamp is its own write. |
+| MEDIUM | **The Stripe `return_url` trusted `X-Forwarded-Host`.** Poisoned to an arbitrary origin; Stripe validates nothing. | Allowlist, falling back to production. **The same pattern is still live in `forgot-password` and `login`, where it becomes an email link** — flagged, not fixed. |
+| MEDIUM | **Both new migration headers said "NOT YET APPLIED"** about migrations applied hours earlier — the same error this branch had just repaired for `grants/004`. | Corrected, with what was executed to verify them. |
+| MEDIUM | A stale trialing row could hide an imminent one (`updated_at` ordering) in the runner and on the dashboard. | Soonest-ending first, everywhere. |
+| LOW | `012`'s own VERIFY block expected `0` em dashes where a correct apply leaves `1` (the heading line it deliberately keeps), so anyone following it would see a failure and reach for the blanket replace the file forbids. | Corrected to expect 1, with why. |
+| HIGH | **The dismissed banner was painted on every load and then yanked.** `localStorage` cannot be read on the server, so `getServerSnapshot` returned null, the server rendered the banner every time, and the client removed it after hydration. Measured in headless Chrome: in the DOM 200ms, **painted ~166ms**, then content below jumped **806px → 738px**. Every dashboard load, for the whole window, about being charged. Both docstrings claimed the opposite. | A COOKIE, read in `cookies()` before the page is built, so a dismissed banner is never sent to the browser. The external store is gone. |
+| MEDIUM | **The dismiss X was a 24×24 target** with the `/billing` link 12px away. A real dispatched touch grid: 18px left of centre the LINK won and the user was navigated instead of closing the notice. | 44px, Apple's floor. Icon and optical spacing unchanged. |
+| MEDIUM | **The confirm dialog had no focus management** while claiming `aria-modal="true"`. Focus never entered it; six Tabs walked out onto the portal row, the back link and all four nav tabs; Escape left focus in the tab bar. For a screen-reader user `aria-modal` made it worse than silence. | Focus moves in, Tab cycles, focus returns to the trigger. |
+| MEDIUM | **The resume screen printed the same date three times** under two labels, to somebody re-reading it to be sure they had cancelled. The guard covered `cancel` only. | Suppressed for the whole trial case. |
+| LOW | **One account's dismissal hid another's banner** on a shared browser. **The first fix — matching the cookie by its `:${date}` suffix — did not fix it** (same date, any account), and the same driver caught that too. | The account is compared where the account is known; the pure module still knows nothing about accounts. Pinned by tests. |
+| LOW | Two clicks in the SAME TICK fired the action twice (`useTransition`'s `pending` has not committed yet), and a same-tick backdrop tap closed the dialog mid-flight so a failure had nowhere to render. Neither is thumb-reachable. | An `inFlight` ref guards both. |
+
+**⚠️ A TRAP WORTH KEEPING: the app does not hydrate on `http://127.0.0.1:3100`,
+only on `http://localhost:3100`.** No `__reactFiber$` key on any node, zero
+DevTools renderers, HMR socket fails. Every scratchpad driver points at
+`127.0.0.1`, which is fine for SSR and server-action assertions — those go over
+the same HTTP surface a browser uses — but **no conclusion about clicking,
+tapping or dismissing can be drawn through them.** It produced one false critical
+before it was caught.
+
+**What they could NOT break** (worth not re-reviewing): cross-user and anonymous
+calls to all three actions, with forged arguments, the victim's subscription id,
+the victim's customer id, tampered cookies, and from four different routes —
+every one refused, nothing leaked, the owner's subscription untouched. RLS denied
+every billing write with a real JWT including a user's own `cancel_at_period_end`.
+Cancel+resume fired together six times and five concurrent cancels: Stripe and
+the mirror agreed every time. Cancelling never revoked access. `trial_will_end`
+granted nothing to a card-less trial at day 0 or day 4 on a test clock. Timezone
+handling across +14, −11, +05:45 and +10:30, and DST transitions in four zones,
+all correct.
+
+On the UI side: the modal really is above the nav and the FAB (`elementFromPoint`
+at the centre of both returns the backdrop); `prefers-reduced-motion` genuinely
+wins (`animationName: none` on dialog AND backdrop); nothing on `/billing` sits
+under the bottom nav (the page ends 266px clear of the FAB); every App-card row
+on Profile measures 48px with the caret at 354 for both `Free trial` and
+`Complimentary`; tap heights are 44px and 46px; the error path keeps the dialog
+open, shows the message and re-enables both buttons; and the module-level
+`sessionDismissed` never leaked across users on the server.
+
+## The cancel control, and the trial notice on screen (BUILT, 2026-08-12)
+
+Three surfaces promised "cancel any time before then" and nothing in the app
+could do it. `/billing` now can.
+
+### In-app, not Stripe's hosted portal (Adrian's call)
+
+The portal was offered and rejected in favour of a narrow in-app control. It
+never leaves the PWA, the copy at the moment that most needs it is ours, and the
+capability is exactly two fields wide. The portal remains the right answer for
+**card updates and invoices**, which is a different job and is still owed.
+
+### The shape
+
+- **`/billing`**, its own route beside `/notifications`, opened from Profile's
+  Billing row. States access, price, trial end, renewal date.
+- **`cancelSubscription` / `resumeSubscription`** (`app/(app)/billing/actions.ts`)
+  set `cancel_at_period_end` and nothing else. **Neither takes an argument**: the
+  subscription is resolved from the verified session every time, because a server
+  action is a public HTTP endpoint and an id parameter would be an
+  "cancel anyone's subscription" endpoint with a reasonable-looking signature.
+  The READ goes through the session client so RLS refuses another user's row
+  independently of the scoping; the service client appears only for the mirror
+  write.
+- **Cancelling never revokes.** `entitlements` is not written by this path at
+  all: `active_until` already holds the date and `isEntitlementActive` lets the
+  clock do the work. Cancel on day 3 of a paid year, keep the year.
+- **`manageActionFor`** (`lib/billing/manage.ts`, pure) decides which control to
+  render from the ENTITLEMENT's source, not the subscription's status. A comp
+  gets nothing (there is nothing to cancel), Apple/Google get pointed at the
+  store, and a comp held beside a live Stripe row is still a comp.
+- **`/billing` cannot start billing.** No upgrade control, no link to
+  `/onboarding`, by construction. A user with no subscription is told what they
+  are on and nothing else.
+- **No subtitle under the title** (Adrian, 2026-08-12). It read "Your plan and
+  when it renews." and the Plan card directly beneath already states the plan and
+  the date, so the line was a caption for something that captions itself.
+  `/notifications` keeps its subtitle because it introduces a screen of switches
+  whose purpose is not self-evident; this one does not.
+
+### The Stripe portal, for the job we did NOT rebuild
+
+`openBillingPortal` opens Stripe's Customer Portal for **payment method and
+invoices only**. Cancelling stays in the app because the copy at that moment
+matters; updating a card means handling card details, which is exactly the thing
+to hand to Stripe and never touch, and a `past_due` user previously had no way to
+fix a declining card from inside the app at all.
+
+- **Returns a URL rather than redirecting.** A `redirect()` inside a server
+  action throws a control-flow signal that a caller's `try/catch` swallows, and
+  the failure mode is a button that silently does nothing.
+- **`siteOrigin()` reads the request headers**, so a LAN dev server and a preview
+  deploy return to themselves rather than bouncing a tester to production.
+- The row is hidden unless the user actually has a `billing_customers` row, and
+  hidden for an Apple/Google subscription, where Stripe holds no card.
+- ⚠️ The account's DEFAULT portal configuration also enables
+  `subscription_cancel`, so a user who goes looking finds a second cancel button
+  in Stripe's wording. Harmless (the webhook syncs either way) but it is two
+  paths to one outcome. Disabling that feature on the portal configuration is a
+  dashboard change, not a code change. Carried in `next-tasks.md`.
+
+**Verified against real Stripe:** a real portal session URL was created for the
+owner and resolved 200; the attacker got "There's nothing to manage on this
+account yet." with no customer id leaked; anonymous got "You need to be signed
+in."; and a user with no Stripe customer never sees the row.
+
+### `profiles.tier` is no longer read, and the beta label is gone
+
+Profile hardcoded `"Beta · Pro"` from `profiles.tier` while `/billing` read the
+entitlement, so one user could be told two different things on two screens.
+`planLabelFor` (pure, in `manage.ts`) is now the single answer both ask for, and
+it reads the ENTITLEMENT's source, so a founder who also subscribes reads as
+`Complimentary` rather than being described by the subscription.
+
+The "Beta ·" prefix is gone (Adrian, 2026-08-12: "we won't be in beta by then").
+
+⚠️ **`NO_ENTITLEMENT_LABEL` is `"Pro"` and that is true only today.** Nothing in
+the app reads `entitlements`, so all 106 accounts genuinely have the whole
+product; saying "Free" would be the app lying about what it is giving away.
+**Whoever wires `hasProAccess` into `app/(app)/layout.tsx` must change that
+constant in the same commit**, or every locked-out user sees a screen telling
+them they are on Pro. The comment beside it says so.
+
+### Deleting an account must cancel the subscription FIRST
+
+`lib/billing/cancel.ts` holds the shared path. `applyCancelFlag` is what the user
+action uses; `cancelNowForUser` is the immediate cancel a deletion needs and it
+**throws rather than returning** on any failure, because a deletion must be able
+to stop.
+
+The danger it exists for: `billing_customers`, `subscriptions` and `entitlements`
+all cascade from `profiles`, so deleting an account erases the only mapping from
+a Stripe customer back to a user **while the Stripe subscription keeps billing**,
+and every later webhook is permanently `unattributed`. There is no self-serve
+deletion today (it is a `mailto:` to support), so this currently binds whoever
+processes that email by hand.
+
+### The trial notice on screen
+
+The push reaches 17 of 106 accounts. The same promise is now stated on Home for
+everyone, in the trial's final stretch, dismissible per-trial.
+
+**Audience: everyone, not only users who cannot be pushed.** Adrian raised the
+conversion worry — reminding people invites them to leave. The answer taken was
+that the wording is the lever, not the silence: the people most likely to cancel
+when reminded are the same people most likely to DISPUTE the charge when not,
+and a dispute rate is what closes a payment processor account. Reminding
+converts a chargeback into a voluntary non-purchase.
+
+**The copy is ONE sentence.** Two drafts died to get there, both cut by Adrian on
+sight the same day:
+
+1. `"Your free trial ends 15 Aug. Everything you've logged stays."` — reassurance
+   nobody asked for. Softening a billing notice is how a billing notice stops
+   being believed.
+2. `"Your free trial ends 15 Aug. Billing starts then."` — the app explaining its
+   own warning. "Just your free trial ends whenever it ends. A warning."
+
+It now reads `"Your free trial ends 15 Aug."`, and "tomorrow" / "today" on the
+last two days. `/billing` is one tap away and states the money in full. The word
+"cancel" is on neither surface, and `trialReminder.test.ts` pins the whole shape:
+one sentence, no tail, no "billing", no "stays", no em dash.
+
+`trialNoticeFor` lives in `lib/notifications/trialReminder.ts` beside the push
+and shares `trialReminderDateKey` with it, so the two surfaces cannot compute
+different days for the same promise.
+
+### Verified by executing
+
+Real Stripe trials, a real signed-in session against a dev server, the real
+server actions invoked over their real HTTP surface (the `next-action` header).
+
+- `/billing` renders **"Free trial · $69.99 USD / year · Trial ends 19 Aug
+  2026 · Cancel my trial"**. Anonymous → **307 `/login`**. No `/onboarding` link.
+- Cancel → **Stripe `cancel_at_period_end = true`**, mirror updated, and the
+  entitlement **still active with its date intact**. The page flips to "Ends on
+  … / Restart my trial". Resume → back to false.
+- **A different signed-in user calling `cancelSubscription` left the owner's
+  subscription untouched**, returned `{"ok":false,"error":"There's no active
+  subscription on this account."}`, and leaked neither the subscription id nor
+  the customer id. Anonymous got `"You need to be signed in."`.
+- **The banner window, walked day by day**: silent at 7, 4 and 3 days out; at 2
+  days "ends 14 Aug", at 1 "ends tomorrow", at 0 "ends today", silent at -1.
+  Silent for an already-cancelled trial inside the window. Links to `/billing`.
+
+### One trap worth keeping
+
+**A test account cannot reach `/billing` without passing the 18+ gate first**,
+and since `grants/004` those columns are service-only — so a harness must write
+`is_18_plus` / `tos_accepted_at` / `date_of_birth` with the SERVICE ROLE. The
+first run of this driver reported the page as broken when it had simply been
+redirected to `/welcome`.
+
+Server action ids are addressable for driving: Turbopack stamps them into the
+client chunk as `__next_internal_action_entry_do_not_use__ [{"<id>":{"name":…}}]`.
+
+## The trial reminder (BUILT, 2026-08-12)
+
+## The trial reminder (BUILT, 2026-08-12)
+
+The paywall timeline ("Day 5 · Reminder") and the checkout disclosure ("We'll
+remind you on day 5") both promised a notification out loud and nothing sent one.
+It sends now.
+
+### The shape, and why it is not the obvious one
+
+**Stripe's `trial_will_end` is a SIGNAL, not the schedule.** It fires three days
+before the trial ends, which on a 7-day trial is DAY 4, and both screens promise
+day 5. So the handler does one thing: `syncSubscription` on the re-read live
+object, which refreshes `subscriptions.trial_ends_at`. It sends nothing.
+
+`lib/notifications/trialReminder.ts` then decides the day from that stored end
+date, and the existing reminder cron sends it — after the user's `reminder_time`,
+outside their quiet hours, in `profiles.timezone`.
+
+**It counts BACK from the trial end, not forward from the start**
+(`TRIAL_REMINDER_LEAD_DAYS = TRIAL_DAYS - REMINDER_DAY`, derived). The sender
+never sees the start day; all it holds is the end. Counting back is also the more
+honest of the two if a trial is ever not exactly `TRIAL_DAYS` long (a coupon, a
+support extension): "day 5" would then describe a schedule that no longer exists,
+while "two days before you are charged" is still exactly what the screen said.
+
+### The decisions worth not re-deriving
+
+- **It fires ON OR AFTER the promised day, never after the charge.** An exact
+  `today === reminderDate` rule turns any missed cron tick — a deploy, an outage
+  — into no warning at all before money moves. A late warning is worth a great
+  deal; a missed one is the thing the screen promised would not happen.
+- **The stamp is the reminder's DATE, not the day it was sent**, which is why the
+  column is `trial_reminder_sent_for` and not `last_trial_reminder_on`. A
+  catch-up send on day 6 stamps DAY 5, so the next tick sees its own work. It
+  also means a returning customer's second trial has a different reminder date
+  and correctly gets its own reminder.
+- **Somebody who has already cancelled gets nothing.** The promise is "before
+  anything changes", and for them nothing is about to.
+- **It is not behind the three content toggles** (`dose_reminders_on` and the
+  rest). Those are preferences about protocol nudges; turning off dose reminders
+  is not consent to be charged without warning. It IS behind the master switch
+  and quiet hours.
+- **The copy says nothing about cancelling and quotes no price.** There is no
+  cancel control in the app to send anyone to (see `next-tasks.md` — this is now
+  the largest unkept promise left), and the runner holds the subscription mirror,
+  not the plan's amount, so any figure here could contradict checkout.
+
+### Two defects the build itself produced, both found by executing
+
+Neither was caught by tsc, eslint or the tests. Same lesson as every spec before.
+
+- **A stamp was advanced on the TOTAL send count**, so a message that reached no
+  device was recorded as delivered. Pre-existing shape, and it never mattered
+  while all three messages were protocol nudges that come round again tomorrow.
+  The trial reminder has no tomorrow. Each stamp is now gated on its own
+  message's delivery, via `SendReport.byTag`.
+- **A composed-but-undelivered reminder reported `undefined`** — identical, from
+  outside, to a user with no trial. Surfaced by pointing the real runner at a
+  push endpoint returning 410. It reports `send-failed` now, and does not stamp,
+  so the next tick retries.
+
+### Verified by executing, against the live database and real Stripe
+
+A local HTTPS endpoint stood in for a push service, so the payloads below were
+really encrypted by `web-push`, really delivered over the wire, and decrypted
+with the subscription's own keys rather than asserted from the composer.
+
+- **The real payload**, off the wire: `{"title":"Your free trial ends soon",`
+  `"body":"Day 5 of 7. Your trial ends on 15 Aug, and billing starts then.",`
+  `"url":"/profile","tag":"trackd-trial-ending"}`
+- **Two users, one subscription, different promised days.** A trial ending
+  14 Aug 15:39 UTC is the 15th in Sydney and the 14th in Los Angeles: Sydney was
+  reminded on 13 Aug and told "15 Aug", LA on 12 Aug and told "14 Aug".
+- Sends **once**: every later tick that day, and on the 14th and 15th, returned
+  `already-sent`. Silent on the 12th (`too-early`) and the 16th (`trial-over`).
+- **The catch-up holds**: nothing ran on the 13th, the 14th still warned, and it
+  stamped 13 Aug so the 15th did not fire again.
+- **A dead endpoint does not stamp** — `sent: 0`, `send-failed`, stamp still null.
+- **`trial_will_end` through the real route**: a mirror deliberately seeded with
+  `1999-01-01` was refreshed to the true trial end; a replay of the same event id
+  returned `duplicate`; a forged signature returned 400.
+- **The whole chain in one run**: real Stripe trial with an attached card →
+  signed `trial_will_end` → the real webhook route created the mirror from
+  nothing → the real secured cron at `/api/notifications/run` picked the user up
+  and reached the reminder decision. Unauthorised cron still 401s.
+
+### Known and accepted
+
+- ~~**A trialing user with notifications off is never reminded.**~~ **CLOSED the
+  same day** by the in-app notice on Home (see the section above). The push still
+  only reaches opted-in users; the banner reaches everyone.
+- **`supabase/notifications/004` is unapplied**, so it withholds today and says
+  so in the cron's own output. Deliberately read in its own query so the
+  unapplied state cannot take quiet hours and the other three stamps down with it.
+
+## `grants/004` was ALREADY APPLIED — the header was stale (2026-08-12)
+
+The file still said "NOT YET APPLIED" and `next-tasks.md` carried it as owed. It
+is applied. Proven by running the attack: all four gate columns 42501 to a real
+user JWT with the publishable key, `sex` still 200. Then all 23 `profiles`
+columns swept against the enumerated grants in `003` + `004` — 18 writable, 5
+denied, zero mismatches either way.
+
+**The rule this re-earns:** a hand-applied migration's file header is a claim,
+never a record. Two sessions carried this as outstanding work that was already
+done.
 
 ## /admin — the founder dashboard, rebuilt (BUILT, 2026-08-13)
 
@@ -302,10 +963,10 @@ fade mask in four configurations.
   no such requirement and is the one to check a preview with.
 - **The floating "stripe" pill over the CTA is `elements-inner-easel`**, Stripe's
   test-mode indicator. Only renders for a `pk_test_` key.
-- **The trial reminder is still a promise nothing keeps.** The paywall says "Day
-  5 · Reminder" out loud. Stripe's `trial_will_end` fires on day 4 and is
-  recorded; whatever sends the notification must honour the day the SCREEN
-  promised, not the day the webhook arrived.
+- ~~**The trial reminder is still a promise nothing keeps.**~~ **BUILT
+  2026-08-12** — see the section at the top of this file. `trial_will_end` now
+  refreshes the stored trial end and sends nothing; the existing reminder cron
+  fires on the day the SCREEN promised.
 
 ## Spec w2b-14 — account before the paywall (BUILT, 2026-08-07)
 

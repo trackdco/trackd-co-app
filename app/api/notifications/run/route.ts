@@ -71,12 +71,22 @@ async function handle(req: Request) {
   }
 
   let sent = 0;
-  const results: Array<{ id: string; sent: number; reason?: string }> = [];
+  const results: Array<{
+    id: string;
+    sent: number;
+    reason?: string;
+    trialReminder?: string;
+  }> = [];
   for (const id of targetIds) {
     try {
       const r = await runForUser(supabase, id, { force: false });
       sent += r.sent;
-      results.push({ id, sent: r.sent, reason: r.reason });
+      // `trialReminder` rides along because this response is the ONLY output the
+      // cron has, and the trial reminder is a promise two screens make out loud.
+      // Without it, "nobody was reminded" and "the reminder is broken" look
+      // identical from outside — which is how the promise went unkept for four
+      // days without anything noticing.
+      results.push({ id, sent: r.sent, reason: r.reason, trialReminder: r.trialReminder });
     } catch (e) {
       console.error("[cron] runForUser failed", id, e);
       results.push({ id, sent: 0, reason: "error" });

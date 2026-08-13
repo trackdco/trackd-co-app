@@ -225,7 +225,7 @@ function PaymentForm({
           // The CARD screen, not the paywall. Payment moved to its own step,
           // and coming back to the price list someone has just paid on is
           // precisely what the spec forbids.
-          return_url: `${window.location.origin}/onboarding?step=checkout`,
+          return_url: `${window.location.origin}/onboarding?step=start`,
         },
         // Keep the user on THIS page wherever the bank allows it. The spec's
         // rule is that they never leave for a stripe.com domain, and most 3DS

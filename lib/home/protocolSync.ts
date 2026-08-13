@@ -64,8 +64,9 @@ import {
   doseLogRowId,
   recoverLoggedDay,
 } from "@/lib/home/doseLogIds"
+import { canWriteData } from "@/lib/billing/gate"
 
-type Ok = { ok: boolean; skipped?: boolean }
+type Ok = { ok: boolean; skipped?: boolean; /** Refused by the read-only gate, not by a network or a database. */ readOnly?: boolean }
 
 async function ctx() {
   const supabase = await createClient()
@@ -109,23 +110,41 @@ function resolvePcId(userId: string, clientId: string): string {
  *     de-dupes by name).
  *
  * Prefers an ACTIVE row, then the most recently updated, so a leftover row from
- * an older cycle can never shadow the live one. Returns null when the user
- * genuinely has no row for this compound — a real answer, not a failure.
+ * an older cycle can never shadow the live one.
+ *
+ * ## `{ id: null }` IS TWO DIFFERENT ANSWERS, AND THEY ARE REPORTED APART
+ *
+ * "This user has no row for this compound" is a real answer — a custom compound
+ * that never needed one, say — and the callers correctly treat it as `skipped`,
+ * which `trackSync` does not count as a failure.
+ *
+ * "The lookup itself failed" is not that. It used to return the same bare null,
+ * so a delete that could not even find its row reported `{ ok: true, skipped:
+ * true }` — a silent success, no failure notice, nothing to retry — while
+ * Postgres kept the compound ACTIVE and the push runner went on announcing it as
+ * due. `failed` separates them, so a lookup that fell over is surfaced as the
+ * failure it is.
  */
 async function findProtocolCompoundId(
   cx: { supabase: Awaited<ReturnType<typeof createClient>>; userId: string },
   clientId: string,
   name: string | null
-): Promise<string | null> {
+): Promise<{ id: string | null; failed: boolean }> {
   const derived = resolvePcId(cx.userId, clientId)
-  const { data: byId } = await cx.supabase
+  const { data: byId, error: byIdError } = await cx.supabase
     .from("protocol_compounds")
     .select("id")
     .eq("id", derived)
     .eq("user_id", cx.userId)
     .maybeSingle()
-  if (byId?.id) return byId.id as string
-  if (!name) return null
+  if (byId?.id) return { id: byId.id as string, failed: false }
+  // An error here does NOT abandon the search — the name lookup below can still
+  // resolve the row, and returning early would turn a transient failure on the
+  // cheap read into a failed archive that the old code would have completed.
+  // It is remembered instead: if the name lookup then finds nothing, "nothing"
+  // is not a fact we actually established.
+  if (byIdError) console.error("findProtocolCompoundId failed", byIdError)
+  if (!name) return { id: null, failed: Boolean(byIdError) }
 
   const { data: rows, error } = await cx.supabase
     .from("protocol_compounds")
@@ -133,7 +152,7 @@ async function findProtocolCompoundId(
     .eq("user_id", cx.userId)
   if (error) {
     console.error("findProtocolCompoundId failed", error)
-    return null
+    return { id: null, failed: true }
   }
   const target = name.trim().toLowerCase()
   type Row = {
@@ -148,7 +167,9 @@ async function findProtocolCompoundId(
     const rowName = r.compounds?.name ?? r.custom_name ?? ""
     return rowName.trim().toLowerCase() === target
   })
-  if (matches.length === 0) return null
+  // Nothing matched — a real answer, UNLESS the cheap lookup above errored, in
+  // which case the row it would have found is simply unknown to us.
+  if (matches.length === 0) return { id: null, failed: Boolean(byIdError) }
   // Active first, then the OLDEST row — deliberately not the most recently
   // updated. The dose-log id is derived from whichever row wins here, so a rank
   // that moves over time moves the id with it: touching the losing row would
@@ -159,7 +180,10 @@ async function findProtocolCompoundId(
   const rank = (r: Row) =>
     (r.is_active === false ? 0 : 1) * 1e15 -
     (Date.parse((r.created_at ?? r.updated_at ?? "") as string) || 0)
-  return matches.reduce((best, r) => (rank(r) > rank(best) ? r : best)).id
+  return {
+    id: matches.reduce((best, r) => (rank(r) > rank(best) ? r : best)).id,
+    failed: false,
+  }
 }
 
 /** Generous, and only here so a runaway paste cannot bloat a row. */
@@ -269,6 +293,15 @@ export async function resolveProtocolCompoundIds(
 export async function pushProtocolCompound(
   c: StackCompound,
 ): Promise<Ok & { protocolCompoundId?: string }> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, readOnly: true };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -338,6 +371,15 @@ export async function pushProtocolBatch(
   stack: StackCompound[],
   doseEntries: BatchDoseEntry[]
 ): Promise<{ ok: boolean; compounds: number; doseLogs: number; skippedCustom: number }> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, compounds: 0, doseLogs: 0, skippedCustom: 0 };
   const empty = { ok: false, compounds: 0, doseLogs: 0, skippedCustom: 0 }
   try {
     const cx = await ctx()
@@ -473,7 +515,12 @@ export async function archiveProtocolCompound(
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    const pcId = await findProtocolCompoundId(cx, clientId, name)
+    const { id: pcId, failed } = await findProtocolCompoundId(cx, clientId, name)
+    // A lookup that FELL OVER is a failure, not a compound with no row. Reporting
+    // it as `skipped` told `trackSync` everything was fine, so the delete showed
+    // no notice and left Postgres holding the compound active — see
+    // `findProtocolCompoundId`.
+    if (failed) return { ok: false }
     if (!pcId) return { ok: true, skipped: true }
     const saved = await setProtocolCompoundActive(pcId, !archived)
     return { ok: saved !== null }
@@ -502,10 +549,20 @@ export async function pushCompoundPause(
   name: string | null,
   pause: { id: string; startedOn: string; endsOn: string | null; groupId?: string | null }
 ): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, readOnly: true };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    const pcId = await findProtocolCompoundId(cx, clientCompoundId, name)
+    const { id: pcId, failed } = await findProtocolCompoundId(cx, clientCompoundId, name)
+    if (failed) return { ok: false }
     if (!pcId) return { ok: true, skipped: true }
     return await upsertPause({
       id: pause.id,
@@ -523,6 +580,15 @@ export async function pushCompoundPause(
 /** End a pause on `endsOn` — the LAST paused day, so resuming today passes
  *  yesterday. An UPDATE, never a delete: the break happened. */
 export async function pushPauseEnd(id: string, endsOn: string): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, readOnly: true };
   return await endPause(id, endsOn)
 }
 
@@ -537,6 +603,15 @@ export async function pushPauseGroupEnd(
   groupId: string,
   endsOn: string
 ): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // See `lib/billing/gate.ts` for what is deliberately NOT gated.
+  if (!(await canWriteData())) return { ok: false, readOnly: true };
   return await endPauseGroup(groupId, endsOn)
 }
 
@@ -904,6 +979,9 @@ export async function pushProtocolDoseLog(
    *  and seeds the row id exactly as it did then. */
   slot = 0
 ): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
+  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
+  if (!(await canWriteData())) return { ok: false, readOnly: true }
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -936,19 +1014,32 @@ export async function pushProtocolDoseLog(
       // A genuine skip still exists and is still correct — a CUSTOM compound has no
       // `protocol_compounds` row at all and its logs stay device-local. That is why
       // this resolves by name first and only then gives up.
-      const resolved = compoundName
+      // ⚠️ AND THE SAME IS TRUE OF THIS LOOKUP. The rule above was applied to the
+      // by-derived-id read and stopped there: a name lookup that TIMED OUT
+      // returned the same empty answer as a custom compound with no row, so the
+      // dose fell through to `skipped` and the user saw a green tick for a dose
+      // that only ever existed on the device. `repushDoseLogs` retries on the
+      // `online` event alone, which never fires — the device never went offline —
+      // so the next reinstall loses it.
+      const byName = compoundName
         ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
-        : null
+        : { id: null, failed: false }
+      if (byName.failed) return { ok: false }
+      const resolved = byName.id
       if (resolved) {
         pcId = resolved
-        pc = (
-          await cx.supabase
-            .from("protocol_compounds")
-            .select("dose_unit, dose_amount")
-            .eq("id", pcId)
-            .eq("user_id", cx.userId)
-            .maybeSingle()
-        ).data
+        // Third read, same rule: an error here is not "no such compound" either.
+        const reread = await cx.supabase
+          .from("protocol_compounds")
+          .select("dose_unit, dose_amount")
+          .eq("id", pcId)
+          .eq("user_id", cx.userId)
+          .maybeSingle()
+        if (reread.error) {
+          console.error("pushProtocolDoseLog: compound re-read failed", reread.error)
+          return { ok: false }
+        }
+        pc = reread.data
       }
     }
     if (!pc) return { ok: false, skipped: true } // custom / unmigrated → skip
@@ -1080,10 +1171,16 @@ export async function deleteProtocolDoseLog(
     // first, so the common case still costs one read. Falling back to the derived
     // id matters for a compound whose row is gone entirely: a dose logged under it
     // before the deletion is still keyed that way and must still be removable.
-    const pcId =
-      (compoundName
-        ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
-        : null) ?? resolvePcId(cx.userId, clientCompoundId)
+    const found = compoundName
+      ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
+      : { id: null, failed: false }
+    // A lookup that FELL OVER must not fall back to the derived id: if the two
+    // have drifted, the delete then targets a row that does not exist, reports
+    // `skipped`, and the tombstone alone holds the un-log. That survives until a
+    // reinstall drops tombstones and the dose reappears. The fourth and last of
+    // these call sites to learn the difference.
+    if (found.failed) return { ok: false }
+    const pcId = found.id ?? resolvePcId(cx.userId, clientCompoundId)
     const dlId = doseLogRowId(cx.userId, dateKey, pcId, slot)
     const res = await deleteDoseLog(dlId)
     // A delete that matched NOTHING is not a delete. Reporting it as one let the
@@ -1137,6 +1234,119 @@ function pickCycleColumns(v: Partial<CycleColumns>): Partial<CycleColumns> {
   return out as Partial<CycleColumns>
 }
 
+/**
+ * Today's UTC date key, optionally shifted by whole days.
+ *
+ * UTC because the server has no other clock, and the only caller wants an upper
+ * BOUND on a device-stamped day — one day of slack covers every zone ahead of
+ * UTC without letting a far-future date through.
+ */
+function utcDayKey(shiftDays = 0): string {
+  return new Date(Date.now() + shiftDays * 86_400_000).toISOString().slice(0, 10)
+}
+
+/**
+ * The version with the LATEST `effective_from` — the client's own supersede
+ * boundary, and the one that says whether this trail ends in a delete.
+ *
+ * By date rather than by array position. The trail is sorted everywhere it is
+ * built today, and both readers below would be quietly wrong if that ever
+ * stopped being true: one would keep the wrong rows, the other would re-gate a
+ * delete it is meant to let through. `YYYY-MM-DD` compares as calendar order.
+ */
+function newestVersion<T extends { effectiveFrom: string }>(
+  versions: readonly T[]
+): T | null {
+  let newest: T | null = null
+  for (const v of versions) {
+    if (!newest || v.effectiveFrom > newest.effectiveFrom) newest = v
+  }
+  return newest
+}
+
+/**
+ * REMOVE THE VERSIONS THIS PUSH SUPERSEDED, because the client's supersede is a
+ * local array filter and Postgres has never heard of it.
+ *
+ * `recordScheduleVersion` drops every version dated AFTER the one it records —
+ * "effective from D" means this is the rule from D forward, so anything already
+ * recorded after D is a rule the user has just replaced. The push then upserts
+ * the surviving trail. Upserts alone cannot express a removal, so the dropped
+ * rows lived on in Postgres forever.
+ *
+ * ## The bug that made this load-bearing
+ *
+ * Found by a cold review of the `stopped` gate, and it is a genuine hole the gate
+ * would otherwise have opened. Delete a compound on 1 June (a stop is written at
+ * 1 June), then re-add it and BACK-DATE the start to 30 March — which the add
+ * sheet explicitly invites, so you can log the doses you already took. Locally the
+ * stop is dropped and `lib/home/doseIntegrity.test.ts` pins that. In Postgres it
+ * survived as the latest row, so `isStoppedOn` answered "stopped" forever: the app
+ * showed the compound due every day and every push about it went silent — dose
+ * reminder, missed nudge and low stock alike — with nothing to notice.
+ *
+ * It also un-fixed the CLIENT, because `hydrateProtocol` merges pulled versions
+ * into the local trail with Postgres winning per day: the next hydration pulled
+ * the dropped stop back onto the device and the compound stopped being due in the
+ * app too — the exact "it looked added, and it was never due again on any day,
+ * forever" bug the local filter was written to fix.
+ *
+ * ## Why deleting here is safe
+ *
+ * Both callers push the compound's WHOLE trail, never a delta (`upsertStack` sends
+ * `compound.scheduleHistory`, `archiveInStack` sends the list `recordScheduleStop`
+ * returns), so the newest pushed date is the client's own supersede boundary and
+ * nothing at or before it is ever touched. A stop that PREDATES the re-add's start
+ * still describes the gap between two runs and is kept — `doseIntegrity.test.ts`
+ * pins that too.
+ *
+ * ## ⚠️ ONLY WHEN THE CALLER ACTUALLY RECORDED SOMETHING (`supersede`)
+ *
+ * "The newest pushed date is the supersede boundary" holds only for a push that
+ * EXTENDS the trail. `upsertStack` also runs on writes that touch no version at
+ * all — pausing, resuming, a rotation index — and those re-push whatever the
+ * device happens to hold. A cold review found the cost: a phone whose cache
+ * predates an edit made elsewhere, or one that has not finished hydrating, taps
+ * Pause, pushes its stale trail, and this deletes the newer version from
+ * Postgres. Hydration then converges the phone onto the OLD dose, and the
+ * calendar and adherence recompute weeks of history against it.
+ *
+ * That is worse than what it fixes, because before the sweep existed the union
+ * in `hydrateProtocol` could always pull the row back. So the sweep is now opt-in
+ * and only the three paths that call `recordScheduleVersion` / `recordScheduleStop`
+ * ask for it: adding, altering (including a cycle change), and deleting. A pause
+ * still re-pushes — which is how a trail that failed to sync heals — and no
+ * longer deletes anything.
+ *
+ * The single-device assumption `hydrateProtocol` documents still applies to the
+ * paths that DO sweep: a second device holding an older trail could delete a
+ * version this one has not seen. That is the same trade the local filter makes;
+ * a real multi-device answer needs an outbox and is out of beta scope.
+ */
+async function sweepSupersededVersions(
+  cx: { supabase: Awaited<ReturnType<typeof createClient>>; userId: string },
+  pcId: string,
+  versions: { effectiveFrom: string }[]
+): Promise<Ok> {
+  // The boundary: the newest version the client still holds.
+  const newest = newestVersion(versions)?.effectiveFrom
+  if (!newest) return { ok: true }
+  const { error } = await cx.supabase
+    .from("protocol_compound_schedules")
+    .delete()
+    .eq("user_id", cx.userId)
+    .eq("protocol_compound_id", pcId)
+    .gt("effective_from", newest)
+  if (error) {
+    // Reported, not swallowed: a sweep that does not happen leaves exactly the
+    // stale row that silences the compound, and the trail it belongs to has just
+    // been written, so the caller must not be told the whole thing succeeded.
+    console.error("pushScheduleVersions: superseded versions not swept", error)
+    return { ok: false }
+  }
+  return { ok: true }
+}
+
 export async function pushScheduleVersions(
   clientId: string,
   name: string | null,
@@ -1156,13 +1366,75 @@ export async function pushScheduleVersions(
      *  slot takes the version's own dose (`supabase/protocol/021`). */
     laterDoses: (number | null)[] | null
     stopped: boolean
-  } & Partial<CycleColumns>)[]
+  } & Partial<CycleColumns>)[],
+  /**
+   * Whether this push RECORDED a new version and may therefore delete the ones
+   * it superseded. False for a re-push that changed no version — a pause, a
+   * resume — which must never delete history it may simply not have seen. See
+   * {@link sweepSupersededVersions}.
+   */
+  opts: { supersede?: boolean } = {}
 ): Promise<Ok> {
+  // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER — AND IT LETS THE DELETE THROUGH.
+  //
+  // NOT at the wrapper. Every export of a `"use server"` module is a dispatchable
+  // action with its own id, so gating `startBlockAction` while leaving
+  // `startBlock` open is a lock on a door beside an open window. A cold review
+  // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
+  //
+  // A trail that ENDS in a stop is the second half of a delete: `archiveInStack`
+  // writes `is_active = false` and this stop version, and `gate.ts` is explicit
+  // that deleting your own data is never gated. Gating this half meant a lapsed
+  // user's delete recorded the flag and not the reason — and the reason is now
+  // what the notification runner treats as authority for "deleted"
+  // (`lib/notifications/reminders.ts`), so the belt-and-braces had one belt for
+  // exactly the population the gate creates. It also fired the amber "we'll keep
+  // trying" notice for a write that could never succeed.
+  //
+  // An ordinary edit's trail does NOT end in a stop, so adding and altering stay
+  // gated. See `lib/billing/gate.ts` for the full list.
+  //
+  // ⚠️ AND THE EXEMPTION IS NARROWED TWICE, BECAUSE THE PAYLOAD IS UNTRUSTED.
+  //
+  // This is a dispatchable HTTP endpoint and `versions` is whatever the caller
+  // sends. A cold review turned the first draft — "the newest version is
+  // stopped" — into a general write bypass in one payload: append a stop dated
+  // 2099 to an ordinary edit, and the newest row is a stop, the gate opens, and
+  // the edit lands while the far-future stop sits there inert. So:
+  //
+  // THE STOP MAY NOT BE FUTURE-DATED. A real delete is stamped today —
+  // `archiveInStack` is explicit that "delete means now" — and tomorrow (UTC) is
+  // the slack a device up to fourteen hours ahead needs, no more. That one bound
+  // is what makes the exemption safe, because it forces every other row in the
+  // payload to be dated at or before the stop, where the stop supersedes it: a
+  // lapsed account can rewrite its own history for days it has just deleted, and
+  // nothing else. The attack it blocks is a stop dated 2099 bolted onto an
+  // ordinary edit, which would otherwise open the gate and let the edit govern
+  // today.
+  //
+  // ⚠️ AND THE WHOLE TRAIL IS WRITTEN, not just the stop rows. Filtering to the
+  // stops was the first draft of this and it was worse than the hole it closed:
+  // a compound that had never been edited has no trail at all, so `recordStop`
+  // seeds the baseline and the stop together — and dropping the baseline left
+  // Postgres holding a LONE STOP. `versionInForceOn` falls back to the earliest
+  // version for a day that predates them all, so that one row said the compound
+  // was stopped on every day of its life. The device that did the delete kept
+  // its own baseline and looked fine; a reinstall or a second device pulled the
+  // stop alone and the compound vanished from Progress and from the Blocks
+  // retrospective for every past day, with its logged doses still on screen.
+  //
+  // Read by DATE, not by array position: the trail arrives sorted today and a
+  // caller that ever sends it unsorted must not silently re-gate the delete.
+  const newest = newestVersion(versions)
+  const isDelete =
+    newest?.stopped === true && newest.effectiveFrom <= utcDayKey(1)
+  if (!isDelete && !(await canWriteData())) return { ok: false, readOnly: true };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
     if (versions.length === 0) return { ok: true, skipped: true }
-    const pcId = await findProtocolCompoundId(cx, clientId, name)
+    const { id: pcId, failed } = await findProtocolCompoundId(cx, clientId, name)
+    if (failed) return { ok: false }
     if (!pcId) return { ok: true, skipped: true } // custom / unmigrated compound
     const { error } = await cx.supabase.from("protocol_compound_schedules").upsert(
       versions.map((v) => ({
@@ -1187,6 +1459,12 @@ export async function pushScheduleVersions(
       })),
       { onConflict: "user_id,protocol_compound_id,effective_from" }
     )
+    // The trail is written; now remove what it superseded.
+    if (!error) {
+      return opts.supersede
+        ? await sweepSupersededVersions(cx, pcId, versions)
+        : { ok: true }
+    }
     if (error) {
       if (isMissingTable(error)) return { ok: true, skipped: true }
       // Pre-006 environments have no cycle columns. Retry without them so the
@@ -1233,11 +1511,14 @@ export async function pushScheduleVersions(
           "pushScheduleVersions: cycle columns rejected, trail written without them",
           error
         )
-        return { ok: true }
+        return opts.supersede
+          ? await sweepSupersededVersions(cx, pcId, versions)
+          : { ok: true }
       }
       console.error("pushScheduleVersions failed", error)
       return { ok: false }
     }
+    // Unreachable — the success path returned above, at the sweep.
     return { ok: true }
   } catch (e) {
     console.error("pushScheduleVersions failed", e)

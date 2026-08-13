@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { requireWriteAccess } from "@/lib/billing/gate";
 
 /**
  * Server actions for the Weight view (Context/Feature Specs/08 → C). All writes
@@ -38,6 +39,10 @@ export async function logWeight(
   weightKg: number,
   loggedFor: string,
 ): Promise<WeightResult> {
+  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
+  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
+  const writable = await requireWriteAccess()
+  if (!writable.ok) return writable
   const kg = Math.round(weightKg * 100) / 100; // numeric(5,2)
   if (!Number.isFinite(kg) || kg < 30 || kg > 300) {
     return { ok: false, error: "Enter a weight between 30 and 300 kg." };

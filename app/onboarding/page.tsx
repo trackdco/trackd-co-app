@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { OnboardingFlow } from "@/components/onboarding/flow";
 import { getSessionContext } from "@/lib/auth";
 import { loadPricesSafe } from "@/lib/billing/prices";
-import { isStepId, stepMeta, type StepId } from "@/lib/onboarding/steps";
+import { resolveStepId, stepMeta, type StepId } from "@/lib/onboarding/steps";
 
 export const metadata: Metadata = {
   title: "Get started · Trackd Co",
@@ -106,7 +106,7 @@ export default async function OnboardingPage({
   // A gated user has nothing left to do on the account screen, and showing a
   // sign-in form to someone already signed in is what §Back navigation calls out.
   if (passedGate && requested === "account") {
-    redirect("/onboarding?step=paywall");
+    redirect("/onboarding?step=plans");
   }
 
   return (
@@ -122,14 +122,14 @@ export default async function OnboardingPage({
  * THE UNTRUSTED `?step=`, RESOLVED THE SAME WAY THE CLIENT RESOLVES IT.
  *
  * A repeated query parameter arrives as a `string[]`, and this was typed and
- * treated as `string`. `isStepId(["paywall","paywall"])` is false — it tests
+ * treated as `string`. `isStepId(["plans","plans"])` is false — it tests
  * `typeof value === "string"` — so `requested` fell to `null` and EVERY guard
  * below short-circuited on it. Meanwhile the client reads
  * `new URLSearchParams(location.search).get("step")`, which returns the FIRST
  * value. So:
  *
- *     GET /onboarding?step=paywall              -> 307 /onboarding
- *     GET /onboarding?step=paywall&step=paywall -> 200, paywall renders
+ *     GET /onboarding?step=plans            -> 307 /onboarding
+ *     GET /onboarding?step=plans&step=plans -> 200, the price list renders
  *
  * with no cookies at all. One duplicated parameter walked past the whole of
  * §Route protection, and it is the assumption spec w2b-15 mounts a payment
@@ -139,8 +139,13 @@ export default async function OnboardingPage({
  * returns, so the server and the client now resolve the same step from the same
  * URL. Agreeing with the client is the requirement — a guard that reads a
  * different value than the thing it is guarding is not a guard.
+ *
+ * `resolveStepId`, not `isStepId`, so the retired `paywall` / `checkout` ids
+ * still resolve. The CLIENT resolves them the same way — see `resolveStep` in
+ * `flow.tsx` — which keeps the two agreeing about what a URL means, and that
+ * agreement is the whole guarantee this function exists for.
  */
 function requestedStep(step: string | string[] | undefined): StepId | null {
   const first = Array.isArray(step) ? step[0] : step;
-  return isStepId(first) ? first : null;
+  return resolveStepId(first);
 }
