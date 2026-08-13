@@ -108,6 +108,56 @@ export async function savePushSubscription(
 }
 
 /**
+ * RE-REGISTER AN EXISTING SUBSCRIPTION AND NOTHING ELSE.
+ *
+ * The row, and only the row: no intent flag, no timezone. `savePushSubscription`
+ * writes all three because it backs a deliberate tap on Enable, where all three
+ * are what the user just asked for. This backs an automatic mount-time resync
+ * (see `resyncSubscription`), where they are not.
+ *
+ * ## The two writes it deliberately does not make
+ *
+ * **The timezone.** `profiles.timezone` is the clock the entire reminder engine
+ * runs on — it decides the local day, the fire times and quiet hours. Carrying
+ * the device's zone into an automatic resync meant that opening the app once on
+ * a laptop in another region silently moved a Sydney user's 08:00 reminder to
+ * 08:00 New York, and back again when they next opened their phone. The zone is
+ * still captured on a real subscribe and editable in Settings, which are the two
+ * places the user is actually saying where they are.
+ *
+ * **The intent flag.** `removePushSubscription` is a GLOBAL opt-out that deletes
+ * only the calling device's row, so another device can still hold one. Setting
+ * `notifications_enabled = true` from a mount-time resync would let stale server
+ * state on that second device reverse the opt-out by navigation alone.
+ */
+export async function refreshDeviceSubscription(
+  sub: PushSubscriptionInput,
+): Promise<Ok> {
+  try {
+    if (!sub?.endpoint || !sub?.p256dh || !sub?.auth) return { ok: false };
+    const ctx = await sessionCtx();
+    if (!ctx) return { ok: false };
+    const { error } = await ctx.supabase.from("push_subscriptions").upsert(
+      {
+        user_id: ctx.userId,
+        endpoint: sub.endpoint,
+        p256dh: sub.p256dh,
+        auth: sub.auth,
+        user_agent: sub.userAgent ?? null,
+        last_seen_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,endpoint" },
+    );
+    // No `revalidatePath` either: this runs on mount, and invalidating the route
+    // that invoked it would re-run the dashboard's server work on every load.
+    return { ok: !error };
+  } catch (e) {
+    console.error("refreshDeviceSubscription failed", e);
+    return { ok: false };
+  }
+}
+
+/**
  * Remove this device's subscription (by endpoint) and flip the intent flag OFF.
  * Toggling notifications off is a global opt-out per Spec 14 (suppresses sends
  * even while OS permission is still granted).

@@ -13,6 +13,7 @@
  */
 
 import {
+  refreshDeviceSubscription,
   savePushSubscription,
   removePushSubscription,
   type PushSubscriptionInput,
@@ -180,12 +181,27 @@ function decompose(sub: PushSubscription): PushSubscriptionInput {
  *
  * Also heals the older drift: a row lost to a failed write, or an endpoint the
  * browser rotated, both come back on the next app open instead of never.
+ *
+ * ⚠️ Goes through `refreshDeviceSubscription`, NOT `savePushSubscription` — the
+ * row only, no timezone and no intent flag. This runs on every app open, and
+ * `savePushSubscription` carries the device's timezone into `profiles`, which is
+ * the clock every reminder fires on: one visit on a laptop in another region
+ * moved a user's whole schedule and the next visit on their phone moved it back.
+ * See `refreshDeviceSubscription`.
+ *
+ * ## What it does NOT close, deliberately
+ *
+ * A second person signed into their own account on this device, with
+ * notifications already on, has the endpoint registered to them without a tap.
+ * That is the correct answer to "you are signed in here and you want
+ * notifications" — and their own sign-out releases it again. What it will not do
+ * is register a device for somebody who has notifications switched off.
  */
 export async function resyncSubscription(): Promise<void> {
   try {
     const sub = await getActiveSubscription();
     if (!sub) return;
-    await savePushSubscription(decompose(sub));
+    await refreshDeviceSubscription(decompose(sub));
   } catch (e) {
     // Best-effort by definition: this runs on mount, and nothing the user is
     // doing depends on it.

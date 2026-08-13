@@ -62,7 +62,7 @@ describe("pushScheduleVersions", () => {
 
   it("lets a trail that ends in a stop through, because that is a delete", () => {
     expect(body, "the refusal must exempt a delete").toMatch(
-      /if \(!writable && !isDelete\) return \{ ok: false, readOnly: true \}/,
+      /if \(!isDelete && !\(await canWriteData\(\)\)\) return \{ ok: false, readOnly: true \}/,
     )
     expect(body, "isDelete must be read from the newest version, not the last array slot")
       .toContain("newest?.stopped === true")
@@ -75,9 +75,14 @@ describe("pushScheduleVersions", () => {
     expect(body).toMatch(/newest\.effectiveFrom <= utcDayKey\(1\)/)
   })
 
-  it("writes ONLY the stop rows when the gate would otherwise have refused", () => {
-    // So the exemption can never carry an edit in beside the delete.
-    expect(body).toMatch(/const rows = writable \? versions : versions\.filter\(\(v\) => v\.stopped\)/)
+  it("writes the WHOLE trail, stops and baseline alike", () => {
+    // Filtering to the stop rows was tried and was worse: a compound that had
+    // never been edited seeds its baseline and its stop in the same push, and
+    // dropping the baseline left Postgres holding a lone stop — which
+    // `versionInForceOn` resolves for every day that predates it, so the
+    // compound read as stopped for its entire life on any second device.
+    expect(body).not.toMatch(/versions\.filter\(\(v\) => v\.stopped\)/)
+    expect(body).toContain("versions.map((v) => ({")
   })
 
   it("only sweeps when the caller says it recorded a version", () => {

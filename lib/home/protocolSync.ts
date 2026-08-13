@@ -1402,32 +1402,42 @@ export async function pushScheduleVersions(
   // 2099 to an ordinary edit, and the newest row is a stop, the gate opens, and
   // the edit lands while the far-future stop sits there inert. So:
   //
-  //  1. The stop must not be FUTURE-DATED. A real delete is stamped today —
-  //     `archiveInStack` is explicit that "delete means now" — and tomorrow (UTC)
-  //     is the slack a device up to fourteen hours ahead needs, no more.
-  //  2. Only the STOP ROWS are written when the gate would otherwise have
-  //     refused. The rest of the trail is an edit, and the gate is entitled to
-  //     refuse it; the delete is all a lapsed user is owed here, and the client
-  //     keeps its own trail either way.
+  // THE STOP MAY NOT BE FUTURE-DATED. A real delete is stamped today —
+  // `archiveInStack` is explicit that "delete means now" — and tomorrow (UTC) is
+  // the slack a device up to fourteen hours ahead needs, no more. That one bound
+  // is what makes the exemption safe, because it forces every other row in the
+  // payload to be dated at or before the stop, where the stop supersedes it: a
+  // lapsed account can rewrite its own history for days it has just deleted, and
+  // nothing else. The attack it blocks is a stop dated 2099 bolted onto an
+  // ordinary edit, which would otherwise open the gate and let the edit govern
+  // today.
+  //
+  // ⚠️ AND THE WHOLE TRAIL IS WRITTEN, not just the stop rows. Filtering to the
+  // stops was the first draft of this and it was worse than the hole it closed:
+  // a compound that had never been edited has no trail at all, so `recordStop`
+  // seeds the baseline and the stop together — and dropping the baseline left
+  // Postgres holding a LONE STOP. `versionInForceOn` falls back to the earliest
+  // version for a day that predates them all, so that one row said the compound
+  // was stopped on every day of its life. The device that did the delete kept
+  // its own baseline and looked fine; a reinstall or a second device pulled the
+  // stop alone and the compound vanished from Progress and from the Blocks
+  // retrospective for every past day, with its logged doses still on screen.
   //
   // Read by DATE, not by array position: the trail arrives sorted today and a
   // caller that ever sends it unsorted must not silently re-gate the delete.
   const newest = newestVersion(versions)
   const isDelete =
     newest?.stopped === true && newest.effectiveFrom <= utcDayKey(1)
-  const writable = await canWriteData()
-  if (!writable && !isDelete) return { ok: false, readOnly: true };
-  // A lapsed account writes the delete and nothing else.
-  const rows = writable ? versions : versions.filter((v) => v.stopped)
+  if (!isDelete && !(await canWriteData())) return { ok: false, readOnly: true };
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    if (rows.length === 0) return { ok: true, skipped: true }
+    if (versions.length === 0) return { ok: true, skipped: true }
     const { id: pcId, failed } = await findProtocolCompoundId(cx, clientId, name)
     if (failed) return { ok: false }
     if (!pcId) return { ok: true, skipped: true } // custom / unmigrated compound
     const { error } = await cx.supabase.from("protocol_compound_schedules").upsert(
-      rows.map((v) => ({
+      versions.map((v) => ({
         user_id: cx.userId,
         protocol_compound_id: pcId,
         effective_from: v.effectiveFrom,
@@ -1452,7 +1462,7 @@ export async function pushScheduleVersions(
     // The trail is written; now remove what it superseded.
     if (!error) {
       return opts.supersede
-        ? await sweepSupersededVersions(cx, pcId, rows)
+        ? await sweepSupersededVersions(cx, pcId, versions)
         : { ok: true }
     }
     if (error) {
@@ -1463,7 +1473,7 @@ export async function pushScheduleVersions(
         const { error: retry } = await cx.supabase
           .from("protocol_compound_schedules")
           .upsert(
-            rows.map((v) => ({
+            versions.map((v) => ({
               user_id: cx.userId,
               protocol_compound_id: pcId,
               effective_from: v.effectiveFrom,
@@ -1502,7 +1512,7 @@ export async function pushScheduleVersions(
           error
         )
         return opts.supersede
-          ? await sweepSupersededVersions(cx, pcId, rows)
+          ? await sweepSupersededVersions(cx, pcId, versions)
           : { ok: true }
       }
       console.error("pushScheduleVersions failed", error)
