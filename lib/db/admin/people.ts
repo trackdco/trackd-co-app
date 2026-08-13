@@ -40,6 +40,8 @@ interface ProfileRow {
   units_preference: string | null
   timezone: string | null
   created_at: string | null
+  is_18_plus: boolean | null
+  tos_accepted_at: string | null
 }
 
 export interface Demographics {
@@ -57,16 +59,67 @@ export interface PeopleMetrics {
   totalAccounts: number
   /** Accounts created inside the selected range. */
   newAccounts: number
+  /**
+   * Accounts created in the range immediately BEFORE the selected one, for the
+   * "+23% vs the previous 30 days" line.
+   *
+   * Costs nothing: this read has always pulled every profile and filtered in
+   * memory, so the previous window is another filter over rows already in hand
+   * rather than a second query. Null when there is no previous window to
+   * compare against — the All-time range, where nothing precedes the range.
+   */
+  newAccountsPrevious: number | null
+  /**
+   * Accounts that existed at the START of the range — the baseline the account
+   * total is compared against.
+   *
+   * Derived as `total − newInRange` rather than by dating each row again, so
+   * `accountsBefore + newAccounts === totalAccounts` holds by construction. A
+   * row with an unparseable `created_at` therefore lands in the baseline, which
+   * is the honest place for it: it is not new.
+   */
+  accountsBefore: number
   /** Account creations per UTC day across the range, for the sparkline. */
   accountsByDay: { day: string; count: number }[]
+  /**
+   * Account creations per UTC day across ALL of history, for the records card.
+   *
+   * "The largest single-day account gain" is a claim about every day there has
+   * ever been, so it cannot be read off the range-scoped series above — a
+   * record that resets when somebody clicks 7D is not a record.
+   */
+  accountsByDayAllTime: { day: string; count: number }[]
   demographics: Demographics
   /** Every account id, for cross-table set maths. Never leaves the module. */
   accountIds: Set<string>
+  /**
+   * Per-account signup timestamps, for the cohort grid's rows.
+   *
+   * Stays inside `lib/db/admin/` exactly as `accountIds` does: it is handed to
+   * the pure `cohortGrid()`, which joins it against activity and returns nothing
+   * but cohort sizes and percentages. No id and no date reaches the page.
+   */
+  signups: { userId: string; at: string }[]
+  /**
+   * Accounts that passed the 18+/ToS gate by the ORIGINAL mechanism.
+   *
+   * These two columns are what `getSessionContext` actually reads to grant app
+   * access, and they are the ONLY evidence of consent for accounts created
+   * before `consent_records` existed (2026-06-24). Consent coverage counts them,
+   * so the two oldest accounts stop being reported as never having agreed to
+   * terms they demonstrably accepted.
+   */
+  gatedIds: Set<string>
 }
 
 export async function peopleMetrics(
   supabase: AdminClient,
   since: Date | null,
+  /**
+   * The start of the window immediately before `since`, of the same length.
+   * Null for the All-time range, where there is no previous window.
+   */
+  previousSince: Date | null,
   issues: IssueLog
 ): Promise<PeopleMetrics> {
   const rows = await columnValues<ProfileRow>(
@@ -76,7 +129,7 @@ export async function peopleMetrics(
     // WRITES IT — every live account has it null — so a "finished onboarding"
     // number read from it would be a confident zero forever. The funnel uses
     // `consent_records` instead; see `index.ts`.
-    "id, sex, date_of_birth, goal, units_preference, timezone, created_at",
+    "id, sex, date_of_birth, goal, units_preference, timezone, created_at, is_18_plus, tos_accepted_at",
     issues,
     "Accounts"
   )
@@ -88,6 +141,19 @@ export async function peopleMetrics(
     const ms = Date.parse(r.created_at)
     return !Number.isNaN(ms) && ms >= sinceMs
   })
+
+  // The same rows, filtered to `[previousSince, since)`. A SECOND FILTER, NOT A
+  // SECOND QUERY — the read above is unfiltered by design, so the previous
+  // window is free. Null when there is nothing before the range to compare with.
+  const previousSinceMs = previousSince?.getTime() ?? null
+  const newAccountsPrevious =
+    previousSinceMs === null || since === null
+      ? null
+      : rows.filter((r) => {
+          if (!r.created_at) return false
+          const ms = Date.parse(r.created_at)
+          return !Number.isNaN(ms) && ms >= previousSinceMs && ms < sinceMs
+        }).length
 
   // Bucket every DOB, then throw the dates away.
   const brackets = rows.map((r) => ageBracket(r.date_of_birth, now))
@@ -103,9 +169,16 @@ export async function peopleMetrics(
   return {
     totalAccounts: rows.length,
     newAccounts: inRange.length,
+    newAccountsPrevious,
+    accountsBefore: rows.length - inRange.length,
     accountsByDay: seriesByDay(
       inRange.map((r) => r.created_at),
       since
+    ),
+    // `from` null so the series starts at the first account ever created.
+    accountsByDayAllTime: seriesByDay(
+      rows.map((r) => r.created_at),
+      null
     ),
     demographics: {
       sex: tally(
@@ -125,6 +198,13 @@ export async function peopleMetrics(
       missingDob: rows.filter((r) => !r.date_of_birth).length,
     },
     accountIds: new Set(rows.map((r) => r.id).filter((id): id is string => Boolean(id))),
+    signups: rows.flatMap((r) => (r.id && r.created_at ? [{ userId: r.id, at: r.created_at }] : [])),
+    gatedIds: new Set(
+      rows
+        .filter((r) => r.is_18_plus === true && Boolean(r.tos_accepted_at))
+        .map((r) => r.id)
+        .filter((id): id is string => Boolean(id))
+    ),
   }
 }
 

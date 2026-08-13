@@ -95,11 +95,52 @@ export async function feedbackSla(
 export interface ConsentCoverage {
   /** Document + version, ranked by how many accounts accepted it. */
   byVersion: Tally[]
-  /** Accounts holding at least one consent record. */
-  accountsWithConsent: number
-  /** Accounts with none at all. */
-  accountsMissing: number
-  /** Share of accounts on the CURRENT version of every current document. */
+  /**
+   * Accounts that consented by EITHER mechanism — the real compliance number.
+   *
+   * TWO MECHANISMS EXIST, and counting only the newer one under-reported by 2
+   * accounts and made the page look like it had a legal gap it did not have:
+   *
+   *  1. `consent_records` — the granular per-document, per-version audit added
+   *     by Spec 12. Its earliest row anywhere is 2026-06-24.
+   *  2. `profiles.is_18_plus` + `profiles.tos_accepted_at` — the ORIGINAL gate,
+   *     and still the two columns `getSessionContext` actually reads to grant
+   *     access. The two oldest accounts in the system (both 2026-06-08) accepted
+   *     under this and predate the audit table entirely.
+   *
+   * A dashboard that reports compliance from the newer table alone says two
+   * founders never agreed to the terms they wrote.
+   */
+  consented: number
+  /** Of those, how many also hold a granular `consent_records` row. */
+  withAuditTrail: number
+  /** Consented before `consent_records` existed. History, not a gap. */
+  preAuditTrail: number
+  /**
+   * Accounts that never finished onboarding, so never reached the gate.
+   *
+   * NOT a compliance failure, and reported separately for that reason. They hold
+   * no data and cannot reach a single app screen — `getSessionContext` requires
+   * `is_18_plus && tos_accepted_at`, so `app/(app)/layout.tsx` bounces them to
+   * /welcome. Counting them as "missing consent" is what made this read as 84%
+   * when nobody with access is unconsented.
+   */
+  neverReachedGate: number
+  /**
+   * Accounts that have WRITTEN DATA but consented by neither mechanism.
+   *
+   * This replaces a percentage that could only ever read 100%: "consented as a
+   * share of accounts that got through the gate" is a tautology, because
+   * getting through the gate IS consenting. This is the non-tautological
+   * version, and the only one worth alarming on — data belonging to somebody
+   * who never agreed to anything.
+   *
+   * It should be 0 forever. If it is not, either the gate was bypassed or a
+   * write path exists that does not go through it, and both are serious.
+   * Filled in by `index.ts`, which is where the written-users set lives.
+   */
+  unconsentedWithData: number
+  /** Share of consented accounts on the CURRENT version of every document. */
   onCurrentPct: number | null
   /** The live version of each document, from `legal_documents`. */
   currentVersions: { document: string; label: string; version: string }[]
@@ -129,6 +170,13 @@ export interface ConsentResult {
 export async function consentCoverage(
   supabase: AdminClient,
   totalAccounts: number,
+  /**
+   * Accounts that passed the gate by the ORIGINAL mechanism —
+   * `is_18_plus && tos_accepted_at` on `profiles`. Read once by `peopleMetrics`
+   * and handed in, because those are the columns the app itself gates on and
+   * they are the only evidence the two pre-audit-table accounts have.
+   */
+  gatedIds: Set<string>,
   issues: IssueLog
 ): Promise<ConsentResult> {
   const [records, current] = await Promise.all([
@@ -186,6 +234,11 @@ export async function consentCoverage(
     }
   }
 
+  // ── The compliance numbers, counting BOTH mechanisms ──────────────────────
+  // Consented = holds a granular audit row OR passed the original profiles gate.
+  const consentedIds = new Set<string>([...gatedIds, ...withConsent])
+  const preAuditTrail = [...gatedIds].filter((id) => !withConsent.has(id)).length
+
   const coverage: ConsentCoverage = {
     byVersion: tally(
       // `version` is `text NOT NULL` with no CHECK and `authenticated` may INSERT
@@ -203,12 +256,25 @@ export async function consentCoverage(
         return `${labelFor(CONSENT_DOC_LABELS, doc)} v${version}`
       }
     ),
-    accountsWithConsent: withConsent.size,
-    accountsMissing: Math.max(0, totalAccounts - withConsent.size),
-    // Null, not 0, when there is nothing live to be current WITH.
-    onCurrentPct: expectations.length === 0 ? null : percent(onCurrent, totalAccounts),
+    consented: consentedIds.size,
+    withAuditTrail: withConsent.size,
+    preAuditTrail,
+    // Everyone else never finished onboarding. They hold no data and the gate
+    // blocks them; this is an activation number, not a legal one.
+    neverReachedGate: Math.max(0, totalAccounts - consentedIds.size),
+    // Filled in by `index.ts`, which holds the set of accounts that have
+    // written anything. Zero here means "not yet computed", and index.ts always
+    // computes it.
+    unconsentedWithData: 0,
+    // Null, not 0, when there is nothing live to be current WITH. Measured
+    // against consented accounts, not all accounts, for the same reason.
+    onCurrentPct:
+      expectations.length === 0 ? null : percent(onCurrent, consentedIds.size),
     currentVersions,
   }
 
-  return { coverage, userIds: withConsent }
+  // The funnel's gate step uses the SAME definition the app gates on, so the
+  // two pre-audit-table accounts are not shown as having skipped a step they
+  // demonstrably completed.
+  return { coverage, userIds: consentedIds }
 }

@@ -1,7 +1,9 @@
 import "server-only"
 
 import { tally, type Tally } from "@/lib/admin/aggregate"
+import { monthlyRevenue, type RevenueTotals } from "@/lib/admin/insights"
 import { isEntitlementActive } from "@/lib/billing/access"
+import { loadPricesSafe } from "@/lib/billing/prices"
 import { columnValues, countRows, daysAgo, type AdminClient, type IssueLog } from "./core"
 
 /**
@@ -64,6 +66,19 @@ export interface BillingMetrics {
   entitledAccounts: number
   /** Rows in `billing_customers` — accounts that ever reached Stripe. */
   customers: number
+  /**
+   * MRR and its split, from live subscriptions priced against Stripe.
+   *
+   * ── THE PRICES ARE NOT IN POSTGRES, AND THAT IS DELIBERATE ────────────────
+   * `subscriptions` mirrors Stripe's *shape* but stores no amount — only
+   * `stripe_price_id`. Spec w2b-15: "there must be no dollar amount hardcoded
+   * anywhere in the codebase", so the amounts are read from Stripe at request
+   * time (memoised five minutes by `lib/billing/prices.ts`) and joined on the
+   * price id here. A dashboard that carried its own copy of the price would be
+   * the one number on the page that a Stripe dashboard change could silently
+   * make wrong.
+   */
+  revenue: RevenueTotals
 }
 
 export async function billingMetrics(
@@ -73,16 +88,21 @@ export async function billingMetrics(
   const soon = new Date()
   soon.setUTCDate(soon.getUTCDate() + 7)
 
-  const [subRows, entRows, customers] = await Promise.all([
+  const [subRows, entRows, customers, prices] = await Promise.all([
     columnValues<{
       user_id: string | null
       status: string | null
       cancel_at_period_end: boolean | null
       trial_ends_at: string | null
+      stripe_price_id: string | null
     }>(
       supabase,
       "subscriptions",
-      "user_id, status, cancel_at_period_end, trial_ends_at",
+      // `stripe_price_id` widens the read the status breakdown already makes,
+      // rather than asking for the same rows twice. It is a Stripe PRODUCT id,
+      // not a customer or subscription id, and it is reduced to a plan label and
+      // a monthly amount below — no id leaves this module.
+      "user_id, status, cancel_at_period_end, trial_ends_at, stripe_price_id",
       issues,
       "Subscriptions"
     ),
@@ -101,6 +121,11 @@ export async function billingMetrics(
       (q) => q.eq("is_active", true)
     ),
     countRows(supabase, "billing_customers", issues, "Billing customers"),
+    // Never throws: `loadPricesSafe` swallows an unconfigured, rate-limited or
+    // unreachable Stripe and returns []. Every priced-off subscription is then
+    // counted in `revenue.unpriced` and excluded from MRR, so a Stripe outage
+    // shows as "we could not price these" rather than as revenue vanishing.
+    loadPricesSafe(),
   ])
 
   const byStatus = tally(
@@ -174,6 +199,31 @@ export async function billingMetrics(
     liveEntitlements.map((r) => r.user_id).filter((id): id is string => Boolean(id))
   ).size
 
+  /**
+   * MRR counts `active` ONLY — not `trialing`, and not `past_due`.
+   *
+   * A trial is not revenue. It is a subscription that has never been charged and
+   * may never be, and counting it makes MRR jump the day somebody starts a free
+   * week and fall the day they decline — a number that moves on a decision
+   * nobody has made yet. `trialsEndingSoon` above is the number for that
+   * question. `past_due` is excluded for the mirror-image reason: the charge
+   * FAILED, so booking it is counting money that did not arrive.
+   *
+   * `cancel_at_period_end` rows ARE included while still `active`: they are paid
+   * up and Stripe will bill them again if the cancellation is reversed. That is
+   * what `cancelling` is for — pending churn, shown beside the revenue it is
+   * about to take out rather than pre-deducted from it.
+   *
+   * The ids handed to `monthlyRevenue` are join keys for the distinct-payer
+   * count and are discarded inside it; what comes back is money and counts.
+   */
+  const revenue = monthlyRevenue(
+    subRows
+      .filter((r) => r.status === "active")
+      .map((r) => ({ priceId: r.stripe_price_id, account: r.user_id })),
+    prices
+  )
+
   return {
     byStatus,
     trialing,
@@ -189,6 +239,7 @@ export async function billingMetrics(
     ),
     entitledAccounts,
     customers,
+    revenue,
   }
 }
 

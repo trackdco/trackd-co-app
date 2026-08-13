@@ -25,6 +25,17 @@ export interface PlanPrice {
   currency: string;
   /** "year" | "month" | "week" — what the amount buys. */
   interval: string;
+  /**
+   * How many of those intervals one charge covers.
+   *
+   * Stripe expresses "every 3 months" as `interval: "month"` with
+   * `interval_count: 3`, so a normaliser that reads only `interval` prices a
+   * quarterly plan as if it were charged monthly — overstating MRR threefold.
+   * Every price configured today is `1`, which is exactly why the bug would
+   * have gone unnoticed until the day someone added a quarterly plan in the
+   * Stripe dashboard and revenue silently tripled.
+   */
+  intervalCount: number;
 }
 
 /**
@@ -68,6 +79,10 @@ export async function loadPrices(): Promise<PlanPrice[]> {
       if (!interval) {
         throw new Error(`Stripe price ${price.id} is not recurring.`);
       }
+      // Stripe defaults this to 1 and it is always present on a recurring
+      // price; the fallback is here so a malformed object degrades to "monthly"
+      // rather than to NaN.
+      const intervalCount = price.recurring?.interval_count ?? 1;
 
       return {
         plan,
@@ -80,6 +95,7 @@ export async function loadPrices(): Promise<PlanPrice[]> {
           : price.unit_amount / 100,
         currency: price.currency,
         interval,
+        intervalCount,
       } satisfies PlanPrice;
     }),
   );
