@@ -61,10 +61,29 @@ describe("pushScheduleVersions", () => {
   })
 
   it("lets a trail that ends in a stop through, because that is a delete", () => {
-    const guard = body.split("\n").find((l) => l.includes("canWriteData()")) ?? ""
-    expect(guard, "the guard must exempt the delete").toMatch(/!isDelete\s*&&/)
+    expect(body, "the refusal must exempt a delete").toMatch(
+      /if \(!writable && !isDelete\) return \{ ok: false, readOnly: true \}/,
+    )
     expect(body, "isDelete must be read from the newest version, not the last array slot")
-      .toContain("newestVersion(versions)?.stopped === true")
+      .toContain("newest?.stopped === true")
+  })
+
+  it("will not open the gate for a FUTURE-dated stop", () => {
+    // The payload is client-supplied. Without the date bound, appending a stop
+    // dated 2099 to an ordinary edit opens the gate and the edit lands — a
+    // general write bypass wearing a delete's clothes.
+    expect(body).toMatch(/newest\.effectiveFrom <= utcDayKey\(1\)/)
+  })
+
+  it("writes ONLY the stop rows when the gate would otherwise have refused", () => {
+    // So the exemption can never carry an edit in beside the delete.
+    expect(body).toMatch(/const rows = writable \? versions : versions\.filter\(\(v\) => v\.stopped\)/)
+  })
+
+  it("only sweeps when the caller says it recorded a version", () => {
+    // A pause re-pushes the trail without changing it. Sweeping on that deletes
+    // versions this device may simply not have pulled yet.
+    expect(body).toContain("opts.supersede")
   })
 
   it("sweeps the versions the client superseded", () => {
@@ -72,6 +91,21 @@ describe("pushScheduleVersions", () => {
     // row in Postgres and every push about that compound goes silent forever.
     expect(body).toContain("sweepSupersededVersions")
     expect(source).toContain('.gt("effective_from", newest)')
+  })
+})
+
+describe("the two callers that push a trail", () => {
+  const source = read("lib/home/stack.ts")
+
+  it("only asks to supersede when the trail actually changed", () => {
+    // `upsertStack` runs on writes that touch no version at all — a pause, a
+    // resume — and those re-push a possibly stale trail.
+    expect(source).toContain("supersede: recordedAVersion")
+    expect(source).toMatch(/JSON\.stringify\(before \?\? \[\]\) !==/)
+  })
+
+  it("always supersedes on a delete, which is the case the sweep exists for", () => {
+    expect(source).toMatch(/supersede: true/)
   })
 })
 

@@ -722,6 +722,19 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
   const next = exists
     ? cur.map((c) => (c.id === compound.id ? compound : c))
     : [...cur, compound]
+  /**
+   * Did this write RECORD a version, or is it just carrying the trail along?
+   *
+   * Most callers of `upsertStack` touch no version at all — pausing, resuming, a
+   * rotation index — and re-push whatever the device holds. That re-push heals a
+   * trail that failed to sync, so it stays; but it must not be allowed to DELETE
+   * the versions Postgres holds and this device may simply not have pulled yet.
+   * Only a genuine new version supersedes anything. See
+   * `sweepSupersededVersions`.
+   */
+  const before = cur.find((c) => c.id === compound.id)?.scheduleHistory
+  const recordedAVersion =
+    JSON.stringify(before ?? []) !== JSON.stringify(compound.scheduleHistory ?? [])
   const ok = saveStack(userId, next)
   if (ok) {
     notifyStackChanged()
@@ -740,7 +753,8 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
         pushScheduleVersions(
           compound.id,
           compound.name,
-          compound.scheduleHistory.map(scheduleVersionToRow)
+          compound.scheduleHistory.map(scheduleVersionToRow),
+          { supersede: recordedAVersion }
         )
       )
     }
@@ -797,8 +811,13 @@ export function archiveInStack(
     if (updated && isCustomName(updated.name)) void pushStackCompound({ ...updated, archived })
     if (history) {
       // Same skipped-until-005 treatment as an alteration's versions.
+      // A delete always records a stop, so it always supersedes whatever came
+      // after it — which is the whole point: a re-add that back-dated its start
+      // must not leave the old stop standing as the newest row in Postgres.
       void trackSync(
-        pushScheduleVersions(id, updated?.name ?? null, history.map(scheduleVersionToRow))
+        pushScheduleVersions(id, updated?.name ?? null, history.map(scheduleVersionToRow), {
+          supersede: true,
+        })
       )
     }
     // The NAME is passed so the server can RESOLVE the row rather than derive its

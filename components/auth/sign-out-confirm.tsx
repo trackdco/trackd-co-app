@@ -24,18 +24,49 @@ import { releaseDeviceSubscription } from "@/lib/push/pushActions";
  */
 async function signOutThisDevice() {
   try {
-    const reg = await navigator.serviceWorker?.getRegistration();
-    const sub = await reg?.pushManager?.getSubscription();
-    if (sub?.endpoint) {
-      await releaseDeviceSubscription(sub.endpoint);
-      // Also drop the browser-side subscription, so the next account on this
-      // device is issued its own endpoint rather than inheriting this one.
-      await sub.unsubscribe().catch(() => {});
-    }
+    // Each step is TIME-BOXED separately, and both boxes are on the one control a
+    // user must always be able to reach. `getRegistration` waits on the service
+    // worker, which can sit pending forever if the worker is installing or
+    // wedged; the delete is a network round-trip. Boxing them together would let
+    // a slow lookup eat the delete's whole budget, which is the half that
+    // actually closes the leak.
+    const endpoint = await withTimeout(readEndpoint(), 2000);
+    if (endpoint) await withTimeout(releaseDeviceSubscription(endpoint), 3000);
   } catch {
-    // Ignored on purpose — see above.
+    // Swallowed on purpose: no failure of the push plumbing may stop a sign-out.
+    // The cost of the timeout path is the row surviving — the bug this closes —
+    // and being unable to sign out at all is worse.
   }
   await signOut();
+}
+
+/**
+ * This device's push endpoint, or null. Deliberately does NOT unsubscribe the
+ * browser: the row is what makes a send reach this phone, and dropping it is
+ * exactly enough to stop the next account receiving the last one's doses.
+ * Revoking the browser subscription as well left the SAME user, signing back in
+ * a minute later, with an intent flag saying "notify me" and nothing to notify —
+ * silently, because only a tap in Settings ever calls `subscribe()` again.
+ * `usePushNotifications` re-registers what the browser still holds on mount.
+ */
+async function readEndpoint(): Promise<string | null> {
+  const reg = await navigator.serviceWorker?.getRegistration();
+  const sub = await reg?.pushManager?.getSubscription();
+  return sub?.endpoint ?? null;
+}
+
+/** Resolve to null if `p` hasn't settled in `ms`. Never rejects. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(null), ms);
+    p.then((v) => {
+      clearTimeout(t);
+      resolve(v);
+    }).catch(() => {
+      clearTimeout(t);
+      resolve(null);
+    });
+  });
 }
 
 /**

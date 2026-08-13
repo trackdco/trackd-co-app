@@ -1171,10 +1171,16 @@ export async function deleteProtocolDoseLog(
     // first, so the common case still costs one read. Falling back to the derived
     // id matters for a compound whose row is gone entirely: a dose logged under it
     // before the deletion is still keyed that way and must still be removable.
-    const pcId =
-      (compoundName
-        ? (await findProtocolCompoundId(cx, clientCompoundId, compoundName)).id
-        : null) ?? resolvePcId(cx.userId, clientCompoundId)
+    const found = compoundName
+      ? await findProtocolCompoundId(cx, clientCompoundId, compoundName)
+      : { id: null, failed: false }
+    // A lookup that FELL OVER must not fall back to the derived id: if the two
+    // have drifted, the delete then targets a row that does not exist, reports
+    // `skipped`, and the tombstone alone holds the un-log. That survives until a
+    // reinstall drops tombstones and the dose reappears. The fourth and last of
+    // these call sites to learn the difference.
+    if (found.failed) return { ok: false }
+    const pcId = found.id ?? resolvePcId(cx.userId, clientCompoundId)
     const dlId = doseLogRowId(cx.userId, dateKey, pcId, slot)
     const res = await deleteDoseLog(dlId)
     // A delete that matched NOTHING is not a delete. Reporting it as one let the
@@ -1226,6 +1232,17 @@ function pickCycleColumns(v: Partial<CycleColumns>): Partial<CycleColumns> {
     if (v[key] !== undefined) out[key] = v[key]
   }
   return out as Partial<CycleColumns>
+}
+
+/**
+ * Today's UTC date key, optionally shifted by whole days.
+ *
+ * UTC because the server has no other clock, and the only caller wants an upper
+ * BOUND on a device-stamped day — one day of slack covers every zone ahead of
+ * UTC without letting a far-future date through.
+ */
+function utcDayKey(shiftDays = 0): string {
+  return new Date(Date.now() + shiftDays * 86_400_000).toISOString().slice(0, 10)
 }
 
 /**
@@ -1283,11 +1300,28 @@ function newestVersion<T extends { effectiveFrom: string }>(
  * still describes the gap between two runs and is kept — `doseIntegrity.test.ts`
  * pins that too.
  *
- * The single-device assumption `hydrateProtocol` already documents applies: a
- * second device holding an older trail would delete a newer version this one has
- * not seen. That is the same trade the local filter makes, and the same one the
- * archive reconciliation makes; a real multi-device answer needs an outbox and is
- * out of beta scope.
+ * ## ⚠️ ONLY WHEN THE CALLER ACTUALLY RECORDED SOMETHING (`supersede`)
+ *
+ * "The newest pushed date is the supersede boundary" holds only for a push that
+ * EXTENDS the trail. `upsertStack` also runs on writes that touch no version at
+ * all — pausing, resuming, a rotation index — and those re-push whatever the
+ * device happens to hold. A cold review found the cost: a phone whose cache
+ * predates an edit made elsewhere, or one that has not finished hydrating, taps
+ * Pause, pushes its stale trail, and this deletes the newer version from
+ * Postgres. Hydration then converges the phone onto the OLD dose, and the
+ * calendar and adherence recompute weeks of history against it.
+ *
+ * That is worse than what it fixes, because before the sweep existed the union
+ * in `hydrateProtocol` could always pull the row back. So the sweep is now opt-in
+ * and only the three paths that call `recordScheduleVersion` / `recordScheduleStop`
+ * ask for it: adding, altering (including a cycle change), and deleting. A pause
+ * still re-pushes — which is how a trail that failed to sync heals — and no
+ * longer deletes anything.
+ *
+ * The single-device assumption `hydrateProtocol` documents still applies to the
+ * paths that DO sweep: a second device holding an older trail could delete a
+ * version this one has not seen. That is the same trade the local filter makes;
+ * a real multi-device answer needs an outbox and is out of beta scope.
  */
 async function sweepSupersededVersions(
   cx: { supabase: Awaited<ReturnType<typeof createClient>>; userId: string },
@@ -1332,7 +1366,14 @@ export async function pushScheduleVersions(
      *  slot takes the version's own dose (`supabase/protocol/021`). */
     laterDoses: (number | null)[] | null
     stopped: boolean
-  } & Partial<CycleColumns>)[]
+  } & Partial<CycleColumns>)[],
+  /**
+   * Whether this push RECORDED a new version and may therefore delete the ones
+   * it superseded. False for a re-push that changed no version — a pause, a
+   * resume — which must never delete history it may simply not have seen. See
+   * {@link sweepSupersededVersions}.
+   */
+  opts: { supersede?: boolean } = {}
 ): Promise<Ok> {
   // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER — AND IT LETS THE DELETE THROUGH.
   //
@@ -1353,19 +1394,40 @@ export async function pushScheduleVersions(
   // An ordinary edit's trail does NOT end in a stop, so adding and altering stay
   // gated. See `lib/billing/gate.ts` for the full list.
   //
+  // ⚠️ AND THE EXEMPTION IS NARROWED TWICE, BECAUSE THE PAYLOAD IS UNTRUSTED.
+  //
+  // This is a dispatchable HTTP endpoint and `versions` is whatever the caller
+  // sends. A cold review turned the first draft — "the newest version is
+  // stopped" — into a general write bypass in one payload: append a stop dated
+  // 2099 to an ordinary edit, and the newest row is a stop, the gate opens, and
+  // the edit lands while the far-future stop sits there inert. So:
+  //
+  //  1. The stop must not be FUTURE-DATED. A real delete is stamped today —
+  //     `archiveInStack` is explicit that "delete means now" — and tomorrow (UTC)
+  //     is the slack a device up to fourteen hours ahead needs, no more.
+  //  2. Only the STOP ROWS are written when the gate would otherwise have
+  //     refused. The rest of the trail is an edit, and the gate is entitled to
+  //     refuse it; the delete is all a lapsed user is owed here, and the client
+  //     keeps its own trail either way.
+  //
   // Read by DATE, not by array position: the trail arrives sorted today and a
   // caller that ever sends it unsorted must not silently re-gate the delete.
-  const isDelete = newestVersion(versions)?.stopped === true
-  if (!isDelete && !(await canWriteData())) return { ok: false, readOnly: true };
+  const newest = newestVersion(versions)
+  const isDelete =
+    newest?.stopped === true && newest.effectiveFrom <= utcDayKey(1)
+  const writable = await canWriteData()
+  if (!writable && !isDelete) return { ok: false, readOnly: true };
+  // A lapsed account writes the delete and nothing else.
+  const rows = writable ? versions : versions.filter((v) => v.stopped)
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
-    if (versions.length === 0) return { ok: true, skipped: true }
+    if (rows.length === 0) return { ok: true, skipped: true }
     const { id: pcId, failed } = await findProtocolCompoundId(cx, clientId, name)
     if (failed) return { ok: false }
     if (!pcId) return { ok: true, skipped: true } // custom / unmigrated compound
     const { error } = await cx.supabase.from("protocol_compound_schedules").upsert(
-      versions.map((v) => ({
+      rows.map((v) => ({
         user_id: cx.userId,
         protocol_compound_id: pcId,
         effective_from: v.effectiveFrom,
@@ -1387,7 +1449,12 @@ export async function pushScheduleVersions(
       })),
       { onConflict: "user_id,protocol_compound_id,effective_from" }
     )
-    if (!error) return await sweepSupersededVersions(cx, pcId, versions)
+    // The trail is written; now remove what it superseded.
+    if (!error) {
+      return opts.supersede
+        ? await sweepSupersededVersions(cx, pcId, rows)
+        : { ok: true }
+    }
     if (error) {
       if (isMissingTable(error)) return { ok: true, skipped: true }
       // Pre-006 environments have no cycle columns. Retry without them so the
@@ -1396,7 +1463,7 @@ export async function pushScheduleVersions(
         const { error: retry } = await cx.supabase
           .from("protocol_compound_schedules")
           .upsert(
-            versions.map((v) => ({
+            rows.map((v) => ({
               user_id: cx.userId,
               protocol_compound_id: pcId,
               effective_from: v.effectiveFrom,
@@ -1434,11 +1501,14 @@ export async function pushScheduleVersions(
           "pushScheduleVersions: cycle columns rejected, trail written without them",
           error
         )
-        return await sweepSupersededVersions(cx, pcId, versions)
+        return opts.supersede
+          ? await sweepSupersededVersions(cx, pcId, rows)
+          : { ok: true }
       }
       console.error("pushScheduleVersions failed", error)
       return { ok: false }
     }
+    // Unreachable — the success path returned above, at the sweep.
     return { ok: true }
   } catch (e) {
     console.error("pushScheduleVersions failed", e)

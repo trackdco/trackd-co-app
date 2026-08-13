@@ -162,6 +162,38 @@ function decompose(sub: PushSubscription): PushSubscriptionInput {
 }
 
 /**
+ * RE-REGISTER AN EXISTING SUBSCRIPTION UNDER THE SIGNED-IN ACCOUNT.
+ *
+ * No permission prompt, no `subscribe()`, no user gesture — it saves only what
+ * the browser already holds, and does nothing at all when there is nothing to
+ * save. Safe to call on mount.
+ *
+ * ## Why it exists
+ *
+ * A `PushSubscription` belongs to the browser, the row belongs to an account, and
+ * the two now come apart legitimately: signing out DELETES the row (otherwise the
+ * cron keeps posting one user's doses to whoever holds the phone next) while
+ * leaving the browser's subscription alone. Without a re-register, signing back
+ * in — as the same person, a minute later — left an account whose intent flag
+ * says "yes, notify me" and no endpoint to notify, silently, until they happened
+ * to open Settings and see the toggle had gone off.
+ *
+ * Also heals the older drift: a row lost to a failed write, or an endpoint the
+ * browser rotated, both come back on the next app open instead of never.
+ */
+export async function resyncSubscription(): Promise<void> {
+  try {
+    const sub = await getActiveSubscription();
+    if (!sub) return;
+    await savePushSubscription(decompose(sub));
+  } catch (e) {
+    // Best-effort by definition: this runs on mount, and nothing the user is
+    // doing depends on it.
+    console.error("[push] resync failed", e);
+  }
+}
+
+/**
  * Request permission (MUST be called from a user gesture), subscribe via the
  * PushManager (reusing any existing subscription), then persist it to the user's
  * account and flip the intent flag on.
