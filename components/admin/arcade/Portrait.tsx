@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 
 import type { Bot } from "@/components/admin/arcade/pieces"
-import { PORTRAIT_SIZE, PORTRAITS, type Mood } from "@/components/admin/arcade/portraits"
+import { BLEED, PORTRAIT_BOX, PORTRAITS, type Mood } from "@/components/admin/arcade/portraits"
 
 /**
  * An opponent's face, drawn on a canvas.
@@ -36,8 +36,10 @@ import { PORTRAIT_SIZE, PORTRAITS, type Mood } from "@/components/admin/arcade/p
  * quarter of Recon and nothing else. Sizing in the same unit as the container
  * makes that class of mistake impossible to write.
  *
- * The backing store is still an integer multiple of 64 so the pixel art stays
- * crisp; the browser only ever scales it DOWN, never up.
+ * The backing store is still an integer multiple of the drawing box so the
+ * pixel art stays crisp; the browser only ever scales it DOWN, never up. The
+ * box includes BLEED on every side, because several portraits draw outside
+ * their 64x64 grid on purpose.
  */
 export function Portrait({
   bot,
@@ -68,8 +70,8 @@ export function Portrait({
     }
   }, [mood])
 
-  const zoom = Math.max(1, Math.ceil(size / PORTRAIT_SIZE))
-  const backing = PORTRAIT_SIZE * zoom
+  const zoom = Math.max(1, Math.ceil(size / PORTRAIT_BOX))
+  const backing = PORTRAIT_BOX * zoom
 
   useEffect(() => {
     const cv = ref.current
@@ -84,7 +86,7 @@ export function Portrait({
     /* Draw at native 64 and blow up with nearest-neighbour, so the sprite keeps
        hard pixel edges instead of being smeared by the browser's filtering. */
     const src = document.createElement("canvas")
-    src.width = src.height = PORTRAIT_SIZE
+    src.width = src.height = PORTRAIT_BOX
     const sctx = src.getContext("2d")
     if (!sctx) return
 
@@ -93,11 +95,13 @@ export function Portrait({
 
     let raf = 0
     const frame = (t: number) => {
-      sctx.clearRect(0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE)
+      sctx.clearRect(0, 0, PORTRAIT_BOX, PORTRAIT_BOX)
+      sctx.save(); sctx.translate(BLEED, BLEED)
       draw(sctx, reduce ? 0 : t, moodRef.current,
         reduce ? 9e9 : performance.now() - sinceRef.current)
+      sctx.restore()
       ctx.clearRect(0, 0, backing, backing)
-      ctx.drawImage(src, 0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE, 0, 0, backing, backing)
+      ctx.drawImage(src, 0, 0, PORTRAIT_BOX, PORTRAIT_BOX, 0, 0, backing, backing)
       raf = requestAnimationFrame(frame)
     }
     raf = requestAnimationFrame(frame)

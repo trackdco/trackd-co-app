@@ -533,7 +533,7 @@ export function ConnectFour() {
     <div className="flex h-full flex-col items-center justify-center gap-3">
       <div className="flex flex-wrap items-center justify-center gap-3">
         <div className="glass-pill grid size-16 place-items-center overflow-hidden p-1">
-          <Portrait bot={bot} size={72} mood={over === "lose" ? "gloat" : over === "win" ? "beaten" : "idle"} />
+          <Portrait bot={bot} size={92} mood={over === "lose" ? "gloat" : over === "win" ? "beaten" : "idle"} />
         </div>
         <div className="flex gap-1">
           {C4_LEVELS.map((l) => (
@@ -571,7 +571,7 @@ export function ConnectFour() {
           <div className="absolute inset-0 grid place-items-center rounded-xl bg-bg-base/85 px-4 text-center">
             <div>
               <div className="flex items-end justify-center gap-3">
-                <Portrait bot={bot} size={112} mood={over === "lose" ? "gloat" : "beaten"} />
+                <Portrait bot={bot} size={140} mood={over === "lose" ? "gloat" : "beaten"} />
                 {over === "lose" && (
                   <div className="relative mb-3 max-w-[14rem] rounded-2xl rounded-bl-sm bg-[#f0efe9] px-3 py-2 text-left">
                     <p className="text-sm leading-snug text-[#1b1a17]">“{pickTaunt(bot) ?? "…"}”</p>

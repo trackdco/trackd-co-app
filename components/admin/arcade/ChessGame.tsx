@@ -32,7 +32,9 @@ import { drawGrid } from "@/lib/admin/arcade/kyle"
  *    move list, so neither can produce a move the other wouldn't.
  *  - **The bot pauses before replying.** An instant reply reads as a scripted
  *    response rather than an opponent. `MIN_THINK_MS` holds the move even when
- *    the search returns immediately, which at 250 Elo it always does.
+ *    the search returns immediately, which at 250 Elo it always does. It is
+ *    also long enough for the opponent's thinking ANIMATION to complete —
+ *    Recon's bar fills, Kyle heats up — which the shorter wait never allowed.
  *  - **Sound on every move.** Filtered noise for a piece landing, a heavier one
  *    for a capture — a beep would sound like a UI, not like wood on a board.
  */
@@ -49,7 +51,7 @@ const CELL = BOARD_PX / 8            // 72px squares
  */
 const PIECE_PX = Math.round(CELL * 0.88)
 const PIECE_OFF = (CELL - PIECE_PX) / 2
-const MIN_THINK_MS = 600
+const MIN_THINK_MS = 1150
 
 type Status = { text: string; over: boolean; won?: boolean }
 
@@ -396,10 +398,10 @@ function ChessBoard({ bot, onBack }: { bot: Bot; onBack: () => void }) {
           >
             <span aria-hidden className="text-base leading-none">←</span>
           </button>
-          <div className="glass-pill grid size-[88px] shrink-0 place-items-center overflow-hidden rounded-2xl">
+          <div className="glass-pill grid size-[120px] shrink-0 place-items-center rounded-2xl">
             <Portrait
               bot={bot}
-              size={88}
+              size={116}
               mood={status.over ? (status.won ? "beaten" : "gloat") : thinking ? "thinking" : "idle"}
             />
           </div>
@@ -429,7 +431,7 @@ function ChessBoard({ bot, onBack }: { bot: Bot; onBack: () => void }) {
               {/* The scene: they laugh at you, and the line comes out of their
                   mouth rather than sitting in a caption underneath. */}
               <div className="flex items-end justify-center gap-3">
-                <Portrait bot={bot} size={132} mood={status.won ? "beaten" : "gloat"} />
+                <Portrait bot={bot} size={168} mood={status.won ? "beaten" : "gloat"} />
                 {taunt && !status.won && (
                   <div className="relative mb-4 max-w-[15rem] rounded-2xl rounded-bl-sm bg-[#f0efe9] px-3.5 py-2.5 text-left">
                     <p className="text-sm leading-snug text-[#1b1a17]">“{taunt}”</p>
@@ -531,7 +533,7 @@ function OpponentSelect({ onPick }: { onPick: (b: Bot) => void }) {
             onClick={() => { wakeAudio(); onPick(b) }}
             className="glass-pill flex flex-col items-center gap-1 rounded-xl px-2 py-3 transition-colors hover:bg-[var(--admin-glass-hover)]"
           >
-            <Portrait bot={b} size={64} mood="idle" />
+            <Portrait bot={b} size={80} mood="idle" />
             <span className="text-center text-[11px] font-medium leading-tight text-foreground">{b.name}</span>
             <span className="font-mono text-[10px] tabular-nums text-accent-amber">{b.elo}</span>
             <span className="text-center text-[9px] leading-tight text-text-muted">{b.who}</span>

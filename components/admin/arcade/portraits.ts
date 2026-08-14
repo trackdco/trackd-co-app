@@ -19,6 +19,17 @@
  */
 
 export const PORTRAIT_SIZE = 64
+/**
+ * Margin drawn OUTSIDE the 64x64 grid.
+ *
+ * Several portraits deliberately break their box: Kyle's vapour rises to y=-7
+ * and Chad's hair reaches y=-6.7. Rendering into exactly 64x64 sliced the tops
+ * off both. The canvas is `PORTRAIT_SIZE + 2 * BLEED` and the drawing is
+ * offset into it, so a portrait can overflow its grid on purpose without
+ * anyone having to remember that it does.
+ */
+export const BLEED = 10
+export const PORTRAIT_BOX = PORTRAIT_SIZE + BLEED * 2
 const C = 32
 
 export type Mood = "idle" | "thinking" | "gloat" | "beaten"
@@ -41,6 +52,12 @@ const easeIn = (held: number, ms = 260) => {
 }
 /** Approach 1 and stay there. Progress that settles, rather than a loop. */
 const settle = (held: number, ms: number) => 1 - Math.exp(-held / ms)
+/**
+ * Every `settle` below is tuned so the animation is ~95% complete by
+ * MIN_THINK_MS (see ChessGame). Adrian's note was that the thinking animation
+ * never got to run; the fix is both ends — a longer minimum think, and time
+ * constants short enough to actually land inside it.
+ */
 
 /* ── shared drawing helpers ─────────────────────────────────────────────── */
 const rr = (c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
@@ -287,7 +304,7 @@ export const PORTRAITS: Record<string, Draw> = {
        settles rather than sweeping, so however long the search takes, the bar
        is somewhere sensible when the move lands. */
     const fill = m === "thinking"
-      ? Math.min(0.97, settle(held, 520) * (0.94 + Math.sin(t / 90) * 0.03))
+      ? Math.min(0.97, settle(held, 380) * (0.94 + Math.sin(t / 90) * 0.03))
       : 1
     c.fillStyle = "#3d3325"; rr(c, 19, 14, 26, 3.6, 1.8)
     c.fillStyle = "#c8861a"; rr(c, 19, 14, Math.max(0.2, 26 * fill), 3.6, 1.8)
@@ -321,7 +338,7 @@ export const PORTRAITS: Record<string, Draw> = {
     // Never bobs. The stillness is the character; only the glow moves.
     /* Ester brightens steadily the longer she thinks. Nothing oscillates —
        that is the character. */
-    const glow = m === "thinking" ? 0.6 + settle(held, 900) * 0.4
+    const glow = m === "thinking" ? 0.6 + settle(held, 400) * 0.4
       : m === "gloat" ? 1 : 0.7 + Math.sin(t / 900) * 0.15
     c.fillStyle = "#2a2a26"; rr(c, 22, 5, 20, 6, 1.8)
     c.fillStyle = "#4e4e48"; c.fillRect(22, 6.6, 20, 2)
@@ -344,7 +361,7 @@ export const PORTRAITS: Record<string, Draw> = {
     c.save(); c.translate(0, -b)
     arms(c, "folded", 42, 12, "#2a3a48")
     /* The dial turns TOWARD a position and holds, rather than oscillating. */
-    const dial = m === "thinking" ? settle(held, 420) * 1.5 : 0
+    const dial = m === "thinking" ? settle(held, 340) * 1.5 : 0
     c.save(); c.translate(C, 9); c.rotate(dial * 0.12); c.translate(-C, -9)
     c.fillStyle = "#d8dee6"; rr(c, 24, 3, 16, 11, 3)
     c.fillStyle = "#9aa6b4"; for (let i = 0; i < 6; i++) c.fillRect(25, 4.4 + i * 1.6, 14, 1)
@@ -408,7 +425,7 @@ export const PORTRAITS: Record<string, Draw> = {
       : m === "gloat" ? Math.abs(Math.sin(t / 130)) * 3 : 0
     /* Kyle heats UP the longer he takes over you, and does not cool between
        frames. The longer the search, the brighter he gets. */
-    const heat = m === "thinking" ? 0.45 + settle(held, 1100) * 0.55
+    const heat = m === "thinking" ? 0.45 + settle(held, 420) * 0.55
       : m === "gloat" ? 1 : 0.45 + Math.sin(t / 1100) * 0.12
     const surge = m === "gloat" ? -Math.abs(Math.sin(t / 130)) * 3 : -breathe
 
