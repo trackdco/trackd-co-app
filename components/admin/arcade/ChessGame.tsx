@@ -39,9 +39,15 @@ import { drawGrid } from "@/lib/admin/arcade/kyle"
 
 const BOARD_PX = 576
 const CELL = BOARD_PX / 8            // 72px squares
-/** Pieces are drawn a touch larger than the square and sit slightly high, the
-    way a real set overhangs its own base. */
-const PIECE_PX = Math.round(CELL * 1.08)
+/**
+ * Pieces sit at 88% of the square.
+ *
+ * At full width they touch their neighbours and the whole board reads as one
+ * solid mass; the gap is what lets you see eight separate pieces on a rank.
+ * They are also centred on their actual painted ink rather than on their box —
+ * see `pieceBitmap` — because the drawings are not symmetric about the middle.
+ */
+const PIECE_PX = Math.round(CELL * 0.88)
 const PIECE_OFF = (CELL - PIECE_PX) / 2
 const MIN_THINK_MS = 600
 
@@ -338,7 +344,14 @@ function ChessBoard({ bot, onBack }: { bot: Bot; onBack: () => void }) {
         // The dragged piece is drawn last, under the cursor.
         if (drag.current && drag.current.from === i) continue
         const bmp = pieceBitmap(p.t as PieceKey, p.c === "w", PIECE_PX)
-        if (bmp) ctx.drawImage(bmp, file(i) * CELL + PIECE_OFF, rank(i) * CELL + PIECE_OFF - CELL * 0.06)
+        if (bmp) {
+          /* A very slight contact shadow. Enough to stop the piece floating,
+             low enough that you do not notice it as a shadow. */
+          const cx = file(i) * CELL + CELL / 2, cy = rank(i) * CELL + CELL * 0.84
+          ctx.fillStyle = "rgba(0,0,0,.16)"
+          ctx.beginPath(); ctx.ellipse(cx, cy, CELL * 0.24, CELL * 0.06, 0, 0, Math.PI * 2); ctx.fill()
+          ctx.drawImage(bmp, file(i) * CELL + PIECE_OFF, rank(i) * CELL + PIECE_OFF * 0.4)
+        }
       }
       if (confetti.current.length > 0) {
         for (const c of confetti.current) {
