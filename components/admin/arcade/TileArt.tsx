@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react"
 
-import { AMBER, GREY, PIECES, PIECE_SIZE } from "@/components/admin/arcade/pieces"
-import { drawKyle, drawPixels } from "@/lib/admin/arcade/kyle"
+import { pieceBitmap, type PieceKey } from "@/components/admin/arcade/chessSet"
+import { drawKyle } from "@/lib/admin/arcade/kyle"
 
 /**
  * The little picture on each arcade menu tile.
@@ -30,9 +30,10 @@ const ART: Record<string, Art> = {
         ctx.fillRect(c * cell + 4, r * cell, cell, cell)
       }
     }
-    const s = cell / PIECE_SIZE
-    const put = (piece: string, c: number, r: number, white: boolean) =>
-      drawPixels(ctx, PIECES[piece], white ? AMBER : GREY, s, c * cell + 4, r * cell)
+    const put = (piece: PieceKey, c: number, r: number, white: boolean) => {
+      const bmp = pieceBitmap(piece, white, cell)
+      if (bmp) ctx.drawImage(bmp, c * cell + 4, r * cell)
+    }
     put("k", 1, 0, false)
     put("p", 3, 1, false)
     put("n", 2, 2, true)

@@ -1,31 +1,23 @@
 import { describe, expect, it } from "vitest"
 
-import { LADDER, PIECES, PIECE_SIZE } from "@/components/admin/arcade/pieces"
+import { CHESS_SET } from "@/components/admin/arcade/chessSet"
+import { LADDER } from "@/components/admin/arcade/pieces"
 import { PORTRAITS } from "@/components/admin/arcade/portraits"
 
 /**
- * Sprites are hand-authored strings, so one mistyped row is a silently skewed
- * image — the renderer just draws a short row and nothing complains. These are
- * the only thing between a typo and a knight with a dent in it.
+ * The set is drawn, not typed, so "is every row the right length" no longer
+ * means anything. What still must hold is that all six exist — a missing key
+ * renders nothing at all and the board silently loses a piece type.
  */
-describe("chess piece sprites", () => {
-  it("are all square at PIECE_SIZE", () => {
-    for (const [name, rows] of Object.entries(PIECES)) {
-      expect(rows, `${name} row count`).toHaveLength(PIECE_SIZE)
-      for (const [i, row] of rows.entries()) {
-        expect(row.length, `${name} row ${i}`).toBe(PIECE_SIZE)
-      }
+describe("chess set", () => {
+  it("covers all six piece types", () => {
+    expect(Object.keys(CHESS_SET).sort()).toEqual(["b", "k", "n", "p", "q", "r"])
+  })
+
+  it("draws something for every piece", () => {
+    for (const [name, draw] of Object.entries(CHESS_SET)) {
+      expect(draw, `${name} is not drawable`).toBeTypeOf("function")
     }
-  })
-
-  it("cover all six piece types", () => {
-    expect(Object.keys(PIECES).sort()).toEqual(["b", "k", "n", "p", "q", "r"])
-  })
-
-  it("give the king a face with catchlights", () => {
-    const king = PIECES.k.join("")
-    expect(king.split("E").length - 1).toBeGreaterThanOrEqual(4)
-    expect(king.split("S").length - 1).toBe(2)
   })
 })
 

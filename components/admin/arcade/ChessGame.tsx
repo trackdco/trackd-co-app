@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { AMBER, GREY, LADDER, PIECES, PIECE_SIZE, pickTaunt, type Bot } from "@/components/admin/arcade/pieces"
+import { pieceBitmap, type PieceKey } from "@/components/admin/arcade/chessSet"
+import { LADDER, pickTaunt, type Bot } from "@/components/admin/arcade/pieces"
 import { Portrait } from "@/components/admin/arcade/Portrait"
 import { sfx, wakeAudio } from "@/lib/admin/arcade/audio"
 import {
@@ -20,7 +21,7 @@ import {
   type Game,
   type Move,
 } from "@/lib/admin/arcade/chess"
-import { drawGrid, drawPixels } from "@/lib/admin/arcade/kyle"
+import { drawGrid } from "@/lib/admin/arcade/kyle"
 
 /**
  * Chess against the ladder.
@@ -38,8 +39,10 @@ import { drawGrid, drawPixels } from "@/lib/admin/arcade/kyle"
 
 const BOARD_PX = 576
 const CELL = BOARD_PX / 8            // 72px squares
-const PIECE_SCALE = 3                // 24×24 sprite → 72px, edge to edge
-const PIECE_OFF = (CELL - PIECE_SIZE * PIECE_SCALE) / 2
+/** Pieces are drawn a touch larger than the square and sit slightly high, the
+    way a real set overhangs its own base. */
+const PIECE_PX = Math.round(CELL * 1.08)
+const PIECE_OFF = (CELL - PIECE_PX) / 2
 const MIN_THINK_MS = 600
 
 type Status = { text: string; over: boolean; won?: boolean }
@@ -334,8 +337,8 @@ function ChessBoard({ bot, onBack }: { bot: Bot; onBack: () => void }) {
         if (!p) continue
         // The dragged piece is drawn last, under the cursor.
         if (drag.current && drag.current.from === i) continue
-        drawPixels(ctx, PIECES[p.t], p.c === "w" ? AMBER : GREY, PIECE_SCALE,
-          file(i) * CELL + PIECE_OFF, rank(i) * CELL + PIECE_OFF)
+        const bmp = pieceBitmap(p.t as PieceKey, p.c === "w", PIECE_PX)
+        if (bmp) ctx.drawImage(bmp, file(i) * CELL + PIECE_OFF, rank(i) * CELL + PIECE_OFF - CELL * 0.06)
       }
       if (confetti.current.length > 0) {
         for (const c of confetti.current) {
@@ -353,9 +356,12 @@ function ChessBoard({ bot, onBack }: { bot: Bot; onBack: () => void }) {
       if (drag.current) {
         const p = game.board[drag.current.from]
         if (p) {
-          drawPixels(ctx, PIECES[p.t], p.c === "w" ? AMBER : GREY, PIECE_SCALE,
-            drag.current.x - (PIECE_SIZE * PIECE_SCALE) / 2,
-            drag.current.y - (PIECE_SIZE * PIECE_SCALE) / 2, { alpha: 0.92 })
+          const bmp = pieceBitmap(p.t as PieceKey, p.c === "w", PIECE_PX)
+          if (bmp) {
+            ctx.globalAlpha = 0.92
+            ctx.drawImage(bmp, drag.current.x - PIECE_PX / 2, drag.current.y - PIECE_PX / 2)
+            ctx.globalAlpha = 1
+          }
         }
       }
       raf = requestAnimationFrame(frame)

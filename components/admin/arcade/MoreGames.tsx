@@ -645,6 +645,83 @@ const canFound = (card: PlayCard, pile: PlayCard[]) =>
     ? card.rank === 0
     : pile[pile.length - 1].suit === card.suit && card.rank === pile[pile.length - 1].rank + 1
 
+
+/**
+ * Find one legal, USEFUL move.
+ *
+ * Adrian's ask: "sometimes you have to move things backwards to actually go
+ * forward" — so a hint that only ever plays aces to the foundations is useless
+ * exactly when you need it. The order below is deliberate:
+ *
+ *   1. a face-down card can be turned over        (always progress)
+ *   2. a tableau run that frees a face-down card  (the "backwards" move)
+ *   3. waste onto tableau                         (gets cards out of the pile)
+ *   4. anything to a foundation                   (last, because it is a
+ *                                                  one-way door — a 2 sent up
+ *                                                  early can strand a red 3)
+ *   5. a King into an empty column
+ *
+ * Returns null when the position is genuinely stuck, which is information too.
+ */
+export interface Hint {
+  from: { kind: "waste" } | { kind: "tab"; pile: number; idx: number }
+  to: { kind: "found"; pile: number } | { kind: "tab"; pile: number }
+  why: string
+}
+export function findHint(s: SolState): Hint | null {
+  const top = (pile: PlayCard[]) => pile[pile.length - 1]
+
+  // 2. Move a run so the card underneath can be turned over.
+  for (let p = 0; p < s.tab.length; p++) {
+    const pile = s.tab[p]
+    const firstUp = pile.findIndex((c) => c.up)
+    if (firstUp <= 0) continue                       // nothing buried underneath
+    const card = pile[firstUp]
+    for (let q = 0; q < s.tab.length; q++) {
+      if (q === p) continue
+      if (canStack(card, top(s.tab[q]))) {
+        return { from: { kind: "tab", pile: p, idx: firstUp }, to: { kind: "tab", pile: q },
+          why: "frees a face-down card" }
+      }
+    }
+  }
+  // 3. Waste onto the tableau.
+  const w = top(s.waste)
+  if (w) {
+    for (let q = 0; q < s.tab.length; q++) {
+      if (canStack(w, top(s.tab[q]))) {
+        return { from: { kind: "waste" }, to: { kind: "tab", pile: q }, why: "clears the waste" }
+      }
+    }
+  }
+  // 4. Foundations, last.
+  for (let f = 0; f < s.found.length; f++) {
+    if (w && canFound(w, s.found[f])) {
+      return { from: { kind: "waste" }, to: { kind: "found", pile: f }, why: "goes up" }
+    }
+    for (let p = 0; p < s.tab.length; p++) {
+      const card = top(s.tab[p])
+      if (card?.up && canFound(card, s.found[f])) {
+        return { from: { kind: "tab", pile: p, idx: s.tab[p].length - 1 }, to: { kind: "found", pile: f },
+          why: "goes up" }
+      }
+    }
+  }
+  // 5. A King into an empty column.
+  for (let q = 0; q < s.tab.length; q++) {
+    if (s.tab[q].length > 0) continue
+    if (w?.rank === 12) return { from: { kind: "waste" }, to: { kind: "tab", pile: q }, why: "king to the gap" }
+    for (let p = 0; p < s.tab.length; p++) {
+      const pile = s.tab[p]
+      const firstUp = pile.findIndex((c) => c.up)
+      if (firstUp > 0 && pile[firstUp].rank === 12) {
+        return { from: { kind: "tab", pile: p, idx: firstUp }, to: { kind: "tab", pile: q }, why: "king to the gap" }
+      }
+    }
+  }
+  return null
+}
+
 function CardFace({ c }: { c: PlayCard }) {
   return (
     <span
@@ -677,6 +754,16 @@ export function Solitaire() {
    * array without bound.
    */
   const [history, setHistory] = useState<SolState[]>([])
+  /**
+   * The hint, mid-performance.
+   *
+   * Adrian asked for a hint that "moves the card so you can see it" rather than
+   * one that silently rearranges the board. So it plays out in three beats:
+   * highlight the source, highlight the destination, then actually move it. You
+   * watch the reasoning instead of being handed a result.
+   */
+  const [hint, setHint] = useState<{ h: Hint; step: 0 | 1 } | null>(null)
+  const [noHint, setNoHint] = useState(false)
   const remember = useCallback(
     (prev: SolState) => setHistory((h) => [...h, prev].slice(-60)),
     []
@@ -692,7 +779,10 @@ export function Solitaire() {
     })
   }, [])
 
-  const deal = useCallback(() => { setSt(freshDeal()); setHistory([]); sfx.start() }, [])
+  const deal = useCallback(() => {
+    setSt(freshDeal()); setHistory([]); setHint(null); setNoHint(false); sfx.start()
+  }, [])
+
 
   const draw = useCallback(() => {
     wakeAudio()
@@ -749,6 +839,27 @@ export function Solitaire() {
     })
   }, [remember])
 
+  const showHint = useCallback(() => {
+    wakeAudio()
+    const h = findHint(st)
+    if (!h) { setNoHint(true); sfx.bad(); setTimeout(() => setNoHint(false), 1600); return }
+    /* Beat 1: light up the card. Beat 2: light up where it goes. Beat 3: move
+       it. Selecting through the real `sel` state means the highlight the player
+       sees is the same one they would get by tapping it themselves, and the
+       move goes through `moveTo` — the same path a tap takes — so a hint can
+       never make a move a human could not. */
+    setHint({ h, step: 0 })
+    setSt((s) => ({
+      ...s,
+      sel: h.from.kind === "waste"
+        ? { from: "waste", pile: 0, idx: Math.max(0, s.waste.length - 1) }
+        : { from: "tab", pile: h.from.pile, idx: h.from.idx },
+    }))
+    sfx.select()
+    setTimeout(() => setHint((x) => (x ? { ...x, step: 1 } : x)), 620)
+    setTimeout(() => { setHint(null); moveTo({ kind: h.to.kind, pile: h.to.pile }) }, 1240)
+  }, [st, moveTo])
+
   return (
     <div className="flex h-full flex-col items-center gap-3 overflow-x-auto">
       <div className="flex items-start gap-2">
@@ -773,7 +884,15 @@ export function Solitaire() {
         </button>
         <span className="w-4" />
         {st.found.map((f, i) => (
-          <button key={i} type="button" onClick={() => moveTo({ kind: "found", pile: i })} className="rounded-[5px]">
+          <button
+            key={i}
+            type="button"
+            onClick={() => moveTo({ kind: "found", pile: i })}
+            className={`rounded-[5px] ${
+              hint?.step === 1 && hint.h.to.kind === "found" && hint.h.to.pile === i
+                ? "ring-2 ring-accent-green" : ""
+            }`}
+          >
             {f.length ? (
               <CardFace c={f[f.length - 1]} />
             ) : (
@@ -787,7 +906,13 @@ export function Solitaire() {
 
       <div className="flex items-start gap-2">
         {st.tab.map((pile, p) => (
-          <div key={p} className="flex flex-col">
+          <div
+            key={p}
+            className={`flex flex-col rounded-md ${
+              hint?.step === 1 && hint.h.to.kind === "tab" && hint.h.to.pile === p
+                ? "ring-2 ring-accent-green" : ""
+            }`}
+          >
             {pile.length === 0 ? (
               <button type="button" onClick={() => moveTo({ kind: "tab", pile: p })}>
                 <span className="inline-block h-[68px] w-[48px] rounded-md border border-dashed border-[#3b3b36]" />
@@ -818,7 +943,20 @@ export function Solitaire() {
       </div>
 
       <div className="flex items-center gap-2 text-[11px] text-text-muted">
-        <span>{st.won ? "Solved." : `${st.moves} moves · tap a card, then tap where it goes`}</span>
+        <span>
+          {st.won ? "Solved."
+            : noHint ? "No move available — draw from the stock."
+            : hint ? hint.h.why
+            : `${st.moves} moves · tap a card, then tap where it goes`}
+        </span>
+        <button
+          type="button"
+          onClick={showHint}
+          disabled={st.won || hint !== null}
+          className="glass-pill px-3 py-1 text-[11px] text-text-muted enabled:hover:text-foreground disabled:opacity-40"
+        >
+          Hint
+        </button>
         <button
           type="button"
           onClick={undo}
