@@ -46,6 +46,14 @@ export interface ManageableSubscription {
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  /**
+   * When a save-offer courtesy period ends, or null for a genuine first trial.
+   *
+   * Only exists so the LABEL can tell the two apart. Nothing gates on it: a
+   * courtesy period entitles exactly the same way a trial does, and access is
+   * still decided by `entitlements` alone.
+   */
+  courtesyUntil?: string | null;
 }
 
 /**
@@ -145,7 +153,7 @@ export function manageActionFor(
  */
 export function planLabelFor(
   source: EntitlementSource | null,
-  subscription: Pick<ManageableSubscription, "status"> | null,
+  subscription: Pick<ManageableSubscription, "status" | "courtesyUntil"> | null,
   /**
    * Is the read-only gate switched on? (`billingGateEnabled()`.)
    *
@@ -159,6 +167,21 @@ export function planLabelFor(
   gateEnabled = false,
 ): string {
   if (source === "comp") return "Complimentary";
+  /**
+   * ⚠️ A COURTESY PERIOD IS NOT A TRIAL, even though Stripe calls it one.
+   *
+   * The save offer gives free time by moving `trial_end`, which is the only
+   * mechanism that means "this period is free" exactly and works the same on
+   * every interval. The side effect is that Stripe reports `trialing` for the
+   * free stretch, so without this check a customer of two years who accepted a
+   * free month would be told they are on a "Free trial" -- the label meant for
+   * somebody who has never paid a cent. Adrian, 2026-08-14.
+   *
+   * They read "Pro", because that is what they are on. The fact that this
+   * particular month costs nothing is carried by the date beside it, not by
+   * relabelling their plan.
+   */
+  if (subscription?.courtesyUntil) return "Pro";
   // A running trial says so whether or not the entitlement row has caught up.
   // The webhook writes that row moments after the subscription exists, and in
   // the gap the screen used to read "Pro" beside its own "Trial ends 19 Aug".

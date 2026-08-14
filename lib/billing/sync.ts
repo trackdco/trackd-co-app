@@ -2,8 +2,24 @@ import "server-only";
 
 import type Stripe from "stripe";
 
+import { COURTESY_KEY } from "./saveOffer";
 import { serviceClient } from "./service";
 import type { SubscriptionStatus } from "./schema";
+
+/**
+ * Does this error mean the column simply is not there yet?
+ *
+ * Both codes, because the two layers report it differently and which one you get
+ * depends on whether PostgREST's schema cache or Postgres itself rejects first.
+ * `runner.ts` handles both for the same reason.
+ */
+function isMissingColumn(error: { code?: string | null; message?: string }): boolean {
+  return (
+    error.code === "PGRST204" ||
+    error.code === "42703" ||
+    /courtesy_until/i.test(error.message ?? "")
+  );
+}
 
 /**
  * What a handler did, so the route knows whether to mark the event processed.
@@ -226,18 +242,46 @@ export async function syncSubscription(
 
   const db = serviceClient();
 
-  const { error: subError } = await db.from("subscriptions").upsert(
-    {
-      user_id: userId,
-      stripe_subscription_id: sub.id,
-      stripe_price_id: priceId,
-      status,
-      trial_ends_at: ts(sub.trial_end),
-      current_period_end: entitledUntil(sub),
-      cancel_at_period_end: sub.cancel_at_period_end,
-    },
-    { onConflict: "stripe_subscription_id" },
-  );
+  const mirror = {
+    user_id: userId,
+    stripe_subscription_id: sub.id,
+    stripe_price_id: priceId,
+    status,
+    trial_ends_at: ts(sub.trial_end),
+    current_period_end: entitledUntil(sub),
+    cancel_at_period_end: sub.cancel_at_period_end,
+  };
+  /**
+   * The save offer's courtesy period, mirrored so the plan label can tell it
+   * apart from a first trial. See `supabase/billing/003_courtesy_until.sql`.
+   */
+  const courtesyUntil = sub.metadata?.[COURTESY_KEY] ?? null;
+
+  let { error: subError } = await db
+    .from("subscriptions")
+    .upsert({ ...mirror, courtesy_until: courtesyUntil }, {
+      onConflict: "stripe_subscription_id",
+    });
+
+  /**
+   * ⚠️ `PGRST204`, NOT `42703`, IS WHAT AN UNAPPLIED MIGRATION LOOKS LIKE HERE.
+   *
+   * PostgREST validates the request body against its own schema cache and
+   * rejects before Postgres ever sees the statement, so the Postgres
+   * "undefined column" code never arrives. This branch already paid for that
+   * lesson once: `trialLease.ts` caught `42703`, the real answer was `PGRST204`,
+   * and an unapplied migration turned into "no trial can be started at all" on
+   * a payment path.
+   *
+   * Retried WITHOUT the column rather than failing, because the mirror is what
+   * `/billing` renders and a missing courtesy flag is a cosmetic label while a
+   * missing mirror row is a screen that cannot say what somebody is paying.
+   */
+  if (subError && isMissingColumn(subError)) {
+    ({ error: subError } = await db
+      .from("subscriptions")
+      .upsert(mirror, { onConflict: "stripe_subscription_id" }));
+  }
   if (subError) throw new Error(`subscriptions upsert: ${subError.message}`);
 
   // The mirror is written even for a status that does not entitle — a `canceled`

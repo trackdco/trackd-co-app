@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import {
+  trialEligibility,
+  type TrialEligibility,
+} from "@/app/onboarding/billing-actions";
 import { track } from "@/lib/onboarding/analytics";
 import {
   billingDate,
   formatPrice,
   monthlyEquivalent,
-  REMINDER_DAY,
   TRIAL_DAYS,
 } from "@/lib/onboarding/pricing";
 import { FLOW_EMPHASIS } from "@/lib/ui-presets";
@@ -37,6 +40,44 @@ import { TrialHold } from "../trial-hold";
 export function CheckoutScreen() {
   const { session, goNext, priceFor } = useFlow();
   const [holding, setHolding] = useState(false);
+  /**
+   * ⚠️ DOES THIS PERSON ACTUALLY GET THE FREE DAYS THIS SCREEN PROMISES?
+   *
+   * One trial per user (Adrian, 2026-08-14) means a returning customer is
+   * charged from day one. Every line on this screen was written when everybody
+   * got seven free days, so without this it promises a trial, takes a card, and
+   * charges immediately. That is a broken promise on a payment screen, which is
+   * both the thing the disclosure rules are about and a straightforward
+   * chargeback.
+   *
+   * Starts as `true` and narrows on the answer. That direction is deliberate and
+   * matches the server: `trialEligibility` and `startTrial` both err towards
+   * granting, so the worst case is a screen that promised a trial and a server
+   * that grants one. The reverse would be the defect.
+   */
+  const [eligibility, setEligibility] = useState<TrialEligibility>({
+    eligible: true,
+    reason: "new",
+    days: TRIAL_DAYS,
+  });
+  const trial = eligibility.eligible;
+  /** Which free run they already had, so the copy names the right one. */
+  const hadDays = eligibility.days;
+  const wasBeta = eligibility.reason === "beta";
+
+  useEffect(() => {
+    let alive = true;
+    void trialEligibility()
+      .then((r) => {
+        if (alive) setEligibility(r);
+      })
+      .catch(() => {
+        // Keep the generous default. See above.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const selected = priceFor(session.plan);
   // Resolved ONCE, so the date cannot move under the user mid-session — the
@@ -82,8 +123,12 @@ export function CheckoutScreen() {
   const disclosure = selected ? (
     <div className="space-y-1 pt-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
       <p>
+        {/* ⚠️ The four required facts, and the FIRST one changes for a returning
+            customer. Somebody who has already had their trial is charged today,
+            so promising free days here would be a lie told directly above the
+            button that takes their money. */}
         <span className="text-foreground">
-          {TRIAL_DAYS}{" "}days free
+          {trial ? `${TRIAL_DAYS} days free` : "Starts today"}
         </span>
         , then{" "}
         <span className="text-foreground">
@@ -99,8 +144,8 @@ export function CheckoutScreen() {
       </p>
       <p>
         First charge{" "}
-        <span className="text-foreground">{firstChargeOn}</span>, then renews
-        until you cancel.
+        <span className="text-foreground">{trial ? firstChargeOn : "today"}</span>
+        , then renews until you cancel.
       </p>
       {/* THE REMINDER, promised on this screen too (Adrian, 2026-08-08).
           The paywall's timeline already says it, and the fear it answers — "am
@@ -118,32 +163,59 @@ export function CheckoutScreen() {
           it needs `supabase/notifications/004_trial_reminder.sql` applied, and
           it is a PUSH, so a user who never granted notification permission has
           no channel to receive it on. */}
-      <p>
-        We&apos;ll remind you on day{" "}
-        {REMINDER_DAY}. Cancel any time before then.
-      </p>
+      {/* The day-5 reminder is a promise about a TRIAL. There is no trial to
+          remind anybody about here, and a reminder we would not send is worse
+          than no line at all. */}
+      {trial ? (
+        <p>
+          {/* No channel named. Push reaches only opted-in users and there is no
+              email system in this codebase, so promising either would be a
+              promise we cannot keep for everybody. "We'll notify you" is true
+              via the in-app banner for all of them. */}
+          We&apos;ll notify you before your trial ends. Cancel any time before
+          then.
+        </p>
+      ) : (
+        <p>Cancel any time from your Billing screen.</p>
+      )}
     </div>
   ) : null;
 
   return (
     <StepFrame
       title={
-        <>
-          Nothing to pay <em className={FLOW_EMPHASIS}>today</em>.
-        </>
+        trial ? (
+          <>
+            Nothing to pay <em className={FLOW_EMPHASIS}>today</em>.
+          </>
+        ) : (
+          <>
+            You&apos;ve had your <em className={FLOW_EMPHASIS}>trial</em>.
+          </>
+        )
       }
       /* ONE SHORT LINE. At 320x568 a three-line subcopy under a 2rem headline
          pushed the card fields off the top of the port — measured — leaving a
          payment screen whose form you had to scroll UP to find. The reassurance
          has one job here; the disclosure above the button says the rest. */
-      sub={selected ? "Just a card to keep your trial going." : undefined}
+      sub={
+        selected
+          ? trial
+            ? "Just a card to keep your trial going."
+            : wasBeta
+              ? `Your ${hadDays} days on us was it, so your plan starts today.`
+              : "Free trials are for new accounts, so your plan starts today."
+          : undefined
+      }
     >
       <div className="flex w-full flex-1 flex-col justify-center pb-2">
         {selected ? (
           <PaymentSheet
             plan={selected.id}
             currency={selected.currency}
-            ctaLabel={`Start my ${TRIAL_DAYS}-day free trial`}
+            ctaLabel={
+              trial ? `Start my ${TRIAL_DAYS}-day free trial` : "Subscribe"
+            }
             disclosure={disclosure}
             onOutcome={onOutcome}
           />

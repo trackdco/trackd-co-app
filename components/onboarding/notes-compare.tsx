@@ -1,10 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ArrowsLeftRight } from "@/components/icons";
-import { cn } from "@/lib/utils";
-import { DATA_MONO } from "@/lib/ui-presets";
 
 /**
  * The Notes-vs-Trackd wipe (Spec 3-01 §9 Screen 0).
@@ -33,39 +32,52 @@ const SWEEP_MAX = 72;
 const SWEEP_MS = 4200;
 
 /**
- * NO COMPOUND IS NAMED ON THIS SCREEN (Adrian, 2026-08-01).
+ * THE LEFT PANEL IS A REAL SCREENSHOT NOW, AND IT NAMES COMPOUNDS
+ * (Adrian, 2026-08-14 — "don't worry about the notes compounds thing").
  *
- * The hook runs BEFORE the age gate and is a public marketing surface, so it
- * carries no substance names at all. That is a stricter line than spec §3.2's
- * "substance-adjacent content comes after the age gate", and deliberately so:
- * an age gate is a product control, and it is not what makes naming a
- * prescription-only substance in promotional copy acceptable.
+ * This panel used to be typeset from a `NOTES_LINES` array with every substance
+ * name deliberately stripped, on the reasoning that the hook runs BEFORE the age
+ * gate and is therefore a public promotional surface. That reasoning has not
+ * changed and is not disproved — under the Therapeutic Goods Act the
+ * restriction attaches to the advertisement, not to the age of who sees it, so
+ * a gate is a product control and not the thing that makes naming a
+ * prescription-only substance acceptable. It is recorded in full in
+ * `progress-tracker.md` under Open Questions.
  *
- * The screen loses nothing. Its argument was never "look, here is a compound"
- * — it is "you do not know how much is left, and you are not sure when you
- * last did it". Every line below is about UNCERTAINTY, which is the actual
- * mess, and the generic labels match the demo screen's own convention.
+ * Adrian was told that, twice, and has decided to ship his own note anyway. It
+ * is his product and his call. **Do not silently revert this to the generic
+ * copy** — if it goes back, it goes back because he says so.
+ *
+ * What WAS enforced, and must stay enforced: the note's Labcorp attachment
+ * carries a patient surname and an account number, and both are opaquely
+ * redacted in the file. That is third-party health data rather than a
+ * regulatory judgment call, so it is not his to trade away. The redaction was
+ * checked pixel-level before this shipped; the screenshot is flattened, so
+ * there is nothing recoverable underneath. Any REPLACEMENT of this asset gets
+ * the same check.
+ *
+ * The asset also carries a baked alpha fade over its bottom 14%, which
+ * dissolves the half-cut lab card at the foot of the capture. That is in the
+ * PNG rather than in CSS so the file is safe at any crop; the panel adds its
+ * own fade on top for the edge you actually see.
  */
-const NOTES_LINES = [
-  "PROTOCOL",
-  "mon + thurs?? or tues",
-  "  - last one 23rd i think",
-  "second one eod",
-  "  - ran out? check the vial",
-  "",
-  "2ml water -> 5mg vial",
-  "  = ??? per unit",
-  "",
-  "bloods 10/07 - still not booked",
-  "left delt last time. or right",
-];
+const NOTES_SRC = "/onboarding/notes-app.png";
 
-const TRACKD_ROWS = [
-  { name: "Compound 1", left: "6.5 mL" },
-  { name: "Compound 2", left: "2.0 mL" },
-  { name: "Peptide 1", left: "1.4 mL" },
-  { name: "Supplement", left: "84 tabs" },
-];
+/**
+ * BOTH SIDES ARE REAL CAPTURES NOW (Adrian, 2026-08-14: "the after should be
+ * the dashboard I've already uploaded").
+ *
+ * The right half used to be a hand-built list — four rows of "Compound 1 ·
+ * 6.5 mL" typeset in the flow's own components. It was honest about the idea
+ * and dishonest about the product: nothing in the actual app looks like that,
+ * so the screen's promise was a drawing of software rather than the software.
+ *
+ * It is the paywall's own dashboard capture now, which means the wipe compares
+ * two photographs of two real things and the second one is the thing you get.
+ * Reusing the paywall asset is deliberate — one file, so the two surfaces can
+ * never drift into showing different apps.
+ */
+const TRACKD_SRC = "/onboarding/app-dashboard.png";
 
 export function NotesCompare() {
   const [position, setPosition] = useState(50);
@@ -167,7 +179,11 @@ export function NotesCompare() {
   };
 
   return (
-    <div>
+    // `h-full` all the way down. The box below is `h-full`, and a percentage
+    // height resolves against its PARENT — so while this wrapper was auto-height
+    // the box computed to zero and the phone rendered as an empty black slab
+    // with a working slider nobody could see.
+    <div className="h-full">
       {/* The two side labels used to live here as eyebrows. They are now the
           floating cards outside the phone (`hook.tsx`), which say the same
           thing and carry their own points, so keeping both would have labelled
@@ -178,60 +194,62 @@ export function NotesCompare() {
         ref={boxRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        className="relative h-[16.5rem] w-full touch-none select-none overflow-hidden rounded-2xl bg-bg-base"
+        className="relative h-full w-full touch-none select-none overflow-hidden bg-bg-base"
       >
-        {/* Panel A — the Notes app. Deliberately ugly: monospaced, unaligned,
-            question marks where a figure should be. */}
-        <div className="absolute inset-0 p-4" aria-hidden>
-          <div className="space-y-[2px]">
-            {NOTES_LINES.map((line, i) => (
-              <p
-                key={i}
-                className={cn(
-                  "font-mono text-[10px] leading-[1.5] text-text-muted",
-                  line.startsWith("PROTOCOL") && "text-text-primary",
-                  line.trim().startsWith("-") && "text-text-subtle",
-                )}
-              >
-                {line || " "}
-              </p>
-            ))}
-          </div>
-        </div>
+        {/* Panel A — the Notes app, as an actual capture of Adrian's own note.
+            Still deliberately ugly, but ugly the way a real one is rather than
+            the way a designer imagines one is: lines crossed out, a dose he is
+            not sure he logged, question marks where a figure should be.
 
-        {/* Panel B — Trackd. Clipped to the wipe, so it is revealed rather than
-            cross-faded: the seam is the point. */}
+            `object-top` because the argument lives at the TOP of the note — the
+            day-by-day list that contradicts itself. The panel is roughly square
+            and the capture is a tall phone screen, so its foot is out of frame
+            by design.
+
+            Explicit dimensions rather than `fill`, the same lesson as
+            `app-carousel.tsx`: `fill` wanted a resolved ancestor height it did
+            not have, and the images came back empty. */}
+        <div className="absolute inset-0" aria-hidden>
+          <Image
+            src={NOTES_SRC}
+            alt=""
+            width={1189}
+            height={2187}
+            sizes="280px"
+            priority
+            className="h-full w-full object-cover object-top"
+          />
+          {/* THE FADE (Adrian, 2026-08-14). The capture is a phone screen inside
+              a phone screen, so its foot still lands mid-line however tall the
+              frame gets. Without this the note is guillotined and reads as a
+              rendering bug rather than as a screen continuing past its edge.
+              Shallower than it was — the frame is full height now, so there is
+              far more note in view and less needs hiding. It fades to the
+              panel's own ground, and Panel B clips OVER it, so it never bleeds
+              onto the right half. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/5 bg-gradient-to-t from-bg-base via-bg-base/60 to-transparent" />
+        </div>
+        {/* Panel B — Trackd, the paywall's own dashboard capture. Clipped to
+            the wipe rather than cross-faded: the seam is the point.
+
+            Same `object-top` and explicit dimensions as Panel A, so the two
+            halves scale identically and the seam lines up across them. No fade
+            on this side — the dashboard capture already ends on its own tab
+            bar, which is a real edge rather than a cut. */}
         <div
           className="absolute inset-0 bg-bg-base"
           style={{ clipPath: `inset(0 0 0 ${position}%)` }}
           aria-hidden
         >
-          <div className="p-4">
-            <p className="text-[9px] font-sans uppercase tracking-[0.18em] text-text-muted">
-              Stock
-            </p>
-            <ul className="mt-3 divide-y divide-border-default">
-              {TRACKD_ROWS.map((row) => (
-                <li
-                  key={row.name}
-                  className="flex items-center justify-between gap-3 py-2.5"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">
-                    {row.name}
-                  </span>
-                  <span className={cn(DATA_MONO, "shrink-0 text-[10px]")}>
-                    {row.left}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 text-[9px] font-sans uppercase tracking-[0.18em] text-text-subtle">
-              Next dose
-            </p>
-            <p className="mt-1 font-mono text-lg font-light tabular-nums text-foreground">
-              Today <span className="text-[11px] text-text-muted">8:00 pm</span>
-            </p>
-          </div>
+          <Image
+            src={TRACKD_SRC}
+            alt=""
+            width={688}
+            height={1504}
+            sizes="280px"
+            priority
+            className="h-full w-full object-cover object-top"
+          />
         </div>
 
         {/* The seam */}

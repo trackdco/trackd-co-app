@@ -5,7 +5,90 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-13 (the notification mirror's third missing gate; the read-only gate, the save offer, the beta grace; the /admin dashboard rebuild + the Glass Console + the arcade)
+Last updated: 2026-08-14 (paywall screenshots: colour, format and phone frame)
+
+## The paywall carousel: HEIC in a `.png`, P3 colour, and a frame that wasn't a phone (2026-08-14)
+
+Adrian re-shot the four app screenshots to strip his name off the dashboard and
+put a photo in the empty Progress card. Wiring them up turned up three defects
+that had nothing to do with what he changed, two of them live.
+
+**Three of five files were HEIC with a `.png` extension.** `app-dashboard`,
+`app-progress` and `notes-app` were ISO/HEIF; the other two were JPEG, also
+misnamed. Safari renders a misnamed HEIC, **Chrome does not**, so the carousel
+was one merge away from showing empty slots to most of its audience. This is
+also why the images could not be read when pasted into chat — same bytes, and
+"re-exporting as PNG and JPG" changed only the extension.
+
+**All five were Display P3.** iPhone screenshots always are. The numbers in a P3
+file are wider-gamut coordinates, so anything ignoring the profile reads them as
+sRGB and renders flat: `--cat-anabolic` `#c8861a` was arriving as `#bd8836`,
+blue more than doubled. Converted with `sips --matchTo` sRGB, the amber lands on
+`(198,133,27)` against a token of `(200,134,26)` and the peptide blue on
+`(107,127,211)` against `(107,127,212)`. Not a grade — a colourspace conversion
+putting the colour back where the CSS already said it was.
+
+**`app-home.png` was deleted while the carousel still pointed at it**, so the
+first slide was a broken image. Repointed at `app-dashboard.png`, which is what
+the tab is actually called.
+
+**The frame was never a phone.** `<Image>` declared 1170×2280 (0.513) while
+every screenshot is a real capture at ~0.46. With `object-cover object-top` the
+mismatch ate the bottom ~10% of all four — exactly where the tab bar sits, so
+the element proving this is a five-section app was cropped out of every slide,
+silently, because `object-cover` never errors. Now 1170×2532 (iPhone 390×844);
+residual crop is under 1% on all four. Adrian also asked for the Dynamic Island
+and home indicator to be drawn back on — the screenshots have iOS chrome cropped
+off, which is right, but what was left read as a card rather than a device. Both
+are sized in **percent with Apple's own aspect ratios** (island 125×37pt, home
+indicator 140×5pt) so they survive the 2× inspection view.
+
+**Two slides were off-family, for two different reasons** (Adrian's eye, then
+measured at the 176×382 they actually render at). Dashboard was the flattest of
+the four — mean saturation 2.52 against 3.09/3.67 — because it has no large
+solid colour anywhere, only thin accent text and icon strokes; a controlled test
+ruled out the downscale, since Protocol resampled to 688px keeps its amber
+exactly. Progress was mean luminance 71 against ~29, and 27.6% warm pixels
+against ~1%, entirely from the photo. Dashboard took a global saturation ×1.1 to
+3.43, inside the family range. Progress was graded **on the photo block only**
+(x 56–632, y 364–1140), brightness ×0.86 and saturation ×0.80 — a global grade
+would have darkened its UI chrome away from the other three and created a new
+mismatch. It sits at 62.9/12.17: nudged toward the family, not forced into it,
+because dimming it further starts hiding the feature it exists to sell.
+
+**The originals are not in the repo.** They were untracked, so they were backed
+up to scratchpad before anything was overwritten.
+
+## The comp list is closed, and one of the five has no account (2026-08-14)
+
+Adrian gave the last free-for-life address — `Angusbrake6@gmail.com`, stored
+lowercase as the file's own warning requires — and closed the list.
+`COMP_EMAILS` is five: two founder accounts and three friends.
+
+**Checked against production rather than assumed:** 90 auth users, and four of
+the five have an account. **`angusbrake6@gmail.com` does not.**
+
+That is not a rounding error, because of where the list is read. `COMP_EMAILS`
+has exactly one consumer — the backfill route — and it enumerates
+`auth.admin.listUsers()` and grants against the accounts it finds. **Nothing
+reads the comp list at sign-up.** So an address with no account is never
+considered at all: sign up before the backfill and he is comped for life; sign up
+after and he is an ordinary new user on a trial, with the comp entry doing
+nothing, silently, forever.
+
+The same silent-failure shape as the capitalisation trap the file warns about,
+reached through a different door — and it fails in the direction where nothing
+errors and nobody is told. The dry run reports one fewer comp than expected and
+does not say which one is missing, so the number has to be read.
+
+`scratchpad/comp-check.mjs` prints every comp address against the live account
+list. The go-live order gained a step 3b for it.
+
+Not fixed in code, deliberately: granting at sign-up would mean a new write path
+into `entitlements` from the auth flow, and the answer Adrian actually needs is
+"ask him to sign up", which costs nothing.
+
+## Earlier state (2026-08-13) — the notification mirror's third missing gate; the read-only gate, the save offer, the beta grace; the /admin dashboard rebuild + the Glass Console + the arcade
 
 ## The push engine was announcing compounds deleted in July (2026-08-13, evening)
 
@@ -1882,6 +1965,27 @@ live Data API read-only with the service key, one request per migration. **Every
 migration on disk is applied except `protocol/013`, which was never written.**
 Two doc corrections came out of it:
 
+> **⚠️ SUPERSEDED 2026-08-14 — `protocol/013` IS applied.** Re-probed with the
+> same read-only method: `stacks?select=effective_from`,
+> `stack_members?select=effective_from,effective_to,id` — all 200. It was
+> applied at some point after 2026-08-07 and nobody updated this line, which is
+> the third time this exact rot has happened in this file. The check below takes
+> ten seconds; **run it rather than reading either claim.**
+>
+> The same sweep found **one genuinely unapplied migration**:
+> `billing/002_trial_start_lease.sql` (`billing_customers.trial_lock_until`
+> returned 400). **Adrian applied it the same day and it is verified** — the
+> column now returns 200 and zero rows hold a lease, which is the correct
+> backfill to `'-infinity'`. `startTrial` therefore has its real per-user lease
+> the moment `wave3/billing-cancel` deploys, and the Stripe re-list
+> reconciliation stops being the only thing closing the double-trial race.
+>
+> **Every migration on disk is now applied**, with one unverifiable from here:
+> `protocol/024_review_repairs.sql`, whose checks are `pg_constraint` /
+> `pg_indexes` queries the Data API does not expose. It has been on `main` since
+> 2026-08-07 and is idempotent, so re-pasting it is free if anyone wants
+> certainty.
+
 - **`onboarding/001` (signup attribution) IS applied.** Both this file and the
   migration's own header said otherwise. Hand-applied migrations never appear in
   `list_migrations`, so a file's comment is its only status record — and that is
@@ -1979,7 +2083,15 @@ buys confusion, not clarity). Every other folder numbers cleanly.
 - **Health data is categorical, never evaluative**; state colours (red/green/amber)
   are UI feedback only. Locked invariants live in `architecture.md` +
   `project-overview.md` (never store derived values; RLS `(SELECT auth.uid())` on
-  every table; entitlement gates read `profiles.tier` only).
+  every table).
+- ⚠️ **Entitlement gates read `entitlements`, NOT `profiles.tier`** (since
+  2026-08-12). This line said "`profiles.tier` only" for a fortnight after it
+  stopped being true, in the section a future session treats as settled.
+  `planLabelFor` and `manageActionFor` (`lib/billing/manage.ts`) both read the
+  entitlement's SOURCE; nothing reads `tier` for display any more. `tier` is
+  historical (Spec 16) and is still webhook-only at the privilege layer.
+  **`project-overview.md` still describes `tier` as the entitlement column and
+  is still wrong** — carried in `next-tasks.md`.
 
 ## Stacks are dated (2026-08-01)
 

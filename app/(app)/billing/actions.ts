@@ -10,6 +10,8 @@ import { formatAccessDate, type SaveOfferKind } from "@/lib/billing/manage";
 import { originFromHost } from "@/lib/billing/originAllowlist";
 import {
   EXTRA_TRIAL_DAYS,
+  addOffer,
+  offerNounFor,
   grantExtraTime,
   markOfferShown,
   readSaveOffer,
@@ -63,6 +65,33 @@ export interface BillingActionResult {
   savedAt?: number;
 }
 
+/**
+ * Everything the offer dialog needs to state its own terms.
+ *
+ * `chargeOn` is the day billing resumes if they take it, computed from the same
+ * subscription and the same two functions the grant itself uses. The dialog is
+ * REQUIRED to show it: since 2026-08-14 taking the offer lifts the cancellation,
+ * so somebody who reads "free" and nothing else is a chargeback.
+ */
+export interface SaveOffer {
+  kind: SaveOfferKind;
+  /**
+   * ISO instant the offer was recorded as shown, from the SERVER.
+   *
+   * The countdown reads this rather than the moment the dialog painted, so the
+   * clock on screen and the ten-minute window the server enforces are the same
+   * ten minutes. A client-side start would drift by the round trip and, worse,
+   * would reset every time the dialog was reopened.
+   */
+  shownAt: string;
+  /** "week" or "month". Drives both the length and the noun in the copy. */
+  noun: "week" | "month";
+  /** ISO instant. The day money moves if they accept. */
+  chargeOn: string;
+  /** Kept for the trial copy, which still counts in days. */
+  days: number;
+}
+
 export interface CancelResult extends BillingActionResult {
   /**
    * Whether to follow the cancellation with the save offer, and which one.
@@ -72,7 +101,7 @@ export interface CancelResult extends BillingActionResult {
    * something that happens to a cancelled user, never something standing between
    * a user and cancelling. See `lib/billing/saveOffer.ts`.
    */
-  offer?: { kind: SaveOfferKind; days: number };
+  offer?: SaveOffer;
 }
 
 /**
@@ -184,9 +213,7 @@ export async function cancelSubscription(): Promise<CancelResult> {
  * undefined rather than throwing; the user is already cancelled and an error
  * about a retention offer is not theirs to see.
  */
-async function offerAfterCancel(
-  customerId: string,
-): Promise<{ kind: SaveOfferKind; days: number } | undefined> {
+async function offerAfterCancel(customerId: string): Promise<SaveOffer | undefined> {
   try {
     const primary = await primarySubscription(customerId);
     if (!primary) return undefined;
@@ -195,11 +222,28 @@ async function offerAfterCancel(
     const state = await readSaveOffer(customerId, kind);
     if (!state.available || !state.kind) return undefined;
 
+    /**
+     * ⚠️ THE DATE IS COMPUTED HERE AND SHOWN ON THE DIALOG.
+     *
+     * Since 2026-08-14 taking the offer LIFTS the cancellation, so the dialog
+     * has to name the day money will move. It is derived from the same two
+     * functions the grant itself uses, on the same subscription object, so the
+     * date somebody reads before deciding is the date they are actually charged
+     * rather than a second calculation that can drift from the first.
+     */
+    const noun = offerNounFor(primary);
+    const from =
+      primary.status === "trialing"
+        ? (primary.trial_end ?? Math.floor(Date.now() / 1000))
+        : (primary.items.data[0]?.current_period_end ?? Math.floor(Date.now() / 1000));
+    const chargeOn = new Date(addOffer(from, noun) * 1000).toISOString();
+
     // Recorded as SHOWN here rather than when the dialog opens: a separate
     // "I saw it" call is one anybody who wanted the offer twice could simply
-    // not make. See `saveOffer.ts`.
+    // not make. It also STARTS THE TEN MINUTE CLOCK. See `saveOffer.ts`.
+    const shownAt = new Date().toISOString();
     await markOfferShown(customerId);
-    return { kind: state.kind, days: EXTRA_TRIAL_DAYS };
+    return { kind: state.kind, noun, chargeOn, shownAt, days: EXTRA_TRIAL_DAYS };
   } catch (err) {
     console.error(
       `[billing] the save-offer check failed for ${customerId} (the cancellation stands):`,

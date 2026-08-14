@@ -8,8 +8,8 @@
  *
  * Adrian's answer, 2026-08-13:
  *
- *   COMP FOREVER      {@link COMP_EMAILS}. Two addresses today, and he owes a
- *                     list of friends to add.
+ *   COMP FOREVER      {@link COMP_EMAILS}. Five: the two founder accounts and
+ *                     three friends. Closed as of 2026-08-14.
  *   EVERYONE ELSE     {@link BETA_GRACE_DAYS} free, then the read-only gate.
  *   A ONE-TIME NOTICE explaining it, on next open.
  *
@@ -29,7 +29,9 @@
  */
 
 /**
- * ⚠️ FREE FOREVER. ADRIAN OWES A LIST OF FRIENDS FOR THIS — REMIND HIM.
+ * ⚠️ FREE FOREVER. Complete as of 2026-08-14: two founder accounts and three
+ * friends. Adrian closed the list, so a further addition is a new decision
+ * rather than an outstanding one.
  *
  * Add one string per line. Lowercase, and the comparison lowercases the input
  * too, so a capitalised sign-up address still matches.
@@ -59,9 +61,12 @@ export const COMP_EMAILS: readonly string[] = [
   // lapse a fortnight later. A test pins that every entry is lowercase.
   "jasminemalihi06@gmail.com",
   "ananthr.ravi@gmail.com",
-  // ⚠️ ONE MORE IS OWED (Adrian, 2026-08-14). Add it BEFORE the backfill runs:
-  // it skips accounts that already have an entitlement, so a late addition
-  // needs the re-run path (which upgrades them) rather than the first one.
+  // Given as "Angusbrake6@gmail.com" and lowercased here, which is the whole
+  // point of the warning above.
+  "angusbrake6@gmail.com",
+  // The list is CLOSED for now (Adrian, 2026-08-14). Anyone added after the
+  // backfill has run needs the re-run path, which upgrades an existing
+  // fourteen-day row to no-expiry; the first run skips them entirely.
 ];
 
 /**

@@ -243,3 +243,47 @@ describe("dismissedTrialNoticeDate — a dismissal belongs to ONE account", () =
     );
   });
 });
+
+describe("planLabelFor — a courtesy period is not a trial", () => {
+  /**
+   * The save offer gives free time by moving Stripe's `trial_end`, so a paying
+   * customer who accepts one is reported as `trialing` for that stretch. Without
+   * the courtesy flag the screen calls a two-year subscriber a first-time
+   * trialist. Adrian, 2026-08-14: it has to say something else.
+   */
+  it("reads Pro for a paid customer on a free month", () => {
+    expect(
+      planLabelFor("stripe", {
+        status: "trialing",
+        courtesyUntil: "2026-09-19T00:00:00.000Z",
+      }),
+    ).toBe("Pro");
+  });
+
+  it("still reads Free trial for a genuine first trial", () => {
+    expect(planLabelFor("stripe", { status: "trialing", courtesyUntil: null })).toBe(
+      "Free trial",
+    );
+    // Undefined is the shape the page passes when 003 has not been applied yet.
+    expect(planLabelFor("stripe", { status: "trialing" })).toBe("Free trial");
+  });
+
+  it("does not let a courtesy flag override a comp", () => {
+    // A founder who also subscribes is on a comp, and describing them by the
+    // subscription would be wrong whatever the subscription says.
+    expect(
+      planLabelFor("comp", {
+        status: "trialing",
+        courtesyUntil: "2026-09-19T00:00:00.000Z",
+      }),
+    ).toBe("Complimentary");
+  });
+
+  it("cannot invent access for somebody with no entitlement", () => {
+    // The flag is cosmetic. With the gate on and no entitlement the answer is
+    // still "Read only", courtesy period or not.
+    expect(
+      planLabelFor(null, { status: "canceled", courtesyUntil: null }, true),
+    ).toBe("Read only");
+  });
+});

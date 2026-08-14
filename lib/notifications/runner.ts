@@ -33,6 +33,7 @@ import {
 import { cycleRuleFromColumns, type CycleColumns } from "@/lib/protocol/cycleRule";
 import { isStoppedOn, type DatedVersion } from "@/lib/protocol/scheduleVersions";
 import { isPausedOn, type Pause } from "@/lib/home/pauses";
+import { grantsPro, type EntitlementSource } from "@/lib/billing/access";
 import { graceAsTrial } from "@/lib/billing/betaGrace";
 import { billingGateEnabled } from "@/lib/billing/gate";
 
@@ -105,6 +106,12 @@ interface UserData {
    */
   isBetaGrace: boolean;
   /**
+   * False only when the gate is on and this account has lapsed into read only.
+   * Silences the dose, missed-dose and low-stock reminders; never the trial or
+   * grace warnings.
+   */
+  canWrite: boolean;
+  /**
    * The reminder date already sent for, from `trial_reminder_sent_for`.
    *
    * `undefined` is a THIRD state and not the same as null: it means
@@ -134,6 +141,8 @@ async function collectTrial(
   trial: TrialForReminder | null;
   isBetaGrace: boolean;
   sentFor: string | null | undefined;
+  /** False when the gate is on and this account has lapsed into read only. */
+  canWrite: boolean;
 }> {
   const [subRes, stampRes, graceRes] = await Promise.all([
     supabase
@@ -176,18 +185,27 @@ async function collectTrial(
      * warning about a deadline that is not enforced. Skipped as an empty result
      * rather than a branch, so the `Promise.all` shape does not change.
      */
+    /**
+     * ⚠️ WIDENED, because this row now answers TWO questions.
+     *
+     * It still finds the beta grace (a `comp` WITH an expiry, filtered below).
+     * It also decides whether this account may still WRITE, which gates the dose
+     * and low-stock reminders: an account in read only is being nudged to log
+     * doses the app will refuse to accept, which is the product nagging somebody
+     * to do the thing it has blocked. Adrian, 2026-08-14.
+     *
+     * One query rather than two, because they are the same rows and a second
+     * read would be a second thing that can fail independently and disagree.
+     */
     billingGateEnabled()
       ? supabase
       .from("entitlements")
       .select("source, active_until, is_active, product")
       .eq("user_id", userId)
       .eq("product", "pro")
-      .eq("source", "comp")
       .eq("is_active", true)
-      .not("active_until", "is", null)
       // SOONEST-ENDING first, the same rule as the subscription read above.
       .order("active_until", { ascending: true })
-      .limit(1)
       : Promise.resolve({ data: null, error: null }),
   ]);
 
@@ -202,7 +220,40 @@ async function collectTrial(
    * A REAL TRIAL WINS. Somebody on the grace who then starts a trial has both,
    * and the one about to take money is the one worth warning about.
    */
-  const graceRow = graceRes.data?.[0] as Record<string, unknown> | undefined;
+  const entitlementRows = (graceRes.data ?? []) as Record<string, unknown>[];
+
+  /**
+   * MAY THIS ACCOUNT STILL WRITE?
+   *
+   * With the gate off everybody can, which is today's world and why this is
+   * `true` unless proven otherwise. With it on, an account whose entitlement has
+   * lapsed is read only, and the dose and low-stock reminders are silenced: the
+   * app must not push "4 doses are still unlogged today" at somebody it will
+   * refuse to accept a dose from.
+   *
+   * The TRIAL and GRACE warnings are deliberately NOT gated on this. Those are
+   * the messages that say access is about to end or has ended, and the person
+   * they matter most to is precisely the one who can no longer write.
+   */
+  const canWrite =
+    !billingGateEnabled() ||
+    grantsPro(
+      entitlementRows.map((r) => ({
+        // The query already filters to `product = "pro"`, so this narrows a
+        // string the type system cannot see through PostgREST rather than
+        // asserting anything the row does not say.
+        product: "pro" as const,
+        source: r.source as EntitlementSource,
+        activeUntil: (r.active_until as string | null) ?? null,
+        isActive: r.is_active !== false,
+      })),
+      new Date(),
+    );
+
+  /** The beta grace specifically: a `comp` that expires. Nothing else has that shape. */
+  const graceRow = entitlementRows.find(
+    (r) => r.source === "comp" && (r.active_until as string | null) !== null,
+  );
   const grace = row
     ? null
     : graceAsTrial(
@@ -234,7 +285,7 @@ async function collectTrial(
         | null
         | undefined) ?? null;
 
-  return { trial, isBetaGrace: Boolean(grace) && trial === grace, sentFor };
+  return { trial, isBetaGrace: Boolean(grace) && trial === grace, sentFor, canWrite };
 }
 
 /**
@@ -539,7 +590,7 @@ async function collectUserData(
     };
   });
 
-  const { trial, isBetaGrace, sentFor } = await collectTrial(supabase, userId);
+  const { trial, isBetaGrace, sentFor, canWrite } = await collectTrial(supabase, userId);
 
   return {
     prefs: prefsRes.data as Record<string, unknown> | null,
@@ -553,6 +604,7 @@ async function collectUserData(
     trial,
     trialSentFor: sentFor,
     isBetaGrace,
+    canWrite,
   };
 }
 
@@ -717,14 +769,30 @@ export async function runForUser(
    * promise.
    */
   const trialMin = inQuietHours(reminderMin, quietStart, quietEnd) ? quietEnd : reminderMin;
-  const doseOn = p.dose_reminders_on !== false;
-  const missedOn = p.unlogged_alert_on !== false;
-  const lowOn = p.low_inventory_alert_on !== false;
+  /**
+   * ⚠️ A READ ONLY ACCOUNT IS NOT NUDGED TO LOG ANYTHING.
+   *
+   * `data.canWrite` is false only when the gate is on AND the entitlement has
+   * lapsed. Without this the runner pushes "4 doses are still unlogged today" to
+   * somebody whose next tap will be refused, which is the product nagging a
+   * person to do the thing it has blocked. Adrian, 2026-08-14.
+   *
+   * Folded into the three toggles rather than added at each call site so a
+   * fourth content reminder added later is covered by construction.
+   *
+   * The TRIAL and GRACE warnings are untouched: those exist to tell somebody
+   * their access is ending, and the person that matters most to is exactly the
+   * one who can no longer write.
+   */
+  const doseOn = data.canWrite && p.dose_reminders_on !== false;
+  const missedOn = data.canWrite && p.unlogged_alert_on !== false;
+  const lowOn = data.canWrite && p.low_inventory_alert_on !== false;
 
   if (force) {
-    // Test send: real content if any, else a friendly confirmation.
-    const dose = doseReminderMessage(due);
-    const lowMsg = lowStockMessage(low);
+    // Test send: real content if any, else a friendly confirmation. A read only
+    // account gets the confirmation, never a dose nudge it cannot act on.
+    const dose = doseOn ? doseReminderMessage(due) : null;
+    const lowMsg = lowOn ? lowStockMessage(low) : null;
     if (dose) messages.push(dose);
     if (lowMsg) messages.push(lowMsg);
     if (messages.length === 0) {

@@ -8,7 +8,6 @@ import { currentEntitlement } from "@/lib/billing/entitlements";
 import { billingGateEnabled } from "@/lib/billing/gate";
 import {
   formatAccessDate,
-  formatAccessDateShort,
   manageActionFor,
   planLabelFor,
 } from "@/lib/billing/manage";
@@ -84,12 +83,30 @@ export default async function BillingPage() {
 
   const tz = (profile?.timezone as string | null) || "Australia/Sydney";
   const row = subs?.[0];
+
+  /**
+   * ⚠️ READ IN ITS OWN QUERY, and its failure is swallowed.
+   *
+   * `courtesy_until` arrives with `supabase/billing/003`, which Adrian applies
+   * by hand. Folding it into the select above would mean an unapplied migration
+   * takes down the WHOLE billing screen -- PostgREST rejects the entire request
+   * for one unknown column -- so somebody trying to see what they are paying
+   * would get nothing at all.
+   *
+   * Exactly the shape `notifications/004` uses for the same reason, and the same
+   * lesson `trialLease.ts` paid for: the deploy and the migration do not land in
+   * the same instant, and the code has to be correct in the gap.
+   *
+   * Unapplied, this is null and the label falls back to today's behaviour.
+   */
+  const courtesyUntil = await courtesyUntilFor(user.id);
   const subscription = row
     ? {
         status: row.status as string,
         trialEndsAt: (row.trial_ends_at as string | null) ?? null,
         currentPeriodEnd: (row.current_period_end as string | null) ?? null,
         cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
+        courtesyUntil,
       }
     : null;
 
@@ -156,12 +173,8 @@ export default async function BillingPage() {
             <CancelSubscription
               mode={action.kind}
               endsOn={formatAccessDate(action.endsOn, tz)}
-              endsOnShort={formatAccessDateShort(action.endsOn, tz)}
               isTrial={action.isTrial}
-              // For the paid save offer's wording ("your next year, free?").
-              // Null when Stripe's prices could not be loaded, which the copy
-              // handles by saying "next payment" rather than guessing a period.
-              renewalNoun={price?.interval ?? null}
+              userId={user.id}
             />
           </div>
           {action.kind === "resume" ? (
@@ -215,6 +228,31 @@ export default async function BillingPage() {
       </div>
     </div>
   );
+}
+
+/**
+ * The save-offer courtesy end, or null if there isn't one (or if `003` has not
+ * been applied yet).
+ *
+ * Its own query, its own try, and it can only ever change one word on the
+ * screen. See the note at the call site.
+ */
+async function courtesyUntilFor(userId: string): Promise<string | null> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .select("courtesy_until")
+      .eq("user_id", userId)
+      .in("status", ["trialing", "active", "past_due"])
+      .not("courtesy_until", "is", null)
+      .order("courtesy_until", { ascending: false })
+      .limit(1);
+    if (error) return null;
+    return (data?.[0]?.courtesy_until as string | null) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /* ── Pure display helpers ────────────────────────────────────────── */

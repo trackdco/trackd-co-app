@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -8,7 +15,16 @@ import {
   claimExtraTime,
   resumeSubscription,
 } from "@/app/(app)/billing/actions";
-import type { SaveOfferKind } from "@/lib/billing/manage";
+import type { SaveOffer } from "@/app/(app)/billing/actions";
+import {
+  forgetOffer,
+  formatRemaining,
+  isStillOpen,
+  msRemaining,
+  readOffer,
+  rememberOffer,
+  type OpenOffer,
+} from "@/lib/billing/openOfferStore";
 
 /**
  * The cancel control, its undo, and the one offer that follows a cancellation.
@@ -49,32 +65,60 @@ import type { SaveOfferKind } from "@/lib/billing/manage";
  * for why that is decided by "was it shown" rather than "was it taken".
  */
 
-type Phase = "closed" | "confirm" | "offer" | "granted";
+/**
+ * `declined` is the screen somebody lands on after turning the offer down.
+ *
+ * Adrian, 2026-08-14: it must not be a second ask. It confirms what has already
+ * happened and names the date, so nobody is left wondering whether the cancel
+ * went through, and then it ends. One offer, and only one.
+ */
+type Phase = "closed" | "confirm" | "offer" | "granted" | "declined";
+
+/** Never notifies: whether a browser exists cannot change after hydration. */
+const subscribeNever = () => () => {};
 
 export function CancelSubscription({
   mode,
   endsOn,
-  endsOnShort,
   isTrial,
-  renewalNoun,
+  userId,
 }: {
   mode: "cancel" | "resume";
   /** Already formatted in the user's own timezone by the server. */
   endsOn: string;
-  /** The same date without the year, for the control's own label. */
-  endsOnShort: string;
   isTrial: boolean;
   /**
-   * "year" / "month" / "week", from the Stripe price, for the paid offer's
-   * wording. Null when prices could not be loaded, which the copy handles rather
-   * than guessing — see `offerCopy`.
+   * Whose screen this is, so a remembered offer cannot cross accounts on a
+   * shared browser. See `openOfferStore.ts`; the trial banner's dismissal cookie
+   * had exactly that bug.
    */
-  renewalNoun?: string | null;
+  userId: string;
 }) {
   const [phase, setPhase] = useState<Phase>("closed");
   const [error, setError] = useState<string | null>(null);
-  const [offer, setOffer] = useState<{ kind: SaveOfferKind; days: number } | null>(null);
+  const [offer, setOffer] = useState<SaveOffer | null>(null);
   const [grantedUntil, setGrantedUntil] = useState<string | null>(null);
+  /**
+   * An offer that was shown and then dismissed, still inside its ten minutes.
+   *
+   * Lazily seeded from `sessionStorage`, so it survives a reload and a
+   * navigation away and back, not just a stray tap on the backdrop. It grants
+   * nothing: the server re-checks the window against Stripe's own stamp.
+   */
+  const [carried, setCarried] = useState<OpenOffer | null>(() =>
+    typeof window === "undefined" ? null : readOffer(),
+  );
+  /**
+   * ⚠️ NOTHING FROM STORAGE RENDERS UNTIL AFTER MOUNT.
+   *
+   * The server cannot read `sessionStorage`, so the first client render has to
+   * agree with it and show nothing. This is the same idiom `BetaLaunchNotice`
+   * uses, and the cost of getting it wrong is documented there: React discards
+   * the hydration and rebuilds the app shell.
+   */
+  const mounted = useSyncExternalStore(subscribeNever, () => true, () => false);
+  /** Ticks once a second while a countdown is on screen, and never otherwise. */
+  const [now, setNow] = useState(() => Date.now());
   const [pending, startTransition] = useTransition();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -162,27 +206,58 @@ export function CancelSubscription({
     return () => window.removeEventListener("keydown", onKey);
   }, [phase, pending, close]);
 
+  /**
+   * The offer that is still live, or null. Only ever drawn after mount, so the
+   * server render and the first client render agree on "nothing".
+   */
+  const live = mounted && isStillOpen(carried, userId, now) ? carried : null;
+  const remaining = live ? msRemaining(live.shownAt, now) : 0;
+
+  /**
+   * A one-second tick, and ONLY while something is counting down.
+   *
+   * Started by the presence of a live offer rather than by the dialog being
+   * open, because the reopen row counts down too. It stops the moment the offer
+   * runs out, so an idle billing screen is not re-rendering once a second
+   * forever.
+   */
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [live]);
+
+  /**
+   * When the clock runs out with the dialog still open, it becomes the
+   * acknowledgement rather than leaving a button the server would refuse.
+   *
+   * DERIVED, not a setState in an effect. The lint rule that forbids that is
+   * right and this file already leans on it elsewhere: an effect that setStates
+   * on a value which changes once a second is a cascading render once a second.
+   *
+   * The stale `sessionStorage` entry is left alone deliberately. `isStillOpen`
+   * rejects anything out of time on the way out, so cleaning it up would be a
+   * write whose only effect is to save a comparison.
+   */
+  const offerExpired =
+    phase === "offer" && carried !== null && msRemaining(carried.shownAt, now) <= 0;
+  const shownPhase: Phase = offerExpired ? "declined" : phase;
+
   const noun = isTrial ? "trial" : "subscription";
 
   /**
-   * THE UNDO CONTROL SAYS WHAT IT GIVES YOU, NOT WHAT IT DOES TO A RECORD.
+   * THE UNDO CONTROL MIRRORS THE CANCEL, WORD FOR WORD.
    *
-   * It read "Restart my trial", and Adrian's objection (2026-08-13) was that it
-   * is meaningless: nothing has stopped. The user cancelled ten seconds ago, the
-   * trial is still running, and "restart" describes an operation on a Stripe
-   * flag rather than anything happening to them.
+   * It read "Restart my trial" (meaningless: nothing had stopped), then
+   * "Keep Trackd after 19 Aug", and Adrian's objection to that one on
+   * 2026-08-14 was simply that the date is already directly above it in the
+   * summary and directly below it in the explanation, so the screen said 19 Aug
+   * three times to somebody re-reading it to be sure.
    *
-   * On a TRIAL the honest thing is the date, because that is the only thing that
-   * changes: today is identical either way, and 19 Aug is the day the two
-   * futures separate. On a PAID subscription there is no comparable cliff — the
-   * plan simply continues — so it names the plan instead.
-   *
-   * The cancel side is untouched. "Cancel my trial" is already exactly what it
-   * does.
+   * "Cancel my trial" / "Keep my trial" is one pair with one noun, which is also
+   * what makes the two states legible as opposites at a glance.
    */
-  const resumeLabel = isTrial
-    ? `Keep Trackd after ${endsOnShort}`
-    : "Keep my subscription";
+  const resumeLabel = isTrial ? "Keep my trial" : "Keep my subscription";
 
   /** The confirm's action: cancel, or resume. */
   function runConfirm() {
@@ -206,11 +281,34 @@ export function CancelSubscription({
          * undo it.
          */
         if (result.offer) {
+          /**
+           * Remembered BEFORE the dialog opens, so an offer dismissed in the
+           * first second is still recoverable. `shownAt` is the server's, so the
+           * clock on screen is the same clock the claim is checked against.
+           */
+          const open: OpenOffer = {
+            userId,
+            shownAt: result.offer.shownAt,
+            kind: result.offer.kind,
+            noun: result.offer.noun,
+            chargeOn: result.offer.chargeOn,
+          };
+          rememberOffer(open);
+          setCarried(open);
+          setNow(Date.now());
           setOffer(result.offer);
           setPhase("offer");
           return;
         }
-        close();
+        /**
+         * No offer, so straight to the acknowledgement rather than closing.
+         *
+         * This is the second cancellation, or a customer whose offer was already
+         * spent. They pressed "Yes, cancel" and previously the dialog simply
+         * vanished, which is the same silence the decline screen exists to
+         * remove. The cancellation is already written either way.
+         */
+        setPhase("declined");
         return;
       }
 
@@ -236,24 +334,73 @@ export function CancelSubscription({
         setError(result.error ?? "Something went wrong.");
         return;
       }
+      // Taken, so there is nothing left to come back to.
+      forgetOffer();
+      setCarried(null);
       setGrantedUntil(result.endsOn ?? null);
       setPhase("granted");
     });
   }
 
+  /**
+   * The charge date, in the reader's own zone.
+   *
+   * Formatted here rather than on the server because the offer only exists after
+   * the cancel action returns, so there is no render to pre-format it in.
+   * `Intl` with no `timeZone` uses the browser's, which for this purpose is
+   * better than `profiles.timezone`: it is the calendar the person is actually
+   * looking at while they decide.
+   */
+  const chargeOnLabel = offer?.chargeOn ? formatDay(offer.chargeOn) : null;
+
   const copy = dialogCopy({
-    phase,
+    phase: shownPhase,
     mode,
     noun,
     endsOn,
     resumeLabel,
     offer,
     grantedUntil,
-    renewalNoun: renewalNoun ?? null,
+    chargeOnLabel,
   });
 
   return (
     <>
+      {/* THE WAY BACK IN, while the offer is still live.
+          Adrian, 2026-08-14: dismissing the dialog by accident must not throw
+          the offer away. The clock carries on from when it was first shown
+          rather than restarting, so a fumbled tap cannot buy a longer window.
+          Rendered only after mount; see `mounted`. */}
+      {live && phase === "closed" ? (
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            setOffer({
+              kind: live.kind,
+              noun: live.noun,
+              chargeOn: live.chargeOn,
+              shownAt: live.shownAt,
+              days: 7,
+            });
+            setPhase("offer");
+          }}
+          /* ui-context: amber is "this is live", ONE beat per surface. The
+             countdown IS the live thing, so it carries the amber and the row
+             around it stays on the ordinary surface. A wash plus a border plus
+             amber text on one element is the blanket amber the style guide
+             names as the vibe-coded tell. */
+          className="mb-1 flex w-full items-center gap-3 rounded-xl bg-bg-surface-raised px-3 py-2.5 text-left outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="flex-1 text-sm text-foreground">
+            Your extra {live.noun} is still here
+          </span>
+          <span className="font-mono text-sm tabular-nums text-accent-amber">
+            {formatRemaining(remaining)}
+          </span>
+        </button>
+      ) : null}
+
       <button
         type="button"
         ref={triggerRef}
@@ -268,7 +415,7 @@ export function CancelSubscription({
         {mode === "cancel" ? `Cancel my ${noun}` : resumeLabel}
       </button>
 
-      {phase !== "closed" &&
+      {shownPhase !== "closed" &&
         copy &&
         typeof document !== "undefined" &&
         createPortal(
@@ -295,6 +442,40 @@ export function CancelSubscription({
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{copy.body}</p>
 
+              {copy.quiet ? (
+                <p className="mt-2 text-xs leading-relaxed text-text-subtle">{copy.quiet}</p>
+              ) : null}
+
+              {/* THE CLOCK, and it is real.
+                  It counts from the server's `shownAt` and the server refuses a
+                  claim past the same ten minutes, so this is not urgency
+                  theatre: the offer genuinely stops being claimable when this
+                  reaches zero. A countdown to nothing on a cancel screen is the
+                  one thing regulators actually look for. */}
+              {shownPhase === "offer" && live ? (
+                <div className="mt-4">
+                  <p
+                    className="text-center font-mono text-2xl font-semibold tabular-nums text-accent-amber"
+                    role="timer"
+                    aria-live="off"
+                  >
+                    {formatRemaining(remaining)}
+                  </p>
+                  <p className="mt-1 text-center text-[11px] text-text-subtle">
+                    yours for the next 10 minutes
+                  </p>
+                </div>
+              ) : null}
+
+              {/* ⚠️ THE TERMS SIT HERE, between the offer and the buttons, and
+                  nowhere else. This is the sentence that names the charge and
+                  the date on a screen somebody reached by pressing cancel. It
+                  must not move below the buttons, and it must not be folded into
+                  the paragraph above. See `dialogCopy`. */}
+              {copy.terms ? (
+                <p className="mt-3 text-sm leading-relaxed text-text-muted">{copy.terms}</p>
+              ) : null}
+
               {error ? (
                 <p className="mt-3 text-sm text-accent-destructive">{error}</p>
               ) : null}
@@ -304,7 +485,12 @@ export function CancelSubscription({
                   <button
                     type="button"
                     disabled={pending}
-                    onClick={close}
+                    /* Declining the OFFER is not the same as closing a dialog.
+                       It goes to the acknowledgement, so nobody leaves unsure
+                       whether the cancellation they asked for actually took.
+                       Nothing is written either way: it was written before this
+                       dialog existed. */
+                    onClick={shownPhase === "offer" ? () => setPhase("declined") : close}
                     className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   >
                     {/* On the confirm, the stay-put option keeps its full
@@ -320,9 +506,9 @@ export function CancelSubscription({
                   type="button"
                   disabled={pending}
                   onClick={
-                    phase === "granted"
+                    shownPhase === "granted" || shownPhase === "declined"
                       ? close
-                      : phase === "offer"
+                      : shownPhase === "offer"
                         ? runClaim
                         : runConfirm
                   }
@@ -339,11 +525,32 @@ export function CancelSubscription({
   );
 }
 
+/** "2026-08-26T…" -> "26 Aug 2026", in the reader's own zone. */
+function formatDay(isoInstant: string): string | null {
+  const at = Date.parse(isoInstant);
+  if (Number.isNaN(at)) return null;
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(at));
+}
+
 /* ── the words ───────────────────────────────────────────────────── */
 
 interface DialogCopy {
   title: string;
   body: string;
+  /**
+   * ⚠️ THE TERMS, on the offer only, rendered directly ABOVE the buttons.
+   *
+   * Its own field rather than a third sentence in `body` precisely so it cannot
+   * be moved, softened, or lost in a paragraph. It is the line that names the
+   * charge and the date, and the offer must never render without it.
+   */
+  terms?: string;
+  /** A quieter footnote under the body. The reminder promise, on the thank-you. */
+  quiet?: string;
   /** The left-hand button. Absent on the acknowledgement, which has one way out. */
   dismiss: string | null;
   confirm: string;
@@ -362,31 +569,38 @@ function dialogCopy({
   resumeLabel,
   offer,
   grantedUntil,
-  renewalNoun,
+  chargeOnLabel,
 }: {
   phase: Phase;
   mode: "cancel" | "resume";
   noun: string;
   endsOn: string;
   resumeLabel: string;
-  offer: { kind: SaveOfferKind; days: number } | null;
+  offer: SaveOffer | null;
   grantedUntil: string | null;
-  renewalNoun: string | null;
+  /** `offer.chargeOn`, already formatted in the user's own zone by the caller. */
+  chargeOnLabel: string | null;
 }): DialogCopy | null {
   if (phase === "confirm") {
     return mode === "cancel"
       ? {
           title: `Cancel your ${noun}?`,
-          // The date is the whole point of this sentence. Somebody cancelling
-          // on day 2 of a paid year needs to know they are not throwing away
-          // eleven months.
-          body: `You'll keep Trackd until ${endsOn}, and you won't be charged after that.`,
+          /**
+           * TWO SENTENCES, AND THE SECOND ONE IS THE POINT.
+           *
+           * The old copy said only what would NOT happen ("you won't be
+           * charged"), which is the half that makes cancelling look free of
+           * consequence. Adrian's note on 2026-08-14 was that it should say what
+           * they are giving up. So: what they keep and until when, then what
+           * actually changes on that date, in the app's own words for it.
+           */
+          body: `You'll have full access to your Pro plan until ${endsOn}, and you won't be charged. After that your account goes read only. You'll still see your whole history, you just can't add to it.`,
           dismiss: `Keep my ${noun}`,
           confirm: "Yes, cancel",
         }
       : {
           title: `${resumeLabel}?`,
-          body: `Billing will carry on as normal from ${endsOn}.`,
+          body: `Your ${noun} carries on as normal and finishes on ${endsOn}. You'll be charged then unless you cancel again.`,
           dismiss: "Not now",
           confirm: "Yes, keep it",
         };
@@ -394,56 +608,64 @@ function dialogCopy({
 
   if (phase === "offer" && offer) {
     /**
-     * THE TRIAL OFFER CHANGES NOTHING ABOUT THE CANCELLATION, and says so.
+     * ⚠️ ONE OFFER, ONE SHAPE, AND ONE SENTENCE THAT IS NOT NEGOTIABLE.
      *
-     * Seven more free days, and it still ends. That is the whole offer: no
-     * re-commitment, no billing, no small print, so the sentence can say
-     * "you still won't be charged" and be completely true. It is also why this
-     * one is safe to put in front of somebody who has just cancelled.
+     * Since 2026-08-14 taking this LIFTS the cancellation on both kinds: they
+     * get the free time and are then billed unless they cancel a second time.
+     * That makes this the highest-risk screen in the app, because the person
+     * pressed cancel, read the word "free", and is about to be charged.
+     *
+     * So the terms sentence NAMES THE CHARGE AND THE DATE, and it sits above the
+     * buttons rather than under them. `chargeOnLabel` comes from the server,
+     * computed by the same functions the grant uses, so the date they read is
+     * the date they are charged.
+     *
+     * "and we'll remind you first" is a PROMISE. `lib/notifications/trialReminder.ts`
+     * keeps it. If that reminder is ever removed, this clause goes with it.
      */
-    if (offer.kind === "trial") {
-      return {
-        title: `Want another ${offer.days} days?`,
-        body: `Your trial is cancelled, and that stands. If you'd like longer to decide, we'll add ${offer.days} more free days. You still won't be charged.`,
-        dismiss: "No thanks",
-        confirm: `Add ${offer.days} days`,
-      };
-    }
+    const period = offer.noun === "month" ? "month" : "week";
+    const terms = chargeOnLabel
+      ? `Your plan carries on as it is. You'll be charged on ${chargeOnLabel} unless you cancel before then, and we'll remind you first.`
+      : `Your plan carries on as it is. You'll be charged when the extra ${period} is up unless you cancel before then, and we'll remind you first.`;
 
-    /**
-     * THE PAID OFFER DOES RE-ENABLE BILLING, and says THAT.
-     *
-     * There is no way to give a paying customer extra free time without
-     * un-cancelling, because the thing they cancelled IS the next period. So the
-     * sentence states it in the same breath as the offer rather than in a
-     * footnote: free period, then billing resumes, cancel any time.
-     */
-    const period = renewalNoun ? `next ${renewalNoun}` : "next payment";
     return {
-      title: `Your ${period}, free?`,
-      body: `Your subscription is cancelled, and that stands unless you choose this. If you'd rather stay, your ${period} is on us. Billing carries on after that, and you can cancel again any time.`,
-      dismiss: "No thanks",
-      confirm: "Yes, stay",
+      title: "One more thing.",
+      body: `Thank you for choosing Trackd Co to run your protocol. Before you go, we'd like to offer you another ${period}, free.`,
+      terms,
+      dismiss: "I'd rather cancel",
+      confirm: `Another ${period}, thanks`,
     };
   }
 
   if (phase === "granted") {
-    const until = grantedUntil ? ` until ${grantedUntil}` : "";
-    return offer?.kind === "paid"
-      ? {
-          title: "Done.",
-          body: grantedUntil
-            ? `Your next payment is on us, so nothing will be charged on ${grantedUntil}.`
-            : "Your next payment is on us.",
-          dismiss: null,
-          confirm: "Close",
-        }
-      : {
-          title: "Done.",
-          body: `You've got Trackd${until}, free. We won't charge you.`,
-          dismiss: null,
-          confirm: "Close",
-        };
+    const until = grantedUntil ? ` finishes on ${grantedUntil}` : " is extended";
+    const period = offer?.noun === "month" ? "month" : "week";
+    return {
+      title: "Thank you!",
+      body:
+        offer?.kind === "paid"
+          ? `Enjoy your free ${period} on us. Your plan${until}, and billing picks up from there unless you choose to cancel.`
+          : `Enjoy your free ${period} on us. Your extended trial${until}, and your plan picks up from there unless you choose to cancel.`,
+      quiet: "We'll remind you before that happens.",
+      dismiss: null,
+      confirm: "Back to Trackd Co",
+    };
+  }
+
+  if (phase === "declined") {
+    /**
+     * NOT A SECOND ASK. It confirms and it stops.
+     *
+     * The cancellation was written before the offer was ever looked up, so
+     * nothing here changes anything: this exists purely so nobody closes the app
+     * unsure whether it worked.
+     */
+    return {
+      title: `Your ${noun} is cancelled`,
+      body: `You'll keep full access to your Pro plan until ${endsOn}, and you won't be charged${noun === "subscription" ? " again" : ""}. After that your account goes read only. You'll still see everything you've logged, you just can't add to it.`,
+      dismiss: null,
+      confirm: "Close",
+    };
   }
 
   return null;

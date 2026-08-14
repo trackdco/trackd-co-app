@@ -56,6 +56,15 @@ type SubscriptionRow = {
   trial_ends_at: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
+  /**
+   * When a save-offer courtesy period ends, mirrored from the Stripe
+   * subscription's metadata. Null for a genuine first trial.
+   *
+   * Distinguishes "Stripe says trialing because we gave a paying customer a free
+   * month" from "Stripe says trialing because this person has never paid", which
+   * the status alone cannot. See `supabase/billing/003_courtesy_until.sql`.
+   */
+  courtesy_until: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -109,7 +118,10 @@ export type BillingDatabase = {
         Row: SubscriptionRow;
         Insert: Defaulted<
           SubscriptionRow,
-          "id" | "created_at" | "updated_at" | "cancel_at_period_end"
+          // `courtesy_until` is optional so the fallback write, the one that
+          // runs when 003 has not been applied, is a legal insert rather than a
+          // type error. See `syncSubscription`.
+          "id" | "created_at" | "updated_at" | "cancel_at_period_end" | "courtesy_until"
         >;
         Update: Partial<SubscriptionRow>;
         Relationships: [];

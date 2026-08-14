@@ -88,29 +88,54 @@ without the reason — and the reason is what the push engine now reads.
 
 Nothing below can be done by an agent. Everything else on this branch is built.
 
-### 1. ⚠️ THE LIST OF FRIENDS FOR FREE ACCESS
+### 1. ✅ THE LIST OF FRIENDS FOR FREE ACCESS — CLOSED, with one live caveat
 
-`COMP_EMAILS` in **`lib/billing/betaGrace.ts`**. One address per line, lowercase.
-It currently holds two:
+`COMP_EMAILS` in **`lib/billing/betaGrace.ts`** holds five, and Adrian closed the
+list on 2026-08-14 ("last free one for now"):
 
 ```ts
-export const COMP_EMAILS: readonly string[] = [
-  "admin@trackdco.app",
-  "adrianschimizzi1@gmail.com",
-  // ADD FRIENDS HERE, one per line, lowercase.
-];
+"admin@trackdco.app",          // founder
+"adrianschimizzi1@gmail.com",  // founder
+"jasminemalihi06@gmail.com",
+"ananthr.ravi@gmail.com",
+"angusbrake6@gmail.com",       // given capitalised, stored lowercase
 ```
-
-**Anybody not on it gets 14 free days and then read-only.** So a friend left off
-this list is a friend who gets locked out a fortnight after billing switches on.
-Fill it in **before** running the backfill — the backfill skips accounts that
-already have access, so adding somebody afterwards means editing their
-entitlement row by hand.
 
 **Do NOT put them in `FOUNDER_EMAILS` (`lib/admin.ts`) instead.** That list also
 opens `/admin`, which shows every waitlist sign-up, and it is duplicated into an
 RLS policy in `supabase/waitlist/002_founder_read.sql`. Free forever and "can
 see everyone's data" are different things.
+
+#### ⚠️ `angusbrake6@gmail.com` HAS NO ACCOUNT, AND THE BACKFILL ONLY SEES ACCOUNTS
+
+Checked against production, 2026-08-14: 90 auth users, and four of the five comp
+addresses have one. `angusbrake6@gmail.com` does not.
+
+That matters, because **`COMP_EMAILS` is read in exactly one place** — the
+backfill route — and that route enumerates `auth.admin.listUsers()`
+(`app/api/billing/beta-grace/route.ts:102-114`) and grants against the accounts
+it finds. **Nothing reads the comp list at sign-up.** So an address with no
+account is not skipped, it is simply never considered, and:
+
+- if he signs up **before** the backfill runs, he is comped for life, correctly;
+- if he signs up **after**, he is an ordinary new user — trial, then the gate —
+  and his comp entry does nothing at all, silently, forever.
+
+Same silent-failure shape as the capitalisation trap the file warns about, in
+through a different door.
+
+**Two ways to close it, Adrian's call:**
+
+1. **Have him sign up before step 6 of the go-live order.** Costs nothing, needs
+   no code, and it is one message. Then confirm with `scratchpad/comp-check.mjs`,
+   which prints every comp address against the live account list.
+2. **Re-run the backfill after he signs up.** It is idempotent and the re-run
+   path UPGRADES a time-limited row to no-expiry, so this works — but it means
+   remembering to run it a second time, at a moment nothing will remind anybody.
+
+Option 1 is the one that cannot be forgotten. Either way, **re-running the
+backfill is the only repair**, and it is safe: it never shortens anybody and
+never touches a `stripe`/`apple`/`google` row.
 
 ### 2. STRIPE OFF SANDBOX
 
@@ -119,30 +144,31 @@ Nothing on this branch may merge until this is done. Detail further down under
 webhook endpoint and its secret, a LIVE portal configuration, Apple Pay domain
 registration, Link off in live mode, and the account business description.
 
-### 3. TWO MIGRATIONS TO APPLY BY HAND
+### 3. ONE MIGRATION TO APPLY BY HAND
 
-Both are written, neither is applied. Each carries its own VERIFY block; run
-those rather than trusting the header.
+**`supabase/notifications/005` is applied and verified** (Adrian, 2026-08-13 —
+see the top of this file for the five attacks that now refuse). One is left.
 
 | File | What it does | If not applied |
 |---|---|---|
 | `supabase/billing/002_trial_start_lease.sql` | One column, `billing_customers.trial_lock_until`. The per-user lease `startTrial` holds across its Stripe check-and-create. | **Safe.** The code detects it and proceeds without the lease; the reconcile still stops a second live subscription. Driven, and it holds. |
-| `supabase/notifications/005_trial_stamp_lock.sql` | A trigger + a revoke, so a user cannot clear, set or delete their own trial-reminder stamp. | **Safe, but the hole stays open.** A user can silence the promised trial notice or make it fire ~96 times a day. Only self-affecting. |
 
-Re-run `scratchpad/stamp-attack.mjs` after applying `005` — the five attacks in
-it must turn 403, and the four legitimate operations must stay green. **The
-service-role stamp is the one that matters most**: a lock that also stops the
-runner turns "96 notifications a day" into "none, ever".
+It carries its own VERIFY block; run that rather than trusting the header. A
+hand-applied file's header is a claim, never a record.
 
 ### 4. THE GO-LIVE ORDER, AND IT IS NOT NEGOTIABLE
 
 ```
 1. Stripe off sandbox. Live keys + prices + webhook secret into Vercel.
-2. Apply supabase/billing/002 and supabase/notifications/005.
-3. Fill in COMP_EMAILS.
+2. Apply supabase/billing/002.            (005 is already applied + verified)
+3. COMP_EMAILS is filled in and closed.   (2026-08-14 — nothing to do)
+3b. Make sure angusbrake6@gmail.com HAS SIGNED UP. He had no account on
+    2026-08-14, and the backfill can only grant to an account that exists.
+    Check: npx tsx scratchpad/comp-check.mjs
 4. Merge, deploy.
 5. POST /api/billing/beta-grace?dry=1  with  Authorization: Bearer $CRON_SECRET
    -> READ the output. It should say ~90 accounts, N comp, the rest grace.
+   N must be the number of comp addresses that actually have accounts.
 6. POST /api/billing/beta-grace       (no ?dry) — grants the rows.
 7. Verify: select count(*) from entitlements;   must be ~90, not 0.
 8. ONLY THEN set BILLING_GATE_ENABLED=true in Vercel Production.
@@ -151,6 +177,10 @@ runner turns "96 notifications a day" into "none, ever".
 **Step 8 before step 6 puts every one of the ~90 real accounts into read-only
 with no notice.** That is why the gate is an environment variable and not a
 constant: merging this branch changes nothing at all until that switch is set.
+
+**Step 3b is the one that will be forgotten.** A comp address with no account is
+not an error anywhere: the dry run simply reports one fewer comp than expected,
+and nothing says which one is missing. Read the number.
 
 ### 5. 🔴 A DECISION, WITH MONEY ON IT: does a returning customer get a SECOND free trial?
 

@@ -136,27 +136,64 @@ export function HookScreen() {
               `pointer-events-none` throughout: they overhang the phone, and a
               decorative layer that swallows a drag on the slider underneath it
               would break the one control on the screen. */}
-          <div className="relative mx-auto w-full max-w-[17rem] shrink-0">
-            <DeviceFrame>
-              <div className="px-2 pb-2">
-                <NotesCompare />
-              </div>
-            </DeviceFrame>
+          {/* THE PHONE TAKES THE SPACE (Adrian, 2026-08-14: "the full size
+              phone ... I don't want it to be the small thing").
 
-            <PointCard
-              title="Trackd"
-              tone="good"
-              points={["In order", "Up to date", "Counted for you"]}
-              className="-right-6 -top-4"
-              delay={260}
-            />
-            <PointCard
-              title="Notes app"
-              tone="bad"
-              points={["Jumbled", "Out of date", "Guesswork"]}
-              className="-bottom-4 -left-6"
-              delay={420}
-            />
+              It was `max-w-[17rem]` and as tall as its contents, which left the
+              hero of the screen occupying about a third of the height with dead
+              air above and below it. It is HEIGHT-driven now: the frame is told
+              `h-full w-auto`, takes whatever the headline and the CTA leave, and
+              derives its width from the 390/844 ratio. On a short viewport it
+              shrinks instead of pushing the CTA off the fold. */}
+          <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+            {/* Height in, width out. This box takes the leftover vertical space
+                and derives its own width from the phone's ratio, which gives the
+                floating cards a box the exact size of the phone to hang off —
+                anchor them to the full-width row instead and they drift to the
+                edges of the screen. */}
+            <div className="relative aspect-[390/844] h-full max-w-[19rem]">
+              {/* A pool of light for the phone to stand in. The canvas is one
+                  flat near-black and the device is another, so however well the
+                  bezel is lit the whole thing still reads as printed ON the
+                  page rather than sitting in front of it. This is the cheapest
+                  possible depth cue: one soft neutral radial, scaled past the
+                  phone's own edges, under everything.
+
+                  NEUTRAL, not amber, and that is the rule not a preference —
+                  `ui-context.md` reserves amber for the single active moment on
+                  screen, which here is the slider handle. A warm glow behind the
+                  hero would be the second amber beat and would take the eye off
+                  the one control the screen actually wants pressed. */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -inset-x-12 -inset-y-8 -z-10 bg-[radial-gradient(ellipse_at_center,rgb(255_255_255/0.055),transparent_70%)]"
+              />
+              <DeviceFrame className="h-full w-full max-w-none">
+                <NotesCompare />
+              </DeviceFrame>
+
+              {/* THEY HANG OFF THE EDGES, they do not sit on the glass. At the
+                  old phone size a 20px overhang put them beside the device; now
+                  the phone is height-driven and only ~177px wide in a 390px
+                  viewport, the same offset parked them squarely over the
+                  content they were meant to be annotating. Pulled out to 5rem so
+                  two-thirds of each card is off the phone, and moved clear of
+                  the seam handle in the middle. */}
+              <PointCard
+                title="Trackd"
+                tone="good"
+                points={["Counted for you", "Dated", "One tap"]}
+                className="-right-[5rem] top-[10%]"
+                delay={260}
+              />
+              <PointCard
+                title="Notes app"
+                tone="bad"
+                points={["You do the maths", "?? or tues", "Forgot to log"]}
+                className="-left-[5rem] bottom-[14%]"
+                delay={420}
+              />
+            </div>
           </div>
 
           {/* The instruction belongs UNDER the thing it is about (Adrian,

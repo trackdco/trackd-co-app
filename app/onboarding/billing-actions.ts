@@ -13,6 +13,7 @@ import {
 import type Stripe from "stripe";
 
 import { priceIdFor, stripe, type PlanKey } from "@/lib/billing/stripe";
+import { BETA_GRACE_DAYS } from "@/lib/billing/betaGrace";
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 
 /**
@@ -38,11 +39,83 @@ import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
  * card was accepted and proves nothing about entitlement.
  */
 
+/**
+ * Whether this account still gets free days, and if not, which free run they
+ * already had. The reason is copy, not logic: nothing gates on it.
+ */
+export type TrialEligibility = {
+  eligible: boolean;
+  /** `new` = gets a trial. `used` = had a 7-day trial. `beta` = had the fortnight. */
+  reason: "new" | "used" | "beta";
+  /** How many days their free run was. 7 for a trial, 14 for the beta grace. */
+  days: number;
+};
+
 export type StartTrialResult =
   | { status: "ok"; clientSecret: string; subscriptionId: string }
   /** Already entitled. The caller should move them into the app, not charge them. */
   | { status: "already-subscribed" }
   | { status: "error"; message: string };
+
+/**
+ * DOES THIS ACCOUNT STILL GET A FREE TRIAL?
+ *
+ * ⚠️ THIS EXISTS BECAUSE THE RULE AND THE COPY MUST SHIP TOGETHER.
+ *
+ * One trial per user means a returning customer is charged from day one. Every
+ * screen in the flow says "7 days free", "Nothing to pay today" and "Start my
+ * 7-day free trial", so without this they read all of that, tap the button, and
+ * are charged immediately. That is the app breaking a promise it made two
+ * screens earlier, in writing, on a payment screen. It is also the exact defect
+ * class that produces chargebacks.
+ *
+ * Takes no argument and answers only about the caller. A server action is a
+ * public HTTP endpoint, and this one leaks nothing beyond a boolean the user's
+ * own next screen is about to show them anyway.
+ *
+ * ## It errs towards SAYING YES
+ *
+ * Any failure returns eligible. The same direction {@link startTrial} takes, and
+ * for the same reason: the two must not disagree. A screen promising a trial the
+ * server then grants is correct; a screen promising one the server refuses is
+ * the broken promise this function exists to prevent.
+ */
+export async function trialEligibility(): Promise<TrialEligibility> {
+  const fallback = { eligible: true as const, reason: "new" as const, days: TRIAL_DAYS };
+  try {
+    const { user } = await getSessionContext();
+    if (!user) return fallback;
+
+    /**
+     * ⚠️ WHY they are not eligible reaches the copy, because the two groups had
+     * DIFFERENT free runs and telling a beta user they have "had their free
+     * week" is simply false: they had a fortnight. Adrian caught that.
+     */
+    if (await hadBetaGrace(user.id)) {
+      return { eligible: false, reason: "beta", days: BETA_GRACE_DAYS };
+    }
+
+    const { data } = await serviceClient()
+      .from("billing_customers")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const customerId = data?.stripe_customer_id as string | undefined;
+    // No Stripe customer means no history, so nothing can have been used.
+    if (!customerId) return fallback;
+
+    const { all } = await listSubscriptions(stripe(), customerId);
+    return hasUsedTrial(all)
+      ? { eligible: false, reason: "used", days: TRIAL_DAYS }
+      : fallback;
+  } catch (err) {
+    console.error(
+      "[billing] could not decide trial eligibility (showing the trial):",
+      err instanceof Error ? err.message : String(err),
+    );
+    return fallback;
+  }
+}
 
 export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
   const { user, passedGate } = await getSessionContext();
@@ -176,11 +249,27 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
       }
     }
 
+    /**
+     * ⚠️ WHO STILL GETS A FREE TRIAL. Both rules are Adrian's, 2026-08-14.
+     *
+     *   1. ONE PER CUSTOMER, EVER. See {@link hasUsedTrial}.
+     *   2. NO TRIAL FOR A BETA GRACE ACCOUNT. The eighty-five people who were
+     *      here before billing get a fortnight free, and that fortnight IS their
+     *      trial. Giving them a further seven days on top would be 21 free days
+     *      for the group that has already had the whole product for months.
+     *
+     * Erring towards GRANTING when either check fails: a Stripe or Postgres
+     * error here means somebody gets a trial they might not be owed, which costs
+     * seven days. Erring the other way charges a first-time customer immediately
+     * against a screen that just promised seven days free, which is a dispute.
+     */
+    const eligibleForTrial = !hasUsedTrial(all) && !(await hadBetaGrace(user.id));
+
     const subscription = await client.subscriptions.create(
       {
         customer: customerId,
         items: [{ price: wantedPrice }],
-        trial_period_days: TRIAL_DAYS,
+        ...(eligibleForTrial ? { trial_period_days: TRIAL_DAYS } : {}),
         // Nothing is owed today, so Stripe leaves the subscription incomplete
         // until the SetupIntent is confirmed. Without this it would activate
         // with no payment method attached and simply fail on day 7.
@@ -602,6 +691,72 @@ async function findOrCreateCustomer(
  *
  * Anything past `trialing` has had money move, so it counts regardless.
  */
+/**
+ * HAS THIS CUSTOMER ALREADY HAD THEIR TRIAL?
+ *
+ * Adrian, 2026-08-14: one trial per user, ever. Not per plan, not per
+ * subscription. Before this, the loop was subscribe, cancel, wait for it to
+ * lapse, subscribe again, free forever in seven-day steps. Harmless while
+ * nothing gated; the read-only gate is what turns it into the way to use Trackd
+ * Co for nothing.
+ *
+ * ## ⚠️ THE TEST IS "DID A CARD EVER VALIDATE ON IT", NOT "DID IT HAVE A TRIAL"
+ *
+ * The obvious version is `all.some((s) => s.trial_end !== null)` and it is wrong
+ * in the expensive direction. `startTrial` CREATES AND THEN CANCELS
+ * subscriptions itself: an abandoned 3D-Secure challenge leaves a cancelled
+ * subscription that carries a `trial_end` and never took a penny. A naive check
+ * therefore denies a genuine first-time customer their trial because their bank
+ * challenge timed out once, and charges them on the spot against a screen that
+ * promised seven free days. That is a chargeback, and it is the direction that
+ * costs money and trust.
+ *
+ * So it reuses {@link hasValidatedCard}, which is already the codebase's answer
+ * to "did this attempt actually become real". An abandoned attempt never
+ * validated a card, so it never burns the trial. A trial somebody genuinely
+ * started did, so it does, whether they later cancelled, lapsed or were charged.
+ */
+function hasUsedTrial(all: readonly Stripe.Subscription[]): boolean {
+  return all.some((sub) => sub.trial_end !== null && hasValidatedCard(sub));
+}
+
+/**
+ * Was this account one of the beta users who got the fourteen-day grace?
+ *
+ * A `comp` entitlement WITH an expiry is that grace and nothing else produces
+ * that shape (`lib/billing/betaGrace.ts` enforces it: a comp-list member gets a
+ * comp with NO expiry, everybody else gets one with an `active_until`).
+ *
+ * Read whether it is still active or not. The question is "have they already had
+ * their free run", and an expired grace is exactly somebody who has.
+ *
+ * ⚠️ RETURNS FALSE ON ANY ERROR, which grants the trial. See the note at the
+ * call site: the wrong direction here charges a first-timer immediately.
+ */
+async function hadBetaGrace(userId: string): Promise<boolean> {
+  try {
+    const { data, error } = await serviceClient()
+      .from("entitlements")
+      .select("source, active_until")
+      .eq("user_id", userId)
+      .eq("product", "pro")
+      .eq("source", "comp")
+      .not("active_until", "is", null)
+      .limit(1);
+    if (error) {
+      console.error(`[billing] could not check the beta grace for ${userId}:`, error.message);
+      return false;
+    }
+    return (data?.length ?? 0) > 0;
+  } catch (err) {
+    console.error(
+      `[billing] could not check the beta grace for ${userId}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return false;
+  }
+}
+
 function hasValidatedCard(sub: Stripe.Subscription): boolean {
   /**
    * ⚠️ `incomplete` IS NEVER "already subscribed", whatever else is true.
