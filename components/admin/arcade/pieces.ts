@@ -218,7 +218,7 @@ export const LADDER: Bot[] = [
     "..GDDDDDDDDDDG..", "..GDDDDDDDDDDG..", "..GdddddddddDG..", "...GdddddddDG...",
     ".....GGGGGG.....", "................"] },
 
-  { id: "blu", name: "Blu", who: "PepMod", elo: 450, depth: 1, blunder: 0.7,
+  { id: "blu", name: "Blu", who: "PepMod", elo: 450, depth: 1, blunder: 0.72,
     taunt: "Peptides beat glassware, mate.", pal: BLU, rows: [
     "................", "....CCCCCCCC....", "....cccccccc....", "....CCCCCCCC....",
     "..GGGGGGGGGGGG..", "..GWbbbbbbbbWG..", "..GWbEEbbEEbWG..", "..GWbESbbESbWG..",
@@ -226,7 +226,7 @@ export const LADDER: Bot[] = [
     "..GBBBBBBBBBBG..", "..GBBBBBBBBBBG..", "..GbbbbbbbbbbG..", "..GGGGGGGGGGGG..",
     "...GGGGGGGGGG...", "................"] },
 
-  { id: "tubbs", name: "Tubbs", who: "IM8", elo: 650, depth: 1, blunder: 0.45,
+  { id: "tubbs", name: "Tubbs", who: "IM8", elo: 650, depth: 1, blunder: 0.63,
     taunt: "Scoop a day. You clearly missed a few.", pal: TUB, rows: [
     "................", "..GGGGGGGGGGGG..", "..GccccccccccG..", "..GGGGGGGGGGGG..",
     "..GLLLLLLLLLLG..", "..GLLEELLEELLG..", "..GLLESLLESLLG..", "..GLLLLLLLLLLG..",
@@ -234,7 +234,7 @@ export const LADDER: Bot[] = [
     "..GDDDDDDDDDDG..", "..GDDDDDDDDDDG..", "..GDDDDDDDDDDG..", "..GGGGGGGGGGGG..",
     "................", "................"] },
 
-  { id: "calc", name: "The Calculator", who: "recon maths", elo: 800, depth: 1, blunder: 0.1,
+  { id: "calc", name: "The Calculator", who: "recon maths", elo: 800, depth: 1, blunder: 0.54,
     taunt: "I did the maths. You are not the variable that mattered.", pal: CAL, rows: [
     "................", "..GGGGGGGGGGGG..", "..GccccccccccG..", "..GcSSSSSSSScG..",
     "..GccccccccccG..", "..GGGGGGGGGGGG..", "..GbEEbbbbEEbG..", "..GbESbbbbESbG..",
@@ -242,7 +242,7 @@ export const LADDER: Bot[] = [
     "..GKKbKKbKKbbG..", "..GKKbKKbKKbbG..", "..GbbbbbbbbbbG..", "..GGGGGGGGGGGG..",
     "................", "................"] },
 
-  { id: "greens", name: "The Greens", who: "greens powder", elo: 950, depth: 2, blunder: 0.35,
+  { id: "greens", name: "The Greens", who: "greens powder", elo: 950, depth: 1, blunder: 0.28,
     taunt: "Not enough micronutrients in that opening.", pal: GRN, rows: [
     "................", "...GGG....GGG...", "...GcG....GcG...", "..GGGGGGGGGGGG..",
     "..GLAAAAAAAALG..", "..GAAAAAAAAAAG..", "..GAAEEAAEEAAG..", "..GAAESAAESAAG..",
@@ -250,7 +250,7 @@ export const LADDER: Bot[] = [
     "..GaaaaaaaaaaG..", "..GaaaaaaaaaaG..", "..GaaaaaaaaaaG..", "..GGGGGGGGGGGG..",
     "................", "................"] },
 
-  { id: "map", name: "The Map", who: "site rotation", elo: 1100, depth: 2, blunder: 0.18,
+  { id: "map", name: "The Map", who: "site rotation", elo: 1100, depth: 1, blunder: 0.2,
     taunt: "Wrong site. Wrong square. Same problem.", pal: MAP, rows: [
     "................", "......GGGG......", "......GbbG......", "......GEEG......",
     "......GSSG......", "....GGGGGGGG....", "...GbAbbbbAbG...", "...GbbbbbbbbG...",
@@ -258,7 +258,7 @@ export const LADDER: Bot[] = [
     "....GbbbbbbG....", "....GGbbbbGG....", "...GbbG..GbbG...", "...GbbG..GbbG...",
     "...GGGG..GGGG...", "................"] },
 
-  { id: "spike", name: "Spike", who: "GHK-Cu", elo: 1250, depth: 2, blunder: 0.02,
+  { id: "spike", name: "Spike", who: "GHK-Cu", elo: 1250, depth: 2, blunder: 0.4,
     taunt: "Copper peptides. Copper brain.", pal: SPK, rows: [
     "................", ".......GG.......", ".......GG.......", ".......GG.......",
     "......GccG......", "....GGGGGGGG....", "....GbbbbbbG....", "....GbEEbEEG....",
@@ -266,7 +266,7 @@ export const LADDER: Bot[] = [
     "....GAAAAAAG....", "....GaaaaaaG....", "....GGGGGGGG....", "....GccccccG....",
     "....GGGGGGGG....", "................"] },
 
-  { id: "gauge", name: "The Gauge", who: "the draw", elo: 1400, depth: 3, blunder: 0.12,
+  { id: "gauge", name: "The Gauge", who: "the draw", elo: 1400, depth: 2, blunder: 0.18,
     taunt: "Drawn up, pushed out. Same as your position.", pal: GAU, gauge: true, rows: [
     "................", ".......GG.......", ".......GG.......", "......GccG......",
     "....GGGGGGGG....", "....GbEEbEEG....", "....GbESbESG....", "....GbbbbbbG....",
@@ -274,7 +274,7 @@ export const LADDER: Bot[] = [
     "....GAAAAAAG....", "....GAAAAAAG....", "....GGGGGGGG....", "....GccccccG....",
     "....GGGGGGGG....", "................"] },
 
-  { id: "panel", name: "The Panel", who: "bloodwork", elo: 1550, depth: 3, blunder: 0.0,
+  { id: "panel", name: "The Panel", who: "bloodwork", elo: 1550, depth: 3, blunder: 0.13,
     taunt: "Your markers are fine. Your chess is not.", pal: PAN, rows: [
     "................", ".....CCCCCC.....", ".....cccccc.....", ".....CCCCCC.....",
     "....GGGGGGGG....", "....GbbbbbbG....", "....GbEEbEEG....", "....GbESbESG....",
@@ -282,7 +282,7 @@ export const LADDER: Bot[] = [
     "....GAAAAAAG....", "....GaaaaaaG....", "....GaaaaaaG....", "....GGGGGGGG....",
     ".....GGGGGG.....", "................"] },
 
-  { id: "cal", name: "Cal", who: "Cal AI", elo: 1700, depth: 4, blunder: 0.08,
+  { id: "cal", name: "Cal", who: "Cal AI", elo: 1700, depth: 3, blunder: 0.06,
     taunt: "I counted every calorie and every one of your mistakes.", pal: APL, rows: [
     "................", "........s.......", ".......ss.......", "......LLss......",
     "....GGAAAAGG....", "...GAAAAAAAAG...", "..GAAAAAAAAAAG..", "..GAAEEAAEEAAG..",
@@ -290,7 +290,7 @@ export const LADDER: Bot[] = [
     "..GaaaaAAaaaaG..", "...GaaaaaaaaG...", "....GGaaaaGG....", "......GGGG......",
     "................", "................"] },
 
-  { id: "prime", name: "KYLE PRIME", who: "you, if you'd tracked everything", elo: 1850, depth: 4, blunder: 0.0,
+  { id: "prime", name: "KYLE PRIME", who: "you, if you'd tracked everything", elo: 1850, depth: 3, blunder: 0,
     taunt: "You never logged a single dose. I logged all of them.", pal: PRM, rows: [
     "....................", "......CCCCCCCC......", "......cccccccc......", "......CCCCCCCC......",
     "....GGGGGGGGGGGG....", "...GGWWWWWWWWWWGG...", "..GG.GWEEWWEEWG.GG..", "..GG.GWSEWWESWG.GG..",

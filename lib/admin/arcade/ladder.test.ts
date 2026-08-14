@@ -99,9 +99,19 @@ describe("the ladder", () => {
     expect(LADDER[0].depth).toBe(1)
   })
 
+  /**
+   * Depth 3, not 4.
+   *
+   * This asserted `>= 4` on the assumption that deeper is stronger. Measured
+   * against Stockfish (`scripts/chess-calibrate.mjs`), depth 3 with no blunder
+   * scores 100% against SF at 1320 — about 1810 Elo, which is what the top rung
+   * is meant to be. Depth 4 cost several times the search budget for no
+   * measurable gain, and routinely failed to finish a pass inside its allowance,
+   * which silently dropped it back to depth 3 anyway.
+   */
   it("ends genuinely strong", () => {
     const top = LADDER[LADDER.length - 1]
     expect(top.blunder).toBe(0)
-    expect(top.depth).toBeGreaterThanOrEqual(4)
+    expect(top.depth).toBeGreaterThanOrEqual(3)
   })
 })

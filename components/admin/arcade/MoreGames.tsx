@@ -33,6 +33,7 @@ const TRAY_Y = N * CELL + 16
 export function BlockBlast() {
   const W = N * CELL, H = N * CELL + 96
   const [score, setScore] = useState(0)
+  const [combo, setCombo] = useState(0)
   const [over, setOver] = useState(false)
   const cv = useRef<HTMLCanvasElement | null>(null)
 
@@ -49,6 +50,8 @@ export function BlockBlast() {
     tray: [] as { shape: number[][]; colour: string; used: boolean }[],
     drag: null as { idx: number; x: number; y: number; held: number } | null,
     score: 0,
+    /** Consecutive drops that cleared something. Drives the rising pitch AND the score. */
+    combo: 0,
     over: false,
   })
 
@@ -82,8 +85,8 @@ export function BlockBlast() {
   )
 
   const reset = useCallback(() => {
-    g.current = { cells: new Array(N * N).fill(""), tray: deal(), drag: null, score: 0, over: false }
-    setScore(0); setOver(false); sfx.start()
+    g.current = { cells: new Array(N * N).fill(""), tray: deal(), drag: null, score: 0, combo: 0, over: false }
+    setScore(0); setCombo(0); setOver(false); sfx.start()
   }, [deal])
 
   const place = useCallback((idx: number, gx: number, gy: number) => {
@@ -114,10 +117,18 @@ export function BlockBlast() {
     for (const y of fullRows) for (let x = 0; x < N; x++) cells[y * N + x] = ""
     for (const x of fullCols) for (let y = 0; y < N; y++) cells[y * N + x] = ""
     const lines = fullRows.length + fullCols.length
-    if (lines > 0) sfx.clear()
+    if (lines > 0) {
+      sfx.clear(lines, st.combo)
+      st.combo += 1
+    } else if (st.combo > 0) {
+      sfx.comboBreak()
+      st.combo = 0
+    }
+    setCombo(st.combo)
 
     st.cells = cells
-    st.score += placed + lines * lines * 20
+    // The chain multiplies, so a run of small clears beats one big lucky drop.
+    st.score += placed + lines * lines * 20 * Math.max(1, st.combo)
     if (st.tray.every((t) => t.used)) st.tray = deal()
     setScore(st.score)
     if (!anyFits(st.tray, st.cells)) { st.over = true; setOver(true); sfx.lose() }
@@ -270,7 +281,8 @@ export function BlockBlast() {
         className="block w-full max-w-[min(90vw,min(420px,72vh))] rounded-xl [image-rendering:pixelated] [touch-action:none]"
       />
       <p className="text-center text-[11px] text-text-muted">
-        Score <b className="text-foreground">{score}</b> · drag a shape onto the grid ·{" "}
+        Score <b className="text-foreground">{score}</b>
+        {combo > 1 ? <b className="text-accent-amber"> · ×{combo} chain</b> : null} · drag a shape onto the grid ·{" "}
         {over ? "tap to retry" : "clear rows and columns"}
       </p>
     </div>

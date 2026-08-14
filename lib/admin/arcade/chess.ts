@@ -255,17 +255,110 @@ const PST_BISHOP = [-20,-10,-10,-10,-10,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,
   -10,5,5,10,10,5,5,-10, -10,0,10,10,10,10,0,-10, -10,10,10,10,10,10,10,-10, -10,5,0,0,0,0,5,-10, -20,-10,-10,-10,-10,-10,-10,-20]
 const PST: Partial<Record<PieceType, number[]>> = { p: PST_PAWN, n: PST_KNIGHT, b: PST_BISHOP }
 
-/** Positive favours white. */
+/* Index 0 is a8, so every table below reads top-left = a8, bottom-right = h1,
+   from White's point of view. Black mirrors with `63 - i`. */
+const PST_ROOK = [0,0,0,0,0,0,0,0, 5,10,10,10,10,10,10,5, -5,0,0,0,0,0,0,-5,
+  -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, 0,0,0,5,5,0,0,0]
+const PST_QUEEN = [-20,-10,-10,-5,-5,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,5,5,5,5,0,-10,
+  -5,0,5,5,5,5,0,-5, 0,0,5,5,5,5,0,-5, -10,5,5,5,5,5,0,-10, -10,0,5,0,0,0,0,-10, -20,-10,-10,-5,-5,-10,-10,-20]
+/** Middlegame: get tucked away. Endgame: get out and fight. */
+const PST_KING_MID = [-30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30,
+  -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -20,-30,-30,-40,-40,-30,-30,-20,
+  -10,-20,-20,-20,-20,-20,-20,-10, 20,20,0,0,0,0,20,20, 20,30,10,0,0,10,30,20]
+const PST_KING_END = [-50,-40,-30,-20,-20,-30,-40,-50, -30,-20,-10,0,0,-10,-20,-30,
+  -30,-10,20,30,30,20,-10,-30, -30,-10,30,40,40,30,-10,-30, -30,-10,30,40,40,30,-10,-30,
+  -30,-10,20,30,30,20,-10,-30, -30,-30,0,0,0,0,-30,-30, -50,-30,-30,-30,-30,-30,-30,-50]
+
+/** Distance from the centre, per square. Drives a losing king to the corner. */
+const CORNER_DIST = (() => {
+  const t = new Array<number>(64)
+  for (let i = 0; i < 64; i++) {
+    const f = file(i), r = rank(i)
+    t[i] = Math.max(Math.abs(f - 3.5), Math.abs(r - 3.5))
+  }
+  return t
+})()
+
+/** Home squares of the minor pieces, for the development penalty. */
+const HOME_MINORS_W = [57, 58, 61, 62]
+const HOME_MINORS_B = [1, 2, 5, 6]
+
+/**
+ * Positive favours white.
+ *
+ * THE OLD VERSION COULD NOT DESCRIBE WINNING, ONLY BEING AHEAD.
+ *
+ * It scored material plus piece-square tables for three piece types, and nothing
+ * else. That is enough to win a queen and completely insufficient to then do
+ * anything with it: once material is settled, every legal move scores the same,
+ * so the bot shuffles until the fifty-move rule ends the game. Measured against
+ * a random mover the whole ladder scored 53–75% — a real 1400 scores ~100% —
+ * and every rung failed a probe where the opponent did nothing but move its king
+ * back and forth. Both symptoms are this one cause.
+ *
+ * Four terms fix it:
+ *
+ *   PST for every piece      a rook now wants the 7th, a queen the centre
+ *   phase-blended king       tucked in the middlegame, centralised in the endgame
+ *   development penalty      a reason to move the minors off the back rank
+ *   mop-up when winning      drive the bare king to a corner, walk your king up
+ *
+ * The last one is what actually converts. Without it there is no gradient
+ * between "up a queen" and "checkmate", so the search has nothing to climb.
+ */
 export function evaluate(g: Game): number {
   let score = 0
+  let wMat = 0, bMat = 0
+  let wKing = -1, bKing = -1
+  let wBishops = 0, bBishops = 0
+
   for (let i = 0; i < 64; i++) {
     const p = g.board[i]
     if (!p) continue
-    const sign = p.c === "w" ? 1 : -1
+    const white = p.c === "w"
+    const sign = white ? 1 : -1
+    const sq = white ? i : 63 - i
     score += sign * VALUE[p.t]
-    const table = PST[p.t]
-    if (table) score += sign * table[p.c === "w" ? i : 63 - i]
+    if (p.t !== "k") {
+      if (white) wMat += VALUE[p.t]; else bMat += VALUE[p.t]
+    }
+    if (p.t === "b") { if (white) wBishops++; else bBishops++ }
+    if (p.t === "k") { if (white) wKing = i; else bKing = i; continue }
+    const table = PST[p.t] ?? (p.t === "r" ? PST_ROOK : p.t === "q" ? PST_QUEEN : null)
+    if (table) score += sign * table[sq]
   }
+
+  /* Phase: 1 at the start, 0 once the heavy pieces are gone. */
+  const START_MAT = 2 * VALUE.r + 2 * VALUE.n + 2 * VALUE.b + VALUE.q + 8 * VALUE.p
+  const phase = Math.min(1, (wMat + bMat) / (2 * START_MAT))
+
+  if (wKing >= 0) score += PST_KING_MID[wKing] * phase + PST_KING_END[wKing] * (1 - phase)
+  if (bKing >= 0) score -= PST_KING_MID[63 - bKing] * phase + PST_KING_END[63 - bKing] * (1 - phase)
+
+  if (wBishops >= 2) score += 30
+  if (bBishops >= 2) score -= 30
+
+  /* Development: only worth nagging about while it is still the opening. */
+  if (phase > 0.8) {
+    for (const sq of HOME_MINORS_W) { const p = g.board[sq]; if (p && p.c === "w" && (p.t === "n" || p.t === "b")) score -= 14 }
+    for (const sq of HOME_MINORS_B) { const p = g.board[sq]; if (p && p.c === "b" && (p.t === "n" || p.t === "b")) score += 14 }
+  }
+
+  /**
+   * Mop-up. Only switches on once one side is clearly winning and the board has
+   * emptied out, so it never distorts a normal middlegame.
+   */
+  const edge = wMat - bMat
+  if (phase < 0.45 && Math.abs(edge) >= VALUE.r && wKing >= 0 && bKing >= 0) {
+    const winnerIsWhite = edge > 0
+    const loser = winnerIsWhite ? bKing : wKing
+    const winner = winnerIsWhite ? wKing : bKing
+    const apart = Math.abs(file(winner) - file(loser)) + Math.abs(rank(winner) - rank(loser))
+    // Push the losing king outward, and close your own king in on it.
+    const mop = CORNER_DIST[loser] * 18 + (14 - apart) * 8
+    score += winnerIsWhite ? mop : -mop
+  }
+
   return score
 }
 
@@ -369,23 +462,38 @@ function search(g: Game, depth: number, alpha: number, beta: number, maximising:
 export interface BotSpec { depth: number; blunder: number }
 
 /**
- * Pick black's move.
+ * Pick the side-to-move's move.
  *
  * Elo is expressed two ways: how deep it looks, and how often it simply refuses
  * to play the move it found. The low bots genuinely hang pieces — a bot that
  * always plays the best move it can see at depth 1 is still far too strong to
  * be a 250.
+ *
+ * ── THIS USED TO BE HARDCODED TO BLACK ────────────────────────────────────
+ * `evaluate` is signed so that positive favours White, and this function simply
+ * took the LOWEST-scoring move on the assumption that the bot is always Black.
+ * In the app that assumption holds — you are always White — so the bug was
+ * invisible in play. It surfaced the moment the calibration harness sat a bot on
+ * the white side to cancel out colour bias: as White it was picking the move
+ * that minimised its own position, i.e. deliberately playing its worst legal
+ * move, and lost to a RANDOM MOVER by thirty-odd pawns.
+ *
+ * Reading the colour off the position costs nothing and makes every measurement
+ * taken with this function trustworthy in both directions.
  */
 export function pickMove(g: Game, bot: BotSpec, rng: () => number = Math.random): Move | null {
   const moves = legalMoves(g)
   if (moves.length === 0) return null
   if (rng() < bot.blunder) return moves[Math.floor(rng() * moves.length)] ?? moves[0]
   moves.sort((a, b) => (g.board[b.to] ? VALUE[g.board[b.to]!.t] : 0) - (g.board[a.to] ? VALUE[g.board[a.to]!.t] : 0))
+  const weAreWhite = g.turn === "w"
   let best: Move | null = null
-  let bestScore = Infinity // black minimises
+  let bestScore = weAreWhite ? -Infinity : Infinity
   for (const m of moves) {
-    const score = search(applyMove(g, m), Math.max(0, bot.depth - 1), -Infinity, Infinity, true)
-    if (score < bestScore) { bestScore = score; best = m }
+    // After our move it is the opponent's turn, so the child node maximises iff
+    // the opponent is White.
+    const score = search(applyMove(g, m), Math.max(0, bot.depth - 1), -Infinity, Infinity, !weAreWhite)
+    if (weAreWhite ? score > bestScore : score < bestScore) { bestScore = score; best = m }
   }
   return best ?? moves[0]
 }
@@ -431,10 +539,11 @@ export async function pickMoveTimed(
   const deadline = Date.now() + budgetMs
   const yieldToUi = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
+  const weAreWhite = g.turn === "w"
   let best: Move = moves[0]
   let ordered = moves
   for (let depth = 1; depth <= bot.depth; depth++) {
-    let bestScore = Infinity
+    let bestScore = weAreWhite ? -Infinity : Infinity
     let bestThisDepth: Move | null = null
     let ranOut = false
     const scored: { m: Move; score: number }[] = []
@@ -453,9 +562,11 @@ export async function pickMoveTimed(
        * searching four ply and quietly falling back to three while still
        * advertising 2000 Elo.
        */
-      const score = search(applyMove(g, m), depth - 1, -Infinity, bestScore, true)
+      const score = weAreWhite
+        ? search(applyMove(g, m), depth - 1, bestScore, Infinity, false)
+        : search(applyMove(g, m), depth - 1, -Infinity, bestScore, true)
       scored.push({ m, score })
-      if (score < bestScore) { bestScore = score; bestThisDepth = m }
+      if (weAreWhite ? score > bestScore : score < bestScore) { bestScore = score; bestThisDepth = m }
       if (Date.now() > deadline) { ranOut = true; break }
       await yieldToUi()
     }
@@ -465,7 +576,8 @@ export async function pickMoveTimed(
       best = bestThisDepth
       // Best-first for the next iteration. Iterative deepening pays for itself
       // precisely because the previous depth's ordering makes the next one cheap.
-      ordered = scored.sort((a, b) => a.score - b.score).map((x) => x.m)
+      // Sort direction follows the colour: White wants the highest score first.
+      ordered = scored.sort((a, b) => (weAreWhite ? b.score - a.score : a.score - b.score)).map((x) => x.m)
     }
     if (ranOut) break
   }
