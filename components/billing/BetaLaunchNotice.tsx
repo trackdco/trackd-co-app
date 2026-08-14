@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { Confetti } from "@/components/onboarding/confetti";
 import { markBetaNoticeSeen } from "@/lib/billing/betaNoticeStore";
 
 /**
@@ -188,17 +189,54 @@ export function BetaLaunchNotice({
         aria-labelledby="beta-notice-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+        /* `relative` + `overflow-hidden` so the confetti is clipped to the card
+           rather than raining down the whole viewport. It is a gift inside a
+           box, not weather. */
+        className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
       >
-        <h2 id="beta-notice-title" className="text-base font-medium text-foreground">
-          {isComp ? "Trackd is yours, for good" : "Trackd is going paid"}
+        {/* ⚠️ ONLY FOR THE COMP VARIANT, and that is the whole point.
+            The other variant tells somebody their free access is ending in a
+            fortnight. Confetti over THAT would be the app celebrating at
+            somebody it is about to charge, which is the single worst thing this
+            screen could do.
+
+            The shared `Confetti` from the onboarding flow, unchanged: one shot
+            over ~2.2s, `pointer-events-none`, and it collapses to nothing under
+            `prefers-reduced-motion` through the opt-out in `globals.css`.
+            `ui-context.md` bans ambient particles; the line is whether it keeps
+            going after you have looked at it, and this does not. */}
+        {isComp ? <Confetti /> : null}
+
+        <h2
+          id="beta-notice-title"
+          className="relative text-base font-medium text-foreground"
+        >
+          {isComp ? "Trackd is yours. For life." : "Trackd is going paid"}
         </h2>
 
         {isComp ? (
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">
-            Trackd now costs money for new users. Yours doesn&apos;t, and it
-            won&apos;t. Thanks for being here early.
-          </p>
+          <div className="relative">
+            <p className="mt-2 text-sm leading-relaxed text-text-muted">
+              {/* THE GIFT FIRST, NAMED, AND FROM SOMEBODY. "You have been granted
+                  complimentary access" is what a billing system says. Adrian and
+                  Angus are two people, and this is the one screen where saying so
+                  costs nothing and means everything. */}
+              Adrian and Angus have given you{" "}
+              <span className="text-foreground">free access for life</span>.
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-text-muted">
+              {/* THEN WHAT IT MEANS, because a promise with no edges is not
+                  reassuring. Two facts: it never expires, and nothing is ever
+                  asked for. */}
+              Trackd costs money for everyone else from today. Not for you, not
+              now and not later. No card, no renewal, nothing to cancel.
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-text-muted">
+              {/* AND WHY. A gift with a reason attached is a thank-you; one
+                  without is a coupon. */}
+              Thanks for being here when it was held together with tape.
+            </p>
+          </div>
         ) : (
           <>
             {/* WHAT THEY KEEP, FIRST. Somebody reading this is asking "am I
@@ -232,13 +270,19 @@ export function BetaLaunchNotice({
         <button
           type="button"
           onClick={close}
-          className="mt-5 w-full rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+          /* `relative`, so it stacks above the confetti layer. The burst is
+             `pointer-events-none` so it could never have swallowed a tap, but a
+             button drawn UNDER falling pieces reads as decoration. */
+          className="relative mt-5 w-full rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
         >
           {/* One button, and it is not "Subscribe". This is a notice, and
               putting the ask on it would make the notice a sales pitch and the
               date a threat. The pop-up with the prices is one blocked action
-              away, and /billing is on Profile. */}
-          Got it
+              away, and /billing is on Profile.
+
+              The comp variant says something else, because "Got it" is what you
+              say to a warning. This is not a warning. */}
+          {isComp ? "Thank you" : "Got it"}
         </button>
       </div>
     </div>,

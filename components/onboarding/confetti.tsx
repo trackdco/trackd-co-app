@@ -8,8 +8,19 @@ import { useMemo } from "react";
  * This is a ONE-SHOT ENTRANCE, not ambient motion. `ui-context.md` → Motion
  * bans "floating particles" as decorative; the line between the two is whether
  * it keeps going after you have looked at it. This fires once, over ~2.2s, and
- * is gone. It also collapses to nothing under `prefers-reduced-motion` via the
- * shared opt-out in `globals.css`.
+ * is gone.
+ *
+ * ## ⚠️ `prefers-reduced-motion`, and what the old comment got wrong
+ *
+ * It used to say this "collapses to nothing under `prefers-reduced-motion` via
+ * the shared opt-out in `globals.css`". Measured, that is half true and the
+ * wrong half: the opt-out kills the ANIMATION, and the pieces then render
+ * motionless at their start position. `animationName: none`, `opacity: 0.59` —
+ * eighteen amber dots pinned along the top edge, permanently, as decoration
+ * nobody asked for.
+ *
+ * `motion-reduce:hidden` is the actual collapse. A user who has asked for less
+ * motion gets no confetti rather than the residue of some.
  *
  * `pointer-events-none` is not optional: the spec records that a decorative
  * overlay intercepting a tap has already bitten this prototype once.
@@ -57,7 +68,7 @@ export function Confetti({ fire = true }: { fire?: boolean }) {
 
   return (
     <div
-      className="pointer-events-none absolute inset-0 overflow-hidden"
+      className="pointer-events-none absolute inset-0 overflow-hidden motion-reduce:hidden"
       aria-hidden
     >
       {pieces.map((p, i) => (

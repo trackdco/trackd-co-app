@@ -47,9 +47,21 @@
  * do it. Two lists, two meanings, no accidental privilege.
  */
 export const COMP_EMAILS: readonly string[] = [
+  // The two founder accounts.
   "admin@trackdco.app",
   "adrianschimizzi1@gmail.com",
-  // ADD FRIENDS HERE, one per line, lowercase.
+  // Friends, given Trackd for life (Adrian, 2026-08-14).
+  //
+  // ⚠️ LOWERCASE, ALWAYS. `betaGrantFor` lowercases what it is given, so a
+  // capitalised sign-up address still matches — but only if the entry here is
+  // lower. "Ananthr.ravi@gmail.com" as written would never match anything, and
+  // the failure is silent: they would simply get the ordinary fourteen days and
+  // lapse a fortnight later. A test pins that every entry is lowercase.
+  "jasminemalihi06@gmail.com",
+  "ananthr.ravi@gmail.com",
+  // ⚠️ ONE MORE IS OWED (Adrian, 2026-08-14). Add it BEFORE the backfill runs:
+  // it skips accounts that already have an entitlement, so a late addition
+  // needs the re-run path (which upgrades them) rather than the first one.
 ];
 
 /**

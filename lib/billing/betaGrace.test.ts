@@ -24,6 +24,31 @@ describe("betaGrantFor", () => {
     expect(betaGrantFor("  admin@trackdco.app  ")).toEqual({ kind: "comp" });
   });
 
+  it("⚠️ the friends Adrian named are on the list, and get it FOR LIFE", () => {
+    // Adrian, 2026-08-14. A friend left off this list is a friend who is locked
+    // out a fortnight after billing starts, and the failure is SILENT — they
+    // simply get the ordinary grace and lapse. Named individually so a careless
+    // edit to the array shows up here rather than in a support email.
+    for (const email of [
+      "jasminemalihi06@gmail.com",
+      "ananthr.ravi@gmail.com",
+    ]) {
+      expect(COMP_EMAILS).toContain(email);
+      expect(betaGrantFor(email)).toEqual({ kind: "comp" });
+      // `comp` carries NO expiry, which is what `grantExpiry` turns into "never"
+      // and what makes the celebration variant (rather than the countdown one)
+      // render for them.
+      expect(grantExpiry(betaGrantFor(email), new Date())).toBeNull();
+    }
+  });
+
+  it("matches them however they typed their address at sign-up", () => {
+    // One of the two was given to me capitalised. The list must be lowercase and
+    // the lookup lowercases its input, so both directions have to hold.
+    expect(betaGrantFor("Ananthr.Ravi@gmail.com")).toEqual({ kind: "comp" });
+    expect(betaGrantFor("JASMINEMALIHI06@GMAIL.COM")).toEqual({ kind: "comp" });
+  });
+
   it("gives everybody else the grace period, and never nothing", () => {
     // There is deliberately no "nothing" branch. An account that gets nothing is
     // an account locked out on the day billing switches on, with no notice at
