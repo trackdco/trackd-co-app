@@ -384,8 +384,14 @@ export const PORTRAITS: Record<string, Draw> = {
 
     c.save(); c.translate(0, surge)
 
-    c.fillStyle = `rgba(245,197,24,${0.1 + heat * 0.16})`               // the light he throws
-    el(c, C, 40, 28 + heat * 4, 30 + heat * 4)
+    /* A soft radial falloff rather than a flat amber disc. The flat version read
+       as a yellow card behind him; a gradient reads as light coming off him. */
+    const halo = c.createRadialGradient(C, 40, 4, C, 40, 30 + heat * 4)
+    halo.addColorStop(0, `rgba(245,197,24,${0.06 + heat * 0.07})`)
+    halo.addColorStop(0.55, `rgba(245,197,24,${0.03 + heat * 0.035})`)
+    halo.addColorStop(1, "rgba(245,197,24,0)")
+    c.fillStyle = halo
+    el(c, C, 40, 30 + heat * 4, 32 + heat * 4)
 
     mir((s) => kyleArm(c, C + s * 22, s, pump))
 

@@ -27,20 +27,33 @@ import { PORTRAIT_SIZE, PORTRAITS, type Mood } from "@/components/admin/arcade/p
  * fills while he calculates and Kyle lights from within, so the wait reads as
  * deliberation rather than lag.
  */
+/**
+ * `size` is CSS PIXELS, not a multiplier.
+ *
+ * It used to take a `scale`, which meant a caller could write `scale={4}` into a
+ * 96px box and get a 256px canvas cropped to one corner — which is exactly what
+ * happened on the live page: the opponent's portrait showed the bottom-right
+ * quarter of Recon and nothing else. Sizing in the same unit as the container
+ * makes that class of mistake impossible to write.
+ *
+ * The backing store is still an integer multiple of 64 so the pixel art stays
+ * crisp; the browser only ever scales it DOWN, never up.
+ */
 export function Portrait({
   bot,
-  scale = 1.4,
+  size = 64,
   mood = "idle",
 }: {
   bot: Bot
-  scale?: number
+  size?: number
   mood?: Mood
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null)
   const moodRef = useRef(mood)
   useEffect(() => { moodRef.current = mood })
 
-  const size = Math.round(PORTRAIT_SIZE * scale)
+  const zoom = Math.max(1, Math.ceil(size / PORTRAIT_SIZE))
+  const backing = PORTRAIT_SIZE * zoom
 
   useEffect(() => {
     const cv = ref.current
@@ -66,19 +79,19 @@ export function Portrait({
     const frame = (t: number) => {
       sctx.clearRect(0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE)
       draw(sctx, reduce ? 0 : t, moodRef.current)
-      ctx.clearRect(0, 0, size, size)
-      ctx.drawImage(src, 0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE, 0, 0, size, size)
+      ctx.clearRect(0, 0, backing, backing)
+      ctx.drawImage(src, 0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE, 0, 0, backing, backing)
       raf = requestAnimationFrame(frame)
     }
     raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf)
-  }, [bot.id, size])
+  }, [bot.id, backing])
 
   return (
     <canvas
       ref={ref}
-      width={size}
-      height={size}
+      width={backing}
+      height={backing}
       style={{ width: size, height: size }}
       aria-label={`${bot.name}, ${bot.elo} Elo`}
       className="block [image-rendering:pixelated]"

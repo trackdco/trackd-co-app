@@ -361,14 +361,14 @@ export function ChessGame() {
   }, [])
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="mx-auto flex h-full w-full max-w-[620px] flex-col gap-3">
       {/* Who you are actually fighting, with their face on it. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="glass-pill grid size-24 shrink-0 place-items-center overflow-hidden p-1">
+          <div className="glass-pill grid size-[88px] shrink-0 place-items-center overflow-hidden rounded-2xl">
             <Portrait
               bot={bot}
-              scale={4}
+              size={88}
               mood={status.over ? (status.won ? "beaten" : "gloat") : thinking ? "thinking" : "idle"}
             />
           </div>
@@ -398,7 +398,7 @@ export function ChessGame() {
               {/* The scene: they laugh at you, and the line comes out of their
                   mouth rather than sitting in a caption underneath. */}
               <div className="flex items-end justify-center gap-3">
-                <Portrait bot={bot} scale={5} mood={status.won ? "beaten" : "gloat"} />
+                <Portrait bot={bot} size={132} mood={status.won ? "beaten" : "gloat"} />
                 {taunt && !status.won && (
                   <div className="relative mb-4 max-w-[15rem] rounded-2xl rounded-bl-sm bg-[#f0efe9] px-3.5 py-2.5 text-left">
                     <p className="text-sm leading-snug text-[#1b1a17]">“{taunt}”</p>
@@ -425,7 +425,7 @@ export function ChessGame() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-start justify-center gap-1.5">
+      <div className="flex items-start gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:justify-center sm:overflow-visible">
         {/* No locks — pick a fight with anyone. Each one shows its own face,
             because a row of Elo numbers tells you nothing about who they are. */}
         {LADDER.map((b) => (
@@ -435,13 +435,13 @@ export function ChessGame() {
             onClick={() => { wakeAudio(); setBot(b); reset() }}
             aria-pressed={b.id === bot.id}
             title={`${b.name} · ${b.elo} elo · ${b.who}`}
-            className={`flex w-[74px] shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-2 transition-colors ${
+            className={`flex w-[58px] shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors ${
               b.id === bot.id
                 ? "bg-accent-amber/15 ring-1 ring-accent-amber"
                 : "glass-pill hover:bg-[var(--admin-glass-hover)]"
             }`}
           >
-            <Portrait bot={b} scale={2} mood="idle" />
+            <Portrait bot={b} size={46} mood="idle" />
             <span
               className={`font-mono text-[10px] tabular-nums ${
                 b.id === bot.id ? "text-accent-amber" : "text-text-muted"
