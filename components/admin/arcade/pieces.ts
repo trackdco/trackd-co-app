@@ -256,9 +256,13 @@ export const LADDER: Bot[] = [
       "Logged. All of it.",
       "You were over budget by move nine.",
     ] },
-  /** Ester and Chad never speak. An empty list IS the characterisation. */
   { id: "ester", name: "Ester", who: "trenbolone", elo: 1400, depth: 2, blunder: 0.05, noise: 80,
-    taunts: [] },
+    taunts: [
+      "I did not raise my voice once.",
+      "You had thirty moves to notice.",
+      "It was decided a long time before you saw it.",
+      "Nothing about that was sudden.",
+    ] },
   { id: "spike", name: "Spike", who: "somatropin", elo: 1550, depth: 3, blunder: 0.05, noise: 50,
     taunts: [
       "I have been doing this since before you started.",
@@ -267,7 +271,12 @@ export const LADDER: Bot[] = [
       "Slow is not the same as harmless.",
     ] },
   { id: "chad", name: "Chad", who: "the gym", elo: 1700, depth: 3, blunder: 0.02, noise: 22,
-    taunts: [] },
+    taunts: [
+      "Good set.",
+      "You went to failure about ten moves early.",
+      "Form broke down under load. Happens.",
+      "Rack it. Try again Thursday.",
+    ] },
   { id: "prime", name: "KYLE PRIME", who: "final form", elo: 1850, depth: 3, blunder: 0.0, noise: 0,
     taunts: [
       "You logged none of it. I logged all of it.",

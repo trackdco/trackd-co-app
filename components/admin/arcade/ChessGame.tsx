@@ -44,9 +44,11 @@ const MIN_THINK_MS = 600
 
 type Status = { text: string; over: boolean; won?: boolean }
 
-export function ChessGame() {
+function ChessBoard({ bot, onBack }: { bot: Bot; onBack: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const [bot, setBot] = useState<Bot>(LADDER[0])
+  const [confirmBack, setConfirmBack] = useState(false)
+  /** Have you actually played anything worth discarding? */
+  const [inPlay, setInPlay] = useState(false)
   const [status, setStatus] = useState<Status>({ text: "Your move", over: false })
   const [thinking, setThinking] = useState(false)
   /** Their parting shot when they beat you. Cleared on restart. */
@@ -97,6 +99,7 @@ export function ChessGame() {
 
   const reset = useCallback(() => {
     generation.current += 1
+    setInPlay(false)
     g.current = newGame()
     sel.current = null
     targets.current = []
@@ -186,6 +189,7 @@ export function ChessGame() {
       else if (capture) sfx.capture()
       else sfx.place()
       busy.current = true
+      setInPlay(true)
       if (!settle("you")) playBot()
       else busy.current = false
     },
@@ -361,10 +365,18 @@ export function ChessGame() {
   }, [])
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-[620px] flex-col gap-3">
+    <div className="relative mx-auto flex h-full w-full max-w-[620px] flex-col gap-3">
       {/* Who you are actually fighting, with their face on it. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => (inPlay && !status.over ? setConfirmBack(true) : onBack())}
+            aria-label="Change opponent"
+            className="glass-pill grid size-9 shrink-0 place-items-center rounded-full text-text-muted hover:text-foreground"
+          >
+            <span aria-hidden className="text-base leading-none">←</span>
+          </button>
           <div className="glass-pill grid size-[88px] shrink-0 place-items-center overflow-hidden rounded-2xl">
             <Portrait
               bot={bot}
@@ -425,43 +437,96 @@ export function ChessGame() {
         )}
       </div>
 
-      <div className="flex items-start gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:justify-center sm:overflow-visible">
-        {/* No locks — pick a fight with anyone. Each one shows its own face,
-            because a row of Elo numbers tells you nothing about who they are. */}
+      <div className="flex items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={reset}
+          className="glass-pill px-3 py-1 text-[10px] text-text-muted hover:text-foreground"
+        >
+          Restart
+        </button>
+        <button
+          type="button"
+          onClick={() => (inPlay && !status.over ? setConfirmBack(true) : onBack())}
+          className="glass-pill px-3 py-1 text-[10px] text-text-muted hover:text-foreground"
+        >
+          Change opponent
+        </button>
+      </div>
+      <p className="text-center text-[11px] text-text-muted">
+        Drag a piece, or tap it and tap where it goes.
+      </p>
+
+      {/* Only ever shown when there is a real game to lose — a confirm on an
+          untouched board is a dialog that teaches you to dismiss dialogs. */}
+      {confirmBack && (
+        <div className="absolute inset-0 z-10 grid place-items-center rounded-xl bg-bg-base/90 px-4 text-center">
+          <div className="w-full max-w-xs">
+            <p className="text-sm text-foreground">Leave this game?</p>
+            <p className="mt-1 text-[11px] text-text-muted">
+              Your game against {bot.name} will be discarded.
+            </p>
+            <div className="mt-4 flex justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmBack(false)}
+                className="glass-pill px-4 py-1.5 text-xs text-foreground"
+              >
+                Keep playing
+              </button>
+              <button
+                type="button"
+                onClick={() => { setConfirmBack(false); onBack() }}
+                className="rounded-full bg-accent-amber px-4 py-1.5 text-xs font-medium text-bg-base"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+/**
+ * Choose your opponent.
+ *
+ * The roster used to be a strip of thumbnails under a live board, which made
+ * picking a fight compete for attention with the game already in progress.
+ * Giving it a screen makes it the moment it should be.
+ */
+function OpponentSelect({ onPick }: { onPick: (b: Bot) => void }) {
+  return (
+    <div className="mx-auto flex h-full w-full max-w-[620px] flex-col gap-3 overflow-y-auto">
+      <div className="text-center">
+        <p className="font-mono text-xs uppercase tracking-[0.18em] text-text-muted">Choose your opponent</p>
+        <p className="mt-1 text-[11px] text-text-muted">Nothing is locked. Start anywhere.</p>
+      </div>
+      <div className="grid grid-cols-3 gap-2 pb-2 sm:grid-cols-4">
         {LADDER.map((b) => (
           <button
             key={b.id}
             type="button"
-            onClick={() => { wakeAudio(); setBot(b); reset() }}
-            aria-pressed={b.id === bot.id}
-            title={`${b.name} · ${b.elo} elo · ${b.who}`}
-            className={`flex w-[58px] shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors ${
-              b.id === bot.id
-                ? "bg-accent-amber/15 ring-1 ring-accent-amber"
-                : "glass-pill hover:bg-[var(--admin-glass-hover)]"
-            }`}
+            onClick={() => { wakeAudio(); onPick(b) }}
+            className="glass-pill flex flex-col items-center gap-1 rounded-xl px-2 py-3 transition-colors hover:bg-[var(--admin-glass-hover)]"
           >
-            <Portrait bot={b} size={46} mood="idle" />
-            <span
-              className={`font-mono text-[10px] tabular-nums ${
-                b.id === bot.id ? "text-accent-amber" : "text-text-muted"
-              }`}
-            >
-              {b.elo}
-            </span>
+            <Portrait bot={b} size={64} mood="idle" />
+            <span className="text-center text-[11px] font-medium leading-tight text-foreground">{b.name}</span>
+            <span className="font-mono text-[10px] tabular-nums text-accent-amber">{b.elo}</span>
+            <span className="text-center text-[9px] leading-tight text-text-muted">{b.who}</span>
           </button>
         ))}
-        <button
-          type="button"
-          onClick={reset}
-          className="glass-pill ml-2 px-3 py-1 text-[10px] text-text-muted hover:text-foreground"
-        >
-          Restart
-        </button>
       </div>
-      <p className="text-center text-[11px] text-text-muted">
-        Drag a piece, or tap it and tap where it goes. Pick any opponent — nothing is locked.
-      </p>
     </div>
   )
+}
+
+export function ChessGame() {
+  const [bot, setBot] = useState<Bot | null>(null)
+  if (!bot) return <OpponentSelect onPick={setBot} />
+  /* `key` remounts on a change of opponent, so a new fight starts from a clean
+     board without anyone having to remember to reset every ref. */
+  return <ChessBoard key={bot.id} bot={bot} onBack={() => setBot(null)} />
 }

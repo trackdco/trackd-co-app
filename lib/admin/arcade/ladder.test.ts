@@ -86,16 +86,15 @@ describe("the ladder", () => {
   })
 
   /**
-   * Ester and Chad are deliberately silent, so "everyone has one" is the wrong
-   * assertion. What must hold is that anyone who DOES speak has several distinct
-   * lines — one line per rung meant you heard the same sentence every rematch.
+   * Several distinct lines each, not one. A single line per rung meant you heard
+   * the same sentence every rematch, which turns a joke into wallpaper by about
+   * the third one.
    */
-  it("gives every talker several distinct lines, and no two shared", () => {
+  it("gives everyone several distinct lines, and no two shared", () => {
     const all = LADDER.flatMap((b) => b.taunts)
     expect(all.every((t) => t.trim().length > 0), "blank taunt").toBe(true)
     expect(new Set(all).size, "duplicate taunt").toBe(all.length)
     for (const b of LADDER) {
-      if (b.taunts.length === 0) continue
       expect(b.taunts.length, `${b.name} needs more than one line`).toBeGreaterThan(1)
     }
   })
