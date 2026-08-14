@@ -50,7 +50,23 @@ export function Portrait({
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null)
   const moodRef = useRef(mood)
-  useEffect(() => { moodRef.current = mood })
+  /**
+   * When the current mood began.
+   *
+   * The draw functions need to know how LONG they have been thinking, not just
+   * that they are. Without it every thinking animation runs on its own sine and
+   * gets cut off mid-stroke the moment the search returns — Recon's bar would
+   * be halfway through a sweep and then simply disappear. With it they can
+   * settle: fill toward full and hold, ease in over the first beat, and behave
+   * like they are responding to the engine rather than to an unrelated clock.
+   */
+  const sinceRef = useRef(0)
+  useEffect(() => {
+    if (moodRef.current !== mood) {
+      moodRef.current = mood
+      sinceRef.current = performance.now()
+    }
+  }, [mood])
 
   const zoom = Math.max(1, Math.ceil(size / PORTRAIT_SIZE))
   const backing = PORTRAIT_SIZE * zoom
@@ -78,7 +94,8 @@ export function Portrait({
     let raf = 0
     const frame = (t: number) => {
       sctx.clearRect(0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE)
-      draw(sctx, reduce ? 0 : t, moodRef.current)
+      draw(sctx, reduce ? 0 : t, moodRef.current,
+        reduce ? 9e9 : performance.now() - sinceRef.current)
       ctx.clearRect(0, 0, backing, backing)
       ctx.drawImage(src, 0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE, 0, 0, backing, backing)
       raf = requestAnimationFrame(frame)

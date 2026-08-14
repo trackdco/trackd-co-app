@@ -22,7 +22,25 @@ export const PORTRAIT_SIZE = 64
 const C = 32
 
 export type Mood = "idle" | "thinking" | "gloat" | "beaten"
-export type Draw = (ctx: CanvasRenderingContext2D, t: number, mood: Mood) => void
+/**
+ * `held` is milliseconds spent in the CURRENT mood.
+ *
+ * Without it every "thinking" animation runs on its own sine and is cut off
+ * mid-stroke whenever the search happens to finish — Recon's bar would be
+ * halfway through a sweep and then simply vanish. With it an animation can
+ * settle: fill toward full and stay there, ease in over the first beat, and
+ * generally behave like it is responding to the engine rather than to a clock
+ * that knows nothing about the engine.
+ */
+export type Draw = (ctx: CanvasRenderingContext2D, t: number, mood: Mood, held: number) => void
+
+/** Ease in over `ms`, so a mood change is a transition rather than a jump. */
+const easeIn = (held: number, ms = 260) => {
+  const x = Math.min(1, held / ms)
+  return 1 - (1 - x) * (1 - x)
+}
+/** Approach 1 and stay there. Progress that settles, rather than a loop. */
+const settle = (held: number, ms: number) => 1 - Math.exp(-held / ms)
 
 /* ── shared drawing helpers ─────────────────────────────────────────────── */
 const rr = (c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
@@ -187,10 +205,10 @@ export const PORTRAITS: Record<string, Draw> = {
     c.restore()
   },
 
-  will(c, t, m) {
+  will(c, t, m, held) {
     const b = bob(t, m, 700, 1.5)
     c.save(); c.translate(0, -b)
-    arms(c, "down", 40, 13, "#5e5e57", m === "thinking" ? Math.sin(t / 220) * 1.5 : 0)
+    arms(c, "down", 40, 13, "#5e5e57", m === "thinking" ? Math.sin(t / 220) * 1.5 * easeIn(held) : 0)
     c.fillStyle = "#adada2"; rr(c, 19, 10, 26, 44, 13)
     c.save(); c.beginPath(); c.rect(19, 32, 26, 22); c.clip()
     c.fillStyle = "#7a7a72"; rr(c, 19, 10, 26, 44, 13); c.restore()
@@ -201,9 +219,11 @@ export const PORTRAITS: Record<string, Draw> = {
     c.restore()
   },
 
-  blu(c, t, m) {
+  blu(c, t, m, held) {
     const b = bob(t, m, 560, 1.6)
-    const p = m === "thinking" ? Math.abs(Math.sin(t / 180)) * 3 : Math.abs(Math.sin(t / 700)) * 1.2
+    const p = m === "thinking"
+      ? Math.abs(Math.sin(t / 180)) * 3 * easeIn(held)
+      : Math.abs(Math.sin(t / 700)) * 1.2
     c.save(); c.translate(0, -b)
     mir((s) => {
       cap(c, C + s * 13, 36, C + s * 20, 31 - p, 4.6, "#1a4a6e")
@@ -223,10 +243,10 @@ export const PORTRAITS: Record<string, Draw> = {
     c.restore()
   },
 
-  notes(c, t, m) {
+  notes(c, t, m, held) {
     const b = bob(t, m, 640, 1.4)
     c.save(); c.translate(0, -b)
-    arms(c, "out", 42, 22, "#c9a83c", m === "thinking" ? Math.sin(t / 200) * 3 : 0)
+    arms(c, "out", 42, 22, "#c9a83c", m === "thinking" ? Math.sin(t / 200) * 3 * easeIn(held) : 0)
     c.fillStyle = "#e8e6df"; rr(c, 10, 9, 44, 46, 8)
     c.fillStyle = "#f2c744"; rr(c, 10, 9, 44, 13, 8); c.fillRect(10, 18, 44, 4)
     c.fillStyle = "#d9ae2e"; c.fillRect(10, 20.6, 44, 1.6)
@@ -236,9 +256,9 @@ export const PORTRAITS: Record<string, Draw> = {
     c.restore()
   },
 
-  scoops(c, t, m) {
+  scoops(c, t, m, held) {
     const b = bob(t, m, 580, 1.5)
-    const w = m === "thinking" ? Math.sin(t / 240) * 2.2 : 0
+    const w = m === "thinking" ? Math.sin(t / 240) * 2.2 * easeIn(held) : 0
     c.save(); c.translate(w, -b)
     arms(c, "out", 42, 23, "#2f7d70", m === "thinking" ? Math.sin(t / 210) * 3.5 : 0)
     c.fillStyle = "#2f7d70"; po(c, [[6, 26], [58, 26], [55, 59], [9, 59]])
@@ -256,14 +276,19 @@ export const PORTRAITS: Record<string, Draw> = {
     c.restore()
   },
 
-  recon(c, t, m) {
+  recon(c, t, m, held) {
     const b = bob(t, m, 720, 1.2)
     c.save(); c.translate(0, -b)
     arms(c, "down", 44, 16, "#2a2a26")
     c.fillStyle = "#151513"; rr(c, 15, 9, 34, 46, 6)
     c.fillStyle = "#262622"; rr(c, 16.8, 10.8, 30.4, 42.4, 4.5)
-    // The amber bar fills while he searches and empties again when it is your move.
-    const fill = m === "thinking" ? (Math.sin(t / 420) * 0.5 + 0.5) : 1
+    /* Fills toward full for as long as he is actually thinking, with a small
+       flicker on top so it does not look like a progress bar lying to you. It
+       settles rather than sweeping, so however long the search takes, the bar
+       is somewhere sensible when the move lands. */
+    const fill = m === "thinking"
+      ? Math.min(0.97, settle(held, 520) * (0.94 + Math.sin(t / 90) * 0.03))
+      : 1
     c.fillStyle = "#3d3325"; rr(c, 19, 14, 26, 3.6, 1.8)
     c.fillStyle = "#c8861a"; rr(c, 19, 14, Math.max(0.2, 26 * fill), 3.6, 1.8)
     c.fillStyle = "rgba(200,134,26,.3)"; rr(c, 19, 12.6, Math.max(0.2, 26 * fill), 6.4, 3)
@@ -275,7 +300,7 @@ export const PORTRAITS: Record<string, Draw> = {
     c.restore()
   },
 
-  cal(c, t, m) {
+  cal(c, t, m, held) {
     const b = bob(t, m, 760, 1.4)
     c.save(); c.translate(0, -b)
     arms(c, "folded", 42, 17, "#c2c0b6")
@@ -284,7 +309,7 @@ export const PORTRAITS: Record<string, Draw> = {
     c.fillStyle = "#f6f5f0"; el(c, 24, 36, 14, 17); el(c, 40, 36, 14, 17); c.fillRect(24, 19, 16, 34)
     c.fillStyle = "#e6e4da"; el(c, C, 46, 16, 8)
     c.fillStyle = "rgba(255,255,255,.8)"; el(c, 23, 27, 5, 6)
-    const pulse = m === "thinking" ? 0.5 + Math.abs(Math.sin(t / 300)) * 0.5 : 1
+    const pulse = m === "thinking" ? 1 - easeIn(held) * (0.5 - Math.abs(Math.sin(t / 300)) * 0.5) : 1
     c.globalAlpha = pulse
     eyes(c, 30, 7.2, 7.6, 3.2, { sclera: null, pupil: "#5fd6e8", glow: "#5fd6e8" })
     c.globalAlpha = 1
@@ -292,9 +317,11 @@ export const PORTRAITS: Record<string, Draw> = {
     c.restore()
   },
 
-  ester(c, t, m) {
+  ester(c, t, m, held) {
     // Never bobs. The stillness is the character; only the glow moves.
-    const glow = m === "thinking" ? 0.55 + Math.abs(Math.sin(t / 520)) * 0.45
+    /* Ester brightens steadily the longer she thinks. Nothing oscillates —
+       that is the character. */
+    const glow = m === "thinking" ? 0.6 + settle(held, 900) * 0.4
       : m === "gloat" ? 1 : 0.7 + Math.sin(t / 900) * 0.15
     c.fillStyle = "#2a2a26"; rr(c, 22, 5, 20, 6, 1.8)
     c.fillStyle = "#4e4e48"; c.fillRect(22, 6.6, 20, 2)
@@ -312,11 +339,12 @@ export const PORTRAITS: Record<string, Draw> = {
     c.globalAlpha = 1
   },
 
-  spike(c, t, m) {
+  spike(c, t, m, held) {
     const b = bob(t, m, 840, 1.1)
     c.save(); c.translate(0, -b)
     arms(c, "folded", 42, 12, "#2a3a48")
-    const dial = m === "thinking" ? Math.sin(t / 380) * 1.4 : 0
+    /* The dial turns TOWARD a position and holds, rather than oscillating. */
+    const dial = m === "thinking" ? settle(held, 420) * 1.5 : 0
     c.save(); c.translate(C, 9); c.rotate(dial * 0.12); c.translate(-C, -9)
     c.fillStyle = "#d8dee6"; rr(c, 24, 3, 16, 11, 3)
     c.fillStyle = "#9aa6b4"; for (let i = 0; i < 6; i++) c.fillRect(25, 4.4 + i * 1.6, 14, 1)
@@ -333,9 +361,9 @@ export const PORTRAITS: Record<string, Draw> = {
     c.restore()
   },
 
-  chad(c, t, m) {
+  chad(c, t, m, held) {
     const b = bob(t, m, 900, 0.7)
-    const p = m === "thinking" ? Math.abs(Math.sin(t / 260)) * 2 : 0
+    const p = m === "thinking" ? Math.abs(Math.sin(t / 260)) * 2 * easeIn(held) : 0
     c.save(); c.translate(0, -b)
     c.fillStyle = SK.mid; el(c, 8 - p, 40, 8, 6.8); el(c, 56 + p, 40, 8, 6.8)
     cap(c, 7 - p, 42, 3 - p, 61, 9, SK.mid); cap(c, 57 + p, 42, 61 + p, 61, 9, SK.mid)
@@ -374,11 +402,13 @@ export const PORTRAITS: Record<string, Draw> = {
    * whole vessel lights from within while his arms pump. On a win the glow goes
    * to full and he surges. He is the only portrait that emits light.
    */
-  prime(c, t, m) {
+  prime(c, t, m, held) {
     const breathe = Math.sin(t / 900) * 1.1
-    const pump = m === "thinking" ? Math.abs(Math.sin(t / 240)) * 2.2
+    const pump = m === "thinking" ? Math.abs(Math.sin(t / 240)) * 2.2 * easeIn(held, 340)
       : m === "gloat" ? Math.abs(Math.sin(t / 130)) * 3 : 0
-    const heat = m === "thinking" ? 0.55 + Math.abs(Math.sin(t / 380)) * 0.45
+    /* Kyle heats UP the longer he takes over you, and does not cool between
+       frames. The longer the search, the brighter he gets. */
+    const heat = m === "thinking" ? 0.45 + settle(held, 1100) * 0.55
       : m === "gloat" ? 1 : 0.45 + Math.sin(t / 1100) * 0.12
     const surge = m === "gloat" ? -Math.abs(Math.sin(t / 130)) * 3 : -breathe
 
