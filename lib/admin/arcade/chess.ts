@@ -459,7 +459,29 @@ function search(g: Game, depth: number, alpha: number, beta: number, maximising:
   return best
 }
 
-export interface BotSpec { depth: number; blunder: number }
+export interface BotSpec {
+  depth: number
+  blunder: number
+  /**
+   * Centipawns of random noise added to each root move's score.
+   *
+   * WHY THIS EXISTS, WHEN `blunder` ALREADY DOES.
+   *
+   * `blunder` is a coin flip: with probability p, throw the search away and play
+   * a uniformly random legal move. That works at the very bottom of the ladder,
+   * where the bot is supposed to be nearly random — but it stops being a useful
+   * dial around 850 Elo. Measured: pushing a depth-1 bot from 42% to 54% blunder
+   * moved it from ~1090 to ~1036. Twelve more points of pure chaos bought fifty
+   * Elo, because the other 46% of the time it still plays a genuinely good move,
+   * and against most opposition that is enough.
+   *
+   * Noise degrades JUDGEMENT instead of replacing it. At 120cp the bot will
+   * cheerfully drop a knight it should have saved, while still never hanging its
+   * queen for nothing — which is what a real weak human looks like, and it
+   * responds smoothly to tuning where `blunder` saturates.
+   */
+  noise?: number
+}
 
 /**
  * Pick the side-to-move's move.
@@ -487,12 +509,14 @@ export function pickMove(g: Game, bot: BotSpec, rng: () => number = Math.random)
   if (rng() < bot.blunder) return moves[Math.floor(rng() * moves.length)] ?? moves[0]
   moves.sort((a, b) => (g.board[b.to] ? VALUE[g.board[b.to]!.t] : 0) - (g.board[a.to] ? VALUE[g.board[a.to]!.t] : 0))
   const weAreWhite = g.turn === "w"
+  const noise = bot.noise ?? 0
   let best: Move | null = null
   let bestScore = weAreWhite ? -Infinity : Infinity
   for (const m of moves) {
     // After our move it is the opponent's turn, so the child node maximises iff
     // the opponent is White.
-    const score = search(applyMove(g, m), Math.max(0, bot.depth - 1), -Infinity, Infinity, !weAreWhite)
+    const raw = search(applyMove(g, m), Math.max(0, bot.depth - 1), -Infinity, Infinity, !weAreWhite)
+    const score = noise ? raw + (rng() - 0.5) * noise : raw
     if (weAreWhite ? score > bestScore : score < bestScore) { bestScore = score; best = m }
   }
   return best ?? moves[0]
@@ -540,6 +564,7 @@ export async function pickMoveTimed(
   const yieldToUi = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
   const weAreWhite = g.turn === "w"
+  const noise = bot.noise ?? 0
   let best: Move = moves[0]
   let ordered = moves
   for (let depth = 1; depth <= bot.depth; depth++) {
@@ -562,9 +587,12 @@ export async function pickMoveTimed(
        * searching four ply and quietly falling back to three while still
        * advertising 2000 Elo.
        */
-      const score = weAreWhite
-        ? search(applyMove(g, m), depth - 1, bestScore, Infinity, false)
-        : search(applyMove(g, m), depth - 1, -Infinity, bestScore, true)
+      /* Noise is added AFTER the search, never to the alpha-beta window — the
+         window is a correctness bound and perturbing it would prune real moves. */
+      const raw = weAreWhite
+        ? search(applyMove(g, m), depth - 1, -Infinity, Infinity, false)
+        : search(applyMove(g, m), depth - 1, -Infinity, Infinity, true)
+      const score = noise ? raw + (rng() - 0.5) * noise : raw
       scored.push({ m, score })
       if (weAreWhite ? score > bestScore : score < bestScore) { bestScore = score; bestThisDepth = m }
       if (Date.now() > deadline) { ranOut = true; break }

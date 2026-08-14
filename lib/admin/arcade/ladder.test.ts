@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { LADDER, PIECES, PIECE_SIZE } from "@/components/admin/arcade/pieces"
+import { PORTRAITS } from "@/components/admin/arcade/portraits"
 
 /**
  * Sprites are hand-authored strings, so one mistyped row is a silently skewed
@@ -29,10 +30,9 @@ describe("chess piece sprites", () => {
 })
 
 describe("the ladder", () => {
-  it("has rectangular sprites", () => {
+  it("has a portrait for every rung", () => {
     for (const bot of LADDER) {
-      const widths = new Set(bot.rows.map((r) => r.length))
-      expect(widths.size, `${bot.name} has ragged rows`).toBe(1)
+      expect(PORTRAITS[bot.id], `${bot.name} has no portrait`).toBeTypeOf("function")
     }
   })
 
@@ -50,11 +50,15 @@ describe("the ladder", () => {
    * throws away 30% of its moves (1000). The second is stronger despite
    * blundering more, so the assertion has to be on the combination.
    *
-   * The proxy weights a ply of search against how often the move survives —
-   * crude, but it is the same shape as the real relationship and it catches the
-   * thing that matters: a rung that is secretly weaker than the one below it.
+   * The proxy weights a ply of search against how often the move survives, minus
+   * a term for score noise — crude, but the same shape as the real relationship,
+   * and it catches the thing that matters: a rung secretly weaker than the one
+   * below it. Noise is weighted well under blunder because it is a much gentler
+   * handicap: 120cp of misjudgement costs far less than a 12% chance of playing
+   * a uniformly random move.
    */
-  const strength = (b: (typeof LADDER)[number]) => b.depth * 400 + (1 - b.blunder) * 400
+  const strength = (b: (typeof LADDER)[number]) =>
+    b.depth * 400 + (1 - b.blunder) * 400 - (b.noise ?? 0) * 0.3
 
   it("gets genuinely stronger every rung", () => {
     for (let i = 1; i < LADDER.length; i++) {
@@ -81,10 +85,19 @@ describe("the ladder", () => {
     expect(byElo).toEqual(byStrength)
   })
 
-  it("gives everyone a taunt, and no two the same", () => {
-    const taunts = LADDER.map((b) => b.taunt)
-    expect(taunts.every((t) => t.trim().length > 0)).toBe(true)
-    expect(new Set(taunts).size).toBe(taunts.length)
+  /**
+   * Ester and Chad are deliberately silent, so "everyone has one" is the wrong
+   * assertion. What must hold is that anyone who DOES speak has several distinct
+   * lines — one line per rung meant you heard the same sentence every rematch.
+   */
+  it("gives every talker several distinct lines, and no two shared", () => {
+    const all = LADDER.flatMap((b) => b.taunts)
+    expect(all.every((t) => t.trim().length > 0), "blank taunt").toBe(true)
+    expect(new Set(all).size, "duplicate taunt").toBe(all.length)
+    for (const b of LADDER) {
+      if (b.taunts.length === 0) continue
+      expect(b.taunts.length, `${b.name} needs more than one line`).toBeGreaterThan(1)
+    }
   })
 
   it("has unique ids and names", () => {

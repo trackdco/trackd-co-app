@@ -133,7 +133,7 @@ function pickFor(spec, g) {
     const ms = legalMoves(g)
     return ms.length ? ms[Math.floor(Math.random() * ms.length)] : null
   }
-  return pickMove(g, { depth: spec.depth, blunder: spec.blunder })
+  return pickMove(g, { depth: spec.depth, blunder: spec.blunder, noise: spec.noise })
 }
 
 /* ── play one game ────────────────────────────────────────────────── */
@@ -180,17 +180,17 @@ function band(score, opponentElo, n) {
 
 /* ── the ladder under test ────────────────────────────────────────── */
 const LADDER = JSON.parse(process.env.LADDER_JSON ?? "null") ?? [
-  { id: "will",   claimed: 250,  depth: 1, blunder: 0.9 },
-  { id: "blu",    claimed: 450,  depth: 1, blunder: 0.7 },
-  { id: "tubbs",  claimed: 650,  depth: 1, blunder: 0.45 },
-  { id: "calc",   claimed: 800,  depth: 1, blunder: 0.1 },
-  { id: "greens", claimed: 950,  depth: 2, blunder: 0.35 },
-  { id: "map",    claimed: 1100, depth: 2, blunder: 0.18 },
-  { id: "spike",  claimed: 1250, depth: 2, blunder: 0.02 },
-  { id: "gauge",  claimed: 1400, depth: 3, blunder: 0.12 },
-  { id: "panel",  claimed: 1550, depth: 3, blunder: 0.0 },
-  { id: "cal",    claimed: 1700, depth: 4, blunder: 0.08 },
-  { id: "prime",  claimed: 1850, depth: 4, blunder: 0.0 },
+  { id: "will", claimed: 250, depth: 1, blunder: 0.9, noise: 0 },
+  { id: "blu", claimed: 450, depth: 1, blunder: 0.7, noise: 120 },
+  { id: "tubbs", claimed: 650, depth: 1, blunder: 0.4, noise: 420 },
+  { id: "calc", claimed: 800, depth: 1, blunder: 0.26, noise: 320 },
+  { id: "greens", claimed: 950, depth: 1, blunder: 0.16, noise: 240 },
+  { id: "map", claimed: 1100, depth: 1, blunder: 0.1, noise: 165 },
+  { id: "spike", claimed: 1250, depth: 2, blunder: 0.1, noise: 130 },
+  { id: "gauge", claimed: 1400, depth: 2, blunder: 0.05, noise: 80 },
+  { id: "panel", claimed: 1550, depth: 3, blunder: 0.05, noise: 50 },
+  { id: "cal", claimed: 1700, depth: 3, blunder: 0.02, noise: 22 },
+  { id: "prime", claimed: 1850, depth: 3, blunder: 0.0, noise: 0 },
 ]
 
 const bots = LADDER.filter((b) => !ONLY.length || ONLY.includes(b.id))

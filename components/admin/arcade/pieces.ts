@@ -132,12 +132,20 @@ export interface Bot {
   depth: number
   /** Probability of ignoring the move it found and playing a random legal one. */
   blunder: number
-  /** What it says when it beats you. In character, and meant to sting slightly. */
-  taunt: string
-  pal: Palette
-  rows: Pixels
-  /** Portrait animates its liquid level, for the ones that are gauges. */
-  gauge?: boolean
+  /**
+   * Centipawns of random noise on each root move's score. See `BotSpec` in
+   * lib/admin/arcade/chess.ts — this is the dial that actually works in the
+   * 600–1200 band, where `blunder` saturates.
+   */
+  noise?: number
+  /**
+   * What it says when it beats you. In character, and meant to sting slightly.
+   *
+   * A LIST, not a string. One line per opponent meant you heard the same
+   * sentence every time you lost to the same rung, which turns a joke into
+   * wallpaper by about the third rematch.
+   */
+  taunts: readonly string[]
 }
 
 /**
@@ -197,105 +205,87 @@ export interface Bot {
  * them anywhere real; the ordering and the feel are what a ladder needs.
  */
 
-const CAP: Palette = { G: "#3a3a35", L: "#c9c9c2", D: "#6e6e66", d: "#525249", E: "#1b1a17", S: "#ffffff" }
-const BLU: Palette = { G: "#123454", b: "#2f6fb5", B: "#4ea8ff", W: "#bfe4ff", C: "#8fa8c0", c: "#cfe4f5", E: "#0a1622", S: "#ffffff" }
-const TUB: Palette = { G: "#3a3a35", L: "#e8e8e2", D: "#b9b9b0", c: "#ffffff", A: "#1b1a17", E: "#1b1a17", S: "#ffffff" }
-const GRN: Palette = { G: "#1e3d1a", A: "#4f9c3a", a: "#356b27", L: "#7fd063", c: "#d9f2cd", E: "#0f1f0d", S: "#ffffff" }
-const CAL: Palette = { G: "#3a3a35", b: "#1c1c1a", c: "#c2c2b8", S: "#4fb3a6", K: "#5a5a52", E: "#f0efe9", s: "#ffffff" }
-const MAP: Palette = { G: "#3a3a35", b: "#4a4a45", A: "#c8861a", E: "#f0efe9", S: "#ffffff" }
-const SPK: Palette = { G: "#4a4a45", b: "#2b2a24", A: "#8fd8cf", c: "#adada2", W: "#f0efe9", E: "#f0efe9", S: "#ffffff" }
-const GAU: Palette = { G: "#4a4a45", b: "#2b2a24", A: "#d79422", c: "#adada2", E: "#f0efe9", S: "#ffffff" }
-const PAN: Palette = { G: "#3a2f45", C: "#8b5fb0", c: "#c9a6e0", A: "#8e2f3f", a: "#5e1e2a", b: "#2b2733", E: "#f0efe9", S: "#ffffff" }
-const APL: Palette = { G: "#8e8e88", A: "#ffffff", a: "#e8e8e2", L: "#ffffff", s: "#6b6b64", E: "#1b1a17", S: "#ffffff" }
-const PRM: Palette = { G: "#3a2a08", A: "#ffb43c", a: "#c8861a", W: "#fff0c8", E: "#ef4444", S: "#ffffff", C: "#8a8a80", c: "#d8d8d0" }
 
 export const LADDER: Bot[] = [
-  { id: "will", name: "Will the Pill", who: "Milligram", elo: 250, depth: 1, blunder: 0.9,
-    taunt: "Ha. Milligram does this better too.", pal: CAP, rows: [
-    "................", ".....GGGGGG.....", "...GGLLLLLLGG...", "..GLLLLLLLLLLG..",
-    "..GLLLLLLLLLLG..", "..GLLEELLEELLG..", "..GLLESLLESLLG..", "..GLLLLLLLLLLG..",
-    "..GLLLLGGLLLLG..", "..GGGGGGGGGGGG..", "..GDDDDDDDDDDG..", "..GDDDDDDDDDDG..",
-    "..GDDDDDDDDDDG..", "..GDDDDDDDDDDG..", "..GdddddddddDG..", "...GdddddddDG...",
-    ".....GGGGGG.....", "................"] },
-
-  { id: "blu", name: "Blu", who: "PepMod", elo: 450, depth: 1, blunder: 0.72,
-    taunt: "Peptides beat glassware, mate.", pal: BLU, rows: [
-    "................", "....CCCCCCCC....", "....cccccccc....", "....CCCCCCCC....",
-    "..GGGGGGGGGGGG..", "..GWbbbbbbbbWG..", "..GWbEEbbEEbWG..", "..GWbESbbESbWG..",
-    "..GWbbbbbbbbWG..", "..GBBBBBBBBBBG..", "..GBBBBBBBBBBG..", "..GBBBBBBBBBBG..",
-    "..GBBBBBBBBBBG..", "..GBBBBBBBBBBG..", "..GbbbbbbbbbbG..", "..GGGGGGGGGGGG..",
-    "...GGGGGGGGGG...", "................"] },
-
-  { id: "tubbs", name: "Tubbs", who: "IM8", elo: 650, depth: 1, blunder: 0.63,
-    taunt: "Scoop a day. You clearly missed a few.", pal: TUB, rows: [
-    "................", "..GGGGGGGGGGGG..", "..GccccccccccG..", "..GGGGGGGGGGGG..",
-    "..GLLLLLLLLLLG..", "..GLLEELLEELLG..", "..GLLESLLESLLG..", "..GLLLLLLLLLLG..",
-    "..GLLLAAAALLLG..", "..GLLLLLLLLLLG..", "..GDDDDDDDDDDG..", "..GDDDDDDDDDDG..",
-    "..GDDDDDDDDDDG..", "..GDDDDDDDDDDG..", "..GDDDDDDDDDDG..", "..GGGGGGGGGGGG..",
-    "................", "................"] },
-
-  { id: "calc", name: "The Calculator", who: "recon maths", elo: 800, depth: 1, blunder: 0.54,
-    taunt: "I did the maths. You are not the variable that mattered.", pal: CAL, rows: [
-    "................", "..GGGGGGGGGGGG..", "..GccccccccccG..", "..GcSSSSSSSScG..",
-    "..GccccccccccG..", "..GGGGGGGGGGGG..", "..GbEEbbbbEEbG..", "..GbESbbbbESbG..",
-    "..GbbbbbbbbbbG..", "..GKKbKKbKKbbG..", "..GKKbKKbKKbbG..", "..GbbbbbbbbbbG..",
-    "..GKKbKKbKKbbG..", "..GKKbKKbKKbbG..", "..GbbbbbbbbbbG..", "..GGGGGGGGGGGG..",
-    "................", "................"] },
-
-  { id: "greens", name: "The Greens", who: "greens powder", elo: 950, depth: 1, blunder: 0.28,
-    taunt: "Not enough micronutrients in that opening.", pal: GRN, rows: [
-    "................", "...GGG....GGG...", "...GcG....GcG...", "..GGGGGGGGGGGG..",
-    "..GLAAAAAAAALG..", "..GAAAAAAAAAAG..", "..GAAEEAAEEAAG..", "..GAAESAAESAAG..",
-    "..GAAAAccAAAAG..", "..GAAAAAAAAAAG..", "..GaaaaaaaaaaG..", "..GaaaaaaaaaaG..",
-    "..GaaaaaaaaaaG..", "..GaaaaaaaaaaG..", "..GaaaaaaaaaaG..", "..GGGGGGGGGGGG..",
-    "................", "................"] },
-
-  { id: "map", name: "The Map", who: "site rotation", elo: 1100, depth: 1, blunder: 0.2,
-    taunt: "Wrong site. Wrong square. Same problem.", pal: MAP, rows: [
-    "................", "......GGGG......", "......GbbG......", "......GEEG......",
-    "......GSSG......", "....GGGGGGGG....", "...GbAbbbbAbG...", "...GbbbbbbbbG...",
-    "...GbbAbbAbbG...", "...GbbbbbbbbG...", "....GbbbbbbG....", "....GbAbbAbG....",
-    "....GbbbbbbG....", "....GGbbbbGG....", "...GbbG..GbbG...", "...GbbG..GbbG...",
-    "...GGGG..GGGG...", "................"] },
-
-  { id: "spike", name: "Spike", who: "GHK-Cu", elo: 1250, depth: 2, blunder: 0.4,
-    taunt: "Copper peptides. Copper brain.", pal: SPK, rows: [
-    "................", ".......GG.......", ".......GG.......", ".......GG.......",
-    "......GccG......", "....GGGGGGGG....", "....GbbbbbbG....", "....GbEEbEEG....",
-    "....GbESbESG....", "....GbbbbbbG....", "....GAAAAAAG....", "....GAAAAAAG....",
-    "....GAAAAAAG....", "....GaaaaaaG....", "....GGGGGGGG....", "....GccccccG....",
-    "....GGGGGGGG....", "................"] },
-
-  { id: "gauge", name: "The Gauge", who: "the draw", elo: 1400, depth: 2, blunder: 0.18,
-    taunt: "Drawn up, pushed out. Same as your position.", pal: GAU, gauge: true, rows: [
-    "................", ".......GG.......", ".......GG.......", "......GccG......",
-    "....GGGGGGGG....", "....GbEEbEEG....", "....GbESbESG....", "....GbbbbbbG....",
-    "....GAAAAAAG....", "....GAAAAAAG....", "....GAAAAAAG....", "....GAAAAAAG....",
-    "....GAAAAAAG....", "....GAAAAAAG....", "....GGGGGGGG....", "....GccccccG....",
-    "....GGGGGGGG....", "................"] },
-
-  { id: "panel", name: "The Panel", who: "bloodwork", elo: 1550, depth: 3, blunder: 0.13,
-    taunt: "Your markers are fine. Your chess is not.", pal: PAN, rows: [
-    "................", ".....CCCCCC.....", ".....cccccc.....", ".....CCCCCC.....",
-    "....GGGGGGGG....", "....GbbbbbbG....", "....GbEEbEEG....", "....GbESbESG....",
-    "....GbbbbbbG....", "....GAAAAAAG....", "....GAAAAAAG....", "....GAAAAAAG....",
-    "....GAAAAAAG....", "....GaaaaaaG....", "....GaaaaaaG....", "....GGGGGGGG....",
-    ".....GGGGGG.....", "................"] },
-
-  { id: "cal", name: "Cal", who: "Cal AI", elo: 1700, depth: 3, blunder: 0.06,
-    taunt: "I counted every calorie and every one of your mistakes.", pal: APL, rows: [
-    "................", "........s.......", ".......ss.......", "......LLss......",
-    "....GGAAAAGG....", "...GAAAAAAAAG...", "..GAAAAAAAAAAG..", "..GAAEEAAEEAAG..",
-    "..GAAESAAESAAG..", "..GAAAAAAAAAAG..", "..GAAAAAAAAAAG..", "..GaaAAAAAAaaG..",
-    "..GaaaaAAaaaaG..", "...GaaaaaaaaG...", "....GGaaaaGG....", "......GGGG......",
-    "................", "................"] },
-
-  { id: "prime", name: "KYLE PRIME", who: "you, if you'd tracked everything", elo: 1850, depth: 3, blunder: 0,
-    taunt: "You never logged a single dose. I logged all of them.", pal: PRM, rows: [
-    "....................", "......CCCCCCCC......", "......cccccccc......", "......CCCCCCCC......",
-    "....GGGGGGGGGGGG....", "...GGWWWWWWWWWWGG...", "..GG.GWEEWWEEWG.GG..", "..GG.GWSEWWESWG.GG..",
-    "..GG.GWWWWWWWWG.GG..", "..GG.GAAAAAAAAG.GG..", "..GGGGAAAAAAAAGGGG..", "..GGGGAAAAAAAAGGGG..",
-    "..GG.GAAAAAAAAG.GG..", "..GG.GAAAAAAAAG.GG..", ".....GAAAAAAAAG.....", ".....GAAAAAAAAG.....",
-    ".....GaaaaaaaaG.....", ".....GaaaaaaaaG.....", ".....GGGGGGGGGG.....", "......GGGGGGGG......",
-    "....................", "...................."] },
+  { id: "chud", name: "Chud", who: "discord mod", elo: 250, depth: 1, blunder: 0.9, noise: 0,
+    taunts: [
+      "i've actually read a lot about this",
+      "well that was a bad beat",
+      "i don't even play this seriously",
+      "rematch. i wasn't warmed up.",
+    ] },
+  { id: "will", name: "Will the Pill", who: "multivitamin", elo: 450, depth: 1, blunder: 0.7, noise: 120,
+    taunts: [
+      "I am taking this seriously.",
+      "That was the correct move. I checked.",
+      "You will find I am very consistent.",
+      "One a day. Every day. Same as chess.",
+    ] },
+  { id: "blu", name: "Blu", who: "BPC-157", elo: 650, depth: 1, blunder: 0.4, noise: 420,
+    taunts: [
+      "Check out the guns. CHECK THEM OUT.",
+      "Recovery is a skill and I have it.",
+      "That's what a full protocol looks like.",
+      "I heal faster than you learn.",
+    ] },
+  { id: "notes", name: "Notes", who: "how you used to track", elo: 800, depth: 1, blunder: 0.26, noise: 320,
+    taunts: [
+      "It's all in here. Somewhere.",
+      "I had that written down.",
+      "Scroll up. No, further. Further.",
+      "I definitely saved that one.",
+    ] },
+  { id: "scoops", name: "Scoops", who: "creatine monohydrate", elo: 950, depth: 1, blunder: 0.16, noise: 240,
+    taunts: [
+      "Five grams. Every day. That's the whole thing.",
+      "Twenty years on the shelf. Still here.",
+      "Cheapest thing that works. Like that move.",
+      "You don't need to load. You need to play better.",
+    ] },
+  { id: "recon", name: "Recon", who: "reconstitution calculator", elo: 1100, depth: 1, blunder: 0.1, noise: 165,
+    taunts: [
+      "2ml. 250mcg per unit. It was never hard.",
+      "I did the arithmetic. You did the guessing.",
+      "That line was forced. I showed my working.",
+      "Round down next time. On both counts.",
+    ] },
+  { id: "cal", name: "Cal", who: "the calorie app", elo: 1250, depth: 2, blunder: 0.1, noise: 130,
+    taunts: [
+      "I counted every one. Including these mistakes.",
+      "That's forty-one moves and thirty-nine errors.",
+      "Logged. All of it.",
+      "You were over budget by move nine.",
+    ] },
+  /** Ester and Chad never speak. An empty list IS the characterisation. */
+  { id: "ester", name: "Ester", who: "trenbolone", elo: 1400, depth: 2, blunder: 0.05, noise: 80,
+    taunts: [] },
+  { id: "spike", name: "Spike", who: "somatropin", elo: 1550, depth: 3, blunder: 0.05, noise: 50,
+    taunts: [
+      "I have been doing this since before you started.",
+      "There is no hurry. There never was.",
+      "You will feel that one in about six weeks.",
+      "Slow is not the same as harmless.",
+    ] },
+  { id: "chad", name: "Chad", who: "the gym", elo: 1700, depth: 3, blunder: 0.02, noise: 22,
+    taunts: [] },
+  { id: "prime", name: "KYLE PRIME", who: "final form", elo: 1850, depth: 3, blunder: 0.0, noise: 0,
+    taunts: [
+      "You logged none of it. I logged all of it.",
+      "This is what the data looks like when you keep it.",
+      "I am every dose you meant to write down.",
+      "You built me. Every week you skipped.",
+    ] },
 ]
+
+
+/**
+ * One of a bot's lines, at random.
+ *
+ * Ester and Chad hold empty lists on purpose — they never speak — so this
+ * returns null for them and callers must handle the silence rather than render
+ * an empty speech bubble.
+ */
+export function pickTaunt(bot: Bot, rng: () => number = Math.random): string | null {
+  if (bot.taunts.length === 0) return null
+  return bot.taunts[Math.floor(rng() * bot.taunts.length)] ?? bot.taunts[0]
+}

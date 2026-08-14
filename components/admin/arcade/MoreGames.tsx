@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { LADDER } from "@/components/admin/arcade/pieces"
+import { LADDER, pickTaunt } from "@/components/admin/arcade/pieces"
 import { Portrait } from "@/components/admin/arcade/Portrait"
 import { sfx, wakeAudio } from "@/lib/admin/arcade/audio"
 import { drawGrid } from "@/lib/admin/arcade/kyle"
@@ -574,7 +574,7 @@ export function ConnectFour() {
                 <Portrait bot={bot} scale={4} mood={over === "lose" ? "gloat" : "beaten"} />
                 {over === "lose" && (
                   <div className="relative mb-3 max-w-[14rem] rounded-2xl rounded-bl-sm bg-[#f0efe9] px-3 py-2 text-left">
-                    <p className="text-sm leading-snug text-[#1b1a17]">“{bot.taunt}”</p>
+                    <p className="text-sm leading-snug text-[#1b1a17]">“{pickTaunt(bot) ?? "…"}”</p>
                     <span className="absolute -bottom-1.5 left-2 size-3 rotate-45 bg-[#f0efe9]" />
                   </div>
                 )}

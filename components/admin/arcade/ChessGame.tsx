@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { AMBER, GREY, LADDER, PIECES, PIECE_SIZE, type Bot } from "@/components/admin/arcade/pieces"
+import { AMBER, GREY, LADDER, PIECES, PIECE_SIZE, pickTaunt, type Bot } from "@/components/admin/arcade/pieces"
 import { Portrait } from "@/components/admin/arcade/Portrait"
 import { sfx, wakeAudio } from "@/lib/admin/arcade/audio"
 import {
@@ -116,7 +116,7 @@ export function ChessGame() {
         if (res.kind === "checkmate") {
           const won = res.winner === "w"
           setStatus({ text: won ? `Checkmate — ${bot.name} is beaten` : "Checkmate — you lose", over: true, won })
-          if (won) { sfx.win(); burstConfetti() } else { sfx.lose(); setTaunt(bot.taunt) }
+          if (won) { sfx.win(); burstConfetti() } else { sfx.lose(); setTaunt(pickTaunt(bot)) }
         } else if (res.kind === "stalemate") {
           setStatus({ text: "Stalemate — no legal moves, no check", over: true })
           sfx.lose()
@@ -144,7 +144,7 @@ export function ChessGame() {
     const mine = generation.current
     setTimeout(() => {
       if (mine !== generation.current) return
-      void pickMoveTimed(g.current, { depth: bot.depth, blunder: bot.blunder }, budgetFor(bot.depth))
+      void pickMoveTimed(g.current, { depth: bot.depth, blunder: bot.blunder, noise: bot.noise }, budgetFor(bot.depth))
         .then((m) => {
       if (mine !== generation.current) return
       const elapsed = performance.now() - startedAt
@@ -369,7 +369,7 @@ export function ChessGame() {
             <Portrait
               bot={bot}
               scale={4}
-              mood={status.over ? (status.won ? "beaten" : "gloat") : "idle"}
+              mood={status.over ? (status.won ? "beaten" : "gloat") : thinking ? "thinking" : "idle"}
             />
           </div>
           <div className="min-w-0">
