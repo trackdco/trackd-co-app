@@ -5,7 +5,82 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-15 (billing specs 01 and 02a: one trial per user, and a user with no free days can finally pay)
+Last updated: 2026-08-15 (billing specs 01, 02a and 02b — the ship-together triple, built and driven)
+
+## The checkout screen stops lying to three of its four cohorts (2026-08-15)
+
+Billing spec 02b, the last of the ship-together triple. `01` decides who is
+charged today, `02a` makes being charged today work, and this is what those
+people read before they press the button.
+
+**Eligibility is resolved at page render**, not fetched from an effect. On a
+setup-only sheet that was a cosmetic flicker; since `02a` it is a payment screen
+that can say "7 days free" and then "First charge today" while somebody reads
+it, and the Elements mode is derived from the same answer, so the flicker was a
+mode change too.
+
+**The interval suffix comes from Stripe.** It came from the static `PLANS`
+table, so the amount followed Stripe and the unit did not. A price whose
+`interval_count` is not one now renders NO price line and the button does not
+proceed. Verified by creating a real quarterly price in test mode: the screen
+refuses rather than printing "/mo" for a charge every three months, which would
+have understated it threefold, silently.
+
+**The first-charge date is server-resolved** in the user's stored timezone,
+through the same `formatAccessDate` that `/billing` uses, feeding both the
+paywall and checkout. It was computed on mount in the DEVICE's zone. It remains
+a projection and the code says so; a mid-grace user's date is not, being a
+stored `active_until`.
+
+**The copy.** The approved beta subtitle, D16's trial subtitle, D17's four-line
+mid-grace variant and D18's bracket, all carried character for character. The
+`14` renders from `BETA_GRACE_DAYS`. The mid-grace variant never says "trial",
+never says "today", and carries no language of expiry.
+
+### The mode gate caught a defect this spec's own copy introduced
+
+A beta account mid-fortnight is not on a trial, so `trial` is false — but `01`
+gives them a grace-ALIGNED start, so nothing is due today and Stripe issues a
+SetupIntent. Keying the Elements mode off `trial` alone mounted the sheet for a
+PAYMENT, the server returned a setup secret, and `02a`'s guard cancelled the
+subscription. **Safe, and completely broken: a mid-grace user could not
+subscribe at all.** The mode now asks the question it actually means — is
+anything due TODAY — which is the same question the title asks.
+
+Worth keeping: the guard earned its place here on work written after it.
+
+### ⚠️ THE FOUR-FACTS REQUIREMENT FAILS AT 320x568, AND IT IS PRE-EXISTING
+
+Measured on the running app, before and after:
+
+```
+PRE-02b   new         button y=777   in a 568px viewport   ~209px below the fold
+PRE-02b   post-grace  button y=763                          ~195px below
+POST-02b  new         button y=802                          ~234px below
+POST-02b  mid-grace   button y=802                          ~234px below
+```
+
+Carrying the approved copy verbatim added ~25px to an overflow that was already
+~200px. **390x844 passes for every variant**, measured. The fix is the
+arrangement, which §2 assigns to `09-checkout-redesign.md` and explicitly
+forbids this spec from touching. §5's "subtitle is one line at 320x568" also
+fails for the approved beta line, which is three lines at that width and is
+copy this spec may not shorten.
+
+Both are recorded in `next-tasks.md` as owed to `09`.
+
+### Driven, every cohort
+
+new (SetupIntent, 7 days, $0), mid-grace (SetupIntent, `trial_end` at the grace
+end, $0, `trackd_grace_until` on the metadata), clamped (48h), post-grace
+(PaymentIntent, `active`, $11.99 paid), free-for-life comp
+(`already-subscribed`, zero Stripe objects). Copy read verbatim for every
+variant on all three plans; the monthly-equivalent bracket appears on yearly
+only; no em dash anywhere.
+
+Production audited clean: 90 auth users, zero QA accounts, zero test clocks,
+zero leftover billing rows.
+
 
 ## Paid-today checkout, and the field the spec named that no longer exists (2026-08-15)
 

@@ -38,16 +38,32 @@ still ACCEPTED with no error and returns null every time. Built against
 spec against Stripe docs should check the field still exists on this API
 version before naming it.**
 
-### 🔜 02b — checkout copy and disclosure.
+### ✅ 02b — checkout copy and disclosure. BUILT AND DRIVEN.
 
-Every string on that screen. `trialEligibility()` now returns `graceEndsAt` (a
-raw ISO instant, null once the fortnight has run out) specifically so 02b can
-tell a mid-grace user apart from a post-grace one. They need different things
-said to them: one is charged nothing until a named date, the other is charged
-today.
+Every cohort reads the truth. Eligibility and the first-charge date are both
+resolved server-side, the interval suffix comes from Stripe, and the approved
+copy is carried character for character. See `progress-tracker.md`.
 
-⚠️ `days` is the length of the free run they HAD, not what is left. A beta user
-on day 12 of 14 gets 14. Nothing may render it as a countdown.
+### 🔴 OWED TO `09-checkout-redesign.md`, MEASURED AND FAILING
+
+**The four required facts are NOT visible with the button at 320x568.** This is
+pre-existing, not caused by 02b: measured before the spec, the button sat at
+y=777 in a 568px viewport, ~209px below the fold. Carrying the approved copy
+verbatim moved it to y=802. **390x844 passes for every variant.**
+
+`02b` §3.7 owns the REQUIREMENT and `09` owns the ARRANGEMENT that satisfies it,
+and §2 forbids 02b from touching layout, spacing or the frame. So this cannot be
+closed until `09` is built, and `09` is the spec that moves the disclosure below
+the button, which is the change most likely to make it worse.
+
+Two §5 checkboxes are therefore open and BOTH belong to `09`:
+
+- the four facts visible with the button at 320x568, every variant
+- the subtitle being one line at 320x568 (the approved beta line is three)
+
+⚠️ **`09` must re-measure at BOTH widths and for the MID-GRACE variant
+specifically**, which is the longest case: its lines carry a date where the
+others carry the word "today".
 
 ### ⚠️ Known and NOT fixed in 01, judged, with a concrete failing case
 
