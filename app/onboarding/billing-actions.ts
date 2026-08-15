@@ -578,13 +578,39 @@ async function listSubscriptions(
   client: ReturnType<typeof stripe>,
   customerId: string,
 ): Promise<{ all: Stripe.Subscription[]; live: Stripe.Subscription[] }> {
-  const { data } = await client.subscriptions.list({
-    customer: customerId,
-    status: "all",
-    limit: 100,
-    expand: ["data.pending_setup_intent"],
-  });
-  return { all: data, live: data.filter((sub) => BILLABLE_STATUSES.has(sub.status)) };
+  /**
+   * ⚠️ EVERY PAGE, NOT THE FIRST HUNDRED.
+   *
+   * `limit: 100` is Stripe's maximum and its lists come back NEWEST FIRST, so a
+   * single page silently truncates. §3.2 deliberately stores no "trial used"
+   * marker and makes Stripe the only source of truth for it, which makes the
+   * COMPLETENESS of this list load-bearing: `hasUsedTrial` reads it.
+   *
+   * A cold review found the loop that exploits it, and it needs no error path.
+   * Each different-plan `startTrial` cancels the previous abandoned attempt and
+   * creates a new one, so one call adds one subscription. After about a hundred
+   * calls the genuine trial — the OLDEST subscription, the only one carrying a
+   * validated card — falls off the end of the page, `hasUsedTrial` answers
+   * false, and the customer is handed a fresh seven days. Repeatable for ever.
+   * That is precisely the "subscribe, cancel, subscribe again, free for ever in
+   * seven-day steps" loop this spec exists to close, reached by another road.
+   *
+   * `live` is paged for the same reason: a sufficiently old live subscription
+   * would otherwise be invisible to both the duplicate guard and the reconcile,
+   * which is the one-billable-subscription invariant.
+   *
+   * The cap is a safety valve rather than a limit anyone should reach — a real
+   * customer has single digits.
+   */
+  const all = await client.subscriptions
+    .list({
+      customer: customerId,
+      status: "all",
+      limit: 100,
+      expand: ["data.pending_setup_intent"],
+    })
+    .autoPagingToArray({ limit: 1000 });
+  return { all, live: all.filter((sub) => BILLABLE_STATUSES.has(sub.status)) };
 }
 
 /** Just the live ones, for callers that do not need the whole history. */
@@ -903,6 +929,23 @@ async function compEntitlement(userId: string): Promise<CompEntitlement> {
       .eq("user_id", userId)
       .eq("product", "pro")
       .eq("source", "comp")
+      /**
+       * ⚠️ `is_active` IS THE KILL SWITCH, and a revoked row must not answer
+       * this question. `001_billing_tables.sql` documents it as the way a comp
+       * is withdrawn or a chargeback recorded — set false WITHOUT touching the
+       * date, so the history stays readable — and `access.ts` already refuses
+       * access on it.
+       *
+       * Without this filter a revoked comp still reads as `forever`, so
+       * `startTrial` answers `already-subscribed` and the checkout screen walks
+       * them into an app the gate holds read-only. They could never buy their
+       * way out, and the only repair would be DELETING the row rather than
+       * flipping the flag the schema tells you to flip. A revoked beta grace
+       * would likewise still buy a grace-aligned free run.
+       *
+       * The column is in `001`, which is applied. Nothing here reads `003`.
+       */
+      .eq("is_active", true)
       .limit(1);
     if (error) {
       console.error(`[billing] could not read the comp entitlement for ${userId}:`, error.message);
@@ -1003,8 +1046,20 @@ function hasValidatedCard(sub: Stripe.Subscription): boolean {
    * gets, and for the same reason.
    */
   if (sub.status === "incomplete") return false;
-  // `active`, `past_due`, `unpaid`, `paused`: money has moved or is genuinely
-  // owed on a real subscription, so the card question is settled.
+  /**
+   * `active`, `past_due` and `unpaid`: money has moved or is genuinely owed on
+   * a real subscription, so the card question is settled.
+   *
+   * ⚠️ `paused` is in here and it does NOT mean that. Stripe produces it from
+   * `trial_settings.end_behavior.missing_payment_method: "pause"`, which is
+   * exactly "the trial ended and no card was ever given" — no money moved and
+   * none is owed. This path hardcodes `"cancel"`, so nothing it creates can
+   * reach `paused`; one imported or hand-made in the dashboard could, and it
+   * would both burn the trial and answer `already-subscribed`, walking a user
+   * with no entitlement into the app. Left alone because changing what
+   * `paused` means belongs with `BILLABLE_STATUSES`, which is shared with the
+   * cancel path and is not this spec's to move. Recorded in `next-tasks.md`.
+   */
   if (!CARD_STEP_MAY_BE_UNFINISHED.has(sub.status)) return true;
   // A method is attached — settled, whatever else the object says.
   if (sub.default_payment_method || sub.default_source) return true;
