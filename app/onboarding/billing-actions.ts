@@ -14,6 +14,7 @@ import type Stripe from "stripe";
 
 import { priceIdFor, stripe, type PlanKey } from "@/lib/billing/stripe";
 import { BETA_GRACE_DAYS } from "@/lib/billing/betaGrace";
+import { resolveFreeTime } from "@/lib/billing/freeTime";
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 
 /**
@@ -122,8 +123,8 @@ export async function trialEligibility(): Promise<TrialEligibility> {
      * and disagree with the first, on the pair of facts a payment screen is
      * about to state out loud.
      */
-    const graceEnd = await betaGraceEnd(user.id);
-    if (graceEnd !== null) {
+    const comp = await compEntitlement(user.id);
+    if (comp.kind === "grace") {
       return {
         eligible: false,
         reason: "beta",
@@ -131,9 +132,14 @@ export async function trialEligibility(): Promise<TrialEligibility> {
         // Null once the fortnight has run out. An expired grace still refuses
         // the trial — they had their free run — but there is no longer a date
         // in the future to tell anybody about.
-        graceEndsAt: isStillToCome(graceEnd) ? graceEnd : null,
+        graceEndsAt: isStillToCome(comp.endsAt) ? comp.endsAt : null,
       };
     }
+    /**
+     * A free-for-life comp reads as a brand-new user here, and that is left
+     * alone deliberately. This function decides what a screen SAYS; `startTrial`
+     * is what refuses to sell to them (§3.7), and `reason` gains no new value.
+     */
 
     const { data } = await serviceClient()
       .from("billing_customers")
@@ -176,6 +182,39 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
       message: "Please confirm your details before starting a trial.",
     };
   }
+
+  /**
+   * ⚠️ A COMP ACCOUNT MUST NEVER BE ABLE TO START A SUBSCRIPTION (§3.7), AND
+   * THIS RUNS BEFORE ANY STRIPE OBJECT EXISTS.
+   *
+   * A free-for-life comp holds an entitlement with a NULL `active_until`, so the
+   * grace check does not match it and they read as a brand-new user eligible for
+   * seven free days. There is no route to this screen for them today — the comp
+   * notice has a single "Thank you" button, and the read-only pop-up cannot fire
+   * for an account that is permanently entitled — but "currently unreachable" is
+   * a claim about today's call sites, and the outcome if it is ever reached is
+   * charging somebody who was told in writing they never would be.
+   *
+   * `already-subscribed` is the existing answer for "you have this already", and
+   * the checkout screen already handles it by walking the user into the app. No
+   * new status, no new copy, no new screen.
+   *
+   * ## This is a decision, and `001_billing_tables.sql` says the opposite
+   *
+   * That file's comment on `entitlements_one_per_source` explicitly anticipates
+   * "a founder who also subscribes" as a legitimate reason to hold both a `comp`
+   * and a `stripe` entitlement. The schema still permits it; this forecloses it
+   * at the application layer, because a comp being charged costs more than a
+   * comp being unable to buy something they already have for nothing.
+   *
+   * ## The read is done ONCE, here, and carried down to the create
+   *
+   * It is the same row that answers whether they are mid-grace, so asking again
+   * later would be a second query that can disagree with this one about whether
+   * this person is charged today.
+   */
+  const comp = await compEntitlement(user.id);
+  if (comp.kind === "forever") return { status: "already-subscribed" };
 
   /**
    * THE CUSTOMER IS RESOLVED BEFORE THE LEASE, AND THAT ORDER IS REQUIRED.
@@ -290,27 +329,54 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
     }
 
     /**
-     * ⚠️ WHO STILL GETS A FREE TRIAL. Both rules are Adrian's, 2026-08-14.
+     * ⚠️ WHAT FREE TIME THIS SUBSCRIPTION IS CREATED WITH. Three answers, and
+     * the rules behind them are Adrian's.
      *
-     *   1. ONE PER CUSTOMER, EVER. See {@link hasUsedTrial}.
-     *   2. NO TRIAL FOR A BETA GRACE ACCOUNT. The eighty-five people who were
+     *   1. ONE TRIAL PER CUSTOMER, EVER. See {@link hasUsedTrial}.
+     *   2. NO SEPARATE TRIAL FOR A BETA GRACE ACCOUNT. The ~85 people who were
      *      here before billing get a fortnight free, and that fortnight IS their
-     *      trial. Giving them a further seven days on top would be 21 free days
-     *      for the group that has already had the whole product for months.
+     *      trial. Seven more on top would be 21 free days for the group that has
+     *      already had the whole product for months.
+     *   3. ⚠️ A LIVE GRACE IS NEVER CHARGED INSIDE ITSELF. This is the one that
+     *      changed. A mid-fortnight user used to have `trial_period_days`
+     *      omitted, so Stripe issued an invoice with an amount due immediately —
+     *      the app charging somebody before a date it gave them in writing.
+     *      Their subscription is now created with `trial_end` AT the grace end.
      *
-     * Erring towards GRANTING when either check fails: a Stripe or Postgres
-     * error here means somebody gets a trial they might not be owed, which costs
-     * seven days. Erring the other way charges a first-time customer immediately
-     * against a screen that just promised seven days free, which is a dispute.
+     * The decision is `resolveFreeTime`, which is pure and tested. The server
+     * decides it here from the verified session and never trusts a value the
+     * client sends.
+     *
+     * Rule 3 also happens to fix the broken button, and that is a benefit rather
+     * than the justification: nothing due today means Stripe issues a
+     * SetupIntent, which is the arm this client is built for. An amount due
+     * today gets a PaymentIntent, which the client cannot confirm — that path is
+     * `02a`'s to make work.
+     *
+     * Erring towards GRANTING when a check fails: a Stripe or Postgres error
+     * means somebody gets free time they might not be owed, which costs days.
+     * Erring the other way charges a first-time customer immediately against a
+     * screen that just promised them seven free days, which is a dispute.
      */
-    const eligibleForTrial =
-      !hasUsedTrial(all) && (await betaGraceEnd(user.id)) === null;
+    const freeTime = resolveFreeTime({
+      hasUsedTrial: hasUsedTrial(all),
+      graceEndsAt: comp.kind === "grace" ? comp.endsAt : null,
+      now: new Date(),
+    });
 
     const subscription = await client.subscriptions.create(
       {
         customer: customerId,
         items: [{ price: wantedPrice }],
-        ...(eligibleForTrial ? { trial_period_days: TRIAL_DAYS } : {}),
+        ...(freeTime.kind === "trial" ? { trial_period_days: freeTime.days } : {}),
+        /**
+         * A fixed instant, not a day count. The grace end was decided when the
+         * grace was granted and has been sitting in `entitlements.active_until`
+         * ever since; expressing it as "N days from now" means computing a
+         * remainder, and a rounding error in that arithmetic is a charge on the
+         * wrong day.
+         */
+        ...(freeTime.kind === "grace" ? { trial_end: freeTime.trialEnd } : {}),
         // Nothing is owed today, so Stripe leaves the subscription incomplete
         // until the SetupIntent is confirmed. Without this it would activate
         // with no payment method attached and simply fail on day 7.
@@ -319,10 +385,31 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
         // No card confirmed by the end of the trial ⇒ cancel rather than bill a
         // method that was never verified.
         trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
-        // The webhook resolves the user from `billing_customers`; this is the
-        // fallback for an event that outruns that row, which does happen because
-        // Stripe fires webhooks concurrently with the call that creates it.
-        metadata: { user_id: user.id },
+        /**
+         * `user_id` is the webhook's fallback for resolving the account: it
+         * normally reads `billing_customers`, and this covers an event that
+         * outruns that row, which does happen because Stripe fires webhooks
+         * concurrently with the call that creates it.
+         *
+         * ⚠️ `trackd_grace_until` IS WRITTEN BECAUSE THREE DIFFERENT THINGS NOW
+         * PRODUCE `trialing`, and nothing downstream could otherwise tell them
+         * apart: a real first-time trial, a save-offer courtesy period (marked
+         * `trackd_courtesy_until`), and now a grace-aligned start. Reconciliation
+         * (`11-reconciliation-and-alerting.md`) needs exactly that distinction to
+         * assert that nobody was charged inside a promised free period.
+         *
+         * It carries the PROMISED end rather than the `trial_end` actually sent.
+         * The two differ when the Stripe minimum-offset clamp fires, and the
+         * question reconciliation asks is about the promise.
+         *
+         * Spread so `user_id` survives, which is the merge §3.4 requires.
+         */
+        metadata: {
+          user_id: user.id,
+          ...(freeTime.kind === "grace"
+            ? { trackd_grace_until: freeTime.graceEndsAt }
+            : {}),
+        },
         expand: ["pending_setup_intent"],
       },
       {
@@ -762,28 +849,31 @@ function hasUsedTrial(all: readonly Stripe.Subscription[]): boolean {
 }
 
 /**
- * WHEN DOES THIS ACCOUNT'S BETA GRACE END — or null if they never had one.
+ * WHAT `comp` ENTITLEMENT THIS ACCOUNT HOLDS, if any.
  *
- * A `comp` entitlement WITH an expiry is that grace and nothing else produces
- * that shape (`lib/billing/betaGrace.ts` enforces it: a comp-list member gets a
- * comp with NO expiry, everybody else gets one with an `active_until`).
+ * Two completely different things wear `source: "comp"`, and the `active_until`
+ * column is the whole difference between them:
  *
- * ## It returns the DATE, not a boolean, and one read answers both questions
+ *   comp + NO expiry    free for life. A founder or one of the three friends.
+ *   comp + an expiry    the beta grace, and nothing else produces that shape.
  *
- * Two callers need two different things from the same fact — the screen needs
- * the date to tell a mid-grace user when their first charge falls, and the
- * create call needs it to set `trial_end` there. Asking twice would be two
- * queries that can fail independently and disagree about whether somebody is
- * charged today, so this returns the instant and each caller decides what to do
- * with it.
+ * `lib/billing/betaGrace.ts` is what enforces the split: a comp-list member gets
+ * a comp with no expiry, everybody else gets one with an `active_until`.
+ *
+ * ## One read answers three questions
+ *
+ * May this account buy at all (§3.7), have they already had their free run, and
+ * when does the run end. `entitlements_one_per_source` means there is at most
+ * ONE comp row per user, so a single query settles all three — and asking
+ * separately would be two or three things that can fail independently and
+ * disagree with each other about whether somebody is charged today.
  *
  * ## Expired graces come back too, and that is deliberate
  *
- * The question this answers for eligibility is "have they already had their free
- * run", and an expired grace is exactly somebody who has. Filtering to live
- * graces here would hand a post-grace beta account a fresh seven-day trial on
- * top of the fortnight they have already had. The callers apply their own
- * liveness test.
+ * "Have they already had their free run" is answered yes by an expired grace.
+ * Filtering to live ones here would hand a post-grace beta account a fresh
+ * seven-day trial on top of the fortnight they have already had. Callers apply
+ * their own liveness test; `resolveFreeTime` is where that rule lives.
  *
  * ⚠️ THE SELECT IS `source, active_until` AND MUST STAY THAT WAY. Both columns
  * exist and are applied. A column added to this select breaks the whole request
@@ -791,10 +881,21 @@ function hasUsedTrial(all: readonly Stripe.Subscription[]): boolean {
  * is charged today. `supabase/billing/003_courtesy_until.sql` is written and NOT
  * applied — nothing here may read it.
  *
- * ⚠️ RETURNS NULL ON ANY ERROR, which grants the trial. See the note at the call
- * site: the wrong direction here charges a first-timer immediately.
+ * ⚠️ RETURNS `none` ON ANY ERROR. For the grace that grants the trial, which is
+ * the direction §3.5 requires. For the comp refusal it means a free-for-life
+ * account could reach the create call during a Postgres outage — accepted
+ * deliberately, because the alternative is refusing every legitimate purchase on
+ * a transient blip, and a comp has no route to this screen in the first place.
  */
-async function betaGraceEnd(userId: string): Promise<string | null> {
+type CompEntitlement =
+  /** No comp row, or the read failed. Both are treated as "an ordinary user". */
+  | { kind: "none" }
+  /** Free for life. Must never be sold a subscription. */
+  | { kind: "forever" }
+  /** The beta grace. `endsAt` may be in the past. */
+  | { kind: "grace"; endsAt: string };
+
+async function compEntitlement(userId: string): Promise<CompEntitlement> {
   try {
     const { data, error } = await serviceClient()
       .from("entitlements")
@@ -802,20 +903,21 @@ async function betaGraceEnd(userId: string): Promise<string | null> {
       .eq("user_id", userId)
       .eq("product", "pro")
       .eq("source", "comp")
-      .not("active_until", "is", null)
       .limit(1);
     if (error) {
-      console.error(`[billing] could not check the beta grace for ${userId}:`, error.message);
-      return null;
+      console.error(`[billing] could not read the comp entitlement for ${userId}:`, error.message);
+      return { kind: "none" };
     }
-    const activeUntil = data?.[0]?.active_until as string | null | undefined;
-    return activeUntil ?? null;
+    const row = data?.[0];
+    if (!row) return { kind: "none" };
+    const activeUntil = row.active_until as string | null;
+    return activeUntil === null ? { kind: "forever" } : { kind: "grace", endsAt: activeUntil };
   } catch (err) {
     console.error(
-      `[billing] could not check the beta grace for ${userId}:`,
+      `[billing] could not read the comp entitlement for ${userId}:`,
       err instanceof Error ? err.message : String(err),
     );
-    return null;
+    return { kind: "none" };
   }
 }
 
