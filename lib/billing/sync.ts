@@ -840,15 +840,45 @@ function subscriptionIdOf(invoice: Stripe.Invoice): string | null {
  * is the record of what was bought, and keeping the second readable is the whole
  * reason they are separate columns.
  */
+/**
+ * ⚠️ DISPUTE STATUSES WHERE NO MONEY HAS MOVED.
+ *
+ * `charge.dispute.created` fires for INQUIRIES and retrieval requests as well as
+ * for real chargebacks. On an inquiry the bank is asking a question; the funds
+ * are still ours. A cold review drove `pm_card_createDisputeInquiry` against a
+ * paid $69.99 year:
+ *
+ *     dispute status = warning_needs_response, amount_refunded = 0
+ *     entitlement    -> is_active = false
+ *
+ * 365 days of paid access destroyed by a question. And because the revocation is
+ * now deliberately sticky, winning the inquiry did not give it back.
+ */
+const DISPUTE_INQUIRY_STATUSES: ReadonlySet<string> = new Set([
+  "warning_needs_response",
+  "warning_under_review",
+  "warning_closed",
+]);
+
 export async function revokeForCustomer(
   chargeId: string | Stripe.Charge | null,
   reason: "dispute" | "refund",
   client: Stripe,
+  /** The dispute itself, when there is one, so an inquiry can be told apart. */
+  dispute?: Stripe.Dispute,
 ): Promise<HandlerOutcome> {
+  if (reason === "dispute" && dispute && DISPUTE_INQUIRY_STATUSES.has(dispute.status)) {
+    console.warn(
+      `[billing] dispute ${dispute.id} is ${dispute.status} (an inquiry, no funds withdrawn); entitlement left standing`,
+    );
+    return "handled";
+  }
+
   const id = typeof chargeId === "string" ? chargeId : chargeId?.id;
   if (!id) return "handled";
 
   let customerId: string | null = null;
+  let refundedSubscriptionId: string | null = null;
   try {
     const charge = await client.charges.retrieve(id);
     /**
@@ -870,15 +900,21 @@ export async function revokeForCustomer(
      */
     if (reason === "refund") {
       const refunded = charge.amount_refunded ?? 0;
-      if (refunded > 0 && refunded < charge.amount) {
+      /**
+       * Nothing came back, or only part of it. `refunded === 0` matters as its
+       * own case: a refund that FAILS leaves the charge back at zero, and a
+       * bare `refunded < amount` test would fall through and revoke on it.
+       */
+      if (refunded < charge.amount) {
         console.warn(
-          `[billing] partial refund on ${id} (${refunded} of ${charge.amount}); entitlement left standing`,
+          `[billing] refund on ${id} is ${refunded} of ${charge.amount}; entitlement left standing`,
         );
         return "handled";
       }
     }
     customerId =
       typeof charge.customer === "string" ? charge.customer : (charge.customer?.id ?? null);
+    if (customerId) refundedSubscriptionId = await subscriptionBehind(charge, client, customerId);
   } catch (err) {
     console.error(
       `[billing] could not read charge ${id} for a ${reason}:`,
@@ -903,6 +939,45 @@ export async function revokeForCustomer(
     return "unattributed";
   }
 
+  /**
+   * ⚠️ THE MONEY THAT CAME BACK BOUGHT ONE SUBSCRIPTION. THE ROW SERVES THEM ALL.
+   *
+   * This wrote `is_active: false` scoped to `user_id` alone, so a refund on one
+   * charge killed access another, unrefunded charge had paid for. A cold review
+   * drove it: one customer holding a paid $69.99 yearly and a $3.99 weekly, the
+   * WEEKLY refunded in full —
+   *
+   *     the year's charge: amount_refunded = 0 of 6999
+   *     entitlement:       is_active = false
+   *
+   * 365 days of paid, unrefunded access destroyed by a $3.99 refund — and
+   * refunding a duplicate charge in full is the correct support action for the
+   * duplicate-subscription state this file documents at length.
+   *
+   * Same shape as the deletion and dunning defects: a per-user row written from
+   * a per-charge event. So the refunded subscription is EXCLUDED and the
+   * question is asked of the rest: is anything else still paying for this
+   * person's access? If so the row is shortened to what those cover rather than
+   * switched off. Only when nothing else pays is the entitlement revoked, which
+   * is the ordinary chargeback and the case the kill switch exists for.
+   */
+  const floor = await otherLiveEntitlementFloor(customerId, refundedSubscriptionId ?? "");
+  if (floor !== null) {
+    const stillPaid = new Date(floor).toISOString();
+    console.warn(
+      `[billing] ${reason} for ${userId}, but another live subscription still entitles them to ${stillPaid}; shortening rather than revoking`,
+    );
+    const { error: shortenError } = await db
+      .from("entitlements")
+      .update({ active_until: stillPaid })
+      .eq("user_id", userId)
+      .eq("product", "pro")
+      .eq("source", "stripe")
+      .gt("active_until", stillPaid);
+    if (shortenError) throw new Error(`entitlements shorten: ${shortenError.message}`);
+    return "handled";
+  }
+
   const { error } = await db
     .from("entitlements")
     .update({ is_active: false })
@@ -914,3 +989,55 @@ export async function revokeForCustomer(
   console.warn(`[billing] revoked pro for ${userId} after a ${reason}`);
   return "handled";
 }
+
+/**
+ * Which subscription a charge paid for, or null.
+ *
+ * Needed so a refund is not measured against the very subscription whose money
+ * just came back — otherwise it vouches for itself and nothing is ever revoked.
+ *
+ * ⚠️ `charge.invoice` DOES NOT EXIST in this API version (the same removal
+ * family as `invoice.payment_intent`), so the link is walked the other way: the
+ * charge's payment intent, matched against each invoice's `payments`. Verified
+ * against real test-mode objects —
+ *
+ *     charge.payment_intent          pi_3U4mQ8...
+ *     invoice.payments[].payment     {"payment_intent":"pi_3U4mQ8...","type":"payment_intent"}
+ *     invoice.parent.subscription_details.subscription  sub_1U4mQ7...
+ *
+ * Null on failure, which errs towards KEEPING access: an unresolved charge means
+ * the subscription is not excluded, so it vouches for itself and the revoke is
+ * skipped rather than applied to somebody who may have paid.
+ */
+async function subscriptionBehind(
+  charge: Stripe.Charge,
+  client: Stripe,
+  customerId: string,
+): Promise<string | null> {
+  const intentId =
+    typeof charge.payment_intent === "string"
+      ? charge.payment_intent
+      : (charge.payment_intent?.id ?? null);
+  if (!intentId) return null;
+  try {
+    const invoices = await client.invoices.list({
+      customer: customerId,
+      limit: 100,
+      expand: ["data.payments"],
+    });
+    for (const invoice of invoices.data) {
+      const paid = invoice.payments?.data ?? [];
+      if (paid.some((p) => p.payment?.payment_intent === intentId)) {
+        return subscriptionIdOf(invoice);
+      }
+    }
+    return null;
+  } catch (err) {
+    console.warn(
+      `[billing] could not resolve the subscription behind ${charge.id}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return null;
+  }
+}
+

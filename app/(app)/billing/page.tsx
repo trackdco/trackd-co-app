@@ -256,7 +256,9 @@ export default async function BillingPage() {
         * act on. Same string, one more way to arrive at it.
         */}
       {action.kind === "unavailable" ||
-      (action.kind === "none" && hasStripeCustomer) ? (
+      (action.kind === "none" &&
+        action.reason === "no-subscription" &&
+        hasStripeCustomer) ? (
         <p className="mt-6 px-1 text-sm leading-relaxed text-text-muted">
           This one can&apos;t be changed from here. Email{" "}
           <a className="text-foreground" href="mailto:support@trackdco.app">

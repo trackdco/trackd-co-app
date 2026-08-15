@@ -145,6 +145,28 @@ export function CancelSubscription({
    */
   const [staying, setStaying] = useState(false);
   /**
+   * ⚠️ THE REQUEST OUTLIVED ITS DEADLINE, SO THE DIALOG STOPS WAITING FOR IT.
+   *
+   * `withDeadline` races a promise it cannot cancel, and `useTransition`'s
+   * `pending` tracks the in-flight SERVER ACTION rather than the scope
+   * function's return. So on a POST that is accepted and never answered, the
+   * catch ran and the message appeared while `pending` stayed true for the whole
+   * life of the request — a cold review watched it for 90 seconds:
+   *
+   *     "We couldn't cancel just now. Please try again."   <- red, on screen
+   *     [Keep my trial OFF]  [Working… OFF]                <- both still disabled
+   *     Escape: no-op.  Backdrop: no-op.
+   *
+   * An instruction to retry that nothing could satisfy, and on a phone no way
+   * out but killing the app. Three rounds missed it because an ABORTED request
+   * recovers perfectly; a hang is the case the deadline was added for and the
+   * one it did not fix.
+   *
+   * So the dialog tracks its own idea of busy: past the deadline it is not, no
+   * matter what the transition still thinks.
+   */
+  const [timedOut, setTimedOut] = useState(false);
+  /**
    * An offer that was shown and then dismissed, still inside its ten minutes.
    *
    * Lazily seeded from `sessionStorage`, so it survives a reload and a
@@ -166,6 +188,11 @@ export function CancelSubscription({
   /** Ticks once a second while a countdown is on screen, and never otherwise. */
   const [now, setNow] = useState(() => Date.now());
   const [pending, startTransition] = useTransition();
+  /**
+   * What every control gates on. `pending` alone strands the dialog when a
+   * request hangs, because the transition never settles. See {@link timedOut}.
+   */
+  const busy = pending && !timedOut;
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   /** Guards the same-TICK double fire that `pending` cannot: `useTransition`
@@ -228,7 +255,7 @@ export function CancelSubscription({
       // returned a disabled one during the pending window, and `.focus()` on a
       // disabled button is a no-op — so focus stayed wherever the click left it.
       (node?.querySelector<HTMLElement>("button:not([disabled])") ?? node)?.focus();
-    } else if (!pending && node && !node.contains(document.activeElement)) {
+    } else if (!busy && node && !node.contains(document.activeElement)) {
       /**
        * ⚠️ FOCUS GOES TO THE CONTROL THAT RETRIES, NOT TO WHATEVER HAD IT.
        *
@@ -255,7 +282,7 @@ export function CancelSubscription({
     }
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !pending) {
+      if (e.key === "Escape" && !busy) {
         close();
         return;
       }
@@ -298,7 +325,7 @@ export function CancelSubscription({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, pending, close]);
+  }, [phase, busy, close]);
 
   /**
    * The offer that is still live, or null. Only ever drawn after mount, so the
@@ -385,6 +412,7 @@ export function CancelSubscription({
     if (inFlight.current) return;
     inFlight.current = true;
     setError(null);
+    setTimedOut(false);
     startTransition(async () => {
       try {
       // The two branches are written out rather than sharing a call site, so
@@ -465,6 +493,7 @@ export function CancelSubscription({
         // answered. Caught here so it cannot escape the transition and take the
         // whole screen with it.
         console.warn("[billing] the cancel/resume request did not complete:", err);
+        setTimedOut(true);
         // The same approved string the server returns for this failure, shared
         // from the pure module so the two cannot drift into two wordings. It
         // states the fact and the next action, which "Something went wrong."
@@ -481,6 +510,7 @@ export function CancelSubscription({
     if (inFlight.current) return;
     inFlight.current = true;
     setError(null);
+    setTimedOut(false);
     startTransition(async () => {
       try {
         const result = await withDeadline(claimExtraTime());
@@ -497,6 +527,7 @@ export function CancelSubscription({
         // Same reasoning as `runConfirm`: a rejected action must leave the
         // dialog usable rather than replacing the screen with an error.
         console.warn("[billing] the claim request did not complete:", err);
+        setTimedOut(true);
         // The approved string the server already returns for this failure. It
         // states the fact and the next action; "Something went wrong." did not,
         // on the one dialog where a charge is about to be committed.
@@ -621,7 +652,7 @@ export function CancelSubscription({
               // `inFlight` as well as `pending`: a backdrop tap in the SAME TICK
               // as "Yes, cancel" closed the dialog mid-request, and a failure
               // then had nowhere to render its message.
-              if (!pending && !inFlight.current) close();
+              if (!busy && !inFlight.current) close();
             }}
           >
             <div
@@ -706,7 +737,7 @@ export function CancelSubscription({
                 {copy.dismiss ? (
                   <button
                     type="button"
-                    disabled={pending}
+                    disabled={busy}
                     /* Declining the OFFER is not the same as closing a dialog.
                        It goes to the acknowledgement, so nobody leaves unsure
                        whether the cancellation they asked for actually took.
@@ -727,7 +758,7 @@ export function CancelSubscription({
                 <button
                   type="button"
                   ref={confirmRef}
-                  disabled={pending}
+                  disabled={busy}
                   onClick={
                     shownPhase === "granted" || shownPhase === "declined"
                       ? close
@@ -737,7 +768,7 @@ export function CancelSubscription({
                   }
                   className="flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
-                  {pending ? "Working…" : copy.confirm}
+                  {busy ? "Working…" : copy.confirm}
                 </button>
               </div>
             </div>

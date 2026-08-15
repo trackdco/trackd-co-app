@@ -260,12 +260,19 @@ async function handle(event: Stripe.Event): Promise<HandlerOutcome> {
      * lever. A dispute is the strongest possible signal that the money is not
      * ours; a refund is us saying so ourselves.
      */
-    case "charge.dispute.created":
-      return revokeForCustomer(
-        (event.data.object as Stripe.Dispute).charge,
-        "dispute",
-        client,
-      );
+    /**
+     * ⚠️ THE DISPUTE ITSELF IS PASSED, NOT JUST ITS CHARGE.
+     *
+     * This event fires for INQUIRIES too, where the bank is asking a question
+     * and no funds have been withdrawn. Without the dispute object there is no
+     * way to tell the two apart, and a cold review measured the cost: an inquiry
+     * on a paid $69.99 year revoked 365 days of access with no money having
+     * moved. See `DISPUTE_INQUIRY_STATUSES`.
+     */
+    case "charge.dispute.created": {
+      const dispute = event.data.object as Stripe.Dispute;
+      return revokeForCustomer(dispute.charge, "dispute", client, dispute);
+    }
 
     case "charge.refunded":
       return revokeForCustomer(

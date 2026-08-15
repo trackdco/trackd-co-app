@@ -263,7 +263,8 @@ export function manageActionFor(
    * "Renews on 26 Aug 2026" for an account whose next Stripe attempt is 29 Aug
    * and whose access dies on the 26th. Nothing renews on that date.
    */
-  const accessEndsEarly = endsOn !== mirrorEnd;
+  const accessEndsEarly =
+    mirrorEnd !== null && endsOn !== null && endsOn !== mirrorEnd;
 
   return subscription.cancelAtPeriodEnd
     ? { kind: "resume", endsOn, isTrial, accessEndsEarly }
