@@ -901,9 +901,10 @@ export async function revokeForCustomer(
     if (reason === "refund") {
       const refunded = charge.amount_refunded ?? 0;
       /**
-       * Nothing came back, or only part of it. `refunded === 0` matters as its
-       * own case: a refund that FAILS leaves the charge back at zero, and a
-       * bare `refunded < amount` test would fall through and revoke on it.
+       * Nothing came back, or only part of it. Both are "the period was still
+       * bought", so both leave the entitlement standing — including
+       * `refunded === 0`, which is what a refund that FAILED looks like when the
+       * charge is re-read.
        */
       if (refunded < charge.amount) {
         console.warn(
@@ -961,7 +962,25 @@ export async function revokeForCustomer(
    * switched off. Only when nothing else pays is the entitlement revoked, which
    * is the ordinary chargeback and the case the kill switch exists for.
    */
-  const floor = await otherLiveEntitlementFloor(customerId, refundedSubscriptionId ?? "");
+  /**
+   * ⚠️ IF THE CHARGE COULD NOT BE RESOLVED, REVOKE. DO NOT MEASURE IT AGAINST
+   * ITSELF.
+   *
+   * `""` excludes nothing, so an unresolved charge left the refunded
+   * subscription raising its own floor — it is still `active`, a refund does not
+   * cancel it — and a full refund revoked nothing at all. A cold review drove it
+   * by pushing the paid invoice off the first page of 100: `subscriptionBehind`
+   * returned null and $69.99 came back with `is_active` still true. A weekly
+   * subscriber passes 100 invoices in under two years.
+   *
+   * So an unresolved charge falls back to the blunt behaviour rather than the
+   * generous one. The kill switch existing and being wrong occasionally is the
+   * lesser failure; the kill switch quietly not firing is the one it was written
+   * to prevent.
+   */
+  const floor = refundedSubscriptionId
+    ? await otherLiveEntitlementFloor(customerId, refundedSubscriptionId)
+    : null;
   if (floor !== null) {
     const stillPaid = new Date(floor).toISOString();
     console.warn(

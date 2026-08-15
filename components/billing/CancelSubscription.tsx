@@ -100,13 +100,42 @@ const subscribeNever = () => () => {};
  */
 const REQUEST_TIMEOUT_MS = 20_000;
 
-/** Reject if the action has not answered inside {@link REQUEST_TIMEOUT_MS}. */
+/**
+ * ⚠️ THE DEADLINE MEANS "I STOPPED WAITING", NOT "IT FAILED". THE DIFFERENCE IS
+ * THE WHOLE POINT.
+ *
+ * `Promise.race` cannot cancel the loser. The request is still open, the server
+ * may still act, and `revalidatePath` may still land — so anything the dialog
+ * says about an OUTCOME here is a guess. The first version guessed "failed", and
+ * a cold review measured all three ways that goes wrong once the slow request
+ * finally answers:
+ *
+ *   - a cancel that SUCCEEDED left "We couldn't cancel just now. Please try
+ *     again." on screen while `mode` flipped underneath it, so the same open
+ *     dialog became "Keep my Pro plan?" with focus on "Yes, keep it". Obeying
+ *     the message un-cancelled them.
+ *   - a resume that succeeded inverted the other way, into "Cancel your trial?".
+ *   - a claim that succeeded left them told it had failed while the trial had
+ *     moved and the cancellation had been lifted: a charge armed behind a
+ *     message saying nothing happened.
+ *
+ * So a timeout is now its own outcome, distinct from a rejection, and the dialog
+ * responds by getting out of the way rather than by claiming anything. A real
+ * failure — an abort, a dropped connection — still rejects normally and still
+ * shows the approved message, because that one IS known.
+ */
+class Deadline extends Error {
+  constructor() {
+    super("the request outlived its deadline");
+    this.name = "Deadline";
+  }
+}
+
+/** Reject with {@link Deadline} if the action has not answered in time. */
 function withDeadline<T>(work: Promise<T>): Promise<T> {
   return Promise.race([
     work,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("the request timed out")), REQUEST_TIMEOUT_MS),
-    ),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Deadline()), REQUEST_TIMEOUT_MS)),
   ]);
 }
 
@@ -494,10 +523,14 @@ export function CancelSubscription({
         // whole screen with it.
         console.warn("[billing] the cancel/resume request did not complete:", err);
         setTimedOut(true);
-        // The same approved string the server returns for this failure, shared
-        // from the pure module so the two cannot drift into two wordings. It
-        // states the fact and the next action, which "Something went wrong."
-        // did not.
+        if (err instanceof Deadline) {
+          // Still open, outcome unknown. Say nothing about it and close, so the
+          // screen behind can show whatever actually happened when it lands.
+          close();
+          return;
+        }
+        // A real failure, and a known one. The same approved string the server
+        // returns for it, shared from the pure module so the two cannot drift.
         setError(mode === "cancel" ? CANCEL_FAILED : RESUME_FAILED);
       } finally {
         inFlight.current = false;
@@ -528,6 +561,10 @@ export function CancelSubscription({
         // dialog usable rather than replacing the screen with an error.
         console.warn("[billing] the claim request did not complete:", err);
         setTimedOut(true);
+        if (err instanceof Deadline) {
+          close();
+          return;
+        }
         // The approved string the server already returns for this failure. It
         // states the fact and the next action; "Something went wrong." did not,
         // on the one dialog where a charge is about to be committed.

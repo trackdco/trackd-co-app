@@ -138,6 +138,15 @@ export const CANCELLABLE_STATUSES: ReadonlySet<string> = new Set([
 const CANCELLABLE = CANCELLABLE_STATUSES;
 
 /**
+ * Statuses Stripe has finished with. Nothing here can ever charge again.
+ *
+ * Declared locally rather than imported from `cancel.ts`'s `BILLABLE_STATUSES`:
+ * that module is `server-only` and already imports from this one, so the
+ * dependency cannot point back without breaking the client build.
+ */
+const DEAD_STATUSES: ReadonlySet<string> = new Set(["canceled", "incomplete_expired"]);
+
+/**
  * Which control to show, given where access came from and what Stripe mirrors.
  *
  * `source` comes from `entitlements`, never from the subscription. That ordering
@@ -226,8 +235,22 @@ export function manageActionFor(
 
   if (!actionable) {
     if (store) return { kind: "store", store };
-    if (comped) return { kind: "none", reason: "comp" };
-    if (!subscription) return { kind: "none", reason: "no-subscription" };
+    if (!subscription) return { kind: "none", reason: comped ? "comp" : "no-subscription" };
+    /**
+     * ⚠️ A COMP STILL NEEDS THE SIGNPOST WHEN SOMETHING CAN STILL BILL THEM.
+     *
+     * The comp branch used to sit above this, so `unavailable` could never fire
+     * for them and a comped user with a `paused` or `unpaid` subscription got
+     * total silence — no control, no support line — while the same state without
+     * the comp got the line. But a comp whose subscription is genuinely DEAD has
+     * nothing to be signposted about, and telling a healthy founder "this can't
+     * be changed from here" is its own false claim.
+     *
+     * So the split is what Stripe could still take money on, not the source.
+     */
+    if (comped && DEAD_STATUSES.has(subscription.status)) {
+      return { kind: "none", reason: "comp" };
+    }
     return { kind: "unavailable", reason: subscription.status };
   }
 
@@ -263,8 +286,18 @@ export function manageActionFor(
    * "Renews on 26 Aug 2026" for an account whose next Stripe attempt is 29 Aug
    * and whose access dies on the 26th. Nothing renews on that date.
    */
+  /**
+   * ⚠️ AND `past_due` COUNTS EVEN BEFORE THE CLAWBACK LANDS.
+   *
+   * Keying this on the two dates disagreeing missed the window before
+   * `markPastDue` runs, and the cohort whose entitlement is withheld entirely —
+   * both of which rendered "Renews on 16 Sept 2026" for a subscription whose
+   * card has already failed. Nothing renews on that date; the next thing Stripe
+   * does is retry. The status says so directly, so it is asked directly.
+   */
   const accessEndsEarly =
-    mirrorEnd !== null && endsOn !== null && endsOn !== mirrorEnd;
+    subscription.status === "past_due" ||
+    (mirrorEnd !== null && endsOn !== null && endsOn !== mirrorEnd);
 
   return subscription.cancelAtPeriodEnd
     ? { kind: "resume", endsOn, isTrial, accessEndsEarly }

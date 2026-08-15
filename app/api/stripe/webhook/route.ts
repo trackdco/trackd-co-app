@@ -269,7 +269,25 @@ async function handle(event: Stripe.Event): Promise<HandlerOutcome> {
      * on a paid $69.99 year revoked 365 days of access with no money having
      * moved. See `DISPUTE_INQUIRY_STATUSES`.
      */
-    case "charge.dispute.created": {
+    /**
+     * ⚠️ AND THE LATER ONES, BECAUSE AN INQUIRY THAT ESCALATES NEVER FIRES
+     * `created` AGAIN.
+     *
+     * Skipping inquiries at `created` is right — no funds have moved. But Stripe
+     * does not mint a second `charge.dispute.created` when one escalates: the
+     * same dispute object changes status and fires `updated`, then `closed`.
+     * With only `created` handled, a cold review drove a dispute all the way to
+     * `status: lost` with $69.99 withdrawn and `is_active` still true — the kill
+     * switch silently never firing, which is worse than the over-firing it
+     * replaced.
+     *
+     * `revokeForCustomer` does the inquiry test itself, so all three events go
+     * to the same place and only a real one revokes.
+     */
+    case "charge.dispute.created":
+    case "charge.dispute.updated":
+    case "charge.dispute.closed":
+    case "charge.dispute.funds_withdrawn": {
       const dispute = event.data.object as Stripe.Dispute;
       return revokeForCustomer(dispute.charge, "dispute", client, dispute);
     }
