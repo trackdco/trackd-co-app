@@ -6,7 +6,11 @@ import type Stripe from "stripe";
 
 import { getCurrentUser } from "@/lib/auth";
 import { applyCancelFlag, liveSubscriptionsForUser } from "@/lib/billing/cancel";
-import { formatAccessDate, type SaveOfferKind } from "@/lib/billing/manage";
+import {
+  CANCELLABLE_STATUSES,
+  formatAccessDate,
+  type SaveOfferKind,
+} from "@/lib/billing/manage";
 import { originFromHost } from "@/lib/billing/originAllowlist";
 import {
   EXTRA_TRIAL_DAYS,
@@ -86,7 +90,20 @@ export interface SaveOffer {
   shownAt: string;
   /** "week" or "month". Drives both the length and the noun in the copy. */
   noun: "week" | "month";
-  /** ISO instant. The day money moves if they accept. */
+  /**
+   * ⚠️ THE DAY MONEY MOVES, ALREADY FORMATTED IN THE USER'S STORED TIMEZONE.
+   *
+   * An ISO instant, formatted in the BROWSER's zone by the dialog. A cold review
+   * measured what that cost with the profile in Pacific/Kiritimati and the phone
+   * in America/Los_Angeles: the cancel dialog said 24 Aug (server), this said
+   * 30 Aug (browser), and the thank-you one tap later said 31 Aug (server) — for
+   * one charge, on the screen the spec calls the highest-risk in the app. The
+   * two instants were always identical; only the clock formatting them differed.
+   *
+   * So it is formatted HERE, by the same `formatAccessDate` every other date on
+   * this flow goes through, exactly as `claimExtraTime` already does for
+   * `endsOn`. Nothing about the sentence it sits in changed.
+   */
   chargeOn: string;
   /** Kept for the trial copy, which still counts in days. */
   days: number;
@@ -153,7 +170,23 @@ async function ownSubscriptions(): Promise<
 
   let ids: string[];
   try {
-    ids = await liveSubscriptionsForUser(user.id);
+    /**
+     * ⚠️ `CANCELLABLE_STATUSES`, NOT `BILLABLE_STATUSES`.
+     *
+     * This read the wider billable set, and a cold review drove what that cost:
+     * Stripe HARD-REFUSES `cancel_at_period_end` on a `paused` subscription
+     * ("Resume the subscription first"), so one paused subscription on the
+     * customer made the loop below throw and the user could not cancel at all.
+     * Measured twice: with the paused one newer, nothing was ever cancelled and
+     * every retry failed identically while the live trial converted; with it
+     * older, the cancellation went through at Stripe while the screen said it
+     * had failed and then offered only the button that undoes it.
+     *
+     * The wider set is still exactly right for the DELETION path, which uses
+     * `subscriptions.cancel()` and which Stripe accepts on a paused
+     * subscription. Two questions, two lists. See `manage.ts`.
+     */
+    ids = await liveSubscriptionsForUser(user.id, CANCELLABLE_STATUSES);
   } catch (err) {
     console.error(
       `[billing] could not list subscriptions for ${user.id}:`,
@@ -184,17 +217,40 @@ export async function cancelSubscription(): Promise<CancelResult> {
   const found = await ownSubscriptions();
   if ("error" in found) return { ok: false, error: found.error };
 
-  try {
-    // EVERY one of them. "Cancel my subscription" means stop billing me, not
-    // stop billing me for whichever row happened to sort first.
-    for (const id of found.ids) await applyCancelFlag(id, true);
-  } catch (err) {
-    // Stripe's own message can name internal ids and price objects, so it is
-    // logged and not returned.
-    console.error(
-      `[billing] cancel failed for ${found.ids.join(", ")}:`,
-      err instanceof Error ? err.message : String(err),
-    );
+  /**
+   * EVERY one of them. "Cancel my subscription" means stop billing me, not stop
+   * billing me for whichever row happened to sort first.
+   *
+   * ⚠️ ONE FAILURE MUST NOT ABANDON THE REST. This was a single `try` around a
+   * sequential loop, so the first throw left every later subscription untouched
+   * and still billing — and which subscription that was depended only on
+   * Stripe's `created desc` ordering. Each is attempted on its own now, and the
+   * result is judged afterwards.
+   *
+   * **A partial failure is reported as a failure**, because the user is still
+   * billable through whatever did not cancel, and telling them otherwise is the
+   * one lie this flow exists to avoid. Retrying is safe: Stripe accepts the flag
+   * again on a subscription that already carries it.
+   */
+  const outcomes = await Promise.allSettled(
+    found.ids.map((id) => applyCancelFlag(id, true)),
+  );
+  const failed = found.ids.filter((_, i) => outcomes[i].status === "rejected");
+  if (failed.length > 0) {
+    for (const [i, outcome] of outcomes.entries()) {
+      if (outcome.status !== "rejected") continue;
+      // Stripe's own message can name internal ids and price objects, so it is
+      // logged and not returned.
+      console.error(
+        `[billing] cancel failed for ${found.ids[i]}:`,
+        outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+      );
+    }
+    if (failed.length < found.ids.length) {
+      console.error(
+        `[billing] ⚠️ ${found.userId} is PARTIALLY cancelled: ${found.ids.length - failed.length} stopped, ${failed.join(", ")} still billing`,
+      );
+    }
     return { ok: false, error: "We couldn't cancel just now. Please try again." };
   }
 
@@ -202,7 +258,7 @@ export async function cancelSubscription(): Promise<CancelResult> {
   revalidatePath("/billing");
   revalidatePath("/profile");
 
-  const offer = await offerAfterCancel(found.customerId);
+  const offer = await offerAfterCancel(found.customerId, found.userId);
   return { ok: true, savedAt: Date.now(), ...(offer ? { offer } : {}) };
 }
 
@@ -213,7 +269,10 @@ export async function cancelSubscription(): Promise<CancelResult> {
  * undefined rather than throwing; the user is already cancelled and an error
  * about a retention offer is not theirs to see.
  */
-async function offerAfterCancel(customerId: string): Promise<SaveOffer | undefined> {
+async function offerAfterCancel(
+  customerId: string,
+  userId: string,
+): Promise<SaveOffer | undefined> {
   try {
     const primary = await primarySubscription(customerId);
     if (!primary) return undefined;
@@ -236,7 +295,12 @@ async function offerAfterCancel(customerId: string): Promise<SaveOffer | undefin
       primary.status === "trialing"
         ? (primary.trial_end ?? Math.floor(Date.now() / 1000))
         : (primary.items.data[0]?.current_period_end ?? Math.floor(Date.now() / 1000));
-    const chargeOn = new Date(addOffer(from, noun) * 1000).toISOString();
+    // Formatted in the user's OWN stored zone, here on the server, so the date
+    // they read before deciding is the same day every other surface names.
+    const chargeOn = formatAccessDate(
+      new Date(addOffer(from, noun) * 1000).toISOString(),
+      await ownTimezone(userId),
+    );
 
     // Recorded as SHOWN here rather than when the dialog opens: a separate
     // "I saw it" call is one anybody who wanted the offer twice could simply
@@ -534,14 +598,42 @@ export async function resumeSubscription(): Promise<BillingActionResult> {
   const found = await ownSubscriptions();
   if ("error" in found) return { ok: false, error: found.error };
 
-  try {
-    for (const id of found.ids) await applyCancelFlag(id, false);
-  } catch (err) {
+  /**
+   * ⚠️ THE OPPOSITE HONESTY RULE FROM THE CANCEL, AND DELIBERATELY SO.
+   *
+   * Same `allSettled` shape, for the same reason: one throw used to abandon
+   * every later subscription. But a PARTIAL success is reported as a SUCCESS
+   * here, where the cancel reports a failure, because the two directions have
+   * opposite dangerous lies.
+   *
+   * A cold review drove this one: the loop threw halfway, the dialog said "We
+   * couldn't restart it just now", no confirmation card appeared, and Stripe
+   * showed `cancel_at_period_end: false`. The user reasonably concluded they
+   * were still cancelled, and was going to be charged. That is the invariant
+   * "nobody is ever charged after being told they would not be", broken by an
+   * error message.
+   *
+   * So: if anything came back on, the charge is re-armed and the screen must say
+   * so. Only a total failure is reported as one.
+   */
+  const outcomes = await Promise.allSettled(
+    found.ids.map((id) => applyCancelFlag(id, false)),
+  );
+  const resumed = found.ids.filter((_, i) => outcomes[i].status === "fulfilled");
+  for (const [i, outcome] of outcomes.entries()) {
+    if (outcome.status !== "rejected") continue;
     console.error(
-      `[billing] resume failed for ${found.ids.join(", ")}:`,
-      err instanceof Error ? err.message : String(err),
+      `[billing] resume failed for ${found.ids[i]}:`,
+      outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
     );
+  }
+  if (resumed.length === 0) {
     return { ok: false, error: "We couldn't restart it just now. Please try again." };
+  }
+  if (resumed.length < found.ids.length) {
+    console.error(
+      `[billing] ⚠️ ${found.userId} is PARTIALLY resumed: ${resumed.join(", ")} are billing again, the rest are still cancelling`,
+    );
   }
 
   console.info(`[billing] ${found.userId} resumed ${found.ids.length} subscription(s)`);

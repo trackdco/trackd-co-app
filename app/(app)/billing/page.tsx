@@ -111,7 +111,15 @@ export default async function BillingPage() {
       }
     : null;
 
-  const action = manageActionFor(entitlement?.source ?? null, subscription);
+  // The entitlement's own end date goes in as well: it is the table that
+  // DECIDES access, and where it and the mirror disagree the screen must state
+  // the earlier of the two. See `manageActionFor` — a `past_due` user was being
+  // promised twenty-seven days past the day they actually go read only.
+  const action = manageActionFor(
+    entitlement?.source ?? null,
+    subscription,
+    entitlement?.activeUntil ?? null,
+  );
 
   // The plan's name and amount, matched by price id. `loadPricesSafe` returns an
   // empty list when Stripe is unconfigured (which is production today), so every
@@ -143,7 +151,11 @@ export default async function BillingPage() {
        *
        * Empty until a resume happens, so it costs nothing in every other state.
        */}
-      <div id={STAYING_NOTICE_SLOT} />
+      {/* `role="status"` sits on the SLOT, not on the card. A live region
+          inserted into the document at the same instant as its text is the
+          classic case a screen reader skips; this one is in the server-rendered
+          markup long before there is anything to announce. */}
+      <div id={STAYING_NOTICE_SLOT} role="status" />
 
       <section className="mt-6">
         <p className={`mb-3 ${CARD_EYEBROW}`}>Plan</p>
@@ -227,7 +239,24 @@ export default async function BillingPage() {
         </p>
       ) : null}
 
-      {action.kind === "unavailable" ? (
+      {/**
+        * ⚠️ A LIVE SUBSCRIPTION THE MIRROR HAS NOT HEARD OF IS NOT "NO
+        * SUBSCRIPTION", AND IT MUST NOT RENDER AS SILENCE.
+        *
+        * A cold review deleted the mirror row while Stripe still said
+        * `trialing` — the `unattributed` state the webhook route deliberately
+        * leaves unprocessed, plus any 500'd handler or in-flight window — and
+        * the whole screen came back as "Access / Pro / Payment method and
+        * invoices". No price, no date, no cancel control, and no signpost. The
+        * ACTION would have worked (it asks Stripe, not the mirror); only the
+        * screen could not reach it.
+        *
+        * So a user who has a Stripe customer but no readable subscription gets
+        * the same support line as any other subscription we can see but cannot
+        * act on. Same string, one more way to arrive at it.
+        */}
+      {action.kind === "unavailable" ||
+      (action.kind === "none" && action.reason === "no-subscription" && hasStripeCustomer) ? (
         <p className="mt-6 px-1 text-sm leading-relaxed text-text-muted">
           This one can&apos;t be changed from here. Email{" "}
           <a className="text-foreground" href="mailto:support@trackdco.app">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CANCELLABLE_STATUSES,
   formatAccessDate,
   manageActionFor,
   planLabelFor,
@@ -103,6 +104,86 @@ describe("who gets a cancel control", () => {
     // The ordering that matters: a comp with a live Stripe row is still a comp.
     expect(manageActionFor("comp", sub({ status: "trialing" })).kind).toBe("none");
     expect(manageActionFor("apple", sub({ cancelAtPeriodEnd: true })).kind).toBe("store");
+  });
+});
+
+describe("⚠️ the date on screen is the EARLIER of the mirror and the entitlement", () => {
+  /**
+   * A cold review measured the gap on a `past_due` account: Stripe rolls the
+   * period forward BEFORE the payment fails, so the mirror's
+   * `current_period_end` is the end of the period nobody paid for, while
+   * `markPastDue` has clawed the entitlement back to the last paid period plus
+   * three days. The dialog promised "full access to your Pro plan until 15 Sept"
+   * to somebody going read only on 18 Aug.
+   */
+  it("shortens to the entitlement when the mirror over-promises", () => {
+    const action = manageActionFor(
+      "stripe",
+      sub({ status: "past_due", currentPeriodEnd: "2026-09-14T15:39:23.000Z" }),
+      "2026-08-18T15:39:23.000Z",
+    );
+    expect(action).toEqual({
+      kind: "cancel",
+      endsOn: "2026-08-18T15:39:23.000Z",
+      isTrial: false,
+    });
+  });
+
+  it("never LENGTHENS from the entitlement", () => {
+    // The mirror is still what the screen displays. A generous entitlement must
+    // not be able to promise more than the subscription actually runs to.
+    const action = manageActionFor("stripe", sub(), "2027-01-01T00:00:00.000Z");
+    expect(action.kind === "cancel" && action.endsOn).toBe("2026-09-14T15:39:23.000Z");
+  });
+
+  it("leaves the mirror alone when there is no entitlement row yet", () => {
+    // The webhook lands a second later. A trial whose row has not been written
+    // must not have its date pulled back to nothing in the gap.
+    const withNull = manageActionFor("stripe", sub(), null);
+    const without = manageActionFor("stripe", sub());
+    expect(withNull).toEqual(without);
+    expect(withNull.kind === "cancel" && withNull.endsOn).toBe("2026-09-14T15:39:23.000Z");
+  });
+
+  it("ignores an entitlement that does not expire", () => {
+    // `null` on a comp means "does not expire", not "expires at zero".
+    const action = manageActionFor("stripe", sub(), null);
+    expect(action.kind === "cancel" && action.endsOn).toBe("2026-09-14T15:39:23.000Z");
+  });
+
+  it("ignores an unparseable entitlement date rather than shortening to NaN", () => {
+    const action = manageActionFor("stripe", sub(), "not a date");
+    expect(action.kind === "cancel" && action.endsOn).toBe("2026-09-14T15:39:23.000Z");
+  });
+});
+
+describe("⚠️ CANCELLABLE_STATUSES is what `cancel_at_period_end` may be set on", () => {
+  /**
+   * Stripe HARD-REFUSES the flag on a `paused` subscription ("Resume the
+   * subscription first"), and the cancel action used to read the wider
+   * `BILLABLE_STATUSES` — so one paused subscription on the customer made
+   * cancelling throw and the user could not cancel at all. Two questions, two
+   * lists, and this is the one the user-facing path asks.
+   */
+  it("holds exactly the three Stripe accepts the flag on", () => {
+    expect([...CANCELLABLE_STATUSES].sort()).toEqual(["active", "past_due", "trialing"]);
+  });
+
+  it("excludes the statuses Stripe refuses or has finished with", () => {
+    for (const status of ["paused", "unpaid", "incomplete", "incomplete_expired", "canceled"]) {
+      expect(CANCELLABLE_STATUSES.has(status)).toBe(false);
+    }
+  });
+
+  it("is the same list the screen gates its control on", () => {
+    // The screen offering a control for a status set the action does not act on
+    // is precisely how the paused defect stayed invisible.
+    for (const status of CANCELLABLE_STATUSES) {
+      expect(manageActionFor("stripe", sub({ status })).kind).toBe("cancel");
+    }
+    for (const status of ["paused", "unpaid", "incomplete"]) {
+      expect(manageActionFor("stripe", sub({ status })).kind).toBe("unavailable");
+    }
   });
 });
 

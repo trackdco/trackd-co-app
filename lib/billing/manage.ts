@@ -72,15 +72,52 @@ export type ManageAction =
   | { kind: "unavailable"; reason: string };
 
 /**
- * The statuses a cancellation can still act on.
+ * ⚠️ THE STATUSES `cancel_at_period_end` CAN ACTUALLY BE SET ON. ONE LIST, TWO
+ * CALLERS, AND THE SPLIT FROM `BILLABLE_STATUSES` IS LOAD-BEARING.
  *
  * `past_due` is included deliberately. Somebody whose card is failing is one of
  * the people most likely to want out, and refusing them the button because a
  * charge did not go through would be the app arguing with them about whether
  * they may leave. Stripe accepts `cancel_at_period_end` on a `past_due`
  * subscription and stops the dunning retries, which is exactly the intent.
+ *
+ * ## And `paused` and `unpaid` are NOT here, because Stripe refuses them
+ *
+ * A cold review drove it and it was measured again directly:
+ *
+ *     stripe.subscriptions.update(id, { cancel_at_period_end: true })
+ *       on a `paused` subscription
+ *       -> "You cannot set `cancel_at_period_end` while a subscription is
+ *          `paused`. Resume the subscription first..."
+ *
+ * That is a HARD REFUSAL, not a no-op. The cancel action used to read
+ * `BILLABLE_STATUSES` — which is wider on purpose, because it answers a
+ * different question — so one `paused` subscription on the customer made the
+ * loop throw and **the user could not cancel at all, ever**: "We couldn't cancel
+ * just now. Please try again." on every attempt, while the live trial ran on and
+ * converted. If the paused one sorted later the loop threw halfway, so the
+ * cancellation went through at Stripe while the screen said it had failed.
+ *
+ * `BILLABLE_STATUSES` answers "what could still take this person's money?" and
+ * is correct for the DELETION path, which uses `subscriptions.cancel()` — a call
+ * Stripe accepts on a paused subscription perfectly happily. This list answers
+ * "what may a user press a button on?". They are different questions and they
+ * were being answered with one list.
+ *
+ * ⚠️ This list lives HERE, in the pure module, and `lib/billing/cancel.ts`
+ * imports it. Not the other way round: `cancel.ts` is `server-only` and this
+ * module is reachable from a client component, so the dependency can only point
+ * this way. It also had a private duplicate of exactly these three strings,
+ * which is how the screen came to offer a control for one status set while the
+ * action acted on another.
  */
-const CANCELLABLE = new Set(["trialing", "active", "past_due"]);
+export const CANCELLABLE_STATUSES: ReadonlySet<string> = new Set([
+  "trialing",
+  "active",
+  "past_due",
+]);
+
+const CANCELLABLE = CANCELLABLE_STATUSES;
 
 /**
  * Which control to show, given where access came from and what Stripe mirrors.
@@ -92,6 +129,30 @@ const CANCELLABLE = new Set(["trialing", "active", "past_due"]);
 export function manageActionFor(
   source: EntitlementSource | null,
   subscription: ManageableSubscription | null,
+  /**
+   * ⚠️ WHEN ACCESS ACTUALLY ENDS, FROM THE TABLE THAT DECIDES IT.
+   *
+   * The mirror supplies the date this screen displays, and for almost everybody
+   * the two agree exactly. For a `past_due` user they do not, and a cold review
+   * measured the gap: on a failed renewal Stripe rolls the period forward FIRST,
+   * so `current_period_end` is the end of the period that was never paid for,
+   * while `markPastDue` claws the entitlement back to the last paid period plus
+   * three days. Nothing reconciled the two, so the confirmation dialog read
+   *
+   *     "You'll have full access to your Pro plan until 15 Sept 2026"
+   *
+   * to somebody who goes read only on 18 Aug. Twenty-seven days of promise the
+   * server would contradict, on the one screen where a date is the whole point.
+   *
+   * So the earlier of the two wins. It can only ever UNDER-promise, which is the
+   * direction this file already argues for in `planLabelFor`: a screen that
+   * under-promises to a paying user is a support email, and one that
+   * over-promises to a locked-out user is a lie at the worst moment.
+   *
+   * Optional, and absent means "use the mirror". A trial whose entitlement row
+   * has not been written yet must not have its date pulled back to nothing.
+   */
+  entitlementActiveUntil?: string | null,
 ): ManageAction {
   // A founder, a cofounder, a beta tester. Nothing to cancel, and offering a
   // cancel button would offer to end access that no subscription is paying for.
@@ -118,9 +179,11 @@ export function manageActionFor(
    * `currentPeriodEnd` on a trialing subscription would name the date of the
    * first renewal rather than the date they stop being charged nothing.
    */
-  const endsOn = (isTrial ? subscription.trialEndsAt : subscription.currentPeriodEnd)
+  const mirrorEnd = (isTrial ? subscription.trialEndsAt : subscription.currentPeriodEnd)
     ?? subscription.currentPeriodEnd
     ?? subscription.trialEndsAt;
+
+  const endsOn = soonerOf(mirrorEnd, entitlementActiveUntil ?? null);
 
   if (!endsOn) {
     // Every branch below states a date out loud. A cancel confirmation that
@@ -131,6 +194,21 @@ export function manageActionFor(
   return subscription.cancelAtPeriodEnd
     ? { kind: "resume", endsOn, isTrial }
     : { kind: "cancel", endsOn, isTrial };
+}
+
+/**
+ * The earlier of two dates, either of which may be absent.
+ *
+ * Absent is not "zero" — it means "this source has nothing to say", so it never
+ * wins. Unparseable is treated the same way rather than being allowed to
+ * shorten a date to `NaN`.
+ */
+function soonerOf(a: string | null, b: string | null): string | null {
+  const at = a ? Date.parse(a) : NaN;
+  const bt = b ? Date.parse(b) : NaN;
+  if (!Number.isFinite(at)) return Number.isFinite(bt) ? b : a;
+  if (!Number.isFinite(bt)) return a;
+  return bt < at ? b : a;
 }
 
 /**

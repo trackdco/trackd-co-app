@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import { X } from "@/components/icons";
 
 /**
@@ -43,9 +45,36 @@ export function StayingNotice({
   isTrial: boolean;
   onDismiss: () => void;
 }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * ⚠️ IT SCROLLS ITSELF INTO VIEW, OR ON A SMALL PHONE NOBODY SEES IT.
+   *
+   * The card sits at the top of Billing (§3.10) while the control that produces
+   * it sits below the plan card. At 320x568 the screen is 805px tall, so
+   * "Keep my Pro plan" is below the fold and scrolling down to it is the
+   * ordinary path — and a cold review measured where the card then landed:
+   * `top: -129`, entirely above the viewport. The only feedback the user got was
+   * the trigger relabelling itself to "Cancel my trial", which reads like the
+   * resume failed, or worse like they had just cancelled. A confirmation nobody
+   * can see is not a confirmation.
+   *
+   * `block: "nearest"` so it is the least movement that shows the card, and at
+   * 390x844 it is already in view and this does nothing at all. §3.10 fixes
+   * WHERE the card sits; it does not require the screen to stay put while the
+   * card appears somewhere the reader is not looking.
+   *
+   * An effect, and legitimately so: this is a DOM side effect on mount, not
+   * state derived during render.
+   */
+  useEffect(() => {
+    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    ref.current?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "nearest" });
+  }, []);
+
   return (
     <div
-      role="status"
+      ref={ref}
       /* The fade collapses to nothing under `prefers-reduced-motion`, the same
          idiom the cancel dialog uses two files over. */
       /* `mt-6` and no bottom margin: the plan card's own `mt-6` supplies the gap

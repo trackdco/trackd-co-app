@@ -18,15 +18,7 @@ import { stripe } from "./stripe";
  * with nothing left in the database to connect the charge to them.
  */
 
-/**
- * The statuses a cancellation can act on.
- *
- * `past_due` is here on purpose. Somebody whose card is failing is among the
- * most likely to want out, and refusing them because a charge did not land would
- * be the app arguing about whether they may leave. Stripe accepts the change and
- * stops the dunning retries, which is the intent.
- */
-export const CANCELLABLE_STATUSES = ["trialing", "active", "past_due"] as const;
+export { CANCELLABLE_STATUSES } from "./manage";
 
 /**
  * ⚠️ EVERY SUBSCRIPTION THAT CAN STILL TAKE MONEY, ACCORDING TO STRIPE.
@@ -62,7 +54,23 @@ export const CANCELLABLE_STATUSES = ["trialing", "active", "past_due"] as const;
  * The mirror is still what the SCREEN reads. It is display, and it does not
  * decide anything. This is the decision.
  */
-export async function liveSubscriptionsForUser(userId: string): Promise<string[]> {
+export async function liveSubscriptionsForUser(
+  userId: string,
+  /**
+   * ⚠️ WHICH QUESTION IS BEING ASKED. THE TWO CALLERS ASK DIFFERENT ONES.
+   *
+   * The default is "what could still take this person's money?", which is what
+   * the deletion path needs: it calls `subscriptions.cancel()`, which Stripe
+   * accepts on every one of these.
+   *
+   * The USER-FACING cancel path passes {@link CANCELLABLE_STATUSES} instead,
+   * because it calls `subscriptions.update({cancel_at_period_end})` and Stripe
+   * HARD-REFUSES that on a `paused` subscription. Sharing one set meant one
+   * paused subscription on the customer made cancelling throw, every time,
+   * with no way out of it from inside the app. See `manage.ts`.
+   */
+  statuses: ReadonlySet<string> = BILLABLE_STATUSES,
+): Promise<string[]> {
   const { data, error } = await serviceClient()
     .from("billing_customers")
     .select("stripe_customer_id")
@@ -83,7 +91,7 @@ export async function liveSubscriptionsForUser(userId: string): Promise<string[]
   });
 
   return list.data
-    .filter((s) => BILLABLE.has(s.status))
+    .filter((s) => statuses.has(s.status))
     .map((s) => s.id);
 }
 
@@ -135,7 +143,6 @@ export const BILLABLE_STATUSES: ReadonlySet<string> = new Set<string>([
   "incomplete",
 ]);
 
-const BILLABLE = BILLABLE_STATUSES;
 
 /**
  * Set (or clear) `cancel_at_period_end` on a subscription, and mirror it.

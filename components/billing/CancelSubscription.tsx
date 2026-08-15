@@ -286,17 +286,32 @@ export function CancelSubscription({
   const resumeLabel = "Keep my Pro plan";
 
   /** The confirm's action: cancel, or resume. */
+  /**
+   * ⚠️ THE AWAITS ARE WRAPPED, AND `inFlight` IS RESET IN A `finally`.
+   *
+   * It was reset on the line AFTER each await, with no `try`. A cold review
+   * aborted one server-action POST and measured what that cost: the rejection
+   * never reached `setError`, never reset `inFlight`, and escaped the
+   * transition to the error boundary — so the whole Billing screen was replaced
+   * by an error, the confirm button was permanently inert, three further taps
+   * did nothing, and only a full page reload recovered. Nothing was cancelled
+   * and nothing said why.
+   *
+   * `finally` is the point: a rejected action must leave the dialog usable.
+   * The message is the one this component already falls back to, so no new
+   * user-facing string enters the app for a failure case.
+   */
   function runConfirm() {
     if (inFlight.current) return;
     inFlight.current = true;
     setError(null);
     startTransition(async () => {
+      try {
       // The two branches are written out rather than sharing a call site, so
       // each keeps its own result type. `cancelSubscription` is the only one
       // that can carry an offer.
       if (mode === "cancel") {
         const result = await cancelSubscription();
-        inFlight.current = false;
         if (!result.ok) {
           setError(result.error ?? "Something went wrong.");
           return;
@@ -339,11 +354,21 @@ export function CancelSubscription({
       }
 
       const result = await resumeSubscription();
-      inFlight.current = false;
       if (!result.ok) {
         setError(result.error ?? "Something went wrong.");
         return;
       }
+      /**
+       * The offer is spent, and they are not going. Clearing it does NOT
+       * un-burn it — §0 is explicit that the burn is final and a resume never
+       * restores it — it stops drawing a way back into an offer the server
+       * would refuse anyway (`grantExtraTime` answers `not-cancelled`). A cold
+       * review saw the alternative: "Glad you're staying." at the top of the
+       * screen and a live amber countdown 250px below it, still offering a free
+       * week to somebody who had just decided to stay.
+       */
+      forgetOffer();
+      setCarried(null);
       /**
        * DERIVED FROM THE RESULT, IN THE CALLBACK. §3.10.
        *
@@ -355,6 +380,15 @@ export function CancelSubscription({
        */
       setStaying(true);
       close();
+      } catch (err) {
+        // A dropped connection, an aborted request, a server that never
+        // answered. Caught here so it cannot escape the transition and take the
+        // whole screen with it.
+        console.warn("[billing] the cancel/resume request did not complete:", err);
+        setError("Something went wrong.");
+      } finally {
+        inFlight.current = false;
+      }
     });
   }
 
@@ -364,30 +398,41 @@ export function CancelSubscription({
     inFlight.current = true;
     setError(null);
     startTransition(async () => {
-      const result = await claimExtraTime();
-      inFlight.current = false;
-      if (!result.ok) {
-        setError(result.error ?? "Something went wrong.");
-        return;
+      try {
+        const result = await claimExtraTime();
+        if (!result.ok) {
+          setError(result.error ?? "Something went wrong.");
+          return;
+        }
+        // Taken, so there is nothing left to come back to.
+        forgetOffer();
+        setCarried(null);
+        setGrantedUntil(result.endsOn ?? null);
+        setPhase("granted");
+      } catch (err) {
+        // Same reasoning as `runConfirm`: a rejected action must leave the
+        // dialog usable rather than replacing the screen with an error.
+        console.warn("[billing] the claim request did not complete:", err);
+        setError("Something went wrong.");
+      } finally {
+        inFlight.current = false;
       }
-      // Taken, so there is nothing left to come back to.
-      forgetOffer();
-      setCarried(null);
-      setGrantedUntil(result.endsOn ?? null);
-      setPhase("granted");
     });
   }
 
   /**
-   * The charge date, in the reader's own zone.
+   * The charge date, ALREADY FORMATTED BY THE SERVER in `profiles.timezone`.
    *
-   * Formatted here rather than on the server because the offer only exists after
-   * the cancel action returns, so there is no render to pre-format it in.
-   * `Intl` with no `timeZone` uses the browser's, which for this purpose is
-   * better than `profiles.timezone`: it is the calendar the person is actually
-   * looking at while they decide.
+   * This used to format an ISO instant here with `Intl` and no `timeZone`, on
+   * the argument that the browser's calendar is the one the person is looking
+   * at. A cold review measured what that argument cost: with the profile in
+   * Pacific/Kiritimati and the phone in America/Los_Angeles, the cancel dialog
+   * said 24 Aug, this said 30 Aug, and the thank-you one tap later said 31 Aug.
+   * Three days for one charge, across three consecutive screens, on the highest
+   * risk dialog in the app. Every other date in this flow is server-formatted;
+   * this one is now too.
    */
-  const chargeOnLabel = offer?.chargeOn ? formatDay(offer.chargeOn) : null;
+  const chargeOnLabel = offer?.chargeOn || null;
 
   const copy = dialogCopy({
     phase: shownPhase,
@@ -471,7 +516,10 @@ export function CancelSubscription({
           setStaying(false);
           setPhase("confirm");
         }}
-        className="w-full rounded-xl px-1 py-3 text-left text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        /* No horizontal padding: the block around this already carries `px-4`,
+           and the extra 4px put the "C" of "Cancel my trial" right of the "A"
+           of "Access" in the card above. Rows on this screen rail. */
+        className="w-full rounded-xl py-3 text-left text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         {mode === "cancel" ? `Cancel my ${noun}` : resumeLabel}
       </button>
@@ -494,6 +542,11 @@ export function CancelSubscription({
               role="dialog"
               aria-modal="true"
               aria-labelledby="cancel-title"
+              /* The body is the sentence §3.3 calls the point of the copy: what
+                 they keep, until when, and what changes after. Without this a
+                 screen-reader user landing on "Keep my trial" gets the title
+                 and the buttons and never the consequence. */
+              aria-describedby="cancel-body"
               tabIndex={-1}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
@@ -501,7 +554,9 @@ export function CancelSubscription({
               <h2 id="cancel-title" className="text-base font-medium text-foreground">
                 {copy.title}
               </h2>
-              <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{copy.body}</p>
+              <p id="cancel-body" className="mt-1.5 text-sm leading-relaxed text-text-muted">
+                {copy.body}
+              </p>
 
               {copy.quiet ? (
                 <p className="mt-2 text-xs leading-relaxed text-text-subtle">{copy.quiet}</p>
@@ -584,17 +639,6 @@ export function CancelSubscription({
         )}
     </>
   );
-}
-
-/** "2026-08-26T…" -> "26 Aug 2026", in the reader's own zone. */
-function formatDay(isoInstant: string): string | null {
-  const at = Date.parse(isoInstant);
-  if (Number.isNaN(at)) return null;
-  return new Intl.DateTimeFormat("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(at));
 }
 
 /* ── the words ───────────────────────────────────────────────────── */

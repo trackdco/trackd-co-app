@@ -211,6 +211,12 @@ function cardIsValidated(sub: Stripe.Subscription): boolean {
  */
 export async function syncSubscription(
   sub: Stripe.Subscription,
+  /**
+   * ⚠️ SET ONLY BY `invoice.paid`. It is what allows an entitlement revoked
+   * after a dispute or a refund to come back, and nothing else may claim it.
+   * A subscription changing shape is not a payment.
+   */
+  { paymentConfirmed = false }: { paymentConfirmed?: boolean } = {},
 ): Promise<HandlerOutcome> {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const userId = await resolveUserId(customerId, sub.metadata?.user_id);
@@ -308,7 +314,7 @@ export async function syncSubscription(
     return "handled";
   }
 
-  await upsertEntitlement(userId, entitledUntil(sub), true);
+  await upsertEntitlement(userId, entitledUntil(sub), true, { paymentConfirmed });
   return "handled";
 }
 
@@ -318,19 +324,102 @@ export async function syncSubscription(
  * Keyed on `(user_id, product, source)`, so a user's Stripe entitlement is one
  * row that moves forward rather than a pile of rows to reconcile — and their
  * `comp`, if they have one, is a DIFFERENT row that this can never overwrite.
+ *
+ * ## ⚠️ A SYNC MAY ONLY EVER MAKE THIS ROW BETTER, NEVER WORSE
+ *
+ * Two cold reviews found two different ways this wrote the wrong answer, and
+ * both had the same shape: **one row, several subscriptions, last writer wins.**
+ *
+ * **It shortened access that had already been paid for.** With two live
+ * subscriptions (an active yearly paid through 2027, plus a stray trial — the
+ * duplicate state `liveSubscriptionsForUser` exists to handle), pressing Cancel
+ * fired one `customer.subscription.updated` each, and this wrote `active_until`
+ * unconditionally. Measured: `2027-08-15` became `2026-08-22`. **358 days of
+ * paid access taken off somebody for pressing Cancel** — the mirror image of the
+ * $69.99 defect, and a coin-flip on subscription age rather than a rare
+ * interleaving. `endSubscription` and `markPastDue` both already guard their
+ * writes with `Math.min` for exactly this reason; this one had no guard at all.
+ *
+ * **It resurrected a revoked entitlement.** `revokeForCustomer` writes
+ * `is_active: false` after a dispute or a refund, and it is the only writer of
+ * `false`. This wrote `true` unconditionally, so the next subscription event of
+ * any kind undid it — and `applyCancelFlag` fires one every time. Measured: a
+ * revoked user pressed Cancel and `is_active` went back to `true` about five
+ * seconds later, restoring a month of access through the one control a revoked
+ * user is guaranteed to reach.
+ *
+ * So: **the date can only move later, and `is_active` can only go false -> true
+ * when money has actually arrived.** Shortening and revoking stay the business
+ * of the handlers written to do them, which is where the reasoning for each
+ * lives.
+ *
+ * The read-then-write is not atomic, and cannot be without a migration. It is
+ * far narrower than what it replaces: two racing syncs now both read the same
+ * stored value and both compute the same maximum, so the loser writes the
+ * winner's answer rather than its own.
  */
 async function upsertEntitlement(
   userId: string,
   activeUntil: string | null,
   isActive: boolean,
+  /**
+   * Has money actually arrived? Only `invoice.paid` may say yes, and it is the
+   * single call site that does. A subscription changing shape is not a payment:
+   * toggling `cancel_at_period_end` is not evidence that a dispute was resolved.
+   */
+  {
+    paymentConfirmed = false,
+    deliberateShorten = false,
+  }: {
+    paymentConfirmed?: boolean;
+    /**
+     * Is this caller one whose whole job is to shorten? `endSubscription` is,
+     * and it has already applied its own `Math.min` before calling. Without
+     * this, the guard below would defeat the very handler that exists to pull
+     * access back to the end of the paid period.
+     */
+    deliberateShorten?: boolean;
+  } = {},
 ): Promise<void> {
-  const { error } = await serviceClient().from("entitlements").upsert(
+  const db = serviceClient();
+  const { data: existing } = await db
+    .from("entitlements")
+    .select("active_until, is_active")
+    .eq("user_id", userId)
+    .eq("product", "pro")
+    .eq("source", "stripe")
+    .maybeSingle();
+
+  let until = activeUntil;
+  if (!deliberateShorten && isActive && existing?.active_until && activeUntil) {
+    const now = Date.parse(activeUntil);
+    const held = Date.parse(existing.active_until as string);
+    // `null` means "does not expire" and is never shortened by a dated value.
+    if (Number.isFinite(now) && Number.isFinite(held) && held > now) {
+      console.warn(
+        `[billing] a sync would have shortened ${userId}'s access from ${existing.active_until} to ${activeUntil}; keeping the longer date`,
+      );
+      until = existing.active_until as string;
+    }
+  } else if (!deliberateShorten && isActive && existing && existing.active_until === null) {
+    until = null;
+  }
+
+  let active = isActive;
+  if (isActive && !paymentConfirmed && existing?.is_active === false) {
+    console.warn(
+      `[billing] ${userId}'s stripe entitlement is revoked; a subscription sync will not restore it`,
+    );
+    active = false;
+  }
+
+  const { error } = await db.from("entitlements").upsert(
     {
       user_id: userId,
       product: "pro",
       source: "stripe",
-      active_until: activeUntil,
-      is_active: isActive,
+      active_until: until,
+      is_active: active,
     },
     { onConflict: "user_id,product,source" },
   );
@@ -352,7 +441,15 @@ export async function extendFromInvoice(
   // A one-off invoice. Nothing subscribes, nothing extends — and it is handled,
   // not unattributed: there was never a subscription to attribute.
   if (!subId) return "handled";
-  return syncSubscription(await fetchSubscription(subId));
+  /**
+   * ⚠️ THE ONE CALL SITE THAT MAY RESURRECT A REVOKED ENTITLEMENT.
+   *
+   * An invoice was PAID. That is money actually arriving, which is the only
+   * thing that should undo a revocation made after a dispute or a refund. The
+   * two subscription-event call sites and `claimExtraTime`'s mirror write all
+   * pass nothing, because none of them is evidence that anybody paid.
+   */
+  return syncSubscription(await fetchSubscription(subId), { paymentConfirmed: true });
 }
 
 /**
@@ -533,7 +630,12 @@ export async function endSubscription(
   const shortened = Math.min(Date.parse(current), Date.parse(until));
   if (shortened >= Date.parse(current)) return "handled";
 
-  await upsertEntitlement(userId, new Date(shortened).toISOString(), true);
+  // `deliberateShorten`: this handler's entire job is to pull the date back, and
+  // it has already taken the `Math.min` above. It still may not resurrect a
+  // revoked entitlement — only money does that.
+  await upsertEntitlement(userId, new Date(shortened).toISOString(), true, {
+    deliberateShorten: true,
+  });
   return "handled";
 }
 
