@@ -653,7 +653,30 @@ export async function startTrial(
          * The cross-plan race is closed one layer up, by the lease this whole
          * call runs inside.
          */
-        idempotencyKey: `trial:${user.id}:${plan}:${fingerprint(all)}`,
+        /**
+         * ⚠️ THE FIFTH SEGMENT NAMES THE CREATE SHAPE (§3.9), and without it a
+         * paid retry 400s.
+         *
+         * The other four are unchanged. The problem this closes: same user,
+         * same plan, same subscription history, but `trial_period_days` present
+         * on one attempt and absent on the next — an identical key carrying
+         * different parameters, which Stripe rejects outright rather than
+         * falling through to a fresh subscription. The user is then stuck for
+         * twenty-four hours.
+         *
+         * It is reachable because 02a adds a second create shape: a create that
+         * FAILED leaves the subscription list unchanged, so the fingerprint is
+         * identical, and if eligibility has moved in between, the parameters are
+         * not. `freeTime.kind` is used rather than the setup/payment split
+         * because it is finer — it also separates a full trial from a
+         * grace-aligned one, which send different parameters too.
+         *
+         * ⚠️ One case this does NOT cover, recorded in `next-tasks.md`: when
+         * the 48h clamp fires, `trial_end` is `now + 48h` and MOVES between
+         * attempts while the kind and fingerprint stay put. Whoever changes this
+         * key next should quantise the clamped value so it stops moving.
+         */
+        idempotencyKey: `trial:${user.id}:${plan}:${freeTime.kind}:${fingerprint(all)}`,
       },
     );
 

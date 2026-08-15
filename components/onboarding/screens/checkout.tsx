@@ -243,7 +243,23 @@ export function CheckoutScreen() {
       goNext();
       return;
     }
-    track("trial_started", { plan: session.plan, days: TRIAL_DAYS });
+    /**
+     * ⚠️ ONLY WHEN A TRIAL WAS ACTUALLY GRANTED (spec 02a §3.8).
+     *
+     * This fired on every confirmed outcome, so the moment the paid-today path
+     * worked, a customer charged today would have been logged as having started
+     * a seven-day trial. Every downstream funnel number would be wrong from the
+     * first paying customer onward.
+     *
+     * ## Nothing replaces it, deliberately
+     *
+     * `13-billing-analytics.md` owns the event taxonomy, and inventing a name
+     * here would hand `13` a string it did not choose. The consequence is stated
+     * rather than hidden: BETWEEN THIS SHIPPING AND `13` SHIPPING, A PAID-TODAY
+     * SUBSCRIBE IS UNMEASURED. That is the right trade — an unmeasured event is
+     * a gap, a wrong one is a lie in a dashboard.
+     */
+    if (trial) track("trial_started", { plan: session.plan, days: TRIAL_DAYS });
     setHolding(true);
   };
 
