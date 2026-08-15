@@ -23,14 +23,20 @@ one trial per user ever, a mid-grace beta user is charged nothing inside their
 fortnight, a free-for-life comp cannot buy, and the comp list can no longer
 reach a browser bundle.
 
-### 🔜 02a — the paid-today checkout. NEXT.
+### ✅ 02a — the paid-today checkout. BUILT AND DRIVEN.
 
-A user with no free time gets a subscription with an amount due today, which
-means a PaymentIntent, and the client can only confirm a SetupIntent. Driven
-today: a post-grace account lands on `incomplete` with `amount_due=1199` and an
-`open` invoice. **Nothing is charged and nothing is lost — the button just does
-not work.** That is expected before 02a and is the one §5 checkbox spec 01
-leaves deliberately open.
+A user with no free days can pay. Driven: a post-grace account lands `active`
+with its invoice `amount_due=1199 status=paid` and the card saved, and renews a
+month later on a test clock with no second card entry. See
+`progress-tracker.md`.
+
+⚠️ **The spec's own field name was wrong and failed silently.** §3.1 says to
+expand `latest_invoice.payment_intent`; Stripe removed that field in
+`2025-03-31.basil` and this SDK sends `2026-07-29.dahlia`. The expand string is
+still ACCEPTED with no error and returns null every time. Built against
+`latest_invoice.confirmation_secret` instead. **Anyone writing a later billing
+spec against Stripe docs should check the field still exists on this API
+version before naming it.**
 
 ### 🔜 02b — checkout copy and disclosure.
 
@@ -77,21 +83,20 @@ both burn the trial and answer `already-subscribed`. `BILLABLE_STATUSES` is
 shared with the cancel path, so moving it is that spec's call, not this one's.
 
 
-**The idempotency key can 400 a mid-grace retry in the final 48 hours.** The key
-is `trial:${user}:${plan}:${fingerprint(all)}` and spec 01 says to leave it
-exactly as it is. When the clamp fires, `trial_end` is `now + 48h`, which MOVES
-between calls. So: a user with under 48h of grace left whose create FAILED
-(leaving the subscription set unchanged, so the fingerprint is identical)
-retries a few minutes later, sends the same key with a different `trial_end`,
-and Stripe rejects it with "keys for idempotent requests can only be used with
-the same parameters". They see "Couldn't start your trial just now" until the
-key ages out, up to 24 hours.
+**The idempotency key can still 400 a mid-grace retry in the final 48 hours.**
+Spec 02a §3.9 added a segment naming the create shape, which closes the
+trial-versus-paid collision — proven against Stripe: with the old key the paid
+create is REFUSED, with the new one it succeeds. **One sub-case survives.** When
+the 48h clamp fires, `trial_end` is `now + 48h` and MOVES between attempts while
+the kind and the fingerprint stay put. A user with under 48h of grace left whose
+create FAILED (leaving the subscription set unchanged) and who retries minutes
+later sends the same key with a different `trial_end`, and Stripe rejects it.
+They see an error until the key ages out, up to 24 hours.
 
 Narrow: it needs a mid-grace user in their last two days AND a failed create AND
-a retry. It fails towards refusing rather than charging, which is the right
-direction. Not fixed because fixing it means changing the key, which spec 01
-forbids. **Whoever owns the key next should quantise the clamped value** (round
-`now + 48h` down to the hour, say) so it stops moving between retries.
+a retry. It fails towards refusing rather than charging. **The fix is to
+quantise the clamped value** — round `now + 48h` down to the hour — so it stops
+moving between retries. Whoever next touches that key should do it.
 
 ### ⚠️ Still true, and it is what makes all of the above safe
 

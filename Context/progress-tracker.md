@@ -5,7 +5,137 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-15 (spec 01 · trial eligibility: one trial per user, and nobody charged inside a promised free period)
+Last updated: 2026-08-15 (billing specs 01 and 02a: one trial per user, and a user with no free days can finally pay)
+
+## Paid-today checkout, and the field the spec named that no longer exists (2026-08-15)
+
+Billing spec 02a of three. A user with no free days could not pay: `startTrial`
+omitted `trial_period_days`, Stripe issued a first invoice with an amount due,
+and `default_incomplete` parked the subscription in `incomplete` carrying a
+**PaymentIntent**. The create expanded `pending_setup_intent`, which is null in
+that state, so `setupSecret` returned null and the action fell through to a
+generic error. The client was setup-only end to end. Correct-looking copy above
+a button that could not work.
+
+**It works now.** Driven: a post-grace beta account lands `active` with its
+invoice `amount_due=1199 status=paid` and the card saved for renewal.
+
+### ⚠️ The spec's field was removed from Stripe's API, and it fails SILENTLY
+
+§3.1 says to expand `latest_invoice.payment_intent`. Stripe removed
+`invoice.payment_intent` in the `2025-03-31.basil` API version; this SDK sends
+`2026-07-29.dahlia`. Measured on the day: **the expand string is still ACCEPTED,
+no error is raised, and the field comes back null every time.** Following the
+spec literally would have built exactly the defect its own Step 1 warns about,
+with nothing to catch, on the one path that takes money.
+
+Implemented against `latest_invoice.confirmation_secret`, which is where the
+secret now lives and which carries a `type` naming the intent — the very thing
+§3.2 asks the resolver to report. Verified on both a paid-today and a trialing
+subscription, and through the LIST path as well as the create response, because
+`reconcileToOne` prefers the listed copy and widening the create alone would
+have lost the expansion in the common case.
+
+### The mode gate is invariant 1 in mechanical form
+
+Elements takes its `mode` at MOUNT and cannot be switched, but the client secret
+only arrives after the button is pressed. So the mode is derived from
+`trialEligibility()` before the sheet mounts, and **the CTA is not pressable
+until that answer lands** — until 02a the sheet was setup-only and pressing
+early was harmless; it is now the difference between a sheet that collects a
+card and one that takes money.
+
+When the client's mounted mode and the server's answer disagree, **nothing is
+confirmed**. A PaymentIntent is not a charge until it is confirmed, so refusing
+to confirm is the whole protection. The cancel happens SERVER-SIDE in the same
+request rather than being handed back for the client to do: a client-driven
+cleanup is one the client can fail to make, by closing the tab on the very
+screen that just changed under them.
+
+`startTrial` therefore takes the mounted mode. That is **not** an identifier
+saying whose data to act on — it is a statement about the caller's own UI, the
+one fact the server cannot know. Eligibility is still decided server-side and a
+client that lies about its mode can only get its own attempt cancelled.
+
+Forced and driven: screen mounted as "Nothing to pay today / Start my 7-day free
+trial", an expired grace inserted underneath it, then Subscribe. An honest
+message, the screen re-rendered as "You've had your trial / Subscribe", the
+subscription `incomplete_expired` with no payment method, **no charge and no
+confirmable intent left behind.**
+
+### The amount is Stripe's integer, and the drift is real
+
+`price.unit_amount` is now carried as `amountMinor` and never derived from the
+display figure. Measured on this account's real prices: **`69.99 * 100` is
+`6998.999999999999`**, so the yearly plan would have been handed a non-integer
+and either errored or rounded to $69.98. This is the one number on a screen that
+is also the number taken from a card. Driven: [399, 1199, 6999] reaching the
+client against Stripe's [399, 1199, 6999], exactly.
+
+### The redirect gap, which was an invitation to pay twice
+
+A bank redirect returned the user with `redirect_status` and an intent client
+secret on the URL, and nothing read either. The flow remounted, `holding` was
+component state and therefore false, and they landed back on the card form. On
+the setup path merely bad; on the payment path **a screen inviting somebody to
+pay for a charge that may have already succeeded.**
+
+The intent is now resolved before the form renders and before anything is
+created, and the form is not rendered while that is in flight. Ownership is
+proven rather than assumed — a client secret identifies an intent, not a person
+— by retrieving the intent server-side and comparing its customer against the
+`billing_customers` row for the verified session. Driven: my own succeeded
+intent lands on the holding screen with a cleaned URL and a refresh does not
+replay it; another user's intent pasted into my URL is refused and falls through
+to the ordinary form, revealing nothing.
+
+⚠️ Both parameter spellings are read. The name follows the intent KIND, not the
+flow, so reading only `setup_intent_client_secret` would have worked on the
+trial path and silently done nothing on the paid one.
+
+### The rest of it
+
+- **A paid attempt is resumed, not replaced** (§3.6). It carried no SetupIntent,
+  so the abandoned-attempt loop never found it and cancelled and replaced it on
+  every return, raising a fresh invoice each time — and the dashboard cancels
+  incomplete payments after FIFTEEN days on this account, not the ~23 hours a
+  comment elsewhere reasons from. Driven: same subscription, same invoice,
+  `open` → `paid`, one invoice not two. A paid attempt is exempt from spec 01's
+  staleness rule, explicitly: that rule is about a DATE the screen printed, and
+  a paid attempt printed none.
+- **The holding screen** (D15). "Setting up your plan." and the signed
+  recoverable body, paid path only, at 60s against the trial path's unchanged
+  ~30s. Seen with the webhook forwarder stopped: paid recovered at ~69s with the
+  right copy, trial at ~35s with its original copy, neither claiming the payment
+  succeeded and neither carrying an em dash.
+- **The false analytics event is gone.** `trial_started` fired on every
+  confirmed outcome, so the first paying customer would have been logged as a
+  trialist and every funnel number would have been wrong from then on. Nothing
+  replaces it — `13` owns the taxonomy — so a paid-today subscribe is
+  **deliberately unmeasured** until `13` ships.
+- **The idempotency key gained a fifth segment** naming the create shape (§3.9).
+  Proven against Stripe both ways: with the old key the paid create is REFUSED
+  with "Keys for idempotent requests can only be used with the same parameters";
+  with the new one it succeeds.
+- **`reconcileToOne`'s body is byte-identical** to `ebbd3cf`, as §3.1 requires.
+
+### Verified by DRIVING it, 390x844 on localhost, real Stripe test mode
+
+Paid-today happy path (`active`, $11.99 paid, card saved); renewal a month on
+via a TEST CLOCK (two paid invoices, entitlement extended to +1 month, no second
+card entry); mode mismatch (nothing confirmed, nothing charged); returning
+redirect, mine and another user's; paid attempt resumed; two tabs confirming at
+once and a triple-tap mid-confirmation (**exactly one charge of 1199 cents
+each**); analytics both ways; the CTA gate under a throttled connection.
+
+**§5 observation, asked of Stripe directly:** cancelling an `incomplete`
+subscription leaves it `incomplete_expired` and **VOIDS** its open invoice. A
+void invoice can never be paid, so no orphan charge can follow a cancel.
+
+Production audited clean afterwards: 90 auth users, zero QA accounts, zero test
+clocks, zero leftover billing rows.
+
+
 
 ## Trial eligibility, and a trial that was being burned by an abandoned tap (2026-08-15)
 
