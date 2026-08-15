@@ -22,7 +22,13 @@ import { Mascot } from "../mascot";
  * asking again here would be asking twice for the same thing.
  */
 export function WelcomeScreen() {
-  const { goNext, accountName, session } = useFlow();
+  const { goNext, accountName, session, eligibility } = useFlow();
+  /**
+   * The same server answer the checkout screen and the paywall read. Undefined
+   * only where there is no server behind the flow (the preview harness), where
+   * the generous default stands as it does everywhere else.
+   */
+  const trial = eligibility?.eligible ?? true;
   const name = accountName ?? session.name;
 
   return (
@@ -55,8 +61,20 @@ export function WelcomeScreen() {
             >
               {name ? `You're in, ${name}!` : "You're in!"}
             </h1>
+              {/* ⚠️ THE TRIAL HALF IS WITHHELD, NOT REWORDED (Adrian, 2026-08-15).
+                  A cold review found this line unconditional, so a returning
+                  customer or a post-grace beta user read "7 days on us."
+                  SECONDS AFTER BEING CHARGED $69.99, and a mid-grace user read
+                  7 when they had a fortnight. It is newly false because of the
+                  billing triple: before it, every cohort really did get seven
+                  days. The second sentence is true for everybody and stays. */}
               <FlowSub className="mx-auto max-w-[20rem]">
-                {TRIAL_DAYS}{" "}days on us. Let&apos;s finish setting you up.
+                {trial ? (
+                  <>
+                    {TRIAL_DAYS}{" "}days on us.{" "}
+                  </>
+                ) : null}
+                Let&apos;s finish setting you up.
               </FlowSub>
             </div>
           </div>

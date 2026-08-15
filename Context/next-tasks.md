@@ -44,6 +44,37 @@ Every cohort reads the truth. Eligibility and the first-charge date are both
 resolved server-side, the interval suffix comes from Stripe, and the approved
 copy is carried character for character. See `progress-tracker.md`.
 
+### ✅ THE COLD REVIEWS ARE CLEAN — no CRITICAL, no HIGH outstanding (2026-08-15)
+
+Three independent reviewers across all three specs: money and races, gate and
+entitlements, UI at 390x844. **No CRITICAL from any of them.** Four HIGHs were
+found and all four are fixed and re-driven:
+
+1. **A resumed trial could charge a calendar day early.** Abandon 3DS at 23:40,
+   return at 00:05: the screen recomputes its date, the resumed subscription
+   kept its old `trial_end`. No tolerance can fix it — any elapsed time makes a
+   fresh trial later — so the subscription is now EXTENDED to match, or
+   replaced if Stripe refuses.
+2. **The paywall promised "7 days free" to people about to be charged today.**
+   New exposure from this work: before 02a the paid path errored, so nobody
+   could be charged. Trial lines are now withheld per cohort, never reworded.
+3. **A mid-grace user was shown the raw `active_until` while Stripe got the
+   48h-clamped one.** The screen said 15 Aug, Stripe held 17 Aug. Every beta
+   account passes through that window. The date is now formatted through the
+   same resolver the create call uses.
+4. **The welcome screen said "7 days on us" seconds after a $69.99 charge.**
+   The trial half is withheld; the true half stays.
+
+Two MEDIUMs were regressions introduced by earlier fixes in this same run (the
+comp backstop defeating the `is_active` kill switch, and the mid-grace holding
+screen falling back to "Setting up your trial."). Both fixed. The rest are in
+`progress-tracker.md`.
+
+⚠️ **Deliberate deviation, recorded:** 02b §3.2's approved disclosure line 1
+carries no trailing full stop while lines 2 and 3 do. The build renders one, on
+Adrian's call (2026-08-15) — the omission reads as a typo in the spec, and the
+three lines match each other on screen.
+
 ### 🔴 OWED TO `09-checkout-redesign.md`, MEASURED AND FAILING
 
 **The four required facts are NOT visible with the button at 320x568.** This is
