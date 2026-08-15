@@ -5,7 +5,142 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-14 (paywall screenshots: colour, format and phone frame)
+Last updated: 2026-08-15 (spec 01 · trial eligibility: one trial per user, and nobody charged inside a promised free period)
+
+## Trial eligibility, and a trial that was being burned by an abandoned tap (2026-08-15)
+
+Billing spec 01 of three. `01`, `02a` and `02b` are a SHIP-TOGETHER TRIPLE and
+none of them reaches `main` alone: this one decides who gets free days, which
+makes the current checkout copy false for a returning customer (`02b`) and
+routes a post-grace user onto a payment path that cannot succeed yet (`02a`).
+
+**The rule.** One seven-day trial per user, ever. A trial counts as used only if
+a card actually validated on it. The ~85 beta accounts on the fourteen-day grace
+do not also get a trial, because that fortnight IS their trial.
+
+### The money fix: a mid-grace user is no longer charged inside their fortnight
+
+A beta user who reached checkout part-way through their fourteen days had
+`trial_period_days` omitted, so Stripe raised an invoice with an amount due
+immediately. The app had told them in writing they had until a named date.
+
+Their subscription is now created with `trial_end` AT the grace end, taken from
+`entitlements.active_until` — a fixed instant rather than a day count, because
+expressing it as "N days from now" means computing a remainder and a rounding
+error there is a charge on the wrong day. `lib/billing/freeTime.ts` is the pure,
+tested decision: a full trial, a grace-aligned start, or nothing.
+
+It also fixes the broken button, which is a benefit rather than the
+justification: nothing due today means Stripe issues a SetupIntent, which is the
+arm the client is built for.
+
+**The clamp errs long, twice.** `STRIPE_MIN_TRIAL_END_OFFSET` is 48 hours, and
+the seconds conversion CEILS. Measured on the day (Q76): `subscriptions.create`
+with an explicit `trial_end` actually accepts every offset tried, down to ten
+minutes — the documented two-day minimum does not apply to this call, and the
+only constraint Stripe enforces is that the instant is in the future. A
+`trial_end` of exactly NOW is accepted but comes back `active` with an invoice
+due, which is the dangerous edge; `resolveFreeTime` never reaches it, because a
+grace end at or before `now` resolves to "no free time" instead. 48h is kept
+anyway: the margin is free, and undocumented behaviour can tighten without
+notice.
+
+**The ceil turned out to close the entitlement handover too.** On a test clock,
+the `stripe` row's `active_until` lands 943ms LATER than the `comp` row's, so
+there is no instant at the boundary where neither row is active.
+
+### The defect the drive found, which no test would have
+
+**A genuine first-timer was losing their trial to an abandoned tap.** Abandon a
+3D Secure challenge, come back, pick a DIFFERENT plan: `startTrial` cancels the
+abandoned attempt to make way, and from that moment `hasValidatedCard` read the
+cancelled attempt as a real trial purely because of
+`if (sub.status !== "trialing") return true`. Measured on the object:
+`default_payment_method` null, `default_source` null, `pending_setup_intent`
+still pending, and the predicate returning true. No card ever touched it.
+
+That is §3.2's "wrong in the expensive direction" arriving through a door the
+guard did not cover, and it charges a first-time customer on a screen that just
+promised them seven free days. Two steps to reach, not three. Pre-existing —
+`eligibleForTrial` called the same predicate — and found only by driving it.
+
+The fix is a set, `CARD_STEP_MAY_BE_UNFINISHED` = `trialing`, `canceled`,
+`incomplete_expired`: for those, ASK rather than inferring "validated" from the
+status. The discriminator is the surviving `pending_setup_intent`, which is the
+residue of a card step that never finished. A subscription that genuinely ran
+and was later cancelled or refunded has none, so it still counts as a used
+trial — the case Out of Scope protects, verified unchanged by driving it.
+
+**`sync.ts` did NOT move with it.** `cardIsValidated` there answers a different
+question (whether to GRANT access) and is reached only for `ENTITLING` statuses
+(`trialing`, `active`), so it is never asked about a cancelled subscription and
+the two cannot disagree about one.
+
+### Comps cannot buy, and the comp list cannot reach a browser
+
+A free-for-life comp (a `comp` entitlement with a NULL `active_until`) is
+refused with `already-subscribed` BEFORE any Stripe object exists. Driven: zero
+subscriptions, zero customers, zero `billing_customers` rows. The schema still
+permits a founder who also subscribes (`001_billing_tables.sql` says so
+explicitly); this forecloses it at the application layer, because a comp being
+charged costs more than a comp being unable to buy what they already have free.
+
+`lib/billing/betaGrace.ts` gained `import "server-only"`. It holds five real
+email addresses and nothing but convention had been stopping a client component
+pulling them into a bundle. None of the five appears anywhere in `.next/static`;
+they do appear in `.next/server`, which is what proves the grep was looking.
+
+### One read, and the select that must not grow
+
+`compEntitlement` answers all three questions from one query — may this account
+buy at all, have they had their free run, and when does it end —
+because `entitlements_one_per_source` guarantees at most one comp row per user.
+⚠️ The select is `source, active_until` and must stay that way: a column added
+there breaks the whole request if its migration has not been run, and this
+request decides whether somebody is charged today. `003_courtesy_until.sql` is
+still unapplied, confirmed live, and every drive below ran against that database.
+
+### Verified by DRIVING it, at 390x844 on localhost, against real Stripe test mode
+
+| Case | Result |
+|---|---|
+| brand-new account | 7 free days, `trialing`, metadata `user_id` only |
+| abandoned 3DS, returns, same plan | resumes, still 7 days |
+| abandoned on two plans, picks a third | exactly ONE live subscription, 7 days |
+| used a trial, cancelled, returns | "You've had your trial", charged today |
+| mid-grace subscribe | `trial_end` = grace end +818ms, invoice `amount_due=0`, SetupIntent, `trackd_grace_until` beside `user_id` |
+| 1 hour of grace left | clamped to now+48h, 47h LATER than the promise; metadata still carries the PROMISE |
+| post-grace | routed to paid-today: `amount_due=1199`, `incomplete`, nothing charged (this is `02a`'s to fix) |
+| free-for-life comp | `already-subscribed`, zero Stripe objects |
+| entitlement overlap | comp and stripe rows, identical `active_until`, 0s gap |
+| grace-end boundary (TEST CLOCK) | advanced 1h past `trial_end`: subscription `active`, $11.99 invoice PAID on the promised day, stripe row extended to +1 month, no read-only gap |
+| Stripe unreachable | screen stays generous (`eligible: true`); no payment form renders at all, so nothing can be charged |
+| entitlements read failing | trial GRANTED, not refused; button refuses; no charge |
+| anonymous `startTrial` | refused, "Please sign in again." |
+| forged plan key, tampered in flight | generic error, ZERO subscriptions, no fallback to a cheaper price |
+| `startTrial` payload | `["monthly"]` — plan only, no user identifier |
+| two tabs at once | exactly ONE live subscription |
+
+**Cleanup was audited afterwards**: back to exactly 90 auth users, zero
+`@trackd-qa.invalid` accounts, zero test clocks, zero `entitlements` and zero
+`billing_customers` rows. Test accounts were deleted BY ID with the Stripe
+objects cleaned up first.
+
+### The QA harness this needed, now in `scratchpad/`
+
+`qa-billing.mjs` (seeded billing states + teardown that does Stripe before the
+user), `qa-eligibility.mjs`, `qa-start-trial.mjs`, `qa-one-trial.mjs`,
+`qa-attacks.mjs`, `qa-forged-plan.mjs`, `qa-failure-directions.mjs`,
+`qa-overlap.mjs`, `qa-test-clock.mjs`, `qa-stripe-min-trial.mjs`. The test-clock
+driver `12-go-live.md` was going to own now exists in first draft.
+
+⚠️ Two traps worth keeping. The Stripe card iframe must be targeted by
+`title="Secure payment input frame"` — the FIRST `__privateStripeFrame` is the
+wallets frame and has no card fields. And replaying a captured server action
+loses the session, so it refuses at `!user` before reaching what you meant to
+test; tamper with the body in flight via route interception instead.
+
+## The paywall carousel: HEIC in a `.png`, P3 colour, and a frame that wasn't a phone (2026-08-14)
 
 ## The paywall carousel: HEIC in a `.png`, P3 colour, and a frame that wasn't a phone (2026-08-14)
 

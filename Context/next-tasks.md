@@ -4,7 +4,68 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-13 (notification fixes merged; the read-only gate, the save offer, the beta grace; /admin rebuilt)
+Last updated: 2026-08-15 (billing spec 01 built and driven; 02a and 02b next)
+
+---
+
+## 💳 THE BILLING TRIPLE — 01 IS BUILT, 02a AND 02b ARE NOT (2026-08-15)
+
+**⚠️ SHIP-TOGETHER. `01`, `02a` and `02b` reach `main` together or not at all.**
+Spec 01 decides who gets free days, which makes the current checkout copy false
+for a returning customer and routes a post-grace user onto a payment path that
+cannot succeed yet. Shipping 01 alone means the app makes a written promise on a
+payment screen that the server contradicts.
+
+### ✅ 01 — trial eligibility. BUILT AND DRIVEN.
+
+See `progress-tracker.md` for what it does and the full drive table. In short:
+one trial per user ever, a mid-grace beta user is charged nothing inside their
+fortnight, a free-for-life comp cannot buy, and the comp list can no longer
+reach a browser bundle.
+
+### 🔜 02a — the paid-today checkout. NEXT.
+
+A user with no free time gets a subscription with an amount due today, which
+means a PaymentIntent, and the client can only confirm a SetupIntent. Driven
+today: a post-grace account lands on `incomplete` with `amount_due=1199` and an
+`open` invoice. **Nothing is charged and nothing is lost — the button just does
+not work.** That is expected before 02a and is the one §5 checkbox spec 01
+leaves deliberately open.
+
+### 🔜 02b — checkout copy and disclosure.
+
+Every string on that screen. `trialEligibility()` now returns `graceEndsAt` (a
+raw ISO instant, null once the fortnight has run out) specifically so 02b can
+tell a mid-grace user apart from a post-grace one. They need different things
+said to them: one is charged nothing until a named date, the other is charged
+today.
+
+⚠️ `days` is the length of the free run they HAD, not what is left. A beta user
+on day 12 of 14 gets 14. Nothing may render it as a countdown.
+
+### ⚠️ Known and NOT fixed in 01, judged, with a concrete failing case
+
+**The idempotency key can 400 a mid-grace retry in the final 48 hours.** The key
+is `trial:${user}:${plan}:${fingerprint(all)}` and spec 01 says to leave it
+exactly as it is. When the clamp fires, `trial_end` is `now + 48h`, which MOVES
+between calls. So: a user with under 48h of grace left whose create FAILED
+(leaving the subscription set unchanged, so the fingerprint is identical)
+retries a few minutes later, sends the same key with a different `trial_end`,
+and Stripe rejects it with "keys for idempotent requests can only be used with
+the same parameters". They see "Couldn't start your trial just now" until the
+key ages out, up to 24 hours.
+
+Narrow: it needs a mid-grace user in their last two days AND a failed create AND
+a retry. It fails towards refusing rather than charging, which is the right
+direction. Not fixed because fixing it means changing the key, which spec 01
+forbids. **Whoever owns the key next should quantise the clamped value** (round
+`now + 48h` down to the hour, say) so it stops moving between retries.
+
+### ⚠️ Still true, and it is what makes all of the above safe
+
+`BILLING_GATE_ENABLED` is unset, so none of this changes anything for the ~90
+real accounts until it is set. The go-live order below is unchanged and step 8
+still comes last.
 
 ---
 
@@ -182,49 +243,35 @@ constant: merging this branch changes nothing at all until that switch is set.
 not an error anywhere: the dry run simply reports one fewer comp than expected,
 and nothing says which one is missing. Read the number.
 
-### 5. 🔴 A DECISION, WITH MONEY ON IT: does a returning customer get a SECOND free trial?
+### 5. ✅ DOES A RETURNING CUSTOMER GET A SECOND FREE TRIAL? — DECIDED AND BUILT
 
-**Right now they do, every time, and I have not changed it — it is your call.**
+**Adrian's call: ONE TRIAL PER CUSTOMER, EVER.** Built as billing spec 01 on
+2026-08-15 and driven against real Stripe. A returning customer is charged from
+day one, and the checkout screen now says so rather than promising free days it
+will not give (`02b` owns the wording).
 
-Verified against real Stripe on 2026-08-13:
+The loop this closes was verified on 2026-08-13: subscribe, cancel, let it
+lapse, subscribe again — free forever in seven-day steps. Harmless while nothing
+gated; the read-only gate is what turned it into the way to use Trackd for
+nothing.
 
-```
-trial 1 -> trialing, trial_end 19 Aug        (7 free days)
-cancel it, let it lapse
-trial 2 -> trialing, trial_end 19 Aug        (7 MORE free days)
-```
+⚠️ **The naive version in the old note here was a trap, and it was a real one.**
+It said `all.some((s) => s.trial_end !== null)`, which denies a genuine
+first-timer their trial because their bank challenge timed out once. The
+built version tests whether a card ever VALIDATED instead. **And the first
+attempt at that was still wrong** — a cancelled abandoned attempt read as
+validated purely because its status was no longer `trialing`, so abandoning 3DS
+and then picking a different plan burned the trial. Found by driving it, not by
+reading it. See `progress-tracker.md`.
 
-`startTrial` passes `trial_period_days: TRIAL_DAYS` unconditionally, so the loop
-is: subscribe, cancel, wait for it to lapse, subscribe again. Free forever, in
-seven-day steps, with no card ever charged.
+### 5b. 🟡 A RELATED ONE THAT IS STILL OPEN: the reconciliation view
 
-**This was known before and it did not matter.** The earlier review recorded it
-as "a product question rather than a hole", and it was, because nothing gated:
-another free trial bought you exactly what you already had. **The read-only gate
-changes that.** The gate is now the thing driving people to subscribe, and the
-button it drives them to hands out another free week.
-
-The fix is small and the decision is not. Roughly:
-
-```ts
-// in startTrial, where `all` is every subscription this customer has ever had
-const hadATrial = all.some((s) => s.trial_end !== null);
-trial_period_days: hadATrial ? undefined : TRIAL_DAYS,
-```
-
-⚠️ Note the direction of the risk. `all` includes `incomplete_expired` rows,
-which `startTrial` itself creates when it cancels an abandoned 3DS attempt — so
-a naive version denies a genuine first-timer their trial because their bank
-challenge timed out once. That is the expensive direction, and it is why this is
-worth ten minutes of your attention rather than a one-line patch from me.
-
-Options, roughly in order of how much they cost to build:
-
-1. **Leave it.** Repeat trials stay possible. Cheapest, and the abuse needs
-   somebody to care enough to do it every week.
-2. **One trial per customer, ever.** The snippet above, with the
-   `incomplete_expired` case handled. A returning customer pays from day one.
-3. **One trial per customer per year.** More generous, more code.
+Nothing yet asserts, on a schedule, that no account was charged inside a period
+it was promised free. `trackd_grace_until` is now written on every grace-aligned
+subscription specifically so that question is answerable — three different
+things report `trialing` (a real trial, a save-offer courtesy period, and a
+grace-aligned start) and this is what tells them apart. Owned by
+`11-reconciliation-and-alerting.md`, which is not written yet.
 
 ### 6. 🟡 FOUR THINGS THE COLD REVIEW FOUND THAT ARE JUDGED, NOT FIXED
 

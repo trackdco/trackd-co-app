@@ -935,6 +935,54 @@ function isStillToCome(iso: string): boolean {
   return Number.isFinite(at) && at > Date.now();
 }
 
+/**
+ * ⚠️ STATUSES WHERE THE CARD STEP MAY NEVER HAVE FINISHED, so the question
+ * "did a card ever validate on this" has to be asked properly rather than
+ * assumed from the status alone.
+ *
+ * `trialing` was always here. `canceled` and `incomplete_expired` were added
+ * 2026-08-15 (spec 01 step 6) after a drive against real Stripe showed a
+ * genuine first-timer losing their trial:
+ *
+ *   1. They start a trial. The bank opens a 3D Secure challenge and they close
+ *      the tab. The subscription sits `trialing` with an unconfirmed
+ *      `pending_setup_intent` and no payment method.
+ *   2. They come back and pick a DIFFERENT plan. `startTrial` cancels the
+ *      abandoned one to make way, exactly as it should.
+ *   3. That attempt is now `canceled` and still carries its `trial_end`. The
+ *      old `status !== "trialing" ⇒ validated` short-circuit read it as a real
+ *      trial, so `hasUsedTrial` said yes and the create dropped the trial.
+ *
+ * Measured: `default_payment_method` null, `default_source` null,
+ * `pending_setup_intent` still pending, and `hasValidatedCard` returning true.
+ * No card ever touched it. That is §3.2's "wrong in the expensive direction"
+ * arriving through a door the guard did not cover, and it charges a first-time
+ * customer on a screen that just promised them seven free days.
+ *
+ * ## The refunded-but-previously-active case is deliberately unchanged
+ *
+ * A subscription that genuinely ran and was later cancelled or refunded has no
+ * `pending_setup_intent` — confirming clears it — so it still reads as a used
+ * trial, which Out of Scope requires. The pending intent is precisely the
+ * residue of a card step that never finished, which is why it is the
+ * discriminator rather than the payment method: a confirmed TRIAL can
+ * legitimately have a null default, because `save_default_payment_method`
+ * sets it when an invoice is paid and a trial pays none.
+ *
+ * ## `sync.ts` does NOT move with this
+ *
+ * `cardIsValidated` there answers a different question — whether to GRANT
+ * access — and is reached only for `ENTITLING` statuses (`trialing`, `active`).
+ * It is never asked about a cancelled subscription, so the two cannot disagree
+ * about one. The contract that they agree still holds for every status either
+ * of them actually sees.
+ */
+const CARD_STEP_MAY_BE_UNFINISHED: ReadonlySet<string> = new Set([
+  "trialing",
+  "canceled",
+  "incomplete_expired",
+]);
+
 function hasValidatedCard(sub: Stripe.Subscription): boolean {
   /**
    * ⚠️ `incomplete` IS NEVER "already subscribed", whatever else is true.
@@ -955,8 +1003,18 @@ function hasValidatedCard(sub: Stripe.Subscription): boolean {
    * gets, and for the same reason.
    */
   if (sub.status === "incomplete") return false;
-  if (sub.status !== "trialing") return true;
+  // `active`, `past_due`, `unpaid`, `paused`: money has moved or is genuinely
+  // owed on a real subscription, so the card question is settled.
+  if (!CARD_STEP_MAY_BE_UNFINISHED.has(sub.status)) return true;
+  // A method is attached — settled, whatever else the object says.
   if (sub.default_payment_method || sub.default_source) return true;
+  /**
+   * Otherwise: was Stripe still waiting for a card when this ended?
+   *
+   * `payment_behavior: "default_incomplete"` puts a `pending_setup_intent` on
+   * the subscription at creation and clears it the moment the intent succeeds,
+   * so its survival is the proof the card step never finished.
+   */
   return !sub.pending_setup_intent;
 }
 

@@ -32,8 +32,8 @@ import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
  *
  * Stripe documents a minimum of at least 2 days in the future when a
  * subscription is CREATED with a `trial_end` on some API paths, and at least 1
- * hour when one is UPDATED. This path creates, so 48 hours is the safe clamp
- * and is what this is set to. Milliseconds, to match `Date.getTime()`.
+ * hour when one is UPDATED. This path creates, so 48 hours is the clamp.
+ * Milliseconds, to match `Date.getTime()`.
  *
  * ⚠️ The direction of the clamp is the whole point: it only ever moves the end
  * LATER. A user in that window gets a few free hours more than they were
@@ -41,11 +41,26 @@ import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
  * inside a period the app told them in writing was free, which is the one thing
  * this spec exists to prevent.
  *
- * (Q76, Adrian 2026-08-15: no such constant existed in the repo. Named here,
- * set to the documented create-path minimum, and to be checked empirically
- * against Stripe test mode during spec 01 step 6. If Stripe turns out to accept
- * shorter, note the real boundary in this comment and KEEP 48h as the clamp —
- * the margin is free and the failure it guards is not.)
+ * ## MEASURED, 2026-08-15, against Stripe test mode (Q76)
+ *
+ * `subscriptions.create` with an explicit `trial_end` and the exact parameters
+ * this path sends accepted EVERY offset tried — 10 minutes, 30 minutes, 1, 2,
+ * 6, 24, 47 and 48 hours — all landing `trialing`. The documented two-day
+ * minimum does not apply to this call. The only constraint Stripe actually
+ * enforces is that the instant is in the FUTURE: `-1 hour` is refused outright
+ * ("expects a unix timestamp representing a date and time in the future"), and
+ * a `trial_end` of exactly NOW is accepted but comes back `active` rather than
+ * `trialing` — no trial, an invoice due immediately. That last one is the
+ * dangerous edge, and `resolveFreeTime` never reaches it: a grace end at or
+ * before `now` resolves to "no free time" instead.
+ *
+ * ⚠️ 48 HOURS IS KEPT ANYWAY, on Adrian's instruction and for a good reason.
+ * The margin is free — a beta user in their final hours gets two days instead
+ * of two hours, on a fortnight that was already a goodwill gesture — and the
+ * failure it guards against is a charge inside a period we promised was free.
+ * A measurement in test mode is also not a contract: this is undocumented
+ * behaviour, so it can tighten without notice, and the clamp is what makes that
+ * a non-event. Do not lower it to match the measurement.
  */
 export const STRIPE_MIN_TRIAL_END_OFFSET = 48 * 60 * 60 * 1000;
 
