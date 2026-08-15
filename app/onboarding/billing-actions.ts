@@ -12,7 +12,7 @@ import {
 } from "@/lib/billing/trialLease";
 import type Stripe from "stripe";
 
-import { priceIdFor, stripe, type PlanKey } from "@/lib/billing/stripe";
+import { priceIdFor, stripe, type IntentKind, type PlanKey } from "@/lib/billing/stripe";
 import { BETA_GRACE_DAYS, betaGrantFor } from "@/lib/billing/betaGrace";
 import { resolveFreeTime } from "@/lib/billing/freeTime";
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
@@ -515,7 +515,7 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
             ? { trackd_grace_until: freeTime.graceEndsAt }
             : {}),
         },
-        expand: ["pending_setup_intent"],
+        expand: ["pending_setup_intent", "latest_invoice.confirmation_secret"],
       },
       {
         /**
@@ -723,7 +723,17 @@ async function listSubscriptions(
       customer: customerId,
       status: "all",
       limit: 100,
-      expand: ["data.pending_setup_intent"],
+      /**
+       * ⚠️ THE SAME EXPANSIONS AS THE CREATE, AND THAT IS LOAD-BEARING.
+       *
+       * `reconcileToOne` prefers the freshly-LISTED copy of a subscription over
+       * the create response and falls back to the create only when the listed
+       * one is absent — which is the uncommon case, not the common one. Widen
+       * the create alone and the survivor silently loses the expansion nearly
+       * every time, producing a paid path that works when you test the create
+       * and returns null in production.
+       */
+      expand: ["data.pending_setup_intent", "data.latest_invoice.confirmation_secret"],
     })
     .autoPagingToArray({ limit: 1000 });
   return { all, live: all.filter((sub) => BILLABLE_STATUSES.has(sub.status)) };
@@ -874,6 +884,66 @@ function setupSecret(sub: Stripe.Subscription): string | null {
   const intent = sub.pending_setup_intent;
   if (!intent || typeof intent === "string") return null;
   return intent.client_secret ?? null;
+}
+
+/**
+ * WHAT THE CLIENT HAS TO CONFIRM ON THIS SUBSCRIPTION, and which KIND it is.
+ *
+ * The two are returned together and cannot be separated, because a secret
+ * without its kind is the thing that charges somebody who was promised free
+ * days: `confirmSetup` and `confirmPayment` are different calls, and the sheet
+ * has to have been mounted in the matching mode before either can run.
+ *
+ * ## Setup first, payment second
+ *
+ * Nothing due today ⇒ Stripe issues a SetupIntent and the invoice is a $0 one
+ * that is already `paid`. An amount due ⇒ no SetupIntent at all, and the
+ * confirmable intent hangs off the invoice. They are mutually exclusive in
+ * practice, so the order is about determinism rather than precedence.
+ *
+ * ## ⚠️ IT READS `latest_invoice.confirmation_secret`, NOT `payment_intent`
+ *
+ * Spec 02a §3.1 says to expand `latest_invoice.payment_intent`. That field was
+ * REMOVED in Stripe's `2025-03-31.basil` API version. This SDK sends its own
+ * generated version (`2026-07-29.dahlia` for stripe@22.4.0), which is well past
+ * the removal — see the note in `lib/billing/stripe.ts` on why no `apiVersion`
+ * is pinned by hand.
+ *
+ * Measured on 2026-08-15: the expand string `latest_invoice.payment_intent` is
+ * still ACCEPTED — no error is raised — and the field comes back `null` every
+ * time. So following the spec literally would have produced exactly the defect
+ * its own Step 1 warns about, with nothing to catch, on the one path that takes
+ * money. `confirmation_secret` is where the secret now lives, and it carries a
+ * `type` naming the intent, which is the very thing §3.2 asks the resolver to
+ * report. Verified against both a paid-today and a trialing subscription, and
+ * through the LIST path as well as the create response.
+ */
+type ConfirmableIntent = {
+  clientSecret: string;
+  /** Which confirm call the client must make. Never inferred from anything else. */
+  kind: IntentKind;
+};
+
+function confirmableIntent(sub: Stripe.Subscription): ConfirmableIntent | null {
+  const setup = setupSecret(sub);
+  if (setup) return { clientSecret: setup, kind: "setup" };
+
+  const invoice = sub.latest_invoice;
+  if (!invoice || typeof invoice === "string") return null;
+
+  /**
+   * `confirmation_secret` is `{ client_secret, type }`. The `type` is trusted
+   * as Stripe's own answer rather than assumed to be a payment intent: a $0
+   * invoice carries none at all, and reading the type is what keeps this honest
+   * if Stripe ever puts a setup-shaped secret here.
+   */
+  const confirmation = invoice.confirmation_secret;
+  if (!confirmation?.client_secret) return null;
+
+  return {
+    clientSecret: confirmation.client_secret,
+    kind: confirmation.type === "setup_intent" ? "setup" : "payment",
+  };
 }
 
 /**
