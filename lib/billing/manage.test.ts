@@ -28,6 +28,7 @@ describe("who gets a cancel control", () => {
       kind: "cancel",
       endsOn: "2026-09-14T15:39:23.000Z",
       isTrial: false,
+      accessEndsEarly: false,
     });
   });
 
@@ -46,6 +47,7 @@ describe("who gets a cancel control", () => {
       kind: "cancel",
       endsOn: "2026-08-14T15:39:23.000Z",
       isTrial: true,
+      accessEndsEarly: false,
     });
   });
 
@@ -62,6 +64,7 @@ describe("who gets a cancel control", () => {
       kind: "resume",
       endsOn: "2026-09-14T15:39:23.000Z",
       isTrial: false,
+      accessEndsEarly: false,
     });
   });
 
@@ -86,6 +89,7 @@ describe("who gets a cancel control", () => {
       kind: "cancel",
       endsOn: "2026-09-14T15:39:23.000Z",
       isTrial: false,
+      accessEndsEarly: false,
     });
     // ...and they are still described as complimentary, because that is what
     // their access actually rests on.
@@ -102,9 +106,25 @@ describe("who gets a cancel control", () => {
     });
   });
 
-  it("sends an App Store subscription to the App Store", () => {
-    expect(manageActionFor("apple", sub())).toEqual({ kind: "store", store: "apple" });
-    expect(manageActionFor("google", sub())).toEqual({ kind: "store", store: "google" });
+  it("sends an App Store subscription to the App Store when that is all there is", () => {
+    // No Stripe subscription to act on, so the pointer is the only honest control.
+    expect(manageActionFor("apple", null)).toEqual({ kind: "store", store: "apple" });
+    expect(manageActionFor("google", null)).toEqual({ kind: "store", store: "google" });
+    expect(manageActionFor("apple", sub({ status: "canceled" }))).toEqual({
+      kind: "store",
+      store: "apple",
+    });
+  });
+
+  it("⚠️ but an App Store source does not hide a LIVE Stripe subscription either", () => {
+    /**
+     * `page.tsx` suppresses even the Stripe portal row for `kind: "store"`, so
+     * this cohort had no route out of the app at all while Stripe charged them.
+     * Same defect as the comp one, one branch further down. Not reachable until
+     * RevenueCat ships, which is precisely when nobody will be reading this.
+     */
+    expect(manageActionFor("apple", sub()).kind).toBe("cancel");
+    expect(manageActionFor("google", sub({ status: "trialing", trialEndsAt: "2026-08-23T00:00:00.000Z" })).kind).toBe("cancel");
   });
 
   it("says there is nothing to manage when there is no subscription", () => {
@@ -134,7 +154,7 @@ describe("who gets a cancel control", () => {
   it("the source decides what you are ON; the subscription decides what you can STOP", () => {
     // A store subscription genuinely cannot be cancelled from here, so the
     // pointer at the right place is still the only honest control.
-    expect(manageActionFor("apple", sub({ cancelAtPeriodEnd: true })).kind).toBe("store");
+    expect(manageActionFor("apple", sub({ status: "canceled" })).kind).toBe("store");
     // A comp beside a live trial is described as complimentary and can still be
     // stopped, because Stripe is going to charge for that trial.
     expect(manageActionFor("comp", sub({ status: "trialing", trialEndsAt: "2026-08-23T00:00:00.000Z" })).kind).toBe("cancel");
@@ -161,6 +181,9 @@ describe("⚠️ the date on screen is the EARLIER of the mirror and the entitle
       kind: "cancel",
       endsOn: "2026-08-18T15:39:23.000Z",
       isTrial: false,
+      // ⚠️ The date came from the entitlement, so nothing renews on it. The plan
+      // card labels it "Ends on" rather than "Renews on" because of this flag.
+      accessEndsEarly: true,
     });
   });
 

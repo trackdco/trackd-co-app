@@ -5,7 +5,68 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-15 (billing specs 01, 02a and 02b — the ship-together triple, built and driven)
+Last updated: 2026-08-16 (billing spec 03 — cancel flow, built, driven and cold-reviewed three times)
+
+## Leaving works, and six ways it did not (2026-08-16)
+
+Billing spec 03. The cancel flow was mostly already built and the spec's job was
+to say which parts were right, prove the ordering by breaking it, fix two copy
+divergences, and build the one screen that did not exist. It did all four. It
+also turned up **six CRITICALs, every one found by driving**, and every one of
+which passed `tsc`, ESLint and 1,273 tests first.
+
+**The ordering holds, and it is now proven rather than asserted.** The
+cancellation is written to Stripe before the offer is looked up. Four
+interruption modes were driven — the tab closed 120ms after "Yes, cancel", the
+connection dropped at the same instant, and a fault injected at the exact seam
+both as a caught failure and as an unhandled crash. Stripe showed
+`cancel_at_period_end=true` in all four.
+
+**The six defects were all the same shape in the end: the Stripe write was
+correct and the damage was downstream of it.**
+
+One `paused` subscription on a customer made cancelling **impossible** — Stripe
+hard-refuses `cancel_at_period_end` on a paused subscription, and the cancel path
+read the wider "what could still take their money" list. With the paused one
+newer, nothing was ever cancelled and every retry failed identically while the
+live trial converted. That closed the long-carried `paused` question, and not in
+the direction it had been framed: the two paths ask different questions, so the
+cancel path now reads a narrower list that already existed with no consumer.
+
+Three separate handlers each took paid access away from somebody for pressing
+Cancel — **358 days, then 362, then a paid year clawed to three days** by a
+decline on an unrelated subscription. `entitlements` holds one row per user;
+every handler that wrote it computed a date from the single subscription its
+event named. The mirror image of the $69.99 defect, three times over.
+
+Pressing Cancel **restored an entitlement a chargeback had revoked**. Resume
+**re-armed the charge while telling the user it had failed**.
+
+**A defect in the fix for one of those was caught by re-running the reviews.**
+Making `invoice.paid` mean "money arrived" looked right and was not: 27 of the
+last 40 such events on this project carried `amount_paid: 0`, because every trial
+start raises a zero invoice and marks it paid.
+
+**Two decisions were escalated and one was reversed on evidence.** A comped
+customer with a live Stripe subscription had no cancel control while Stripe went
+on billing them. It was escalated first, because a passing test with a written
+rationale encoded it — then reversed when a second reviewer showed `access.ts`
+already documents that exact defect and the fix had only ever been applied to
+expiring comps. The source decides what you are ON; the subscription decides what
+you can STOP.
+
+**The un-cancel card is the one new screen.** "Glad you're staying." at the top
+of Billing, held in component state only. Its real risk was that the resume's own
+`revalidatePath` would destroy it in the tick it was created; it does not, and
+that is polled continuously rather than asserted once. At 320x568 it first landed
+off-screen above the viewport, and then — after that fix — under the iOS status
+bar.
+
+**Left deliberately:** an `incomplete` subscription can still take the money
+after a cancel, and no fix available to this spec would stop it (setting the flag
+is accepted by Stripe and does not void the invoice; voiding it or calling the
+immediate cancel are both outside §2). Recorded as a decision for Adrian, with
+the user now getting the support signpost rather than a blank screen.
 
 ## The checkout screen stops lying to three of its four cohorts (2026-08-15)
 

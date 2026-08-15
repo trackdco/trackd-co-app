@@ -256,7 +256,7 @@ export default async function BillingPage() {
         * act on. Same string, one more way to arrive at it.
         */}
       {action.kind === "unavailable" ||
-      (action.kind === "none" && action.reason === "no-subscription" && hasStripeCustomer) ? (
+      (action.kind === "none" && hasStripeCustomer) ? (
         <p className="mt-6 px-1 text-sm leading-relaxed text-text-muted">
           This one can&apos;t be changed from here. Email{" "}
           <a className="text-foreground" href="mailto:support@trackdco.app">
@@ -324,13 +324,22 @@ function renewalRow(
    * who has just cancelled and is re-reading the screen to be sure.
    */
   if (action.isTrial) return null;
+  /**
+   * ⚠️ "Renews on" IS A CLAIM ABOUT WHAT HAPPENS NEXT, AND IT HAS TO BE TRUE.
+   *
+   * `action.endsOn` is the earlier of the mirror's period end and the
+   * entitlement's, which is right for the dialog and wrong under this label the
+   * moment the two disagree — and they disagree exactly when the subscription is
+   * `past_due`. A cold review measured "Renews on 26 Aug 2026" for an account
+   * whose access dies on the 26th and whose next Stripe attempt is the 29th.
+   * Nothing renews on that date, so the row says what the date actually is.
+   */
+  const label =
+    action.kind === "resume" || action.accessEndsEarly ? "Ends on" : "Renews on";
   return (
     <>
       <Divider />
-      <Row
-        label={action.kind === "resume" ? "Ends on" : "Renews on"}
-        value={when}
-      />
+      <Row label={label} value={when} />
     </>
   );
 }

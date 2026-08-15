@@ -17,7 +17,7 @@ import {
 } from "@/app/(app)/billing/actions";
 import type { SaveOffer } from "@/app/(app)/billing/actions";
 import { STAYING_NOTICE_SLOT, StayingNotice } from "@/components/billing/StayingNotice";
-import { CANCEL_FAILED, RESUME_FAILED } from "@/lib/billing/manage";
+import { CANCEL_FAILED, CLAIM_FAILED, RESUME_FAILED } from "@/lib/billing/manage";
 import {
   forgetOffer,
   formatRemaining,
@@ -78,6 +78,37 @@ type Phase = "closed" | "confirm" | "offer" | "granted" | "declined";
 
 /** Never notifies: whether a browser exists cannot change after hydration. */
 const subscribeNever = () => () => {};
+
+/**
+ * ⚠️ HOW LONG A REQUEST MAY HANG BEFORE THE DIALOG GIVES THE USER A WAY OUT.
+ *
+ * Escape and the backdrop are both gated on `!pending`, for a measured reason: a
+ * backdrop tap in the same tick as "Yes, cancel" used to close the dialog
+ * mid-request and leave a failure with nowhere to render. But a cold review held
+ * a server-action POST open and never answered it, and found the other end of
+ * that guard: at 3 seconds and again at 23, both buttons disabled, Escape a
+ * no-op, the backdrop inert, no message, nothing timing out. **A phone has no
+ * Escape key, so the only way out was killing the app** — which is the exact
+ * outcome §3.5 says this dialog exists to have solved.
+ *
+ * So the request itself has a deadline. Past it the promise rejects into the
+ * catch that already exists, the message appears, the buttons come back, and the
+ * guard keeps its original job for the two seconds that actually matter.
+ *
+ * The server may still finish afterwards, and that is the safe direction: the
+ * cancellation lands at Stripe either way, which is the ordering §3.2 protects.
+ */
+const REQUEST_TIMEOUT_MS = 20_000;
+
+/** Reject if the action has not answered inside {@link REQUEST_TIMEOUT_MS}. */
+function withDeadline<T>(work: Promise<T>): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("the request timed out")), REQUEST_TIMEOUT_MS),
+    ),
+  ]);
+}
 
 export function CancelSubscription({
   mode,
@@ -143,8 +174,8 @@ export function CancelSubscription({
   const inFlight = useRef(false);
   /** Which phase focus was last moved for, so a re-render cannot move it again. */
   const focusedPhase = useRef<Phase | null>(null);
-  /** Where focus was when the request started, so it can be put back after. */
-  const activeBeforePending = useRef<HTMLElement | null>(null);
+  /** The confirm button, so a failure can put focus on the control that retries. */
+  const confirmRef = useRef<HTMLButtonElement | null>(null);
 
   /** Close, and put focus back where it came from. */
   const close = useCallback(() => {
@@ -199,19 +230,25 @@ export function CancelSubscription({
       (node?.querySelector<HTMLElement>("button:not([disabled])") ?? node)?.focus();
     } else if (!pending && node && !node.contains(document.activeElement)) {
       /**
-       * ⚠️ AND PUT IT BACK WHERE IT WAS WHEN THE PENDING WINDOW ENDS.
+       * ⚠️ FOCUS GOES TO THE CONTROL THAT RETRIES, NOT TO WHATEVER HAD IT.
        *
        * Disabling the button somebody is standing on drops focus to `<body>`,
-       * outside the dialog. Only re-focusing on a phase change fixes the wrong
-       * jump but leaves focus stranded there, where Enter does nothing — which
-       * on a failed cancellation is its own dead end.
+       * outside the dialog, so it has to be put back. The first attempt put it
+       * back on `document.activeElement` as captured before the request — and a
+       * cold review found that is an engine-dependent guess: **WebKit does not
+       * focus a `<button>` on tap.** Chromium does. So on the iPhone the capture
+       * returned "Keep my trial" (where the dialog put focus on open), and the
+       * restore landed the user on the button that ABANDONS the cancellation,
+       * under a message reading "Please try again". One Enter and the
+       * cancellation was silently thrown away.
        *
-       * So focus is restored to the control they actually activated, and only
-       * falls back to the first button if that control has gone.
+       * The confirm button is held by ref instead. It is the control the failure
+       * is about and the one a retry means, and it is the same answer on every
+       * engine.
        */
-      const restore = activeBeforePending.current;
-      if (restore && node.contains(restore) && !restore.hasAttribute("disabled")) {
-        restore.focus();
+      const retry = confirmRef.current;
+      if (retry && !retry.disabled) {
+        retry.focus();
       } else {
         (node.querySelector<HTMLElement>("button:not([disabled])") ?? node).focus();
       }
@@ -347,7 +384,6 @@ export function CancelSubscription({
   function runConfirm() {
     if (inFlight.current) return;
     inFlight.current = true;
-    activeBeforePending.current = document.activeElement as HTMLElement | null;
     setError(null);
     startTransition(async () => {
       try {
@@ -355,7 +391,7 @@ export function CancelSubscription({
       // each keeps its own result type. `cancelSubscription` is the only one
       // that can carry an offer.
       if (mode === "cancel") {
-        const result = await cancelSubscription();
+        const result = await withDeadline(cancelSubscription());
         if (!result.ok) {
           setError(result.error ?? "Something went wrong.");
           return;
@@ -397,7 +433,7 @@ export function CancelSubscription({
         return;
       }
 
-      const result = await resumeSubscription();
+      const result = await withDeadline(resumeSubscription());
       if (!result.ok) {
         setError(result.error ?? "Something went wrong.");
         return;
@@ -444,11 +480,10 @@ export function CancelSubscription({
   function runClaim() {
     if (inFlight.current) return;
     inFlight.current = true;
-    activeBeforePending.current = document.activeElement as HTMLElement | null;
     setError(null);
     startTransition(async () => {
       try {
-        const result = await claimExtraTime();
+        const result = await withDeadline(claimExtraTime());
         if (!result.ok) {
           setError(result.error ?? "Something went wrong.");
           return;
@@ -462,7 +497,10 @@ export function CancelSubscription({
         // Same reasoning as `runConfirm`: a rejected action must leave the
         // dialog usable rather than replacing the screen with an error.
         console.warn("[billing] the claim request did not complete:", err);
-        setError("Something went wrong.");
+        // The approved string the server already returns for this failure. It
+        // states the fact and the next action; "Something went wrong." did not,
+        // on the one dialog where a charge is about to be committed.
+        setError(CLAIM_FAILED);
       } finally {
         inFlight.current = false;
       }
@@ -688,6 +726,7 @@ export function CancelSubscription({
                 ) : null}
                 <button
                   type="button"
+                  ref={confirmRef}
                   disabled={pending}
                   onClick={
                     shownPhase === "granted" || shownPhase === "declined"

@@ -141,6 +141,22 @@ async function otherLiveEntitlementFloor(
   for (const other of list.data) {
     if (other.id === excludeSubscriptionId) continue;
     if (!ENTITLING.has(other.status)) continue;
+    /**
+     * ⚠️ AND IT HAS TO ACTUALLY ENTITLE THEM. `ENTITLING` IS NOT ENOUGH.
+     *
+     * `syncSubscription` grants nothing to a `trialing` subscription with no
+     * validated card — that is the whole point of `cardIsValidated`, and it is
+     * the difference between a trial and seven free days for anyone who can type
+     * sixteen digits. The floor tested only the status, so a subscription that
+     * had granted NOTHING still raised it.
+     *
+     * A cold review drove the cost, with the trial created exactly as
+     * `startTrial` creates one: a card-less trial 60 days out stretched
+     * `markPastDue`'s grace from three days to **29**, and one 120 days out
+     * stopped the clawback happening at all — the unpaid month stood in full,
+     * which is precisely what that handler exists to prevent.
+     */
+    if (!cardIsValidated(other)) continue;
     const until = entitledUntil(other);
     if (!until) continue;
     const at = Date.parse(until);
@@ -441,48 +457,95 @@ async function upsertEntitlement(
   } = {},
 ): Promise<void> {
   const db = serviceClient();
-  const { data: existing } = await db
-    .from("entitlements")
-    .select("active_until, is_active")
-    .eq("user_id", userId)
-    .eq("product", "pro")
-    .eq("source", "stripe")
-    .maybeSingle();
+  /** An UPDATE already narrowed to this user's one Stripe entitlement row. */
+  const scoped = (patch: { active_until?: string; is_active?: boolean }) =>
+    db
+      .from("entitlements")
+      .update(patch)
+      .eq("user_id", userId)
+      .eq("product", "pro")
+      .eq("source", "stripe");
 
-  let until = activeUntil;
-  if (!deliberateShorten && isActive && existing?.active_until && activeUntil) {
-    const now = Date.parse(activeUntil);
-    const held = Date.parse(existing.active_until as string);
-    // `null` means "does not expire" and is never shortened by a dated value.
-    if (Number.isFinite(now) && Number.isFinite(held) && held > now) {
-      console.warn(
-        `[billing] a sync would have shortened ${userId}'s access from ${existing.active_until} to ${activeUntil}; keeping the longer date`,
-      );
-      until = existing.active_until as string;
-    }
-  } else if (!deliberateShorten && isActive && existing && existing.active_until === null) {
-    until = null;
-  }
-
-  let active = isActive;
-  if (isActive && !paymentConfirmed && existing?.is_active === false) {
-    console.warn(
-      `[billing] ${userId}'s stripe entitlement is revoked; a subscription sync will not restore it`,
+  /**
+   * ⚠️ NEVER WRITE A NULL DATE OVER A REAL ONE. `isEntitlementActive` reads a
+   * null `active_until` as NEVER EXPIRES, so a subscription arriving with no
+   * period would hand out permanent free access. `endSubscription` refuses this
+   * explicitly; this used to have no equivalent and could reach it.
+   */
+  if (activeUntil === null) {
+    console.error(
+      `[billing] refusing to write a null active_until for ${userId}; entitlement left as it is`,
     );
-    active = false;
+    return;
   }
 
-  const { error } = await db.from("entitlements").upsert(
+  // The row has to exist before a filtered update can match it. `DO NOTHING` on
+  // conflict, so this can never clobber a row somebody else is mid-way through.
+  const { error: insertError } = await db.from("entitlements").upsert(
     {
       user_id: userId,
       product: "pro",
       source: "stripe",
-      active_until: until,
-      is_active: active,
+      active_until: activeUntil,
+      is_active: isActive,
     },
-    { onConflict: "user_id,product,source" },
+    { onConflict: "user_id,product,source", ignoreDuplicates: true },
   );
-  if (error) throw new Error(`entitlements upsert: ${error.message}`);
+  if (insertError) throw new Error(`entitlements insert: ${insertError.message}`);
+
+  if (!isActive) {
+    const { error } = await scoped({ is_active: false });
+    if (error) throw new Error(`entitlements deactivate: ${error.message}`);
+    return;
+  }
+
+  /**
+   * ⚠️ MONEY ARRIVING RESETS A REVOKED ROW TO WHAT WAS JUST BOUGHT.
+   *
+   * `revokeForCustomer` deliberately leaves `active_until` alone as the record
+   * of what was purchased. That stale date then acted as a FLOOR for the
+   * extend-only guard below, and a cold review drove the result: a customer
+   * whose refunded yearly still carried `2027-08-15` bought the **$3.99 weekly**
+   * and was handed 364 days back. They paid for seven.
+   *
+   * So a confirmed payment on a revoked row writes the new date outright rather
+   * than extending from the old one. Filtered on `is_active = false`, so it is a
+   * single atomic statement that cannot touch a healthy row.
+   */
+  if (paymentConfirmed) {
+    const { error } = await scoped({ active_until: activeUntil, is_active: true }).eq(
+      "is_active",
+      false,
+    );
+    if (error) throw new Error(`entitlements reinstate: ${error.message}`);
+  }
+
+  /**
+   * ⚠️ THE DATE MOVES BY COMPARE-AND-SWAP, NOT BY READ-THEN-WRITE.
+   *
+   * This read the row, computed a maximum in JavaScript, and wrote it back. The
+   * previous comment claimed two racing syncs would agree because both read the
+   * same stored value — true only when both carry the SAME date, which is not
+   * the case this guard exists for. A cold review delivered two genuinely
+   * concurrent webhooks (one per subscription, which is exactly what pressing
+   * Cancel produces) to the real route: **2 of 8 rounds left the row at the
+   * stray trial's date, destroying 358 days.** `stripe listen` forwards
+   * serially, so no local drive can see it; real Stripe does not.
+   *
+   * Two filtered statements instead, each atomic in Postgres. `.is()` and
+   * `.lt()` rather than a single `.or()`, because an ISO timestamp carries a `+`
+   * that PostgREST's or-filter grammar would have to be escaped through.
+   */
+  const { error: fillError } = await scoped({ active_until: activeUntil }).is(
+    "active_until",
+    null,
+  );
+  if (fillError) throw new Error(`entitlements fill: ${fillError.message}`);
+
+  const { error: moveError } = await (deliberateShorten
+    ? scoped({ active_until: activeUntil }).gt("active_until", activeUntil)
+    : scoped({ active_until: activeUntil }).lt("active_until", activeUntil));
+  if (moveError) throw new Error(`entitlements move: ${moveError.message}`);
 }
 
 /**
@@ -788,6 +851,32 @@ export async function revokeForCustomer(
   let customerId: string | null = null;
   try {
     const charge = await client.charges.retrieve(id);
+    /**
+     * ⚠️ A PARTIAL REFUND IS NOT A REVOCATION.
+     *
+     * `charge.refunded` fires on partial refunds too, and this compared nothing:
+     * any refund event flipped the whole entitlement off. A cold review drove
+     * it — **$1.00 refunded off a $69.99 yearly destroyed 364 days of paid
+     * access.** A goodwill gesture became a lockout.
+     *
+     * It got worse when the resurrection guard landed: before it, the next
+     * subscription event of any kind quietly un-revoked them; now only a real
+     * payment can, which on a yearly plan is up to 364 days away. Making the
+     * revocation stick is right, and it makes being wrong about WHEN to revoke
+     * much more expensive.
+     *
+     * So: only a refund of the whole charge revokes. A partial one is logged and
+     * left alone, because the period was still bought.
+     */
+    if (reason === "refund") {
+      const refunded = charge.amount_refunded ?? 0;
+      if (refunded > 0 && refunded < charge.amount) {
+        console.warn(
+          `[billing] partial refund on ${id} (${refunded} of ${charge.amount}); entitlement left standing`,
+        );
+        return "handled";
+      }
+    }
     customerId =
       typeof charge.customer === "string" ? charge.customer : (charge.customer?.id ?? null);
   } catch (err) {

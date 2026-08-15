@@ -55,6 +55,8 @@ export type SaveOfferKind = "trial" | "paid";
  */
 export const CANCEL_FAILED = "We couldn't cancel just now. Please try again.";
 export const RESUME_FAILED = "We couldn't restart it just now. Please try again.";
+/** `04`'s dialog, but the string is the server's and the client needs it too. */
+export const CLAIM_FAILED = "We couldn't add the extra time just now.";
 
 /** The mirror row, as much as the screen needs. Never an access decision. */
 export interface ManageableSubscription {
@@ -81,8 +83,8 @@ export interface ManageableSubscription {
  * support case rather than a silent blank.
  */
 export type ManageAction =
-  | { kind: "cancel"; endsOn: string; isTrial: boolean }
-  | { kind: "resume"; endsOn: string; isTrial: boolean }
+  | { kind: "cancel"; endsOn: string; isTrial: boolean; accessEndsEarly: boolean }
+  | { kind: "resume"; endsOn: string; isTrial: boolean; accessEndsEarly: boolean }
   | { kind: "store"; store: "apple" | "google" }
   | { kind: "none"; reason: "comp" | "no-subscription" }
   | { kind: "unavailable"; reason: string };
@@ -170,12 +172,6 @@ export function manageActionFor(
    */
   entitlementActiveUntil?: string | null,
 ): ManageAction {
-  // RevenueCat will write these rows when TRACKD reaches the App Store, and the
-  // subscription belongs to Apple or Google. We cannot cancel it and must not
-  // pretend to: the only honest control is a pointer at the right place.
-  if (source === "apple") return { kind: "store", store: "apple" };
-  if (source === "google") return { kind: "store", store: "google" };
-
   /**
    * ⚠️ A COMP DOES NOT MAKE A LIVE STRIPE SUBSCRIPTION STOP BILLING, SO IT MUST
    * NOT MAKE THE WAY OUT OF ONE DISAPPEAR.
@@ -207,16 +203,32 @@ export function manageActionFor(
    * "Complimentary", because that is what their access rests on) and the
    * SUBSCRIPTION decides whether there is something to stop. Two questions.
    */
+  /**
+   * ⚠️ AND THE SAME IS TRUE OF AN APP STORE SOURCE, FOR THE SAME REASON.
+   *
+   * RevenueCat will write `apple` / `google` rows when TRACKD reaches the App
+   * Store, and that subscription really cannot be cancelled from here — the only
+   * honest control for IT is a pointer at the right place. But this branch used
+   * to run before the subscription was consulted at all, so an Apple entitlement
+   * beside a live STRIPE subscription hid every control while Stripe charged.
+   *
+   * Worse than the comp version, because `page.tsx` suppresses the Stripe portal
+   * row for `kind: "store"` — so that cohort had no route out of the app at all.
+   * Driven: "Access: Free trial · $11.99 USD / month · managed by the App Store",
+   * with Stripe reporting `trialing, cancel_at_period_end: false`.
+   *
+   * Not reachable today (no RevenueCat rows exist). Reachable the day it ships,
+   * which is exactly when nobody will be looking at this function.
+   */
+  const store = source === "apple" ? "apple" : source === "google" ? "google" : null;
   const comped = source === "comp";
-  if (!subscription) {
-    return { kind: "none", reason: comped ? "comp" : "no-subscription" };
-  }
+  const actionable = subscription !== null && CANCELLABLE.has(subscription.status);
 
-  if (!CANCELLABLE.has(subscription.status)) {
-    // Nothing here can be acted on, so a comp genuinely has nothing to manage.
-    return comped
-      ? { kind: "none", reason: "comp" }
-      : { kind: "unavailable", reason: subscription.status };
+  if (!actionable) {
+    if (store) return { kind: "store", store };
+    if (comped) return { kind: "none", reason: "comp" };
+    if (!subscription) return { kind: "none", reason: "no-subscription" };
+    return { kind: "unavailable", reason: subscription.status };
   }
 
   const isTrial = subscription.status === "trialing";
@@ -240,9 +252,22 @@ export function manageActionFor(
     return { kind: "unavailable", reason: "no-period-end" };
   }
 
+  /**
+   * ⚠️ DID THE ENTITLEMENT PULL THE DATE IN? THE LABEL DEPENDS ON IT.
+   *
+   * When the two disagree it is because the subscription is `past_due`: Stripe
+   * has rolled the period forward and `markPastDue` has clawed the entitlement
+   * back, so `endsOn` is the day access STOPS and emphatically not a day
+   * anything renews. Stating the earlier date fixed the dialog and left the plan
+   * card printing it under "Renews on" — a cold review measured
+   * "Renews on 26 Aug 2026" for an account whose next Stripe attempt is 29 Aug
+   * and whose access dies on the 26th. Nothing renews on that date.
+   */
+  const accessEndsEarly = endsOn !== mirrorEnd;
+
   return subscription.cancelAtPeriodEnd
-    ? { kind: "resume", endsOn, isTrial }
-    : { kind: "cancel", endsOn, isTrial };
+    ? { kind: "resume", endsOn, isTrial, accessEndsEarly }
+    : { kind: "cancel", endsOn, isTrial, accessEndsEarly };
 }
 
 /**

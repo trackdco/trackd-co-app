@@ -8,38 +8,158 @@ Last updated: 2026-08-15 (billing spec 01 built and driven; 02a and 02b next)
 
 ---
 
-## 🔴 BLOCKED: SPECS 03, 04 AND 05 ARE EMPTY FILES (2026-08-16)
+## ✅ UNBLOCKED — the specs arrived, and 03 is built (2026-08-16)
 
-The overnight run was ordered to build `03-cancel-flow` then `04-save-offer`.
-**Neither exists.** All three of these are zero-byte placeholders, and have been
-since they were committed in `911422f`:
+`Billing-03-Cancel-flow.md`, `Billing-04-Save-Offer.md` and
+`Billing-05-read-only-gate.md` are no longer empty. **03 is built, driven and
+cold-reviewed three times.** `04` is next; `05` is not started.
+
+---
+
+## 🔴 DECISIONS OWED BY ADRIAN, FROM SPEC 03'S COLD REVIEWS
+
+Three of these were found by driving, are money-side, and are **not** things an
+agent should decide.
+
+### 1. An `incomplete` subscription can still take the money after Cancel
+
+**Measured, end to end.** An abandoned paid attempt sits `incomplete` with its
+first invoice payable for about 23 hours. Anything that pays it — a 3DS
+challenge finished in another tab, a retry, a dashboard action — turns it
+`active` immediately.
 
 ```
-Billing-03-Cancel-flow.md        0 bytes
-Billing-04-Save-Offer.md         0 bytes
-Billing-05-read-only-gate.md     0 bytes
+sub … incomplete            invoice: open due=6999
+cancel_at_period_end        ACCEPTED (true)
+…and the invoice is STILL payable: 1 open, 6999
 ```
 
-Checked git history as well — no non-empty version was ever committed — and
-grepped `Context/` for the content under any other name. It is not in the repo.
+So **setting the flag does not stop it**, which means widening
+`CANCELLABLE_STATUSES` would not fix anything. Stopping an `incomplete`
+subscription needs the invoice VOIDED, or `subscriptions.cancel()` — and §2 of
+spec 03 forbids the immediate-cancel function from this path outright.
 
-**Nothing was built.** These two specs govern the cancel flow and the save
-offer, which the standing orders themselves call "the highest-risk screen in
-the product", with orderings described as law: the cancellation written to
-Stripe before the offer renders, the offer burning on show, the server clock as
-the only clock. None of that can be inferred from the code, and inventing it is
-the one thing the workflow forbids.
+**Mitigated, not fixed:** a user whose only subscription is `incomplete` now
+reads *"This one can't be changed from here. Email support@trackdco.app"*
+instead of a blank screen. Before this work they got nothing at all.
 
-⚠️ **The cancel flow and save offer ARE already built in the codebase**
-(`lib/billing/cancel.ts`, `lib/billing/saveOffer.ts`, `lib/billing/openOfferStore.ts`,
-`supabase/billing/003_courtesy_until.sql`). So 03 and 04 are almost certainly
-REVIEW-and-amend specs over existing work rather than greenfield builds, which
-makes their exact wording matter more, not less: without them there is no way to
-tell which parts of what exists are correct and which are what the spec was
-written to change.
+**The decision:** may the user-facing cancel path void an open first invoice (or
+call the immediate cancel) for an `incomplete` subscription? Both are outside
+what 03 permits.
 
-**Owed by Adrian:** the contents of `Billing-03-Cancel-flow.md` and
-`Billing-04-Save-Offer.md`.
+### 2. A comp beside a live subscription — resolved as a defect, flagging anyway
+
+`manageActionFor` gave a `comp` **no cancel control** while Stripe went on
+charging them. Two independent reviews raised it; `access.ts` already documents
+the identical defect and calls it "the exact chargeback this whole area exists to
+avoid", with the fix applied to EXPIRING comps only.
+
+**Changed:** the source still decides what you are ON ("Complimentary"); the
+subscription decides what you can STOP. A comped customer with a live cancellable
+subscription now gets the cancel row. Two tests that encoded the half-fixed state
+were rewritten with the reasoning.
+
+**Flagged because it is visible:** a comped founder who also subscribed will now
+see "Cancel my subscription" on `/billing`. That is the point — Stripe is billing
+them — but it is a change to what Adrian sees on his own account.
+
+### 3. GATE-ON ONLY: a read-only user is told "Free trial"
+
+`planLabelFor` reads the mirror's `trialing` status ahead of the gate branch, so
+with `BILLING_GATE_ENABLED=true` an account with **no entitlement** but a live
+trial row reads "Free trial" and is offered a dialog promising "full access to
+your Pro plan until …", while `canWriteData()` refuses every write.
+
+**Not fixed, deliberately.** Two very different causes produce an identical
+database shape: a webhook still in flight (transient, and flickering to "Read
+only" would be its own harm — there is a test asserting exactly that), and a
+trial created with no validated card (permanent, and genuinely not entitled). The
+discriminator is `cardIsValidated`, which is not on the mirror, so telling them
+apart needs a column — a migration, and migrations are written, never applied.
+
+**Nobody is affected while the flag is unset. It must be resolved before step 4
+of the go-live order.** Belongs to `05` and `12`.
+
+---
+
+## ✅ 03 — CANCEL FLOW. BUILT, DRIVEN, AND COLD-REVIEWED THREE TIMES (2026-08-16)
+
+**Not merged. Nothing pushed. `BILLING_GATE_ENABLED` still unset.**
+
+Most of the cancel flow was already right, and the spec said so. What this
+actually produced was one new screen, two copy decisions, and **six CRITICALs
+that only driving found** — every one of which passed `tsc`, ESLint and the full
+suite first.
+
+### What was built
+
+- **The un-cancel confirmation card** (§3.10). "Glad you're staying." above the
+  plan card, amber by hairline and wash, fading in, dismissible, noun following
+  status. Component state in the component that ran the resume, portaled up into
+  a slot on the page — §3.10 forbids persisting it, so the state has to live with
+  the action and the card has to live at the top.
+- **D22**: the resume trigger reads "Keep my Pro plan", derived once, consumed
+  twice (Q82). The cancel dialog's own "Keep my trial" dismiss is untouched.
+- **Q83 answered:** nothing consumes `savedAt` on the billing actions, so the
+  card could not key off it.
+
+### The six CRITICALs, all found by DRIVING
+
+1. **One `paused` subscription made cancelling impossible.** Stripe hard-refuses
+   `cancel_at_period_end` on it; the cancel path read the wider
+   `BILLABLE_STATUSES`, so the loop threw and every retry failed identically
+   while the live trial converted. **This is the `paused` question that had been
+   carried as open** — the answer is that the two paths need different sets, and
+   `CANCELLABLE_STATUSES` (which existed with no consumer) is now the cancel
+   path's, while deletion keeps the wider one because `subscriptions.cancel()`
+   accepts a paused subscription happily.
+2. **Cancelling took 358 days of paid access** off a yearly subscriber: two live
+   subscriptions, one shared entitlement row, last webhook won.
+3. **`endSubscription` did the same thing a different way** — a stray trial dying
+   after the cancel dragged the shared row back 362 days.
+4. **`markPastDue` did it a third way**, and wider: one declined charge on an
+   unrelated second subscription clawed a paid year back to three days, with no
+   duplicate live subscription needed.
+5. **Pressing Cancel restored an entitlement a chargeback had revoked.**
+6. **Resume re-armed the charge while telling the user it had failed.**
+
+Fixes: both loops are `allSettled` with deliberately opposite honesty rules (a
+partial cancel reports failure, a partial resume reports success); a sync may
+only ever extend; the two handlers that shorten by design may not go below what
+the customer's OTHER live subscriptions entitle; and only a **non-zero**
+`invoice.paid` may resurrect a revocation (27 of the last 40 `invoice.paid`
+events on this project were $0 — every trial start raises one).
+
+### Also fixed
+
+A dropped connection destroyed the screen and left the confirm button inert. A
+failed cancel moved focus onto the button that ABANDONS it, and announced
+nothing — driven keyboard-only, the natural retry dismissed the dialog having
+cancelled nothing. The offer's charge date was formatted in the browser's zone
+while everything around it used the profile's (three dialogs, three days, one
+charge). A `past_due` user was promised access 27 days past its real end. At
+320x568 the un-cancel card landed off-screen, then — after the first fix —
+under the iOS status bar.
+
+### Carried, not fixed
+
+- The plan card's own "Trial ends" row is raw mirror and can disagree with the
+  dialog; `renewalRow` labels the access-end date "Renews on" for a `past_due`
+  user. Both are the Billing screen's structure, which `08` owns.
+- A `paused` or `unpaid` subscription is left untouched by Cancel. Defensible
+  (Stripe refuses the call) but a paused subscription that later resumes bills
+  somebody who pressed Cancel.
+- `markPastDue`'s clawback has no memory, so a later entitling event can hand the
+  unpaid period back. Reachable only on top of CRITICAL 4, which is now fixed;
+  durable memory needs a column.
+- `syncSubscription` can still write `active_until = NULL`, which reads as never
+  expires. `endSubscription` refuses exactly this; the sync has no equivalent.
+- Profile's plan pill reads the mirror with no status filter, ordered by
+  `updated_at` — the query shape `/billing` removed for cause.
+- The save offer computes free time from `items[0].current_period_end`, which on
+  a `past_due` subscription is the period the card DECLINED on: measured at +58
+  unpaid days with the failed invoice still open. **`04` owns this and it
+  contradicts `04` §3.3's own premise that "anything else has been paid for".**
 
 ---
 
@@ -161,8 +281,21 @@ rather than an absent marker. Not reachable from anything the app itself creates
 by `missing_payment_method: "pause"`, which means the opposite: the trial ended
 and no card was ever given. Nothing this path creates can reach it (it hardcodes
 `"cancel"`), but an imported or dashboard-made subscription could, and it would
-both burn the trial and answer `already-subscribed`. `BILLABLE_STATUSES` is
-shared with the cancel path, so moving it is that spec's call, not this one's.
+both burn the trial and answer `already-subscribed`.
+
+**⚠️ PARTLY RESOLVED BY `03` (2026-08-16), and not in the direction this note
+assumed.** `03` adjudicated the shared-list question and the answer was that the
+two paths ask different questions: `BILLABLE_STATUSES` stays exactly as it is for
+eligibility and deletion, and the CANCEL path now reads the narrower
+`CANCELLABLE_STATUSES`. That was not a tidy-up — leaving `paused` in the cancel
+path's list made cancelling **throw**, because Stripe hard-refuses
+`cancel_at_period_end` on a paused subscription. See `03`'s section above.
+
+**What is left of this item is the ELIGIBILITY half only:** whether a `paused`
+subscription should burn a trial and answer `already-subscribed`. That is still
+`01`'s cohort question and still wants a narrower set of its own rather than a
+narrower shared one. Unchanged, and still not reachable from anything the app
+creates.
 
 
 **The idempotency key can still 400 a mid-grace retry in the final 48 hours.**
