@@ -275,11 +275,11 @@ describe("a stale abandoned attempt is replaced, not resumed", () => {
     // The resume branch cannot judge staleness without knowing what a fresh
     // subscription would be worth, and a mid-grace user's yardstick is their
     // grace end rather than today plus seven.
-    expect(body.indexOf("resolveFreeTime")).toBeLessThan(body.indexOf("const resumable"));
+    expect(body.indexOf("resolveFreeTime")).toBeLessThan(body.indexOf("resumable = live.find"));
   });
 
   it("still requires the plan to match and a confirmable intent", () => {
-    const find = body.slice(body.indexOf("const resumable"), body.indexOf("for (const other"));
+    const find = body.slice(body.indexOf("resumable = live.find"), body.indexOf("for (const other"));
     expect(find).toContain("wantedPrice");
     // Spec 02a §3.6 widened this from `setupSecret` to the resolver, so a PAID
     // attempt is resumable too. Before that, a paid attempt was cancelled and
@@ -290,7 +290,7 @@ describe("a stale abandoned attempt is replaced, not resumed", () => {
   it("only resumes an attempt of the kind a fresh create would produce", () => {
     // Otherwise a user owed a trial could be handed back an old PAID attempt's
     // PaymentIntent, which is a charge against a screen promising free days.
-    const find = body.slice(body.indexOf("const resumable"), body.indexOf("for (const other"));
+    const find = body.slice(body.indexOf("resumable = live.find"), body.indexOf("for (const other"));
     expect(find).toContain("intent.kind !== wantedKind");
   });
 
@@ -301,7 +301,7 @@ describe("a stale abandoned attempt is replaced, not resumed", () => {
      * made every paid attempt look infinitely stale and replaced it — raising a
      * second invoice on every return, which is the defect §3.6 exists to stop.
      */
-    const find = body.slice(body.indexOf("const resumable"), body.indexOf("for (const other"));
+    const find = body.slice(body.indexOf("resumable = live.find"), body.indexOf("for (const other"));
     expect(find).toContain("sub.trial_end === null");
     expect(find).not.toContain("(sub.trial_end ?? 0)");
   });
@@ -343,12 +343,15 @@ describe("resolveReturningIntent proves ownership before it acts", () => {
     expect(body.indexOf("customerIdFor(user.id)")).toBeLessThan(
       body.indexOf("Intents.retrieve"),
     );
-    expect(body).toMatch(/if \(!ours\) return \{ status: "unknown" \}/);
+    // It distinguishes a FAILED read from "no customer": collapsing them put a
+    // card form in front of somebody whose redirect had already succeeded.
+    expect(body).toMatch(/if \(ours\.failed\) return \{ status: "requires_action" \}/);
+    expect(body).toMatch(/if \(!ours\.id\) return \{ status: "unknown" \}/);
   });
 
   it("compares the intent's customer against ours before returning a status", () => {
-    expect(body).toContain("ours !== theirs");
-    const guard = body.indexOf("ours !== theirs");
+    expect(body).toContain("ours.id !== theirs");
+    const guard = body.indexOf("ours.id !== theirs");
     expect(guard).toBeGreaterThan(-1);
     // The comparison must precede every status the switch can return.
     expect(guard).toBeLessThan(body.indexOf("switch (intent.status)"));
@@ -357,7 +360,7 @@ describe("resolveReturningIntent proves ownership before it acts", () => {
   it("gives a not-ours intent the same answer as a nonexistent one", () => {
     // Any distinguishable reply is an oracle: it would confirm that a given
     // intent id exists and belongs to somebody.
-    const notOurs = body.slice(body.indexOf("ours !== theirs"));
+    const notOurs = body.slice(body.indexOf("ours.id !== theirs"));
     expect(notOurs).toMatch(/return \{ status: "unknown" \}/);
     expect(outerCatch(body)).toMatch(/return \{ status: "unknown" \}/);
   });
