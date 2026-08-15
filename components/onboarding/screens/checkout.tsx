@@ -288,7 +288,20 @@ export function CheckoutScreen() {
    * returning redirect lands here too, and it lands with the correct variant
    * because `trial` is resolved from the same eligibility state.
    */
-  if (holding) return <TrialHold onEntitled={goNext} paid={!trial} />;
+  /**
+   * ⚠️ `paid` MEANS "MONEY MOVED TODAY", not "not on a trial".
+   *
+   * A cold review caught this: a mid-grace user has `trial` false, so they were
+   * shown the PAID variant — "Your payment is safe" — when their invoice was
+   * $0 and their first charge is a fortnight away. D15's paid copy was signed
+   * off on the premise that it acknowledges money moving, so saying it to
+   * somebody who paid nothing is exactly the kind of unearned claim that
+   * variant exists to avoid.
+   *
+   * The condition is the same question the Elements mode asks, and the same
+   * one the title asks: was anything due TODAY.
+   */
+  if (holding) return <TrialHold onEntitled={goNext} paid={!trial && !midGrace} />;
 
   /**
    * ⚠️ THE FORM IS NOT RENDERED WHILE A RETURNING INTENT IS UNRESOLVED (§3.5).

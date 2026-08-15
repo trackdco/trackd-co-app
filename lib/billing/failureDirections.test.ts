@@ -54,6 +54,16 @@ function bodyOf(name: string): string {
  */
 const outerCatch = (body: string) => body.slice(body.lastIndexOf("} catch"));
 
+/**
+ * The same body with comments stripped.
+ *
+ * Needed wherever an assertion is "this function never CALLS x": these files
+ * carry long explanatory comments that legitimately NAME the calls they are
+ * explaining, and a raw substring test reads those as the call itself.
+ */
+const codeOnly = (body: string) =>
+  body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
 describe("trialEligibility errs towards SAYING YES", () => {
   const body = bodyOf("trialEligibility");
 
@@ -306,6 +316,92 @@ describe("a stale abandoned attempt is replaced, not resumed", () => {
     const ms = declared.split("*").reduce((total, n) => total * Number(n.trim()), 1);
     expect(ms).toBeGreaterThan(0);
     expect(ms).toBeLessThan(6 * 60 * 60 * 1000);
+  });
+});
+
+describe("resolveReturningIntent proves ownership before it acts", () => {
+  /**
+   * ⚠️ THE ONLY ENDPOINT HERE THAT TAKES ATTACKER-CONTROLLED INPUT, and a cold
+   * review pointed out it had no assertion at all — an edit that moved the
+   * customer comparison below the switch, or dropped it, would pass every test
+   * and every type check.
+   *
+   * A client secret identifies an INTENT, not a person. Without the comparison,
+   * anybody could paste another user's redirect URL and learn the state of
+   * their payment.
+   */
+  const body = bodyOf("resolveReturningIntent");
+
+  it("refuses an anonymous caller and one who has not passed the age gate", () => {
+    expect(body).toMatch(/if \(!user \|\| !passedGate\) return \{ status: "unknown" \}/);
+  });
+
+  it("resolves OUR customer before spending a Stripe call", () => {
+    // Retrieving first turns a public endpoint into an unthrottled outbound
+    // Stripe amplifier, and Stripe's rate limit is per ACCOUNT — exhausting it
+    // stops real customers checking out.
+    expect(body.indexOf("customerIdFor(user.id)")).toBeLessThan(
+      body.indexOf("Intents.retrieve"),
+    );
+    expect(body).toMatch(/if \(!ours\) return \{ status: "unknown" \}/);
+  });
+
+  it("compares the intent's customer against ours before returning a status", () => {
+    expect(body).toContain("ours !== theirs");
+    const guard = body.indexOf("ours !== theirs");
+    expect(guard).toBeGreaterThan(-1);
+    // The comparison must precede every status the switch can return.
+    expect(guard).toBeLessThan(body.indexOf("switch (intent.status)"));
+  });
+
+  it("gives a not-ours intent the same answer as a nonexistent one", () => {
+    // Any distinguishable reply is an oracle: it would confirm that a given
+    // intent id exists and belongs to somebody.
+    const notOurs = body.slice(body.indexOf("ours !== theirs"));
+    expect(notOurs).toMatch(/return \{ status: "unknown" \}/);
+    expect(outerCatch(body)).toMatch(/return \{ status: "unknown" \}/);
+  });
+
+  it("never confirms, creates or cancels anything", () => {
+    // Named calls, not the substring "confirm" — the status switch legitimately
+    // mentions `requires_confirmation`.
+    const code = codeOnly(body);
+    for (const forbidden of [
+      "confirmPayment",
+      "confirmSetup",
+      "subscriptions.create",
+      "subscriptions.cancel",
+    ]) {
+      expect(code).not.toContain(forbidden);
+    }
+  });
+});
+
+describe("the comp backstop does not defeat the kill switch", () => {
+  /**
+   * ⚠️ A cold review found the first version of this backstop silently
+   * defeating `is_active` for exactly the five accounts it is most about.
+   * `betaGrantFor` reads `COMP_EMAILS` in memory and knows nothing about
+   * `is_active`, so a comp withdrawn the documented way was still refused —
+   * leaving them read-only with no way to buy out of it, repairable only by a
+   * code change and a deploy, which spec 01 §2 forbids.
+   */
+  const body = bodyOf("startTrial");
+
+  it("only consults the in-memory comp list when the READ FAILED", () => {
+    expect(body).toMatch(
+      /comp\.kind === "unknown" && betaGrantFor\(user\.email\)\.kind === "comp"/,
+    );
+  });
+
+  it("never ORs the list against a successful read", () => {
+    // `comp.kind === "forever" || betaGrantFor(...)` is the exact shape that
+    // made a revoked comp permanently unable to purchase.
+    expect(body).not.toMatch(/comp\.kind === "forever" \|\| betaGrantFor/);
+  });
+
+  it("still refuses a live free-for-life comp on its own", () => {
+    expect(body).toMatch(/if \(comp\.kind === "forever"\) return \{ status: "already-subscribed" \}/);
   });
 });
 

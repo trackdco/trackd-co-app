@@ -228,7 +228,7 @@ export async function startTrial(
   if (!passedGate) {
     return {
       status: "error",
-      message: "Please confirm your details before starting a trial.",
+      message: "Please confirm your details before continuing.",
     };
   }
 
@@ -282,7 +282,36 @@ export async function startTrial(
    * comp list has an entry the backfill has not granted yet — they are refused
    * rather than sold to, which is the safe half.
    */
-  if (comp.kind === "forever" || betaGrantFor(user.email).kind === "comp") {
+  if (comp.kind === "forever") return { status: "already-subscribed" };
+
+  /**
+   * ⚠️ THE BACKSTOP FIRES ONLY WHEN THE READ FAILED, and that condition is the
+   * whole of its correctness.
+   *
+   * A cold review found the earlier version — `comp.kind === "forever" ||
+   * betaGrantFor(...)` — silently defeated the `is_active` kill switch for
+   * exactly the five accounts it is most about. `betaGrantFor` reads
+   * `COMP_EMAILS` in memory and knows nothing about `is_active`, so a comp
+   * withdrawn the way `001_billing_tables.sql` instructs (set `is_active`
+   * false, leave the date alone) was still refused here. Once the gate is on
+   * they hold no entitlement, so they are read-only, and pressing Subscribe
+   * answers `already-subscribed` and walks them back into the app. **They could
+   * never buy their way out**, and the only repair would be a code change and a
+   * deploy, which spec 01 §2 forbids.
+   *
+   * Scoping it to `unknown` restores the kill switch and keeps the protection
+   * the backstop was added for. The three cases are now distinct:
+   *
+   *   read worked, comp is live      `forever`  -> refused above
+   *   read worked, comp is REVOKED   `none`     -> may buy, which is the point
+   *   read FAILED, on the comp list  `unknown`  -> refused here
+   *
+   * The refusal is what matters for the third: a Postgres blip must never be
+   * the reason one of the five people promised Trackd for life is handed a card
+   * form. Without a working read this cannot tell them apart from anybody else,
+   * and refusing costs a comp nothing.
+   */
+  if (comp.kind === "unknown" && betaGrantFor(user.email).kind === "comp") {
     return { status: "already-subscribed" };
   }
 
@@ -330,7 +359,7 @@ export async function startTrial(
       "[billing] could not resolve the Stripe customer:",
       err instanceof Error ? err.message : String(err),
     );
-    return { status: "error", message: "Couldn't start your trial just now." };
+    return { status: "error", message: earlyFailureMessage(mountedMode) };
   }
 
   const lease = await waitForTrialLease(user.id);
@@ -346,7 +375,10 @@ export async function startTrial(
      */
     return {
       status: "error",
-      message: "We're still setting your trial up. Give it a moment and try again.",
+      message:
+        mountedMode === "payment"
+          ? "We're still setting your plan up. Give it a moment and try again."
+          : "We're still setting your trial up. Give it a moment and try again.",
     };
   }
 
@@ -467,7 +499,7 @@ export async function startTrial(
      */
     const wantedKind: IntentKind = freeTime.kind === "none" ? "payment" : "setup";
 
-    const resumable = live.find((sub) => {
+    let resumable = live.find((sub) => {
       if (sub.items.data[0]?.price?.id !== wantedPrice) return false;
 
       /**
@@ -496,7 +528,23 @@ export async function startTrial(
        * Written as an explicit null test rather than `?? 0`, which would have
        * quietly made every paid attempt look infinitely stale and replaced it.
        */
-      if (sub.trial_end === null) return true;
+      if (sub.trial_end === null) {
+        /**
+         * ⚠️ BUT IT DOES GO STALE IN A WAY OF ITS OWN, which a cold review
+         * caught: a `default_incomplete` subscription's billing PERIOD is
+         * anchored at creation, and the dashboard keeps an incomplete payment
+         * alive for fifteen days. Resume a fortnight-old yearly attempt and the
+         * customer pays $69.99 today for a year that started two weeks ago, and
+         * `sync.ts` writes an entitlement that is short by the same fortnight.
+         *
+         * The amount is unchanged, which is why the earlier reasoning missed
+         * it: what moves is not the price but what the price buys. Bounded to a
+         * day, which keeps §3.6's point — the same subscription and the same
+         * invoice for somebody who comes back later today — and caps the loss
+         * at hours instead of a fortnight.
+         */
+        return Date.now() - sub.created * 1000 <= PAID_RESUME_MAX_AGE;
+      }
       return sub.trial_end * 1000 >= freshFreeUntil - RESUME_STALENESS_TOLERANCE;
     });
 
@@ -518,12 +566,88 @@ export async function startTrial(
        */
       const intent = confirmableIntent(resumable);
       if (intent) {
-        return {
-          status: "ok",
-          clientSecret: intent.clientSecret,
-          intentKind: intent.kind,
-          subscriptionId: resumable.id,
-        };
+        /**
+         * ⚠️ THE MODE GATE APPLIES HERE TOO, AND IT DOES NOT CANCEL.
+         *
+         * This branch returns before the gate further down, so a cold review
+         * found a reachable gap: Stripe times out during the page render,
+         * `trialEligibility` takes its generous fallback, the sheet mounts for a
+         * trial — and then a post-grace user's abandoned PAID attempt matches
+         * and hands a payment secret back to it. Nothing was charged, because
+         * the client keeps its own check, but the server was relying on the
+         * client, which is the arrangement the gate exists to replace.
+         *
+         * ⚠️ IT MUST NOT CANCEL. Unlike the create path, this subscription was
+         * NOT made by this request — another tab may be part-way through
+         * confirming it, and cancelling a live attempt out from under a bank
+         * challenge is worse than the mismatch. Refusing is enough: nothing is
+         * confirmed, and the re-rendered sheet comes back in the right mode and
+         * resumes the same attempt.
+         */
+        if (mountedMode && intent.kind !== mountedMode) {
+          console.error(
+            `[billing] mode mismatch resuming ${resumable.id}: sheet "${mountedMode}", resumed "${intent.kind}". Nothing confirmed, nothing cancelled.`,
+          );
+          return {
+            status: "error",
+            message:
+              intent.kind === "payment"
+                ? "Your free trial isn't available on this account. Check the updated price and try again."
+                : "Your plan details changed. Please check them and try again.",
+            serverMode: intent.kind,
+          };
+        }
+
+        /**
+         * ⚠️ A RESUMED TRIAL IS PUSHED FORWARD TO MATCH WHAT THE SCREEN JUST
+         * PRINTED, and no tolerance can do this job instead.
+         *
+         * A cold review found the hole: the screen recomputes its first-charge
+         * date on every page render, but a resumed subscription keeps the
+         * `trial_end` it was created with. Abandon a 3D Secure challenge at
+         * 23:40 and return at 00:05, and the screen prints a date one calendar
+         * day later than the charge the resumed subscription will actually
+         * make.
+         *
+         * Tightening `RESUME_STALENESS_TOLERANCE` cannot fix it. ANY elapsed
+         * time makes a fresh trial end later than the abandoned one, so a
+         * tolerance small enough to be safe is a tolerance that never resumes —
+         * which would give up the double-tap protection this branch exists for.
+         *
+         * So the subscription is UPDATED instead: extended to where a fresh one
+         * would land, never shortened. Erring long is the same direction the
+         * clamp errs, and it costs a few hours of free time at most.
+         */
+        if (intent.kind === "setup" && resumable.trial_end !== null) {
+          const wanted = Math.ceil(freshFreeUntil / 1000);
+          if (resumable.trial_end < wanted) {
+            try {
+              await client.subscriptions.update(resumable.id, { trial_end: wanted });
+            } catch (err) {
+              /**
+               * If Stripe refuses the extension, REPLACE rather than resume: a
+               * subscription that would charge earlier than the printed date is
+               * exactly what must not be handed back. Falling through past this
+               * block reaches the cancel loop and the create below.
+               */
+              console.error(
+                `[billing] could not extend ${resumable.id} to the printed date; replacing it:`,
+                err instanceof Error ? err.message : String(err),
+              );
+              await client.subscriptions.cancel(resumable.id).catch(() => {});
+              resumable = undefined;
+            }
+          }
+        }
+
+        if (resumable) {
+          return {
+            status: "ok",
+            clientSecret: intent.clientSecret,
+            intentKind: intent.kind,
+            subscriptionId: resumable.id,
+          };
+        }
       }
     }
 
@@ -747,6 +871,11 @@ export async function startTrial(
      * what makes that true rather than hoped for: a client-driven cleanup is one
      * the client can fail to make — by closing the tab on the very screen that
      * just changed under them, which is exactly when this fires.
+     *
+     * ⚠️ THE RESUME BRANCH ABOVE REFUSES WITHOUT CANCELLING, deliberately, and
+     * the difference is ownership: this cancels a subscription THIS REQUEST
+     * created, which nobody else can be mid-confirm on. That one did not create
+     * what it found.
      */
     if (mountedMode && intent.kind !== mountedMode) {
       console.error(
@@ -787,7 +916,7 @@ export async function startTrial(
     );
     // Deliberately generic. A Stripe error string can name the account, the
     // customer or the price, and none of that belongs on a paywall.
-    return { status: "error", message: "Couldn't start your trial just now." };
+    return { status: "error", message: earlyFailureMessage(mountedMode) };
   } finally {
     /**
      * ALWAYS, on every path out of the try — the early returns above included.
@@ -817,6 +946,16 @@ export async function startTrial(
  * screen printed. See the note at `resumable`.
  */
 const RESUME_STALENESS_TOLERANCE = 60 * 60 * 1000;
+
+/**
+ * How old a PAID attempt may be and still be resumed.
+ *
+ * Its billing period is anchored at creation, so resuming an old one sells a
+ * period that has already partly elapsed. A day keeps the same-invoice
+ * behaviour §3.6 asks for without letting somebody buy a year that started a
+ * fortnight ago.
+ */
+const PAID_RESUME_MAX_AGE = 24 * 60 * 60 * 1000;
 
 /** How many times to re-attempt a busy lease before giving up. */
 const WAIT_ATTEMPTS = 5;
@@ -1065,6 +1204,26 @@ async function reconcileToOne(
  * reached BEFORE anything is confirmed, so "nothing has been charged" is true
  * every time it renders. If that ever stops being true, this string moves.
  */
+/**
+ * The same choice, made BEFORE `freeTime` exists.
+ *
+ * Three failure branches fire before eligibility has been resolved — the
+ * customer resolve, the busy lease, and the outer catch — and all three said
+ * "trial" to a customer being charged today. `02a` §5 requires that no failure
+ * message on the paid path contains the word.
+ *
+ * The sheet's mounted mode is the only signal available that early. It is the
+ * client's claim rather than a server fact, which would be unacceptable for a
+ * money DECISION and is fine for choosing which true sentence to show: both
+ * branches are honest, and a client that lies about its mode only mislabels its
+ * own error.
+ */
+function earlyFailureMessage(mountedMode?: IntentKind): string {
+  return mountedMode === "payment"
+    ? "We couldn't start your plan just now. Nothing has been charged."
+    : "Couldn't start your trial just now.";
+}
+
 function failureMessage(freeTime: ReturnType<typeof resolveFreeTime>): string {
   return freeTime.kind === "none"
     ? "We couldn't start your plan just now. Nothing has been charged."
@@ -1507,8 +1666,10 @@ export async function resolveReturningIntent(
   clientSecret: string,
 ): Promise<ReturningIntent> {
   try {
-    const { user } = await getSessionContext();
-    if (!user) return { status: "unknown" };
+    const { user, passedGate } = await getSessionContext();
+    // The same gate `startTrial` enforces. "The age gate precedes all payment"
+    // should hold on every endpoint on the payment path, not on one of them.
+    if (!user || !passedGate) return { status: "unknown" };
 
     /**
      * `pi_XXX_secret_YYY` / `seti_XXX_secret_YYY`. The id is everything before
@@ -1517,6 +1678,30 @@ export async function resolveReturningIntent(
      */
     const id = clientSecret.split("_secret_")[0];
     if (!/^(pi|seti)_[A-Za-z0-9]+$/.test(id)) return { status: "unknown" };
+
+    /**
+     * ⚠️ OUR CUSTOMER IS RESOLVED FIRST, BEFORE ANY STRIPE CALL, and the order
+     * is the point rather than a tidy-up.
+     *
+     * A cold review noted that retrieving first turns this into an unthrottled
+     * outbound Stripe amplifier: every export of a `"use server"` module is a
+     * publicly dispatchable endpoint, so one signed-in account could loop
+     * caller-supplied ids and spend the integration's read budget. Stripe's rate
+     * limit is per ACCOUNT, so exhausting it 429s `subscriptions.create` for
+     * real customers trying to check out.
+     *
+     * A caller with no `billing_customers` row can own no intent at all, so it
+     * returns before touching Stripe. That is every freshly-made account, which
+     * is what an attacker would be using.
+     */
+    const ours = await customerIdFor(user.id);
+    /**
+     * A FAILED read is reported as `requires_action` rather than `unknown`: it
+     * leaves the form up but says so honestly, instead of silently inviting a
+     * second payment for a charge that may already have succeeded.
+     */
+    if (ours.failed) return { status: "requires_action" };
+    if (!ours.id) return { status: "unknown" };
 
     const client = stripe();
     const intent = id.startsWith("seti_")
@@ -1528,10 +1713,9 @@ export async function resolveReturningIntent(
      * this session. Without this, anybody could paste another user's redirect
      * URL and learn the state of their payment.
      */
-    const ours = await customerIdFor(user.id);
     const theirs =
       typeof intent.customer === "string" ? intent.customer : intent.customer?.id;
-    if (!ours || !theirs || ours !== theirs) {
+    if (!theirs || ours.id !== theirs) {
       console.error(`[billing] returning intent ${id} does not belong to ${user.id}`);
       return { status: "unknown" };
     }
@@ -1561,13 +1745,25 @@ export async function resolveReturningIntent(
 }
 
 /** This user's Stripe customer id, or null. Never creates one. */
-async function customerIdFor(userId: string): Promise<string | null> {
-  const { data } = await serviceClient()
+async function customerIdFor(
+  userId: string,
+): Promise<{ id: string | null; failed: boolean }> {
+  const { data, error } = await serviceClient()
     .from("billing_customers")
     .select("stripe_customer_id")
     .eq("user_id", userId)
     .maybeSingle();
-  return (data?.stripe_customer_id as string | undefined) ?? null;
+  /**
+   * ⚠️ "THE READ FAILED" IS NOT "YOU HAVE NO CUSTOMER", and collapsing them put
+   * a card form in front of somebody who had already paid: a returning 3DS
+   * redirect during a Postgres blip resolved to `unknown`, which renders the
+   * form. The same distinction `compEntitlement` makes, for the same reason.
+   */
+  if (error) {
+    console.error(`[billing] could not read the Stripe customer for ${userId}:`, error.message);
+    return { id: null, failed: true };
+  }
+  return { id: (data?.stripe_customer_id as string | undefined) ?? null, failed: false };
 }
 
 export async function hasEntitlement(): Promise<boolean> {

@@ -89,7 +89,20 @@ import { useFlow } from "../flow-context";
  * `supabase/notifications/004_trial_reminder.sql` being applied, and the user
  * having granted notification permission, since a push is the only channel.
  */
-function trialTimeline(now: Date) {
+/**
+ * ⚠️ TAKES THE FORMATTED DATE, rather than a clock to compute one from.
+ *
+ * It was handed a `Date` and called `billingDate` on it — the browser's clock,
+ * in the DEVICE's timezone — while the checkout screen one step later uses the
+ * date resolved on the SERVER in the user's STORED zone. A user in Los Angeles
+ * with a Sydney profile read one date here and another there, for the same
+ * subscription (spec 02b §3.5, and the §0 seam requiring both screens to print
+ * the same day).
+ *
+ * Only where the value comes from changes. §2 forbids rewriting this screen's
+ * wording and nothing here touches it.
+ */
+function trialTimeline(firstChargeOn: string) {
   return [
     {
       id: "today",
@@ -109,14 +122,27 @@ function trialTimeline(now: Date) {
       id: "billing",
       icon: Crown,
       title: `Day ${TRIAL_DAYS} · Billing starts`,
-      body: `You'll be charged on ${billingDate(now)} unless you cancel any time before.`,
+      body: `You'll be charged on ${firstChargeOn} unless you cancel any time before.`,
       lit: false,
     },
   ];
 }
 
 export function PaywallScreen() {
-  const { session, patch, goNext, priceFor } = useFlow();
+  const { session, patch, goNext, priceFor,
+    /**
+     * ⚠️ SERVER-RESOLVED, in the user's stored timezone (spec 02b §3.5 and the
+     * §0 seam: "§3.5's fix necessarily feeds both, so the two screens cannot
+     * disagree by a day").
+     *
+     * This screen computed its own with `billingDate(new Date())` on ITS mount,
+     * in the DEVICE's zone, while checkout used the stored one — so a user in
+     * Los Angeles with a Sydney profile read 22 Aug here and 23 Aug one step
+     * later, for the same subscription. Only the SOURCE of the date changes;
+     * §2 forbids rewriting this screen's wording and nothing here does.
+     */
+    firstChargeOn,
+  } = useFlow();
   const [verdict, setVerdict] = useState<CodeVerdict>({ status: "none" });
   const [codeDraft, setCodeDraft] = useState("");
   const [codeOpen, setCodeOpen] = useState(false);
@@ -138,7 +164,12 @@ export function PaywallScreen() {
   // Resolved ONCE on mount. Reading the clock during render would let the
   // billing date change under the user mid-session, and the whole point of
   // printing it is that it is a fixed commitment.
-  const [timeline] = useState(() => trialTimeline(new Date()));
+  /**
+   * Derived, not held in state: the value is a prop now, so there is nothing to
+   * freeze. The old `useState` initialiser existed to stop the browser clock
+   * moving the date mid-session, which the server-resolved value cannot do.
+   */
+  const timeline = trialTimeline(firstChargeOn ?? billingDate(new Date()));
   useEffect(() => {
     track("paywall_viewed");
   }, []);
