@@ -62,18 +62,33 @@ const PAID_BACKOFF_MS = [
 
 export function TrialHold({
   onEntitled,
-  paid = false,
+  variant = "trial",
 }: {
   onEntitled: () => void;
   /**
-   * ⚠️ WAS THIS CUSTOMER CHARGED? It changes the words and the timing, and
-   * nothing else.
+   * ⚠️ WHICH OF THREE PEOPLE IS WAITING HERE. It changes the words and the
+   * timing, and nothing else.
    *
-   * Defaults false so the trial path — and the `/preview/paywall` harness — are
-   * untouched by the existence of this prop.
+   *   trial  a first-timer on seven free days
+   *   grace  a beta user mid-fortnight. Nothing was charged, and the word
+   *          "trial" must not appear (D17: the grace is not one)
+   *   paid   money moved today
+   *
+   * A cold review caught the two-way version: `paid={!trial}` told a mid-grace
+   * user "Your payment is safe" when nothing had moved, and the obvious fix —
+   * `!trial && !midGrace` — sent them to the other branch, whose headline is
+   * "Setting up your trial." They are neither, so they get their own.
+   *
+   * ⚠️ NO NEW COPY. Both headlines and both bodies are already signed; this
+   * only chooses between them. "Setting up your plan." is true for a mid-grace
+   * user, and the non-payment body says nothing about a trial or a charge.
+   *
+   * Defaults to `trial`, so the `/preview/paywall` harness is untouched.
    */
-  paid?: boolean;
+  variant?: "trial" | "grace" | "paid";
 }) {
+  /** Money moved today. Only `paid` may claim a payment is safe. */
+  const paid = variant === "paid";
   const [slow, setSlow] = useState(false);
   const [checking, setChecking] = useState(false);
 
@@ -192,7 +207,7 @@ export function TrialHold({
       {/* ⚠️ SIGNED COPY (D15). A customer who was just charged must not read
           the word "trial" here. */}
       <h1 className={cn(FLOW_TITLE, "mt-6 text-balance")}>
-        {paid ? "Setting up your plan." : "Setting up your trial."}
+        {variant === "trial" ? "Setting up your trial." : "Setting up your plan."}
       </h1>
       <p className={cn(FLOW_SUB, "mx-auto mt-3 max-w-[20rem] text-pretty")}>
         One moment. We&apos;re just confirming everything.

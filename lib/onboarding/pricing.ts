@@ -251,8 +251,21 @@ export function weeklyEquivalent(plan: PricedPlan): number {
  * sub-line.
  */
 export function monthlyEquivalent(plan: PricedPlan): number | null {
-  if (plan.period === "month") return null;
-  if (plan.period === "week") return null;
+  /**
+   * ⚠️ FROM STRIPE'S INTERVAL, not the static `PLANS` table (spec 02b §3.3).
+   *
+   * A cold review found this bracket still keyed on the hardcoded `period`
+   * while the suffix beside it had moved to Stripe. Change the yearly price's
+   * interval to monthly in the dashboard — the exact change §3.3 exists for —
+   * and the line rendered "then $69.99 USD/mo ($5.83/mo)": a price line
+   * contradicting itself above a charge button, with §3.3's loud refusal not
+   * firing because `month` is a suffix it accepts.
+   *
+   * Falls back to `period` only where no Stripe interval is present, which is
+   * the preview harness.
+   */
+  const interval = plan.interval ?? plan.period;
+  if (interval !== "year") return null;
   return Math.round((perYear(plan) / MONTHS_PER_YEAR) * 100) / 100;
 }
 

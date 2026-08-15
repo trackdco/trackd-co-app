@@ -1225,9 +1225,22 @@ function earlyFailureMessage(mountedMode?: IntentKind): string {
 }
 
 function failureMessage(freeTime: ReturnType<typeof resolveFreeTime>): string {
-  return freeTime.kind === "none"
-    ? "We couldn't start your plan just now. Nothing has been charged."
-    : "Couldn't start your trial just now.";
+  /**
+   * ⚠️ ANYTHING THAT IS NOT A TRIAL GETS THE PLAN WORDING, not just the
+   * paid-today case.
+   *
+   * A cold review found a mid-grace user reading "Couldn't start your trial
+   * just now." in the error slot directly above a button, on a screen whose
+   * four lines were written specifically never to say the word (D17: the grace
+   * is not a trial). Testing `kind === "none"` fixed the paid path on one axis
+   * and left the other.
+   *
+   * D20's sentence is true for them too: nothing has been charged, because both
+   * branches fire before anything is confirmed.
+   */
+  return freeTime.kind === "trial"
+    ? "Couldn't start your trial just now."
+    : "We couldn't start your plan just now. Nothing has been charged.";
 }
 
 /** The client secret on a subscription's pending SetupIntent, if it has one. */

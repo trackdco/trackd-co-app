@@ -8,6 +8,7 @@ import { loadPricesSafe } from "@/lib/billing/prices";
 import { trialEligibility } from "./billing-actions";
 import { formatAccessDate } from "@/lib/billing/manage";
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
+import { resolveFreeTime } from "@/lib/billing/freeTime";
 import { resolveStepId, stepMeta, type StepId } from "@/lib/onboarding/steps";
 
 export const metadata: Metadata = {
@@ -262,8 +263,35 @@ async function onboardingDates(
     }
   }
 
+  /**
+   * ⚠️ THE GRACE DATE IS SHOWN AS THE SERVER WILL SET IT, CLAMP INCLUDED.
+   *
+   * A cold review found the screen printing the raw stored `active_until` while
+   * `resolveFreeTime` clamps `trial_end` forward to `now + 48h` for anybody in
+   * the last two days of their fortnight. Measured: the screen said "First
+   * charge 15 Aug" and Stripe held `trial_end` at 17 Aug — a screen stating a
+   * date the server contradicts, which is the invariant, and it happens to
+   * EVERY beta account, because the final 48 hours is a window all of them pass
+   * through.
+   *
+   * Running the same pure resolver the create call uses means the two cannot
+   * disagree by construction. `hasUsedTrial` is irrelevant here: a live grace
+   * takes precedence inside the resolver regardless of it.
+   *
+   * The direction was always safe — clamping only ever moves the charge LATER —
+   * so this corrects what is SAID, not what is done.
+   */
+  let graceShown: string | null = null;
+  if (graceEndsAt) {
+    const free = resolveFreeTime({ hasUsedTrial: false, graceEndsAt, now: new Date() });
+    graceShown = formatAccessDate(
+      free.kind === "grace" ? new Date(free.trialEnd * 1000).toISOString() : graceEndsAt,
+      timezone,
+    );
+  }
+
   return {
     firstChargeOn: formatAccessDate(projected, timezone),
-    graceEndsOn: graceEndsAt ? formatAccessDate(graceEndsAt, timezone) : null,
+    graceEndsOn: graceShown,
   };
 }

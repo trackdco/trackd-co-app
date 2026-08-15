@@ -301,7 +301,14 @@ export function CheckoutScreen() {
    * The condition is the same question the Elements mode asks, and the same
    * one the title asks: was anything due TODAY.
    */
-  if (holding) return <TrialHold onEntitled={goNext} paid={!trial && !midGrace} />;
+  if (holding) {
+    return (
+      <TrialHold
+        onEntitled={goNext}
+        variant={trial ? "trial" : midGrace ? "grace" : "paid"}
+      />
+    );
+  }
 
   /**
    * ⚠️ THE FORM IS NOT RENDERED WHILE A RETURNING INTENT IS UNRESOLVED (§3.5).
@@ -315,8 +322,8 @@ export function CheckoutScreen() {
     return (
       <StepFrame title="One moment.">
         <div className="flex w-full flex-1 flex-col justify-center gap-3 pb-2" aria-busy="true">
-          <div className="h-13 w-full animate-pulse rounded-2xl bg-bg-surface-raised" />
-          <div className="h-13 w-full animate-pulse rounded-2xl bg-bg-surface-raised" />
+          <div className="h-13 w-full animate-pulse rounded-2xl bg-bg-surface-raised motion-reduce:animate-none" />
+          <div className="h-13 w-full animate-pulse rounded-2xl bg-bg-surface-raised motion-reduce:animate-none" />
           <p className="text-center text-[0.8rem] text-text-muted">
             Checking your payment with your bank.
           </p>
