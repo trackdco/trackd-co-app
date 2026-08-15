@@ -136,6 +136,11 @@ export interface StripePlanPrice {
   plan: PlanId;
   priceId: string;
   amount: number;
+  /**
+   * The same amount in Stripe's minor units, for a payment-mode Elements mount
+   * (spec 02a §3.4). Never derived from {@link amount} — see `PlanPrice`.
+   */
+  amountMinor: number;
   currency: string;
   interval: string;
 }
@@ -299,7 +304,12 @@ function OnboardingFlowClient({
     (plan: PlanId): PricedPlan | undefined => {
       const match = prices.find((p) => p.plan === plan);
       return match
-        ? { ...PLANS[plan], price: match.amount, currency: match.currency }
+        ? {
+            ...PLANS[plan],
+            price: match.amount,
+            amountMinor: match.amountMinor,
+            currency: match.currency,
+          }
         : undefined;
     },
     [prices],

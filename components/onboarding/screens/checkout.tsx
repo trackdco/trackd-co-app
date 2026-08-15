@@ -64,6 +64,19 @@ export function CheckoutScreen() {
     // owns whatever this screen eventually says with it.
     graceEndsAt: null,
   });
+  /**
+   * ⚠️ HAS THE SERVER ANSWERED YET? The CTA waits on this (spec 02a §3.3).
+   *
+   * Until spec 02a the sheet was setup-only, so pressing early was harmless: the
+   * worst case was a card form that collected a card. It is not harmless now.
+   * Elements takes its `mode` at MOUNT and cannot be switched afterwards, so a
+   * press before this resolves is the difference between mounting a sheet that
+   * collects a card and one that takes money.
+   *
+   * The generous default above still RENDERS immediately, so the screen never
+   * flashes empty. Only the button waits.
+   */
+  const [resolved, setResolved] = useState(false);
   const trial = eligibility.eligible;
   /** Which free run they already had, so the copy names the right one. */
   const hadDays = eligibility.days;
@@ -77,6 +90,15 @@ export function CheckoutScreen() {
       })
       .catch(() => {
         // Keep the generous default. See above.
+      })
+      .finally(() => {
+        /**
+         * `finally`, so a FAILED call also releases the button. The generous
+         * default stands in that case and the server decides independently
+         * anyway — leaving the CTA dead forever because one call failed would
+         * be a worse screen than one that lets them try.
+         */
+        if (alive) setResolved(true);
       });
     return () => {
       alive = false;
@@ -217,6 +239,19 @@ export function CheckoutScreen() {
           <PaymentSheet
             plan={selected.id}
             currency={selected.currency}
+            /**
+             * ⚠️ THE MODE COMES FROM THE SERVER'S ANSWER, not from the button
+             * label. `eligible` false means no free days, which means an amount
+             * is due today, which means a PaymentIntent.
+             *
+             * `resolved` gates the CTA rather than this, deliberately: the sheet
+             * still mounts immediately in the generous default so the fields are
+             * there to fill in, and only the commit waits. If the answer lands
+             * as `payment`, the mode prop changes and Elements remounts with it.
+             */
+            mode={trial ? "setup" : "payment"}
+            amountMinor={selected.amountMinor}
+            ready={resolved}
             ctaLabel={
               trial ? `Start my ${TRIAL_DAYS}-day free trial` : "Subscribe"
             }

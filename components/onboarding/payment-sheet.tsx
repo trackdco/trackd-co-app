@@ -13,6 +13,7 @@ import {
 import { CircleNotch } from "@/components/icons";
 import { startTrial } from "@/app/onboarding/billing-actions";
 import type { PlanId } from "@/lib/onboarding/pricing";
+import type { IntentKind } from "@/lib/billing/stripe";
 
 import { paymentAppearance } from "./stripe-appearance";
 
@@ -80,6 +81,9 @@ export type PaymentOutcome =
 export function PaymentSheet({
   plan,
   currency,
+  mode,
+  amountMinor,
+  ready,
   ctaLabel,
   disclosure,
   onOutcome,
@@ -87,6 +91,38 @@ export function PaymentSheet({
   plan: PlanId;
   /** Lowercase ISO 4217, as Stripe reports it for the selected price. */
   currency: string;
+  /**
+   * ⚠️ WHICH MODE ELEMENTS MOUNTS IN, AND IT CANNOT BE CHANGED AFTERWARDS.
+   *
+   * This is the crux of spec 02a §3.3. Stripe takes `mode` at mount, but the
+   * client secret only arrives after the user presses the button — far too late
+   * to decide which kind of sheet they should have been looking at. So the mode
+   * is derived from `trialEligibility()` BEFORE this mounts, and the CTA stays
+   * unpressable until that answer lands.
+   *
+   * `setup` = nothing due today. `payment` = an amount due today, and
+   * {@link amountMinor} must be present.
+   */
+  mode: IntentKind;
+  /**
+   * ⚠️ HAS THE SERVER'S ELIGIBILITY ANSWER LANDED? Until it has, the CTA is not
+   * pressable (spec 02a §3.3).
+   *
+   * The FIELDS still mount immediately, so the user can fill their card in
+   * while the answer is in flight and the screen never flashes empty. Only the
+   * commit waits — because pressing early is now the difference between a sheet
+   * that collects a card and one that takes money.
+   */
+  ready: boolean;
+  /**
+   * The charge, in Stripe's own minor units, for `mode: "payment"` only.
+   *
+   * ⚠️ Comes from `price.unit_amount` and is NEVER the display figure
+   * multiplied back up: measured on this account, `69.99 * 100` is
+   * `6998.999999999999`, so the yearly plan would be handed a non-integer and
+   * either error or round to $69.98.
+   */
+  amountMinor?: number;
   ctaLabel: string;
   /**
    * The trial/price/date/auto-renewal disclosure, rendered DIRECTLY ABOVE the
@@ -112,11 +148,20 @@ export function PaymentSheet({
     <Elements
       stripe={getStripe()}
       options={{
-        // SETUP mode: nothing is owed today, so there is no amount and no
-        // PaymentIntent. `setupFutureUsage` is what tells Stripe the card is
-        // being kept for a later off-session charge — which is exactly what a
-        // trial converting on day 7 is.
-        mode: "setup",
+        /**
+         * SETUP: nothing is owed today, so there is no amount and no
+         * PaymentIntent. `setupFutureUsage` tells Stripe the card is kept for a
+         * later off-session charge, which is exactly what a trial converting on
+         * day 7 is.
+         *
+         * PAYMENT: an amount is due now. Stripe requires `amount` in minor
+         * units at mount. `setupFutureUsage` stays, because the card must also
+         * be saved for the renewal — a paid-today customer who had to re-enter
+         * their card next month would be a worse outcome than the trial's.
+         */
+        ...(mode === "payment"
+          ? { mode: "payment" as const, amount: amountMinor ?? 0 }
+          : { mode: "setup" as const }),
         currency,
         setupFutureUsage: "off_session",
         /**
@@ -143,6 +188,8 @@ export function PaymentSheet({
     >
       <PaymentForm
         plan={plan}
+        mode={mode}
+        ready={ready}
         ctaLabel={ctaLabel}
         disclosure={disclosure}
         onOutcome={onOutcome}
@@ -153,11 +200,17 @@ export function PaymentSheet({
 
 function PaymentForm({
   plan,
+  mode,
+  ready,
   ctaLabel,
   disclosure,
   onOutcome,
 }: {
   plan: PlanId;
+  /** The mode Elements was mounted in. The confirm call must match it. */
+  mode: IntentKind;
+  /** False until eligibility resolves. Disables the CTA, nothing else. */
+  ready: boolean;
   ctaLabel: string;
   disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
@@ -292,7 +345,15 @@ function PaymentForm({
       <button
         type="button"
         onClick={() => void run()}
-        disabled={busy || !stripe || !elements}
+        /**
+         * ⚠️ `!ready` joins the existing disabled conditions rather than
+         * introducing a new control or a new treatment. `ui-context.md`: the
+         * primary action is a WHITE button (`bg-accent-primary`) and is never
+         * amber, and its not-yet-pressable state is the `disabled:opacity-40`
+         * already on this element. Nothing new to style, nothing to drift.
+         */
+        disabled={busy || !ready || !stripe || !elements}
+        aria-busy={busy || !ready}
         className="h-13 w-full rounded-2xl bg-accent-primary px-6 text-[0.95rem] font-medium text-bg-base transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base motion-reduce:transition-none motion-reduce:active:scale-100"
       >
         {busy ? (

@@ -36,6 +36,21 @@ export interface PricedPlan extends Plan {
   /** Charged amount in whole currency units. From Stripe, never from here. */
   price: number;
   /**
+   * ⚠️ THE SAME AMOUNT IN STRIPE'S MINOR UNITS, for the CHARGE rather than the
+   * display (spec 02a §3.4).
+   *
+   * Payment-mode Elements needs an integer amount at mount, and it must be
+   * Stripe's own `unit_amount` rather than {@link price} multiplied by 100.
+   * Measured on this account: `69.99 * 100` is `6998.999999999999`, so the
+   * yearly plan would be handed a non-integer and either error or round down to
+   * $69.98. This is the one number on the screen that is also the number taken
+   * from a card.
+   *
+   * Optional because the preview harnesses build a `PricedPlan` from mock data
+   * and never mount a payment sheet.
+   */
+  amountMinor?: number;
+  /**
    * Lowercase ISO 4217, as Stripe reports it.
    *
    * Carried so the disclosure can NAME the currency rather than printing a bare

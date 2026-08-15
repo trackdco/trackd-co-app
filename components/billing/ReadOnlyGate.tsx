@@ -184,6 +184,11 @@ export interface StripePlanPrice {
   plan: PlanId;
   priceId: string;
   amount: number;
+  /**
+   * The same amount in Stripe's minor units, for a payment-mode Elements mount
+   * (spec 02a §3.4). Never derived from {@link amount} — see `PlanPrice`.
+   */
+  amountMinor: number;
   currency: string;
   interval: string;
 }
@@ -202,9 +207,21 @@ function SubscribePopup({
 
   const pricedPlans: PricedPlan[] = useMemo(
     () =>
-      prices
-        .map((p) => ({ ...PLANS[p.plan], price: p.amount, currency: p.currency }))
-        .filter((p): p is PricedPlan => Boolean(p)),
+      // `flatMap` rather than map-then-filter: the guard is an unknown plan id,
+      // which `PLANS[p.plan]` would spread as undefined, and dropping it here
+      // needs no type predicate to reassure the compiler afterwards.
+      prices.flatMap((p) => {
+        const base = PLANS[p.plan];
+        if (!base) return [];
+        return [
+          {
+            ...base,
+            price: p.amount,
+            amountMinor: p.amountMinor,
+            currency: p.currency,
+          },
+        ];
+      }),
     [prices],
   );
 
