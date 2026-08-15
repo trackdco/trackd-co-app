@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { CancelSubscription } from "@/components/billing/CancelSubscription";
 import { ManagePaymentRow } from "@/components/billing/ManagePaymentRow";
+import { STAYING_NOTICE_SLOT } from "@/components/billing/StayingNotice";
 import { currentEntitlement } from "@/lib/billing/entitlements";
 import { billingGateEnabled } from "@/lib/billing/gate";
 import {
@@ -128,6 +129,21 @@ export default async function BillingPage() {
           `/notifications` keeps its subtitle because it introduces a screen full
           of switches whose purpose is not self-evident; this one does not. */}
       <h1 className={PAGE_TITLE}>Billing</h1>
+
+      {/**
+       * WHERE THE "Glad you're staying." CARD LANDS, and why it is a slot.
+       *
+       * `03-cancel-flow.md` §3.10 puts that card at the TOP of Billing, while
+       * the state it follows from belongs to the resume action, which runs in
+       * `CancelSubscription` further down the page. The card is portaled up into
+       * this element rather than lifting the whole screen into a client
+       * component: the state stays in the component that took the action (§3.10
+       * forbids persisting it anywhere), this file stays a Server Component, and
+       * `08-billing-screen.md` can move one empty div when it places things.
+       *
+       * Empty until a resume happens, so it costs nothing in every other state.
+       */}
+      <div id={STAYING_NOTICE_SLOT} />
 
       <section className="mt-6">
         <p className={`mb-3 ${CARD_EYEBROW}`}>Plan</p>

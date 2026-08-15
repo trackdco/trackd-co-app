@@ -16,6 +16,7 @@ import {
   resumeSubscription,
 } from "@/app/(app)/billing/actions";
 import type { SaveOffer } from "@/app/(app)/billing/actions";
+import { STAYING_NOTICE_SLOT, StayingNotice } from "@/components/billing/StayingNotice";
 import {
   forgetOffer,
   formatRemaining,
@@ -98,6 +99,19 @@ export function CancelSubscription({
   const [error, setError] = useState<string | null>(null);
   const [offer, setOffer] = useState<SaveOffer | null>(null);
   const [grantedUntil, setGrantedUntil] = useState<string | null>(null);
+  /**
+   * "Glad you're staying." — shown after a resume, and only after one.
+   *
+   * ⚠️ COMPONENT STATE, AND THAT IS THE APPROVED BEHAVIOUR (§3.10). Not a
+   * cookie, not `sessionStorage`, not derived from the subscription: it answers
+   * "did that work?" for the person who just pressed the button, and leaving the
+   * screen unmounts this component and ends the question.
+   *
+   * Set in the transition callback from the action's own result, never from an
+   * effect watching `mode` — an effect would fire again on every revalidation
+   * and would also raise the card for somebody who resumed in another tab.
+   */
+  const [staying, setStaying] = useState(false);
   /**
    * An offer that was shown and then dismissed, still inside its ten minutes.
    *
@@ -246,18 +260,30 @@ export function CancelSubscription({
   const noun = isTrial ? "trial" : "subscription";
 
   /**
-   * THE UNDO CONTROL MIRRORS THE CANCEL, WORD FOR WORD.
+   * THE UNDO CONTROL. "Keep my Pro plan" (D22, resolved 15 Aug 2026).
    *
    * It read "Restart my trial" (meaningless: nothing had stopped), then
-   * "Keep Trackd after 19 Aug", and Adrian's objection to that one on
-   * 2026-08-14 was simply that the date is already directly above it in the
-   * summary and directly below it in the explanation, so the screen said 19 Aug
-   * three times to somebody re-reading it to be sure.
+   * "Keep Trackd after 19 Aug" — Adrian's objection to that one on 2026-08-14
+   * was that the date is already directly above it in the summary and directly
+   * below it in the explanation, so the screen said 19 Aug three times to
+   * somebody re-reading it to be sure — and then the mirrored noun pair
+   * "Keep my trial" / "Keep my subscription".
    *
-   * "Cancel my trial" / "Keep my trial" is one pair with one noun, which is also
-   * what makes the two states legible as opposites at a glance.
+   * D22 replaces the pair with §6 of the brief's single line. It is
+   * PLAN-AGNOSTIC, so it needs no branch on status and cannot drift out of step
+   * with one, and it matches the naming rule that a plan is "your Pro plan" —
+   * the same words the cancel confirmation's own body already uses.
+   *
+   * ⚠️ THIS IS NOT THE CANCEL DIALOG'S DISMISS BUTTON. That control still reads
+   * "Keep my trial" / "Keep my subscription" and is approved copy for itself
+   * (§3.9). Two controls, two labels, deliberately: one undoes a cancellation
+   * that has happened, the other declines to make one.
+   *
+   * Derived ONCE, here, and consumed in two places — the trigger below and the
+   * resume dialog's title, which is this string with a question mark (D21). That
+   * is the answer to Q82: applying D22 is one edit, not two.
    */
-  const resumeLabel = isTrial ? "Keep my trial" : "Keep my subscription";
+  const resumeLabel = "Keep my Pro plan";
 
   /** The confirm's action: cancel, or resume. */
   function runConfirm() {
@@ -318,6 +344,16 @@ export function CancelSubscription({
         setError(result.error ?? "Something went wrong.");
         return;
       }
+      /**
+       * DERIVED FROM THE RESULT, IN THE CALLBACK. §3.10.
+       *
+       * `revalidatePath("/billing")` has already run on the server by the time
+       * this line does, so the screen is about to re-render from the server with
+       * `mode` flipped back to "cancel". This component reconciles rather than
+       * remounting across that, which is what keeps the card alive — verified by
+       * driving it, not assumed (§3.10's warning).
+       */
+      setStaying(true);
       close();
     });
   }
@@ -364,8 +400,29 @@ export function CancelSubscription({
     chargeOnLabel,
   });
 
+  /**
+   * The slot at the top of Billing, looked up EVERY RENDER rather than held in a
+   * ref. The page re-renders from the server after a resume, and a cached node
+   * from before that would be a detached element the card drew into invisibly.
+   * Null until mounted, because the server has no document to ask.
+   */
+  const noticeSlot =
+    staying && mounted && typeof document !== "undefined"
+      ? document.getElementById(STAYING_NOTICE_SLOT)
+      : null;
+
   return (
     <>
+      {/* "Glad you're staying." Portaled UP to the top of the screen, because
+          §3.10 puts it above the plan card while the state belongs here, to the
+          action that produced it. */}
+      {noticeSlot
+        ? createPortal(
+            <StayingNotice isTrial={isTrial} onDismiss={() => setStaying(false)} />,
+            noticeSlot,
+          )
+        : null}
+
       {/* THE WAY BACK IN, while the offer is still live.
           Adrian, 2026-08-14: dismissing the dialog by accident must not throw
           the offer away. The clock carries on from when it was first shown
@@ -408,6 +465,10 @@ export function CancelSubscription({
           setError(null);
           setOffer(null);
           setGrantedUntil(null);
+          // The acknowledgement belongs to the state it acknowledged. Engaging
+          // the control again makes it stale, and "Glad you're staying." sitting
+          // above a cancel confirmation would be the screen contradicting itself.
+          setStaying(false);
           setPhase("confirm");
         }}
         className="w-full rounded-xl px-1 py-3 text-left text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
