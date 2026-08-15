@@ -13,7 +13,7 @@ import {
 import type Stripe from "stripe";
 
 import { priceIdFor, stripe, type PlanKey } from "@/lib/billing/stripe";
-import { BETA_GRACE_DAYS } from "@/lib/billing/betaGrace";
+import { BETA_GRACE_DAYS, betaGrantFor } from "@/lib/billing/betaGrace";
 import { resolveFreeTime } from "@/lib/billing/freeTime";
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 
@@ -214,7 +214,55 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
    * this person is charged today.
    */
   const comp = await compEntitlement(user.id);
-  if (comp.kind === "forever") return { status: "already-subscribed" };
+
+  /**
+   * ⚠️ THE BACKSTOP THAT CANNOT FAIL. A cold review found the refusal above
+   * fails OPEN: `compEntitlement` is a network read, and a Postgres blip at the
+   * wrong moment skips the check entirely, letting one of the five people who
+   * were promised Trackd for life confirm a card and be charged on day 7.
+   *
+   * `betaGrantFor` is a pure in-memory membership test over `COMP_EMAILS`. It
+   * has no failure mode, needs no query, and `betaGrace.ts` is already imported
+   * here. Two independent authorities now have to agree that this person is
+   * allowed to buy, and the cheap one is the one that cannot go down.
+   *
+   * The direction is deliberate and matches §3.7: a comp who cannot buy
+   * something they already have for nothing loses nothing. A comp who gets
+   * charged after being told in writing they never would be is the failure this
+   * whole rule exists to prevent. That trade also covers the case where the
+   * comp list has an entry the backfill has not granted yet — they are refused
+   * rather than sold to, which is the safe half.
+   */
+  if (comp.kind === "forever" || betaGrantFor(user.email).kind === "comp") {
+    return { status: "already-subscribed" };
+  }
+
+  /**
+   * ⚠️ AN UNREADABLE ENTITLEMENT REFUSES ON THE MONEY PATH, and this is the one
+   * place the generous default is the WRONG answer.
+   *
+   * §3.5 says a failed entitlements read grants the trial, and for a first-timer
+   * that is right: seven free days beats zero. For the ~85 beta accounts it is
+   * not generous at all. Their grace is FOURTEEN days, so falling back to a
+   * seven-day trial charges them on day 7 — a week INSIDE a fortnight the app
+   * promised them in writing — and because the grace branch was never taken,
+   * no `trackd_grace_until` is written, so reconciliation cannot even see that
+   * it happened.
+   *
+   * Seven is generous against nothing and mean against fourteen, and one
+   * fallback cannot be both. So the money path takes §3.5's OTHER half, the
+   * asymmetry it states explicitly: the screen over-promises and the server
+   * refuses to charge. A bad minute, not a dispute.
+   *
+   * `trialEligibility` is untouched and still answers generously, which is what
+   * keeps the pair correct rather than merely consistent.
+   */
+  if (comp.kind === "unknown") {
+    return {
+      status: "error",
+      message: "We couldn't check your account just now. Please try again in a moment.",
+    };
+  }
 
   /**
    * THE CUSTOMER IS RESOLVED BEFORE THE LEASE, AND THAT ORDER IS REQUIRED.
@@ -307,8 +355,67 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
      * between — the same two-subscription state this whole step exists to make
      * impossible, arrived at by a different road.
      */
+    /**
+     * ⚠️ DECIDED BEFORE THE RESUME BRANCH, because the resume branch needs to
+     * know what a fresh subscription WOULD give in order to judge whether the
+     * abandoned one is still worth handing back.
+     */
+    const freeTime = resolveFreeTime({
+      hasUsedTrial: hasUsedTrial(all),
+      graceEndsAt: comp.kind === "grace" ? comp.endsAt : null,
+      now: new Date(),
+    });
+
+    /**
+     * When a subscription created RIGHT NOW would stop being free. The yardstick
+     * the resume branch is measured against.
+     */
+    const freshFreeUntil =
+      freeTime.kind === "trial"
+        ? Date.now() + freeTime.days * 24 * 60 * 60 * 1000
+        : freeTime.kind === "grace"
+          ? freeTime.trialEnd * 1000
+          : Date.now();
+
+    /**
+     * ⚠️ A STALE ATTEMPT IS NOT RESUMED, IT IS REPLACED. Measured against real
+     * Stripe on 2026-08-15, and it was charging people early.
+     *
+     * The old rule resumed ANY abandoned attempt on the same plan, handing back
+     * its original `trial_end`. But the checkout screen recomputes its promise
+     * every time it mounts — `billingDate(new Date())`, today plus
+     * `TRIAL_DAYS` — so a user who abandoned a 3D Secure challenge and came
+     * back days later read "7 days free, first charge 22 Aug" above a
+     * subscription that was going to charge them on the 17th. Driven: the
+     * screen said 22 Aug, the card was set to be hit on 17 Aug, five days
+     * early, with a payment method attached.
+     *
+     * That is the invariant in §3.9 outright — a screen must never state a date
+     * the server would contradict — and it contradicted §3.6 as well, which
+     * says an abandoned attempt used no trial and the replacement gets a full
+     * seven days. The DIFFERENT-plan path already did exactly that. Only the
+     * same-plan path did not, which made the two inconsistent for no reason
+     * anybody had chosen.
+     *
+     * So the attempt is resumed only while it is still worth as much as a fresh
+     * one. Otherwise it falls through to the cancel loop below and is replaced,
+     * which is the treatment every other abandoned attempt already gets.
+     *
+     * ## Why the tolerance is an hour and not a day
+     *
+     * The window this preserves is the one the branch exists for: a user part
+     * way through a bank challenge who closes the tab and comes straight back.
+     * That return must not mint a second subscription. Anything older is
+     * cheaper to replace than to reason about, and erring towards replacing is
+     * safe in both directions — a fresh subscription always carries the full
+     * free run and always matches what the screen just printed. A day-sized
+     * tolerance would re-admit the one-calendar-day error this fixes.
+     */
     const resumable = live.find(
-      (sub) => sub.items.data[0]?.price?.id === wantedPrice && setupSecret(sub),
+      (sub) =>
+        sub.items.data[0]?.price?.id === wantedPrice &&
+        setupSecret(sub) &&
+        (sub.trial_end ?? 0) * 1000 >= freshFreeUntil - RESUME_STALENESS_TOLERANCE,
     );
 
     for (const other of live) {
@@ -353,17 +460,15 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
      * today gets a PaymentIntent, which the client cannot confirm — that path is
      * `02a`'s to make work.
      *
-     * Erring towards GRANTING when a check fails: a Stripe or Postgres error
-     * means somebody gets free time they might not be owed, which costs days.
-     * Erring the other way charges a first-time customer immediately against a
-     * screen that just promised them seven free days, which is a dispute.
+     * Erring towards GRANTING when a Stripe check fails: somebody gets free
+     * time they might not be owed, which costs days. Erring the other way
+     * charges a first-time customer immediately against a screen that just
+     * promised them seven free days, which is a dispute. The ENTITLEMENTS read
+     * is the one exception and it is handled far above, at `comp.kind ===
+     * "unknown"` — see the note there.
+     *
+     * `freeTime` is computed above the resume branch, which needs it.
      */
-    const freeTime = resolveFreeTime({
-      hasUsedTrial: hasUsedTrial(all),
-      graceEndsAt: comp.kind === "grace" ? comp.endsAt : null,
-      now: new Date(),
-    });
-
     const subscription = await client.subscriptions.create(
       {
         customer: customerId,
@@ -528,6 +633,17 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
 }
 
 /* ── the lease, the list and the reconcile ───────────────────────── */
+
+/**
+ * How stale an abandoned attempt may be and still be RESUMED rather than
+ * replaced.
+ *
+ * Sized to the case the resume branch exists for: a user part way through a
+ * bank challenge who closes the tab and comes straight back. Beyond this the
+ * attempt is cancelled and replaced, so the free run always matches what the
+ * screen printed. See the note at `resumable`.
+ */
+const RESUME_STALENESS_TOLERANCE = 60 * 60 * 1000;
 
 /** How many times to re-attempt a busy lease before giving up. */
 const WAIT_ATTEMPTS = 5;
@@ -914,12 +1030,19 @@ function hasUsedTrial(all: readonly Stripe.Subscription[]): boolean {
  * a transient blip, and a comp has no route to this screen in the first place.
  */
 type CompEntitlement =
-  /** No comp row, or the read failed. Both are treated as "an ordinary user". */
+  /** No comp row. An ordinary user. */
   | { kind: "none" }
   /** Free for life. Must never be sold a subscription. */
   | { kind: "forever" }
   /** The beta grace. `endsAt` may be in the past. */
-  | { kind: "grace"; endsAt: string };
+  | { kind: "grace"; endsAt: string }
+  /**
+   * ⚠️ THE READ FAILED, so we do not know which of the three this is. Kept
+   * separate from `none` deliberately, because the two callers need OPPOSITE
+   * answers and collapsing them into one value is what made a beta user
+   * chargeable inside their own fortnight.
+   */
+  | { kind: "unknown" };
 
 async function compEntitlement(userId: string): Promise<CompEntitlement> {
   try {
@@ -949,7 +1072,7 @@ async function compEntitlement(userId: string): Promise<CompEntitlement> {
       .limit(1);
     if (error) {
       console.error(`[billing] could not read the comp entitlement for ${userId}:`, error.message);
-      return { kind: "none" };
+      return { kind: "unknown" };
     }
     const row = data?.[0];
     if (!row) return { kind: "none" };
@@ -960,7 +1083,7 @@ async function compEntitlement(userId: string): Promise<CompEntitlement> {
       `[billing] could not read the comp entitlement for ${userId}:`,
       err instanceof Error ? err.message : String(err),
     );
-    return { kind: "none" };
+    return { kind: "unknown" };
   }
 }
 

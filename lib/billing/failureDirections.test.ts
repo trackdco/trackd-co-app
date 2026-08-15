@@ -100,24 +100,37 @@ describe("startTrial errs towards REFUSING", () => {
   });
 });
 
-describe("the entitlements read grants on failure", () => {
+describe("the entitlements read reports failure rather than guessing", () => {
   const body = bodyOf("compEntitlement");
 
-  it("returns `none` on a Postgres error, which grants the trial", () => {
-    // `none` means "an ordinary user", so a failed read hands out free days
-    // rather than charging somebody who may have been promised none.
-    const onError = body.slice(body.indexOf("if (error)"));
-    expect(onError).toMatch(/return \{ kind: "none" \}/);
+  it("returns `unknown` on a Postgres error, never `none`", () => {
+    // `none` means "an ordinary user, verified". Reporting a failed read as
+    // `none` is a guess dressed as a fact, and it is what let a beta user be
+    // handed a 7-day trial inside their 14-day grace.
+    const onError = body.slice(body.indexOf("if (error)"), body.indexOf("const row"));
+    expect(onError).toMatch(/return \{ kind: "unknown" \}/);
+    expect(onError).not.toMatch(/return \{ kind: "none" \}/);
   });
 
-  it("returns `none` from the catch as well", () => {
+  it("returns `unknown` from the catch as well", () => {
     const tail = outerCatch(body);
-    expect(tail).toMatch(/return \{ kind: "none" \}/);
+    expect(tail).toMatch(/return \{ kind: "unknown" \}/);
+    expect(tail).not.toMatch(/return \{ kind: "none" \}/);
+  });
+
+  it("still returns `none` for a genuine absence of any comp row", () => {
+    expect(body).toMatch(/if \(!row\) return \{ kind: "none" \}/);
   });
 
   it("never throws its way out", () => {
     expect(body).toContain("try {");
     expect(body).toContain("} catch");
+  });
+
+  it("filters on the kill switch", () => {
+    // A revoked comp must not answer this question. Without it, a withdrawn
+    // comp reads as `forever` and can never buy its way out of read-only.
+    expect(body).toContain('.eq("is_active", true)');
   });
 });
 
@@ -173,6 +186,104 @@ describe("an abandoned attempt never burns the trial", () => {
   it("still refuses to call `incomplete` a validated card", () => {
     const body = bodyOf("hasValidatedCard");
     expect(body).toMatch(/if \(sub\.status === "incomplete"\) return false;/);
+  });
+});
+
+describe("an unreadable entitlement refuses on the money path", () => {
+  /**
+   * ⚠️ THE ONE PLACE THE GENEROUS DEFAULT IS THE WRONG ANSWER, and it is subtle
+   * enough that a future session will try to "restore" §3.5 here.
+   *
+   * §3.5's flat rule — a failed entitlements read grants the trial — was reasoned
+   * about first-timers, for whom seven free days beats zero. For the ~85 beta
+   * accounts the grace is FOURTEEN days, so falling back to seven charges them a
+   * week INSIDE a fortnight the app promised in writing, and writes no
+   * `trackd_grace_until`, so reconciliation cannot see it happened. Seven cannot
+   * be both generous against nothing and fair against fourteen.
+   */
+  const body = bodyOf("startTrial");
+
+  it("keeps a failed read distinguishable from 'no comp row'", () => {
+    // Collapsing `unknown` into `none` is the exact move that makes a beta user
+    // chargeable inside their own fortnight.
+    expect(source).toMatch(/\|\s*\{ kind: "unknown" \}/);
+    const read = bodyOf("compEntitlement");
+    const onError = read.slice(read.indexOf("if (error)"), read.indexOf("const row"));
+    expect(onError).toMatch(/return \{ kind: "unknown" \}/);
+  });
+
+  it("refuses to create anything when the entitlement cannot be read", () => {
+    const guard = body.slice(body.indexOf('comp.kind === "unknown"'));
+    expect(body).toContain('comp.kind === "unknown"');
+    expect(guard).toMatch(/status: "error"/);
+    expect(body.indexOf('comp.kind === "unknown"')).toBeLessThan(
+      body.indexOf("subscriptions.create"),
+    );
+  });
+
+  it("leaves the SCREEN generous, which is what makes the pair correct", () => {
+    // trialEligibility must NOT copy this refusal. The asymmetry is the point:
+    // a screen that over-promises beside a server that will not charge is a bad
+    // minute; beside a server that charges it is a dispute.
+    const screen = bodyOf("trialEligibility");
+    expect(screen).not.toMatch(/kind === "unknown"[\s\S]{0,120}status: "error"/);
+    expect(outerCatch(screen)).toContain("return fallback");
+  });
+});
+
+describe("a comp is refused by two independent authorities", () => {
+  const body = bodyOf("startTrial");
+
+  it("also refuses on the in-memory comp list, which cannot fail", () => {
+    // The entitlements read is a network call, so the refusal fails OPEN: a
+    // Postgres blip at the wrong moment lets one of the five people promised
+    // Trackd for life confirm a card. `betaGrantFor` has no failure mode.
+    expect(body).toContain("betaGrantFor(user.email)");
+    expect(body.indexOf("betaGrantFor(user.email)")).toBeLessThan(
+      body.indexOf("findOrCreateCustomer"),
+    );
+  });
+});
+
+describe("a stale abandoned attempt is replaced, not resumed", () => {
+  /**
+   * ⚠️ MEASURED, 2026-08-15. Abandon a 3DS challenge, return days later on the
+   * SAME plan: the old rule handed back the original subscription, whose
+   * `trial_end` had not moved, while the screen recomputes its promise as today
+   * plus TRIAL_DAYS. Driven: the screen said "first charge 22 Aug" and the card
+   * was set to be hit on 17 Aug, five days early, with a payment method
+   * attached.
+   */
+  const body = bodyOf("startTrial");
+
+  it("judges the attempt against what a fresh one would give", () => {
+    expect(body).toContain("freshFreeUntil");
+    expect(body).toContain("RESUME_STALENESS_TOLERANCE");
+  });
+
+  it("decides the free time BEFORE choosing whether to resume", () => {
+    // The resume branch cannot judge staleness without knowing what a fresh
+    // subscription would be worth, and a mid-grace user's yardstick is their
+    // grace end rather than today plus seven.
+    expect(body.indexOf("resolveFreeTime")).toBeLessThan(body.indexOf("const resumable"));
+  });
+
+  it("still requires the plan to match and a usable setup intent", () => {
+    const find = body.slice(body.indexOf("const resumable"), body.indexOf("for (const other"));
+    expect(find).toContain("wantedPrice");
+    expect(find).toContain("setupSecret(sub)");
+  });
+
+  it("keeps the tolerance far below a day", () => {
+    // A day-sized tolerance re-admits the one-calendar-day error this fixes.
+    const declared =
+      source.match(/const RESUME_STALENESS_TOLERANCE = ([^;]+);/)?.[1]?.trim() ?? "";
+    // Digits and multiplication only, so the factors can be multiplied out
+    // without evaluating anything.
+    expect(declared).toMatch(/^[\d\s*]+$/);
+    const ms = declared.split("*").reduce((total, n) => total * Number(n.trim()), 1);
+    expect(ms).toBeGreaterThan(0);
+    expect(ms).toBeLessThan(6 * 60 * 60 * 1000);
   });
 });
 

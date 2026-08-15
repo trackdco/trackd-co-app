@@ -45,6 +45,38 @@ on day 12 of 14 gets 14. Nothing may render it as a countdown.
 
 ### ⚠️ Known and NOT fixed in 01, judged, with a concrete failing case
 
+**`reconcileToOne`'s dead-subscription guard cannot fire in the case it was
+written for.** `mine` falls back to `created`, and under an idempotency key
+`created` can be a REPLAY carrying the original `status: "trialing"`, so the
+`DEAD_STATUSES` check reads a stale status and passes. It only ever sees a fresh
+status when the object is alive, which is when it has nothing to catch. Reachable
+via lease expiry: two concurrent calls on different plans, the loser's own
+subscription is cancelled by the winner's reconcile, and the loser then hands
+back its client secret anyway. **No charge** — the card confirms against a
+cancelled subscription, no entitlement is written, and `TrialHold` eventually
+lets them into an app with nothing behind them. Fix is to re-fetch by id rather
+than trust `created`. Left because the reconcile is shared machinery and spec 01
+was told to leave `payment_behavior`, the idempotency key and their neighbours
+alone.
+
+**`hasValidatedCard` treats an absent `pending_setup_intent` as proof a card step
+finished.** That is absence of evidence, and it fails towards "trial used", which
+is the expensive direction. A subscription created OUTSIDE this path never had a
+setup intent to begin with — `sync.ts` says so in as many words, and
+`reconcileToOne` names the cohort: a hand-made one in the Stripe dashboard, a
+webhook replay, a future RevenueCat import. Comp a beta tester by hand in the
+dashboard, let it cancel, and they are charged on day one. Wants positive
+evidence (`default_payment_method || default_source || latest_invoice.paid`)
+rather than an absent marker. Not reachable from anything the app itself creates.
+
+**`paused` is in `BILLABLE_STATUSES` and reads as "money moved".** It is produced
+by `missing_payment_method: "pause"`, which means the opposite: the trial ended
+and no card was ever given. Nothing this path creates can reach it (it hardcodes
+`"cancel"`), but an imported or dashboard-made subscription could, and it would
+both burn the trial and answer `already-subscribed`. `BILLABLE_STATUSES` is
+shared with the cancel path, so moving it is that spec's call, not this one's.
+
+
 **The idempotency key can 400 a mid-grace retry in the final 48 hours.** The key
 is `trial:${user}:${plan}:${fingerprint(all)}` and spec 01 says to leave it
 exactly as it is. When the clamp fires, `trial_end` is `now + 48h`, which MOVES

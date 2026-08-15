@@ -140,6 +140,72 @@ wallets frame and has no card fields. And replaying a captured server action
 loses the session, so it refuses at `!user` before reaching what you meant to
 test; tamper with the body in flight via route interception instead.
 
+### The cold review of spec 01 — one CRITICAL, and it was charging people early
+
+Three independent reviewers (money and races, gate and entitlements, UI at
+390x844). The gate reviewer found no CRITICAL. The money reviewer found one, and
+it reproduced.
+
+**CRITICAL — a stale abandoned attempt was resumed with its original
+`trial_end`.** Abandon a 3D Secure challenge, come back days later on the SAME
+plan, and `resumable` handed back the original subscription before
+`resolveFreeTime` ever ran. The checkout screen recomputes its promise every
+mount (`billingDate(new Date())`, today plus `TRIAL_DAYS`), so the two drifted
+apart by however long the user took to return. Driven: **the screen said "7 days
+free, first charge 22 Aug" and the card was set to be hit on 17 Aug, five days
+early, with a payment method attached.**
+
+That breaks §3.9 outright — a screen must never state a date the server would
+contradict — and contradicted §3.6, which says an abandoned attempt used no trial
+and its replacement gets a full seven days. The DIFFERENT-plan path already did
+exactly that; only the same-plan path did not, which made the two inconsistent
+for no reason anybody had chosen.
+
+Fixed by judging the attempt against what a fresh one would be worth
+(`freshFreeUntil` — the grace end for a mid-grace user rather than today plus
+seven) and resuming only inside `RESUME_STALENESS_TOLERANCE`, one hour. The
+window the branch actually exists for still works, verified both ways: a fresh
+attempt resumes and leaves one subscription, a two-day-old one is cancelled and
+replaced with a full seven days and the printed date then matches to the day.
+
+**HIGH — a failed entitlements read charged a beta user inside their fortnight.**
+§3.5 says a failed read grants the trial, which is right for a first-timer (seven
+beats nothing) and wrong for the ~85 beta accounts (seven is INSIDE fourteen).
+They were charged on day 7 of a promised fourteen, with no `trackd_grace_until`
+written, so reconciliation could not even see it happened. One fallback cannot be
+both generous against nothing and fair against fourteen. `compEntitlement` now
+distinguishes `unknown` (the read failed) from `none` (verified: no comp row),
+and the MONEY path refuses on `unknown` while the SCREEN stays generous, which is
+§3.5's own asymmetry rather than a departure from it.
+
+**HIGH — the comp refusal failed open.** It is a network read, so a Postgres blip
+skipped it and one of the five people promised Trackd for life could confirm a
+card. The reviewer also disproved the code's own justification: a comp CAN reach
+`/onboarding?step=start`, because the only server guard on an authed step is the
+age gate. Now backed by `betaGrantFor(user.email)`, a pure in-memory test over
+`COMP_EMAILS` with no failure mode. Two independent authorities must now agree
+before anybody is sold a subscription, and the one that cannot go down is free.
+
+**HIGH — the subscription list was truncated.** `limit: 100`, no paging, and
+Stripe returns newest first. §3.2 deliberately stores no "trial used" marker, so
+the completeness of that list is load-bearing: about a hundred plan-switches push
+the genuine trial off the page and the customer is handed a fresh seven days,
+repeatably. Now `autoPagingToArray`.
+
+**MEDIUM — the kill switch was ignored.** `compEntitlement` never filtered
+`is_active`, which `001` documents as how a comp is withdrawn. A revoked comp
+still read as `forever`, so `startTrial` answered `already-subscribed` and the
+screen walked them into an app the gate holds read-only, with **no way to buy
+their way out** and no repair short of deleting the row. A regression introduced
+when the old `.not("active_until","is",null)` filter was dropped in favour of
+reading the date.
+
+Judged and NOT fixed, both recorded in `next-tasks.md`: `reconcileToOne`'s
+dead-subscription guard cannot fire in the idempotent-replay case it was written
+for (no charge; needs a re-fetch by id), and `hasValidatedCard` treats an absent
+`pending_setup_intent` as proof a card step finished, which is wrong for a
+subscription created outside this path (dashboard, import, future RevenueCat).
+
 ## The paywall carousel: HEIC in a `.png`, P3 colour, and a frame that wasn't a phone (2026-08-14)
 
 ## The paywall carousel: HEIC in a `.png`, P3 colour, and a frame that wasn't a phone (2026-08-14)
