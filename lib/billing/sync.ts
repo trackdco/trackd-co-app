@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 
 import { COURTESY_KEY } from "./saveOffer";
 import { serviceClient } from "./service";
+import { stripe } from "./stripe";
 import type { SubscriptionStatus } from "./schema";
 
 /**
@@ -88,6 +89,64 @@ function entitledUntil(sub: Stripe.Subscription): string | null {
   if (sub.status === "trialing" && sub.trial_end) return ts(sub.trial_end);
   const item = sub.items?.data?.[0];
   return ts(item?.current_period_end);
+}
+
+/**
+ * ⚠️ HOW FAR THIS CUSTOMER'S *OTHER* LIVE SUBSCRIPTIONS ENTITLE THEM.
+ *
+ * ## The defect this exists for, measured twice, by two independent reviews
+ *
+ * `entitlements` is unique on `(user_id, product, source)`, so ONE row serves
+ * every Stripe subscription a customer has. Both handlers that SHORTEN that row
+ * computed their date from the single subscription their event named:
+ *
+ *   - **`endSubscription`.** A paid yearly (entitled to 2027-08-15) beside a
+ *     stray 3-day trial. The user presses Cancel; both are flagged; the trial
+ *     reaches its end and Stripe DELETES it — a deletion that only happens
+ *     because the cancel scheduled it. `active_until` went to **2026-08-18**.
+ *     **362 days of paid access removed by pressing Cancel**, with the yearly
+ *     still `active` and still paid through 2027.
+ *
+ *   - **`markPastDue`.** Wider still, and no test clock needed: one declined
+ *     charge on an unrelated second subscription clawed the same yearly row from
+ *     2027-08-15 back to a three-day grace.
+ *
+ * Both are the mirror image of the $69.99 defect: not a charge nobody agreed to,
+ * but a year of access taken off somebody who paid for it.
+ *
+ * ## So a shortening handler may not go below what else still entitles them
+ *
+ * This returns the furthest date any OTHER live subscription reaches, and the
+ * two callers floor their result at it. Neither may pull the shared row below
+ * what a subscription nobody cancelled has independently paid for.
+ *
+ * ⚠️ IT ASKS STRIPE, AND IT THROWS RATHER THAN GUESSING. The mirror can be in
+ * flight, `unattributed`, or 500'd, and a floor read from a stale mirror is a
+ * floor that is too low — which is exactly the failure being fixed. On a Stripe
+ * read failure this throws so the webhook RETRIES, the same choice
+ * `revokeForCustomer` makes and for the same reason: the alternative is
+ * silently locking a paying customer out of the year they bought.
+ */
+async function otherLiveEntitlementFloor(
+  customerId: string,
+  excludeSubscriptionId: string,
+): Promise<number | null> {
+  const list = await stripe().subscriptions.list({
+    customer: customerId,
+    status: "all",
+    limit: 100,
+  });
+
+  let furthest: number | null = null;
+  for (const other of list.data) {
+    if (other.id === excludeSubscriptionId) continue;
+    if (!ENTITLING.has(other.status)) continue;
+    const until = entitledUntil(other);
+    if (!until) continue;
+    const at = Date.parse(until);
+    if (Number.isFinite(at) && (furthest === null || at > furthest)) furthest = at;
+  }
+  return furthest;
 }
 
 /**
@@ -442,14 +501,21 @@ export async function extendFromInvoice(
   // not unattributed: there was never a subscription to attribute.
   if (!subId) return "handled";
   /**
-   * ⚠️ THE ONE CALL SITE THAT MAY RESURRECT A REVOKED ENTITLEMENT.
+   * ⚠️ THE ONE CALL SITE THAT MAY RESURRECT A REVOKED ENTITLEMENT — AND ONLY
+   * WHEN MONEY ACTUALLY MOVED.
    *
-   * An invoice was PAID. That is money actually arriving, which is the only
-   * thing that should undo a revocation made after a dispute or a refund. The
-   * two subscription-event call sites and `claimExtraTime`'s mirror write all
-   * pass nothing, because none of them is evidence that anybody paid.
+   * `invoice.paid` alone is NOT evidence of payment. A cold review counted this
+   * project's own webhook log: **27 of the last 40 `invoice.paid` events carried
+   * `amount_paid: 0`** — every trial start raises a zero invoice and marks it
+   * paid. Passing the flag on all of them meant a revoked account could start
+   * any new subscription and have its entitlement restored for nothing, which is
+   * precisely the hole this flag was added to close.
+   *
+   * So the amount decides, not the event name. A refund or dispute revocation
+   * now survives every zero invoice, and is undone only by a real payment.
    */
-  return syncSubscription(await fetchSubscription(subId), { paymentConfirmed: true });
+  const paid = (invoice.amount_paid ?? 0) > 0;
+  return syncSubscription(await fetchSubscription(subId), { paymentConfirmed: paid });
 }
 
 /**
@@ -547,7 +613,27 @@ export async function markPastDue(
   const current = ents?.[0]?.active_until;
   if (!current) return "handled"; // Nothing to shorten.
 
-  const shortened = Math.min(Date.parse(current), graceEnds);
+  /**
+   * ⚠️ THE CLAWBACK IS ABOUT *THIS* SUBSCRIPTION, AND THE ROW IS SHARED.
+   *
+   * A cold review drove it with no test clock at all: a paid yearly plus a
+   * second subscription whose card declined. The failing invoice's line period
+   * governed the whole row, so `2027-08-15` became a three-day grace while the
+   * yearly was still `active` and fully paid. Wider reach than the deletion
+   * case, because it needs no duplicate LIVE subscription — only a failed
+   * attempt on a customer who already holds an entitlement, which the
+   * paid-today path produces on any declined card.
+   */
+  const customerId =
+    typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+  const floor = customerId
+    ? await otherLiveEntitlementFloor(customerId, subId)
+    : null;
+
+  const shortened = Math.max(
+    Math.min(Date.parse(current), graceEnds),
+    floor ?? Number.NEGATIVE_INFINITY,
+  );
   // Already at or inside the window.
   if (shortened >= Date.parse(current)) return "handled";
 
@@ -627,7 +713,19 @@ export async function endSubscription(
   // No row yet, or one that already ends sooner — nothing a cancellation should
   // do. Cancelling is not a way to buy time.
   if (!current) return "handled";
-  const shortened = Math.min(Date.parse(current), Date.parse(until));
+
+  /**
+   * ⚠️ AND NOT BELOW WHAT THE CUSTOMER'S OTHER LIVE SUBSCRIPTIONS ENTITLE.
+   *
+   * The entitlement row is shared across every subscription this customer has.
+   * Without this floor, one dying trial dragged a paid yearly's access back by
+   * 362 days. See {@link otherLiveEntitlementFloor}.
+   */
+  const floor = await otherLiveEntitlementFloor(customerId, sub.id);
+  const shortened = Math.max(
+    Math.min(Date.parse(current), Date.parse(until)),
+    floor ?? Number.NEGATIVE_INFINITY,
+  );
   if (shortened >= Date.parse(current)) return "handled";
 
   // `deliberateShorten`: this handler's entire job is to pull the date back, and

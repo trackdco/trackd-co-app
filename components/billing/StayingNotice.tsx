@@ -79,7 +79,20 @@ export function StayingNotice({
          idiom the cancel dialog uses two files over. */
       /* `mt-6` and no bottom margin: the plan card's own `mt-6` supplies the gap
          below, so the slot above is weightless when there is no card in it. */
-      className="mt-6 flex items-start gap-3 rounded-2xl border border-accent-amber/40 bg-accent-amber/10 px-4 py-3.5 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+      /**
+       * ⚠️ `scroll-mt` KEEPS THE SCROLL CLEAR OF THE STATUS BAR.
+       *
+       * The app is `viewportFit: "cover"`, so the OS draws its own bar over the
+       * top of the page. `block: "nearest"` parks the card at exactly viewport
+       * top 0, and a cold review measured the result at 320x568: the headline
+       * sat at y 15-35, entirely inside a 47px band (59px standalone), with the
+       * dismiss control under it too. Scrolling it into view is only useful if
+       * what it scrolls to is not covered.
+       *
+       * `scroll-margin-top` is respected by `scrollIntoView`, so the stop lands
+       * the inset plus a little short of the band.
+       */
+      className="mt-6 flex items-start gap-3 rounded-2xl border border-accent-amber/40 bg-accent-amber/10 px-4 py-3.5 scroll-mt-[calc(env(safe-area-inset-top)+2.5rem)] animate-in fade-in-0 duration-200 motion-reduce:animate-none"
     >
       <div className="min-w-0 flex-1">
         <p className="text-sm text-foreground">Glad you&apos;re staying.</p>

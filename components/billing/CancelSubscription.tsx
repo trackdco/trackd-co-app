@@ -17,6 +17,7 @@ import {
 } from "@/app/(app)/billing/actions";
 import type { SaveOffer } from "@/app/(app)/billing/actions";
 import { STAYING_NOTICE_SLOT, StayingNotice } from "@/components/billing/StayingNotice";
+import { CANCEL_FAILED, RESUME_FAILED } from "@/lib/billing/manage";
 import {
   forgetOffer,
   formatRemaining,
@@ -140,6 +141,10 @@ export function CancelSubscription({
    *  has not committed within the same tick, so `disabled` is still false and
    *  two clicks in one tick sent two requests (measured at a 0ms gap). */
   const inFlight = useRef(false);
+  /** Which phase focus was last moved for, so a re-render cannot move it again. */
+  const focusedPhase = useRef<Phase | null>(null);
+  /** Where focus was when the request started, so it can be put back after. */
+  const activeBeforePending = useRef<HTMLElement | null>(null);
 
   /** Close, and put focus back where it came from. */
   const close = useCallback(() => {
@@ -167,12 +172,50 @@ export function CancelSubscription({
    * body while a new dialog they were never told about sat on screen.
    */
   useEffect(() => {
-    if (phase === "closed") return;
+    if (phase === "closed") {
+      focusedPhase.current = null;
+      return;
+    }
     const node = dialogRef.current;
-    // An ENABLED button, falling back to the dialog. `querySelector("button")`
-    // returned a disabled one during the pending window, and `.focus()` on a
-    // disabled button is a no-op — so focus stayed wherever the click left it.
-    (node?.querySelector<HTMLElement>("button:not([disabled])") ?? node)?.focus();
+    /**
+     * ⚠️ ONLY ON A GENUINE PHASE CHANGE, NEVER JUST BECAUSE `pending` FLIPPED.
+     *
+     * This effect depends on `pending` so the Tab handler below can read it, and
+     * it used to move focus on every re-run. A cold review drove what that cost
+     * keyboard-only with the request aborted: `pending` went back to false, the
+     * effect re-ran, and focus jumped from "Yes, cancel" to the FIRST enabled
+     * button, which is **"Keep my trial"** — the control that abandons the
+     * cancellation. Press Enter to retry, as anybody would, and the dialog
+     * closes having cancelled nothing, while Stripe still says
+     * `cancel_at_period_end: false`. Same shape on the resume dialog.
+     *
+     * So focus moves when the dialog's CONTENTS change, and at no other time.
+     */
+    if (focusedPhase.current !== phase) {
+      focusedPhase.current = phase;
+      // An ENABLED button, falling back to the dialog. `querySelector("button")`
+      // returned a disabled one during the pending window, and `.focus()` on a
+      // disabled button is a no-op — so focus stayed wherever the click left it.
+      (node?.querySelector<HTMLElement>("button:not([disabled])") ?? node)?.focus();
+    } else if (!pending && node && !node.contains(document.activeElement)) {
+      /**
+       * ⚠️ AND PUT IT BACK WHERE IT WAS WHEN THE PENDING WINDOW ENDS.
+       *
+       * Disabling the button somebody is standing on drops focus to `<body>`,
+       * outside the dialog. Only re-focusing on a phase change fixes the wrong
+       * jump but leaves focus stranded there, where Enter does nothing — which
+       * on a failed cancellation is its own dead end.
+       *
+       * So focus is restored to the control they actually activated, and only
+       * falls back to the first button if that control has gone.
+       */
+      const restore = activeBeforePending.current;
+      if (restore && node.contains(restore) && !restore.hasAttribute("disabled")) {
+        restore.focus();
+      } else {
+        (node.querySelector<HTMLElement>("button:not([disabled])") ?? node).focus();
+      }
+    }
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !pending) {
@@ -304,6 +347,7 @@ export function CancelSubscription({
   function runConfirm() {
     if (inFlight.current) return;
     inFlight.current = true;
+    activeBeforePending.current = document.activeElement as HTMLElement | null;
     setError(null);
     startTransition(async () => {
       try {
@@ -385,7 +429,11 @@ export function CancelSubscription({
         // answered. Caught here so it cannot escape the transition and take the
         // whole screen with it.
         console.warn("[billing] the cancel/resume request did not complete:", err);
-        setError("Something went wrong.");
+        // The same approved string the server returns for this failure, shared
+        // from the pure module so the two cannot drift into two wordings. It
+        // states the fact and the next action, which "Something went wrong."
+        // did not.
+        setError(mode === "cancel" ? CANCEL_FAILED : RESUME_FAILED);
       } finally {
         inFlight.current = false;
       }
@@ -396,6 +444,7 @@ export function CancelSubscription({
   function runClaim() {
     if (inFlight.current) return;
     inFlight.current = true;
+    activeBeforePending.current = document.activeElement as HTMLElement | null;
     setError(null);
     startTransition(async () => {
       try {
@@ -592,9 +641,28 @@ export function CancelSubscription({
                 <p className="mt-3 text-sm leading-relaxed text-text-muted">{copy.terms}</p>
               ) : null}
 
-              {error ? (
-                <p className="mt-3 text-sm text-accent-destructive">{error}</p>
-              ) : null}
+              {/**
+                * ⚠️ THE FAILURE IS ANNOUNCED, AND IT IS THE RIGHT RED.
+                *
+                * The region is ALWAYS mounted so the message lands inside a live
+                * region that already exists — one inserted together with its own
+                * text is the classic case a screen reader skips, which is how a
+                * keyboard user came to retry a cancellation that had failed
+                * silently and dismiss the dialog instead.
+                *
+                * `--state-error`, not `--accent-destructive`: `ui-context.md`
+                * scopes the latter to deliberate destructive actions and
+                * specifies the former for errors, and every other error message
+                * in the app uses it. Measured, the old token was **2.64:1** at
+                * 14px on this surface — the dimmest line in a dialog about
+                * money. This one is 4.61:1.
+                */}
+              <p
+                role="alert"
+                className={error ? "mt-3 text-sm text-state-error" : "sr-only"}
+              >
+                {error}
+              </p>
 
               <div className="mt-5 flex gap-3">
                 {copy.dismiss ? (

@@ -40,6 +40,22 @@ import type { EntitlementSource } from "./access";
  */
 export type SaveOfferKind = "trial" | "paid";
 
+/**
+ * WHAT A FAILED CANCEL OR RESUME SAYS, IN ONE PLACE.
+ *
+ * Both the server action and the dialog's own catch need these. The action
+ * cannot export them — it is a `"use server"` module, where every export is a
+ * dispatchable endpoint and a non-async one fails the build — so they live here,
+ * in the pure module both sides already import.
+ *
+ * They state the FACT and the NEXT ACTION, which is what `ui-context.md` asks of
+ * error copy. The dialog's catch used the bare "Something went wrong.", which
+ * does neither: a cold review noted it tells somebody whose cancellation just
+ * failed nothing about what to do, on the screen where that matters most.
+ */
+export const CANCEL_FAILED = "We couldn't cancel just now. Please try again.";
+export const RESUME_FAILED = "We couldn't restart it just now. Please try again.";
+
 /** The mirror row, as much as the screen needs. Never an access decision. */
 export interface ManageableSubscription {
   status: string;
@@ -154,20 +170,53 @@ export function manageActionFor(
    */
   entitlementActiveUntil?: string | null,
 ): ManageAction {
-  // A founder, a cofounder, a beta tester. Nothing to cancel, and offering a
-  // cancel button would offer to end access that no subscription is paying for.
-  if (source === "comp") return { kind: "none", reason: "comp" };
-
   // RevenueCat will write these rows when TRACKD reaches the App Store, and the
   // subscription belongs to Apple or Google. We cannot cancel it and must not
   // pretend to: the only honest control is a pointer at the right place.
   if (source === "apple") return { kind: "store", store: "apple" };
   if (source === "google") return { kind: "store", store: "google" };
 
-  if (!subscription) return { kind: "none", reason: "no-subscription" };
+  /**
+   * ⚠️ A COMP DOES NOT MAKE A LIVE STRIPE SUBSCRIPTION STOP BILLING, SO IT MUST
+   * NOT MAKE THE WAY OUT OF ONE DISAPPEAR.
+   *
+   * This branch used to sit ABOVE the subscription checks and return "nothing to
+   * manage" from the entitlement's source alone. Its stated reasoning was that a
+   * cancel button "would offer to end access that no subscription is paying
+   * for" — and that reasoning only holds when there is no subscription. Where
+   * there IS one, cancelling does not end access at all: it stops a CHARGE, and
+   * the comp is a different entitlement row that a Stripe cancellation can never
+   * touch.
+   *
+   * Two independent cold reviews drove the cost. A comped paying customer read:
+   *
+   *     Access    Complimentary
+   *     Price     $11.99 USD / month
+   *     Trial ends 23 Aug 2026
+   *
+   * with **no cancel control and no support line**, while Stripe went on
+   * charging them. `access.ts` already describes this exact defect at length and
+   * calls it "the exact chargeback this whole area exists to avoid"; the fix
+   * there was applied to EXPIRING comps only, so a no-expiry comp still hid the
+   * control, and the grace cohort reopened it whenever the `stripe` entitlement
+   * row was absent — which is a designed state, not merely a race, because
+   * `syncSubscription` writes the mirror and then withholds the entitlement
+   * while `cardIsValidated` is false.
+   *
+   * So the source still decides what they are ON (`planLabelFor` says
+   * "Complimentary", because that is what their access rests on) and the
+   * SUBSCRIPTION decides whether there is something to stop. Two questions.
+   */
+  const comped = source === "comp";
+  if (!subscription) {
+    return { kind: "none", reason: comped ? "comp" : "no-subscription" };
+  }
 
   if (!CANCELLABLE.has(subscription.status)) {
-    return { kind: "unavailable", reason: subscription.status };
+    // Nothing here can be acted on, so a comp genuinely has nothing to manage.
+    return comped
+      ? { kind: "none", reason: "comp" }
+      : { kind: "unavailable", reason: subscription.status };
   }
 
   const isTrial = subscription.status === "trialing";

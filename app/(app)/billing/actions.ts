@@ -8,6 +8,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { applyCancelFlag, liveSubscriptionsForUser } from "@/lib/billing/cancel";
 import {
   CANCELLABLE_STATUSES,
+  CANCEL_FAILED,
+  RESUME_FAILED,
   formatAccessDate,
   type SaveOfferKind,
 } from "@/lib/billing/manage";
@@ -251,7 +253,7 @@ export async function cancelSubscription(): Promise<CancelResult> {
         `[billing] ⚠️ ${found.userId} is PARTIALLY cancelled: ${found.ids.length - failed.length} stopped, ${failed.join(", ")} still billing`,
       );
     }
-    return { ok: false, error: "We couldn't cancel just now. Please try again." };
+    return { ok: false, error: CANCEL_FAILED };
   }
 
   console.info(`[billing] ${found.userId} cancelled ${found.ids.length} subscription(s) at period end`);
@@ -628,7 +630,7 @@ export async function resumeSubscription(): Promise<BillingActionResult> {
     );
   }
   if (resumed.length === 0) {
-    return { ok: false, error: "We couldn't restart it just now. Please try again." };
+    return { ok: false, error: RESUME_FAILED };
   }
   if (resumed.length < found.ids.length) {
     console.error(

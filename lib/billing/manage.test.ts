@@ -65,10 +65,41 @@ describe("who gets a cancel control", () => {
     });
   });
 
-  it("offers NOTHING to a comp, even if a Stripe row exists beside it", () => {
-    // A founder who also subscribed. Their access rests on the comp, and a
-    // cancel button would offer to end something that is not paying for it.
-    expect(manageActionFor("comp", sub())).toEqual({ kind: "none", reason: "comp" });
+  it("⚠️ offers a comp the way OUT of a live subscription that is still billing", () => {
+    /**
+     * This asserted the opposite, on the reasoning that "a cancel button would
+     * offer to end something that is not paying for it". Two independent cold
+     * reviews drove what that cost: comp a paying customer and `/billing` reads
+     * "Access: Complimentary" beside "$11.99 USD / month" with NO cancel control
+     * and no support line, while Stripe goes on charging them.
+     *
+     * The premise was wrong. Cancelling does not end access — it stops a CHARGE,
+     * and the comp is a separate entitlement row a Stripe cancellation can never
+     * touch. `access.ts` already documents this exact defect and calls it "the
+     * exact chargeback this whole area exists to avoid"; the fix there was
+     * applied to expiring comps only.
+     *
+     * The source still decides what they are ON. The subscription decides
+     * whether there is something to stop.
+     */
+    expect(manageActionFor("comp", sub())).toEqual({
+      kind: "cancel",
+      endsOn: "2026-09-14T15:39:23.000Z",
+      isTrial: false,
+    });
+    // ...and they are still described as complimentary, because that is what
+    // their access actually rests on.
+    expect(planLabelFor("comp", sub())).toBe("Complimentary");
+  });
+
+  it("offers a comp NOTHING when there is genuinely nothing to stop", () => {
+    // The founder the old reasoning was written for: a comp and no subscription,
+    // or one Stripe has finished with. Here "nothing to manage" is the truth.
+    expect(manageActionFor("comp", null)).toEqual({ kind: "none", reason: "comp" });
+    expect(manageActionFor("comp", sub({ status: "canceled" }))).toEqual({
+      kind: "none",
+      reason: "comp",
+    });
   });
 
   it("sends an App Store subscription to the App Store", () => {
@@ -100,10 +131,14 @@ describe("who gets a cancel control", () => {
     expect(action).toEqual({ kind: "unavailable", reason: "no-period-end" });
   });
 
-  it("the source outranks the subscription, always", () => {
-    // The ordering that matters: a comp with a live Stripe row is still a comp.
-    expect(manageActionFor("comp", sub({ status: "trialing" })).kind).toBe("none");
+  it("the source decides what you are ON; the subscription decides what you can STOP", () => {
+    // A store subscription genuinely cannot be cancelled from here, so the
+    // pointer at the right place is still the only honest control.
     expect(manageActionFor("apple", sub({ cancelAtPeriodEnd: true })).kind).toBe("store");
+    // A comp beside a live trial is described as complimentary and can still be
+    // stopped, because Stripe is going to charge for that trial.
+    expect(manageActionFor("comp", sub({ status: "trialing", trialEndsAt: "2026-08-23T00:00:00.000Z" })).kind).toBe("cancel");
+    expect(planLabelFor("comp", sub({ status: "trialing" }))).toBe("Complimentary");
   });
 });
 
