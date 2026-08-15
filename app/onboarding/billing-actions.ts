@@ -460,12 +460,45 @@ export async function startTrial(
      * free run and always matches what the screen just printed. A day-sized
      * tolerance would re-admit the one-calendar-day error this fixes.
      */
-    const resumable = live.find(
-      (sub) =>
-        sub.items.data[0]?.price?.id === wantedPrice &&
-        setupSecret(sub) &&
-        (sub.trial_end ?? 0) * 1000 >= freshFreeUntil - RESUME_STALENESS_TOLERANCE,
-    );
+    /**
+     * What kind of intent a fresh create would produce right now. The resumed
+     * attempt has to match it, or resuming would hand back a secret describing
+     * a different deal from the one this screen is showing.
+     */
+    const wantedKind: IntentKind = freeTime.kind === "none" ? "payment" : "setup";
+
+    const resumable = live.find((sub) => {
+      if (sub.items.data[0]?.price?.id !== wantedPrice) return false;
+
+      /**
+       * ⚠️ EITHER KIND (§3.6). This used to require a SetupIntent, so a paid
+       * attempt was never resumable and was cancelled and replaced on every
+       * return — a fresh invoice each time, and a trail of dead subscriptions
+       * and abandoned invoices on the customer.
+       *
+       * The Stripe dashboard cancels incomplete payments after FIFTEEN DAYS on
+       * this account, not the ~23 hours a comment elsewhere in this file
+       * reasons from, so that trail would have had a fortnight to accumulate.
+       */
+      const intent = confirmableIntent(sub);
+      if (!intent || intent.kind !== wantedKind) return false;
+
+      /**
+       * ⚠️ A PAID ATTEMPT HAS NO PROMISE TO GO STALE, so the staleness rule
+       * does not apply to it.
+       *
+       * The rule exists because a trial's `trial_end` is a DATE the screen
+       * printed, and resuming a decayed one charges earlier than that date said.
+       * A paid attempt printed no date: its invoice is the same money today as
+       * it was on the day it was raised, and resuming it is what §3.6 asks for
+       * — the same subscription and the same invoice rather than a second pair.
+       *
+       * Written as an explicit null test rather than `?? 0`, which would have
+       * quietly made every paid attempt look infinitely stale and replaced it.
+       */
+      if (sub.trial_end === null) return true;
+      return sub.trial_end * 1000 >= freshFreeUntil - RESUME_STALENESS_TOLERANCE;
+    });
 
     for (const other of live) {
       if (other.id === resumable?.id) continue;
@@ -479,11 +512,9 @@ export async function startTrial(
 
     if (resumable) {
       /**
-       * The resolver rather than `setupSecret`, so the resumed attempt reports
-       * its kind like every other `ok` does. Behaviour is unchanged for now:
-       * the `resumable` predicate above still requires a SetupIntent, so this
-       * can only ever report `setup`. Step 6 relaxes that predicate, and this
-       * line is then already correct for a resumed PAID attempt.
+       * The resolver rather than `setupSecret`, so a resumed PAID attempt hands
+       * back its PaymentIntent and reports `payment` — which the sheet then
+       * confirms with `confirmPayment` and the mode gate checks like any other.
        */
       const intent = confirmableIntent(resumable);
       if (intent) {

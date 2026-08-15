@@ -247,7 +247,13 @@ export function CheckoutScreen() {
     setHolding(true);
   };
 
-  if (holding) return <TrialHold onEntitled={goNext} />;
+  /**
+   * `paid` follows the same answer the sheet's mode does, so the words on the
+   * holding screen cannot disagree with what the user was just charged. A
+   * returning redirect lands here too, and it lands with the correct variant
+   * because `trial` is resolved from the same eligibility state.
+   */
+  if (holding) return <TrialHold onEntitled={goNext} paid={!trial} />;
 
   /**
    * ⚠️ THE FORM IS NOT RENDERED WHILE A RETURNING INTENT IS UNRESOLVED (§3.5).

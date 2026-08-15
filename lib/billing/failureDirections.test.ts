@@ -268,10 +268,32 @@ describe("a stale abandoned attempt is replaced, not resumed", () => {
     expect(body.indexOf("resolveFreeTime")).toBeLessThan(body.indexOf("const resumable"));
   });
 
-  it("still requires the plan to match and a usable setup intent", () => {
+  it("still requires the plan to match and a confirmable intent", () => {
     const find = body.slice(body.indexOf("const resumable"), body.indexOf("for (const other"));
     expect(find).toContain("wantedPrice");
-    expect(find).toContain("setupSecret(sub)");
+    // Spec 02a §3.6 widened this from `setupSecret` to the resolver, so a PAID
+    // attempt is resumable too. Before that, a paid attempt was cancelled and
+    // replaced on every return, raising a fresh invoice each time.
+    expect(find).toContain("confirmableIntent(sub)");
+  });
+
+  it("only resumes an attempt of the kind a fresh create would produce", () => {
+    // Otherwise a user owed a trial could be handed back an old PAID attempt's
+    // PaymentIntent, which is a charge against a screen promising free days.
+    const find = body.slice(body.indexOf("const resumable"), body.indexOf("for (const other"));
+    expect(find).toContain("intent.kind !== wantedKind");
+  });
+
+  it("exempts a paid attempt from the staleness rule, explicitly", () => {
+    /**
+     * A paid attempt has no `trial_end`, so the staleness comparison has nothing
+     * to measure. Written as a null test rather than `?? 0`, which would have
+     * made every paid attempt look infinitely stale and replaced it — raising a
+     * second invoice on every return, which is the defect §3.6 exists to stop.
+     */
+    const find = body.slice(body.indexOf("const resumable"), body.indexOf("for (const other"));
+    expect(find).toContain("sub.trial_end === null");
+    expect(find).not.toContain("(sub.trial_end ?? 0)");
   });
 
   it("keeps the tolerance far below a day", () => {

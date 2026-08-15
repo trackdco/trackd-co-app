@@ -41,7 +41,39 @@ const BACKOFF_MS = [
   600, 900, 1200, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000,
 ];
 
-export function TrialHold({ onEntitled }: { onEntitled: () => void }) {
+/**
+ * ⚠️ THE PAID PATH WAITS LONGER, AND THE TRIAL PATH IS UNCHANGED (D15: 60s
+ * against ~30).
+ *
+ * The 30 seconds above is sized on "most webhooks land inside three seconds",
+ * which is true of `customer.subscription.created` on a trialing subscription —
+ * fired at creation, with nothing in front of it. A CHARGED subscription has to
+ * travel through payment confirmation, `invoice.paid` and
+ * `customer.subscription.updated` before `syncSubscription` writes an entitling
+ * row, so a charged customer is measurably likelier to reach the slow screen.
+ *
+ * Reaching it is not a failure, but it is a worse thing to reach when money has
+ * just moved, so the paid path is given twice the room before it gets there.
+ */
+const PAID_BACKOFF_MS = [
+  ...BACKOFF_MS,
+  5000, 5000, 5000, 5000, 5000, 5000,
+];
+
+export function TrialHold({
+  onEntitled,
+  paid = false,
+}: {
+  onEntitled: () => void;
+  /**
+   * ⚠️ WAS THIS CUSTOMER CHARGED? It changes the words and the timing, and
+   * nothing else.
+   *
+   * Defaults false so the trial path — and the `/preview/paywall` harness — are
+   * untouched by the existence of this prop.
+   */
+  paid?: boolean;
+}) {
   const [slow, setSlow] = useState(false);
   const [checking, setChecking] = useState(false);
 
@@ -67,7 +99,7 @@ export function TrialHold({ onEntitled }: { onEntitled: () => void }) {
     const mine = () => runToken.current === token;
 
     (async () => {
-      for (const wait of BACKOFF_MS) {
+      for (const wait of paid ? PAID_BACKOFF_MS : BACKOFF_MS) {
         if (!mine()) return;
         try {
           if (await hasEntitlement()) {
@@ -88,7 +120,7 @@ export function TrialHold({ onEntitled }: { onEntitled: () => void }) {
       // no longer current and stop.
       runToken.current += 1;
     };
-  }, [onEntitled]);
+  }, [onEntitled, paid]);
 
   /**
    * The Continue on the recoverable state RE-CHECKS before letting anyone
@@ -131,9 +163,15 @@ export function TrialHold({ onEntitled }: { onEntitled: () => void }) {
         <h1 className={cn(FLOW_TITLE, "text-balance")}>
           This is taking a moment.
         </h1>
+        {/* ⚠️ SIGNED COPY (D15, 15 Aug 2026). The paid variant must not say
+            "trial", must not claim the payment succeeded — this screen cannot
+            know that — and must acknowledge that money moved, because a charged
+            customer reading a screen that ignores the charge goes looking for
+            their bank. Carried verbatim; do not shorten or soften. */}
         <p className={cn(FLOW_SUB, "mx-auto mt-3 max-w-[20rem] text-pretty")}>
-          We&apos;re still finishing your setup. Nothing is lost, so carry on, and
-          if anything is missing it&apos;ll catch up shortly.
+          {paid
+            ? "We're still finishing your setup. Your payment is safe and your Pro plan will appear shortly. Carry on, and check your Billing screen if anything looks missing."
+            : "We're still finishing your setup. Nothing is lost, so carry on, and if anything is missing it'll catch up shortly."}
         </p>
         <div className="mt-8">
           <FlowCta onClick={() => void continueOn()} disabled={checking}>
@@ -151,8 +189,10 @@ export function TrialHold({ onEntitled }: { onEntitled: () => void }) {
       aria-live="polite"
     >
       <CircleNotch className="h-7 w-7 animate-spin text-text-subtle" aria-hidden />
+      {/* ⚠️ SIGNED COPY (D15). A customer who was just charged must not read
+          the word "trial" here. */}
       <h1 className={cn(FLOW_TITLE, "mt-6 text-balance")}>
-        Setting up your trial.
+        {paid ? "Setting up your plan." : "Setting up your trial."}
       </h1>
       <p className={cn(FLOW_SUB, "mx-auto mt-3 max-w-[20rem] text-pretty")}>
         One moment. We&apos;re just confirming everything.
