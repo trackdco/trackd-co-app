@@ -74,7 +74,24 @@ export type TrialEligibility = {
 };
 
 export type StartTrialResult =
-  | { status: "ok"; clientSecret: string; subscriptionId: string }
+  | {
+      status: "ok";
+      clientSecret: string;
+      /**
+       * ⚠️ WHICH CONFIRM CALL TO MAKE, and it is NOT optional.
+       *
+       * A secret without its kind is what charges somebody who was promised
+       * free days: the client would have to guess, and its only basis for a
+       * guess is the generous default it already renders. Carried on the `ok`
+       * variant so the type makes it impossible to hand back a secret without
+       * saying what it is.
+       *
+       * No fourth `status` (§3.2): every existing caller branches on `status`
+       * and must keep compiling untouched.
+       */
+      intentKind: IntentKind;
+      subscriptionId: string;
+    }
   /** Already entitled. The caller should move them into the app, not charge them. */
   | { status: "already-subscribed" }
   | { status: "error"; message: string };
@@ -429,9 +446,21 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
     }
 
     if (resumable) {
-      const secret = setupSecret(resumable);
-      if (secret) {
-        return { status: "ok", clientSecret: secret, subscriptionId: resumable.id };
+      /**
+       * The resolver rather than `setupSecret`, so the resumed attempt reports
+       * its kind like every other `ok` does. Behaviour is unchanged for now:
+       * the `resumable` predicate above still requires a SetupIntent, so this
+       * can only ever report `setup`. Step 6 relaxes that predicate, and this
+       * line is then already correct for a resumed PAID attempt.
+       */
+      const intent = confirmableIntent(resumable);
+      if (intent) {
+        return {
+          status: "ok",
+          clientSecret: intent.clientSecret,
+          intentKind: intent.kind,
+          subscriptionId: resumable.id,
+        };
       }
     }
 
@@ -585,28 +614,39 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
       wantedPrice,
     );
     if (!survivor) {
-      return { status: "error", message: "Couldn't start your trial just now." };
+      return { status: "error", message: failureMessage(freeTime) };
     }
 
-    const clientSecret = setupSecret(survivor);
+    /**
+     * ⚠️ THE RESOLVER, NOT `setupSecret`. This one call is the whole of §3.1's
+     * change at this site, and `reconcileToOne`'s body is deliberately
+     * untouched: it returns a `Stripe.Subscription` and never handles a secret,
+     * so there is nothing inside it to thread.
+     */
+    const intent = confirmableIntent(survivor);
 
-    if (!clientSecret) {
+    if (!intent) {
       /**
-       * Either Stripe created something other than a trialing subscription — a
-       * paid trial, or a price with an amount due today — or the reconcile kept
-       * a subscription that is already past its setup (this request lost a race
-       * it should not have been in).
+       * The subscription has nothing the client can confirm — no SetupIntent
+       * and no PaymentIntent on its invoice. Either the reconcile kept a
+       * subscription already past its setup (this request lost a race it should
+       * not have been in), or Stripe produced something neither arm expects.
        *
-       * Surfaced rather than papered over either way: the user must not be shown
-       * a payment form that cannot complete.
+       * Surfaced rather than papered over: the user must not be shown a payment
+       * form that cannot complete.
        */
       console.error(
-        `[billing] no usable pending_setup_intent on ${survivor.id} (status ${survivor.status})`,
+        `[billing] nothing confirmable on ${survivor.id} (status ${survivor.status})`,
       );
-      return { status: "error", message: "Couldn't start your trial just now." };
+      return { status: "error", message: failureMessage(freeTime) };
     }
 
-    return { status: "ok", clientSecret, subscriptionId: survivor.id };
+    return {
+      status: "ok",
+      clientSecret: intent.clientSecret,
+      intentKind: intent.kind,
+      subscriptionId: survivor.id,
+    };
   } catch (err) {
     console.error(
       "[billing] startTrial failed:",
@@ -877,6 +917,25 @@ async function reconcileToOne(
   }
 
   return winner;
+}
+
+/**
+ * WHAT TO SAY WHEN THE CREATE FAILS, and it depends on what they were promised.
+ *
+ * Both post-reconcile failure branches used to return "Couldn't start your trial
+ * just now." A user who is being charged today reaches both of them and reads a
+ * sentence about a trial they were told two lines earlier they cannot have.
+ *
+ * ⚠️ THE PAID STRING IS SIGNED COPY (D20, 15 Aug 2026), owned by `02b` and
+ * routed here per §3.10. Carried character for character. Do not shorten,
+ * soften, or improve it, and note the second sentence: both branches are
+ * reached BEFORE anything is confirmed, so "nothing has been charged" is true
+ * every time it renders. If that ever stops being true, this string moves.
+ */
+function failureMessage(freeTime: ReturnType<typeof resolveFreeTime>): string {
+  return freeTime.kind === "none"
+    ? "We couldn't start your plan just now. Nothing has been charged."
+    : "Couldn't start your trial just now.";
 }
 
 /** The client secret on a subscription's pending SetupIntent, if it has one. */
