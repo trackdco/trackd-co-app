@@ -1417,6 +1417,105 @@ function hasValidatedCard(sub: Stripe.Subscription): boolean {
  * holding state would hand the user straight into a redirect back to the paywall,
  * which is the exact failure it exists to prevent.
  */
+/**
+ * WHAT HAPPENED TO AN INTENT THE BANK JUST REDIRECTED BACK (spec 02a §3.5).
+ *
+ * When a bank forces a full-page redirect rather than an inline challenge,
+ * Stripe returns the user to `/onboarding?step=start` with `redirect_status` and
+ * an intent client secret on the URL. Nothing read either parameter before this,
+ * so the flow remounted, `holding` was component state and therefore false, and
+ * the user landed back on the card form.
+ *
+ * On the setup path that was merely bad. **On the payment path it is a screen
+ * inviting somebody to pay for a charge that may have already succeeded.** The
+ * `already-subscribed` guard catches most second attempts, but "most" is not the
+ * standard on a payment screen, and the user is being asked a question the app
+ * should already know the answer to.
+ *
+ * ## ⚠️ A CLIENT SECRET IDENTIFIES AN INTENT, NOT A PERSON
+ *
+ * So ownership is proven here rather than assumed: the intent is retrieved
+ * server-side, its customer is compared against the `billing_customers` row for
+ * the VERIFIED SESSION, and a mismatch returns `unknown` without revealing that
+ * the intent exists. §3.12 requires exactly this before acting on it.
+ *
+ * Reads only. It confirms nothing, creates nothing and grants nothing — access
+ * still comes from `entitlements` via the webhook.
+ */
+export type ReturningIntent =
+  | { status: "succeeded" }
+  | { status: "failed" }
+  | { status: "requires_action" }
+  /** Not ours, not resolvable, or not this user's. Treated as "just show the form". */
+  | { status: "unknown" };
+
+export async function resolveReturningIntent(
+  clientSecret: string,
+): Promise<ReturningIntent> {
+  try {
+    const { user } = await getSessionContext();
+    if (!user) return { status: "unknown" };
+
+    /**
+     * `pi_XXX_secret_YYY` / `seti_XXX_secret_YYY`. The id is everything before
+     * `_secret_`, and anything that does not match that shape is not a Stripe
+     * client secret at all.
+     */
+    const id = clientSecret.split("_secret_")[0];
+    if (!/^(pi|seti)_[A-Za-z0-9]+$/.test(id)) return { status: "unknown" };
+
+    const client = stripe();
+    const intent = id.startsWith("seti_")
+      ? await client.setupIntents.retrieve(id)
+      : await client.paymentIntents.retrieve(id);
+
+    /**
+     * ⚠️ OWNERSHIP. The customer on the intent must be the customer mapped to
+     * this session. Without this, anybody could paste another user's redirect
+     * URL and learn the state of their payment.
+     */
+    const ours = await customerIdFor(user.id);
+    const theirs =
+      typeof intent.customer === "string" ? intent.customer : intent.customer?.id;
+    if (!ours || !theirs || ours !== theirs) {
+      console.error(`[billing] returning intent ${id} does not belong to ${user.id}`);
+      return { status: "unknown" };
+    }
+
+    switch (intent.status) {
+      case "succeeded":
+        return { status: "succeeded" };
+      case "requires_action":
+      case "requires_confirmation":
+      case "processing":
+        return { status: "requires_action" };
+      case "canceled":
+      case "requires_payment_method":
+        return { status: "failed" };
+      default:
+        return { status: "unknown" };
+    }
+  } catch (err) {
+    console.error(
+      "[billing] could not resolve a returning intent:",
+      err instanceof Error ? err.message : String(err),
+    );
+    // Falls through to rendering the form, which is the same place the user
+    // would have landed before this existed.
+    return { status: "unknown" };
+  }
+}
+
+/** This user's Stripe customer id, or null. Never creates one. */
+async function customerIdFor(userId: string): Promise<string | null> {
+  const { data } = await serviceClient()
+    .from("billing_customers")
+    .select("stripe_customer_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return (data?.stripe_customer_id as string | undefined) ?? null;
+}
+
 export async function hasEntitlement(): Promise<boolean> {
   return hasProAccess();
 }

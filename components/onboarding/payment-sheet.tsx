@@ -87,6 +87,7 @@ export function PaymentSheet({
   ctaLabel,
   disclosure,
   onOutcome,
+  notice,
   onModeCorrection,
 }: {
   plan: PlanId;
@@ -133,6 +134,13 @@ export function PaymentSheet({
    */
   disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
+  /**
+   * A message from OUTSIDE a submit — today, what a returning bank redirect
+   * resolved to (§3.5). Rendered in the same slot as a confirm error so there
+   * is one place a user looks for what went wrong, and cleared by the next
+   * attempt like any other.
+   */
+  notice?: string;
   /**
    * ⚠️ THE SERVER DISAGREED ABOUT WHAT THIS SHEET SHOULD BE (§3.3).
    *
@@ -204,6 +212,7 @@ export function PaymentSheet({
         ctaLabel={ctaLabel}
         disclosure={disclosure}
         onOutcome={onOutcome}
+        notice={notice}
         onModeCorrection={onModeCorrection}
       />
     </Elements>
@@ -217,6 +226,7 @@ function PaymentForm({
   ctaLabel,
   disclosure,
   onOutcome,
+  notice,
   onModeCorrection,
 }: {
   plan: PlanId;
@@ -227,6 +237,8 @@ function PaymentForm({
   ctaLabel: string;
   disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
+  /** See `PaymentSheet`. */
+  notice?: string;
   /** See `PaymentSheet`. */
   onModeCorrection?: (mode: IntentKind) => void;
 }) {
@@ -386,9 +398,12 @@ function PaymentForm({
         }}
       />
 
-      {error ? (
+      {/* A submit error wins over a returning-redirect notice: it describes
+          what just happened, the notice describes what happened before. One
+          slot either way, so there is a single place to look. */}
+      {error ?? notice ? (
         <p role="alert" className="text-[0.8rem] text-[var(--state-error)]">
-          {error}
+          {error ?? notice}
         </p>
       ) : null}
 

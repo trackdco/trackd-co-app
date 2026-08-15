@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  resolveReturningIntent,
   trialEligibility,
   type TrialEligibility,
 } from "@/app/onboarding/billing-actions";
@@ -38,6 +39,52 @@ import { TrialHold } from "../trial-hold";
  * stripe.com domain — not that payment has to share a screen with the price
  * list. Apple Pay and Google Pay render above the card fields exactly as before.
  */
+/**
+ * The intent client secret Stripe appended when a bank redirect came back, or
+ * null.
+ *
+ * Both spellings are read because the parameter name follows the INTENT KIND,
+ * not the flow: a returning SetupIntent arrives as `setup_intent_client_secret`
+ * and a returning PaymentIntent as `payment_intent_client_secret`. Reading only
+ * one would work on the trial path and silently do nothing on the paid one,
+ * which is the path where landing back on the card form is dangerous.
+ *
+ * Guarded for SSR: this runs during render to seed state, and there is no
+ * `window` on the server.
+ */
+function readReturningSecret(): string | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get("payment_intent_client_secret") ??
+    params.get("setup_intent_client_secret")
+  );
+}
+
+/**
+ * Strip the redirect's parameters, keeping the step.
+ *
+ * `replaceState` rather than a navigation: the flow is one client tree that
+ * reads `?step=` at mount and on `popstate`, so pushing or navigating here
+ * would remount it. This edits the address bar and nothing else, which is what
+ * stops a refresh or a Back replaying the branch.
+ */
+function clearReturningParams(): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  for (const key of [
+    "payment_intent",
+    "payment_intent_client_secret",
+    "setup_intent",
+    "setup_intent_client_secret",
+    "redirect_status",
+    "source_redirect_slug",
+  ]) {
+    url.searchParams.delete(key);
+  }
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 export function CheckoutScreen() {
   const { session, goNext, priceFor } = useFlow();
   const [holding, setHolding] = useState(false);
@@ -91,6 +138,24 @@ export function CheckoutScreen() {
    * Null until a mismatch happens, which is almost always.
    */
   const [correctedMode, setCorrectedMode] = useState<IntentKind | null>(null);
+
+  /**
+   * ⚠️ A BANK REDIRECT COMING BACK (spec 02a §3.5), resolved BEFORE the form is
+   * rendered and before anything is created.
+   *
+   * Stripe appends `redirect_status` and an intent client secret when a 3D
+   * Secure challenge needed a full page navigation. Nothing read them before,
+   * so the flow remounted, `holding` was component state and therefore false,
+   * and the user landed back on the card form. On the setup path that was
+   * merely bad; on the PAYMENT path it is a screen inviting somebody to pay for
+   * a charge that may have already gone through.
+   *
+   * `pending` while it is being resolved, so the form is not rendered underneath
+   * a question that is about to answer itself.
+   */
+  const [returning, setReturning] = useState<
+    "none" | "pending" | "failed" | "requires_action"
+  >(() => (readReturningSecret() ? "pending" : "none"));
   /**
    * A correction beats the eligibility answer, because it came from the code
    * path that actually creates subscriptions rather than the one that decides
@@ -100,6 +165,42 @@ export function CheckoutScreen() {
   /** Which free run they already had, so the copy names the right one. */
   const hadDays = eligibility.days;
   const wasBeta = eligibility.reason === "beta";
+
+  useEffect(() => {
+    const secret = readReturningSecret();
+    if (!secret) return;
+
+    let alive = true;
+    void resolveReturningIntent(secret)
+      .then((r) => {
+        if (!alive) return;
+        if (r.status === "succeeded") {
+          /**
+           * The charge already went through on the other side of the redirect.
+           * Straight to the holding state, which polls `entitlements` exactly as
+           * it would have done inline. Never back to the card form.
+           */
+          setHolding(true);
+          return;
+        }
+        setReturning(r.status === "failed" ? "failed" : r.status === "requires_action" ? "requires_action" : "none");
+      })
+      .catch(() => {
+        if (alive) setReturning("none");
+      })
+      .finally(() => {
+        /**
+         * ⚠️ CLEARED IN EVERY CASE, so a refresh or a back-navigation cannot
+         * replay the branch — and cannot re-send a stale intent secret through
+         * the resolver either.
+         */
+        clearReturningParams();
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -147,6 +248,28 @@ export function CheckoutScreen() {
   };
 
   if (holding) return <TrialHold onEntitled={goNext} />;
+
+  /**
+   * ⚠️ THE FORM IS NOT RENDERED WHILE A RETURNING INTENT IS UNRESOLVED (§3.5).
+   *
+   * "No subscription is created while a returning intent is unresolved. The
+   * resolve happens first, always." A card form on screen during that window is
+   * a form somebody can submit, which is the second charge this exists to
+   * prevent. A skeleton rather than a spinner, per `ui-context.md`.
+   */
+  if (returning === "pending") {
+    return (
+      <StepFrame title="One moment.">
+        <div className="flex w-full flex-1 flex-col justify-center gap-3 pb-2" aria-busy="true">
+          <div className="h-13 w-full animate-pulse rounded-2xl bg-bg-surface-raised" />
+          <div className="h-13 w-full animate-pulse rounded-2xl bg-bg-surface-raised" />
+          <p className="text-center text-[0.8rem] text-text-muted">
+            Checking your payment with your bank.
+          </p>
+        </div>
+      </StepFrame>
+    );
+  }
 
   /**
    * THE DISCLOSURE, handed to `PaymentSheet` so it renders DIRECTLY ABOVE the
@@ -270,6 +393,18 @@ export function CheckoutScreen() {
              */
             mode={trial ? "setup" : "payment"}
             onModeCorrection={setCorrectedMode}
+            /**
+             * What the bank redirect came back with, if anything. Rendered by
+             * the sheet in its own error slot so it sits with the CTA rather
+             * than somewhere else on the screen.
+             */
+            notice={
+              returning === "failed"
+                ? "That payment didn't go through. Nothing has been charged. Please try again."
+                : returning === "requires_action"
+                  ? "Your bank is still checking that payment. Give it a moment, then try again."
+                  : undefined
+            }
             amountMinor={selected.amountMinor}
             ready={resolved}
             ctaLabel={
