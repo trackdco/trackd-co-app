@@ -1,8 +1,8 @@
 # Billing triple — build review
 
-**Branch:** `wave3/billing-cancel` · **Base:** `ebbd3cf` · **Head:** `396bccb`
+**Branch:** `wave3/billing-cancel` · **Base:** `ebbd3cf` · **Head:** `19117ec`
 **Specs:** `01-trial-eligibility`, `02a-paid-today-checkout`, `02b-checkout-copy-and-disclosure`
-**Date:** 15 Aug 2026 · 23 commits · 25 files · +5,307 / −189
+**Date:** 15 Aug 2026 · 25 commits · 25 files · +5,307 / −189
 
 Nothing merged. Nothing pushed. `BILLING_GATE_ENABLED` still unset, so none of
 this changes anything for the ~90 live accounts until it is set.

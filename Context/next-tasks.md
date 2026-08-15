@@ -8,7 +8,42 @@ Last updated: 2026-08-15 (billing spec 01 built and driven; 02a and 02b next)
 
 ---
 
-## 💳 THE BILLING TRIPLE — 01 IS BUILT, 02a AND 02b ARE NOT (2026-08-15)
+## 🔴 BLOCKED: SPECS 03, 04 AND 05 ARE EMPTY FILES (2026-08-16)
+
+The overnight run was ordered to build `03-cancel-flow` then `04-save-offer`.
+**Neither exists.** All three of these are zero-byte placeholders, and have been
+since they were committed in `911422f`:
+
+```
+Billing-03-Cancel-flow.md        0 bytes
+Billing-04-Save-Offer.md         0 bytes
+Billing-05-read-only-gate.md     0 bytes
+```
+
+Checked git history as well — no non-empty version was ever committed — and
+grepped `Context/` for the content under any other name. It is not in the repo.
+
+**Nothing was built.** These two specs govern the cancel flow and the save
+offer, which the standing orders themselves call "the highest-risk screen in
+the product", with orderings described as law: the cancellation written to
+Stripe before the offer renders, the offer burning on show, the server clock as
+the only clock. None of that can be inferred from the code, and inventing it is
+the one thing the workflow forbids.
+
+⚠️ **The cancel flow and save offer ARE already built in the codebase**
+(`lib/billing/cancel.ts`, `lib/billing/saveOffer.ts`, `lib/billing/openOfferStore.ts`,
+`supabase/billing/003_courtesy_until.sql`). So 03 and 04 are almost certainly
+REVIEW-and-amend specs over existing work rather than greenfield builds, which
+makes their exact wording matter more, not less: without them there is no way to
+tell which parts of what exists are correct and which are what the spec was
+written to change.
+
+**Owed by Adrian:** the contents of `Billing-03-Cancel-flow.md` and
+`Billing-04-Save-Offer.md`.
+
+---
+
+## 💳 THE BILLING TRIPLE — 01, 02a AND 02b ARE ALL BUILT (2026-08-15)
 
 **⚠️ SHIP-TOGETHER. `01`, `02a` and `02b` reach `main` together or not at all.**
 Spec 01 decides who gets free days, which makes the current checkout copy false
