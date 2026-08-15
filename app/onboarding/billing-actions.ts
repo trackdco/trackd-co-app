@@ -47,8 +47,29 @@ export type TrialEligibility = {
   eligible: boolean;
   /** `new` = gets a trial. `used` = had a 7-day trial. `beta` = had the fortnight. */
   reason: "new" | "used" | "beta";
-  /** How many days their free run was. 7 for a trial, 14 for the beta grace. */
+  /**
+   * How long their free run WAS. Not how long is left and not how much is
+   * elapsed: a beta user on day 12 of 14 gets 14, because that is the only
+   * reading the value is correct for.
+   *
+   * ⚠️ NOTHING MAY RENDER THIS AS A COUNTDOWN, a remaining balance or a
+   * progress figure. The only string that uses it reads it in the past tense.
+   */
   days: number;
+  /**
+   * The ISO instant a LIVE beta grace ends, or null.
+   *
+   * Non-null only when `reason` is `beta` AND the fortnight has not run out
+   * yet, which is what separates a mid-grace user from a post-grace one. They
+   * need different things said to them: the first is not charged until this
+   * date, the second is charged today.
+   *
+   * ⚠️ Handed over as a RAW ISO INSTANT, straight from
+   * `entitlements.active_until`, and never as a formatted date. The consuming
+   * screen formats it in the timezone that screen already uses. This is what
+   * stops a screen stating a date the server would contradict.
+   */
+  graceEndsAt: string | null;
 };
 
 export type StartTrialResult =
@@ -81,7 +102,12 @@ export type StartTrialResult =
  * the broken promise this function exists to prevent.
  */
 export async function trialEligibility(): Promise<TrialEligibility> {
-  const fallback = { eligible: true as const, reason: "new" as const, days: TRIAL_DAYS };
+  const fallback = {
+    eligible: true as const,
+    reason: "new" as const,
+    days: TRIAL_DAYS,
+    graceEndsAt: null,
+  };
   try {
     const { user } = await getSessionContext();
     if (!user) return fallback;
@@ -90,9 +116,23 @@ export async function trialEligibility(): Promise<TrialEligibility> {
      * ⚠️ WHY they are not eligible reaches the copy, because the two groups had
      * DIFFERENT free runs and telling a beta user they have "had their free
      * week" is simply false: they had a fortnight. Adrian caught that.
+     *
+     * ⚠️ ONE READ ANSWERS BOTH QUESTIONS — whether they had a grace, and when
+     * it ends. A second read would be a second thing that can fail on its own
+     * and disagree with the first, on the pair of facts a payment screen is
+     * about to state out loud.
      */
-    if (await hadBetaGrace(user.id)) {
-      return { eligible: false, reason: "beta", days: BETA_GRACE_DAYS };
+    const graceEnd = await betaGraceEnd(user.id);
+    if (graceEnd !== null) {
+      return {
+        eligible: false,
+        reason: "beta",
+        days: BETA_GRACE_DAYS,
+        // Null once the fortnight has run out. An expired grace still refuses
+        // the trial — they had their free run — but there is no longer a date
+        // in the future to tell anybody about.
+        graceEndsAt: isStillToCome(graceEnd) ? graceEnd : null,
+      };
     }
 
     const { data } = await serviceClient()
@@ -106,7 +146,7 @@ export async function trialEligibility(): Promise<TrialEligibility> {
 
     const { all } = await listSubscriptions(stripe(), customerId);
     return hasUsedTrial(all)
-      ? { eligible: false, reason: "used", days: TRIAL_DAYS }
+      ? { eligible: false, reason: "used", days: TRIAL_DAYS, graceEndsAt: null }
       : fallback;
   } catch (err) {
     console.error(
@@ -263,7 +303,8 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
      * seven days. Erring the other way charges a first-time customer immediately
      * against a screen that just promised seven days free, which is a dispute.
      */
-    const eligibleForTrial = !hasUsedTrial(all) && !(await hadBetaGrace(user.id));
+    const eligibleForTrial =
+      !hasUsedTrial(all) && (await betaGraceEnd(user.id)) === null;
 
     const subscription = await client.subscriptions.create(
       {
@@ -721,19 +762,39 @@ function hasUsedTrial(all: readonly Stripe.Subscription[]): boolean {
 }
 
 /**
- * Was this account one of the beta users who got the fourteen-day grace?
+ * WHEN DOES THIS ACCOUNT'S BETA GRACE END — or null if they never had one.
  *
  * A `comp` entitlement WITH an expiry is that grace and nothing else produces
  * that shape (`lib/billing/betaGrace.ts` enforces it: a comp-list member gets a
  * comp with NO expiry, everybody else gets one with an `active_until`).
  *
- * Read whether it is still active or not. The question is "have they already had
- * their free run", and an expired grace is exactly somebody who has.
+ * ## It returns the DATE, not a boolean, and one read answers both questions
  *
- * ⚠️ RETURNS FALSE ON ANY ERROR, which grants the trial. See the note at the
- * call site: the wrong direction here charges a first-timer immediately.
+ * Two callers need two different things from the same fact — the screen needs
+ * the date to tell a mid-grace user when their first charge falls, and the
+ * create call needs it to set `trial_end` there. Asking twice would be two
+ * queries that can fail independently and disagree about whether somebody is
+ * charged today, so this returns the instant and each caller decides what to do
+ * with it.
+ *
+ * ## Expired graces come back too, and that is deliberate
+ *
+ * The question this answers for eligibility is "have they already had their free
+ * run", and an expired grace is exactly somebody who has. Filtering to live
+ * graces here would hand a post-grace beta account a fresh seven-day trial on
+ * top of the fortnight they have already had. The callers apply their own
+ * liveness test.
+ *
+ * ⚠️ THE SELECT IS `source, active_until` AND MUST STAY THAT WAY. Both columns
+ * exist and are applied. A column added to this select breaks the whole request
+ * if its migration has not been run, and this request decides whether somebody
+ * is charged today. `supabase/billing/003_courtesy_until.sql` is written and NOT
+ * applied — nothing here may read it.
+ *
+ * ⚠️ RETURNS NULL ON ANY ERROR, which grants the trial. See the note at the call
+ * site: the wrong direction here charges a first-timer immediately.
  */
-async function hadBetaGrace(userId: string): Promise<boolean> {
+async function betaGraceEnd(userId: string): Promise<string | null> {
   try {
     const { data, error } = await serviceClient()
       .from("entitlements")
@@ -745,16 +806,31 @@ async function hadBetaGrace(userId: string): Promise<boolean> {
       .limit(1);
     if (error) {
       console.error(`[billing] could not check the beta grace for ${userId}:`, error.message);
-      return false;
+      return null;
     }
-    return (data?.length ?? 0) > 0;
+    const activeUntil = data?.[0]?.active_until as string | null | undefined;
+    return activeUntil ?? null;
   } catch (err) {
     console.error(
       `[billing] could not check the beta grace for ${userId}:`,
       err instanceof Error ? err.message : String(err),
     );
-    return false;
+    return null;
   }
+}
+
+/**
+ * Is this ISO instant still in the future?
+ *
+ * An unreadable date reads as PAST, so the screen simply gets no date rather
+ * than one it cannot render. It should be impossible against a `timestamptz`
+ * column. Note this withholds a date, never access or free time — the create
+ * call's own reading of the same string is in `resolveFreeTime`, and it errs
+ * the other way for the reason documented there.
+ */
+function isStillToCome(iso: string): boolean {
+  const at = Date.parse(iso);
+  return Number.isFinite(at) && at > Date.now();
 }
 
 function hasValidatedCard(sub: Stripe.Subscription): boolean {

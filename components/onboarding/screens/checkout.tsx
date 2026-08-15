@@ -59,6 +59,10 @@ export function CheckoutScreen() {
     eligible: true,
     reason: "new",
     days: TRIAL_DAYS,
+    // No grace date before the server answers, which is the generous default's
+    // own shape: a brand-new user has no beta grace to be told about. `02b`
+    // owns whatever this screen eventually says with it.
+    graceEndsAt: null,
   });
   const trial = eligibility.eligible;
   /** Which free run they already had, so the copy names the right one. */
