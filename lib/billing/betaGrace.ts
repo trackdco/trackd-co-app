@@ -20,13 +20,28 @@
  * actually closes payment processor accounts: people who feel ambushed dispute
  * charges, and a dispute rate is not recoverable by apologising afterwards.
  *
- * ## Pure, and it holds no secrets
+ * ## Pure, but SERVER-ONLY
  *
  * The whole file is data and one predicate, so it can be tested without a
- * database and imported from anywhere. The grant itself lives in
- * `app/api/billing/beta-grace/route.ts`, which is the only thing that writes
- * `entitlements` and is secured like the cron.
+ * database. The grant itself lives in `app/api/billing/beta-grace/route.ts`,
+ * which is the only thing that writes `entitlements` and is secured like the
+ * cron.
+ *
+ * ⚠️ IT IS NOT IMPORTABLE FROM ANYWHERE, and the `server-only` import below is
+ * what makes that a fact rather than a convention. {@link COMP_EMAILS} is five
+ * real people's email addresses, and until now nothing but habit stopped a
+ * client component pulling them into a browser bundle — where they would be
+ * readable by anyone who opened the network tab. Every importer in the
+ * application is already server-side, so this costs nothing and closes the
+ * hole permanently: importing this from a client component now FAILS THE BUILD.
+ *
+ * The marker has no runtime and is not a real package outside a Next bundle, so
+ * Vitest resolves it to a no-op stub (`vitest.config.ts` → `test/server-only-stub.ts`).
+ * The stub is why the tests below still run; it does not weaken the guarantee,
+ * which is enforced by the bundler.
  */
+
+import "server-only";
 
 /**
  * ⚠️ FREE FOREVER. Complete as of 2026-08-14: two founder accounts and three
