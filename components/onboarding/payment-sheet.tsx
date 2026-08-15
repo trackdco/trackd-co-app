@@ -87,6 +87,7 @@ export function PaymentSheet({
   ctaLabel,
   disclosure,
   onOutcome,
+  onModeCorrection,
 }: {
   plan: PlanId;
   /** Lowercase ISO 4217, as Stripe reports it for the selected price. */
@@ -132,6 +133,16 @@ export function PaymentSheet({
    */
   disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
+  /**
+   * ⚠️ THE SERVER DISAGREED ABOUT WHAT THIS SHEET SHOULD BE (§3.3).
+   *
+   * Called with the mode the server actually resolved, so the screen above can
+   * re-render the sheet — and `02b`'s copy with it — instead of leaving a
+   * disclosure on screen describing a deal the server has just declined to
+   * make. Nothing has been confirmed and nothing charged when this fires; the
+   * subscription created for the mismatched attempt is already cancelled.
+   */
+  onModeCorrection?: (mode: IntentKind) => void;
 }) {
   if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
     // Said out loud rather than rendered as an empty space. This is the one
@@ -193,6 +204,7 @@ export function PaymentSheet({
         ctaLabel={ctaLabel}
         disclosure={disclosure}
         onOutcome={onOutcome}
+        onModeCorrection={onModeCorrection}
       />
     </Elements>
   );
@@ -205,6 +217,7 @@ function PaymentForm({
   ctaLabel,
   disclosure,
   onOutcome,
+  onModeCorrection,
 }: {
   plan: PlanId;
   /** The mode Elements was mounted in. The confirm call must match it. */
@@ -214,6 +227,8 @@ function PaymentForm({
   ctaLabel: string;
   disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
+  /** See `PaymentSheet`. */
+  onModeCorrection?: (mode: IntentKind) => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -257,18 +272,50 @@ function PaymentForm({
         return;
       }
 
-      // NOTHING IS CREATED UNTIL HERE. This is the commit.
-      const result = await startTrial(plan);
+      /**
+       * NOTHING IS CREATED UNTIL HERE. This is the commit.
+       *
+       * The mounted mode goes with it so the server can refuse to hand back a
+       * secret this sheet cannot confirm — see the mode gate in `startTrial`.
+       */
+      const result = await startTrial(plan, mode);
       if (result.status === "already-subscribed") {
         onOutcome({ status: "already-subscribed" });
         return;
       }
       if (result.status === "error") {
+        /**
+         * ⚠️ A MODE MISMATCH. The server cancelled what it made and confirmed
+         * nothing; `serverMode` names what this sheet should have been.
+         *
+         * Handing it up re-renders the sheet in that mode, which re-renders
+         * `02b`'s copy with it, so the disclosure and the button stop describing
+         * a deal the server has just declined to make.
+         */
+        if (result.serverMode) onModeCorrection?.(result.serverMode);
         fail(result.message);
         return;
       }
 
-      const { error: confirmError } = await stripe.confirmSetup({
+      /**
+       * ⚠️ THE SECOND HALF OF THE MODE GATE, on the client.
+       *
+       * The server already refused a mismatch, so this cannot normally fire. It
+       * is here because the cost of the two disagreeing is a charge against a
+       * screen that promised free days, and `confirmPayment` on a sheet mounted
+       * in setup mode is a call that must never be reachable by any route —
+       * including a future caller that forgets to pass its mounted mode.
+       */
+      if (result.intentKind !== mode) {
+        console.error(
+          `[billing] refusing to confirm: sheet is "${mode}", server returned "${result.intentKind}"`,
+        );
+        onModeCorrection?.(result.intentKind);
+        fail("Your plan details changed. Please check them and try again.");
+        return;
+      }
+
+      const confirmArgs = {
         elements,
         clientSecret: result.clientSecret,
         confirmParams: {
@@ -283,8 +330,21 @@ function PaymentForm({
         // Keep the user on THIS page wherever the bank allows it. The spec's
         // rule is that they never leave for a stripe.com domain, and most 3DS
         // challenges can run in a modal rather than a navigation.
-        redirect: "if_required",
-      });
+        redirect: "if_required" as const,
+      };
+
+      /**
+       * ⚠️ TWO DIFFERENT STRIPE CALLS, chosen by the kind the server returned
+       * and never by anything the client inferred.
+       *
+       * `confirmSetup` saves a card for later. `confirmPayment` takes money
+       * now. They are not interchangeable and the wrong one against the wrong
+       * intent either errors or charges.
+       */
+      const { error: confirmError } =
+        result.intentKind === "payment"
+          ? await stripe.confirmPayment(confirmArgs)
+          : await stripe.confirmSetup(confirmArgs);
 
       if (confirmError) {
         fail(confirmError.message ?? "That card couldn't be confirmed.");
@@ -299,7 +359,7 @@ function PaymentForm({
     } finally {
       setBusy(false);
     }
-  }, [stripe, elements, plan, onOutcome]);
+  }, [stripe, elements, plan, mode, onOutcome, onModeCorrection]);
 
   return (
     <div className="space-y-4">

@@ -94,7 +94,23 @@ export type StartTrialResult =
     }
   /** Already entitled. The caller should move them into the app, not charge them. */
   | { status: "already-subscribed" }
-  | { status: "error"; message: string };
+  | {
+      status: "error";
+      message: string;
+      /**
+       * ⚠️ SET ONLY ON A MODE MISMATCH (§3.3), and it is what lets the sheet
+       * re-render in the mode the SERVER decided.
+       *
+       * Elements takes its mode at mount, so a sheet mounted for a trial cannot
+       * confirm a payment secret. When the client's mounted mode and the
+       * server's answer disagree, nothing is confirmed, the subscription just
+       * created is cancelled server-side, and this names what the sheet should
+       * have been. Absent on every other error.
+       *
+       * No fourth `status` (§3.2): every existing caller branches on `status`.
+       */
+      serverMode?: IntentKind;
+    };
 
 /**
  * DOES THIS ACCOUNT STILL GET A FREE TRIAL?
@@ -180,7 +196,23 @@ export async function trialEligibility(): Promise<TrialEligibility> {
   }
 }
 
-export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
+export async function startTrial(
+  plan: PlanKey,
+  /**
+   * ⚠️ WHICH MODE THE SHEET WAS MOUNTED IN, so the server can refuse to hand
+   * back a secret the client cannot confirm (§3.3).
+   *
+   * This is NOT an identifier saying whose data to act on — §2 forbids those
+   * and this is not one. It is a statement about the caller's own UI, which is
+   * the single fact the server has no way to know and cannot verify. Eligibility
+   * is still decided here, independently, and a client that lies about its mode
+   * can only get its own attempt cancelled.
+   *
+   * Optional so the trial path's existing behaviour is untouched when it is
+   * absent, and so no caller outside the checkout sheet has to change.
+   */
+  mountedMode?: IntentKind,
+): Promise<StartTrialResult> {
   const { user, passedGate } = await getSessionContext();
   if (!user) return { status: "error", message: "Please sign in again." };
 
@@ -639,6 +671,53 @@ export async function startTrial(plan: PlanKey): Promise<StartTrialResult> {
         `[billing] nothing confirmable on ${survivor.id} (status ${survivor.status})`,
       );
       return { status: "error", message: failureMessage(freeTime) };
+    }
+
+    /**
+     * ⚠️ THE MODE GATE. INVARIANT 1 IN MECHANICAL FORM (§3.3).
+     *
+     * A PaymentIntent is not a charge until it is confirmed, so REFUSING TO
+     * CONFIRM is the whole protection. If the sheet was mounted for a trial and
+     * the server has just decided this person is charged today, confirming what
+     * we are holding would take money from somebody reading a screen that
+     * promises free days.
+     *
+     * The disagreement is not hypothetical. The client's answer is generous by
+     * default and generous on error, and the server decides independently: a
+     * trial used up in another tab, or a grace that expired between the two
+     * calls, both land here legitimately.
+     *
+     * ## The cancel happens HERE, on the server, in the same request
+     *
+     * §3.3 says to leave no confirmable intent behind. Doing it server-side is
+     * what makes that true rather than hoped for: a client-driven cleanup is one
+     * the client can fail to make — by closing the tab on the very screen that
+     * just changed under them, which is exactly when this fires.
+     */
+    if (mountedMode && intent.kind !== mountedMode) {
+      console.error(
+        `[billing] mode mismatch on ${survivor.id}: sheet mounted "${mountedMode}", server resolved "${intent.kind}". Cancelling; nothing confirmed.`,
+      );
+      await client.subscriptions.cancel(survivor.id).catch((err) => {
+        console.error(
+          `[billing] could not cancel mismatched ${survivor.id}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      });
+      return {
+        status: "error",
+        /**
+         * Honest rather than a silent re-render, because the screen they were
+         * reading has just changed what it says. `02b` owns the checkout copy;
+         * this is the action's own error string, and it states the fact and the
+         * next step and nothing more.
+         */
+        message:
+          intent.kind === "payment"
+            ? "Your free trial isn't available on this account. Check the updated price and try again."
+            : "Your plan details changed. Please check them and try again.",
+        serverMode: intent.kind,
+      };
     }
 
     return {

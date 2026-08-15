@@ -7,6 +7,7 @@ import {
   type TrialEligibility,
 } from "@/app/onboarding/billing-actions";
 import { track } from "@/lib/onboarding/analytics";
+import type { IntentKind } from "@/lib/billing/stripe";
 import {
   billingDate,
   formatPrice,
@@ -77,7 +78,25 @@ export function CheckoutScreen() {
    * flashes empty. Only the button waits.
    */
   const [resolved, setResolved] = useState(false);
-  const trial = eligibility.eligible;
+  /**
+   * ⚠️ THE SERVER'S CORRECTION, which OUTRANKS the eligibility answer.
+   *
+   * `trialEligibility()` is generous by default and generous on error, and
+   * `startTrial` decides independently — a trial used up in another tab, or a
+   * grace that expired between the two calls, both land here legitimately. When
+   * they disagree the server has already cancelled what it made and confirmed
+   * nothing, so this simply re-renders the sheet in the mode it actually
+   * decided, and `02b`'s copy re-renders with it.
+   *
+   * Null until a mismatch happens, which is almost always.
+   */
+  const [correctedMode, setCorrectedMode] = useState<IntentKind | null>(null);
+  /**
+   * A correction beats the eligibility answer, because it came from the code
+   * path that actually creates subscriptions rather than the one that decides
+   * what a screen says.
+   */
+  const trial = correctedMode ? correctedMode === "setup" : eligibility.eligible;
   /** Which free run they already had, so the copy names the right one. */
   const hadDays = eligibility.days;
   const wasBeta = eligibility.reason === "beta";
@@ -250,6 +269,7 @@ export function CheckoutScreen() {
              * as `payment`, the mode prop changes and Elements remounts with it.
              */
             mode={trial ? "setup" : "payment"}
+            onModeCorrection={setCorrectedMode}
             amountMinor={selected.amountMinor}
             ready={resolved}
             ctaLabel={
