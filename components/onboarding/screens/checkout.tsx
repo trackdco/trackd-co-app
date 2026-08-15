@@ -468,7 +468,22 @@ export function CheckoutScreen() {
              * there to fill in, and only the commit waits. If the answer lands
              * as `payment`, the mode prop changes and Elements remounts with it.
              */
-            mode={trial ? "setup" : "payment"}
+            /**
+             * ⚠️ MID-GRACE IS A SETUP, NOT A PAYMENT, and getting this wrong
+             * stopped a mid-grace user subscribing at all.
+             *
+             * `trial` is false for a beta account — they are not on a trial —
+             * but `01` gives them a grace-ALIGNED start, so nothing is due
+             * today and Stripe issues a SetupIntent. Keying the mode off
+             * `trial` alone mounted the sheet for a payment, the server
+             * returned a setup secret, and `02a`'s mode gate correctly refused
+             * and cancelled. It failed safe, and it failed.
+             *
+             * The rule is "is anything due TODAY", which is what the mode
+             * actually means, and it is the same question the title asks:
+             * both `trial` and `midGrace` read "Nothing to pay today."
+             */
+            mode={trial || midGrace ? "setup" : "payment"}
             onModeCorrection={setCorrectedMode}
             /**
              * What the bank redirect came back with, if anything. Rendered by
