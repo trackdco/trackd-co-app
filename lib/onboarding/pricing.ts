@@ -51,6 +51,24 @@ export interface PricedPlan extends Plan {
    */
   amountMinor?: number;
   /**
+   * ⚠️ THE INTERVAL AS STRIPE REPORTS IT, and the suffix on screen derives from
+   * THIS rather than from {@link period} (spec 02b §3.3).
+   *
+   * `period` comes from the static `PLANS` table, so the amount followed Stripe
+   * and the unit did not: change the interval in the dashboard and the screen
+   * kept printing the old one, next to the new amount, above a button that
+   * charges.
+   */
+  interval?: string;
+  /**
+   * ⚠️ A COUNT OTHER THAN ONE MUST NOT RENDER A PRICE LINE AT ALL.
+   *
+   * Every price is configured at one today, which is exactly why a quarterly
+   * plan added in the dashboard would have printed "/mo" silently. A screen that
+   * cannot state a price correctly states nothing.
+   */
+  intervalCount?: number;
+  /**
    * Lowercase ISO 4217, as Stripe reports it.
    *
    * Carried so the disclosure can NAME the currency rather than printing a bare
@@ -288,4 +306,45 @@ export function weeklyAnchor(yearly: PricedPlan | undefined): string | null {
   // Round UP to the next 5c so "under" is always literally true.
   const ceiling = Math.ceil(weeklyEquivalent(yearly) * 20) / 20;
   return `Under ${formatPrice(ceiling)} a week to keep all of it.`;
+}
+
+/**
+ * THE INTERVAL SUFFIX, FROM STRIPE (spec 02b §3.3).
+ *
+ * "yr" / "mo" / "wk", derived from the price's own recurring interval rather
+ * than from the static `PLANS` table. The amount followed Stripe and the unit
+ * did not, so changing an interval in the dashboard kept the old suffix on
+ * screen beside the new amount, above a button that charges.
+ *
+ * ⚠️ RETURNS NULL WHERE THE SCREEN MUST NOT PRINT A PRICE LINE AT ALL:
+ *
+ *   - an interval count other than one. Stripe expresses "every three months"
+ *     as `month` with a count of three, so a screen reading only the interval
+ *     prices a quarterly plan as monthly. Every price is at one today, which is
+ *     precisely why this would go unnoticed until somebody added a quarterly
+ *     plan in the dashboard and the screen quietly understated it by a factor
+ *     of three.
+ *   - an interval this app has no suffix for.
+ *
+ * The caller renders its existing "couldn't load your plan" error instead, and
+ * the button does not proceed. A screen that cannot state a price correctly
+ * states nothing rather than stating it wrongly — and it does so LOUDLY, which
+ * is the point: a wrong suffix is silent, and silence is the failure mode this
+ * project keeps paying for.
+ */
+export function intervalSuffix(plan: {
+  interval?: string;
+  intervalCount?: number;
+}): string | null {
+  if (plan.intervalCount !== undefined && plan.intervalCount !== 1) return null;
+  switch (plan.interval) {
+    case "year":
+      return "yr";
+    case "month":
+      return "mo";
+    case "week":
+      return "wk";
+    default:
+      return null;
+  }
 }

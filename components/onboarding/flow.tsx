@@ -34,6 +34,7 @@ import {
 } from "@/lib/onboarding/steps";
 import { firstIncompleteHousekeeping } from "@/lib/onboarding/session";
 import { PLANS, type PlanId, type PricedPlan } from "@/lib/onboarding/pricing";
+import type { TrialEligibility } from "@/app/onboarding/billing-actions";
 import { guessPlatform } from "@/lib/onboarding/platform";
 import { todayKey as resolveTodayKey } from "@/lib/protocol/cycle";
 
@@ -91,6 +92,9 @@ export function OnboardingFlow({
   signedIn = false,
   passedGate = false,
   prices = [],
+  eligibility,
+  firstChargeOn,
+  graceEndsOn,
 }: {
   /** A session exists. Server-verified in `app/onboarding/page.tsx`. */
   signedIn?: boolean;
@@ -101,6 +105,30 @@ export function OnboardingFlow({
   passedGate?: boolean;
   /** What Stripe says each plan costs. Empty when Stripe could not be reached. */
   prices?: readonly StripePlanPrice[];
+  /**
+   * ⚠️ RESOLVED ON THE SERVER at page render (spec 02b §3.6), so the checkout
+   * screen's promise cannot change under somebody reading it.
+   *
+   * It used to be fetched from an effect, which on a payment screen means "7
+   * days free" can become "First charge today" mid-read — and since `02a` the
+   * Elements mode is derived from the same answer.
+   *
+   * Optional so the `/preview/paywall` harness, which mounts this flow with no
+   * server behind it, keeps working on the generous default.
+   */
+  eligibility?: TrialEligibility;
+  /**
+   * ⚠️ THE FIRST-CHARGE DATE, FORMATTED ON THE SERVER in the user's stored
+   * timezone (spec 02b §3.5), so the paywall and the checkout screen cannot
+   * name different days and neither can drift with the device's zone.
+   */
+  firstChargeOn?: string;
+  /**
+   * A mid-grace user's grace end, formatted the same way. Null for everybody
+   * else. Unlike {@link firstChargeOn} this is NOT a projection: it is a stored
+   * `active_until`, so it can never be earlier than the date they were promised.
+   */
+  graceEndsOn?: string | null;
 }) {
   // The session and the step both come from the browser (localStorage, the
   // URL). Rendering a guessed value on the server and correcting it on the
@@ -121,6 +149,9 @@ export function OnboardingFlow({
       signedIn={signedIn}
       passedGate={passedGate}
       prices={prices}
+      eligibility={eligibility}
+      firstChargeOn={firstChargeOn}
+      graceEndsOn={graceEndsOn}
     />
   );
 }
@@ -143,16 +174,28 @@ export interface StripePlanPrice {
   amountMinor: number;
   currency: string;
   interval: string;
+  /**
+   * How many intervals one charge covers. Stripe says "every three months" as
+   * `interval: "month"` with `interval_count: 3`, so a screen reading only the
+   * interval prices a quarterly plan as monthly (spec 02b §3.3).
+   */
+  intervalCount: number;
 }
 
 function OnboardingFlowClient({
   signedIn,
   passedGate,
   prices,
+  eligibility,
+  firstChargeOn,
+  graceEndsOn,
 }: {
   signedIn: boolean;
   passedGate: boolean;
   prices: readonly StripePlanPrice[];
+  eligibility?: TrialEligibility;
+  firstChargeOn?: string;
+  graceEndsOn?: string | null;
 }) {
   const router = useRouter();
 
@@ -309,6 +352,8 @@ function OnboardingFlowClient({
             price: match.amount,
             amountMinor: match.amountMinor,
             currency: match.currency,
+            interval: match.interval,
+            intervalCount: match.intervalCount,
           }
         : undefined;
     },
@@ -613,6 +658,9 @@ function OnboardingFlowClient({
       priceFor,
       todayKey,
       setBackHandler,
+      eligibility,
+      firstChargeOn,
+      graceEndsOn,
     }),
     [
       session,
@@ -627,6 +675,9 @@ function OnboardingFlowClient({
       priceFor,
       todayKey,
       setBackHandler,
+      eligibility,
+      firstChargeOn,
+      graceEndsOn,
     ],
   );
 

@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 
 import { OnboardingFlow } from "@/components/onboarding/flow";
 import { getSessionContext } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { loadPricesSafe } from "@/lib/billing/prices";
+import { trialEligibility } from "./billing-actions";
+import { formatAccessDate } from "@/lib/billing/manage";
+import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 import { resolveStepId, stepMeta, type StepId } from "@/lib/onboarding/steps";
 
 export const metadata: Metadata = {
@@ -109,11 +113,72 @@ export default async function OnboardingPage({
     redirect("/onboarding?step=plans");
   }
 
+  /**
+   * ⚠️ ELIGIBILITY IS RESOLVED HERE, NOT IN AN EFFECT (spec 02b §3.6).
+   *
+   * The checkout screen used to mount with the generous default — eligible,
+   * seven days — and correct itself when a client-side call returned. While the
+   * sheet was setup-only that was a brief cosmetic flicker. With `02a` shipped
+   * it is a PAYMENT SCREEN that can say "7 days free" and then "First charge
+   * today" a moment later, while somebody is reading it, and the Elements mode
+   * is derived from the same answer.
+   *
+   * Resolving it at page render removes the flicker outright and means the copy
+   * and the mode are decided from one answer at one moment.
+   *
+   * ## The cost, named rather than hidden
+   *
+   * It adds a Stripe round trip to first paint FOR A USER WHO HAS A BILLING
+   * CUSTOMER. A user with none never touches Stripe, which is most first-timers,
+   * and `trialEligibility` short-circuits on Postgres before it. Correctness on
+   * the screen that takes money is worth the milliseconds; the alternative is a
+   * promise that mutates while somebody reads it.
+   *
+   * The generous fallback is unchanged and lives inside `trialEligibility`, so a
+   * failure here still errs towards promising a trial — and `02a`'s mismatch
+   * guard is what catches the case where that generous answer and the server's
+   * later one disagree, by cancelling rather than charging.
+   */
+  const eligibility = await trialEligibility();
+
+  /**
+   * ⚠️ THE FIRST-CHARGE DATE IS RESOLVED HERE, NOT IN THE BROWSER (§3.5).
+   *
+   * It was `billingDate(new Date())`, computed on mount in the DEVICE's
+   * timezone — while every screen on `/billing` formats the same kind of date
+   * server-side in the user's STORED timezone. The two disagreed for anyone
+   * travelling, and the paywall computed its own on its own mount, so the two
+   * onboarding screens could disagree with each other across midnight.
+   *
+   * One value, from one function, feeding both screens, through the same
+   * `formatAccessDate` `/billing` uses — so a date cannot differ depending on
+   * which screen printed it.
+   *
+   * ## It is still a PROJECTION, and saying so is the honest part
+   *
+   * The subscription does not exist yet — nothing is created until the button is
+   * pressed — so before purchase this is necessarily a prediction. What this
+   * removes is the device-timezone divergence and the two-screens problem. What
+   * it cannot remove is somebody reading at 23:58 and pressing at 00:02. That
+   * residual is accepted and is exactly why every date shown AFTER the
+   * subscription exists comes from Stripe rather than from here.
+   *
+   * The MID-GRACE variant is exempt: its date is a stored `active_until`, not a
+   * projection, and it is formatted through this same function below.
+   */
+  const { firstChargeOn, graceEndsOn } = await onboardingDates(
+    signedIn,
+    eligibility.graceEndsAt,
+  );
+
   return (
     <OnboardingFlow
       signedIn={signedIn}
       passedGate={passedGate}
       prices={prices}
+      eligibility={eligibility}
+      firstChargeOn={firstChargeOn}
+      graceEndsOn={graceEndsOn}
     />
   );
 }
@@ -148,4 +213,57 @@ export default async function OnboardingPage({
 function requestedStep(step: string | string[] | undefined): StepId | null {
   const first = Array.isArray(step) ? step[0] : step;
   return resolveStepId(first);
+}
+
+/**
+ * THE TWO DATES THE ONBOARDING FLOW PRINTS, both formatted in the user's stored
+ * timezone through the same `formatAccessDate` that `/billing` uses (§3.5).
+ *
+ * ⚠️ NOT A COMPONENT, and the clock is read HERE rather than in the page body,
+ * because `react-hooks/purity` forbids an impure call during render — and it is
+ * right to: a value re-read on a re-render is a date that can move under
+ * somebody mid-read.
+ *
+ * `firstChargeOn` is a PROJECTION and `graceEndsOn` is not. The first predicts
+ * where a trial that does not exist yet will end; the second formats a stored
+ * `active_until` that `01` has already committed to. That difference is why a
+ * mid-grace user's date can never be earlier than what they were promised.
+ *
+ * Anonymous callers skip the query entirely: most of this flow has no session,
+ * and the dates only matter from the paywall onward.
+ */
+async function onboardingDates(
+  signedIn: boolean,
+  graceEndsAt: string | null,
+): Promise<{ firstChargeOn: string; graceEndsOn: string | null }> {
+  /** The same fallback `/billing` uses, so the two cannot print different days. */
+  const FALLBACK = "Australia/Sydney";
+  const projected = new Date(
+    Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  let timezone = FALLBACK;
+  if (signedIn) {
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("timezone")
+          .eq("id", user.id)
+          .maybeSingle();
+        timezone = (data?.timezone as string | null) || FALLBACK;
+      }
+    } catch {
+      // A display string is never worth failing a page render for.
+    }
+  }
+
+  return {
+    firstChargeOn: formatAccessDate(projected, timezone),
+    graceEndsOn: graceEndsAt ? formatAccessDate(graceEndsAt, timezone) : null,
+  };
 }

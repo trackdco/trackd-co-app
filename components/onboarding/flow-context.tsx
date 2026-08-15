@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 
 import type { OnboardingSession } from "@/lib/onboarding/session";
 import type { PlanId, PricedPlan } from "@/lib/onboarding/pricing";
+import type { TrialEligibility } from "@/app/onboarding/billing-actions";
 import type { StepId } from "@/lib/onboarding/steps";
 
 /**
@@ -57,6 +58,26 @@ export interface FlowContextValue {
    * substitute for a real guard, which lives in `app/onboarding/page.tsx`.
    */
   signedIn: boolean;
+  /**
+   * ⚠️ THE SERVER'S ELIGIBILITY ANSWER, resolved at page render (spec 02b
+   * §3.6) rather than fetched from an effect on the checkout screen.
+   *
+   * It decides what the checkout copy SAYS and, since `02a`, which mode the
+   * Payment Element mounts in — so one answer at one moment is the difference
+   * between a stable payment screen and one whose promise changes mid-read.
+   *
+   * Undefined only where there is no server behind the flow, i.e. the
+   * `/preview/paywall` harness, which falls back to the generous default.
+   */
+  eligibility?: TrialEligibility;
+  /**
+   * The first-charge date, formatted server-side in the user's stored timezone
+   * (spec 02b §3.5). One value for the paywall and the checkout screen, so the
+   * two cannot name different days.
+   */
+  firstChargeOn?: string;
+  /** A mid-grace user's grace end, formatted the same way. Null otherwise. */
+  graceEndsOn?: string | null;
   /** "YYYY-MM-DD" for today, resolved once on mount so every screen agrees. */
   todayKey: string;
 }

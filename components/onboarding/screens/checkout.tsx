@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 
 import {
   resolveReturningIntent,
-  trialEligibility,
   type TrialEligibility,
 } from "@/app/onboarding/billing-actions";
 import { track } from "@/lib/onboarding/analytics";
@@ -12,6 +11,7 @@ import type { IntentKind } from "@/lib/billing/stripe";
 import {
   billingDate,
   formatPrice,
+  intervalSuffix,
   monthlyEquivalent,
   TRIAL_DAYS,
 } from "@/lib/onboarding/pricing";
@@ -86,7 +86,14 @@ function clearReturningParams(): void {
 }
 
 export function CheckoutScreen() {
-  const { session, goNext, priceFor } = useFlow();
+  const {
+    session,
+    goNext,
+    priceFor,
+    eligibility: flowEligibility,
+    firstChargeOn: serverFirstChargeOn,
+    graceEndsOn,
+  } = useFlow();
   const [holding, setHolding] = useState(false);
   /**
    * ⚠️ DOES THIS PERSON ACTUALLY GET THE FREE DAYS THIS SCREEN PROMISES?
@@ -98,33 +105,35 @@ export function CheckoutScreen() {
    * both the thing the disclosure rules are about and a straightforward
    * chargeback.
    *
-   * Starts as `true` and narrows on the answer. That direction is deliberate and
-   * matches the server: `trialEligibility` and `startTrial` both err towards
-   * granting, so the worst case is a screen that promised a trial and a server
-   * that grants one. The reverse would be the defect.
+   * ⚠️ IT ARRIVES AS A PROP, RESOLVED ON THE SERVER (spec 02b §3.6).
+   *
+   * This used to be `useState` seeded with the generous default and corrected
+   * by an effect. On a setup-only sheet that was a cosmetic flicker; with `02a`
+   * shipped it is a payment screen that can say "7 days free" and then "First
+   * charge today" while somebody is reading it — and the Elements mode is
+   * derived from the same answer, so the flicker was a mode change too.
+   *
+   * The fallback is the same generous default the server itself returns when it
+   * cannot decide, and it applies only where there is no server behind the flow
+   * (the `/preview/paywall` harness). Erring the other way would charge a
+   * first-timer against a screen promising free days.
    */
-  const [eligibility, setEligibility] = useState<TrialEligibility>({
+  const eligibility: TrialEligibility = flowEligibility ?? {
     eligible: true,
     reason: "new",
     days: TRIAL_DAYS,
-    // No grace date before the server answers, which is the generous default's
-    // own shape: a brand-new user has no beta grace to be told about. `02b`
-    // owns whatever this screen eventually says with it.
     graceEndsAt: null,
-  });
+  };
+
   /**
-   * ⚠️ HAS THE SERVER ANSWERED YET? The CTA waits on this (spec 02a §3.3).
+   * ⚠️ `02a`'s CTA gate, now satisfied AT MOUNT.
    *
-   * Until spec 02a the sheet was setup-only, so pressing early was harmless: the
-   * worst case was a card form that collected a card. It is not harmless now.
-   * Elements takes its `mode` at MOUNT and cannot be switched afterwards, so a
-   * press before this resolves is the difference between mounting a sheet that
-   * collects a card and one that takes money.
-   *
-   * The generous default above still RENDERS immediately, so the screen never
-   * flashes empty. Only the button waits.
+   * The button waits for the eligibility answer, and since `02b` that answer
+   * arrives with the page. So there is nothing to wait for — unless the flow
+   * was mounted with no server behind it, where the generous default is a
+   * guess and the gate still means something.
    */
-  const [resolved, setResolved] = useState(false);
+  const resolved = flowEligibility !== undefined;
   /**
    * ⚠️ THE SERVER'S CORRECTION, which OUTRANKS the eligibility answer.
    *
@@ -162,6 +171,29 @@ export function CheckoutScreen() {
    * what a screen says.
    */
   const trial = correctedMode ? correctedMode === "setup" : eligibility.eligible;
+  /**
+   * ⚠️ THE MID-GRACE BETA USER (spec 02b §3.4), selected by ONE condition:
+   * `reason` is "beta" AND `graceEndsAt` is non-null, which `01` sets only while
+   * the fortnight is still running.
+   *
+   * Four approved lines are FALSE for this person, because `01` guarantees they
+   * are not charged until their grace ends: they have not "had their trial",
+   * their plan does not "start from today", and neither charge date is today.
+   *
+   * ⚠️ THIS VARIANT READS AS WELCOME, NOT AS WARNING. A mid-grace user adding a
+   * card early is pre-arming billing so nothing interrupts them when the
+   * fortnight ends. Nothing here may frame their free time as running out,
+   * expiring or being used up, and it never uses the word "trial" — the grace is
+   * not one. That is a stated requirement (D17), not a matter of taste.
+   *
+   * A correction from `02a` drops it, because a correction means the server has
+   * just decided they are being charged today after all.
+   */
+  const midGrace =
+    !correctedMode &&
+    eligibility.reason === "beta" &&
+    eligibility.graceEndsAt !== null &&
+    Boolean(graceEndsOn);
   /** Which free run they already had, so the copy names the right one. */
   const hadDays = eligibility.days;
   const wasBeta = eligibility.reason === "beta";
@@ -202,33 +234,20 @@ export function CheckoutScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-    void trialEligibility()
-      .then((r) => {
-        if (alive) setEligibility(r);
-      })
-      .catch(() => {
-        // Keep the generous default. See above.
-      })
-      .finally(() => {
-        /**
-         * `finally`, so a FAILED call also releases the button. The generous
-         * default stands in that case and the server decides independently
-         * anyway — leaving the CTA dead forever because one call failed would
-         * be a worse screen than one that lets them try.
-         */
-        if (alive) setResolved(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const selected = priceFor(session.plan);
-  // Resolved ONCE, so the date cannot move under the user mid-session — the
-  // whole point of printing it is that it is a fixed commitment.
-  const [firstChargeOn] = useState(() => billingDate(new Date()));
+  /**
+   * ⚠️ FROM THE SERVER, in the user's STORED timezone (spec 02b §3.5).
+   *
+   * It was `billingDate(new Date())` on mount, in the DEVICE's timezone, while
+   * `/billing` formats the same kind of date server-side in the stored one — so
+   * the two disagreed for anyone travelling, and the paywall computed its own so
+   * the two onboarding screens could disagree across midnight.
+   *
+   * Derived from the prop, never `setState` in an effect. The fallback only
+   * applies where there is no server behind the flow (the preview harness).
+   */
+  const firstChargeOn = serverFirstChargeOn ?? billingDate(new Date());
 
   /**
    * The card was accepted. That is NOT "the user is subscribed".
@@ -306,11 +325,15 @@ export function CheckoutScreen() {
    * Every figure derives from the selected plan and from `TRIAL_DAYS`, so none
    * can contradict another or the summary above it.
    */
-  /** "yr" / "mo" / "wk" — the compact suffix, so the line stays one line. */
-  const suffix =
-    selected?.period === "year" ? "yr" : selected?.period === "month" ? "mo" : "wk";
+  /**
+   * "yr" / "mo" / "wk", FROM STRIPE (spec 02b §3.3), and null where the price
+   * cannot be stated correctly — a quarterly plan, or an interval this app has
+   * no suffix for. The disclosure is withheld entirely in that case rather than
+   * printing a unit that does not match the amount beside it.
+   */
+  const suffix = selected ? intervalSuffix(selected) : null;
 
-  const disclosure = selected ? (
+  const disclosure = selected && suffix ? (
     <div className="space-y-1 pt-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
       <p>
         {/* ⚠️ The four required facts, and the FIRST one changes for a returning
@@ -318,7 +341,11 @@ export function CheckoutScreen() {
             so promising free days here would be a lie told directly above the
             button that takes their money. */}
         <span className="text-foreground">
-          {trial ? `${TRIAL_DAYS} days free` : "Starts today"}
+          {trial
+            ? `${TRIAL_DAYS} days free`
+            : midGrace
+              ? `Starts ${graceEndsOn}`
+              : "Starts today"}
         </span>
         , then{" "}
         <span className="text-foreground">
@@ -334,7 +361,9 @@ export function CheckoutScreen() {
       </p>
       <p>
         First charge{" "}
-        <span className="text-foreground">{trial ? firstChargeOn : "today"}</span>
+        <span className="text-foreground">
+          {trial ? firstChargeOn : midGrace ? graceEndsOn : "today"}
+        </span>
         , then renews until you cancel.
       </p>
       {/* THE REMINDER, promised on this screen too (Adrian, 2026-08-08).
@@ -373,8 +402,14 @@ export function CheckoutScreen() {
 
   return (
     <StepFrame
+      /**
+       * ⚠️ APPROVED COPY. The no-trial title is §5 of the founder's brief; the
+       * emphasis markup changes no character. The MID-GRACE title reuses the
+       * trial variant's string (D17), which is literally true for that cohort
+       * and invents nothing: they genuinely have nothing to pay today.
+       */
       title={
-        trial ? (
+        trial || midGrace ? (
           <>
             Nothing to pay <em className={FLOW_EMPHASIS}>today</em>.
           </>
@@ -388,18 +423,38 @@ export function CheckoutScreen() {
          pushed the card fields off the top of the port — measured — leaving a
          payment screen whose form you had to scroll UP to find. The reassurance
          has one job here; the disclosure above the button says the rest. */
+      /**
+       * ⚠️ EVERY LINE HERE IS DECIDED COPY, CARRIED CHARACTER FOR CHARACTER.
+       * Do not shorten, soften or improve any of them.
+       *
+       *   trial      D16. Replaces the built "Just a card to keep your trial
+       *              going.", which §6 of the brief cut.
+       *   mid-grace  D17. Present tense, one line, no the word "trial" — the
+       *              grace is not one — and no language of expiry, running out
+       *              or being used up. It reads as WELCOME: they are pre-arming
+       *              billing so nothing interrupts them later.
+       *   beta       §5 of the brief. Replaces the built "Your 14 days on us
+       *              was it, so your plan starts today.", which was never the
+       *              approved line.
+       *   returning  §5 of the brief. Already correct as built.
+       *
+       * ⚠️ The `14` renders from `BETA_GRACE_DAYS` via `hadDays` and is never
+       * typed, so the number on screen cannot drift from the grant.
+       */
       sub={
         selected
           ? trial
-            ? "Just a card to keep your trial going."
-            : wasBeta
-              ? `Your ${hadDays} days on us was it, so your plan starts today.`
-              : "Free trials are for new accounts, so your plan starts today."
+            ? "We're setting billing up now, so nothing interrupts you later."
+            : midGrace
+              ? `Your plan starts when your ${hadDays} days on us end, on ${graceEndsOn}.`
+              : wasBeta
+                ? `We gave you ${hadDays} days free when Trackd Co went paid. Your plan starts from today.`
+                : "Free trials are for new accounts, so your plan starts today."
           : undefined
       }
     >
       <div className="flex w-full flex-1 flex-col justify-center pb-2">
-        {selected ? (
+        {selected && suffix ? (
           <PaymentSheet
             plan={selected.id}
             currency={selected.currency}

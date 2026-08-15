@@ -191,6 +191,12 @@ export interface StripePlanPrice {
   amountMinor: number;
   currency: string;
   interval: string;
+  /**
+   * How many intervals one charge covers. Stripe says "every three months" as
+   * `interval: "month"` with `interval_count: 3`, so a screen reading only the
+   * interval prices a quarterly plan as monthly (spec 02b §3.3).
+   */
+  intervalCount: number;
 }
 
 /* ── the pop-up ──────────────────────────────────────────────────── */
@@ -219,6 +225,8 @@ function SubscribePopup({
             price: p.amount,
             amountMinor: p.amountMinor,
             currency: p.currency,
+            interval: p.interval,
+            intervalCount: p.intervalCount,
           },
         ];
       }),
