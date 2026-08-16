@@ -123,6 +123,10 @@ export function CheckoutScreen() {
     reason: "new",
     days: TRIAL_DAYS,
     graceEndsAt: null,
+    // The preview harness has no server and therefore no comp. False is also
+    // the direction that changes nothing here: `comp` withholds a line on the
+    // welcome screen and this screen does not read it.
+    comp: false,
   };
 
   /**
@@ -377,7 +381,11 @@ export function CheckoutScreen() {
             {" "}({formatPrice(monthlyEquivalent(selected)!, selected.currency)}/mo)
           </>
         ) : null}
-        .
+        {/* NO TERMINAL PERIOD. `02b` quotes this line without one, both plain
+            (§ line 162) and with the monthly-equivalent bracket (§ line 245),
+            while lines 2 and 3 are quoted with one. That asymmetry is
+            deliberate and this is signed copy, so the stop is withheld rather
+            than the other two being tidied to match it. */}
       </p>
       <p>
         First charge{" "}

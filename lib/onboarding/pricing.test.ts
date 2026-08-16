@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   billingDate,
   formatPrice,
+  intervalSuffix,
   monthlyEquivalent,
   PLANS,
   REMINDER_DAY,
@@ -148,6 +149,63 @@ describe("derived figures", () => {
     expect(billingDate(new Date(2026, 11, 28))).toBe("4 Jan 2027");
     // Leap year: 2028 has a 29 February.
     expect(billingDate(new Date(2028, 1, 25))).toBe("3 Mar 2028");
+  });
+});
+
+/**
+ * `intervalSuffix` is the loudest guard in `02b` (§3.3): it is what stops a
+ * price rendering with a unit that does not match the amount beside it. Its
+ * whole value is in the cases that return NULL, because null is what makes the
+ * caller withhold the line instead of printing a wrong one — so those are what
+ * this block is mostly about.
+ *
+ * Every price on this account is at a count of one today, which is exactly why
+ * the quarterly case cannot be left to be discovered in the dashboard.
+ */
+describe("intervalSuffix", () => {
+  it("maps the three intervals this app actually sells", () => {
+    expect(intervalSuffix({ interval: "year" })).toBe("yr");
+    expect(intervalSuffix({ interval: "month" })).toBe("mo");
+    expect(intervalSuffix({ interval: "week" })).toBe("wk");
+  });
+
+  it("treats an explicit count of one as the plain interval", () => {
+    expect(intervalSuffix({ interval: "year", intervalCount: 1 })).toBe("yr");
+    expect(intervalSuffix({ interval: "month", intervalCount: 1 })).toBe("mo");
+    expect(intervalSuffix({ interval: "week", intervalCount: 1 })).toBe("wk");
+  });
+
+  it("refuses a quarterly plan rather than pricing it as monthly", () => {
+    // Stripe says "every three months" as month × 3. A screen reading only the
+    // interval would understate this by a factor of three.
+    expect(intervalSuffix({ interval: "month", intervalCount: 3 })).toBeNull();
+  });
+
+  it("refuses any count that is not one, on every interval", () => {
+    expect(intervalSuffix({ interval: "year", intervalCount: 2 })).toBeNull();
+    expect(intervalSuffix({ interval: "week", intervalCount: 2 })).toBeNull();
+    expect(intervalSuffix({ interval: "month", intervalCount: 6 })).toBeNull();
+    // Zero is not one. It is also not a count anybody meant.
+    expect(intervalSuffix({ interval: "month", intervalCount: 0 })).toBeNull();
+  });
+
+  it("refuses an interval it has no suffix for", () => {
+    // `day` is a real Stripe interval and this app has no unit for it.
+    expect(intervalSuffix({ interval: "day" })).toBeNull();
+    expect(intervalSuffix({ interval: "" })).toBeNull();
+    expect(intervalSuffix({ interval: "YEAR" })).toBeNull();
+  });
+
+  it("refuses a missing interval rather than assuming one", () => {
+    // The failure this guard exists for is a price whose interval never
+    // arrived. Defaulting it would be the silent direction.
+    expect(intervalSuffix({})).toBeNull();
+    expect(intervalSuffix({ intervalCount: 1 })).toBeNull();
+  });
+
+  it("checks the count before the interval, so a bad count refuses first", () => {
+    // Both halves wrong must not cancel out into a suffix.
+    expect(intervalSuffix({ interval: "day", intervalCount: 3 })).toBeNull();
   });
 });
 

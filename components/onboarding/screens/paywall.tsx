@@ -8,6 +8,7 @@ import { validateCode, type CodeVerdict } from "@/lib/onboarding/affiliate";
 import {
   billingDate,
   formatPrice,
+  intervalSuffix,
   PLAN_ORDER,
   REMINDER_DAY,
   TRIAL_DAYS,
@@ -259,7 +260,20 @@ export function PaywallScreen() {
    * amount, the currency and the trial length are stated here as well, derived
    * from the same selected plan so the two screens cannot disagree.
    */
-  const priceLine = selected ? (
+  /**
+   * "yr" / "mo" / "wk", FROM STRIPE (spec 02b §3.3, permitted onto this screen
+   * by D73), and null where the price cannot be stated correctly — a quarterly
+   * plan, or an interval this app has no suffix for.
+   *
+   * This line previously read the unit off the static `PLANS` table while the
+   * amount beside it came from Stripe, so changing an interval in the dashboard
+   * moved the number and left the unit behind. Worse, the old ternary had no
+   * null case: anything that was not `year` or `month` fell through to "wk", so
+   * a quarterly plan priced at three months would have rendered as a weekly one.
+   */
+  const suffix = selected ? intervalSuffix(selected) : null;
+
+  const priceLine = selected && suffix ? (
     <p className="text-center text-[0.75rem] leading-relaxed text-text-muted">
       {/* ⚠️ The trial half is WITHHELD for somebody charged today, and the price
           half is untouched. Both clauses named a trial they are not getting:
@@ -274,7 +288,7 @@ export function PaywallScreen() {
       <span className="text-foreground">
         {formatPrice(selected.price, selected.currency)}{" "}
         {selected.currency.toUpperCase()}/
-        {selected.period === "year" ? "yr" : selected.period === "month" ? "mo" : "wk"}
+        {suffix}
       </span>
       {trial ? (
         <>

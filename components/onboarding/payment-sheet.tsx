@@ -163,6 +163,49 @@ export function PaymentSheet({
     );
   }
 
+  /**
+   * ⚠️ A PAYMENT SHEET WITH NO AMOUNT REFUSES TO MOUNT (§3.3's invariant).
+   *
+   * `amount` was previously defaulted to `amountMinor ?? 0` at the `Elements`
+   * options below, so a missing amount mounted a live card form priced at zero
+   * rather than saying anything. That is the silent direction, on the one screen
+   * where silence costs money: the user sees a normal card form, and what the
+   * server is asked for is not what the screen implied.
+   *
+   * `undefined` is the only value being tested. Zero is not a defect — it is a
+   * price nobody charges today, but it is a STATED one, and it must not be
+   * conflated with the absence of a price.
+   *
+   * The copy is `checkout.tsx`'s existing "couldn't load your plan" error, the
+   * one `02b` §3.3 names for exactly this refusal, reused verbatim rather than
+   * written fresh. "Go back" is still true: this sheet mounts on that screen.
+   */
+  /**
+   * ⚠️ `amount: undefined` IS PASSED EXPLICITLY IN THE SETUP BRANCH.
+   *
+   * These two are resolved together, before the options object, so the compiler
+   * enforces the refusal rather than a cast asserting it: there is no way to
+   * reach `mode: "payment"` below without a defined `amount`. Written as a
+   * compound guard at the `Elements` call, TypeScript could not correlate the
+   * two parameters and the only way through was a non-null assertion — which
+   * would have restated the invariant instead of checking it.
+   */
+  let modeOptions:
+    | { mode: "payment"; amount: number }
+    | { mode: "setup"; amount: undefined };
+  if (mode === "payment") {
+    if (amountMinor === undefined) {
+      return (
+        <p role="alert" className="text-center text-[0.8rem] text-[var(--state-error)]">
+          We couldn&apos;t load your plan just now. Please go back and try again.
+        </p>
+      );
+    }
+    modeOptions = { mode: "payment", amount: amountMinor };
+  } else {
+    modeOptions = { mode: "setup", amount: undefined };
+  }
+
   return (
     <Elements
       stripe={getStripe()}
@@ -178,9 +221,15 @@ export function PaymentSheet({
          * be saved for the renewal — a paid-today customer who had to re-enter
          * their card next month would be a worse outcome than the trial's.
          */
-        ...(mode === "payment"
-          ? { mode: "payment" as const, amount: amountMinor ?? 0 }
-          : { mode: "setup" as const }),
+        /**
+         * Resolved above. The setup branch names `amount` and clears it rather
+         * than omitting the key: these options are spread into one object that
+         * Stripe reads on mount and on every update, so leaving the key out
+         * would let a server mode correction (`onModeCorrection`, §3.3) from
+         * payment to setup strand a stale amount on a sheet that now owes
+         * nothing. The correction cannot half-apply.
+         */
+        ...modeOptions,
         currency,
         setupFutureUsage: "off_session",
         /**

@@ -233,6 +233,33 @@ function requestedStep(step: string | string[] | undefined): StepId | null {
  * Anonymous callers skip the query entirely: most of this flow has no session,
  * and the dates only matter from the paywall onward.
  */
+/**
+ * `profiles.timezone`, but only if `Intl` will actually accept it.
+ *
+ * ⚠️ THIS PAGE MOUNTS THE PAYMENT SHEET, AND A CORRUPT ROW USED TO 500 IT.
+ *
+ * Nothing between the client that writes that column and this read validates it
+ * against the IANA database, and `Intl.DateTimeFormat` throws a `RangeError` on
+ * a zone it does not know. Both `formatAccessDate` calls below sit OUTSIDE the
+ * try in `onboardingDates` — that try only ever guarded the Supabase READ, never
+ * the formatting — so one bad row took out the whole route for that user, every
+ * time, with nothing they could do about it from the client.
+ *
+ * Checking the zone ONCE, here, rather than wrapping the two call sites: a
+ * formatter added to this function later cannot reintroduce the crash, and the
+ * fallback stays in one place. `formatAccessDate` handles a bad *date* already
+ * (it returns "" on an unparseable ISO string); the zone was the unguarded half.
+ */
+function usableZone(tz: string | null): string | null {
+  if (!tz) return null;
+  try {
+    new Intl.DateTimeFormat("en-AU", { timeZone: tz });
+    return tz;
+  } catch {
+    return null;
+  }
+}
+
 async function onboardingDates(
   signedIn: boolean,
   graceEndsAt: string | null,
@@ -256,7 +283,7 @@ async function onboardingDates(
           .select("timezone")
           .eq("id", user.id)
           .maybeSingle();
-        timezone = (data?.timezone as string | null) || FALLBACK;
+        timezone = usableZone(data?.timezone as string | null) ?? FALLBACK;
       }
     } catch {
       // A display string is never worth failing a page render for.

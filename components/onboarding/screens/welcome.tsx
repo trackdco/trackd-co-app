@@ -29,6 +29,15 @@ export function WelcomeScreen() {
    * the generous default stands as it does everywhere else.
    */
   const trial = eligibility?.eligible ?? true;
+  /**
+   * ⚠️ A COMP IS CONGRATULATED WITH NOTHING ABOUT FREE DAYS (D77).
+   *
+   * A free-for-life comp reads as eligible on purpose — see `TrialEligibility.comp`
+   * — so `trial` alone was true for them and this screen offered "7 days on us."
+   * to somebody who already has the app for nothing and whose next tap is
+   * refused. The server decides it; this only reads the answer.
+   */
+  const comp = eligibility?.comp ?? false;
   const name = accountName ?? session.name;
 
   return (
@@ -67,9 +76,13 @@ export function WelcomeScreen() {
                   SECONDS AFTER BEING CHARGED $69.99, and a mid-grace user read
                   7 when they had a fortnight. It is newly false because of the
                   billing triple: before it, every cohort really did get seven
-                  days. The second sentence is true for everybody and stays. */}
+                  days. The second sentence is true for everybody and stays.
+
+                  D77 adds the comp to the same withhold, for the same reason and
+                  by the same means: the line is REMOVED, not replaced. No spec
+                  names a comp welcome state, so no copy was written for one. */}
               <FlowSub className="mx-auto max-w-[20rem]">
-                {trial ? (
+                {trial && !comp ? (
                   <>
                     {TRIAL_DAYS}{" "}days on us.{" "}
                   </>

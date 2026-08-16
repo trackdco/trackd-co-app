@@ -1,5 +1,7 @@
 import "server-only";
 
+import type Stripe from "stripe";
+
 import { serviceClient } from "./service";
 import { stripe } from "./stripe";
 
@@ -157,6 +159,45 @@ export const BILLABLE_STATUSES: ReadonlySet<string> = new Set<string>([
  * ends and `isEntitlementActive` lets the clock do the work, which is what makes
  * cancelling safe to offer in one tap.
  */
+/**
+ * Void the outstanding invoice on a subscription being cancelled while
+ * `incomplete`. See the call site in {@link applyCancelFlag} for why (D76).
+ *
+ * ## Only `open` is voided
+ *
+ * `draft` cannot be voided by Stripe at all — it would have to be finalised or
+ * deleted, and a draft is not payable, so it cannot produce the charge this
+ * guards against. `paid` contradicts `incomplete`. Anything else is already
+ * settled or already dead. Voiding is irreversible, so it is applied to exactly
+ * the state that can still take money and to nothing else.
+ *
+ * ## It THROWS on failure, and that is deliberate
+ *
+ * The caller reports a throw as a failed cancellation and the user retries.
+ * That is the correct direction: Stripe has the cancel flag either way, so a
+ * retry re-applies it harmlessly, whereas swallowing the error would return
+ * `{ok: true}` to somebody whose invoice can still be paid in the background.
+ * Telling them they are safe when they are not is the one lie this flow exists
+ * to avoid, and it is worth an occasional false alarm to keep it impossible.
+ */
+async function voidOpenInvoiceFor(
+  subscription: Stripe.Subscription,
+  stripeSubscriptionId: string,
+): Promise<void> {
+  const latest = subscription.latest_invoice;
+  if (!latest) return;
+
+  const client = stripe();
+  const invoice =
+    typeof latest === "string" ? await client.invoices.retrieve(latest) : latest;
+  if (!invoice.id || invoice.status !== "open") return;
+
+  await client.invoices.voidInvoice(invoice.id);
+  console.info(
+    `[billing] voided open invoice ${invoice.id} while cancelling incomplete subscription ${stripeSubscriptionId}`,
+  );
+}
+
 export async function applyCancelFlag(
   stripeSubscriptionId: string,
   cancelAtPeriodEnd: boolean,
@@ -164,6 +205,30 @@ export async function applyCancelFlag(
   const updated = await stripe().subscriptions.update(stripeSubscriptionId, {
     cancel_at_period_end: cancelAtPeriodEnd,
   });
+
+  /**
+   * ⚠️ AN `incomplete` SUBSCRIPTION'S OPEN INVOICE IS VOIDED TOO (D76).
+   *
+   * `cancel_at_period_end` is a promise about the NEXT charge. On an
+   * `incomplete` subscription it does not touch the one ALREADY OUTSTANDING:
+   * Stripe keeps that first invoice payable for about 23 hours, and anything
+   * that settles it turns the subscription `active` on the spot. So a 3D Secure
+   * challenge finished in a tab the user abandoned BEFORE they cancelled still
+   * takes the money — from somebody this flow has just told, in writing, that
+   * they will not be charged. That is the one invariant this project has.
+   *
+   * ⚠️ THIS IS NOT THE IMMEDIATE-CANCEL FUNCTION, which `03` §2 (line 91)
+   * reserves for account deletion. Voiding revokes no paid access, because
+   * nothing here has been paid; it withdraws a demand for money we have just
+   * promised not to make. {@link cancelNowForUser} is not reached from here.
+   *
+   * ONLY on the cancel path. `cancelAtPeriodEnd === false` is somebody RESUMING,
+   * and voiding the invoice they are about to pay would break the thing they
+   * just asked for.
+   */
+  if (cancelAtPeriodEnd && updated.status === "incomplete") {
+    await voidOpenInvoiceFor(updated, stripeSubscriptionId);
+  }
 
   const { error } = await serviceClient()
     .from("subscriptions")

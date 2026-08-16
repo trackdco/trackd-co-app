@@ -31,10 +31,31 @@ import { cn } from "@/lib/utils";
  * production for the same reason they do.
  */
 
+/**
+ * ⚠️ THE STRIPE INTERVAL IS CARRIED, and dropping it made this harness lie.
+ *
+ * `intervalSuffix` (02b §3.3) takes the unit from the price's own recurring
+ * interval and returns null when it cannot, and both the checkout disclosure and
+ * the paywall price line withhold themselves on that null. This harness passed
+ * only plan/amount/currency, so every plan reached those screens with NO
+ * interval — and they did exactly what they are built to do and said nothing.
+ *
+ * Driven, before this was carried: the checkout view of this preview rendered
+ * "We couldn't load your plan just now. Please go back and try again." in place
+ * of the entire disclosure, which is the one thing 02b is about. The paywall
+ * kept its price line only because it was still reading the STATIC table, which
+ * is the defect D73 removes — so fixing the paywall would have blanked this
+ * harness's last price too.
+ *
+ * A review harness that cannot show the copy under review is worse than none:
+ * it shows an error and invites the conclusion that the SCREEN is broken.
+ */
 export interface PreviewPrice {
   plan: PlanId;
   amount: number;
   currency: string;
+  interval: string;
+  intervalCount: number;
 }
 
 export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
@@ -49,7 +70,13 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
     (plan: PlanId): PricedPlan | undefined => {
       const match = prices.find((p) => p.plan === plan);
       return match
-        ? { ...PLANS[plan], price: match.amount, currency: match.currency }
+        ? {
+            ...PLANS[plan],
+            price: match.amount,
+            currency: match.currency,
+            interval: match.interval,
+            intervalCount: match.intervalCount,
+          }
         : undefined;
     },
     [prices],

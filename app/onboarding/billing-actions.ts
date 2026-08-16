@@ -71,6 +71,29 @@ export type TrialEligibility = {
    * stops a screen stating a date the server would contradict.
    */
   graceEndsAt: string | null;
+  /**
+   * ⚠️ THIS ACCOUNT IS A COMP WHO WILL BE REFUSED A SALE (D77).
+   *
+   * True for exactly the cases {@link startTrial} answers `already-subscribed`
+   * to on comp grounds — `forever`, and `absent`/`unknown` for somebody on the
+   * comp list. The same test, so the screen and the server cannot disagree about
+   * who is being sold to.
+   *
+   * It exists because `eligible` could not carry this. A free-for-life comp
+   * deliberately reads as a brand-new user for eligibility purposes, so `trial`
+   * was true on the welcome screen and a refused comp was congratulated with
+   * "7 days on us." — free days, offered to somebody who already has the app for
+   * nothing and is about to be declined the purchase.
+   *
+   * ⚠️ WHAT IT DOES IS WITHHOLD, AND ONLY WITHHOLD. There is no comp copy: no
+   * spec names that state, so none was written. The line is removed and the
+   * sentence beside it, which is true for everybody, stays.
+   *
+   * NOT set for a mid-grace beta user. They are a comp row, but they ARE sold to
+   * when the fortnight ends, and `eligible: false` already withholds the line
+   * for them.
+   */
+  comp: boolean;
 };
 
 export type StartTrialResult =
@@ -141,6 +164,7 @@ export async function trialEligibility(): Promise<TrialEligibility> {
     reason: "new" as const,
     days: TRIAL_DAYS,
     graceEndsAt: null,
+    comp: false,
   };
   try {
     const { user } = await getSessionContext();
@@ -166,13 +190,28 @@ export async function trialEligibility(): Promise<TrialEligibility> {
         // the trial — they had their free run — but there is no longer a date
         // in the future to tell anybody about.
         graceEndsAt: isStillToCome(comp.endsAt) ? comp.endsAt : null,
+        // Sold to when the fortnight ends, so not a refused comp. `eligible:
+        // false` is already withholding the free-days line for them.
+        comp: false,
       };
     }
     /**
      * A free-for-life comp reads as a brand-new user here, and that is left
      * alone deliberately. This function decides what a screen SAYS; `startTrial`
      * is what refuses to sell to them (§3.7), and `reason` gains no new value.
+     *
+     * ⚠️ WHAT IT DOES GAIN IS A FLAG (D77), and nothing else moves.
+     *
+     * The refusal is copied from `startTrial`'s two comp conditions rather than
+     * approximated, because a screen that withholds on a different test than the
+     * server refuses on is a screen that gets it wrong for somebody. `eligible`
+     * and `reason` are untouched below: this decides one line of copy, not who
+     * may buy.
      */
+    const refusedComp =
+      comp.kind === "forever" ||
+      ((comp.kind === "absent" || comp.kind === "unknown") &&
+        betaGrantFor(user.email).kind === "comp");
 
     const { data } = await serviceClient()
       .from("billing_customers")
@@ -181,12 +220,12 @@ export async function trialEligibility(): Promise<TrialEligibility> {
       .maybeSingle();
     const customerId = data?.stripe_customer_id as string | undefined;
     // No Stripe customer means no history, so nothing can have been used.
-    if (!customerId) return fallback;
+    if (!customerId) return { ...fallback, comp: refusedComp };
 
     const { all } = await listSubscriptions(stripe(), customerId);
     return hasUsedTrial(all)
-      ? { eligible: false, reason: "used", days: TRIAL_DAYS, graceEndsAt: null }
-      : fallback;
+      ? { eligible: false, reason: "used", days: TRIAL_DAYS, graceEndsAt: null, comp: refusedComp }
+      : { ...fallback, comp: refusedComp };
   } catch (err) {
     console.error(
       "[billing] could not decide trial eligibility (showing the trial):",
