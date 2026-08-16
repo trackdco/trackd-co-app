@@ -55,6 +55,32 @@ export function billingGateEnabled(): boolean {
 }
 
 /**
+ * ⚠️ MAY THE PRODUCT PROMISE A REMINDER BEFORE A COURTESY CHARGE?
+ *
+ * Spec `04` §0 makes `04` and `07-notifications.md` a ship-together pair, and per
+ * the amended D1 the release condition is a reminder VERIFIABLY FIRING before a
+ * courtesy charge on a Stripe test clock. That observation is made the Monday
+ * before launch. If it fails, `04` still ships, with two strings withheld.
+ *
+ * So this is a switch rather than an edit: the withhold is built now and flipped
+ * later, which makes the Monday outcome a config change instead of a Wednesday
+ * code change against a launch deadline.
+ *
+ * **Same shape as `BILLING_GATE_ENABLED` deliberately** — an explicit `"true"`,
+ * read server-side, defaulting OFF — so there is one idiom for "a launch switch"
+ * in this codebase rather than two that have to be remembered separately.
+ *
+ * ⚠️ **UNSET WITHHOLDS THE PROMISE, and the direction is the whole point.**
+ * Forgetting to set it costs a promise that could have been made. Defaulting it
+ * on would make a promise the product does not keep, to somebody who is about to
+ * be charged. See `lib/billing/reminderPromise.ts`, which owns both strings and
+ * derives them from this one answer so neither can ship without the other.
+ */
+export function reminderPromiseEnabled(): boolean {
+  return process.env.REMINDER_PROMISE_ENABLED === "true";
+}
+
+/**
  * May the signed-in user write?
  *
  * Request-`cache()`d, so the layout asking and three actions asking cost one

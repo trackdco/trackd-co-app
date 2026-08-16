@@ -22,6 +22,7 @@ import {
 import type { SaveOffer } from "@/app/(app)/billing/actions";
 import { STAYING_NOTICE_SLOT, StayingNotice } from "@/components/billing/StayingNotice";
 import { CANCEL_FAILED, CLAIM_FAILED, RESUME_FAILED } from "@/lib/billing/manage";
+import { offerTermsLine, reminderQuietLine } from "@/lib/billing/reminderPromise";
 import {
   forgetOffer,
   formatRemaining,
@@ -148,6 +149,8 @@ export function CancelSubscription({
   endsOn,
   isTrial,
   userId,
+  compForever = false,
+  remindersPromised = false,
 }: {
   mode: "cancel" | "resume";
   /** Already formatted in the user's own timezone by the server. */
@@ -159,6 +162,25 @@ export function CancelSubscription({
    * had exactly that bug.
    */
   userId: string;
+  /**
+   * ⚠️ A COMP WITH NO EXPIRY (D78). Changes what the confirm dialog SAYS, and
+   * nothing else: not whether the control renders, not what cancelling does.
+   *
+   * Resolved on the server from the entitlement row (`source: "comp"` with a
+   * null `active_until`). Defaulted false so any caller that has not been taught
+   * about it gets the ordinary copy, which is correct for everybody else.
+   */
+  compForever?: boolean;
+  /**
+   * ⚠️ MAY THIS DIALOG PROMISE A REMINDER? (`REMINDER_PROMISE_ENABLED`, D1.)
+   *
+   * Read server-side by `reminderPromiseEnabled()` and passed down, because the
+   * env var must not reach the client bundle — the same split `billingGateEnabled`
+   * uses. Defaulted FALSE, which is the safe direction twice over: a caller that
+   * forgets it withholds a promise rather than making one, and this component
+   * cannot accidentally promise a reminder in a context nobody checked.
+   */
+  remindersPromised?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>("closed");
   const [error, setError] = useState<string | null>(null);
@@ -602,6 +624,8 @@ export function CancelSubscription({
     offer,
     grantedUntil,
     chargeOnLabel,
+    compForever,
+    remindersPromised,
   });
 
   /**
@@ -918,6 +942,8 @@ function dialogCopy({
   offer,
   grantedUntil,
   chargeOnLabel,
+  compForever,
+  remindersPromised,
 }: {
   phase: Phase;
   mode: "cancel" | "resume";
@@ -928,6 +954,10 @@ function dialogCopy({
   grantedUntil: string | null;
   /** `offer.chargeOn`, already formatted in the user's own zone by the caller. */
   chargeOnLabel: string | null;
+  /** Free-for-life comp. Replaces the confirm body only. See D78 below. */
+  compForever: boolean;
+  /** `REMINDER_PROMISE_ENABLED`. Gates both halves of the reminder promise. */
+  remindersPromised: boolean;
 }): DialogCopy | null {
   if (phase === "confirm") {
     return mode === "cancel"
@@ -941,8 +971,24 @@ function dialogCopy({
            * consequence. Adrian's note on 2026-08-14 was that it should say what
            * they are giving up. So: what they keep and until when, then what
            * actually changes on that date, in the app's own words for it.
+           *
+           * ⚠️ D78: A FREE-FOR-LIFE COMP GETS A DIFFERENT BODY, AND IT IS A
+           * REPLACEMENT RATHER THAN A WITHHOLD.
+           *
+           * This is the one place the house rule "a fix withholds a line, it
+           * never rewords one" does not apply, because THREE of the four
+           * sentences are false for them rather than one. They keep access
+           * forever, so "until {date}", "goes read only" and "you just can't add
+           * to it" are all wrong, and withholding those would leave "you won't be
+           * charged" standing alone as an answer to a question nobody asked.
+           *
+           * Signed copy, character for character, from 2026-08-16. The title and
+           * both buttons are deliberately untouched: what they are pressing is
+           * still a cancellation, and it still stops a real charge.
            */
-          body: `You'll have full access to your Pro plan until ${endsOn}, and you won't be charged. After that your account goes read only. You'll still see your whole history, you just can't add to it.`,
+          body: compForever
+            ? `You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.`
+            : `You'll have full access to your Pro plan until ${endsOn}, and you won't be charged. After that your account goes read only. You'll still see your whole history, you just can't add to it.`,
           dismiss: `Keep my ${noun}`,
           confirm: "Yes, cancel",
         }
@@ -984,8 +1030,27 @@ function dialogCopy({
      * to return an offer at all when the date cannot be resolved, before the
      * shown-marker is written — but it is deleted anyway, because a string that
      * cannot legally render is a string somebody will make render.
+     *
+     * ⚠️ AND WITHOUT A DATE THE WHOLE DIALOG REFUSES, rather than rendering a
+     * line with a hole in it. §3.2: "If the charge date cannot be resolved, the
+     * offer is not shown at all." The user is already cancelled, so showing them
+     * nothing is the strictly better outcome and costs them nothing.
      */
-    const terms = `Your plan carries on as it is. You'll be charged on ${chargeOnLabel} unless you cancel before then, and we'll remind you first.`;
+    if (!chargeOnLabel) return null;
+
+    /**
+     * ⚠️ THE FINAL CLAUSE IS GATED BY `REMINDER_PROMISE_ENABLED` (amended D1).
+     *
+     * "and we'll remind you first" is a PROMISE, kept by `07-notifications.md`.
+     * The pair's release condition is that reminder being OBSERVED firing before
+     * a courtesy charge on a test clock, and that observation lands the Monday
+     * before launch. Unset withholds the clause, so forgetting to flip it costs
+     * a promise rather than breaks one.
+     *
+     * Built in `lib/billing/reminderPromise.ts` alongside the thank-you screen's
+     * footnote, from this one boolean, so the two cannot ship apart.
+     */
+    const terms = offerTermsLine(chargeOnLabel, remindersPromised);
 
     return {
       title: "One more thing.",
@@ -1023,7 +1088,13 @@ function dialogCopy({
         offer?.kind === "paid"
           ? `Enjoy your free ${period} on us. Your free ${period} finishes on ${grantedUntil}, and your plan picks up from there unless you choose to cancel.`
           : `Enjoy your free ${period} on us. Your extended trial finishes on ${grantedUntil}, and your plan picks up from there unless you choose to cancel.`,
-      quiet: "We'll remind you before that happens.",
+      /**
+       * ⚠️ THE OTHER HALF OF THE PROMISE, gated by the SAME switch as the terms
+       * line (amended D1). Both together or neither: a thank-you screen silent
+       * about reminders under a terms line that promised one reads as the app
+       * dropping the commitment between two taps.
+       */
+      quiet: reminderQuietLine(remindersPromised),
       dismiss: null,
       confirm: "Back to Trackd Co",
     };

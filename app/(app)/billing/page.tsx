@@ -6,7 +6,7 @@ import { CancelSubscription } from "@/components/billing/CancelSubscription";
 import { ManagePaymentRow } from "@/components/billing/ManagePaymentRow";
 import { STAYING_NOTICE_SLOT } from "@/components/billing/StayingNotice";
 import { currentEntitlement } from "@/lib/billing/entitlements";
-import { billingGateEnabled } from "@/lib/billing/gate";
+import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
 import {
   formatAccessDate,
   manageActionFor,
@@ -203,6 +203,31 @@ export default async function BillingPage() {
               endsOn={formatAccessDate(action.endsOn, tz)}
               isTrial={action.isTrial}
               userId={user.id}
+              /**
+               * ⚠️ FREE FOR LIFE, WHICH MAKES THREE OF THE FOUR CONFIRM SENTENCES
+               * FALSE (D78).
+               *
+               * A no-expiry comp holding a live billable subscription is the only
+               * way this control renders for a comp at all — with no subscription
+               * `manageActionFor` already returns `none`. So the row must STAY:
+               * hiding it hides the exit from something that is charging them,
+               * which is the defect `manage.ts` §"A COMP DOES NOT MAKE A LIVE
+               * STRIPE SUBSCRIPTION STOP BILLING" records two cold reviews driving.
+               *
+               * What is wrong is the WORDS, not the control. `active_until` null
+               * on a `comp` row is exactly the discriminator `isBetaGrace` uses to
+               * separate free-for-life from the beta fortnight.
+               */
+              compForever={
+                entitlement?.source === "comp" &&
+                (entitlement?.activeUntil ?? null) === null
+              }
+              /**
+               * Read here, on the server, so `REMINDER_PROMISE_ENABLED` never
+               * reaches the client bundle. Unset withholds both promise strings
+               * (amended D1) — see `lib/billing/reminderPromise.ts`.
+               */
+              remindersPromised={reminderPromiseEnabled()}
             />
           </div>
           {action.kind === "resume" ? (
