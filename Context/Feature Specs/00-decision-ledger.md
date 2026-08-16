@@ -1,0 +1,201 @@
+Save as: Context/Feature Specs/00-decision-ledger.md
+
+*(Canonical path. Working document, not a spec — it follows none of the spec format
+rules. Its job is to stop one number meaning two decisions, which has now happened
+six times.)*
+
+# Billing decisions and open questions
+
+**How to use it.** Before issuing a decision, take the next free number from the
+bottom of the D list. Before answering a question, check what it actually asked. If a
+decision needs to supersede an earlier one, keep the number and mark it re-decided,
+as D1 and D31 already are.
+
+**Status at 15 Aug 2026. THE CORPUS IS COMPLETE: 00 and 01 through 19.** Next free
+decision number: **D83**. Next free question number: **Q106**.
+
+**The D71 to D77 gap is closed.** That block was re-sent and its seven decisions are
+entered above, in their own numeric places rather than appended. The `19` correction
+came with it: that spec cited D57 where this ledger and the manifest both say D68, and
+both citations are fixed.
+
+**Build-lane amendments start here.** D70 is the first: a contradiction found by
+driving, ruled, and folded back into the spec it falsified rather than filed as a note
+beside it. **An amendment edits the spec.** A corpus where the document and the
+correction live apart is a corpus where somebody builds from the document.
+
+**What arrives from here** is build-lane findings routed back as amendments, and any
+counsel-driven supersession to D32 or to copy of that class. Both keep their original
+numbers and are marked re-decided, as D1 and D31 already are — a supersession is not a
+new decision and must not take a new number, or the record loses the fact that
+something changed.
+
+**⚠️ Launch target: Thursday 20 August. 01 to 12 are the launch set and are complete.
+13 to 19 are post-launch and are not blockers in any seam or checklist they appear
+in** — where one is referenced by a launch spec, it is referenced as an addition, not
+as a dependency.
+
+---
+
+## Decisions
+
+| # | Subject | Owner | Status |
+|---|---|---|---|
+| D1 | The reminder that keeps "we'll remind you first" | 04, 07, 12 | **Re-decided.** Condition unchanged; 04 now ships either way, with both promise strings withheld behind `REMINDER_PROMISE_ENABLED` |
+| D2 | Refund replies come from the founder's own mail client | 10 | Resolved |
+| D3 | No written refund policy; refunds hand-issued at discretion | 10 | Resolved |
+| D4 | No in-app mass-stop control | 12 | Resolved |
+| D5 | Analytics vendor not final; PostHog EU behind an adapter | 13 | Resolved |
+| D6 | Per-currency prices | 18 | Resolved — the signed table, carried in 18 §3.1 |
+| D7 | Three plans final | 02b | Resolved |
+| D8 | One global switch-on-anchored grace window | 06 | Resolved |
+| D9 | Plan switching ships after go-live | 15 | Resolved |
+| D10 | Migration 003 applied before the re-land deploy | 12 | Resolved |
+| D11 | Copy sign-off process | — | Resolved |
+| D12 | The spec map | — | Resolved |
+| D13 | A mid-grace subscriber is never charged inside the fortnight | 01, 02b, 06 | Resolved |
+| D14 | The portal never carries cancel or plan switching | 08, 12, 15 | Resolved |
+| D15 | The holding screen's paid variant and its 60s timeout | 02a | Resolved |
+| D16 | The trial subtitle | 02b | Resolved |
+| D17 | The mid-grace variant set | 02b | Resolved |
+| D18 | The monthly-equivalent bracket stays | 02b | Resolved |
+| D19 | A comp reaching checkout | 02b | Resolved, nothing built |
+| D20 | The paid path's failure string | 02b, routed by 02a | Resolved |
+| D21 | The resume confirmation dialog stays | 03 | Resolved |
+| D22 | "Keep my Pro plan" on the resume trigger | 03 | Resolved |
+| D23 | The expired-claim message | 04 | Resolved |
+| D24 | The granted screen for a paying customer | 04 | Resolved |
+| D25 | "$0.00 USD" on the gift card | 04 | Resolved |
+| D26 | The reopen row's label | 04 | Resolved |
+| D27 | The declined screen's title branches on status | 04 | Resolved |
+| D28 | The read-only pop-up's selector and destination | 05 | Resolved — selector goes, one shared destination |
+| D29 | The server's read-only refusal string | 05 | Resolved — signed as built |
+| D30 | The per-browser seen cookie ships | 06 | Resolved |
+| D31 | The notice's buttons | 06, 08 | **Re-decided.** Both controls ship |
+| D32 | The legal terms line | 06 | Resolved, pending counsel's confirmation |
+| D33 | The courtesy reminder's wording | 07 | Resolved, re-signed after the em-dash catch |
+| D34 | Stripe's own customer emails | 07, 12 | **Deferred** pending Q79's observation |
+| D35 | The subscribe row's label and cohort | 08 | Resolved |
+| D36 | The plan label across five states | 08 | Resolved |
+| D37 | The declined and past-due state | 08 | Resolved |
+| D38 | Does the payment block take the flow surface treatment? | 09 | **OPEN.** Optional; recommended no |
+| D39 | Manage lives at `/billing/manage` | 08 | Resolved |
+| D40 | Pin both Stripe client packages | 09, verified by 12 | Resolved |
+| D41 | The `refund_request` discriminator | 10 | Resolved |
+| D42 | The refund queue's alert thresholds | 10 | **OPEN.** Recommended: three tiers |
+| D43 | The refund screen's copy set | 10 | **OPEN.** Four strings |
+| D44 | One open refund request per person | 10 | Resolved |
+| D45 | The empty-submission error | 10 | Resolved |
+| D46 | Where reconciliation alerts are delivered | 11 | Resolved — push plus dashboard, and a missing subscription fails the clean run |
+| D47 | Signed-URL TTL is 300 seconds | 16 | Resolved — one constant, all seven call sites |
+| D48 | The tax and GST line on checkout | 12 | **OPEN.** Pending counsel |
+| D49 | The live smoke test on a real card | 12 | Resolved, amended: confirm no live grace first |
+| D50 | A 24-hour minimum soak before the public flip | 12 | Resolved |
+| D51 | The kill-switch drill before launch week | 12 | Resolved |
+| D52 | The backfill is the point of no return | 12 | Resolved |
+| D53 | The analytics vendor | 13 | Resolved — PostHog, EU cloud, free tier. Privacy Policy gains it as the analytics provider |
+| D54 | Where the lapse event is emitted from | 13 | **OPEN.** Recommended: at the first refused write |
+| D55 | Analytics live from launch morning, grace window included | 13 | Resolved |
+| D56 | Whether a refund request survives account deletion | 16 | **OPEN.** See 16 §7 |
+| D57 | The deletion confirmation's title and body | 16 | **OPEN.** Money line and mechanism settled separately |
+| D58 | Type-to-confirm on deletion | 16 | Resolved — types `DELETE`, disabled until exact |
+| D59 | The deletion money line | 16 | Resolved — conditional on a live subscription or trial |
+| D60 | How MRR treats a courtesy month | 14 | Resolved — excluded, with a pending split line |
+| D61 | Where the reconciliation summary is persisted | 14 | **OPEN.** Carries a migration |
+| D62 | The downgrade confirmation line | 15 | Resolved |
+| D63 | Proration amounts come from Stripe's preview, never local maths | 15 | Resolved |
+| D64 | The upgrade confirmation's copy | 15 | **OPEN.** See 15 §7 |
+| D65 | Stripe automatic receipt emails ON, payments and refunds | 17, 12 | Resolved |
+| D66 | The USD suffix stays while single-currency | 18 | Resolved |
+| D67 | How the currency is chosen before a card exists | 18 | **OPEN.** See 18 §3.2 |
+| D68 | Receipts show full history, paginated | 19 | Resolved |
+| D69 | Zero-dollar invoice rows are labelled, never bare | 19, 11 | Resolved |
+| D70 | An unpaid period is ineligible for the save offer | 04 | Resolved — build-lane amendment, seated in 04 §3.3 |
+| D78 | The cancel dialog's body for a no-expiry comp account | 03 | Resolved — replacement body, row not hidden |
+| D79 | A no-expiry comp is ineligible for the save offer | 04 | Resolved — same family and ordering as D70 |
+| D80 | Paused and unpaid subscriptions cancel immediately | 03 | Resolved |
+| D81 | The backfill must not resurrect a revoked comp | 12, seam to 01 | Resolved — fix before P11 |
+| D71 | A comp-list member signing up after the backfill gets a comp at signup | 01 | Resolved — built |
+| D72 | A slightly-extended trial is clean, not anomalous | 11 | Resolved — not built |
+| D73 | The paywall's interval suffix comes from Stripe | 02b | Resolved — built |
+| D74 | Six previously unsigned strings, signed as approved copy | 02b | Resolved — sacred as they stand |
+| D75 | 11 asserts no courtesy marker on a subscription unpaid at grant | 11 | Resolved — not built |
+| D76 | Void the open invoice when cancelling an incomplete subscription | 03 | Resolved — built, currently unreachable |
+| D77 | A refused comp's welcome screen suppresses the trial line | 01 | Resolved — built |
+| D82 | The courtesy push reuses the approved grace title | 07 | Resolved |
+
+**Also open, unnumbered:**
+
+- The read-only pop-up's copy set, raised three times: it is neither the brief's
+  approved pop-up nor the built one, its body never uses the exact phrase "read only",
+  and its title branches on a trial or subscription that a lapsed account does not
+  have (05 §7).
+
+- The Manage summary sentence — whether a "what you're on" line was also intended
+  alongside the signed one (08 §3.3).
+- Whether the entitlement-writer section in 05 should gain an idempotency ledger, an
+  unattributed-parking description, and a customer-identity trust rule (05 §7).
+
+---
+
+## Questions
+
+| # | Subject | Blocks | Status |
+|---|---|---|---|
+| Q1–Q64 | The first implementer round | — | Answered |
+| Q65 | Portal configuration in test mode | 08, 12 | Answered |
+| Q66 | What writes entitlement rows | 05 | Answered |
+| Q67 | The onboarding exceptions in ui-context | 09 | Answered — there are four, not one |
+| Q68 | Existing files in Context/Feature Specs | — | Answered |
+| Q69 | The mid-grace checkout path | 01, 02a, 02b, 06 | Answered — it is broken |
+| Q70 | Retry and dunning configuration | 05, 12 | Answered |
+| Q71 | Email on the Stripe customer | 04, 07, 17 | Answered — set once, never refreshed |
+| Q72 | Any PaymentIntent branch | 02a | Answered — none |
+| Q73 | Founder-read RLS on the billing tables | 10 | Answered — none |
+| Q74 | What a grace account's Billing screen reads | 08 | Answered, consumed by 08 |
+| Q75 | — | — | Never minted; numbering gap, left open deliberately |
+| Q76 | Stripe's minimum trial_end offset | 01 | Resolved as a 48h clamp |
+| Q77 | The subscriptions.create call in full | 02a | Answered |
+| Q78 | The holding screen | 02a | Answered |
+| Q79 | Does Stripe's email fire for a moved trial_end? | 04, 07, 12 | **OPEN.** Test clock only |
+| Q80 | What the idempotency fingerprint covers | 02a | Answered |
+| Q81 | reconcileToOne in full | 02a | Answered |
+| Q82 | What the resume label is computed from | 03 | **OPEN.** Traceable during Step 1 |
+| Q83 | What consumes savedAt | 03 | **OPEN.** Not blocking |
+| Q84 | Where "Set up my plan" goes | 06 | Resolved from evidence held |
+| Q85 | The generic syncing notice | 05 | **OPEN.** Step 4 needs it to finish |
+| Q86 | The built notice strings | 06 | Answered |
+| Q87 | Whether "Set up my plan" exists | 06 | Answered — it does not |
+| Q88 | The access label strings | 08 | Answered |
+| Q89 | Sub-route patterns | 08 | Answered — none exist |
+| Q90 | Stripe versions and appearance selectors | 09 | Half answered; selectors are a docs lookup |
+| Q91 | The selected tab's label selector | 09 | Answered — documented. Terms text still open |
+| Q92 | The paywall's step key | 06 | **OPEN.** One narrow question |
+| Q93 | Whether any Stripe list call paginates | 11 | **OPEN.** New |
+| Q94 | The script-runner convention under scripts/ | 11 | **OPEN.** New |
+| Q95 | Whether the four storage buckets are private | 12, 16 | Answered — all four private; re-verified on the day |
+| Q96 | The live webhook endpoint's registered event set | 12 | **OPEN.** After registration |
+| Q97 | Whether consent records gate analytics | 13 | **OPEN.** New |
+| Q98 | Where storage object paths are recorded, and the bucket key layout | 16 | **OPEN.** New |
+| Q99 | How the auth user is deleted, and whether an admin client exists | 16 | **OPEN.** New |
+| Q100 | The seven signed-URL call sites | 16 | **OPEN.** New |
+| Q101 | What the awaiting-first-customer state currently checks | 14 | **OPEN.** New |
+| Q102 | Which Stripe mechanism defers a downgrade to period end | 15 | **OPEN.** New |
+| Q103 | Whether the mirror can record a pending plan change | 15 | **OPEN.** New |
+| Q104 | Where the Google sign-in screen's name comes from | 17 | **OPEN.** New |
+| Q105 | How a partial refund appears on the invoice object | 19 | **OPEN.** New |
+
+---
+
+## Carried forward into specs not yet written
+
+**`16-account-deletion.md`** inherits three things from the storage audit, and they
+are recorded here so they are not rediscovered:
+
+- **A database cascade cannot reach Storage.** Deletion must enumerate and delete the
+  user's objects across all four buckets explicitly.
+- **Until 16 ships, every hand-performed deletion includes a dashboard storage sweep**
+  of those four buckets under the user's id. Without it the erasure promise is not
+  being kept, and that is true today rather than after go-live.
+- **D47's signed-URL TTL** lands here as a small item: one constant, all seven call
+  sites, including the avatar page's hardcoded value.
