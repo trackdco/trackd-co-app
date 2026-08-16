@@ -265,31 +265,38 @@ export async function startTrial(
   const comp = await compEntitlement(user.id);
 
   /**
-   * ⚠️ THE BACKSTOP THAT CANNOT FAIL. A cold review found the refusal above
-   * fails OPEN: `compEntitlement` is a network read, and a Postgres blip at the
-   * wrong moment skips the check entirely, letting one of the five people who
-   * were promised Trackd for life confirm a card and be charged on day 7.
+   * ⚠️ WHO MAY BUY, IN FOUR CASES. THE TABLE IS THE SPEC.
+   *
+   *   row, is_active true, no date   forever   REFUSED. Free for life.
+   *   row, is_active false           revoked   MAY BUY. The kill switch.
+   *   no row, on the comp list       absent    REFUSED. Backfill has not run.
+   *   read failed, on the comp list  unknown   REFUSED. Cannot tell them apart.
+   *
+   * The third case is the one this comment used to get backwards. It claimed
+   * the trade "covers the case where the comp list has an entry the backfill has
+   * not granted yet — they are refused rather than sold to". It did not: the
+   * read succeeded and returned no row, `compEntitlement` answered `none`, and
+   * the backstop below was scoped to a FAILED read, so nothing fired. A
+   * comp-list member who signed up after the backfill was sold a seven-day
+   * trial and charged on day 7 — the exact failure 01 §3.7 and §5 forbid.
    *
    * `betaGrantFor` is a pure in-memory membership test over `COMP_EMAILS`. It
-   * has no failure mode, needs no query, and `betaGrace.ts` is already imported
-   * here. Two independent authorities now have to agree that this person is
-   * allowed to buy, and the cheap one is the one that cannot go down.
+   * has no failure mode and needs no query, so two independent authorities have
+   * to agree that this person may buy, and the cheap one cannot go down.
    *
    * The direction is deliberate and matches §3.7: a comp who cannot buy
    * something they already have for nothing loses nothing. A comp who gets
    * charged after being told in writing they never would be is the failure this
-   * whole rule exists to prevent. That trade also covers the case where the
-   * comp list has an entry the backfill has not granted yet — they are refused
-   * rather than sold to, which is the safe half.
+   * whole rule exists to prevent.
    */
   if (comp.kind === "forever") return { status: "already-subscribed" };
 
   /**
-   * ⚠️ THE BACKSTOP FIRES ONLY WHEN THE READ FAILED, and that condition is the
-   * whole of its correctness.
+   * ⚠️ IT FIRES WHEN THERE IS NO ROW TO TRUST, AND NEVER ON A ROW THAT SAYS NO.
+   * That condition is the whole of its correctness.
    *
-   * A cold review found the earlier version — `comp.kind === "forever" ||
-   * betaGrantFor(...)` — silently defeated the `is_active` kill switch for
+   * A cold review found an earlier version — `comp.kind === "forever" ||
+   * betaGrantFor(...)` — silently defeating the `is_active` kill switch for
    * exactly the five accounts it is most about. `betaGrantFor` reads
    * `COMP_EMAILS` in memory and knows nothing about `is_active`, so a comp
    * withdrawn the way `001_billing_tables.sql` instructs (set `is_active`
@@ -299,19 +306,28 @@ export async function startTrial(
    * never buy their way out**, and the only repair would be a code change and a
    * deploy, which spec 01 §2 forbids.
    *
-   * Scoping it to `unknown` restores the kill switch and keeps the protection
-   * the backstop was added for. The three cases are now distinct:
+   * A later version over-corrected, scoping it to a FAILED read alone. That
+   * restored the kill switch and reopened the hole beside it: a comp-list member
+   * with no row at all read as an ordinary user and was sold a trial.
+   *
+   * Both are closed by asking the right question, which is whether a row exists
+   * that we can believe:
    *
    *   read worked, comp is live      `forever`  -> refused above
-   *   read worked, comp is REVOKED   `none`     -> may buy, which is the point
+   *   read worked, comp is REVOKED   `revoked`  -> may buy, which is the point
+   *   read worked, NO ROW            `absent`   -> refused here
    *   read FAILED, on the comp list  `unknown`  -> refused here
    *
-   * The refusal is what matters for the third: a Postgres blip must never be
-   * the reason one of the five people promised Trackd for life is handed a card
-   * form. Without a working read this cannot tell them apart from anybody else,
-   * and refusing costs a comp nothing.
+   * `revoked` is the only one of the four that falls through, and it is the only
+   * one where somebody has actually decided this person should pay. A Postgres
+   * blip, or a backfill that has not run, must never be the reason one of the
+   * five people promised Trackd for life is handed a card form — and refusing
+   * costs a comp nothing.
    */
-  if (comp.kind === "unknown" && betaGrantFor(user.email).kind === "comp") {
+  if (
+    (comp.kind === "absent" || comp.kind === "unknown") &&
+    betaGrantFor(user.email).kind === "comp"
+  ) {
     return { status: "already-subscribed" };
   }
 
@@ -359,7 +375,7 @@ export async function startTrial(
       "[billing] could not resolve the Stripe customer:",
       err instanceof Error ? err.message : String(err),
     );
-    return { status: "error", message: earlyFailureMessage(mountedMode) };
+    return { status: "error", message: earlyFailureMessage() };
   }
 
   const lease = await waitForTrialLease(user.id);
@@ -375,10 +391,14 @@ export async function startTrial(
      */
     return {
       status: "error",
-      message:
-        mountedMode === "payment"
-          ? "We're still setting your plan up. Give it a moment and try again."
-          : "We're still setting your trial up. Give it a moment and try again.",
+      /**
+       * ⚠️ The plan wording, for the reason `earlyFailureMessage` documents: a
+       * mid-grace user mounts `setup` and was reading "your trial" here, which
+       * D17 forbids for them. This fires before eligibility is resolved, so the
+       * sentence that is true for everybody is the one to show. Neither string
+       * is reworded.
+       */
+      message: "We're still setting your plan up. Give it a moment and try again.",
     };
   }
 
@@ -797,8 +817,21 @@ export async function startTrial(
          *
          * ⚠️ One case this does NOT cover, recorded in `next-tasks.md`: when
          * the 48h clamp fires, `trial_end` is `now + 48h` and MOVES between
-         * attempts while the kind and fingerprint stay put. Whoever changes this
-         * key next should quantise the clamped value so it stops moving.
+         * attempts while the kind and fingerprint stay put.
+         *
+         * ⚠️ AND THE OBVIOUS FIX IS UNSAFE. "Round `now + 48h` down to the
+         * hour" was recorded as the remedy and must not be applied as written.
+         * `freeTime.ts` decides `chosen = clamped ? earliest : graceEnd`, so
+         * quantising `earliest` DOWNWARD can land it before `graceEnd` — up to
+         * 59m59s of a period the app promised free, ending in a charge inside
+         * it. Substituting a quantised value for `earliest` is a money defect,
+         * not a tidy-up.
+         *
+         * The safe form keeps the promise as a floor:
+         *
+         *     chosen = Math.max(graceEnd, quantise(earliest))
+         *
+         * Never a bare substitution. Whoever changes this key next does that.
          */
         idempotencyKey: `trial:${user.id}:${plan}:${freeTime.kind}:${fingerprint(all)}`,
       },
@@ -916,7 +949,7 @@ export async function startTrial(
     );
     // Deliberately generic. A Stripe error string can name the account, the
     // customer or the price, and none of that belongs on a paywall.
-    return { status: "error", message: earlyFailureMessage(mountedMode) };
+    return { status: "error", message: earlyFailureMessage() };
   } finally {
     /**
      * ALWAYS, on every path out of the try — the early returns above included.
@@ -998,9 +1031,18 @@ async function waitForTrialLease(userId: string): Promise<LeaseOutcome> {
  * retries them. Sharing the set is what stops the two ends drifting: "what would
  * I have to stop?" and "what stops me selling another?" are the same question.
  *
- * `incomplete` is deliberately NOT billable and NOT here. Those are attempts
- * Stripe has already given up on, and treating one as live would refuse a user
- * their own retry.
+ * ⚠️ `incomplete` IS billable and IS here, deliberately (02a §3.6, and
+ * `cancel.ts`'s `BILLABLE_STATUSES`). Stripe keeps an incomplete subscription's
+ * FIRST INVOICE PAYABLE for about 23 hours, so anything that pays it — a 3DS
+ * challenge finished in another tab, a retry, a dashboard action — turns it
+ * `active` immediately. `incomplete_expired` is the one Stripe has finished
+ * with, and that is the one excluded.
+ *
+ * A paragraph here used to claim the opposite. The code never followed it, and
+ * a cold review turned that gap into two live billable subscriptions on one
+ * customer. `hasValidatedCard` is what keeps a user's own retry available: it
+ * reads `incomplete` as "has not paid" rather than "already subscribed", so the
+ * status blocks a second SALE without blocking a second ATTEMPT.
  */
 async function listSubscriptions(
   client: ReturnType<typeof stripe>,
@@ -1027,6 +1069,16 @@ async function listSubscriptions(
    * would otherwise be invisible to both the duplicate guard and the reconcile,
    * which is the one-billable-subscription invariant.
    *
+   * ⚠️ AND THE CAP ITSELF TRUNCATES SILENTLY, WHICH IS THE SAME DEFECT ONE
+   * LEVEL UP. `autoPagingToArray` stops at the cap and says nothing, and the
+   * list is newest-first, so at exactly 1000 the OLDEST subscription — the one
+   * carrying the validated card — falls off and `hasUsedTrial` answers false.
+   * The generous answer, reached by silence, which §3.2 forbids.
+   *
+   * So it asks for 1001. Anything over 1000 means the list was cut, and the
+   * caller is told rather than handed a short list that looks complete. A
+   * truncated list must never resolve to "no trial used".
+   *
    * The cap is a safety valve rather than a limit anyone should reach — a real
    * customer has single digits.
    */
@@ -1047,9 +1099,27 @@ async function listSubscriptions(
        */
       expand: ["data.pending_setup_intent", "data.latest_invoice.confirmation_secret"],
     })
-    .autoPagingToArray({ limit: 1000 });
+    .autoPagingToArray({ limit: SUBSCRIPTION_PAGE_CAP + 1 });
+
+  if (all.length > SUBSCRIPTION_PAGE_CAP) {
+    // Refused rather than answered. `hasUsedTrial` reads this list and a short
+    // one answers false, which hands out a free week.
+    throw new Error(
+      `subscription history for ${customerId} exceeds ${SUBSCRIPTION_PAGE_CAP}; refusing to answer from a truncated list`,
+    );
+  }
   return { all, live: all.filter((sub) => BILLABLE_STATUSES.has(sub.status)) };
 }
+
+/**
+ * How many subscriptions this will read before it refuses to answer.
+ *
+ * A safety valve, not a limit: a real customer has single digits, and the
+ * abandoned-attempt loop that could approach it is what `reconcileToOne` exists
+ * to stop. One MORE than this is requested, so the overflow is visible instead
+ * of silent.
+ */
+const SUBSCRIPTION_PAGE_CAP = 1000;
 
 /** Just the live ones, for callers that do not need the whole history. */
 async function listLiveSubscriptions(
@@ -1218,10 +1288,30 @@ async function reconcileToOne(
  * branches are honest, and a client that lies about its mode only mislabels its
  * own error.
  */
-function earlyFailureMessage(mountedMode?: IntentKind): string {
-  return mountedMode === "payment"
-    ? "We couldn't start your plan just now. Nothing has been charged."
-    : "Couldn't start your trial just now.";
+function earlyFailureMessage(): string {
+  /**
+   * ⚠️ IT NO LONGER ASKS THE SHEET WHAT IT MOUNTED AS, BECAUSE THAT ANSWERS THE
+   * WRONG QUESTION.
+   *
+   * A mid-grace beta user mounts `setup` — nothing is due inside their
+   * fortnight — so keying on the mounted mode handed them
+   * "Couldn't start your trial just now.", on a screen whose four lines were
+   * written specifically never to say the word. D17: the grace is not a trial.
+   * `failureMessage` was corrected for exactly this and keys on whether free
+   * time was granted; its three early siblings were left behind.
+   *
+   * These three branches fire BEFORE eligibility is resolved — the customer
+   * resolve, the busy lease, the outer catch — so the honest answer is that we
+   * do not yet know whether this person is getting a trial, and we must not
+   * claim one. The plan sentence is true for every cohort that can reach here,
+   * including a first-timer: nothing HAS been charged, because all three fire
+   * before anything is confirmed.
+   *
+   * ⚠️ NEITHER STRING IS REWORDED. The trial line still exists and is still used
+   * by `failureMessage`, where the answer is actually known. This only stops the
+   * wrong existing line reaching the wrong cohort.
+   */
+  return "We couldn't start your plan just now. Nothing has been charged.";
 }
 
 function failureMessage(freeTime: ReturnType<typeof resolveFreeTime>): string {
@@ -1451,21 +1541,40 @@ function hasUsedTrial(all: readonly Stripe.Subscription[]): boolean {
  * seven-day trial on top of the fortnight they have already had. Callers apply
  * their own liveness test; `resolveFreeTime` is where that rule lives.
  *
- * ⚠️ THE SELECT IS `source, active_until` AND MUST STAY THAT WAY. Both columns
- * exist and are applied. A column added to this select breaks the whole request
+ * ⚠️ THE SELECT IS `source, active_until, is_active` AND MUST STAY THAT WAY.
+ * All three columns are in `001`, which is applied. A column added to this select breaks the whole request
  * if its migration has not been run, and this request decides whether somebody
  * is charged today. `supabase/billing/003_courtesy_until.sql` is written and NOT
  * applied — nothing here may read it.
  *
- * ⚠️ RETURNS `none` ON ANY ERROR. For the grace that grants the trial, which is
- * the direction §3.5 requires. For the comp refusal it means a free-for-life
- * account could reach the create call during a Postgres outage — accepted
- * deliberately, because the alternative is refusing every legitimate purchase on
- * a transient blip, and a comp has no route to this screen in the first place.
+ * ⚠️ RETURNS `unknown` ON ANY ERROR, never `absent`. The two callers need
+ * OPPOSITE answers — the eligibility read wants the generous one, the money path
+ * wants the refusal — and collapsing them is what made a beta user chargeable
+ * inside their own fortnight. `startTrial` turns `unknown` into a refusal for
+ * anybody on the comp list and an error for everybody else.
  */
 type CompEntitlement =
-  /** No comp row. An ordinary user. */
-  | { kind: "none" }
+  /**
+   * ⚠️ NO ROW AT ALL. NOT THE SAME THING AS A REVOKED ONE, and collapsing the
+   * two is what made a comp-list member chargeable.
+   *
+   * A `.eq("is_active", true)` filter used to answer `none` for both, so a
+   * comp-list member who signed up AFTER the hand-run backfill held no row, read
+   * as an ordinary user, was sold a seven-day trial and charged on day 7 — while
+   * the backstop that exists to catch exactly that was scoped to a failed read
+   * and never fired. Violates 01 §3.7 and §5.
+   */
+  | { kind: "absent" }
+  /**
+   * A row that exists and has been switched OFF. `001_billing_tables.sql`
+   * documents this as how a comp is withdrawn or a chargeback recorded — flip
+   * the flag, leave the date alone so the history stays readable.
+   *
+   * They MAY buy, and that is the whole point of keeping it distinct from
+   * `absent`: a revoked comp who could not purchase would be held read-only by
+   * the gate with no way out but a code change and a deploy, which 01 §2 forbids.
+   */
+  | { kind: "revoked" }
   /** Free for life. Must never be sold a subscription. */
   | { kind: "forever" }
   /** The beta grace. `endsAt` may be in the past. */
@@ -1482,34 +1591,35 @@ async function compEntitlement(userId: string): Promise<CompEntitlement> {
   try {
     const { data, error } = await serviceClient()
       .from("entitlements")
-      .select("source, active_until")
+      .select("source, active_until, is_active")
       .eq("user_id", userId)
       .eq("product", "pro")
       .eq("source", "comp")
-      /**
-       * ⚠️ `is_active` IS THE KILL SWITCH, and a revoked row must not answer
-       * this question. `001_billing_tables.sql` documents it as the way a comp
-       * is withdrawn or a chargeback recorded — set false WITHOUT touching the
-       * date, so the history stays readable — and `access.ts` already refuses
-       * access on it.
-       *
-       * Without this filter a revoked comp still reads as `forever`, so
-       * `startTrial` answers `already-subscribed` and the checkout screen walks
-       * them into an app the gate holds read-only. They could never buy their
-       * way out, and the only repair would be DELETING the row rather than
-       * flipping the flag the schema tells you to flip. A revoked beta grace
-       * would likewise still buy a grace-aligned free run.
-       *
-       * The column is in `001`, which is applied. Nothing here reads `003`.
-       */
-      .eq("is_active", true)
       .limit(1);
     if (error) {
       console.error(`[billing] could not read the comp entitlement for ${userId}:`, error.message);
       return { kind: "unknown" };
     }
+    /**
+     * ⚠️ THE FOUR STATES, BRANCHED RATHER THAN FILTERED.
+     *
+     * This used to carry `.eq("is_active", true)`, which is the right instinct
+     * — the flag IS the kill switch and a revoked row must not answer "are you
+     * a comp?" — applied in the wrong place. Filtering makes a revoked row and
+     * NO ROW indistinguishable, and the caller needs opposite answers for them:
+     *
+     *   is_active true, no date   forever   never sell to them
+     *   is_active false           revoked   they MAY buy, and must be able to
+     *   no row, on the comp list  absent    refuse: the backfill has not run yet
+     *   read failed, on the list  unknown   refuse: cannot tell them apart
+     *
+     * The kill switch survives because `revoked` falls through to the purchase
+     * path exactly as the filter made it; what changes is that `absent` no
+     * longer pretends to be an ordinary user.
+     */
     const row = data?.[0];
-    if (!row) return { kind: "none" };
+    if (!row) return { kind: "absent" };
+    if (row.is_active === false) return { kind: "revoked" };
     const activeUntil = row.active_until as string | null;
     return activeUntil === null ? { kind: "forever" } : { kind: "grace", endsAt: activeUntil };
   } catch (err) {
@@ -1704,8 +1814,19 @@ export async function resolveReturningIntent(
      * real customers trying to check out.
      *
      * A caller with no `billing_customers` row can own no intent at all, so it
-     * returns before touching Stripe. That is every freshly-made account, which
-     * is what an attacker would be using.
+     * returns before touching Stripe.
+     *
+     * ⚠️ THIS RAISES THE COST BY ONE TAP; IT DOES NOT CLOSE THE HOLE, and the
+     * comment here used to imply otherwise by calling a fresh account "what an
+     * attacker would be using". `findOrCreateCustomer` writes the
+     * `billing_customers` row on the FIRST Subscribe press, so an attacker
+     * presses it once on a throwaway account and the guard is behind them for
+     * good. What it genuinely buys is that the row cannot be conjured by calling
+     * this endpoint alone, so drive-by loops over freshly-made accounts cost a
+     * checkout round trip each rather than nothing.
+     *
+     * Closing it properly is rate limiting, which no spec here owns. Recorded in
+     * `next-tasks.md` rather than improvised.
      */
     const ours = await customerIdFor(user.id);
     /**

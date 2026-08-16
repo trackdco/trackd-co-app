@@ -43,6 +43,8 @@
 
 import "server-only";
 
+import { serviceClient } from "./service";
+
 /**
  * ⚠️ FREE FOREVER. Complete as of 2026-08-14: two founder accounts and three
  * friends. Adrian closed the list, so a further addition is a new decision
@@ -167,4 +169,80 @@ export function graceAsTrial(
     // have opted out of a charge, and the notice is owed either way.
     cancelAtPeriodEnd: false,
   };
+}
+
+/**
+ * ⚠️ D71 — GRANT THE COMP ROW AT SIGNUP, FOR THE PEOPLE THE LIST NAMES.
+ *
+ * ## Why this exists, and why it is the OTHER half of the fix
+ *
+ * The refusal in `startTrial` stops a comp-list member being charged. It does
+ * not stop them landing in read-only the moment the gate goes on at P13,
+ * because nothing grants them a row and the only writer today is the hand-run
+ * backfill — which by definition ran before they signed up. So the person Adrian
+ * promised Trackd to for life gets the app taken off them on launch morning.
+ *
+ * **Both, not either.** If this grant ever fails or races, the refusal is still
+ * what stops the charge; if the refusal were ever weakened, this is what keeps
+ * their access. Neither is load-bearing alone.
+ *
+ * ## Cheap for everybody who is not on the list
+ *
+ * `betaGrantFor` is a pure in-memory membership test, so for every ordinary
+ * sign-in this is a string comparison and returns without touching the network.
+ * Only the five addresses on the list ever reach the write.
+ *
+ * ## Idempotent, and it never overwrites a decision
+ *
+ * `ignoreDuplicates` on the natural key, so a second run is a no-op — and, more
+ * importantly, a row that already exists is LEFT ALONE. That is deliberate in
+ * two directions:
+ *
+ *   - a comp that has been REVOKED (`is_active` false) stays revoked. Someone
+ *     decided that, and a sign-in must not undo it.
+ *   - a time-limited grace row keeps its date; upgrading those to forever is the
+ *     backfill's job and it does it by UPDATE.
+ *
+ * ⚠️ Verified against the P11 backfill: a row written here is picked up by
+ * `answered`, which is built from ANY entitlement row, and is not in
+ * `timeLimitedComp`, which requires a dated one — so the backfill skips it
+ * rather than attempting a second INSERT against the unique key.
+ *
+ * ⚠️ SERVICE ROLE, SERVER ONLY. `entitlements` grants `authenticated` an
+ * own-row SELECT and no write at all, so a user-scoped client cannot do this and
+ * must never be asked to. This module already carries `server-only`.
+ *
+ * Never throws. A failure here is logged and left: the caller is an auth
+ * redirect, and a comp who cannot be granted a row is still refused a purchase
+ * by `startTrial`, which is the half that costs money.
+ */
+export async function ensureCompEntitlement(
+  userId: string,
+  email: string | null | undefined,
+): Promise<void> {
+  if (betaGrantFor(email).kind !== "comp") return;
+
+  try {
+    const { error } = await serviceClient().from("entitlements").upsert(
+      {
+        user_id: userId,
+        product: "pro",
+        source: "comp",
+        // Free for life. `is_active_now` reads a null date as "does not expire".
+        active_until: null,
+        is_active: true,
+      },
+      { onConflict: "user_id,product,source", ignoreDuplicates: true },
+    );
+    if (error) {
+      console.error(`[billing] could not grant the comp entitlement for ${userId}:`, error.message);
+      return;
+    }
+    console.info(`[billing] comp entitlement ensured for ${userId}`);
+  } catch (err) {
+    console.error(
+      `[billing] could not grant the comp entitlement for ${userId}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 }

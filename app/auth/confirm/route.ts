@@ -1,6 +1,7 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { ensureCompEntitlement } from "@/lib/billing/betaGrace";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -44,6 +45,23 @@ export async function GET(request: NextRequest) {
   }
 
   if (verified) {
+    /**
+     * ⚠️ D71 — the comp list's members get their row here, once.
+     *
+     * The email half of the same seam as `/auth/callback`. A comp-list member
+     * who confirms their address AFTER the hand-run backfill holds no
+     * entitlement, and nothing else would ever grant them one — so the gate
+     * would hold them read-only on launch morning. Idempotent, service-role,
+     * and a no-op string comparison for everybody not on the list. Never throws.
+     *
+     * A recovery link reaches here too, and that is harmless: the address is
+     * either on the list or it is not, and the write is `ignoreDuplicates`.
+     */
+    const {
+      data: { user: signedIn },
+    } = await supabase.auth.getUser();
+    if (signedIn) await ensureCompEntitlement(signedIn.id, signedIn.email);
+
     // Behind Vercel's proxy `origin` can be the internal host; prefer the
     // forwarded host in production (same pattern as /auth/callback).
     const forwardedHost = request.headers.get("x-forwarded-host");

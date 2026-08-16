@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { ensureCompEntitlement } from "@/lib/billing/betaGrace";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -28,6 +29,18 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      /**
+       * ⚠️ D71 — the comp list's members get their row here, once.
+       *
+       * A comp-list member who signs up AFTER the hand-run backfill holds no
+       * entitlement, and nothing else would ever grant them one — so the gate
+       * would hold them read-only on launch morning. This is the only writer
+       * besides the backfill. Idempotent, service-role, and a no-op string
+       * comparison for everybody not on the list. It never throws.
+       */
+      const { data: { user: signedIn } } = await supabase.auth.getUser();
+      if (signedIn) await ensureCompEntitlement(signedIn.id, signedIn.email);
+
       // Behind Vercel's proxy `origin` can be the internal host, so prefer the
       // forwarded host in production (Supabase Next.js SSR pattern).
       const forwardedHost = request.headers.get("x-forwarded-host");

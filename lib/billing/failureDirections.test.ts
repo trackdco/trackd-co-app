@@ -128,8 +128,15 @@ describe("the entitlements read reports failure rather than guessing", () => {
     expect(tail).not.toMatch(/return \{ kind: "none" \}/);
   });
 
-  it("still returns `none` for a genuine absence of any comp row", () => {
-    expect(body).toMatch(/if \(!row\) return \{ kind: "none" \}/);
+  it("⚠️ distinguishes NO ROW from a revoked one", () => {
+    /**
+     * These were collapsed by a `.eq("is_active", true)` filter, and the two
+     * callers need opposite answers. A comp-list member who signed up after the
+     * hand-run backfill holds no row, read as an ordinary user, and was sold a
+     * seven-day trial and charged on day 7.
+     */
+    expect(body).toMatch(/if \(!row\) return \{ kind: "absent" \}/);
+    expect(body).toMatch(/if \(row\.is_active === false\) return \{ kind: "revoked" \}/);
   });
 
   it("never throws its way out", () => {
@@ -137,10 +144,14 @@ describe("the entitlements read reports failure rather than guessing", () => {
     expect(body).toContain("} catch");
   });
 
-  it("filters on the kill switch", () => {
-    // A revoked comp must not answer this question. Without it, a withdrawn
-    // comp reads as `forever` and can never buy its way out of read-only.
-    expect(body).toContain('.eq("is_active", true)');
+  it("reads the kill switch rather than filtering on it", () => {
+    // A revoked comp must not answer `forever` — without that, a withdrawn comp
+    // can never buy its way out of read-only. But FILTERING made a revoked row
+    // and no row indistinguishable, so the flag is selected and branched on.
+    expect(body).toContain('.select("source, active_until, is_active")');
+    // Anchored to a chained CALL, not the words: the branch's own comment
+    // explains why the filter was removed and names it.
+    expect(body).not.toMatch(/^\s*\.eq\("is_active", true\)/m);
   });
 });
 
@@ -391,10 +402,25 @@ describe("the comp backstop does not defeat the kill switch", () => {
    */
   const body = bodyOf("startTrial");
 
-  it("only consults the in-memory comp list when the READ FAILED", () => {
+  it("consults the in-memory list when there is no row to trust", () => {
+    /**
+     * ⚠️ TWO CASES, NOT ONE. Scoping this to a failed read alone restored the
+     * kill switch and reopened the hole beside it: a comp-list member with NO
+     * ROW read as an ordinary user and was sold a trial. Both `absent` and
+     * `unknown` mean "no row we can believe", and both refuse.
+     */
     expect(body).toMatch(
-      /comp\.kind === "unknown" && betaGrantFor\(user\.email\)\.kind === "comp"/,
+      /\(comp\.kind === "absent" \|\| comp\.kind === "unknown"\) &&\s*\n?\s*betaGrantFor\(user\.email\)\.kind === "comp"/,
     );
+  });
+
+  it("⚠️ but NEVER against a revoked row, which is the kill switch itself", () => {
+    // `revoked` is the only one of the four states that falls through to the
+    // purchase path, and it is the only one where somebody has actually decided
+    // this person should pay. If it ever joins that condition, a withdrawn comp
+    // is held read-only with no way out but a deploy, which 01 §2 forbids.
+    expect(body).not.toMatch(/comp\.kind === "revoked"[\s\S]{0,80}betaGrantFor/);
+    expect(body).not.toMatch(/betaGrantFor[\s\S]{0,80}comp\.kind === "revoked"/);
   });
 
   it("never ORs the list against a successful read", () => {

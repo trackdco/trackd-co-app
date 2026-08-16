@@ -309,9 +309,23 @@ later sends the same key with a different `trial_end`, and Stripe rejects it.
 They see an error until the key ages out, up to 24 hours.
 
 Narrow: it needs a mid-grace user in their last two days AND a failed create AND
-a retry. It fails towards refusing rather than charging. **The fix is to
-quantise the clamped value** — round `now + 48h` down to the hour — so it stops
-moving between retries. Whoever next touches that key should do it.
+a retry. It fails towards refusing rather than charging.
+
+**⚠️ THE FIX AS PREVIOUSLY WRITTEN HERE WAS UNSAFE, and is corrected (2026-08-16).**
+It said to "round `now + 48h` down to the hour". Applied as a bare substitution
+that is a money defect: `freeTime.ts:151-153` decides
+`chosen = clamped ? earliest : graceEnd`, so a downward-quantised `earliest` can
+land BEFORE `graceEnd` — up to 59m59s inside a period the app promised free,
+ending in a charge within it. That is worse than the 400 it was meant to fix,
+because the 400 fails towards refusing and this fails towards charging.
+
+The safe form keeps the promise as a floor:
+
+```
+chosen = Math.max(graceEnd, quantise(earliest))
+```
+
+Never a bare substitution. Whoever next touches that key does it that way.
 
 ### ⚠️ Still true, and it is what makes all of the above safe
 
@@ -457,23 +471,41 @@ Nothing on this branch may merge until this is done. Detail further down under
 webhook endpoint and its secret, a LIVE portal configuration, Apple Pay domain
 registration, Link off in live mode, and the account business description.
 
-### 3. ONE MIGRATION TO APPLY BY HAND
+### 3. NO MIGRATIONS OWED — ALL APPLIED (audited live 2026-08-16)
 
-**`supabase/notifications/005` is applied and verified** (Adrian, 2026-08-13 —
-see the top of this file for the five attacks that now refuse). One is left.
+Every SQL file in `supabase/` was audited against the LIVE schema on 2026-08-16
+via the Supabase MCP, object by object, rather than by reading headers. Nothing
+is outstanding. The three files this section and the two below used to carry as
+owed were all already in:
 
-| File | What it does | If not applied |
+| File | Proven present by |
+|---|---|
+| `supabase/billing/002_trial_start_lease.sql` | `billing_customers.trial_lock_until` exists. Applied 2026-08-14, as its header says. |
+| `supabase/notifications/004_trial_reminder.sql` | `notification_preferences.trial_reminder_sent_for` exists. Applied 2026-08-12, as its header says — the "NOT APPLIED" note further down this file was stale for four days. |
+| `supabase/notifications/005_trial_stamp_lock.sql` | `guard_trial_reminder_stamp` exists in `pg_proc`. |
+
+Two were applied on 2026-08-16 through the MCP, so unlike every hand-applied
+file they DO appear in `list_migrations`:
+
+| File | Migration name | Verified by |
 |---|---|---|
-| `supabase/billing/002_trial_start_lease.sql` | One column, `billing_customers.trial_lock_until`. The per-user lease `startTrial` holds across its Stripe check-and-create. | **Safe.** The code detects it and proceeds without the lease; the reconcile still stops a second live subscription. Driven, and it holds. |
+| `supabase/billing/003_courtesy_until.sql` | `courtesy_until` | `subscriptions.courtesy_until`, `timestamp with time zone`, nullable. |
+| `supabase/legal/012_em_dashes.sql` | `legal_documents_em_dashes` | 0 prose em dashes in all three current v1.3 rows; the one remaining per row is the title separator, which is stripped before render. |
 
-It carries its own VERIFY block; run that rather than trusting the header. A
-hand-applied file's header is a claim, never a record.
+`supabase/cycles/002_cycle_id_backfill.optional.sql` is deliberately NOT run:
+it is marked optional and the live data has exactly ONE candidate row in
+`body_metrics` and none in `journal_entries` (Adrian's call, 2026-08-16).
+
+**The ledger is not a record of this project.** `list_migrations` stops at
+`drop_working_set` (2026-07-15); roughly thirty files since then were pasted
+into the SQL Editor and left no trace. Audit against the live schema, never
+against a header or against this table.
 
 ### 4. THE GO-LIVE ORDER, AND IT IS NOT NEGOTIABLE
 
 ```
 1. Stripe off sandbox. Live keys + prices + webhook secret into Vercel.
-2. Apply supabase/billing/002.            (005 is already applied + verified)
+2. (nothing) All migrations are applied — audited live 2026-08-16, see above.
 3. COMP_EMAILS is filled in and closed.   (2026-08-14 — nothing to do)
 3b. Make sure angusbrake6@gmail.com HAS SIGNED UP. He had no account on
     2026-08-14, and the backfill can only grant to an account that exists.
@@ -871,7 +903,14 @@ is missing from them 42501s on a legitimate write.
 
 ### ⚠️ THE EM DASH SWEEP REACHED POSTGRES
 
-**`supabase/legal/012_em_dashes.sql` is NOT APPLIED.** The house rule ("NO EM
+**`supabase/legal/012_em_dashes.sql` IS APPLIED** (re-run through the MCP as
+migration `legal_documents_em_dashes`, 2026-08-16, and verified: zero prose em
+dashes across all three current v1.3 rows). Its own header had claimed applied
+since 2026-08-12 while this section said the opposite; the re-run is a no-op
+when already applied, because every statement carries its own LIKE guard, so
+the contradiction was settled by executing rather than by picking a side.
+
+The house rule ("NO EM
 DASHES in any user-facing string") had never touched the legal documents, because
 they are text ROWS in Postgres rather than files, and `/terms`, `/privacy` and
 `/medical-disclaimer` render `body` verbatim. Sixteen of them in the three
@@ -903,10 +942,17 @@ and the whole read-only gate is inert. Merging this branch changes nothing for
 any of the 90 accounts. See "the go-live order" at the top of this file for when
 and in what order to turn it on.
 
-### ⚠️ ONE MIGRATION OWED NOW
+### ✅ NO MIGRATION OWED — `notifications/004` IS APPLIED
 
-**`supabase/notifications/004_trial_reminder.sql` is NOT APPLIED** (verified
-against the live schema, 2026-08-12). One additive column,
+**`supabase/notifications/004_trial_reminder.sql` IS APPLIED.** Verified against
+the live schema 2026-08-16: `notification_preferences.trial_reminder_sent_for`
+is present. This section said NOT APPLIED, dated 2026-08-12 — the same day the
+file's own header records it as applied and verified. The header was right.
+
+That makes twice on this branch (`grants/004`, then this) that a "NOT APPLIED"
+note in `next-tasks.md` outlived the migration it described. The note below is
+kept for its reasoning about WHY the column is read in its own query; read the
+paragraph, not its premise. One additive column,
 `notification_preferences.trial_reminder_sent_for date`.
 
 **It is the only thing between the trial reminder and it sending.** The code is
