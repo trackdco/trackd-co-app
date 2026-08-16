@@ -12,7 +12,7 @@ decision needs to supersede an earlier one, keep the number and mark it re-decid
 as D1 and D31 already are.
 
 **Status at 15 Aug 2026. THE CORPUS IS COMPLETE: 00 and 01 through 19.** Next free
-decision number: **D85**. Next free question number: **Q106**.
+decision number: **D86**. Next free question number: **Q106**.
 
 **The D71 to D77 gap is closed.** That block was re-sent and its seven decisions are
 entered above, in their own numeric places rather than appended. The `19` correction
@@ -125,6 +125,7 @@ as a dependency.
 | D82 | The courtesy push reuses the approved grace title | 07 | Resolved |
 | D83 | An incomplete-only account gets the support line, not a cancel control | 03 | Resolved — existing approved copy, no new string |
 | D84 | Manage's summary is ONE sentence | 08 | Resolved — the signed sentence is the whole line |
+| D85 | The re-land is REVERT THEN MERGE, not revert alone | 12, seam to every spec citing the re-landing trap | Resolved — tested in a detached worktree |
 
 **Also open, unnumbered:**
 
@@ -330,3 +331,54 @@ line ships alongside it.
 
 This closes the open item that asked whether a further line was also intended. It
 was not.
+
+
+---
+
+## D85 — the re-land is revert THEN merge
+
+**⚠️ ISSUED AS D84 AND RECORDED AS D85. The number in the instruction was already
+taken**, by D84 (Manage's summary), assigned the previous day. The instruction said
+"take D84 from 00's next-free list", and the next-free list said D85 — so the intent
+(take the next free number) is followed and the literal number is not. **This is the
+sixth-plus instance of the collision this ledger exists to prevent**, and it happened
+because the issuer's view of the list was a day old. Renumbering is a one-line change
+if the other order is preferred; nothing outside this ledger cites either number yet.
+
+### The decision
+
+`12` §3.2 is right that **a merge alone brings nothing back**: the billing commits are
+ancestors of `main` with their changes undone, so git considers them already merged.
+It draws the wrong conclusion from it — that the revert is therefore the whole
+re-landing.
+
+**The revert restores the tree as of the ORIGINAL merge and nothing after it.** Every
+commit made on `wave3/billing-cancel` since 13 August is new to `main`, and only a
+merge brings those. Reverting the revert is what makes that subsequent merge *work*;
+it is not a substitute for it.
+
+Followed literally, the launch would have shipped the code as it stood on 13 August:
+no invoice void (D76), no `FLAG_CANCELLABLE_STATUSES`, no `billing_reason` guard, no
+`listAllSubscriptions`, no reminder flag, no courtesy reminder variant, and no `003`
+file — **all four Group 1 CRITICALs among them** — while §5's checklist item
+"Re-landed by `git revert c547dba`, never by a merge" was ticked as it happened.
+
+### Tested, in a detached worktree outside the repository
+
+Against `origin/main` (`b925568`), which is the real launch base — local `main` was
+ten commits behind and pointed at a merge into `admin/dashboard`, which is what P0 now
+exists to catch.
+
+    git revert c547dba              0 conflicts, 102 files
+    git merge wave3/billing-cancel  0 conflicts
+
+All seven P3a checks pass, and **every billing and notification file in the resulting
+tree is byte-identical to the branch head**. The twenty files that differ are the
+admin/arcade work that lives on `origin/main` and not on the branch, which is exactly
+what a merge should preserve.
+
+**⚠️ This proves the SHAPE, not the final state.** It was run against today's branch
+head and must be re-run at code-complete against the real head. That goes on the
+Tuesday-night gate.
+
+`main` was never touched: detached HEAD, no branch, no push, worktree removed.

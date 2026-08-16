@@ -269,15 +269,39 @@ on the day.** Each step states what to do and how to know it worked. Do not batc
 
 **Pre-flight**
 
+**P0 — Fetch, and confirm you are on the real `main`.** Local `main` has been observed
+at `23434e0`, whose subject is "Merge remote-tracking branch 'origin/main' into
+admin/dashboard" — it is not `main`. `origin/main` was `b925568`, ten commits ahead.
+Reverting onto local `main` reverts onto a stale tree. *Worked when:* `git rev-parse
+main` and `git rev-parse origin/main` return the same hash.
+
 **P1 — Commit the working tree** to `wave3/billing-cancel`. *Worked when:* `git status`
 is clean.
 
-**P2 — Apply migration 003 by hand.** Paste the whole file, then run its VERIFY block.
-*Worked when:* the verify returns exactly one row. "Success. No rows returned" from the
-alter is correct and is not the verification.
+**P2 — Verify migration 003 is applied.** It was applied on 16 August via
+`apply_migration`, so unlike the hand-applied files it appears in `list_migrations` as
+`20260816092215 courtesy_until`. **DO NOT re-apply it by hand.** Run its VERIFY block
+only. *Worked when:* the verify returns exactly one row, and `select courtesy_until`
+returns an empty set rather than `42703`.
+
+*Note for whoever reads this later:* the original P2 said to apply the migration by
+hand. That instruction was harmless rather than hazardous — `alter ... add column if
+not exists` is idempotent and the verify block reads as success either way — but it
+described a world that had already changed. **D10 is unaffected:** 003 was applied
+before the re-land deploy, which is what D10 requires.
 
 **P3 — Re-land: `git revert c547dba`.** *Worked when:* the billing and notification
 files are present on the branch you intend to ship.
+
+**P3a — Merge `wave3/billing-cancel`.** P3 restores the tree as of the original merge
+and nothing after it. Every commit made on the branch since is new to `main`, and only
+a merge brings those. **Without this step the launch ships the code as it stood on
+13 August:** no invoice void, no `FLAG_CANCELLABLE_STATUSES`, no `billing_reason`
+guard, no `listAllSubscriptions`, no reminder flag, no courtesy reminder variant, and
+no `003` file. *Worked when:* `voidOpenInvoiceFor`, `FLAG_CANCELLABLE_STATUSES`, the
+`billing_reason` guard, `listAllSubscriptions`, `offerTermsLine` and `resolveEnding`
+are all present on the branch you intend to ship, and
+`supabase/billing/003_courtesy_until.sql` exists.
 
 **P4 — Create the three live prices**, each interval count 1. Record the ids in the
 production environment. *Worked when:* the app in production loads all three without a
@@ -431,7 +455,11 @@ public business name, failed deliveries, and the customer email settings per D34
 - [ ] Every sequence step S1 to S9 completed in order
 - [ ] The working tree was committed before anything else began
 - [ ] Migration 003 applied by hand and verified by its own VERIFY block
-- [ ] **Re-landed by `git revert c547dba`, never by a merge**
+- [ ] **Re-landed by `git revert c547dba` FOLLOWED BY a merge of
+      `wave3/billing-cancel`.** The revert alone restores only the originally merged
+      commits; the branch's later work needs the merge. A merge ALONE brings nothing,
+      which is what the original wording was guarding against — but the revert alone
+      brings only half.
 - [ ] Three live prices exist, each at interval count 1
 - [ ] The hosted webhook endpoint is registered and a delivery has been observed
       landing and being processed
