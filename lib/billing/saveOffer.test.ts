@@ -7,6 +7,7 @@ import {
   addOffer,
   offerNounFor,
   offerStillOpen,
+  periodIsUnpaid,
 } from "./saveOffer";
 
 /**
@@ -33,6 +34,53 @@ function sub(over: {
     },
   } as unknown as Stripe.Subscription;
 }
+
+describe("⚠️ an unpaid period is never offered free time", () => {
+  /**
+   * Adrian's ruling, 2026-08-16. The offer computes its free period from the
+   * current period end, which on a `past_due` subscription is the end of the
+   * period the CARD DECLINED ON — measured at +58 unpaid days with the invoice
+   * still open. No variant ships for that cohort: not anchored to now, not to a
+   * prior period, not shortened. No offer at all.
+   */
+  const withInvoice = (status: string, invoice: unknown) =>
+    ({ status, items: { data: [{ price: {} }] }, latest_invoice: invoice }) as unknown as Stripe.Subscription;
+
+  it("refuses the cohorts whose status already says money is owed", () => {
+    for (const status of ["past_due", "unpaid", "incomplete"]) {
+      expect(periodIsUnpaid(sub({ status }))).toBe(true);
+    }
+  });
+
+  it("allows the ones that are paid up", () => {
+    expect(periodIsUnpaid(sub({ status: "active" }))).toBe(false);
+    expect(periodIsUnpaid(sub({ status: "trialing" }))).toBe(false);
+  });
+
+  it("⚠️ catches an ACTIVE subscription sitting on an open invoice", () => {
+    // The status alone cannot answer this one, which is why the invoice is
+    // expanded and read.
+    expect(periodIsUnpaid(withInvoice("active", { status: "open", amount_due: 1199 }))).toBe(true);
+    expect(periodIsUnpaid(withInvoice("active", { status: "uncollectible", amount_due: 6999 }))).toBe(true);
+  });
+
+  it("does not treat a DRAFT invoice as a debt", () => {
+    // A draft is the next period being assembled and is not due yet. Treating it
+    // as owed would refuse the offer to healthy subscribers on every renewal.
+    expect(periodIsUnpaid(withInvoice("active", { status: "draft", amount_due: 1199 }))).toBe(false);
+  });
+
+  it("does not treat a zero invoice as a debt", () => {
+    // Every trial start raises one.
+    expect(periodIsUnpaid(withInvoice("trialing", { status: "open", amount_due: 0 }))).toBe(false);
+  });
+
+  it("falls back to the status when the invoice is absent or unexpanded", () => {
+    expect(periodIsUnpaid(withInvoice("active", null))).toBe(false);
+    expect(periodIsUnpaid(withInvoice("active", "in_123"))).toBe(false);
+    expect(periodIsUnpaid(withInvoice("past_due", "in_123"))).toBe(true);
+  });
+});
 
 describe("offerNounFor", () => {
   it("gives a trial a week whatever plan sits behind it", () => {
