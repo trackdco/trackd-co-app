@@ -567,9 +567,31 @@ export async function startTrial(
        * return — a fresh invoice each time, and a trail of dead subscriptions
        * and abandoned invoices on the customer.
        *
-       * The Stripe dashboard cancels incomplete payments after FIFTEEN DAYS on
-       * this account, not the ~23 hours a comment elsewhere in this file
-       * reasons from, so that trail would have had a fortnight to accumulate.
+       * ⚠️ CORRECTED 2026-08-17, BY MEASUREMENT. This said the Stripe dashboard
+       * cancels incomplete payments after FIFTEEN DAYS on this account, and
+       * called the ~23 hours cited elsewhere in this file wrong. It had them the
+       * wrong way round.
+       *
+       * Driven on a test clock (`scratchpad/harness/clockwindow.scenario.ts`), a
+       * `default_incomplete` subscription with no payment method:
+       *
+       *     +22h   incomplete           invoice open
+       *     +23h   incomplete_expired   invoice void
+       *
+       * So the window is ~23 hours and Stripe VOIDS the invoice itself on
+       * expiry. The trail this paragraph is about accumulates for about a day,
+       * not a fortnight.
+       *
+       * **Where fifteen days came from**: two different windows were conflated.
+       * Stripe's built-in expiry for an unpaid FIRST invoice is the ~23 hours
+       * above. The dunning schedule for a `past_due` subscription after Smart
+       * Retries exhausts is 8 retries over 2 weeks on this account, which is a
+       * different subscription in a different state and has nothing to do with
+       * this branch.
+       *
+       * The bound below is unaffected: `PAID_RESUME_MAX_AGE` is a day, which is
+       * already wider than the window Stripe enforces, so the behaviour was
+       * right while the reasoning was not.
        */
       const intent = confirmableIntent(sub);
       if (!intent || intent.kind !== wantedKind) return false;
@@ -591,16 +613,28 @@ export async function startTrial(
         /**
          * ⚠️ BUT IT DOES GO STALE IN A WAY OF ITS OWN, which a cold review
          * caught: a `default_incomplete` subscription's billing PERIOD is
-         * anchored at creation, and the dashboard keeps an incomplete payment
-         * alive for fifteen days. Resume a fortnight-old yearly attempt and the
-         * customer pays $69.99 today for a year that started two weeks ago, and
-         * `sync.ts` writes an entitlement that is short by the same fortnight.
+         * anchored at creation, so resuming an old paid attempt makes the
+         * customer pay today for a year that started earlier, and `sync.ts`
+         * writes an entitlement short by the same amount.
          *
-         * The amount is unchanged, which is why the earlier reasoning missed
-         * it: what moves is not the price but what the price buys. Bounded to a
-         * day, which keeps §3.6's point — the same subscription and the same
-         * invoice for somebody who comes back later today — and caps the loss
-         * at hours instead of a fortnight.
+         * The amount is unchanged, which is why the earlier reasoning missed it:
+         * what moves is not the price but what the price buys.
+         *
+         * ⚠️ THE MAGNITUDE HERE WAS WRONG AND IS CORRECTED (2026-08-17, by
+         * measurement). This said the dashboard keeps an incomplete payment
+         * alive for FIFTEEN DAYS and reasoned about a fortnight of drift. Driven
+         * on a test clock, Stripe expires it at ~23 hours and voids the invoice
+         * (`scratchpad/harness/clockwindow.scenario.ts`; see `cancel.ts`'s
+         * `BILLABLE_STATUSES` for the timeline). The fifteen days was the DUNNING
+         * schedule for a `past_due` subscription, a different state entirely.
+         *
+         * So the worst drift available is under a day, not a fortnight. The bound
+         * is unchanged: `PAID_RESUME_MAX_AGE` is a day, which is already wider
+         * than the window Stripe enforces, so this test is now belt-and-braces
+         * over Stripe's own expiry rather than the only thing standing between a
+         * customer and two lost weeks. It keeps §3.6's point — the same
+         * subscription and the same invoice for somebody who comes back later
+         * today — and costs nothing to leave in place.
          */
         return Date.now() - sub.created * 1000 <= PAID_RESUME_MAX_AGE;
       }

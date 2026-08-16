@@ -135,6 +135,22 @@ export const BILLABLE_STATUSES: ReadonlySet<string> = new Set<string>([
    * Anything that pays it — the customer finishing a 3DS challenge in another
    * tab, a retry, a dashboard action — turns it `active` immediately.
    *
+   * ⚠️ THE 23 HOURS IS MEASURED, NOT ASSUMED, because D76's void and D83 both
+   * rest on it and one comment in the tree claimed fifteen days instead. Driven
+   * on a test clock (`scratchpad/harness/clockwindow.scenario.ts`):
+   *
+   *     +22h   incomplete           invoice open
+   *     +23h   incomplete_expired   invoice void
+   *
+   * Two consequences worth stating. The exposure window really is under a day,
+   * so the state self-heals. And **Stripe voids the invoice itself on expiry** —
+   * which is the same end state {@link applyCancelFlag} reaches deliberately,
+   * just 23 hours later and without anybody being told.
+   *
+   * The fifteen-day figure was the DUNNING schedule for a `past_due`
+   * subscription after Smart Retries exhausts (8 retries over 2 weeks on this
+   * account). Different subscription, different state, unrelated window.
+   *
    * A cold review drove it: seed an `incomplete` subscription (from the Stripe
    * dashboard, a webhook replay, an import — exactly the cases the reconcile
    * exists for), then `startTrial`. Neither the duplicate guard nor the
