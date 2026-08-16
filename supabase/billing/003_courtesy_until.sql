@@ -3,11 +3,18 @@
 --  period is not described to themselves as a first-time trialist.
 --  Migration: `courtesy_until`
 --
---  ⚠️ NOT YET APPLIED, as of 2026-08-14. Written, not run.
---  A hand-applied migration never appears in `list_migrations`, so this header
---  is a CLAIM and never a record. Verify with the block at the bottom.
+--  ✅ APPLIED 2026-08-16 via the Supabase MCP `apply_migration` (name:
+--  `courtesy_until`), and VERIFIED the same call against the live schema:
+--  `information_schema.columns` returns one row for
+--  `public.subscriptions.courtesy_until`, `timestamp with time zone`,
+--  is_nullable YES. Because it went through `apply_migration` rather than the
+--  SQL Editor, this one DOES appear in `list_migrations` -- unlike every other
+--  hand-applied file here.
 --
---  ▶ HOW TO RUN THIS
+--  A hand-applied migration never appears in `list_migrations`, so a header
+--  like this is a CLAIM and never a record. Verify with the block at the bottom.
+--
+--  ▶ HOW TO RUN THIS (kept for the record; already run)
 --    1. Open the Supabase SQL Editor.
 --    2. Paste THE WHOLE FILE. Not "the bottom bit": the bottom of this file is
 --       comments, and running only that reports "Success. No rows returned",

@@ -133,6 +133,7 @@ do not exist yet.
 | The expired-claim message | **Defect.** §3.10 |
 | The granted screen's paid variant | **Diverges from approved copy.** §3.11 |
 | The gift card, the gift-box mark, Kyle, and the confetti | **Do not exist.** Built here. §3.12 |
+| Eligibility on a subscription whose current period is unpaid | **Defect, found by driving. Amended as D70.** §3.3 |
 
 ### 3.2 The approved copy, verbatim
 
@@ -233,8 +234,55 @@ later pays and cancels again gets nothing. There is no eligibility floor in the 
 direction either: somebody who subscribes and cancels ten minutes later still gets
 one.
 
-Which offer they get depends on Stripe's status and nothing else: `trialing` gets the
-trial offer, anything else has been paid for and gets the period offer.
+**Which offer they get depends on Stripe's status: `trialing` gets the trial offer,
+and a subscription whose current period has actually been paid for gets the period
+offer.**
+
+**⚠️ D70, BUILD-LANE AMENDMENT. An unpaid period is not eligible for any offer.**
+
+This clause replaces an earlier sentence in this section which read that the choice
+depended on Stripe's status "and nothing else", with anything other than `trialing`
+treated as having been paid for. **Driving falsified that premise.** A subscription
+that is `past_due`, or in any equivalent open-invoice state, has a current period
+nobody paid for, and the period offer's arithmetic anchors to the end of that period.
+
+**Measured: 58 unpaid days granted, and the past-due clawback undone.** A renewal
+rolls the period forward and reports active, the charge then fails, and the past-due
+handler pulls the entitlement back to the end of the last period actually paid for
+plus the grace. **The subscription's own period end stays on the rolled-forward,
+unpaid period**, so an offer anchored to it grants free time on top of a month nobody
+paid for, and the grant's entitlement write pushes the clawed-back date forward again.
+The offer silently reverses a correction built specifically to stop a free month per
+failed payment.
+
+**The rule:**
+
+- **The eligibility read returns none, server-side.** Not a smaller offer, not a
+  different anchor, not a corrected date. None.
+- **The user lands on the ordinary post-cancel decline screen**, which this spec
+  already owns and which is correct for them. They are cancelled, they keep what they
+  actually paid for, and nothing about their situation is misdescribed.
+- **⚠️ Their once-ever offer is NOT burned by the refusal.** They were never offered
+  anything. If they settle the invoice and cancel again later, the offer is still
+  theirs.
+
+**⚠️ The check runs BEFORE the shown-marker is written, and this is the ordering that
+makes the clause work.** The burn-on-show rule above is built and correct as it stands
+at `saveOffer.ts:122` and **nothing in this amendment disturbs it**. What the amendment
+requires is only that ineligibility is decided first: a check placed after that write
+would refuse the offer and consume it in the same breath, which is the precise failure
+the not-burned rule exists to prevent.
+
+**Determine it from the invoice, not from the status alone.** `past_due` is the
+obvious case and `unpaid` is its sibling, but status is a lagging proxy for what this
+rule actually cares about, which is whether the current period has been paid for. **An
+unpaid or open invoice against the current period is the discriminator**, with the
+statuses as a cross-check rather than the test.
+
+**Recommended seam, not yet ruled:** `11` gains an assertion that no courtesy marker
+exists on a subscription that was unpaid at the moment of the grant. This clause
+prevents the state; that assertion catches a regression that reintroduced it, and this
+is the class of failure that has always been silent on this project.
 
 ### 3.4 The grant, and the two decisions that stopped it costing money
 
@@ -251,6 +299,11 @@ is the cheaper direction and is the correct way to be wrong.
 
 **A yearly subscriber never gets a free year.** There is no arithmetic that could
 produce one: yearly maps to month.
+
+**⚠️ And the anchor below is only sound because D70 in §3.3 removes the case where it
+is not.** Computing from the current end of access is right for a paid period and wrong
+for an unpaid one, and the difference is invisible in the subscription object itself.
+D70 is what keeps the next paragraph true.
 
 **A month is a calendar month, in UTC, with the day clamped to the target month's
 last day**, so the 31st of January becomes the 28th of February rather than rolling
@@ -535,6 +588,15 @@ same attempt must still dedupe.
 un-cancel, cancel and claim inside twenty-four hours produces a fresh evaluation
 rather than a replayed response, and is still refused by the claimed-marker.
 
+**Step 4b — Refuse an unpaid period, without burning the offer.**
+Per D70 in §3.3. The check sits **before** the shown-marker is written, and it reads the
+current period's invoice rather than trusting the status.
+**⚠️ Verify flag safety explicitly**: after a refusal the customer's metadata carries
+no shown-marker, and a later cancellation once the invoice is settled still offers.
+*Verify before moving on:* drive a past-due cancellation on a test clock and confirm no
+offer, no marker, the decline screen, and the entitlement date unchanged from what the
+past-due handler set.
+
 **Step 5 — Plumb the expired reason through.**
 Distinguish expiry from the catch-all and render D23's decided string.
 *Verify before moving on:* an expired claim forced through a skewed clock renders the
@@ -620,6 +682,20 @@ One offer, ever:
 - [ ] Taking it burns it: cancelling again offers nothing
 - [ ] A customer who had the trial offer and later pays and cancels gets nothing
 - [ ] Somebody who subscribes and cancels ten minutes later still gets one
+
+An unpaid period (D70, §3.3):
+
+- [ ] A `past_due` subscription is offered NOTHING on cancellation
+- [ ] The same for any subscription whose current period carries an unpaid or open
+      invoice, whatever its status reads
+- [ ] **The refusal writes no shown-marker**, verified by reading the customer's
+      metadata afterwards
+- [ ] After settling the invoice, a later cancellation DOES receive the offer
+- [ ] The user sees the ordinary decline screen and nothing about an offer
+- [ ] **The entitlement date after the refusal is exactly what the past-due handler
+      set**, with no free days added and no clawback undone
+- [ ] Driven on a test clock through renewal, failed charge and cancellation — the
+      sequence that produced the 58 unpaid days
 
 The clock:
 
@@ -737,6 +813,11 @@ extra {week|month} is still here." Carried in §3.12.
 
 ~~`D27 — the declined screen's title`~~ **Resolved 15 Aug 2026.** Branches on status,
 matching the approved cancel-confirmation title. Carried in §3.2.
+
+**`AMENDED — D70, an unpaid period is ineligible.`** Build-lane amendment, found by
+driving. **Seated in §3.3**, replacing the sentence it falsified, with the
+burn-semantics sub-clause and the flag-safety verification. **One item within it is recommended rather than ruled:** the `11`
+assertion that would catch a regression reintroducing this state.
 
 **`Q79`** — whether Stripe's trial-ending email fires for a `trial_end` moved
 mid-cycle, and what happens when the courtesy period is seven days or shorter, given

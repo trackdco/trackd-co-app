@@ -5,7 +5,55 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-16 (billing spec 03 — cancel flow, built, driven and cold-reviewed three times)
+Last updated: 2026-08-16 (full migration audit against the live schema — nothing owed)
+
+## Every migration is applied, and the ledger is not how we know (2026-08-16)
+
+The whole of `supabase/` — 90 SQL files — was audited object by object against
+the LIVE schema through the Supabase MCP. **Nothing is outstanding.** Two files
+were applied in the process; everything else was already in.
+
+**`list_migrations` is not a record of this project.** It stops at
+`drop_working_set`, 2026-07-15. Roughly thirty files since then were pasted into
+the SQL Editor, which leaves no ledger entry, so the ledger under-reports by a
+third and silently. Anything that diffs filenames against `list_migrations` will
+report ~30 false positives. The only sound method is to probe for the objects a
+file creates: columns in `information_schema`, functions in `pg_proc`, values in
+`pg_enum`, constraints in `pg_constraint`, and for data migrations, the data.
+
+**Applied 2026-08-16** (through `apply_migration`, so these two DO appear in the
+ledger, unlike their neighbours):
+
+- `billing/003_courtesy_until.sql` → `subscriptions.courtesy_until` timestamptz,
+  nullable. Confirmed absent beforehand, present after.
+- `legal/012_em_dashes.sql` → zero prose em dashes in the three current v1.3
+  legal rows. Whether this changed anything is genuinely unknown: the file's
+  header claimed applied since 2026-08-12 while `next-tasks.md` claimed the
+  opposite, every statement is LIKE-guarded and therefore a no-op when already
+  applied, and the pre-check only measured "contains an em dash" (true either
+  way, because of the title). The END STATE is verified, which is what matters.
+
+**Deliberately not run:** `cycles/002_cycle_id_backfill.optional.sql`. Marked
+optional, and the live data holds exactly one candidate row in `body_metrics`
+and none in `journal_entries`. Adrian's call.
+
+**Three files were carried as owed and were already applied**:
+`billing/002_trial_start_lease.sql`, `notifications/004_trial_reminder.sql` and
+`notifications/005_trial_stamp_lock.sql`. In each case the file's own header was
+RIGHT and `next-tasks.md` was stale — the reverse of the `grants/004` incident,
+where the header was the stale one. **Neither location is trustworthy on its
+own.** That is now three separate times on this branch that a written claim
+about migration state was wrong in one direction or the other, which is the
+whole argument for probing the schema instead of reading prose.
+
+**One thing that looks like a defect and is not.** Each current legal document
+still contains exactly one em dash, in its title. That is correct:
+`components/legal/legal-document.tsx:131` renders
+`doc.title.replace(/^Trackd Co\s*[—-]\s*/, "")`, so the prefix and its separator
+never reach a user, and the character class accepts either an em dash or a
+hyphen so the row may hold either.
+
+## Leaving works, and six ways it did not (2026-08-16)
 
 ## Leaving works, and six ways it did not (2026-08-16)
 
