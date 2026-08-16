@@ -7,7 +7,7 @@ import type Stripe from "stripe";
 import { getCurrentUser } from "@/lib/auth";
 import { applyCancelFlag, liveSubscriptionsForUser } from "@/lib/billing/cancel";
 import {
-  CANCELLABLE_STATUSES,
+  FLAG_CANCELLABLE_STATUSES,
   CANCEL_FAILED,
   RESUME_FAILED,
   formatAccessDate,
@@ -26,6 +26,7 @@ import {
 import { stripe } from "@/lib/billing/stripe";
 import { syncSubscription } from "@/lib/billing/sync";
 import { createClient } from "@/lib/supabase/server";
+import { listAllSubscriptions } from "@/lib/billing/subscriptionList";
 
 /**
  * CANCEL AND UN-CANCEL — the only two writes a user may make to their own
@@ -189,7 +190,7 @@ async function ownSubscriptions(): Promise<
      * `subscriptions.cancel()` and which Stripe accepts on a paused
      * subscription. Two questions, two lists. See `manage.ts`.
      */
-    ids = await liveSubscriptionsForUser(user.id, CANCELLABLE_STATUSES);
+    ids = await liveSubscriptionsForUser(user.id, FLAG_CANCELLABLE_STATUSES);
   } catch (err) {
     console.error(
       `[billing] could not list subscriptions for ${user.id}:`,
@@ -370,16 +371,17 @@ async function offerAfterCancel(
  * ever be one, and more than one is logged as the anomaly it now is.
  */
 async function primarySubscription(customerId: string) {
-  const list = await stripe().subscriptions.list({
-    customer: customerId,
-    status: "all",
-    limit: 100,
+  /**
+   * ⚠️ PAGED. This decides the SAVE OFFER'S DATE, so a truncated list picks the
+   * wrong subscription to anchor a charge date to. See `listAllSubscriptions`.
+   */
+  const all = await listAllSubscriptions(stripe(), customerId, {
     // `periodIsUnpaid` asks whether the CURRENT period's invoice was actually
     // paid, which the status alone cannot answer for an `active` subscription
     // sitting on an open invoice.
     expand: ["data.latest_invoice"],
   });
-  const live = list.data.filter((s) =>
+  const live = all.filter((s) =>
     ["trialing", "active", "past_due"].includes(s.status),
   );
   if (live.length > 1) {

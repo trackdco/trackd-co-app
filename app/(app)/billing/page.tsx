@@ -61,15 +61,40 @@ export default async function BillingPage() {
       // user whose trial Stripe said was perfectly live and about to bill.
       //
       // Soonest-ending first, so an imminent charge is what the screen shows.
+      /**
+       * ⚠️ EVERY LIVE ROW, NOT `limit(1)`. This is the DISPLAY half of the
+       * $69.99 defect, and it survived the fix to the action half.
+       *
+       * Driven by a cold review: a user with a `trialing` monthly (cancelled) and
+       * an `active` yearly running to 2027 read
+       *
+       *     Access   Free trial
+       *     Price    $11.99 USD / month
+       *     ...nothing more will be charged
+       *
+       * with **zero cancel controls on the page**, because `manageActionFor`
+       * received the trial's `cancelAtPeriodEnd: true` and rendered the resume
+       * card. The yearly underneath had `cancel_at_period_end: false` and no exit
+       * from inside the app at all.
+       *
+       * `limit(1)` cannot describe two subscriptions, and the ONE it picks is the
+       * soonest-ending — which is precisely the one that matters least when
+       * another is still billing. So all live rows are read and the one the
+       * screen is ABOUT is chosen below, with the rest counted rather than
+       * silently dropped.
+       *
+       * ⚠️ `status` filtering stays as it is here and is widened in
+       * `manageActionFor` instead: a `paused` or `unpaid` row must reach that
+       * function so it can return `unavailable` and the support line. See 2.4.
+       */
       supabase
         .from("subscriptions")
         .select(
           "status, trial_ends_at, current_period_end, cancel_at_period_end, stripe_price_id",
         )
         .eq("user_id", user.id)
-        .in("status", ["trialing", "active", "past_due"])
-        .order("current_period_end", { ascending: true })
-        .limit(1),
+        .in("status", ["trialing", "active", "past_due", "paused", "unpaid"])
+        .order("current_period_end", { ascending: true }),
       // Whether there is anything for the Stripe portal to open onto. A user can
       // legitimately have a customer row and no live subscription (they
       // cancelled and it lapsed), and their invoices are still theirs to read.
@@ -83,7 +108,35 @@ export default async function BillingPage() {
   const hasStripeCustomer = Boolean(customer?.stripe_customer_id);
 
   const tz = (profile?.timezone as string | null) || "Australia/Sydney";
-  const row = subs?.[0];
+
+  /**
+   * ⚠️ THE ROW THE SCREEN IS ABOUT IS THE ONE THAT WILL STILL CHARGE.
+   *
+   * Ordering by `current_period_end` and taking the first picks the SOONEST
+   * ending, which is exactly the wrong one when another subscription is still
+   * billing: a cancelled trial ending next week sorts ahead of an active yearly
+   * running to 2027, so the screen described the trial, rendered the resume card
+   * from its `cancel_at_period_end: true`, and left the yearly with **no exit
+   * from inside the app**. That is the display half of the $69.99 defect.
+   *
+   * So: prefer a row that is still going to bill. Among those, soonest-ending, so
+   * an imminent charge is what is described. If everything is already cancelled
+   * the old ordering is correct and unchanged.
+   *
+   * A user should only ever have one live subscription — `startTrial`'s lease and
+   * the reconcile both exist to guarantee it — so more than one is an anomaly and
+   * is logged as one rather than quietly rendered.
+   */
+  const liveRows = subs ?? [];
+  const stillBilling = liveRows.filter((r) => !r.cancel_at_period_end);
+  const row = stillBilling[0] ?? liveRows[0];
+  if (liveRows.length > 1) {
+    console.error(
+      `[billing] ${user.id} has ${liveRows.length} live subscription rows (${liveRows
+        .map((r) => `${r.status}${r.cancel_at_period_end ? " cancelled" : ""}`)
+        .join(", ")}); the screen describes the one still billing`,
+    );
+  }
 
   /**
    * ⚠️ READ IN ITS OWN QUERY, and its failure is swallowed.

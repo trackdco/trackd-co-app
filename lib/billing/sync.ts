@@ -6,6 +6,7 @@ import { COURTESY_KEY } from "./saveOffer";
 import { serviceClient } from "./service";
 import { stripe } from "./stripe";
 import type { SubscriptionStatus } from "./schema";
+import { listAllSubscriptions } from "./subscriptionList";
 
 /**
  * Does this error mean the column simply is not there yet?
@@ -131,14 +132,20 @@ async function otherLiveEntitlementFloor(
   customerId: string,
   excludeSubscriptionId: string,
 ): Promise<number | null> {
-  const list = await stripe().subscriptions.list({
-    customer: customerId,
-    status: "all",
-    limit: 100,
-  });
+  /**
+   * ⚠️ PAGED. A SHORT LIST HERE IS A LOW FLOOR, which is the exact failure this
+   * function exists to prevent.
+   *
+   * One unpaged page of 100 hides the OLDEST subscriptions, and the oldest is
+   * where a long-lived yearly plan lives — so the subscription whose paid period
+   * most needs protecting is the one truncation drops. The floor would then be
+   * computed without it and the entitlement clawed back inside a year somebody
+   * has already paid for. See `listAllSubscriptions`.
+   */
+  const all = await listAllSubscriptions(stripe(), customerId);
 
   let furthest: number | null = null;
-  for (const other of list.data) {
+  for (const other of all) {
     if (other.id === excludeSubscriptionId) continue;
     if (!ENTITLING.has(other.status)) continue;
     /**

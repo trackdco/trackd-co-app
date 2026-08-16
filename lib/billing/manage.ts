@@ -138,6 +138,46 @@ export const CANCELLABLE_STATUSES: ReadonlySet<string> = new Set([
 const CANCELLABLE = CANCELLABLE_STATUSES;
 
 /**
+ * ⚠️ WHAT THE CANCEL ACTION ACTS ON. WIDER THAN WHAT THE SCREEN OFFERS.
+ *
+ * The set above answers "what may a user press a button on?" and is consumed by
+ * {@link manageActionFor} to decide whether a control renders. This one answers
+ * "what must `cancel_at_period_end` actually be applied to?" and is consumed by
+ * the action. **They are different questions and the second is wider.**
+ *
+ * ## The defect this closes, which cost $69.99, driven
+ *
+ * D76 taught `applyCancelFlag` to void an `incomplete` subscription's open
+ * invoice — correctly, and it was separately proven to work. **It was also dead
+ * code.** The action resolves its ids through `liveSubscriptionsForUser(user.id,
+ * CANCELLABLE_STATUSES)`, and `incomplete` is not in that set, so `incomplete`
+ * never reached `applyCancelFlag` at all.
+ *
+ * The consequence was worse than an un-voided invoice: **the subscription was not
+ * cancelled at all**, while the dialog told the user in writing they would not be
+ * charged. Measured with a `trialing` monthly and an `incomplete` yearly on one
+ * customer: the trial took the flag, the yearly kept its open $69.99 invoice, the
+ * abandoned tab's 3D Secure challenge completed, and the money moved.
+ *
+ * ## Why `incomplete` is added HERE and not to the set above
+ *
+ * Adding it to `CANCELLABLE_STATUSES` would also change what
+ * {@link manageActionFor} renders, because that function consumes the same set —
+ * which is exactly the class of mistake this whole review found: **a set that
+ * answers two questions is a set that gets widened for one of them.** The screen
+ * keeps its own list; the action gets its own.
+ *
+ * `paused` and `unpaid` stay OUT of both. Stripe hard-refuses
+ * `cancel_at_period_end` on `paused` ("Resume the subscription first"), so
+ * including it would make one paused subscription break cancelling entirely. They
+ * are handled by D80's immediate-cancel path instead.
+ */
+export const FLAG_CANCELLABLE_STATUSES: ReadonlySet<string> = new Set([
+  ...CANCELLABLE_STATUSES,
+  "incomplete",
+]);
+
+/**
  * Statuses Stripe has finished with. Nothing here can ever charge again.
  *
  * Declared locally rather than imported from `cancel.ts`'s `BILLABLE_STATUSES`:

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CANCELLABLE_STATUSES,
+  FLAG_CANCELLABLE_STATUSES,
   formatAccessDate,
   manageActionFor,
   planLabelFor,
@@ -424,5 +425,54 @@ describe("planLabelFor — a courtesy period is not a trial", () => {
     expect(
       planLabelFor(null, { status: "canceled", courtesyUntil: null }, true),
     ).toBe("Read only");
+  });
+});
+
+/**
+ * ⚠️ THE ACTION'S SET IS WIDER THAN THE SCREEN'S, AND THE GAP IS DELIBERATE.
+ *
+ * D76 taught `applyCancelFlag` to void an `incomplete` subscription's open
+ * invoice, and it was DEAD CODE: the action resolved its ids through
+ * `CANCELLABLE_STATUSES`, which has no `incomplete`, so the void was never
+ * reached and the subscription was never cancelled at all. A cold review drove
+ * $69.99 through that gap while the dialog promised no charge.
+ *
+ * These pin the shape of the fix rather than the fix itself. The defect was not a
+ * wrong function; it was a correct function nothing could reach.
+ */
+describe("⚠️ FLAG_CANCELLABLE_STATUSES — what the cancel ACTION acts on", () => {
+  it("contains `incomplete`, which is the whole point of it existing", () => {
+    // Stripe keeps an incomplete subscription's first invoice payable for ~23
+    // hours. It accepts `cancel_at_period_end` on one perfectly happily.
+    expect(FLAG_CANCELLABLE_STATUSES.has("incomplete")).toBe(true);
+  });
+
+  it("is a strict superset of what the SCREEN offers a control for", () => {
+    for (const status of CANCELLABLE_STATUSES) {
+      expect(FLAG_CANCELLABLE_STATUSES.has(status)).toBe(true);
+    }
+    expect(FLAG_CANCELLABLE_STATUSES.size).toBeGreaterThan(CANCELLABLE_STATUSES.size);
+  });
+
+  it("⚠️ still excludes `paused` and `unpaid`, which Stripe HARD-REFUSES the flag on", () => {
+    // "You cannot set `cancel_at_period_end` while a subscription is `paused`."
+    // Including either would make one paused subscription break cancelling
+    // entirely, which is the defect the split originally fixed. D80 handles them
+    // with an immediate cancel instead.
+    expect(FLAG_CANCELLABLE_STATUSES.has("paused")).toBe(false);
+    expect(FLAG_CANCELLABLE_STATUSES.has("unpaid")).toBe(false);
+  });
+
+  it("excludes the statuses Stripe has finished with", () => {
+    for (const status of ["canceled", "incomplete_expired"]) {
+      expect(FLAG_CANCELLABLE_STATUSES.has(status)).toBe(false);
+    }
+  });
+
+  it("leaves the SCREEN's set untouched, so widening one did not widen both", () => {
+    // The class of defect this whole review found: one set answering two
+    // questions gets widened for one of them and silently changes the other.
+    expect([...CANCELLABLE_STATUSES].sort()).toEqual(["active", "past_due", "trialing"]);
+    expect(CANCELLABLE_STATUSES.has("incomplete")).toBe(false);
   });
 });

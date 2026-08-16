@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 
 import { serviceClient } from "./service";
 import { stripe } from "./stripe";
+import { listAllSubscriptions } from "./subscriptionList";
 
 /**
  * STOPPING A SUBSCRIPTION — the one place that talks to Stripe about it.
@@ -83,16 +84,23 @@ export async function liveSubscriptionsForUser(
   const customer = data?.stripe_customer_id;
   if (!customer) return [];
 
-  // `status: "all"` then filtered here, rather than one request per status:
-  // Stripe's list endpoint takes a single status, and asking for each of them
-  // separately is three round-trips that can disagree with each other.
-  const list = await stripe().subscriptions.list({
-    customer,
-    status: "all",
-    limit: 100,
-  });
+  /**
+   * ⚠️ PAGED, AND IT THROWS RATHER THAN ANSWER SHORT. See `listAllSubscriptions`.
+   *
+   * This asked for one page of 100, newest first, with no `has_more` check. A
+   * cold review drove the cost: one live trial behind a hundred dead objects made
+   * this return an empty list, so `cancelSubscription` answered "There's no
+   * active subscription on this account" while Stripe kept billing, and the
+   * screen still offered the control because the MIRROR was right.
+   *
+   * Both callers are money decisions and neither may be answered from a
+   * truncated list. `cancelNowForUser` is worse: a subscription it misses bills
+   * somebody whose `billing_customers` row has just cascaded away, so nothing
+   * left in the database can attribute the charge to them.
+   */
+  const all = await listAllSubscriptions(stripe(), customer);
 
-  return list.data
+  return all
     .filter((s) => statuses.has(s.status))
     .map((s) => s.id);
 }
@@ -226,10 +234,21 @@ export async function applyCancelFlag(
    * and voiding the invoice they are about to pay would break the thing they
    * just asked for.
    */
-  if (cancelAtPeriodEnd && updated.status === "incomplete") {
-    await voidOpenInvoiceFor(updated, stripeSubscriptionId);
-  }
-
+  /**
+   * ⚠️ THE MIRROR IS WRITTEN BEFORE THE VOID IS ATTEMPTED, AND THE ORDER IS THE
+   * WHOLE POINT.
+   *
+   * The void throws on failure, deliberately — the caller reports a failed
+   * cancellation and the user retries, which is right, because an unvoided
+   * invoice can still take their money. But with the void ABOVE this write,
+   * that throw skipped the mirror entirely: Stripe held
+   * `cancel_at_period_end: true` while the mirror still said `false`, so the
+   * screen went on offering "Cancel my trial" for a cancellation Stripe had
+   * already accepted. §3.7 calls that "the worst available lie".
+   *
+   * Stripe accepted the flag at the top of this function. The mirror's job is to
+   * reflect that, and it must do so whether or not a later step fails.
+   */
   const { error } = await serviceClient()
     .from("subscriptions")
     .update({ cancel_at_period_end: updated.cancel_at_period_end })
@@ -240,6 +259,10 @@ export async function applyCancelFlag(
   // which is the worst available lie. The webhook reconciles a moment later.
   if (error) {
     console.error("[billing] mirror not updated after a cancel toggle:", error.message);
+  }
+
+  if (cancelAtPeriodEnd && updated.status === "incomplete") {
+    await voidOpenInvoiceFor(updated, stripeSubscriptionId);
   }
 }
 
