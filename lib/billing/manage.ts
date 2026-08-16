@@ -285,6 +285,26 @@ export function manageActionFor(
    */
   const store = source === "apple" ? "apple" : source === "google" ? "google" : null;
   const comped = source === "comp";
+  /**
+   * ⚠️ SEAM CARRIED FORWARD: **D80 CHANGES WHAT "ACTIONABLE" MEANS, AND THIS LINE
+   * IS WHERE IT LANDS.**
+   *
+   * Today `paused` and `unpaid` are not actionable, because Stripe hard-refuses
+   * `cancel_at_period_end` on them, so they fall through to `unavailable` and the
+   * screen shows the support line. That is correct **only while there is no other
+   * way to stop them.**
+   *
+   * D80 rules that those two are cancelled IMMEDIATELY via
+   * `subscriptions.cancel()`, which Stripe accepts where it refuses the flag. The
+   * moment that lands, the support line becomes a signpost for a state the app
+   * has a mechanism for — a correct fix the screen cannot dispatch, which is the
+   * exact shape of the reachability defects this file already carries two
+   * corrections for (D76's dead void, and the filter that hid these rows).
+   *
+   * So when D80 is built, this line and the support-line fallback on `/billing`
+   * are revisited IN THE SAME PASS, and comp + paused and comp + unpaid are
+   * driven again afterwards. Do not let D80 land without it.
+   */
   const actionable = subscription !== null && CANCELLABLE.has(subscription.status);
 
   if (!actionable) {

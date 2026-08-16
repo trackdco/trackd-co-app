@@ -602,6 +602,34 @@ const PAST_DUE_GRACE_DAYS = 3;
 /**
  * `invoice.payment_failed` — record `past_due`, and CLAW BACK the free month.
  *
+ * ## ⚠️ A RENEWAL FAILURE ONLY. A FIRST-INVOICE FAILURE IS NOT ONE.
+ *
+ * Everything below reasons about a subscription that HAS been paying: "the period
+ * just completed", "the last period they actually paid for", a grace window for
+ * somebody who had access and is about to lose it. None of that is true of a
+ * FIRST invoice.
+ *
+ * Stripe fires `invoice.payment_failed` for both. On a `default_incomplete`
+ * subscription — an abandoned 3D Secure attempt — the first invoice fails, this
+ * handler ran, and it wrote `status: "past_due"` over a subscription **Stripe
+ * holds as `incomplete`**. The mirror then recorded a status the subscription
+ * does not have, and which value survived was decided by webhook arrival order:
+ * `syncSubscription` writes `incomplete`, this writes `past_due`, last write
+ * wins. Measured 3-in-4 `incomplete`.
+ *
+ * So it is guarded on `billing_reason`. `subscription_create` is the first
+ * invoice and returns early; every renewal reason falls through to the logic
+ * below unchanged.
+ *
+ * ⚠️ WHAT THE GUARD DOES AND DOES NOT DO. It stops the mirror recording a status
+ * Stripe does not hold, and it makes the resulting screen state DETERMINISTIC
+ * rather than intermittent — `incomplete` four times in four instead of three.
+ * **It does not give that cohort a control.** Per D83 they get the existing
+ * support line, which is what already renders, and no cancel control either way.
+ *
+ * The early return is deliberately placed BEFORE the status write and before the
+ * entitlement read, so a first-invoice failure touches neither table.
+ *
  * ## The sequence this exists for, measured on a test clock
  *
  * A renewal that is going to fail does not look like a failure straight away:
@@ -631,6 +659,25 @@ export async function markPastDue(
 ): Promise<HandlerOutcome> {
   const subId = subscriptionIdOf(invoice);
   if (!subId) return "handled";
+
+  /**
+   * ⚠️ THE FIRST INVOICE IS NOT A RENEWAL. See the header.
+   *
+   * `subscription_create` is Stripe's reason for the invoice raised when a
+   * subscription is created, which is the one an abandoned 3D Secure attempt
+   * leaves `open` on an `incomplete` subscription. There is no paid period behind
+   * it, so there is no status to record as `past_due` and nothing to claw back.
+   *
+   * Handled rather than ignored: the event is real and correctly processed, it
+   * simply has no work here. Returning "handled" stamps it processed so it does
+   * not sit in `webhook_events_unprocessed_idx` looking like a fault.
+   */
+  if (invoice.billing_reason === "subscription_create") {
+    console.info(
+      `[billing] first-invoice failure on ${subId} (billing_reason=subscription_create); not a renewal, so no past_due write and no clawback`,
+    );
+    return "handled";
+  }
 
   const db = serviceClient();
   const { data: rows, error: readError } = await db
