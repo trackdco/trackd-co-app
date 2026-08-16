@@ -66,4 +66,18 @@ condensed_GLBX-*
 
 # The verification harness. Rebuilt per session, drives PRODUCTION Supabase and
 # real Stripe, and holds nothing worth keeping between sessions.
-/scratchpad/
+#
+# `/scratchpad/*` rather than `/scratchpad/`, because git cannot re-include
+# anything whose PARENT DIRECTORY is excluded — the negation below is silently
+# inert against the directory form.
+/scratchpad/*
+
+# ...except the test-clock harness, which IS worth keeping between sessions: it
+# is the tooling spec 04's Steps 9 to 11 and Monday's three observations run on,
+# and three cold reviewers need to be able to find it.
+!/scratchpad/harness/
+
+# ⚠️ BUT NEVER THE SINK'S KEY MATERIAL. `PushSink` self-signs a certificate for
+# 127.0.0.1 on first run and caches it here. It is regenerated on demand, it is
+# worthless to anybody, and a private key does not go in a repository regardless.
+/scratchpad/harness/.certs/

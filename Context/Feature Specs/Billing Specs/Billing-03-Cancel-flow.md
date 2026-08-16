@@ -156,6 +156,28 @@ spec that does not carry its own copy cannot be checked against the screen.
 
 > Yes, cancel
 
+**⚠️ D78: the body is REPLACED for a no-expiry comp account. Title and both buttons are
+unchanged.** Signed copy, character for character, no em dash:
+
+> You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.
+
+**A replacement rather than a withhold, because three of the four approved sentences
+are false for this cohort and not one.** A no-expiry comp keeps access forever, so
+"until [date]", "After that your account goes read only" and "You'll still see your
+whole history, you just can't add to it" are all wrong. There is no date, nothing goes
+read only, and nothing about what they can do changes. Withholding one sentence would
+leave two lies standing.
+
+**⚠️ The row is NOT hidden for this cohort, and that reverses an earlier instruction.**
+The only route to it is a no-expiry comp holding a **live billable Stripe
+subscription**, so hiding the row hides the only exit from a subscription that is
+actively charging somebody who was told they would never be charged. Two independent
+cold reviews drove exactly that defect, and there is a test pinning against it.
+
+**So the built comp branch must not suppress the control in that case.** A comp with no
+subscription still sees nothing, because there is nothing to cancel; a comp with a live
+billable subscription sees the row, the confirmation, and this body.
+
 The `[date]` is the end of access — the trial end while trialing, the period end once
 paying — read from the mirror, formatted server-side in the user's stored timezone,
 and passed to the dialog as a finished string.
@@ -433,6 +455,12 @@ The words:
 
 - [ ] Every string in §3.3 renders character for character, both nouns, punctuation
       included
+- [ ] A no-expiry comp holding a live billable subscription **sees the cancel row**,
+      and can complete the cancellation
+- [ ] That cohort reads D78's replacement body, with the title and both buttons
+      unchanged
+- [ ] No date, no read-only sentence and no history sentence appears for them
+- [ ] A comp with no subscription still sees no control at all
 - [ ] No em dash appears anywhere in this flow
 - [ ] The date is server-formatted in the user's stored timezone and matches the
       mirror
@@ -522,6 +550,9 @@ control and is unchanged. Carried in §3.9.
 ~~`The un-cancel card's second line`~~ **Resolved 15 Aug 2026.** The noun follows
 status: "Your subscription will carry on as usual." for a paying customer, the
 approved trial line unchanged for a trialist. Carried in §3.10.
+
+**`D78 — the comp cancel body.`** Signed and carried in §3.3, with the
+row-not-hidden reversal and its two driven cold-review findings.
 
 **`Q82`** — what `resumeLabel` is computed from, so D22 can be applied in one place
 rather than two. Traceable during Step 1.
