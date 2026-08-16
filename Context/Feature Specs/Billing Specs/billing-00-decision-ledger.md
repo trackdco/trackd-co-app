@@ -187,6 +187,28 @@ as a dependency.
 
 ---
 
+## ⚠️ POST-LAUNCH JOB: audit whether the money tests reach the states they claim
+
+**Not before Thursday. Recorded so it is not lost.**
+
+Nobody has checked whether the tests guarding the money paths actually put the
+system into the state they assert about. Two instances are already on the record,
+found by accident rather than by looking:
+
+- **`manage.test.ts:71-97`** once asserted the OPPOSITE of correct behaviour — that
+  a comp should be denied the way out of a live billing subscription. The reverse
+  assertion WAS the bug, and it passed for months.
+- **`billingreason.scenario.ts`'s clawback branch** seeded `active_until` at the old
+  period end, so it never created the optimistic extension the clawback exists to
+  undo. The handler correctly did nothing, and the test would have passed for the
+  wrong reason the moment the assertion was loosened.
+
+Both share one shape: **a green test that never entered the state it names.** That
+is worse than no test, because it is counted as coverage. The audit is to walk each
+money-path test and ask what state it actually constructs, not what its name says.
+
+---
+
 ## Carried forward into specs not yet written
 
 **`16-account-deletion.md`** inherits three things from the storage audit, and they
