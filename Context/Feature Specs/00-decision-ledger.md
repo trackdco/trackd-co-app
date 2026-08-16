@@ -82,8 +82,8 @@ as a dependency.
 | D39 | Manage lives at `/billing/manage` | 08 | Resolved |
 | D40 | Pin both Stripe client packages | 09, verified by 12 | Resolved |
 | D41 | The `refund_request` discriminator | 10 | Resolved |
-| D42 | The refund queue's alert thresholds | 10 | **OPEN.** Recommended: three tiers |
-| D43 | The refund screen's copy set | 10 | **OPEN.** Four strings |
+| D42 | The refund queue's alert thresholds | 10 | Resolved 15 Aug 2026 — three tiers, at 0 / 1 / 2 business days |
+| D43 | The refund screen's copy set | 10 | Resolved 15 Aug 2026 — **six** strings, not four |
 | D44 | One open refund request per person | 10 | Resolved |
 | D45 | The empty-submission error | 10 | Resolved |
 | D46 | Where reconciliation alerts are delivered | 11 | Resolved — push plus dashboard, and a missing subscription fails the clean run |
@@ -199,3 +199,68 @@ are recorded here so they are not rediscovered:
   being kept, and that is true today rather than after go-live.
 - **D47's signed-URL TTL** lands here as a small item: one constant, all seven call
   sites, including the avatar page's hardcoded value.
+
+---
+
+## D42 and D43, in full
+
+Both were decided on Saturday 15 August 2026 and did not reach this ledger until
+17 August. The table above showed them open for two days; the delay is recorded
+because `10-refund-requests.md` §7 still reads as though they are.
+
+### D42 — the refund queue's alert thresholds
+
+**Three tiers**, on the oldest OPEN request:
+
+| Tier | Condition |
+|---|---|
+| Informational | any unanswered request, shown in `/admin`'s "what needs you" block with its age |
+| Amber | oldest open request past **1 business day** |
+| Missed target | oldest open request past **2 business days** |
+
+Two business days is the number the screen prints, so passing it is a missed
+target rather than a warning.
+
+**⚠️ This differs from §7's recommendation, deliberately.** §7 proposed the same
+three-tier SHAPE with a warning at 2 days and a critical tier at 4, reasoning that
+four days "is where somebody stops waiting and calls their bank". §7 also states
+that the exact days are the founder's. The ruling moves both boundaries in and
+carries no tier beyond the missed target, so **nothing escalates as the chargeback
+window approaches**. Recorded so the dropped tier reads as a decision rather than
+an oversight.
+
+### D43 — the refund screen's copy set
+
+**Six strings, not four.** Character for character, no em dash.
+
+| Slot | String |
+|---|---|
+| Title | Request a refund |
+| Under the title | A real person reads every one of these. We'll review your request and get back to you, usually within 2 business days. |
+| Success title | Thanks, we've got it. |
+| Success body | We usually reply within 2 business days. Nothing changes on your account in the meantime. |
+| Confirmation intro, above the copied text | A copy of your request is below for your reference. |
+| Disabled entry point (D44) | You already have a request open. We'll come back to you on that one. |
+
+**Never "we will" or "guaranteed" on the reply time.** "usually" is deliberate and
+is what keeps two business days a target rather than a promise. The signed
+under-title line does say "We'll", but it attaches to *review your request and get
+back to you*; the time itself carries "usually", so the rule holds.
+
+**No timeframe on the disabled state.** The line above the form already carries it,
+and repeating it there would state the promise twice on one screen.
+
+**⚠️ Two notes so a cold reviewer does not file this as a contradiction:**
+
+- **The success title is the opening of §7's option B, which §7 rejects.** B was
+  rejected for *dropping "usually" and turning a target into a commitment*. The
+  signed body retains "usually", so the rejection reason does not carry to the
+  title. The signed pair takes B's warmth and A's discipline.
+- **The under-title line is NEW COPY**, in neither option A nor B. It adds "A real
+  person reads every one of these," which neither option carried.
+
+**Checked against the legal documents**, which §7 requires so that one number does
+not exist in two forms: no collision. The only "business day" in the current set is
+Privacy Policy v1.3's *"acknowledge a complaint within 5 business days"*, a
+different promise. Terms v1.3 carries the refund text and states no timeframe at
+all. **Two business days exists in one form only.**
