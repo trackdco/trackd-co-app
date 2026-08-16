@@ -104,6 +104,65 @@ export interface SaveOfferState {
 }
 
 /**
+ * ⚠️ AN UNPAID PERIOD IS NEVER OFFERED FREE TIME. (Adrian, 2026-08-16.)
+ *
+ * ## The defect this closes, measured
+ *
+ * The offer computes its free period from `items[0].current_period_end`, and on
+ * a `past_due` subscription that is the end of the period **the card declined
+ * on**. A cold review drove it on a test clock:
+ *
+ *     trial ends, card declines        entitlement 2026-08-17
+ *     markPastDue claws back to grace              2026-08-20
+ *     user cancels, takes "another month, free"    2026-10-17
+ *
+ * **+58 unpaid days**, the $11.99 invoice still open, and the subscription
+ * flipped to `trialing` so the next sync extended straight past the clawback
+ * that `markPastDue` exists to perform. The dialog meanwhile said "You'll be
+ * charged on 18 Oct" to somebody whose card had already failed once.
+ *
+ * ## The ruling: no variant ships for this cohort
+ *
+ * Not anchored to `now`, not anchored to the last paid period, not shortened.
+ * **No offer at all.** `04` §3.3's premise is that "anything else has been paid
+ * for", and for this cohort that is simply false, so the offer has no honest
+ * shape. They land on the ordinary post-cancel acknowledgement, already
+ * cancelled, exactly as somebody whose offer was already spent does.
+ *
+ * ## And it does NOT burn their once-ever offer
+ *
+ * `markOfferShown` is never reached for them. Somebody refused for non-payment
+ * has not spent anything: availability is decided by the shown-marker alone, so
+ * leaving it unwritten means that if they pay and later cancel in good standing,
+ * the offer is still theirs. Nothing is exploitable in that direction — staying
+ * unpaid buys no second offer, it buys no offer at all.
+ *
+ * Checked HERE, on the server, against the live Stripe object. The client is
+ * never asked and never told.
+ */
+const UNPAID_STATUSES: ReadonlySet<string> = new Set(["past_due", "unpaid", "incomplete"]);
+
+/**
+ * Invoice states that mean money is genuinely owed and has not arrived.
+ *
+ * `draft` is deliberately absent: a draft is the NEXT period being assembled and
+ * is not due yet, so treating it as a debt would refuse the offer to healthy
+ * subscribers during every renewal window.
+ */
+const UNPAID_INVOICE_STATUSES: ReadonlySet<string> = new Set(["open", "uncollectible"]);
+
+export function periodIsUnpaid(subscription: Stripe.Subscription): boolean {
+  if (UNPAID_STATUSES.has(subscription.status)) return true;
+
+  const invoice = subscription.latest_invoice;
+  // Unexpanded or absent: the status check above is all there is to go on, and
+  // it has already passed. A trial's invoice is zero and paid.
+  if (!invoice || typeof invoice === "string") return false;
+  if ((invoice.amount_due ?? 0) <= 0) return false;
+  return UNPAID_INVOICE_STATUSES.has(invoice.status ?? "");
+}
+
+/**
  * Has this customer already been offered it?
  *
  * Errs towards NOT offering. A Stripe read that fails returns `available:
@@ -140,10 +199,21 @@ export async function readSaveOffer(
  * a far better outcome than a cancellation that errors because a marketing flag
  * would not write.
  */
-export async function markOfferShown(customerId: string): Promise<void> {
+export async function markOfferShown(customerId: string, shownAt: string): Promise<void> {
   try {
+    /**
+     * ⚠️ THE INSTANT IS PASSED IN, NOT TAKEN HERE. (§3.5.)
+     *
+     * The value written to Stripe and the value returned to the client used to
+     * be two separate reads of the clock, in two modules, either side of a round
+     * trip. At a ten-minute window the divergence is harmless in practice — but
+     * the claim that "the clock on screen is the clock the server enforces" was
+     * a description of intent rather than of the code, and a cold reviewer
+     * reading the two had to work out whether it mattered. Now it is one value
+     * and the sentence is simply true.
+     */
     await stripe().customers.update(customerId, {
-      metadata: { [SHOWN_KEY]: new Date().toISOString() },
+      metadata: { [SHOWN_KEY]: shownAt },
     });
   } catch (err) {
     console.error(
@@ -315,7 +385,7 @@ export async function grantExtraTime(
   const kind: SaveOfferKind = subscription.status === "trialing" ? "trial" : "paid";
 
   try {
-    const updated = await extendAccess(client, subscription, userId);
+    const updated = await extendAccess(client, subscription, userId, shownAt);
 
     /**
      * Stamped AFTER the grant lands, not before.
@@ -396,6 +466,11 @@ async function extendAccess(
   client: ReturnType<typeof stripe>,
   subscription: Stripe.Subscription,
   userId: string,
+  /**
+   * The offer's own server timestamp, read from Stripe's metadata. Part of the
+   * idempotency key so it identifies the ATTEMPT rather than the user-day.
+   */
+  shownAt: string,
 ): Promise<Stripe.Subscription> {
   const noun = offerNounFor(subscription);
   /**
@@ -424,7 +499,23 @@ async function extendAccess(
         [COURTESY_KEY]: new Date(extended * 1000).toISOString(),
       },
     },
-    { idempotencyKey: `save-offer:${userId}` },
+    /**
+     * ⚠️ THE KEY IDENTIFIES THE ATTEMPT, NOT THE USER-DAY. (§3.7.)
+     *
+     * It was `save-offer:${userId}`, and Stripe keys live twenty-four hours —
+     * broader than the thing being made idempotent. A user who claimed,
+     * un-cancelled, cancelled again and claimed again inside a day met a
+     * REPLAYED RESPONSE rather than a fresh grant. The outcome was still correct,
+     * because the claimed-marker refuses them first — but the ordering was not
+     * what made it correct, and a guard that is right by accident is one
+     * refactor away from being wrong.
+     *
+     * The subscription and the offer's server timestamp are in it now. Two
+     * concurrent claims on the SAME attempt still compute an identical key and
+     * still dedupe, because both read the same `shownAt` from the same metadata.
+     * A different attempt is a different key.
+     */
+    { idempotencyKey: `save-offer:${userId}:${subscription.id}:${shownAt}` },
   );
 }
 

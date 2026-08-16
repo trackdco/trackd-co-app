@@ -10,6 +10,10 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { Gift } from "@/components/icons";
+import { Confetti } from "@/components/onboarding/confetti";
+import { Mascot } from "@/components/onboarding/mascot";
+
 import {
   cancelSubscription,
   claimExtraTime,
@@ -704,8 +708,34 @@ export function CancelSubscription({
               aria-describedby="cancel-body"
               tabIndex={-1}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+              className="relative w-full max-w-xs overflow-hidden rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
             >
+              {shownPhase === "granted" ? <Confetti /> : null}
+              {/**
+                * KYLE AND THE ONE-SHOT BURST, on the accept screen only (§3.12).
+                *
+                * ⚠️ THERE IS A STANDING WARNING AGAINST EXACTLY THIS, and the
+                * spec answers it rather than ignoring it: the beta notice
+                * restricts confetti to its gift variant because confetti over a
+                * screen telling somebody they are about to be charged is the
+                * worst thing that screen could do. This screen IS followed by a
+                * charge.
+                *
+                * It ships because the terms line named the charge and the date
+                * BEFORE the user could accept, and the quiet line under the
+                * celebration repeats that a reminder is coming. The burst
+                * celebrates the free time they just accepted, not the charge
+                * that follows, and they were told about the charge first.
+                *
+                * One shot, `pointer-events-none`, and `motion-reduce:hidden` —
+                * the component collapses to nothing rather than stranding
+                * eighteen motionless dots along the top edge.
+                */}
+              {shownPhase === "granted" ? (
+                <div className="mb-3 flex justify-center">
+                  <Mascot pose="thumbs" size={132} />
+                </div>
+              ) : null}
               <h2 id="cancel-title" className="text-base font-medium text-foreground">
                 {copy.title}
               </h2>
@@ -735,6 +765,37 @@ export function CancelSubscription({
                   <p className="mt-1 text-center text-[11px] text-text-subtle">
                     yours for the next 10 minutes
                   </p>
+                </div>
+              ) : null}
+
+              {/**
+                * THE GIFT CARD (§3.12). What they get, when it runs to, and what
+                * it costs.
+                *
+                * ⚠️ A GIFT-BOX MARK, NEVER A TICK. A ticked circle looks like
+                * something you can untick, and this is the one screen where a
+                * mis-tap has a price.
+                *
+                * The mark is MUTED, not amber: `ui-context.md` says an icon that
+                * aids scanning renders muted and never in a tinted container,
+                * and the countdown above is already this dialog's single amber
+                * beat. Nothing here is a button, a tab or a call to action.
+                *
+                * "$0.00 USD" is D25 — the house rule that the currency is named
+                * wins over the shorter form, because this sits inches from a
+                * terms line naming a real charge in USD and two amounts
+                * formatted differently on one screen is what a reader notices.
+                */}
+              {shownPhase === "offer" && copy.gift ? (
+                <div className="mt-4 flex items-center gap-3 rounded-2xl bg-bg-surface-raised px-4 py-3">
+                  <Gift className="h-5 w-5 shrink-0 text-text-muted" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-foreground">{copy.gift.what}</p>
+                    <p className="mt-0.5 text-xs text-text-muted">{copy.gift.until}</p>
+                  </div>
+                  <span className="shrink-0 font-mono text-sm tabular-nums text-foreground">
+                    {copy.gift.amount}
+                  </span>
                 </div>
               ) : null}
 
@@ -831,6 +892,13 @@ interface DialogCopy {
   terms?: string;
   /** A quieter footnote under the body. The reminder promise, on the thank-you. */
   quiet?: string;
+  /**
+   * The gift card's three facts (§3.12): what they get, when it runs to, and
+   * what it costs. Values and decided strings only — the amount is D25's
+   * "$0.00 USD" and the period words are the ones the body and the button
+   * already use.
+   */
+  gift?: { what: string; until: string; amount: string };
   /** The left-hand button. Absent on the acknowledgement, which has one way out. */
   dismiss: string | null;
   confirm: string;
@@ -904,13 +972,29 @@ function dialogCopy({
      * keeps it. If that reminder is ever removed, this clause goes with it.
      */
     const period = offer.noun === "month" ? "month" : "week";
-    const terms = chargeOnLabel
-      ? `Your plan carries on as it is. You'll be charged on ${chargeOnLabel} unless you cancel before then, and we'll remind you first.`
-      : `Your plan carries on as it is. You'll be charged when the extra ${period} is up unless you cancel before then, and we'll remind you first.`;
+    /**
+     * ⚠️ ONE TERMS LINE, AND IT NAMES THE DATE. THE DATELESS VARIANT IS GONE.
+     *
+     * There used to be a second version for when no charge date was available,
+     * saying the charge came "when the extra period is up" and naming no day.
+     * §3.2 deletes it: the brief requires this line to name the charge AND the
+     * date, so a version that cannot is not a weaker acceptable variant.
+     *
+     * It is unreachable rather than merely unused — `offerAfterCancel` refuses
+     * to return an offer at all when the date cannot be resolved, before the
+     * shown-marker is written — but it is deleted anyway, because a string that
+     * cannot legally render is a string somebody will make render.
+     */
+    const terms = `Your plan carries on as it is. You'll be charged on ${chargeOnLabel} unless you cancel before then, and we'll remind you first.`;
 
     return {
       title: "One more thing.",
       body: `Thank you for choosing Trackd Co to run your protocol. Before you go, we'd like to offer you another ${period}, free.`,
+      gift: {
+        what: `Another ${period}`,
+        until: `until ${chargeOnLabel}`,
+        amount: "$0.00 USD",
+      },
       terms,
       dismiss: "I'd rather cancel",
       confirm: `Another ${period}, thanks`,
@@ -918,14 +1002,27 @@ function dialogCopy({
   }
 
   if (phase === "granted") {
-    const until = grantedUntil ? ` finishes on ${grantedUntil}` : " is extended";
+    /**
+     * ⚠️ D24: THE NOUN FOLLOWS THE GRANTED PERIOD, NOT THE PLAN.
+     *
+     * The built paid variant substituted the plan and produced "Your plan
+     * finishes on 18 Oct" — telling a paying customer their plan is ENDING, on
+     * the screen congratulating them for staying. The trial variant keeps the
+     * approved line unchanged.
+     *
+     * ⚠️ And the dateless fallback here is deleted too (§3.11). It read " is
+     * extended" with no day. The grant has already happened by the time this
+     * renders, so refusing to render is not an option — instead `endsOn` is
+     * required on a successful grant, and `claimExtraTime` fails the claim
+     * rather than returning a success it cannot date.
+     */
     const period = offer?.noun === "month" ? "month" : "week";
     return {
       title: "Thank you!",
       body:
         offer?.kind === "paid"
-          ? `Enjoy your free ${period} on us. Your plan${until}, and billing picks up from there unless you choose to cancel.`
-          : `Enjoy your free ${period} on us. Your extended trial${until}, and your plan picks up from there unless you choose to cancel.`,
+          ? `Enjoy your free ${period} on us. Your free ${period} finishes on ${grantedUntil}, and your plan picks up from there unless you choose to cancel.`
+          : `Enjoy your free ${period} on us. Your extended trial finishes on ${grantedUntil}, and your plan picks up from there unless you choose to cancel.`,
       quiet: "We'll remind you before that happens.",
       dismiss: null,
       confirm: "Back to Trackd Co",

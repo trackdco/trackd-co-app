@@ -20,6 +20,7 @@ import {
   offerNounFor,
   grantExtraTime,
   markOfferShown,
+  periodIsUnpaid,
   readSaveOffer,
 } from "@/lib/billing/saveOffer";
 import { stripe } from "@/lib/billing/stripe";
@@ -279,6 +280,23 @@ async function offerAfterCancel(
     const primary = await primarySubscription(customerId);
     if (!primary) return undefined;
 
+    /**
+     * ⚠️ AN UNPAID PERIOD GETS NO OFFER, AND DOES NOT BURN ONE.
+     *
+     * Checked BEFORE `readSaveOffer` and long before `markOfferShown`, so this
+     * cohort cannot spend their once-ever offer by being refused it. See
+     * `periodIsUnpaid`: the offer's free time is computed from the current
+     * period end, which for them is the period the card declined on, and no
+     * variant of it is honest. They fall through to the ordinary
+     * already-cancelled acknowledgement.
+     */
+    if (periodIsUnpaid(primary)) {
+      console.info(
+        `[billing] ${customerId} cancelled with an unpaid period (${primary.status}); no save offer, and none burned`,
+      );
+      return undefined;
+    }
+
     const kind: SaveOfferKind = primary.status === "trialing" ? "trial" : "paid";
     const state = await readSaveOffer(customerId, kind);
     if (!state.available || !state.kind) return undefined;
@@ -303,12 +321,37 @@ async function offerAfterCancel(
       new Date(addOffer(from, noun) * 1000).toISOString(),
       await ownTimezone(userId),
     );
+    /**
+     * ⚠️ NO DATE, NO OFFER. (§3.2.)
+     *
+     * `formatAccessDate` returns "" for anything it cannot parse. The terms line
+     * is REQUIRED to name the charge and the date, so a version that cannot is
+     * not a weaker acceptable variant — it is a version that must not render.
+     * The user is already cancelled, which happened before this function was
+     * reached, so showing nothing is a complete and correct outcome and a
+     * strictly better one than asking somebody to accept a charge on a day we
+     * cannot name.
+     *
+     * Refused BEFORE `markOfferShown`, so a customer whose date could not be
+     * resolved does not silently spend their once-ever offer on a dialog they
+     * never saw.
+     */
+    if (!chargeOn) {
+      console.error(
+        `[billing] no charge date could be resolved for ${customerId}; no save offer shown, and none burned`,
+      );
+      return undefined;
+    }
 
     // Recorded as SHOWN here rather than when the dialog opens: a separate
     // "I saw it" call is one anybody who wanted the offer twice could simply
     // not make. It also STARTS THE TEN MINUTE CLOCK. See `saveOffer.ts`.
+    //
+    // ONE instant, generated once and passed to both the marker and the client,
+    // so the countdown on screen and the window the server enforces are the
+    // same value rather than two taken moments apart. §3.5.
     const shownAt = new Date().toISOString();
-    await markOfferShown(customerId);
+    await markOfferShown(customerId, shownAt);
     return { kind: state.kind, noun, chargeOn, shownAt, days: EXTRA_TRIAL_DAYS };
   } catch (err) {
     console.error(
@@ -331,6 +374,10 @@ async function primarySubscription(customerId: string) {
     customer: customerId,
     status: "all",
     limit: 100,
+    // `periodIsUnpaid` asks whether the CURRENT period's invoice was actually
+    // paid, which the status alone cannot answer for an `active` subscription
+    // sitting on an open invoice.
+    expand: ["data.latest_invoice"],
   });
   const live = list.data.filter((s) =>
     ["trialing", "active", "past_due"].includes(s.status),
@@ -407,6 +454,24 @@ export async function claimExtraTime(): Promise<
       error:
         result.reason === "already-claimed"
           ? "That's already been added to this account."
+          : result.reason === "expired"
+            /**
+             * ⚠️ D23, and it is not the catch-all. (§3.10.)
+             *
+             * Expiry, never-offered and outright failure all collapsed into
+             * "We couldn't add the extra time just now", which reads as
+             * transient and invites a retry that will also fail. The path is
+             * nearly unreachable — the client flips to the acknowledgement the
+             * moment its own countdown hits zero — so it opens only under clock
+             * skew, a replayed request, or a hand-rolled call. Which is exactly
+             * the user who most deserves an honest answer.
+             *
+             * The two reassurances are the point: somebody here has just been
+             * refused something they thought they had, and the only things they
+             * need to know are that their cancellation is intact and that no
+             * money moved.
+             */
+            ? "Your offer has expired. Your cancellation still stands and nothing has been charged."
           : result.reason === "not-cancelled"
             // They un-cancelled, or started a new subscription, between being
             // offered the week and claiming it. Nothing is wrong with their
@@ -450,6 +515,27 @@ export async function claimExtraTime(): Promise<
     );
   }
 
+  /**
+   * ⚠️ A SUCCESS THAT CANNOT NAME ITS DATE IS A BUG, NOT A DISPLAY CASE. (§3.11.)
+   *
+   * The granted screen's dateless fallback (" is extended", no day) is deleted,
+   * so the date has to exist by the time the client renders. `formatAccessDate`
+   * returns "" for anything it cannot parse, and rather than let that reach the
+   * screen as "finishes on null" it is surfaced as the failure it is. The
+   * idempotency key makes the retry safe.
+   *
+   * Effectively unreachable: `endOfAccess` builds its ISO string from Stripe's
+   * own epoch seconds. Guarded anyway, because the alternative is a broken
+   * sentence on the screen that congratulates somebody for staying.
+   */
+  const endsOn = formatAccessDate(result.endsOn, await ownTimezone(found.userId));
+  if (!endsOn) {
+    console.error(
+      `[billing] extra time granted on ${primary.id} but ${result.endsOn} could not be formatted`,
+    );
+    return { ok: false, error: "We couldn't add the extra time just now." };
+  }
+
   console.info(
     `[billing] ${found.userId} took the save offer (${result.kind}); access now runs to ${result.endsOn}`,
   );
@@ -458,7 +544,7 @@ export async function claimExtraTime(): Promise<
   return {
     ok: true,
     savedAt: Date.now(),
-    endsOn: formatAccessDate(result.endsOn, await ownTimezone(found.userId)),
+    endsOn,
     kind: result.kind,
   };
 }
