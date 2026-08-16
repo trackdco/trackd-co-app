@@ -60,7 +60,9 @@ export function billingGateEnabled(): boolean {
  * Spec `04` §0 makes `04` and `07-notifications.md` a ship-together pair, and per
  * the amended D1 the release condition is a reminder VERIFIABLY FIRING before a
  * courtesy charge on a Stripe test clock. That observation is made the Monday
- * before launch. If it fails, `04` still ships, with two strings withheld.
+ * before launch. If it fails, `04` still ships, with two strings withheld —
+ * which is Adrian's amendment of 2026-08-16 and NOT what `04` §0 says as written.
+ * See `lib/billing/reminderPromise.ts`, which records the divergence in full.
  *
  * So this is a switch rather than an edit: the withhold is built now and flipped
  * later, which makes the Monday outcome a config change instead of a Wednesday

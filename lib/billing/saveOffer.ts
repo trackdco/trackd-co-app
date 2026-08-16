@@ -311,7 +311,14 @@ export function offerStillOpen(shownAt: string | undefined, now: number = Date.n
  * two taps in the same tick both read "not claimed" before either writes, and
  * Stripe metadata has no compare-and-swap to close that with. Both requests
  * compute the same new `trial_end` from the same current value, so both send an
- * identical body under the key `save-offer:<user>` and Stripe applies it once.
+ * identical body under the same key and Stripe applies it once.
+ *
+ * ⚠️ THE KEY IS `save-offer:<user>:<subscription>:<shownAt>`, NOT `save-offer:<user>`.
+ * This paragraph described the old, user-scoped key for a while after §3.7's
+ * narrowing had already landed at the call site — see `extendAccess`, which
+ * carries the full reasoning. The distinction is not cosmetic: keys live 24
+ * hours, so a user-scoped key meant a claim, un-cancel, cancel and claim inside
+ * one day met a REPLAYED RESPONSE rather than a fresh evaluation.
  *
  * Keys live 24 hours and the flag is forever, so between them there is no window
  * where a second week can be had.

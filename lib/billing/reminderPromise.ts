@@ -10,8 +10,23 @@
  *
  * Per the amended D1, the release condition is a reminder VERIFIABLY FIRING
  * before a courtesy charge on a Stripe test clock. That observation is not the
- * builder's to produce. If it fails, `04` still ships with these two strings
- * withheld.
+ * builder's to produce.
+ *
+ * ## ⚠️ THIS DIVERGES FROM §0 AS WRITTEN, ON THE FOUNDER'S EXPLICIT AMENDMENT
+ *
+ * `04` §0 still reads "**If that reminder cannot be proven to fire, the sentence
+ * does not ship, and neither does this spec**", and immediately above it, "ship
+ * together or not at all". Read literally, a failed observation pulls the whole
+ * spec rather than two sentences, and this module would have no reason to exist.
+ *
+ * **Adrian, 2026-08-16, amending that clause directly:** if the reminder cannot
+ * be observed firing, `04` still ships with exactly these two strings withheld,
+ * both together or neither, and the withhold is to be a FLAG so that Monday's
+ * outcome is a config change rather than a Wednesday code change.
+ *
+ * It is recorded here rather than assumed because a reviewer reading §0 against
+ * this file will otherwise find a contradiction and be right to. §0 is the text
+ * that needs updating; this comment names who overrode it and when.
  *
  * ## Why this is a flag and not an edit
  *
