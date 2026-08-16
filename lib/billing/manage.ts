@@ -161,11 +161,25 @@ const CANCELLABLE = CANCELLABLE_STATUSES;
  *
  * ## Why `incomplete` is added HERE and not to the set above
  *
- * Adding it to `CANCELLABLE_STATUSES` would also change what
- * {@link manageActionFor} renders, because that function consumes the same set —
- * which is exactly the class of mistake this whole review found: **a set that
- * answers two questions is a set that gets widened for one of them.** The screen
- * keeps its own list; the action gets its own.
+ * ⚠️ THE ORIGINAL REASONING HERE WAS AIMED ONE LAYER OFF, and is corrected rather
+ * than quietly rewritten, because the correction is the useful part.
+ *
+ * It argued that adding `incomplete` to `CANCELLABLE_STATUSES` would change what
+ * {@link manageActionFor} renders. **Measured: it would not.** For an
+ * `incomplete` row that function returns `unavailable` either way — the status
+ * has no `endsOn` the dialog could name, so it never reaches a cancel control.
+ *
+ * The gate that actually decided whether an `incomplete` row was seen at all was
+ * the STATUS FILTER on `/billing`'s mirror query, which the old comment did not
+ * mention. That filter now reads {@link BILLABLE_STATUSES}, so the row reaches
+ * `manageActionFor` and gets D83's support line.
+ *
+ * **The split is still the right shape**, for a plainer reason than the one first
+ * given: the two sets answer two different questions — "what may a user press a
+ * button on?" and "what must the flag actually be applied to?" — and a single set
+ * answering both is a set that gets widened for one of them and silently changes
+ * the other. That is the class of defect this whole review found. It is just not
+ * what would have happened in this particular case.
  *
  * `paused` and `unpaid` stay OUT of both. Stripe hard-refuses
  * `cancel_at_period_end` on `paused` ("Resume the subscription first"), so

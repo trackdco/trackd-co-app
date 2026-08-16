@@ -7,6 +7,7 @@ import type Stripe from "stripe";
 import { getCurrentUser } from "@/lib/auth";
 import { applyCancelFlag, liveSubscriptionsForUser } from "@/lib/billing/cancel";
 import {
+  CANCELLABLE_STATUSES,
   FLAG_CANCELLABLE_STATUSES,
   CANCEL_FAILED,
   RESUME_FAILED,
@@ -175,7 +176,11 @@ async function ownSubscriptions(): Promise<
   let ids: string[];
   try {
     /**
-     * ⚠️ `CANCELLABLE_STATUSES`, NOT `BILLABLE_STATUSES`.
+     * ⚠️ `FLAG_CANCELLABLE_STATUSES`, NOT `BILLABLE_STATUSES`.
+     *
+     * (This said `CANCELLABLE_STATUSES` for a while after the call below moved to
+     * the wider flag set, which is the sort of drift that makes a reader trust a
+     * comment over the code fifteen lines under it.)
      *
      * This read the wider billable set, and a cold review drove what that cost:
      * Stripe HARD-REFUSES `cancel_at_period_end` on a `paused` subscription
@@ -251,8 +256,21 @@ export async function cancelSubscription(): Promise<CancelResult> {
       );
     }
     if (failed.length < found.ids.length) {
+      /**
+       * ⚠️ "STILL BILLING" IS A CLAIM THIS CODE CANNOT MAKE, so it no longer
+       * makes it.
+       *
+       * A rejection means the CALL failed, not that the subscription survived.
+       * In the reproduced race the "still billing" subscription was
+       * `incomplete_expired` with a void invoice — Stripe had already finished
+       * with it — so the alert told an operator to chase money that could not
+       * move. An alert that cries wolf is an alert that gets muted.
+       *
+       * It reports what is actually known: which ids did not take the flag, and
+       * that their state is now unverified.
+       */
       console.error(
-        `[billing] ⚠️ ${found.userId} is PARTIALLY cancelled: ${found.ids.length - failed.length} stopped, ${failed.join(", ")} still billing`,
+        `[billing] ⚠️ ${found.userId} is PARTIALLY cancelled: ${found.ids.length - failed.length} stopped, ${failed.join(", ")} did NOT take the cancel flag and their state is unverified`,
       );
     }
     return { ok: false, error: CANCEL_FAILED };
@@ -381,9 +399,12 @@ async function primarySubscription(customerId: string) {
     // sitting on an open invoice.
     expand: ["data.latest_invoice"],
   });
-  const live = all.filter((s) =>
-    ["trialing", "active", "past_due"].includes(s.status),
-  );
+  /**
+   * ⚠️ THE NAMED SET, NOT A LITERAL. This decides which subscription the save
+   * offer's CHARGE DATE is anchored to, on the highest-risk screen in the
+   * product, and a literal here goes stale silently the next time the set moves.
+   */
+  const live = all.filter((s) => CANCELLABLE_STATUSES.has(s.status));
   if (live.length > 1) {
     console.error(
       `[billing] ${customerId} still holds ${live.length} live subscriptions; the save offer will act on the soonest-ending one`,

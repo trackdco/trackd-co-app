@@ -6,8 +6,10 @@ import { CancelSubscription } from "@/components/billing/CancelSubscription";
 import { ManagePaymentRow } from "@/components/billing/ManagePaymentRow";
 import { STAYING_NOTICE_SLOT } from "@/components/billing/StayingNotice";
 import { currentEntitlement } from "@/lib/billing/entitlements";
+import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
 import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
 import {
+  CANCELLABLE_STATUSES,
   formatAccessDate,
   manageActionFor,
   planLabelFor,
@@ -83,9 +85,20 @@ export default async function BillingPage() {
        * screen is ABOUT is chosen below, with the rest counted rather than
        * silently dropped.
        *
-       * ⚠️ `status` filtering stays as it is here and is widened in
-       * `manageActionFor` instead: a `paused` or `unpaid` row must reach that
-       * function so it can return `unavailable` and the support line. See 2.4.
+       * ⚠️ AND THE FILTER IS `BILLABLE_STATUSES`, WHICH IS THE RIGHT QUESTION.
+       *
+       * It read a literal three — `trialing`, `active`, `past_due` — so a
+       * `paused`, `unpaid` or `incomplete` row never reached `manageActionFor`
+       * at all. That function then saw `null`, answered `{kind: "none"}`, and the
+       * support line's condition needs `no-subscription`, so a comp with a paused
+       * subscription got no control AND no signpost: the entire screen was
+       * "Access Complimentary / Payment method and invoices / Back to profile".
+       *
+       * `BILLABLE_STATUSES` asks "what could still take this person's money?",
+       * which is the question a screen offering an exit should be asking. The
+       * narrower "what may they press a button on?" is `CANCELLABLE_STATUSES`,
+       * and it is applied BELOW, when choosing which row the screen describes —
+       * not here, where it silently drops rows the user needs to know about.
        */
       supabase
         .from("subscriptions")
@@ -93,7 +106,7 @@ export default async function BillingPage() {
           "status, trial_ends_at, current_period_end, cancel_at_period_end, stripe_price_id",
         )
         .eq("user_id", user.id)
-        .in("status", ["trialing", "active", "past_due", "paused", "unpaid"])
+        .in("status", [...BILLABLE_STATUSES])
         .order("current_period_end", { ascending: true }),
       // Whether there is anything for the Stripe portal to open onto. A user can
       // legitimately have a customer row and no live subscription (they
@@ -128,8 +141,30 @@ export default async function BillingPage() {
    * is logged as one rather than quietly rendered.
    */
   const liveRows = subs ?? [];
-  const stillBilling = liveRows.filter((r) => !r.cancel_at_period_end);
-  const row = stillBilling[0] ?? liveRows[0];
+  /**
+   * ⚠️ "STILL GOING TO CHARGE" IS NOT THE SAME AS "NOT FLAGGED", and the first
+   * version of this conflated them.
+   *
+   * A `paused` subscription carries `cancel_at_period_end: false` and is charging
+   * nobody, so a bare `!cancel_at_period_end` filter ranked it ABOVE a cancelled
+   * `active` yearly — describing the screen with the one that cannot be acted on
+   * and hiding the resume card for the one that can.
+   *
+   * Three questions in order, which is the order they matter in:
+   *
+   *   1. something the user can act on that WILL still take money  -> cancel
+   *   2. something the user can act on that is already stopped     -> resume
+   *   3. anything else still live (paused, unpaid, incomplete)     -> unavailable,
+   *      which is what renders D83's support line
+   *
+   * Tier 3 is the one 2.4 was about: those rows used to be filtered out entirely,
+   * so `manageActionFor` saw `null`, returned `{kind: "none"}`, and a comp with a
+   * paused subscription got no control AND no support line — the whole screen was
+   * "Access Complimentary / Payment method and invoices / Back to profile".
+   */
+  const actionable = liveRows.filter((r) => CANCELLABLE_STATUSES.has(r.status));
+  const row =
+    actionable.find((r) => !r.cancel_at_period_end) ?? actionable[0] ?? liveRows[0];
   if (liveRows.length > 1) {
     console.error(
       `[billing] ${user.id} has ${liveRows.length} live subscription rows (${liveRows
@@ -369,7 +404,7 @@ async function courtesyUntilFor(userId: string): Promise<string | null> {
       .from("subscriptions")
       .select("courtesy_until")
       .eq("user_id", userId)
-      .in("status", ["trialing", "active", "past_due"])
+      .in("status", [...CANCELLABLE_STATUSES])
       .not("courtesy_until", "is", null)
       .order("courtesy_until", { ascending: false })
       .limit(1);

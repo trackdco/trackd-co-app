@@ -21,8 +21,6 @@ import { listAllSubscriptions } from "./subscriptionList";
  * with nothing left in the database to connect the charge to them.
  */
 
-export { CANCELLABLE_STATUSES } from "./manage";
-
 /**
  * ⚠️ EVERY SUBSCRIPTION THAT CAN STILL TAKE MONEY, ACCORDING TO STRIPE.
  *
@@ -66,8 +64,9 @@ export async function liveSubscriptionsForUser(
    * the deletion path needs: it calls `subscriptions.cancel()`, which Stripe
    * accepts on every one of these.
    *
-   * The USER-FACING cancel path passes {@link CANCELLABLE_STATUSES} instead,
-   * because it calls `subscriptions.update({cancel_at_period_end})` and Stripe
+   * The USER-FACING cancel path passes `FLAG_CANCELLABLE_STATUSES` instead —
+   * NOT `CANCELLABLE_STATUSES`, which this said until the two were split — because
+   * it calls `subscriptions.update({cancel_at_period_end})` and Stripe
    * HARD-REFUSES that on a `paused` subscription. Sharing one set meant one
    * paused subscription on the customer made cancelling throw, every time,
    * with no way out of it from inside the app. See `manage.ts`.
