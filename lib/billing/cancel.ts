@@ -142,10 +142,17 @@ export const BILLABLE_STATUSES: ReadonlySet<string> = new Set<string>([
    *     +22h   incomplete           invoice open
    *     +23h   incomplete_expired   invoice void
    *
-   * Two consequences worth stating. The exposure window really is under a day,
-   * so the state self-heals. And **Stripe voids the invoice itself on expiry** —
-   * which is the same end state {@link applyCancelFlag} reaches deliberately,
-   * just 23 hours later and without anybody being told.
+   * ⚠️ THIS DOES NOT MAKE D76's VOID OPTIONAL, and it must not be read that way.
+   *
+   * Stripe does void the invoice itself when it expires. But the window is not
+   * what D76 is about. Somebody presses Cancel, reads **"you won't be charged"**,
+   * and their invoice stays payable for the rest of that day — long enough to
+   * finish a 3D Secure challenge in a stale tab and take the money. D76 exists to
+   * make that sentence TRUE AT THE MOMENT IT IS SAID.
+   *
+   * A shorter window is not a mitigation for a promise that is false while it
+   * lasts. Waiting 23 hours for Stripe to reach the same end state is not the
+   * same thing as never having been chargeable after being told otherwise.
    *
    * The fifteen-day figure was the DUNNING schedule for a `past_due`
    * subscription after Smart Retries exhausts (8 retries over 2 weeks on this

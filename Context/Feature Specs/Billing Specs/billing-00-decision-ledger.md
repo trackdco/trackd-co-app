@@ -12,7 +12,7 @@ decision needs to supersede an earlier one, keep the number and mark it re-decid
 as D1 and D31 already are.
 
 **Status at 15 Aug 2026. THE CORPUS IS COMPLETE: 00 and 01 through 19.** Next free
-decision number: **D83**. Next free question number: **Q106**.
+decision number: **D85**. Next free question number: **Q106**.
 
 **The D71 to D77 gap is closed.** That block was re-sent and its seven decisions are
 entered above, in their own numeric places rather than appended. The `19` correction
@@ -82,7 +82,7 @@ as a dependency.
 | D39 | Manage lives at `/billing/manage` | 08 | Resolved |
 | D40 | Pin both Stripe client packages | 09, verified by 12 | Resolved |
 | D41 | The `refund_request` discriminator | 10 | Resolved |
-| D42 | The refund queue's alert thresholds | 10 | Resolved 15 Aug 2026 — three tiers, at 0 / 1 / 2 business days |
+| D42 | The refund queue's alert thresholds | 10 | Resolved — **four** tiers, at 0 / 1 / 2 / 4 business days |
 | D43 | The refund screen's copy set | 10 | Resolved 15 Aug 2026 — **six** strings, not four |
 | D44 | One open refund request per person | 10 | Resolved |
 | D45 | The empty-submission error | 10 | Resolved |
@@ -123,6 +123,8 @@ as a dependency.
 | D76 | Void the open invoice when cancelling an incomplete subscription | 03 | Resolved — built, currently unreachable |
 | D77 | A refused comp's welcome screen suppresses the trial line | 01 | Resolved — built |
 | D82 | The courtesy push reuses the approved grace title | 07 | Resolved |
+| D83 | An incomplete-only account gets the support line, not a cancel control | 03 | Resolved — existing approved copy, no new string |
+| D84 | Manage's summary is ONE sentence | 08 | Resolved — the signed sentence is the whole line |
 
 **Also open, unnumbered:**
 
@@ -131,8 +133,6 @@ as a dependency.
   and its title branches on a trial or subscription that a lapsed account does not
   have (05 §7).
 
-- The Manage summary sentence — whether a "what you're on" line was also intended
-  alongside the signed one (08 §3.3).
 - Whether the entitlement-writer section in 05 should gain an idempotency ledger, an
   unattributed-parking description, and a customer-identity trust rule (05 §7).
 
@@ -217,17 +217,23 @@ because `10-refund-requests.md` §7 still reads as though they are.
 | Informational | any unanswered request, shown in `/admin`'s "what needs you" block with its age |
 | Amber | oldest open request past **1 business day** |
 | Missed target | oldest open request past **2 business days** |
+| Chargeback risk | oldest open request past **4 business days** |
 
 Two business days is the number the screen prints, so passing it is a missed
 target rather than a warning.
 
-**⚠️ This differs from §7's recommendation, deliberately.** §7 proposed the same
-three-tier SHAPE with a warning at 2 days and a critical tier at 4, reasoning that
-four days "is where somebody stops waiting and calls their bank". §7 also states
-that the exact days are the founder's. The ruling moves both boundaries in and
-carries no tier beyond the missed target, so **nothing escalates as the chargeback
-window approaches**. Recorded so the dropped tier reads as a decision rather than
-an oversight.
+**⚠️ THE FOURTH TIER IS A DIFFERENT FACT, NOT A LOUDER VERSION OF THE THIRD**, and
+it must be labelled so it reads that way. Four business days is where somebody
+stops waiting and calls their bank. That does not make the reply later; it changes
+what the request IS — a dispute, carrying a fee and a mark on the Stripe account,
+decided by someone other than us and no longer answerable by replying. "Very late"
+would invite the same action as the missed-target tier, which is to reply sooner.
+This one is telling the operator that replying may no longer be enough.
+
+**Ordering note.** §7 originally recommended four tiers of this shape, the ruling
+of 15 Aug carried three, and the fourth was added on 17 Aug. **D42 keeps its
+number**: the fourth tier completes the entry rather than superseding it, and the
+first three stand exactly as they were ruled.
 
 ### D43 — the refund screen's copy set
 
@@ -264,3 +270,41 @@ not exist in two forms: no collision. The only "business day" in the current set
 Privacy Policy v1.3's *"acknowledge a complaint within 5 business days"*, a
 different promise. Terms v1.3 carries the refund text and states no timeframe at
 all. **Two business days exists in one form only.**
+
+
+---
+
+## D83 and D84
+
+### D83 — an incomplete-only account gets the support line
+
+An account whose ONLY subscription is `incomplete` renders no cancel control, and
+that is the ruling rather than a gap. It gets the existing approved line:
+
+> This one can't be changed from here. Email support@trackdco.app and we'll sort it out.
+
+**No new copy, and no cancel control.** The existing cancel dialog would be false
+for them — it promises full access "until [date]" to somebody who has no access
+and no paid period — and inventing a fourth variant for a state that clears itself
+is a string to maintain forever for a cohort that exists for under a day.
+
+**The window is measured, not assumed.** A `default_incomplete` subscription is
+alive at +22h and `incomplete_expired` with a void invoice at +23h, driven on a
+test clock (`scratchpad/harness/clockwindow.scenario.ts`). Nobody in this state has
+been told they will not be charged, which is what separates it from D76's cohort.
+
+**⚠️ This does NOT make D76's void optional.** D76 is not a mitigation for the
+window's length. Somebody who presses Cancel has been told in writing that they
+will not be charged, and their invoice stays payable for the rest of that day —
+long enough to finish a 3D Secure challenge in a stale tab. D76 makes that sentence
+true at the moment it is said. A shorter window is not a mitigation for a promise
+that is false while it lasts.
+
+### D84 — Manage's summary is one sentence
+
+`08`'s brief asks Manage to open with "a one-sentence plain-English summary of what
+they are on". **The signed sentence is that summary.** No second "what you're on"
+line ships alongside it.
+
+This closes the open item that asked whether a further line was also intended. It
+was not.
