@@ -9,10 +9,16 @@ import { InstallHomeScreenPopup } from "@/components/pwa/InstallHomeScreenPopup"
 import { graceAsTrial } from "@/lib/billing/betaGrace";
 import { BETA_NOTICE_COOKIE, betaNoticeSeen } from "@/lib/billing/betaNoticeStore";
 import { billingGateEnabled } from "@/lib/billing/gate";
+import { loadPricesSafe } from "@/lib/billing/prices";
 import { formatAccessDate } from "@/lib/billing/manage";
 import { currentEntitlement } from "@/lib/billing/entitlements";
 import { dismissedTrialNoticeDate } from "@/lib/billing/trialNoticeStore";
-import { trialNoticeFor, trialNoticeLine } from "@/lib/notifications/trialReminder";
+import {
+  resolveEnding,
+  trialNoticeBody,
+  trialNoticeFor,
+  trialNoticeLine,
+} from "@/lib/notifications/trialReminder";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import { createClient } from "@/lib/supabase/server";
 import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites";
@@ -146,6 +152,32 @@ export default async function DashboardPage() {
   );
 
   /**
+   * ⚠️ WHICH OF THE THREE ENDINGS THE BANNER IS ABOUT (`07` §3.4).
+   *
+   * This banner had ONE variant while the push had two, and the dashboard feeds
+   * it `graceAsTrial(...)` — so a beta-grace account read **"Your free trial ends
+   * 28 Aug."** on the surface `07` §3.6 says reaches everybody who opens the app.
+   * They were never on a trial and have no card. It is the same falsehood the
+   * push's grace variant already existed to prevent.
+   *
+   * Latent rather than live: `graceTrial` is only built when the gate is on, so
+   * it would have surfaced for ~90 real accounts on launch morning.
+   *
+   * `courtesyUntil` is read in its OWN tolerant query for the reason `07` §3.4
+   * gives: a column from an unapplied migration breaks the whole request it sits
+   * in, and this must never be able to take the dashboard down. Unreadable
+   * degrades to the neutral wording, never to the trial wording.
+   */
+  const courtesy = trialRow
+    ? await courtesyForBanner(user.id)
+    : { courtesyUntil: null as string | null | undefined, noun: null };
+  const bannerEnding = resolveEnding({
+    isBetaGrace: Boolean(graceTrial),
+    courtesyUntil: courtesy.courtesyUntil,
+    noun: courtesy.noun,
+  });
+
+  /**
    * THE ONE-TIME BETA NOTICE. Once ever, per account, decided on the server.
    *
    * Only shown once the gate is switched on: before that nothing has changed for
@@ -223,7 +255,8 @@ export default async function DashboardPage() {
           trialNotice ? (
             <TrialEndingBanner
               key="trial-ending"
-              line={trialNoticeLine(trialNotice)}
+              line={trialNoticeLine(trialNotice, bannerEnding)}
+              body={trialNoticeBody(bannerEnding)}
               forDate={trialNotice.forDate}
               userId={user.id}
             />
@@ -251,4 +284,48 @@ export default async function DashboardPage() {
       <InstallHomeScreenPopup freshSignIn={freshSignIn} />
     </>
   );
+}
+
+/**
+ * The courtesy period behind this banner, and the noun for its copy.
+ *
+ * ⚠️ ITS OWN QUERY, TOLERATING AN UNAPPLIED MIGRATION (`07` §3.4, and the same
+ * shape `/billing` uses). `courtesy_until` arrives with
+ * `supabase/billing/003_courtesy_until.sql`, applied by hand, and **a column from
+ * an unapplied migration breaks the ENTIRE PostgREST request it appears in** — so
+ * folding this into the dashboard's main reads would take the whole screen down
+ * in the window between a deploy and the SQL being pasted.
+ *
+ * ⚠️ `undefined` (unreadable) is NOT `null` (read, absent). `resolveEnding`
+ * degrades the first to the neutral wording and reads the second as a real trial.
+ * Collapsing them would tell a courtesy customer their TRIAL was ending.
+ *
+ * The noun comes from the PLAN's interval, never from the status: during a
+ * courtesy period Stripe reports `trialing`, which is exactly why the grant works
+ * at all, so a status-based noun would call every courtesy month a "free week".
+ * Unresolvable returns null and the copy falls back to neutral rather than
+ * guessing between "week" and "month" in a billing notice.
+ */
+async function courtesyForBanner(
+  userId: string,
+): Promise<{ courtesyUntil: string | null | undefined; noun: "week" | "month" | null }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select("courtesy_until, stripe_price_id")
+    .eq("user_id", userId)
+    .eq("status", "trialing")
+    .order("trial_ends_at", { ascending: true })
+    .limit(1);
+  if (error) return { courtesyUntil: undefined, noun: null };
+
+  const row = data?.[0] as Record<string, unknown> | undefined;
+  const courtesyUntil = (row?.courtesy_until as string | null) ?? null;
+  if (!courtesyUntil) return { courtesyUntil: null, noun: null };
+
+  const priceId = (row?.stripe_price_id as string | null) ?? null;
+  if (!priceId) return { courtesyUntil, noun: null };
+  const interval = (await loadPricesSafe()).find((p) => p.priceId === priceId)?.interval;
+  const noun = interval === "month" || interval === "year" ? "month" : interval === "week" ? "week" : null;
+  return { courtesyUntil, noun };
 }

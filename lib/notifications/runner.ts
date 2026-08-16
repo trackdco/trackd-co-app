@@ -27,6 +27,7 @@ import {
 } from "@/lib/notifications/reminders";
 import {
   trialReminderMessage,
+  resolveEnding,
   trialReminderVerdict,
   type TrialForReminder,
 } from "@/lib/notifications/trialReminder";
@@ -36,6 +37,7 @@ import { isPausedOn, type Pause } from "@/lib/home/pauses";
 import { grantsPro, type EntitlementSource } from "@/lib/billing/access";
 import { graceAsTrial } from "@/lib/billing/betaGrace";
 import { billingGateEnabled } from "@/lib/billing/gate";
+import { loadPricesSafe } from "@/lib/billing/prices";
 
 const VAPID_PUBLIC =
   process.env.VAPID_PUBLIC_KEY ?? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
@@ -322,6 +324,91 @@ async function collectTrial(
  * it — the containment `supabase/notifications/004` claims, which was true of
  * the read and false of the write until now.
  */
+/**
+ * The courtesy period's end, IN ITS OWN QUERY, tolerating an unapplied migration.
+ *
+ * ⚠️ `07` §3.4: "The courtesy column is read in its own tolerant query, never
+ * folded into the select that decides whether anybody gets reminded at all."
+ *
+ * That is not tidiness. `supabase/billing/003_courtesy_until.sql` is applied by
+ * hand, and **a column from an unapplied migration breaks the ENTIRE PostgREST
+ * request it appears in** — folding `courtesy_until` into `collectTrial`'s select
+ * would mean one unapplied migration silences every reminder for everybody,
+ * including the trial reminders that have nothing to do with it. The same shape
+ * `004` uses, for the same reason, and the same lesson `trialLease.ts` paid for.
+ *
+ * ## The return value has THREE states and they are not interchangeable
+ *
+ *   `undefined`  the column could not be read (`42703`, migration absent). We do
+ *                not know. {@link resolveEnding} degrades to neutral wording.
+ *   `null`       read fine; this account has no courtesy period.
+ *   a string     read fine; a courtesy period ends then.
+ *
+ * Collapsing `undefined` into `null` would make an unreadable column look like a
+ * confirmed absence, and a courtesy customer would be told their TRIAL was ending.
+ */
+async function courtesyUntilFor(
+  supabase: Client,
+  userId: string,
+): Promise<{ courtesyUntil: string | null | undefined; priceId: string | null }> {
+  const { data, error } = await supabase
+    .from("subscriptions")
+    // `stripe_price_id` rides in THIS query rather than the main one: it is only
+    // ever needed to pick the courtesy noun, and putting it here keeps
+    // `collectTrial`'s select untouched.
+    .select("courtesy_until, stripe_price_id")
+    .eq("user_id", userId)
+    .eq("status", "trialing")
+    .order("trial_ends_at", { ascending: true })
+    .limit(1);
+  if (error) {
+    // 42703 is "column does not exist" — the migration is not applied yet. Any
+    // other failure is equally a "we do not know", and the safe answer is the same.
+    console.warn(
+      `[reminders] courtesy_until unreadable for ${userId} (falling back to neutral wording):`,
+      error.message,
+    );
+    return { courtesyUntil: undefined, priceId: null };
+  }
+  const row = data?.[0] as Record<string, unknown> | undefined;
+  if (!row) return { courtesyUntil: null, priceId: null };
+  return {
+    courtesyUntil: (row.courtesy_until as string | null) ?? null,
+    priceId: (row.stripe_price_id as string | null) ?? null,
+  };
+}
+
+/**
+ * "week" or "month" for the courtesy copy, or null if it cannot be established.
+ *
+ * ⚠️ `offerNounFor` CANNOT BE REUSED HERE, and the reason is subtle enough to be
+ * worth stating: it short-circuits on `status === "trialing"` and returns "week",
+ * which is right when deciding what to GRANT. During a courtesy period Stripe
+ * reports `trialing` for exactly the same reason the grant works at all — the
+ * free stretch is expressed by moving `trial_end` — so reusing it here would call
+ * every courtesy period a "free week", including the months.
+ *
+ * So the noun comes from the PLAN's interval, matching §3.4's "the noun follows
+ * the granted period": monthly and yearly are granted a month, weekly a week.
+ *
+ * ⚠️ NULL RATHER THAN A GUESS. A price list that will not load, or a price id
+ * that matches nothing, returns null and {@link resolveEnding} degrades to the
+ * neutral variant. Guessing between "week" and "month" is a coin flip printed in
+ * a billing notice.
+ */
+async function courtesyNounFor(priceId: string | null): Promise<"week" | "month" | null> {
+  if (!priceId) return null;
+  try {
+    const prices = await loadPricesSafe();
+    const interval = prices.find((p) => p.priceId === priceId)?.interval;
+    if (interval === "month" || interval === "year") return "month";
+    if (interval === "week") return "week";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function claimTrialReminder(
   supabase: Client,
   userId: string,
@@ -864,11 +951,25 @@ export async function runForUser(
         data.trialSentFor,
       );
       if (verdict.send && data.trial) {
-        // The grace and a real trial need different words. `data.trial` is the
-        // same shape either way (see `graceAsTrial`), so the flag rides along
-        // rather than being re-derived from a shape that deliberately hides the
-        // difference.
-        const m = trialReminderMessage(data.trial, data.tz, data.isBetaGrace);
+        /**
+         * The three endings need different words. `data.trial` is the same shape
+         * for all of them (see `graceAsTrial`), so the discriminator rides along
+         * rather than being re-derived from a shape that deliberately hides the
+         * difference.
+         *
+         * ⚠️ Both reads happen HERE, inside the branch that is actually going to
+         * send, rather than in `collectTrial`. A courtesy lookup and a price list
+         * on every tick for every user would be two more things that can fail on
+         * the path that decides whether anybody is reminded at all, to answer a
+         * question that only matters once a reminder is already going out.
+         */
+        const { courtesyUntil, priceId } = await courtesyUntilFor(supabase, userId);
+        const ending = resolveEnding({
+          isBetaGrace: data.isBetaGrace,
+          courtesyUntil,
+          noun: courtesyUntil ? await courtesyNounFor(priceId) : null,
+        });
+        const m = trialReminderMessage(data.trial, data.tz, ending);
         if (!m) {
           trialReason = "no-message";
         } else if (await claimTrialReminder(supabase, userId, verdict.forDate, data.trialSentFor)) {

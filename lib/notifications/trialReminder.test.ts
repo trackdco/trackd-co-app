@@ -7,6 +7,8 @@ import {
 } from "@/lib/onboarding/pricing";
 import { shiftDateKey } from "@/lib/notifications/reminders";
 import {
+  resolveEnding,
+  trialNoticeBody,
   trialNoticeFor,
   trialNoticeLine,
   trialReminderDateKey,
@@ -362,5 +364,144 @@ describe("trialReminderMessage", () => {
   it("is null for an unusable trial end", () => {
     expect(trialReminderMessage(trial({ trialEndsAt: null }), SYD)).toBeNull();
     expect(trialReminderMessage(trial({ trialEndsAt: "nope" }), SYD)).toBeNull();
+  });
+});
+
+/**
+ * THE THREE ENDINGS (`07` §3.4).
+ *
+ * The machinery hands all three to the sender in one shape, which is a good
+ * decision and costs the date arithmetic nothing. The copy is where it stops
+ * being one: a trial ends in a charge, a grace ends in read-only, and a courtesy
+ * period ends in a charge to somebody who has already paid for two years.
+ *
+ * These are the assertions that stop the wrong one being sent. Note what they
+ * pin: the fallback is NEUTRAL and never the trial variant, because the neutral
+ * wording is true of all three endings and the trial wording is false of two.
+ */
+describe("resolveEnding", () => {
+  it("reads a real trial when the column says there is no courtesy period", () => {
+    expect(resolveEnding({ isBetaGrace: false, courtesyUntil: null, noun: null }))
+      .toEqual({ kind: "trial" });
+  });
+
+  it("reads the beta grace first, whatever else is true", () => {
+    expect(resolveEnding({ isBetaGrace: true, courtesyUntil: null, noun: "month" }))
+      .toEqual({ kind: "grace" });
+  });
+
+  it("reads a courtesy period when the column and the noun are both known", () => {
+    expect(resolveEnding({ isBetaGrace: false, courtesyUntil: "2026-09-15T00:00:00Z", noun: "month" }))
+      .toEqual({ kind: "courtesy", noun: "month" });
+  });
+
+  it("⚠️ falls back to NEUTRAL when the column cannot be read, never to the trial", () => {
+    // `undefined` is the unapplied-migration case: 003 not yet run, PostgREST
+    // answers 42703, and we genuinely do not know which ending this is. Calling
+    // it a trial would tell a paying customer their trial was ending.
+    const ending = resolveEnding({ isBetaGrace: false, courtesyUntil: undefined, noun: "month" });
+    expect(ending).toEqual({ kind: "grace" });
+    expect(ending.kind).not.toBe("trial");
+  });
+
+  it("⚠️ treats undefined and null as DIFFERENT facts", () => {
+    // Collapsing them is the bug the signature exists to prevent.
+    expect(resolveEnding({ isBetaGrace: false, courtesyUntil: undefined, noun: null }).kind).toBe("grace");
+    expect(resolveEnding({ isBetaGrace: false, courtesyUntil: null, noun: null }).kind).toBe("trial");
+  });
+
+  it("falls back to neutral when the noun is unknown rather than guessing", () => {
+    // "free week" and "free month" are the only signed forms. A coin flip between
+    // them is a coin flip printed in a billing notice.
+    expect(resolveEnding({ isBetaGrace: false, courtesyUntil: "2026-09-15T00:00:00Z", noun: null }))
+      .toEqual({ kind: "grace" });
+  });
+
+  it("falls back to neutral on an unparseable courtesy date", () => {
+    expect(resolveEnding({ isBetaGrace: false, courtesyUntil: "nope", noun: "week" }))
+      .toEqual({ kind: "grace" });
+  });
+});
+
+describe("the banner's three variants", () => {
+  const tz = SYD;
+  const notice = () => trialNoticeFor(trial(), tz, at("2026-08-13", tz), null)!;
+
+  it("⚠️ never calls the beta grace a trial", () => {
+    // The defect this fixes: the banner had ONE variant while the push had two,
+    // and the dashboard feeds it `graceAsTrial(...)`, so ~90 accounts with no
+    // card on file would have read "Your free trial ends 15 Aug." on launch
+    // morning. The push's grace variant already existed to prevent exactly this.
+    const line = trialNoticeLine(notice(), { kind: "grace" });
+    expect(line).toBe("Your free access ends 15 Aug.");
+    expect(line).not.toContain("trial");
+  });
+
+  it("⚠️ never calls a courtesy period a trial, and follows the granted noun", () => {
+    expect(trialNoticeLine(notice(), { kind: "courtesy", noun: "month" }))
+      .toBe("Your free month ends on 15 Aug.");
+    expect(trialNoticeLine(notice(), { kind: "courtesy", noun: "week" }))
+      .toBe("Your free week ends on 15 Aug.");
+    expect(trialNoticeLine(notice(), { kind: "courtesy", noun: "month" })).not.toContain("trial");
+  });
+
+  it("keeps the approved trial line unchanged, and defaults to it", () => {
+    expect(trialNoticeLine(notice())).toBe("Your free trial ends 15 Aug.");
+    expect(trialNoticeLine(notice(), { kind: "trial" })).toBe("Your free trial ends 15 Aug.");
+  });
+
+  it("carries D33's body on the courtesy variant and on neither other", () => {
+    expect(trialNoticeBody({ kind: "courtesy", noun: "month" })).toBe(
+      "Your plan starts then, and the reminder you were promised is this one. Cancel anytime before if you've changed your mind.",
+    );
+    expect(trialNoticeBody({ kind: "trial" })).toBeNull();
+    expect(trialNoticeBody({ kind: "grace" })).toBeNull();
+  });
+
+  it("carries no em dash in any variant, line or body", () => {
+    for (const ending of [
+      { kind: "trial" as const },
+      { kind: "grace" as const },
+      { kind: "courtesy" as const, noun: "month" as const },
+    ]) {
+      expect(trialNoticeLine(notice(), ending)).not.toContain("—");
+      expect(trialNoticeBody(ending) ?? "").not.toContain("—");
+    }
+  });
+});
+
+describe("the push's three variants", () => {
+  it("⚠️ never tells a grace user that billing starts", () => {
+    const m = trialReminderMessage(trial(), SYD, { kind: "grace" })!;
+    expect(m.title).toBe("Your free access ends soon");
+    expect(m.body).not.toContain("billing");
+    expect(m.body).not.toContain("trial");
+    expect(m.body).not.toContain(`Day ${REMINDER_DAY}`);
+  });
+
+  it("⚠️ never calls a courtesy period a trial, and says the plan resumes", () => {
+    const m = trialReminderMessage(trial(), SYD, { kind: "courtesy", noun: "month" })!;
+    expect(m.body).toBe("Your free month ends 15 Aug. Your plan starts then.");
+    expect(m.body).not.toContain("trial");
+    // A two-year customer must never read a day count from a seven-day shape.
+    expect(m.body).not.toContain(`Day ${REMINDER_DAY} of ${TRIAL_DAYS}`);
+  });
+
+  it("keeps the approved trial push unchanged, and defaults to it", () => {
+    const m = trialReminderMessage(trial(), SYD)!;
+    expect(m.title).toBe("Your free trial ends soon");
+    expect(m.body).toContain(`Day ${REMINDER_DAY} of ${TRIAL_DAYS}`);
+  });
+
+  it("carries no em dash in any variant", () => {
+    for (const ending of [
+      { kind: "trial" as const },
+      { kind: "grace" as const },
+      { kind: "courtesy" as const, noun: "week" as const },
+    ]) {
+      const m = trialReminderMessage(trial(), SYD, ending)!;
+      expect(m.title).not.toContain("—");
+      expect(m.body).not.toContain("—");
+    }
   });
 });

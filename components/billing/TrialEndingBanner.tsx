@@ -33,11 +33,24 @@ import { dismissTrialNotice } from "@/lib/billing/trialNoticeStore";
  */
 export function TrialEndingBanner({
   line,
+  body = null,
   forDate,
   userId,
 }: {
   /** Built server-side by `trialNoticeLine`, already in the user's timezone. */
   line: string;
+  /**
+   * A second, quieter line. COURTESY PERIODS ONLY (`07` §3.4's D33).
+   *
+   * The trial and grace banners are deliberately one bare sentence, cut back
+   * twice by Adrian on the grounds that everything after the first full stop is
+   * something the reader has to decide whether to care about. D33 signs a body
+   * for the courtesy variant specifically, because that line names this message
+   * as the promised reminder and so closes the loop with the offer's terms line.
+   *
+   * Defaulted null so the two older variants are untouched by construction.
+   */
+  body?: string | null;
   /** The notice's identity, so a dismissal is scoped to this trial. */
   forDate: string;
   /** …and to this account, so one person's dismissal cannot hide another's. */
@@ -53,7 +66,14 @@ export function TrialEndingBanner({
         href="/billing"
         className="flex min-w-0 flex-1 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span className="min-w-0 flex-1 text-sm leading-snug text-foreground">{line}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm leading-snug text-foreground">{line}</span>
+          {/* Quieter and beneath, per D33. Absent for the trial and grace
+              variants, which are one sentence by decision. */}
+          {body ? (
+            <span className="mt-1 block text-xs leading-relaxed text-text-muted">{body}</span>
+          ) : null}
+        </span>
         <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
       </Link>
       {/*
