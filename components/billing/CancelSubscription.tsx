@@ -1108,9 +1108,37 @@ function dialogCopy({
      * nothing here changes anything: this exists purely so nobody closes the app
      * unsure whether it worked.
      */
+    /**
+     * ⚠️ D78 APPLIES HERE TOO, AND IT DID NOT — THE FIX WAS UNDONE ONE TAP LATER.
+     *
+     * The confirm dialog gives a free-for-life comp the D78 replacement body, and
+     * then this screen restored all three sentences D78 exists to delete: a date
+     * they do not have, "goes read only", and the history line. `compForever` was
+     * already a parameter of this function and already consumed by the confirm
+     * branch; this branch simply ignored it. `03` §5's own checkbox — "no date, no
+     * read-only sentence and no history sentence appears for them" — fails
+     * verbatim on the second screen of the same flow.
+     *
+     * That is the shape this whole review keeps finding: a correct fix that one
+     * branch elsewhere does not honour.
+     *
+     * ## The copy is D78's, reused rather than written
+     *
+     * `04` §0 assigns the declined screen's copy to that spec, but the cohort
+     * branch and the `compForever` prop are both `03`'s and both live in this
+     * file, so it is closed here. **No new string is invented**: D78's signed
+     * sentence is already the true and approved thing to say to this cohort about
+     * a cancellation, and it is exactly as true after declining the offer as it
+     * was before. Reusing signed copy for the same cohort stating the same fact is
+     * the move `02b` §3.2 and D82 both already make.
+     *
+     * The TITLE is untouched. Their subscription genuinely is cancelled.
+     */
     return {
       title: `Your ${noun} is cancelled`,
-      body: `You'll keep full access to your Pro plan until ${endsOn}, and you won't be charged${noun === "subscription" ? " again" : ""}. After that your account goes read only. You'll still see everything you've logged, you just can't add to it.`,
+      body: compForever
+        ? `You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.`
+        : `You'll keep full access to your Pro plan until ${endsOn}, and you won't be charged${noun === "subscription" ? " again" : ""}. After that your account goes read only. You'll still see everything you've logged, you just can't add to it.`,
       dismiss: null,
       confirm: "Close",
     };

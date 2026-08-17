@@ -311,10 +311,24 @@ describe("planLabelFor — Profile and Billing must agree", () => {
       ["stripe", "trialing"],
       ["apple", "active"],
       ["google", "active"],
-      // A trial with no entitlement row yet: still a trial either way. The
-      // webhook lands a second later and the screen must not flicker to
-      // "Read only" in the gap.
-      [null, "trialing"],
+      /**
+       * ⚠️ `[null, "trialing"]` WAS HERE AND HAS BEEN REMOVED BY FOUNDER RULING.
+       *
+       * It asserted that a trial with no entitlement row reads "Free trial"
+       * either side of the switch, reasoning that "the webhook lands a second
+       * later and the screen must not flicker to Read only in the gap".
+       *
+       * That reasoning is sound for the gap it describes and **cannot tell that
+       * gap apart from the state that never closes.** A trial whose 3D Secure was
+       * abandoned sits `trialing` in the mirror with no entitlement until Stripe
+       * expires it, and read "Free trial" the whole time — on the one screen
+       * somebody opens to find out why they are locked out.
+       *
+       * The two states are indistinguishable from the mirror, so the choice is
+       * which way to be wrong: a flicker of about a second for a legitimate new
+       * trial, or a permanent falsehood for an abandoned one. The ruling takes
+       * the flicker. Covered by its own case below.
+       */
     ];
     for (const [source, status] of cases) {
       const sub = status ? { status } : null;
@@ -474,5 +488,72 @@ describe("⚠️ FLAG_CANCELLABLE_STATUSES — what the cancel ACTION acts on", 
     // questions gets widened for one of them and silently changes the other.
     expect([...CANCELLABLE_STATUSES].sort()).toEqual(["active", "past_due", "trialing"]);
     expect(CANCELLABLE_STATUSES.has("incomplete")).toBe(false);
+  });
+});
+
+/**
+ * ⚠️ 2.3 — THE MIRROR MUST NOT ANSWER THE ACCESS QUESTION BEFORE THE GATE DOES.
+ *
+ * `planLabelFor`'s gate branch sat at the bottom, under two checks that read the
+ * mirror. So with the gate ON, an account with no entitlement row was told it was
+ * on a "Free trial" purely because a `trialing` row existed in the mirror —
+ * driven with a real trialing subscription whose 3D Secure was abandoned, which
+ * Stripe leaves standing until it expires.
+ *
+ * `entitlements` is the only table that decides access. Asking Stripe's status
+ * first is the same inversion that produced the `/billing` filter defect.
+ */
+describe("⚠️ planLabelFor: gate on plus no entitlement is Read only, before any mirror read", () => {
+  const trialing = { status: "trialing" as const, courtesyUntil: null };
+
+  it("says Read only for a trialing mirror row with NO entitlement, gate ON", () => {
+    expect(planLabelFor(null, trialing, true)).toBe("Read only");
+  });
+
+  it("says Read only for a courtesy mirror row with NO entitlement, gate ON", () => {
+    expect(planLabelFor(null, { status: "trialing", courtesyUntil: "2026-09-01T00:00:00Z" }, true))
+      .toBe("Read only");
+  });
+
+  it("says Read only with no subscription at all, gate ON", () => {
+    expect(planLabelFor(null, null, true)).toBe("Read only");
+  });
+
+  it("⚠️ leaves the PRE-GATE world exactly as it was", () => {
+    // ~90 real accounts are here today. With the gate off nothing is withheld,
+    // so the mirror checks still run and still answer.
+    expect(planLabelFor(null, trialing, false)).toBe("Free trial");
+    expect(planLabelFor(null, null, false)).toBe("Pro");
+  });
+
+  it("does not touch anybody who actually holds an entitlement", () => {
+    // A comp is a source and is entitled: still Complimentary, gate or no gate.
+    expect(planLabelFor("comp", trialing, true)).toBe("Complimentary");
+    expect(planLabelFor("comp", null, true)).toBe("Complimentary");
+    // A stripe entitlement on a courtesy period still reads Pro, not Free trial.
+    expect(planLabelFor("stripe", { status: "trialing", courtesyUntil: "2026-09-01T00:00:00Z" }, true))
+      .toBe("Pro");
+    // And a real trial with its entitlement written still says so.
+    expect(planLabelFor("stripe", trialing, true)).toBe("Free trial");
+  });
+});
+
+/**
+ * ⚠️ THE COST OF 2.3's RULING, PINNED SO IT IS NOT REDISCOVERED AS A BUG.
+ *
+ * A legitimately new trial has a mirror row before its entitlement row exists,
+ * and in that gap the label now reads "Read only". That is a DELIBERATE trade,
+ * not an oversight: the same state is produced by an abandoned 3D Secure attempt
+ * that never gets an entitlement at all, and the mirror cannot tell the two
+ * apart. A second of flicker is the cheaper way to be wrong than a permanent
+ * "Free trial" shown to somebody who is actually locked out.
+ */
+describe("2.3's deliberate cost: the webhook gap now reads Read only", () => {
+  it("shows Read only in the gap between a trial being created and its entitlement landing", () => {
+    expect(planLabelFor(null, { status: "trialing", courtesyUntil: null }, true)).toBe("Read only");
+  });
+
+  it("and reads Free trial the moment the entitlement row exists", () => {
+    expect(planLabelFor("stripe", { status: "trialing", courtesyUntil: null }, true)).toBe("Free trial");
   });
 });

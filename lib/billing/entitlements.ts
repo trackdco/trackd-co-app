@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import {
   grantsPro,
+  PRO,
   strongestEntitlement,
   type Entitlement,
   type EntitlementProduct,
@@ -92,4 +93,48 @@ export const currentEntitlement = cache(async (): Promise<Entitlement | null> =>
   const user = await getCurrentUser();
   if (!user) return null;
   return strongestEntitlement(await listEntitlements(user.id), new Date());
+});
+
+/**
+ * ⚠️ WHEN THIS ACCOUNT'S PRO ACCESS ENDS OR ENDED, **INCLUDING WHEN IT IS ALREADY
+ * OVER.** For dates only. It decides nothing.
+ *
+ * ## The defect this exists for
+ *
+ * {@link currentEntitlement} resolves through `strongestEntitlement`, which
+ * filters to rows active RIGHT NOW. That is correct for deciding what somebody is
+ * ON — a dead row grants nothing and must not name their plan.
+ *
+ * But `/billing` also fed that same value to `manageActionFor` as the date to
+ * state, and **the guard there exists precisely for the case where the
+ * entitlement and the mirror DISAGREE.** An expired or revoked entitlement is not
+ * active, so it came back `null`, so `soonerOf` had nothing to compare and fell
+ * back to the mirror — **the guard stopped applying at exactly the moment the two
+ * dates diverge most.**
+ *
+ * Measured by a cold review: a yearly whose entitlement was clawed back to 14 Aug
+ * with the mirror still at 2027-08-16 was promised **another 365 days** of full
+ * access. A revoked dispute case was promised 31.
+ *
+ * ## Why it is a separate function rather than a looser filter
+ *
+ * The two questions must not be merged. "What does their access rest on?" has to
+ * keep excluding dead rows, or a revoked comp would be labelled Complimentary.
+ * "When does or did it end?" has to include them, or the screen over-promises.
+ * One function answering both is how this defect was written in the first place.
+ *
+ * Returns the FURTHEST date across the user's pro rows, so a live row is never
+ * under-cut by a stale one beside it, and `null` when no row names a date at all
+ * (a no-expiry comp, or no rows), which `soonerOf` correctly treats as "this
+ * source has nothing to say".
+ */
+export const entitlementEndDate = cache(async (): Promise<string | null> => {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const dated = (await listEntitlements(user.id))
+    .filter((e) => e.product === PRO && e.activeUntil !== null)
+    .map((e) => Date.parse(e.activeUntil!))
+    .filter((t) => Number.isFinite(t));
+  if (dated.length === 0) return null;
+  return new Date(Math.max(...dated)).toISOString();
 });

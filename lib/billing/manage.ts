@@ -427,6 +427,34 @@ export function planLabelFor(
   gateEnabled = false,
 ): string {
   if (source === "comp") return "Complimentary";
+
+  /**
+   * ⚠️ GATE ON PLUS NO ENTITLEMENT IS "READ ONLY", DECIDED BEFORE ANY MIRROR READ.
+   *
+   * This sat at the BOTTOM, under two checks that read the mirror — so with the
+   * gate on, an account with no entitlement row at all was told it was on a
+   * **Free trial** the instant the switch flipped, purely because a `trialing`
+   * row existed in the mirror.
+   *
+   * Driven with a real `trialing` subscription whose 3D Secure was abandoned,
+   * which is a state Stripe leaves standing until it expires. That account has
+   * no entitlement, is read-only the moment the gate is on, and was reading
+   * "Free trial" on the one screen somebody opens to find out why they are
+   * locked out.
+   *
+   * **The mirror cannot answer the access question and must not be asked first.**
+   * `entitlements` is the only table that decides access; the mirror is display.
+   * Asking "what does Stripe's status say?" before "does this account actually
+   * have access?" is the same inversion that produced the filter defect on
+   * `/billing` and the row-selection defect beside it. Founder ruling: gate on,
+   * no entitlement, "Read only", full stop.
+   *
+   * Below `comp`, because a comp IS a source and is entitled. With the gate OFF
+   * nothing changes: the pre-gate world still falls through to the mirror checks
+   * and ends at {@link FULL_ACCESS_LABEL}.
+   */
+  if (gateEnabled && !source) return NO_ACCESS_LABEL;
+
   /**
    * ⚠️ A COURTESY PERIOD IS NOT A TRIAL, even though Stripe calls it one.
    *

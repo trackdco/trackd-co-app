@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { CancelSubscription } from "@/components/billing/CancelSubscription";
 import { ManagePaymentRow } from "@/components/billing/ManagePaymentRow";
 import { STAYING_NOTICE_SLOT } from "@/components/billing/StayingNotice";
-import { currentEntitlement } from "@/lib/billing/entitlements";
+import { currentEntitlement, entitlementEndDate } from "@/lib/billing/entitlements";
 import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
 import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
 import {
@@ -203,10 +203,22 @@ export default async function BillingPage() {
   // DECIDES access, and where it and the mirror disagree the screen must state
   // the earlier of the two. See `manageActionFor` — a `past_due` user was being
   // promised twenty-seven days past the day they actually go read only.
+  /**
+   * ⚠️ THE DATE COMES FROM A READ THAT INCLUDES DEAD ENTITLEMENTS; THE SOURCE
+   * DOES NOT. Two questions, two reads, deliberately.
+   *
+   * `currentEntitlement` filters to rows active RIGHT NOW, which is right for
+   * "what is this person ON" — a revoked comp must not be labelled
+   * Complimentary. It is wrong for "when does their access end", because an
+   * expired or revoked row answered `null` and `soonerOf` then fell back to the
+   * mirror: the guard stopped applying at exactly the moment the two dates
+   * disagree most. Measured at 365 days of over-promised access on a yearly whose
+   * entitlement had been clawed back to 14 Aug.
+   */
   const action = manageActionFor(
     entitlement?.source ?? null,
     subscription,
-    entitlement?.activeUntil ?? null,
+    await entitlementEndDate(),
   );
 
   // The plan's name and amount, matched by price id. `loadPricesSafe` returns an
