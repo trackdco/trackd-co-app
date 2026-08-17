@@ -668,7 +668,50 @@ the ~85 who never had a subscription. Nobody currently gets it.
 **Not a money defect and not stop-list.** Nobody is charged, no promise is contradicted,
 and the copy is already signed so there is nothing to invent.
 
-### ✅ RULED 2026-08-17 — IT SHIPS, as `05` STEP 9, QUEUED AFTER 08 AND 09
+### ✅ BUILT AND DRIVEN — `05` STEP 9, 2026-08-18. 10/10 in `banner.scenario.ts`.
+
+`components/billing/PlanEndsTodayBanner.tsx`, wired into the dashboard's existing
+banner slot. **"Your plan ends today."**, signed, character for character.
+
+| Cohort, on its final entitled day | before | after |
+|---|---|---|
+| cancelled trialist | **0 banners** | 1 — "Your plan ends today." |
+| paying, cancelled, `stripe` entitlement ends today | **0 banners** | 1 — "Your plan ends today." |
+| trialing, not cancelled (the OVERLAP day) | 1 — `07`'s | 1 — `07`'s, final-day line suppressed |
+| entitlement three days out | 0 | 0 |
+| no entitlement at all | 0 | 0 |
+
+**Three conditions, each a decision:**
+
+1. **`trialNotice` must be null**, expressed as a single TERNARY in one slot rather
+   than two independent predicates — so `07` §3.7's "the promised reminder always
+   wins" holds by construction and cannot be broken by two conditions drifting apart.
+2. **The gate must be ON.** Not invented here: `dashboard/page.tsx:117-128` already
+   rules exactly this for `graceTrial` — *"With the switch off nothing ends. Warning
+   somebody about a deadline that is not enforced is the same lie as not warning them
+   about one that is."* Ungated it would tell **86 real beta accounts** their plan
+   ended on 31 August, a day on which nothing happens to them.
+3. **The entitlement's own `activeUntil` falls on today**, compared as local date
+   keys in the stored timezone. From the row that governs access, not from a
+   subscription — which is what makes it true for the beta cohort, who have none.
+
+⚠️ **Absent is not today.** A null entitlement means no final day and the banner does
+not render; a missing row must never be read as "ends today".
+
+Not dismissible, deliberately: §3.6b is "the last day, stated once", so there is
+nothing to remember. `TrialEndingBanner` needs a cookie because its window is days
+long.
+
+### ⚠️ Two stale tests caught while doing it
+
+`banner.scenario.ts`'s two "GAP: … sees NOTHING" cases were the evidence FOR the gap
+and **still passed after it was closed** — their fixtures have no entitlement row, so
+silence was correct for a new reason. Retitled to what they now prove (*absent is not
+today*) rather than deleted, and the precondition test that asserted the banner was
+NOT in the tree is inverted, keeping the same grep, so the day Step 9 is reverted the
+suppression cases fail loudly instead of passing vacuously.
+
+### The original ruling, kept for the record
 
 Adrian: a decided screen with no build step is the same class as D76 wired to nothing.
 **But no promise is broken** — a canceller was told the date in the cancel confirmation

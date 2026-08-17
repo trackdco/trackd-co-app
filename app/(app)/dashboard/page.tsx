@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { BetaLaunchNotice } from "@/components/billing/BetaLaunchNotice";
+import { PlanEndsTodayBanner } from "@/components/billing/PlanEndsTodayBanner";
 import { TrialEndingBanner } from "@/components/billing/TrialEndingBanner";
 import { EnableNotificationsStep } from "@/components/push/EnableNotificationsStep";
 import { InstallHomeScreenPopup } from "@/components/pwa/InstallHomeScreenPopup";
@@ -13,6 +14,7 @@ import { loadPricesSafe } from "@/lib/billing/prices";
 import { formatAccessDate } from "@/lib/billing/manage";
 import { currentEntitlement } from "@/lib/billing/entitlements";
 import { dismissedTrialNoticeDate } from "@/lib/billing/trialNoticeStore";
+import { localParts } from "@/lib/notifications/reminders";
 import {
   resolveEnding,
   trialNoticeBody,
@@ -192,6 +194,46 @@ export default async function DashboardPage() {
    * that would be a dialog flashing across the screen on every app open.
    */
   const betaEntitlement = await currentEntitlement();
+
+  /**
+   * ⚠️ `05` §3.6b — THE FINAL ENTITLED DAY, AND THE NO-DOUBLE-BANNER RULE.
+   *
+   * Three conditions, and each one is a decision:
+   *
+   * **1. `trialNotice` must be null.** `07` §3.7, stated absolutely: "on any day a
+   * user is eligible for both `05`'s final-day banner and a pair-2 reminder
+   * banner, the reminder renders and the final-day banner is suppressed. The
+   * promised reminder always wins." `05` §3.6b carries the reciprocal. It is
+   * expressed as a ternary below rather than as two independent conditions, so
+   * there is no state in which both can render — the rule holds by construction
+   * rather than by two predicates agreeing.
+   *
+   * **2. The gate must be ON**, for the reason this file already gives about
+   * `graceTrial` twenty lines up: "With the switch off nothing ends. Warning
+   * somebody about a deadline that is not enforced is the same lie as not warning
+   * them about one that is." Not a condition invented here — the same hazard, and
+   * with the gate off it is a large one: the 86 beta graces are dated 31 August,
+   * so an ungated version would tell 86 real accounts their plan ended on a day
+   * nothing happened to them.
+   *
+   * **3. The entitlement's own `activeUntil` must fall on today**, in the user's
+   * stored timezone, compared as LOCAL DATE KEYS. `05` §3.6b is "on the user's
+   * final entitled day, and on that day only", and the date comes from the row
+   * that governs access rather than from a subscription — which is what makes it
+   * true for the beta cohort, who have no subscription at all.
+   *
+   * ⚠️ Absent is NOT unknown here, and the direction is deliberate:
+   * `currentEntitlement()` returning null means no active entitlement, so there
+   * is no final day to announce and the banner does not render. A missing row
+   * must never be read as "today".
+   */
+  const finalDayEntitlement = billingGateEnabled() && !trialNotice ? betaEntitlement : null;
+  const planEndsToday = Boolean(
+    finalDayEntitlement?.activeUntil &&
+      localParts(new Date(finalDayEntitlement.activeUntil), trialTz).dateKey ===
+        localParts(new Date(), trialTz).dateKey,
+  );
+
   const showBetaNotice =
     billingGateEnabled() &&
     betaEntitlement?.source === "comp" &&
@@ -251,6 +293,9 @@ export default async function DashboardPage() {
         // Keyed for the same reason `notificationsBanner` is: this element
         // crosses the server/client boundary, so React counts it as an unkeyed
         // list child and warns on every load.
+        // ⚠️ ONE SLOT, ONE TERNARY, so `07` §3.7's no-double-banner rule cannot be
+        // broken by two predicates drifting apart: the reminder wins, and `05`
+        // §3.6b's final-day line is only ever the ELSE branch.
         trialBanner={
           trialNotice ? (
             <TrialEndingBanner
@@ -260,6 +305,8 @@ export default async function DashboardPage() {
               forDate={trialNotice.forDate}
               userId={user.id}
             />
+          ) : planEndsToday ? (
+            <PlanEndsTodayBanner key="plan-ends-today" />
           ) : null
         }
         // Slim, persistent "Enable notifications" prompt, rendered above Today's

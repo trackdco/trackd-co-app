@@ -130,7 +130,15 @@ describe("07 Step 5 — exactly one banner on the overlap day, and it is 07's", 
    * which banner wins; if `05`'s line were in the tree under some other
    * condition, "absent" would mean something different in each one.
    */
-  it("05's final-day banner is not in the tree at all", async () => {
+  it("05's final-day banner IS in the tree — the precondition, inverted on 2026-08-18", async () => {
+    /**
+     * ⚠️ THIS TEST USED TO ASSERT THE OPPOSITE, and its own failure message said
+     * "05 §3.6b's banner exists after all — rewrite these cases". It does now:
+     * `05` Step 9 built it. So the same grep is kept and the expectation flipped,
+     * rather than the test being deleted — it is the precondition every case in
+     * this file depends on, and the day it silently stops being true is the day
+     * the suppression cases start passing for the wrong reason.
+     */
     const { execFileSync } = await import("node:child_process");
     const root = new URL("../../", import.meta.url).pathname;
     let hits = "";
@@ -143,17 +151,11 @@ describe("07 Step 5 — exactly one banner on the overlap day, and it is 07's", 
     } catch {
       hits = ""; // grep exits 1 on no match
     }
-    // CONTROL: the same grep finds a line that IS there, so an empty result is
-    // "not present" rather than "grep did not run".
-    const control = execFileSync(
-      "grep",
-      ["-rln", "--include=*.ts", "Your free trial ends", "lib"],
-      { cwd: root, encoding: "utf8" },
-    );
-    expect(control.trim().length, "the control grep found nothing, so the search is broken").toBeGreaterThan(0);
-    console.log(`  control grep hit: ${control.trim()}`);
-    console.log(`  "${FINAL_DAY_LINE}" hits: ${hits.trim() || "(none)"}`);
-    expect(hits.trim(), "05 §3.6b's banner exists after all — rewrite these cases").toBe("");
+    console.log(`  "${FINAL_DAY_LINE}" hits:\n${hits.trim() || "(none)"}`);
+    expect(
+      hits.trim().length,
+      "05 §3.6b's banner is NOT in the tree — Step 9 was reverted, and every suppression case below is vacuous",
+    ).toBeGreaterThan(0);
   }, 60_000);
 
   it("A trialing account on its FINAL DAY gets one banner, and it is 07's", async () => {
@@ -221,7 +223,26 @@ describe("07 Step 5 — exactly one banner on the overlap day, and it is 07's", 
   }, 300_000);
 });
 
-describe("07 Step 5 — and the days 07's reminder does NOT cover", () => {
+/**
+ * ⚠️ SUPERSEDED BY `05` STEP 9, AND KEPT ONLY AS A REGRESSION FENCE.
+ *
+ * These two cases were the EVIDENCE for the gap: on 2026-08-17 a cancelled
+ * trialist and a cancelled paying account each saw ZERO banners on their final
+ * entitled day, because `07`'s reminder excludes them and `05` §3.6b's banner had
+ * never been built.
+ *
+ * **`05` Step 9 built it on 2026-08-18, so the gap is closed** — and these two
+ * still pass, which is the part worth saying out loud: their fixtures have NO
+ * entitlement row at all, so there is no final day to announce and the banner is
+ * correctly silent. They no longer measure the gap they were named for.
+ *
+ * Retitled rather than deleted, because what they now prove is worth keeping:
+ * **absent is not today.** A missing entitlement must never be read as "ends
+ * today", which is standing rule 0 in the direction that would put a false banner
+ * on somebody's dashboard. The cohorts that DO have a final day are covered by the
+ * `05` Step 9 block below.
+ */
+describe("07 Step 5 — a cancelled account with NO entitlement announces nothing", () => {
   /**
    * ⚠️ `05` §5: "the final-day banner still renders on days this spec's reminder
    * does not". These two cases are those days, and NOTHING renders on them.
@@ -236,7 +257,7 @@ describe("07 Step 5 — and the days 07's reminder does NOT cover", () => {
    * It is not a money defect: nobody is charged and no promise is contradicted.
    * It is a decided screen that was never built, recorded here by observation.
    */
-  it("GAP: a cancelled trialist on their final entitled day sees NOTHING", async () => {
+  it("a cancelled trialist with no entitlement row sees no banner", async () => {
     const endsAt = laterToday();
     const account = await seedAccount(ledger, "qa07-cancelled-final", {
       trialEndsAt: endsAt,
@@ -261,15 +282,20 @@ describe("07 Step 5 — and the days 07's reminder does NOT cover", () => {
     // CONTROL: the page rendered. Asserted inside `openDashboard` by waiting for
     // the shell before reading anything.
     expect(seen.bannerCount, "07's reminder is reaching a cancelled account").toBe(0);
+    /**
+     * ⚠️ NOT "the gap is still open" any more. `05` Step 9's banner exists now;
+     * this fixture has no entitlement, so there is no final day and silence is
+     * correct. A missing row read as "today" would be the defect.
+     */
     expect(
       seen.finalDayLinePresent,
-      "05's final-day banner is present after all — the gap is closed",
+      "a missing entitlement was announced as a final day",
     ).toBe(false);
 
     await seen.context.close();
   }, 300_000);
 
-  it("GAP: a paying account whose plan ends today sees NOTHING", async () => {
+  it("a cancelled paying account with no entitlement row sees no banner", async () => {
     const endsAt = laterToday();
     const account = await seedAccount(ledger, "qa07-active-final", {
       currentPeriodEnd: endsAt,
@@ -295,6 +321,201 @@ describe("07 Step 5 — and the days 07's reminder does NOT cover", () => {
     expect(seen.bannerCount).toBe(0);
     expect(seen.finalDayLinePresent).toBe(false);
 
+    await seen.context.close();
+  }, 300_000);
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   05 STEP 9 — THE FINAL-DAY BANNER, BUILT AND DRIVEN
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * ⚠️ REQUIRES THE GATE ON: `BILLING_GATE_ENABLED=true npm run dev`.
+ *
+ * `05` §3.6b's banner is gated for the reason `dashboard/page.tsx` already gives
+ * about `graceTrial`: "With the switch off nothing ends. Warning somebody about a
+ * deadline that is not enforced is the same lie as not warning them about one that
+ * is." With the gate off this renders for nobody, by design — so a gate-off run
+ * would report every case below as a pass while testing nothing.
+ */
+const FINAL_DAY = "Your plan ends today.";
+
+/** Later today in UTC, which is the account's stored zone in these fixtures. */
+function laterTodayUtc(): string {
+  return new Date(Date.now() + 3 * 3_600_000).toISOString();
+}
+
+describe("05 Step 9 — the final entitled day, stated once", () => {
+  /**
+   * ⚠️ THE TWO COHORTS THAT PREVIOUSLY SAW NOTHING. Measured on 2026-08-17 as
+   * ZERO banners each: `trialNoticeFor` returns null on its first line for
+   * `cancelAtPeriodEnd` and for any status that is not `trialing`
+   * (`trialReminder.ts:291`). This is the gap §3.6b was decided to fill.
+   */
+  it("a CANCELLED trialist on their final entitled day now gets exactly one banner", async () => {
+    const endsAt = laterTodayUtc();
+    const account = await seedAccount(ledger, "qa05-cancelled-final", {
+      trialEndsAt: endsAt,
+      status: "trialing",
+      cancelAtPeriodEnd: true,
+      graceUntil: endsAt,
+      timezone: "UTC",
+      notificationsEnabled: false,
+    });
+
+    /* ── ⚠️ ARRIVAL: cancelled, and an entitlement that really ends today ── */
+    const sub = await admin
+      .from("subscriptions")
+      .select("cancel_at_period_end, status")
+      .eq("user_id", account.id)
+      .maybeSingle();
+    expect(sub.data?.cancel_at_period_end, "not cancelled, so 07's banner might cover it").toBe(true);
+    const ent = await admin
+      .from("entitlements")
+      .select("active_until, is_active")
+      .eq("user_id", account.id)
+      .maybeSingle();
+    expect(ent.data?.active_until, "no entitlement date, so there is no final day").not.toBeNull();
+    expect(ent.data?.is_active).toBe(true);
+
+    const seen = await openDashboard(account.email);
+    console.log(`  cancelled trialist: banners=${seen.bannerCount} -> ${JSON.stringify(seen.bannerText)}`);
+
+    expect(seen.finalDayLinePresent, "05 §3.6b's banner did not render for the cohort it is FOR").toBe(true);
+    /**
+     * ⚠️ EXACTLY ONE. Two banners about one ending is worse than either alone
+     * (§3.7), so the count matters as much as the presence.
+     */
+    expect(seen.bannerCount, "not exactly one banner on the final entitled day").toBe(1);
+    expect(seen.bannerText[0]).toContain(FINAL_DAY);
+    // It must not have acquired 07's wording, which would be the wrong promise.
+    expect(seen.bannerText[0], "the final-day banner is describing a trial").not.toContain("trial");
+
+    await seen.context.close();
+  }, 300_000);
+
+  it("a PAYING account whose cancelled period ends today now gets exactly one banner", async () => {
+    const endsAt = laterTodayUtc();
+    const account = await seedAccount(ledger, "qa05-active-final", {
+      currentPeriodEnd: endsAt,
+      status: "active",
+      cancelAtPeriodEnd: true,
+      timezone: "UTC",
+      notificationsEnabled: false,
+    });
+
+    /**
+     * ⚠️ A `stripe` ENTITLEMENT, NOT A COMP — and the first version of this
+     * fixture got it wrong in a way that read as a product defect.
+     *
+     * It used `graceUntil`, which is the only entitlement `seedAccount` writes and
+     * which writes `source: "comp"`. A comp WITH an expiry is by definition the
+     * beta grace (`06` §3.2), so `graceAsTrial` described this paying account as a
+     * grace, `07`'s reminder fired "Your free access ends today.", and that
+     * SUPPRESSED the banner under test. The failure looked like 05 Step 9 not
+     * rendering; it was the fixture describing the wrong cohort.
+     *
+     * A paying subscriber's entitlement is `source: "stripe"`, which
+     * `graceAsTrial`'s comp test deliberately excludes — the same guard `06` §3.5
+     * calls load-bearing.
+     */
+    const { error } = await admin.from("entitlements").insert({
+      user_id: account.id,
+      product: "pro",
+      source: "stripe",
+      active_until: endsAt,
+      is_active: true,
+    });
+    if (error) throw new Error(`stripe entitlement: ${error.message}`);
+
+    /* ── ⚠️ ARRIVAL: the entitlement is stripe-sourced and ends today ──── */
+    const ent = await admin
+      .from("entitlements")
+      .select("source, active_until")
+      .eq("user_id", account.id)
+      .maybeSingle();
+    expect(ent.data?.source, "not a stripe entitlement, so this is the grace cohort again").toBe(
+      "stripe",
+    );
+
+    const seen = await openDashboard(account.email);
+    console.log(`  paying, ends today: banners=${seen.bannerCount} -> ${JSON.stringify(seen.bannerText)}`);
+    expect(seen.finalDayLinePresent).toBe(true);
+    expect(seen.bannerCount).toBe(1);
+    expect(seen.bannerText[0]).toContain(FINAL_DAY);
+    await seen.context.close();
+  }, 300_000);
+
+  /**
+   * ⚠️ THE NO-DOUBLE-BANNER RULE, FROM `07`'s SIDE. On the overlap day the
+   * reminder wins and this banner is suppressed. Driven rather than reasoned
+   * about, because the two used to be independent predicates and the whole point
+   * of the ternary is that they cannot both fire.
+   */
+  it("on the OVERLAP day the reminder wins and the final-day line is suppressed", async () => {
+    const endsAt = laterTodayUtc();
+    const account = await seedAccount(ledger, "qa05-overlap", {
+      // Trialing, NOT cancelled, so 07's reminder is eligible...
+      trialEndsAt: endsAt,
+      status: "trialing",
+      // ...and an entitlement ending today, so 05's banner is eligible too.
+      graceUntil: endsAt,
+      timezone: "UTC",
+      notificationsEnabled: false,
+    });
+
+    const seen = await openDashboard(account.email);
+    console.log(`  overlap day: banners=${seen.bannerCount} -> ${JSON.stringify(seen.bannerText)}`);
+
+    /* ── ⚠️ ARRIVAL: 07's reminder really is the one on screen ─────────── */
+    expect(seen.bannerCount, "not exactly one banner on the overlap day").toBe(1);
+    expect(seen.bannerText[0], "07's reminder is not the banner that rendered").toContain("ends today");
+    expect(
+      seen.finalDayLinePresent,
+      "BOTH banners rendered — the promised reminder did not win",
+    ).toBe(false);
+
+    await seen.context.close();
+  }, 300_000);
+
+  /**
+   * ⚠️ ONE DAY ONLY. §3.6b: "Not a countdown, not a week of escalating notices."
+   * An entitlement ending in three days must produce nothing from this banner —
+   * and the CONTROL is that the same fixture one day later does produce it, which
+   * the cases above already establish.
+   */
+  it("does NOT render before the final day", async () => {
+    const account = await seedAccount(ledger, "qa05-notyet", {
+      currentPeriodEnd: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+      status: "active",
+      cancelAtPeriodEnd: true,
+      graceUntil: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+      timezone: "UTC",
+      notificationsEnabled: false,
+    });
+
+    const seen = await openDashboard(account.email);
+    console.log(`  three days out: banners=${seen.bannerCount}, final-day line=${seen.finalDayLinePresent}`);
+    expect(seen.finalDayLinePresent, "the final-day banner rendered three days early").toBe(false);
+    await seen.context.close();
+  }, 300_000);
+
+  /**
+   * ⚠️ AND ABSENT IS NOT TODAY. An account with no active entitlement at all has
+   * no final day to announce, and a missing row must never be read as "today" —
+   * standing rule 0, in the direction that would put a false banner on screen.
+   */
+  it("does NOT render for an account with no entitlement at all", async () => {
+    const account = await seedAccount(ledger, "qa05-noent", {
+      timezone: "UTC",
+      notificationsEnabled: false,
+    });
+    const ent = await admin.from("entitlements").select("id").eq("user_id", account.id);
+    expect(ent.data?.length ?? 0, "the fixture has an entitlement after all").toBe(0);
+
+    const seen = await openDashboard(account.email);
+    console.log(`  no entitlement: banners=${seen.bannerCount}, final-day line=${seen.finalDayLinePresent}`);
+    expect(seen.finalDayLinePresent, "a missing entitlement was read as 'ends today'").toBe(false);
     await seen.context.close();
   }, 300_000);
 });
