@@ -4,7 +4,81 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-15 (billing spec 01 built and driven; 02a and 02b next)
+Last updated: 2026-08-17 (spec 11 Steps 1-2 built; D86 written; the 29 Aug grace
+reminder traced)
+
+---
+
+## 🔴 MUST CLOSE BEFORE 07 SHIPS — the grace reminder degrades into the trial copy
+
+**Traced 2026-08-17, four ways, then adversarially refuted three ways. Not live
+today. Latent, and it opens the moment 07 is deployed.**
+
+**The question:** can the production cron push "your free access ends" to the 86 real
+grace accounts on 29 August, with `BILLING_GATE_ENABLED` unset and `06`'s notice never
+shown? (The 86 graces end 2026-08-31; the reminder lead is two days.)
+
+**Today: NO, for two independent reasons.** Production runs `origin/main` (`b925568`),
+which does not contain `lib/notifications/trialReminder.ts` or `lib/billing/gate.ts` at
+all — the reminder engine is not deployed. And on this branch, the grace read is behind
+the gate: `runner.ts:202-211` makes the `entitlements` query the *then* branch of a
+`billingGateEnabled()` ternary, so with the flag unset the row is never fetched, `trial`
+is null, and `trialReminderVerdict` returns `no-trial` on its first line.
+
+**⚠️ THE DANGEROUS PATH IS NOT THE GATED ONE, AND IT IS NOT GATED AT ALL.**
+
+The sibling read at `runner.ts:150-161` — `subscriptions` where `status='trialing'` —
+has **no gate on it**, and `runner.ts:270-276` PREFERS it: `trial = row ? {...} : grace`.
+
+So when one of the 86 subscribes mid-grace:
+
+1. `01` §3.4 creates the subscription with `trial_end` = **the grace end**, not a day
+   count (`billing-actions.ts:834`, `freeTime.ts:85`);
+2. the webhook mirrors it verbatim — `trial_ends_at: ts(sub.trial_end)` (`sync.ts:678`);
+3. the mirror row now exists, so `grace` is null and
+   **`isBetaGrace` is false** (`runner.ts:290`);
+4. `courtesyUntil` reads null, so `resolveEnding` returns `{kind:"trial"}`
+   (`trialReminder.ts:258`);
+5. the push becomes **"Your free trial ends soon" / "Day 5 of 7. Your trial ends on
+   31 Aug, and billing starts then."** (`trialReminder.ts:499-501`).
+
+**That is Law 5 broken twice over, to a beta account.** The fortnight is "14 days on
+us" and NEVER a trial; "Day 5 of 7" is false about both the day and the length; and
+`06` §3.5 names this exact regression — *"must tell a beta account their free access is
+ending, never that their trial is ending and billing is about to start — ninety people
+with no card on file were told exactly that by an earlier version."* The correct grace
+copy exists and is right (`trialReminder.ts:484-497`); the guard that selects it lives
+only inside the `isBetaGrace` branch, which this path walks around.
+
+**Blast radius, measured rather than assumed:** 86 grace accounts, of which **13** have
+both `notifications_enabled` and a push device today, and **0** have
+`trial_reminder_sent_for` stamped, so nothing is deduped away.
+
+⚠️ **13 is a floor, not a ceiling.** `savePushSubscription` writes the device row and
+flips `notifications_enabled` in one action (`pushActions.ts:66-107`), and the enable
+prompt is deliberately non-dismissable and renders on every dashboard load
+(`EnableNotificationsStep.tsx:13,36`). Every marginal enabler is drawn from a pool that
+is 100% grace-shaped. The bound on 29 August is 86.
+
+⚠️ **`subscriptions = 0` is the PRECONDITION, not a comfort.** The grace is computed
+only when there is no mirror row (`runner.ts:259-268`), so an empty mirror is exactly
+what makes all 86 eligible. Any argument of the form "no money has moved, so this is
+low risk" is backwards for this hazard.
+
+**Owed:** `07` Steps 4-7 must make the grace copy survive a mirror row — the reminder
+needs to ask "is this account on a beta grace" from something the mirror cannot
+overwrite, rather than inferring it from the absence of a subscription.
+
+### Two operational notes found in the same trace
+
+- **The dev server on :3100 is bound to `TCP *:3100`, not loopback**, and serves this
+  branch with the production service-role key, production VAPID keys and the production
+  `CRON_SECRET` from `.env.local`. `app/api/notifications/run/route.ts:99-100` exports
+  **GET as well as POST**. Anything that can reach that port with the secret can run the
+  reminder engine against production devices with no deploy.
+- **`claimTrialReminder` stamps `trial_reminder_sent_for` BEFORE the send**
+  (`runner.ts:975`), so a misfire also burns the dedupe key and would later suppress the
+  genuine reminder as `already-sent`.
 
 ---
 

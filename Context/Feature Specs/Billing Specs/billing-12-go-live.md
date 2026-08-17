@@ -331,10 +331,40 @@ the day.
 **P10 — Publish the legal documents and the switch-on terms line.** *Worked when:* both
 links in `06`'s notice resolve.
 
-**P11 — Run the beta backfill.**
+**P11 — Apply the re-dating migration by hand, then verify the rows.**
 
-**⚠️ D81: THE BACKFILL MUST NOT RESURRECT A REVOKED COMP. Fix this before P11 runs,
-because P11 runs on launch morning.**
+**⚠️ THE BACKFILL HAS ALREADY RUN. P11 IS NO LONGER "run the backfill" (D86).**
+
+`POST /api/billing/beta-grace` was driven live against production on **2026-08-17
+00:48:47 UTC**, 95 seconds before commit `e21c66a`, as part of the D81 verification —
+D81 needed the route's upgrade branch and only a live run reaches it. Ninety rows
+were written: **86 dated to 2026-08-31**, 4 free for life. Nobody planned that, and
+it is a process finding rather than a blame question: a route whose whole remit is
+"act on every account" was called in a test, and it did.
+
+**The route cannot repair it.** Its predicate is "has a row at all", deliberately
+(an "active" test would re-grant a fresh fortnight to every lapsed account on every
+re-run), so it now skips all ninety. **⚠️ DO NOT CALL THAT ROUTE AGAIN as part of
+this step, in any mode.**
+
+So P11 is now: **apply `supabase/billing/004_regrace_launch_date.sql` by hand**, in
+the Supabase SQL Editor, on launch morning. It re-dates the 86 dated comp rows to
+**the moment it is applied plus fourteen days** and leaves the 4 undated rows, every
+non-comp row, and any revoked row alone. There is no date to type in — it computes
+from `now()` — and it is pinned to the original backfill instant, so applying it
+twice moves nobody rather than granting a second fortnight.
+
+**Why it must be applied and not skipped.** `06` §3.6's approved notice reads *"two
+more weeks on us, until [date]"*, and "two more weeks" is measured from the day the
+notice is shown. Launch on the 20th and the true remainder is eleven days; slip to
+the 25th and it is six. The screen would contradict its own date, in the direction
+that takes access away early.
+
+**⚠️ D81 IS FIXED AND STAYS FIXED.** The revoked-comp resurrection and the
+never-looked-at-a-calendar classifier were both closed in `e21c66a`. The migration
+carries the same guard — it will not touch a row whose `is_active` is false —
+because a revocation is a decision somebody made and a re-dating job is not
+entitled to reverse it.
 
 Two findings, both driven, and they compound.
 
@@ -355,16 +385,19 @@ happens because a classifier did not look at a date.
 dated row that has expired must classify as expired, not as grace. `01` decides what
 then happens; this decision only requires that the question is asked.
 
-**⚠️ THIS IS THE POINT OF NO RETURN, SHORT OF THE KILL SWITCH. Running the backfill
-starts the fortnight for all ~85 accounts and fixes the date that every surface then
-shows them** — the notice, the banner, the reminder, the Billing screen. It cannot be
-re-run to move anybody, because the predicate is "has a row at all".
+**⚠️ THIS IS STILL THE POINT OF NO RETURN, SHORT OF THE KILL SWITCH (D52). Applying
+the re-dating fixes the date that every surface then shows them** — the notice, the
+banner, the reminder, the Billing screen. The warning transfers intact from the
+backfill to the migration, because the date it sets is the date all four surfaces
+read.
 
-**Run it only after the deploy is verified healthy.** A deploy that has to be rolled
-back after the backfill has run leaves eighty-five people holding a date the app is no
-longer able to honour.
-*Worked when:* the row count matches the account count and every row shares one expiry
-instant.
+**Apply it only after the deploy is verified healthy.** A deploy that has to be
+rolled back afterwards leaves eighty-six people holding a date the app is no longer
+able to honour.
+*Worked when:* the row count matches the account count, every dated row shares ONE
+expiry instant fourteen days out, the 4 undated rows are still undated, and no row
+still carries `2026-08-31 00:48:47.401+00`. The file's VERIFY block returns exactly
+this.
 
 **P12 — Verify the rows.** *Worked when:* counted directly, not inferred from the
 route's response.
