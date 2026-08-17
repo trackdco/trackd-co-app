@@ -599,6 +599,50 @@ export async function extendFromInvoice(
  */
 const PAST_DUE_GRACE_DAYS = 3;
 
+
+/**
+ * ⚠️ THE `stripe` ENTITLEMENT'S END DATE, WITH THE THIRD STATE THE CALLERS NEED.
+ *
+ * Both shortening paths — {@link markPastDue} and {@link endSubscription} — used
+ * `const { data } = await db...` and then `if (!current) return "handled"`. The
+ * error was discarded, so **a read that FAILED was indistinguishable from a row
+ * that does not exist**, and both answered "nothing to shorten". That is standing
+ * rule 0 in the money path, twice, and permissive in both:
+ *
+ *   markPastDue        the rolled-forward UNPAID period is left standing, which is
+ *                      the family the measured +58 unpaid days came from
+ *   endSubscription    access SURVIVES a cancellation
+ *
+ * So the return widens to three states and the callers answer them differently.
+ * The shape is `compEntitlement`'s (`app/onboarding/billing-actions.ts:1730`) —
+ * a discriminated union with an explicit `unknown` — rather than a new one.
+ *
+ * ⚠️ AND `present` WITH A NULL DATE IS NOT `absent`. A row that exists with no
+ * `active_until` is a real row with no end date, and the pre-existing behaviour
+ * for it is "nothing to shorten". Collapsing the two here would change a second
+ * thing while fixing the first.
+ */
+type StripeEntitlementRead =
+  | { kind: "present"; activeUntil: string | null }
+  | { kind: "absent" }
+  | { kind: "unknown"; message: string };
+
+export async function readStripeEntitlement(
+  db: ReturnType<typeof serviceClient>,
+  userId: string,
+): Promise<StripeEntitlementRead> {
+  const { data, error } = await db
+    .from("entitlements")
+    .select("active_until")
+    .eq("user_id", userId)
+    .eq("product", "pro")
+    .eq("source", "stripe");
+  if (error) return { kind: "unknown", message: error.message };
+  const row = data?.[0];
+  if (!row) return { kind: "absent" };
+  return { kind: "present", activeUntil: (row.active_until as string | null) ?? null };
+}
+
 /**
  * `invoice.payment_failed` — record `past_due`, and CLAW BACK the free month.
  *
@@ -720,15 +764,23 @@ export async function markPastDue(
   const graceEnds =
     Date.parse(unpaidFrom) + PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
 
-  const { data: ents } = await db
-    .from("entitlements")
-    .select("active_until")
-    .eq("user_id", userId)
-    .eq("product", "pro")
-    .eq("source", "stripe");
-
-  const current = ents?.[0]?.active_until;
-  if (!current) return "handled"; // Nothing to shorten.
+  const read = await readStripeEntitlement(db, userId);
+  /**
+   * ⚠️ A FAILED READ IS NOT "NOTHING TO SHORTEN". THROWING IS THE REFUSAL.
+   *
+   * A throw leaves `processed_at` NULL and Stripe retries the event
+   * (`app/api/stripe/webhook/route.ts:87`), which is this system's documented way
+   * of saying "we could not do the work". Returning "handled" would tell Stripe
+   * the shortening was applied and leave the unpaid period standing forever.
+   */
+  if (read.kind === "unknown") {
+    throw new Error(
+      `[billing] could not read the stripe entitlement for ${userId} while marking past due ` +
+        `(${read.message}); refusing to report this event handled`,
+    );
+  }
+  const current = read.kind === "present" ? read.activeUntil : null;
+  if (!current) return "handled"; // Genuinely nothing to shorten.
 
   /**
    * ⚠️ THE CLAWBACK IS ABOUT *THIS* SUBSCRIPTION, AND THE ROW IS SHARED.
@@ -819,14 +871,20 @@ export async function endSubscription(
     return "handled";
   }
 
-  const { data: existing } = await db
-    .from("entitlements")
-    .select("active_until")
-    .eq("user_id", userId)
-    .eq("product", "pro")
-    .eq("source", "stripe");
-
-  const current = existing?.[0]?.active_until;
+  const read = await readStripeEntitlement(db, userId);
+  /**
+   * ⚠️ AND HERE THE PERMISSIVE FAILURE IS WORSE: access SURVIVES A CANCELLATION.
+   *
+   * Same refusal, same reason. Stripe retries; nothing is reported handled on a
+   * read we could not perform.
+   */
+  if (read.kind === "unknown") {
+    throw new Error(
+      `[billing] could not read the stripe entitlement for ${userId} while ending the subscription ` +
+        `(${read.message}); refusing to report this event handled`,
+    );
+  }
+  const current = read.kind === "present" ? read.activeUntil : null;
   // No row yet, or one that already ends sooner — nothing a cancellation should
   // do. Cancelling is not a way to buy time.
   if (!current) return "handled";

@@ -114,6 +114,12 @@ interface UserData {
    */
   canWrite: boolean;
   /**
+   * ⚠️ The entitlement read FAILED — not "there is no grace". See finding 7's
+   * note in `collectTrial`: the two must not collapse, because one is a fact
+   * about the account and the other is a fact about our database.
+   */
+  entitlementsUnknown: boolean;
+  /**
    * The reminder date already sent for, from `trial_reminder_sent_for`.
    *
    * `undefined` is a THIRD state and not the same as null: it means
@@ -145,6 +151,13 @@ async function collectTrial(
   sentFor: string | null | undefined;
   /** False when the gate is on and this account has lapsed into read only. */
   canWrite: boolean;
+  /**
+   * ⚠️ THE THIRD STATE FOR THE ENTITLEMENT READ (standing rule 0, finding 7).
+   * True means the read FAILED, which is not the same as "no grace": the caller
+   * must not report `no-trial` for it, because that is a permanent invisible
+   * silence on an account that may be days from losing access.
+   */
+  entitlementsUnknown: boolean;
 }> {
   const [subRes, stampRes, graceRes] = await Promise.all([
     supabase
@@ -222,6 +235,36 @@ async function collectTrial(
    * A REAL TRIAL WINS. Somebody on the grace who then starts a trial has both,
    * and the one about to take money is the one worth warning about.
    */
+  /**
+   * ⚠️ ONE READ, TWO DECISIONS, AND THEY MUST ANSWER `unknown` DIFFERENTLY.
+   *
+   * This was `(graceRes.data ?? [])` — standing rule 0, finding 7 — and the single
+   * collapse fed two questions that need opposite failure directions:
+   *
+   *   canWrite   an unreadable entitlement must REFUSE. An account we cannot
+   *              confirm is entitled is silenced for dose and low-stock nudges,
+   *              consistent with `hasProAccess`. `[]` already produced that, and
+   *              it is now explicit rather than incidental.
+   *   graceRow   an unreadable entitlement must NOT be read as "no grace". That
+   *              silence is the one `06`'s notice and `07`'s reminder exist to
+   *              prevent, and the comment fifteen lines down already says the
+   *              warnings are "deliberately NOT gated" on write access because
+   *              "the person they matter most to is precisely the one who can no
+   *              longer write".
+   *
+   * ⚠️ DORMANT TODAY, ARMED AT P12a. The whole query is behind
+   * `billingGateEnabled()`, so with the gate off `graceRes` is a resolved
+   * `{data: null, error: null}` and this cannot fire. It becomes live the moment
+   * the gate flips, which is why it must be DRIVEN with the gate on rather than
+   * reasoned about.
+   */
+  const entitlementsUnknown = Boolean(graceRes.error);
+  if (entitlementsUnknown) {
+    console.error(
+      `[reminders] entitlements unreadable for ${userId} (${graceRes.error?.message}); ` +
+        `write access REFUSED and the ending warning deferred to the next tick, not suppressed`,
+    );
+  }
   const entitlementRows = (graceRes.data ?? []) as Record<string, unknown>[];
 
   /**
@@ -287,7 +330,19 @@ async function collectTrial(
         | null
         | undefined) ?? null;
 
-  return { trial, isBetaGrace: Boolean(grace) && trial === grace, sentFor, canWrite };
+  return {
+    trial,
+    isBetaGrace: Boolean(grace) && trial === grace,
+    sentFor,
+    canWrite,
+    /**
+     * ⚠️ CARRIED OUT so the caller can tell "this account has no ending" from "we
+     * could not find out". Without it both arrive as `trial: null` and the runner
+     * reports `no-trial` — a permanent, invisible silence on an account that may
+     * be days from losing access.
+     */
+    entitlementsUnknown,
+  };
 }
 
 /**
@@ -677,7 +732,8 @@ async function collectUserData(
     };
   });
 
-  const { trial, isBetaGrace, sentFor, canWrite } = await collectTrial(supabase, userId);
+  const { trial, isBetaGrace, sentFor, canWrite, entitlementsUnknown } =
+    await collectTrial(supabase, userId);
 
   return {
     prefs: prefsRes.data as Record<string, unknown> | null,
@@ -692,6 +748,7 @@ async function collectUserData(
     trialSentFor: sentFor,
     isBetaGrace,
     canWrite,
+    entitlementsUnknown,
   };
 }
 
@@ -950,7 +1007,31 @@ export async function runForUser(
         now,
         data.trialSentFor,
       );
-      if (verdict.send && data.trial) {
+      /**
+       * ⚠️ AN UNREADABLE ENTITLEMENT MUST NOT REPORT `no-trial` (finding 7).
+       *
+       * `no-trial` is a statement about the ACCOUNT — it has no ending to warn
+       * about. A failed entitlement read is a statement about OUR DATABASE, and
+       * collapsing the two makes an account that may be days from losing access
+       * indistinguishable from one that has nothing to lose, in the cron's own
+       * response payload — which `07` §3.9 names as "the only observability this
+       * system has".
+       *
+       * ⚠️ IT DEFERS RATHER THAN SUPPRESSES, and the distinction is the whole
+       * ruling. Nothing is claimed or stamped on this path, so the reminder is not
+       * burned: the next tick (minutes later) reads again and sends. What is
+       * removed is the PERMANENT INVISIBLE silence.
+       *
+       * ⚠️ What it deliberately does NOT do is compose a warning. Without the row
+       * there is no `active_until`, and a warning that cannot name the date is
+       * exactly what `04` §3.2 and `06` §3.2 both delete rather than weaken — "a
+       * version that cannot name the date is not a weaker acceptable variant, it
+       * is one that must not render". A DATELESS ending warning would need signing
+       * before it could exist. Flagged for a ruling rather than invented.
+       */
+      if (!verdict.send && verdict.reason === "no-trial" && data.entitlementsUnknown) {
+        trialReason = "entitlements-unreadable";
+      } else if (verdict.send && data.trial) {
         /**
          * The three endings need different words. `data.trial` is the same shape
          * for all of them (see `graceAsTrial`), so the discriminator rides along

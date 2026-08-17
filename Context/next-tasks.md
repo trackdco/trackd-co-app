@@ -9,6 +9,96 @@ reminder traced)
 
 ---
 
+## 🔴 STANDING RULE 0 — THE THIRTEEN-INSTANCE SWEEP, RECORDED 2026-08-18
+
+The read-only sweep from the second session. **None of it was written down anywhere
+before this heading existed.** Each row: where, what the default is, which decision it
+feeds, and which way it fails.
+
+### FIXED BEFORE LAUNCH — three, all driven
+
+| # | Where | The default | Decision it feeds | Fails |
+|---|---|---|---|---|
+| **1** | `sync.ts` `markPastDue` | `{ data }`, error discarded → `!current` → `"handled"` | whether to shorten a rolled-forward UNPAID period | **permissive** — the unpaid period stands. The family the measured **+58 unpaid days** came from |
+| **2** | `sync.ts` `endSubscription` | same shape | whether a cancellation shortens access | **permissive** — access SURVIVES a cancellation |
+| **7** | `runner.ts:225` `(graceRes.data ?? [])` | `[]` | BOTH `canWrite` and `graceRow`, from one collapse | `canWrite` refusing (right); `graceRow` **permissive into silence** — an account lapses with no warning |
+
+**1 and 2** now go through `readStripeEntitlement`, a three-state discriminated union
+in `compEntitlement`'s shape (`billing-actions.ts:1730`), and **throw** on `unknown` —
+which leaves `processed_at` NULL so Stripe retries (`webhook/route.ts:87`), the
+documented way of saying "we could not do the work". ⚠️ **`present` with a null date is
+NOT `absent`**: collapsing those would have changed a second thing while fixing the
+first. 5 unit tests, mutation-checked — reverting one refusal fails with "a shortening
+path stopped refusing on an unreadable entitlement".
+
+⚠️ **The `absent` control is the point of finding 1 and 2's tests.** On
+`subscription.deleted`, trading a permissive failure for a refusing one would revoke
+access from somebody entitled. A genuinely missing row must still answer `"handled"`.
+
+**7** splits one read into two answers: `canWrite` stays REFUSING on unknown;
+`graceRow` becomes unknown and the silence is no longer permanent or invisible.
+Driven with the gate ON (`rule0.scenario.ts`), and **the scenario refuses to run with
+the gate off** rather than passing vacuously, because the whole query is the `then`
+branch of a `billingGateEnabled()` ternary.
+
+⚠️ **What finding 7 does NOT do, and it needs a ruling.** It does not compose a
+warning. Without the row there is no `active_until`, and a warning that cannot name the
+date is what `04` §3.2 and `06` §3.2 both DELETE rather than weaken — "a version that
+cannot name the date is not a weaker acceptable variant, it is one that must not
+render". So the fix removes the *permanent invisible* silence (loud log, distinct
+reason, nothing claimed, next tick retries) but does not send a dateless warning. **A
+dateless ending warning would need signing before it could exist.**
+
+⚠️ **And what the drive does not observe:** the `entitlements-unreadable` REASON
+reaching the cron payload. The restricted client cannot read `profiles` either, so the
+runner bails at `reason: "disabled"` first; reaching it needs a client that can read
+`profiles` but not `entitlements`, i.e. a grant change on a production table, which is
+banned. The SPLIT, the LOG and the non-burn are driven. **Do not tick the reason.**
+
+### RECORDED — nine, no fix now
+
+| # | Where | The default | Decision it feeds | Fails |
+|---|---|---|---|---|
+| 3 | `runner.ts` `courtesyUntilFor` catch-all | returns `undefined` | courtesy vs trial wording | **safe already** — degrades to neutral, never to trial |
+| 4 | `runner.ts` `courtesyNounFor` | `null` on unloadable price list | "week" vs "month" in the copy | safe — neutral variant, not a coin flip |
+| 5 | `runner.ts` `sentFor` | `?? null` after the migration check | dedupe key | migration-absent is already a third state (`undefined`) |
+| 6 | `runner.ts` stamp write | error checked and logged | whether a message repeats | safe — checked |
+| 8 | `manage.ts` `planLabelFor` | `gateEnabled = false` default | the plan label | safe by decision: pre-gate world is the true one |
+| 9 | `trialReminder.ts` `resolveEnding` | `courtesyUntil === undefined` → neutral | which of three endings | safe — the third state exists and is used |
+| 11 | `saveOffer.ts` `readSaveOffer` catch | `{ available: false }` | whether to offer | safe — errs towards NOT offering |
+| 12 | `saveOffer.ts` `periodIsUnpaid` | unexpanded invoice → `false` | D70's guard | permissive, but the status check has already passed |
+| 13 | `openOfferStore.ts` `readOffer` catch | `null` | whether to draw a way back in | safe — grants nothing, server re-checks |
+
+### ⚠️ 10 IS THE MOST INSTRUCTIVE INSTANCE IN THE SWEEP — record it, do not fix it
+
+**`billing-actions.ts:224` gets rule 0 RIGHT and the very next read three lines later
+UNDOES IT.** `compEntitlement` returns a four-state union with an explicit `unknown`,
+the caller handles `unknown` correctly at :224 — and then the following read collapses
+its own error into a nullish default, in the same function, feeding the same decision.
+
+**Rule 0 applied and then undone inside one function is the easiest instance to
+reintroduce**, because the correct handling three lines up reads as proof the whole
+function is careful. Recorded here so the next reader checks the second read too.
+
+### RULED — LEAVE ALONE. Recorded so nobody "fixes" them.
+
+- **`freeTime.ts:129-142`** — an unreadable grace end GRANTS the trial. Permissive on
+  money, and that is `01` §3.5's decision: being wrong generously costs seven days;
+  being wrong the other way charges a first-time customer on a screen that just
+  promised them seven free days, which is a dispute. **Do not "make it consistent".**
+- **`gate.ts:54,82`** — both switches fail OPEN for an unset env var. Correct: an
+  absent flag means the pre-gate world, and failing closed would put ~90 real accounts
+  into read-only because a variable was missing.
+
+### The five already-correct shapes the sweep cites — point at these, do not rewrite
+
+`compEntitlement`'s four-state union (`billing-actions.ts:1730`), `courtesyUntilFor`'s
+three states (`runner.ts`), `resolveEnding`'s neutral degradation
+(`trialReminder.ts`), `readSaveOffer`'s errs-towards-refusing (`saveOffer.ts`), and
+`claimEvent`'s `"fresh" | "duplicate" | "error"` (`webhook/route.ts:161`).
+
+---
+
 ## 🛑 09 STEP 5 — STOPPED AND ASKING, per §3.5. THE DISCLOSURE HAS NOT BEEN MOVED.
 
 §3.5: *"If the four facts cannot be kept on screen below the button at 320x568, say so
