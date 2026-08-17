@@ -235,7 +235,7 @@ export default async function BillingPage() {
    * entitlement had been clawed back to 14 Aug.
    */
   const action = manageActionFor(
-    entitlement?.source ?? null,
+    entitlement,
     subscription,
     await entitlementEndDate(),
   );
@@ -289,6 +289,27 @@ export default async function BillingPage() {
             label="Access"
             value={accessValue(entitlement, subscription, tz)}
           />
+          {price ? (
+            <>
+              <Divider />
+              <Row
+                label="Price"
+                value={`${formatPrice(price.amount, price.currency)} ${price.currency.toUpperCase()} / ${price.interval}`}
+              />
+            </>
+          ) : null}
+          {/**
+            * ⚠️ ACCESS, PRICE, THEN THE DATE — §3.2's order, and the `Starts` row
+            * was briefly above `Price` before this. "One card holding Access,
+            * Price, the relevant date." Every date row below sits here, so a
+            * reader finds the date in the same place whichever state they are in.
+            *
+            * EXACTLY ONE of the three renders, because each belongs to a
+            * different state and they are mutually exclusive by construction:
+            * `Starts` needs a grace, `Free until` needs a courtesy period, and
+            * `Trial ends` needs a genuine trial — and `isGenuineTrial` is false
+            * whenever either of the other two is true.
+            */}
           {planStartsOn ? (
             <>
               <Divider />
@@ -309,12 +330,36 @@ export default async function BillingPage() {
               <Row label="Starts" value={formatAccessDate(planStartsOn, tz)} />
             </>
           ) : null}
-          {price ? (
+          {subscription?.courtesyUntil ? (
             <>
               <Divider />
+              {/**
+               * ⚠️ "Free until {date}" — SIGNED 2026-08-18, and it exists because
+               * withholding `Trial ends` from this cohort left them with no date
+               * at all.
+               *
+               * A courtesy customer's Access row reads "Pro" and their Price row
+               * names a real amount, so without this the card states a price and
+               * never says the next period is free. The three alternatives were
+               * ruled out on the record: "Renews on" is false, and the signed
+               * COURTESY sentence says so in as many words — "the next event is a
+               * first charge after free time"; "First charge" is false for the
+               * two-year customer who is most of this cohort; "Trial ends" is
+               * D36's one prohibited word.
+               *
+               * "Free until" is true for every one of them regardless of payment
+               * history, and it is the Manage sentence's own word: "Your Pro plan
+               * is free until {date}, and then it's {price} a year."
+               *
+               * The date is `courtesy_until` from the mirror, read through the
+               * tolerant query — never computed, and never the trial end beside
+               * it. The CHARGE is disclosed three other times: the save offer's
+               * terms line at accept, the Manage sentence, and `07`'s reminder two
+               * days out.
+               */}
               <Row
-                label="Price"
-                value={`${formatPrice(price.amount, price.currency)} ${price.currency.toUpperCase()} / ${price.interval}`}
+                label="Free until"
+                value={formatAccessDate(subscription.courtesyUntil, tz)}
               />
             </>
           ) : null}
@@ -364,7 +409,25 @@ export default async function BillingPage() {
             <CancelSubscription
               mode={action.kind}
               endsOn={formatAccessDate(action.endsOn, tz)}
-              isTrial={action.isTrial}
+              /**
+               * ⚠️ `namesATrial`, NOT `isTrial`. THE COPY QUESTION, NOT THE DATE
+               * QUESTION.
+               *
+               * This prop's only job inside `03`'s component is the NOUN — it
+               * picks `Cancel my {trial|subscription}` and the staying notice's
+               * "Your {trial|subscription} will carry on as usual." Fed Stripe's
+               * status, it called a beta fortnight and a two-year customer's
+               * courtesy month a trial, which is D36's one absolute prohibition.
+               * Driven, both cohorts, both reading "Cancel my trial".
+               *
+               * The prop keeps `03`'s name because the component is `03`'s; only
+               * the value passed changes, and it selects between two variants
+               * that are already signed. No new copy.
+               *
+               * ⚠️ `action.isTrial` still exists and is still correct — it is the
+               * DATE question, and `renewalRow` below is its right consumer.
+               */
+              isTrial={action.namesATrial}
               userId={user.id}
               /**
                * ⚠️ FREE FOR LIFE, WHICH MAKES THREE OF THE FOUR CONFIRM SENTENCES
@@ -576,6 +639,15 @@ function renewalRow(
    *
    * Two rows, two labels, one date, read as two different deadlines to somebody
    * who has just cancelled and is re-reading the screen to be sure.
+   *
+   * ⚠️ `isTrial` AND NOT `namesATrial`, WHICH IS THE WHOLE POINT OF THE SPLIT.
+   *
+   * The question here is "has a date already been shown above?", and for all
+   * THREE `trialing` cohorts the answer is yes — `Trial ends` for a genuine
+   * trial, `Starts` for a grace, `Free until` for a courtesy period. Switching
+   * this to the copy question would put a second date row under every one of
+   * them, which is the exact defect this guard exists to prevent. The noun is a
+   * different question and is answered separately, above.
    */
   if (action.isTrial) return null;
   /**

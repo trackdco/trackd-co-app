@@ -22,7 +22,7 @@
  * safe to make one tap.
  */
 
-import type { Entitlement, EntitlementSource } from "./access";
+import type { Entitlement } from "./access";
 
 /**
  * The entitlement, as much of it as a LABEL needs.
@@ -128,8 +128,33 @@ export interface ManageableSubscription {
  * support case rather than a silent blank.
  */
 export type ManageAction =
-  | { kind: "cancel"; endsOn: string; isTrial: boolean; accessEndsEarly: boolean }
-  | { kind: "resume"; endsOn: string; isTrial: boolean; accessEndsEarly: boolean }
+  /**
+   * ⚠️ `isTrial` AND `namesATrial` ARE NOT THE SAME QUESTION, AND BOTH ARE HERE
+   * ON PURPOSE.
+   *
+   *   isTrial      Stripe says `trialing`, so access ends at `trial_ends_at` and
+   *                a date row already states it above. A DATE question.
+   *   namesATrial  this may be CALLED a trial. A COPY question, and false for a
+   *                courtesy period and a beta fortnight, both of which are
+   *                `trialing` at Stripe and neither of which is a trial.
+   *
+   * Consumers must take the one they mean. `renewalRow` wants `isTrial` (is a
+   * date already shown?); `CancelSubscription`'s noun wants `namesATrial`.
+   */
+  | {
+      kind: "cancel";
+      endsOn: string;
+      isTrial: boolean;
+      namesATrial: boolean;
+      accessEndsEarly: boolean;
+    }
+  | {
+      kind: "resume";
+      endsOn: string;
+      isTrial: boolean;
+      namesATrial: boolean;
+      accessEndsEarly: boolean;
+    }
   | { kind: "store"; store: "apple" | "google" }
   | { kind: "none"; reason: "comp" | "no-subscription" }
   | { kind: "unavailable"; reason: string };
@@ -263,12 +288,24 @@ const DEAD_STATUSES: ReadonlySet<string> = new Set(["canceled", "incomplete_expi
 /**
  * Which control to show, given where access came from and what Stripe mirrors.
  *
- * `source` comes from `entitlements`, never from the subscription. That ordering
- * matters: a user could hold a `comp` AND a lapsed Stripe row, and the thing
- * their access actually rests on is what the screen should describe.
+ * The entitlement comes from `entitlements`, never from the subscription. That
+ * ordering matters: a user could hold a `comp` AND a lapsed Stripe row, and the
+ * thing their access actually rests on is what the screen should describe.
  */
 export function manageActionFor(
-  source: EntitlementSource | null,
+  /**
+   * ⚠️ THE ENTITLEMENT, NOT ITS `source`, FOR THE SAME REASON {@link
+   * planLabelFor} TAKES IT.
+   *
+   * This took the bare source, so both comp states arrived as the string "comp"
+   * and {@link isGenuineTrial} could not be asked here at all — which is why the
+   * noun was keyed off Stripe's status and a beta fortnight was called a trial.
+   * `activeUntil` is the whole difference and it has to reach this function.
+   *
+   * The signature is otherwise unchanged: three parameters, no formatter, no
+   * timezone, no date.
+   */
+  entitlement: PlanEntitlement | null,
   subscription: ManageableSubscription | null,
   /**
    * ⚠️ WHEN ACCESS ACTUALLY ENDS, FROM THE TABLE THAT DECIDES IT.
@@ -343,6 +380,7 @@ export function manageActionFor(
    * Not reachable today (no RevenueCat rows exist). Reachable the day it ships,
    * which is exactly when nobody will be looking at this function.
    */
+  const source = entitlement?.source ?? null;
   const store = source === "apple" ? "apple" : source === "google" ? "google" : null;
   const comped = source === "comp";
   /**
@@ -392,7 +430,27 @@ export function manageActionFor(
     return { kind: "unavailable", reason: subscription.status };
   }
 
-  const isTrial = subscription.status === "trialing";
+  /**
+   * ⚠️ TWO QUESTIONS, TWO ANSWERS, ONE READ. DO NOT COLLAPSE THEM.
+   *
+   * `isTrial` is Stripe's status and it answers **WHEN ACCESS ENDS**: a
+   * subscription inside any free period ends at `trial_ends_at`, whether that
+   * period is a first trial, a save-offer courtesy month or a beta fortnight. It
+   * is a DATE question and the status is the right input for it.
+   *
+   * {@link isGenuineTrial} answers **WHAT TO CALL IT**, and the status is the
+   * wrong input for that: three states arrive wearing `trialing` and only one is
+   * a trial. Driven — a mid-grace subscriber and a courtesy customer of two years
+   * both read "Cancel my trial", which is D36's one absolute prohibition.
+   *
+   * Keying the noun off the date question is what produced that. Keying the DATE
+   * off the noun question would be worse: a courtesy customer's access really
+   * does end at `trial_ends_at`, and reading `current_period_end` instead would
+   * name a date after their access had already stopped. So both are computed,
+   * from one read, and each caller takes the one it actually needs.
+   */
+  const isTrial = subscription.status === TRIALING;
+  const namesATrial = isGenuineTrial(entitlement, subscription);
   /**
    * WHEN ACCESS ACTUALLY RUNS OUT.
    *
@@ -433,13 +491,65 @@ export function manageActionFor(
    * card has already failed. Nothing renews on that date; the next thing Stripe
    * does is retry. The status says so directly, so it is asked directly.
    */
+  /**
+   * ⚠️ AND THE QUESTION IS "WILL ANYTHING RENEW", NOT "IS THIS `past_due`".
+   *
+   * Asking about one status answered correctly for that status and wrongly for
+   * every other one that also does not renew. Driven: a `paused` subscription
+   * read **"Renews on 17 Sept 2026"** — it is charging nobody, and D80 means
+   * pressing the control ends it immediately, so nothing renews on that date and
+   * nothing was ever going to. Same false claim `40e961d` fixed for `past_due`,
+   * one status across, which is what happens when a condition enumerates
+   * instances instead of naming the question.
+   *
+   * So {@link renewsOnPeriodEnd} is asked instead, and the enumeration lives
+   * there, once, next to its reasoning.
+   */
   const accessEndsEarly =
-    subscription.status === "past_due" ||
+    !renewsOnPeriodEnd(subscription.status) ||
     (mirrorEnd !== null && endsOn !== null && endsOn !== mirrorEnd);
 
   return subscription.cancelAtPeriodEnd
-    ? { kind: "resume", endsOn, isTrial, accessEndsEarly }
-    : { kind: "cancel", endsOn, isTrial, accessEndsEarly };
+    ? { kind: "resume", endsOn, isTrial, namesATrial, accessEndsEarly }
+    : { kind: "cancel", endsOn, isTrial, namesATrial, accessEndsEarly };
+}
+
+/**
+ * ⚠️ WILL ANYTHING ACTUALLY RENEW WHEN THIS PERIOD ENDS?
+ *
+ * The question `accessEndsEarly` needs, and the one it was not asking. "Renews
+ * on {date}" is a CLAIM ABOUT WHAT HAPPENS NEXT and it has to be true.
+ *
+ * ## ⚠️ NOT A FIFTH STATUS SET, AND DELIBERATELY NOT
+ *
+ * There are already four in this file plus `BILLABLE_STATUSES` next door, and a
+ * new one answering a fifth question is how the next defect gets written — a set
+ * gets widened for one of its readers and silently changes the others. **No
+ * existing set expresses "will not renew" on its own**: {@link STOPPABLE_NOW} is
+ * `{paused, unpaid}` and says nothing about `past_due`, which also does not renew
+ * on that date. So this composes the sets that already exist rather than
+ * declaring a sixth, and the composition is a function with a name instead of a
+ * condition nobody can search for.
+ *
+ * Three reasons a period end is not a renewal, each already named elsewhere:
+ *
+ *   STOPPABLE_NOW   `paused` and `unpaid`. Collection is stopped. That set's own
+ *                   note says they "have no paid period to protect", which is the
+ *                   same fact from the other side.
+ *   past_due        Stripe rolled the period forward on a charge that FAILED, so
+ *                   this date is the end of a period nobody paid for. The next
+ *                   thing Stripe does is retry, not renew.
+ *   DEAD_STATUSES   finished. Unreachable from here — `manageActionFor` has
+ *                   already returned `unavailable` — and listed so this function
+ *                   is correct read on its own rather than only in its caller.
+ *
+ * Everything else (`active`, `trialing`) genuinely does bill again on that date.
+ */
+function renewsOnPeriodEnd(status: string): boolean {
+  if (STOPPABLE_NOW.has(status)) return false;
+  if (status === PAST_DUE) return false;
+  if (DEAD_STATUSES.has(status)) return false;
+  return true;
 }
 
 /**
@@ -732,6 +842,13 @@ export function isGraceAligned(
  * {@link isGenuineTrial}, which is the function that tells them apart.
  */
 const TRIALING = "trialing";
+
+/**
+ * A card that has failed and is being retried. Named for the same reason as
+ * {@link TRIALING}: it is asked about in two different places for two different
+ * reasons, and a bare literal in a condition is not searchable.
+ */
+const PAST_DUE = "past_due";
 
 /**
  * A date for a human, in the user's own timezone.

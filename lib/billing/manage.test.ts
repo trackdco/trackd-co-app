@@ -52,10 +52,11 @@ function grace(activeUntil = "2026-08-27T00:00:00.000Z"): PlanEntitlement {
 
 describe("who gets a cancel control", () => {
   it("offers cancel on a paying subscription", () => {
-    expect(manageActionFor("stripe", sub())).toEqual({
+    expect(manageActionFor(ent("stripe"), sub())).toEqual({
       kind: "cancel",
       endsOn: "2026-09-14T15:39:23.000Z",
       isTrial: false,
+      namesATrial: false,
       accessEndsEarly: false,
     });
   });
@@ -63,8 +64,7 @@ describe("who gets a cancel control", () => {
   it("offers cancel on a TRIAL, dated to the trial end", () => {
     // Not `current_period_end`, which on a trialing subscription is the date of
     // the first renewal rather than the date they stop being charged nothing.
-    const action = manageActionFor(
-      "stripe",
+    const action = manageActionFor(ent("stripe"),
       sub({
         status: "trialing",
         trialEndsAt: "2026-08-14T15:39:23.000Z",
@@ -75,6 +75,7 @@ describe("who gets a cancel control", () => {
       kind: "cancel",
       endsOn: "2026-08-14T15:39:23.000Z",
       isTrial: true,
+      namesATrial: true,
       accessEndsEarly: false,
     });
   });
@@ -83,15 +84,16 @@ describe("who gets a cancel control", () => {
     // Somebody whose card is failing is one of the most likely to want out.
     // Refusing the button because a charge did not land would be the app
     // arguing with them about whether they may leave.
-    expect(manageActionFor("stripe", sub({ status: "past_due" })).kind).toBe("cancel");
+    expect(manageActionFor(ent("stripe"), sub({ status: "past_due" })).kind).toBe("cancel");
   });
 
   it("offers RESUME once a cancellation is scheduled", () => {
-    const action = manageActionFor("stripe", sub({ cancelAtPeriodEnd: true }));
+    const action = manageActionFor(ent("stripe"), sub({ cancelAtPeriodEnd: true }));
     expect(action).toEqual({
       kind: "resume",
       endsOn: "2026-09-14T15:39:23.000Z",
       isTrial: false,
+      namesATrial: false,
       accessEndsEarly: false,
     });
   });
@@ -113,10 +115,11 @@ describe("who gets a cancel control", () => {
      * The source still decides what they are ON. The subscription decides
      * whether there is something to stop.
      */
-    expect(manageActionFor("comp", sub())).toEqual({
+    expect(manageActionFor(ent("comp"), sub())).toEqual({
       kind: "cancel",
       endsOn: "2026-09-14T15:39:23.000Z",
       isTrial: false,
+      namesATrial: false,
       accessEndsEarly: false,
     });
     // ...and they are still described as complimentary, because that is what
@@ -127,8 +130,8 @@ describe("who gets a cancel control", () => {
   it("offers a comp NOTHING when there is genuinely nothing to stop", () => {
     // The founder the old reasoning was written for: a comp and no subscription,
     // or one Stripe has finished with. Here "nothing to manage" is the truth.
-    expect(manageActionFor("comp", null)).toEqual({ kind: "none", reason: "comp" });
-    expect(manageActionFor("comp", sub({ status: "canceled" }))).toEqual({
+    expect(manageActionFor(ent("comp"), null)).toEqual({ kind: "none", reason: "comp" });
+    expect(manageActionFor(ent("comp"), sub({ status: "canceled" }))).toEqual({
       kind: "none",
       reason: "comp",
     });
@@ -136,9 +139,9 @@ describe("who gets a cancel control", () => {
 
   it("sends an App Store subscription to the App Store when that is all there is", () => {
     // No Stripe subscription to act on, so the pointer is the only honest control.
-    expect(manageActionFor("apple", null)).toEqual({ kind: "store", store: "apple" });
-    expect(manageActionFor("google", null)).toEqual({ kind: "store", store: "google" });
-    expect(manageActionFor("apple", sub({ status: "canceled" }))).toEqual({
+    expect(manageActionFor(ent("apple"), null)).toEqual({ kind: "store", store: "apple" });
+    expect(manageActionFor(ent("google"), null)).toEqual({ kind: "store", store: "google" });
+    expect(manageActionFor(ent("apple"), sub({ status: "canceled" }))).toEqual({
       kind: "store",
       store: "apple",
     });
@@ -151,8 +154,8 @@ describe("who gets a cancel control", () => {
      * Same defect as the comp one, one branch further down. Not reachable until
      * RevenueCat ships, which is precisely when nobody will be reading this.
      */
-    expect(manageActionFor("apple", sub()).kind).toBe("cancel");
-    expect(manageActionFor("google", sub({ status: "trialing", trialEndsAt: "2026-08-23T00:00:00.000Z" })).kind).toBe("cancel");
+    expect(manageActionFor(ent("apple"), sub()).kind).toBe("cancel");
+    expect(manageActionFor(ent("google"), sub({ status: "trialing", trialEndsAt: "2026-08-23T00:00:00.000Z" })).kind).toBe("cancel");
   });
 
   it("says there is nothing to manage when there is no subscription", () => {
@@ -169,7 +172,7 @@ describe("who gets a cancel control", () => {
     // list is about subscriptions Stripe has finished with. Their new behaviour
     // is asserted below.
     for (const status of ["canceled", "incomplete_expired"]) {
-      expect(manageActionFor("stripe", sub({ status })).kind).toBe("unavailable");
+      expect(manageActionFor(ent("stripe"), sub({ status })).kind).toBe("unavailable");
     }
   });
 
@@ -179,7 +182,7 @@ describe("who gets a cancel control", () => {
     // would signpost as unstoppable a state the app can now stop — a correct fix
     // the screen cannot dispatch, which is this file's recurring defect.
     for (const status of ["paused", "unpaid"]) {
-      expect(manageActionFor("stripe", sub({ status })).kind).toBe("cancel");
+      expect(manageActionFor(ent("stripe"), sub({ status })).kind).toBe("cancel");
     }
   });
 
@@ -187,14 +190,13 @@ describe("who gets a cancel control", () => {
     // It takes the flag, so the ACTION reaches it — but the screen offers
     // nothing, because the dialog cannot honestly name a date for a subscription
     // with no paid period. D83 rules the support line, and it self-heals in ~23h.
-    expect(manageActionFor("stripe", sub({ status: "incomplete" })).kind).toBe("unavailable");
+    expect(manageActionFor(ent("stripe"), sub({ status: "incomplete" })).kind).toBe("unavailable");
   });
 
   it("refuses rather than showing a button that cannot name a date", () => {
     // Every confirmation states when access ends. One that cannot is worse
     // than no button.
-    const action = manageActionFor(
-      "stripe",
+    const action = manageActionFor(ent("stripe"),
       sub({ currentPeriodEnd: null, trialEndsAt: null }),
     );
     expect(action).toEqual({ kind: "unavailable", reason: "no-period-end" });
@@ -203,10 +205,10 @@ describe("who gets a cancel control", () => {
   it("the source decides what you are ON; the subscription decides what you can STOP", () => {
     // A store subscription genuinely cannot be cancelled from here, so the
     // pointer at the right place is still the only honest control.
-    expect(manageActionFor("apple", sub({ status: "canceled" })).kind).toBe("store");
+    expect(manageActionFor(ent("apple"), sub({ status: "canceled" })).kind).toBe("store");
     // A comp beside a live trial is described as complimentary and can still be
     // stopped, because Stripe is going to charge for that trial.
-    expect(manageActionFor("comp", sub({ status: "trialing", trialEndsAt: "2026-08-23T00:00:00.000Z" })).kind).toBe("cancel");
+    expect(manageActionFor(ent("comp"), sub({ status: "trialing", trialEndsAt: "2026-08-23T00:00:00.000Z" })).kind).toBe("cancel");
     expect(planLabelFor(ent("comp"), sub({ status: "trialing" }))).toBe("Complimentary");
   });
 });
@@ -221,8 +223,7 @@ describe("⚠️ the date on screen is the EARLIER of the mirror and the entitle
    * to somebody going read only on 18 Aug.
    */
   it("shortens to the entitlement when the mirror over-promises", () => {
-    const action = manageActionFor(
-      "stripe",
+    const action = manageActionFor(ent("stripe"),
       sub({ status: "past_due", currentPeriodEnd: "2026-09-14T15:39:23.000Z" }),
       "2026-08-18T15:39:23.000Z",
     );
@@ -230,6 +231,7 @@ describe("⚠️ the date on screen is the EARLIER of the mirror and the entitle
       kind: "cancel",
       endsOn: "2026-08-18T15:39:23.000Z",
       isTrial: false,
+      namesATrial: false,
       // ⚠️ The date came from the entitlement, so nothing renews on it. The plan
       // card labels it "Ends on" rather than "Renews on" because of this flag.
       accessEndsEarly: true,
@@ -239,27 +241,27 @@ describe("⚠️ the date on screen is the EARLIER of the mirror and the entitle
   it("never LENGTHENS from the entitlement", () => {
     // The mirror is still what the screen displays. A generous entitlement must
     // not be able to promise more than the subscription actually runs to.
-    const action = manageActionFor("stripe", sub(), "2027-01-01T00:00:00.000Z");
+    const action = manageActionFor(ent("stripe"), sub(), "2027-01-01T00:00:00.000Z");
     expect(action.kind === "cancel" && action.endsOn).toBe("2026-09-14T15:39:23.000Z");
   });
 
   it("leaves the mirror alone when there is no entitlement row yet", () => {
     // The webhook lands a second later. A trial whose row has not been written
     // must not have its date pulled back to nothing in the gap.
-    const withNull = manageActionFor("stripe", sub(), null);
-    const without = manageActionFor("stripe", sub());
+    const withNull = manageActionFor(ent("stripe"), sub(), null);
+    const without = manageActionFor(ent("stripe"), sub());
     expect(withNull).toEqual(without);
     expect(withNull.kind === "cancel" && withNull.endsOn).toBe("2026-09-14T15:39:23.000Z");
   });
 
   it("ignores an entitlement that does not expire", () => {
     // `null` on a comp means "does not expire", not "expires at zero".
-    const action = manageActionFor("stripe", sub(), null);
+    const action = manageActionFor(ent("stripe"), sub(), null);
     expect(action.kind === "cancel" && action.endsOn).toBe("2026-09-14T15:39:23.000Z");
   });
 
   it("ignores an unparseable entitlement date rather than shortening to NaN", () => {
-    const action = manageActionFor("stripe", sub(), "not a date");
+    const action = manageActionFor(ent("stripe"), sub(), "not a date");
     expect(action.kind === "cancel" && action.endsOn).toBe("2026-09-14T15:39:23.000Z");
   });
 });
@@ -286,16 +288,16 @@ describe("⚠️ CANCELLABLE_STATUSES is what `cancel_at_period_end` may be set 
     // The screen offering a control for a status set the action does not act on
     // is precisely how the paused defect stayed invisible.
     for (const status of CANCELLABLE_STATUSES) {
-      expect(manageActionFor("stripe", sub({ status })).kind).toBe("cancel");
+      expect(manageActionFor(ent("stripe"), sub({ status })).kind).toBe("cancel");
     }
     // ⚠️ D80 SPLIT THIS. `paused` and `unpaid` now get a control via the
     // immediate-cancel mechanism, so the screen's set is CANCELLABLE plus
     // STOPPABLE_NOW rather than CANCELLABLE alone. `incomplete` is the one that
     // the action reaches and the screen still does not offer (D83).
     for (const status of STOPPABLE_NOW) {
-      expect(manageActionFor("stripe", sub({ status })).kind).toBe("cancel");
+      expect(manageActionFor(ent("stripe"), sub({ status })).kind).toBe("cancel");
     }
-    expect(manageActionFor("stripe", sub({ status: "incomplete" })).kind).toBe("unavailable");
+    expect(manageActionFor(ent("stripe"), sub({ status: "incomplete" })).kind).toBe("unavailable");
   });
 });
 
@@ -571,6 +573,119 @@ describe("⚠️ isGenuineTrial — the question D36 actually turns on", () => {
     // And the deliberate asymmetry is asserted rather than left implicit.
     expect(isGenuineTrial(ent("comp"), { status: "trialing" })).toBe(true);
     expect(planLabelFor(ent("comp"), { status: "trialing" })).toBe("Complimentary");
+  });
+});
+
+/**
+ * ⚠️ F1 — TWO QUESTIONS, TWO ANSWERS, AND NEITHER MAY EAT THE OTHER.
+ *
+ * `isTrial` is the DATE question (access ends at `trial_ends_at`, and a date row
+ * already states it above). `namesATrial` is the COPY question (may `03`'s
+ * control call this a trial?). Feeding the noun from the date answer called a
+ * beta fortnight and a two-year customer's courtesy month a trial — driven, both
+ * cohorts reading "Cancel my trial".
+ */
+describe("⚠️ manageActionFor: the date question and the copy question", () => {
+  const trialing = (over = {}) =>
+    sub({ status: "trialing", trialEndsAt: "2026-08-27T00:00:00.000Z", ...over });
+
+  it("a genuine trial answers YES to both", () => {
+    const a = manageActionFor(ent("stripe"), trialing());
+    expect(a).toMatchObject({ isTrial: true, namesATrial: true });
+  });
+
+  it("a courtesy period ends on the trial date but is NOT named a trial", () => {
+    const a = manageActionFor(
+      ent("stripe"),
+      trialing({ courtesyUntil: "2026-08-27T00:00:00.000Z" }),
+    );
+    // The DATE question stays yes — their access really does end there, and
+    // reading `current_period_end` instead would name a day after it stopped.
+    expect(a).toMatchObject({ isTrial: true, namesATrial: false });
+    expect("endsOn" in a && a.endsOn).toBe("2026-08-27T00:00:00.000Z");
+  });
+
+  it("a beta fortnight ends on the trial date but is NOT named a trial", () => {
+    const a = manageActionFor(grace(), trialing());
+    expect(a).toMatchObject({ isTrial: true, namesATrial: false });
+    expect("endsOn" in a && a.endsOn).toBe("2026-08-27T00:00:00.000Z");
+  });
+
+  it("⚠️ CONTROL: the two answers are not simply the same field twice", () => {
+    // If a refactor ever collapses them, this is what fails. It needs a case
+    // where they genuinely differ, which the two above are.
+    const courtesy = manageActionFor(
+      ent("stripe"),
+      trialing({ courtesyUntil: "2026-08-27T00:00:00.000Z" }),
+    );
+    expect("isTrial" in courtesy && courtesy.isTrial).not.toBe(
+      "namesATrial" in courtesy && courtesy.namesATrial,
+    );
+    // ...and a case where they agree, so "always differ" is not the fix either.
+    const real = manageActionFor(ent("stripe"), trialing());
+    expect("isTrial" in real && real.isTrial).toBe(
+      "namesATrial" in real && real.namesATrial,
+    );
+  });
+});
+
+/**
+ * ⚠️ F3 — "Renews on {date}" IS A CLAIM ABOUT WHAT HAPPENS NEXT.
+ *
+ * `accessEndsEarly` asked "is this `past_due`", which is one instance of the
+ * question rather than the question. Driven: a `paused` subscription read
+ * "Renews on 17 Sept 2026" while charging nobody, and D80 means the control ends
+ * it immediately. Same false claim `40e961d` fixed for `past_due`, one status
+ * across.
+ */
+describe("⚠️ accessEndsEarly asks whether anything RENEWS", () => {
+  it("nothing renews while paused or unpaid, so the date is an end", () => {
+    for (const status of ["paused", "unpaid"]) {
+      const a = manageActionFor(ent("stripe"), sub({ status }));
+      expect(a).toMatchObject({ kind: "cancel", accessEndsEarly: true });
+    }
+  });
+
+  it("nor while past due, which is the case that was already right", () => {
+    expect(manageActionFor(ent("stripe"), sub({ status: "past_due" }))).toMatchObject({
+      accessEndsEarly: true,
+    });
+  });
+
+  it("⚠️ CONTROL: an active subscription DOES renew and must still say so", () => {
+    // Without this, "everything ends early" passes every assertion above and
+    // every paying customer is told their plan is ending.
+    expect(manageActionFor(ent("stripe"), sub({ status: "active" }))).toMatchObject({
+      accessEndsEarly: false,
+    });
+  });
+
+  it("⚠️ CONTROL: a diverging entitlement still shortens, independently of status", () => {
+    // The other half of the condition, which the renewal question must not have
+    // swallowed: an active subscription whose entitlement was clawed back.
+    expect(
+      manageActionFor(ent("stripe"), sub({ status: "active" }), "2026-08-20T00:00:00.000Z"),
+    ).toMatchObject({ accessEndsEarly: true, endsOn: "2026-08-20T00:00:00.000Z" });
+  });
+
+  it("⚠️ NO FIFTH STATUS SET was minted to answer it", () => {
+    /**
+     * The renewal question is composed from the sets that already exist —
+     * `STOPPABLE_NOW`, the `past_due` status and `DEAD_STATUSES`. This asserts
+     * the composition still lines up with `STOPPABLE_NOW` rather than having
+     * quietly grown a private list beside it, which is how the next defect gets
+     * written.
+     */
+    for (const status of STOPPABLE_NOW) {
+      expect(manageActionFor(ent("stripe"), sub({ status }))).toMatchObject({
+        accessEndsEarly: true,
+      });
+    }
+    // And a status in neither set renews, so the sets are doing the deciding.
+    expect(STOPPABLE_NOW.has("active")).toBe(false);
+    expect(manageActionFor(ent("stripe"), sub({ status: "active" }))).toMatchObject({
+      accessEndsEarly: false,
+    });
   });
 });
 
