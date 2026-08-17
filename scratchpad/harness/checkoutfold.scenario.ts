@@ -658,3 +658,233 @@ describe("09 Step 5 option 4 — is a pinned disclosure+button viable?", () => {
     );
   }, 900_000);
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   09 STEP 5 AS INSTRUCTED — disclosure BELOW the button. And the two numbers
+   Adrian asked to be reconciled, plus the node the walk lands on.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * ⚠️ WHICH NUMBER IS THE FOLD? Reconciled here rather than argued.
+ *
+ * Two figures were reported and they are not the same measurement:
+ *
+ *   - Step 1's baseline compared element bottoms against `window.innerHeight`
+ *     (844 / 568) — the VIEWPORT.
+ *   - The pinned-bar table reported `portVisible` — the SCROLLER's `clientHeight`
+ *     (685 at 390x844, 375 at 320x568).
+ *
+ * They are different frames, and 375-vs-685 is not a contradiction: those are the
+ * same measurement at two different widths. The question is whether they AGREE
+ * about where content disappears, which depends on where the scroller starts. So
+ * this reports the scroller's top offset as well, and the derived visible bottom
+ * in page coordinates, and states which one the fold actually is.
+ *
+ * ## And the disclosure-height discrepancy is IDENTIFIED, not explained away
+ *
+ * Trial 90px against mid-grace 71px at 390x844 is backwards. This dumps the
+ * descend-past-wrappers walk's landing node per variant — tag, class and child
+ * count — so the instrument can be checked rather than trusted.
+ */
+describe("09 Step 5 as instructed — disclosure BELOW the button", () => {
+  async function measureBelow(email: string, label: string, size: { width: number; height: number }) {
+    const page = await openCheckout(email, size);
+    const m = await page.evaluate(() => {
+      const port = Array.from(document.querySelectorAll<HTMLElement>("div")).find((d) =>
+        d.className.includes("flow-scroll-fade"),
+      );
+      const portRect = port?.getBoundingClientRect();
+      const scrollTop = window.scrollY;
+
+      // The walk, and what it lands on — reported so the instrument is visible.
+      let level: HTMLElement | null = port ?? null;
+      const trail: string[] = [];
+      for (let i = 0; level && i < 6; i += 1) {
+        const kids = Array.from(level.children) as HTMLElement[];
+        trail.push(
+          `${level.tagName.toLowerCase()}.${(level.className || "").toString().split(/\s+/).slice(0, 2).join(".")}[${kids.length} kids]`,
+        );
+        if (kids.length !== 1) break;
+        level = kids[0];
+      }
+
+      const ps = Array.from(document.querySelectorAll<HTMLElement>("p"));
+      const amountP = ps.find((p) => /\/(yr|mo|wk)/.test(p.innerText)) ?? null;
+      const chargeP = ps.find((p) => /renews until you cancel/.test(p.innerText)) ?? null;
+      const button =
+        Array.from(document.querySelectorAll<HTMLElement>("button")).find((b) =>
+          /start|subscribe|pay|confirm/i.test(b.innerText),
+        ) ?? null;
+      const bottom = (el: HTMLElement | null) =>
+        el ? Math.round(el.getBoundingClientRect().bottom + scrollTop) : null;
+
+      // ⚠️ Is the disclosure actually AFTER the button in document order? If the
+      // move did not take, every number below describes the old arrangement.
+      const orderOk =
+        button && chargeP
+          ? Boolean(button.compareDocumentPosition(chargeP) & Node.DOCUMENT_POSITION_FOLLOWING)
+          : null;
+
+      return {
+        viewportHeight: window.innerHeight,
+        scrollerTop: portRect ? Math.round(portRect.top + scrollTop) : null,
+        scrollerClientHeight: port?.clientHeight ?? null,
+        scrollerVisibleBottom: portRect && port ? Math.round(portRect.top + scrollTop + port.clientHeight) : null,
+        walkTrail: trail,
+        disclosureBelowButton: orderOk,
+        amountBottom: bottom(amountP),
+        chargeBottom: bottom(chargeP),
+        buttonBottom: bottom(button),
+        amountHeight: amountP ? Math.round(amountP.getBoundingClientRect().height) : null,
+        chargeHeight: chargeP ? Math.round(chargeP.getBoundingClientRect().height) : null,
+        variantLine: amountP?.innerText ?? "(not found)",
+      };
+    });
+    await page.context().close();
+
+    expect(m.disclosureBelowButton, `${label}: the disclosure is NOT below the button`).toBe(true);
+    const fold = Math.min(
+      m.viewportHeight,
+      m.scrollerVisibleBottom ?? m.viewportHeight,
+    );
+    const below = (
+      [
+        ["fact 1+2", m.amountBottom],
+        ["fact 3+4", m.chargeBottom],
+        ["button", m.buttonBottom],
+      ] as const
+    )
+      .filter(([, b]) => b !== null && b > fold)
+      .map(([k]) => k);
+
+    console.log(
+      `\n  === ${label} ===\n` +
+        `  variant: ${JSON.stringify(m.variantLine)}\n` +
+        `  viewport ${m.viewportHeight} | scroller top ${m.scrollerTop}, clientHeight ` +
+        `${m.scrollerClientHeight}, visible bottom ${m.scrollerVisibleBottom}\n` +
+        `  => THE FOLD IS ${fold}px\n` +
+        `  disclosure below button: ${m.disclosureBelowButton}\n` +
+        `  bottoms: fact1+2 ${m.amountBottom}, fact3+4 ${m.chargeBottom}, button ${m.buttonBottom}\n` +
+        `  para heights: amount ${m.amountHeight}px, charge ${m.chargeHeight}px\n` +
+        `  walk: ${m.walkTrail.join("  ->  ")}\n` +
+        `  BELOW THE FOLD: ${below.length ? below.join(", ") : "(none)"}`,
+    );
+    return { ...m, fold, below };
+  }
+
+  it("390x844 keyboard-down: are all four facts AND the button still above the fold?", async () => {
+    const trial = await seedAccount(ledger, "qa09-below-trial", { notificationsEnabled: false });
+    const grace = await seedAccount(ledger, "qa09-below-grace", {
+      graceUntil: "2026-11-20T04:00:00.000Z",
+      notificationsEnabled: false,
+    });
+
+    const t = await measureBelow(trial.email, "trial @ 390x844, disclosure BELOW", { width: 390, height: 844 });
+    const g = await measureBelow(grace.email, "mid-grace @ 390x844, disclosure BELOW", { width: 390, height: 844 });
+
+    /**
+     * ⚠️ THE ANSWER TO STEP 5. If this passes, Step 5 completes AS WRITTEN at
+     * 390x844 and only 320x568 needs amending.
+     */
+    expect(t.below, "trial: something is below the fold with the disclosure moved").toEqual([]);
+    expect(g.below, "mid-grace: something is below the fold with the disclosure moved").toEqual([]);
+  }, 900_000);
+
+  it("320x568: records the same arrangement at the width that cannot fit either way", async () => {
+    const grace = await seedAccount(ledger, "qa09-below-320", {
+      graceUntil: "2026-11-20T04:00:00.000Z",
+      notificationsEnabled: false,
+    });
+    const r = await measureBelow(grace.email, "mid-grace @ 320x568, disclosure BELOW", { width: 320, height: 568 });
+    // No pass/fail: 320x568 cannot fit the Element above the fold in ANY
+    // arrangement (424px inside a 375px scroller), and that is the amendment.
+    console.log(`  (recorded, not asserted: ${r.below.length} items below the fold at 320x568)`);
+  }, 900_000);
+});
+
+/**
+ * ⚠️ THE DISCLOSURE-HEIGHT DISCREPANCY, IDENTIFIED RATHER THAN EXPLAINED AWAY.
+ *
+ * The pinned-bar table reported the disclosure as 90px on the trial variant and
+ * 71px on mid-grace at 390x844. That is backwards — mid-grace's line is the longer
+ * one — and Adrian's instruction was to find which node the walk lands on, not to
+ * reason about it: "a measuring walk landing on a different node per variant is an
+ * instrument that will be wrong somewhere it does matter, and its numbers are
+ * already cited in a Check When Done box."
+ *
+ * So this dumps EVERY child of the walk's landing node, per variant, with its tag,
+ * classes, height and text — and marks which one `kids.find(/renews until you
+ * cancel/)` actually selects. Whatever the answer is, it is then a fact.
+ */
+describe("09 — which node the measuring walk lands on", () => {
+  async function dumpChildren(email: string, label: string) {
+    const page = await openCheckout(email, { width: 390, height: 844 });
+    const rows = await page.evaluate(() => {
+      const port = Array.from(document.querySelectorAll<HTMLElement>("div")).find((d) =>
+        d.className.includes("flow-scroll-fade"),
+      );
+      let level: HTMLElement | null = port ?? null;
+      for (let i = 0; level && i < 6; i += 1) {
+        const kids = Array.from(level.children) as HTMLElement[];
+        if (kids.length !== 1) break;
+        level = kids[0];
+      }
+      const kids = Array.from(level?.children ?? []) as HTMLElement[];
+      const matchIndex = kids.findIndex((k) => /renews until you cancel/.test(k.innerText));
+      return kids.map((k, i) => ({
+        i,
+        selectedByFinder: i === matchIndex,
+        tag: k.tagName.toLowerCase(),
+        cls: (k.className || "").toString().slice(0, 46),
+        height: Math.round(k.getBoundingClientRect().height),
+        paragraphs: k.querySelectorAll("p").length,
+        text: k.innerText.replace(/\s+/g, " ").slice(0, 46),
+        // ⚠️ Per-paragraph, so "the heights differ" becomes "THIS line differs".
+        lines: Array.from(k.querySelectorAll<HTMLElement>("p")).map((el) => ({
+          h: Math.round(el.getBoundingClientRect().height),
+          t: el.innerText.replace(/\s+/g, " ").slice(0, 62),
+        })),
+      }));
+    });
+    await page.context().close();
+    console.log(`\n  === ${label} ===`);
+    for (const r of rows) {
+      console.log(
+        `  [${r.i}]${r.selectedByFinder ? " <== FINDER PICKS THIS" : ""} ${String(r.height).padStart(4)}px ` +
+          `<${r.tag} class="${r.cls}"> ${r.paragraphs}p ${JSON.stringify(r.text)}`,
+      );
+      for (const l of r.lines) console.log(`        ${String(l.h).padStart(3)}px  ${JSON.stringify(l.t)}`);
+    }
+    return rows;
+  }
+
+  it("dumps the landing node's children for both variants", async () => {
+    const trial = await seedAccount(ledger, "qa09-node-trial", { notificationsEnabled: false });
+    const grace = await seedAccount(ledger, "qa09-node-grace", {
+      graceUntil: "2026-11-20T04:00:00.000Z",
+      notificationsEnabled: false,
+    });
+    const t = await dumpChildren(trial.email, "trial @ 390x844");
+    const g = await dumpChildren(grace.email, "mid-grace @ 390x844");
+
+    const tPick = t.find((r) => r.selectedByFinder);
+    const gPick = g.find((r) => r.selectedByFinder);
+    console.log(
+      `\n  FINDER PICKED: trial -> index ${tPick?.i} (${tPick?.height}px, ${tPick?.paragraphs}p), ` +
+        `mid-grace -> index ${gPick?.i} (${gPick?.height}px, ${gPick?.paragraphs}p)`,
+    );
+    expect(tPick, "the finder matched nothing on the trial variant").toBeDefined();
+    expect(gPick, "the finder matched nothing on the mid-grace variant").toBeDefined();
+    /**
+     * ⚠️ THE DIAGNOSIS. If the indices differ, the walk lands on a different node
+     * per variant and the instrument is at fault. If they match and the heights
+     * still differ, the difference is real layout and the earlier reading was
+     * right.
+     */
+    console.log(
+      tPick?.i === gPick?.i
+        ? `  => SAME node index in both. Any height difference is real layout.`
+        : `  => DIFFERENT node index (${tPick?.i} vs ${gPick?.i}). THE INSTRUMENT IS AT FAULT.`,
+    );
+  }, 900_000);
+});

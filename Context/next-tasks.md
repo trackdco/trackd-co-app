@@ -50,7 +50,69 @@ stops.
 - Did not trim, shrink or drop a fact. Did not move one above the button unilaterally.
 - Did not touch `02b`'s copy.
 
-### ✅ OPTION 4 MEASURED — pin the disclosure and button to the port (Adrian, 17 Aug)
+### ✅ STEP 5 COMPLETES AS WRITTEN AT 390x844 — the disclosure IS below the button now
+
+**Adrian, 17 Aug: option 4 (pin the bar) is REJECTED on the measurements, and the
+bottom-nav slide-away with it** — a `position: fixed` plus `visualViewport` change on
+the payment screen needs a real device, 320x568 is an iPhone SE 1st gen / 5s, and that
+hardware is unavailable, so the failing width cannot be validated at all. Then: Step
+5's ACTUAL instruction had never been measured.
+
+**Measured, and the answer is YES.** Disclosure moved below the button
+(`payment-sheet.tsx`), 390x844 keyboard-down, both seedable variants:
+
+| | fact 1+2 | fact 3+4 | button | fold | below the fold |
+|---|---|---|---|---|---|
+| trial | 713 | 737 | 674 | 844 | **(none)** |
+| mid-grace | 713 | 737 | 674 | 844 | **(none)** |
+
+Document order asserted, not assumed: `compareDocumentPosition` confirms the
+disclosure FOLLOWS the button, or every number would describe the old arrangement.
+
+**So Step 5 is complete at 390x844 and only 320x568 needs amending.** At 320x568 the
+same arrangement leaves all three below the fold (788 / 831 / 729 against a 568 fold),
+which is unchanged and unfixable there — recorded, not asserted.
+
+### ✅ THE TWO PORT FIGURES RECONCILED — they measure different things and AGREE
+
+Both were right and neither was the other:
+
+| width | scroller top | scroller clientHeight | visible bottom | viewport |
+|---|---|---|---|---|
+| 390x844 | 159 | 685 | **844** | **844** |
+| 320x568 | 193 | 375 | **568** | **568** |
+
+`scrollerTop + clientHeight` equals the viewport height exactly at both widths. So:
+
+- **The FOLD is the viewport height** (844 / 568). That is where content disappears
+  and it is what Step 1's baseline compared against.
+- **685 / 375 is the CONTENT BUDGET** — the viewport minus the pinned header — which
+  is what the pinned-bar table needed.
+
+375-vs-685 was never a contradiction: same measurement, two widths.
+
+### ✅ THE DISCLOSURE-HEIGHT DISCREPANCY — ESTABLISHED, and the instrument is SOUND
+
+Dumped every child of the walk's landing node per variant, with the finder's pick
+marked. **Same node index (3), same class, 3 paragraphs, in both** — so the walk does
+NOT land on a different node and its numbers can be trusted.
+
+The 19px is real layout, and it is entirely in the THIRD paragraph, which is **not one
+of the four required facts**:
+
+| | trial | mid-grace |
+|---|---|---|
+| fact 1+2 | 20px | 20px |
+| fact 3+4 | 20px | 20px |
+| third line | **39px** "We'll notify you before your trial ends. Cancel any time…" | **20px** "Cancel any time from your Billing screen." |
+| total | 90px | 71px |
+
+**The four required facts are identically sized across variants** — 40px in both —
+which is what a fold requirement wants. Nothing is backwards once the line is visible:
+mid-grace's FIRST line is longer but does not wrap, while the trial's THIRD line is a
+longer sentence that does.
+
+### OPTION 4, MEASURED AND REJECTED (kept for the record) — pin the disclosure and button to the port (Adrian, 17 Aug)
 
 **Nothing built. Measured first, as instructed.** Adrian rejected both "accept
 scrolling" and "amend `02b`" as premature, and noted the first IS the defect `02b` §3.7

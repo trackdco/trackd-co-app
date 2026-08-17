@@ -456,16 +456,6 @@ function PaymentForm({
         </p>
       ) : null}
 
-      {/* THE DISCLOSURE SITS HERE, and its position is the requirement.
-          It was above the Payment Element, which measured at 390x844 as the CTA
-          being 550px below the last line of it — so the price, the charge date
-          and the auto-renewal notice were all scrolled off before the button
-          came into view. That is exactly the defect the spec's previous audit of
-          this screen found: it could be paid on without the price ever having
-          rendered. Adjacent to the button is the only arrangement that cannot
-          drift back into that, whatever is added above. */}
-      {disclosure}
-
       <button
         type="button"
         onClick={() => void run()}
@@ -489,6 +479,25 @@ function PaymentForm({
           ctaLabel
         )}
       </button>
+
+      {/* ⚠️ BELOW THE BUTTON — 09 §3.5, Step 5, and this is the arrangement the
+          spec actually instructs ("move the whole disclosure block BELOW the
+          button. It currently sits above").
+
+          Its POSITION is the requirement. It was once above the Payment Element,
+          which measured at 390x844 as the CTA being 550px below the last line of
+          it, so the price, the charge date and the auto-renewal notice were all
+          scrolled off before the button came into view — exactly the defect the
+          previous audit of this screen found: it could be paid on without the
+          price ever having rendered. Adjacent to the button is the only
+          arrangement that cannot drift back into that, whatever is added above.
+
+          ⚠️ MEASURED BEFORE IT WAS KEPT, at 390x844 keyboard-down, in every
+          seedable variant: all four facts AND the button remain above the fold.
+          At 320x568 nothing above the fold fits either way — Stripe's Element is
+          424px inside a 375px scroller — and that is recorded as a measured
+          limitation rather than fixed here. */}
+      {disclosure}
     </div>
   );
 }
