@@ -24,6 +24,7 @@ import {
   periodIsUnpaid,
   readSaveOffer,
 } from "@/lib/billing/saveOffer";
+import { currentEntitlement } from "@/lib/billing/entitlements";
 import { stripe } from "@/lib/billing/stripe";
 import { syncSubscription } from "@/lib/billing/sync";
 import { createClient } from "@/lib/supabase/server";
@@ -312,6 +313,47 @@ async function offerAfterCancel(
     if (periodIsUnpaid(primary)) {
       console.info(
         `[billing] ${customerId} cancelled with an unpaid period (${primary.status}); no save offer, and none burned`,
+      );
+      return undefined;
+    }
+
+    /**
+     * ⚠️ D79. A NO-EXPIRY COMP IS OFFERED NOTHING, AND THE REFUSAL BURNS NOTHING.
+     *
+     * Same family as D70 above and the same ordering, for a sharper reason.
+     *
+     * This cohort has just read D78's line on the confirm dialog — "Your free
+     * access carries on as it always has, and nothing about your account
+     * changes" — and was then offered another month free. **Accepting lifts the
+     * cancellation and re-arms a real charge**, on somebody promised in writing
+     * that they would never be charged. It is the one screen in the product that
+     * can turn "never" into a charge, and D78 makes the promise on the screen
+     * immediately before it.
+     *
+     * Observed, not inferred: reaching the declined screen while driving 2.2
+     * required declining an offer this cohort should never have been shown.
+     *
+     * ## Placed BEFORE `readSaveOffer`, which is the whole point
+     *
+     * `markOfferShown` is what burns the once-ever flag, and it is further down.
+     * Refusing here means the flag is never written, so **they were never offered
+     * anything and have not spent anything.** A check placed after that write
+     * would refuse the offer and consume it in the same breath, which is the
+     * precise failure the not-burned rule exists to prevent.
+     *
+     * There is no direction in which this is exploitable: a comp cannot benefit
+     * from an offer that grants free time they already have forever.
+     *
+     * The discriminator is the same one D78 uses — a `comp` entitlement with a
+     * null `active_until` — so the screen that makes the promise and the server
+     * that refuses the offer cannot disagree about who this cohort is. A comp
+     * WITH an expiry is the beta grace and is deliberately not here: they are
+     * sold to when the fortnight ends, so an offer is meaningful for them.
+     */
+    const entitlement = await currentEntitlement();
+    if (entitlement?.source === "comp" && entitlement.activeUntil === null) {
+      console.info(
+        `[billing] ${customerId} is a free-for-life comp; no save offer, and none burned (D79)`,
       );
       return undefined;
     }
