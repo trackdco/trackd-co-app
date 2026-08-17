@@ -4,7 +4,7 @@ import { takeSnapshot } from "@/lib/billing/reconcile/fetch";
 import { runRules } from "@/lib/billing/reconcile/rules";
 import type { Finding, ReconcileSnapshot, RuleId } from "@/lib/billing/reconcile/types";
 
-import { admin, Ledger, requireStripeBudget, seedAccount, stripe, stripeBudgetAvailable } from "./core";
+import { admin, Ledger, requireStripeBudget, sameInstant, seedAccount, stripe, stripeBudgetAvailable } from "./core";
 
 /**
  * SPEC 11 STEPS 4 AND 5 — the rules meeting REAL seeded state.
@@ -397,18 +397,6 @@ afterAll(async () => {
 
 function isoIn(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-}
-
-/**
- * ⚠️ INSTANTS, NOT STRINGS. Postgres returns `+00:00` where JS writes `.000Z`,
- * so `"2026-09-01T00:00:00+00:00" === "2026-09-01T00:00:00.000Z"` is false for
- * two identical moments. The harness README lists this as a trap that has already
- * cost a run, and it cost this file one too — Step 5's grace case failed its own
- * ARRIVAL assertion on a string compare of two equal instants.
- */
-function sameInstant(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false;
-  return Date.parse(a) === Date.parse(b);
 }
 
 /** Finalise a subscription's draft invoice so it becomes a real, open one. */

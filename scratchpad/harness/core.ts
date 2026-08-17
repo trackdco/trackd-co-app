@@ -81,6 +81,39 @@ const E = env();
 export const BASE = process.env.BASE ?? "http://localhost:3100";
 
 /**
+ * ⚠️ COMPARE TIMESTAMPS AS INSTANTS. THIS IS THE ONLY SHAPE ON OFFER.
+ *
+ * Postgres returns `+00:00` where JS writes `.000Z`, so two identical moments are
+ * UNEQUAL as strings. It is listed in the README as a trap that had already cost a
+ * run — and it then cost two more in one session, with a local helper already
+ * written in a neighbouring scenario.
+ *
+ * **Twice with a fix in reach means the fix was not being reached for.** So it
+ * lives here, beside `admin` and `stripe`, where a scenario meets it before it
+ * writes its own comparison. Prefer it over `Date.parse(a) === Date.parse(b)` for
+ * the same reason `survivorOf` is a function rather than an inline sort: a rule
+ * everybody has to remember is a rule somebody will not.
+ */
+export function sameInstant(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  if (!a || !b) return false;
+  const x = Date.parse(a);
+  const y = Date.parse(b);
+  return Number.isFinite(x) && Number.isFinite(y) && x === y;
+}
+
+/** `a` is strictly earlier than `b`. Same reasoning as {@link sameInstant}. */
+export function earlierThan(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  if (!a || !b) return false;
+  return Date.parse(a) < Date.parse(b);
+}
+
+/**
  * ⚠️ THE QA FIXTURE PASSWORD LIVES IN `.env.local`, NOT HERE (D89).
  *
  * Only ever used on `@trackd-qa.invalid` accounts torn down by id, so it is low

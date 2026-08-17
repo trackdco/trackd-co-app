@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 
 import { endSubscription, revokeForCustomer, syncSubscription } from "@/lib/billing/sync";
 
-import { Ledger, admin, requireStripeBudget, stripe, stripeBudgetAvailable } from "./core";
+import { Ledger, admin, earlierThan, requireStripeBudget, sameInstant, stripe, stripeBudgetAvailable } from "./core";
 
 /**
  * SPEC 05 Step 8 — THE ENTITLEMENT WRITERS, on real Stripe objects.
@@ -138,9 +138,9 @@ guarded("Step 8 — the entitlement writers", () => {
       Date.parse(clawedBackTo),
     );
     expect(
-      Date.parse(after!.active_until!),
+      earlierThan(after!.active_until, stripePeriodEnd),
       "the cancellation restored time the failure handler had removed",
-    ).toBeLessThan(Date.parse(stripePeriodEnd));
+    ).toBe(true);
   }, 240_000);
 
   it("3. a DISPUTE deactivates immediately, and leaves the date alone", async () => {
@@ -201,7 +201,7 @@ guarded("Step 8 — the entitlement writers", () => {
     // so two identical moments are unequal as strings. The harness README lists
     // this as a trap that has already cost a run, and it has now cost this
     // session two — here and in `reconcile.scenario.ts`.
-    expect(Date.parse(after!.active_until!)).toBe(Date.parse(boughtUntil));
+    expect(sameInstant(after!.active_until, boughtUntil)).toBe(true);
   }, 240_000);
 
   it("4. a TRIALING subscription with no validated card entitles NOTHING", async () => {

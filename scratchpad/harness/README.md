@@ -101,11 +101,23 @@ not that a phone displayed anything.
 **A SYNTAX ERROR IN A DRIVER MEANS TEARDOWN NEVER RUNS.** The module fails to
 parse, so the `try`/`finally` never executes and every seeded account survives.
 Found on 2026-08-17: a redeclared identifier in `qa-05-entitled-probe.mjs` left one
-`@trackd-qa.invalid` account with a live `comp` entitlement on production, and it
-was only caught because the end-of-run count was checked against 90 rather than
-assumed. **Run `node --check <file>` before running a driver**, and count the QA
-accounts at the end of every session — a leak is silent and the ledger cannot help,
-because the ledger died with the process.
+`@trackd-qa.invalid` account with a live `comp` entitlement on production. **Run
+`node --check <file>` before running a driver.**
+
+⚠️ **AND THE COUNT MUST RUN OUT OF PROCESS.** A check that lives inside the driver
+dies with the driver, which is exactly the failure above — every safety property
+here (ledgered, deleted by id, torn down in a `finally`) is downstream of the file
+parsing. Count with something the driver cannot take down with it: the Supabase MCP,
+`psql`, a separate `node` invocation. Never a `finally` block.
+
+⚠️ **AND MEASURE AFTER FAILED RUNS, NOT ONLY SUCCESSFUL ONES.** Three consecutive
+session reports said "0 QA accounts left". Each was true, and each was taken
+immediately after a run that had *completed* — which is the only moment the check
+could pass. The leak was from a run that crashed, and nothing looked there. **A
+crashed run is the case the count exists for; it is the one least likely to be
+followed by anybody running it.**
+
+    select count(*) from auth.users where email ilike '%@trackd-qa.invalid';
 
 **The 127.0.0.1 trap is about the URL you OPEN, not the address the server BINDS.**
 `npm run dev` binds `-H 127.0.0.1`, deliberately, so the server listens on loopback
