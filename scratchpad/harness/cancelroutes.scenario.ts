@@ -296,4 +296,130 @@ guarded("04 Step 9 — the shown marker is written once and never rewritten", ()
       "⚠️ THE OFFER WAS BURNED BY A REFUSAL: shownAt was written for a cohort that saw nothing",
     ).toBeFalsy();
   }, 900_000);
+
+  /**
+   * ⚠️ ROUTES 2, 3 AND 4 ALL END IN THE SAME ASSERTION, and §3.3 is why: the shown
+   * marker is the whole of availability. So each route puts the subscription
+   * through a different history and then asks the same question — is `shownAt`
+   * still the value the FIRST cancellation wrote?
+   *
+   * Each carries the same positive control as route 1: the offer must be observed
+   * on the first cancellation, or "no second offer" is a detector that never
+   * fired.
+   */
+  async function firstOfferThen(tag: string, opts: { paid?: boolean } = {}) {
+    const { account, customerId, t0, clock } = await seedBillable(tag);
+    const create: Parameters<typeof stripe.subscriptions.create>[0] = {
+      customer: customerId,
+      items: [{ price: process.env.STRIPE_PRICE_WEEKLY ?? "" }],
+      metadata: { user_id: account.id },
+    };
+    if (!opts.paid) create.trial_end = Math.floor(t0.getTime() / 1000) + 7 * 86_400;
+    const sub = await stripe.subscriptions.create(create);
+    await mirror(sub.id);
+
+    const before = await readOfferMarkers(customerId);
+    expect(before.shownAt, "a shown marker exists before the first cancel").toBeFalsy();
+
+    const one = await driveCancel(account.email);
+    expect(one.sawOfferDialog, "the offer never appeared on the FIRST cancel").toBe(true);
+    const first = await readOfferMarkers(customerId);
+    expect(first.shownAt, "the first cancellation wrote no shown marker").toBeTruthy();
+    return { account, customerId, clock, subId: sub.id, page: one.page, first };
+  }
+
+  it("route 2 — let it EXPIRE, then cancel again: no second offer, same shownAt", async () => {
+    const { account, customerId, subId, page, first } = await firstOfferThen("s9-expire");
+    /**
+     * "Expire" means the ten minutes run out with nothing claimed. The window is
+     * enforced against the real clock (`saveOffer.ts:295`), so it is aged by
+     * BACKDATING the marker rather than by waiting ten real minutes — the same
+     * technique Step 10 uses, and it leaves the marker's identity untouched
+     * because the value written is the value read.
+     */
+    await page.context().close();
+    const aged = new Date(Date.now() - 11 * 60_000).toISOString();
+    const { markOfferShown } = await import("@/lib/billing/saveOffer");
+    await markOfferShown(customerId, aged);
+
+    // ⚠️ ARRIVAL: the offer really is now outside its window.
+    const { offerStillOpen } = await import("@/lib/billing/saveOffer");
+    expect(offerStillOpen(aged), "the aged marker is still inside the window").toBe(false);
+
+    await stripe.subscriptions.update(subId, { cancel_at_period_end: false });
+    await mirror(subId);
+    const two = await driveCancel(account.email);
+    console.log(`  route 2, second cancel: offer shown = ${two.sawOfferDialog}`);
+    await two.page.context().close();
+
+    const second = await readOfferMarkers(customerId);
+    console.log(`  route 2 markers: first ${first.shownAt} -> second ${second.shownAt}`);
+    expect(two.sawOfferDialog, "an EXPIRED offer was shown again").toBe(false);
+    /**
+     * ⚠️ Compared against the AGED value, which is what the marker holds now —
+     * not against route 1's original. The point is that the second cancellation
+     * did not REWRITE it, and rewriting is what would restart the window.
+     */
+    expect(second.shownAt, "the expired marker was rewritten, restarting the window").toBe(aged);
+  }, 900_000);
+
+  it("route 3 — TAKE it, resume, cancel again: no second offer, same shownAt", async () => {
+    const { account, customerId, subId, page, first } = await firstOfferThen("s9-take");
+
+    // Take the offer, through the dialog's own control.
+    await page.getByRole("button", { name: /^Another (week|month), thanks$/ }).first().click({ timeout: 60_000 });
+    await page.waitForTimeout(6000);
+    await page.context().close();
+
+    /* ── ⚠️ ARRIVAL: it really was CLAIMED, and the cancellation lifted ── */
+    const claimed = await readOfferMarkers(customerId);
+    console.log(`  route 3 markers after taking: ${JSON.stringify(claimed)}`);
+    expect(claimed.claimedAt, "the offer was not actually claimed, so this is route 1 again").toBeTruthy();
+    const lifted = await stripe.subscriptions.retrieve(subId);
+    expect(lifted.cancel_at_period_end, "the cancellation was not lifted by accepting").toBe(false);
+    await mirror(subId);
+
+    // Now cancel again. `already-claimed` is a different refusal from `not-offered`.
+    const two = await driveCancel(account.email);
+    console.log(`  route 3, second cancel: offer shown = ${two.sawOfferDialog}`);
+    await two.page.context().close();
+
+    const second = await readOfferMarkers(customerId);
+    expect(two.sawOfferDialog, "a claimed offer was offered a second time").toBe(false);
+    expect(second.shownAt, "the shown marker was rewritten after a claim").toBe(first.shownAt);
+    expect(second.claimedAt, "the claim marker was lost").toBe(claimed.claimedAt);
+  }, 900_000);
+
+  it("route 4 — take it on a TRIAL, let it convert to paid, then cancel: no second offer", async () => {
+    const { account, customerId, clock, subId, page, first } = await firstOfferThen("s9-convert");
+
+    await page.getByRole("button", { name: /^Another (week|month), thanks$/ }).first().click({ timeout: 60_000 });
+    await page.waitForTimeout(6000);
+    await page.context().close();
+    const claimed = await readOfferMarkers(customerId);
+    expect(claimed.claimedAt, "the offer was not claimed").toBeTruthy();
+
+    /**
+     * ⚠️ THE POINT OF THIS ROUTE: cross from TRIAL to PAID. `readSaveOffer` takes a
+     * `kind`, and the cancel path asks for "paid" once money has moved — so a
+     * marker scoped to the trial kind rather than to the customer would let the
+     * same person be offered again on the other side of their first charge.
+     */
+    const afterClaim = await stripe.subscriptions.retrieve(subId);
+    await clock.advanceTo(new Date((afterClaim.trial_end ?? 0) * 1000 + 2 * 3_600_000));
+    const converted = await stripe.subscriptions.retrieve(subId);
+    console.log(`  route 4 status after conversion: ${converted.status}`);
+    /* ── ⚠️ ARRIVAL: it really is paid now, not still trialing ─────────── */
+    expect(converted.status, "never converted, so the trial->paid crossing is untested").toBe("active");
+    await mirror(subId);
+
+    const two = await driveCancel(account.email);
+    console.log(`  route 4, second cancel (now PAID): offer shown = ${two.sawOfferDialog}`);
+    await two.page.context().close();
+
+    const second = await readOfferMarkers(customerId);
+    expect(two.sawOfferDialog, "converting to paid handed out a SECOND offer").toBe(false);
+    expect(second.shownAt, "the shown marker was rewritten after conversion").toBe(first.shownAt);
+  }, 900_000);
 });
+
