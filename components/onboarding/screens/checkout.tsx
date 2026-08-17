@@ -325,7 +325,11 @@ export function CheckoutScreen() {
   if (returning === "pending") {
     return (
       <StepFrame title="One moment.">
-        <div className="flex w-full flex-1 flex-col justify-center gap-3 pb-2" aria-busy="true">
+        {/* Top-aligned for the same reason as the loaded state below, and it has
+            to match it: a centred skeleton followed by a top-aligned form is a
+            layout jump at the moment the card fields appear, on the screen where
+            a jump is most likely to be tapped through. */}
+        <div className="flex w-full flex-1 flex-col justify-start gap-3 pb-2" aria-busy="true">
           <div className="h-13 w-full animate-pulse rounded-2xl bg-bg-surface-raised motion-reduce:animate-none" />
           <div className="h-13 w-full animate-pulse rounded-2xl bg-bg-surface-raised motion-reduce:animate-none" />
           <p className="text-center text-[0.8rem] text-text-muted">
@@ -481,7 +485,23 @@ export function CheckoutScreen() {
           : undefined
       }
     >
-      <div className="flex w-full flex-1 flex-col justify-center pb-2">
+      {/**
+       * ⚠️ TOP-ALIGNED, NOT CENTRED (09 §3.2). This was `justify-center`, and it
+       * is the whole of the dead space.
+       *
+       * The shared frame is not the culprit: this screen passes no centring flag,
+       * so `StepFrame` already pins its header and aligns its scroll port to the
+       * top. Then this column took the remaining port height and centred its
+       * contents inside it.
+       *
+       * ⚠️ The gap is VARIABLE rather than a fixed amount, which is why §3.2
+       * insists on measuring both widths: the wrapper is sized as the larger of
+       * its content and the available space, so centring only does anything when
+       * there IS spare room. At 390x844 there is, and it splits above and below.
+       * At 320x568 the content already overflows, so this changes nothing there —
+       * measured, and stated rather than assumed.
+       */}
+      <div className="flex w-full flex-1 flex-col justify-start pb-2">
         {selected && suffix ? (
           <PaymentSheet
             plan={selected.id}
