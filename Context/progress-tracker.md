@@ -5,7 +5,44 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-16 (full migration audit against the live schema — nothing owed)
+Last updated: 2026-08-17 (spec 11 Steps 1-5 built and driven; two standing rules below)
+
+## ⚠️ TWO STANDING RULES, both earned the hard way (2026-08-17)
+
+### 1. A REVOKED ROW IS A DECISION, NOT A GAP
+
+`entitlements.is_active = false` is the documented KILL SWITCH
+(`001_billing_tables.sql`): a chargeback recorded, a comp withdrawn, a dispute
+honoured. **A row carrying it is an answer somebody GAVE. It is not a missing row,
+and no automated thing may treat it as one.**
+
+This has now been the right answer twice, in unrelated places:
+
+- **D81** — the backfill's upgrade predicate did not read `is_active`, so a
+  re-run un-revoked a deliberately revoked comp and promoted it to free-for-life.
+- **Spec 11** — `live-subscription-without-entitlement` reported a DISPUTE as a
+  locked-out paying customer, because Stripe leaves the subscription `active`
+  while our rule revokes the entitlement immediately. §3.4 predicted exactly that
+  false positive and says it is how a whole report gets ignored. The date rule had
+  the same fault: a revoked row still carries its `active_until`, but nobody is
+  being shown it.
+
+**⚠️ It will come up again in `05` and `08`** — a read-only gate and a Billing
+screen both have to distinguish "never had access" from "had it and it was taken
+away", and the second is not an absence.
+
+### 2. NEVER PATCH A LIST TO SEED A FIXTURE
+
+(Adrian, 2026-08-17.) **That technique is what ran the backfill.** D81's
+verification patched `COMP_EMAILS` with two QA addresses so its seeded accounts
+would reach the upgrade branch, then drove the real route — and the same call
+performed the entire first-run grant against all ninety real accounts.
+
+If a rule cannot be exercised without editing a production list, a price table, a
+founder list or any other real-world constant: **unit test it and say so.** Three
+of spec 11's rules are unit-tested only for exactly this reason, named in
+`reconcile.scenario.ts` rather than quietly skipped.
+
 
 ## Every migration is applied, and the ledger is not how we know (2026-08-16)
 

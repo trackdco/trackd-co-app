@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1 -p 3100",
     "seed:compounds": "node supabase/seed/build-compounds-data.mjs",
     "prebuild": "node supabase/seed/build-compounds-data.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "reconcile": "node scripts/reconcile.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

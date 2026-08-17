@@ -96,6 +96,12 @@ Fix either way round, both already patterned in this codebase:
   (`webhook/route.ts:161-202` distinguishes "already done" from "started and did not
   finish", and lets a stale claim be retried).
 
+**And the route's GET export is `07`'s too.** `app/api/notifications/run/route.ts:99-100`
+exports `GET` as well as `POST`, on a route whose whole job is to TRIGGER SENDS. A GET
+is reachable by a link prefetcher, a browser history entry, a chat unfurler or anything
+that follows a URL — **the shared secret is the only thing standing between any of those
+and a real send to real devices.** A trigger should not be reachable by navigation.
+
 ### One operational note, FOUNDER'S — do not touch
 
 The dev-server binding and the **GET** export on `app/api/notifications/run/route.ts:99-100`

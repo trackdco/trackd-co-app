@@ -953,6 +953,18 @@ export function duplicateEntitlementSource(s: ReconcileSnapshot): Finding[] {
  * subscribed. An alerting system with no subscribed device is itself a silent
  * failure, so it is asserted rather than assumed — otherwise the first time
  * anybody learns the alerts go nowhere is the night a rule breaks.
+ *
+ * ## ⚠️ THIS RULE HAS NEVER BEEN SEEN TO FAIL AGAINST REAL DATA
+ *
+ * It is unit-tested only. Seeding a violation would mean deleting a founder's
+ * real push devices, and `progress-tracker.md`'s second standing rule forbids
+ * editing a real list to make a fixture — that technique is what ran the
+ * backfill.
+ *
+ * Its real integration test is **launch morning**, when `12` requires this script
+ * to come back clean twice before the gate flips. ⚠️ IF IT PASSES TRIVIALLY THAT
+ * DAY, SAY SO RATHER THAN TICKING IT (Adrian, 2026-08-17): a rule that cannot
+ * fail is not a check, and "it was green" is not evidence that it looked.
  */
 export function noAlertDeviceSubscribed(s: ReconcileSnapshot): Finding[] {
   if (s.alertDevices > 0) return [];
