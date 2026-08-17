@@ -181,7 +181,19 @@ export async function trialEligibility(): Promise<TrialEligibility> {
      * about to state out loud.
      */
     const comp = await compEntitlement(user.id);
-    if (comp.kind === "grace") {
+    /**
+     * ⚠️ D81: `grace-expired` is handled HERE ALONGSIDE `grace`, deliberately,
+     * and the answer is unchanged.
+     *
+     * For what a SCREEN says, the two are the same fact: they had the fortnight,
+     * so they are not eligible for a trial and the reason is `beta`. The date is
+     * already nulled below when it has passed, which is the behaviour that was
+     * correct before this kind existed and stays correct now.
+     *
+     * What changes is only that the expired case is now named. `startTrial`
+     * treats it separately, because there the question is money rather than copy.
+     */
+    if (comp.kind === "grace" || comp.kind === "grace-expired") {
       return {
         eligible: false,
         reason: "beta",
@@ -368,6 +380,35 @@ export async function startTrial(
     betaGrantFor(user.email).kind === "comp"
   ) {
     return { status: "already-subscribed" };
+  }
+
+  /**
+   * ⚠️ D81. AN EXPIRED GRACE MAY BUY, AND THAT IS NOW A DECISION RATHER THAN AN
+   * OMISSION.
+   *
+   * `grace-expired` falls through to the purchase path, exactly as it did before
+   * this kind existed — **the behaviour is deliberately unchanged.** What changed
+   * is that it is now written down.
+   *
+   * Before, `compEntitlement` answered `grace` for any dated row without testing
+   * the date, and the backstop above fires only on `absent` or `unknown`. So this
+   * cohort was charged today because nothing in the comp block looked at a
+   * calendar, not because anybody weighed it. `12` §P11 calls that out: charging
+   * an expired grace may well be right, but it must be the decided outcome.
+   *
+   * It is the right outcome on the reasoning this file already uses elsewhere:
+   * their free run is over, they hold no live entitlement, and refusing the sale
+   * would leave somebody who WANTS to pay unable to, with no route back but a
+   * code change and a deploy — which `01` §2 forbids for the revoked case for
+   * precisely the same reason.
+   *
+   * ⚠️ `01` OWNS THE FINAL SAY. This clause only guarantees the question is
+   * asked; if `01` rules otherwise, this is the branch that changes.
+   */
+  if (comp.kind === "grace-expired") {
+    console.info(
+      `[billing] ${user.id} has an expired beta grace (ended ${comp.endsAt}); proceeding to purchase (D81)`,
+    );
   }
 
   /**
@@ -1650,8 +1691,23 @@ type CompEntitlement =
   | { kind: "revoked" }
   /** Free for life. Must never be sold a subscription. */
   | { kind: "forever" }
-  /** The beta grace. `endsAt` may be in the past. */
+  /** The beta grace, STILL RUNNING. */
   | { kind: "grace"; endsAt: string }
+  /**
+   * ⚠️ D81. THE BETA GRACE, ALREADY OVER. Its own kind rather than a `grace`
+   * with a stale date.
+   *
+   * This used to answer `grace` for ANY dated row without ever testing whether
+   * the date had passed. `startTrial`'s backstop fires only on `absent` or
+   * `unknown`, so an expired grace fell through the whole comp block and was
+   * charged today — **not because anybody decided that, but because the
+   * classifier did not look at a date.**
+   *
+   * Charging an expired grace may well be the right outcome. `01` owns that
+   * decision. What this kind guarantees is that the question is ASKED rather
+   * than answered by omission, which is the seam `12` §P11 names.
+   */
+  | { kind: "grace-expired"; endsAt: string }
   /**
    * ⚠️ THE READ FAILED, so we do not know which of the three this is. Kept
    * separate from `none` deliberately, because the two callers need OPPOSITE
@@ -1694,7 +1750,14 @@ async function compEntitlement(userId: string): Promise<CompEntitlement> {
     if (!row) return { kind: "absent" };
     if (row.is_active === false) return { kind: "revoked" };
     const activeUntil = row.active_until as string | null;
-    return activeUntil === null ? { kind: "forever" } : { kind: "grace", endsAt: activeUntil };
+    if (activeUntil === null) return { kind: "forever" };
+    /**
+     * ⚠️ D81: a dated row is only a GRACE while the date is still to come.
+     * Past it, the fortnight is over and this is a different fact.
+     */
+    return isStillToCome(activeUntil)
+      ? { kind: "grace", endsAt: activeUntil }
+      : { kind: "grace-expired", endsAt: activeUntil };
   } catch (err) {
     console.error(
       `[billing] could not read the comp entitlement for ${userId}:`,
