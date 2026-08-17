@@ -1026,7 +1026,23 @@ function dialogCopy({
           ]
             .filter(Boolean)
             .join(" "),
-          dismiss: `Keep my ${noun}`,
+          /**
+           * ⚠️ "Keep my trial", LITERALLY, AND NOT `Keep my ${noun}`.
+           *
+           * `03` §3.3 lists exactly two buttons for this dialog and gives this
+           * one in the singular, and §3.9 says so explicitly: **"It stays 'Keep
+           * my trial', which is approved copy for that control. Two controls,
+           * two labels, deliberately."**
+           *
+           * The mirrored noun pair belonged to the RESUME trigger, which D22
+           * replaced with the plan-agnostic "Keep my Pro plan". This control is a
+           * different one and was never part of that change; branching it here
+           * re-created half the pair D22 removed, on the dialog the spec pins.
+           *
+           * A defect against §3.9 rather than a new decision: the reasoning for
+           * branching is defensible and the spec is explicit, so the spec wins.
+           */
+          dismiss: "Keep my trial",
           confirm: "Yes, cancel",
         }
       : {

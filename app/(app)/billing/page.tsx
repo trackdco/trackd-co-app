@@ -177,8 +177,10 @@ export default async function BillingPage() {
   /**
    * ⚠️ READ IN ITS OWN QUERY, and its failure is swallowed.
    *
-   * `courtesy_until` arrives with `supabase/billing/003`, which Adrian applies
-   * by hand. Folding it into the select above would mean an unapplied migration
+   * `courtesy_until` arrives with `supabase/billing/003`, **which was applied on
+   * 16 August** (probe: `select courtesy_until` returns an empty set, not
+   * `42703`). The separate query STAYS regardless: folding it into the select
+   * above would mean an unapplied migration
    * takes down the WHOLE billing screen -- PostgREST rejects the entire request
    * for one unknown column -- so somebody trying to see what they are paying
    * would get nothing at all.
@@ -187,7 +189,10 @@ export default async function BillingPage() {
    * lesson `trialLease.ts` paid for: the deploy and the migration do not land in
    * the same instant, and the code has to be correct in the gap.
    *
-   * Unapplied, this is null and the label falls back to today's behaviour.
+   * The tolerance is not hypothetical and is not removed now that 003 is applied:
+   * a deploy and a migration do not land in the same instant, and this shape is
+   * what makes the code correct in the gap. Where the column cannot be read this
+   * is null and the label falls back to today's behaviour.
    */
   const courtesyUntil = await courtesyUntilFor(user.id);
   const subscription = row
@@ -401,8 +406,17 @@ export default async function BillingPage() {
         </p>
       ) : null}
 
+      {/* ⚠️ A 44px TAP TARGET, which is Apple's floor. It measured 112x18: a
+          bare text link with no box of its own. `03`'s cancel row already passes
+          at exactly 318x44, so the shell around it was the part failing.
+          `min-h-11` gives the height outright rather than leaving it to padding
+          arithmetic on a line box, and the negative inline margin keeps the text
+          optically where it was. */}
       <div className="mt-10 text-sm text-text-muted">
-        <Link href="/profile" className="hover:text-foreground">
+        <Link
+          href="/profile"
+          className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        >
           ← Back to profile
         </Link>
       </div>

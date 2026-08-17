@@ -1656,10 +1656,21 @@ function hasUsedTrial(all: readonly Stripe.Subscription[]): boolean {
  * their own liveness test; `resolveFreeTime` is where that rule lives.
  *
  * ⚠️ THE SELECT IS `source, active_until, is_active` AND MUST STAY THAT WAY.
- * All three columns are in `001`, which is applied. A column added to this select breaks the whole request
- * if its migration has not been run, and this request decides whether somebody
- * is charged today. `supabase/billing/003_courtesy_until.sql` is written and NOT
- * applied — nothing here may read it.
+ * All three columns are in `001`, which is applied. A column added to this select
+ * breaks the WHOLE request if its migration has not been run, and this request
+ * decides whether somebody is charged today.
+ *
+ * ⚠️ THE RULE STANDS; ITS STATED REASON WAS OUT OF DATE. This said
+ * `003_courtesy_until.sql` "is written and NOT applied — nothing here may read
+ * it". 003 WAS applied on 16 August (verified by probe: `select courtesy_until`
+ * returns an empty set rather than `42703`, and `list_migrations` carries
+ * `20260816092215 courtesy_until`).
+ *
+ * **Nothing here may read it anyway**, and the instruction is kept for a better
+ * reason than the one it had: this select decides whether somebody is charged
+ * today, so it takes no column it does not need, whatever the migration state.
+ * A rule that rests on "the migration has not run yet" expires silently the day
+ * it does — which is exactly what happened.
  *
  * ⚠️ RETURNS `unknown` ON ANY ERROR, never `absent`. The two callers need
  * OPPOSITE answers — the eligibility read wants the generous one, the money path

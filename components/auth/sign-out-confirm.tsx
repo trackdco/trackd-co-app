@@ -115,7 +115,11 @@ export function SignOutConfirm({
             : cn(
                 "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
                 variant === "link"
-                  ? "-mr-2 rounded-md px-2 py-2 text-sm text-text-muted hover:text-foreground"
+                  /* ⚠️ 44px, Apple's floor. It measured 69x36: `py-2` around a
+                     20px line box is 36px however it is read. `min-h-11` states
+                     the height instead of deriving it, and `inline-flex` keeps
+                     the label centred in the taller box. */
+                  ? "-mr-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm text-text-muted hover:text-foreground"
                   : "flex w-full items-center justify-center rounded-2xl border border-accent-destructive/50 bg-accent-destructive/10 py-3.5 text-sm font-medium text-accent-destructive hover:bg-accent-destructive/15",
               )
         }

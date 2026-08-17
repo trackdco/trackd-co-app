@@ -464,7 +464,13 @@ Gates and environment:
 - [ ] Verified by DRIVING the running app at 390x844 on `http://localhost`, not by
       reading code or trusting tests
 - [ ] Verified against real Stripe test mode with a test clock, never a fixture
-- [ ] The screen still works with the newest migration UNAPPLIED
+- [ ] The screen still works with the newest migration UNAPPLIED. **⚠️ 003 was
+      applied on 16 August, so this can no longer be produced by driving.** It is
+      answered from spec 03's own evidence, where `42703` was probed throughout,
+      plus the two mechanisms still in the tree: the mirror write retries without
+      the column on `PGRST204`, and `courtesyUntilFor` is its own tolerant query
+      so an unapplied migration cannot take the screen down. Do not tick it by
+      observation and do not strike it.
 - [ ] Every dialog: focus moves in, Tab cycles inside it, Escape closes it, and
       focus returns to the trigger
 - [ ] Every tap target at least 44px, including the quiet cancel row
