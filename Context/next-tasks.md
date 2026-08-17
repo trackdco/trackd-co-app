@@ -234,6 +234,87 @@ every variant, so this still needs the right seeding for eligibility.
 
 ---
 
+## 📮 TO THE SPEC CHAT — AN AMENDMENT TO `02b` §3.7, with every number attached
+
+**Drafted 17 Aug 2026 on measurement. Decided in the spec chat, not here.**
+
+### §3.7's requirement STANDS UNCHANGED, and it is MET at 390x844
+
+All four required facts — trial length, exact renewal amount with currency, first
+charge date, renews-until-cancelled — are visible at the same time as the button,
+without scrolling, at 390x844, in every variant seedable today, with the disclosure in
+the position `09` Step 5 instructs (below the button):
+
+| | fact 1+2 | fact 3+4 | button | fold | below the fold |
+|---|---|---|---|---|---|
+| trial | 713 | 737 | 674 | 844 | none |
+| mid-grace | 713 | 737 | 674 | 844 | none |
+
+**This is not a re-reading of the requirement and no fact has been trimmed, shrunk or
+moved above the button.** The copy is untouched.
+
+### At 320x568 it is PHYSICALLY UNACHIEVABLE
+
+| | height |
+|---|---|
+| express-checkout row (empty, no wallet) | 8px |
+| **Stripe's Payment Element** | **424px** |
+| the disclosure, all four facts | 110px |
+| the button | 52px |
+| gaps and padding | ~96px |
+| content | 690px |
+| **visible scroller (viewport 568 − 193px header)** | **375px** |
+
+**Stripe's Element alone is 424px inside a 375px scroller — 49px more than the whole
+visible area.** The requirement fails with the disclosure at zero height, the button at
+zero height and every gap removed. It is not a spacing problem and no arrangement of
+our own content changes it.
+
+### The pinned-bar option was measured and REJECTED
+
+Lifting the disclosure and button out of the scroller and pinning them satisfies §3.7
+literally, and works at 390x844 (0% of the Element out of reach keyboard-down, 14-19%
+keyboard-up). **It was rejected on the 320x568 keyboard-up case:**
+
+| | port | pinned bar | left for Element |
+|---|---|---|---|
+| 320x568, keyboard up | 159px | 162px | **−3px** |
+
+The pinned bar is taller than the entire visible port: the card fields get zero pixels
+and the field being typed into is unreachable. **The current layout leaves the same
+159px and the user simply scrolls to their field, so pinning takes that case from
+"scroll to your field" to "your field does not exist".** A fix that worsens the case it
+does not fix is not a fix.
+
+The `bottom-nav` slide-away that would hide the bar while the keyboard is open was
+rejected too, and on the instrument rather than the design: **the keyboard rows above
+are a headless viewport-shrink PROXY, not iOS.** iOS collapses the visual viewport and
+leaves the layout viewport alone, and `position: fixed` behaves differently under those
+two — so it needs a real device, and 320x568 is an iPhone SE 1st gen / 5s, hardware
+that is not available to test on.
+
+### Population
+
+320x568 is iPhone SE 1st gen and 5s. **Approximately zero of the ~90 beta accounts**,
+and the disclosure there is still complete, legible, reachable and directly beneath the
+button — it requires a scroll, which is what §3.7 exists to prevent, and that is
+exactly why this is an amendment rather than a silent acceptance.
+
+### Proposed wording, for the spec chat to accept, edit or refuse
+
+> §3.7's requirement is met at 390x844 and above. At 320x568 it is recorded as a
+> **measured limitation** under §9g: Stripe's Payment Element is 424px inside a 375px
+> scroller, so no arrangement of Trackd's own content can place all four facts and the
+> button above the fold. The disclosure remains complete, unshrunk, and immediately
+> below the button. Revisit if Stripe's Element becomes shorter or a shorter layout
+> becomes available.
+
+⚠️ **What this amendment must NOT be read as licence for:** trimming a fact, shrinking
+one below legibility, moving one above the button, or accepting a scroll at 390x844.
+Each of those was available and none was taken.
+
+---
+
 ## 📮 TO THE SPEC CHAT — D90, a CLARIFICATION OF D30 keeping the number
 
 **06 §3.7 and D30.** D30 decided the seen-marker is a per-browser cookie rather than a
