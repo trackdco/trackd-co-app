@@ -24,7 +24,7 @@ import { originFromHost } from "@/lib/billing/originAllowlist";
 import {
   EXTRA_TRIAL_DAYS,
   addOffer,
-  offerNounFor,
+  offerPeriodToGrant,
   grantExtraTime,
   markOfferShown,
   periodIsUnpaid,
@@ -402,7 +402,7 @@ async function offerAfterCancel(
      * date somebody reads before deciding is the date they are actually charged
      * rather than a second calculation that can drift from the first.
      */
-    const noun = offerNounFor(primary);
+    const noun = offerPeriodToGrant(primary);
     const from =
       primary.status === "trialing"
         ? (primary.trial_end ?? Math.floor(Date.now() / 1000))

@@ -5,7 +5,7 @@ import {
   EXTRA_TRIAL_DAYS,
   OFFER_WINDOW_MINUTES,
   addOffer,
-  offerNounFor,
+  offerPeriodToGrant,
   offerStillOpen,
   periodIsUnpaid,
 } from "./saveOffer";
@@ -82,30 +82,30 @@ describe("⚠️ an unpaid period is never offered free time", () => {
   });
 });
 
-describe("offerNounFor", () => {
+describe("offerPeriodToGrant", () => {
   it("gives a trial a week whatever plan sits behind it", () => {
     // A trial is seven days long regardless of the plan, so the offer that
     // matches the thing being extended is a week. Nobody who has paid nothing
     // gets a free month.
     for (const interval of ["week", "month", "year"] as const) {
-      expect(offerNounFor(sub({ status: "trialing", interval }))).toBe("week");
+      expect(offerPeriodToGrant(sub({ status: "trialing", interval }))).toBe("week");
     }
   });
 
   it("gives weekly a week, because a month is four times what they pay", () => {
-    expect(offerNounFor(sub({ interval: "week" }))).toBe("week");
+    expect(offerPeriodToGrant(sub({ interval: "week" }))).toBe("week");
   });
 
   it("gives monthly and yearly a month, never a year", () => {
-    expect(offerNounFor(sub({ interval: "month" }))).toBe("month");
-    expect(offerNounFor(sub({ interval: "year" }))).toBe("month");
+    expect(offerPeriodToGrant(sub({ interval: "month" }))).toBe("month");
+    expect(offerPeriodToGrant(sub({ interval: "year" }))).toBe("month");
   });
 
   it("falls back to a WEEK when the interval is missing or strange", () => {
     // The failure direction that costs money is the generous one. An unreadable
     // price must not hand out the larger gift.
-    expect(offerNounFor(sub({}))).toBe("week");
-    expect(offerNounFor(sub({ interval: "day" }))).toBe("week");
+    expect(offerPeriodToGrant(sub({}))).toBe("week");
+    expect(offerPeriodToGrant(sub({ interval: "day" }))).toBe("week");
   });
 });
 

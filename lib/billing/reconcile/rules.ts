@@ -123,7 +123,7 @@ const LONGEST_CALENDAR_MONTH_MS = 31 * 24 * 60 * 60 * 1000;
  * So the bound is DERIVED from what the built mechanisms can actually produce,
  * rather than chosen:
  *
- *   ONE CALENDAR MONTH   the save offer's largest grant. `offerNounFor` returns
+ *   ONE CALENDAR MONTH   the save offer's largest grant. `offerPeriodToGrant` returns
  *                        "month" for a monthly or yearly plan and "week"
  *                        otherwise (`saveOffer.ts:254-259`), and `addOffer` adds
  *                        one calendar month (`saveOffer.ts:269-284`). The other

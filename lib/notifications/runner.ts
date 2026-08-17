@@ -381,7 +381,7 @@ async function courtesyUntilFor(
 /**
  * "week" or "month" for the courtesy copy, or null if it cannot be established.
  *
- * ⚠️ `offerNounFor` CANNOT BE REUSED HERE, and the reason is subtle enough to be
+ * ⚠️ `offerPeriodToGrant` CANNOT BE REUSED HERE, and the reason is subtle enough to be
  * worth stating: it short-circuits on `status === "trialing"` and returns "week",
  * which is right when deciding what to GRANT. During a courtesy period Stripe
  * reports `trialing` for exactly the same reason the grant works at all — the

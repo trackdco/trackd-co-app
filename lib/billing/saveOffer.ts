@@ -231,7 +231,27 @@ export type GrantResult =
     };
 
 /**
- * HOW MUCH TIME THIS SUBSCRIPTION'S OFFER IS WORTH.
+ * HOW MUCH TIME THIS SUBSCRIPTION'S OFFER IS WORTH — the FORWARD question only.
+ *
+ * ⚠️ RENAMED FROM `offerNounFor` (Adrian, 2026-08-17), AND THE NAME IS THE POINT.
+ *
+ * It answers "what should we GRANT this subscription?" and it must never be read
+ * as "what WAS granted?" or "what is this period?". The `trialing` short-circuit
+ * on the first line is correct for the first question and wrong for the other two,
+ * and the old name invited exactly that misreading. **It has now come within one
+ * step of a false reading twice:**
+ *
+ *   - `07` would have called a paying customer's courtesy MONTH a "free week",
+ *     because Stripe reports `trialing` throughout a courtesy period (that is how
+ *     the grant works at all). See the note at `runner.ts`'s `courtesyNounFor`.
+ *   - `04` Step 11's yearly assertion would have passed on a TRIALING yearly
+ *     subscription, which this function hands a week — so the test would never
+ *     have exercised the yearly path it exists to pin, and the $69.99 giveaway
+ *     would have been "proven" shut by a scenario that never looked at it.
+ *
+ * Two near-misses on one function is where the name gets fixed rather than
+ * commented around. **To describe a period that already exists, read the period,
+ * not this.**
  *
  * Adrian, 2026-08-14, replacing "the next period free". That version handed a
  * yearly subscriber TWELVE MONTHS for pressing cancel, which on the current
@@ -251,7 +271,7 @@ export type GrantResult =
  * ⚠️ Unknown or missing interval falls back to a WEEK, not a month. The failure
  * direction that costs money is the generous one.
  */
-export function offerNounFor(subscription: Stripe.Subscription): "week" | "month" {
+export function offerPeriodToGrant(subscription: Stripe.Subscription): "week" | "month" {
   if (subscription.status === "trialing") return "week";
   const interval = subscription.items.data[0]?.price?.recurring?.interval;
   if (interval === "month" || interval === "year") return "month";
@@ -479,7 +499,7 @@ async function extendAccess(
    */
   shownAt: string,
 ): Promise<Stripe.Subscription> {
-  const noun = offerNounFor(subscription);
+  const noun = offerPeriodToGrant(subscription);
   /**
    * From the CURRENT end of access, never from today.
    *

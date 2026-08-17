@@ -229,7 +229,7 @@ guarded("Step 11 — paid lifecycle, and the yearly plan specifically", () => {
    * Set up a PAID (not trialing) subscription on a plan, cancelled, offered, and
    * return what the grant did to it.
    *
-   * ⚠️ IT MUST NOT BE `trialing`. `offerNounFor` short-circuits on
+   * ⚠️ IT MUST NOT BE `trialing`. `offerPeriodToGrant` short-circuits on
    * `status === "trialing"` and returns "week" (`saveOffer.ts:255`), so a trialing
    * yearly subscription would be granted a week and the yearly assertion below
    * would pass without ever exercising the yearly path. The clock is advanced past
