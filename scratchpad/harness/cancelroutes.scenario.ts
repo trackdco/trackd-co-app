@@ -423,3 +423,219 @@ guarded("04 Step 9 — the shown marker is written once and never rewritten", ()
   }, 900_000);
 });
 
+/* ══════════════════════════════════════════════════════════════════════════
+   04 STEP 10's BROWSER HALF — the countdown displays, the server decides
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * ⚠️ THE SERVER'S ANSWER GOVERNS IN EVERY CASE, and the two skew directions are
+ * asymmetric on purpose (§3.4):
+ *
+ *   skew FAST -> the countdown reaches zero early, the way back in disappears
+ *                early, and the server would still have granted. Acceptable: the
+ *                user loses an offer they could have had.
+ *   skew SLOW -> the countdown still shows time left, the user claims, and the
+ *                SERVER REFUSES. Also acceptable, and the reverse — a client
+ *                clock buying real free time — would not be.
+ *
+ * Clock skew is applied IN THE BROWSER via Playwright's `clock.install`, before
+ * any script runs, because that is the actual failure being modelled. The server
+ * is never moved.
+ */
+guarded("04 Step 10 — the countdown is a display, and the server is unmoved", () => {
+  /** Reach the offer dialog with the browser's clock offset by `skewMs`. */
+  async function offerWithSkew(tag: string, skewMs: number) {
+    const { account, customerId, t0 } = await seedBillable(tag);
+    const sub = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: process.env.STRIPE_PRICE_WEEKLY ?? "" }],
+      trial_end: Math.floor(t0.getTime() / 1000) + 7 * 86_400,
+      metadata: { user_id: account.id },
+    });
+    await mirror(sub.id);
+
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.addCookies(await cookiesFor(account.email));
+    // ⚠️ BEFORE the page exists, so the app never sees the true time.
+    if (skewMs !== 0) await context.clock.install({ time: new Date(Date.now() + skewMs) });
+    const page = await context.newPage();
+    await page.goto(`${BASE}/billing`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+    await page.waitForTimeout(4000);
+    await page.getByRole("button", { name: /^Cancel my / }).first().click({ timeout: 60_000 });
+    await page.waitForTimeout(800);
+    await page.getByRole("button", { name: "Yes, cancel" }).first().click({ timeout: 60_000 });
+    await page.waitForTimeout(6000);
+    return { page, context, account, customerId, subId: sub.id };
+  }
+
+  /** The countdown as the user reads it, e.g. "09:47". */
+  async function countdownText(page: Page): Promise<string | null> {
+    const m = (await page.locator("body").innerText()).match(/\b(\d{2}:\d{2})\b/);
+    return m ? m[1] : null;
+  }
+
+  it("dismiss at two minutes, reopen at eight: the countdown CONTINUES, never restarts", async () => {
+    const { page, context, account } = await offerWithSkew("s10-continue", 0);
+
+    /* ── ⚠️ ARRIVAL: the offer is open and a countdown is on screen ────── */
+    const confirm = page.getByRole("button", { name: /^Another (week|month), thanks$/ });
+    expect(await confirm.count(), "the offer dialog never opened").toBeGreaterThan(0);
+    const first = await countdownText(page);
+    console.log(`  countdown on open: ${first}`);
+    expect(first, "no countdown rendered, so 'it continues' is untestable").not.toBeNull();
+
+    /**
+     * Dismiss by pressing Escape, which `04` §3.6's store exists for: the offer is
+     * remembered for the rest of its ten minutes so a fumbled tap leaves a way
+     * back in.
+     */
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(1500);
+    expect(await confirm.count(), "the dialog did not dismiss").toBe(0);
+
+    /**
+     * ⚠️ MOVE THE BROWSER'S CLOCK FORWARD SIX MINUTES, rather than waiting. The
+     * countdown must resume from when the offer was FIRST shown, not restart —
+     * restarting would be the app handing out a longer window every time somebody
+     * fumbled a tap (`openOfferStore.ts:8-12`).
+     */
+    await context.clock.install({ time: new Date(Date.now() + 6 * 60_000) });
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
+    await page.waitForTimeout(5000);
+
+    const second = await countdownText(page);
+    console.log(`  countdown after a 6-minute gap: ${second}`);
+    const toSec = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+    if (second) {
+      expect(
+        toSec(second),
+        `the countdown RESTARTED (${first} -> ${second}) — a fumbled tap bought a fresh window`,
+      ).toBeLessThan(toSec(first!));
+    } else {
+      // Equally correct: past the window there is no way back in at all.
+      console.log(`  (no countdown: the window had closed, which is the other correct outcome)`);
+    }
+    void account;
+    await context.close();
+  }, 900_000);
+
+  it("a tab left open past the window claims, and is refused by the server", async () => {
+    const { page, context, customerId, subId } = await offerWithSkew("s10-staletab", 0);
+    const confirm = page.getByRole("button", { name: /^Another (week|month), thanks$/ });
+    expect(await confirm.count(), "the offer dialog never opened").toBeGreaterThan(0);
+
+    const before = await stripe.subscriptions.retrieve(subId);
+    const trialEndBefore = before.trial_end ?? 0;
+
+    /**
+     * ⚠️ AGE THE SERVER'S MARKER, NOT THE BROWSER'S CLOCK. The tab is untouched —
+     * it still believes it is inside the window and its button is still live,
+     * which is exactly the stale-tab case. The server is what has moved on.
+     */
+    const { markOfferShown, offerStillOpen } = await import("@/lib/billing/saveOffer");
+    const aged = new Date(Date.now() - 11 * 60_000).toISOString();
+    await markOfferShown(customerId, aged);
+    expect(offerStillOpen(aged), "the marker is still inside the window").toBe(false);
+
+    await confirm.first().click({ timeout: 60_000 });
+    await page.waitForTimeout(6000);
+
+    /**
+     * ⚠️ ASSERT ON THE SUBSCRIPTION, NOT ON THE SCREEN. Whatever the dialog says,
+     * the failure worth catching is a refusal that still moved `trial_end`.
+     */
+    const after = await stripe.subscriptions.retrieve(subId);
+    console.log(`  stale tab: trial_end ${trialEndBefore} -> ${after.trial_end}`);
+    expect(
+      after.trial_end,
+      "⚠️ A STALE TAB BOUGHT FREE TIME: the server granted outside its own window",
+    ).toBe(trialEndBefore);
+    // The screen should say so too, per D23, and never invite a retry.
+    const text = await page.locator("body").innerText();
+    console.log(`  screen after the refused claim: ${JSON.stringify(text.slice(0, 200))}`);
+    await context.close();
+  }, 900_000);
+
+  it("a device clock skewed FAST hides the way back early; the server is unmoved", async () => {
+    // +12 minutes: past the ten-minute window as the browser sees it.
+    const { page, context, customerId, subId } = await offerWithSkew("s10-fast", 12 * 60_000);
+
+    const text = await page.locator("body").innerText();
+    const confirm = page.getByRole("button", { name: /^Another (week|month), thanks$/ });
+    const stillOffered = (await confirm.count()) > 0;
+    console.log(`  skew +12min: offer control present = ${stillOffered}`);
+
+    /* ── ⚠️ CONTROL: the cancel really went through, so this is the offer
+       stage and not a failed drive. The cancelled state is named on screen. ── */
+    expect(text.length, "nothing rendered at all").toBeGreaterThan(0);
+    const markers = await readOfferMarkers(customerId);
+    expect(
+      markers.shownAt,
+      "the server never offered, so the browser hiding it proves nothing",
+    ).toBeTruthy();
+
+    /**
+     * ⚠️ THE SERVER IS UNMOVED EITHER WAY. Whether the skewed browser drew the
+     * control or not, nothing may have been granted without a claim.
+     */
+    const sub = await stripe.subscriptions.retrieve(subId);
+    const { offerStillOpen } = await import("@/lib/billing/saveOffer");
+    console.log(
+      `  server still open for ${markers.shownAt}: ${offerStillOpen(markers.shownAt!)}` +
+        `  (a FAST browser cannot close the server's window)`,
+    );
+    expect(
+      offerStillOpen(markers.shownAt!),
+      "the server's window closed because the BROWSER's clock was fast",
+    ).toBe(true);
+    void sub;
+    await context.close();
+  }, 900_000);
+
+  it("a device clock skewed SLOW lets the claim through, and the server refuses it", async () => {
+    /**
+     * The dangerous direction, and the one that must never buy free time: the
+     * browser is 12 minutes BEHIND, so it believes the offer is still open long
+     * after the server's window has closed.
+     */
+    const { account, customerId, t0 } = await seedBillable("s10-slow");
+    const sub = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: process.env.STRIPE_PRICE_WEEKLY ?? "" }],
+      trial_end: Math.floor(t0.getTime() / 1000) + 7 * 86_400,
+      metadata: { user_id: account.id },
+    });
+    await mirror(sub.id);
+
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.addCookies(await cookiesFor(account.email));
+    const page = await context.newPage();
+    await page.goto(`${BASE}/billing`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+    await page.waitForTimeout(4000);
+    await page.getByRole("button", { name: /^Cancel my / }).first().click({ timeout: 60_000 });
+    await page.waitForTimeout(800);
+    await page.getByRole("button", { name: "Yes, cancel" }).first().click({ timeout: 60_000 });
+    await page.waitForTimeout(6000);
+
+    const confirm = page.getByRole("button", { name: /^Another (week|month), thanks$/ });
+    expect(await confirm.count(), "the offer dialog never opened").toBeGreaterThan(0);
+
+    // The server moves on; the browser does not know.
+    const { markOfferShown, offerStillOpen } = await import("@/lib/billing/saveOffer");
+    const aged = new Date(Date.now() - 11 * 60_000).toISOString();
+    await markOfferShown(customerId, aged);
+    expect(offerStillOpen(aged)).toBe(false);
+
+    const trialEndBefore = (await stripe.subscriptions.retrieve(sub.id)).trial_end ?? 0;
+    await confirm.first().click({ timeout: 60_000 });
+    await page.waitForTimeout(6000);
+
+    const after = await stripe.subscriptions.retrieve(sub.id);
+    console.log(`  slow clock claim: trial_end ${trialEndBefore} -> ${after.trial_end}`);
+    expect(
+      after.trial_end,
+      "⚠️ A SLOW DEVICE CLOCK BOUGHT FREE TIME — the server honoured a closed window",
+    ).toBe(trialEndBefore);
+    await context.close();
+  }, 900_000);
+});

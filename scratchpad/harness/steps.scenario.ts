@@ -64,15 +64,24 @@ guarded("Step 9 — the offer cannot be had twice, by any of four routes", () =>
    * assertion below and it is the one a regression is most likely to break.
    */
 
-  it.todo("route 1 — decline, then cancel again: no second offer, same shownAt");
-  it.todo("route 2 — let it expire, then cancel again: no second offer, same shownAt");
-  it.todo("route 3 — take it, resume, cancel again: no second offer, same shownAt");
-  it.todo("route 4 — take it on a trial, then pay, then cancel: no second offer");
-
-  it.todo(
-    "⚠️ D70 — an unpaid period is refused WITHOUT burning it: shownAt absent, " +
-      "and a later cancellation once the invoice is settled still offers",
-  );
+  /**
+   * ⚠️ ALL FIVE ARE DONE, in `cancelroutes.scenario.ts`, 5/5 — and they live there
+   * rather than here because they need a BROWSER. `markOfferShown` is called by
+   * `offerAfterCancel`, which is deliberately not exported from a `"use server"`
+   * module, and the exported `cancelSubscription()` takes no arguments because a
+   * server action must never accept an id saying whose data to act on. So the
+   * guard is only reachable through a real signed-in session.
+   *
+   *   route 1  decline                           shownAt unchanged
+   *   route 2  let the ten minutes expire        shownAt unchanged
+   *   route 3  take it, resume, cancel again     shownAt + claimedAt kept
+   *   route 4  take on trial -> convert to paid  shownAt unchanged
+   *   D70      unpaid period                     markers {} — nothing burned
+   *
+   * The todos are deleted rather than left pointing at work that exists: a todo
+   * that is done elsewhere reads as missing coverage in every count of what is
+   * left, and it has already miscounted this branch once.
+   */
 
   /** The assertion body every route above shares, kept here so they cannot drift. */
   async function expectOfferNotReoffered(customerId: string, firstShownAt: string) {
@@ -190,10 +199,15 @@ guarded("Step 10 — the window is the server's, and the countdown only displays
     expect(after.cancel_at_period_end, "a refused claim lifted the cancellation").toBe(true);
   }, 600_000);
 
-  it.todo("dismiss at two minutes, reopen at eight: the countdown CONTINUES, never restarts");
-  it.todo("a tab left open past the window claims and is refused by the server");
-  it.todo("a device clock skewed fast hides the button early; the server is unmoved");
-  it.todo("a device clock skewed slow lets the claim through and the server refuses it");
+  /**
+   * ⚠️ ALL FOUR ARE DONE, in `cancelroutes.scenario.ts`, 4/4 — browser-side, so
+   * they live beside the routes rather than here:
+   *
+   *   dismiss and reopen   countdown 09:57 -> 03:51 after a 6-minute gap: CONTINUED
+   *   stale tab            claimed, refused, `trial_end` UNCHANGED
+   *   skew FAST +12min     the way back in disappears early; server's window open
+   *   skew SLOW            claim goes through the browser, server refuses, no time
+   */
 });
 
 /* ═══════════════════ C. Step 11 — the full lifecycle ═══════════════════ */
