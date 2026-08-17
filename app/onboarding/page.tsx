@@ -307,6 +307,28 @@ async function onboardingDates(
    *
    * The direction was always safe — clamping only ever moves the charge LATER —
    * so this corrects what is SAID, not what is done.
+   *
+   * ## ⚠️ AND NO OTHER SURFACE MAY COPY THIS. THIS IS A CHARGE DATE.
+   *
+   * `06`'s launch notice states an ACCESS-ENDS date and must read
+   * `entitlements.active_until` RAW, with no resolver and no clamp
+   * (`components/billing/BetaLaunchNotice.tsx`). The two are different facts and
+   * the difference is load-bearing:
+   *
+   *     charge date        clamped. Must match what Stripe will hold.
+   *     access-ends date   the row. Must match what `05`'s gate enforces.
+   *
+   * The clamp only ever moves LATER, so a notice that ran this resolver would
+   * promise access up to 48 hours BEYOND `active_until` — and the gate lapses AT
+   * `active_until`. The screen would be over-promising against the thing that
+   * enforces it, to every beta account in the final two days of their fortnight,
+   * which is a window all of them pass through.
+   *
+   * It is also the one place D86's re-dating migration and the copy could
+   * silently disagree: the migration sets the ROW, so anything reading the row
+   * follows it automatically and anything computing does not. Driven end to end
+   * in `scratchpad/harness/notice.scenario.ts` — move the row, and the notice
+   * moves with it.
    */
   let graceShown: string | null = null;
   if (graceEndsAt) {

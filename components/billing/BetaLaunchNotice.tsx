@@ -7,6 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 
 import { Confetti } from "@/components/onboarding/confetti";
@@ -68,6 +69,25 @@ export function BetaLaunchNotice({
   isComp: boolean;
 }) {
   const [open, setOpen] = useState(true);
+
+  /**
+   * ⚠️ IF IT CANNOT NAME THE DATE, IT DOES NOT RENDER. The fallback is DELETED,
+   * not weakened.
+   *
+   * This read `{endsOn ? \`until ${endsOn}\` : "two weeks"}` — a `??`-shaped
+   * fallback that converts "I could not resolve this account's expiry" into a
+   * confident claim about how long they have. That is standing rule 0's exact
+   * syntax, and `04` §3.2 already ruled the class: the dateless terms variant was
+   * DELETED rather than kept, because "a version that cannot name the date is not
+   * a weaker acceptable variant, it is a version that must not render".
+   *
+   * Not rendering is a known-acceptable outcome rather than a new one: somebody
+   * who never opens the app gets no notice at all, and the founder accepted that.
+   *
+   * ⚠️ The comp variant states no date, so it is unaffected — a free-for-life
+   * account HAS no expiry, which is the whole distinction `isComp` carries.
+   */
+  const cannotNameTheDate = !isComp && !endsOn;
   /**
    * ⚠️ NOTHING RENDERS UNTIL AFTER MOUNT, AND THIS IS NOT A STYLE CHOICE.
    *
@@ -100,6 +120,27 @@ export function BetaLaunchNotice({
   const close = useCallback(() => {
     markBetaNoticeSeen(userId);
     setOpen(false);
+  }, [userId]);
+
+  /**
+   * D31's second control, and Q84's destination: the PRICE LIST.
+   *
+   * ⚠️ THE SAME DESTINATION `05`'s "Choose a plan" uses (D28, "one shared
+   * destination"), so the two surfaces cannot drift into sending people to two
+   * different places to do one thing. Not the card screen: no plan has been
+   * chosen, and asking for a card for a plan nobody picked is the wrong question.
+   *
+   * ⚠️ IT DISMISSES FIRST. The notice shows once, and somebody who taps through
+   * and comes back should not meet it again — `08` carries the standing route via
+   * its subscribe row (D31), which is what makes a one-shot notice safe.
+   *
+   * ⚠️ A FULL DOCUMENT LOAD. The onboarding flow reads `?step=` and its session at
+   * mount and on `popstate` only, so a soft navigation would change the address
+   * bar and leave this app's tree on screen — the defect spec w2b-14 records.
+   */
+  const setUpMyPlan = useCallback(() => {
+    markBetaNoticeSeen(userId);
+    window.location.assign("/onboarding?step=plans");
   }, [userId]);
 
   /**
@@ -161,7 +202,9 @@ export function BetaLaunchNotice({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
 
-  if (!mounted || !open || typeof document === "undefined") return null;
+  if (!mounted || !open || cannotNameTheDate || typeof document === "undefined") {
+    return null;
+  }
 
   /**
    * `z-[60]` is THE APP'S MODAL LAYER — the same one `SignOutConfirm`,
@@ -207,83 +250,138 @@ export function BetaLaunchNotice({
             going after you have looked at it, and this does not. */}
         {isComp ? <Confetti /> : null}
 
+        {/* ⚠️ APPROVED COPY, CHARACTER FOR CHARACTER (06 §3.6). A fix WITHHOLDS a
+            line, it never rewords one. No em dash. Kyle is a vial, never a jar.
+            "Read only" is the exact phrase. */}
         <h2
           id="beta-notice-title"
           className="relative text-base font-medium text-foreground"
         >
-          {isComp ? "Trackd is yours. For life." : "Trackd is going paid"}
+          {isComp ? "Trackd Co is yours. For life." : "Trackd Co is going paid"}
         </h2>
 
         {isComp ? (
           <div className="relative">
             <p className="mt-2 text-sm leading-relaxed text-text-muted">
-              {/* THE GIFT FIRST, NAMED, AND FROM SOMEBODY. "You have been granted
-                  complimentary access" is what a billing system says. Adrian and
-                  Angus are two people, and this is the one screen where saying so
-                  costs nothing and means everything. */}
-              Adrian and Angus have given you{" "}
-              <span className="text-foreground">free access for life</span>.
+              Adrian and Angus have given you free access for life.
             </p>
             <p className="mt-3 text-sm leading-relaxed text-text-muted">
-              {/* THEN WHAT IT MEANS, because a promise with no edges is not
-                  reassuring. Two facts: it never expires, and nothing is ever
-                  asked for. */}
-              Trackd costs money for everyone else from today. Not for you, not
-              now and not later. No card, no renewal, nothing to cancel.
+              It costs money for everyone else from today. Not for you, not now
+              and not later. No card, no renewal, nothing to cancel.
             </p>
             <p className="mt-3 text-sm leading-relaxed text-text-muted">
-              {/* AND WHY. A gift with a reason attached is a thank-you; one
-                  without is a coupon. */}
-              Thanks for being here when it was held together with tape.
+              You were here for the version that barely worked, and you stayed.
+              That&apos;s worth more than a subscription.
             </p>
           </div>
         ) : (
           <>
-            {/* WHAT THEY KEEP, FIRST. Somebody reading this is asking "am I
-                about to lose two months of logs", and answering that before
-                anything about money is the only order that is not a threat. */}
             <p className="mt-2 text-sm leading-relaxed text-text-muted">
-              You&apos;ve been using Trackd for free while we built it, and
-              everything you&apos;ve logged is yours to keep. That doesn&apos;t
-              change.
+              You&apos;ve been using it free while we built it, and everything
+              you&apos;ve logged is yours to keep. That doesn&apos;t change.
             </p>
             <p className="mt-3 text-sm leading-relaxed text-text-muted">
-              {/* THE DATE, PLAINLY. It is the only fact here that requires an
-                  action, so it is the only one in the foreground colour. */}
-              From now on Trackd is a paid app. You&apos;ve got{" "}
-              <span className="text-foreground">
-                {endsOn ? `until ${endsOn}` : "two weeks"}
-              </span>{" "}
-              on us to decide.
+              {/**
+               * ⚠️ THE DATE COMES FROM THE ENTITLEMENT ROW AND IS COMPUTED FROM
+               * NOTHING. `dashboard/page.tsx` formats `activeUntil` server-side
+               * in the user's stored timezone and hands it here.
+               *
+               * D86 sets that row at apply time on launch morning, so a notice
+               * that READS it is automatically right whenever launch happens,
+               * and one that computed anything would be wrong the moment the
+               * date moved. This is the single place the re-dating migration and
+               * the copy could silently disagree.
+               *
+               * ⚠️ AND IT MUST NEVER SHOW THE CLAMPED INSTANT.
+               * `app/onboarding/page.tsx` deliberately runs `resolveFreeTime`
+               * and shows the clamp, because that screen states a CHARGE date
+               * and has to match what Stripe will hold. The clamp only moves
+               * LATER, so showing it here would promise access up to 48 hours
+               * beyond `active_until` — and `05`'s gate lapses AT
+               * `active_until`. Charge date is clamped; access-ends date is the
+               * row.
+               *
+               * "two more weeks" is SIGNED PROSE and does not derive from
+               * `BETA_GRACE_DAYS` (Adrian, 2026-08-17). Deriving it would mean
+               * generating unsigned wording for values nobody approved. The
+               * constant is PINNED to it by a test instead, so it cannot drift
+               * away from the sentence silently.
+               */}
+              From today it&apos;s a paid app, and because you were here early
+              you&apos;ve got two more weeks on us, until{" "}
+              <span className="text-foreground">{endsOn}</span>.
             </p>
             <p className="mt-3 text-sm leading-relaxed text-text-muted">
-              {/* AND WHAT "no" COSTS, said out loud rather than discovered.
-                  Somebody who reads this and does nothing should not be
-                  surprised by anything that happens next. */}
-              After that you can still open Trackd and read everything in it. You
-              just won&apos;t be able to log anything new until you subscribe.
+              After that your account goes read only. You&apos;ll still see
+              everything you&apos;ve logged, you just can&apos;t add to it.
               Nothing gets deleted.
             </p>
           </>
         )}
 
-        <button
-          type="button"
-          onClick={close}
-          /* `relative`, so it stacks above the confetti layer. The burst is
-             `pointer-events-none` so it could never have swallowed a tap, but a
-             button drawn UNDER falling pieces reads as decoration. */
-          className="relative mt-5 w-full rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {/* One button, and it is not "Subscribe". This is a notice, and
-              putting the ask on it would make the notice a sales pitch and the
-              date a threat. The pop-up with the prices is one blocked action
-              away, and /billing is on Profile.
+        {/**
+         * D32, counsel-advised and founder-signed, carried character for
+         * character, on BOTH variants — a comped account is still a user bound
+         * by the terms.
+         *
+         * ⚠️ NOTHING HERE IS AN ACCEPT BUTTON. Acceptance is continued use after
+         * notice, so neither control changes its label, behaviour or meaning,
+         * and neither may be styled as one.
+         */}
+        <p className="relative mt-4 text-[11px] leading-relaxed text-text-subtle">
+          By continuing to use Trackd, you agree to the updated{" "}
+          <Link
+            href="/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-2 hover:text-text-muted"
+          >
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-2 hover:text-text-muted"
+          >
+            Privacy Policy
+          </Link>
+          .
+        </p>
 
-              The comp variant says something else, because "Got it" is what you
-              say to a warning. This is not a warning. */}
-          {isComp ? "Thank you" : "Got it"}
-        </button>
+        {/**
+         * D31, re-decided: BOTH controls ship on the beta variant.
+         *
+         * ⚠️ THE HIERARCHY IS THE DECISION, NOT THE BUTTON COUNT (§3.6). The
+         * screen's credibility rests on applying no pressure, so the DISMISSAL
+         * reads as the expected action and the route to checkout is available
+         * without being urged. A secondary control is never amber.
+         *
+         * The comp variant keeps one button and it is not "Got it": that is what
+         * you say to a warning, and this is not a warning.
+         */}
+        <div className="relative mt-5 flex gap-3">
+          <button
+            type="button"
+            onClick={close}
+            /* `relative` on the row, so it stacks above the confetti layer. The
+               burst is `pointer-events-none` so it could never have swallowed a
+               tap, but a button drawn UNDER falling pieces reads as decoration. */
+            className={`${isComp ? "w-full" : "flex-1"} rounded-2xl bg-accent-primary py-3 text-sm font-medium text-bg-base outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring`}
+          >
+            {isComp ? "Thank you" : "Got it"}
+          </button>
+          {isComp ? null : (
+            <button
+              type="button"
+              onClick={setUpMyPlan}
+              className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Set up my plan
+            </button>
+          )}
+        </div>
       </div>
     </div>,
     document.body,

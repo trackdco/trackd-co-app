@@ -9,7 +9,30 @@ reminder traced)
 
 ---
 
-## 🟡 06 STEP 1 — ADJUDICATED. Two spec conflicts need Adrian's word.
+## 📮 TO THE SPEC CHAT — three amendments to 06, all decided by Adrian 2026-08-17
+
+**06 §0** — "There are **zero** entitlement rows in the database today… The backfill
+has never been run." **The premise is FALSE, not stale.** The backfill ran on
+2026-08-17 during the D81 verification; there are ninety rows dated 31 August, and
+`12` §P11 is now D86's re-dating migration. §0's ship-together reasoning still holds,
+but its stated starting condition cannot be reached again.
+
+**06 Step 6** — "run the route against them". **Do not.** `/api/billing/beta-grace`
+is banned in every mode, for any reason, including as part of a test, because
+driving it once already ran the backfill against production. Backfill logic is
+exercised through `betaGrantFor` / `grantExpiry` against seeded rows, which needs no
+route. Step 6's own goal — "confirm one instant is shared across every row it
+writes" — is already true of the rows that exist.
+
+**06 Step 7** — "Backfill, notice shown once, fortnight honoured…" is a sequence that
+cannot be replayed. What it was reaching for is driven instead by
+`scratchpad/harness/notice.scenario.ts`: **move the entitlement row and the notice
+moves with it**, which is the property D86 depends on and the one that proves the
+notice reads rather than computes.
+
+---
+
+## ✅ 06 STEP 1 — ADJUDICATED, and Steps 2 and 3 are now built and driven.
 
 ### ✅ The date's provenance is CORRECT (Step 3, by reading)
 
