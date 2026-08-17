@@ -9,6 +9,44 @@ reminder traced)
 
 ---
 
+## 🔴 05 STEP 6 IS IN PROGRESS, AND ITS DRIVER IS NOT IN THE REPO
+
+**Status: NOT a pass, and deliberately not reported as one.** `qa-05-attack.mjs`
+captures a real server-action dispatch, but the ENTITLED account's write is not
+landing — so the three attacks would be replayed against a path never proven to
+work. Standing rule 4: confirm the driver reached the state before reporting a
+result from it. Three green ticks there would have been a false pass.
+
+    ✅ ARRIVAL: a real server-action dispatch was captured — 1 POST
+    ❌ ARRIVAL: the entitled account's write actually landed — 0 rows
+
+Next: find why (the captured POST may not be `logWeight` at all), then re-run.
+
+### ⚠️ AND THE DRIVERS ARE ON ONE MACHINE, IN NOBODY'S CLONE
+
+`.gitignore:73` is `/scratchpad/*` with `!/scratchpad/harness/` re-included. So the
+harness scenarios are tracked and **every `qa-*.mjs` and `cold-*.mjs` driver is
+not** — including `qa-05-readonly.mjs`, the 23/23 drive of the read-only pop-up
+that `05` Steps 2 and 3 were signed off on, and the whole shared spine those
+drivers import (`admin.mjs`, `qa-billing.mjs`, `qa-cancel.mjs`).
+
+**This exact failure is already written down in `lib/billing/gate.ts`**, about
+`gate-audit.mjs`: *"It lived in `scratchpad/`, which `.gitignore` excludes — so the
+script this paragraph rests its credibility on was on one machine and in nobody's
+clone. A cold review pointed that out. It is tracked now."* It was fixed for that
+one file and the class was left open.
+
+It matters here because `05` §5 and `12` both rest on evidence these drivers
+produced. A cold reviewer cannot re-run any of it, and neither can a future
+session.
+
+**Founder's call, two options:** track the driver corpus the way `harness/` is
+tracked, or accept that driven evidence is a point-in-time claim in a commit
+message and say so. Not decided here, because moving ~60 files that import a shared
+untracked spine is not a change to make silently.
+
+---
+
 ## 🔴 MUST CLOSE BEFORE 07 SHIPS — the grace reminder degrades into the trial copy
 
 **Traced 2026-08-17, four ways, then adversarially refuted three ways. Not live
