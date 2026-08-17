@@ -7,7 +7,37 @@ session needs at hand.
 
 Last updated: 2026-08-17 (spec 11 Steps 1-5 built and driven; two standing rules below)
 
-## ⚠️ FOUR STANDING RULES, all earned the hard way (2026-08-17)
+## ⚠️ FIVE STANDING RULES, all earned the hard way (2026-08-17)
+
+### 0. ABSENT IS NOT UNKNOWN. WIDEN THE RETURN SO THE THIRD STATE EXISTS
+
+**The most expensive single mistake on this project, five times over.** Every
+instance is a tool or a read that cannot tell **absent** from **could not find
+out**, and defaults to the permissive answer:
+
+| Where | What it could not tell apart | What it cost |
+|---|---|---|
+| `compEntitlement` | a dated row that had EXPIRED from a live grace | an expired grace was classified live and charged (D81) |
+| `listSubscriptions` | "there are 100" from "there are more than 100" | one live trial hidden behind a hundred dead objects; no route out from inside the app |
+| `readOnly: boolean` | "we know they lapsed" from "the read failed" | fifteen surfaces told a lapsed user the app was still syncing |
+| `resolveEnding`'s `courtesyUntil` | `undefined` (unreadable) from `null` (read, absent) | a courtesy period could read as a first trial |
+| `gate-audit.mjs` | a guard it recognised from one it did not | the list of what is ENFORCED reported 16 gated functions as ungated |
+
+**Every fix was the same shape: widen the return so the third state exists**, and
+make the caller handle it explicitly. `cap + 1` so overflow is distinguishable. A
+`{ok:false}` read result rather than an empty array. A three-state verdict rather
+than a boolean. A `grace-expired` kind rather than a dated row.
+
+⚠️ **Ask this of every read and every tool in `06`, `07`, `08` and `09` as they are
+built:** can it tell "no" from "I could not find out"? If not, it will answer "no"
+to both, and the permissive default is the one that ships a defect quietly.
+
+**And the audit case is its own class.** A false pass hides a defect. A false
+finding invents one. **A false INSTRUMENT corrupts every measurement taken after
+it** — which is why `gate-audit.mjs` now runs in `npm run check` rather than being
+read by a person, and why regenerating its manifest in bulk is refused (below).
+
+## The other four standing rules (2026-08-17)
 
 ### 1. A REVOKED ROW IS A DECISION, NOT A GAP
 

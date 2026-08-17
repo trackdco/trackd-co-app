@@ -98,6 +98,14 @@ not that a phone displayed anything.
 
 ## Traps that each cost a run, kept here so they do not cost another
 
+**The 127.0.0.1 trap is about the URL you OPEN, not the address the server BINDS.**
+`npm run dev` binds `-H 127.0.0.1`, deliberately, so the server listens on loopback
+only rather than on every interface — it was reachable from the network while
+holding the production service-role key, the production VAPID keys and
+`CRON_SECRET`. Verified 2026-08-17: with that bind, `http://localhost:3100` still
+answers 200 and still hydrates. **Do not widen the bind to "fix" the trap.** Drive
+on `http://localhost:3100`; never on `http://127.0.0.1:3100`.
+
 **`setup.ts` must load `.env.local` before any module under test is imported.** ESM
 imports are hoisted, so `runner.ts` captures `VAPID_PUBLIC`/`VAPID_PRIVATE` into
 module-level consts before anything in `core.ts` executes. Parsing env after that is

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "//dev": "BIND to loopback, VISIT via localhost. The trap that 'the app does not hydrate on 127.0.0.1' is about the URL you OPEN, not the address the server binds. Verified 2026-08-17: with -H 127.0.0.1 the server listens on loopback only (closing the all-interfaces exposure) and http://localhost:3100 still answers 200 and hydrates. Do not 'fix' this back to a public bind; drive on http://localhost:3100, never http://127.0.0.1:3100.",
     "dev": "next dev -H 127.0.0.1 -p 3100",
     "seed:compounds": "node supabase/seed/build-compounds-data.mjs",
     "prebuild": "node supabase/seed/build-compounds-data.mjs",
