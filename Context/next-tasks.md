@@ -222,6 +222,43 @@ untracked spine is not a change to make silently.
 
 ---
 
+## 🔴 05 §3.6b's FINAL-DAY BANNER WAS DECIDED AND NEVER BUILT — found driving 07 Step 4
+
+**`07` Step 5 is "enforce the no-double-banner rule". There is nothing to suppress.**
+
+`05` §3.6b decides a banner — **"Your plan ends today."**, quiet, last entitled day
+only, tapping to Billing — and `05` §7 records it as decided on 15 Aug. **The string
+appears nowhere in the tree**, and `05`'s Steps 1-8 contain no step that builds it: the
+decision was recorded in the design section and never given an implementation step.
+
+Driven, `banner.scenario.ts`, 5/5, gate on, 390x844, with a control grep proving the
+search works before trusting the empty result:
+
+| Account on its final entitled day | Banners |
+|---|---|
+| trialing, not cancelled | **1** — "Your free trial ends today." |
+| beta grace (comp, expiring) | **1** — "Your free access ends today.", never "trial" |
+| trialing, `cancel_at_period_end` | **0** |
+| active + `cancel_at_period_end`, period ends today | **0** |
+
+**So `07` §3.7's rule holds VACUOUSLY** — exactly one banner on the overlap day and it
+is `07`'s — while `05` §5's box *"the final-day banner renders on the last entitled day
+only"* is false in the other direction: it never renders.
+
+⚠️ **The two zero rows are the finding.** `trialNoticeFor` returns null on its first
+line for `cancelAtPeriodEnd` and for any status that is not `trialing`
+(`trialReminder.ts:291`), both deliberately — `07`'s promise is "before anything
+changes", and for somebody who already cancelled, nothing is. **That is precisely the
+hole `05` §3.6b was decided to fill**, in a cohort-neutral sentence that also works for
+the ~85 who never had a subscription. Nobody currently gets it.
+
+**Not a money defect and not stop-list.** Nobody is charged, no promise is contradicted,
+and the copy is already signed so there is nothing to invent. It is a decided screen
+with no build step. **Needs Adrian's word on whether it ships for launch**, and if so it
+is `05`'s Step 9, not `07`'s work.
+
+---
+
 ## 🔴 MUST CLOSE BEFORE 07 SHIPS — the grace reminder degrades into the trial copy
 
 **Traced 2026-08-17, four ways, then adversarially refuted three ways. Not live
@@ -295,19 +332,29 @@ derives it from the shape of the subscription data instead, so it stops being tr
 moment the account acquires a subscription. The spec needs to say where that fact comes
 from.
 
-### `07`'s list gains one more, from the same trace
+### ~~`07`'s list gains one more, from the same trace~~ ✅ CLOSED 2026-08-17, BY DRIVING
 
-**`claimTrialReminder` stamps `trial_reminder_sent_for` BEFORE the send**
-(`runner.ts:975`). A misfire therefore burns the dedupe key, and the genuine reminder is
-then suppressed as `already-sent` (`trialReminder.ts:132`) — **which is the reminder
-D1's release condition rests on.**
+**The claim-burns-the-key entry read the claim and not the release.** It was right that
+`claimTrialReminder` stamps before the send (`runner.ts:975`), and right that a burned
+key would suppress the genuine reminder as `already-sent`. But `runner.ts:1005-1017`
+already hands the claim back when nothing was delivered — **the second of the two fixes
+that entry proposed was already in the tree.**
 
-Fix either way round, both already patterned in this codebase:
+Driven rather than read, because a release that exists and never runs is
+indistinguishable from no release. `monday.scenario.ts`, a push subscription pointing
+at a port nothing listens on, which is the real failure mode rather than a mocked throw:
 
-- stamp only after a **confirmed** send; or
-- stamp-then-release on failure, exactly as the webhook's send claim already does
-  (`webhook/route.ts:161-202` distinguishes "already done" from "started and did not
-  finish", and lets a stale claim be retried).
+    failed send:  trialReminder=send-failed   stampAfter=null     <- handed back
+    retry:        trialReminder=sent          delivered=1         <- CONTROL
+
+The control is the half that matters. A release that also destroyed the ability to send
+would satisfy `stampAfter=null` perfectly.
+
+**Still true, and accepted where the code already says so:** a hard process crash
+between the claim and the release burns the key, because nothing runs to hand it back.
+`runner.ts`'s own comment takes that trade deliberately — "a missed push is recoverable
+where ninety-six pushes about a charge is not" — and the Home banner reaches everybody
+regardless.
 
 **And the route's GET export is `07`'s too.** `app/api/notifications/run/route.ts:99-100`
 exports `GET` as well as `POST`, on a route whose whole job is to TRIGGER SENDS. A GET
