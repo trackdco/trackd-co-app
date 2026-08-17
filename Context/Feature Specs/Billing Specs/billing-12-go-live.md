@@ -402,6 +402,13 @@ this.
 **P12 — Verify the rows.** *Worked when:* counted directly, not inferred from the
 route's response.
 
+**P12a — Set `REMINDER_PROMISE_ENABLED` in production.** *Worked when:* the variable is
+set and a deployment has picked it up. It gates two signed strings — the terms line's
+final clause "and we'll remind you first", and the accept screen's "We'll remind you
+before that happens." Both or neither. D1's release condition was observed on 17
+August: reminder delivered 28 Aug, invoice paid 31 Aug, on real Stripe objects. Before
+P13, so the promise is live before any user can reach the offer.
+
 **P13 — Set `BILLING_GATE_ENABLED`.** **⚠️ Never before P11 and P12.** *Worked when:* a
 seeded lapsed account is read-only and an entitled account is not.
 
@@ -483,7 +490,7 @@ public business name, failed deliveries, and the customer email settings per D34
 
 - [ ] `tsc` clean, ESLint clean, all tests pass, `next build` succeeds — **and this is
       treated as necessary, never as evidence**
-- [ ] Every pre-flight step P1 to P13 completed in order, each with its worked-when
+- [ ] Every pre-flight step P1 to P13, including P12a, completed in order, each with its worked-when
       confirmed
 - [ ] Every sequence step S1 to S9 completed in order
 - [ ] The working tree was committed before anything else began

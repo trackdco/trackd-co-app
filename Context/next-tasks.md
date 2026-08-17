@@ -9,6 +9,35 @@ reminder traced)
 
 ---
 
+## 📮 TO THE SPEC CHAT — D90, a CLARIFICATION OF D30 keeping the number
+
+**06 §3.7 and D30.** D30 decided the seen-marker is a per-browser cookie rather than a
+database row. **It did not decide that one person's dismissal consumes another's
+notice**, and a drive on 2026-08-17 found that it did: the cookie held one id, so B
+dismissing overwrote A's record and A met the going-paid notice again.
+
+**D90 (Adrian, 2026-08-17): the cookie is ACCOUNT-SCOPED.** Scope its value by user id
+and reject a mismatch on read, as `openOfferStore` does, for the same stated reason — a
+shared browser must not leak one person's state to the next. Two mechanisms doing the
+same job should not disagree. §3.7's "known limitation" paragraph still stands for
+cleared cookies, a second device and a private window; it must no longer be read as
+covering a second account.
+
+⚠️ **One note for the spec chat, because the wording and the code pull apart.**
+"Reject a mismatch on read" was ALREADY the built behaviour (`betaNoticeStore.ts:50`,
+`cookieValue === userId`), which is why B never inherited A's dismissal — the leak
+direction was closed from the start. **The half that was missing was on the WRITE**: it
+replaced the value rather than adding to it. And `openOfferStore` is itself a single
+slot (`openOfferStore.ts:86`), correctly, because a ten-minute offer can only have one
+in flight — so it is the right model for the CHECK and the wrong one for the STORAGE.
+Built as a set of ids so both dismissals survive; if the spec means something narrower,
+that is a ruling, not a clarification.
+
+Capped at 8 ids (~300 bytes), evicting the oldest. The ninth account on one browser
+re-shows the notice for the first, which is §7's harmless direction.
+
+---
+
 ## 📮 TO THE SPEC CHAT — three amendments to 06, all decided by Adrian 2026-08-17
 
 **06 §0** — "There are **zero** entitlement rows in the database today… The backfill
@@ -294,9 +323,18 @@ hole `05` §3.6b was decided to fill**, in a cohort-neutral sentence that also w
 the ~85 who never had a subscription. Nobody currently gets it.
 
 **Not a money defect and not stop-list.** Nobody is charged, no promise is contradicted,
-and the copy is already signed so there is nothing to invent. It is a decided screen
-with no build step. **Needs Adrian's word on whether it ships for launch**, and if so it
-is `05`'s Step 9, not `07`'s work.
+and the copy is already signed so there is nothing to invent.
+
+### ✅ RULED 2026-08-17 — IT SHIPS, as `05` STEP 9, QUEUED AFTER 08 AND 09
+
+Adrian: a decided screen with no build step is the same class as D76 wired to nothing.
+**But no promise is broken** — a canceller was told the date in the cancel confirmation
+and a beta user in the notice — so it is a courtesy, and `08` and `09` have no code at
+all. They go first.
+
+⚠️ **If the freeze arrives before Step 9 does, record it under §9g as a DELIBERATELY
+ACCEPTED GAP rather than an oversight**, citing `05` §3.6b for the decision and
+`lib/notifications/trialReminder.ts:291` for why `07`'s banner cannot cover the cohort.
 
 ---
 

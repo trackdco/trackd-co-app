@@ -538,7 +538,7 @@ describe("06 Step 5 — the notice shows once, and a second account gets its own
     expect(
       await seenCookie(context),
       "the cookie holds something other than A's id, so it is not account-scoped",
-    ).toBe(a.id);
+    ).toContain(a.id);
 
     /* ── 3. reload ──────────────────────────────────────────────────── */
     await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
@@ -564,7 +564,7 @@ describe("06 Step 5 — the notice shows once, and a second account gets its own
     expect(
       await seenCookie(context),
       "the seen-cookie did not survive the account swap; the test below is vacuous",
-    ).toBe(a.id);
+    ).toContain(a.id);
 
     await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded", timeout: 90_000 });
     await page.waitForSelector(SHELL, { timeout: 60_000 });
@@ -584,30 +584,25 @@ describe("06 Step 5 — the notice shows once, and a second account gets its own
   }, 600_000);
 
   /**
-   * ⚠️ STOP-LIST S4 — A STATE THE SPEC DOES NOT RULE ON. Observed, pinned, and
-   * flagged for the founder rather than decided here.
+   * ⚠️ D90 — ONE PERSON'S DISMISSAL DOES NOT CONSUME ANOTHER'S NOTICE.
    *
-   * §3.7 says two things that are both true and that pull apart in exactly one
-   * case. It says the flag "is scoped to the ACCOUNT, by storing the user id as
-   * the value", and it says "a cookie is per-browser", listing the re-show cases
-   * it accepts: clearing cookies, a second device, a private window. Two
-   * accounts alternating in one browser is not in that list.
+   * This scenario found the opposite and reported it as S4: the cookie was one
+   * slot holding one id, so B's dismissal overwrote A's and A met the notice
+   * again on its next load.
    *
-   * The cookie is ONE SLOT holding ONE id, so it is account-scoped in the sense
-   * that matters most — B never inherits A's dismissal — but it cannot remember
-   * two dismissals at once. When B dismisses, A's is overwritten, and A meets
-   * the notice again on its next load. §5's box says "the notice shows once per
-   * account and does not return on reload or navigation"; for A, after B, it
-   * returns.
+   * **Ruled 2026-08-17 (Adrian, D90), as a clarification of D30 keeping the
+   * number.** D30 decided the marker is a per-browser cookie rather than a
+   * database row; it did not decide that a write may destroy another account's
+   * answer. "Two mechanisms doing the same job should not disagree."
    *
-   * Not a defect on its face. `04`'s offer store is account-scoped and D30's
-   * cookie is per-browser, deliberately, so the two disagree by design — and a
-   * re-shown going-paid notice is the harmless direction (§7: "a re-shown notice
-   * is a second notice, which is harmless, while a never-shown one is the real
-   * gap"). It is recorded because it is a real observable behaviour on a shared
-   * device that no line of the spec names.
+   * So the assertion at the bottom is INVERTED from what it was, and it is the
+   * proof of the fix rather than a record of the behaviour.
+   *
+   * ⚠️ The sequence is unchanged on purpose. The fix lives in the WRITE
+   * (`withBetaNoticeSeen` appends instead of replacing), and the only way to see
+   * a write destroying something is to write twice and come back to the first.
    */
-  it("OBSERVATION (S4): after B dismisses, A's dismissal is overwritten", async () => {
+  it("D90: A's dismissal SURVIVES B dismissing in the same browser", async () => {
     const a = await seedAccount(ledger, "qa06-slot-a", {
       graceUntil: "2026-09-30T04:00:00.000Z",
       notificationsEnabled: false,
@@ -629,17 +624,27 @@ describe("06 Step 5 — the notice shows once, and a second account gets its own
     expect(await dialog.count(), "A's notice never opened").toBe(1);
     await page.getByRole("button", { name: "Got it" }).click();
     await dialog.waitFor({ state: "detached", timeout: 15_000 });
-    expect(await seenCookie(context)).toBe(a.id);
+    expect(await seenCookie(context)).toContain(a.id);
 
     // B signs in and dismisses.
     await signInInstead(context, b.email);
     await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded", timeout: 90_000 });
     await page.waitForSelector(SHELL, { timeout: 60_000 });
     await page.waitForTimeout(3000);
-    expect(await dialog.count(), "B's notice never opened, so the overwrite never happened").toBe(1);
+    /**
+     * ⚠️ ARRIVAL, AND THE HALF THAT WAS ALWAYS RIGHT. B is not silenced by A's
+     * dismissal. If this were 0 the rest of the test would pass by never having
+     * written a second time at all.
+     */
+    expect(await dialog.count(), "B was silenced by A's dismissal").toBe(1);
     await page.getByRole("button", { name: "Got it" }).click();
     await dialog.waitFor({ state: "detached", timeout: 15_000 });
-    expect(await seenCookie(context), "B's dismissal did not reach the cookie").toBe(b.id);
+
+    const both = await seenCookie(context);
+    console.log(`  cookie after both dismissals: ${both}`);
+    expect(both, "B's dismissal did not reach the cookie").toContain(b.id);
+    /* ── ⚠️ D90, AT THE MECHANISM: the write APPENDED rather than replaced ── */
+    expect(both, "B's write erased A's id — the cookie is still one slot").toContain(a.id);
 
     // A comes back to the same browser.
     await signInInstead(context, a.email);
@@ -648,16 +653,12 @@ describe("06 Step 5 — the notice shows once, and a second account gets its own
     await page.waitForTimeout(3000);
     const returned = await dialog.count();
     console.log(`  A's notice after B dismissed in the same browser: ${returned === 1 ? "SHOWN AGAIN" : "still gone"}`);
-    /**
-     * The single slot means A's dismissal is gone. Pinned so the behaviour is a
-     * recorded fact rather than a guess — if the founder rules the other way,
-     * this failing is the point.
-     */
-    expect(returned, "one slot, one id: A's dismissal was overwritten by B's").toBe(1);
-    if (returned === 1) {
-      const t = await dialog.innerText();
-      expect(t, "and it is A's own notice, not B's").toContain("Sep");
-    }
+
+    /* ── ⚠️ D90, ON SCREEN, which is the only place it counts ─────────── */
+    expect(returned, "A's dismissal was consumed by B's — D90 is not held").toBe(0);
+    // CONTROL: the page rendered, so "no notice" is a suppression rather than a
+    // dead load. `waitForSelector(SHELL)` above is what makes that true.
+    expect(await page.locator(SHELL).count()).toBe(1);
 
     await context.close();
   }, 600_000);
