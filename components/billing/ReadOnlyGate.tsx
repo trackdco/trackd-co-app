@@ -11,10 +11,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { PlanRows } from "@/components/billing/PlanRows";
-import { readSession, writeSession } from "@/lib/onboarding/session";
-import { PLANS, TRIAL_DAYS, type PlanId, type PricedPlan } from "@/lib/onboarding/pricing";
-
 /**
  * ⚠️ THE READ-ONLY GATE, CENTRALLY.
  *
@@ -39,12 +35,18 @@ import { PLANS, TRIAL_DAYS, type PlanId, type PricedPlan } from "@/lib/onboardin
  * transformed ancestor, `position: fixed` is contained by it and the modal lands
  * behind the fixed bottom nav.
  *
- * ## The prices are the REAL prices
+ * ## ⚠️ NO PRICES, NO SELECTOR (D28)
  *
- * `PlanRows`, the same component the paywall renders, fed from the same
- * `loadPricesSafe` read. Not a hardcoded figure and not a second copy of the
- * presentation. A price that disagreed with the checkout screen would be the
- * worst possible thing to put in front of somebody deciding whether to pay.
+ * The built version embedded a live plan list with real Stripe prices and
+ * subscribed from inside the modal. **D28 resolved: the selector goes, and there
+ * is one shared destination.** So this is a plain notice with a button that goes
+ * to the paywall, and the price list is stated in exactly one place.
+ *
+ * That also removes a network call — `loadPricesSafe` — from the layout of every
+ * logged-in page, and removes the two unsigned strings the selector needed: the
+ * footnote about trials being for new accounts, and the no-prices error. Both
+ * disappear as a consequence of D28 rather than as an omission, which `05` §7
+ * asked to be made explicit.
  *
  * ## THIS IS NOT THE ENFORCEMENT
  *
@@ -103,17 +105,10 @@ export function useWriteAccess(): ReadOnlyContextValue {
 
 export function ReadOnlyProvider({
   canWrite,
-  prices,
   children,
 }: {
   /** Server-computed, in `app/(app)/layout.tsx`. */
   canWrite: boolean;
-  /**
-   * What Stripe says each plan costs. Empty when the gate is off (nothing to
-   * sell) or when Stripe could not be reached, which the pop-up handles rather
-   * than rendering blank figures.
-   */
-  prices: readonly StripePlanPrice[];
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -170,85 +165,16 @@ export function ReadOnlyProvider({
   return (
     <ReadOnlyContext.Provider value={value}>
       {children}
-      {open ? (
-        <SubscribePopup prices={prices} onClose={closePopup} />
-      ) : null}
+      {open ? <ReadOnlyPopup onClose={closePopup} /> : null}
     </ReadOnlyContext.Provider>
   );
 }
 
-/** The shape `lib/billing/prices.ts` returns, declared structurally because that
- *  module is `server-only` and this is a client component. Same reason
- *  `components/onboarding/flow.tsx` declares its own copy. */
-export interface StripePlanPrice {
-  plan: PlanId;
-  priceId: string;
-  amount: number;
-  /**
-   * The same amount in Stripe's minor units, for a payment-mode Elements mount
-   * (spec 02a §3.4). Never derived from {@link amount} — see `PlanPrice`.
-   */
-  amountMinor: number;
-  currency: string;
-  interval: string;
-  /**
-   * How many intervals one charge covers. Stripe says "every three months" as
-   * `interval: "month"` with `interval_count: 3`, so a screen reading only the
-   * interval prices a quarterly plan as monthly (spec 02b §3.3).
-   */
-  intervalCount: number;
-}
-
 /* ── the pop-up ──────────────────────────────────────────────────── */
 
-function SubscribePopup({
-  prices,
-  onClose,
-}: {
-  prices: readonly StripePlanPrice[];
-  onClose: () => void;
-}) {
+function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [leaving, setLeaving] = useState(false);
-
-  const pricedPlans: PricedPlan[] = useMemo(
-    () =>
-      // `flatMap` rather than map-then-filter: the guard is an unknown plan id,
-      // which `PLANS[p.plan]` would spread as undefined, and dropping it here
-      // needs no type predicate to reassure the compiler afterwards.
-      prices.flatMap((p) => {
-        const base = PLANS[p.plan];
-        if (!base) return [];
-        return [
-          {
-            ...base,
-            price: p.amount,
-            amountMinor: p.amountMinor,
-            currency: p.currency,
-            interval: p.interval,
-            intervalCount: p.intervalCount,
-          },
-        ];
-      }),
-    [prices],
-  );
-
-  /**
-   * Opens on the plan the user last chose, falling back to the first on offer.
-   *
-   * A LAZY INITIALISER, not an effect. An effect that setStates in its own body
-   * is a cascading render (the lint rule says so, and it is right), and there is
-   * no reason for one here: this component is only ever mounted by a click, so
-   * it always has a browser and `readSession` can be read straight away. The
-   * same idiom `flow.tsx` uses for exactly this reason.
-   */
-  const [selected, setSelected] = useState<PlanId | null>(() => {
-    if (pricedPlans.length === 0) return null;
-    const remembered = readSession().plan;
-    return pricedPlans.some((p) => p.id === remembered)
-      ? remembered
-      : pricedPlans[0].id;
-  });
 
   /**
    * The same focus contract `CancelSubscription` documents at length, and for
@@ -308,31 +234,29 @@ function SubscribePopup({
   }, [onClose]);
 
   /**
-   * TO THE CARD SCREEN, carrying the plan.
+   * TO THE PRICE LIST (D28).
    *
-   * The chosen plan is written into the onboarding session (`localStorage`)
-   * because that is where `CheckoutScreen` reads it from, then the browser is
-   * navigated with a FULL DOCUMENT LOAD rather than a router push. The
-   * onboarding flow reads `?step=` and its session at mount and on `popstate`
-   * only, so a soft navigation would change the address bar and leave this app's
-   * tree on screen — the exact defect spec w2b-14 records and fixed by making
-   * every auth return a full load.
+   * ⚠️ THE PRICE LIST, NOT THE CARD SCREEN, and the change of destination is the
+   * other half of D28. The old pop-up chose the plan itself and so went straight
+   * to `?step=start` — "the plan has just been chosen here, and sending somebody
+   * to choose it again would be asking the same question twice". With the
+   * selector gone, no plan has been chosen, so the card screen would be asking
+   * for a card for a plan nobody picked.
    *
-   * It goes to the CARD screen and not the price list: the plan has just been
-   * chosen here, and sending somebody to choose it again would be asking the
-   * same question twice.
+   * `?step=plans` is the price list (`app/onboarding/page.tsx:114`), and it is
+   * the SAME destination `06`'s "Set up my plan" uses — D28's "one shared
+   * destination", so the two surfaces cannot drift into sending people to two
+   * different places to do one thing.
+   *
+   * ⚠️ A FULL DOCUMENT LOAD rather than a router push. The onboarding flow reads
+   * `?step=` and its session at mount and on `popstate` only, so a soft
+   * navigation would change the address bar and leave this app's tree on screen —
+   * the exact defect spec w2b-14 records.
    */
-  const subscribe = () => {
-    if (!selected || leaving) return;
+  const choosePlan = () => {
+    if (leaving) return;
     setLeaving(true);
-    try {
-      writeSession({ ...readSession(), plan: selected });
-    } catch {
-      // A refused `localStorage` write must not brick the button. The checkout
-      // screen falls back to its own default plan, which is the same one this
-      // list opens on. Same rule as the calculator's syringe choice.
-    }
-    window.location.assign("/onboarding?step=start");
+    window.location.assign("/onboarding?step=plans");
   };
 
   if (typeof document === "undefined") return null;
@@ -372,36 +296,30 @@ function SubscribePopup({
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
       >
+        {/* ⚠️ APPROVED COPY, CHARACTER FOR CHARACTER (05 §3.6). A fix WITHHOLDS a
+            line, it never rewords one. No em dash. "Read only" is the exact
+            phrase; never "paused", "expired" or "locked". */}
         <h2 id="readonly-title" className="text-base font-medium text-foreground">
-          Subscribe to keep logging
+          Your account is read only
         </h2>
-        {/* The reassurance is FIRST and it is the true one. Somebody who has
-            just been stopped mid-action is asking "have I lost my data", and
-            answering that before asking for money is the only order that is not
-            a threat. */}
-        <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-          Everything you&apos;ve logged is still here and always will be. Trackd
-          is read only until you subscribe.
-        </p>
+        {/* ⚠️ THE STATE LEADS, AND THE ORDERING IS THE DECISION. The built version
+            led with reassurance, which is defensible and is not what was signed
+            off: somebody who has just been blocked needs to know what is
+            happening before they are told what it would cost to undo it.
 
-        {pricedPlans.length > 0 ? (
-          <div className="mt-5">
-            <PlanRows
-              plans={pricedPlans}
-              selectedId={selected}
-              onSelect={setSelected}
-              ariaLabel="Choose a plan to subscribe"
-            />
-          </div>
-        ) : (
-          /* The honest failure, not a blank picker. Same call the paywall
-             makes: this is a screen where showing nothing silently would be
-             worse than an error, because the user is trying to pay. */
-          <p className="mt-5 text-sm leading-relaxed text-text-muted">
-            We couldn&apos;t load our prices just now. Please try again in a
-            moment.
-          </p>
-        )}
+            ⚠️ AND IT IS NOT BRANCHED. This one body is true of a lapsed grace, a
+            lapsed trial, a lapsed subscription AND a revoked account alike —
+            they differ in origin and are identical in what they can do, which is
+            nothing but read. Adrian, 2026-08-17: if a second variant ever seems
+            necessary, that is the signal to stop and ask rather than write one. */}
+        <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+          You&apos;re not on a plan at the moment, so Trackd Co is read only. You
+          can still view everything you&apos;ve logged, you just can&apos;t add to
+          it.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-text-muted">
+          Nothing has been deleted.
+        </p>
 
         <div className="mt-5 flex gap-3">
           <button
@@ -409,28 +327,17 @@ function SubscribePopup({
             onClick={onClose}
             className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {/* "Not now" and not "Cancel". The user is already reading their own
-                data and can carry on doing it; this dismisses an offer rather
-                than abandoning a task. */}
-            Not now
+            Back to my logs
           </button>
           <button
             type="button"
-            disabled={!selected || pricedPlans.length === 0 || leaving}
-            onClick={subscribe}
+            disabled={leaving}
+            onClick={choosePlan}
             className="flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
-            {leaving ? "Opening…" : "Subscribe"}
+            {leaving ? "Opening…" : "Choose a plan"}
           </button>
         </div>
-
-        {/* No price repeated here. The rows above state it, and a second figure
-            beside the button is one more thing that can contradict the first.
-            The full four-part disclosure is on the card screen, which is where
-            the commit actually happens and where the requirement bites. */}
-        <p className="mt-3 text-center text-[11px] leading-relaxed text-text-subtle">
-          {TRIAL_DAYS}-day free trials are for new accounts.
-        </p>
       </div>
     </div>,
     document.body,

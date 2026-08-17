@@ -10,7 +10,6 @@ import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registra
 import { RotationNotice } from "@/components/layout/RotationNotice";
 import { getSessionContext } from "@/lib/auth";
 import { canWriteData } from "@/lib/billing/gate";
-import { loadPricesSafe } from "@/lib/billing/prices";
 import { createClient } from "@/lib/supabase/server";
 import { unitForPreference } from "@/lib/weight";
 import { bodySexFor } from "@/lib/db/types";
@@ -61,20 +60,19 @@ export default async function AppLayout({
   const unit = unitForPreference(profile?.units_preference);
   const bodySex = bodySexFor(profile?.sex);
 
-  const canWrite = await canWriteData();
   /**
-   * THE PRICES ARE ONLY FETCHED FOR SOMEBODY WHO IS ACTUALLY LOCKED OUT.
+   * ⚠️ NO PRICE FETCH HERE ANY MORE (D28).
    *
-   * `loadPricesSafe` is memoised for five minutes and swallows a Stripe outage,
-   * so it is cheap and safe — but it is still a network call in the layout of
-   * every logged-in page, and a subscriber has no use for it. Skipping it for
-   * the overwhelming majority means the gate costs nothing to the people it does
-   * not apply to.
+   * The read-only pop-up used to embed a live plan selector, so this layout
+   * fetched Stripe's prices for anybody who was locked out. D28 removed the
+   * selector — the pop-up is a plain notice with a button to the price list — so
+   * the fetch has nothing to feed and Stripe is no longer on the path of a
+   * logged-in page load at all.
    */
-  const prices = canWrite ? [] : await loadPricesSafe();
+  const canWrite = await canWriteData();
 
   return (
-    <ReadOnlyProvider canWrite={canWrite} prices={prices}>
+    <ReadOnlyProvider canWrite={canWrite}>
     <div className="flex min-h-dvh flex-col">
       <header
         className="flex items-center justify-between border-b border-border/60 px-5"
