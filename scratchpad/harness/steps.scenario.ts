@@ -225,8 +225,91 @@ guarded("Step 11 — paid lifecycle, and the yearly plan specifically", () => {
    * pins the $69.99 giveaway shut. It is checked on the granted `trial_end`, not
    * on the copy: the words could be right while the grant is wrong.
    */
-  it.todo("paid: cancel -> offer -> accept -> one period, capped at a month");
-  it.todo("⚠️ yearly grants a MONTH and never a year, asserted on the granted trial_end");
+  /**
+   * Set up a PAID (not trialing) subscription on a plan, cancelled, offered, and
+   * return what the grant did to it.
+   *
+   * ⚠️ IT MUST NOT BE `trialing`. `offerNounFor` short-circuits on
+   * `status === "trialing"` and returns "week" (`saveOffer.ts:255`), so a trialing
+   * yearly subscription would be granted a week and the yearly assertion below
+   * would pass without ever exercising the yearly path. The clock is advanced past
+   * the trial so the subscription is genuinely `active` and has genuinely paid.
+   */
+  async function paidOfferOn(priceEnv: string, tag: string) {
+    const { grantExtraTime, markOfferShown } = await import("@/lib/billing/saveOffer");
+    const price = process.env[priceEnv] ?? "";
+    expect(price, `${priceEnv} is not set`).not.toBe("");
+
+    const account = await seedAccount(ledger, tag, { notificationsEnabled: false });
+    const clock = new TestClock(ledger);
+    const t0 = new Date();
+    await clock.create(t0);
+    const customerId = await clock.customer(account.email);
+    const { error } = await admin.from("billing_customers").insert({
+      user_id: account.id,
+      stripe_customer_id: customerId,
+      trial_lock_until: new Date(0).toISOString(),
+    });
+    if (error) throw new Error(`billing_customers: ${error.message}`);
+
+    // No trial at all: it charges immediately, so it is `active` and PAID.
+    let sub = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price }],
+      metadata: { user_id: account.id },
+    });
+
+    /* ── ⚠️ ARRIVAL: genuinely active and genuinely paid ──────────────── */
+    sub = await stripe.subscriptions.retrieve(sub.id);
+    expect(
+      sub.status,
+      `not active (${sub.status}) — a trialing sub is granted a WEEK and this test would pass vacuously`,
+    ).toBe("active");
+
+    const periodEndBefore = sub.items.data[0]?.current_period_end ?? 0;
+    sub = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+    await markOfferShown(customerId, new Date().toISOString());
+    sub = await stripe.subscriptions.retrieve(sub.id);
+
+    const result = await grantExtraTime(account.id, customerId, sub);
+    const after = await stripe.subscriptions.retrieve(sub.id);
+    return { result, after, periodEndBefore, customerId, accountId: account.id };
+  }
+
+  it("paid: cancel -> offer -> accept -> one period, and the cancellation is LIFTED", async () => {
+    const { result, after } = await paidOfferOn("STRIPE_PRICE_MONTHLY", "s11-paid");
+    console.log(`  monthly paid grant: ${JSON.stringify(result)}`);
+    expect(result.ok, `the grant was refused: ${JSON.stringify(result)}`).toBe(true);
+    expect(result.ok === true && result.kind, "a paid subscription was treated as a trial").toBe("paid");
+    // 04's cancel-first ordering: taking the offer LIFTS the cancellation.
+    expect(after.cancel_at_period_end, "the cancellation was not lifted").toBe(false);
+  }, 600_000);
+
+  it("⚠️ yearly grants a MONTH and never a year, asserted on the granted trial_end", async () => {
+    const { result, after, periodEndBefore } = await paidOfferOn("STRIPE_PRICE_YEARLY", "s11-yearly");
+    console.log(`  YEARLY paid grant: ${JSON.stringify(result)}`);
+    expect(result.ok, `the grant was refused: ${JSON.stringify(result)}`).toBe(true);
+
+    /**
+     * ⚠️ THIS IS THE ASSERTION THAT PINS THE $69.99 GIVEAWAY SHUT, and it is
+     * checked on the GRANTED DATE rather than on the copy: the words could be
+     * right while the grant is wrong, which is the only combination that costs
+     * money.
+     */
+    const granted = after.trial_end ?? 0;
+    const addedDays = Math.round((granted - periodEndBefore) / 86_400);
+    console.log(
+      `  period end ${new Date(periodEndBefore * 1000).toISOString()} -> trial_end ` +
+        `${new Date(granted * 1000).toISOString()}  = +${addedDays} days`,
+    );
+
+    expect(addedDays, `a yearly subscriber was granted ${addedDays} days`).toBeGreaterThan(26);
+    expect(
+      addedDays,
+      `⚠️ A YEARLY SUBSCRIBER WAS GRANTED ${addedDays} DAYS — this is the $69.99 giveaway`,
+    ).toBeLessThan(32);
+  }, 600_000);
+
   it.todo("a month is a calendar month in UTC, clamped to the target month's last day");
 });
 
