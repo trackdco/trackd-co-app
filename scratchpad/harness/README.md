@@ -98,6 +98,15 @@ not that a phone displayed anything.
 
 ## Traps that each cost a run, kept here so they do not cost another
 
+**A SYNTAX ERROR IN A DRIVER MEANS TEARDOWN NEVER RUNS.** The module fails to
+parse, so the `try`/`finally` never executes and every seeded account survives.
+Found on 2026-08-17: a redeclared identifier in `qa-05-entitled-probe.mjs` left one
+`@trackd-qa.invalid` account with a live `comp` entitlement on production, and it
+was only caught because the end-of-run count was checked against 90 rather than
+assumed. **Run `node --check <file>` before running a driver**, and count the QA
+accounts at the end of every session — a leak is silent and the ledger cannot help,
+because the ledger died with the process.
+
 **The 127.0.0.1 trap is about the URL you OPEN, not the address the server BINDS.**
 `npm run dev` binds `-H 127.0.0.1`, deliberately, so the server listens on loopback
 only rather than on every interface — it was reachable from the network while
