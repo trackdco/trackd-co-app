@@ -418,7 +418,73 @@ guarded("Step 11 — paid lifecycle, and the yearly plan specifically", () => {
     ).toBeLessThan(32);
   }, 600_000);
 
-  it.todo("a month is a calendar month in UTC, clamped to the target month's last day");
+  it("a month is a calendar month in UTC, clamped to the target month's last day", async () => {
+    /**
+     * ⚠️ THE PURE CLAMP IS ALREADY UNIT-TESTED (`saveOffer.test.ts:132`: 31 Jan ->
+     * 28 Feb). What this adds is that the clamp REACHES STRIPE — a correct
+     * `addOffer` whose result never lands on the subscription is a correct
+     * function and a wrong charge date.
+     *
+     * The clock is frozen on **31 December** so the monthly period end falls on
+     * **31 January**, which is the only anchor that can expose the rollover: plain
+     * arithmetic turns 31 Jan into 3 March, and every other date on the account
+     * falls on the 31st.
+     */
+    const { grantExtraTime, markOfferShown } = await import("@/lib/billing/saveOffer");
+    const account = await seedAccount(ledger, "s11-clamp", { notificationsEnabled: false });
+    const clock = new TestClock(ledger);
+    const frozen = new Date("2026-12-31T09:00:00.000Z");
+    await clock.create(frozen);
+    const customerId = await clock.customer(account.email);
+    const { error } = await admin.from("billing_customers").insert({
+      user_id: account.id,
+      stripe_customer_id: customerId,
+      trial_lock_until: new Date(0).toISOString(),
+    });
+    if (error) throw new Error(`billing_customers: ${error.message}`);
+
+    // Monthly, no trial, so it charges now and is genuinely `active` — which is
+    // what makes `offerPeriodToGrant` answer "month" rather than "week".
+    let sub = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: process.env.STRIPE_PRICE_MONTHLY ?? "" }],
+      metadata: { user_id: account.id },
+    });
+    sub = await stripe.subscriptions.retrieve(sub.id);
+    expect(sub.status, "not active, so this would be granted a WEEK and prove nothing").toBe("active");
+
+    /* ── ⚠️ ARRIVAL: the period really ends on the 31st ───────────────── */
+    const periodEnd = sub.items.data[0]?.current_period_end ?? 0;
+    const periodEndIso = new Date(periodEnd * 1000).toISOString();
+    console.log(`  frozen ${frozen.toISOString()} -> period end ${periodEndIso}`);
+    expect(
+      new Date(periodEnd * 1000).getUTCDate(),
+      `the period ends on the ${new Date(periodEnd * 1000).getUTCDate()}, not the 31st — the clamp is not exercised`,
+    ).toBe(31);
+
+    sub = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+    await markOfferShown(customerId, new Date().toISOString());
+    sub = await stripe.subscriptions.retrieve(sub.id);
+    const result = await grantExtraTime(account.id, customerId, sub);
+    expect(result.ok, `refused: ${JSON.stringify(result)}`).toBe(true);
+
+    const after = await stripe.subscriptions.retrieve(sub.id);
+    const granted = new Date((after.trial_end ?? 0) * 1000);
+    console.log(`  GRANTED trial_end: ${granted.toISOString()}`);
+
+    /**
+     * ⚠️ 31 January + one month = 28 FEBRUARY, not 3 March. February 2027 has 28
+     * days, so the clamp has to pull the date back to the month's last day.
+     */
+    expect(granted.getUTCFullYear()).toBe(2027);
+    expect(granted.getUTCMonth(), `landed in month ${granted.getUTCMonth()} (0-based), not February`).toBe(1);
+    expect(
+      granted.getUTCDate(),
+      `⚠️ ROLLED OVER: 31 Jan + a month became ${granted.toISOString()} instead of 28 Feb`,
+    ).toBe(28);
+    // The time of day survives; only the day number is clamped.
+    expect(granted.getUTCHours()).toBe(9);
+  }, 900_000);
 });
 
 /* ═══════════════════ a live, unguarded smoke check ═══════════════════ */
