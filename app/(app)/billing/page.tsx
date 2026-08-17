@@ -7,13 +7,18 @@ import { ManagePaymentRow } from "@/components/billing/ManagePaymentRow";
 import { STAYING_NOTICE_SLOT } from "@/components/billing/StayingNotice";
 import { currentEntitlement, entitlementEndDate } from "@/lib/billing/entitlements";
 import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
+import { courtesyUntilFor } from "@/lib/billing/courtesy";
 import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
 import {
   CANCELLABLE_STATUSES,
   STOPPABLE_NOW,
   formatAccessDate,
+  isBetaGrace,
+  isGenuineTrial,
+  isGraceAligned,
   manageActionFor,
   planLabelFor,
+  type PlanEntitlement,
 } from "@/lib/billing/manage";
 import { loadPricesSafe } from "@/lib/billing/prices";
 import { formatPrice } from "@/lib/onboarding/pricing";
@@ -193,6 +198,14 @@ export default async function BillingPage() {
    * a deploy and a migration do not land in the same instant, and this shape is
    * what makes the code correct in the gap. Where the column cannot be read this
    * is null and the label falls back to today's behaviour.
+   *
+   * ⚠️ THE QUERY MOVED TO `lib/billing/courtesy.ts` AND DID NOT CHANGE. It was a
+   * private helper at the foot of this file; Profile now needs the same value,
+   * for the same label, and was passing none at all — so a courtesy customer read
+   * "Free trial" there while this screen read "Pro". One function, two callers,
+   * rather than a copy that can drift. Every property above is preserved
+   * verbatim: its own query, its own `try`, the named status set, and a `null`
+   * that can only ever change one word on the screen.
    */
   const courtesyUntil = await courtesyUntilFor(user.id);
   const subscription = row
@@ -235,6 +248,12 @@ export default async function BillingPage() {
     ? prices.find((p) => p.priceId === row.stripe_price_id)
     : undefined;
 
+  /**
+   * When the paid plan begins, for a mid-grace subscriber, or null for everybody
+   * else. Computed once and read twice below. See {@link graceStartsOn}.
+   */
+  const planStartsOn = graceStartsOn(entitlement, subscription);
+
   return (
     <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
       {/* NO SUBTITLE. It read "Your plan and when it renews." and Adrian cut it
@@ -268,15 +287,28 @@ export default async function BillingPage() {
         <div className="overflow-hidden rounded-2xl bg-bg-surface">
           <Row
             label="Access"
-            value={planLabelFor(
-              entitlement?.source ?? null,
-              subscription,
-              // See `planLabelFor`: the same switch that decides the read-only
-              // gate decides whether "no entitlement" reads as "Pro" or
-              // "Read only". They cannot be allowed to disagree.
-              billingGateEnabled(),
-            )}
+            value={accessValue(entitlement, subscription, tz)}
           />
+          {planStartsOn ? (
+            <>
+              <Divider />
+              {/**
+               * §3.6, signed as written: a grace-aligned `trialing`
+               * subscription "names the plan and its server-sourced start date",
+               * rendered as `Starts {date}`. The Access row above says "Pro" for
+               * them, so this is the row that says when the paid plan begins —
+               * and the word "trial" appears nowhere for somebody who is not on
+               * one, which is D36's one absolute rule.
+               *
+               * The date is the GRACE end, from `entitlements.active_until`,
+               * which is the instant they were promised in writing. Not the
+               * mirror's `trial_ends_at`: `resolveFreeTime`'s 48-hour clamp can
+               * push that later than the promise, and this row is about the
+               * promise.
+               */}
+              <Row label="Starts" value={formatAccessDate(planStartsOn, tz)} />
+            </>
+          ) : null}
           {price ? (
             <>
               <Divider />
@@ -286,7 +318,32 @@ export default async function BillingPage() {
               />
             </>
           ) : null}
-          {subscription?.trialEndsAt && subscription.status === "trialing" ? (
+          {/**
+            * ⚠️ THE WORD IS WITHHELD FOR ANYONE NOT ON A TRIAL, AND THIS ROW
+            * ASKS THE SAME FUNCTION THE LABEL DOES.
+            *
+            * This compared the mirror's status against the trialing literal
+            * directly, which is Stripe's status and not the question. Driven: a
+            * mid-grace
+            * subscriber, whose Access row had just been fixed to read "Pro"
+            * precisely to avoid the word, got
+            *
+            *     Access      Pro
+            *     Starts      20 Aug 2026
+            *     Trial ends  20 Aug 2026
+            *
+            * — D36's one absolute rule broken two rows under the fix for it, and
+            * the same date twice under two labels, which is the defect
+            * `renewalRow` below already carries a correction for. A courtesy
+            * customer of two years hit the identical row for the identical
+            * reason.
+            *
+            * `isGenuineTrial` is what `planLabelFor` branches on, so the row and
+            * the label cannot answer differently. Withheld, never reworded: the
+            * date is not lost, it is stated by the row that is true for them —
+            * `Starts` for a grace, and the Manage sentence for a courtesy.
+            */}
+          {subscription?.trialEndsAt && isGenuineTrial(entitlement, subscription) ? (
             <>
               <Divider />
               <Row
@@ -424,32 +481,80 @@ export default async function BillingPage() {
   );
 }
 
+/* ── Pure display helpers ────────────────────────────────────────── */
+
 /**
- * The save-offer courtesy end, or null if there isn't one (or if `003` has not
- * been applied yet).
+ * ⚠️ THE ACCESS ROW'S VALUE. THE STATE COMES FROM THE SHARED FUNCTION; THE DATE
+ * IS COMPOSED HERE.
  *
- * Its own query, its own try, and it can only ever change one word on the
- * screen. See the note at the call site.
+ * `planLabelFor` is shared with Profile's plan pill precisely so the two screens
+ * cannot disagree about what somebody is on (Q88). It therefore answers the
+ * STATE and nothing else, and takes no formatter, no timezone and no date —
+ * Profile has none of those and renders one word.
+ *
+ * §3.6's defect is that Billing, "the screen somebody opens specifically to find
+ * out what they are on and when it ends", was **the only surface not showing the
+ * grace date** while the notice, the reminder and the banner all did. So the date
+ * is appended HERE, to this screen's row, where there is a formatter and a
+ * timezone. Billing reading "On us until 20 Nov 2026" while Profile reads "On us"
+ * is a difference of detail, not of state (Adrian, 2026-08-18).
+ *
+ * ⚠️ THE FULL DATE FORM, not `formatAccessDateShort`. That function's own note
+ * reserves the year-less form for a CONTROL LABEL read at a glance, and says
+ * every place the date is the SUBJECT — "the confirm dialog, the plan card, the
+ * sentence under the control" — keeps the full form. This is the plan card.
+ *
+ * ⚠️ AND ONLY THE GRACE GETS A DATE. A free-for-life comp gets "no date and no
+ * expiry language" (§3.6) because there is no date to state and inventing one
+ * would mean somebody's access appearing to end on a day nobody chose. Every
+ * other state's date is already carried by its own row.
  */
-async function courtesyUntilFor(userId: string): Promise<string | null> {
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("subscriptions")
-      .select("courtesy_until")
-      .eq("user_id", userId)
-      .in("status", [...CANCELLABLE_STATUSES])
-      .not("courtesy_until", "is", null)
-      .order("courtesy_until", { ascending: false })
-      .limit(1);
-    if (error) return null;
-    return (data?.[0]?.courtesy_until as string | null) ?? null;
-  } catch {
-    return null;
-  }
+function accessValue(
+  entitlement: PlanEntitlement | null,
+  subscription: Parameters<typeof planLabelFor>[1],
+  tz: string,
+): string {
+  const label = planLabelFor(
+    entitlement,
+    subscription,
+    // See `planLabelFor`: the same switch that decides the read-only gate
+    // decides whether "no entitlement" reads as "Pro" or "Read only". They
+    // cannot be allowed to disagree.
+    billingGateEnabled(),
+  );
+
+  // The grace, and only when it is the state being described. A mid-grace
+  // subscriber reads "Pro" above and gets the `Starts` row instead, so the two
+  // renderings never both carry a date. ⚠️ Asked by NAME: this file carries no
+  // status literal, which is property 3 and was a defect three separate times.
+  if (!isBetaGrace(entitlement) || isGraceAligned(entitlement, subscription)) return label;
+  const until = formatAccessDate(entitlement!.activeUntil!, tz);
+  // An unformattable date withholds the clause rather than printing "On us
+  // until". The bare state is still true; a dangling preposition is not.
+  return until ? `${label} until ${until}` : label;
 }
 
-/* ── Pure display helpers ────────────────────────────────────────── */
+/**
+ * WHEN A MID-GRACE SUBSCRIBER'S PAID PLAN BEGINS, or null for everybody else.
+ *
+ * §3.6 gives this cohort the plan name and a `Starts {date}` row rather than any
+ * trial vocabulary. The date is the GRACE end from `entitlements.active_until` —
+ * the instant they were promised in writing — and deliberately not the mirror's
+ * `trial_ends_at`, which `resolveFreeTime`'s 48-hour clamp can push later than
+ * the promise. `11-reconciliation-and-alerting.md` makes the same choice for the
+ * same reason: the question is always about the promise.
+ *
+ * ⚠️ Reachable only while the dated comp is the STRONGEST entitlement. Once
+ * `syncSubscription` writes the `stripe` row, `access.ts`'s tiering prefers it
+ * and this returns null. That cohort is a reported gap, not a silent one: the
+ * mirror carries no grace marker to detect it with.
+ */
+function graceStartsOn(
+  entitlement: PlanEntitlement | null,
+  subscription: { status: string } | null,
+): string | null {
+  return isGraceAligned(entitlement, subscription) ? entitlement!.activeUntil : null;
+}
 
 /** "Renews on" / "Ends on", depending on whether a cancellation is scheduled. */
 function renewalRow(

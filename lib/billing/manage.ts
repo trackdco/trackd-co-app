@@ -22,7 +22,52 @@
  * safe to make one tap.
  */
 
-import type { EntitlementSource } from "./access";
+import type { Entitlement, EntitlementSource } from "./access";
+
+/**
+ * The entitlement, as much of it as a LABEL needs.
+ *
+ * `activeUntil` is here for one reason: it is the only thing that separates a
+ * founder's comp from the beta fortnight, and without it {@link planLabelFor}
+ * cannot tell them apart. See {@link isBetaGrace}.
+ */
+export type PlanEntitlement = Pick<Entitlement, "source" | "activeUntil">;
+
+/**
+ * ⚠️ IS THIS COMP THE BETA FORTNIGHT RATHER THAN FREE FOR LIFE?
+ *
+ * ## It MOVED here, and the direction is the whole point
+ *
+ * `08-billing-screen.md` §3.6 says of the grace-label defect: "The codebase
+ * already has the predicate that distinguishes them. **The billing display
+ * module does not import it. That is the whole gap.** Import it."
+ *
+ * The import could not be written as stated. This predicate lived in
+ * `lib/billing/betaGrace.ts`, which carries `server-only`, and THIS module is
+ * reachable from a client component — so `manage.ts` importing `betaGrace.ts`
+ * fails the client build outright. The dependency can only point one way.
+ *
+ * So the predicate moves to the module both sides can reach, and `betaGrace.ts`
+ * imports it from here and re-exports it, leaving `graceAsTrial`, the dashboard,
+ * the reminder runner and `betaGrace.test.ts` untouched. **There is still
+ * exactly ONE implementation**, which is what §3.6 actually asks for; a second
+ * copy in this file would have been the defect this whole area keeps paying for.
+ *
+ * Identical shape to {@link CANCELLABLE_STATUSES}, which lives here and is
+ * imported by the `server-only` `cancel.ts` for exactly the same reason.
+ *
+ * ## What it asks
+ *
+ * A `comp` with an expiry is the beta fortnight. A `comp` without one is free
+ * for life. `access.ts` calls this "the only thing that distinguishes 'free
+ * forever' from 'the beta grace' without a migration to add a fourth
+ * `entitlement_source`", and tiers the two apart on the same test.
+ */
+export function isBetaGrace(
+  entitlement: { source: string; activeUntil: string | null } | null,
+): boolean {
+  return Boolean(entitlement && entitlement.source === "comp" && entitlement.activeUntil);
+}
 
 /**
  * WHICH SAVE OFFER a cancelling user is shown.
@@ -431,7 +476,26 @@ function soonerOf(a: string | null, b: string | null): string | null {
  * row their access actually rests on before this is called.
  */
 export function planLabelFor(
-  source: EntitlementSource | null,
+  /**
+   * ⚠️ THE ENTITLEMENT, NOT ITS `source`. THE TYPE CHANGED AND THAT IS THE FIX.
+   *
+   * This took `EntitlementSource | null`, so **both comp states arrived as the
+   * string `"comp"`** and D36's defect — a founder and a fortnight that expires
+   * in two days reading identically — could not be fixed inside this function at
+   * any cost. `isBetaGrace` needs `activeUntil` and there was no way to hand it
+   * over.
+   *
+   * ⚠️ A THIRD PARAMETER WAS THE WRONG ANSWER and was ruled out (Adrian,
+   * 2026-08-18). The signature stays THREE WIDE, and **no formatter, timezone or
+   * date may ever enter it**: Profile's pill has no formatter and is one word, so
+   * a function that composed "On us until 20 Nov" could not be shared. This
+   * answers the STATE. The date is composed at the billing surface.
+   *
+   * Q88's invariant is about the two screens disagreeing on STATE, not on detail:
+   * Billing saying "On us until 20 Nov" while Profile says "On us" is not a
+   * disagreement. Profile saying "Pro" while Billing says "Read only" is.
+   */
+  entitlement: PlanEntitlement | null,
   subscription: Pick<ManageableSubscription, "status" | "courtesyUntil"> | null,
   /**
    * Is the read-only gate switched on? (`billingGateEnabled()`.)
@@ -445,7 +509,42 @@ export function planLabelFor(
    */
   gateEnabled = false,
 ): string {
-  if (source === "comp") return "Complimentary";
+  const source = entitlement?.source ?? null;
+
+  /**
+   * ⚠️ TWO COMPS, TWO LABELS. D36, and §3.6 calls this a DEFECT rather than a
+   * gap: "'Complimentary' is returned on the first branch for any comp
+   * entitlement, and that branch never looks at whether the entitlement expires.
+   * A free-for-life account and a fortnight that runs out in two days read
+   * identically."
+   *
+   * The three labels are signed (Adrian, 2026-08-18), and each is D36's own
+   * word rather than one invented here:
+   *
+   *   comp, no expiry                      Complimentary   §3.6, verbatim
+   *   comp, dated, no subscription         On us           §3.6's "days on us"
+   *   comp, dated, trialing subscription   Pro             §3.6, verbatim
+   *
+   * ⚠️ THE THIRD IS THE MID-GRACE SUBSCRIBER AND "Free trial" WOULD BE A LIE.
+   * D36's governing rule is absolute — **the word "trial" never renders for
+   * anyone who is not on one** — and somebody inside their beta fortnight whose
+   * plan starts at the end of it is not on a trial. §3.6 gives them the plan name
+   * and a `Starts {date}` row, which the billing surface composes.
+   *
+   * Reaching this branch at all means the dated comp is the STRONGEST
+   * entitlement, which per `access.ts`'s tiering means no `stripe` row has been
+   * written yet — the documented window where `syncSubscription` has written the
+   * mirror and is withholding the entitlement while `cardIsValidated` is false.
+   * ⚠️ Once that row lands, `strongestEntitlement` returns it instead and the
+   * label falls through to "Free trial" below. That cohort is NOT fixed here and
+   * is reported rather than guessed at: the mirror carries no grace marker
+   * (probed: `trackd_grace_until` and `grace_until` both `42703`), and inventing
+   * one is a migration this spec forbids.
+   */
+  if (source === "comp") {
+    if (!isBetaGrace(entitlement)) return COMP_FOREVER_LABEL;
+    return subscription?.status === "trialing" ? FULL_ACCESS_LABEL : GRACE_LABEL;
+  }
 
   /**
    * ⚠️ GATE ON PLUS NO ENTITLEMENT IS "READ ONLY", DECIDED BEFORE ANY MIRROR READ.
@@ -492,7 +591,7 @@ export function planLabelFor(
   // A running trial says so whether or not the entitlement row has caught up.
   // The webhook writes that row moments after the subscription exists, and in
   // the gap the screen used to read "Pro" beside its own "Trial ends 19 Aug".
-  if (subscription?.status === "trialing") return "Free trial";
+  if (isGenuineTrial(entitlement, subscription)) return TRIAL_LABEL;
   if (source) return "Pro";
   return gateEnabled ? NO_ACCESS_LABEL : FULL_ACCESS_LABEL;
 }
@@ -523,6 +622,116 @@ export function planLabelFor(
  */
 const FULL_ACCESS_LABEL = "Pro";
 const NO_ACCESS_LABEL = "Read only";
+
+/**
+ * ⚠️ THE TWO COMP LABELS, WHICH MUST NEVER BE THE SAME STRING (D36).
+ *
+ * Named rather than inlined for one reason: the defect §3.6 records is that both
+ * comp states returned ONE label, and a named pair is a thing a test can assert
+ * differ. `manage.test.ts` does exactly that, so the defect cannot be rewritten
+ * by somebody tidying two literals into one.
+ *
+ * `COMP_FOREVER_LABEL` is unchanged and always was correct for a founder. §3.6:
+ * "A free-for-life comp keeps 'Complimentary', with no date and no expiry
+ * language."
+ *
+ * `GRACE_LABEL` is the bare STATE, and the billing surface composes the date
+ * onto it as "On us until {date}". It is deliberately two short words: Profile's
+ * pill renders it as-is with no date and truncates past roughly 35 characters,
+ * and "days on us" is the signed vocabulary the notice, the reminder and the
+ * banner already use for this fortnight. It is never "trial" — that word is
+ * D36's one absolute prohibition for anyone not on one — and never
+ * "Complimentary", which is the whole defect.
+ *
+ * Neither is exported, like the two above, so no other surface can drift onto a
+ * copy of them.
+ */
+const COMP_FOREVER_LABEL = "Complimentary";
+const GRACE_LABEL = "On us";
+const TRIAL_LABEL = "Free trial";
+
+/**
+ * ⚠️ IS THIS ACTUALLY A TRIAL? THE ONE QUESTION D36 TURNS ON.
+ *
+ * D36's governing rule is absolute: **the word "trial" never renders for anyone
+ * who is not on one.** Three different states arrive at this screen carrying
+ * Stripe's `trialing` status and only one of them is a trial:
+ *
+ *   a first-timer's seven days          a trial. The word is theirs.
+ *   a save-offer courtesy period        NOT a trial. The offer buys free time by
+ *                                       moving `trial_end`, which is why Stripe
+ *                                       says `trialing` for a customer of two
+ *                                       years. See `courtesyUntil` above.
+ *   a grace-aligned subscription        NOT a trial. Somebody inside their beta
+ *                                       fortnight with a paid plan waiting
+ *                                       behind it. `01` starts it by setting
+ *                                       `trial_end` to the grace end.
+ *
+ * ## ⚠️ IT IS EXPORTED BECAUSE THE LABEL IS NOT THE ONLY THING THAT ASKS
+ *
+ * Driven, and found only by driving: `/billing` rendered a **"Trial ends"** row
+ * off `status === "trialing"` directly, so a mid-grace subscriber read
+ *
+ *     Access      Pro
+ *     Starts      20 Aug 2026
+ *     Trial ends  20 Aug 2026
+ *
+ * — the forbidden word, on a screen whose Access row had just been fixed to
+ * avoid it, **and the same date twice under two labels**, which `renewalRow`
+ * already carries its own correction for ("two rows, two labels, one date, read
+ * as two different deadlines").
+ *
+ * The label branch and the row asked the same question two ways, and only one of
+ * them had been taught the answer. So the question lives here, {@link
+ * planLabelFor} uses it for its own branch, and the row asks the identical
+ * function. They cannot drift, which is the whole lesson `CANCELLABLE_STATUSES`
+ * is written up for one screen further down this file.
+ */
+export function isGenuineTrial(
+  entitlement: PlanEntitlement | null,
+  subscription: Pick<ManageableSubscription, "status" | "courtesyUntil"> | null,
+): boolean {
+  if (subscription?.status !== TRIALING) return false;
+  // A courtesy period is free time on an existing plan, not a first trial.
+  if (subscription.courtesyUntil) return false;
+  // The beta fortnight is "14 days on us", and never the word below.
+  if (isBetaGrace(entitlement)) return false;
+  return true;
+}
+
+/**
+ * ⚠️ IS THIS THE MID-GRACE SUBSCRIBER? §3.7's "two entitlements" cohort.
+ *
+ * Somebody inside their beta fortnight who has already set up a plan. `01`
+ * starts it by setting `trial_end` to the grace end, so Stripe reports
+ * `trialing` for the rest of the fortnight and the plan begins when it runs out.
+ *
+ * ## It is here rather than in the page, and that is property 3
+ *
+ * `/billing` may carry NO status literal. Every one it ever held became a defect:
+ * a literal three on the mirror filter hid `paused` rows from the screen that
+ * needed to describe them, and a literal on the courtesy read went stale the
+ * moment a set moved. This module owns the status vocabulary — these are its
+ * definitions rather than a duplicate of somebody else's — so the page asks a
+ * question by name and never compares a string.
+ *
+ * Two callers on that page: the Access row, which must NOT append the grace date
+ * for this cohort, and the `Starts` row, which states it instead. One question,
+ * so the two renderings can never both carry the date or both drop it.
+ */
+export function isGraceAligned(
+  entitlement: PlanEntitlement | null,
+  subscription: Pick<ManageableSubscription, "status"> | null,
+): boolean {
+  return isBetaGrace(entitlement) && subscription?.status === TRIALING;
+}
+
+/**
+ * Stripe's status for a subscription inside any free period, whatever that
+ * period MEANS. Named because three different states arrive wearing it — see
+ * {@link isGenuineTrial}, which is the function that tells them apart.
+ */
+const TRIALING = "trialing";
 
 /**
  * A date for a human, in the user's own timezone.

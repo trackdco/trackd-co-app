@@ -43,6 +43,7 @@
 
 import "server-only";
 
+import { isBetaGrace } from "./manage";
 import { serviceClient } from "./service";
 
 /**
@@ -142,12 +143,23 @@ export function grantExpiry(grant: BetaGrant, from: Date): string | null {
  * `{status, trialEndsAt, cancelAtPeriodEnd}` shape, and a grace period is
  * exactly that shape with the end date taken from the entitlement instead of
  * from Stripe. See `graceAsTrial`.
+ *
+ * ## ⚠️ THE IMPLEMENTATION MOVED TO `./manage`, AND IT IS RE-EXPORTED HERE
+ *
+ * `08-billing-screen.md` §3.6 requires the billing DISPLAY module to use this
+ * predicate rather than write a second one. That module is reachable from a
+ * client component and THIS one carries `server-only`, so it could not import
+ * from here: the dependency can only point the other way, exactly as it does for
+ * `CANCELLABLE_STATUSES`, which `cancel.ts` imports from `manage.ts` for the
+ * same reason.
+ *
+ * So the predicate lives in the pure module and is re-exported from here. Every
+ * existing importer — `graceAsTrial` below, the dashboard, the reminder runner
+ * and `betaGrace.test.ts` — is unchanged, and there is still exactly ONE
+ * implementation. A copy in the display module would have been the defect this
+ * area keeps paying for.
  */
-export function isBetaGrace(
-  entitlement: { source: string; activeUntil: string | null } | null,
-): boolean {
-  return Boolean(entitlement && entitlement.source === "comp" && entitlement.activeUntil);
-}
+export { isBetaGrace };
 
 /**
  * The grace period, described as the trial it functionally is.

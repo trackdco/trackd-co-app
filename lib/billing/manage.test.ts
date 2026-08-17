@@ -5,10 +5,14 @@ import {
   FLAG_CANCELLABLE_STATUSES,
   STOPPABLE_NOW,
   formatAccessDate,
+  isBetaGrace,
+  isGenuineTrial,
   manageActionFor,
   planLabelFor,
   type ManageableSubscription,
+  type PlanEntitlement,
 } from "@/lib/billing/manage";
+import type { EntitlementSource } from "@/lib/billing/access";
 import {
   dismissedTrialNoticeDate,
   trialNoticeDismissalValue,
@@ -22,6 +26,28 @@ function sub(over: Partial<ManageableSubscription> = {}): ManageableSubscription
     cancelAtPeriodEnd: false,
     ...over,
   };
+}
+
+/**
+ * An entitlement for {@link planLabelFor}, which takes the ROW and not its
+ * `source` — see the note on its first parameter.
+ *
+ * ⚠️ `activeUntil` defaults to NULL, which is free-for-life. Every case below
+ * that passes a bare source is therefore asserting the comp-forever answer, and
+ * a comp with a date has to say so explicitly. That is deliberate: D36's defect
+ * was the two reading identically, so the dated case must never be reachable by
+ * forgetting an argument.
+ */
+function ent(
+  source: EntitlementSource | null,
+  activeUntil: string | null = null,
+): PlanEntitlement | null {
+  return source ? { source, activeUntil } : null;
+}
+
+/** A live beta grace: a comp WITH an expiry, which is the only thing that is. */
+function grace(activeUntil = "2026-08-27T00:00:00.000Z"): PlanEntitlement {
+  return { source: "comp", activeUntil };
 }
 
 describe("who gets a cancel control", () => {
@@ -95,7 +121,7 @@ describe("who gets a cancel control", () => {
     });
     // ...and they are still described as complimentary, because that is what
     // their access actually rests on.
-    expect(planLabelFor("comp", sub())).toBe("Complimentary");
+    expect(planLabelFor(ent("comp"), sub())).toBe("Complimentary");
   });
 
   it("offers a comp NOTHING when there is genuinely nothing to stop", () => {
@@ -181,7 +207,7 @@ describe("who gets a cancel control", () => {
     // A comp beside a live trial is described as complimentary and can still be
     // stopped, because Stripe is going to charge for that trial.
     expect(manageActionFor("comp", sub({ status: "trialing", trialEndsAt: "2026-08-23T00:00:00.000Z" })).kind).toBe("cancel");
-    expect(planLabelFor("comp", sub({ status: "trialing" }))).toBe("Complimentary");
+    expect(planLabelFor(ent("comp"), sub({ status: "trialing" }))).toBe("Complimentary");
   });
 });
 
@@ -278,7 +304,7 @@ describe("planLabelFor — Profile and Billing must agree", () => {
     // The defect this replaced: Profile hardcoded "Beta · Pro" from
     // `profiles.tier` while /billing read the entitlement, so one user was told
     // two different things depending which screen they were on.
-    const cases: Array<[Parameters<typeof planLabelFor>[0], string | null, string]> = [
+    const cases: Array<[EntitlementSource | null, string | null, string]> = [
       ["comp", "active", "Complimentary"],
       ["comp", "trialing", "Complimentary"],
       ["comp", null, "Complimentary"],
@@ -291,7 +317,7 @@ describe("planLabelFor — Profile and Billing must agree", () => {
       ["google", "active", "Pro"],
     ];
     for (const [source, status, expected] of cases) {
-      expect(planLabelFor(source, status ? { status } : null)).toBe(expected);
+      expect(planLabelFor(ent(source), status ? { status } : null)).toBe(expected);
     }
   });
 
@@ -301,7 +327,7 @@ describe("planLabelFor — Profile and Billing must agree", () => {
     const statuses = ["trialing", "active", "past_due", "canceled", null];
     for (const s of sources) {
       for (const st of statuses) {
-        const label = planLabelFor(s, st ? { status: st } : null);
+        const label = planLabelFor(ent(s), st ? { status: st } : null);
         expect(label.toLowerCase()).not.toContain("beta");
         expect(label).not.toContain("·");
       }
@@ -330,7 +356,7 @@ describe("planLabelFor — Profile and Billing must agree", () => {
   it("the gate switch changes NOTHING for anybody who actually has access", () => {
     // The switch may only ever affect the no-entitlement case. If it moved any
     // of these, turning the gate on would relabel paying customers.
-    const cases: Array<[Parameters<typeof planLabelFor>[0], string | null]> = [
+    const cases: Array<[EntitlementSource | null, string | null]> = [
       ["comp", "active"],
       ["comp", null],
       ["stripe", "active"],
@@ -359,7 +385,7 @@ describe("planLabelFor — Profile and Billing must agree", () => {
     ];
     for (const [source, status] of cases) {
       const sub = status ? { status } : null;
-      expect(planLabelFor(source, sub, true)).toBe(planLabelFor(source, sub, false));
+      expect(planLabelFor(ent(source), sub, true)).toBe(planLabelFor(ent(source), sub, false));
     }
   });
 
@@ -373,7 +399,214 @@ describe("planLabelFor — Profile and Billing must agree", () => {
   it("a comp beside a live trial still reads as the comp", () => {
     // Their access rests on the comp; describing them by the subscription would
     // be wrong, and `strongestEntitlement` has already made that choice.
-    expect(planLabelFor("comp", { status: "trialing" })).toBe("Complimentary");
+    expect(planLabelFor(ent("comp"), { status: "trialing" })).toBe("Complimentary");
+  });
+});
+
+/**
+ * ⚠️ D36 / §3.6 — A FOUNDER AND A FORTNIGHT MUST NOT READ THE SAME.
+ *
+ * §3.6 calls this a DEFECT rather than a gap: "'Complimentary' is returned on the
+ * first branch for any comp entitlement, and that branch never looks at whether
+ * the entitlement expires. A free-for-life account and a fortnight that runs out
+ * in two days read identically."
+ *
+ * ⚠️ THESE ASSERTIONS ARE INVISIBLE TO THE DEFECT ON THEIR OWN. Both comp states
+ * once returned "Complimentary", so a one-sided test for the free-for-life answer
+ * passed throughout. Every case here therefore names its COUNTERPART, and the
+ * last test asserts the two labels differ as a value rather than by re-stating
+ * either string.
+ */
+describe("⚠️ D36: the two comp states, and the one that expires", () => {
+  it("free for life reads Complimentary, with no date and no expiry language", () => {
+    expect(planLabelFor(ent("comp"), null)).toBe("Complimentary");
+    // CONTROL: the same account WITH a date is the other state entirely.
+    expect(planLabelFor(grace(), null)).toBe("On us");
+  });
+
+  it("a live beta grace reads the signed days-on-us vocabulary", () => {
+    expect(planLabelFor(grace(), null)).toBe("On us");
+    // ⚠️ D36's one absolute rule: the word never renders for anyone not on one.
+    expect(planLabelFor(grace(), null).toLowerCase()).not.toContain("trial");
+    // Nor does it borrow the founder's word, which is the whole defect.
+    expect(planLabelFor(grace(), null)).not.toBe("Complimentary");
+  });
+
+  it("a mid-grace subscriber reads the PLAN, never a trial", () => {
+    // §3.6: a grace-aligned `trialing` subscription "names the plan and its
+    // server-sourced start date". They are inside their fortnight with a plan
+    // waiting behind it, and they are not on a trial.
+    expect(planLabelFor(grace(), { status: "trialing" })).toBe("Pro");
+    // CONTROL: the same grace with NO subscription is still the grace, so the
+    // subscription is genuinely what moved the answer.
+    expect(planLabelFor(grace(), null)).toBe("On us");
+    // CONTROL: the same `trialing` status on a real subscriber is a real trial,
+    // so this has not simply deleted the trial label.
+    expect(planLabelFor(ent("stripe"), { status: "trialing" })).toBe("Free trial");
+  });
+
+  it("a grace that has been consumed reads the plan once it is active", () => {
+    // The label flips to the standard active answer when the plan starts, which
+    // is `strongestEntitlement` handing over to the `stripe` row.
+    expect(planLabelFor(ent("stripe"), { status: "active" })).toBe("Pro");
+  });
+
+  it("⚠️ the two comp labels are different STRINGS, whatever they say", () => {
+    /**
+     * The regression this is really for: somebody tidying two literals into one
+     * constant, or restoring the single-branch version. Asserting the two are
+     * unequal survives a wording change; asserting either string does not.
+     */
+    const forever = planLabelFor(ent("comp"), null);
+    const fortnight = planLabelFor(grace(), null);
+    expect(forever).not.toBe(fortnight);
+    // And neither is empty, which would make the inequality above vacuous.
+    expect(forever.length).toBeGreaterThan(0);
+    expect(fortnight.length).toBeGreaterThan(0);
+  });
+
+  it("isBetaGrace is the predicate deciding it, and it is ONE function", () => {
+    // Moved here from `betaGrace.ts` so the display module can reach it; that
+    // module re-exports it, so `graceAsTrial`, the dashboard and the reminder
+    // runner all still ask the same question. §3.6: "Import it."
+    expect(isBetaGrace({ source: "comp", activeUntil: "2026-08-27T00:00:00Z" })).toBe(true);
+    expect(isBetaGrace({ source: "comp", activeUntil: null })).toBe(false);
+    expect(isBetaGrace(null)).toBe(false);
+    // A paid subscriber's entitlement also carries a date. Only `comp` is a grace.
+    expect(isBetaGrace({ source: "stripe", activeUntil: "2027-08-13T00:00:00Z" })).toBe(false);
+  });
+
+  it("⚠️ every comp label fits Profile's pill, which truncates past ~35 characters", () => {
+    // §3.6 records the constraint "so the next person adding a state checks it
+    // rather than discovering it". This is that check.
+    for (const label of [
+      planLabelFor(ent("comp"), null),
+      planLabelFor(grace(), null),
+      planLabelFor(grace(), { status: "trialing" }),
+    ]) {
+      expect(label.length).toBeLessThanOrEqual(35);
+      // No date reaches the pill: the shared function answers the state only.
+      expect(label).not.toMatch(/\d/);
+    }
+  });
+});
+
+/**
+ * ⚠️ THREE STATES ARRIVE AS `trialing` AND ONE OF THEM IS A TRIAL.
+ *
+ * Found by driving, not by this suite: the plan card rendered a "Trial ends" row
+ * off Stripe's status directly, so a mid-grace subscriber read "Access Pro /
+ * Starts 20 Aug / Trial ends 20 Aug" — the forbidden word two rows under the fix
+ * for it, and the same date twice. `planLabelFor` now branches on this same
+ * function, so the label and the row cannot answer differently.
+ */
+describe("⚠️ isGenuineTrial — the question D36 actually turns on", () => {
+  it("a first-timer's seven days IS a trial", () => {
+    expect(isGenuineTrial(ent("stripe"), { status: "trialing" })).toBe(true);
+    // And before the entitlement row lands, which is a real window.
+    expect(isGenuineTrial(null, { status: "trialing" })).toBe(true);
+  });
+
+  it("a courtesy period is NOT, however Stripe describes it", () => {
+    expect(
+      isGenuineTrial(ent("stripe"), {
+        status: "trialing",
+        courtesyUntil: "2026-09-15T00:00:00Z",
+      }),
+    ).toBe(false);
+    // CONTROL: the identical subscription without the marker is a real trial, so
+    // the marker is what moved the answer.
+    expect(isGenuineTrial(ent("stripe"), { status: "trialing", courtesyUntil: null })).toBe(true);
+  });
+
+  it("a grace-aligned subscription is NOT", () => {
+    expect(isGenuineTrial(grace(), { status: "trialing" })).toBe(false);
+    // CONTROL: the same subscription under a free-for-life comp is not a grace,
+    // so `isBetaGrace` is what moved the answer and not the source alone.
+    expect(isGenuineTrial(ent("comp"), { status: "trialing" })).toBe(true);
+  });
+
+  it("nothing that is not trialing is a trial", () => {
+    for (const status of ["active", "past_due", "paused", "unpaid", "canceled", "incomplete"]) {
+      expect(isGenuineTrial(ent("stripe"), { status })).toBe(false);
+    }
+    expect(isGenuineTrial(ent("stripe"), null)).toBe(false);
+  });
+
+  it("⚠️ the label NEVER says trial unless this says so — one direction only", () => {
+    /**
+     * ⚠️ THIS ASSERTED THE BICONDITIONAL AND FAILED, CORRECTLY, ON ONE CASE.
+     *
+     * A free-for-life comp holding a live `trialing` Stripe subscription labels
+     * as "Complimentary" — that is what their access rests on — while
+     * `isGenuineTrial` says true, because the subscription really is a trial and
+     * really will convert to a charge. **Both answers are right**, and they are
+     * right about different questions: "what does this person's access rest on"
+     * and "is this subscription a trial". That is the same two-questions split
+     * `CANCELLABLE_STATUSES` and `BILLABLE_STATUSES` exist for, and collapsing it
+     * would hide a real trial's end date from the one cohort being charged
+     * while labelled complimentary.
+     *
+     * D36's rule is one-directional and this is it: the word never renders for
+     * anyone who is not on a trial. Nothing requires the converse.
+     */
+    const cases: Array<
+      [PlanEntitlement | null, Parameters<typeof isGenuineTrial>[1]]
+    > = [
+      [ent("stripe"), { status: "trialing" }],
+      [ent("stripe"), { status: "trialing", courtesyUntil: "2026-09-15T00:00:00Z" }],
+      [grace(), { status: "trialing" }],
+      [ent("comp"), { status: "trialing" }],
+      [ent("stripe"), { status: "active" }],
+      [null, { status: "trialing" }],
+    ];
+    for (const [e, s] of cases) {
+      if (planLabelFor(e, s) === "Free trial") {
+        expect(isGenuineTrial(e, s)).toBe(true);
+      }
+    }
+    // CONTROL: the loop above is vacuous unless the label really does say
+    // "Free trial" for somebody in this set.
+    expect(cases.filter(([e, s]) => planLabelFor(e, s) === "Free trial").length).toBeGreaterThan(0);
+    // And the deliberate asymmetry is asserted rather than left implicit.
+    expect(isGenuineTrial(ent("comp"), { status: "trialing" })).toBe(true);
+    expect(planLabelFor(ent("comp"), { status: "trialing" })).toBe("Complimentary");
+  });
+});
+
+/**
+ * ⚠️ D36's OTHER HALF: identical in consequence must read identically.
+ *
+ * Three ways to have no access, and a user can do exactly the same things in all
+ * three. Giving any of them its own label would be the screen inventing a
+ * distinction the product does not honour.
+ */
+describe("⚠️ D36: the three read-only states are one label", () => {
+  it("never had access, ran out, and was taken away all read the same", () => {
+    // All three reach `planLabelFor` as "no active entitlement", because
+    // `strongestEntitlement` filters to rows active right now — an expired row
+    // and a revoked one are both absent from its answer, exactly like a user who
+    // never had one.
+    const neverHad = planLabelFor(null, null, true);
+    const ranOut = planLabelFor(null, { status: "canceled" }, true);
+    const revoked = planLabelFor(null, { status: "active" }, true);
+    expect(neverHad).toBe("Read only");
+    expect(ranOut).toBe("Read only");
+    expect(revoked).toBe("Read only");
+    // CONTROL: the label is capable of saying something else, so the three
+    // matching is a decision rather than a function that only ever returns one
+    // string.
+    expect(planLabelFor(ent("stripe"), { status: "active" }, true)).toBe("Pro");
+  });
+
+  it("the exact phrase, two words, lower-case second word", () => {
+    // Matches the pop-up and the server's refusal message. Never "paused",
+    // "expired" or "locked".
+    const label = planLabelFor(null, null, true);
+    expect(label).toBe("Read only");
+    for (const forbidden of ["paused", "expired", "locked", "read-only"]) {
+      expect(label.toLowerCase()).not.toContain(forbidden);
+    }
   });
 });
 
@@ -434,7 +667,7 @@ describe("planLabelFor — a courtesy period is not a trial", () => {
    */
   it("reads Pro for a paid customer on a free month", () => {
     expect(
-      planLabelFor("stripe", {
+      planLabelFor(ent("stripe"), {
         status: "trialing",
         courtesyUntil: "2026-09-19T00:00:00.000Z",
       }),
@@ -442,18 +675,18 @@ describe("planLabelFor — a courtesy period is not a trial", () => {
   });
 
   it("still reads Free trial for a genuine first trial", () => {
-    expect(planLabelFor("stripe", { status: "trialing", courtesyUntil: null })).toBe(
+    expect(planLabelFor(ent("stripe"), { status: "trialing", courtesyUntil: null })).toBe(
       "Free trial",
     );
     // Undefined is the shape the page passes when 003 has not been applied yet.
-    expect(planLabelFor("stripe", { status: "trialing" })).toBe("Free trial");
+    expect(planLabelFor(ent("stripe"), { status: "trialing" })).toBe("Free trial");
   });
 
   it("does not let a courtesy flag override a comp", () => {
     // A founder who also subscribes is on a comp, and describing them by the
     // subscription would be wrong whatever the subscription says.
     expect(
-      planLabelFor("comp", {
+      planLabelFor(ent("comp"), {
         status: "trialing",
         courtesyUntil: "2026-09-19T00:00:00.000Z",
       }),
@@ -555,13 +788,13 @@ describe("⚠️ planLabelFor: gate on plus no entitlement is Read only, before 
 
   it("does not touch anybody who actually holds an entitlement", () => {
     // A comp is a source and is entitled: still Complimentary, gate or no gate.
-    expect(planLabelFor("comp", trialing, true)).toBe("Complimentary");
-    expect(planLabelFor("comp", null, true)).toBe("Complimentary");
+    expect(planLabelFor(ent("comp"), trialing, true)).toBe("Complimentary");
+    expect(planLabelFor(ent("comp"), null, true)).toBe("Complimentary");
     // A stripe entitlement on a courtesy period still reads Pro, not Free trial.
-    expect(planLabelFor("stripe", { status: "trialing", courtesyUntil: "2026-09-01T00:00:00Z" }, true))
+    expect(planLabelFor(ent("stripe"), { status: "trialing", courtesyUntil: "2026-09-01T00:00:00Z" }, true))
       .toBe("Pro");
     // And a real trial with its entitlement written still says so.
-    expect(planLabelFor("stripe", trialing, true)).toBe("Free trial");
+    expect(planLabelFor(ent("stripe"), trialing, true)).toBe("Free trial");
   });
 });
 
@@ -581,6 +814,6 @@ describe("2.3's deliberate cost: the webhook gap now reads Read only", () => {
   });
 
   it("and reads Free trial the moment the entitlement row exists", () => {
-    expect(planLabelFor("stripe", { status: "trialing", courtesyUntil: null }, true)).toBe("Free trial");
+    expect(planLabelFor(ent("stripe"), { status: "trialing", courtesyUntil: null }, true)).toBe("Free trial");
   });
 });
