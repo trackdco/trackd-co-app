@@ -325,3 +325,118 @@ describe("09 Step 1 — baseline: are the four facts and the button above the fo
     }
   }, 600_000);
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   09 STEPS 3 AND 4 — THE ELEMENT'S OWN COMPUTED STYLES
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * ⚠️ READ THE LIVE IFRAME, NOT THE APPEARANCE OBJECT.
+ *
+ * `09` Step 3: "read the live iframe's computed styles and confirm the real token
+ * values are applied, rather than judging from a screenshot." Step 4 wants the
+ * same for the tab. And §3.3 carries the reason it matters: **"A selector that
+ * does not exist is ignored silently."** An appearance rule can be perfectly
+ * spelled, committed, reviewed, and do nothing at all — so the only evidence worth
+ * having is what the rendered control actually computes.
+ *
+ * This is also the check that tells us whether the tab rules are REACHABLE: the
+ * Element is in `accordion` layout with wallets suppressed and card as the only
+ * method (`payment-sheet.tsx:442-446`), so if no `.Tab` renders, `.Tab--selected`
+ * is dead configuration rather than a fixed violation.
+ */
+describe("09 Steps 3 and 4 — what the Element actually computes", () => {
+  it("reports the Tab and Input computed styles from inside the frame", async () => {
+    const account = await seedAccount(ledger, "qa09-styles", { notificationsEnabled: false });
+    const page = await openCheckout(account.email, { width: 390, height: 844 });
+
+    const frames = page.frames().filter((f) => /stripe/i.test(f.url()));
+    console.log(`\n  stripe frames: ${frames.length}`);
+    expect(frames.length, "no Stripe frame, so nothing below is measurable").toBeGreaterThan(0);
+
+    let sawAnyTab = false;
+    for (const f of frames) {
+      const found = await f
+        .evaluate(() => {
+          const pick = (el: Element | null) => {
+            if (!el) return null;
+            const s = getComputedStyle(el);
+            return {
+              borderColor: s.borderColor,
+              borderWidth: s.borderWidth,
+              color: s.color,
+              backgroundColor: s.backgroundColor,
+              borderRadius: s.borderRadius,
+              fontFamily: s.fontFamily.slice(0, 40),
+            };
+          };
+          const tabs = Array.from(document.querySelectorAll(".Tab"));
+          const selected =
+            document.querySelector(".Tab--selected") ??
+            tabs.find((t) => t.className.includes("selected")) ??
+            null;
+          const icon =
+            document.querySelector(".Tab--selected .TabIcon") ??
+            document.querySelector(".TabIcon--selected") ??
+            null;
+          return {
+            tabCount: tabs.length,
+            blockCount: document.querySelectorAll(".Block").length,
+            inputCount: document.querySelectorAll(".Input").length,
+            selectedTab: pick(selected),
+            selectedIcon: pick(icon),
+            firstInput: pick(document.querySelector(".Input")),
+            label: pick(document.querySelector(".Label")),
+          };
+        })
+        .catch(() => null);
+      if (!found) continue;
+      if (found.tabCount > 0 || found.inputCount > 0 || found.blockCount > 0) {
+        sawAnyTab = sawAnyTab || found.tabCount > 0;
+        console.log(`  frame ${f.url().slice(0, 60)}...`);
+        console.log(`  ${JSON.stringify(found, null, 2)}`);
+      }
+    }
+
+    /**
+     * No assertion on the colours here. This test's job is to REPORT what the
+     * Element computes so Step 4's fix can be aimed and then re-checked; pinning
+     * a colour before knowing whether the selector renders at all would be
+     * pinning a guess.
+     */
+    console.log(`  any .Tab rendered anywhere: ${sawAnyTab}`);
+
+    /**
+     * ⚠️ THE CONTROL FOR STEP 4, and Step 4's verify line asks for it by name:
+     * "the selected tab is not amber, **the input focus ring still is**".
+     *
+     * Without this, a fix that stripped the accent from everything — or simply
+     * removed the amber token — would satisfy the not-amber half perfectly. The
+     * accent is meant to survive on FOCUS and only lose selection.
+     */
+    for (const f of frames) {
+      const ring = await f
+        .evaluate(async () => {
+          const input = document.querySelector<HTMLElement>(".Input");
+          if (!input) return null;
+          const field = input.querySelector<HTMLElement>("input") ?? input;
+          field.focus();
+          await new Promise((r) => setTimeout(r, 300));
+          const focused = document.querySelector<HTMLElement>(".Input--focus") ?? input;
+          const s = getComputedStyle(focused);
+          return {
+            matchedFocusClass: Boolean(document.querySelector(".Input--focus")),
+            borderColor: s.borderColor,
+            boxShadow: s.boxShadow,
+          };
+        })
+        .catch(() => null);
+      if (ring) {
+        console.log(`  FOCUS RING: ${JSON.stringify(ring)}`);
+        break;
+      }
+    }
+
+    await page.context().close();
+  }, 600_000);
+});

@@ -110,8 +110,41 @@ export function paymentAppearance(): Appearance {
         backgroundColor: surface,
         border: `0.5px solid ${border}`,
       },
+      /**
+       * ⚠️ THE SELECTED CONTROL IS NOT AMBER (09 §3.4 — "a violation, not a
+       * preference"). The border was `0.5px solid ${amber}`.
+       *
+       * §3.4's rule: keep the accent for FOCUS, and let selection read in the
+       * foreground colour. `.Input:focus` above is the focus half and is
+       * deliberately untouched; `colorPrimary` is also untouched, because §3.4
+       * says not to change it.
+       *
+       * ⚠️ AND `.Tab` DOES NOT CURRENTLY RENDER, which is measured rather than
+       * assumed. The Element is `accordion` layout with card as the only method
+       * and wallets suppressed (`payment-sheet.tsx:442-446`), so a read of the
+       * live iframe reports `tabCount: 0` and `blockCount: 0`. This rule is
+       * therefore correct-but-dormant: it is what a second payment method would
+       * land on, and it is fixed rather than deleted so enabling one cannot
+       * quietly reintroduce the violation.
+       */
       ".Tab--selected": {
-        border: `0.5px solid ${amber}`,
+        border: `0.5px solid ${text}`,
+        color: text,
+      },
+      /**
+       * ⚠️ THIS IS THE ONE THAT WAS ACTUALLY AMBER ON SCREEN.
+       *
+       * §3.3's warning is that "a selector that does not exist is ignored
+       * silently", and the inverse bit us here: the rule that existed was dead
+       * while the amber the spec objects to was coming from somewhere else. A
+       * read of the live iframe found no `.Tab` at all, and `.TabIcon--selected`
+       * computing `rgb(200, 134, 26)` — `--accent-amber`, inherited from
+       * `colorPrimary`.
+       *
+       * So the icon is named directly. Confirmed present by that same read, which
+       * is the only reason it is worth writing.
+       */
+      ".TabIcon--selected": {
         color: text,
       },
     },
