@@ -110,6 +110,20 @@ condensed_GLBX-*
 # somebody has to answer later.
 !/scratchpad/admin.mjs
 
+# ⚠️ AND THE READ-ONLY DRIVER, tracked 2026-08-18 BEFORE 08 rather than at the
+# freeze. It is the 23/23 evidence for the cohorts `08` must be re-verified
+# against — the read-only pop-up's copy, its mechanics, D28's destination — and it
+# existed on ONE MACHINE, in nobody's clone, which is the exact failure
+# `lib/billing/gate.ts` already records about `gate-audit.mjs`: "the script this
+# paragraph rests its credibility on was on one machine and in nobody's clone".
+#
+# Secret-scanned before tracking: no key, no token, no password. It takes the QA
+# password from `admin.mjs`, which reads `.env.local` and throws if unset, and it
+# deletes its one account BY ID in a `finally`. The `/api/billing/reconcile` probe
+# it used to carry was stripped: it called a billing route, asserted nothing, and
+# its comment claimed to establish something a status code cannot.
+!/scratchpad/qa-05-readonly.mjs
+
 # ⚠️ BUT NEVER THE SINK'S KEY MATERIAL. `PushSink` self-signs a certificate for
 # 127.0.0.1 on first run and caches it here. It is regenerated on demand, it is
 # worthless to anybody, and a private key does not go in a repository regardless.
