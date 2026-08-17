@@ -10,6 +10,7 @@ import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
 import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
 import {
   CANCELLABLE_STATUSES,
+  STOPPABLE_NOW,
   formatAccessDate,
   manageActionFor,
   planLabelFor,
@@ -328,6 +329,13 @@ export default async function BillingPage() {
                * (amended D1) — see `lib/billing/reminderPromise.ts`.
                */
               remindersPromised={reminderPromiseEnabled()}
+              /**
+               * ⚠️ D80: this row cannot take the period-end flag, so pressing the
+               * control ends it NOW. The dialog has to say so before it reassures.
+               * Resolved here, from the row's status, because the client must not
+               * decide which Stripe call happens.
+               */
+              endsImmediately={Boolean(row && STOPPABLE_NOW.has(row.status as string))}
             />
           </div>
           {action.kind === "resume" ? (

@@ -151,6 +151,7 @@ export function CancelSubscription({
   userId,
   compForever = false,
   remindersPromised = false,
+  endsImmediately = false,
 }: {
   mode: "cancel" | "resume";
   /** Already formatted in the user's own timezone by the server. */
@@ -181,6 +182,14 @@ export function CancelSubscription({
    * cannot accidentally promise a reminder in a context nobody checked.
    */
   remindersPromised?: boolean;
+  /**
+   * ⚠️ PRESSING THIS ENDS THE SUBSCRIPTION NOW, NOT AT THE PERIOD END (D80).
+   *
+   * True for `paused` and `unpaid`, which Stripe refuses the period-end flag on
+   * and which are cancelled outright instead. Resolved on the server from the
+   * row's status, because the client must not decide which Stripe call happens.
+   */
+  endsImmediately?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>("closed");
   const [error, setError] = useState<string | null>(null);
@@ -626,6 +635,7 @@ export function CancelSubscription({
     chargeOnLabel,
     compForever,
     remindersPromised,
+    endsImmediately,
   });
 
   /**
@@ -944,6 +954,7 @@ function dialogCopy({
   chargeOnLabel,
   compForever,
   remindersPromised,
+  endsImmediately,
 }: {
   phase: Phase;
   mode: "cancel" | "resume";
@@ -958,6 +969,8 @@ function dialogCopy({
   compForever: boolean;
   /** `REMINDER_PROMISE_ENABLED`. Gates both halves of the reminder promise. */
   remindersPromised: boolean;
+  /** D80: this cancellation is immediate, not at period end. */
+  endsImmediately: boolean;
 }): DialogCopy | null {
   if (phase === "confirm") {
     return mode === "cancel"
@@ -986,9 +999,33 @@ function dialogCopy({
            * both buttons are deliberately untouched: what they are pressing is
            * still a cancellation, and it still stops a real charge.
            */
-          body: compForever
-            ? `You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.`
-            : `You'll have full access to your Pro plan until ${endsOn}, and you won't be charged. After that your account goes read only. You'll still see your whole history, you just can't add to it.`,
+          /**
+           * ⚠️ D80's SENTENCE GOES FIRST, AND NOTHING IS WITHHELD BEHIND IT.
+           *
+           * For `paused` and `unpaid` this button ends the subscription STRAIGHT
+           * AWAY, not at the period end. Every clause of the body below is still
+           * true for them — cancelling writes no entitlement, so access really
+           * does run to the date named — and the dialog still failed at its job,
+           * because it never said the action was FINAL.
+           *
+           * Somebody reads "full access until {date}" and reasonably concludes
+           * they can change their mind until then. They cannot: there is no
+           * resume for this path, deliberately, because a subscription cancelled
+           * outright is gone at Stripe and clearing a flag cannot bring it back.
+           * That is the difference between an undoable action and a final one,
+           * and it belongs BEFORE the reassurance rather than after it.
+           *
+           * Signed copy. It leads whichever body applies, including D78's, because
+           * it describes the MECHANISM rather than the cohort.
+           */
+          body: [
+            endsImmediately ? "This ends your subscription straight away." : null,
+            compForever
+              ? `You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.`
+              : `You'll have full access to your Pro plan until ${endsOn}, and you won't be charged. After that your account goes read only. You'll still see your whole history, you just can't add to it.`,
+          ]
+            .filter(Boolean)
+            .join(" "),
           dismiss: `Keep my ${noun}`,
           confirm: "Yes, cancel",
         }
