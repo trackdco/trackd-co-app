@@ -300,7 +300,15 @@ guarded("Step 11 — trial lifecycle on a test clock", () => {
     expect(driftHours, `the charge landed ${driftHours}h after the named date`).toBeLessThan(49);
   }, 900_000);
 
-  it.todo("[needs 07] a reminder fires before the courtesy charge, against the MOVED end — DONE in promise.scenario.ts");
+  /**
+   * ⚠️ NOT A TODO. The reminder-before-the-courtesy-charge observation is pair 2's
+   * release condition and it is DONE, in `promise.scenario.ts`: reminder delivered
+   * 28 Aug, courtesy period ending 31 Aug, real invoice paid 31 Aug, in that order.
+   *
+   * The `it.todo` is deleted rather than retitled. A todo that is actually done
+   * elsewhere reads as missing coverage in every count of what is left, and it
+   * miscounted this branch's remaining work once already.
+   */
 
   it("after the courtesy charge, cancelling again offers nothing", async () => {
     const { readSaveOffer } = await import("@/lib/billing/saveOffer");
