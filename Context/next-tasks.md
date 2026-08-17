@@ -282,13 +282,50 @@ design. Setting it ships two signed promise strings to real users and is an envi
 change in Vercel, so it is a founder action, not an agent one. **The condition it waits
 on is now met.**
 
-### What Step 6 still owes
+### ✅ Step 6's SECOND LEG — a plain trial converting, also driven
 
-Step 6 asks for the lifecycle **twice**: a courtesy period ending and charging (done,
-above) and **a plain trial ending and converting** with no offer in between (not
-driven). The mechanism is the same clock and the same assertions with the grant step
-removed. Step 7 (Q79, Stripe's own trial-ending email against a moved `trial_end`) is
-untouched and still `it.todo` in `monday.scenario.ts`.
+Same clock, same assertions, no cancellation and no grant. Its arrival check is the
+mirror image of the first leg's: `courtesy_until` must be **null**, because null is
+what makes `resolveEnding` pick the TRIAL wording — correct for this person and a lie
+to the one in the courtesy leg.
+
+    trial reminder  2026-08-21T23:05:00Z   sent, delivered 1
+    trial ends      2026-08-24T12:31:34Z
+    invoice PAID    2026-08-24T13:31:34Z   in_1U5PhbEmCWV24GLCgOQwsSmP
+
+Step 6 is complete: both legs observed, reminder before charge in both.
+
+### ✅ Step 7 — Q79 ANSWERED, and my first answer was WRONG
+
+**The answer: `customer.subscription.trial_will_end` fires with 3 DAYS left on a
+7-day trial, and a moved trial end raises it AGAIN (1 fresh firing).**
+
+⚠️ **The first run of this measurement produced 168 hours and 336 hours, and both
+were artifacts.** It advanced straight to the ending and computed
+`trial_end - event.created`. The tell: the two events were stamped SIX SECONDS APART
+in real time while their simulated positions were a week apart — so `created` is
+wall-clock on a test clock, and the subtraction was measuring "the ending minus the
+moment the test ran". A number that looks like an answer and is not one is worse here
+than no number, because D34 would have been decided on it.
+
+Re-measured by **walking the clock a day at a time** and looking for the event after
+each step. The first step at which it appears IS the simulated firing moment, to
+within a day, and it interprets no timestamp. That gives 3 days, which is what Stripe
+documents.
+
+**What this hands to `12` for D34.** The EVENT has a 3-day lead. The dashboard's
+trial-reminder EMAIL is set to **7 days**, against a **7-day** trial and a **7-day**
+courtesy period — so its deadline falls at or before the free period BEGINS, which is
+`07` §0's stated concern, now with a measured lead beside it. And because a moved end
+raises a fresh event, Stripe re-schedules on a courtesy grant rather than staying
+silent.
+
+⚠️ **The email itself is NOT API-observable.** Stripe exposes no endpoint for sent
+customer emails and test mode delivers them nowhere a harness can read. So whether it
+actually goes out, and what it does on a 7-day period, is a **dashboard check by eye**
+for `12`/D34. Named as a gap rather than left looking like an answer — `07` §3.6
+already says the email "is explicitly not the backstop", and a false reassurance about
+it is exactly what would make somebody treat it as one.
 
 ---
 
