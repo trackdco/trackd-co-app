@@ -9,6 +9,67 @@ reminder traced)
 
 ---
 
+## 🛑 09 STEP 5 — STOPPED AND ASKING, per §3.5. THE DISCLOSURE HAS NOT BEEN MOVED.
+
+§3.5: *"If the four facts cannot be kept on screen below the button at 320x568, say so
+and ask. Do not shrink a fact out of legibility, do not drop one, and do not move one
+back above the button unilaterally."*
+
+**They cannot, and the reason is not our layout.** The height budget at 320x568, in the
+mid-grace variant §3.5 names as the tightest:
+
+| | height |
+|---|---|
+| express-checkout row (renders empty, no wallet) | 8px |
+| **the Stripe Payment Element** | **424px** |
+| the disclosure — all four facts | 110px |
+| the "Subscribe" button | 52px |
+| gaps and padding | ~96px |
+| **content total** | **690px** |
+| **visible scroll port** | **375px** |
+| **overflow to reclaim** | **315px** |
+
+### ⚠️ THE ONE NUMBER THAT SETTLES IT
+
+**The Stripe Payment Element alone is 424px — 49px MORE than the entire 375px visible
+port.** With the disclosure at zero height, the button at zero height and every gap
+removed, the card fields still would not fit above the fold at 320x568.
+
+So this is not a spacing problem, not a "move the disclosure" problem, and not
+something Step 6 can recover. **§3.5's requirement is unachievable at 320x568 by any
+arrangement of our own content**, because a third-party control we do not size exceeds
+the viewport on its own. Steps 2, 3 and 4 are done and measured; Step 5 is where it
+stops.
+
+### What I did NOT do
+
+- Did not move the disclosure below the button. Step 1 shows all four facts and the
+  button already below the fold at 320x568 with the disclosure still ABOVE it, so
+  moving it can only push it further down — the change would make a measured failure
+  worse and then report a completed step.
+- Did not trim, shrink or drop a fact. Did not move one above the button unilaterally.
+- Did not touch `02b`'s copy.
+
+### The shape of the question for Adrian
+
+The requirement is `02b`'s and the arrangement is `09`'s, and §3.5 says a conflict
+between them is a question rather than a judgement call. Options, none chosen:
+
+1. **Accept scrolling at 320x568** and hold the no-scroll requirement at 390x844,
+   where it passes in every variant measured. 320x568 is iPhone SE 1st-gen / very old
+   Android; the disclosure is still fully readable, reachable and above the button.
+2. **Re-configure the Element** so it is shorter — a different `layout`, or fewer
+   fields. That changes what Stripe renders and needs its own measurement, and §3.3
+   warns a selector that does not exist is ignored silently.
+3. **Re-read the requirement as "not obscured" rather than "no scrolling"** at the
+   smallest width. That is a change to `02b`, not to `09`.
+
+⚠️ 390x844 passes in every variant measured, both before and after Steps 2-4, so
+nothing here is a regression — it is a requirement that was never met at the smallest
+width.
+
+---
+
 ## 🔴 09 STEP 1 BASELINE — THE COLD REVIEW'S HIGH IS CONFIRMED AND MEASURED
 
 **Driven, `checkoutfold.scenario.ts`, 3/3, wallet absent (§3.6's worst case), page

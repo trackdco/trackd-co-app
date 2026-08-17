@@ -440,3 +440,82 @@ describe("09 Steps 3 and 4 — what the Element actually computes", () => {
     await page.context().close();
   }, 600_000);
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   09 STEP 5 — THE HEIGHT BUDGET, so the stop-and-ask has numbers in it
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * ⚠️ THIS DOES NOT MOVE THE DISCLOSURE. It measures why it cannot be moved yet.
+ *
+ * §3.5: "If the four facts cannot be kept on screen below the button at 320x568,
+ * say so and ask. Do not shrink a fact out of legibility, do not drop one, and do
+ * not move one back above the button unilaterally."
+ *
+ * Step 1's baseline already shows all four facts and the button BELOW the fold at
+ * 320x568 with the disclosure still ABOVE the button — so moving it below can only
+ * push it further down. The condition to stop and ask is met before the change.
+ *
+ * "It does not fit" is a weak thing to hand somebody, though. This breaks the
+ * scroll port's content into its parts so the question becomes "here is the
+ * budget, here is what would have to give", which is answerable.
+ */
+describe("09 Step 5 — the height budget at 320x568", () => {
+  it("breaks down what fills the scroll port", async () => {
+    const account = await seedAccount(ledger, "qa09-budget", {
+      graceUntil: "2026-11-20T04:00:00.000Z",
+      notificationsEnabled: false,
+    });
+    const page = await openCheckout(account.email, { width: 320, height: 568 });
+
+    const budget = await page.evaluate(() => {
+      const port = Array.from(document.querySelectorAll<HTMLElement>("div")).find((d) =>
+        d.className.includes("flow-scroll-fade"),
+      );
+      if (!port) return null;
+
+      /**
+       * ⚠️ DESCEND PAST WRAPPERS. The port's only child is a full-height column,
+       * so listing one level reports "670px, one div" and answers nothing. Walk
+       * down while a node is the sole child carrying its parent's whole height.
+       */
+      let level: HTMLElement = port;
+      for (let i = 0; i < 6; i += 1) {
+        const kids = Array.from(level.children) as HTMLElement[];
+        if (kids.length !== 1) break;
+        level = kids[0];
+      }
+      const rows = Array.from(level.children).map((c) => {
+        const el = c as HTMLElement;
+        return {
+          height: Math.round(el.getBoundingClientRect().height),
+          tag: el.tagName.toLowerCase(),
+          text: el.innerText.replace(/\s+/g, " ").slice(0, 54),
+        };
+      });
+
+      const iframes = Array.from(document.querySelectorAll("iframe")).map((f) =>
+        Math.round(f.getBoundingClientRect().height),
+      );
+
+      return {
+        portClientHeight: port.clientHeight,
+        portScrollHeight: port.scrollHeight,
+        overflow: port.scrollHeight - port.clientHeight,
+        rows,
+        iframeHeights: iframes.filter((h) => h > 0),
+      };
+    });
+
+    expect(budget, "the scroll port was not found, so there is no budget to report").not.toBeNull();
+    console.log(`\n  === 320x568 HEIGHT BUDGET (mid-grace, the tightest variant) ===`);
+    console.log(`  port ${budget!.portClientHeight}px visible, ${budget!.portScrollHeight}px of content`);
+    console.log(`  ⚠️ OVERFLOW TO RECLAIM: ${budget!.overflow}px`);
+    for (const r of budget!.rows) {
+      console.log(`    ${String(r.height).padStart(4)}px  <${r.tag}>  ${JSON.stringify(r.text)}`);
+    }
+    console.log(`  visible iframe heights: ${JSON.stringify(budget!.iframeHeights)}`);
+
+    await page.context().close();
+  }, 600_000);
+});
