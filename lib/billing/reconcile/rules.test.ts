@@ -168,9 +168,38 @@ describe("charge-inside-courtesy (§3.1 #7, Invariant 1)", () => {
     const s = snapshot({
       subscriptions: [sub({ courtesyUntil: courtesyEnd, status: "trialing" })],
       stripeCustomers: [stripeCustomer({ offerClaimedAt: claimed })],
-      invoices: [inv({ paidAt: secs("2026-08-15T00:00:00Z") })],
+      invoices: [
+        inv({
+          // Raised AFTER the claim, which is what makes it a charge inside the
+          // free period rather than the payment that bought the eligibility.
+          created: secs("2026-08-14T00:00:00Z"),
+          paidAt: secs("2026-08-15T00:00:00Z"),
+        }),
+      ],
     });
     expect(of(s, "charge-inside-courtesy")).toHaveLength(1);
+  });
+
+  /**
+   * ⚠️ THE FALSE POSITIVE STEP 5 FOUND, PINNED IN THE FAST SUITE.
+   *
+   * Subscribe, be charged, cancel immediately, take the save offer. The charge
+   * that made them ELIGIBLE sits SECONDS before the claim. A rule bounded on
+   * payment time reported it; bounding on invoice creation does not.
+   */
+  it("CONTROL: the eligibility charge seconds before the claim is not inside it", () => {
+    const claimInstant = "2026-08-01T00:00:05.000Z";
+    const s = snapshot({
+      subscriptions: [sub({ courtesyUntil: courtesyEnd, status: "trialing" })],
+      stripeCustomers: [stripeCustomer({ offerClaimedAt: claimInstant })],
+      invoices: [
+        inv({
+          created: secs("2026-08-01T00:00:00Z"),
+          paidAt: secs("2026-08-01T00:00:00Z"),
+        }),
+      ],
+    });
+    expect(of(s, "charge-inside-courtesy")).toHaveLength(0);
   });
 
   /**
@@ -901,6 +930,45 @@ describe("§3.4 — a dispute deactivates our entitlement while Stripe stays ove
       entitlements: [ent({ isActive: false })],
     });
     expect(runRules(s)).toEqual([]);
+  });
+
+  /**
+   * ⚠️ FOUND BY DRIVING (Step 5), NOT BY REASONING. Stripe leaves a disputed
+   * subscription ACTIVE while our rule revokes the entitlement immediately. Both
+   * rules below reported that state until Step 5 seeded it for real.
+   */
+  it("CONTROL: an ACTIVE subscription with a revoked entitlement is a dispute, not a lockout", () => {
+    const s = snapshot({
+      subscriptions: [sub({ status: "active" })],
+      entitlements: [ent({ isActive: false })],
+    });
+    expect(of(s, "live-subscription-without-entitlement")).toHaveLength(0);
+  });
+
+  it("CONTROL: a revoked entitlement's stale date is not compared against a charge", () => {
+    const s = snapshot({
+      subscriptions: [
+        sub({ status: "trialing", trialEnd: secs("2026-09-20T00:00:00Z") }),
+      ],
+      // The date is still there — is_active and active_until are separate columns
+      // so a revocation does not rewrite history — but nobody is being shown it.
+      entitlements: [ent({ isActive: false, activeUntil: "2027-09-25T00:00:00.000Z" })],
+    });
+    expect(of(s, "charge-and-entitlement-dates-disagree")).toHaveLength(0);
+  });
+
+  /**
+   * ⚠️ THE CONTROL THAT KEEPS THE FIX HONEST. A revoked row must not become a
+   * blanket amnesty: an account with a revoked row AND a live paying subscription
+   * that has genuinely lost access still has to be reported when nothing was
+   * revoked for the product in question.
+   */
+  it("CONTROL: a genuinely locked-out payer with NO revoked row is still caught", () => {
+    const s = snapshot({
+      subscriptions: [sub({ status: "active" })],
+      entitlements: [],
+    });
+    expect(of(s, "live-subscription-without-entitlement")).toHaveLength(1);
   });
 
   it("but a disputed subscription with a LIVE entitlement is a finding", () => {

@@ -287,19 +287,46 @@ export function chargeInsideCourtesy(s: ReconcileSnapshot, ix: Index): Finding[]
     if (!Number.isFinite(end)) continue;
 
     const claimedAt = ix.stripeCustomerById.get(sub.customerId)?.offerClaimedAt ?? null;
-    const start = claimedAt ? Date.parse(claimedAt) : NaN;
-    if (!Number.isFinite(start)) continue; // reported by the marker rule instead
+    const claimMs = claimedAt ? Date.parse(claimedAt) : NaN;
+    if (!Number.isFinite(claimMs)) continue; // reported by the marker rule instead
 
     for (const inv of paidInvoices(sub.id, ix)) {
       const paidMs = (inv.paidAt as number) * 1000;
-      if (paidMs >= start - INSTANT_TOLERANCE_MS && paidMs < end - INSTANT_TOLERANCE_MS) {
+      const createdMs = inv.created * 1000;
+
+      /**
+       * ⚠️ THE INVOICE MUST HAVE BEEN RAISED *AFTER* THE CLAIM.
+       *
+       * ## The false positive this replaces, found by driving Step 5
+       *
+       * The first version bounded the window by PAYMENT TIME with a minute of
+       * slack: `paidAt >= claimedAt - 60s`. That reported a perfectly correct
+       * courtesy account, and the flow it broke on is a real one — **subscribe,
+       * be charged, cancel immediately, and take the save offer.** The charge
+       * that made them ELIGIBLE for the offer then sits seconds before the claim,
+       * and a rule bounded on payment time cannot tell it from a charge taken
+       * inside the free month.
+       *
+       * Creation time can. During a courtesy period `trial_end` is in the future,
+       * so Stripe raises no invoice at all — an invoice CREATED after the claim
+       * and paid before the end is money moving inside a period we promised was
+       * free, and an invoice created before it is the payment that bought the
+       * eligibility.
+       *
+       * That also removes the slack from the lower bound entirely, which was
+       * pointing the wrong way: widening a money rule's window makes it MORE
+       * likely to cry wolf, and §3.5's whole value is being quiet when things are
+       * fine.
+       */
+      if (createdMs > claimMs && paidMs < end - INSTANT_TOLERANCE_MS) {
         out.push({
           rule: "charge-inside-courtesy",
           account: { userId: userOf(sub, ix), stripeCustomerId: sub.customerId },
           evidence: [
             `subscription ${sub.id} (${sub.status})`,
             `courtesy claimed ${claimedAt}, free until ${sub.courtesyUntil}`,
-            `invoice ${inv.id} took ${money(inv.amountPaid, inv.currency)} at ${iso(inv.paidAt)}`,
+            `invoice ${inv.id} raised ${iso(inv.created)}, AFTER the claim`,
+            `and took ${money(inv.amountPaid, inv.currency)} at ${iso(inv.paidAt)}`,
             `that is INSIDE the courtesy period`,
           ],
         });
@@ -510,17 +537,41 @@ export function liveSubscriptionWithoutEntitlement(
       continue;
     }
 
-    if (activeEntitlements(user, ix, s.now).length === 0) {
-      out.push({
-        rule: "live-subscription-without-entitlement",
-        account: { userId: user, stripeCustomerId: sub.customerId },
-        evidence: [
-          `subscription ${sub.id} is ${sub.status}`,
-          `account ${user} holds NO active entitlement`,
-          `the app decides access from entitlements alone, so this account is locked out while paying`,
-        ],
-      });
-    }
+    if (activeEntitlements(user, ix, s.now).length > 0) continue;
+
+    /**
+     * ⚠️ §3.4 — A DELIBERATE REVOCATION IS NOT A LOCKED-OUT CUSTOMER.
+     *
+     * "A dispute deactivates the entitlement immediately in our system; Stripe
+     * leaves the subscription overdue. This script asserts against OUR rule. A
+     * disputed subscription with a deactivated entitlement is correct and must
+     * not be reported."
+     *
+     * **Found by driving, not by reasoning.** Step 5 seeded exactly that state —
+     * an `active` Stripe subscription beside `is_active = false` — and this rule
+     * reported it, which is the false positive on every dispute that §3.4 says
+     * would get the whole report ignored.
+     *
+     * `is_active` is documented as the KILL SWITCH, flipped by a chargeback or a
+     * withdrawn comp (`001_billing_tables.sql`). A row that carries it is an
+     * answer somebody gave, not an absence. The same reasoning D81 applied to the
+     * backfill: a revocation is a decision, and a checker is not entitled to
+     * second-guess it.
+     */
+    const revoked = (ix.entitlementsByUser.get(user) ?? []).filter(
+      (e) => e.isActive === false,
+    );
+    if (revoked.length > 0) continue;
+
+    out.push({
+      rule: "live-subscription-without-entitlement",
+      account: { userId: user, stripeCustomerId: sub.customerId },
+      evidence: [
+        `subscription ${sub.id} is ${sub.status}`,
+        `account ${user} holds NO active entitlement, and none was deliberately revoked`,
+        `the app decides access from entitlements alone, so this account is locked out while paying`,
+      ],
+    });
   }
   return out;
 }
@@ -623,9 +674,20 @@ export function chargeAndEntitlementDatesDisagree(
     if (chargeAtSec === null) continue;
     const chargeMs = chargeAtSec * 1000;
 
-    // What the app tells this user their access runs to.
+    /**
+     * What the app tells this user their access runs to.
+     *
+     * ⚠️ IT MUST BE AN *ACTIVE* ROW. A revoked entitlement still carries its
+     * date — `is_active` and `active_until` are separate columns precisely so a
+     * revocation does not have to rewrite history — but that date is no longer
+     * what anybody is being shown. Comparing a charge against it reported a
+     * disagreement on every disputed subscription, which Step 5 caught.
+     */
     const stripeRow = (ix.entitlementsByUser.get(user) ?? []).find(
-      (e) => e.source === "stripe" && e.activeUntil !== null,
+      (e) =>
+        e.source === "stripe" &&
+        e.activeUntil !== null &&
+        isEntitlementActive({ isActive: e.isActive, activeUntil: e.activeUntil }, s.now),
     );
     if (!stripeRow) continue;
     const shownMs = Date.parse(stripeRow.activeUntil as string);
