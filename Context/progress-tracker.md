@@ -5,7 +5,49 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-17 (spec 11 Steps 1-5 built and driven; two standing rules below)
+Last updated: 2026-08-17 (06 finished through Step 5; 07 Steps 4-5 driven; pair 2's release condition observed)
+
+## Pair 2's release condition is met, and 06 is finished (2026-08-17, afternoon)
+
+**Head `f0fd424`.** `tsc`, ESLint, `gate-audit` (32 gated / 2 conditional / 69
+ungated) and 1446 tests all green. `BILLING_GATE_ENABLED` and
+`REMINDER_PROMISE_ENABLED` are both absent from `.env.local`; the gate was passed on
+the command line for driving only and the dev server has been restarted without it.
+
+**`06` is done through Step 5.** Steps 6 and 7 are not runnable as written and are
+routed as spec conflicts in `next-tasks.md`. The confetti is scoped four ways (comp
+× beta against normal × reduced motion, each suppression paired with the observation
+that makes it mean something), the notice shows once per account with a second
+account never inheriting the first's dismissal, and the date is now proven to be
+read from the row **and** formatted in the account's stored timezone rather than the
+device's.
+
+**`07` Steps 4 and 5 are done, and Step 6's release condition is OBSERVED** on a
+real Stripe test clock: reminder delivered 2026-08-28T23:05Z, courtesy period ending
+2026-08-31T05:20Z, real invoice paid 2026-08-31T06:20Z. Both directions asserted —
+the reminder precedes the charge and nothing was taken before the period ended.
+
+### Three things that changed what is believed
+
+- **The claim-burns-the-dedupe-key item was already fixed.** `runner.ts:1005-1017`
+  releases the claim when nothing is delivered. The entry that flagged it had read
+  the claim and not the release. Driven with a dead push endpoint, with a live-retry
+  control beside it.
+- **`05` §3.6b's final-day banner was decided on 15 Aug and never built.** No
+  implementation step exists for it, and "Your plan ends today." is nowhere in the
+  tree. A cancelled account on its final entitled day currently sees no banner at
+  all, because `07`'s deliberately excludes them.
+- **The beta notice's seen-cookie is ONE SLOT.** Two accounts alternating in one
+  browser overwrite each other's dismissal. Harmless (a second notice, no money),
+  but §3.7 does not name the case.
+
+### The harness gained a shared fix
+
+`TestClock.advanceTo` now hops in 7-day steps. Stripe caps a single advance at two
+billing intervals, and a trial plus a courtesy period IS two intervals — so every
+scenario wanting to land past the ending was one hop too far by construction.
+
+---
 
 ## ⚠️ FIVE STANDING RULES, all earned the hard way (2026-08-17)
 
