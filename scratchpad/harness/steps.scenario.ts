@@ -33,8 +33,10 @@ import {
   TestClock,
   admin,
   atLocalTime,
+  earlierThan,
   fireReminder,
   readOfferMarkers,
+  sameInstant,
   seedAccount,
   stripe,
   stripeBudgetAvailable,
@@ -212,10 +214,116 @@ guarded("Step 11 — trial lifecycle on a test clock", () => {
    * work — and NOT by faking it here. See the README.
    */
 
-  it.todo("trial: cancel -> offer -> accept -> the cancellation is LIFTED");
-  it.todo("the granted date the dialog named is the date Stripe actually charges on");
-  it.todo("[needs 07] a reminder fires before the courtesy charge, against the MOVED end");
-  it.todo("after the courtesy charge, cancelling again offers nothing");
+  /**
+   * A trial, cancelled, offered and accepted — returning both the date the GRANT
+   * reported and the Stripe objects, so the two can be compared.
+   */
+  async function trialOfferAccepted(tag: string) {
+    const { grantExtraTime, markOfferShown } = await import("@/lib/billing/saveOffer");
+    const account = await seedAccount(ledger, tag, { notificationsEnabled: false });
+    const clock = new TestClock(ledger);
+    const t0 = new Date();
+    await clock.create(t0);
+    const customerId = await clock.customer(account.email);
+    const { error } = await admin.from("billing_customers").insert({
+      user_id: account.id,
+      stripe_customer_id: customerId,
+      trial_lock_until: new Date(0).toISOString(),
+    });
+    if (error) throw new Error(`billing_customers: ${error.message}`);
+
+    let sub = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: process.env.STRIPE_PRICE_WEEKLY ?? "" }],
+      trial_end: Math.floor(t0.getTime() / 1000) + 7 * 86_400,
+      metadata: { user_id: account.id },
+    });
+    sub = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+    expect(sub.cancel_at_period_end, "the cancellation did not take").toBe(true);
+
+    await markOfferShown(customerId, new Date().toISOString());
+    sub = await stripe.subscriptions.retrieve(sub.id);
+    const result = await grantExtraTime(account.id, customerId, sub);
+    expect(result.ok, `the grant was refused: ${JSON.stringify(result)}`).toBe(true);
+
+    const after = await stripe.subscriptions.retrieve(sub.id);
+    return { account, clock, customerId, sub: after, result, subId: sub.id };
+  }
+
+  it("trial: cancel -> offer -> accept -> the cancellation is LIFTED", async () => {
+    const { sub, result } = await trialOfferAccepted("s11-lift");
+    console.log(`  grant: ${JSON.stringify(result)}  cancel_at_period_end=${sub.cancel_at_period_end}`);
+    /**
+     * 04's cancel-first ordering, asserted on the retrieved object rather than on
+     * the return value: the cancellation is REAL first, and accepting lifts it.
+     */
+    expect(sub.cancel_at_period_end, "the cancellation was not lifted by accepting").toBe(false);
+    expect(sub.status).toBe("trialing");
+  }, 600_000);
+
+  it("the granted date the dialog named is the date Stripe actually charges on", async () => {
+    const { clock, customerId, result, sub } = await trialOfferAccepted("s11-date");
+    const named = result.ok === true ? result.endsOn : "";
+    console.log(`  the grant NAMED: ${named}`);
+
+    /* ── ⚠️ ARRIVAL: the named date is the subscription's own trial_end ─── */
+    expect(
+      sameInstant(named, new Date((sub.trial_end ?? 0) * 1000).toISOString()),
+      `the named date ${named} is not the object's trial_end`,
+    ).toBe(true);
+
+    /* ── then let time run past it and see when money actually moves ───── */
+    await clock.advanceTo(new Date(Date.parse(named) + 2 * 3_600_000));
+    let paidAt: string | null = null;
+    for (let i = 0; i < 30 && !paidAt; i += 1) {
+      const invoices = await stripe.invoices.list({ customer: customerId, status: "paid", limit: 10 });
+      const inv = invoices.data.find((x) => (x.status_transitions?.paid_at ?? 0) > 0);
+      if (inv) paidAt = new Date((inv.status_transitions!.paid_at as number) * 1000).toISOString();
+      else await new Promise((r) => setTimeout(r, 3000));
+    }
+    expect(paidAt, "nothing was ever charged, so there is no date to compare").not.toBeNull();
+    console.log(`  Stripe CHARGED at: ${paidAt}`);
+
+    /**
+     * ⚠️ THE INVARIANT: "a screen never states a price, date or promise the
+     * server would contradict." The dialog told somebody a date; this is the day
+     * the money actually moved. Compared as INSTANTS, and allowed to be LATER but
+     * never EARLIER — a charge before the named date is money taken after being
+     * told it would not be, which is standing law 1.
+     */
+    expect(
+      earlierThan(paidAt, named),
+      `⚠️ CHARGED BEFORE THE DATE THE DIALOG NAMED (named ${named}, charged ${paidAt})`,
+    ).toBe(false);
+    const driftHours = Math.round((Date.parse(paidAt!) - Date.parse(named)) / 3_600_000);
+    console.log(`  drift: +${driftHours}h (later is acceptable, earlier is not)`);
+    expect(driftHours, `the charge landed ${driftHours}h after the named date`).toBeLessThan(49);
+  }, 900_000);
+
+  it.todo("[needs 07] a reminder fires before the courtesy charge, against the MOVED end — DONE in promise.scenario.ts");
+
+  it("after the courtesy charge, cancelling again offers nothing", async () => {
+    const { readSaveOffer } = await import("@/lib/billing/saveOffer");
+    const { customerId } = await trialOfferAccepted("s11-once");
+
+    /* ── ⚠️ ARRIVAL: the offer really was claimed ─────────────────────── */
+    const markers = await readOfferMarkers(customerId);
+    console.log(`  markers after the claim: ${JSON.stringify(markers)}`);
+    expect(markers.shownAt, "no shown marker, so 'offered once' is untested").toBeTruthy();
+
+    /**
+     * ⚠️ ONCE EVER, AND IT IS THE *SHOWN* MARKER THAT DECIDES (§3.3). Availability
+     * is not derived from whether time was granted — a customer who was shown the
+     * offer and declined is equally out of offers. So this asserts the read the
+     * cancel path actually performs.
+     */
+    const trialAgain = await readSaveOffer(customerId, "trial");
+    const paidAgain = await readSaveOffer(customerId, "paid");
+    console.log(`  readSaveOffer trial=${JSON.stringify(trialAgain)} paid=${JSON.stringify(paidAgain)}`);
+    expect(trialAgain.available, "a second offer is available on the trial path").toBe(false);
+    expect(paidAgain.available, "a second offer is available on the paid path").toBe(false);
+    expect(trialAgain.kind, "a kind is still being handed out with no offer").toBeNull();
+  }, 600_000);
 });
 
 guarded("Step 11 — paid lifecycle, and the yearly plan specifically", () => {
