@@ -96,7 +96,7 @@ not that a phone displayed anything.
 
 ---
 
-## Two things that cost a run, kept here so they do not cost another
+## Traps that each cost a run, kept here so they do not cost another
 
 **`setup.ts` must load `.env.local` before any module under test is imported.** ESM
 imports are hoisted, so `runner.ts` captures `VAPID_PUBLIC`/`VAPID_PRIVATE` into
@@ -110,6 +110,20 @@ too late, and the symptom is misleading: `runForUser` returns
 into `trialReminder: "send-failed"` — so a *correct* verdict reads as a dead
 reminder. The sink self-signs for `127.0.0.1` and `setup.ts` disables TLS
 verification for this process only.
+
+**A scenario that never reaches the state it names is worse than no scenario.**
+This has now happened six times on this branch, twice inside this harness:
+`billingreason`'s clawback branch seeded `active_until` at the OLD period end and
+so never created the extension the clawback undoes, and `pausedcancel` first
+seeded no mirror row, so the mirror write matched nothing and passed vacuously.
+Both were green. **Before trusting any scenario here, read what state it actually
+constructs**, and prefer asserting you have ARRIVED somewhere before asserting
+anything about it — `qa-22-declined.mjs` checks it reached the declined screen
+before reading the declined screen's copy.
+
+Two smaller traps of the same family: compare timestamps as INSTANTS, not strings
+(Postgres returns `+00:00` where JS writes `.000Z`), and check text reads the way
+a user reads it — a `ml-1` margin looks like a space and is absent from the text.
 
 A third, smaller one: these trials end near local midnight, so "the ending plus an
 hour" lands inside quiet hours (22:00–08:00) and the runner short-circuits there
@@ -148,4 +162,38 @@ Do not strike the box and do not tick it by observation.
 | `setup.ts` | env into `process.env` **before** imports; harness-only TLS opt-out |
 | `core.ts` | ledger, seeding, push sink, `fireReminder`, offer markers, `TestClock` |
 | `monday.scenario.ts` | job D — D1 (runs now), Q79 and Smart Retries (guarded) |
-| `steps.scenario.ts` | jobs A/B/C — Steps 9/10/11 (guarded), plus a live self-check |
+| `steps.scenario.ts` | jobs A/B/C — **Steps 9/10/11, still `it.todo`** (guarded), plus a live self-check |
+| `clockwindow.scenario.ts` | measures the `incomplete` expiry window. **Answered: ~23h, invoice voided by Stripe** |
+| `billingreason.scenario.ts` | `markPastDue`'s guard, both branches: first-invoice and renewal |
+| `pausedcancel.scenario.ts` | D80 — a genuinely `paused` subscription, cancelled immediately |
+
+**⚠️ `steps.scenario.ts` is the one with work left in it.** Steps 9, 10 and 11 are
+`it.todo` with their assertions written out but no bodies. The other three
+scenarios are complete and passing, and are the worked examples to copy from:
+`clockwindow` for advancing a clock and sampling, `pausedcancel` for driving a
+subscription into an awkward status, `billingreason` for invoking a handler
+directly with a real Stripe object.
+
+
+---
+
+## Where the next session picks up
+
+`04`'s Steps 9, 10 and 11 are the outstanding work and they live in
+`steps.scenario.ts`. Everything they need already exists:
+
+- **Stripe test clocks** — `TestClock` in `core.ts`, and `clockwindow.scenario.ts`
+  is a complete worked example of create → advance → sample.
+- **Awkward statuses** — `pausedcancel.scenario.ts` shows how to reach `paused`
+  (a trial ending with `missing_payment_method: "pause"` and no card).
+- **The offer's markers** — `readOfferMarkers` in `core.ts` reads
+  `trackd_save_offer_shown_at` off the STRIPE CUSTOMER, which is where the
+  once-ever flag actually lives. Step 9's four routes all reduce to whether that
+  value is present and unchanged.
+- **Reminders** — `fireReminder` needs no clock at all. Step 11's reminder leg is
+  a separate `it` for that reason: when `07` lands it un-skips without rebuilding
+  anything around it.
+
+**Run guarded scenarios only when nobody else is spending Stripe test objects.**
+`HARNESS_ALLOW_STRIPE=1` is the switch, and a reviewer's fixtures have collided
+with a QA run on this branch once already.
