@@ -31,10 +31,12 @@ import {
   Ledger,
   PushSink,
   TestClock,
+  admin,
   atLocalTime,
   fireReminder,
   readOfferMarkers,
   seedAccount,
+  stripe,
   stripeBudgetAvailable,
 } from "./core";
 
@@ -99,8 +101,93 @@ guarded("Step 10 — the window is the server's, and the countdown only displays
    * metadata. Cheaper, deterministic, and it tests the guard rather than the UI.
    */
 
-  it.todo("claim at nine minutes is granted");
-  it.todo("claim at eleven minutes is refused, with D23's expired string and no retry invitation");
+  /**
+   * ⚠️ THE WINDOW IS ENFORCED AGAINST THE REAL CLOCK, SO IT IS AGED IN METADATA.
+   *
+   * `offerStillOpen(shownAt)` compares against `Date.now()`
+   * (`saveOffer.ts:295`), NOT against a Stripe test clock — a test clock moves
+   * Stripe's time and this guard never asks Stripe what time it is. So the way
+   * to sit at nine or eleven minutes is to write a `shownAt` that is already
+   * nine or eleven minutes old, which needs no clock and no waiting.
+   *
+   * These two go through `grantExtraTime` — the same function the server action
+   * calls — rather than through a browser, exactly as this file's header says
+   * they should: "it tests the guard rather than the UI".
+   */
+  async function offerAgedBy(minutes: number) {
+    const { grantExtraTime, markOfferShown } = await import("@/lib/billing/saveOffer");
+    const account = await seedAccount(ledger, `s10-${minutes}m`, { notificationsEnabled: false });
+    const clock = new TestClock(ledger);
+    const t0 = new Date();
+    await clock.create(t0);
+    const customerId = await clock.customer(account.email);
+    const { error } = await admin.from("billing_customers").insert({
+      user_id: account.id,
+      stripe_customer_id: customerId,
+      trial_lock_until: new Date(0).toISOString(),
+    });
+    if (error) throw new Error(`billing_customers: ${error.message}`);
+
+    let sub = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: process.env.STRIPE_PRICE_WEEKLY ?? "" }],
+      trial_end: Math.floor(t0.getTime() / 1000) + 7 * 86_400,
+      metadata: { user_id: account.id },
+    });
+    // ⚠️ The offer requires a LIVE cancellation (`saveOffer.ts:388`), so this is
+    // a real one rather than a flag.
+    sub = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+
+    const shownAt = new Date(Date.now() - minutes * 60_000).toISOString();
+    await markOfferShown(customerId, shownAt);
+    sub = await stripe.subscriptions.retrieve(sub.id);
+
+    /* ── ⚠️ ARRIVAL: cancelled, and the marker really holds the aged instant ── */
+    expect(sub.cancel_at_period_end, "not cancelled, so the grant refuses for the WRONG reason").toBe(true);
+    const marker = await readOfferMarkers(customerId);
+    expect(marker.shownAt, "the aged shownAt did not persist to Stripe").toBe(shownAt);
+
+    const result = await grantExtraTime(account.id, customerId, sub);
+    return { result, customerId, shownAt, subId: sub.id };
+  }
+
+  it("claim at nine minutes is granted", async () => {
+    const { result } = await offerAgedBy(9);
+    console.log(`  9 minutes: ${JSON.stringify(result)}`);
+    /**
+     * ⚠️ THE CONTROL FOR THE ELEVEN-MINUTE TEST BELOW. A guard that refused
+     * everything would pass that one perfectly, so the inside of the window has
+     * to be shown to work first.
+     */
+    expect(result.ok, `nine minutes is INSIDE the window and was refused: ${JSON.stringify(result)}`).toBe(true);
+  }, 600_000);
+
+  it("claim at eleven minutes is refused as expired, and does not grant time", async () => {
+    const { result, subId } = await offerAgedBy(11);
+    console.log(`  11 minutes: ${JSON.stringify(result)}`);
+    expect(result.ok).toBe(false);
+    /**
+     * ⚠️ THE REASON MATTERS, not just the refusal. `not-offered`, `not-cancelled`
+     * and `already-claimed` are all refusals for reasons that have nothing to do
+     * with the ten minutes — a scenario that accepted any of them would pass
+     * while the window guard was broken.
+     */
+    expect(result.ok === false && result.reason, "refused, but not for being expired").toBe("expired");
+
+    /**
+     * ⚠️ AND ASSERT ON THE OBJECT, NOT THE RETURN VALUE. A refusal that still
+     * moved `trial_end` is the failure worth catching, and `{ok:false}` says
+     * nothing about it.
+     */
+    const after = await stripe.subscriptions.retrieve(subId);
+    const original = Math.floor(Date.now() / 1000) + 7 * 86_400;
+    expect(
+      Math.abs((after.trial_end ?? 0) - original) < 600,
+      `a refused claim still moved trial_end to ${after.trial_end}`,
+    ).toBe(true);
+    expect(after.cancel_at_period_end, "a refused claim lifted the cancellation").toBe(true);
+  }, 600_000);
+
   it.todo("dismiss at two minutes, reopen at eight: the countdown CONTINUES, never restarts");
   it.todo("a tab left open past the window claims and is refused by the server");
   it.todo("a device clock skewed fast hides the button early; the server is unmoved");
