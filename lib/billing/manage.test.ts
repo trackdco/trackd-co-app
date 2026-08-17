@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CANCELLABLE_STATUSES,
   FLAG_CANCELLABLE_STATUSES,
+  STOPPABLE_NOW,
   formatAccessDate,
   manageActionFor,
   planLabelFor,
@@ -137,9 +138,30 @@ describe("who gets a cancel control", () => {
   });
 
   it("does not offer to cancel something already ended", () => {
-    for (const status of ["canceled", "incomplete_expired", "unpaid", "paused"]) {
+    // ⚠️ `paused` and `unpaid` WERE in this list and have been removed by D80.
+    // They are not ended — they are stoppable by the other mechanism, and the
+    // list is about subscriptions Stripe has finished with. Their new behaviour
+    // is asserted below.
+    for (const status of ["canceled", "incomplete_expired"]) {
       expect(manageActionFor("stripe", sub({ status })).kind).toBe("unavailable");
     }
+  });
+
+  it("⚠️ D80: offers a control on `paused` and `unpaid`, which are stoppable now", () => {
+    // Stripe refuses the period-end flag on these and accepts an immediate
+    // cancel, so the app HAS a way to stop them. Leaving them at `unavailable`
+    // would signpost as unstoppable a state the app can now stop — a correct fix
+    // the screen cannot dispatch, which is this file's recurring defect.
+    for (const status of ["paused", "unpaid"]) {
+      expect(manageActionFor("stripe", sub({ status })).kind).toBe("cancel");
+    }
+  });
+
+  it("⚠️ but `incomplete` still gets no control (D83)", () => {
+    // It takes the flag, so the ACTION reaches it — but the screen offers
+    // nothing, because the dialog cannot honestly name a date for a subscription
+    // with no paid period. D83 rules the support line, and it self-heals in ~23h.
+    expect(manageActionFor("stripe", sub({ status: "incomplete" })).kind).toBe("unavailable");
   });
 
   it("refuses rather than showing a button that cannot name a date", () => {
@@ -240,9 +262,14 @@ describe("⚠️ CANCELLABLE_STATUSES is what `cancel_at_period_end` may be set 
     for (const status of CANCELLABLE_STATUSES) {
       expect(manageActionFor("stripe", sub({ status })).kind).toBe("cancel");
     }
-    for (const status of ["paused", "unpaid", "incomplete"]) {
-      expect(manageActionFor("stripe", sub({ status })).kind).toBe("unavailable");
+    // ⚠️ D80 SPLIT THIS. `paused` and `unpaid` now get a control via the
+    // immediate-cancel mechanism, so the screen's set is CANCELLABLE plus
+    // STOPPABLE_NOW rather than CANCELLABLE alone. `incomplete` is the one that
+    // the action reaches and the screen still does not offer (D83).
+    for (const status of STOPPABLE_NOW) {
+      expect(manageActionFor("stripe", sub({ status })).kind).toBe("cancel");
     }
+    expect(manageActionFor("stripe", sub({ status: "incomplete" })).kind).toBe("unavailable");
   });
 });
 

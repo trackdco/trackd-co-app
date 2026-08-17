@@ -192,6 +192,21 @@ export const FLAG_CANCELLABLE_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * ⚠️ STOPPABLE, BUT NOT BY THE FLAG (D80).
+ *
+ * Stripe hard-refuses `cancel_at_period_end` on these and accepts
+ * `subscriptions.cancel()` on them, so they ARE stoppable — just by the other
+ * mechanism. They have no paid period to protect, which is the entire reason
+ * period-end cancellation exists, so ending them now costs the user nothing.
+ *
+ * Kept apart from {@link CANCELLABLE_STATUSES} rather than folded into it,
+ * because the two drive different code: one decides which Stripe call to make,
+ * the other is read by callers asking what the period-end flag may touch.
+ * {@link manageActionFor} forms the union where it needs it.
+ */
+export const STOPPABLE_NOW: ReadonlySet<string> = new Set(["paused", "unpaid"]);
+
+/**
  * Statuses Stripe has finished with. Nothing here can ever charge again.
  *
  * Declared locally rather than imported from `cancel.ts`'s `BILLABLE_STATUSES`:
@@ -286,26 +301,30 @@ export function manageActionFor(
   const store = source === "apple" ? "apple" : source === "google" ? "google" : null;
   const comped = source === "comp";
   /**
-   * ⚠️ SEAM CARRIED FORWARD: **D80 CHANGES WHAT "ACTIONABLE" MEANS, AND THIS LINE
-   * IS WHERE IT LANDS.**
+   * ⚠️ D80 HAS LANDED, AND IT CHANGED WHAT "ACTIONABLE" MEANS. This is the line
+   * the seam marker pointed at.
    *
-   * Today `paused` and `unpaid` are not actionable, because Stripe hard-refuses
-   * `cancel_at_period_end` on them, so they fall through to `unavailable` and the
-   * screen shows the support line. That is correct **only while there is no other
-   * way to stop them.**
+   * `paused` and `unpaid` used to fall through to `unavailable` and the support
+   * line, because Stripe hard-refuses `cancel_at_period_end` on them and there
+   * was no other way to stop them. That was correct **only while no mechanism
+   * existed.** D80 cancels them immediately via `subscriptions.cancel()`, which
+   * Stripe accepts where it refuses the flag — so the app now has a way to stop
+   * exactly the subscriptions this screen was signposting as unstoppable.
    *
-   * D80 rules that those two are cancelled IMMEDIATELY via
-   * `subscriptions.cancel()`, which Stripe accepts where it refuses the flag. The
-   * moment that lands, the support line becomes a signpost for a state the app
-   * has a mechanism for — a correct fix the screen cannot dispatch, which is the
-   * exact shape of the reachability defects this file already carries two
-   * corrections for (D76's dead void, and the filter that hid these rows).
+   * Leaving them out would have been the same defect this file already carries
+   * two corrections for: a correct fix the screen cannot dispatch. D76's void was
+   * dead because the status set never reached it; these rows were invisible
+   * because the page filtered them out. Both were reachability, not logic.
    *
-   * So when D80 is built, this line and the support-line fallback on `/billing`
-   * are revisited IN THE SAME PASS, and comp + paused and comp + unpaid are
-   * driven again afterwards. Do not let D80 land without it.
+   * ⚠️ `CANCELLABLE_STATUSES` IS DELIBERATELY NOT WIDENED. It answers "what may a
+   * user press a button on" for OTHER readers too, and the whole lesson of this
+   * review is that one set answering two questions gets widened for one of them.
+   * The union is formed here, where the question is specifically what THIS screen
+   * may offer a control for.
    */
-  const actionable = subscription !== null && CANCELLABLE.has(subscription.status);
+  const actionable =
+    subscription !== null &&
+    (CANCELLABLE.has(subscription.status) || STOPPABLE_NOW.has(subscription.status));
 
   if (!actionable) {
     if (store) return { kind: "store", store };

@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 
 import { serviceClient } from "./service";
 import { stripe } from "./stripe";
+import { FLAG_CANCELLABLE_STATUSES } from "./manage";
 import { listAllSubscriptions } from "./subscriptionList";
 
 /**
@@ -72,7 +73,7 @@ export async function liveSubscriptionsForUser(
    * with no way out of it from inside the app. See `manage.ts`.
    */
   statuses: ReadonlySet<string> = BILLABLE_STATUSES,
-): Promise<string[]> {
+): Promise<LiveSubscription[]> {
   const { data, error } = await serviceClient()
     .from("billing_customers")
     .select("stripe_customer_id")
@@ -99,9 +100,21 @@ export async function liveSubscriptionsForUser(
    */
   const all = await listAllSubscriptions(stripe(), customer);
 
+  /**
+   * ⚠️ THE STATUS RIDES ALONG WITH THE ID, because D80 makes the CALLER's choice
+   * of mechanism depend on it: `paused` and `unpaid` are cancelled immediately,
+   * everything else takes the period-end flag. Returning bare ids forced the
+   * caller to either re-read Stripe or guess.
+   */
   return all
     .filter((s) => statuses.has(s.status))
-    .map((s) => s.id);
+    .map((s) => ({ id: s.id, status: s.status }));
+}
+
+/** A live subscription and the status that decides how it must be stopped. */
+export interface LiveSubscription {
+  id: string;
+  status: string;
 }
 
 /**
@@ -228,6 +241,80 @@ async function voidOpenInvoiceFor(
   );
 }
 
+/**
+ * ⚠️ D80. STOP A `paused` OR `unpaid` SUBSCRIPTION **NOW**, because the flag
+ * cannot stop it at all.
+ *
+ * Stripe HARD-REFUSES `cancel_at_period_end` on a `paused` subscription
+ * ("Resume the subscription first"). The old behaviour excluded those statuses
+ * from the cancel path entirely, which is not wrong about the flag and is wrong
+ * about the outcome: **the user was told they had cancelled while a billable
+ * subscription went on existing.** That breaks the one-billable-subscription
+ * invariant with the user's own belief pointing the other way.
+ *
+ * A `paused` or `unpaid` subscription **has no paid period to protect**, which is
+ * the entire reason period-end cancellation exists. So there is nothing for the
+ * later date to preserve and the immediate call is the correct one.
+ *
+ * ## ⚠️ TWO THINGS THIS IS NOT, and neither is a licence for the other
+ *
+ * **Not `04` §2's forbidden immediate-cancel.** That prohibition is about the
+ * SAVE OFFER path, where an immediate cancel would revoke paid access somebody
+ * is being offered more of. Unaffected here, and an unpaid period is still
+ * ineligible for an offer under D70.
+ *
+ * **Not {@link cancelNowForUser}.** That sweeps EVERY subscription because the
+ * account is being erased, belongs to `16-account-deletion.md`, and is never
+ * reached from a cancel row. This stops one subscription the user asked to stop.
+ *
+ * ## It does not revoke access, and cannot
+ *
+ * `entitlements` is not written here, exactly as on the flag path. `active_until`
+ * already holds the date access ends and the clock does the work, so somebody
+ * who paid for a period keeps it even though the subscription ends now.
+ */
+export async function cancelImmediately(stripeSubscriptionId: string): Promise<void> {
+  await stripe().subscriptions.cancel(stripeSubscriptionId);
+
+  const { error } = await serviceClient()
+    .from("subscriptions")
+    /**
+     * ⚠️ WRITTEN AS THE LITERAL, NOT AS `updated.status`.
+     *
+     * Stripe's status type is wider than the `subscription_status` enum this
+     * column stores, and a value the enum does not carry fails the WHOLE update —
+     * leaving the mirror claiming the subscription is still live after Stripe has
+     * ended it, which is the one direction that matters here.
+     *
+     * `subscriptions.cancel()` ends the subscription outright and answers
+     * `canceled`, so there is nothing to narrow and no branch to get wrong. The
+     * webhook reconciles from the live object regardless.
+     */
+    .update({ status: "canceled", cancel_at_period_end: false })
+    .eq("stripe_subscription_id", stripeSubscriptionId);
+
+  // Logged, not thrown, for the reason `applyCancelFlag` gives: Stripe has
+  // accepted the change and it is real. The webhook reconciles a moment later.
+  if (error) {
+    console.error("[billing] mirror not updated after an immediate cancel:", error.message);
+  }
+}
+
+/**
+ * Which mechanism stops this subscription. See {@link cancelImmediately} for why
+ * there are two.
+ *
+ * ⚠️ DEFINED AS THE COMPLEMENT OF A NAMED SET, never as its own literal pair.
+ * `FLAG_CANCELLABLE_STATUSES` already states what the period-end flag may be
+ * applied to; anything the cancel path reaches that is NOT in it is a
+ * subscription the flag cannot stop, and must therefore be stopped now. Written
+ * as its own list, the two would drift the first time a status moved — which is
+ * exactly the defect the three inline status literals were.
+ */
+export function stopsImmediately(status: string): boolean {
+  return !FLAG_CANCELLABLE_STATUSES.has(status);
+}
+
 export async function applyCancelFlag(
   stripeSubscriptionId: string,
   cancelAtPeriodEnd: boolean,
@@ -346,7 +433,7 @@ export async function cancelNowForUser(userId: string): Promise<{
 
   const cancelled: string[] = [];
   const failed: string[] = [];
-  for (const id of live) {
+  for (const { id } of live) {
     try {
       await stripe().subscriptions.cancel(id);
       cancelled.push(id);

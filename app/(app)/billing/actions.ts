@@ -5,10 +5,16 @@ import { headers } from "next/headers";
 import type Stripe from "stripe";
 
 import { getCurrentUser } from "@/lib/auth";
-import { applyCancelFlag, liveSubscriptionsForUser } from "@/lib/billing/cancel";
+import {
+  BILLABLE_STATUSES,
+  applyCancelFlag,
+  cancelImmediately,
+  liveSubscriptionsForUser,
+  stopsImmediately,
+  type LiveSubscription,
+} from "@/lib/billing/cancel";
 import {
   CANCELLABLE_STATUSES,
-  FLAG_CANCELLABLE_STATUSES,
   CANCEL_FAILED,
   RESUME_FAILED,
   formatAccessDate,
@@ -152,7 +158,7 @@ export interface CancelResult extends BillingActionResult {
  * scoping. Nothing about which subscription to act on comes from the client.
  */
 async function ownSubscriptions(): Promise<
-  { ids: string[]; userId: string; customerId: string } | { error: string }
+  { ids: LiveSubscription[]; userId: string; customerId: string } | { error: string }
 > {
   const user = await getCurrentUser();
   if (!user) return { error: "You need to be signed in." };
@@ -174,7 +180,7 @@ async function ownSubscriptions(): Promise<
     return { error: "There's no active subscription on this account." };
   }
 
-  let ids: string[];
+  let ids: LiveSubscription[];
   try {
     /**
      * ⚠️ `FLAG_CANCELLABLE_STATUSES`, NOT `BILLABLE_STATUSES`.
@@ -196,7 +202,20 @@ async function ownSubscriptions(): Promise<
      * `subscriptions.cancel()` and which Stripe accepts on a paused
      * subscription. Two questions, two lists. See `manage.ts`.
      */
-    ids = await liveSubscriptionsForUser(user.id, FLAG_CANCELLABLE_STATUSES);
+    /**
+     * ⚠️ `BILLABLE_STATUSES` — "what could still take this person's money?" —
+     * because D80 gives every one of them a mechanism.
+     *
+     * This was `FLAG_CANCELLABLE_STATUSES`, which excluded `paused` and `unpaid`
+     * on the correct grounds that Stripe hard-refuses the flag on them. Correct
+     * about the flag, wrong about the outcome: those subscriptions were left
+     * running while the user was told they had cancelled. D80 cancels them
+     * immediately instead, so there is no longer any reason to drop them here.
+     *
+     * Which mechanism each one takes is decided per subscription below, from the
+     * status that now rides along with the id.
+     */
+    ids = await liveSubscriptionsForUser(user.id, BILLABLE_STATUSES);
   } catch (err) {
     console.error(
       `[billing] could not list subscriptions for ${user.id}:`,
@@ -242,17 +261,29 @@ export async function cancelSubscription(): Promise<CancelResult> {
    * one lie this flow exists to avoid. Retrying is safe: Stripe accepts the flag
    * again on a subscription that already carries it.
    */
+  /**
+   * ⚠️ TWO MECHANISMS, CHOSEN PER SUBSCRIPTION (D80).
+   *
+   * `paused` and `unpaid` cannot take the period-end flag at all — Stripe refuses
+   * it outright — and have no paid period to protect, so they are ended now.
+   * Everything else keeps the period-end flag, which is what preserves access
+   * somebody has already paid for.
+   */
   const outcomes = await Promise.allSettled(
-    found.ids.map((id) => applyCancelFlag(id, true)),
+    found.ids.map(({ id, status }) =>
+      stopsImmediately(status) ? cancelImmediately(id) : applyCancelFlag(id, true),
+    ),
   );
-  const failed = found.ids.filter((_, i) => outcomes[i].status === "rejected");
+  const failed = found.ids
+    .filter((_, i) => outcomes[i].status === "rejected")
+    .map((s) => s.id);
   if (failed.length > 0) {
     for (const [i, outcome] of outcomes.entries()) {
       if (outcome.status !== "rejected") continue;
       // Stripe's own message can name internal ids and price objects, so it is
       // logged and not returned.
       console.error(
-        `[billing] cancel failed for ${found.ids[i]}:`,
+        `[billing] cancel failed for ${found.ids[i].id} (${found.ids[i].status}):`,
         outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
       );
     }
@@ -769,14 +800,24 @@ export async function resumeSubscription(): Promise<BillingActionResult> {
    * So: if anything came back on, the charge is re-armed and the screen must say
    * so. Only a total failure is reported as one.
    */
+  /**
+   * ⚠️ RESUME IS THE FLAG PATH ONLY, and D80 does not get a mirror image.
+   *
+   * Clearing `cancel_at_period_end` un-cancels a subscription that is still
+   * scheduled. A subscription cancelled IMMEDIATELY is gone at Stripe and cannot
+   * be resumed by clearing a flag; offering to is a button that cannot work.
+   * `manageActionFor` never reaches `resume` for those statuses, so this filter
+   * is belt-and-braces over that rather than the only guard.
+   */
+  const resumable = found.ids.filter(({ status }) => !stopsImmediately(status));
   const outcomes = await Promise.allSettled(
-    found.ids.map((id) => applyCancelFlag(id, false)),
+    resumable.map(({ id }) => applyCancelFlag(id, false)),
   );
-  const resumed = found.ids.filter((_, i) => outcomes[i].status === "fulfilled");
+  const resumed = resumable.filter((_, i) => outcomes[i].status === "fulfilled");
   for (const [i, outcome] of outcomes.entries()) {
     if (outcome.status !== "rejected") continue;
     console.error(
-      `[billing] resume failed for ${found.ids[i]}:`,
+      `[billing] resume failed for ${resumable[i].id}:`,
       outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
     );
   }
