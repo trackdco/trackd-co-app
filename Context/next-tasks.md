@@ -55,6 +55,42 @@ runner bails at `reason: "disabled"` first; reaching it needs a client that can 
 `profiles` but not `entitlements`, i.e. a grant change on a production table, which is
 banned. The SPLIT, the LOG and the non-burn are driven. **Do not tick the reason.**
 
+### ✅ RULING 1 (18 Aug) — NO DATELESS WARNING. And the banner half is S2.
+
+**Adrian corrected his own earlier instruction.** "Send the warning on unknown"
+conflated the comment at `runner.ts:236-238` with a different question. That comment
+means *do not suppress a warning because the account is read-only* — the split
+preserves that and it stands. It does **not** mean send one when the read failed,
+because **a failed read does not tell us the person is in a grace at all.** A dateless
+warning would assert an unverified fact.
+
+Behaviour on `graceRow = unknown`, by channel:
+
+- **PUSH — silent.** Already what the code does. An unactionable alarming push is
+  worse than nothing and the cron runs again within minutes.
+- **IN-APP BANNER — 🛑 STOP-LIST S2.** The ruling allows an honest could-not-check
+  banner *if a signed string of that class already exists*. **It does not.** `05`'s
+  **Q85 — "the generic still-syncing notice" — is OPEN** (`billing-05` §7, and the
+  decision ledger row 167 marks it *"OPEN. Step 4 needs it to finish"*). The nearest
+  existing strings were considered and rejected: `07`'s three ending variants all
+  NAME A DATE, which is the one thing an unknown read cannot supply; and the
+  read-only pop-up's copy describes a state we have not established the user is in.
+  **No string is written.** The slot is Q85's, and it needs signing.
+
+`rule0.scenario.ts` keeps refusing to run with the flag unset. That refusal is the
+control, not a convenience.
+
+### ✅ RULING 2 (18 Aug) — the reason string is an ACCEPTED GAP under §9g
+
+Observing `entitlements-unreadable` reach the cron payload needs a client that can read
+`profiles` but not `entitlements`, i.e. a grant change on a **production** table. That
+is a banned production write and Adrian declined to authorise one to tick a box.
+
+**Accepted, with the reason recorded rather than left as an untested claim.** What IS
+driven: the split itself, the log line emitted from inside it, and that nothing is
+claimed or stamped so the reminder is not burned. What is NOT driven: the reason string
+surfacing in the response payload, which rests on `tsc` and on reading `runner.ts`.
+
 ### RECORDED — nine, no fix now
 
 | # | Where | The default | Decision it feeds | Fails |

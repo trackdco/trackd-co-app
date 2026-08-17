@@ -1022,12 +1022,28 @@ export async function runForUser(
        * burned: the next tick (minutes later) reads again and sends. What is
        * removed is the PERMANENT INVISIBLE silence.
        *
-       * ⚠️ What it deliberately does NOT do is compose a warning. Without the row
-       * there is no `active_until`, and a warning that cannot name the date is
-       * exactly what `04` §3.2 and `06` §3.2 both delete rather than weaken — "a
-       * version that cannot name the date is not a weaker acceptable variant, it
-       * is one that must not render". A DATELESS ending warning would need signing
-       * before it could exist. Flagged for a ruling rather than invented.
+       * ⚠️ IT DOES NOT COMPOSE A WARNING, AND THAT IS NOW RULED (Adrian,
+       * 2026-08-18), correcting the earlier instruction to "send the warning on
+       * unknown".
+       *
+       * The comment fifteen lines up — that trial and grace warnings are NOT gated
+       * on write access — means **do not suppress a warning because the account is
+       * read-only**. That still holds and the split above preserves it. It does
+       * NOT mean send one when the read failed, because **a failed read does not
+       * tell us the person is in a grace at all**: a dateless warning would assert
+       * an unverified fact, which `04` §3.2 and `06` §3.2 both delete rather than
+       * weaken.
+       *
+       * So on `graceRow = unknown`, by channel:
+       *
+       *   PUSH          silent — which is what this branch does. An unactionable
+       *                 alarming push is worse than nothing, and the cron runs
+       *                 again within minutes.
+       *   IN-APP BANNER the honest could-not-check class, IF a signed string of
+       *                 that class exists. ⚠️ **It does not.** `05`'s Q85 — "the
+       *                 generic still-syncing notice" — is OPEN, so there is
+       *                 nothing to render and nothing here may invent one. That is
+       *                 stop-list S2, recorded in `next-tasks.md`.
        */
       if (!verdict.send && verdict.reason === "no-trial" && data.entitlementsUnknown) {
         trialReason = "entitlements-unreadable";
