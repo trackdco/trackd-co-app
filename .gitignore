@@ -77,6 +77,28 @@ condensed_GLBX-*
 # and three cold reviewers need to be able to find it.
 !/scratchpad/harness/
 
+# ...and the SHARED SPINE every QA driver imports (D89, part one).
+#
+# ⚠️ THE CLASS THIS CLOSES WAS ALREADY FOUND ONCE. `lib/billing/gate.ts` records
+# it about `gate-audit.mjs`: the script its credibility rested on "was on one
+# machine and in nobody's clone". That was fixed for one file and the class was
+# left open — so every `qa-*.mjs` and `cold-*.mjs` driver, and the spine they all
+# import, is still untracked. Evidence that 05 §5 and 12 rest on cannot be re-run
+# by a cold reviewer or by a future session.
+#
+# This is the piece whose loss would be worst and it is one file: the service
+# client, `makeUser`, `signIn`, and `dropUser` with its BY ID ONLY guard. It holds
+# NO secret — it reads `.env.local` at runtime — and no banned technique. Scanned
+# before tracking.
+#
+# The drivers themselves are tracked AT THE FREEZE, not before, and only the ones
+# backing a signed-off verification: the tree stops moving there, the full set
+# exists, and ~60 files landing mid-build is the churn that muddied a review round
+# once already. Each is secret-scanned first, and anything that patches a list or
+# calls a billing-writing route is stripped or left out rather than committed as a
+# recipe for the next session to copy.
+!/scratchpad/admin.mjs
+
 # ⚠️ BUT NEVER THE SINK'S KEY MATERIAL. `PushSink` self-signs a certificate for
 # 127.0.0.1 on first run and caches it here. It is regenerated on demand, it is
 # worthless to anybody, and a private key does not go in a repository regardless.
