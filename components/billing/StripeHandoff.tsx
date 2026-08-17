@@ -86,7 +86,27 @@ export interface HandoffRow {
 /** Never changes, so the snapshot below is stable for the lifetime of the app. */
 const subscribeNever = () => () => {};
 
-export function StripeHandoff({ rows }: { rows: readonly HandoffRow[] }) {
+export function StripeHandoff({
+  rows,
+  button,
+}: {
+  rows?: readonly HandoffRow[];
+  /**
+   * ⚠️ THE DECLINED CARD'S PRIMARY ACTION (D37), AS A THIRD TRIGGER OF THE SAME
+   * DIALOG — NOT AS A SECOND CALL SITE.
+   *
+   * §3.5: "'Update my card' routes through the handoff dialog, like every other
+   * portal route. It is the state's primary action." Giving that card its own
+   * `openBillingPortal` call would be exactly the bypass §3.3 warns about, one
+   * component further along. So it triggers THIS component instead, and the
+   * single call site below is still the only way to reach Stripe.
+   *
+   * §3.4's "reachable only from the payment rows" is preserved in the sense that
+   * matters: every trigger is a card-management route, and nothing on the plan
+   * card, the lapsed state or anywhere else can open it.
+   */
+  button?: { label: string };
+}) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,7 +208,7 @@ export function StripeHandoff({ rows }: { rows: readonly HandoffRow[] }) {
 
   return (
     <>
-      {rows.map((row, i) => {
+      {(rows ?? []).map((row, i) => {
         const Icon = ROW_ICON[row.key];
         return (
           <div key={row.key}>
@@ -219,6 +239,20 @@ export function StripeHandoff({ rows }: { rows: readonly HandoffRow[] }) {
           </div>
         );
       })}
+
+      {button ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            triggerRef.current = e.currentTarget;
+            setError(null);
+            setOpen(true);
+          }}
+          className="min-h-11 flex-1 rounded-2xl border border-border-default bg-bg-surface-raised px-4 py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {button.label}
+        </button>
+      ) : null}
 
       {open && mounted && typeof document !== "undefined"
         ? createPortal(

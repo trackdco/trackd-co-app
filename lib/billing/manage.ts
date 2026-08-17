@@ -863,6 +863,25 @@ const TRIALING = "trialing";
 const PAST_DUE = "past_due";
 
 /**
+ * ⚠️ IS THE CARD FAILING? The state D37's declined card describes.
+ *
+ * Asked by name so `/billing` carries no status literal (property 3), for the
+ * same reason {@link isGraceAligned} exists. `past_due` is Stripe's word for "the
+ * renewal was attempted and the card said no", and it is the ONLY state the
+ * declined card renders for — an `unpaid` subscription has already exhausted the
+ * retries and is a different surface.
+ *
+ * §3.9: this "cuts across all three" of Normal, cancelled-but-running and lapsed,
+ * so it is asked independently of the cancel/resume question rather than folded
+ * into {@link ManageAction}.
+ */
+export function isPastDue(
+  subscription: Pick<ManageableSubscription, "status"> | null,
+): boolean {
+  return subscription?.status === PAST_DUE;
+}
+
+/**
  * A date for a human, in the user's own timezone.
  *
  * Takes the zone explicitly rather than reading the runtime's, because this is

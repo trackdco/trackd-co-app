@@ -3,12 +3,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { CancelSubscription } from "@/components/billing/CancelSubscription";
+import { DeclinedCard } from "@/components/billing/DeclinedCard";
 import { CaretRight } from "@/components/icons";
 import { StripeHandoff } from "@/components/billing/StripeHandoff";
 import { STAYING_NOTICE_SLOT } from "@/components/billing/StayingNotice";
 import { currentEntitlement, entitlementEndDate } from "@/lib/billing/entitlements";
 import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
 import { courtesyUntilFor } from "@/lib/billing/courtesy";
+import { declinedOnFor } from "@/lib/billing/declined";
 import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
 import {
   CANCELLABLE_STATUSES,
@@ -17,6 +19,7 @@ import {
   isBetaGrace,
   isGenuineTrial,
   isGraceAligned,
+  isPastDue,
   manageActionFor,
   planLabelFor,
   type PlanEntitlement,
@@ -254,11 +257,32 @@ export default async function BillingPage() {
    * disagree most. Measured at 365 days of over-promised access on a yearly whose
    * entitlement had been clawed back to 14 Aug.
    */
-  const action = manageActionFor(
-    entitlement,
-    subscription,
-    await entitlementEndDate(),
-  );
+  /**
+   * Read ONCE and used twice: `manageActionFor` needs it to shorten an
+   * over-promising date, and the declined card needs it as the date access
+   * actually ends. `entitlementEndDate` is request-`cache()`d, so this is one
+   * query either way — naming it makes the two uses visible instead of implying
+   * they are separate reads that could drift.
+   */
+  const entitlementEnd = await entitlementEndDate();
+  const action = manageActionFor(entitlement, subscription, entitlementEnd);
+
+  /**
+   * ⚠️ THE ONLY STRIPE READ ON THIS PAGE, AND ONLY FOR A FAILING CARD.
+   *
+   * §5 requires the declined card's two dates to come from two sources: "the
+   * failure date from Stripe, the access date from the entitlement". The mirror
+   * has no failure column and this spec produces no migration, so Stripe is the
+   * only place it exists. Display only — nothing here decides access, which is
+   * still `entitlements` and nothing else.
+   *
+   * Gated on the status so an ordinary page load never makes a network call, and
+   * tolerant: `null` withholds the sentence rather than inventing a date.
+   */
+  const declinedOn =
+    isPastDue(subscription) && customer?.stripe_customer_id
+      ? await declinedOnFor(customer.stripe_customer_id as string)
+      : null;
 
   // The plan's name and amount, matched by price id. `loadPricesSafe` returns an
   // empty list when Stripe is unconfigured (which is production today), so every
@@ -329,6 +353,36 @@ export default async function BillingPage() {
           classic case a screen reader skips; this one is in the server-rendered
           markup long before there is anything to announce. */}
       <div id={STAYING_NOTICE_SLOT} role="status" />
+
+      {/**
+        * ⚠️ ABOVE THE PLAN CARD, AND IT REPLACES NOTHING (§3.9).
+        *
+        * "A fourth condition cuts across all three: past-due. It is a state of
+        * the PAYMENT rather than of the plan, and it renders as the declined card
+        * above the plan card rather than replacing any of the three." So a
+        * past-due account still sees Access, Price, the date and its cancel
+        * control underneath — the plan has not gone anywhere, only the money has.
+        *
+        * The two dates are resolved separately and formatted here, on the server,
+        * in the user's own timezone. Each may independently be null, and the
+        * sentence that names a null date does not render. See `DeclinedCard`.
+        */}
+      {isPastDue(subscription) ? (
+        <DeclinedCard
+          declinedOn={declinedOn ? formatAccessDate(declinedOn, tz) : null}
+          /**
+           * ⚠️ THE ENTITLEMENT'S OWN VALUE, NOT `action.endsOn`. §3.5 is explicit
+           * that this is "the same value the entitlement holds, not a guess and
+           * not the failure date plus a constant". `action.endsOn` is the EARLIER
+           * of the mirror and the entitlement, which is right for the cancel
+           * dialog and is a different question from "when does access end"; where
+           * no entitlement date exists it falls back to the mirror, and the
+           * mirror's period end on a past-due subscription is the end of a period
+           * nobody paid for.
+           */
+          accessEndsOn={entitlementEnd ? formatAccessDate(entitlementEnd, tz) : null}
+        />
+      ) : null}
 
       <section className="mt-6">
         <p className={`mb-3 ${CARD_EYEBROW}`}>Plan</p>
