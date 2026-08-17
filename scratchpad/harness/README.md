@@ -178,6 +178,38 @@ decision gets made on it. **`advanceTo` hops in 7-day steps** for a separate rea
 Stripe caps a single advance at two billing intervals of the shortest subscription on
 the clock, and a trial plus a courtesy period is exactly two.
 
+⚠️ **A CONTROL MUST BE A NAMED ARTEFACT, NEVER A THRESHOLD OR AN APPROXIMATION.**
+
+A control exists to prove the instrument read something. A number you chose, or a
+pattern that merely resembles the text, cannot do that — and both failed in one session
+on 2026-08-17:
+
+**A prose regex only ever approximates signed copy.** `04` Step 9 route 1 detected the
+save offer with `/free (week|month)/i`. The approved line is "we'd like to offer you
+another week, **free**" — free follows the noun — so it never matched. Every route
+reported `offer shown = false`, *including the first cancellation*, which had
+demonstrably offered because `shownAt` was written. **"No second offer" was passing
+because the detector never fired.** Fixed by detecting the dialog's own confirm button,
+`Another {period}, thanks`, which exists on that dialog and nowhere else — and by
+asserting the offer IS shown on the first cancel, the positive control it never had.
+
+**A threshold cannot tell short-because-correct from short-because-broken.** The
+flag-proof scenario asserted `text.length > 200` as its "did the page render" control
+and failed at 99, on a page that had rendered perfectly: `/billing` for an account with
+no entitlement, no subscription and no customer is legitimately
+`"Sign out / Billing / PLAN / Access / Pro / Back to profile"`. Replaced with the
+screen's own furniture — `"Billing"` is its heading, `"Access"` is the row the label
+sits in — so both present proves it rendered AND that the label position was reached.
+
+**Use:** a signed label, a required element, an `aria` role the screen must have, the
+row a value lives in. **Never:** a length, a timeout that "felt long enough", a regex
+over prose, or a count you picked after seeing one passing run.
+
+And the tell for both, which is its own rule: **if two lines of your own output
+contradict each other, the assertion between them is wrong.** `offer shown = false`
+directly above a written `shownAt` cannot both be true, and it was in the log the whole
+time.
+
 Two smaller traps of the same family: compare timestamps as INSTANTS, not strings
 (Postgres returns `+00:00` where JS writes `.000Z`), and check text reads the way
 a user reads it — a `ml-1` margin looks like a space and is absent from the text.
