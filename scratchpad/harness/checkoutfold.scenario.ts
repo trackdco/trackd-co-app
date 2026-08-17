@@ -519,3 +519,142 @@ describe("09 Step 5 — the height budget at 320x568", () => {
     await page.context().close();
   }, 600_000);
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   09 STEP 5, OPTION 4 — PIN THE DISCLOSURE AND BUTTON, MEASURED BEFORE BUILT
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * ⚠️ NOTHING IS BUILT HERE. This measures whether option 4 is viable.
+ *
+ * Adrian, 17 Aug 2026, rejecting both "accept scrolling" and "amend 02b" as
+ * premature — and noting that the first IS the defect `02b` §3.7 exists to stop
+ * ("paid on with the price scrolled out of view"):
+ *
+ *   "LIFT THE DISCLOSURE AND THE BUTTON OUT OF THE SCROLLER AND PIN THEM TO THE
+ *    PORT. The Element scrolls in the space above them. The four facts are then
+ *    visible at the same time as the button without scrolling, because they
+ *    cannot leave."
+ *
+ *   "MEASURE IT BEFORE BUILDING IT, and measure the case that will break it:
+ *    ~180px pinned out of 375px leaves ~195px for a 424px Element, and when the
+ *    keyboard opens the visual viewport collapses further. ... If a pinned bar
+ *    makes the card fields unusable, that is a real result and I want it before a
+ *    decision, not after."
+ *
+ * So this reports, per width and variant: the pinned bar's real height from its
+ * measured parts, what is left for the Element, and how much of the Element's
+ * 424px would be reachable only by scrolling INSIDE it.
+ *
+ * ## ⚠️ THE KEYBOARD IS A PROXY HERE, AND IT IS LABELLED AS ONE
+ *
+ * Headless Chromium has no soft keyboard: focusing a field does not collapse
+ * `visualViewport`, so the real thing cannot be produced on this machine. The
+ * keyboard rows below are made by SHRINKING THE VIEWPORT by a stated amount,
+ * which is a proxy for the geometry and NOT a reproduction of iOS behaviour —
+ * iOS collapses the VISUAL viewport while leaving the layout viewport alone, and
+ * a `position: fixed` bar behaves differently under those two.
+ *
+ * **A pinned bar's keyboard behaviour therefore needs a real device before it
+ * ships.** Reported as owed rather than implied by these numbers.
+ */
+describe("09 Step 5 option 4 — is a pinned disclosure+button viable?", () => {
+  const KEYBOARD_PX = 216; // iOS portrait, iPhone SE class. Stated, not assumed silently.
+
+  async function measurePin(
+    email: string,
+    size: { width: number; height: number },
+    label: string,
+  ) {
+    const page = await openCheckout(email, size);
+    const m = await page.evaluate(() => {
+      const port = Array.from(document.querySelectorAll<HTMLElement>("div")).find((d) =>
+        d.className.includes("flow-scroll-fade"),
+      );
+      if (!port) return null;
+      let level: HTMLElement = port;
+      for (let i = 0; i < 6; i += 1) {
+        const kids = Array.from(level.children) as HTMLElement[];
+        if (kids.length !== 1) break;
+        level = kids[0];
+      }
+      const kids = Array.from(level.children) as HTMLElement[];
+      const h = (el: HTMLElement | undefined) =>
+        el ? Math.round(el.getBoundingClientRect().height) : 0;
+      const disclosure = kids.find((k) => /renews until you cancel/.test(k.innerText));
+      const button = kids.find((k) => k.tagName.toLowerCase() === "button");
+      const elementFrame = Array.from(document.querySelectorAll("iframe"))
+        .map((f) => Math.round(f.getBoundingClientRect().height))
+        .sort((a, b) => b - a)[0];
+      const gap = parseFloat(getComputedStyle(level).rowGap || "0") || 0;
+      return {
+        portVisible: port.clientHeight,
+        portContent: port.scrollHeight,
+        disclosure: h(disclosure),
+        button: h(button),
+        elementHeight: elementFrame ?? 0,
+        rowGap: Math.round(gap),
+        visualViewport: Math.round(window.visualViewport?.height ?? window.innerHeight),
+      };
+    });
+    await page.context().close();
+    if (!m) return null;
+
+    // The pinned bar is the disclosure + the button + one gap between them and one
+    // above. Measured parts, not a guessed 180.
+    const pinned = m.disclosure + m.button + m.rowGap * 2;
+    const leftForElement = m.portVisible - pinned;
+    const hiddenInsideElement = Math.max(0, m.elementHeight - leftForElement);
+    console.log(
+      `\n  === ${label} ===\n` +
+        `  port visible ${m.portVisible}px (visualViewport ${m.visualViewport}px)\n` +
+        `  disclosure ${m.disclosure}px + button ${m.button}px + gaps ${m.rowGap * 2}px` +
+        `  =  PINNED BAR ${pinned}px\n` +
+        `  left for the Element: ${leftForElement}px, Element wants ${m.elementHeight}px\n` +
+        `  ⚠️ Element scrolled out of reach inside its own box: ${hiddenInsideElement}px` +
+        ` (${m.elementHeight ? Math.round((hiddenInsideElement / m.elementHeight) * 100) : 0}%)`,
+    );
+    return { ...m, pinned, leftForElement, hiddenInsideElement };
+  }
+
+  it("measures the pinned budget, keyboard DOWN and (proxy) UP, both widths", async () => {
+    const trial = await seedAccount(ledger, "qa09-pin-trial", { notificationsEnabled: false });
+    const grace = await seedAccount(ledger, "qa09-pin-grace", {
+      graceUntil: "2026-11-20T04:00:00.000Z",
+      notificationsEnabled: false,
+    });
+
+    const cases: Array<{ email: string; variant: string; w: number; h: number; kb: boolean }> = [];
+    for (const [variant, email] of [
+      ["trial", trial.email],
+      ["mid-grace", grace.email],
+    ] as const) {
+      for (const [w, h] of [
+        [390, 844],
+        [320, 568],
+      ] as const) {
+        cases.push({ email, variant, w, h, kb: false });
+        cases.push({ email, variant, w, h, kb: true });
+      }
+    }
+
+    const results: Record<string, unknown> = {};
+    for (const c of cases) {
+      const height = c.kb ? c.h - KEYBOARD_PX : c.h;
+      const label =
+        `${c.variant} @ ${c.w}x${c.h}` +
+        (c.kb ? ` KEYBOARD UP (proxy: viewport ${c.w}x${height})` : " keyboard down");
+      const r = await measurePin(c.email, { width: c.w, height }, label);
+      expect(r, `no measurement for ${label}`).not.toBeNull();
+      results[label] = r;
+    }
+
+    console.log(
+      `\n  ⚠️ THE KEYBOARD ROWS ARE A VIEWPORT-SHRINK PROXY, NOT iOS. Headless\n` +
+        `  Chromium has no soft keyboard, and iOS collapses the VISUAL viewport\n` +
+        `  while leaving the layout viewport alone — a position:fixed bar behaves\n` +
+        `  differently under those two. A pinned bar needs a REAL DEVICE before it\n` +
+        `  ships. Reported as owed rather than implied by these numbers.`,
+    );
+  }, 900_000);
+});

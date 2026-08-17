@@ -50,6 +50,67 @@ stops.
 - Did not trim, shrink or drop a fact. Did not move one above the button unilaterally.
 - Did not touch `02b`'s copy.
 
+### ✅ OPTION 4 MEASURED — pin the disclosure and button to the port (Adrian, 17 Aug)
+
+**Nothing built. Measured first, as instructed.** Adrian rejected both "accept
+scrolling" and "amend `02b`" as premature, and noted the first IS the defect `02b` §3.7
+exists to stop. Option 4 satisfies §3.5 as written instead of reinterpreting it: lift
+the disclosure and button out of the scroller and pin them, so the four facts cannot
+leave while the Element scrolls above them.
+
+| Case | port | pinned bar | left for Element | Element wants | out of reach |
+|---|---|---|---|---|---|
+| trial 390x844, kb down | 685 | 142 | 543 | 403 | **0 (0%)** |
+| trial 390x844, kb up | 469 | 142 | 327 | 403 | 76 (19%) |
+| trial 320x568, kb down | 375 | 162 | 213 | 424 | 211 (50%) |
+| **trial 320x568, kb up** | **159** | **162** | **−3** | 424 | **427 (101%)** |
+| mid-grace 390x844, kb down | 685 | 123 | 562 | 403 | **0 (0%)** |
+| mid-grace 390x844, kb up | 469 | 123 | 346 | 403 | 57 (14%) |
+| mid-grace 320x568, kb down | 375 | 162 | 213 | 424 | 211 (50%) |
+| **mid-grace 320x568, kb up** | **159** | **162** | **−3** | 424 | **427 (101%)** |
+
+**The pinned bar is 123-162px, not ~180px** — the estimate was conservative, measured
+from its real parts rather than guessed.
+
+**Where it works.** 390x844 is clean: nothing out of reach with the keyboard down, and
+14-19% with it up, which is ordinary scrolling inside the card form. 320x568 with the
+keyboard down leaves the Element a 213px window — 50% scrolled, tight but functional,
+**and the four facts and the button would be permanently visible, which is §3.5 met as
+written.**
+
+### ⚠️ AND THE CASE HE PREDICTED WOULD BREAK IT DOES BREAK IT
+
+**At 320x568 with the keyboard up, the pinned bar (162px) is TALLER than the entire
+visible port (159px).** `leftForElement` is **−3px**: the card fields get zero pixels.
+The field being typed into would be completely unreachable.
+
+Note the direction of the harm: the current unpinned layout has the same 159px port and
+the user simply scrolls to the field. **Pinning strictly worsens the keyboard case at
+320px**, from "scroll to your field" to "your field does not exist".
+
+**A precedent exists in this codebase, offered as fact and not as a decision.**
+`components/navigation/bottom-nav.tsx:137` already slides a fixed bar out of the way
+while the keyboard is open (`transform: keyboardOpen ? "translateY(100%)"`), driven off
+`visualViewport`. Applying that here would trade the broken case for one where the four
+facts are hidden *while typing* — the button is unreachable then too, so whether §3.5's
+"visible at the same time as the button" is about the moment of pressing is a reading
+question, not a measurement.
+
+### ⚠️ TWO CAVEATS ON THESE NUMBERS, both load-bearing
+
+**The keyboard rows are a VIEWPORT-SHRINK PROXY, not iOS.** Headless Chromium has no
+soft keyboard, so focusing a field does not collapse `visualViewport` — the rows were
+made by shrinking the viewport by a stated 216px (iOS portrait, SE class). iOS collapses
+the VISUAL viewport while leaving the layout viewport alone, and a `position: fixed` bar
+behaves differently under those two. **A pinned bar needs a real device before it
+ships.** Owed, not implied.
+
+**The 390x844 disclosure heights disagree between variants (trial 90px, mid-grace 71px)
+and that is backwards** — mid-grace's line is the longer one. Both read 110px at
+320x568, which is the decisive width, so no conclusion here turns on it; but the
+descend-past-wrappers walk may be landing on a different node per variant. Flagged
+rather than explained, because I have not established which.
+
 ### The shape of the question for Adrian
 
 The requirement is `02b`'s and the arrangement is `09`'s, and §3.5 says a conflict
