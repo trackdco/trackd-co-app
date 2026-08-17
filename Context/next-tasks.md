@@ -9,6 +9,81 @@ reminder traced)
 
 ---
 
+## 🟡 06 STEP 1 — ADJUDICATED. Two spec conflicts need Adrian's word.
+
+### ✅ The date's provenance is CORRECT (Step 3, by reading)
+
+`dashboard/page.tsx:236-241` renders `betaEntitlement.activeUntil` — **the
+entitlement row** — formatted server-side in the user's stored timezone.
+`isComp` is `!activeUntil`, so a no-expiry comp is the comp variant. **Nothing is
+derived.** Still owed: the driven timezone check with the device zone set away
+from the stored one.
+
+**And the one place a derived date WOULD be wrong is worth naming.**
+`app/onboarding/page.tsx:293-317` deliberately runs `resolveFreeTime` and shows the
+CLAMPED instant, because that screen states a CHARGE date and must match what
+Stripe will hold. ⚠️ **The notice must never copy that.** The clamp only moves
+LATER, so a notice showing it would promise access up to 48 hours beyond
+`active_until` — and the gate lapses at `active_until`. A notice reading the clamp
+would over-promise against the gate that enforces it. Two surfaces, two dates, both
+correct: charge date is clamped, access-ends date is the row.
+
+### ❌ The notice copy diverges from §3.6, in both variants
+
+Same shape as `05`'s pop-up. Recorded here so the comparison is written down:
+
+| §3.6 approved | Built |
+|---|---|
+| "Trackd Co is going paid" | "Trackd is going paid" |
+| "You've been using it free while we built it…" | "You've been using Trackd for free while we built it…" |
+| "From today it's a paid app, and because you were here early you've got two more weeks on us, until [date]." | "From now on Trackd is a paid app. You've got until {date} on us to decide." |
+| "After that your account goes read only. You'll still see everything you've logged, you just can't add to it. Nothing gets deleted." | "After that you can still open Trackd and read everything in it. You just won't be able to log anything new until you subscribe. Nothing gets deleted." |
+| Buttons: "Got it" (primary) + "Set up my plan" | ONE button: "Got it" |
+| "Trackd Co is yours. For life." | "Trackd is yours. For life." |
+| "It costs money for everyone else from today…" | "Trackd costs money for everyone else from today…" |
+| "You were here for the version that barely worked, and you stayed. That's worth more than a subscription." | "Thanks for being here when it was held together with tape." |
+
+⚠️ **The built beta variant never uses the exact phrase "read only"**, which the
+brief makes mandatory on every surface naming the state. Same defect `05` §7 raised
+about the alternative pop-up copy set.
+
+D31 is **re-decided — both controls ship**, so the missing second button is a
+divergence rather than an open question.
+
+### ⚠️ "two weeks" is TYPED, and the fourteen must never be
+
+`BetaLaunchNotice.tsx:255` falls back to the literal `"two weeks"` when `endsOn` is
+null. The rule is that the fourteen comes from `BETA_GRACE_DAYS` and is never
+typed. The approved line also says "two more weeks" as signed prose — so this needs
+Adrian's word on whether the signed wording derives from the constant or is simply
+sacred as written.
+
+### 🔴 CONFLICT 1 — Step 6 instructs the thing that is banned
+
+`06` Step 6: *"run the route against them"*. Adrian, 2026-08-17: **"DO NOT CALL
+`app/api/billing/beta-grace`, in any mode, for any reason, including as part of a
+test."** The instruction is newer, explicit, and was given because that route
+already ran the backfill against production. Taking the instruction as governing,
+and NOT running the route — but saying so rather than resolving it silently.
+
+Backfill logic can still be exercised by calling `betaGrantFor` / `grantExpiry`
+against seeded rows, which needs no route.
+
+### 🔴 CONFLICT 2 — Steps 6 and 7 assume a backfill that has already run
+
+Both are written for a database with **zero** entitlement rows (`06` §0 says so
+outright). There are ninety, dated 31 August, and **P11 is now D86's re-dating
+migration rather than the backfill**. So Step 6's "confirm one instant is shared
+across every row it writes" is already true of rows that exist, and Step 7's
+"backfill, then notice" is a sequence that cannot be replayed.
+
+What still needs driving from Step 7 is everything AFTER the rows exist: notice
+once, fortnight honoured, mid-grace subscribe charging nothing inside it, `07`'s
+reminder, then the lapse into `05`'s gate — and `05` Step 7 has already driven the
+last of those.
+
+---
+
 ## 🔴 05 STEP 6 IS IN PROGRESS, AND ITS DRIVER IS NOT IN THE REPO
 
 **Status: NOT a pass, and deliberately not reported as one.** `qa-05-attack.mjs`
