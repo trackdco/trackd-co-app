@@ -222,6 +222,47 @@ untracked spine is not a change to make silently.
 
 ---
 
+## ✅ PAIR 2'S RELEASE CONDITION IS OBSERVED — 2026-08-17, on a real Stripe test clock
+
+**`07` §0: "an observed notification, before an observed charge, with time fast
+forwarded."** `scratchpad/harness/promise.scenario.ts`, 1/1, `HARNESS_ALLOW_STRIPE=1`.
+
+    reminder delivered   2026-08-28T23:05:00Z   trialReminder=sent, stamp 2026-08-29
+    courtesy period ends 2026-08-31T05:20:18Z
+    invoice PAID         2026-08-31T06:20:18Z   in_1U5IyNEmCWV24GLCdjGAssQ6
+
+Real customer, real `pm_card_visa`, real subscription, real test clock, real invoice,
+real web-push bytes under a valid VAPID signature. Four arrival checks before any of
+it counts: the mirror written from the live object; the grant returning
+`{ok:true, kind:"trial"}`; the mirror moved AND `courtesy_until` non-null AND
+`cancel_at_period_end` lifted; and an invoice that actually got paid.
+
+Both directions asserted, because "we'll remind you first" breaks equally either way:
+the reminder precedes the charge, **and** no money moved before the courtesy period
+ended.
+
+⚠️ **NOT real: the webhook.** There is no tunnel from Stripe to this laptop, so
+`syncSubscription` is called directly with the live Stripe object — which is what the
+webhook does with it, and what `05` §3.7 records the offer claim itself doing.
+
+### ⚠️ `REMINDER_PROMISE_ENABLED` IS ADRIAN'S TO SET, AND I HAVE NOT SET IT
+
+`07` §5 says this observation "releases `REMINDER_PROMISE_ENABLED`, not `04`". The flag
+is absent from `.env.local` and `reminderPromise.ts:39` fails toward NOT promising by
+design. Setting it ships two signed promise strings to real users and is an environment
+change in Vercel, so it is a founder action, not an agent one. **The condition it waits
+on is now met.**
+
+### What Step 6 still owes
+
+Step 6 asks for the lifecycle **twice**: a courtesy period ending and charging (done,
+above) and **a plain trial ending and converting** with no offer in between (not
+driven). The mechanism is the same clock and the same assertions with the grant step
+removed. Step 7 (Q79, Stripe's own trial-ending email against a moved `trial_end`) is
+untouched and still `it.todo` in `monday.scenario.ts`.
+
+---
+
 ## 🔴 05 §3.6b's FINAL-DAY BANNER WAS DECIDED AND NEVER BUILT — found driving 07 Step 4
 
 **`07` Step 5 is "enforce the no-double-banner rule". There is nothing to suppress.**

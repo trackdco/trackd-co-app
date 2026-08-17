@@ -567,19 +567,47 @@ export class TestClock {
     return this.id;
   }
 
-  /** Advance and WAIT for Stripe to finish settling, which is not instant. */
-  async advanceTo(when: Date, timeoutMs = 180_000): Promise<void> {
+  /**
+   * Advance and WAIT for Stripe to finish settling, which is not instant.
+   *
+   * ⚠️ IT HOPS, BECAUSE STRIPE CAPS A SINGLE ADVANCE AT TWO BILLING INTERVALS.
+   *
+   * Measured 2026-08-17 on a WEEKLY subscription, asking for a fourteen-day-plus
+   * -two-hour jump to land just past a courtesy period:
+   *
+   *     The frozen time of this clock is ... You can only advance it up to ...
+   *     You can only advance a test clock up to two intervals from the current
+   *     frozen time at a time, based on the shortest subscription interval in
+   *     the test clock.
+   *
+   * A trial plus a courtesy period is exactly two intervals, so ANY scenario
+   * that wants to land *past* the ending — which is every scenario that wants to
+   * observe the charge — is one hop too far by construction. Hopping in
+   * `maxHopMs` steps makes that invisible to the caller instead of making each
+   * one rediscover it.
+   *
+   * Seven days is the default because it is one weekly interval: safe for weekly
+   * and far inside the cap for monthly and yearly. Each hop settles fully before
+   * the next, so Stripe raises and pays the invoices in order rather than being
+   * asked to collapse two cycles into one jump.
+   */
+  async advanceTo(when: Date, timeoutMs = 180_000, maxHopMs = 7 * 86_400_000): Promise<void> {
     requireStripeBudget("advancing a test clock");
-    await stripe.testHelpers.testClocks.advance(this.id, {
-      frozen_time: Math.floor(when.getTime() / 1000),
-    });
-    const deadline = Date.now() + timeoutMs;
+    const target = Math.floor(when.getTime() / 1000);
     for (;;) {
-      const clock = await stripe.testHelpers.testClocks.retrieve(this.id);
-      if (clock.status === "ready") return;
-      if (clock.status === "internal_failure") throw new Error(`test clock ${this.id} failed`);
-      if (Date.now() > deadline) throw new Error(`test clock ${this.id} still ${clock.status}`);
-      await new Promise((r) => setTimeout(r, 2000));
+      const current = await stripe.testHelpers.testClocks.retrieve(this.id);
+      const from = current.frozen_time;
+      if (from >= target) return;
+      const next = Math.min(target, from + Math.floor(maxHopMs / 1000));
+      await stripe.testHelpers.testClocks.advance(this.id, { frozen_time: next });
+      const deadline = Date.now() + timeoutMs;
+      for (;;) {
+        const clock = await stripe.testHelpers.testClocks.retrieve(this.id);
+        if (clock.status === "ready") break;
+        if (clock.status === "internal_failure") throw new Error(`test clock ${this.id} failed`);
+        if (Date.now() > deadline) throw new Error(`test clock ${this.id} still ${clock.status}`);
+        await new Promise((r) => setTimeout(r, 2000));
+      }
     }
   }
 
