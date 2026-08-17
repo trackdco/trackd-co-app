@@ -443,11 +443,23 @@ export function manageActionFor(
    * a trial. Driven — a mid-grace subscriber and a courtesy customer of two years
    * both read "Cancel my trial", which is D36's one absolute prohibition.
    *
-   * Keying the noun off the date question is what produced that. Keying the DATE
-   * off the noun question would be worse: a courtesy customer's access really
-   * does end at `trial_ends_at`, and reading `current_period_end` instead would
-   * name a date after their access had already stopped. So both are computed,
-   * from one read, and each caller takes the one it actually needs.
+   * ## ⚠️ AND IT IS NOT THE OTHER WAY ROUND. READ THIS BEFORE "SIMPLIFYING" IT.
+   *
+   * The obvious tidy is to delete `isTrial` and drive everything from
+   * `isGenuineTrial`, on the reasoning that it is the more careful answer. It is
+   * the more careful answer to a DIFFERENT question, and using it here would be
+   * worse than the bug this split fixes.
+   *
+   * A courtesy customer's access really does end at `trial_ends_at` — that is the
+   * whole mechanism the save offer uses, and Stripe reports `trialing` because it
+   * is telling the truth about when money next moves. `isGenuineTrial` is false
+   * for them, so a merged field would read `current_period_end` instead and the
+   * screen would promise access until a day AFTER it had already stopped. The
+   * same for a beta fortnight.
+   *
+   * One direction costs a wrong noun. The other costs a date that over-promises
+   * access, which is the failure this whole area exists to prevent. So both are
+   * computed, from one read, and each caller takes the one it actually needs.
    */
   const isTrial = subscription.status === TRIALING;
   const namesATrial = isGenuineTrial(entitlement, subscription);

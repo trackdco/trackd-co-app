@@ -3,7 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { CancelSubscription } from "@/components/billing/CancelSubscription";
-import { ManagePaymentRow } from "@/components/billing/ManagePaymentRow";
+import { CaretRight } from "@/components/icons";
+import { StripeHandoff } from "@/components/billing/StripeHandoff";
 import { STAYING_NOTICE_SLOT } from "@/components/billing/StayingNotice";
 import { currentEntitlement, entitlementEndDate } from "@/lib/billing/entitlements";
 import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
@@ -56,8 +57,27 @@ export default async function BillingPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: profile }, { data: subs }, { data: customer }, entitlement] =
-    await Promise.all([
+  const [
+    { data: profile },
+    /**
+     * ⚠️ THE ERROR IS DESTRUCTURED, AND RULE 0 IS WHY.
+     *
+     * `subs` is `null` both when the user genuinely has no subscription and when
+     * the read FAILED, and those are not the same fact. Everything below that
+     * merely DESCRIBES a subscription may safely treat them alike — it renders
+     * less. The subscribe row may not: it is offered on "this account has no
+     * subscription", and a failed read defaulting to that answer would offer a
+     * second billable subscription to somebody who already has one, straight
+     * through the one-subscription invariant `startTrial`'s lease exists to hold.
+     *
+     * `?? []` feeding a decision is the signature defect. The shape here is
+     * `compEntitlement`'s: ask whether the read WORKED, and withhold when it did
+     * not. See `subscriptionsKnown` below.
+     */
+    { data: subs, error: subsError },
+    { data: customer },
+    entitlement,
+  ] = await Promise.all([
       supabase.from("profiles").select("timezone").eq("id", user.id).maybeSingle(),
       // ⚠️ FILTERED AND ORDERED THE SAME WAY THE ACTION DECIDES.
       //
@@ -254,6 +274,34 @@ export default async function BillingPage() {
    */
   const planStartsOn = graceStartsOn(entitlement, subscription);
 
+  /**
+   * ⚠️ THE D35 SUBSCRIBE ROW, AND ITS COHORT IS NARROW ON PURPOSE.
+   *
+   * §3.8, as corrected by the founder: **a live beta grace AND no subscription.
+   * Nothing else.**
+   *
+   *   not a courtesy user   a courtesy period only exists ON a live
+   *                         subscription, so they already have one and a
+   *                         subscribe control invites a SECOND — which the
+   *                         one-subscription invariant forbids outright.
+   *   not a lapsed account  `05`'s pop-up owns that route.
+   *   not a free-for-life comp  `01` refuses them at the create call.
+   *   not a paying subscriber   nothing to set up.
+   *
+   * It exists because `06`'s notice is dismissible and shows ONCE. After "Got
+   * it" the notice is gone for the rest of the fortnight, and without this row a
+   * beta user who dismissed it on day one has no route to checkout for thirteen
+   * days. `06` says so in as many words: "`08` carries the standing route via
+   * its subscribe row (D31), which is what makes a one-shot notice safe."
+   *
+   * ⚠️ `subscriptionsKnown` IS NOT DECORATION. See the destructure above: an
+   * unreadable mirror must not read as "no subscription", because the answer to
+   * that question is a control that starts a charge.
+   */
+  const subscriptionsKnown = !subsError;
+  const showSubscribeRow =
+    subscriptionsKnown && liveRows.length === 0 && isBetaGrace(entitlement);
+
   return (
     <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
       {/* NO SUBTITLE. It read "Your plan and when it renews." and Adrian cut it
@@ -398,6 +446,51 @@ export default async function BillingPage() {
             </>
           ) : null}
           {renewalRow(action, subscription, tz)}
+          {showSubscribeRow ? (
+            <>
+              <div className="mx-4 hairline-t" aria-hidden />
+              {/**
+                * ⚠️ D35's LABEL, IDENTICAL TO `06`'s SECONDARY CONTROL. One
+                * action, one name everywhere — a user who dismissed the notice
+                * and finds this row a week later must recognise it as the same
+                * thing, not wonder whether it is a different offer.
+                *
+                * ⚠️ NOT AMBER (§3.8): "It is a route, not a live state." It reads
+                * as available rather than urgent, matching the no-pressure
+                * hierarchy the notice uses for the same cohort — so it is an
+                * ordinary row with a caret, the same weight as the values above
+                * it, and not a filled button.
+                *
+                * ⚠️ NO SUPPORTING LINE, and that is a decision rather than an
+                * omission. §3.8 allows one that "names the end date from its
+                * server source, in the signed days-on-us vocabulary" — but the
+                * Access row two rows above ALREADY says "On us until 20 Aug
+                * 2026", in exactly that vocabulary, from exactly that source.
+                * Repeating it here is the "two rows, two labels, one date" defect
+                * this card carries three separate corrections for. The date is
+                * stated once, where somebody looking for it will look.
+                *
+                * ⚠️ A BARE `<a>`, NOT `next/link`. THE SEAM.
+                *
+                * `/onboarding?step=plans` is the price list, and it is the same
+                * destination `05`'s "Choose a plan" and `06`'s "Set up my plan"
+                * both use — three surfaces, one URL, which is what the seam
+                * requires and what the drivers assert. The onboarding flow reads
+                * `?step=` and its session at MOUNT and on `popstate` only, so a
+                * soft navigation would change the address bar and leave this
+                * app's tree on screen, which is the defect w2b-14 records. An
+                * anchor is a full document load without needing a client
+                * component to say so.
+                */}
+              <a
+                href="/onboarding?step=plans"
+                className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              >
+                <span className="flex-1 text-sm text-foreground">Set up my plan</span>
+                <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+              </a>
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -484,7 +577,7 @@ export default async function BillingPage() {
       {hasStripeCustomer && action.kind !== "store" ? (
         <section className="mt-6">
           <div className="overflow-hidden rounded-2xl bg-bg-surface">
-            <ManagePaymentRow />
+            <StripeHandoff rows={[{ key: "both", label: "Payment method and invoices" }]} />
           </div>
         </section>
       ) : null}
