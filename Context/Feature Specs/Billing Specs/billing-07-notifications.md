@@ -504,16 +504,27 @@ and push carried in §3.4, with the noun following the granted period.
 ~~`D33's punctuation`~~ **Closed 15 Aug 2026.** Re-signed with a full stop in place
 of the em dash; "anytime" stands as signed. Carried verbatim in §3.4.
 
-**`OPEN — D34, Stripe's own customer emails.`** The trial-reminder email is set to
-seven days before trial end, against a seven-day trial and a seven-day courtesy
-period. The upcoming-renewal email is also seven days, against a seven-day weekly
-cycle. Both may therefore fire at or immediately after the thing they are warning
-about.
+~~`D34 — Stripe's own customer emails`~~ **RESOLVED 17 Aug 2026 ON THE Q79
+MEASUREMENT: the trial-ending email goes OFF.** Two reasons, both from the observed
+numbers rather than from judgement:
 
-**Recommended: decide after Q79, not before.** If the clock shows the trial email
-fires at a useless moment, turning it off is better than a mistimed message from us
-while our own reminder is doing the work. If it fires sensibly, leave it. Either way
-the decision belongs to `12`'s dashboard review and needs the observation first.
+1. **At a seven-day lead against a seven-day trial it fires at trial START**, which
+   warns nobody of anything.
+2. **On a courtesy period it tells a paying customer their TRIAL is ending** — the
+   Law 5 violation this spec exists to prevent, and Stripe's copy cannot be edited
+   to fix it. A moved `trial_end` raises a fresh `trial_will_end`, so Stripe
+   re-schedules on a courtesy grant rather than staying quiet.
+
+`07`'s push and banner are the carrier, and D1's release condition is observed. **D65's
+receipt emails stay ON** — different email, different purpose.
+
+The dashboard toggle is a launch-morning step in `12`, with by-eye verification,
+because the email itself is not API-observable: Stripe exposes no endpoint for sent
+customer emails and test mode delivers them nowhere a harness can read.
+
+**The upcoming-renewal email at seven days against a weekly cycle is a separate
+question and is NOT decided here.** It was named in the same paragraph as the trial
+email and is a different message on a different trigger; Q79 measured the trial one.
 
 **`Q79`** — whether Stripe's trial-ending email fires for a `trial_end` moved
 mid-cycle, and what it does when the period is seven days or shorter. Answerable only

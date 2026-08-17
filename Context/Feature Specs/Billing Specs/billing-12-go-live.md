@@ -402,6 +402,26 @@ this.
 **P12 — Verify the rows.** *Worked when:* counted directly, not inferred from the
 route's response.
 
+**P11b — Turn Stripe's trial-ending customer email OFF, in the dashboard, live mode.**
+*Worked when:* verified **BY EYE** in Settings → Customer emails, because the email is
+not API-observable — Stripe exposes no endpoint for sent customer emails and test mode
+delivers them nowhere a script can read.
+
+**D34 is resolved on measurement (17 Aug 2026), not on preference.** A test-clock walk
+found `customer.subscription.trial_will_end` fires with **3 days left**, while the
+email's lead is set to **7 days against a 7-day trial** — so it fires at trial START.
+And on a courtesy period it tells a paying customer their **TRIAL** is ending, which is
+the Law 5 violation `07` exists to prevent and which Stripe's copy cannot be edited to
+fix. A moved `trial_end` raises a fresh event, so Stripe re-schedules on a courtesy
+grant rather than staying quiet. `07`'s push and banner are the carrier.
+
+**⚠️ D65's receipt emails stay ON.** Different email, different purpose. Do not use this
+step as licence to turn customer emails off wholesale.
+
+**⚠️ The upcoming-renewal email at seven days against a weekly cycle is NOT covered by
+D34's resolution** — it is a different message on a different trigger and remains part
+of S9's dashboard review.
+
 **P12a — Set `REMINDER_PROMISE_ENABLED` in production.** *Worked when:* the variable is
 set and a deployment has picked it up. It gates two signed strings — the terms line's
 final clause "and we'll remind you first", and the accept screen's "We'll remind you
@@ -524,8 +544,9 @@ The observations only a clock can make:
 - [ ] The whole lifecycle walked with a test clock, every stage observed
 - [ ] Stripe's first retry timing recorded, and the past-due grace neither widened nor
       narrowed on assumption
-- [ ] What the trial-reminder email does with a seven-day period recorded, and D34
-      decided from the observation rather than before it
+- [ ] ✅ What the trial-reminder email does with a seven-day period RECORDED (fires at
+      trial start; calls a courtesy period a trial), and D34 resolved: it goes OFF, via
+      P11b, verified by eye. D65's receipts stay ON.
 
 Reconciliation and alerting:
 
@@ -601,9 +622,11 @@ Recovery, confirmed before it is needed:
 and belongs to `02b` once decided; it is named here because launch morning is when its
 absence would be noticed rather than when it can be fixed.
 
-**`OPEN — D34, Stripe's own customer emails.`** Deferred deliberately until S1's
-observation. Deciding before the clock has answered is guessing about a message our
-customers receive.
+~~`D34 — Stripe's own customer emails`~~ **RESOLVED 17 Aug 2026 on the Q79 test-clock
+measurement: the trial-ending email goes OFF.** It fires at trial start at a 7-day lead
+against a 7-day trial, and on a courtesy period it calls a paying customer's free month
+a TRIAL. Carried as pre-flight **P11b**, verified by eye. D65's receipt emails stay ON.
+The upcoming-renewal email is a separate message and stays with S9.
 
 **`OPEN — the past-due grace window.`** Neither widened nor narrowed until S1 records
 the first retry's timing. If it lands outside three days, a recoverable customer is

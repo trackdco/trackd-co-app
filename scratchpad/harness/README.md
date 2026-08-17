@@ -150,6 +150,34 @@ constructs**, and prefer asserting you have ARRIVED somewhere before asserting
 anything about it — `qa-22-declined.mjs` checks it reached the declined screen
 before reading the declined screen's copy.
 
+⚠️ **NEVER READ A SIMULATED MOMENT OFF `event.created`. WALK THE CLOCK INSTEAD.**
+
+On a test clock, `event.created` is WALL-CLOCK time, not the simulated instant the
+event logically belongs to. Measuring a lead time as `deadline - event.created` gives
+you "the deadline minus the moment your test ran", which is not a lead time at all.
+
+Found on 2026-08-17 answering Q79. The first measurement advanced straight to the trial
+end and reported the lead as **168 hours** — which is exactly 7 days, which is exactly
+the number the Stripe dashboard's own setting uses, so **it read as a confirmation of
+the thing under test.** The tell was elsewhere: the two events were stamped SIX SECONDS
+APART in real time while their simulated positions were a week apart.
+
+**The method that works, and it interprets no timestamp:** advance the clock in small
+steps and look for the event after each one. The first step at which it appears IS the
+simulated firing moment, to within the step size. Re-measured that way, Q79's answer is
+**3 days**, which is what Stripe documents.
+
+    for (let day = 1; day <= 7; day += 1) {
+      await clock.advanceTo(new Date(t0 + day * DAY));
+      const fresh = (await eventsFor(subId)).filter(e => !alreadySeen.includes(e));
+      if (fresh.length) return (endMs - (t0 + day * DAY)) / DAY;   // <- the lead
+    }
+
+A number that looks like an answer and is not one is worse than no number, because the
+decision gets made on it. **`advanceTo` hops in 7-day steps** for a separate reason —
+Stripe caps a single advance at two billing intervals of the shortest subscription on
+the clock, and a trial plus a courtesy period is exactly two.
+
 Two smaller traps of the same family: compare timestamps as INSTANTS, not strings
 (Postgres returns `+00:00` where JS writes `.000Z`), and check text reads the way
 a user reads it — a `ml-1` margin looks like a space and is absent from the text.
