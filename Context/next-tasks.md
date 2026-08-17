@@ -32,15 +32,92 @@ notice reads rather than computes.
 
 ---
 
-## ✅ 06 STEP 1 — ADJUDICATED, and Steps 2 and 3 are now built and driven.
+## ✅ 06 STEPS 1-5 — ADJUDICATED, BUILT AND DRIVEN. 9/9 in `notice.scenario.ts`.
+
+### ✅ Step 4 — the confetti is scoped, and it collapses rather than strands
+
+Four cells driven at 390x844, because two of them are only meaningful beside the
+other two. Read from the rendered DOM and the computed style, never from source.
+
+|  | motion normal | `prefers-reduced-motion: reduce` |
+|---|---|---|
+| **comp** | 18 pieces, `display:block`, 18 animations, `iterations: 1`, `finished` at 8s | 18 pieces present, container `display:none`, **0 animations** |
+| **beta** | **0 pieces, 0 animations** | 0 pieces |
+
+The comp row is the control for the beta row (the burst exists at all, so zero on
+the beta variant is scoping rather than breakage); the normal column is the control
+for the reduce column (it runs at all, so stopped is the opt-out rather than a dead
+component). `pointer-events: none` confirmed on the container — the burst covers
+"Thank you", the only control on that variant.
+
+**"One shot" is observed, not declared.** `iterations: 1` is the declaration;
+`burstStates: ["finished"]` after 8 s — past the longest piece's 1140 ms delay plus
+4600 ms duration — with all 18 pieces still in the DOM is the observation.
+
+**And reduced motion is HIDDEN, not merely stilled**, which is the distinction
+`confetti.tsx` already paid for: the shared `animation: none` opt-out alone strands
+eighteen amber dots at `opacity: 0.59` along the top edge, because these keyframes
+animate TO invisibility. `containerDisplay: "none"` is the collapse.
+
+### ✅ Step 5 — once per account, and B never inherits A's dismissal
+
+One persistent browser context, two beta accounts on **deliberately different
+dates** (30 Sept vs 20 Nov). Two different variants would be told apart by their
+headline and would prove nothing about scoping; same variant, different row, means
+"B saw its own" cannot pass by accident.
+
+- A's notice opens showing **30 Sept 2026** ← arrival
+- "Got it" → detached, and the cookie holds **A's user id**
+- reload → absent, with `nav[aria-label="Primary"]` asserted present as the CONTROL
+  (a dead page and a suppressed notice are otherwise the same observation)
+- soft nav to `/protocol` and back → absent, shell present
+- swap the `sb-*` session cookies to B, keeping the seen-cookie (CONTROL: it still
+  holds A's id, or B seeing a notice would be trivially true) → **B's notice opens
+  showing 20 Nov 2026, and never 30 Sept**
+
+### 🟡 S4 — ONE COOKIE SLOT, AND THE SPEC DOES NOT RULE ON WHAT IT COSTS
+
+**Observed, pinned by a test, and flagged for a ruling rather than decided here.**
+
+§3.7 says two things that are both true and that pull apart in exactly one case: the
+flag "is scoped to the ACCOUNT, by storing the user id as the value", and "a cookie
+is per-browser", listing the re-show cases it accepts — clearing cookies, a second
+device, a private window. **Two accounts alternating in one browser is not in that
+list**, and it behaves differently from both readings.
+
+Driven: A dismisses (cookie = A). B signs into the same browser, sees its own notice,
+dismisses (cookie = B). **A returns and the notice is SHOWN AGAIN** — and it is A's
+own notice, showing A's date. The cookie is one slot holding one id, so it cannot
+remember two dismissals at once.
+
+So §5's box *"the notice shows once per account and does not return on reload or
+navigation"* is true for every account except one that shared a browser.
+
+**Not called a defect here.** `04`'s offer store is account-scoped and D30's cookie
+is per-browser, deliberately, so the two disagree by design; and §7 already reasons
+that "a re-shown notice is a second notice, which is harmless, while a never-shown
+one is the real gap". A second going-paid notice costs an interruption, not money,
+and no charge or promise moves. **Recorded because it is a real observable behaviour
+on a shared device that no line of the spec names.** If Adrian wants exactly-once
+per account it needs a column, which is a migration — §7's D30 recommendation is to
+accept it, and accepting it should be written to cover this case too.
 
 ### ✅ The date's provenance is CORRECT (Step 3, by reading)
 
 `dashboard/page.tsx:236-241` renders `betaEntitlement.activeUntil` — **the
 entitlement row** — formatted server-side in the user's stored timezone.
 `isComp` is `!activeUntil`, so a no-expiry comp is the comp variant. **Nothing is
-derived.** Still owed: the driven timezone check with the device zone set away
-from the stored one.
+derived.**
+
+**✅ And the stored zone is now DRIVEN too, closing Step 3's other half.** The
+move-the-row test proves the notice READS; this proves it reads in the RIGHT ZONE,
+which is a separate failure — a correctly-read instant formatted in the browser's
+zone is still wrong on screen, and wrong by a whole day for half of every day. The
+instant is chosen so the two zones disagree on the calendar date, which is the only
+kind that can tell them apart: `2026-09-30T16:00Z` is **1 Oct** in the stored
+Australia/Sydney and **30 Sept** in the device's America/Los_Angeles. The notice
+reads "until 1 Oct 2026", with the device zone asserted as
+`America/Los_Angeles` as the control.
 
 **And the one place a derived date WOULD be wrong is worth naming.**
 `app/onboarding/page.tsx:293-317` deliberately runs `resolveFreeTime` and shows the
