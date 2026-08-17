@@ -9,6 +9,47 @@ reminder traced)
 
 ---
 
+## 🔴 09 STEP 1 BASELINE — THE COLD REVIEW'S HIGH IS CONFIRMED AND MEASURED
+
+**Driven, `checkoutfold.scenario.ts`, 3/3, wallet absent (§3.6's worst case), page
+asserted at scroll-top before every reading.** Measured as the element's bottom edge
+in page coordinates against the viewport height — not `isVisible()`, which is true of
+anything rendered whether or not it is below the fold.
+
+| Variant | 390x844 | 320x568 |
+|---|---|---|
+| trial — "7 days free, then $69.99 USD/yr ($5.83/mo)" | facts 663/687, button 798 — **all above** | facts 700/743, button 854 — **all three BELOW** |
+| mid-grace — "Starts 20 Nov 2026, then $69.99 USD/yr ($5.83/mo)" | facts 673/697, button 788 — **all above** | facts 720/763, button 854 — **all three BELOW** |
+
+**390x844 passes in every variant measured. 320x568 fails in every variant measured.**
+
+### The number that decides how bad it is
+
+The document is NOT scrollable (`scrollHeight` equals the viewport). The overflow lives
+in an inner container — `flow-scroll-fade flex min-h-0 flex-1 flex-col overflow-y-auto`
+— with **scrollHeight 690 against clientHeight 375**. That container DOES scroll, so
+the button is **reachable**, and this is the audited disclosure defect ("could be paid
+on with the price scrolled out of view") rather than an unreachable payment button.
+Worth chasing before reporting: those two readings are very different findings and the
+first run's numbers alone could have been read as either.
+
+**315px must be reclaimed inside a 375px-tall scroll area** for §3.5 to hold at
+320x568. That is the size of the problem, and it exists BEFORE any of `09`'s changes.
+
+### ⚠️ THE PAID VARIANT WAS NOT REACHED — driver arrival failure, reported as such
+
+Seeding `billing_customers.trial_lock_until` a year out did not make the account
+trial-ineligible: the disclosure still read **"7 days free"**, so that run measured the
+trial variant a second time rather than the paid one. **Its row is absent from the
+table above rather than filled in from the trial numbers.**
+
+Inference only, and flagged as inference: "Starts today" is shorter than mid-grace's
+"Starts 20 Nov 2026", and the button's bottom is 854 in every case because the
+container pins it — so the paid variant would fail at 320x568 too. §3.5 says measure
+every variant, so this still needs the right seeding for eligibility.
+
+---
+
 ## 📮 TO THE SPEC CHAT — D90, a CLARIFICATION OF D30 keeping the number
 
 **06 §3.7 and D30.** D30 decided the seen-marker is a per-browser cookie rather than a
