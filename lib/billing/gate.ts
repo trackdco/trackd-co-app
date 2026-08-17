@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
-import { hasProAccess } from "./entitlements";
+import { proAccessState } from "./entitlements";
 
 /**
  * ⚠️ THE READ-ONLY GATE. Whether a lapsed account may still WRITE.
@@ -95,9 +95,58 @@ export function reminderPromiseEnabled(): boolean {
  * same reason — an unset environment variable must not lock out a paying user.
  */
 export const canWriteData = cache(async (): Promise<boolean> => {
-  if (!billingGateEnabled()) return true;
-  return hasProAccess();
+  return (await writeAccess()) === "allowed";
 });
+
+/**
+ * ⚠️ THREE STATES, BECAUSE THE ANSWER HAS THREE (05 §3.9, Q85).
+ *
+ *   allowed    write.
+ *   read-only  the entitlement read SUCCEEDED and nothing entitles them. KNOWN.
+ *   unknown    the read failed. Refused, but we do not know they have lapsed.
+ *
+ * ## The defect this replaces was a boolean
+ *
+ * Sixteen write functions returned `readOnly: true`, which is two states where
+ * the answer has three — so no surface could tell "we know" from "we could not
+ * find out", and fifteen of them fell through to the generic syncing notice.
+ *
+ * The syncing notice is for a state where **a retry is meaningful**, and a lapsed
+ * account's is not: nothing about waiting will make the write land. But the
+ * failed-read branch is the opposite — a retry is exactly the right offer, and
+ * saying "You're not on a plan at the moment" there is a claim the server cannot
+ * back. So the string keeps its job, on the one branch that deserves it.
+ */
+export type WriteAccess = "allowed" | "read-only" | "unknown";
+
+export const writeAccess = cache(async (): Promise<WriteAccess> => {
+  // FAILS OPEN on the switch, checked FIRST so an unset variable short-circuits
+  // before any database read. An unset env var must not lock out a paying user.
+  if (!billingGateEnabled()) return "allowed";
+  return proAccessState();
+});
+
+/** Why a write was refused. Absent on success. */
+export type WriteRefusalKind = Exclude<WriteAccess, "allowed">;
+
+/** The refusal shape the gated data-layer functions return. */
+export interface WriteRefusal {
+  ok: false;
+  refusal: WriteRefusalKind;
+}
+
+/**
+ * ⚠️ THE ONE PLACE A REFUSAL IS SHAPED. Null when the write may proceed.
+ *
+ * Every gated function calls this and returns what it gets, so the discriminator
+ * is produced once rather than reconstructed at sixteen call sites. Fifteen
+ * surfaces each deciding independently is how one of them ends up wrong and
+ * nobody notices — which is precisely what happened to the boolean it replaces.
+ */
+export async function refuseWrite(): Promise<WriteRefusal | null> {
+  const access = await writeAccess();
+  return access === "allowed" ? null : { ok: false, refusal: access };
+}
 
 /**
  * What a refused write says. One string, so every surface refuses in the same
@@ -191,13 +240,24 @@ export async function requireWriteAccess(): Promise<
  *   lib/home/stackSync.ts          pushStacks
  *   lib/home/syncActions.ts        pushStackCompound, pushDoseLog, pushCustom
  *
- * Sixteen of them return a bare `Ok`, so they carry `readOnly: true` on the
- * refusal. Without it the UI cannot tell the gate from a dropped connection, and
- * a cold review watched `AddStockSheet` tell a lapsed user to check their
- * connection and try again. ⚠️ Only `AddStockSheet` actually READS that flag;
- * `trackSync` does not, so every other refusal still shows the generic
- * "still syncing, we'll keep trying" notice for a write that will never be
- * retried. Known, and not fixed here.
+ * Sixteen of them return a bare `Ok`, so they carry a `refusal` on the refusal.
+ * Without it the UI cannot tell the gate from a dropped connection, and a cold
+ * review watched `AddStockSheet` tell a lapsed user to check their connection and
+ * try again.
+ *
+ * ## ⚠️ FIXED (05 §3.9, Q85). It used to be a boolean, and that was the defect.
+ *
+ * `readOnly: true` is two states where the answer has three, so no surface could
+ * tell "we know they lapsed" from "we could not find out" — and only
+ * `AddStockSheet` read it at all. Every other refusal fell through to the generic
+ * "Saved on your device. Still syncing to your account. We'll keep trying."
+ * notice, all three sentences of which are false for a lapsed account.
+ *
+ * Now: {@link refuseWrite} shapes the discriminator in ONE place, `trackSync`
+ * routes a KNOWN read-only refusal to the pop-up in ONE place, and `"unknown"`
+ * keeps the syncing notice because that is the one branch where a retry is
+ * genuinely worth offering. Fifteen surfaces were fixed without any of them
+ * learning about the gate.
  *
  * ## CONDITIONALLY GATED — 2, and in both cases the condition is the whole point
  *

@@ -649,10 +649,16 @@ function AddStockForm({
            * fail identically, and the message blamed them for it.
            *
            * The deep link is guarded now, so this is the backstop for any route
-           * that is not. `readOnly` is set by the gate and by nothing else.
+           * that is not. `refusal` is set by the gate and by nothing else.
+           *
+           * ⚠️ AND IT IS NOW THREE STATES, NOT TWO (Q85). `"unknown"` means the
+           * entitlement read FAILED, so we do not actually know they have lapsed
+           * — claiming "read only" there would be asserting something the server
+           * could not check. It takes the retry wording instead, which is the one
+           * branch where trying again is genuinely worth doing.
            */
           setError(
-            pushed.readOnly
+            pushed.refusal === "read-only"
               ? "Trackd is read only until you subscribe."
               : "Couldn’t sync this compound. Check your connection and try again.",
           )
@@ -676,7 +682,7 @@ function AddStockForm({
         setError(
           // Same reasoning as the push above: the gate is not a failure and not
           // the user's fault, so it does not get a "please try again".
-          r.readOnly
+          r.refusal === "read-only"
             ? "Trackd is read only until you subscribe."
             : r.pendingMigration
             ? "This container type isn’t available yet. Try Reconstituted, Pre-mixed or Oral for now."

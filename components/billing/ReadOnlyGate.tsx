@@ -11,6 +11,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { subscribeReadOnlyRefused } from "@/lib/home/syncStatus";
+
 /**
  * ⚠️ THE READ-ONLY GATE, CENTRALLY.
  *
@@ -144,6 +146,25 @@ export function ReadOnlyProvider({
   }, []);
 
   const show = useCallback(() => openPopup(), [openPopup]);
+
+  /**
+   * ⚠️ A REFUSED WRITE OPENS THIS POP-UP, FROM ONE SUBSCRIPTION (05 §3.9, Q85).
+   *
+   * `guard()` covers the entry points that ASK before writing. It cannot cover
+   * the fire-and-forget path: the home and protocol domains write `localStorage`
+   * first and push to Postgres afterwards, so the refusal arrives asynchronously,
+   * after the tap has already been handled.
+   *
+   * Those pushes all funnel through `trackSync`, which used to send every one of
+   * them to the syncing notice — telling a lapsed user their dose was "saved on
+   * your device, still syncing, we'll keep trying", when nothing was saved and
+   * nothing would ever be retried.
+   *
+   * So `trackSync` now routes a KNOWN read-only refusal here instead. One
+   * subscription, one decision, fifteen surfaces fixed without any of them
+   * knowing about the gate.
+   */
+  useEffect(() => subscribeReadOnlyRefused(openPopup), [openPopup]);
 
   const guard = useCallback(
     (action: () => void) => {

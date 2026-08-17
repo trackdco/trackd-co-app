@@ -34,6 +34,46 @@ export function subscribeSyncFailed(callback: () => void): () => void {
   return () => window.removeEventListener(SYNC_FAILED_EVENT, callback)
 }
 
+/**
+ * ⚠️ THE READ-ONLY SIGNAL, WHICH IS NOT A SYNC FAILURE (05 §3.9, Q85).
+ *
+ * ## The defect this closes
+ *
+ * Sixteen gated writes returned a `readOnly` boolean and only ONE sheet read it.
+ * Every other refusal fell through to {@link notifySyncFailed} — so a lapsed user
+ * tapped to log a dose, the server refused, and the app said **"Saved on your
+ * device. Still syncing to your account. We'll keep trying."**
+ *
+ * All three sentences are false. Nothing was saved, nothing is syncing, and
+ * nothing will be retried. Worse, it invites the user to wait, and it hides the
+ * one fact they need: they are read-only and nothing was lost.
+ *
+ * **The syncing notice is for a state where a RETRY IS MEANINGFUL.** A lapsed
+ * account's is not. So a KNOWN read-only refusal is routed here instead, and
+ * `ReadOnlyProvider` opens the approved pop-up.
+ *
+ * ⚠️ `refusal: "unknown"` deliberately does NOT come here. That is the entitlement
+ * read having FAILED — the user is refused, but we do not know they have lapsed,
+ * and telling them "You're not on a plan at the moment" would be a claim the
+ * server cannot back. It keeps the syncing notice, which is the one branch where
+ * trying again is genuinely worth offering.
+ */
+export const READ_ONLY_REFUSED_EVENT = "trackd:read-only-refused"
+
+function notifyReadOnly(): void {
+  if (typeof window === "undefined") return
+  // No cooldown, deliberately. The syncing notice is throttled because it is a
+  // nag about a transient condition; this one is the answer to an action the
+  // user just took, and swallowing it would leave a tap doing nothing at all.
+  window.dispatchEvent(new CustomEvent(READ_ONLY_REFUSED_EVENT))
+}
+
+export function subscribeReadOnlyRefused(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {}
+  window.addEventListener(READ_ONLY_REFUSED_EVENT, callback)
+  return () => window.removeEventListener(READ_ONLY_REFUSED_EVENT, callback)
+}
+
 /** True when we have no reason to believe the device is offline. */
 function looksOnline(): boolean {
   return typeof navigator === "undefined" || navigator.onLine
@@ -46,10 +86,23 @@ function looksOnline(): boolean {
  * fire-and-forget (`void trackSync(push…())`).
  */
 export async function trackSync(
-  op: Promise<{ ok: boolean; skipped?: boolean }>
+  op: Promise<{ ok: boolean; skipped?: boolean; refusal?: "read-only" | "unknown" }>
 ): Promise<void> {
   try {
     const r = await op
+    /**
+     * ⚠️ THE ONE PLACE FIFTEEN REFUSALS ARE ROUTED. Not fifteen call sites each
+     * deciding, which is how one of them ends up wrong and nobody notices — and
+     * is exactly what happened to the boolean this replaces.
+     *
+     * A KNOWN read-only refusal is not a sync failure and must never render the
+     * syncing notice. `"unknown"` falls through to it on purpose: see
+     * {@link READ_ONLY_REFUSED_EVENT}.
+     */
+    if (r.refusal === "read-only") {
+      notifyReadOnly()
+      return
+    }
     if (!r.ok && !r.skipped && looksOnline()) notifySyncFailed()
   } catch {
     if (looksOnline()) notifySyncFailed()
@@ -77,7 +130,7 @@ const inFlightCritical = new Set<Promise<unknown>>()
 
 /** Run a destructive cloud write, tracked so hydration can wait for it. */
 export function trackCriticalSync(
-  op: Promise<{ ok: boolean; skipped?: boolean }>
+  op: Promise<{ ok: boolean; skipped?: boolean; refusal?: "read-only" | "unknown" }>
 ): Promise<void> {
   const tracked = trackSync(op).finally(() => inFlightCritical.delete(tracked))
   inFlightCritical.add(tracked)

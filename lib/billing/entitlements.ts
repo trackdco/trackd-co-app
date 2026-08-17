@@ -46,6 +46,38 @@ export type { Entitlement, EntitlementProduct, EntitlementSource };
  * call `hasProAccess`, which resolves identity from the verified session.
  */
 export async function listEntitlements(userId: string): Promise<Entitlement[]> {
+  const read = await readEntitlements(userId);
+  // FAIL CLOSED. A database that will not answer is not permission to enter.
+  return read.ok ? read.entitlements : [];
+}
+
+/**
+ * ⚠️ THE SAME READ, BUT IT SAYS WHETHER IT WORKED.
+ *
+ * ## Why "no rows" and "could not ask" must not be the same answer
+ *
+ * `listEntitlements` returns `[]` for both, which is the right FAIL-CLOSED
+ * behaviour — access is refused either way — but it destroys the distinction the
+ * user-facing message depends on:
+ *
+ *   read succeeded, no entitlement  →  we KNOW they have lapsed
+ *   read failed                     →  we do not know anything
+ *
+ * Telling somebody "You're not on a plan at the moment" when the database simply
+ * would not answer is a claim the server cannot back, and it is the one case
+ * where offering a retry is genuinely worth doing. The syncing notice keeps its
+ * job for exactly this branch.
+ *
+ * The same shape as `resolveEnding`'s `undefined` versus `null` in
+ * `lib/notifications/trialReminder.ts:250` — "unreadable" is not "read, absent",
+ * and collapsing the two is how a surface ends up asserting something nobody
+ * checked.
+ */
+export type EntitlementRead =
+  | { ok: true; entitlements: Entitlement[] }
+  | { ok: false };
+
+export async function readEntitlements(userId: string): Promise<EntitlementRead> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("entitlements")
@@ -53,17 +85,19 @@ export async function listEntitlements(userId: string): Promise<Entitlement[]> {
     .eq("user_id", userId);
 
   if (error) {
-    // FAIL CLOSED. A database that will not answer is not permission to enter.
     console.error("[entitlements] read failed:", error.message);
-    return [];
+    return { ok: false };
   }
 
-  return (data ?? []).map((row) => ({
-    product: row.product as EntitlementProduct,
-    source: row.source as EntitlementSource,
-    activeUntil: row.active_until,
-    isActive: row.is_active,
-  }));
+  return {
+    ok: true,
+    entitlements: (data ?? []).map((row) => ({
+      product: row.product as EntitlementProduct,
+      source: row.source as EntitlementSource,
+      activeUntil: row.active_until,
+      isActive: row.is_active,
+    })),
+  };
 }
 
 /**
@@ -78,10 +112,30 @@ export async function listEntitlements(userId: string): Promise<Entitlement[]> {
  * about another user in the first place.
  */
 export const hasProAccess = cache(async (): Promise<boolean> => {
-  const user = await getCurrentUser();
-  if (!user) return false;
-  return grantsPro(await listEntitlements(user.id), new Date());
+  return (await proAccessState()) === "allowed";
 });
+
+/**
+ * The same question, answered in THREE states rather than two (05 §3.9, Q85).
+ *
+ *   allowed    entitled right now.
+ *   read-only  the read SUCCEEDED and nothing entitles them. We know.
+ *   unknown    we could not find out. Refused, but no claim is made about why.
+ *
+ * A missing session is `unknown` rather than `read-only`: somebody with no
+ * session is not a lapsed subscriber, and the honest answer to "are they
+ * entitled" is that we cannot say. Both refuse, which is what fail-closed means;
+ * only the words differ.
+ */
+export const proAccessState = cache(
+  async (): Promise<"allowed" | "read-only" | "unknown"> => {
+    const user = await getCurrentUser();
+    if (!user) return "unknown";
+    const read = await readEntitlements(user.id);
+    if (!read.ok) return "unknown";
+    return grantsPro(read.entitlements, new Date()) ? "allowed" : "read-only";
+  },
+);
 
 /**
  * What the user's access rests on, for DISPLAY — the Billing row's "current

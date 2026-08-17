@@ -15,7 +15,7 @@
  * once the migration lands.
  */
 import { createClient } from "@/lib/supabase/server"
-import { canWriteData } from "@/lib/billing/gate"
+import { refuseWrite, type WriteRefusalKind } from "@/lib/billing/gate"
 
 /** A pause row, in the shape the device model uses. */
 export interface PauseRow {
@@ -26,7 +26,7 @@ export interface PauseRow {
   groupId: string | null
 }
 
-type Ok = { ok: boolean; skipped?: boolean; /** Refused by the read-only gate, not by a network or a database. */ readOnly?: boolean }
+type Ok = { ok: boolean; skipped?: boolean; /** Refused by the read-only gate, not by a network or a database. */ refusal?: WriteRefusalKind }
 
 /** PostgREST answers `PGRST205` from its schema cache before Postgres ever sees
  *  the request, so a genuinely absent table never surfaces `42P01`. Checking
@@ -87,7 +87,8 @@ export async function upsertPause(row: PauseRow): Promise<Ok> {
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false, readOnly: true };
+  const refused = await refuseWrite();
+  if (refused) return refused;
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -132,7 +133,8 @@ export async function endPause(id: string, endsOn: string): Promise<Ok> {
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false, readOnly: true };
+  const refused = await refuseWrite();
+  if (refused) return refused;
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -197,7 +199,8 @@ export async function endPauseGroup(
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false, readOnly: true };
+  const refused = await refuseWrite();
+  if (refused) return refused;
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }

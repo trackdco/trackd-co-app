@@ -57,12 +57,15 @@ describe("pushScheduleVersions", () => {
   const body = bodyOf(source, "pushScheduleVersions")
 
   it("still gates ordinary edits", () => {
-    expect(body).toContain("canWriteData()")
+    expect(body).toContain("refuseWrite()")
   })
 
   it("lets a trail that ends in a stop through, because that is a delete", () => {
+    // ⚠️ The guard now returns the WIDENED refusal (Q85): three states, not a
+    // boolean, so a surface can tell "we know they lapsed" from "we could not
+    // find out". The exemption itself is unchanged and is what this pins.
     expect(body, "the refusal must exempt a delete").toMatch(
-      /if \(!isDelete && !\(await canWriteData\(\)\)\) return \{ ok: false, readOnly: true \}/,
+      /if \(!isDelete\) \{\s*const refused = await refuseWrite\(\);\s*if \(refused\) return refused;\s*\}/,
     )
     expect(body, "isDelete must be read from the newest version, not the last array slot")
       .toContain("newest?.stopped === true")
