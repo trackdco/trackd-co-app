@@ -80,6 +80,16 @@ const E = env();
 
 export const BASE = process.env.BASE ?? "http://localhost:3100";
 
+/**
+ * ⚠️ THE QA FIXTURE PASSWORD LIVES IN `.env.local`, NOT HERE (D89).
+ *
+ * Only ever used on `@trackd-qa.invalid` accounts torn down by id, so it is low
+ * risk — but the harness is TRACKED, and a credential in a repository is a
+ * question somebody has to answer later.
+ */
+export const QA_PASSWORD: string = E.QA_TEST_PASSWORD ?? "";
+if (!QA_PASSWORD) throw new Error("QA_TEST_PASSWORD is not set in .env.local");
+
 /** ⚠️ Service role. Reads and writes other users' rows. Never leaves this file's callers. */
 export const admin: SupabaseClient = createClient(
   E.NEXT_PUBLIC_SUPABASE_URL,
@@ -195,7 +205,7 @@ export async function seedAccount(
   opts: SeedOptions = {},
 ): Promise<SeededAccount> {
   const email = `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@trackd-qa.invalid`;
-  const password = "Test-passw0rd!";
+  const password = QA_PASSWORD;
   const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
   if (error) throw new Error(`seedAccount: ${error.message}`);
   const id = ledger.user(data.user.id);

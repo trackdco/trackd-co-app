@@ -7,8 +7,17 @@ export const env = Object.fromEntries(
 export const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
 export const PUBLISHABLE = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 export const BASE = process.env.BASE ?? "http://localhost:3100";
+/**
+ * ⚠️ THE QA FIXTURE PASSWORD LIVES IN `.env.local`, NOT HERE (D89).
+ *
+ * It is only ever used on `@trackd-qa.invalid` accounts that are torn down by id,
+ * so it is low risk — but this file is TRACKED now, and a credential in a
+ * repository is a question somebody has to answer later. One line removes it.
+ */
+export const QA_PASSWORD = env.QA_TEST_PASSWORD;
+if (!QA_PASSWORD) throw new Error("QA_TEST_PASSWORD is not set in .env.local");
 export const admin = createClient(SUPABASE_URL, env.SUPABASE_SECRET_KEY, { auth: { autoRefreshToken:false, persistSession:false } });
-export async function makeUser(tag, { password = "Test-passw0rd!" } = {}) {
+export async function makeUser(tag, { password = QA_PASSWORD } = {}) {
   const email = `${tag}-${Date.now()}-${Math.random().toString(36).slice(2,7)}@trackd-qa.invalid`;
   const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
   if (error) throw new Error(error.message);

@@ -27,7 +27,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { markPastDue } from "@/lib/billing/sync";
 
-import { Ledger, admin, requireStripeBudget, stripe, stripeBudgetAvailable } from "./core";
+import { Ledger, QA_PASSWORD, admin, requireStripeBudget, stripe, stripeBudgetAvailable } from "./core";
 
 const ledger = new Ledger();
 afterAll(async () => { await ledger.teardown(); });
@@ -47,7 +47,7 @@ const entOf = async (userId: string) =>
 async function account(tag: string, testClock?: string) {
   const email = `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@trackd-qa.invalid`;
   const { data, error } = await admin.auth.admin.createUser({
-    email, password: "Test-passw0rd!", email_confirm: true,
+    email, password: QA_PASSWORD, email_confirm: true,
   });
   if (error) throw new Error(error.message);
   const userId = ledger.user(data.user.id);
