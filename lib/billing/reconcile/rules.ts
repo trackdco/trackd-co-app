@@ -23,6 +23,7 @@
 
 import { isEntitlementActive } from "@/lib/billing/access";
 import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
+import { STRIPE_MIN_TRIAL_END_OFFSET } from "@/lib/billing/freeTime";
 
 import type {
   EntitlementFact,
@@ -101,7 +102,44 @@ const INSTANT_TOLERANCE_MS = 60 * 1000;
  * ever moves the end later, so a grace-aligned trial can sit up to two days past
  * the promised instant and be perfectly correct.
  */
-const CLAMP_WINDOW_MS = 48 * 60 * 60 * 1000 + INSTANT_TOLERANCE_MS;
+const CLAMP_WINDOW_MS = STRIPE_MIN_TRIAL_END_OFFSET + INSTANT_TOLERANCE_MS;
+
+/**
+ * The longest calendar month, in ms. `addOffer`'s month branch adds ONE CALENDAR
+ * MONTH (`saveOffer.ts:269-284`) rather than a fixed number of days, so the
+ * largest value it can produce is 31 days.
+ */
+const LONGEST_CALENDAR_MONTH_MS = 31 * 24 * 60 * 60 * 1000;
+
+/**
+ * ⚠️ D88 — HOW FAR LATER THAN THE SHOWN DATE A CHARGE MAY LEGITIMATELY SIT.
+ *
+ * D72 makes the tolerance one-way: later is honoured, earlier is a finding. Left
+ * unbounded, that means **a trial extended by a year is never reported** — and
+ * giving away a year is the specific defect this project has already paid for
+ * once, through a 100%-off coupon on a yearly invoice (`003_courtesy_until.sql`
+ * documents the removal). §11 exists to catch exactly that.
+ *
+ * So the bound is DERIVED from what the built mechanisms can actually produce,
+ * rather than chosen:
+ *
+ *   ONE CALENDAR MONTH   the save offer's largest grant. `offerNounFor` returns
+ *                        "month" for a monthly or yearly plan and "week"
+ *                        otherwise (`saveOffer.ts:254-259`), and `addOffer` adds
+ *                        one calendar month (`saveOffer.ts:269-284`). The other
+ *                        branch, `EXTRA_TRIAL_DAYS` = 7, is strictly smaller —
+ *                        a test pins that, so this stays the maximum if either
+ *                        constant is ever changed.
+ *   + 48 HOURS           `STRIPE_MIN_TRIAL_END_OFFSET`, the clamp that only ever
+ *                        moves a grace-aligned trial end LATER (`freeTime.ts:65`).
+ *                        Summed rather than maxed because the two compose: a
+ *                        clamped grace start can later take a save offer.
+ *   + 60 SECONDS         the same rounding slack every other comparison uses.
+ *
+ * Anything beyond this is access nobody built a way to grant, so it is reported.
+ */
+const MAX_EXPLAINABLE_LATER_MS =
+  LONGEST_CALENDAR_MONTH_MS + STRIPE_MIN_TRIAL_END_OFFSET + INSTANT_TOLERANCE_MS;
 
 /* ── the index ────────────────────────────────────────────────────── */
 
@@ -556,12 +594,19 @@ export function entitlementWithoutSource(s: ReconcileSnapshot, ix: Index): Findi
  * promise. **A check that flags the product keeping its word is a check that
  * trains its reader to ignore findings.**
  *
- * ⚠️ KNOWN GAP, DELIBERATELY NOT CLOSED: because later is always honoured, an
- * arbitrarily large later divergence — access granted far beyond what will ever
- * be charged for — is not reported here. D72 states the one-way tolerance without
- * a ceiling, and §2 forbids inventing a rule no spec states. Raised for the spec
- * chat rather than decided here; {@link entitlementWithoutSource} still catches
- * the case where nothing is behind the access at all.
+ * ## ⚠️ D88 — and the tolerance is BOUNDED, in the later direction
+ *
+ * One-way did not mean unlimited. An unbounded "later" meant a trial extended by
+ * a year was never reported, which is the exact defect this project has already
+ * paid for once. {@link MAX_EXPLAINABLE_LATER_MS} is derived from the largest
+ * extension the built mechanisms can produce — the save offer's calendar month
+ * plus the 48-hour clamp plus a minute — so everything the product legitimately
+ * does still passes, and access nobody built a way to grant is reported.
+ *
+ * The two directions carry different evidence lines on purpose. Earlier means
+ * somebody is charged before the date they were shown; later means somebody has
+ * access nothing accounts for. They are not the same fault and they are not
+ * fixed the same way.
  */
 export function chargeAndEntitlementDatesDisagree(
   s: ReconcileSnapshot,
@@ -595,6 +640,24 @@ export function chargeAndEntitlementDatesDisagree(
           `Stripe will charge at ${iso(chargeAtSec)}`,
           `the app shows access running to ${stripeRow.activeUntil}`,
           `the charge lands ${hours(shownMs - chargeMs)} BEFORE the date the user was shown`,
+        ],
+      });
+      continue;
+    }
+
+    // D88. Later is honoured, but only as far as something built can explain.
+    if (chargeMs > shownMs + MAX_EXPLAINABLE_LATER_MS) {
+      out.push({
+        rule: "charge-and-entitlement-dates-disagree",
+        account: { userId: user, stripeCustomerId: sub.customerId },
+        evidence: [
+          `subscription ${sub.id} (${sub.status})`,
+          `the app shows access running to ${stripeRow.activeUntil}`,
+          `but Stripe will not charge until ${iso(chargeAtSec)}`,
+          `that is ${hours(chargeMs - shownMs)} of free access, beyond the ${hours(
+            MAX_EXPLAINABLE_LATER_MS,
+          )} any built mechanism can grant (save offer + clamp)`,
+          `D72 honours a later date; D88 bounds how much later`,
         ],
       });
     }
@@ -651,9 +714,19 @@ export function incompletePastWindow(s: ReconcileSnapshot, ix: Index): Finding[]
  * granted. Reporting every first trial would make the report permanently noisy,
  * which §3.5 forbids outright.
  *
- * So a zero invoice is explained by a trial end as well as by either marker, and
- * this divergence from the literal sentence is routed to the spec chat rather
- * than settled here.
+ * ## ⚠️ EACH EXPLANATION IS POSITIVE. NONE IS AN ABSENCE.
+ *
+ * The first draft accepted a first trial whenever the subscription merely HAD a
+ * `trialEnd`. That is acceptance by absence of contradiction, which is the same
+ * shape as the seven false passes this branch has now caught — and `19` §3.1
+ * expects an undiscriminated zero-dollar invoice to be reported as unattributed,
+ * so one must not be able to hide inside "probably a first trial".
+ *
+ * So a first trial is identified by the thing that actually distinguishes it:
+ * **`billing_reason === "subscription_create"`**, the first invoice of the
+ * subscription, on a subscription that really does have a trial end. A zero
+ * invoice on a RENEWAL (`subscription_cycle`) is not a first trial however much
+ * it looks like one, and is now reported rather than absorbed.
  */
 export function unexplainedZeroInvoice(s: ReconcileSnapshot, ix: Index): Finding[] {
   const out: Finding[] = [];
@@ -664,10 +737,12 @@ export function unexplainedZeroInvoice(s: ReconcileSnapshot, ix: Index): Finding
     if (inv.status === "draft" || inv.status === "void") continue;
 
     const sub = inv.subscriptionId ? subById.get(inv.subscriptionId) : undefined;
-    const explained =
-      sub !== undefined &&
-      (sub.graceUntil !== null || sub.courtesyUntil !== null || sub.trialEnd !== null);
-    if (explained) continue;
+    // Three POSITIVE identifications, in the order §3.4 names them.
+    const isGraceAligned = sub?.graceUntil != null;
+    const isCourtesy = sub?.courtesyUntil != null;
+    const isFirstTrial =
+      inv.billingReason === "subscription_create" && sub?.trialEnd != null;
+    if (isGraceAligned || isCourtesy || isFirstTrial) continue;
 
     out.push({
       rule: "unexplained-zero-invoice",
@@ -677,8 +752,9 @@ export function unexplainedZeroInvoice(s: ReconcileSnapshot, ix: Index): Finding
       },
       evidence: [
         `invoice ${inv.id} (${inv.status}) is for ${money(0, inv.currency)} and raised ${iso(inv.created)}`,
+        `billing_reason ${inv.billingReason ?? "(none)"}`,
         sub
-          ? `subscription ${sub.id} (${sub.status}) carries no grace marker, no courtesy marker and no trial end`
+          ? `subscription ${sub.id} (${sub.status}) matches none of the three free periods: no grace marker, no courtesy marker, and not a first invoice against a trial`
           : `it is not attached to any subscription this run could see`,
         `a free period nobody granted; treated as unattributed, per §3.1 #12`,
       ],

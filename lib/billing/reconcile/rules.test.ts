@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { STRIPE_MIN_TRIAL_END_OFFSET } from "@/lib/billing/freeTime";
+import { EXTRA_TRIAL_DAYS } from "@/lib/billing/saveOffer";
+
 import { runRules } from "./rules";
 import type {
   EntitlementFact,
@@ -479,6 +482,60 @@ describe("charge-and-entitlement-dates-disagree (§3.1 #5, D72)", () => {
     });
     expect(of(s, "charge-and-entitlement-dates-disagree")).toHaveLength(0);
   });
+
+  /**
+   * ⚠️ D88 — one-way did not mean unlimited. A trial extended by a year was
+   * never reported, and giving away a year is the defect this project already
+   * paid for once through a 100%-off coupon on a yearly invoice.
+   */
+  it("D88: a year of unexplained free access IS reported", () => {
+    const s = snapshot({
+      subscriptions: [
+        sub({ status: "trialing", trialEnd: secs("2027-09-25T00:00:00Z") }),
+      ],
+      entitlements: [ent({ activeUntil: "2026-09-25T00:00:00.000Z" })],
+    });
+    const found = of(s, "charge-and-entitlement-dates-disagree");
+    expect(found).toHaveLength(1);
+    expect(found[0].evidence.join(" ")).toContain("D88");
+  });
+
+  /**
+   * The bound has to leave every BUILT mechanism alone. A save offer's calendar
+   * month on top of a clamped grace start is the largest legitimate gap there is,
+   * and it must still pass.
+   */
+  it("D88: CONTROL — a save offer's month plus the 48h clamp still passes", () => {
+    const shown = "2026-09-25T00:00:00.000Z";
+    const monthPlusClamp = new Date(
+      Date.parse(shown) + 31 * 24 * 3600_000 + 48 * 3600_000 - 3600_000,
+    );
+    const s = snapshot({
+      subscriptions: [
+        sub({
+          status: "trialing",
+          trialEnd: Math.floor(monthPlusClamp.getTime() / 1000),
+          courtesyUntil: monthPlusClamp.toISOString(),
+        }),
+      ],
+      stripeCustomers: [stripeCustomer({ offerClaimedAt: "2026-09-20T00:00:00.000Z" })],
+      entitlements: [ent({ activeUntil: shown })],
+    });
+    expect(of(s, "charge-and-entitlement-dates-disagree")).toHaveLength(0);
+  });
+
+  /**
+   * ⚠️ PINS THE DERIVATION, NOT THE NUMBER. D88's bound is the save offer's
+   * LARGEST grant. `addOffer` has two branches — a calendar month and
+   * `EXTRA_TRIAL_DAYS` — and the constant is derived from the month. If anybody
+   * ever raises `EXTRA_TRIAL_DAYS` past a month, the bound silently stops being
+   * the maximum and this fails.
+   */
+  it("D88: the month branch really is the save offer's larger grant", () => {
+    const longestMonthDays = 31;
+    expect(EXTRA_TRIAL_DAYS).toBeLessThan(longestMonthDays);
+    expect(STRIPE_MIN_TRIAL_END_OFFSET).toBe(48 * 60 * 60 * 1000);
+  });
 });
 
 /* ── §3.1 #8 — incomplete past the measured window ────────────────── */
@@ -560,10 +617,47 @@ describe("unexplained-zero-invoice (§3.1 #12, D69)", () => {
       subscriptions: [
         sub({ status: "trialing", trialEnd: secs("2026-09-17T00:00:00Z") }),
       ],
-      invoices: [inv({ total: 0, amountPaid: 0 })],
+      invoices: [
+        inv({ total: 0, amountPaid: 0, billingReason: "subscription_create" }),
+      ],
       entitlements: [ent()],
     });
     expect(of(s, "unexplained-zero-invoice")).toHaveLength(0);
+  });
+
+  /**
+   * ⚠️ THE FIRST TRIAL IS IDENTIFIED POSITIVELY, NOT BY ABSENCE.
+   *
+   * A zero-dollar RENEWAL is not a first trial however much the subscription
+   * around it looks like one. `19` §3.1 expects an undiscriminated zero-dollar
+   * invoice to be reported as unattributed, so one must not be able to hide
+   * inside "probably a first trial" — which is what accepting it merely for
+   * having a trial end would have allowed.
+   */
+  it("a zero-dollar RENEWAL cannot hide inside 'probably a first trial'", () => {
+    const s = snapshot({
+      subscriptions: [
+        sub({ status: "trialing", trialEnd: secs("2026-09-17T00:00:00Z") }),
+      ],
+      invoices: [
+        inv({ total: 0, amountPaid: 0, billingReason: "subscription_cycle" }),
+      ],
+      entitlements: [ent()],
+    });
+    const found = of(s, "unexplained-zero-invoice");
+    expect(found).toHaveLength(1);
+    expect(found[0].evidence.join(" ")).toContain("subscription_cycle");
+  });
+
+  it("nor can a first invoice on a subscription with no trial at all", () => {
+    const s = snapshot({
+      subscriptions: [sub({ status: "active", trialEnd: null })],
+      invoices: [
+        inv({ total: 0, amountPaid: 0, billingReason: "subscription_create" }),
+      ],
+      entitlements: [ent()],
+    });
+    expect(of(s, "unexplained-zero-invoice")).toHaveLength(1);
   });
 });
 

@@ -65,20 +65,43 @@ only when there is no mirror row (`runner.ts:259-268`), so an empty mirror is ex
 what makes all 86 eligible. Any argument of the form "no money has moved, so this is
 low risk" is backwards for this hazard.
 
-**Owed:** `07` Steps 4-7 must make the grace copy survive a mirror row — the reminder
-needs to ask "is this account on a beta grace" from something the mirror cannot
-overwrite, rather than inferring it from the absence of a subscription.
+**Owed, and it is `07`'s to build.** The reminder must ask "is this account on a beta
+grace" from something **the mirror cannot overwrite**, rather than inferring it from the
+absence of a subscription row.
 
-### Two operational notes found in the same trace
+**⚠️ DO NOT CLOSE THIS BY GATING THE SIBLING READ.** (Adrian, 2026-08-17.) Putting
+`billingGateEnabled()` on the `subscriptions` query would stop the wrong message by
+stopping every message — it trades a false notification for a missing one, and the
+missing one is the promise two screens make out loud.
 
-- **The dev server on :3100 is bound to `TCP *:3100`, not loopback**, and serves this
-  branch with the production service-role key, production VAPID keys and the production
-  `CRON_SECRET` from `.env.local`. `app/api/notifications/run/route.ts:99-100` exports
-  **GET as well as POST**. Anything that can reach that port with the secret can run the
-  reminder engine against production devices with no deploy.
-- **`claimTrialReminder` stamps `trial_reminder_sent_for` BEFORE the send**
-  (`runner.ts:975`), so a misfire also burns the dedupe key and would later suppress the
-  genuine reminder as `already-sent`.
+**Routed to the spec chat as an amendment to `07` §3.5.** The defect is spec-level, not
+just a code shape: §3.5 describes the guard as belonging to the beta-grace case, and the
+implementation faithfully put it inside the `isBetaGrace` branch. Both are wrong in the
+same way — "is this a beta grace" is a property of the ACCOUNT, and the current design
+derives it from the shape of the subscription data instead, so it stops being true the
+moment the account acquires a subscription. The spec needs to say where that fact comes
+from.
+
+### `07`'s list gains one more, from the same trace
+
+**`claimTrialReminder` stamps `trial_reminder_sent_for` BEFORE the send**
+(`runner.ts:975`). A misfire therefore burns the dedupe key, and the genuine reminder is
+then suppressed as `already-sent` (`trialReminder.ts:132`) — **which is the reminder
+D1's release condition rests on.**
+
+Fix either way round, both already patterned in this codebase:
+
+- stamp only after a **confirmed** send; or
+- stamp-then-release on failure, exactly as the webhook's send claim already does
+  (`webhook/route.ts:161-202` distinguishes "already done" from "started and did not
+  finish", and lets a stale claim be retried).
+
+### One operational note, FOUNDER'S — do not touch
+
+The dev-server binding and the **GET** export on `app/api/notifications/run/route.ts:99-100`
+were reported and are being handled outside the repo. **No agent changes either.** (The
+local dev server was moved to loopback on 2026-08-17 at Adrian's instruction; that is a
+process change, not a repo change.)
 
 ---
 

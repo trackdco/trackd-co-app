@@ -57,6 +57,23 @@
 --  ▶ HOW TO RUN THIS
 -- ------------------------------------------------------------
 --
+--   ⚠️⚠️ THIS FILE IS SINGLE USE AND MUST BE APPLIED ONLY AT P11. ⚠️⚠️
+--
+--   NOT as a rehearsal, NOT to "check it works", NOT the night before, NOT from
+--   a staging window against this database. There is only one production
+--   database and this file writes to it.
+--
+--   ⚠️ APPLYING IT EARLY IS UNRECOVERABLE BY THIS FILE. Being pinned to the
+--   original backfill instant is what makes it exactly-once — and that same pin
+--   means that once it has run, it can never move anybody again. An early run
+--   starts the fortnight from the wrong moment and fixes a wrong date across the
+--   notice, the banner, the reminder and the Billing screen. Correcting it would
+--   need a SECOND migration, pinned to whatever wrong instant the early run
+--   produced, written and applied by hand under the same rules as this one.
+--
+--   There is no undo. `06`'s notice will have told people the wrong date, and a
+--   date somebody has been shown in writing cannot be quietly moved.
+--
 --   WHEN.  On LAUNCH MORNING, after P10 (legal documents published) and after
 --          the deploy is verified healthy. BEFORE P13 (`BILLING_GATE_ENABLED`).
 --          The fortnight is measured from the MOMENT YOU RUN IT, so run it on
@@ -71,8 +88,12 @@
 --   4. Then run the VERIFY block at the end, which DOES return rows. Read it.
 --      It must show 86 rows sharing ONE expiry instant, and 4 rows with none.
 --
---   SAFE TO RUN TWICE. See "exactly once by construction" below — a second run
---   updates ZERO rows rather than granting another fortnight.
+--   SAFE TO RUN TWICE *AT P11*. See "exactly once by construction" below — a
+--   second run at P11 updates ZERO rows rather than granting another fortnight,
+--   so a doubled paste on the day is harmless. That is protection against
+--   fat fingers at the right moment, NOT permission to run it at the wrong one:
+--   the second run is a no-op precisely because the FIRST run is the one that
+--   fixes the date forever.
 --
 -- ------------------------------------------------------------
 --  What it will and will not touch
