@@ -7,7 +7,7 @@ session needs at hand.
 
 Last updated: 2026-08-17 (spec 11 Steps 1-5 built and driven; two standing rules below)
 
-## ⚠️ TWO STANDING RULES, both earned the hard way (2026-08-17)
+## ⚠️ FOUR STANDING RULES, all earned the hard way (2026-08-17)
 
 ### 1. A REVOKED ROW IS A DECISION, NOT A GAP
 
@@ -42,6 +42,38 @@ If a rule cannot be exercised without editing a production list, a price table, 
 founder list or any other real-world constant: **unit test it and say so.** Three
 of spec 11's rules are unit-tested only for exactly this reason, named in
 `reconcile.scenario.ts` rather than quietly skipped.
+
+### 3. THROTTLE WHAT NAGS. NEVER THROTTLE WHAT ANSWERS A TAP
+
+The sync-failure notice is throttled to one per minute, correctly: it nags about a
+transient condition, and a burst of failed writes should produce one banner rather
+than ten.
+
+**The read-only signal is deliberately NOT throttled**, and the difference is not a
+preference. It is the answer to an action the user just took. Swallowing the second
+tap would leave a control doing visibly nothing — and **a control that does nothing
+when tapped is worse than a message that repeats**, because the user cannot tell it
+from a broken app and has no reason to stop trying.
+
+The test asserts both halves: two read-only refusals fire twice, two sync failures
+fire once (`lib/home/syncStatusRefusal.test.ts`).
+
+### 4. BEFORE REPORTING A DEFECT FOUND BY A DRIVER, CONFIRM THE DRIVER REACHED THE STATE
+
+(Adrian, 2026-08-17.) The same discipline this project already applies to
+assertions, pointed at FINDINGS instead.
+
+**A false finding costs what a false pass costs, from the other direction.** One
+hides a defect; the other invents one and sends the whole lane chasing it.
+
+The case that earned it: `qa-05-readonly.mjs` reported that the read-only pop-up
+could not be re-opened after being dismissed — which would have been a worse defect
+than the one being fixed. Probed directly rather than written up: the FAB's
+aria-label is "Open quick actions" and it is **two taps**, the menu and then the
+write control inside it. The driver was tapping once. There was no defect.
+
+So: when a driver reports a defect, first prove the driver got where it claims to
+have been. Only then write it down.
 
 
 ## Every migration is applied, and the ledger is not how we know (2026-08-16)

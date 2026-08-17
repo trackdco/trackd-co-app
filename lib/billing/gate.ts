@@ -174,19 +174,59 @@ export const READ_ONLY_MESSAGE =
   "Trackd is read only until you subscribe. Everything you've logged is still here.";
 
 /**
+ * ⚠️ WHAT A ROUTE ACTION SAYS WHEN THE ENTITLEMENT READ FAILED.
+ *
+ * ## Not a new string. An already-signed one, reused in its own doorway.
+ *
+ * `app/onboarding/billing-actions.ts:437` refuses the purchase path with this
+ * exact sentence when `comp.kind === "unknown"` — which is **the entitlements
+ * read failing**, the same state, reached from the checkout side instead of the
+ * write side. It is one of D74's six previously-unsigned strings, signed as
+ * approved copy and sacred as it stands.
+ *
+ * The other two candidates are both false here, which is why neither was used:
+ *
+ *   {@link READ_ONLY_MESSAGE}  claims they are read only until they subscribe.
+ *                              We do not know that; the database would not answer.
+ *   the syncing notice         opens "Saved on your device". A route action saved
+ *                              nothing at all.
+ *
+ * This one is honest about what happened, does not tell somebody to subscribe on
+ * the strength of a question nobody answered, and the retry it invites is the one
+ * case where retrying is genuinely meaningful.
+ *
+ * ⚠️ Declared HERE and not imported from the writer, because
+ * `billing-actions.ts` is a `"use server"` module and every export of one is a
+ * publicly dispatchable endpoint — both `01` and `02a` carry a Check When Done
+ * item that its export list is unchanged. A test pins the two together instead.
+ */
+export const ACCESS_UNKNOWN_MESSAGE =
+  "We couldn't check your account just now. Please try again in a moment.";
+
+/**
  * The guard a server action calls.
  *
  * Returns a discriminated result rather than throwing, because these actions are
  * called from `useTransition` callbacks whose error handling is a `try/catch`
  * that a thrown Next control-flow signal would swallow. The same reasoning as
  * `openBillingPortal` returning a URL instead of redirecting.
+ *
+ * ⚠️ IT CARRIES THE REFUSAL KIND AND PICKS THE MATCHING WORDS. A route action does
+ * not reach `trackSync`, so it cannot be fixed by the funnel — it renders its own
+ * `error` string. Before this it rendered {@link READ_ONLY_MESSAGE} for both
+ * states, which is the same defect as the boolean, one doorway along.
  */
 export async function requireWriteAccess(): Promise<
-  { ok: true } | { ok: false; error: string }
+  { ok: true } | { ok: false; error: string; refusal: WriteRefusalKind }
 > {
-  return (await canWriteData())
-    ? { ok: true }
-    : { ok: false, error: READ_ONLY_MESSAGE };
+  const refused = await refuseWrite();
+  if (!refused) return { ok: true };
+  return {
+    ok: false,
+    refusal: refused.refusal,
+    error:
+      refused.refusal === "read-only" ? READ_ONLY_MESSAGE : ACCESS_UNKNOWN_MESSAGE,
+  };
 }
 
 /**

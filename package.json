@@ -11,7 +11,9 @@
     "lint": "eslint",
     "reconcile": "node scripts/reconcile.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gate:check": "node scripts/gate-audit.mjs --check",
+    "check": "tsc --noEmit && eslint && npm run gate:check && vitest run"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
