@@ -37,6 +37,13 @@ const BASE: SummaryFacts = {
   interval: null,
   gateEnabled: false,
   accessEndsEarly: false,
+  /**
+   * ⚠️ THE BASE IS A LAPSED ACCOUNT: nothing live, nothing revoked. Cases that
+   * mean otherwise say so explicitly, so a fixture can never claim a state its
+   * own fields contradict.
+   */
+  accessLive: false,
+  accessRevoked: false,
 };
 const f = (over: Partial<SummaryFacts>): SummaryFacts => ({ ...BASE, ...over });
 

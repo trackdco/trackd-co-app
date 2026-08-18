@@ -92,6 +92,12 @@ export default async function ManagePage() {
       facts.action.kind === "cancel" || facts.action.kind === "resume"
         ? facts.action.accessEndsEarly
         : false,
+    /**
+     * ⚠️ FROM `entitlements`, THE TABLE THAT DECIDES ACCESS (1.3) — not from the
+     * two dates disagreeing, which they do not on a real revocation.
+     */
+    accessLive: facts.accessLive,
+    accessRevoked: facts.accessRevoked,
   });
 
   return (

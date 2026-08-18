@@ -117,6 +117,36 @@ export interface SummaryFacts {
    * Billing row's label and this sentence must not answer it two ways.
    */
   accessEndsEarly: boolean;
+  /**
+   * ⚠️ DOES THIS PERSON HOLD ACCESS RIGHT NOW (1.3).
+   *
+   * ## The two questions `accessEndsEarly` was answering
+   *
+   * It asks "will anything renew on this date", which is a question about the
+   * DATES and the subscription's status. Two readers took it:
+   *
+   *   `/billing`'s "Renews on" vs "Ends on" verb genuinely wants that question.
+   *   It is a claim about what happens next, it has to be true, and
+   *   `accessEndsEarly` answers it correctly. **That reader is not changed.**
+   *
+   *   This file's sentence selection wants a DIFFERENT fact — does this person
+   *   hold access right now — and asking the date question instead is why the
+   *   signed `suspended` sentence could never fire. On a real revocation
+   *   `sync.ts:339` and `sync.ts:399` write both dates from the same
+   *   `entitledUntil(sub)` call and `revokeForCustomer` leaves `active_until`
+   *   alone, so the dates are EQUAL and the date question always answers "no".
+   *
+   * So the predicate is split rather than the branch reordered. Both facts come
+   * from `entitlements`, which is the table that DECIDES access — not from a
+   * coincidence between two writers.
+   */
+  accessLive: boolean;
+  /**
+   * ⚠️ A PRO ROW SOMEBODY TURNED OFF. A decision, not an absence, and the only
+   * thing that distinguishes a revoked account from one that simply lapsed —
+   * they are otherwise identical in every field this file can see.
+   */
+  accessRevoked: boolean;
 }
 
 /**
