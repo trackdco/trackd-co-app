@@ -333,16 +333,34 @@ describe("⚠️ deriveEntitlementFacts — the four facts that must not disagre
     expect(f.endDate).toBe("2027-08-18T00:00:00.000Z");
   });
 
-  it("⚠️ a revoked row BESIDE a live one: access holds, and the revocation is still reported", () => {
-    // A withdrawn comp beside a paid subscription. `revoked` is about the rows,
-    // not about the outcome, so 2.3's exemption can ask which row it belongs to.
+  it("⚠️ a WITHDRAWN COMP is not a revocation: `revoked` is the STRIPE row alone", () => {
+    /**
+     * `revoked` is the money signal — the row `revokeForCustomer` writes on a
+     * dispute or a full refund. A withdrawn comp is a different fact about a
+     * different promise, and no sentence about a payment applies to it. Reading
+     * the two alike is the over-wide read 2.3 removed from the reconcile rule,
+     * and it would put "your subscription was cancelled because a payment was
+     * disputed" in front of somebody whose free access was simply withdrawn.
+     */
     const f = deriveEntitlementFacts(
       [e({ source: "comp", isActive: false, activeUntil: null }), e({ source: "stripe" })],
       now,
     );
     expect(f.accessLive).toBe(true);
     expect(f.entitlement?.source).toBe("stripe");
+    expect(f.revoked).toBe(false);
+  });
+
+  it("⚠️ CONTROL: a withdrawn comp ALONE is still not a revocation, even with no access", () => {
+    const f = deriveEntitlementFacts([e({ source: "comp", isActive: false, activeUntil: null })], now);
+    expect(f.accessLive).toBe(false);
+    expect(f.revoked, "a withdrawn comp would read a dispute sentence").toBe(false);
+  });
+
+  it("⚠️ CONTROL: the STRIPE row turned off IS a revocation", () => {
+    const f = deriveEntitlementFacts([e({ source: "stripe", isActive: false })], now);
     expect(f.revoked).toBe(true);
+    expect(f.accessLive).toBe(false);
   });
 
   it("ignores rows for another product entirely", () => {

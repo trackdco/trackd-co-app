@@ -169,7 +169,16 @@ export interface EntitlementDerived {
   entitlement: Entitlement | null;
   /** The FURTHEST end date across pro rows, dead ones INCLUDED, by design. */
   endDate: string | null;
-  /** A pro row somebody turned off. A decision, not an absence. */
+  /**
+   * ⚠️ A pro row FROM STRIPE that somebody turned off. A decision, not an
+   * absence, and the money signal specifically.
+   *
+   * Scoped to `stripe` because that is the row `revokeForCustomer` writes and the
+   * row `11`'s narrowed exemption asks about — one predicate, read the same way
+   * everywhere. A WITHDRAWN COMP is a different fact about a different promise:
+   * it is not a dispute, no sentence about a payment applies to it, and treating
+   * the two alike is the over-wide read this pass removed from the reconcile rule.
+   */
   revoked: boolean;
   /** Does this row set grant access right now? The gate's own question. */
   accessLive: boolean;
@@ -188,7 +197,7 @@ export function deriveEntitlementFacts(
   return {
     entitlement: strongestEntitlement(entitlements, now),
     endDate: dated.length === 0 ? null : new Date(Math.max(...dated)).toISOString(),
-    revoked: pro.some((e) => e.isActive === false),
+    revoked: pro.some((e) => e.isActive === false && e.source === "stripe"),
     accessLive: grantsPro(entitlements, now),
   };
 }

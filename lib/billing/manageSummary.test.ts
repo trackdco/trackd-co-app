@@ -580,6 +580,80 @@ describe("⚠️ suspended: access revoked while the subscription is still billi
     expect(manageSummaryFor(healthy)).toContain("it renews on 17 Sept 2026");
   });
 
+  it("⚠️ THE SETTLED DISPUTE (2.4): revoked and the cancel has landed", () => {
+    /**
+     * Since 2.1 a dispute cancels the Stripe subscription. `canceled` is absent
+     * from BILLABLE_STATUSES, so `screenFacts` filters the mirror row out and
+     * `manageActionFor` answers `{kind: "none"}` — this shape, not a guess.
+     *
+     * Before this state existed the cohort fell to the bottom and read "You're
+     * not on a plan at the moment", which is true of their access and says
+     * nothing about why, on the one screen where the reason is the whole point.
+     */
+    const settled = f({
+      entitlement: null,
+      subscription: null,
+      actionKind: "none",
+      accessRevoked: true,
+      accessLive: false,
+    });
+    expect(summaryStateFor(settled)).toBe("dispute-cancelled");
+    expect(manageSummaryFor(settled)).toBe(
+      "Your subscription was cancelled because a payment was disputed with your bank. " +
+        "Email support@trackdco.app if that wasn't you, or choose a plan below whenever you're ready.",
+    );
+    // It names no price and no date: the subscription is gone, so no amount is
+    // still true and nothing happens on any day.
+    expect(manageSummaryFor(settled)).not.toMatch(/\$|\d{4}/);
+    // And it invites them back rather than gating them.
+    expect(manageSummaryFor(settled)).toContain("choose a plan below whenever you're ready");
+  });
+
+  it("⚠️ CONTROL: the two dispute sentences never both apply, and they disagree", () => {
+    // One says the plan is still active, the other says it was cancelled. A
+    // single sentence with a conditional clause would be false half the time,
+    // which is why they are two states.
+    const live = f({
+      entitlement: null,
+      subscription: { status: "active" },
+      actionKind: "cancel",
+      accessRevoked: true,
+      accessLive: false,
+      price: "$69.99 USD",
+      interval: "year",
+    });
+    const settled = f({
+      entitlement: null,
+      subscription: null,
+      actionKind: "none",
+      accessRevoked: true,
+      accessLive: false,
+    });
+    expect(summaryStateFor(live)).toBe("suspended");
+    expect(summaryStateFor(settled)).toBe("dispute-cancelled");
+    expect(manageSummaryFor(live)).toContain("is still active");
+    expect(manageSummaryFor(settled)).toContain("was cancelled");
+  });
+
+  it("⚠️ CONTROL: a WITHDRAWN COMP with no subscription is NOT told a payment was disputed", () => {
+    /**
+     * Identical in every field this module can see — null entitlement, no
+     * access, no subscription — and nothing about a payment happened to them.
+     * `accessRevoked` is the STRIPE row alone, which is the only thing keeping
+     * this cohort out of a sentence that would invent an event.
+     */
+    const withdrawnComp = f({
+      entitlement: null,
+      subscription: null,
+      actionKind: "none",
+      accessRevoked: false,
+      accessLive: false,
+      gateEnabled: true,
+    });
+    expect(summaryStateFor(withdrawnComp)).toBe("lapsed");
+    expect(manageSummaryFor(withdrawnComp) ?? "").not.toContain("disputed");
+  });
+
   it("⚠️ CONTROL: past-due keeps its OWN sentence and is not swallowed", () => {
     // D37's sentence is correct for past-due. The branch order is what keeps the
     // two apart, so this seeds a past-due account that is ALSO revoked — the
@@ -684,24 +758,48 @@ describe("⚠️ precedence: the standing ruling, asserted rather than assumed",
       f({ entitlement: stripe, subscription: { status: "active" }, actionKind: "cancel" }),
       f({ gateEnabled: true }),
       f({ entitlement: stripe, subscription: { status: "paused" }, actionKind: "unavailable" }),
+      // Revoked while the subscription is still billing.
+      f({
+        entitlement: null,
+        subscription: { status: "active" },
+        actionKind: "cancel",
+        accessRevoked: true,
+        accessLive: false,
+      }),
+      // Revoked and the cancel has landed — no subscription row survives the filter.
+      f({ entitlement: null, subscription: null, actionKind: "none", accessRevoked: true, accessLive: false }),
     ];
     for (const c of cases) reached.add(summaryStateFor(c));
-    const all: SummaryState[] = [
-      "app-store",
-      "cancelled-paid",
-      "cancelled-never-charged",
-      "past-due",
-      "comp-forever-paying",
-      "comp-forever",
-      "grace-aligned",
-      "beta-grace",
-      "courtesy",
-      "trial",
-      "paying",
-      "lapsed",
-      "withheld",
-    ];
-    for (const s of all) expect(reached.has(s)).toBe(true);
+    /**
+     * ⚠️ EXHAUSTIVE BY CONSTRUCTION, NOT BY HAND.
+     *
+     * This was a hand-written array, so `suspended` was missing from it and the
+     * test passed anyway — a new state could be added and go unreached without
+     * anything noticing, which is precisely the "dead copy" this case exists to
+     * prevent. A `Record<SummaryState, true>` makes the COMPILER refuse an
+     * incomplete list, so 2.4's new state could not be added without appearing
+     * here.
+     */
+    const all: Record<SummaryState, true> = {
+      "app-store": true,
+      "cancelled-paid": true,
+      "cancelled-never-charged": true,
+      "past-due": true,
+      "comp-forever-paying": true,
+      "comp-forever": true,
+      "grace-aligned": true,
+      "beta-grace": true,
+      "courtesy": true,
+      "trial": true,
+      suspended: true,
+      "dispute-cancelled": true,
+      paying: true,
+      lapsed: true,
+      withheld: true,
+    };
+    for (const state of Object.keys(all) as SummaryState[]) {
+      expect(reached.has(state), `${state} is unreachable — dead copy`).toBe(true);
+    }
   });
 });
 

@@ -77,6 +77,16 @@ export type SummaryState =
   | "paying"
   | "suspended"
   | "lapsed"
+  /**
+   * ⚠️ THE SETTLED DISPUTE (2.4). Access revoked AND the subscription cancelled,
+   * which since 2.1 is what a dispute leaves behind once the cancel lands.
+   *
+   * Its own state rather than a variant of `suspended`, because the two say
+   * OPPOSITE things about the money: one says the plan is still active, the other
+   * says it was cancelled. A single sentence with a conditional clause would be
+   * one sentence that is false half the time.
+   */
+  | "dispute-cancelled"
   /** ⚠️ NO SENTENCE. See {@link manageSummaryFor} — R5(b), withheld deliberately. */
   | "withheld";
 
@@ -298,6 +308,30 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
   if (f.accessRevoked && !f.accessLive && f.actionKind === "cancel") return "suspended";
 
   /**
+   * ⚠️ THE SAME REVOCATION, ONCE THE CANCEL HAS LANDED (2.4).
+   *
+   * Two sentences, two states, selected on whether the subscription is LIVE or
+   * CANCELLED — which is the only thing that differs between them and the only
+   * thing they disagree about.
+   *
+   *   live       "...and your Pro plan at {price} a {interval} is still active."
+   *   cancelled  "Your subscription was cancelled because a payment was disputed"
+   *
+   * `actionKind === "none"` is the cancelled shape and not a guess: `canceled` is
+   * absent from `BILLABLE_STATUSES`, so `screenFacts` filters the mirror row out
+   * entirely, `manageActionFor` receives `null` and answers `{kind: "none"}`.
+   * Before this branch existed that cohort fell to the bottom and read "You're not
+   * on a plan at the moment", which is true of the access and says nothing about
+   * why — on the one screen where the reason is the whole point.
+   *
+   * ⚠️ `accessRevoked` IS THE STRIPE ROW ALONE, which is what makes this safe to
+   * key on `none`. A withdrawn comp with no subscription has the identical shape
+   * in every other field, and telling that person their subscription was
+   * cancelled over a payment dispute would be inventing an event.
+   */
+  if (f.accessRevoked && !f.accessLive && f.actionKind === "none") return "dispute-cancelled";
+
+  /**
    * ⚠️ A LIVE SUBSCRIPTION WITH NO LIVE ACCESS, AND NOBODY REVOKED ANYTHING.
    * WITHHELD, which is the founder's own standing ruling for this cohort.
    *
@@ -433,6 +467,25 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
     case "suspended":
       if (!amount) return null;
       return `Your access has been suspended while we look into a payment dispute, and your Pro plan at ${amount} is still active.`;
+
+    /**
+     * ⚠️ SIGNED 18 AUG 2026. Character for character, no em dash.
+     *
+     * It names no price and no date deliberately: the subscription is gone, so
+     * there is no amount that is still true and no date anything happens on. The
+     * support address is the route for "that wasn't me", and the plan list is the
+     * route for "it was, and I still want this".
+     *
+     * ⚠️ THEY MAY RESUBSCRIBE FREELY. Founder ruling: no approval flow and no
+     * email gate. A dispute is often a stolen card, a forgotten charge, or a bank
+     * acting automatically — the person is frequently not hostile, and a second
+     * dispute is a dashboard problem rather than a feature.
+     */
+    case "dispute-cancelled":
+      return (
+        "Your subscription was cancelled because a payment was disputed with your bank. " +
+        "Email support@trackdco.app if that wasn't you, or choose a plan below whenever you're ready."
+      );
 
     case "lapsed":
       return "You're not on a plan at the moment, so Trackd Co is read only.";

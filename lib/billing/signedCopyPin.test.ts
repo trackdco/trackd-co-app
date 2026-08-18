@@ -88,6 +88,12 @@ const RENDERED: Array<[string, string | null]> = [
   ["APP STORE", manageSummaryFor(f({ entitlement: { source: "apple", activeUntil: null }, actionKind: "store" }))?.replace("the App Store", "{store}") ?? null],
   ["FREE FOR LIFE while charging", manageSummaryFor(f({ entitlement: compForever, subscription: { status: "active" }, actionKind: "cancel", ...YEAR }))],
   ["SUSPENDED", manageSummaryFor(f({ entitlement: null, subscription: { status: "active" }, actionKind: "cancel", accessRevoked: true, accessLive: false, ...YEAR }))],
+  /**
+   * ⚠️ THE SETTLED DISPUTE (2.4). No subscription at all — `canceled` is absent
+   * from BILLABLE_STATUSES, so the mirror row is filtered out and `actionKind`
+   * is "none". It names no price and no date, so no substitution applies.
+   */
+  ["DISPUTE CANCELLED", manageSummaryFor(f({ entitlement: null, subscription: null, actionKind: "none", accessRevoked: true, accessLive: false }))],
 ];
 
 function firstDifference(actual: string, expected: string): string | null {
@@ -108,12 +114,12 @@ describe("⚠️ signed copy pin: Manage's summary, codepoint for codepoint", ()
     .map((l) => l.trimEnd())
     .filter((l) => l.length > 0);
 
-  it("the signed file holds exactly the thirteen sentences the founder sent", () => {
-    expect(signed).toHaveLength(13);
-    expect(RENDERED).toHaveLength(13);
+  it("the signed file holds exactly the fourteen sentences the founder sent", () => {
+    expect(signed).toHaveLength(14);
+    expect(RENDERED).toHaveLength(14);
   });
 
-  for (let i = 0; i < 13; i += 1) {
+  for (let i = 0; i < 14; i += 1) {
     it(`${RENDERED[i]?.[0] ?? `#${i}`} matches the signed line character for character`, () => {
       const [, actual] = RENDERED[i];
       expect(actual).not.toBeNull();
