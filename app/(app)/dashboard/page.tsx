@@ -128,7 +128,30 @@ export default async function DashboardPage() {
    * With the switch off nothing ends. Warning somebody about a deadline that is
    * not enforced is the same lie as not warning them about one that is.
    */
+  /**
+   * ⚠️ AND AN UNREADABLE READ IS NOT "NOTHING IS ENDING" (1.7).
+   *
+   * This keyed on `currentEntitlement()`, which answered null both for "no
+   * active entitlement" and for "the entitlements table would not answer" — so a
+   * failed read silently produced no banner, and an account days from losing
+   * access got no warning at all.
+   *
+   * ⚠️ IT STILL RENDERS NO BANNER, AND THAT IS NOT THE SAME THING. The banner
+   * names a DATE and an unreadable read has none, so there is nothing truthful to
+   * render; no signed undated variant exists and inventing one is forbidden. What
+   * changes is that the state is now NAMED and LOGGED rather than being
+   * indistinguishable from the ordinary no-entitlement case — an account silently
+   * lapsing with no warning is exactly the kind of thing that has to be visible
+   * somewhere. The dashboard is re-rendered constantly, so a transient failure
+   * corrects itself on the next load.
+   */
   const access = await entitlementFacts();
+  if (!access.known) {
+    console.error(
+      `[dashboard] the entitlement read failed for ${user.id}; no ending banner and no ` +
+        `beta notice can be rendered this load — absent is NOT unknown, and neither is warned about`,
+    );
+  }
   const graceTrial =
     trialRow || !billingGateEnabled()
       ? null
@@ -225,10 +248,27 @@ export default async function DashboardPage() {
    * that governs access rather than from a subscription — which is what makes it
    * true for the beta cohort, who have no subscription at all.
    *
-   * ⚠️ Absent is NOT unknown here, and the direction is deliberate:
+   * ⚠️ THE PARAGRAPH THAT STOOD HERE ASSERTED A FALSE PREMISE, AND IT IS
+   * CORRECTED RATHER THAN DELETED (1.7).
+   *
+   * It read: "Absent is NOT unknown here, and the direction is deliberate:
    * `currentEntitlement()` returning null means no active entitlement, so there
-   * is no final day to announce and the banner does not render. A missing row
-   * must never be read as "today".
+   * is no final day to announce and the banner does not render."
+   *
+   * **The reasoning was sound and the premise was false.** `currentEntitlement`
+   * routed through `listEntitlements`, which returns `[]` on a FAILED read, so
+   * its null meant "no active entitlement" OR "we could not ask" — and the
+   * comment claimed the distinction had been made when nothing had made it. It
+   * was written down where the next reader would reuse it, which is the reason it
+   * is quoted here rather than quietly replaced.
+   *
+   * The distinction is now real: `entitlementFacts()` says whether the read
+   * worked, and `access.known` is checked above and logged when false.
+   *
+   * The rule the old paragraph was reaching for still holds and still governs
+   * this line: a missing row must never be read as "today". `betaEntitlement` is
+   * null in BOTH states, so the banner does not render in either — but only one
+   * of them is a claim about the account, and only that one is silent by design.
    */
   const finalDayEntitlement = billingGateEnabled() && !trialNotice ? betaEntitlement : null;
   const planEndsToday = Boolean(
@@ -237,8 +277,21 @@ export default async function DashboardPage() {
         localParts(new Date(), trialTz).dateKey,
   );
 
+  /**
+   * ⚠️ AND THE NOTICE IS WITHHELD ON AN UNREADABLE READ, WHICH IS THE SAFE
+   * DIRECTION FOR THIS ONE SPECIFICALLY (1.7).
+   *
+   * It shows ONCE, ever, and it is the screen that explains what happens to a
+   * beta account's access. Rendering it from a read that failed would risk
+   * spending somebody's only sighting of it on a load that could not confirm they
+   * are even in the cohort. `access.known` is required rather than inferred from
+   * `betaEntitlement` being null, so the withhold is a decision rather than a
+   * side effect — and nothing is burned: the cookie is written only on dismissal,
+   * so the next load shows it.
+   */
   const showBetaNotice =
     billingGateEnabled() &&
+    access.known &&
     betaEntitlement?.source === "comp" &&
     !betaNoticeSeen(cookieStore.get(BETA_NOTICE_COOKIE)?.value, user.id);
 
