@@ -28,7 +28,12 @@ decision needs to supersede an earlier one, keep the number and mark it re-decid
 as D1 and D31 already are.
 
 **Status at 15 Aug 2026. THE CORPUS IS COMPLETE: 00 and 01 through 19.** Next free
-decision number: **D91**. Next free question number: **Q106**.
+decision number: **D101**. Next free question number: **Q107**.
+
+**⚠️ D91 to D100 TAKEN 18 Aug 2026 by the build lane**, in the order the founder
+listed them in the batch brief, from this file's own next-free list. Q106 taken for
+the refund/dispute copy ambiguity below. Nothing was renumbered and no number was
+accepted from the brief — it deliberately named none.
 
 **The D71 to D77 gap is closed.** That block was re-sent and its seven decisions are
 entered above, in their own numeric places rather than appended. The `19` correction
@@ -147,6 +152,16 @@ as a dependency.
 | D88 | D72's tolerance is bounded at the largest extension any built mechanism can produce | 11 | Resolved — derived from the code, not chosen |
 | D89 | The QA drivers are tracked | 12, seam to every spec that drives | Resolved — the spine now, the `.mjs` browser drivers at the freeze |
 | D90 | The beta notice's seen cookie is account-scoped | 06 | Resolved — built |
+| D91 | A dispute CANCELS the Stripe subscription | 03, seam to 11 | Resolved — built and driven against real Stripe |
+| D92 | A disputed customer may resubscribe freely: no approval flow, no email gate | 03 | Resolved — the sentence routes them to the plan list |
+| D93 | The dispute-cancellation sentence, signed | 08 | Resolved — signed 18 Aug, pinned as codepoints |
+| D94 | `suspended` keys on the REVOCATION FLAG on a live row, not on two dates disagreeing | 08 | Resolved — found by three independent reviewers |
+| D95 | A dropped chargeback is RETRIED, not reported handled | 03, seam to 11 | Resolved — unreadable throws, genuinely unmapped stays unattributed |
+| D96 | The past-due grace STAYS at three days rather than matching Stripe's retry window | 05 | Resolved — matching would hand out ~2 weeks of free access per failed payment |
+| D97 | The two after-the-lapse past-due sentences, signed | 08 | Pending — Group 3 |
+| D98 | The read-only pop-up's first clause is reworded and STAYS UNBRANCHED | 05 | Pending — Group 3, and the standing stop-and-ask fired |
+| D99 | Spec 11's revocation exemption narrows to the subscription in question; revoked-beside-live becomes a REPORTED state | 11 | Resolved — built, and §3.4's false premise corrected |
+| D100 | The three parked `revokeForCustomer` findings accepted under §9g, with the CURRENT reason | 11 | Resolved — recorded, and their coverage measured |
 
 **Also open, unnumbered:**
 
@@ -446,3 +461,188 @@ Per-browser was not enough. On a shared browser one person's dismissal consumed
 another person's notice, and the notice shows ONCE — so the second person would never
 see it at all, on the one screen explaining what happens to their access.
 
+
+---
+
+## D91 to D100 — the dispute path, the access question, and the past-due window
+
+**Taken 18 Aug 2026 by the build lane, from this file's own next-free list, in the
+order the founder listed them.** The batch brief deliberately named no numbers, "because
+every collision on this project came from an issuer minting from a stale view of the
+list". Nothing was renumbered.
+
+### D91 — a dispute cancels the Stripe subscription
+
+Until now a dispute took access away and left Stripe billing. Two costs, and the
+second is the expensive one: **we go on charging somebody whose money we no longer
+have**, and the next invoice they dispute stacks another **dispute fee** — a fee we
+pay per dispute, on a charge we were never going to keep.
+
+**Access first, billing second.** The cancel runs after the entitlement write, so a
+failure there leaves the revocation landed and Stripe redelivers; the revoke is
+idempotent, so the retry is free.
+
+**Only the subscription the disputed charge paid for**, resolved through
+`subscriptionBehind`. A customer can hold two, and cancelling a healthy second one
+would be the same shape as the `$3.99 refund destroys a $69.99 year` defect. Where it
+cannot be resolved, nothing is cancelled — and D99's new rule reports exactly that
+shape, which is what makes the conservative choice safe rather than silent.
+
+**Refunds are excluded.** The ruling names disputes. A refund is a hand-issued support
+action, often goodwill, with no fee stacking behind it.
+
+### D92 — a disputed customer may resubscribe freely
+
+No approval flow, no email gate. **A dispute is often a stolen card, a forgotten
+charge, or a bank acting automatically** — the person is frequently not hostile, and a
+second dispute is a dashboard problem rather than a feature. D93's sentence routes
+them to the plan list rather than to a gate.
+
+### D93 — the dispute-cancellation sentence
+
+> Your subscription was cancelled because a payment was disputed with your bank.
+> Email support@trackdco.app if that wasn't you, or choose a plan below whenever
+> you're ready.
+
+**Its own state, not a variant of the suspended line**, because the two say opposite
+things about the money — one says the plan is still active, the other says it was
+cancelled — and one sentence with a conditional clause would be false half the time.
+It names no price and no date deliberately: the subscription is gone, so no amount is
+still true and nothing happens on any day. Pinned as codepoints; the set is fourteen.
+
+### D94 — `suspended` keys on the revocation flag
+
+**The branch could not fire at all.** It keyed on `accessEndsEarly`, whose date half
+asks whether the entitlement's date and the mirror's disagree — and they never
+disagree on a revocation. `sync.ts:339` and `sync.ts:399` both write from the same
+`entitledUntil(sub)` call on the same object, and the revoke touches neither. Found by
+**three independent reviewers**: one by reading, one by measuring, one by driving with
+a control.
+
+Now `accessRevoked && !accessLive && actionKind === "cancel"`, each condition
+load-bearing and each with its own control. The branch has not moved.
+
+### D95 — a dropped chargeback is retried
+
+`sync.ts` throws on an unreadable Stripe charge so Stripe retries, then six lines later
+dropped the error on the `billing_customers` read and returned `unattributed` — which
+Stripe answers with a 200 and never redelivers. **A revocation we failed to apply was
+silently stamped as processed**, against the file's own stated principle.
+
+**"Unmapped" and "unreadable" stay different facts**, and only one is helped by a
+retry: a genuinely unmapped customer will never grow an account row, so it stays
+`unattributed`. Collapsing them the other way would be the mirror-image defect.
+
+### D96 — the past-due grace stays at three days
+
+Matching Stripe's retry window would hand out **roughly two weeks of free access per
+failed payment**. It stays at three, and D97's sentences cover the window after the
+lapse instead.
+
+### D97 and D98 — see Group 3
+
+Both signed; both land in the past-due and read-only work.
+
+**⚠️ D98's first clause was re-signed after this batch began.** The first wording,
+"Your access has ended", is FALSE for the never-had-access cohort — anyone signing up
+after the 17 Aug backfill holds no entitlement row, and at P13 that is exactly who
+reads it. The replacement is a statement about NOW rather than about history:
+
+> You don't have access at the moment, so Trackd Co is read only. You can still view
+> everything you've logged, you just can't add to it.
+
+True of all six cohorts. **It stays unbranched**, and the standing stop-and-ask
+instruction in `ReadOnlyGate.tsx` fired and this is its answer.
+
+### D99 — the revocation exemption narrows, and revoked-beside-live is reported
+
+Wrong twice, and the two are one predicate.
+
+**Wrong premise.** §3.4 said "Stripe leaves the subscription overdue". Measured
+directly on the Stripe object after a real revoke: **Stripe leaves it ACTIVE.** Overdue
+implies dunning has begun and the money has stopped; active means the next invoice is
+raised on schedule. **The spec sentence is corrected**, not only the code, because it
+is a premise the next reader would re-derive from.
+
+**Wrong scope.** `entitlementsByUser` is unfiltered by product AND source, so the
+exemption meant "this user has ever had anything revoked". **One withdrawn comp
+permanently silenced the rule** whose own docstring calls its subject "the worst
+customer-facing state in the system that is not a wrong charge". Driven with two
+accounts one row apart: control reported, subject silent.
+
+**And the other side of the same predicate.** Once a dispute cancels, a revoked
+`pro`/`stripe` row beside a live subscription stops being expected and becomes the
+signal the cancel failed. That is a **new named rule**, not a re-widening of rule 6 —
+widening that back would reintroduce the false positive §3.4 correctly closed, and
+§3.4 warns one false positive per dispute gets the whole report ignored.
+
+### D100 — the three parked `revokeForCustomer` findings, accepted under §9g
+
+**P1** refunding an earlier period revokes the current paid one. **P2** two
+subscriptions both refunded in full leave access on. **P3** a redelivered
+`invoice.paid` reinstates on money that went back. All present at HEAD, unchanged.
+
+**Root cause, one line:** `otherLiveEntitlementFloor` answers *"is another subscription
+LIVE"* where the revoke needs *"is money we STILL HOLD paying for this access"*. Fixing
+it properly needs per-period accounting across charges and invoices — a different
+model, not a patch.
+
+**⚠️ THEIR CONTAINMENT ARGUMENT HAS CHANGED.** It was "it gates nothing while
+`BILLING_GATE_ENABLED` is unset", written 16 Aug. **`08` then made the revoked row
+drive copy on two screens regardless of the flag**, so that argument is dead. The
+current reason:
+
+- refunds are **hand-issued by the founder**, one at a time;
+- the user base is **~90**;
+- the realistic frequency in the first weeks is **near zero**;
+- and the net now catches two of the three.
+
+**⚠️ Measured rather than claimed, and the brief was optimistic.** It said D99's fix
+takes all three from silent to caught. It takes ONE:
+
+| | caught by | |
+|---|---|---|
+| P1 | `revoked-entitlement-beside-live-subscription` | **newly**, by D99 |
+| P2 | `two-billable-subscriptions` | already, by an older rule |
+| P3 | *nothing* | **STILL SILENT** |
+
+P3 leaves an active entitlement beside a live subscription, and the only thing wrong is
+that the money went back — which no rule can see without the per-period accounting the
+model fix would bring. `parkedFindings.test.ts` pins all three, including P3's empty
+result, so the gap cannot close unrecorded.
+
+**What would change the acceptance:** **volume**, or **refunds becoming self-serve**.
+Either makes the frequency argument false and the model fix becomes the answer.
+
+---
+
+## Q106 — does the dispute copy apply to a REFUND-revoked account? OPEN
+
+**Raised 18 Aug 2026 by the build lane while implementing D93. Not a defect — a
+question the specs do not answer, and it predates this batch.**
+
+`entitlements` records **that** a row was revoked and never **why**. A full refund and
+a dispute leave byte-identical rows: `is_active: false`, `active_until` untouched,
+`source: "stripe"`. So both dispute sentences are selected for a refunded account too:
+
+- refund + subscription still live → *"your access has been suspended while we look
+  into a payment dispute"* — and no dispute happened;
+- refund + subscription later ends → *"your subscription was cancelled because a
+  payment was disputed with your bank"* — same problem.
+
+**This is not new.** The suspended sentence has had it since it was signed on 18 Aug;
+D93 inherits it rather than introducing it. It is recorded here because implementing
+the second sentence made it visible in a way one sentence did not.
+
+**Why it was not fixed in the batch:** distinguishing them needs a reason on the
+revocation — a column, or a lookup back to the charge — which is a schema or model
+decision, not an implementation, two days from go-live. **Nothing was invented**, per
+the standing rule against copy for a state no spec names.
+
+**Frequency argument, same as D100's:** refunds are hand-issued, the base is ~90, and
+the founder knows who they refunded. **What would change it:** refunds becoming
+self-serve, or volume.
+
+**The cheapest fix if it is wanted:** a `revoked_reason` column written by
+`revokeForCustomer`, which already knows — it takes `reason: "dispute" | "refund"` as
+a parameter and simply does not persist it.
