@@ -61,6 +61,20 @@ const DECLINED_ON = (date: string) =>
   `Your card was declined on ${date}. Update your card details and we'll take it from there.`;
 const ACCESS_UNTIL = (date: string) =>
   `Your account stays as it is until ${date}, and goes read only after that until a payment goes through.`;
+/**
+ * ⚠️ SIGNED (D97). The SAME sentence's window after access has ended (3.1).
+ *
+ * The title and the first line are unchanged, because both are still true: their
+ * payment did not go through, and updating the card is still the way out. Only
+ * this third sentence changes, and only in this window.
+ *
+ * It names NO DATE, unavoidably: nobody knows when Stripe's next Smart Retry
+ * lands — assigned to `12`, explicitly outside this batch — so any date here
+ * would be invented. "As soon as a payment goes through" is the true statement
+ * available, and it is the one the user can act on.
+ */
+const ACCESS_ENDED =
+  "Your account is read only for now. We'll keep trying your card, and access comes back as soon as a payment goes through.";
 const DISMISS = "Not now";
 const PRIMARY = "Update my card";
 
@@ -114,23 +128,28 @@ export function DeclinedCard({
           </p>
         ) : null}
         {/**
-          * ⚠️ THE PROMISE NEEDS BOTH A DATE AND LIVE ACCESS.
+          * ⚠️ TWO WINDOWS, TWO SENTENCES, SELECTED ON WHETHER ACCESS IS LIVE.
           *
           * "stays as it is until {date}, and goes read only after that" is a
           * statement about the FUTURE. Said to somebody whose access has already
-          * gone — lapsed past the grace, or revoked — both halves are false, and
-          * it renders directly above a plan card reading "Read only".
+          * gone it is false in both halves, and it renders directly above a plan
+          * card reading "Read only" — which is how it was found.
           *
-          * Withheld rather than reworded: the title and the update-card route are
-          * true in every state and stand on their own. Group 3.1 gives this
-          * window its own signed sentence; until then it says nothing rather than
-          * something false.
+          * ⚠️ `accessLive` IS FALSE WHEN THE READ FAILED TOO, and that lands here
+          * correctly. The after-lapse line is the one that claims nothing about a
+          * date or a period, so it is the safe sentence for a screen that could
+          * not check — it says only that the card is being retried, which is true
+          * of every past-due account in either window.
           */}
-        {accessEndsOn && accessLive ? (
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">
-            {ACCESS_UNTIL(accessEndsOn)}
-          </p>
-        ) : null}
+        {accessLive ? (
+          accessEndsOn ? (
+            <p className="mt-2 text-sm leading-relaxed text-text-muted">
+              {ACCESS_UNTIL(accessEndsOn)}
+            </p>
+          ) : null
+        ) : (
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">{ACCESS_ENDED}</p>
+        )}
         <div className="mt-4 flex gap-3">
           <button
             type="button"
