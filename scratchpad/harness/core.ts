@@ -174,27 +174,109 @@ export class Ledger {
    * any subscription left behind bills a person nothing can attribute the charge
    * to. Same ordering `lib/billing/cancel.ts` argues for on the real path.
    */
+  /**
+   * ⚠️ A TEARDOWN THAT CANNOT FAIL IS A TEARDOWN NOBODY CAN TRUST.
+   *
+   * Until 18 Aug 2026 every deletion here was `.catch(warn)`, the whole block sat
+   * inside a try/catch, the method returned void and never threw, and the last
+   * line cleared all three lists unconditionally. **A run whose teardown failed
+   * completely reported green and left nothing to find it by** — the warnings
+   * scroll past, the ledger is empty, and the ids are gone from the process that
+   * knew them. Fifteen scenario files call this from `afterAll` and not one
+   * asserted on the result, because there was no result to assert on.
+   *
+   * Two changes, and only these two:
+   *
+   *   1. **Only what was actually deleted leaves the ledger.** Anything that
+   *      failed stays in it, so a caller — or the next line of the same process —
+   *      can still name it BY ID.
+   *   2. **A failed deletion throws**, after every other deletion has been
+   *      attempted. Throwing early would strand the rest, which on a production
+   *      database is the worse failure; so failures are collected, the sweep
+   *      finishes, and then the run goes red with every survivor named.
+   *
+   * ⚠️ THE DELETION POLICY IS UNCHANGED AND MUST STAY UNCHANGED. Teardown reads
+   * ONLY this ledger. There is still no query anywhere in the harness that selects
+   * accounts to delete, because a query is how a domain sweep destroyed 16 real
+   * fixtures.
+   *
+   * `resource_missing` from Stripe is treated as the goal reached, not as a
+   * failure: an object that is not there is an object that is deleted. It is
+   * reported distinctly so the distinction stays visible.
+   */
   async teardown(): Promise<void> {
+    const failures: string[] = [];
+    /** Ids that are genuinely gone. Everything else stays in the ledger. */
+    const goneCustomers = new Set<string>();
+    const goneClocks = new Set<string>();
+    const goneUsers = new Set<string>();
+
+    const missing = (e: unknown) =>
+      (e as { code?: string })?.code === "resource_missing" ||
+      /No such |resource_missing/i.test((e as Error)?.message ?? "");
+
     for (const customerId of [...this.customers].reverse()) {
       try {
-        const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 100 });
+        const subs = await stripe.subscriptions.list({
+          customer: customerId, status: "all", limit: 100,
+        });
         for (const s of subs.data) {
           if (["canceled", "incomplete_expired"].includes(s.status)) continue;
-          await stripe.subscriptions.cancel(s.id).catch((e) => console.warn(`  cancel ${s.id}: ${e.message}`));
+          await stripe.subscriptions.cancel(s.id);
         }
-        await stripe.customers.del(customerId).catch((e) => console.warn(`  del ${customerId}: ${e.message}`));
+        await stripe.customers.del(customerId);
+        goneCustomers.add(customerId);
       } catch (e) {
-        console.warn(`  stripe teardown ${customerId}: ${(e as Error).message}`);
+        if (missing(e)) {
+          console.info(`  customer ${customerId}: already absent`);
+          goneCustomers.add(customerId);
+        } else {
+          failures.push(`stripe customer ${customerId}: ${(e as Error).message}`);
+        }
       }
     }
+
     for (const clockId of [...this.clocks].reverse()) {
-      await stripe.testHelpers.testClocks.del(clockId).catch((e) => console.warn(`  clock ${clockId}: ${e.message}`));
+      try {
+        await stripe.testHelpers.testClocks.del(clockId);
+        goneClocks.add(clockId);
+      } catch (e) {
+        if (missing(e)) { console.info(`  clock ${clockId}: already absent`); goneClocks.add(clockId); }
+        else failures.push(`test clock ${clockId}: ${(e as Error).message}`);
+      }
     }
+
     for (const id of [...this.users].reverse()) {
       if (!id) throw new Error("ledger holds an empty id; refusing to call deleteUser");
-      await admin.auth.admin.deleteUser(id).catch((e) => console.warn(`  user ${id}: ${e.message}`));
+      try {
+        const { error } = await admin.auth.admin.deleteUser(id);
+        // ⚠️ The Supabase client returns the error rather than throwing it, so
+        // destructuring and ignoring it is how this silently did nothing.
+        if (error) throw new Error(error.message);
+        goneUsers.add(id);
+      } catch (e) {
+        failures.push(`auth user ${id}: ${(e as Error).message}`);
+      }
     }
-    this.users = []; this.customers = []; this.clocks = [];
+
+    this.customers = this.customers.filter((id) => !goneCustomers.has(id));
+    this.clocks = this.clocks.filter((id) => !goneClocks.has(id));
+    this.users = this.users.filter((id) => !goneUsers.has(id));
+
+    if (failures.length > 0) {
+      throw new Error(
+        `TEARDOWN FAILED — ${failures.length} object(s) NOT deleted and STILL IN THE LEDGER. ` +
+          `Delete them BY ID, Stripe objects first, and never by a domain match:\n` +
+          failures.map((f) => `  · ${f}`).join("\n") +
+          `\n  ledger still holds: users=[${this.users.join(", ")}] ` +
+          `customers=[${this.customers.join(", ")}] clocks=[${this.clocks.join(", ")}]`,
+      );
+    }
+  }
+
+  /** What the ledger still holds. Empty after a teardown that fully succeeded. */
+  outstanding(): { users: string[]; customers: string[]; clocks: string[] } {
+    return { users: [...this.users], customers: [...this.customers], clocks: [...this.clocks] };
   }
 }
 
