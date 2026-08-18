@@ -646,3 +646,66 @@ one consistent account of what happens, and the two screens cannot drift apart.
 **If it is ever fixed**, the fix is a real predicate feeding both call sites, not a
 second branch in either one. A second branch is how the two surfaces start
 disagreeing, which is the defect this arrangement exists to prevent.
+
+---
+
+## 9. ⚠️ PROPOSED, UNNUMBERED — a dispute revokes access and leaves Stripe billing
+
+**Raised 18 Aug 2026 from the build lane. NO DECISION NUMBER TAKEN: this is a money
+decision and the number is the founder's or the spec chat's to assign.**
+
+### What was observed
+
+Driving `08`'s Manage summary turned up a state nothing had described. It is not a
+copy problem, and the sentence signed for it (§8's suspended line) is the smallest
+part of it.
+
+**A disputed customer keeps a live, billing Stripe subscription while holding no
+access at all.**
+
+### The evidence, by file and line
+
+- **`lib/billing/sync.ts:1114`** — `revokeForCustomer` writes
+  `.update({ is_active: false })` and **never touches `active_until`**. The
+  entitlement stops granting access; its date is left standing.
+- **`revokeForCustomer` does not cancel anything at Stripe.** It has no
+  `subscriptions.cancel` and no `cancel_at_period_end` write. A dispute is a
+  chargeback event; the subscription is untouched and keeps its schedule.
+- **`lib/billing/access.ts`** — `isEntitlementActive` returns false on
+  `is_active: false`, so `strongestEntitlement` excludes the row and
+  `currentEntitlement()` answers null. The user is read-only the moment the gate is
+  on.
+- **`lib/billing/entitlements.ts`** — `entitlementEndDate` deliberately includes
+  dead rows, which is how `/billing` states the correct date. That is working as
+  designed and is not the issue.
+
+**Net: `entitlements` says no access, `subscriptions` says active, and Stripe will
+raise the next invoice on schedule.** Driven on a seeded revocation:
+`/billing` read `Ends on 17 Sept 2026` beside `$69.99 USD / year` with the cancel
+control still offered.
+
+### Why it is being raised rather than built
+
+The plausible answer is that **a revocation should also stop the subscription** —
+but that is a decision about money and about a customer already in a payment dispute,
+two days from launch. It touches:
+
+- whether a dispute cancels immediately or at period end;
+- whether a REFUND (the other `revokeForCustomer` reason) should behave the same way,
+  which is very likely not the case — a refund of one month is not a decision to end
+  the relationship;
+- what happens if the dispute is later **won**, where the subscription would have to
+  come back;
+- `10-refund-requests.md`, which owns the refund side of the same function.
+
+Standing Law 1 is not violated — nobody has been told they will not be charged. But
+somebody with no access is being charged, which is the shape a second chargeback
+comes from.
+
+### What ships in the meantime
+
+**Nothing beyond the sentence.** §8's signed line names both halves out loud —
+access suspended, plan still active — so the state is at least described accurately
+to the person in it, and the cancel control remains available so they have an exit.
+No behaviour changed.
+

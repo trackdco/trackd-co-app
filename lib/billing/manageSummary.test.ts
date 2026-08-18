@@ -361,8 +361,8 @@ describe("⚠️ the substitutions come from their sources, never typed", () => 
   });
 });
 
-describe("⚠️ withheld-pending-ruling: a live subscription whose access ends early", () => {
-  it("the PAYING sentence is withheld rather than claiming a renewal", () => {
+describe("⚠️ suspended: access revoked while the subscription is still billing", () => {
+  it("gets its OWN signed sentence, never the PAYING one's renewal claim", () => {
     /**
      * ⚠️ THE STATE IS REAL AND IS NOT `past_due`. `revokeForCustomer` writes
      * `is_active: false` and leaves `active_until` standing, and a dispute does
@@ -383,8 +383,19 @@ describe("⚠️ withheld-pending-ruling: a live subscription whose access ends 
       interval: "year",
       accessEndsEarly: true,
     });
-    expect(summaryStateFor(facts)).toBe("withheld");
-    expect(manageSummaryFor(facts)).toBeNull();
+    expect(summaryStateFor(facts)).toBe("suspended");
+    const sentence = manageSummaryFor(facts);
+    expect(sentence).toBe(
+      "Your access has been suspended while we look into a payment dispute, and your Pro plan at $69.99 USD a year is still active.",
+    );
+    // ⚠️ BOTH HALVES, because either alone is a lie: access gone, money moving.
+    expect(sentence).toContain("suspended");
+    expect(sentence).toContain("is still active");
+    // Not "read only" — they did not lapse. Not "cancelled" — nothing stopped.
+    expect(sentence!.toLowerCase()).not.toContain("read only");
+    expect(sentence!.toLowerCase()).not.toContain("cancel");
+    // And it promises no resolution and no timeframe.
+    expect(sentence!.toLowerCase()).not.toMatch(/\bdays?\b|within|soon|shortly|resolve/);
   });
 
   it("⚠️ CONTROL: the same account WITHOUT the divergence still gets its sentence", () => {

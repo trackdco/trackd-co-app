@@ -75,6 +75,7 @@ export type SummaryState =
   | "courtesy"
   | "trial"
   | "paying"
+  | "suspended"
   | "lapsed"
   /** ⚠️ NO SENTENCE. See {@link manageSummaryFor} — R5(b), withheld deliberately. */
   | "withheld";
@@ -198,7 +199,7 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
   if (isGenuineTrial(f.entitlement, f.subscription)) return "trial";
 
   /**
-   * ⚠️ WITHHELD-PENDING-RULING: A LIVE SUBSCRIPTION WHOSE ACCESS ENDS EARLY.
+   * ⚠️ SUSPENDED: ACCESS REVOKED WHILE THE SUBSCRIPTION IS STILL BILLING.
    *
    * The PAYING sentence is the only one in the set that claims a RENEWAL — "and
    * it renews on {date}" — and `accessEndsEarly` is `manageActionFor` saying that
@@ -216,14 +217,25 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
    * (The same shape arrives transiently in the `invoice.paid` lag after a
    * renewal, where the row has simply expired.)
    *
-   * No signed sentence describes it. So it is WITHHELD rather than reworded —
-   * R5(b)'s ruling applied to a state found later — and the founder is drafting
-   * one. Withholding leaves Billing's row, which is correct, as the only thing
-   * that speaks. **A sentence must not be invented here**, and in particular the
-   * `past-due` sentence must not be stretched onto it: that would put two
-   * sentences on one state, which is the defect a vacuous pass has already cost.
+   * It was WITHHELD from 18 Aug until the founder signed a sentence for it the
+   * same day. ⚠️ The `past-due` sentence must still never be stretched onto it —
+   * that would put two sentences on one state, which is the defect a vacuous pass
+   * has already cost — and the branch stays BELOW `past-due` so D37's signed
+   * sentence keeps its own cohort. `past_due` also sets `accessEndsEarly`, so
+   * ordering is the only thing separating them.
+   *
+   * ## ⚠️ ONE NARROW WINDOW WHERE THE WORD "dispute" IS NOT YET TRUE
+   *
+   * The same shape arrives for seconds after a successful renewal, between
+   * `customer.subscription.updated` rolling the mirror forward and `invoice.paid`
+   * extending the entitlement. A customer who opens Manage inside that window
+   * reads "dispute" when there is none. It is bounded by webhook delivery, needs
+   * the screen opened inside it, and the alternative — withholding for everybody
+   * so the transient case is never wrong — leaves a genuinely disputed customer
+   * with no explanation at all for as long as the dispute lasts. Recorded rather
+   * than traded, and the scoping is the founder's (2026-08-18).
    */
-  if (f.accessEndsEarly) return "withheld";
+  if (f.accessEndsEarly) return "suspended";
 
   if (f.entitlement) return "paying";
   return f.gateEnabled ? "lapsed" : "paying";
@@ -308,6 +320,21 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
     case "paying":
       if (!f.endsOn || !amount) return null;
       return `You're on your Pro plan at ${amount}, and it renews on ${f.endsOn}.`;
+
+    /**
+     * ⚠️ SIGNED 2026-08-18. Character for character, no em dash.
+     *
+     * It names BOTH halves because either alone is a lie: the access is gone AND
+     * the money is still moving. It promises no resolution and no timeframe,
+     * because neither is ours to promise.
+     *
+     * "Suspended" is a NEW word, deliberately. Not "read only" — they did not
+     * lapse, and that phrase belongs to an account with no entitlement at all.
+     * Not "cancelled" — they did not cancel, and nothing has stopped.
+     */
+    case "suspended":
+      if (!amount) return null;
+      return `Your access has been suspended while we look into a payment dispute, and your Pro plan at ${amount} is still active.`;
 
     case "lapsed":
       return "You're not on a plan at the moment, so Trackd Co is read only.";

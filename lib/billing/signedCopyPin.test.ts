@@ -63,6 +63,7 @@ const RENDERED: Array<[string, string | null]> = [
   ["GRACE-ALIGNED", manageSummaryFor(f({ entitlement: grace, subscription: { status: "trialing" }, actionKind: "cancel", graceEndsOn: D, ...YEAR }))],
   ["APP STORE", manageSummaryFor(f({ entitlement: { source: "apple", activeUntil: null }, actionKind: "store" }))?.replace("the App Store", "{store}") ?? null],
   ["FREE FOR LIFE while charging", manageSummaryFor(f({ entitlement: compForever, subscription: { status: "active" }, actionKind: "cancel", ...YEAR }))],
+  ["SUSPENDED", manageSummaryFor(f({ entitlement: null, subscription: { status: "active" }, actionKind: "cancel", accessEndsEarly: true, ...YEAR }))],
 ];
 
 function firstDifference(actual: string, expected: string): string | null {
@@ -83,12 +84,12 @@ describe("⚠️ signed copy pin: Manage's summary, codepoint for codepoint", ()
     .map((l) => l.trimEnd())
     .filter((l) => l.length > 0);
 
-  it("the signed file holds exactly the twelve sentences the founder sent", () => {
-    expect(signed).toHaveLength(12);
-    expect(RENDERED).toHaveLength(12);
+  it("the signed file holds exactly the thirteen sentences the founder sent", () => {
+    expect(signed).toHaveLength(13);
+    expect(RENDERED).toHaveLength(13);
   });
 
-  for (let i = 0; i < 12; i += 1) {
+  for (let i = 0; i < 13; i += 1) {
     it(`${RENDERED[i]?.[0] ?? `#${i}`} matches the signed line character for character`, () => {
       const [, actual] = RENDERED[i];
       expect(actual).not.toBeNull();

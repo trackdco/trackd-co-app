@@ -10,3 +10,4 @@ Your last payment didn't go through, so your Pro plan runs until {date} and your
 You've got 14 days on us until {date}, and then your Pro plan starts at {price} a year.
 Your subscription is managed through {store}, so you'll need to change or cancel it there.
 You have free access for life, so your Pro plan at {price} a year adds nothing, and cancelling it won't change what you can do.
+Your access has been suspended while we look into a payment dispute, and your Pro plan at {price} a year is still active.
