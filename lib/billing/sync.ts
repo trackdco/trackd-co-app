@@ -1040,11 +1040,41 @@ export async function revokeForCustomer(
   if (!customerId) return "unattributed";
 
   const db = serviceClient();
-  const { data } = await db
+  /**
+   * ⚠️ THE READ ERROR IS INSPECTED, AND AN UNREADABLE MAPPING THROWS (2.2).
+   *
+   * Six lines above, an unreadable Stripe charge throws so Stripe retries, under
+   * this file's own stated principle: "a revocation we failed to apply must be
+   * retried, and must not be stamped as processed." This read dropped its error,
+   * answered `unattributed`, and Stripe got a 200 — so the redelivery never
+   * came and a chargeback was silently never applied.
+   *
+   * ⚠️ AND "UNMAPPED" AND "UNREADABLE" STAY DIFFERENT FACTS. Only one is helped
+   * by a retry:
+   *
+   *   read failed          we do not know whose this is. THROW, so Stripe
+   *                        redelivers and the next attempt can find out.
+   *   read worked, no row  there genuinely is no account behind this customer —
+   *                        a Stripe-side object, or a deleted account. Retrying
+   *                        forever would never produce a row. `unattributed`,
+   *                        which is what that outcome is for.
+   *
+   * Collapsing them was the defect; collapsing them the other way would turn
+   * every genuinely unmapped customer into an infinite redelivery.
+   */
+  const { data, error: mapError } = await db
     .from("billing_customers")
     .select("user_id")
     .eq("stripe_customer_id", customerId)
     .maybeSingle();
+
+  if (mapError) {
+    console.error(
+      `[billing] could not read the account behind ${customerId} for a ${reason}:`,
+      mapError.message,
+    );
+    throw new Error(`billing_customers lookup failed for ${reason}`);
+  }
 
   const userId = data?.user_id;
   if (!userId) {
