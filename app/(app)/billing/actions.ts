@@ -381,8 +381,38 @@ async function offerAfterCancel(
      * WITH an expiry is the beta grace and is deliberately not here: they are
      * sold to when the fortnight ends, so an offer is meaningful for them.
      */
+    /**
+     * ⚠️ AND AN UNREADABLE ENTITLEMENT REFUSES TOO. THIS IS THE CRITICAL HALF.
+     *
+     * The guard read `currentEntitlement()`, which answered `null` both for "not
+     * a comp" and for "the entitlements table would not answer". Only the first
+     * is a reason to continue. On a failed read the guard **stepped aside**, the
+     * offer was shown, and accepting it LIFTS the cancellation (`saveOffer.ts`)
+     * and re-arms a real charge — on somebody promised in writing they would
+     * never be charged, who read D78's "your free access carries on as it always
+     * has" one screen earlier.
+     *
+     * Standing Law 1 is the whole reason this direction is not a judgement call:
+     * nobody is ever charged after being told they would not be. A read that
+     * failed cannot rule out that this is that person, so it is treated as though
+     * it is.
+     *
+     * ## The cost is bounded and the placement is what bounds it
+     *
+     * A non-comp customer whose read failed loses the offer FOR THIS ATTEMPT and
+     * loses nothing else: this sits above `markOfferShown`, so the once-ever flag
+     * is never written and they get the offer in full next time. The alternative
+     * costs a free-for-life comp an unrepeatable charge.
+     */
     const access = await entitlementFacts();
-    const entitlement = access.known ? access.entitlement : null;
+    if (!access.known) {
+      console.error(
+        `[billing] the entitlement read failed for ${customerId}; no save offer shown, ` +
+          `and none burned — a comp cannot be ruled out and must never be re-armed (D79)`,
+      );
+      return undefined;
+    }
+    const entitlement = access.entitlement;
     if (entitlement?.source === "comp" && entitlement.activeUntil === null) {
       console.info(
         `[billing] ${customerId} is a free-for-life comp; no save offer, and none burned (D79)`,
