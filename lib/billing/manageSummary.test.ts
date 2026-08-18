@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BETA_GRACE_DAYS } from "./betaGrace";
+import { manageActionFor } from "./manage";
 import {
   manageSummaryFor,
   summaryStateFor,
@@ -362,18 +363,25 @@ describe("⚠️ the substitutions come from their sources, never typed", () => 
 });
 
 describe("⚠️ suspended: access revoked while the subscription is still billing", () => {
-  it("gets its OWN signed sentence, never the PAYING one's renewal claim", () => {
-    /**
-     * ⚠️ THE STATE IS REAL AND IS NOT `past_due`. `revokeForCustomer` writes
-     * `is_active: false` and leaves `active_until` standing, and a dispute does
-     * not cancel the Stripe subscription — so a disputed customer holds a revoked
-     * entitlement beside an `active`, still-billing one. `currentEntitlement`
-     * excludes the dead row (so `entitlement` is null here) while
-     * `entitlementEndDate` includes it, and the dates diverge.
-     *
-     * Driven: Billing read "Ends on 17 Sept 2026" while Manage read "and it
-     * renews on 17 Sept 2026" — one account, one date, two verbs.
-     */
+  /**
+   * ⚠️ THIS BLOCK USED TO CERTIFY A STATE THE APP CANNOT PRODUCE, and it said
+   * so in its own comment: "the dates diverge". **They do not.**
+   *
+   *   sync.ts:339  subscriptions.current_period_end = entitledUntil(sub)
+   *   sync.ts:399  entitlements.active_until        = entitledUntil(sub)
+   *
+   * One function, one object, two columns — and `revokeForCustomer`
+   * (sync.ts:1112-1117) writes `is_active: false` and never touches
+   * `active_until`. So on a real revocation the two dates are EQUAL, and the
+   * hand-set `accessEndsEarly: true` below was the only thing making the branch
+   * fire. The driver that seeded the same divergence
+   * (`scratchpad/qa-08-step8-cohorts.mjs`) has been reseeded to the writers'
+   * expression and now reports the sentence ABSENT.
+   *
+   * So the two questions are separated. Hand-setting a predicate to pin COPY is
+   * legitimate; hand-setting it to claim the state is REACHABLE is not.
+   */
+  it("COPY PIN — given the state, the sentence is the signed one (reachability is the test below)", () => {
     const facts = f({
       entitlement: null,
       subscription: { status: "active" },
@@ -398,9 +406,62 @@ describe("⚠️ suspended: access revoked while the subscription is still billi
     expect(sentence!.toLowerCase()).not.toMatch(/\bdays?\b|within|soon|shortly|resolve/);
   });
 
+  /**
+   * ⚠️ REACHABILITY, DERIVED — the question the copy pin above cannot answer.
+   *
+   * Nothing here is hand-set. The row shape is what `revokeForCustomer` leaves
+   * behind, field for field, and `accessEndsEarly` comes from `manageActionFor`,
+   * the function the screen calls.
+   *
+   * ⚠️ THIS ASSERTS THE DEFECT, NOT THE INTENT. Today the branch does not fire
+   * and a revoked customer reads the PAYING sentence's renewal claim. Item 1.4
+   * re-keys `suspended` onto the revocation flag and flips these expectations;
+   * until then this records what the app actually does, so the change is visible
+   * in a diff rather than discovered later.
+   */
+  it("⚠️ REACHABILITY: on the shape revokeForCustomer really writes, the branch does NOT fire (1.4)", () => {
+    // One date, because one function writes both columns.
+    const both = "2027-08-18T00:00:00Z";
+    const action = manageActionFor(
+      // `currentEntitlement` excludes the revoked row, so the screen sees null.
+      null,
+      {
+        status: "active",
+        trialEndsAt: null,
+        currentPeriodEnd: both,
+        cancelAtPeriodEnd: false,
+      },
+      // `entitlementEndDate` INCLUDES it, and it carries the same date.
+      both,
+    );
+    expect(action.kind).toBe("cancel");
+    // ARRIVAL: the predicate is genuinely false — not absent, not undefined.
+    expect(action).toMatchObject({ accessEndsEarly: false });
+
+    const revoked = f({
+      entitlement: null,
+      subscription: { status: "active" },
+      actionKind: action.kind as "cancel",
+      endsOn: "18 Aug 2027",
+      price: "$69.99 USD",
+      interval: "year",
+      accessEndsEarly: (action as { accessEndsEarly: boolean }).accessEndsEarly,
+    });
+    // The state three reviewers reported: revoked, and described as paying.
+    expect(summaryStateFor(revoked)).toBe("paying");
+    expect(manageSummaryFor(revoked)).toContain("it renews on 18 Aug 2027");
+  });
+
   it("⚠️ CONTROL: the same account WITHOUT the divergence still gets its sentence", () => {
     // Without this, "withhold whenever there is no entitlement" would pass the
     // assertion above and silence every ordinary account on the gate-off world.
+    //
+    // ⚠️ NOTE FOR 1.4: this shape — no entitlement, live subscription, gate off —
+    // IS the revoked cohort, and "the same account WITHOUT the divergence" is
+    // only true while the divergence is what selects the sentence. When
+    // `suspended` re-keys onto the revocation flag, this control must be re-based
+    // on an account that is genuinely paying (an entitlement present) or it will
+    // be asserting the renewal claim on a revoked customer.
     const healthy = f({
       entitlement: null,
       subscription: { status: "active" },

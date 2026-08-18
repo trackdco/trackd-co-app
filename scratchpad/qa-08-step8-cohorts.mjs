@@ -250,7 +250,27 @@ try {
    * Driven here rather than reasoned about, because "which real state" is the
    * question that decides whether this needs copy at all.
    */
-  const revokedUntil = iso(30 * DAY);
+  /**
+   * ⚠️ ONE DATE IN TWO COLUMNS, BECAUSE ONE FUNCTION WRITES BOTH.
+   *
+   * This seed used to write `active_until = now + 30d` beside
+   * `current_period_end = now + 365d` — a 335-day divergence, four lines under a
+   * comment correctly stating that `revokeForCustomer` never touches
+   * `active_until`. **The app cannot produce that state.**
+   *
+   *   sync.ts:339  subscriptions.current_period_end = entitledUntil(sub)
+   *   sync.ts:399  entitlements.active_until        = entitledUntil(sub)
+   *
+   * The same call on the same object, and `revokeForCustomer`
+   * (sync.ts:1112-1117) writes `is_active: false` and NOTHING else. So on a real
+   * revocation the two dates are **equal by construction**, and every sentence
+   * selected by comparing them is being asked a question that always answers no.
+   *
+   * The rule this earns, applied to every money-path seed in this file: find the
+   * line in `sync.ts` that writes the column and copy its expression. Do not pick
+   * a number.
+   */
+  const revokedUntil = yearlyEnd;
   const rev = await seed("qa08c-revoked", {
     entitlements: [{ source: "stripe", active_until: revokedUntil, is_active: false }],
     subs: [{ status: "active", current_period_end: yearlyEnd, cancel_at_period_end: false }],
@@ -259,24 +279,60 @@ try {
     .from("entitlements")
     .select("is_active, active_until")
     .eq("user_id", rev.id);
+  const revMirror = await admin
+    .from("subscriptions")
+    .select("current_period_end")
+    .eq("user_id", rev.id);
   check(
     "ARRIVAL (revoked): is_active FALSE with its date left standing, as revokeForCustomer writes it",
     revRow.data?.[0]?.is_active === false && revRow.data?.[0]?.active_until !== null,
     `is_active=${revRow.data?.[0]?.is_active}, active_until=${revRow.data?.[0]?.active_until}`,
   );
+  check(
+    "⚠️ ARRIVAL (revoked): the two dates are EQUAL, which is the only shape the writers can produce",
+    revRow.data?.[0]?.active_until !== undefined &&
+      revMirror.data?.[0]?.current_period_end !== undefined &&
+      Date.parse(revRow.data[0].active_until) ===
+        Date.parse(revMirror.data[0].current_period_end),
+    `entitlement=${revRow.data?.[0]?.active_until} mirror=${revMirror.data?.[0]?.current_period_end}`,
+  );
   const r = await bothScreens(rev);
   console.log(`\n--- REVOKED entitlement beside a live active subscription ---\n${r.billing}\n--- manage ---\n${r.manage}\n---`);
+  /**
+   * ⚠️ THE ROW-SELECTION QUESTION CANNOT BE ASKED IN THIS COHORT, and the check
+   * that used to sit here asked it anyway.
+   *
+   * It read `includes(day(revokedUntil)) && !includes(day(yearlyEnd))` — "took
+   * the entitlement's date, not the mirror's". That only means something while
+   * the two dates DIFFER, and they differed only because the seed diverged them.
+   * With the seed corrected to what the writers write, the two dates are the same
+   * date, no reading can distinguish the sources, and the negative half is
+   * self-contradictory.
+   *
+   * So it is not patched, it is replaced: the resolver question is asked in P1
+   * and P2 above, where two rows genuinely carry different dates and the answer
+   * is observable. What is still assertable HERE is that Billing states the one
+   * date at all rather than withholding it.
+   */
   check(
-    "revoked: Billing states the revoked entitlement's date, not the mirror's",
-    r.billing.includes(day(revokedUntil)) && !r.billing.includes(day(yearlyEnd)),
-    `expected ${day(revokedUntil)}, mirror would say ${day(yearlyEnd)}`,
+    "revoked: Billing states the date both sources carry (row selection is asked in P1/P2, where the dates differ)",
+    r.billing.includes(day(revokedUntil)),
+    `expected ${day(revokedUntil)}; both entitlement and mirror carry it`,
   );
   const revBillingVerb = /Ends on/.test(r.billing) ? "Ends on" : /Renews on/.test(r.billing) ? "Renews on" : "neither";
   const revManageVerb = /renews on/.test(r.manage) ? "renews on" : "not a renewal claim";
+  /**
+   * ⚠️ READ THIS PASS BESIDE THE ONE UNDER IT. This asks only that the two
+   * surfaces AGREE, and on the corrected seed they agree on "Renews on" — a
+   * renewal promised to somebody whose access was taken away. Agreement is still
+   * worth holding (two screens one tap apart must not contradict each other), but
+   * it is not correctness, and a green here means nothing on its own. The
+   * correctness question is the signed-sentence check immediately below.
+   */
   check(
     "⚠️ revoked: the two surfaces use the same VERB for the same date",
     !(revBillingVerb === "Ends on" && revManageVerb === "renews on"),
-    `billing="${revBillingVerb}", manage="${revManageVerb}" — THIS IS THE DURABLE VARIANT, not a seeding artefact`,
+    `billing="${revBillingVerb}", manage="${revManageVerb}" — agreement only; see the signed-sentence check below`,
   );
   /**
    * ⚠️ THE SIGNED SENTENCE FOR THIS STATE (2026-08-18). It names BOTH halves,
