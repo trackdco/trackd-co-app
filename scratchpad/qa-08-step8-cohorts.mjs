@@ -290,8 +290,29 @@ try {
    * a number.
    */
   const revokedUntil = yearlyEnd;
+  /**
+   * ⚠️ AND `revoked_reason` IS PART OF WHAT THE WRITER WRITES (D101). SAME RULE.
+   *
+   * `revokeForCustomer` writes `{is_active: false, revoked_reason: reason}` since
+   * `005`. A seed that sets the flag and omits the reason produces a row whose
+   * reason is NULL — which the read path correctly calls `unknown`, and unknown
+   * WITHHOLDS both dispute sentences.
+   *
+   * That is a real state (any row revoked before `005` was applied) but it is not
+   * the cohort this block is about, and seeding it made the signed-sentence check
+   * fail for entirely correct behaviour. Probed rather than assumed, so this file
+   * still runs on a database where `005` has not been applied.
+   */
+  const reasonProbe = await admin.from("entitlements").select("revoked_reason").limit(1);
+  const REASON_COLUMN = !reasonProbe.error;
+  console.log(`\n  005_revoked_reason: ${REASON_COLUMN ? "APPLIED" : "UNAPPLIED"}`);
   const rev = await seed("qa08c-revoked", {
-    entitlements: [{ source: "stripe", active_until: revokedUntil, is_active: false }],
+    entitlements: [{
+      source: "stripe",
+      active_until: revokedUntil,
+      is_active: false,
+      ...(REASON_COLUMN ? { revoked_reason: "dispute" } : {}),
+    }],
     subs: [{ status: "active", current_period_end: yearlyEnd, cancel_at_period_end: false }],
   });
   const revRow = await admin
@@ -361,8 +382,10 @@ try {
    */
   const SUSPENDED = `Your access has been suspended while we look into a payment dispute, and your Pro plan at $69.99 USD a year is still active.`;
   check(
-    "⚠️ revoked: Manage carries the SIGNED suspended sentence, character for character",
-    r.manage.includes(SUSPENDED),
+    REASON_COLUMN
+      ? "⚠️ [005 APPLIED] revoked+dispute: Manage carries the SIGNED suspended sentence, character for character"
+      : "⚠️ [005 UNAPPLIED] revoked: the sentence is WITHHELD, because the reason cannot be known",
+    REASON_COLUMN ? r.manage.includes(SUSPENDED) : !r.manage.includes(SUSPENDED),
     r.manage.split("\n").find((l) => /suspended/.test(l)) ?? "absent",
   );
   check(

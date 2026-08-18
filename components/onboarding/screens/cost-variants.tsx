@@ -41,6 +41,21 @@ type CostVariantProps = {
   yearlyPrice?: number;
 };
 
+/**
+ * ⚠️ AN ILLUSTRATIVE SPEND FIGURE, WHICH IS NOT A PRICE.
+ *
+ * The slider bounds and the "what you run" totals are numbers the USER picks or
+ * that are derived from their pick. `formatPrice` now always renders both
+ * decimals, because a PRICE WE CHARGE must read "$X.XX" — applying that here
+ * would put "$50.00 - $600.00" on a slider and "$2,400.00" on a comparison,
+ * which is the money rule aimed at numbers that are not money we charge.
+ *
+ * Kept whole here, unchanged from what this screen has always rendered.
+ */
+function formatWholeAmount(amount: number): string {
+  return `$${Math.round(amount)}`;
+}
+
 /** Our price, or an em dash. Never a blank and never a guess. */
 function ourPrice(yearlyPrice: number | undefined): string {
   return yearlyPrice === undefined ? "—" : formatPrice(yearlyPrice);
@@ -162,7 +177,7 @@ export function CostVariantC({ onContinue, yearlyPrice }: CostVariantProps) {
       <div className="flex flex-1 flex-col justify-center gap-8">
         <div className="text-center">
           <p className="font-mono text-[2.5rem] font-light tabular-nums leading-none text-foreground">
-            {formatPrice(monthly)}
+            {formatWholeAmount(monthly)}
             <span className="ml-1 text-sm text-text-muted">/mo</span>
           </p>
           <input
@@ -176,8 +191,8 @@ export function CostVariantC({ onContinue, yearlyPrice }: CostVariantProps) {
             className="mt-6 h-1 w-full appearance-none rounded-full bg-bg-input accent-[var(--accent-amber)] outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <div className="mt-2 flex justify-between">
-            <span className={cn(DATA_MONO, "text-[10px]")}>{formatPrice(MIN_SPEND)}</span>
-            <span className={cn(DATA_MONO, "text-[10px]")}>{formatPrice(MAX_SPEND)}+</span>
+            <span className={cn(DATA_MONO, "text-[10px]")}>{formatWholeAmount(MIN_SPEND)}</span>
+            <span className={cn(DATA_MONO, "text-[10px]")}>{formatWholeAmount(MAX_SPEND)}+</span>
           </div>
         </div>
 
@@ -188,7 +203,7 @@ export function CostVariantC({ onContinue, yearlyPrice }: CostVariantProps) {
             <div className="flex items-baseline justify-between">
               <span className="text-[0.85rem] text-text-muted">What you run</span>
               <span className="font-mono text-sm tabular-nums text-foreground">
-                {formatPrice(theirYear)}
+                {formatWholeAmount(theirYear)}
               </span>
             </div>
             <div className="h-2 w-full rounded-full bg-bg-surface-raised" />

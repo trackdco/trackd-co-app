@@ -22,9 +22,39 @@ import { codeFromSearch, normaliseCode, validateCode } from "./affiliate";
  */
 
 describe("formatPrice", () => {
-  it("drops a pointless decimal but keeps a real one", () => {
-    expect(formatPrice(70)).toBe("$70");
+  /**
+   * ⚠️ THIS CASE PINNED THE OPPOSITE RULE UNTIL 18 AUG 2026, DELIBERATELY, and it
+   * is REPLACED rather than relaxed. It read:
+   *
+   *     it("drops a pointless decimal but keeps a real one", () => {
+   *       expect(formatPrice(70)).toBe("$70");
+   *
+   * That was a real decision, not an accident — "$70" is tidier than "$70.00" on
+   * a paywall. It was made before `formatPrice` fed SIGNED BILLING COPY, where
+   * the launch rule is that a price reads "$X.XX USD" character for character. A
+   * plan priced at exactly $70 would have put "your Pro plan at $70 USD a year"
+   * into a codepoint-pinned sentence.
+   *
+   * Not hypothetical: the three live prices are 69.99 / 11.99 / 3.99 so nothing
+   * renders differently today, but this Stripe account already carries
+   * integer-priced prices (5 aud/week, 15 usd/month) and a rounded price is one
+   * dashboard edit away.
+   *
+   * The tidier-paywall intent is preserved where it belongs — `formatWholeAmount`
+   * in the cost-comparison screen, for spend estimates, which are not prices.
+   */
+  it("⚠️ ALWAYS carries both decimals, because a price reads $X.XX", () => {
+    expect(formatPrice(70)).toBe("$70.00");
     expect(formatPrice(9.99)).toBe("$9.99");
+    expect(formatPrice(5, "usd")).toBe("$5.00");
+    expect(formatPrice(69.99, "usd")).toBe("$69.99");
+  });
+
+  it("⚠️ CONTROL: it still rounds to two places rather than printing raw float noise", () => {
+    // Without this, "always two decimals" could be satisfied by string padding
+    // that leaves 11.989999999 as "11.989999999.00" or similar.
+    expect(formatPrice(11.99)).toBe("$11.99");
+    expect(formatPrice(0)).toBe("$0.00");
   });
 });
 

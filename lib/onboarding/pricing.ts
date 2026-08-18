@@ -199,16 +199,34 @@ const WEEKS_PER_YEAR = 52;
 const MONTHS_PER_YEAR = 12;
 
 /**
- * "$70" / "$9.99" — no trailing ".00" on a whole number.
+ * "$70.00" / "$9.99" — A PRICE ALWAYS CARRIES BOTH DECIMALS.
  *
  * Takes the currency so the symbol follows the price rather than being assumed.
  * It defaults to AUD/USD's `$` for the handful of callers that have no plan in
- * hand (the weekly anchor, the cost comparison), which are all rendering our own
- * price in the one currency we sell in.
+ * hand (the weekly anchor), which render our own price in the one currency we
+ * sell in.
+ *
+ * ## ⚠️ IT USED TO DROP THE ".00" ON A WHOLE NUMBER, AND THAT IS A TRIP-WIRE
+ *
+ * `Number.isInteger(amount) ? String(amount) : amount.toFixed(2)` rendered a
+ * price of exactly $70 as **"$70"**, so a signed billing sentence would have read
+ * "your Pro plan at $70 USD a year" — and the launch copy rule is that prices
+ * read **"$X.XX USD"**, character for character.
+ *
+ * **It is not hypothetical.** The three live prices are 69.99, 11.99 and 3.99, so
+ * nothing renders differently today — but this Stripe account already carries
+ * integer-priced prices (`5 aud/week`, `15 usd/month`), and a plan change or a
+ * new currency is one dashboard edit away. The defect would appear in signed copy
+ * at the moment somebody rounded a price, which is exactly when nobody is looking
+ * at the formatter.
+ *
+ * ⚠️ SPEND ESTIMATES ARE NOT PRICES and keep their own formatter. See
+ * `formatWholeAmount` in the cost-comparison screen: a slider reading
+ * "$50.00 - $600.00" would be this rule applied to numbers that are not money we
+ * charge. This function is for what we charge.
  */
 export function formatPrice(amount: number, currency?: string): string {
-  const body = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
-  return `${currency ? currencySymbol(currency) : CURRENCY_SYMBOL}${body}`;
+  return `${currency ? currencySymbol(currency) : CURRENCY_SYMBOL}${amount.toFixed(2)}`;
 }
 
 /** Whatever a plan costs, expressed as a yearly figure. The one conversion. */
