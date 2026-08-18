@@ -170,11 +170,20 @@ guarded("2.1 — a dispute cancels the Stripe subscription", () => {
      * on `is_active` already proves did not.
      */
     const reason = await revokedReason(a.userId);
-    console.log(`  revoked_reason: ${reason}`);
-    expect(
-      reason === "dispute" || reason.startsWith("unapplied") || reason === "null",
-      `unexpected revoked_reason: ${reason}`,
-    ).toBe(true);
+    const window = reason.startsWith("unapplied") ? "005 UNAPPLIED" : "005 APPLIED";
+    console.log(`  [${window}] revoked_reason: ${reason}`);
+    /**
+     * ⚠️ THE WINDOW DECIDES WHICH ASSERTION IS THE RIGHT ONE, and it is NAMED —
+     * a bare pass means two different things either side of the migration, and a
+     * later reader cannot tell which they are looking at.
+     */
+    if (window === "005 APPLIED") {
+      expect(reason, "the reason was not persisted, so the screen cannot tell a refund apart").toBe(
+        "dispute",
+      );
+    } else {
+      expect(reason.startsWith("unapplied"), `unexpected revoked_reason: ${reason}`).toBe(true);
+    }
 
     /* ── ON THE STRIPE OBJECT: the billing has actually stopped ─────── */
     const subAfter = await stripe.subscriptions.retrieve(a.subscriptionId);
@@ -232,11 +241,17 @@ guarded("2.1 — a dispute cancels the Stripe subscription", () => {
      * told their bank disputed a payment.
      */
     const refundReason = await revokedReason(a.userId);
-    console.log(`  revoked_reason after a refund: ${refundReason}`);
-    expect(
-      refundReason === "refund" || refundReason.startsWith("unapplied") || refundReason === "null",
-      `unexpected revoked_reason after a refund: ${refundReason}`,
-    ).toBe(true);
+    const refundWindow = refundReason.startsWith("unapplied") ? "005 UNAPPLIED" : "005 APPLIED";
+    console.log(`  [${refundWindow}] revoked_reason after a refund: ${refundReason}`);
+    if (refundWindow === "005 APPLIED") {
+      expect(
+        refundReason,
+        "the refund was not recorded as a refund, so both dispute sentences would select for it",
+      ).toBe("refund");
+    } else {
+      expect(refundReason.startsWith("unapplied")).toBe(true);
+    }
+    // True in BOTH windows, and the whole point of Q106.
     expect(refundReason, "a refund was recorded as a dispute").not.toBe("dispute");
     const sub = await stripe.subscriptions.retrieve(a.subscriptionId);
     expect(

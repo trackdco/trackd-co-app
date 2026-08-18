@@ -659,8 +659,18 @@ a parameter and simply does not persist it.
 **Founder ruling, 18 Aug 2026, answering Q106.** Store it.
 
 `supabase/billing/005_revoked_reason.sql` adds `entitlements.revoked_reason`, checked
-to `'dispute' | 'refund' | null`. **Written, UNAPPLIED — the founder applies migrations
-by hand.**
+to `'dispute' | 'refund' | null`.
+
+**✅ APPLIED 18 Aug 2026 by the founder, by hand.** VERIFIED against the live schema,
+both halves of the file's own VERIFY block: `information_schema.columns` returns one
+row (`text`, nullable YES), and `pg_constraint` returns
+`CHECK (revoked_reason IS NULL OR revoked_reason = ANY (ARRAY['dispute','refund']))`.
+
+**⚠️ IT BECAME A LAUNCH ITEM BEFORE IT WAS APPLIED, and the reason is worth keeping.**
+While it was unapplied every revoked row read `unknown`, so both dispute sentences were
+withheld from everybody — **D93's signed sentence rendered to nobody**. A sentence that
+is codepoint-pinned but has never appeared on a screen is not a shipped sentence, and
+it would have gone to launch that way.
 
 **⚠️ It is NOT 004.** `004` is date-dependent, single-use and launch-morning-only;
 `005` has no date dependency, no coupling to launch, and is idempotent. **Apply it
@@ -687,10 +697,23 @@ false — but it means D93's sentence does not reach anybody until the migration
 **Applying `005` before launch is the cheap way to close it**, and nothing else depends
 on the timing.
 
-**Driven both ways against real Stripe**, in the unapplied window: a real dispute and a
-real full refund each revoke correctly with the retry firing
-(`revoked_reason is not present (005 unapplied)`), the Stripe subscription is still
-cancelled on the dispute and left alone on the refund, and the screen withholds both
-sentences rather than claiming either. The screen driver PROBES for the column and
-asserts the right thing for whichever window it finds, so it begins proving the
-sentences the moment `005` is applied, with no edit.
+**Driven both ways against real Stripe, in BOTH windows**, and every result line names
+which window it ran in — a bare pass means two different things either side of the
+migration, and a later reader cannot otherwise tell which they are reading.
+
+`[005 UNAPPLIED]` — the write retried without the column, the revocation still landed,
+the subscription was still cancelled on a dispute and left alone on a refund, and both
+sentences were withheld.
+
+`[005 APPLIED]` — the reason is genuinely PERSISTED (`dispute` and `refund`
+respectively, asserted exactly rather than tolerated), and on the real Manage screen:
+
+| cohort | row | renders |
+|---|---|---|
+| revoked, subscription live | `dispute` | the suspended sentence, character for character |
+| revoked, subscription cancelled | `dispute` | the settled sentence, character for character |
+| revoked by a REFUND | `refund` | **nothing** — no dispute sentence, no renewal claim |
+
+The refund cohort is the control Q106 exists for: its row is byte-identical to the
+dispute cohort's in every column but this one, so if the sentences still selected for
+it the fix would have done nothing. 13/13.
