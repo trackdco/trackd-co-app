@@ -3,12 +3,28 @@
 **Branch** `wave3/billing-cancel`. **Freeze head** `a929d98`, unfrozen by this batch.
 **Current head** — see `git log -1`; updated at every commit below.
 
-## Decision numbers taken
+## ⚠️ DECISION NUMBERS TAKEN — D91 to D100, and Q106
 
-**NONE YET.** The ledger's own next-free list (`billing-00-decision-ledger.md:31`)
-reads **D91** and **Q106**; highest issued are D90 and Q105, verified by grep. The ten
-decisions in the brief will take **D91 to D100 in the brief's listed order**. They are
-NOT taken until Group 2 lands and this file names each one against its subject.
+Taken 18 Aug 2026 from the ledger's own next-free list, in the brief's order.
+**Next free is now D101 / Q107.** Nothing renumbered.
+
+| # | subject | owner |
+|---|---|---|
+| D91 | A dispute CANCELS the Stripe subscription | 03, seam to 11 |
+| D92 | A disputed customer may resubscribe freely | 03 |
+| D93 | The dispute-cancellation sentence, signed | 08 |
+| D94 | `suspended` keys on the revocation flag | 08 |
+| D95 | A dropped chargeback is retried | 03, seam to 11 |
+| D96 | The past-due grace stays at three days | 05 |
+| D97 | The two after-the-lapse past-due sentences | 08 — **Group 3** |
+| D98 | The read-only pop-up reworded, STAYS UNBRANCHED | 05 — **Group 3** |
+| D99 | The revocation exemption narrows; revoked-beside-live reported | 11 |
+| D100 | The three parked findings accepted under §9g | 11 |
+
+**Q106** — does the dispute copy apply to a REFUND-revoked account? OPEN, needs a
+ruling. `entitlements` records THAT a row was revoked and never WHY, so a refund and a
+dispute leave byte-identical rows. Predates this batch; D93 inherits it. Cheapest fix
+noted in the ledger: `revokeForCustomer` already takes `reason` and does not persist it.
 
 ## Groups done
 
@@ -23,7 +39,27 @@ NOT taken until Group 2 lands and this file names each one against its subject.
   `979e38d` 1.4 suspended keys on the revocation flag · `0db6d9b` 1.5 screens carry
   accessLive · `994b357` 1.6 subscriptions read says whether it worked ·
   `cd6d2b2` 1.7 dashboard banner + the false comment.
-- Groups 2-5: not started.
+- **Group 2 — COMPLETE.** `139d5e9` 2.2 · `a23aeb4` 2.1 (driven against real Stripe) ·
+  `6499513` 2.3 · `64bd672` 2.4 · `418b33e` 2.5 + the ledger.
+- Groups 3-5: not started.
+
+## ⚠️ D98's COPY WAS RE-SIGNED MID-BATCH — use the SECOND wording
+
+"Your access has ended" is FALSE for the never-had-access cohort, and after the 17 Aug
+backfill that is every new sign-up. Use:
+
+> You don't have access at the moment, so Trackd Co is read only. You can still view
+> everything you've logged, you just can't add to it.
+
+Drive it against ALL SIX cohorts including a fresh account with no entitlement row.
+
+## ⚠️ OWED IN GROUP 3 — the new-sign-up path, never driven
+
+Anyone signing up after the 17 Aug backfill holds no entitlement row and goes
+read-only at P13 with no fortnight. Founder believes that is correct. **Drive once,
+gate on:** the pop-up renders, `?step=plans` is reached, and a genuine 7-day trial is
+offered rather than refused. If any part is broken, STOP and report. P11 must NOT
+re-run the backfill to cover them, and `12` must not change.
 
 ## ⚠️ THE 15 HARNESS FAILURES — CLASSIFIED, NOT FIXED
 
@@ -52,7 +88,7 @@ none was touched.
 |---|---|---|
 | tsc + ESLint | clean | clean |
 | gate audit | 32 / 2 / 69 | 32 / 2 / 69 (unmoved) |
-| `npm run check` tests | 1523 | 1540 (+17, all new controls) |
+| `npm run check` tests | 1523 | 1554 (+31, all new controls) |
 | `qa-05-readonly.mjs` | 23/23 | 23/23 |
 | accounts | 90 / 0 / 90 / 0 / 0 | **91** / 0 / 90 / 0 / 0 — a real Google sign-up landed 05:30Z 18 Aug, mid-session. Baseline raised, nobody deleted. |
 | migration 003 | applied | probed, one row, timestamptz, nullable |
