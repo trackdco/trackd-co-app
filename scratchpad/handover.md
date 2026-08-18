@@ -18,7 +18,33 @@ NOT taken until Group 2 lands and this file names each one against its subject.
   - `e24d058` 0.2 — leak detector: every number in the verdict, exit 0/1/2, both Stripe
     reads paged, nothing classified away.
   - `50d47df` 0.3 — `Ledger.teardown` fails loudly and keeps what it could not delete.
-- Groups 1-5: not started.
+- **Group 1 — COMPLETE.** `688af98` 1.1 widen once (EntitlementRead's shape) ·
+  `7d05e1f` 1.2 comp guard refuses on unreadable · `74daafc` 1.3 predicate split ·
+  `979e38d` 1.4 suspended keys on the revocation flag · `0db6d9b` 1.5 screens carry
+  accessLive · `994b357` 1.6 subscriptions read says whether it worked ·
+  `cd6d2b2` 1.7 dashboard banner + the false comment.
+- Groups 2-5: not started.
+
+## ⚠️ THE 15 HARNESS FAILURES — CLASSIFIED, NOT FIXED
+
+**All 15 are category 2: they need a flag. ZERO regressions.** Proven by running,
+not by reading the headers.
+
+| file | fails | category | proof |
+|---|---|---|---|
+| `notice.scenario.ts` | 9 | needs `BILLING_GATE_ENABLED` (browser) | green with the gate on |
+| `banner.scenario.ts` | 3 | needs `BILLING_GATE_ENABLED` (browser) | green with the gate on |
+| `readonly.scenario.ts` | 1 | needs `BILLING_GATE_ENABLED` (browser) | green with the gate on |
+| `rule0.scenario.ts` | 2 | needs the flag IN-PROCESS | green with the flag |
+
+banner + notice + readonly: **20/20** against a gate-on dev server, gate proven from
+the named artefact first. rule0: **2/2** with `BILLING_GATE_ENABLED=true` on the vitest
+command line — and its own first test IS the named-artefact control that the flag
+reached the process.
+
+Every failure is an ARRIVAL assertion failing safe ("the notice did not open",
+"not exactly one banner"), never a vacuous pass. None is a genuine regression, and
+none was touched.
 
 ## Baseline
 
@@ -26,9 +52,9 @@ NOT taken until Group 2 lands and this file names each one against its subject.
 |---|---|---|
 | tsc + ESLint | clean | clean |
 | gate audit | 32 / 2 / 69 | 32 / 2 / 69 (unmoved) |
-| `npm run check` tests | 1523 | 1524 (+1: the 1.4 reachability test) |
+| `npm run check` tests | 1523 | 1540 (+17, all new controls) |
 | `qa-05-readonly.mjs` | 23/23 | 23/23 |
-| accounts | 90 / 0 / 90 / 0 / 0 | unchanged, `qa-audit.mjs` exits 0 |
+| accounts | 90 / 0 / 90 / 0 / 0 | **91** / 0 / 90 / 0 / 0 — a real Google sign-up landed 05:30Z 18 Aug, mid-session. Baseline raised, nobody deleted. |
 | migration 003 | applied | probed, one row, timestamptz, nullable |
 | flags | absent from `.env.local` | absent, unchanged |
 
@@ -43,7 +69,18 @@ NOT taken until Group 2 lands and this file names each one against its subject.
 3. **The 0.1 row-selection assertion was replaced, not patched** — it is unanswerable
    once the two dates are equal, and that question is already asked in P1/P2.
 4. **`manageSummary.test.ts` characterises the defect** rather than asserting the
-   intent. 1.4 flips it. Green today for a true reason.
+   intent. 1.4 flipped it.
+5. **1.1 widened at `EntitlementRead`'s shape**, not `compEntitlement`'s — it already
+   exists, `proAccessState` already proves it on the same table, and
+   `compEntitlement`'s union is comp-specific. The two collapsing readers were
+   DELETED rather than left beside it.
+6. **1.4 produced one new defect and it was caught by driving** — P2 (the
+   `invoice.paid` lag) fell through to a renewal claim naming a PAST date. Resolved by
+   returning to the founder's own recorded ruling for that cohort (withhold), which the
+   driver already carried four lines above the assertion that had overwritten it.
+   Nothing was invented. **That is one occurrence; the stop rule is two running.**
+7. **1.5's declined card WITHHOLDS** rather than rewording. Group 3.1 signs the
+   replacement.
 
 ## Corrections to the brief, both measured
 
