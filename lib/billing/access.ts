@@ -148,3 +148,47 @@ function entitlementTier(e: Entitlement): number {
   if (e.source === "comp") return e.activeUntil === null ? 0 : 2;
   return 1;
 }
+
+/**
+ * ⚠️ THE FOUR DISPLAY FACTS, DERIVED FROM ONE ROW SET.
+ *
+ * Pure, and here rather than in the reader, for this file's own stated reason: a
+ * rule buried inside a query is a rule nobody can check. `entitlements.ts` reads;
+ * this decides.
+ *
+ * They are derived TOGETHER because they come from one row set and separating
+ * them is what let two of them disagree. Notably {@link EntitlementDerived.revoked}
+ * is read off the FLAG and never off a date comparison: `sync.ts` writes the
+ * entitlement's `active_until` and the mirror's `current_period_end` from the same
+ * `entitledUntil(sub)` call, and `revokeForCustomer` leaves `active_until` alone —
+ * so on a real revocation the two dates are equal and every predicate comparing
+ * them answers "no".
+ */
+export interface EntitlementDerived {
+  /** The strongest row active RIGHT NOW. Dead rows excluded, by design. */
+  entitlement: Entitlement | null;
+  /** The FURTHEST end date across pro rows, dead ones INCLUDED, by design. */
+  endDate: string | null;
+  /** A pro row somebody turned off. A decision, not an absence. */
+  revoked: boolean;
+  /** Does this row set grant access right now? The gate's own question. */
+  accessLive: boolean;
+}
+
+export function deriveEntitlementFacts(
+  entitlements: readonly Entitlement[],
+  now: Date,
+): EntitlementDerived {
+  const pro = entitlements.filter((e) => e.product === PRO);
+  const dated = pro
+    .filter((e) => e.activeUntil !== null)
+    .map((e) => Date.parse(e.activeUntil!))
+    .filter((t) => Number.isFinite(t));
+
+  return {
+    entitlement: strongestEntitlement(entitlements, now),
+    endDate: dated.length === 0 ? null : new Date(Math.max(...dated)).toISOString(),
+    revoked: pro.some((e) => e.isActive === false),
+    accessLive: grantsPro(entitlements, now),
+  };
+}

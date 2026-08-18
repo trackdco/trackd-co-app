@@ -1,6 +1,6 @@
 import "server-only";
 
-import { currentEntitlement, entitlementEndDate } from "@/lib/billing/entitlements";
+import { entitlementFacts } from "@/lib/billing/entitlements";
 import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
 import { courtesyUntilFor } from "@/lib/billing/courtesy";
 import { declinedOnFor } from "@/lib/billing/declined";
@@ -42,6 +42,31 @@ export interface BillingFacts {
   subscription: ManageableSubscription | null;
   action: ReturnType<typeof manageActionFor>;
   entitlementEnd: string | null;
+  /**
+   * ⚠️ DOES THIS PERSON HOLD ACCESS RIGHT NOW, AND DO WE KNOW?
+   *
+   * The app carried a DATE for when access ends and never carried whether access
+   * is LIVE, so three surfaces reconstructed it from the date and got it wrong.
+   * The worst of them: a REVOKED account read "Access: Read only" with "Your
+   * account stays as it is until 17 Sept 2026" two rows above it, because
+   * `entitlementEnd` includes dead rows by design and nothing said the row was
+   * dead.
+   *
+   * `accessKnown` is false when the entitlement read FAILED. It is not "they have
+   * nothing" and no surface may spend it as though it were — the same distinction
+   * `subscriptionsKnown` makes below, for the same reason.
+   */
+  accessLive: boolean;
+  accessKnown: boolean;
+  /**
+   * ⚠️ A PRO ROW SOMEBODY TURNED OFF. The fact `suspended` keys on.
+   *
+   * Not derived from the two dates disagreeing: `sync.ts:339` and `sync.ts:399`
+   * both write from `entitledUntil(sub)` and `revokeForCustomer` leaves
+   * `active_until` alone, so on a real revocation the dates are EQUAL and a date
+   * comparison always answers no.
+   */
+  accessRevoked: boolean;
   declinedOn: string | null;
   hasStripeCustomer: boolean;
   price: { amount: number; currency: string; interval: string } | undefined;
@@ -72,7 +97,11 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
      */
     { data: subs, error: subsError },
     { data: customer },
-    entitlement,
+    /**
+     * ⚠️ THE WIDENED READ. It says whether it worked, so nothing below can spend
+     * "could not read entitlements" as "not on a plan".
+     */
+    access,
   ] = await Promise.all([
       supabase.from("profiles").select("timezone").eq("id", userId).maybeSingle(),
       // ⚠️ FILTERED AND ORDERED THE SAME WAY THE ACTION DECIDES.
@@ -138,9 +167,16 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
         .select("stripe_customer_id")
         .eq("user_id", userId)
         .maybeSingle(),
-      currentEntitlement(),
+      entitlementFacts(),
     ]);
   const hasStripeCustomer = Boolean(customer?.stripe_customer_id);
+  /**
+   * ⚠️ `entitlement` IS NULL IN BOTH DIRECTIONS AND THAT IS DELIBERATE — it is a
+   * DISPLAY value, and displaying nothing is right whether the row is absent or
+   * unreadable. What may not collapse is the DECISIONS, and those read
+   * `accessKnown` beside it rather than inferring from this null.
+   */
+  const entitlement = access.known ? access.entitlement : null;
 
   const tz = (profile?.timezone as string | null) || "Australia/Sydney";
 
@@ -257,7 +293,7 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
    * query either way — naming it makes the two uses visible instead of implying
    * they are separate reads that could drift.
    */
-  const entitlementEnd = await entitlementEndDate();
+  const entitlementEnd = access.known ? access.endDate : null;
   const action = manageActionFor(entitlement, subscription, entitlementEnd);
 
   /**
@@ -325,6 +361,9 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
     subscription,
     action,
     entitlementEnd,
+    accessLive: access.known ? access.accessLive : false,
+    accessKnown: access.known,
+    accessRevoked: access.known ? access.revoked : false,
     declinedOn,
     hasStripeCustomer,
     price,

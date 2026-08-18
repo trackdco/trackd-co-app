@@ -12,7 +12,7 @@ import { BETA_NOTICE_COOKIE, betaNoticeSeen } from "@/lib/billing/betaNoticeStor
 import { billingGateEnabled } from "@/lib/billing/gate";
 import { loadPricesSafe } from "@/lib/billing/prices";
 import { formatAccessDate } from "@/lib/billing/manage";
-import { currentEntitlement } from "@/lib/billing/entitlements";
+import { entitlementFacts } from "@/lib/billing/entitlements";
 import { dismissedTrialNoticeDate } from "@/lib/billing/trialNoticeStore";
 import { localParts } from "@/lib/notifications/reminders";
 import {
@@ -128,8 +128,11 @@ export default async function DashboardPage() {
    * With the switch off nothing ends. Warning somebody about a deadline that is
    * not enforced is the same lie as not warning them about one that is.
    */
+  const access = await entitlementFacts();
   const graceTrial =
-    trialRow || !billingGateEnabled() ? null : graceAsTrial(await currentEntitlement());
+    trialRow || !billingGateEnabled()
+      ? null
+      : graceAsTrial(access.known ? access.entitlement : null);
   // Scoped to the account here, where the user id is known, rather than inside
   // the pure date module which deliberately knows nothing about accounts.
   const dismissedFor = dismissedTrialNoticeDate(
@@ -193,7 +196,7 @@ export default async function DashboardPage() {
    * measured at a 166ms paint and a 68px page jump on every load. As a MODAL
    * that would be a dialog flashing across the screen on every app open.
    */
-  const betaEntitlement = await currentEntitlement();
+  const betaEntitlement = access.known ? access.entitlement : null;
 
   /**
    * ⚠️ `05` §3.6b — THE FINAL ENTITLED DAY, AND THE NO-DOUBLE-BANNER RULE.

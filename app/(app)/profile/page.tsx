@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { ProfileScreen } from "@/components/profile/ProfileScreen";
 import { courtesyUntilFor } from "@/lib/billing/courtesy";
-import { currentEntitlement } from "@/lib/billing/entitlements";
+import { entitlementFacts } from "@/lib/billing/entitlements";
 import { billingGateEnabled } from "@/lib/billing/gate";
 import { planLabelFor } from "@/lib/billing/manage";
 import { createClient } from "@/lib/supabase/server";
@@ -105,7 +105,14 @@ export default async function ProfilePage() {
    * from "Free trial" to "Pro" — a wrong label in the over-promising direction,
    * caused by nothing but a migration gap. See `lib/billing/courtesy.ts`.
    */
-  const entitlement = await currentEntitlement();
+  /**
+   * ⚠️ DISPLAY ONLY, so an unreadable read and an absent row may collapse HERE —
+   * the pill renders the lapsed label either way and asserts nothing about why.
+   * The collapse is written out rather than implied, because the same `null` on
+   * the dashboard and in the save-offer guard feeds DECISIONS and may not.
+   */
+  const access = await entitlementFacts();
+  const entitlement = access.known ? access.entitlement : null;
   const { data: subRow } = await supabase
     .from("subscriptions")
     .select("status")

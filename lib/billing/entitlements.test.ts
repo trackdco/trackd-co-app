@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { grantsPro, isEntitlementActive, PRO, strongestEntitlement } from "./access";
+import {
+  deriveEntitlementFacts,
+  grantsPro,
+  isEntitlementActive,
+  PRO,
+  strongestEntitlement,
+} from "./access";
 import type { Entitlement, EntitlementSource } from "./access";
 
 /**
@@ -240,5 +246,110 @@ describe("⚠️ strongestEntitlement — the beta grace must not outrank a subs
     ]) {
       expect(strongestEntitlement(p, now)?.activeUntil).toBeNull();
     }
+  });
+});
+
+/**
+ * ⚠️ THE WIDENED READ'S DERIVATION (1.1).
+ *
+ * `currentEntitlement` and `entitlementEndDate` both routed through
+ * `listEntitlements`, which returns `[]` on a FAILED read, and both then answered
+ * `null` for two different facts: "no entitlement" and "could not read
+ * entitlements". Five surfaces spent that null as though it were the first.
+ *
+ * The three-state answer already existed eight lines away in `proAccessState`,
+ * and the WRITE path already used it — so on ONE failed read the app answered
+ * "unknown, still syncing, retry" on the write path and "not on a plan" on the
+ * billing path, in the same request.
+ *
+ * The read half is `entitlementFacts` and is server-only. THIS is the deciding
+ * half, and it is pure so it can be checked rather than mocked.
+ */
+describe("⚠️ deriveEntitlementFacts — the four facts that must not disagree", () => {
+  const now = new Date("2026-08-18T00:00:00.000Z");
+  const e = (over: Partial<Entitlement>): Entitlement => ({
+    product: PRO,
+    source: "stripe" as EntitlementSource,
+    activeUntil: "2027-08-18T00:00:00.000Z",
+    isActive: true,
+    ...over,
+  });
+
+  it("an ordinary paying account: live, not revoked, with its date", () => {
+    const f = deriveEntitlementFacts([e({})], now);
+    expect(f.accessLive).toBe(true);
+    expect(f.revoked).toBe(false);
+    expect(f.entitlement?.source).toBe("stripe");
+    expect(f.endDate).toBe("2027-08-18T00:00:00.000Z");
+  });
+
+  it("⚠️ THE REVOKED SHAPE: the flag is false, the DATE IS UNTOUCHED", () => {
+    // Field for field what revokeForCustomer leaves behind: is_active false,
+    // active_until exactly as it was. This is the cohort 1.4 is about.
+    const f = deriveEntitlementFacts([e({ isActive: false })], now);
+    expect(f.revoked, "the revocation flag is the fact, and it is readable").toBe(true);
+    expect(f.accessLive, "a revoked row grants nothing").toBe(false);
+    expect(f.entitlement, "and it must not name their plan").toBeNull();
+    // ⚠️ The date SURVIVES, which is why every surface could still print it.
+    expect(f.endDate).toBe("2027-08-18T00:00:00.000Z");
+  });
+
+  it("⚠️ CONTROL: a LAPSED account is not a revoked one, and they differ in `revoked` alone", () => {
+    // Both grant nothing and both name no plan. The old code could not tell them
+    // apart at all, which is how a revoked account read "You're on your Pro plan".
+    const lapsed = deriveEntitlementFacts(
+      [e({ activeUntil: "2026-08-01T00:00:00.000Z" })],
+      now,
+    );
+    const revoked = deriveEntitlementFacts([e({ isActive: false })], now);
+    expect(lapsed.accessLive).toBe(false);
+    expect(revoked.accessLive).toBe(false);
+    expect(lapsed.entitlement).toBeNull();
+    expect(revoked.entitlement).toBeNull();
+    expect(lapsed.revoked, "a date that passed is not a decision somebody made").toBe(false);
+    expect(revoked.revoked).toBe(true);
+  });
+
+  it("no rows at all: nothing live, nothing revoked, no date to state", () => {
+    const f = deriveEntitlementFacts([], now);
+    expect(f).toEqual({ entitlement: null, endDate: null, revoked: false, accessLive: false });
+  });
+
+  it("a free-for-life comp is live and names NO date, which is not the same as no access", () => {
+    const f = deriveEntitlementFacts([e({ source: "comp", activeUntil: null })], now);
+    expect(f.accessLive).toBe(true);
+    expect(f.endDate, "null here means `this source has nothing to say`").toBeNull();
+    expect(f.revoked).toBe(false);
+  });
+
+  it("⚠️ endDate takes the FURTHEST date, so a live row is never under-cut by a stale one", () => {
+    const f = deriveEntitlementFacts(
+      [
+        e({ source: "comp", activeUntil: "2026-08-20T00:00:00.000Z" }),
+        e({ source: "stripe", activeUntil: "2027-08-18T00:00:00.000Z" }),
+      ],
+      now,
+    );
+    expect(f.endDate).toBe("2027-08-18T00:00:00.000Z");
+  });
+
+  it("⚠️ a revoked row BESIDE a live one: access holds, and the revocation is still reported", () => {
+    // A withdrawn comp beside a paid subscription. `revoked` is about the rows,
+    // not about the outcome, so 2.3's exemption can ask which row it belongs to.
+    const f = deriveEntitlementFacts(
+      [e({ source: "comp", isActive: false, activeUntil: null }), e({ source: "stripe" })],
+      now,
+    );
+    expect(f.accessLive).toBe(true);
+    expect(f.entitlement?.source).toBe("stripe");
+    expect(f.revoked).toBe(true);
+  });
+
+  it("ignores rows for another product entirely", () => {
+    const other = { ...e({}), product: "not-pro" as unknown as typeof PRO };
+    const f = deriveEntitlementFacts([other], now);
+    expect(f.accessLive).toBe(false);
+    expect(f.revoked, "another product's dead row is not this product's revocation").toBe(false);
+    expect(f.endDate).toBeNull();
   });
 });

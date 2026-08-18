@@ -6,9 +6,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 import {
+  deriveEntitlementFacts,
   grantsPro,
-  PRO,
-  strongestEntitlement,
   type Entitlement,
   type EntitlementProduct,
   type EntitlementSource,
@@ -138,57 +137,111 @@ export const proAccessState = cache(
 );
 
 /**
- * What the user's access rests on, for DISPLAY — the Billing row's "current
- * plan", and whether to say "complimentary" rather than name a plan.
+ * ⚠️ EVERYTHING THE DISPLAY LAYER NEEDS FROM `entitlements`, IN ONE READ THAT
+ * SAYS WHETHER IT WORKED.
  *
- * Session-scoped like `hasProAccess`, and for the same reason.
+ * ## The defect this replaces, and why widening one consumer would not have fixed it
+ *
+ * `currentEntitlement` and `entitlementEndDate` both routed through
+ * {@link listEntitlements}, which returns `[]` on a FAILED read — correct
+ * fail-closed behaviour for a gate, and destructive for a sentence. Both then
+ * answered `null` for two different facts: "no entitlement" and "could not read
+ * entitlements". Five surfaces spent that `null` as though it were the first.
+ *
+ * The three-state answer already existed eight lines above, in
+ * {@link proAccessState}, and the WRITE path already used it (`gate.ts`). So on
+ * ONE failed read this app answered **"unknown, still syncing, retry"** on the
+ * write path and **"not on a plan"** on the billing path, in the same request.
+ *
+ * Widening any single consumer would have left the other four, so the read is
+ * widened ONCE, here, and the collapsing readers are GONE rather than left beside
+ * it — a three-state reader sitting next to a two-state one is how this was
+ * written in the first place.
+ *
+ * ## The four facts, and why they travel together
+ *
+ * They come from one row set, and separating them is what let two of them
+ * disagree. `entitlement` excludes dead rows because a revoked comp must not be
+ * labelled Complimentary; `endDate` includes them because a screen that drops the
+ * date over-promises; `revoked` is the row somebody TURNED OFF; `accessLive` is
+ * the question no field on this table answered before — **does this person hold
+ * access right now** — which every surface was reconstructing from a date.
  */
-export const currentEntitlement = cache(async (): Promise<Entitlement | null> => {
-  const user = await getCurrentUser();
-  if (!user) return null;
-  return strongestEntitlement(await listEntitlements(user.id), new Date());
-});
+export type EntitlementFacts =
+  | {
+      /** The read worked. Every field below means what it says. */
+      known: true;
+      /**
+       * The strongest row active RIGHT NOW, for DISPLAY — the Billing row's
+       * "current plan", and whether to say "complimentary" rather than name a
+       * plan. Excludes dead rows on purpose.
+       */
+      entitlement: Entitlement | null;
+      /**
+       * ⚠️ WHEN THIS ACCOUNT'S PRO ACCESS ENDS OR ENDED, **INCLUDING WHEN IT IS
+       * ALREADY OVER.** For dates only. It decides nothing.
+       *
+       * `entitlement` resolves through `strongestEntitlement`, which filters to
+       * rows active right now. `/billing` fed that same value to
+       * `manageActionFor` as the date to state, and the guard there exists
+       * precisely for the case where the entitlement and the mirror DISAGREE — so
+       * an expired or revoked entitlement came back `null`, `soonerOf` had
+       * nothing to compare, and it fell back to the mirror. **The guard stopped
+       * applying at exactly the moment the two dates diverge most.**
+       *
+       * Measured by a cold review: a yearly whose entitlement was clawed back to
+       * 14 Aug with the mirror still at 2027-08-16 was promised another 365 days
+       * of full access. A revoked dispute case was promised 31.
+       *
+       * The FURTHEST date across the user's pro rows, so a live row is never
+       * under-cut by a stale one beside it, and `null` when no row names a date
+       * at all (a no-expiry comp, or no rows) — which `soonerOf` correctly treats
+       * as "this source has nothing to say".
+       */
+      endDate: string | null;
+      /**
+       * ⚠️ A PRO ROW SOMEBODY TURNED OFF. A DECISION, NOT AN ABSENCE.
+       *
+       * `revokeForCustomer` writes `is_active: false` and touches nothing else,
+       * so this is the ONLY field that distinguishes a revoked account from one
+       * that simply never had a row. It is deliberately not derived from a date:
+       * `sync.ts:339` and `sync.ts:399` both write from `entitledUntil(sub)`, so
+       * the entitlement's date and the mirror's are EQUAL by construction on a
+       * revocation, and every predicate that compared them answered "no".
+       */
+      revoked: boolean;
+      /**
+       * ⚠️ DOES THIS PERSON HOLD ACCESS RIGHT NOW? The fact the app carried a
+       * DATE for and never carried directly.
+       *
+       * The same rule `hasProAccess` gates on, so a surface can no longer
+       * disagree with the gate about whether somebody is entitled.
+       */
+      accessLive: boolean;
+    }
+  /**
+   * ⚠️ WE COULD NOT ASK. Not "they have nothing" — a distinction the caller MUST
+   * make, which is why there is no field to read past it.
+   */
+  | { known: false };
 
 /**
- * ⚠️ WHEN THIS ACCOUNT'S PRO ACCESS ENDS OR ENDED, **INCLUDING WHEN IT IS ALREADY
- * OVER.** For dates only. It decides nothing.
+ * The widened read. Session-scoped like `hasProAccess`, and for the same reason:
+ * a reader that takes a user id is a reader that can be pointed at somebody else.
  *
- * ## The defect this exists for
- *
- * {@link currentEntitlement} resolves through `strongestEntitlement`, which
- * filters to rows active RIGHT NOW. That is correct for deciding what somebody is
- * ON — a dead row grants nothing and must not name their plan.
- *
- * But `/billing` also fed that same value to `manageActionFor` as the date to
- * state, and **the guard there exists precisely for the case where the
- * entitlement and the mirror DISAGREE.** An expired or revoked entitlement is not
- * active, so it came back `null`, so `soonerOf` had nothing to compare and fell
- * back to the mirror — **the guard stopped applying at exactly the moment the two
- * dates diverge most.**
- *
- * Measured by a cold review: a yearly whose entitlement was clawed back to 14 Aug
- * with the mirror still at 2027-08-16 was promised **another 365 days** of full
- * access. A revoked dispute case was promised 31.
- *
- * ## Why it is a separate function rather than a looser filter
- *
- * The two questions must not be merged. "What does their access rest on?" has to
- * keep excluding dead rows, or a revoked comp would be labelled Complimentary.
- * "When does or did it end?" has to include them, or the screen over-promises.
- * One function answering both is how this defect was written in the first place.
- *
- * Returns the FURTHEST date across the user's pro rows, so a live row is never
- * under-cut by a stale one beside it, and `null` when no row names a date at all
- * (a no-expiry comp, or no rows), which `soonerOf` correctly treats as "this
- * source has nothing to say".
+ * Request-`cache()`d, so several surfaces on one page pay for one query.
  */
-export const entitlementEndDate = cache(async (): Promise<string | null> => {
+export const entitlementFacts = cache(async (): Promise<EntitlementFacts> => {
   const user = await getCurrentUser();
-  if (!user) return null;
-  const dated = (await listEntitlements(user.id))
-    .filter((e) => e.product === PRO && e.activeUntil !== null)
-    .map((e) => Date.parse(e.activeUntil!))
-    .filter((t) => Number.isFinite(t));
-  if (dated.length === 0) return null;
-  return new Date(Math.max(...dated)).toISOString();
+  /**
+   * ⚠️ NO SESSION IS `known: false`, matching {@link proAccessState}. Somebody
+   * with no session is not a lapsed subscriber, and the honest answer to "what
+   * are they entitled to" is that we cannot say.
+   */
+  if (!user) return { known: false };
+
+  const read = await readEntitlements(user.id);
+  if (!read.ok) return { known: false };
+
+  return { known: true, ...deriveEntitlementFacts(read.entitlements, new Date()) };
 });

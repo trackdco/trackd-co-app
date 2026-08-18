@@ -30,7 +30,7 @@ import {
   periodIsUnpaid,
   readSaveOffer,
 } from "@/lib/billing/saveOffer";
-import { currentEntitlement } from "@/lib/billing/entitlements";
+import { entitlementFacts } from "@/lib/billing/entitlements";
 import { stripe } from "@/lib/billing/stripe";
 import { syncSubscription } from "@/lib/billing/sync";
 import { createClient } from "@/lib/supabase/server";
@@ -381,7 +381,8 @@ async function offerAfterCancel(
      * WITH an expiry is the beta grace and is deliberately not here: they are
      * sold to when the fortnight ends, so an offer is meaningful for them.
      */
-    const entitlement = await currentEntitlement();
+    const access = await entitlementFacts();
+    const entitlement = access.known ? access.entitlement : null;
     if (entitlement?.source === "comp" && entitlement.activeUntil === null) {
       console.info(
         `[billing] ${customerId} is a free-for-life comp; no save offer, and none burned (D79)`,

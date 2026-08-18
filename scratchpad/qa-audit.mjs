@@ -76,7 +76,21 @@ import { admin } from "./admin.mjs";
 import { stripe } from "./qa-billing.mjs";
 
 const QA = "@trackd-qa.invalid";
-const EXPECT_USERS = Number(process.env.QA_AUDIT_EXPECT_USERS ?? 90);
+/**
+ * ⚠️ 91 SINCE 18 AUG 2026, AND THE +1 IS A REAL PERSON.
+ *
+ * It was 90 at the freeze. A genuine Google sign-up landed at 05:30Z on 18 Aug,
+ * mid-session — a real gmail address on the `google` provider, which nothing in
+ * the QA tooling can create: `makeUser` issues email+password accounts on
+ * `@trackd-qa.invalid` and nothing else. `@trackd-qa.invalid` count stayed 0
+ * throughout, and `entitlements` stayed at 90, so the new account holds no
+ * billing row yet.
+ *
+ * The number was RAISED, which is what this file's own rule says to do. Nobody
+ * was deleted, and the identity is deliberately not recorded here — it is a real
+ * user of a production app and this file is tracked.
+ */
+const EXPECT_USERS = Number(process.env.QA_AUDIT_EXPECT_USERS ?? 91);
 
 /**
  * ⚠️ SUBSCRIPTIONS A PERSON HAS ALREADY LOOKED AT, BY ID, WITH THE DATE THEY
