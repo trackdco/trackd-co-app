@@ -124,6 +124,17 @@ condensed_GLBX-*
 # its comment claimed to establish something a status code cannot.
 !/scratchpad/qa-05-readonly.mjs
 
+# ⚠️ AND THE LEAK DETECTOR'S OWN CONTROL, tracked 2026-08-18 with the audit
+# rewrite it proves. `qa-audit.mjs` is tracked; a detector whose control is on one
+# machine is exactly the claim-not-evidence failure D89 tracked the spine to close,
+# and this one matters more than most: the audit's entire job is to be believed
+# when it prints CLEAN, and until this ran it had only ever printed CLEAN.
+#
+# It creates ONE `@trackd-qa.invalid` account, asserts the exit code moves 0 -> 1,
+# and drops it BY ID in a `finally`. No credential, no list patch, no billing
+# route. Secret-scanned before tracking.
+!/scratchpad/qa-audit-controls.mjs
+
 # ⚠️ BUT NEVER THE SINK'S KEY MATERIAL. `PushSink` self-signs a certificate for
 # 127.0.0.1 on first run and caches it here. It is regenerated on demand, it is
 # worthless to anybody, and a private key does not go in a repository regardless.
