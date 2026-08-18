@@ -67,11 +67,26 @@ const PRIMARY = "Update my card";
 export function DeclinedCard({
   declinedOn,
   accessEndsOn,
+  accessLive,
 }: {
   /** Formatted server-side, from the failed Stripe charge. Null = unknown. */
   declinedOn: string | null;
   /** Formatted server-side, from the entitlement row. Null = unknown. */
   accessEndsOn: string | null;
+  /**
+   * ⚠️ DOES THIS PERSON STILL HOLD ACCESS? From `entitlements`, the table that
+   * decides it — never reconstructed from the date above.
+   *
+   * `accessEndsOn` includes DEAD rows by design (`entitlementEndDate` must, or
+   * the screen over-promises), so a date being present says nothing about whether
+   * access survives. Driven on a REVOKED account: the plan card read
+   * "Access: Read only" while this card, two rows above it, read "Your account
+   * stays as it is until 17 Sept 2026". Both from the same load.
+   *
+   * False here also covers "we could not read the table", which is correct: a
+   * screen that cannot ask must not promise.
+   */
+  accessLive: boolean;
 }) {
   /**
    * ⚠️ "Not now" DISMISSES FOR THIS VIEW ONLY, AND NOTHING IS PERSISTED.
@@ -98,7 +113,20 @@ export function DeclinedCard({
             {DECLINED_ON(declinedOn)}
           </p>
         ) : null}
-        {accessEndsOn ? (
+        {/**
+          * ⚠️ THE PROMISE NEEDS BOTH A DATE AND LIVE ACCESS.
+          *
+          * "stays as it is until {date}, and goes read only after that" is a
+          * statement about the FUTURE. Said to somebody whose access has already
+          * gone — lapsed past the grace, or revoked — both halves are false, and
+          * it renders directly above a plan card reading "Read only".
+          *
+          * Withheld rather than reworded: the title and the update-card route are
+          * true in every state and stand on their own. Group 3.1 gives this
+          * window its own signed sentence; until then it says nothing rather than
+          * something false.
+          */}
+        {accessEndsOn && accessLive ? (
           <p className="mt-2 text-sm leading-relaxed text-text-muted">
             {ACCESS_UNTIL(accessEndsOn)}
           </p>

@@ -293,6 +293,24 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
    * query either way — naming it makes the two uses visible instead of implying
    * they are separate reads that could drift.
    */
+  /**
+   * ⚠️ THIS NULL MEANS TWO THINGS, AND A CONSUMER MAKING AN ACCESS CLAIM MUST
+   * ASK WHICH.
+   *
+   *   no dated row   a free-for-life comp, or no rows. `soonerOf` correctly
+   *                  treats it as "this source has nothing to say" and the
+   *                  mirror supplies the date.
+   *   unreadable     we could not ask. The mirror substituting here is the
+   *                  screen sourcing an ACCESS promise from the SUBSCRIPTION
+   *                  table, which does not decide access.
+   *
+   * `manageActionFor` cannot tell them apart and does not need to — `endsOn` is
+   * a SUBSCRIPTION fact, and the "Renews on" row and the cancel control are
+   * right to use it either way. What may not spend it blind is a sentence
+   * PROMISING ACCESS, and those consult `accessKnown` beside it: the declined
+   * card's "stays as it is until", and the resume line's "you'll keep everything
+   * until", both in `page.tsx`.
+   */
   const entitlementEnd = access.known ? access.endDate : null;
   const action = manageActionFor(entitlement, subscription, entitlementEnd);
 

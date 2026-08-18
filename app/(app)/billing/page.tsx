@@ -60,6 +60,8 @@ export default async function BillingPage() {
     subscription,
     action,
     entitlementEnd,
+    accessLive,
+    accessKnown,
     declinedOn,
     hasStripeCustomer,
     price,
@@ -122,6 +124,13 @@ export default async function BillingPage() {
            * nobody paid for.
            */
           accessEndsOn={entitlementEnd ? formatAccessDate(entitlementEnd, tz) : null}
+          /**
+           * ⚠️ WHETHER ACCESS IS LIVE, NOT WHETHER A DATE EXISTS. The date above
+           * includes dead rows by design, so it is present for a revoked account
+           * too — which is how this card promised "stays as it is until 17 Sept
+           * 2026" two rows above "Access: Read only".
+           */
+          accessLive={accessLive}
         />
       ) : null}
 
@@ -369,7 +378,24 @@ export default async function BillingPage() {
                */
               endsImmediately={Boolean(subscription && STOPPABLE_NOW.has(subscription.status))}
             />
-            {action.kind === "resume" ? (
+            {/**
+              * ⚠️ AND IT NEEDS THE ENTITLEMENT READ TO HAVE WORKED (1.5).
+              *
+              * "You'll keep everything until {date}" is a promise about ACCESS,
+              * and `action.endsOn` is `soonerOf(mirror, entitlement)` — so when
+              * the entitlement read fails, `entitlementEnd` is null, the mirror
+              * substitutes silently, and the promise is made from a table that
+              * does not decide access.
+              *
+              * That is the same null the declined card two hundred lines up
+              * handles correctly by WITHHOLDING. Same null, two consumers,
+              * opposite directions, until here.
+              *
+              * The card and the control are unaffected: somebody who has just
+              * cancelled still sees what they pressed and can still change their
+              * mind. Only the sentence the server cannot back is withheld.
+              */}
+            {action.kind === "resume" && accessKnown ? (
               <p className="px-1 pb-3 text-xs leading-relaxed text-text-muted">
                 {/* The tail used to end "unless you restart it", which named a
                     control that no longer says restart. It now states the two
