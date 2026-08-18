@@ -141,6 +141,13 @@ condensed_GLBX-*
 !/scratchpad/drive-33-readonly-six.mjs
 !/scratchpad/drive-newsignup.mjs
 
+# ⚠️ AND THE LAUNCH NOTICE'S FOCUS DRIVER (4.2). The defect it measures is
+# invisible to every static check: the MARKUP was correct throughout its entire
+# life — `role="dialog" aria-modal="true"` — while `document.activeElement` stayed
+# on `<body>`. Only a real browser can tell those apart, and this is the once-ever
+# modal every comp and beta account meets on launch morning.
+!/scratchpad/drive-42-notice-focus.mjs
+
 # ⚠️ AND THE LEAK DETECTOR'S OWN CONTROL, tracked 2026-08-18 with the audit
 # rewrite it proves. `qa-audit.mjs` is tracked; a detector whose control is on one
 # machine is exactly the claim-not-evidence failure D89 tracked the spine to close,

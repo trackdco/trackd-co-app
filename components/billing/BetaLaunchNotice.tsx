@@ -115,7 +115,6 @@ export function BetaLaunchNotice({
    * without a setState in an effect.
    */
   const mounted = useSyncExternalStore(subscribeNever, () => true, () => false);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   const close = useCallback(() => {
     markBetaNoticeSeen(userId);
@@ -143,6 +142,61 @@ export function BetaLaunchNotice({
     window.location.assign("/onboarding?step=plans");
   }, [userId]);
 
+  if (!mounted || !open || cannotNameTheDate || typeof document === "undefined") {
+    return null;
+  }
+
+  /**
+   * ⚠️ THE DIALOG IS ITS OWN COMPONENT, AND THAT IS THE FIX (4.2).
+   *
+   * The focus contract used to live in an effect HERE, with deps `[open, close]`.
+   * It never ran against a real node:
+   *
+   *   `open` starts `true`, so it never changes;
+   *   `mounted` is false until hydration, so the first render returns null;
+   *   `dialogRef.current` is therefore null when the effect fires;
+   *   and the deps never change again, so it never re-runs.
+   *
+   * The result was a `role="dialog" aria-modal="true"` that never took focus and
+   * never trapped Tab — focus stayed on `<body>` and Tab walked the dashboard
+   * behind the backdrop. This component's own contract calls that "a lie told to
+   * assistive tech", and it is the once-ever modal every comp and beta account
+   * meets on launch morning.
+   *
+   * ⚠️ SPLIT RATHER THAN ADDING `mounted` TO THE DEPS, which would also have
+   * worked. This removes the CLASS instead of the instance: an effect that
+   * depends on a ref existing cannot fire before the ref exists if the component
+   * holding it only mounts when the ref will be rendered. Three of the four
+   * billing portals already prove the shape — `ReadOnlyGate`'s `ReadOnlyPopup` is
+   * the closest, and this is deliberately the same arrangement.
+   */
+  return (
+    <BetaLaunchDialog
+      isComp={isComp}
+      endsOn={endsOn}
+      close={close}
+      setUpMyPlan={setUpMyPlan}
+    />
+  );
+}
+
+/**
+ * The portal body. **Mounted only when the notice is open**, so its focus effect
+ * runs on mount with a live ref — see the note in {@link BetaLaunchNotice}.
+ */
+function BetaLaunchDialog({
+  isComp,
+  endsOn,
+  close,
+  setUpMyPlan,
+}: {
+  isComp: boolean;
+  endsOn: string | null;
+  close: () => void;
+  setUpMyPlan: () => void;
+}) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
   /**
    * The same focus contract `CancelSubscription` and the read-only pop-up both
    * carry, and for the same reason: `aria-modal="true"` beside no focus
@@ -150,7 +204,6 @@ export function BetaLaunchNotice({
    * announced.
    */
   useEffect(() => {
-    if (!open) return;
     const node = dialogRef.current;
     // An ENABLED button, falling back to the dialog. `querySelector("button")`
     // returned a disabled one during the pending window, and `.focus()` on a
@@ -200,11 +253,7 @@ export function BetaLaunchNotice({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, close]);
-
-  if (!mounted || !open || cannotNameTheDate || typeof document === "undefined") {
-    return null;
-  }
+  }, [close]);
 
   /**
    * `z-[60]` is THE APP'S MODAL LAYER — the same one `SignOutConfirm`,
