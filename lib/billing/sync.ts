@@ -1136,6 +1136,7 @@ export async function revokeForCustomer(
       .eq("source", "stripe")
       .gt("active_until", stillPaid);
     if (shortenError) throw new Error(`entitlements shorten: ${shortenError.message}`);
+    await stopDisputedBilling(reason, refundedSubscriptionId, client, userId);
     return "handled";
   }
 
@@ -1148,7 +1149,90 @@ export async function revokeForCustomer(
   if (error) throw new Error(`entitlements revoke: ${error.message}`);
 
   console.warn(`[billing] revoked pro for ${userId} after a ${reason}`);
+  await stopDisputedBilling(reason, refundedSubscriptionId, client, userId);
   return "handled";
+}
+
+/**
+ * ⚠️ A DISPUTE CANCELS THE STRIPE SUBSCRIPTION (2.1). FOUNDER RULING.
+ *
+ * Until now a dispute took access away and left Stripe billing. Two costs, and
+ * the second is the expensive one:
+ *
+ *   · we go on charging somebody whose money we no longer have;
+ *   · the next invoice is raised on schedule, they dispute that one too, and the
+ *     DISPUTE FEE stacks — a fee we pay per dispute, on a charge we were never
+ *     going to keep.
+ *
+ * ## ⚠️ ACCESS FIRST, BILLING SECOND, AND THE ORDER IS NOT NEGOTIABLE
+ *
+ * Called after the entitlement write, never before. If this throws, the
+ * revocation has already landed and Stripe redelivers — and the revoke is
+ * idempotent, so the retry is free. Cancelling first and then failing to revoke
+ * would leave somebody with access they disputed and no subscription to explain
+ * it.
+ *
+ * ## ⚠️ ONLY THE SUBSCRIPTION THE DISPUTED CHARGE PAID FOR
+ *
+ * `subscriptionBehind` resolves it from the charge's payment intent. A customer
+ * can hold two subscriptions, and cancelling a healthy second one because the
+ * first was disputed would be this file's own `$3.99 refund destroys a $69.99
+ * year` defect wearing different clothes.
+ *
+ * When it cannot be resolved, NOTHING is cancelled and the state is logged
+ * loudly. Erring towards leaving billing running is the direction that never
+ * cancels the wrong subscription, and it does not go unnoticed: `11`'s new
+ * `revoked-entitlement-beside-live-subscription` rule reports exactly this
+ * shape, which is what makes the conservative choice safe rather than silent.
+ *
+ * ## ⚠️ REFUNDS ARE DELIBERATELY NOT INCLUDED
+ *
+ * The ruling names disputes. A refund is a support action the founder performs
+ * by hand, often as goodwill, and there is no fee stacking behind it — the
+ * subscription is frequently one they mean to keep. Only a FULL refund reaches
+ * here at all, and even then cancelling would be deciding something nobody
+ * decided.
+ */
+async function stopDisputedBilling(
+  reason: "dispute" | "refund",
+  subscriptionId: string | null,
+  client: Stripe,
+  userId: string,
+): Promise<void> {
+  if (reason !== "dispute") return;
+
+  if (!subscriptionId) {
+    console.error(
+      `[billing] a dispute revoked access for ${userId} but the subscription behind the ` +
+        `charge could not be resolved; NOTHING was cancelled and Stripe may bill again — ` +
+        `reconciliation reports this as revoked-entitlement-beside-live-subscription`,
+    );
+    return;
+  }
+
+  try {
+    const cancelled = await client.subscriptions.cancel(subscriptionId);
+    console.warn(
+      `[billing] cancelled ${subscriptionId} for ${userId} after a dispute (now ${cancelled.status})`,
+    );
+  } catch (err) {
+    /**
+     * ⚠️ ALREADY GONE IS THE GOAL REACHED, NOT A FAILURE. A redelivered dispute
+     * event finds the subscription already cancelled, and throwing there would
+     * make Stripe retry forever on a state that is already correct.
+     */
+    const code = (err as { code?: string })?.code;
+    const message = err instanceof Error ? err.message : String(err);
+    if (code === "resource_missing" || /No such subscription/i.test(message)) {
+      console.info(`[billing] ${subscriptionId} was already gone; nothing to cancel`);
+      return;
+    }
+    console.error(`[billing] could not cancel ${subscriptionId} after a dispute:`, message);
+    // Thrown for the same reason the charge read is: billing we failed to stop
+    // must be retried, and must not be stamped as processed. The revocation
+    // above has already landed and re-applying it is idempotent.
+    throw new Error(`dispute cancel failed for ${subscriptionId}`);
+  }
 }
 
 /**
