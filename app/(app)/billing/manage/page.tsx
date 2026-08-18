@@ -96,6 +96,7 @@ export default async function ManagePage() {
      */
     accessLive: facts.accessLive,
     accessRevoked: facts.accessRevoked,
+    accessRevokedReason: facts.accessRevokedReason,
   });
 
   return (

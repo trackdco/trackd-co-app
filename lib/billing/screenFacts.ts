@@ -67,6 +67,13 @@ export interface BillingFacts {
    * comparison always answers no.
    */
   accessRevoked: boolean;
+  /**
+   * ⚠️ WHY it was revoked (D101 / Q106). `unknown` when we could not ask, when
+   * `005` is unapplied, or when the row predates it — and NEVER treated as
+   * `dispute`, because that default would tell a refunded customer their bank
+   * disputed a payment.
+   */
+  accessRevokedReason: "dispute" | "refund" | "unknown";
   declinedOn: string | null;
   hasStripeCustomer: boolean;
   price: { amount: number; currency: string; interval: string } | undefined;
@@ -382,6 +389,7 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
     accessLive: access.known ? access.accessLive : false,
     accessKnown: access.known,
     accessRevoked: access.known ? access.revoked : false,
+    accessRevokedReason: access.known ? access.revokedReason : "unknown",
     declinedOn,
     hasStripeCustomer,
     price,

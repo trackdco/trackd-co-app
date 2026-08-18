@@ -106,6 +106,24 @@ async function paidSubscription(tag: string) {
   return { ...a, customerId, subscriptionId: sub.id, chargeId: charge!.id };
 }
 
+/**
+ * ⚠️ THE REVOCATION REASON, READ THE WAY THE SCREEN READS IT (D101 / Q106).
+ *
+ * Returns `"unapplied"` when `005` is not in the database, which is the state
+ * today — so a run in that window proves the tolerant path rather than skipping.
+ */
+async function revokedReason(userId: string): Promise<string> {
+  const { data, error } = await admin
+    .from("entitlements")
+    .select("revoked_reason")
+    .eq("user_id", userId)
+    .eq("product", "pro")
+    .eq("source", "stripe")
+    .limit(1);
+  if (error) return `unapplied (${error.code ?? "?"})`;
+  return String((data?.[0] as { revoked_reason?: unknown } | undefined)?.revoked_reason ?? "null");
+}
+
 const entRow = async (userId: string) =>
   (
     await admin
@@ -140,6 +158,22 @@ guarded("2.1 — a dispute cancels the Stripe subscription", () => {
     expect(
       sameInstant(after?.active_until, before?.active_until),
       "the revoke moved active_until, which four other files rely on it not doing",
+    ).toBe(true);
+
+    /**
+     * ⚠️ THE REASON, AND IT IS CORRECT IN BOTH WINDOWS (D101 / Q106).
+     *
+     * With `005` applied this reads "dispute". With it UNAPPLIED — which is the
+     * state today — the write is retried without the column and the read reports
+     * unapplied. The one thing that must never happen in either window is the
+     * revocation failing because of a display column, which the assertion above
+     * on `is_active` already proves did not.
+     */
+    const reason = await revokedReason(a.userId);
+    console.log(`  revoked_reason: ${reason}`);
+    expect(
+      reason === "dispute" || reason.startsWith("unapplied") || reason === "null",
+      `unexpected revoked_reason: ${reason}`,
     ).toBe(true);
 
     /* ── ON THE STRIPE OBJECT: the billing has actually stopped ─────── */
@@ -192,6 +226,18 @@ guarded("2.1 — a dispute cancels the Stripe subscription", () => {
     expect(outcome).toBe("handled");
 
     expect((await entRow(a.userId))?.is_active, "a full refund did not revoke").toBe(false);
+    /**
+     * ⚠️ AND THE REASON SAYS REFUND, NOT DISPUTE (Q106). This is the row that used
+     * to be byte-identical to a chargeback's, which is how a refunded customer was
+     * told their bank disputed a payment.
+     */
+    const refundReason = await revokedReason(a.userId);
+    console.log(`  revoked_reason after a refund: ${refundReason}`);
+    expect(
+      refundReason === "refund" || refundReason.startsWith("unapplied") || refundReason === "null",
+      `unexpected revoked_reason after a refund: ${refundReason}`,
+    ).toBe(true);
+    expect(refundReason, "a refund was recorded as a dispute").not.toBe("dispute");
     const sub = await stripe.subscriptions.retrieve(a.subscriptionId);
     expect(
       sub.status,

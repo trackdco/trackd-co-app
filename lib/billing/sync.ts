@@ -19,7 +19,7 @@ function isMissingColumn(error: { code?: string | null; message?: string }): boo
   return (
     error.code === "PGRST204" ||
     error.code === "42703" ||
-    /courtesy_until/i.test(error.message ?? "")
+    /courtesy_until|revoked_reason/i.test(error.message ?? "")
   );
 }
 
@@ -1140,12 +1140,40 @@ export async function revokeForCustomer(
     return "handled";
   }
 
-  const { error } = await db
+  /**
+   * ⚠️ WHY, NOT ONLY THAT (D101, answering Q106).
+   *
+   * `entitlements` recorded THAT a row was revoked and never WHY, so a full
+   * refund and a chargeback left byte-identical rows and both of `08`'s dispute
+   * sentences selected for a refunded account — telling somebody the founder
+   * refunded as goodwill that their bank disputed a payment. This function
+   * already KNEW: `reason` is a parameter and was simply not persisted.
+   *
+   * ⚠️ TOLERANT OF `005` BEING UNAPPLIED, and the retry is not optional. A deploy
+   * and a migration do not land in the same instant, and a revocation that fails
+   * because of a missing display column would be a chargeback we did not apply —
+   * far worse than a screen that says less. PostgREST answers `PGRST204` here
+   * (it validates the body against its own schema cache before Postgres sees the
+   * statement), which is the lesson `trialLease.ts` paid for by catching `42703`.
+   */
+  let { error } = await db
     .from("entitlements")
-    .update({ is_active: false })
+    .update({ is_active: false, revoked_reason: reason })
     .eq("user_id", userId)
     .eq("product", "pro")
     .eq("source", "stripe");
+
+  if (error && isMissingColumn(error)) {
+    console.info(
+      `[billing] revoked_reason is not present (005 unapplied); revoking ${userId} without it`,
+    );
+    ({ error } = await db
+      .from("entitlements")
+      .update({ is_active: false })
+      .eq("user_id", userId)
+      .eq("product", "pro")
+      .eq("source", "stripe"));
+  }
   if (error) throw new Error(`entitlements revoke: ${error.message}`);
 
   console.warn(`[billing] revoked pro for ${userId} after a ${reason}`);

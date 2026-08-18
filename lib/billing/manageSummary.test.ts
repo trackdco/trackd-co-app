@@ -43,6 +43,7 @@ const BASE: SummaryFacts = {
    */
   accessLive: false,
   accessRevoked: false,
+  accessRevokedReason: "unknown",
 };
 
 /**
@@ -62,6 +63,18 @@ const BASE: SummaryFacts = {
 const f = (over: Partial<SummaryFacts>): SummaryFacts => {
   const merged = { ...BASE, ...over };
   if (over.accessLive === undefined) merged.accessLive = merged.entitlement !== null;
+  /**
+   * ⚠️ AND A CASE THAT SAYS "REVOKED" WITHOUT SAYING WHY MEANS A DISPUTE.
+   *
+   * Every revoked case in this file predates D101 and was written about the
+   * dispute cohort. Defaulting to "unknown" instead would silently withhold their
+   * sentences and turn a dozen real assertions vacuous. The cases that mean a
+   * REFUND or an unreadable reason say so explicitly, and the explicit value
+   * always wins.
+   */
+  if (over.accessRevokedReason === undefined && merged.accessRevoked) {
+    merged.accessRevokedReason = "dispute";
+  }
   return merged;
 };
 const stripe = { source: "stripe" as const, activeUntil: "2027-08-18T00:00:00Z" };
@@ -652,6 +665,111 @@ describe("⚠️ suspended: access revoked while the subscription is still billi
     });
     expect(summaryStateFor(withdrawnComp)).toBe("lapsed");
     expect(manageSummaryFor(withdrawnComp) ?? "").not.toContain("disputed");
+  });
+
+  it("⚠️ Q106: a REFUND-revoked account gets NEITHER dispute sentence", () => {
+    /**
+     * A full refund and a chargeback leave BYTE-IDENTICAL entitlement rows —
+     * is_active false, active_until untouched, source stripe. Before D101 both
+     * sentences selected for a refunded account and told somebody the founder
+     * refunded as a goodwill gesture that their BANK DISPUTED A PAYMENT.
+     *
+     * Withheld, not reworded: no signed sentence describes a refund revocation.
+     */
+    const liveSub = f({
+      entitlement: null,
+      subscription: { status: "active" },
+      actionKind: "cancel",
+      accessRevoked: true,
+      accessLive: false,
+      accessRevokedReason: "refund",
+      price: "$69.99 USD",
+      interval: "year",
+    });
+    expect(summaryStateFor(liveSub)).toBe("withheld");
+    expect(manageSummaryFor(liveSub)).toBeNull();
+
+    const noSub = f({
+      entitlement: null,
+      subscription: null,
+      actionKind: "none",
+      accessRevoked: true,
+      accessLive: false,
+      accessRevokedReason: "refund",
+    });
+    expect(summaryStateFor(noSub)).toBe("withheld");
+    expect(manageSummaryFor(noSub)).toBeNull();
+  });
+
+  it("⚠️ Q106: an UNKNOWN reason withholds too — 005 is unapplied, so this is TODAY", () => {
+    /**
+     * Three states arrive as "unknown" and none of them is evidence of a dispute:
+     * the read failed, `005` is not applied, or the row predates it. Defaulting to
+     * "dispute" is the lie standing rule 0 exists to prevent, and here it would be
+     * told to every refunded customer.
+     *
+     * ⚠️ This is not a hypothetical branch. `005` is written and UNAPPLIED, so
+     * every revoked row in the database is currently in this state.
+     */
+    const unknown = f({
+      entitlement: null,
+      subscription: { status: "active" },
+      actionKind: "cancel",
+      accessRevoked: true,
+      accessLive: false,
+      accessRevokedReason: "unknown",
+      price: "$69.99 USD",
+      interval: "year",
+    });
+    expect(summaryStateFor(unknown)).toBe("withheld");
+    expect(manageSummaryFor(unknown)).toBeNull();
+  });
+
+  it("⚠️ CONTROL: a real DISPUTE still gets its sentence — the withhold is not a blanket", () => {
+    // Without this, "withhold whenever anything was revoked" would satisfy both
+    // cases above perfectly and delete two signed sentences.
+    const live = f({
+      entitlement: null,
+      subscription: { status: "active" },
+      actionKind: "cancel",
+      accessRevoked: true,
+      accessLive: false,
+      accessRevokedReason: "dispute",
+      price: "$69.99 USD",
+      interval: "year",
+    });
+    expect(summaryStateFor(live)).toBe("suspended");
+    expect(manageSummaryFor(live)).toContain("payment dispute");
+
+    const settled = f({
+      entitlement: null,
+      subscription: null,
+      actionKind: "none",
+      accessRevoked: true,
+      accessLive: false,
+      accessRevokedReason: "dispute",
+    });
+    expect(summaryStateFor(settled)).toBe("dispute-cancelled");
+    expect(manageSummaryFor(settled)).toContain("disputed with your bank");
+  });
+
+  it("⚠️ CONTROL: a refunded account never lands on the PAYING sentence either", () => {
+    // The withhold sits above the fall-through for this reason: "You're on your
+    // Pro plan... and it renews on" to somebody whose access was revoked is the
+    // renewal claim 1.4 removed, arriving by a different route.
+    const refunded = f({
+      entitlement: null,
+      subscription: { status: "active" },
+      actionKind: "cancel",
+      endsOn: "18 Aug 2027",
+      accessRevoked: true,
+      accessLive: false,
+      accessRevokedReason: "refund",
+      price: "$69.99 USD",
+      interval: "year",
+    });
+    expect(manageSummaryFor(refunded) ?? "").not.toContain("renews on");
+    expect(manageSummaryFor(refunded) ?? "").not.toContain("not on a plan");
   });
 
   it("⚠️ CONTROL: past-due keeps its OWN sentence and is not swallowed", () => {

@@ -28,7 +28,7 @@ decision needs to supersede an earlier one, keep the number and mark it re-decid
 as D1 and D31 already are.
 
 **Status at 15 Aug 2026. THE CORPUS IS COMPLETE: 00 and 01 through 19.** Next free
-decision number: **D101**. Next free question number: **Q107**.
+decision number: **D102**. Next free question number: **Q107**.
 
 **⚠️ D91 to D100 TAKEN 18 Aug 2026 by the build lane**, in the order the founder
 listed them in the batch brief, from this file's own next-free list. Q106 taken for
@@ -161,7 +161,8 @@ as a dependency.
 | D97 | The two after-the-lapse past-due sentences, signed | 08 | Pending — Group 3 |
 | D98 | The read-only pop-up's first clause is reworded and STAYS UNBRANCHED | 05 | Pending — Group 3, and the standing stop-and-ask fired |
 | D99 | Spec 11's revocation exemption narrows to the subscription in question; revoked-beside-live becomes a REPORTED state | 11 | Resolved — built, and §3.4's false premise corrected |
-| D100 | The three parked `revokeForCustomer` findings accepted under §9g, with the CURRENT reason | 11 | Resolved — recorded, and their coverage measured |
+| D100 | The three parked `revokeForCustomer` findings accepted under §9g, with the CURRENT reason | 11 | Resolved — recorded, and their coverage MEASURED (one of three newly caught, not three) |
+| D101 | The revocation reason is persisted; an unknown reason WITHHOLDS both dispute sentences | 03, seam to 08 | Resolved — `005` written and UNAPPLIED; answers Q106 |
 
 **Also open, unnumbered:**
 
@@ -594,8 +595,12 @@ current reason:
 
 - refunds are **hand-issued by the founder**, one at a time;
 - the user base is **~90**;
-- the realistic frequency in the first weeks is **near zero**;
-- and the net now catches two of the three.
+- and **P1 and P2 are caught while P3 is not**, with P3 pinned as an empty result so
+  the gap cannot close, or reopen, unrecorded.
+
+**⚠️ The reason above is the CORRECTED one.** The brief's version said D99's fix takes
+all three from silent to caught, and a §9g acceptance resting on a reason that turns
+out to be optimistic is worse than no acceptance at all. It takes ONE.
 
 **⚠️ Measured rather than claimed, and the brief was optimistic.** It said D99's fix
 takes all three from silent to caught. It takes ONE:
@@ -616,7 +621,7 @@ Either makes the frequency argument false and the model fix becomes the answer.
 
 ---
 
-## Q106 — does the dispute copy apply to a REFUND-revoked account? OPEN
+## Q106 — does the dispute copy apply to a REFUND-revoked account? **ANSWERED by D101**
 
 **Raised 18 Aug 2026 by the build lane while implementing D93. Not a defect — a
 question the specs do not answer, and it predates this batch.**
@@ -646,3 +651,46 @@ self-serve, or volume.
 **The cheapest fix if it is wanted:** a `revoked_reason` column written by
 `revokeForCustomer`, which already knows — it takes `reason: "dispute" | "refund"` as
 a parameter and simply does not persist it.
+
+---
+
+## D101 — the revocation reason is persisted, and an unknown reason WITHHOLDS
+
+**Founder ruling, 18 Aug 2026, answering Q106.** Store it.
+
+`supabase/billing/005_revoked_reason.sql` adds `entitlements.revoked_reason`, checked
+to `'dispute' | 'refund' | null`. **Written, UNAPPLIED — the founder applies migrations
+by hand.**
+
+**⚠️ It is NOT 004.** `004` is date-dependent, single-use and launch-morning-only;
+`005` has no date dependency, no coupling to launch, and is idempotent. **Apply it
+whenever ready.** The two files are adjacent and the header says so, because confusing
+them is the only real risk in having both.
+
+**Correct in the unapplied window, which is the window we are in.**
+
+- The WRITE retries without the column on `PGRST204`/`42703`. A revocation must never
+  fail because of a display column — that would be a chargeback we did not apply.
+- The READ is its own tolerant query. Folding it into the access read would mean an
+  unapplied migration takes the whole thing down and nobody has access.
+
+**⚠️ UNKNOWN IS NOT DISPUTE, and here the wrong default IS the lie.** Standing rule 0
+in its sharpest form on this project: defaulting to `"dispute"` would tell somebody the
+founder refunded as a goodwill gesture that **their bank disputed a payment**. So both
+dispute sentences render **only** for `reason === "dispute"`; a refund and an unknown
+both **WITHHOLD** — a withhold, never a reworded neighbour, and no new copy.
+
+**⚠️ THE COST IS LIVE UNTIL 005 IS APPLIED, and it is worth stating plainly.** Every
+revoked row today is `unknown`, so **a genuinely disputed customer currently sees no
+explanation on Manage at all.** That is the accepted trade — it tells nobody anything
+false — but it means D93's sentence does not reach anybody until the migration runs.
+**Applying `005` before launch is the cheap way to close it**, and nothing else depends
+on the timing.
+
+**Driven both ways against real Stripe**, in the unapplied window: a real dispute and a
+real full refund each revoke correctly with the retry firing
+(`revoked_reason is not present (005 unapplied)`), the Stripe subscription is still
+cancelled on the dispute and left alone on the refund, and the screen withholds both
+sentences rather than claiming either. The screen driver PROBES for the column and
+asserts the right thing for whichever window it finds, so it begins proving the
+sentences the moment `005` is applied, with no edit.

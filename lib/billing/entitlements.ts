@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   deriveEntitlementFacts,
   grantsPro,
+  PRO,
   type Entitlement,
   type EntitlementProduct,
   type EntitlementSource,
@@ -211,6 +212,18 @@ export type EntitlementFacts =
        */
       revoked: boolean;
       /**
+       * ⚠️ WHY it was revoked, or `unknown` (D101 / Q106).
+       *
+       * `unknown` covers three states that must not be told apart by guessing:
+       * the read failed, `005` is unapplied, or the row predates it. **It is
+       * never treated as `dispute`** — that default would tell a refunded
+       * customer their bank disputed a payment.
+       *
+       * Always `unknown` when {@link revoked} is false: there is no reason
+       * because there was no revocation, and the query is not made.
+       */
+      revokedReason: RevokedReason;
+      /**
        * ⚠️ DOES THIS PERSON HOLD ACCESS RIGHT NOW? The fact the app carried a
        * DATE for and never carried directly.
        *
@@ -231,6 +244,65 @@ export type EntitlementFacts =
  *
  * Request-`cache()`d, so several surfaces on one page pay for one query.
  */
+/**
+ * ⚠️ WHY THE ENTITLEMENT WAS REVOKED, IN ITS OWN TOLERANT QUERY (D101 / Q106).
+ *
+ *   "dispute"  a chargeback. `08`'s two dispute sentences apply.
+ *   "refund"   the founder refunded them. Neither sentence applies.
+ *   "unknown"  we could not ask, OR `005` is not applied, OR the row predates it.
+ *
+ * ## ⚠️ UNKNOWN IS NOT DISPUTE, AND HERE THE WRONG DEFAULT IS THE LIE
+ *
+ * Standing rule 0, in its sharpest form on this project: defaulting an unreadable
+ * reason to `"dispute"` would tell somebody the founder refunded as a goodwill
+ * gesture that **their bank disputed a payment**. Both sentences are withheld on
+ * `unknown` instead — which costs a genuinely disputed customer an explanation
+ * while the column is missing, and tells nobody anything false.
+ *
+ * **That window is not hypothetical: `005` is written and UNAPPLIED, so today
+ * every revoked row in the database is `unknown`.**
+ *
+ * ## ⚠️ ITS OWN QUERY, DELIBERATELY
+ *
+ * Folding `revoked_reason` into the select in {@link readEntitlements} would mean
+ * an unapplied migration takes down the WHOLE access read — PostgREST rejects the
+ * entire request for one unknown column — so a missing display column would
+ * become "nobody has access". The same shape `screenFacts` uses for
+ * `courtesy_until` and for the same reason, and the lesson `trialLease.ts` paid
+ * for by catching `42703` when the real answer was `PGRST204`.
+ */
+export type RevokedReason = "dispute" | "refund" | "unknown";
+
+async function revokedReasonFor(userId: string): Promise<RevokedReason> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("entitlements")
+      .select("revoked_reason")
+      .eq("user_id", userId)
+      .eq("product", PRO)
+      .eq("source", "stripe")
+      .eq("is_active", false)
+      .limit(1);
+
+    if (error) {
+      // 42703 from Postgres, PGRST204 from PostgREST's schema cache. Both mean
+      // "005 is not applied yet"; anything else is a read that failed. Neither is
+      // a reason to claim a dispute.
+      console.info(`[entitlements] revoked_reason unavailable for ${userId}: ${error.message}`);
+      return "unknown";
+    }
+    const reason = data?.[0]?.revoked_reason ?? null;
+    return reason === "dispute" || reason === "refund" ? reason : "unknown";
+  } catch (err) {
+    console.error(
+      `[entitlements] revoked_reason read threw for ${userId}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return "unknown";
+  }
+}
+
 export const entitlementFacts = cache(async (): Promise<EntitlementFacts> => {
   const user = await getCurrentUser();
   /**
@@ -243,5 +315,11 @@ export const entitlementFacts = cache(async (): Promise<EntitlementFacts> => {
   const read = await readEntitlements(user.id);
   if (!read.ok) return { known: false };
 
-  return { known: true, ...deriveEntitlementFacts(read.entitlements, new Date()) };
+  const derived = deriveEntitlementFacts(read.entitlements, new Date());
+  /**
+   * Only asked when there is something to ask about. A healthy account pays for
+   * no extra query, and the question is meaningless for them anyway.
+   */
+  const revokedReason = derived.revoked ? await revokedReasonFor(user.id) : "unknown";
+  return { known: true, ...derived, revokedReason };
 });

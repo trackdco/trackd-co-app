@@ -43,6 +43,7 @@ const BASE: SummaryFacts = {
    */
   accessLive: false,
   accessRevoked: false,
+  accessRevokedReason: "unknown",
 };
 /**
  * ⚠️ `accessLive` FOLLOWS THE ENTITLEMENT UNLESS A CASE SAYS OTHERWISE.
@@ -61,6 +62,18 @@ const BASE: SummaryFacts = {
 const f = (over: Partial<SummaryFacts>): SummaryFacts => {
   const merged = { ...BASE, ...over };
   if (over.accessLive === undefined) merged.accessLive = merged.entitlement !== null;
+  /**
+   * ⚠️ AND A CASE THAT SAYS "REVOKED" WITHOUT SAYING WHY MEANS A DISPUTE.
+   *
+   * Every revoked case in this file predates D101 and was written about the
+   * dispute cohort. Defaulting to "unknown" instead would silently withhold their
+   * sentences and turn a dozen real assertions vacuous. The cases that mean a
+   * REFUND or an unreadable reason say so explicitly, and the explicit value
+   * always wins.
+   */
+  if (over.accessRevokedReason === undefined && merged.accessRevoked) {
+    merged.accessRevokedReason = "dispute";
+  }
   return merged;
 };
 

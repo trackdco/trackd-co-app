@@ -150,6 +150,21 @@ export interface SummaryFacts {
    * they are otherwise identical in every field this file can see.
    */
   accessRevoked: boolean;
+  /**
+   * ⚠️ WHY (D101 / Q106). Both dispute sentences require `"dispute"` exactly.
+   *
+   * A full refund and a chargeback leave BYTE-IDENTICAL entitlement rows —
+   * `is_active: false`, `active_until` untouched, `source: "stripe"` — so before
+   * this existed both sentences selected for a refunded account and told somebody
+   * the founder refunded as goodwill that their bank disputed a payment.
+   *
+   * `"unknown"` WITHHOLDS rather than falling back, and the withhold is the whole
+   * ruling: no signed sentence describes "your access was revoked and we cannot
+   * tell you why", so it gets none. `005` is written and UNAPPLIED, so today that
+   * is every revoked row — the cost is bounded and visible, and nothing false is
+   * said to anybody.
+   */
+  accessRevokedReason: "dispute" | "refund" | "unknown";
 }
 
 /**
@@ -305,7 +320,10 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
    * with no explanation at all for as long as the dispute lasts. Recorded rather
    * than traded, and the scoping is the founder's (2026-08-18).
    */
-  if (f.accessRevoked && !f.accessLive && f.actionKind === "cancel") return "suspended";
+  const disputed = f.accessRevokedReason === "dispute";
+  if (disputed && f.accessRevoked && !f.accessLive && f.actionKind === "cancel") {
+    return "suspended";
+  }
 
   /**
    * ⚠️ THE SAME REVOCATION, ONCE THE CANCEL HAS LANDED (2.4).
@@ -329,7 +347,23 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
    * in every other field, and telling that person their subscription was
    * cancelled over a payment dispute would be inventing an event.
    */
-  if (f.accessRevoked && !f.accessLive && f.actionKind === "none") return "dispute-cancelled";
+  if (disputed && f.accessRevoked && !f.accessLive && f.actionKind === "none") {
+    return "dispute-cancelled";
+  }
+
+  /**
+   * ⚠️ REVOKED, BUT NOT BY A DISPUTE — OR WE CANNOT TELL. WITHHELD (D101 / Q106).
+   *
+   * A refund leaves the identical row and nothing about a bank happened to them.
+   * `unknown` is the same answer for a different reason: `005` unapplied, a row
+   * that predates it, or a read that failed. No signed sentence describes either,
+   * so neither gets one — a withhold, never a reworded neighbour.
+   *
+   * Below the two dispute branches so a genuine dispute keeps its own copy, and
+   * ABOVE the fall-through so a refunded account cannot land on "You're on your
+   * Pro plan" or on the renewal claim.
+   */
+  if (f.accessRevoked && !f.accessLive) return "withheld";
 
   /**
    * ⚠️ A LIVE SUBSCRIPTION WITH NO LIVE ACCESS, AND NOBODY REVOKED ANYTHING.

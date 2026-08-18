@@ -76,6 +76,22 @@ type EntitlementRow = {
   source: EntitlementSourceRow;
   active_until: string | null;
   is_active: boolean;
+  /**
+   * WHY `is_active` was set false: `dispute` or `refund`. Null when the row was
+   * never revoked — and also for every row revoked BEFORE `005` was applied.
+   *
+   * `entitlements` recorded THAT a row was revoked and never why, so a full
+   * refund and a chargeback left byte-identical rows and both of `08`'s dispute
+   * sentences selected for a refunded account. `revokeForCustomer` already knew:
+   * it takes `reason` as a parameter and simply did not persist it.
+   *
+   * ⚠️ NULL IS "UNKNOWN", NEVER "dispute". The read path withholds both dispute
+   * sentences on it, because the wrong default here IS the lie — it would tell a
+   * refunded customer their bank disputed a payment. See
+   * `supabase/billing/005_revoked_reason.sql`, which is written and UNAPPLIED, so
+   * today every row is in that state.
+   */
+  revoked_reason: "dispute" | "refund" | null;
   created_at: string;
   updated_at: string;
 };
@@ -130,7 +146,7 @@ export type BillingDatabase = {
         Row: EntitlementRow;
         Insert: Defaulted<
           EntitlementRow,
-          "id" | "created_at" | "updated_at" | "is_active"
+          "id" | "created_at" | "updated_at" | "is_active" | "revoked_reason"
         >;
         Update: Partial<EntitlementRow>;
         Relationships: [];
