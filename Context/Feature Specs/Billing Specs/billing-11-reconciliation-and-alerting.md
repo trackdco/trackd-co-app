@@ -197,13 +197,44 @@ counting.
 ### 3.4 Where our rules and Stripe's disagree, on purpose
 
 **A dispute deactivates the entitlement immediately in our system; Stripe leaves the
-subscription overdue.** Both are defensible and they disagree.
+subscription ACTIVE.** Both are defensible and they disagree.
+
+> **⚠️ CORRECTED 18 Aug 2026. This sentence read "Stripe leaves the subscription
+> overdue", and that is measurably false.** A reviewer asserted directly on the Stripe
+> object after a real revoke and it was `active`. The difference is not pedantry:
+> *overdue* implies dunning has begun and the money has stopped, while *active* means
+> **the next invoice is raised on schedule**. The wrong word made "we take access away
+> and leave Stripe alone" look harmless, and it is not — we go on charging somebody
+> whose money we no longer have, they dispute the next invoice too, and the dispute
+> fee stacks.
+>
+> It is corrected here as well as in the code because it is a premise the next reader
+> would otherwise re-derive the same wrong conclusion from.
+
+**A dispute now CANCELS the Stripe subscription** (owner `03`, seam here). So the
+exempt state below is the window before that cancel lands, and the settled state is a
+`canceled` subscription beside a deactivated entitlement.
 
 **This script asserts against our rule.** A disputed subscription with a deactivated
 entitlement is correct and must not be reported. A disputed subscription with a live
 entitlement is a finding. Asserting against Stripe's status instead would report a
 false positive on every dispute, and a check that cries wolf on a known-good state is
 a check that gets ignored.
+
+**⚠️ The exemption is about THE ROW THAT SUBSCRIPTION WOULD HAVE WRITTEN — `pro` from
+`stripe` — and not about everything the account has ever held.** It was implemented
+over every entitlement of every product and source, which means "this user has ever
+had anything revoked": one withdrawn comp permanently silenced
+`live-subscription-without-entitlement`, the rule this spec calls the worst
+customer-facing state that is not a wrong charge. Driven with two accounts one row
+apart — control reported, subject silent.
+
+**⚠️ And a revoked entitlement beside a subscription Stripe is STILL BILLING is now
+its own reported rule**, `revoked-entitlement-beside-live-subscription`. Once a
+dispute cancels, that shape stops being expected and becomes the signal that the
+cancel failed or never ran. It is a NEW rule rather than a re-widening of
+`live-subscription-without-entitlement`: widening that one back would reintroduce the
+false positive this section correctly closed.
 
 **A courtesy period reports as `trialing` at Stripe** while being a paid customer's
 free month. The marker is what tells them apart, which is assertion 7's other job.

@@ -78,6 +78,10 @@ const RULE_TITLES: Record<RuleId, { title: string; source: string }> = {
     title: "SOMEBODY IS PAYING AND THE APP IS GIVING THEM NOTHING",
     source: "§3.1 #3",
   },
+  "revoked-entitlement-beside-live-subscription": {
+    title: "A DISPUTED ACCOUNT IS STILL BEING BILLED — THE CANCEL DID NOT LAND",
+    source: "§3.4 as corrected — a dispute cancels, so this state means it failed",
+  },
   "entitlement-without-source": {
     title: "SOMEBODY HAS ACCESS WITH NOTHING PAYING FOR IT",
     source: "§3.1 #2",

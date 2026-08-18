@@ -48,6 +48,27 @@ export const RULES = [
   "two-billable-subscriptions",
   /** §3.1 #3 — every live subscription has an entitlement. Paying, no access. */
   "live-subscription-without-entitlement",
+  /**
+   * ⚠️ D-2.1's OTHER HALF — a REVOKED entitlement beside a subscription Stripe is
+   * still billing. **The signal that the dispute cancel did not land.**
+   *
+   * Before a dispute cancelled the subscription this was an EXPECTED state and
+   * §3.4 exempted it, correctly. Now that `revokeForCustomer` cancels, a live
+   * subscription beside a revoked row means the cancel failed or never ran — so
+   * we are still charging somebody whose money we no longer have, and each new
+   * invoice they dispute stacks another fee.
+   *
+   * ⚠️ It is a NEW rule rather than a re-widening of
+   * `live-subscription-without-entitlement`. Widening that one back would
+   * reintroduce the false positive §3.4 correctly closed, and §3.4 warns that one
+   * false positive on every dispute gets the whole report ignored. Two different
+   * facts, two rules: that one is "nobody revoked anything and they have no
+   * access", this one is "somebody DID revoke, and the billing is still running".
+   *
+   * Ranked directly below it because it is the same severity class — money moving
+   * on an account that should not be charged — without being the same fault.
+   */
+  "revoked-entitlement-beside-live-subscription",
   /** §3.1 #2 — every active entitlement traces to a live subscription or comp. */
   "entitlement-without-source",
   /** §3.1 #5 — a charge date and an entitlement date that disagree. */

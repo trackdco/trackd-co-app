@@ -542,24 +542,42 @@ export function liveSubscriptionWithoutEntitlement(
     /**
      * ⚠️ §3.4 — A DELIBERATE REVOCATION IS NOT A LOCKED-OUT CUSTOMER.
      *
-     * "A dispute deactivates the entitlement immediately in our system; Stripe
-     * leaves the subscription overdue. This script asserts against OUR rule. A
-     * disputed subscription with a deactivated entitlement is correct and must
-     * not be reported."
+     * The exemption is right and its ORIGINAL IMPLEMENTATION WAS FAR WIDER THAN
+     * ITS INTENT. It read:
      *
-     * **Found by driving, not by reasoning.** Step 5 seeded exactly that state —
-     * an `active` Stripe subscription beside `is_active = false` — and this rule
-     * reported it, which is the false positive on every dispute that §3.4 says
-     * would get the whole report ignored.
+     *     const revoked = (ix.entitlementsByUser.get(user) ?? [])
+     *       .filter((e) => e.isActive === false);
+     *     if (revoked.length > 0) continue;
      *
-     * `is_active` is documented as the KILL SWITCH, flipped by a chargeback or a
-     * withdrawn comp (`001_billing_tables.sql`). A row that carries it is an
-     * answer somebody gave, not an absence. The same reasoning D81 applied to the
-     * backfill: a revocation is a decision, and a checker is not entitled to
-     * second-guess it.
+     * `entitlementsByUser` is unfiltered by product AND by source, so that says
+     * "this user has ever had ANYTHING revoked". **One withdrawn comp
+     * permanently silenced this rule** — the rule whose own docstring calls its
+     * subject "the worst customer-facing state in the system that is not a wrong
+     * charge".
+     *
+     * Driven with two accounts one row apart: control reported, subject silent.
+     * The realistic victim is a beta-grace account whose comp was withdrawn and
+     * who later subscribes: locked out, paying, and exempt forever.
+     *
+     * So the exemption asks about THE ROW THIS SUBSCRIPTION WOULD HAVE WRITTEN —
+     * `pro` from `stripe`, which is what `upsertEntitlement` keys on and what
+     * `revokeForCustomer` turns off. A comp is a different row about a different
+     * promise and has no bearing on whether a Stripe subscriber is locked out.
+     *
+     * `is_active` is documented as the KILL SWITCH (`001_billing_tables.sql`). A
+     * row that carries it is an answer somebody gave, not an absence — the same
+     * reasoning D81 applied to the backfill: a revocation is a decision, and a
+     * checker is not entitled to second-guess it. That still holds; it now holds
+     * about the right row.
+     *
+     * ⚠️ AND §3.4'S STATED PREMISE IS MEASURABLY FALSE, corrected in the spec as
+     * well as here. It said "Stripe leaves the subscription overdue". Asserted
+     * directly on the Stripe object after a real revoke: **Stripe leaves it
+     * ACTIVE.** Overdue implies dunning has begun; active means the next invoice
+     * is raised on schedule, which is why a dispute now cancels it outright.
      */
     const revoked = (ix.entitlementsByUser.get(user) ?? []).filter(
-      (e) => e.isActive === false,
+      (e) => e.isActive === false && e.product === "pro" && e.source === "stripe",
     );
     if (revoked.length > 0) continue;
 
@@ -570,6 +588,69 @@ export function liveSubscriptionWithoutEntitlement(
         `subscription ${sub.id} is ${sub.status}`,
         `account ${user} holds NO active entitlement, and none was deliberately revoked`,
         `the app decides access from entitlements alone, so this account is locked out while paying`,
+      ],
+    });
+  }
+  return out;
+}
+
+/* ── 6b. a revoked entitlement beside billing that never stopped ──── */
+
+/**
+ * ⚠️ THE DISPUTE CANCEL DID NOT LAND.
+ *
+ * `revokeForCustomer` now cancels the Stripe subscription behind a disputed
+ * charge (2.1). So a REVOKED `pro`/`stripe` entitlement sitting beside a
+ * subscription Stripe is still billing is no longer an expected state — it is the
+ * signal that the cancel failed, or that the subscription behind the charge could
+ * not be resolved and nothing was cancelled at all.
+ *
+ * What it costs while it goes unnoticed: we keep charging somebody whose money we
+ * no longer have, they dispute the next invoice too, and the dispute FEE stacks.
+ *
+ * ## ⚠️ WHY THIS IS A SEPARATE RULE AND NOT A WIDER RULE 6
+ *
+ * Rule 6 asks "is somebody paying with no access, and did nobody decide that?".
+ * Its §3.4 exemption exists because reporting every dispute would produce a false
+ * positive on each one, and §3.4 is explicit that this gets the whole report
+ * ignored. Widening it back would reopen exactly that.
+ *
+ * This asks a different question — "did we decide to stop, and fail to?" — whose
+ * answer is only ever a real fault. The exemption in rule 6 and the finding here
+ * are the same predicate read from opposite sides, which is why they are fixed
+ * together: narrow one without adding the other and the state becomes invisible.
+ *
+ * ⚠️ `pro`/`stripe` ONLY, matching the row `revokeForCustomer` writes. A withdrawn
+ * comp beside a live subscription is an ordinary paying customer who used to have
+ * a comp, and reporting them would be the same over-wide read this pass just
+ * removed from rule 6.
+ */
+export function revokedEntitlementBesideLiveSubscription(
+  s: ReconcileSnapshot,
+  ix: Index,
+): Finding[] {
+  const out: Finding[] = [];
+  for (const sub of s.subscriptions) {
+    if (!ACCESS_PROMISED.has(sub.status)) continue;
+    const user = userOf(sub, ix);
+    // No account behind it is rule 6's finding, already reported there. Reporting
+    // it twice would put the same customer on two lines of a report read at three
+    // in the morning.
+    if (!user) continue;
+
+    const revoked = (ix.entitlementsByUser.get(user) ?? []).filter(
+      (e) => e.isActive === false && e.product === "pro" && e.source === "stripe",
+    );
+    if (revoked.length === 0) continue;
+
+    out.push({
+      rule: "revoked-entitlement-beside-live-subscription",
+      account: { userId: user, stripeCustomerId: sub.customerId },
+      evidence: [
+        `subscription ${sub.id} is ${sub.status} and Stripe will invoice it on schedule`,
+        `account ${user} holds a REVOKED pro/stripe entitlement, so a dispute or refund took access away`,
+        `a dispute cancels the subscription, so this means the cancel failed or never ran`,
+        `every further invoice they dispute stacks another dispute fee`,
       ],
     });
   }
@@ -998,6 +1079,7 @@ export function runRules(s: ReconcileSnapshot): Finding[] {
     ...freePeriodMarkerMissing(s, ix),
     ...twoBillableSubscriptions(s, ix),
     ...liveSubscriptionWithoutEntitlement(s, ix),
+    ...revokedEntitlementBesideLiveSubscription(s, ix),
     ...entitlementWithoutSource(s, ix),
     ...chargeAndEntitlementDatesDisagree(s, ix),
     ...incompletePastWindow(s, ix),

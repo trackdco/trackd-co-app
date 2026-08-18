@@ -916,7 +916,7 @@ describe("§3.4 — three things wear `trialing`, and none of them is a finding"
 
 /* ── §3.4 — a dispute, where our rule and Stripe's disagree ───────── */
 
-describe("§3.4 — a dispute deactivates our entitlement while Stripe stays overdue", () => {
+describe("§3.4 — a dispute deactivates our entitlement; Stripe leaves the subscription ACTIVE", () => {
   /**
    * "This script asserts against OUR rule. A disputed subscription with a
    * deactivated entitlement is correct and must not be reported. Asserting
@@ -936,11 +936,95 @@ describe("§3.4 — a dispute deactivates our entitlement while Stripe stays ove
    * ⚠️ FOUND BY DRIVING (Step 5), NOT BY REASONING. Stripe leaves a disputed
    * subscription ACTIVE while our rule revokes the entitlement immediately. Both
    * rules below reported that state until Step 5 seeded it for real.
+   *
+   * ⚠️ §3.4's OWN WORDING — "Stripe leaves the subscription overdue" — IS
+   * MEASURABLY FALSE and is corrected in the spec. Overdue implies dunning has
+   * begun; ACTIVE means the next invoice is raised on schedule. That difference
+   * is the whole reason a dispute now cancels the subscription (2.1).
    */
   it("CONTROL: an ACTIVE subscription with a revoked entitlement is a dispute, not a lockout", () => {
     const s = snapshot({
       subscriptions: [sub({ status: "active" })],
       entitlements: [ent({ isActive: false })],
+    });
+    expect(of(s, "live-subscription-without-entitlement")).toHaveLength(0);
+  });
+
+  /**
+   * ⚠️ AND SINCE 2.1 IT IS REPORTED BY ITS OWN RULE, because a dispute now
+   * CANCELS the subscription. The same shape that is correctly exempt from rule 6
+   * is a genuine fault here: the cancel failed, or never ran, and Stripe will
+   * invoice again.
+   */
+  it("⚠️ the SAME state is reported by revoked-entitlement-beside-live-subscription", () => {
+    const s = snapshot({
+      subscriptions: [sub({ status: "active" })],
+      entitlements: [ent({ isActive: false })],
+    });
+    const found = of(s, "revoked-entitlement-beside-live-subscription");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.account?.userId).toBe(USER);
+    expect(found[0]?.evidence.join(" ")).toContain("the cancel failed or never ran");
+  });
+
+  it("⚠️ CONTROL: a cancelled subscription beside a revoked row is the SETTLED state, silent", () => {
+    // What 2.1 produces when it works. Reporting this would put a finding on
+    // every dispute that was handled correctly, which is the false-positive
+    // failure §3.4 warns gets the whole report ignored.
+    const s = snapshot({
+      subscriptions: [sub({ status: "canceled" })],
+      entitlements: [ent({ isActive: false })],
+    });
+    expect(of(s, "revoked-entitlement-beside-live-subscription")).toHaveLength(0);
+  });
+
+  it("⚠️ CONTROL: a WITHDRAWN COMP beside a live subscription is not this finding", () => {
+    // An ordinary paying customer who used to have a comp. Reporting them would
+    // be the same over-wide read this pass removed from rule 6.
+    const s = snapshot({
+      subscriptions: [sub({ status: "active" })],
+      entitlements: [
+        ent({ source: "comp", isActive: false, activeUntil: null }),
+        ent({ source: "stripe", isActive: true }),
+      ],
+    });
+    expect(of(s, "revoked-entitlement-beside-live-subscription")).toHaveLength(0);
+  });
+
+  /**
+   * ⚠️ THE NARROWING, AND THE DEFECT IT CLOSES. Driven with two accounts one row
+   * apart: control reported, subject silent.
+   *
+   * `entitlementsByUser` was unfiltered by product AND source, so the exemption
+   * meant "this user has ever had anything revoked" — and ONE withdrawn comp
+   * permanently silenced the rule its own docstring calls "the worst
+   * customer-facing state in the system that is not a wrong charge".
+   */
+  it("⚠️ a withdrawn COMP no longer silences the lockout rule for a paying subscriber", () => {
+    const subject = snapshot({
+      subscriptions: [sub({ status: "active" })],
+      // The beta-grace account whose comp was withdrawn, who then subscribed.
+      // No stripe entitlement at all: they are paying and locked out.
+      entitlements: [ent({ source: "comp", isActive: false, activeUntil: null })],
+    });
+    expect(
+      of(subject, "live-subscription-without-entitlement"),
+      "a withdrawn comp is still silencing the lockout rule",
+    ).toHaveLength(1);
+
+    /** CONTROL, one row apart: without the comp it was always reported. */
+    const control = snapshot({
+      subscriptions: [sub({ status: "active" })],
+      entitlements: [],
+    });
+    expect(of(control, "live-subscription-without-entitlement")).toHaveLength(1);
+  });
+
+  it("⚠️ CONTROL: a revoked STRIPE row still exempts rule 6, which is what §3.4 asked for", () => {
+    // The narrowing must not have deleted the exemption it was narrowing.
+    const s = snapshot({
+      subscriptions: [sub({ status: "active" })],
+      entitlements: [ent({ source: "stripe", isActive: false })],
     });
     expect(of(s, "live-subscription-without-entitlement")).toHaveLength(0);
   });
