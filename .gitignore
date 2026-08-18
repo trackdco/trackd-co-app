@@ -148,6 +148,18 @@ condensed_GLBX-*
 # modal every comp and beta account meets on launch morning.
 !/scratchpad/drive-42-notice-focus.mjs
 
+# ⚠️ AND THE TWO DEV-SERVER LAUNCHERS. Standing Law 4 says the billing gate is a
+# COMMAND-LINE flag and never `.env.local`, and these are the only correct way to
+# set it here: `npx` re-execs and LOSES the variable — `nohup env FLAG=true npx
+# next dev` produced a fully green vacuous run once. They export-and-exec instead.
+#
+# They also clear `.next` before starting, with the reasoning in the file: killing
+# a Turbopack dev server mid-compile leaves a cache that serves 404 for EVERY
+# route with no compile error, which reads exactly like a broken feature. Both
+# scripts refuse to clear it if anything is still listening on 3100.
+!/scratchpad/dev-gate-on.sh
+!/scratchpad/dev-gate-off.sh
+
 # ⚠️ AND THE LEAK DETECTOR'S OWN CONTROL, tracked 2026-08-18 with the audit
 # rewrite it proves. `qa-audit.mjs` is tracked; a detector whose control is on one
 # machine is exactly the claim-not-evidence failure D89 tracked the spine to close,
