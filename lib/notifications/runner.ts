@@ -119,6 +119,8 @@ interface UserData {
    * about the account and the other is a fact about our database.
    */
   entitlementsUnknown: boolean;
+  /** ⚠️ THE SUBSCRIPTIONS READ FAILED — not "no subscription". See 1.6. */
+  subscriptionsUnknown: boolean;
   /**
    * The reminder date already sent for, from `trial_reminder_sent_for`.
    *
@@ -158,6 +160,8 @@ async function collectTrial(
    * silence on an account that may be days from losing access.
    */
   entitlementsUnknown: boolean;
+  /** ⚠️ THE SUBSCRIPTIONS READ FAILED — not "no subscription". See 1.6. */
+  subscriptionsUnknown: boolean;
 }> {
   const [subRes, stampRes, graceRes] = await Promise.all([
     supabase
@@ -258,6 +262,27 @@ async function collectTrial(
    * the gate flips, which is why it must be DRIVEN with the gate on rather than
    * reasoned about.
    */
+  /**
+   * ⚠️ THE SUBSCRIPTIONS READ SAYS WHETHER IT WORKED TOO (1.6).
+   *
+   * `graceRes.error` became a third state under finding 7 and `stampRes.error`
+   * is inspected for the migration code — but this one was never read at all, so
+   * a failed subscriptions read produced `row === undefined` and the account
+   * reported `no-trial`.
+   *
+   * ⚠️ AND THIS IS THE READ WHERE MONEY ACTUALLY MOVES. The grace read that got
+   * the fix is the FALLBACK, for accounts with no subscription at all; this is
+   * the one that finds the trials about to bill. The rule this file states at
+   * the trial verdict applies here first: "`no-trial` is a statement about the
+   * ACCOUNT. A failed entitlement read is a statement about OUR DATABASE."
+   */
+  const subscriptionsUnknown = Boolean(subRes.error);
+  if (subscriptionsUnknown) {
+    console.error(
+      `[reminders] subscriptions unreadable for ${userId} (${subRes.error?.message}); ` +
+        `the trial verdict is deferred to the next tick, not reported as no-trial`,
+    );
+  }
   const entitlementsUnknown = Boolean(graceRes.error);
   if (entitlementsUnknown) {
     console.error(
@@ -310,13 +335,28 @@ async function collectTrial(
           : null,
       );
 
+  /**
+   * ⚠️ AND `row === undefined` MUST NOT FALL THROUGH TO THE GRACE (1.6).
+   *
+   * The second effect of the unread error, and the more expensive one. A
+   * GRACE-ALIGNED subscriber holds both a beta comp and a live trialing
+   * subscription. When the subscriptions read fails, `row` is undefined and this
+   * silently substituted the grace — so they were sent the GRACE's ending and
+   * the GRACE's date, on a notice about money.
+   *
+   * The fallback is correct for its OWN cohort (no subscription at all, so the
+   * grace genuinely is the ending) and is unchanged for them. It stops applying
+   * only when we do not KNOW whether there is a subscription.
+   */
   const trial: TrialForReminder | null = row
     ? {
         status: row.status as string,
         trialEndsAt: (row.trial_ends_at as string | null) ?? null,
         cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
       }
-    : grace;
+    : subscriptionsUnknown
+      ? null
+      : grace;
 
   // `42703` is Postgres's undefined_column. PostgREST also reports it as
   // `PGRST204` on some shapes, so both are read as "the migration is not applied
@@ -342,6 +382,7 @@ async function collectTrial(
      * be days from losing access.
      */
     entitlementsUnknown,
+    subscriptionsUnknown,
   };
 }
 
@@ -732,7 +773,7 @@ async function collectUserData(
     };
   });
 
-  const { trial, isBetaGrace, sentFor, canWrite, entitlementsUnknown } =
+  const { trial, isBetaGrace, sentFor, canWrite, entitlementsUnknown, subscriptionsUnknown } =
     await collectTrial(supabase, userId);
 
   return {
@@ -749,6 +790,7 @@ async function collectUserData(
     isBetaGrace,
     canWrite,
     entitlementsUnknown,
+    subscriptionsUnknown,
   };
 }
 
@@ -1045,7 +1087,19 @@ export async function runForUser(
        *                 nothing to render and nothing here may invent one. That is
        *                 stop-list S2, recorded in `next-tasks.md`.
        */
-      if (!verdict.send && verdict.reason === "no-trial" && data.entitlementsUnknown) {
+      /**
+       * ⚠️ AND THE SUBSCRIPTIONS READ GETS THE SAME TREATMENT (1.6), with its
+       * OWN reason so the payload names the table that failed. `07` §3.9 calls
+       * this payload "the only observability this system has", and
+       * "entitlements-unreadable" pointing at a subscriptions failure would send
+       * the next reader to the wrong table.
+       *
+       * Same deferral, same reasoning, and nothing is claimed or stamped on this
+       * path either — so the next tick reads again and sends.
+       */
+      if (!verdict.send && verdict.reason === "no-trial" && data.subscriptionsUnknown) {
+        trialReason = "subscriptions-unreadable";
+      } else if (!verdict.send && verdict.reason === "no-trial" && data.entitlementsUnknown) {
         trialReason = "entitlements-unreadable";
       } else if (verdict.send && data.trial) {
         /**
