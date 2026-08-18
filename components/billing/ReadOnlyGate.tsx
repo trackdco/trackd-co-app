@@ -332,9 +332,28 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
             lapsed trial, a lapsed subscription AND a revoked account alike —
             they differ in origin and are identical in what they can do, which is
             nothing but read. Adrian, 2026-08-17: if a second variant ever seems
-            necessary, that is the signal to stop and ask rather than write one. */}
+            necessary, that is the signal to stop and ask rather than write one.
+
+            ⚠️ THE INSTRUCTION ABOVE FIRED, AND THIS IS ITS ANSWER (D98).
+
+            The first clause read "You're not on a plan at the moment", which is
+            FALSE for a past-due customer who IS on a plan Stripe is still
+            charging — two taps from a screen reading "Renews on" and offering
+            Cancel. That looked like the case for a second variant. It is not:
+            THE ANSWER IS NOT TO BRANCH. The clause is reworded so it is true of
+            every cohort, and the pop-up stays as one body.
+
+            ⚠️ AND THE FIRST REWORDING WAS ALSO WRONG, which is why this note
+            names both. "Your access has ended" is a statement about HISTORY, and
+            it is false for somebody who never had access — anyone signing up
+            after the 17 Aug backfill holds no entitlement row, so at P13 that is
+            exactly who reads this. It inverted which cohort the sentence failed.
+
+            What is signed is a statement about NOW, true of all six: never had
+            access, lapsed grace, lapsed trial, lapsed subscription, revoked, and
+            past-due after the lapse. */}
         <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-          You&apos;re not on a plan at the moment, so Trackd Co is read only. You
+          You don&apos;t have access at the moment, so Trackd Co is read only. You
           can still view everything you&apos;ve logged, you just can&apos;t add to
           it.
         </p>

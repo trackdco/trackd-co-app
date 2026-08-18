@@ -24,7 +24,18 @@ import { admin, makeUser, dropUser, signIn } from "./admin.mjs";
 /** §3.6's approved copy, character for character. */
 const APPROVED = {
   title: "Your account is read only",
-  body: "You're not on a plan at the moment, so Trackd Co is read only. You can still view everything you've logged, you just can't add to it.",
+  /**
+   * ⚠️ RE-SIGNED 18 Aug 2026 (D98). The first clause was "You're not on a plan at
+   * the moment", which is FALSE for a past-due customer who IS on a plan Stripe
+   * is still charging. The standing stop-and-ask instruction in the component
+   * fired, and the answer was to reword rather than to branch.
+   *
+   * A first rewording — "Your access has ended" — was also wrong, in the other
+   * direction: it is a statement about HISTORY and false for anyone who never had
+   * access, which after the 17 Aug backfill is every new sign-up. What is signed
+   * is a statement about NOW, true of all six cohorts.
+   */
+  body: "You don't have access at the moment, so Trackd Co is read only. You can still view everything you've logged, you just can't add to it.",
   reassurance: "Nothing has been deleted.",
   dismiss: "Back to my logs",
   action: "Choose a plan",
