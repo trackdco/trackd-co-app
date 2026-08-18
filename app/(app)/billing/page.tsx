@@ -4,17 +4,9 @@ import { redirect } from "next/navigation";
 
 import { CancelSubscription } from "@/components/billing/CancelSubscription";
 import { DeclinedCard } from "@/components/billing/DeclinedCard";
-import { CaretRight } from "@/components/icons";
-import { StripeHandoff } from "@/components/billing/StripeHandoff";
+import { CaretRight, CreditCard } from "@/components/icons";
 import { STAYING_NOTICE_SLOT } from "@/components/billing/StayingNotice";
-import { currentEntitlement, entitlementEndDate } from "@/lib/billing/entitlements";
-import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
-import { courtesyUntilFor } from "@/lib/billing/courtesy";
-import { declinedOnFor } from "@/lib/billing/declined";
-import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
 import {
-  CANCELLABLE_STATUSES,
-  STOPPABLE_NOW,
   formatAccessDate,
   isBetaGrace,
   isGenuineTrial,
@@ -24,7 +16,9 @@ import {
   planLabelFor,
   type PlanEntitlement,
 } from "@/lib/billing/manage";
-import { loadPricesSafe } from "@/lib/billing/prices";
+import { loadBillingFacts } from "@/lib/billing/screenFacts";
+import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
+import { STOPPABLE_NOW } from "@/lib/billing/manage";
 import { formatPrice } from "@/lib/onboarding/pricing";
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
@@ -60,271 +54,18 @@ export default async function BillingPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [
-    { data: profile },
-    /**
-     * ⚠️ THE ERROR IS DESTRUCTURED, AND RULE 0 IS WHY.
-     *
-     * `subs` is `null` both when the user genuinely has no subscription and when
-     * the read FAILED, and those are not the same fact. Everything below that
-     * merely DESCRIBES a subscription may safely treat them alike — it renders
-     * less. The subscribe row may not: it is offered on "this account has no
-     * subscription", and a failed read defaulting to that answer would offer a
-     * second billable subscription to somebody who already has one, straight
-     * through the one-subscription invariant `startTrial`'s lease exists to hold.
-     *
-     * `?? []` feeding a decision is the signature defect. The shape here is
-     * `compEntitlement`'s: ask whether the read WORKED, and withhold when it did
-     * not. See `subscriptionsKnown` below.
-     */
-    { data: subs, error: subsError },
-    { data: customer },
+  const {
+    tz,
     entitlement,
-  ] = await Promise.all([
-      supabase.from("profiles").select("timezone").eq("id", user.id).maybeSingle(),
-      // ⚠️ FILTERED AND ORDERED THE SAME WAY THE ACTION DECIDES.
-      //
-      // This had NO status filter and ordered by `updated_at`, while the action
-      // filtered to live statuses. A cold review put a dead `incomplete_expired`
-      // row (which `startTrial` creates when it cancels an abandoned attempt)
-      // beside a live trial: the page rendered "This one can't be changed from
-      // here. Email support@trackdco.app" and offered no cancel control, for a
-      // user whose trial Stripe said was perfectly live and about to bill.
-      //
-      // Soonest-ending first, so an imminent charge is what the screen shows.
-      /**
-       * ⚠️ EVERY LIVE ROW, NOT `limit(1)`. This is the DISPLAY half of the
-       * $69.99 defect, and it survived the fix to the action half.
-       *
-       * Driven by a cold review: a user with a `trialing` monthly (cancelled) and
-       * an `active` yearly running to 2027 read
-       *
-       *     Access   Free trial
-       *     Price    $11.99 USD / month
-       *     ...nothing more will be charged
-       *
-       * with **zero cancel controls on the page**, because `manageActionFor`
-       * received the trial's `cancelAtPeriodEnd: true` and rendered the resume
-       * card. The yearly underneath had `cancel_at_period_end: false` and no exit
-       * from inside the app at all.
-       *
-       * `limit(1)` cannot describe two subscriptions, and the ONE it picks is the
-       * soonest-ending — which is precisely the one that matters least when
-       * another is still billing. So all live rows are read and the one the
-       * screen is ABOUT is chosen below, with the rest counted rather than
-       * silently dropped.
-       *
-       * ⚠️ AND THE FILTER IS `BILLABLE_STATUSES`, WHICH IS THE RIGHT QUESTION.
-       *
-       * It read a literal three — `trialing`, `active`, `past_due` — so a
-       * `paused`, `unpaid` or `incomplete` row never reached `manageActionFor`
-       * at all. That function then saw `null`, answered `{kind: "none"}`, and the
-       * support line's condition needs `no-subscription`, so a comp with a paused
-       * subscription got no control AND no signpost: the entire screen was
-       * "Access Complimentary / Payment method and invoices / Back to profile".
-       *
-       * `BILLABLE_STATUSES` asks "what could still take this person's money?",
-       * which is the question a screen offering an exit should be asking. The
-       * narrower "what may they press a button on?" is `CANCELLABLE_STATUSES`,
-       * and it is applied BELOW, when choosing which row the screen describes —
-       * not here, where it silently drops rows the user needs to know about.
-       */
-      supabase
-        .from("subscriptions")
-        .select(
-          "status, trial_ends_at, current_period_end, cancel_at_period_end, stripe_price_id",
-        )
-        .eq("user_id", user.id)
-        .in("status", [...BILLABLE_STATUSES])
-        .order("current_period_end", { ascending: true }),
-      // Whether there is anything for the Stripe portal to open onto. A user can
-      // legitimately have a customer row and no live subscription (they
-      // cancelled and it lapsed), and their invoices are still theirs to read.
-      supabase
-        .from("billing_customers")
-        .select("stripe_customer_id")
-        .eq("user_id", user.id)
-        .maybeSingle(),
-      currentEntitlement(),
-    ]);
-  const hasStripeCustomer = Boolean(customer?.stripe_customer_id);
-
-  const tz = (profile?.timezone as string | null) || "Australia/Sydney";
-
-  /**
-   * ⚠️ THE ROW THE SCREEN IS ABOUT IS THE ONE THAT WILL STILL CHARGE.
-   *
-   * Ordering by `current_period_end` and taking the first picks the SOONEST
-   * ending, which is exactly the wrong one when another subscription is still
-   * billing: a cancelled trial ending next week sorts ahead of an active yearly
-   * running to 2027, so the screen described the trial, rendered the resume card
-   * from its `cancel_at_period_end: true`, and left the yearly with **no exit
-   * from inside the app**. That is the display half of the $69.99 defect.
-   *
-   * So: prefer a row that is still going to bill. Among those, soonest-ending, so
-   * an imminent charge is what is described. If everything is already cancelled
-   * the old ordering is correct and unchanged.
-   *
-   * A user should only ever have one live subscription — `startTrial`'s lease and
-   * the reconcile both exist to guarantee it — so more than one is an anomaly and
-   * is logged as one rather than quietly rendered.
-   */
-  const liveRows = subs ?? [];
-  /**
-   * ⚠️ "STILL GOING TO CHARGE" IS NOT THE SAME AS "NOT FLAGGED", and the first
-   * version of this conflated them.
-   *
-   * A `paused` subscription carries `cancel_at_period_end: false` and is charging
-   * nobody, so a bare `!cancel_at_period_end` filter ranked it ABOVE a cancelled
-   * `active` yearly — describing the screen with the one that cannot be acted on
-   * and hiding the resume card for the one that can.
-   *
-   * Three questions in order, which is the order they matter in:
-   *
-   *   1. something the user can act on that WILL still take money  -> cancel
-   *   2. something the user can act on that is already stopped     -> resume
-   *   3. anything else still live (paused, unpaid, incomplete)     -> unavailable,
-   *      which is what renders D83's support line
-   *
-   * Tier 3 is the one 2.4 was about: those rows used to be filtered out entirely,
-   * so `manageActionFor` saw `null`, returned `{kind: "none"}`, and a comp with a
-   * paused subscription got no control AND no support line — the whole screen was
-   * "Access Complimentary / Payment method and invoices / Back to profile".
-   */
-  const actionable = liveRows.filter((r) => CANCELLABLE_STATUSES.has(r.status));
-  const row =
-    actionable.find((r) => !r.cancel_at_period_end) ?? actionable[0] ?? liveRows[0];
-  if (liveRows.length > 1) {
-    console.error(
-      `[billing] ${user.id} has ${liveRows.length} live subscription rows (${liveRows
-        .map((r) => `${r.status}${r.cancel_at_period_end ? " cancelled" : ""}`)
-        .join(", ")}); the screen describes the one still billing`,
-    );
-  }
-
-  /**
-   * ⚠️ READ IN ITS OWN QUERY, and its failure is swallowed.
-   *
-   * `courtesy_until` arrives with `supabase/billing/003`, **which was applied on
-   * 16 August** (probe: `select courtesy_until` returns an empty set, not
-   * `42703`). The separate query STAYS regardless: folding it into the select
-   * above would mean an unapplied migration
-   * takes down the WHOLE billing screen -- PostgREST rejects the entire request
-   * for one unknown column -- so somebody trying to see what they are paying
-   * would get nothing at all.
-   *
-   * Exactly the shape `notifications/004` uses for the same reason, and the same
-   * lesson `trialLease.ts` paid for: the deploy and the migration do not land in
-   * the same instant, and the code has to be correct in the gap.
-   *
-   * The tolerance is not hypothetical and is not removed now that 003 is applied:
-   * a deploy and a migration do not land in the same instant, and this shape is
-   * what makes the code correct in the gap. Where the column cannot be read this
-   * is null and the label falls back to today's behaviour.
-   *
-   * ⚠️ THE QUERY MOVED TO `lib/billing/courtesy.ts` AND DID NOT CHANGE. It was a
-   * private helper at the foot of this file; Profile now needs the same value,
-   * for the same label, and was passing none at all — so a courtesy customer read
-   * "Free trial" there while this screen read "Pro". One function, two callers,
-   * rather than a copy that can drift. Every property above is preserved
-   * verbatim: its own query, its own `try`, the named status set, and a `null`
-   * that can only ever change one word on the screen.
-   */
-  const courtesyUntil = await courtesyUntilFor(user.id);
-  const subscription = row
-    ? {
-        status: row.status as string,
-        trialEndsAt: (row.trial_ends_at as string | null) ?? null,
-        currentPeriodEnd: (row.current_period_end as string | null) ?? null,
-        cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
-        courtesyUntil,
-      }
-    : null;
-
-  // The entitlement's own end date goes in as well: it is the table that
-  // DECIDES access, and where it and the mirror disagree the screen must state
-  // the earlier of the two. See `manageActionFor` — a `past_due` user was being
-  // promised twenty-seven days past the day they actually go read only.
-  /**
-   * ⚠️ THE DATE COMES FROM A READ THAT INCLUDES DEAD ENTITLEMENTS; THE SOURCE
-   * DOES NOT. Two questions, two reads, deliberately.
-   *
-   * `currentEntitlement` filters to rows active RIGHT NOW, which is right for
-   * "what is this person ON" — a revoked comp must not be labelled
-   * Complimentary. It is wrong for "when does their access end", because an
-   * expired or revoked row answered `null` and `soonerOf` then fell back to the
-   * mirror: the guard stopped applying at exactly the moment the two dates
-   * disagree most. Measured at 365 days of over-promised access on a yearly whose
-   * entitlement had been clawed back to 14 Aug.
-   */
-  /**
-   * Read ONCE and used twice: `manageActionFor` needs it to shorten an
-   * over-promising date, and the declined card needs it as the date access
-   * actually ends. `entitlementEndDate` is request-`cache()`d, so this is one
-   * query either way — naming it makes the two uses visible instead of implying
-   * they are separate reads that could drift.
-   */
-  const entitlementEnd = await entitlementEndDate();
-  const action = manageActionFor(entitlement, subscription, entitlementEnd);
-
-  /**
-   * ⚠️ THE ONLY STRIPE READ ON THIS PAGE, AND ONLY FOR A FAILING CARD.
-   *
-   * §5 requires the declined card's two dates to come from two sources: "the
-   * failure date from Stripe, the access date from the entitlement". The mirror
-   * has no failure column and this spec produces no migration, so Stripe is the
-   * only place it exists. Display only — nothing here decides access, which is
-   * still `entitlements` and nothing else.
-   *
-   * Gated on the status so an ordinary page load never makes a network call, and
-   * tolerant: `null` withholds the sentence rather than inventing a date.
-   */
-  const declinedOn =
-    isPastDue(subscription) && customer?.stripe_customer_id
-      ? await declinedOnFor(customer.stripe_customer_id as string)
-      : null;
-
-  // The plan's name and amount, matched by price id. `loadPricesSafe` returns an
-  // empty list when Stripe is unconfigured (which is production today), so every
-  // consumer below is written to render nothing rather than a blank number.
-  const prices = await loadPricesSafe();
-  const price = row?.stripe_price_id
-    ? prices.find((p) => p.priceId === row.stripe_price_id)
-    : undefined;
-
-  /**
-   * When the paid plan begins, for a mid-grace subscriber, or null for everybody
-   * else. Computed once and read twice below. See {@link graceStartsOn}.
-   */
-  const planStartsOn = graceStartsOn(entitlement, subscription);
-
-  /**
-   * ⚠️ THE D35 SUBSCRIBE ROW, AND ITS COHORT IS NARROW ON PURPOSE.
-   *
-   * §3.8, as corrected by the founder: **a live beta grace AND no subscription.
-   * Nothing else.**
-   *
-   *   not a courtesy user   a courtesy period only exists ON a live
-   *                         subscription, so they already have one and a
-   *                         subscribe control invites a SECOND — which the
-   *                         one-subscription invariant forbids outright.
-   *   not a lapsed account  `05`'s pop-up owns that route.
-   *   not a free-for-life comp  `01` refuses them at the create call.
-   *   not a paying subscriber   nothing to set up.
-   *
-   * It exists because `06`'s notice is dismissible and shows ONCE. After "Got
-   * it" the notice is gone for the rest of the fortnight, and without this row a
-   * beta user who dismissed it on day one has no route to checkout for thirteen
-   * days. `06` says so in as many words: "`08` carries the standing route via
-   * its subscribe row (D31), which is what makes a one-shot notice safe."
-   *
-   * ⚠️ `subscriptionsKnown` IS NOT DECORATION. See the destructure above: an
-   * unreadable mirror must not read as "no subscription", because the answer to
-   * that question is a control that starts a charge.
-   */
-  const subscriptionsKnown = !subsError;
-  const showSubscribeRow =
-    subscriptionsKnown && liveRows.length === 0 && isBetaGrace(entitlement);
+    subscription,
+    action,
+    entitlementEnd,
+    declinedOn,
+    hasStripeCustomer,
+    price,
+    planStartsOn,
+    showSubscribeRow,
+  } = await loadBillingFacts(user.id);
 
   return (
     <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
@@ -626,7 +367,7 @@ export default async function BillingPage() {
                * Resolved here, from the row's status, because the client must not
                * decide which Stripe call happens.
                */
-              endsImmediately={Boolean(row && STOPPABLE_NOW.has(row.status as string))}
+              endsImmediately={Boolean(subscription && STOPPABLE_NOW.has(subscription.status))}
             />
             {action.kind === "resume" ? (
               <p className="px-1 pb-3 text-xs leading-relaxed text-text-muted">
@@ -643,15 +384,35 @@ export default async function BillingPage() {
         </section>
       ) : null}
 
-      {/* Handing card details to Stripe rather than touching them. Shown only to
-          someone who HAS a Stripe customer, since there is nothing to manage
-          otherwise. Not shown for an App Store subscription: Apple holds the
-          payment method there, and a Stripe portal would be about a customer
-          that has no card on it. */}
+      {/**
+        * ⚠️ THE MANAGE ROW REPLACES THE PAYMENT ROW THAT USED TO SIT HERE.
+        *
+        * §3.2's approved structure is "one card holding Access, Price, the
+        * relevant date, and a Manage row", and §3.3 puts Card and Receipts one
+        * screen deeper. So this screen no longer carries a payment row at all —
+        * it carries the route to the screen that does.
+        *
+        * Shown on the same terms the payment row was: only to somebody who HAS a
+        * Stripe customer, since Manage is Card and Receipts and there is nothing
+        * to manage otherwise, and never for an App Store subscription, where
+        * Apple holds the payment method and a Stripe portal would be about a
+        * customer with no card on it.
+        *
+        * A plain `next/link`, unlike the subscribe row: this destination is
+        * INSIDE the app tree, so a soft navigation is correct and the full
+        * document load the onboarding route needs would be a regression here.
+        */}
       {hasStripeCustomer && action.kind !== "store" ? (
         <section className="mt-6">
           <div className="overflow-hidden rounded-2xl bg-bg-surface">
-            <StripeHandoff rows={[{ key: "both", label: "Payment method and invoices" }]} />
+            <Link
+              href="/billing/manage"
+              className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <CreditCard className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+              <span className="flex-1 text-sm text-foreground">Manage</span>
+              <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+            </Link>
           </div>
         </section>
       ) : null}
@@ -764,27 +525,6 @@ function accessValue(
   return until ? `${label} until ${until}` : label;
 }
 
-/**
- * WHEN A MID-GRACE SUBSCRIBER'S PAID PLAN BEGINS, or null for everybody else.
- *
- * §3.6 gives this cohort the plan name and a `Starts {date}` row rather than any
- * trial vocabulary. The date is the GRACE end from `entitlements.active_until` —
- * the instant they were promised in writing — and deliberately not the mirror's
- * `trial_ends_at`, which `resolveFreeTime`'s 48-hour clamp can push later than
- * the promise. `11-reconciliation-and-alerting.md` makes the same choice for the
- * same reason: the question is always about the promise.
- *
- * ⚠️ Reachable only while the dated comp is the STRONGEST entitlement. Once
- * `syncSubscription` writes the `stripe` row, `access.ts`'s tiering prefers it
- * and this returns null. That cohort is a reported gap, not a silent one: the
- * mirror carries no grace marker to detect it with.
- */
-function graceStartsOn(
-  entitlement: PlanEntitlement | null,
-  subscription: { status: string } | null,
-): string | null {
-  return isGraceAligned(entitlement, subscription) ? entitlement!.activeUntil : null;
-}
 
 /** "Renews on" / "Ends on", depending on whether a cancellation is scheduled. */
 function renewalRow(

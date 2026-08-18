@@ -257,6 +257,29 @@ from its source and compare. `qa-08-step5-declined.mjs` delivers a real
 `invoice.payment_failed` to the app's OWN webhook and then reads
 `entitlements.active_until`; it never computes "period start plus three days".
 
+⚠️ **A CONTROL MEASURED IN THE WRONG STATE REPORTS THE WRONG THING.**
+
+Two instances in one week, both controls, both wrong while the screen was fine. That
+is what makes them worth writing down: **a broken control fails silently in the
+direction of passing.** A defect test that breaks goes red and you look at it; a
+control that breaks just stops controlling, and every assertion it was guarding keeps
+its tick.
+
+  **Scroll to the end before asking what is behind the nav.** "Nothing sits under the
+  fixed bottom nav" means UNREACHABLE. Measured at the top of a scrollable page it
+  reports everything below the fold, which is normal. 2026-08-18: two controls flagged
+  at y=503 in a 568-tall viewport on a page that scrolls perfectly well.
+
+  **Assert a date against its SOURCE, never its SHAPE.** `/\d{1,2}\s\w{3}\s\d{4}/`
+  is satisfied by any date, so it cannot tell the right one from the wrong one in the
+  next row — and it silently failed on its own terms: `en-AU` writes September as
+  **"Sept"**, four letters, and does not abbreviate June or July at all. 2026-08-18:
+  two controls written as "there is NO date here" were vacuous for a quarter of the
+  year.
+
+The general form: **before trusting a control, ask what state the page was in when
+the control ran.** Not what state you meant it to be in.
+
 ⚠️ **A CONTROL MUST BE A NAMED ARTEFACT, NEVER A THRESHOLD OR AN APPROXIMATION.**
 
 A control exists to prove the instrument read something. A number you chose, or a
