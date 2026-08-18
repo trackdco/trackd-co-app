@@ -21,8 +21,11 @@ Taken 18 Aug 2026 from the ledger's own next-free list, in the brief's order.
 | D99 | The revocation exemption narrows; revoked-beside-live reported | 11 |
 | D100 | The three parked findings accepted under §9g | 11 |
 
-**Q106** — does the dispute copy apply to a REFUND-revoked account? OPEN, needs a
-ruling. `entitlements` records THAT a row was revoked and never WHY, so a refund and a
+| D101 | Revocation reason persisted; unknown WITHHOLDS | 03, seam to 08 |
+
+**Next free: D102 / Q107.** **Q106 ANSWERED by D101.**
+
+**Q106 was** — does the dispute copy apply to a REFUND-revoked account? `entitlements` records THAT a row was revoked and never WHY, so a refund and a
 dispute leave byte-identical rows. Predates this batch; D93 inherits it. Cheapest fix
 noted in the ledger: `revokeForCustomer` already takes `reason` and does not persist it.
 
@@ -41,7 +44,20 @@ noted in the ledger: `revokeForCustomer` already takes `reason` and does not per
   `cd6d2b2` 1.7 dashboard banner + the false comment.
 - **Group 2 — COMPLETE.** `139d5e9` 2.2 · `a23aeb4` 2.1 (driven against real Stripe) ·
   `6499513` 2.3 · `64bd672` 2.4 · `418b33e` 2.5 + the ledger.
-- Groups 3-5: not started.
+- **Group 3 — COMPLETE.** `6f4f0f4` 3.1 · `f272e8d` 3.2 · `6c8b0d9` 3.3 ·
+  `5d118d7` the new-sign-up drive. Plus `a53c0d9` D101/Q106 (migration 005).
+- Groups 4-5: not started.
+
+## ⚠️ OWED TO THE FOUNDER BEFORE LAUNCH — APPLY MIGRATION 005
+
+`supabase/billing/005_revoked_reason.sql` is WRITTEN and UNAPPLIED. It is **not**
+launch-coupled the way 004 is — no date dependency, idempotent, apply whenever.
+
+**Until it is applied, a genuinely disputed customer sees NO explanation on Manage.**
+Every revoked row reads `unknown`, and unknown WITHHOLDS both dispute sentences by
+ruling (telling a refunded customer their bank disputed a payment is the lie the
+default would produce). Nothing false is said — but D93's sentence reaches nobody
+until the migration runs. Applying it before launch closes that.
 
 ## ⚠️ D98's COPY WAS RE-SIGNED MID-BATCH — use the SECOND wording
 
@@ -53,13 +69,11 @@ backfill that is every new sign-up. Use:
 
 Drive it against ALL SIX cohorts including a fresh account with no entitlement row.
 
-## ⚠️ OWED IN GROUP 3 — the new-sign-up path, never driven
+## ✅ THE NEW-SIGN-UP PATH IS INTACT — driven 8/8, gate on
 
-Anyone signing up after the 17 Aug backfill holds no entitlement row and goes
-read-only at P13 with no fortnight. Founder believes that is correct. **Drive once,
-gate on:** the pop-up renders, `?step=plans` is reached, and a genuine 7-day trial is
-offered rather than refused. If any part is broken, STOP and report. P11 must NOT
-re-run the backfill to cover them, and `12` must not change.
+Pop-up with the D98 clause, `?step=plans`, and a genuine 7-day trial offered with no
+refusal. Nothing purchased. `scratchpad/drive-newsignup.mjs`, tracked. P11 unchanged,
+`12` untouched.
 
 ## ⚠️ THE 15 HARNESS FAILURES — CLASSIFIED, NOT FIXED
 
@@ -88,7 +102,7 @@ none was touched.
 |---|---|---|
 | tsc + ESLint | clean | clean |
 | gate audit | 32 / 2 / 69 | 32 / 2 / 69 (unmoved) |
-| `npm run check` tests | 1523 | 1554 (+31, all new controls) |
+| `npm run check` tests | 1523 | 1561 (+38, all new controls) |
 | `qa-05-readonly.mjs` | 23/23 | 23/23 |
 | accounts | 90 / 0 / 90 / 0 / 0 | **91** / 0 / 90 / 0 / 0 — a real Google sign-up landed 05:30Z 18 Aug, mid-session. Baseline raised, nobody deleted. |
 | migration 003 | applied | probed, one row, timestamptz, nullable |
