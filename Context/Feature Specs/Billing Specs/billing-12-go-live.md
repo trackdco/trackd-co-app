@@ -252,6 +252,26 @@ of the four buckets under that user's id. A database cascade cannot reach Storag
 without the sweep the erasure promise is not being kept — and that is true today,
 not after go-live.
 
+**⚠️ SWAPPING A CARD AT THE CUSTOMER LEVEL DOES NOT FIX A FAILING SUBSCRIPTION.**
+Measured against Stripe test mode, 2026-08-18, while building `08`'s declined card.
+A subscription carries its **own** `default_payment_method`, and it **beats** the
+customer's `invoice_settings.default_payment_method`. This app sets it, via
+`save_default_payment_method: "on_subscription"`, so every subscription it creates
+has one.
+
+Driven: a customer whose `invoice_settings.default_payment_method` was changed to a
+card that always declines still had the renewal **paid**, because the subscription
+was holding the older working card. The reverse is the case that matters on the
+day — *"I updated my card and it still failed"* is a real support message, and the
+answer is that the subscription's own default must be updated too:
+
+    stripe.subscriptions.update(sub.id, { default_payment_method: pm.id })
+
+The Stripe **customer portal** updates both, which is why `08`'s "Update my card"
+routes there and why the in-app path is not affected. This note is for the case
+where the founder is fixing an account by hand in the dashboard, where changing the
+customer's default is the obvious action and is not sufficient.
+
 ### 3.9 Invariants
 
 Every one of the ten is either enforced by a spec above or watched by `11`. This

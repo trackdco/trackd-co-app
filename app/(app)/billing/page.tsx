@@ -552,7 +552,26 @@ export default async function BillingPage() {
           competing with the summary above it. */}
       {action.kind === "cancel" || action.kind === "resume" ? (
         <section className="mt-6">
-          <div className="rounded-2xl bg-bg-surface px-4 py-1">
+          {/**
+            * ⚠️ CANCELLED-BUT-STILL-RUNNING IS A CARD THAT HOLDS BOTH HALVES
+            * (§3.9), AND THE PARAGRAPH USED TO SIT OUTSIDE IT.
+            *
+            * §3.9: "A card explaining what happens on the date, carrying the
+            * resume control labelled 'Keep my Pro plan' per D22. `03` owns that
+            * control's behaviour and **the explanatory paragraph beneath it**;
+            * this spec owns **the card that holds them**."
+            *
+            * Both words matter. The paragraph was a sibling of the card rather
+            * than inside it, so the one thing that explains what happens on the
+            * date floated loose underneath a surface it belongs to — read as a
+            * footnote about the screen instead of the card's own second half.
+            * `03` still owns every word of it; this spec moved the container.
+            *
+            * The CANCEL state keeps the bare control with no paragraph: there is
+            * nothing to explain yet, and the dialog is where the explaining
+            * happens once they press it.
+            */}
+          <div className="overflow-hidden rounded-2xl bg-bg-surface px-4 py-1">
             <CancelSubscription
               mode={action.kind}
               endsOn={formatAccessDate(action.endsOn, tz)}
@@ -609,17 +628,18 @@ export default async function BillingPage() {
                */
               endsImmediately={Boolean(row && STOPPABLE_NOW.has(row.status as string))}
             />
+            {action.kind === "resume" ? (
+              <p className="px-1 pb-3 text-xs leading-relaxed text-text-muted">
+                {/* The tail used to end "unless you restart it", which named a
+                    control that no longer says restart. It now states the two
+                    facts and stops: what you keep, and that nothing is coming.
+                    `03`'s words, unchanged; only the container moved. */}
+                You&apos;ll keep everything until{" "}
+                {formatAccessDate(action.endsOn, tz)}, and nothing more will be
+                charged. You can change your mind until then.
+              </p>
+            ) : null}
           </div>
-          {action.kind === "resume" ? (
-            <p className="mt-3 px-1 text-xs leading-relaxed text-text-muted">
-              {/* The tail used to end "unless you restart it", which named a
-                  control that no longer says restart. It now states the two
-                  facts and stops: what you keep, and that nothing is coming. */}
-              You&apos;ll keep everything until{" "}
-              {formatAccessDate(action.endsOn, tz)}, and nothing more will be
-              charged. You can change your mind until then.
-            </p>
-          ) : null}
         </section>
       ) : null}
 

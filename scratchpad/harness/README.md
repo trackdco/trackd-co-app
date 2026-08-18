@@ -104,6 +104,37 @@ Found on 2026-08-17: a redeclared identifier in `qa-05-entitled-probe.mjs` left 
 `@trackd-qa.invalid` account with a live `comp` entitlement on production. **Run
 `node --check <file>` before running a driver.**
 
+⚠️ **AND PARSING IS ONLY HALF OF IT. BEFORE ANY DRIVER THAT WRITES, DO BOTH:**
+
+    npx esbuild <file> --outfile=/dev/null      # 1. it parses
+    node -e "import('./scratchpad/qa-billing.mjs').then(async m => {
+      const a = await import('./scratchpad/admin.mjs');
+      for (const n of ['stripe','env','TEST_PM'])            if (!(n in m)) console.log('MISSING', n);
+      for (const n of ['admin','makeUser','dropUser','signIn']) if (!(n in a)) console.log('MISSING', n);
+      console.log('import resolution OK'); })"    # 2. its imports RESOLVE
+
+**`esbuild` parses imports without resolving them.** A wrong export NAME is
+syntactically perfect, so step 1 passes — and an ESM link error throws **before the
+`try` block is entered**, so the `finally` never fires and whatever the driver
+already created leaks. This is the exact failure the parse gate was added for, in
+the one variant the parse gate structurally cannot catch.
+
+Found on 2026-08-18 building `qa-08-step5-declined.mjs`: it imported `dropUser` and
+`signIn` from `qa-billing.mjs`, which re-exports only `admin`, `env` and
+`makeUser`. Caught before running. Had it run, a Stripe **test clock** would have
+been created and then orphaned, and a clock keeps its subscriptions and invoices
+forever.
+
+**Do not drop step 2 as redundant.** It is the half that catches the class step 1
+cannot see. Neither step is a substitute for the other, and neither is a substitute
+for the backstop below.
+
+⚠️ **AND NEITHER CATCHES EVERYTHING. THE OUT-OF-PROCESS COUNT AFTER A *FAILED* RUN
+IS STILL THE ONLY BACKSTOP.** A driver can parse, resolve, and still die halfway —
+a network error, a Stripe 400, an assertion that throws outside the `try`. Both
+gates above reduce how often the `finally` is skipped; only the count tells you
+whether anything survived when it was.
+
 ⚠️ **AND THE COUNT MUST RUN OUT OF PROCESS.** A check that lives inside the driver
 dies with the driver, which is exactly the failure above — every safety property
 here (ledgered, deleted by id, torn down in a `finally`) is downstream of the file
@@ -177,6 +208,54 @@ A number that looks like an answer and is not one is worse than no number, becau
 decision gets made on it. **`advanceTo` hops in 7-day steps** for a separate reason —
 Stripe caps a single advance at two billing intervals of the shortest subscription on
 the clock, and a trial plus a courtesy period is exactly two.
+
+⚠️ **AND IT IS NOT ONLY `event.created`. CHARGE TIMESTAMPS DO NOT FOLLOW A TEST
+CLOCK; INVOICE TIMESTAMPS DO.**
+
+Measured 2026-08-18 (`scratchpad/probe-declined-fields.mjs`), one captured
+past-due state:
+
+    invoice.created / status_transitions.finalized_at   2026-08-24   <- SIMULATED
+    charge.created (the failed one)                     2026-08-17   <- WALL CLOCK
+
+Eight days apart, in the same object graph, describing the same failure. **In
+production the two agree**, because there is no clock — so this divergence is an
+artefact of the instrument and never a defect in the code.
+
+The consequence for drivers: **any assertion on a charge time inside a clock run is
+measuring wall clock.** Assert it against the charge object itself, never against a
+date the script calculates from the simulated timeline, and never against an
+invoice timestamp from the same state. `qa-08-step5-declined.mjs` reads
+`charge.created` from Stripe and compares the screen to that.
+
+⚠️ **TWO STRIPE TEST-CARD FACTS, MEASURED, THAT DECIDE WHICH DEFECT YOU CAN MODEL.**
+
+    pm_card_chargeDeclined       throws StripeCardError AT ATTACH.
+    pm_card_chargeCustomerFail   attaches cleanly; every charge to the customer fails.
+
+Stripe validates the card when it is attached to a customer, so
+`pm_card_chargeDeclined` can never become a default payment method and can never
+reach a renewal. **It models a decline AT CHECKOUT and cannot model a dunning
+failure.** For a card that worked in June and stops working in July —
+`past_due`, the declined card, the retry schedule — the token is
+`pm_card_chargeCustomerFail`.
+
+And it must be set on the **subscription**, not only the customer: a subscription's
+own `default_payment_method` wins. Setting only
+`customer.invoice_settings.default_payment_method` leaves the renewal **paid**, and
+the run reports "no failure" while looking correct. (The same fact is a support-desk
+answer; it is recorded in `12-go-live.md` §3.8 for the day.)
+
+⚠️ **AND A DRIVER THAT COMPUTES THE DATE THE APP IS SUPPOSED TO COMPUTE IS A
+FIXTURE WEARING A COSTUME.**
+
+The arrival rule, stated for dates. If the driver calculates the expected value with
+the same arithmetic the app uses, it proves the arithmetic agrees with itself and
+nothing else — the app could read the wrong field, the wrong row or the wrong
+source and still match. Make the app's own path produce the value, then read it back
+from its source and compare. `qa-08-step5-declined.mjs` delivers a real
+`invoice.payment_failed` to the app's OWN webhook and then reads
+`entitlements.active_until`; it never computes "period start plus three days".
 
 ⚠️ **A CONTROL MUST BE A NAMED ARTEFACT, NEVER A THRESHOLD OR AN APPROXIMATION.**
 
