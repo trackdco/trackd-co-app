@@ -78,6 +78,12 @@ export type SummaryState =
   | "suspended"
   | "lapsed"
   /**
+   * ⚠️ PAST-DUE, AFTER THE LAPSE (3.2, D97). Its own state because its sentence
+   * makes no promise about a date, and the pre-lapse one is built entirely around
+   * one.
+   */
+  | "past-due-lapsed"
+  /**
    * ⚠️ THE SETTLED DISPUTE (2.4). Access revoked AND the subscription cancelled,
    * which since 2.1 is what a dispute leaves behind once the cancel lands.
    *
@@ -225,7 +231,25 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
   if (cancelled) {
     return f.namesATrial ? "cancelled-never-charged" : "cancelled-paid";
   }
-  if (f.subscription?.status === "past_due") return "past-due";
+  /**
+   * ⚠️ PAST-DUE IS TWO WINDOWS, NOT ONE (3.2, D97).
+   *
+   * The three-day grace STAYS (D96) — matching Stripe's retry window would hand
+   * out roughly two weeks of free access per failed payment. But from day four the
+   * account is READ ONLY while Stripe is still retrying, and every surface
+   * addressing this cohort was written for the window BEFORE the lapse.
+   *
+   * The existing signed line keeps its own window and is unchanged: while access
+   * is still live, "runs until {date} and your account goes read only after that"
+   * is TRUE and states a date the user can act on. Past that date it promises a
+   * future that has already happened.
+   *
+   * Selected on whether the entitlement has ended — the fact Group 1 put on
+   * `BillingFacts` — and not on the date, which is present in both windows.
+   */
+  if (f.subscription?.status === "past_due") {
+    return f.accessLive ? "past-due" : "past-due-lapsed";
+  }
 
   /**
    * ⚠️ R5(a): FREE FOR LIFE **WHILE STRIPE IS CHARGING**, which is its own
@@ -459,6 +483,26 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
     case "past-due":
       if (!f.endsOn) return null;
       return `Your last payment didn't go through, so your Pro plan runs until ${f.endsOn} and your account goes read only after that until a payment goes through.`;
+
+    /**
+     * ⚠️ SIGNED (D97). The AFTER-THE-LAPSE variant, character for character.
+     *
+     * It names NO DATE, deliberately and unavoidably: nobody knows when Stripe's
+     * next Smart Retry lands — that measurement is assigned to `12` and is
+     * explicitly not in this batch — so any date here would be invented. "As soon
+     * as a payment goes through" is the true statement available, and it is also
+     * the one the user can act on.
+     *
+     * It says "read only", the exact phrase, and never "paused", "expired" or
+     * "locked". And it threatens nothing: `05` §3.5's invariant is that this
+     * surface says what happens to ACCESS and nothing about logs being at risk,
+     * because nothing is.
+     */
+    case "past-due-lapsed":
+      return (
+        "Your last payment didn't go through, so your account is read only. " +
+        "We'll keep trying your card, and access comes back as soon as a payment goes through."
+      );
 
     case "comp-forever-paying":
       if (!amount) return null;

@@ -772,6 +772,54 @@ describe("⚠️ suspended: access revoked while the subscription is still billi
     expect(manageSummaryFor(refunded) ?? "").not.toContain("not on a plan");
   });
 
+  it("⚠️ D97: past-due AFTER the lapse gets the signed after-lapse sentence", () => {
+    /**
+     * The three-day grace stays (D96), so from day four the account is read only
+     * while Stripe is still retrying — and every surface addressing this cohort
+     * was written for the window BEFORE the lapse. The pre-lapse line promises a
+     * future that has already happened.
+     */
+    const lapsed = f({
+      entitlement: null,
+      subscription: { status: "past_due" },
+      actionKind: "cancel",
+      endsOn: "15 Aug 2026",
+      accessLive: false,
+    });
+    expect(summaryStateFor(lapsed)).toBe("past-due-lapsed");
+    expect(manageSummaryFor(lapsed)).toBe(
+      "Your last payment didn't go through, so your account is read only. " +
+        "We'll keep trying your card, and access comes back as soon as a payment goes through.",
+    );
+    /**
+     * ⚠️ IT NAMES NO DATE, and that is not an omission. Nobody knows when Stripe's
+     * next Smart Retry lands — that measurement belongs to `12` and is explicitly
+     * outside this batch — so any date here would be invented.
+     */
+    expect(manageSummaryFor(lapsed)).not.toMatch(/\d{4}/);
+    // The exact phrase, and never its forbidden neighbours.
+    expect(manageSummaryFor(lapsed)).toContain("read only");
+    expect(manageSummaryFor(lapsed)!.toLowerCase()).not.toMatch(/paused|expired|locked/);
+    // And it threatens nothing: 05 §3.5's invariant.
+    expect(manageSummaryFor(lapsed)!.toLowerCase()).not.toMatch(/delet|lost|removed|at risk/);
+  });
+
+  it("⚠️ CONTROL: past-due BEFORE the lapse keeps its own signed line, with its date", () => {
+    // The pre-lapse sentence is true in its own window and must not be replaced.
+    // Without this control, "always use the after-lapse line" would pass above and
+    // silently delete a signed sentence and the date the user can act on.
+    const beforeLapse = f({
+      entitlement: stripe,
+      subscription: { status: "past_due" },
+      actionKind: "cancel",
+      endsOn: "25 Aug 2026",
+      accessLive: true,
+    });
+    expect(summaryStateFor(beforeLapse)).toBe("past-due");
+    expect(manageSummaryFor(beforeLapse)).toContain("runs until 25 Aug 2026");
+    expect(manageSummaryFor(beforeLapse)).toContain("goes read only after that");
+  });
+
   it("⚠️ CONTROL: past-due keeps its OWN sentence and is not swallowed", () => {
     // D37's sentence is correct for past-due. The branch order is what keeps the
     // two apart, so this seeds a past-due account that is ALSO revoked — the
@@ -785,7 +833,16 @@ describe("⚠️ suspended: access revoked while the subscription is still billi
       accessRevoked: true,
       accessLive: false,
     });
-    expect(summaryStateFor(pastDue)).toBe("past-due");
+    /**
+     * ⚠️ EITHER past-due WINDOW, and the assertion says so rather than pinning
+     * one. What this control is about is PRECEDENCE — the dispute branches sit
+     * below past-due and must not swallow it — and 3.2 later split past-due into
+     * two windows, which does not change that. Pinning "past-due" exactly made
+     * this fail for the right behaviour, which is a test asserting the wrong
+     * thing rather than a defect.
+     */
+    expect(summaryStateFor(pastDue)).toMatch(/^past-due/);
+    expect(summaryStateFor(pastDue)).not.toBe("suspended");
     expect(manageSummaryFor(pastDue)).toContain("Your last payment didn't go through");
   });
 });
@@ -863,6 +920,13 @@ describe("⚠️ precedence: the standing ruling, asserted rather than assumed",
       f({ actionKind: "resume", namesATrial: false, endsOn: "1 Jan 2027" }),
       f({ actionKind: "resume", namesATrial: true, endsOn: "1 Jan 2027" }),
       f({ entitlement: stripe, subscription: { status: "past_due" }, actionKind: "cancel" }),
+      // Past-due AFTER the lapse: the grace ran out while Stripe is still retrying.
+      f({
+        entitlement: null,
+        subscription: { status: "past_due" },
+        actionKind: "cancel",
+        accessLive: false,
+      }),
       f({ entitlement: compForever, subscription: { status: "active" }, actionKind: "cancel" }),
       f({ entitlement: compForever }),
       f({ entitlement: grace, subscription: { status: "trialing" }, actionKind: "cancel" }),
@@ -903,6 +967,7 @@ describe("⚠️ precedence: the standing ruling, asserted rather than assumed",
       "cancelled-paid": true,
       "cancelled-never-charged": true,
       "past-due": true,
+      "past-due-lapsed": true,
       "comp-forever-paying": true,
       "comp-forever": true,
       "grace-aligned": true,

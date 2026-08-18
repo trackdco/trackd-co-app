@@ -12,3 +12,4 @@ Your subscription is managed through {store}, so you'll need to change or cancel
 You have free access for life, so your Pro plan at {price} a year adds nothing, and cancelling it won't change what you can do.
 Your access has been suspended while we look into a payment dispute, and your Pro plan at {price} a year is still active.
 Your subscription was cancelled because a payment was disputed with your bank. Email support@trackdco.app if that wasn't you, or choose a plan below whenever you're ready.
+Your last payment didn't go through, so your account is read only. We'll keep trying your card, and access comes back as soon as a payment goes through.

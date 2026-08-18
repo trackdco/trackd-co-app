@@ -107,6 +107,8 @@ const RENDERED: Array<[string, string | null]> = [
    * is "none". It names no price and no date, so no substitution applies.
    */
   ["DISPUTE CANCELLED", manageSummaryFor(f({ entitlement: null, subscription: null, actionKind: "none", accessRevoked: true, accessLive: false }))],
+  /** ⚠️ PAST-DUE AFTER THE LAPSE (3.2, D97). Names no date, by necessity. */
+  ["PAST DUE after the lapse", manageSummaryFor(f({ entitlement: null, subscription: { status: "past_due" }, actionKind: "cancel", accessLive: false }))],
 ];
 
 function firstDifference(actual: string, expected: string): string | null {
@@ -127,12 +129,12 @@ describe("⚠️ signed copy pin: Manage's summary, codepoint for codepoint", ()
     .map((l) => l.trimEnd())
     .filter((l) => l.length > 0);
 
-  it("the signed file holds exactly the fourteen sentences the founder sent", () => {
-    expect(signed).toHaveLength(14);
-    expect(RENDERED).toHaveLength(14);
+  it("the signed file holds exactly the fifteen sentences the founder sent", () => {
+    expect(signed).toHaveLength(15);
+    expect(RENDERED).toHaveLength(15);
   });
 
-  for (let i = 0; i < 14; i += 1) {
+  for (let i = 0; i < 15; i += 1) {
     it(`${RENDERED[i]?.[0] ?? `#${i}`} matches the signed line character for character`, () => {
       const [, actual] = RENDERED[i];
       expect(actual).not.toBeNull();
