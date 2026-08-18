@@ -226,11 +226,30 @@ try {
    * read the SAME date from `loadBillingFacts` — asserted directly below. The
    * divergence was entirely in the copy layer above it.
    */
+  /**
+   * ⚠️ RE-EXAMINED AT 1.4, AND IT IS BACK TO THE FOUNDER'S ORIGINAL RULING.
+   *
+   * This asserted that P2 carries the SIGNED SUSPENDED SENTENCE. It does not and
+   * must not: that sentence says a PAYMENT DISPUTE is being looked into, and this
+   * cohort is the `invoice.paid` lag — an entitlement whose date passed seconds
+   * ago beside a subscription that renewed normally. Nobody disputed anything.
+   *
+   * It only ever passed because the branch keyed on the two dates disagreeing,
+   * which is true HERE and false on the actual revocation the sentence was
+   * written for. 1.4 keys it on the revocation flag, so the two cohorts separate:
+   * the revoked account gets the sentence (driven below) and this one does not.
+   *
+   * What it gets is the WITHHOLD this check's own note above already records as
+   * the founder's ruling — "the summary is WITHHELD rather than reworded". The
+   * renewal claim is the thing that must never come back: `endsOn` here is the
+   * entitlement's date, which has already passed, so "it renews on 15 Aug 2026"
+   * names a day in the past.
+   */
   check(
-    "⚠️ P2 /billing/manage: the SIGNED suspended sentence, never a renewal claim",
+    "⚠️ P2 /billing/manage: WITHHELD — no renewal claim, and no dispute sentence either",
     !/renews on/.test(b.manage) &&
-      b.manage.includes("Your access has been suspended while we look into a payment dispute"),
-    `manage: ${b.manage.split("\n").find((l) => /suspended|renews on/.test(l)) ?? "neither"}`,
+      !b.manage.includes("Your access has been suspended while we look into a payment dispute"),
+    `manage: ${b.manage.split("\n").find((l) => /suspended|renews on/.test(l)) ?? "neither (withheld)"}`,
   );
   check(
     "⚠️ P2: the RESOLVER did its job — Billing has the entitlement's date, not the mirror's",

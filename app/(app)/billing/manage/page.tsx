@@ -85,16 +85,14 @@ export default async function ManagePage() {
     interval: facts.price?.interval ?? null,
     gateEnabled: facts.gateEnabled,
     /**
-     * ⚠️ `manageActionFor`'s OWN answer, so this sentence and Billing's row label
-     * cannot describe one date with two verbs. See `manageSummaryFor`.
-     */
-    accessEndsEarly:
-      facts.action.kind === "cancel" || facts.action.kind === "resume"
-        ? facts.action.accessEndsEarly
-        : false,
-    /**
-     * ⚠️ FROM `entitlements`, THE TABLE THAT DECIDES ACCESS (1.3) — not from the
-     * two dates disagreeing, which they do not on a real revocation.
+     * ⚠️ FROM `entitlements`, THE TABLE THAT DECIDES ACCESS (1.3, 1.4) — not from
+     * the two dates disagreeing, which they do not on a real revocation.
+     *
+     * `accessEndsEarly` used to be threaded in here and is deliberately NOT any
+     * more: this sentence never wanted "will anything renew on this date", and
+     * asking it is why the signed suspended sentence could not fire.
+     * `/billing`'s "Renews on" vs "Ends on" verb still takes it, unchanged, and
+     * that reader is correct.
      */
     accessLive: facts.accessLive,
     accessRevoked: facts.accessRevoked,

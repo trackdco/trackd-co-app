@@ -36,7 +36,6 @@ const BASE: SummaryFacts = {
   price: null,
   interval: null,
   gateEnabled: false,
-  accessEndsEarly: false,
   /**
    * ⚠️ THE BASE IS A LAPSED ACCOUNT: nothing live, nothing revoked. Cases that
    * mean otherwise say so explicitly, so a fixture can never claim a state its
@@ -45,7 +44,25 @@ const BASE: SummaryFacts = {
   accessLive: false,
   accessRevoked: false,
 };
-const f = (over: Partial<SummaryFacts>): SummaryFacts => ({ ...BASE, ...over });
+/**
+ * ⚠️ `accessLive` FOLLOWS THE ENTITLEMENT UNLESS A CASE SAYS OTHERWISE.
+ *
+ * Not a convenience — the real invariant. `entitlement` is whatever
+ * `strongestEntitlement` returned, and that function only ever returns a row
+ * that is active RIGHT NOW, so a non-null entitlement and live access are the
+ * same fact. `screenFacts` derives both from one row set for exactly this
+ * reason.
+ *
+ * Defaulting it to `false` instead let fixtures claim a state that cannot exist
+ * — a live `stripe` entitlement beside "no access" — and a fixture that
+ * contradicts itself tests nothing. Cases that mean revoked, lapsed or
+ * unreadable set it explicitly, and the explicit value always wins.
+ */
+const f = (over: Partial<SummaryFacts>): SummaryFacts => {
+  const merged = { ...BASE, ...over };
+  if (over.accessLive === undefined) merged.accessLive = merged.entitlement !== null;
+  return merged;
+};
 
 /** The placeholders, put back so the diff is of words rather than of values. */
 const D = "{date}";
@@ -70,7 +87,7 @@ const RENDERED: Array<[string, string | null]> = [
   ["GRACE-ALIGNED", manageSummaryFor(f({ entitlement: grace, subscription: { status: "trialing" }, actionKind: "cancel", graceEndsOn: D, ...YEAR }))],
   ["APP STORE", manageSummaryFor(f({ entitlement: { source: "apple", activeUntil: null }, actionKind: "store" }))?.replace("the App Store", "{store}") ?? null],
   ["FREE FOR LIFE while charging", manageSummaryFor(f({ entitlement: compForever, subscription: { status: "active" }, actionKind: "cancel", ...YEAR }))],
-  ["SUSPENDED", manageSummaryFor(f({ entitlement: null, subscription: { status: "active" }, actionKind: "cancel", accessEndsEarly: true, ...YEAR }))],
+  ["SUSPENDED", manageSummaryFor(f({ entitlement: null, subscription: { status: "active" }, actionKind: "cancel", accessRevoked: true, accessLive: false, ...YEAR }))],
 ];
 
 function firstDifference(actual: string, expected: string): string | null {

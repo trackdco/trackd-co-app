@@ -111,13 +111,6 @@ export interface SummaryFacts {
   interval: string | null;
   gateEnabled: boolean;
   /**
-   * ⚠️ `manageActionFor`'s own answer to "does anything renew on this date".
-   *
-   * Threaded in rather than re-derived, for the same reason `namesATrial` is: the
-   * Billing row's label and this sentence must not answer it two ways.
-   */
-  accessEndsEarly: boolean;
-  /**
    * ⚠️ DOES THIS PERSON HOLD ACCESS RIGHT NOW (1.3).
    *
    * ## The two questions `accessEndsEarly` was answering
@@ -239,13 +232,50 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
    *     /billing/manage  ...and it renews on 17 Sept 2026.
    *
    * ⚠️ THE STATE IS REAL AND IS NOT `past_due`, SO D37'S SENTENCE DOES NOT COVER
-   * IT. Driven: `revokeForCustomer` writes `is_active: false` and leaves
-   * `active_until` standing (sync.ts:1114), and a dispute does not cancel the
-   * Stripe subscription — so a disputed customer holds a revoked entitlement
-   * beside an `active`, still-billing subscription. `currentEntitlement` excludes
-   * the dead row, `entitlementEndDate` includes it, and the two dates diverge.
-   * (The same shape arrives transiently in the `invoice.paid` lag after a
-   * renewal, where the row has simply expired.)
+   * IT. `revokeForCustomer` writes `is_active: false` and leaves `active_until`
+   * standing (sync.ts:1112-1117), and a dispute does not cancel the Stripe
+   * subscription — so a disputed customer holds a revoked entitlement beside an
+   * `active`, still-billing subscription.
+   *
+   * ## ⚠️ AND UNTIL 18 AUG 2026 THIS BRANCH COULD NOT FIRE AT ALL (1.4)
+   *
+   * It keyed on `accessEndsEarly`, whose date half is "the entitlement's date and
+   * the mirror's disagree". **They never disagree on a revocation.**
+   * `sync.ts:339` writes `subscriptions.current_period_end` from
+   * `entitledUntil(sub)`; `sync.ts:399` writes `entitlements.active_until` from
+   * the SAME call on the SAME object; and the revoke touches neither. The two
+   * dates are equal by construction, so the condition was a coincidence between
+   * two writers that never happens.
+   *
+   * Found by three independent reviewers — one by reading, one by measuring, one
+   * by driving with a control — and measured on a real revoked account:
+   *
+   *     gate off  "You're on your Pro plan at $11.99 USD a month, and it renews
+   *                on 18 Sept 2026."
+   *     gate on   "You're not on a plan at the moment, so Trackd Co is read only."
+   *
+   * Both to a customer Stripe will invoice on schedule.
+   *
+   * So it keys on the REVOCATION FLAG, which is the fact it is actually about and
+   * does not depend on a coincidence. Three conditions, each load-bearing:
+   *
+   *   `accessRevoked`   a pro row somebody TURNED OFF. Without it a merely lapsed
+   *                     account — same null entitlement, same absent access —
+   *                     would read a dispute sentence about a dispute that never
+   *                     happened.
+   *   `!accessLive`     they hold nothing NOW. Without it, somebody whose beta
+   *                     comp was withdrawn and who then subscribed reads
+   *                     "suspended" while perfectly entitled: `accessRevoked` is
+   *                     true of that account forever.
+   *   `actionKind === "cancel"`  there is a live, unflagged subscription. Without
+   *                     it the second half of the sentence — "your Pro plan is
+   *                     still active" — is asserted about somebody who has no
+   *                     subscription at all. `resume`, `store`, `unavailable` and
+   *                     the stoppable statuses have all returned above; `none`
+   *                     (no subscription) had not, and would have fallen in here.
+   *
+   * The precedence is UNCHANGED and the branch has not moved: it still sits below
+   * `past-due` so D37's signed sentence keeps its own cohort.
    *
    * It was WITHHELD from 18 Aug until the founder signed a sentence for it the
    * same day. ⚠️ The `past-due` sentence must still never be stretched onto it —
@@ -265,7 +295,45 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
    * with no explanation at all for as long as the dispute lasts. Recorded rather
    * than traded, and the scoping is the founder's (2026-08-18).
    */
-  if (f.accessEndsEarly) return "suspended";
+  if (f.accessRevoked && !f.accessLive && f.actionKind === "cancel") return "suspended";
+
+  /**
+   * ⚠️ A LIVE SUBSCRIPTION WITH NO LIVE ACCESS, AND NOBODY REVOKED ANYTHING.
+   * WITHHELD, which is the founder's own standing ruling for this cohort.
+   *
+   * Reached when the entitlement's date has passed while the mirror still shows a
+   * live, unflagged subscription. Two ways in:
+   *
+   *   the `invoice.paid` lag after a renewal — `customer.subscription.updated`
+   *   rolls the mirror forward before `invoice.paid` extends the entitlement.
+   *   Seconds to minutes, and the state Spec 08's P2 cohort seeds.
+   *
+   *   a webhook that never landed, which is `11`'s live-subscription-without-
+   *   entitlement alert and a real, durable state.
+   *
+   * ⚠️ IT MUST NOT FALL THROUGH TO `paying`, WHICH IS WHAT IT DID BETWEEN THE
+   * DATE-KEYED BRANCH AND 1.4. The paying sentence reads "and it renews on
+   * {date}", and `endsOn` here is `soonerOf(entitlement, mirror)` — the
+   * entitlement's date, which has ALREADY PASSED. Driven: Manage read "your Pro
+   * plan at $69.99 USD a year, and it renews on 15 Aug 2026" while Billing read
+   * "Ends on 15 Aug 2026". One account, one date, two verbs, and the verb that
+   * claims a renewal names a day in the past.
+   *
+   * ⚠️ AND IT MUST NOT TAKE THE `suspended` SENTENCE EITHER, which is what it did
+   * BEFORE 1.4 — the date-keyed branch caught this cohort and told them a payment
+   * dispute was being looked into when nothing had been disputed. That was
+   * recorded at the time as a known narrow-window wrong answer. Keying on the
+   * revocation flag removes it: `suspended` is now about a decision somebody
+   * made, and nobody made one here.
+   *
+   * No signed sentence names this state, so it gets none. A withhold, never a
+   * reworded neighbour — the same rule R5(b) applies to `paused` and `unpaid`.
+   *
+   * ⚠️ An unreadable entitlement read arrives here too, and correctly: `accessLive`
+   * is false when we could not ask, and a screen that cannot read the deciding
+   * table must not assert a renewal.
+   */
+  if (!f.accessLive && f.actionKind === "cancel") return "withheld";
 
   if (f.entitlement) return "paying";
   return f.gateEnabled ? "lapsed" : "paying";

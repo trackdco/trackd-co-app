@@ -36,7 +36,6 @@ const BASE: SummaryFacts = {
   price: null,
   interval: null,
   gateEnabled: false,
-  accessEndsEarly: false,
   /**
    * ⚠️ THE BASE IS A LAPSED ACCOUNT: nothing live, nothing revoked. Cases that
    * mean otherwise say so explicitly, so a fixture can never claim a state its
@@ -46,7 +45,25 @@ const BASE: SummaryFacts = {
   accessRevoked: false,
 };
 
-const f = (over: Partial<SummaryFacts>): SummaryFacts => ({ ...BASE, ...over });
+/**
+ * ⚠️ `accessLive` FOLLOWS THE ENTITLEMENT UNLESS A CASE SAYS OTHERWISE.
+ *
+ * Not a convenience — the real invariant. `entitlement` is whatever
+ * `strongestEntitlement` returned, and that function only ever returns a row
+ * that is active RIGHT NOW, so a non-null entitlement and live access are the
+ * same fact. `screenFacts` derives both from one row set for exactly this
+ * reason.
+ *
+ * Defaulting it to `false` instead let fixtures claim a state that cannot exist
+ * — a live `stripe` entitlement beside "no access" — and a fixture that
+ * contradicts itself tests nothing. Cases that mean revoked, lapsed or
+ * unreadable set it explicitly, and the explicit value always wins.
+ */
+const f = (over: Partial<SummaryFacts>): SummaryFacts => {
+  const merged = { ...BASE, ...over };
+  if (over.accessLive === undefined) merged.accessLive = merged.entitlement !== null;
+  return merged;
+};
 const stripe = { source: "stripe" as const, activeUntil: "2027-08-18T00:00:00Z" };
 const compForever = { source: "comp" as const, activeUntil: null };
 const grace = { source: "comp" as const, activeUntil: "2026-08-27T00:00:00Z" };
@@ -396,7 +413,9 @@ describe("⚠️ suspended: access revoked while the subscription is still billi
       endsOn: "17 Sept 2026",
       price: "$69.99 USD",
       interval: "year",
-      accessEndsEarly: true,
+      // The revocation flag, which is what the branch keys on since 1.4.
+      accessRevoked: true,
+      accessLive: false,
     });
     expect(summaryStateFor(facts)).toBe("suspended");
     const sentence = manageSummaryFor(facts);
@@ -442,7 +461,12 @@ describe("⚠️ suspended: access revoked while the subscription is still billi
       both,
     );
     expect(action.kind).toBe("cancel");
-    // ARRIVAL: the predicate is genuinely false — not absent, not undefined.
+    /**
+     * ⚠️ THE FINDING ITSELF, ASSERTED RATHER THAN DESCRIBED. The OLD key is
+     * genuinely false on this shape — not absent, not undefined — so a branch
+     * reading it could never fire. This assertion is what stops a future
+     * refactor quietly re-keying `suspended` back onto a date comparison.
+     */
     expect(action).toMatchObject({ accessEndsEarly: false });
 
     const revoked = f({
@@ -452,46 +476,122 @@ describe("⚠️ suspended: access revoked while the subscription is still billi
       endsOn: "18 Aug 2027",
       price: "$69.99 USD",
       interval: "year",
-      accessEndsEarly: (action as { accessEndsEarly: boolean }).accessEndsEarly,
+      // What the row set actually says: a row was turned off, nothing grants now.
+      accessRevoked: true,
+      accessLive: false,
     });
-    // The state three reviewers reported: revoked, and described as paying.
-    expect(summaryStateFor(revoked)).toBe("paying");
-    expect(manageSummaryFor(revoked)).toContain("it renews on 18 Aug 2027");
+    expect(summaryStateFor(revoked)).toBe("suspended");
+    expect(manageSummaryFor(revoked)).toBe(
+      "Your access has been suspended while we look into a payment dispute, and your Pro plan at $69.99 USD a year is still active.",
+    );
+    // And never the renewal claim it made until 1.4.
+    expect(manageSummaryFor(revoked)).not.toContain("renews on");
   });
 
-  it("⚠️ CONTROL: the same account WITHOUT the divergence still gets its sentence", () => {
-    // Without this, "withhold whenever there is no entitlement" would pass the
-    // assertion above and silence every ordinary account on the gate-off world.
-    //
-    // ⚠️ NOTE FOR 1.4: this shape — no entitlement, live subscription, gate off —
-    // IS the revoked cohort, and "the same account WITHOUT the divergence" is
-    // only true while the divergence is what selects the sentence. When
-    // `suspended` re-keys onto the revocation flag, this control must be re-based
-    // on an account that is genuinely paying (an entitlement present) or it will
-    // be asserting the renewal claim on a revoked customer.
-    const healthy = f({
+  it("⚠️ CONTROL: a merely LAPSED account gets NO dispute sentence", () => {
+    /**
+     * The sharpest control in this file. A lapsed account is identical to a
+     * revoked one in every field this module can see — null entitlement, no
+     * access, a date that has passed — EXCEPT the revocation flag. Keyed on
+     * anything weaker, this cohort reads a sentence about a payment dispute that
+     * never happened.
+     */
+    const lapsed = f({
       entitlement: null,
+      subscription: { status: "active" },
+      actionKind: "cancel",
+      endsOn: "18 Aug 2027",
+      price: "$69.99 USD",
+      interval: "year",
+      accessRevoked: false,
+      accessLive: false,
+    });
+    expect(summaryStateFor(lapsed)).not.toBe("suspended");
+    /**
+     * ⚠️ AND IT IS WITHHELD, not merely "not suspended". Falling through to
+     * `paying` would claim "it renews on 18 Aug 2027" using `endsOn`, which for
+     * this cohort is the entitlement's date and has already passed. No signed
+     * sentence names this state, so it gets none.
+     */
+    expect(summaryStateFor(lapsed)).toBe("withheld");
+    expect(manageSummaryFor(lapsed)).toBeNull();
+  });
+
+  it("⚠️ CONTROL: a WITHDRAWN COMP beside a live subscription is not suspended", () => {
+    /**
+     * `accessRevoked` is true of this account forever — somebody's beta comp was
+     * withdrawn and they later subscribed. They are perfectly entitled and being
+     * charged, so the dispute sentence would be false in both halves. This is why
+     * the predicate needs `!accessLive` and not the flag alone, and it is the
+     * same over-wide reading 2.3 fixes in the reconciliation rule.
+     */
+    const subscribedAfterWithdrawal = f({
+      entitlement: stripe,
+      subscription: { status: "active" },
+      actionKind: "cancel",
+      endsOn: "18 Aug 2027",
+      price: "$69.99 USD",
+      interval: "year",
+      accessRevoked: true,
+      accessLive: true,
+    });
+    expect(summaryStateFor(subscribedAfterWithdrawal)).toBe("paying");
+    expect(manageSummaryFor(subscribedAfterWithdrawal)).toContain("it renews on 18 Aug 2027");
+  });
+
+  it("⚠️ CONTROL: revoked with NO subscription never claims a plan is still active", () => {
+    /**
+     * `actionKind: "none"` is the cohort that would have fallen into this branch
+     * had it keyed on the flag alone: a revoked comp with nothing billing. The
+     * sentence's second half — "your Pro plan is still active" — would be a
+     * statement about a subscription that does not exist.
+     */
+    const revokedNoSub = f({
+      entitlement: null,
+      subscription: null,
+      actionKind: "none",
+      accessRevoked: true,
+      accessLive: false,
+    });
+    expect(summaryStateFor(revokedNoSub)).not.toBe("suspended");
+    expect(manageSummaryFor(revokedNoSub) ?? "").not.toContain("still active");
+  });
+
+  it("⚠️ CONTROL: a genuinely PAYING account still gets its sentence", () => {
+    // Without this, "withhold whenever there is no entitlement" would pass the
+    // assertions above and silence every ordinary account.
+    //
+    // ⚠️ RE-BASED AT 1.4. This case used to seed `entitlement: null` on a live
+    // subscription and call it "the same account without the divergence" — which
+    // IS the revoked cohort, so once `suspended` keyed on the revocation flag it
+    // would have been asserting the renewal claim on a revoked customer. It now
+    // seeds an account that genuinely holds access.
+    const healthy = f({
+      entitlement: stripe,
       subscription: { status: "active" },
       actionKind: "cancel",
       endsOn: "17 Sept 2026",
       price: "$69.99 USD",
       interval: "year",
-      accessEndsEarly: false,
+      accessLive: true,
+      accessRevoked: false,
     });
     expect(summaryStateFor(healthy)).toBe("paying");
     expect(manageSummaryFor(healthy)).toContain("it renews on 17 Sept 2026");
   });
 
   it("⚠️ CONTROL: past-due keeps its OWN sentence and is not swallowed", () => {
-    // `past_due` always sets accessEndsEarly, and D37's sentence is correct for
-    // it. If the withhold sat above the past-due branch it would delete a signed
-    // sentence — two states, two answers, and only one of them is missing copy.
+    // D37's sentence is correct for past-due. The branch order is what keeps the
+    // two apart, so this seeds a past-due account that is ALSO revoked — the
+    // hardest case for the precedence — and requires past-due to still win.
     const pastDue = f({
       entitlement: stripe,
       subscription: { status: "past_due" },
       actionKind: "cancel",
       endsOn: "25 Aug 2026",
-      accessEndsEarly: true,
+      // ⚠️ Revoked AND past-due: precedence must still give D37 its own cohort.
+      accessRevoked: true,
+      accessLive: false,
     });
     expect(summaryStateFor(pastDue)).toBe("past-due");
     expect(manageSummaryFor(pastDue)).toContain("Your last payment didn't go through");
