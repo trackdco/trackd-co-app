@@ -33,17 +33,34 @@ import { proAccessState } from "./entitlements";
  * before those rows exist would put every single real user into read-only
  * overnight, having promised them nothing of the kind.
  *
- * So it is an explicit switch, defaulting to OFF, and the go-live order is:
+ * So it is an explicit switch, defaulting to OFF.
  *
- *   1. Stripe off sandbox, live keys and prices in Vercel.
- *   2. Run the beta backfill: `comp` for the comp list, 14 days for everybody
- *      else (see `lib/billing/betaGrace.ts`).
- *   3. Verify the rows exist.
- *   4. THEN set `BILLING_GATE_ENABLED=true`.
+ * ## ⚠️ THE LAUNCH ORDER IS IN `12` §P11 AND P13. IT IS NOT REPEATED HERE.
  *
- * Merging this branch changes nothing until step 4. That is the point: a gate
- * that goes live as a side effect of a deploy is a gate that goes live at the
- * wrong moment.
+ * **A four-step runbook stood in this comment and it was WRONG, in the most
+ * expensive way a runbook can be: it was wrong at the exact step somebody would
+ * be following it.** Step 2 read "run the beta backfill". D86 replaced that step
+ * — the backfill ALREADY RAN, live, on 2026-08-17, and `12` §P11 says in as many
+ * words: **do not call that route again, in any mode.**
+ *
+ * An operator following the list would have re-run the route, watched it
+ * correctly skip all 90 accounts that already hold rows, seen it report success,
+ * ticked the step — **and never applied `004`.** Then 86 people read "you've got
+ * two more weeks on us, until 31 Aug 2026" on the 20th.
+ *
+ * ⚠️ IT IS DELETED RATHER THAN CORRECTED, and that is the decision. The failure
+ * mode here is not a wrong step — it is TWO COPIES OF A LAUNCH ORDER. Correcting
+ * this one in place would leave the second copy standing, and the next change to
+ * the real one would desynchronise them again, silently, exactly as this did.
+ * There is now one copy:
+ *
+ *     `12-go-live.md` §P11   apply `004` by hand, then verify the rows
+ *     `12-go-live.md` §P13   THEN set `BILLING_GATE_ENABLED=true`
+ *
+ * What belongs here, and is all that belongs here, is the PROPERTY this file
+ * guarantees: **merging changes nothing until the switch is set.** A gate that
+ * goes live as a side effect of a deploy is a gate that goes live at the wrong
+ * moment. The ORDER of the steps around it belongs to `12`.
  *
  * **The same switch decides `NO_ENTITLEMENT_LABEL`**, which is why it is here
  * and not inline. Off, an account with no entitlement genuinely has the whole

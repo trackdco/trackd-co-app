@@ -161,9 +161,22 @@ export async function POST(req: Request) {
            * `ensureCompEntitlement` is careful never to resurrect one; this
            * undid both.
            *
-           * ⚠️ LAUNCH-CRITICAL: P11 runs this on launch morning, against ~85
-           * accounts, and is the documented point of no return. It cannot be
-           * re-run to correct anybody.
+           * ⚠️ LAUNCH-CRITICAL, AND THE SENTENCE THAT STOOD HERE WAS STALE.
+           *
+           * It read "P11 runs this on launch morning, against ~85 accounts, and
+           * is the documented point of no return". **D86 made that false.** The
+           * backfill already ran, live, on 2026-08-17, and `12` §P11 now says in
+           * as many words: **do not call this route again as part of that step,
+           * in any mode.** P11 is applying `004` by hand.
+           *
+           * Left uncorrected it was the second copy of a launch order, in the
+           * file an operator opens while doing it — the same failure `gate.ts`
+           * carried and the same reason it was deleted rather than fixed there.
+           * The launch order lives in `12` §P11 and nowhere else.
+           *
+           * What is still true, and is why this guard matters regardless of the
+           * runbook: this route cannot be re-run to correct anybody, because its
+           * predicate is "has a row at all" and all ninety now have one.
            */
           rows.every((r) => r.is_active !== false)
         );
