@@ -109,6 +109,13 @@ export interface SummaryFacts {
   /** "year" / "month" / "week" — the price's own recurring interval. */
   interval: string | null;
   gateEnabled: boolean;
+  /**
+   * ⚠️ `manageActionFor`'s own answer to "does anything renew on this date".
+   *
+   * Threaded in rather than re-derived, for the same reason `namesATrial` is: the
+   * Billing row's label and this sentence must not answer it two ways.
+   */
+  accessEndsEarly: boolean;
 }
 
 /**
@@ -189,6 +196,35 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
   if (isBetaGrace(f.entitlement)) return "beta-grace";
   if (f.subscription?.courtesyUntil) return "courtesy";
   if (isGenuineTrial(f.entitlement, f.subscription)) return "trial";
+
+  /**
+   * ⚠️ WITHHELD-PENDING-RULING: A LIVE SUBSCRIPTION WHOSE ACCESS ENDS EARLY.
+   *
+   * The PAYING sentence is the only one in the set that claims a RENEWAL — "and
+   * it renews on {date}" — and `accessEndsEarly` is `manageActionFor` saying that
+   * date is when access STOPS. Rendering it anyway put two verbs on one account:
+   *
+   *     /billing         Ends on 17 Sept 2026
+   *     /billing/manage  ...and it renews on 17 Sept 2026.
+   *
+   * ⚠️ THE STATE IS REAL AND IS NOT `past_due`, SO D37'S SENTENCE DOES NOT COVER
+   * IT. Driven: `revokeForCustomer` writes `is_active: false` and leaves
+   * `active_until` standing (sync.ts:1114), and a dispute does not cancel the
+   * Stripe subscription — so a disputed customer holds a revoked entitlement
+   * beside an `active`, still-billing subscription. `currentEntitlement` excludes
+   * the dead row, `entitlementEndDate` includes it, and the two dates diverge.
+   * (The same shape arrives transiently in the `invoice.paid` lag after a
+   * renewal, where the row has simply expired.)
+   *
+   * No signed sentence describes it. So it is WITHHELD rather than reworded —
+   * R5(b)'s ruling applied to a state found later — and the founder is drafting
+   * one. Withholding leaves Billing's row, which is correct, as the only thing
+   * that speaks. **A sentence must not be invented here**, and in particular the
+   * `past-due` sentence must not be stretched onto it: that would put two
+   * sentences on one state, which is the defect a vacuous pass has already cost.
+   */
+  if (f.accessEndsEarly) return "withheld";
+
   if (f.entitlement) return "paying";
   return f.gateEnabled ? "lapsed" : "paying";
 }

@@ -36,6 +36,7 @@ const BASE: SummaryFacts = {
   price: null,
   interval: null,
   gateEnabled: false,
+  accessEndsEarly: false,
 };
 const f = (over: Partial<SummaryFacts>): SummaryFacts => ({ ...BASE, ...over });
 

@@ -1,8 +1,24 @@
-Save as: Context/Feature Specs/00-decision-ledger.md
+Save as: Context/Feature Specs/Billing Specs/billing-00-decision-ledger.md
 
 *(Canonical path. Working document, not a spec — it follows none of the spec format
 rules. Its job is to stop one number meaning two decisions, which has now happened
 six times.)*
+
+**⚠️ THE PATH ABOVE WAS WRONG UNTIL 18 AUG 2026 AND IS CORRECTED HERE.** It read
+`Context/Feature Specs/00-decision-ledger.md`, which does not exist and never has —
+that directory holds a different, older spec series (`00-INDEX.md`,
+`01-design-system.md`, …). The ledger has always lived one level down, with the
+`billing-` prefix.
+
+**Why a wrong header on THIS file is worse than on any other.** A reader following it
+finds nothing, and the obvious repair is to save a copy at the named path — at which
+point there are two ledgers, and the one nobody is editing is the one the header
+points at. **None of the six collisions below were caused by this**; every one of them
+was a stale copy, including the founder's on 18 Aug. But a second file would be the
+collision nobody catches, because both copies would look canonical.
+
+Verified 18 Aug 2026: `find` across the repository returns exactly ONE match for
+`*00-decision-ledger*` and one for `*ledger*`, and `git ls-files` agrees.
 
 # Billing decisions and open questions
 
@@ -12,7 +28,7 @@ decision needs to supersede an earlier one, keep the number and mark it re-decid
 as D1 and D31 already are.
 
 **Status at 15 Aug 2026. THE CORPUS IS COMPLETE: 00 and 01 through 19.** Next free
-decision number: **D86**. Next free question number: **Q106**.
+decision number: **D91**. Next free question number: **Q106**.
 
 **The D71 to D77 gap is closed.** That block was re-sent and its seven decisions are
 entered above, in their own numeric places rather than appended. The `19` correction
@@ -126,6 +142,11 @@ as a dependency.
 | D83 | An incomplete-only account gets the support line, not a cancel control | 03 | Resolved — existing approved copy, no new string |
 | D84 | Manage's summary is ONE sentence | 08 | Resolved — the signed sentence is the whole line |
 | D85 | The re-land is REVERT THEN MERGE, not revert alone | 12, seam to every spec citing the re-landing trap | Resolved — tested in a detached worktree |
+| D86 | The 86 graces are re-dated by `004_regrace_launch_date.sql` | 12, seam to 06 | Resolved — written, unapplied, SINGLE-USE, launch morning only |
+| D87 | Reconciliation alerts fire on EVERY failing run, not edge-triggered | 11 | Resolved — built |
+| D88 | D72's tolerance is bounded at the largest extension any built mechanism can produce | 11 | Resolved — derived from the code, not chosen |
+| D89 | The QA drivers are tracked | 12, seam to every spec that drives | Resolved — the spine now, the `.mjs` browser drivers at the freeze |
+| D90 | The beta notice's seen cookie is account-scoped | 06 | Resolved — built |
 
 **Also open, unnumbered:**
 
@@ -382,3 +403,46 @@ head and must be re-run at code-complete against the real head. That goes on the
 Tuesday-night gate.
 
 `main` was never touched: detached HEAD, no branch, no push, worktree removed.
+
+
+---
+
+## D86 to D90 — five decisions that existed in code and not here
+
+**Entered 18 Aug 2026.** All five were minted in conversation and built; none had
+reached this file. **Numbers taken from the next-free list in the file itself**, in
+the order the founder listed them, per the standing rule that nobody names a number
+from memory. Nothing was renumbered.
+
+### D86 — the 86 graces are re-dated on launch morning
+
+`supabase/billing/004_regrace_launch_date.sql`. **Written, unapplied, SINGLE-USE, and
+it belongs to launch morning.** The grace window is anchored to the switch-on (D8),
+so the 86 rows written before the launch date was fixed carry the wrong end. It is
+not to be applied, re-run or reversed at any other time.
+
+### D87 — reconciliation alerts fire on every failing run
+
+Not edge-triggered. **Edge-triggering tells you once and then goes quiet while the
+problem persists**, which reads identically to the problem having been fixed. A
+condition that is still true is still worth saying.
+
+### D88 — D72's tolerance is derived, not chosen
+
+The largest extension any BUILT mechanism can produce, read off the code rather than
+picked as a round number. A tolerance chosen by hand is a number nobody can defend
+when it fires, and one that drifts silently the moment a mechanism changes.
+
+### D89 — the QA drivers are tracked
+
+The harness spine now; the `.mjs` browser drivers at the freeze. **Secret-scanned,
+and stripped of anything that patches a list or calls a billing-writing route.** The
+reason is reproducibility: a baseline that cannot be re-run from a clone is a claim,
+not evidence.
+
+### D90 — the beta notice's seen cookie is account-scoped
+
+Per-browser was not enough. On a shared browser one person's dismissal consumed
+another person's notice, and the notice shows ONCE — so the second person would never
+see it at all, on the one screen explaining what happens to their access.
+

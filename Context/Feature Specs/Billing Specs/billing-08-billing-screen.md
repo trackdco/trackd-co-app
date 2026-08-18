@@ -603,3 +603,46 @@ than assumed. Carried in §3.3.
 ~~`The Manage summary sentence`~~ **Signed 15 Aug 2026.** "Update your card or download
 receipts. Stripe handles both securely." Carried in §3.3, with one confirmation
 outstanding there about whether a "what you're on" line was also intended.
+
+---
+
+## 8. Accepted gaps (§9g), decided rather than outstanding
+
+### ⚠️ "won't be charged **again**" is false for one cohort, and it stays
+
+**Accepted 2026-08-18. A reviewer finding this is reading a decision, not an
+oversight.**
+
+**The cohort:** a **grace-aligned subscriber who then cancels.** That is somebody
+who subscribed during their beta fortnight — so `01` set `trial_end` to the grace
+end and Stripe reports `trialing` — and who then presses Cancel before the
+fortnight runs out. They have never been charged a cent.
+
+**The exact false clause:** the word **"again"**. Two surfaces say it to them:
+
+- `03`'s cancel confirmation — *"You'll keep full access to your Pro plan until
+  [date], and you won't be charged **again**."*
+- `08`'s Manage summary — *"You've cancelled, so you keep your Pro plan until
+  [date] and won't be charged **again**."*
+
+Everything else in both sentences is true. The date is right, the access promise is
+right, and **no charge follows** — which is the half Standing Law 1 protects.
+
+**Why it is not fixed.** Both sentences branch on `namesATrial`, which is `03`
+§3.2's own predicate, threaded into `08` rather than re-derived so the two surfaces
+cannot describe one cancellation two ways. That predicate answers *"may this be
+called a trial"*, which is very close to *"has this person ever paid"* and is not
+the same question. **The codebase has no true "has this account ever paid"
+predicate**, and building one is a decision rather than an implementation: it means
+either a new column written at first successful charge, or a Stripe payment-history
+read on every render of two screens. Neither is a change to make two days from
+go-live, for one clause, for a cohort reachable only by subscribing mid-fortnight
+and then cancelling inside it.
+
+**What was preserved instead:** both surfaces are wrong **together** rather than
+differently, which is the property that actually matters — a user who cancels sees
+one consistent account of what happens, and the two screens cannot drift apart.
+
+**If it is ever fixed**, the fix is a real predicate feeding both call sites, not a
+second branch in either one. A second branch is how the two surfaces start
+disagreeing, which is the defect this arrangement exists to prevent.

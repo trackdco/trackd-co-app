@@ -35,6 +35,7 @@ const BASE: SummaryFacts = {
   price: null,
   interval: null,
   gateEnabled: false,
+  accessEndsEarly: false,
 };
 
 const f = (over: Partial<SummaryFacts>): SummaryFacts => ({ ...BASE, ...over });
@@ -357,6 +358,64 @@ describe("⚠️ the substitutions come from their sources, never typed", () => 
     // missing substitution and not a function that returns null too eagerly.
     expect(manageSummaryFor(f({ entitlement: compForever }))).not.toBeNull();
     expect(manageSummaryFor(f({ gateEnabled: true }))).not.toBeNull();
+  });
+});
+
+describe("⚠️ withheld-pending-ruling: a live subscription whose access ends early", () => {
+  it("the PAYING sentence is withheld rather than claiming a renewal", () => {
+    /**
+     * ⚠️ THE STATE IS REAL AND IS NOT `past_due`. `revokeForCustomer` writes
+     * `is_active: false` and leaves `active_until` standing, and a dispute does
+     * not cancel the Stripe subscription — so a disputed customer holds a revoked
+     * entitlement beside an `active`, still-billing one. `currentEntitlement`
+     * excludes the dead row (so `entitlement` is null here) while
+     * `entitlementEndDate` includes it, and the dates diverge.
+     *
+     * Driven: Billing read "Ends on 17 Sept 2026" while Manage read "and it
+     * renews on 17 Sept 2026" — one account, one date, two verbs.
+     */
+    const facts = f({
+      entitlement: null,
+      subscription: { status: "active" },
+      actionKind: "cancel",
+      endsOn: "17 Sept 2026",
+      price: "$69.99 USD",
+      interval: "year",
+      accessEndsEarly: true,
+    });
+    expect(summaryStateFor(facts)).toBe("withheld");
+    expect(manageSummaryFor(facts)).toBeNull();
+  });
+
+  it("⚠️ CONTROL: the same account WITHOUT the divergence still gets its sentence", () => {
+    // Without this, "withhold whenever there is no entitlement" would pass the
+    // assertion above and silence every ordinary account on the gate-off world.
+    const healthy = f({
+      entitlement: null,
+      subscription: { status: "active" },
+      actionKind: "cancel",
+      endsOn: "17 Sept 2026",
+      price: "$69.99 USD",
+      interval: "year",
+      accessEndsEarly: false,
+    });
+    expect(summaryStateFor(healthy)).toBe("paying");
+    expect(manageSummaryFor(healthy)).toContain("it renews on 17 Sept 2026");
+  });
+
+  it("⚠️ CONTROL: past-due keeps its OWN sentence and is not swallowed", () => {
+    // `past_due` always sets accessEndsEarly, and D37's sentence is correct for
+    // it. If the withhold sat above the past-due branch it would delete a signed
+    // sentence — two states, two answers, and only one of them is missing copy.
+    const pastDue = f({
+      entitlement: stripe,
+      subscription: { status: "past_due" },
+      actionKind: "cancel",
+      endsOn: "25 Aug 2026",
+      accessEndsEarly: true,
+    });
+    expect(summaryStateFor(pastDue)).toBe("past-due");
+    expect(manageSummaryFor(pastDue)).toContain("Your last payment didn't go through");
   });
 });
 

@@ -84,6 +84,14 @@ export default async function ManagePage() {
       : null,
     interval: facts.price?.interval ?? null,
     gateEnabled: facts.gateEnabled,
+    /**
+     * ⚠️ `manageActionFor`'s OWN answer, so this sentence and Billing's row label
+     * cannot describe one date with two verbs. See `manageSummaryFor`.
+     */
+    accessEndsEarly:
+      facts.action.kind === "cancel" || facts.action.kind === "resume"
+        ? facts.action.accessEndsEarly
+        : false,
   });
 
   return (
