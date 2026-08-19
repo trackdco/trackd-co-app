@@ -313,20 +313,43 @@ try {
     const nav = document.querySelector("nav");
     const navTop = nav ? nav.getBoundingClientRect().top : Infinity;
     const main = document.querySelector("main") ?? document.body;
-    let smallest = 999;
+    let smallest = Infinity;
+    let measured = 0;
     let under = 0;
     for (const c of main.querySelectorAll("a,button")) {
       if (nav && nav.contains(c)) continue;
       const r = c.getBoundingClientRect();
       if (!r.height && !r.width) continue;
+      measured += 1;
       smallest = Math.min(smallest, r.height);
       if (r.top + r.height / 2 > navTop) under += 1;
     }
-    return { horiz: doc.scrollWidth > doc.clientWidth + 0.5, smallest, under };
+    return {
+      horiz: doc.scrollWidth > doc.clientWidth + 0.5,
+      smallest, under, measured, navFound: Boolean(nav),
+    };
   });
   check("320x568: Manage does not scroll horizontally", !m.horiz);
-  check("320x568: every tap target is at least 44px", m.smallest >= 44, `smallest ${m.smallest}px`);
-  check("320x568: nothing sits under the fixed bottom nav", m.under === 0, `${m.under} control(s)`);
+  /**
+   * ⚠️ A SENTINEL IS NOT A MEASUREMENT (5.1). `smallest` started at 999 and
+   * `navTop` at Infinity, so both checks below were TRUE when nothing was found:
+   * a screen that failed to render "had every tap target at least 44px". The
+   * properties they are about are "every MEASURED control is thumb-reachable"
+   * and "content does not hide behind the nav" — the first needs at least one
+   * control, the second needs a nav to exist at all.
+   */
+  check("320x568: ARRIVAL — controls were found to measure", m.measured > 0, `${m.measured} measured`);
+  check(
+    "320x568: every tap target is at least 44px",
+    m.measured > 0 && m.smallest >= 44,
+    m.measured > 0 ? `smallest ${m.smallest}px across ${m.measured}` : "NOTHING MEASURED",
+  );
+  check("320x568: ARRIVAL — the bottom nav exists, so clearance is askable", m.navFound);
+  check(
+    "320x568: nothing sits under the fixed bottom nav",
+    m.navFound && m.under === 0,
+    m.navFound ? `${m.under} control(s)` : "NOT MEASURED",
+  );
 } finally {
   await browser.close();
   for (const id of created) {

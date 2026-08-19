@@ -9,10 +9,12 @@
  *   gate ON   -> /dashboard opens the read-only pop-up; /billing Access = "Read only"
  *   gate OFF  -> no pop-up at all;                      /billing Access = "Pro"
  *
- * ⚠️ THE CONTROL IS THE SECOND ASSERTION, NOT THE FIRST. "No pop-up" is what a
- * broken selector looks like too. "Access: Pro" is a NAMED ARTEFACT that can only
- * be produced by `planLabelFor(null, null, false)` — the gate-off branch — so the
- * pair distinguishes flag-off from driver-broken.
+ * ⚠️ THE NAMED ARTEFACT IS ASSERTED FIRST AND THE ABSENCE IS GATED ON IT (5.1).
+ * "No pop-up" is what a broken selector looks like too, and a cold reviewer's
+ * equivalent assertion PASSED while the gate was ON. "Access: Pro" can only be
+ * produced by `planLabelFor(null, null, false)` — the gate-off branch — and
+ * "Read only" only by the gate-on one, so the label proves the state in BOTH
+ * directions while an absence proves it in neither.
  *
  * Safety: one account, @trackd-qa.invalid, timestamped, deleted BY ID in finally.
  * No Stripe objects: a lapsed account is exactly one that has none.
@@ -46,6 +48,44 @@ try {
   );
   const page = await context.newPage();
 
+  /**
+   * ⚠️ THE NAMED ARTEFACT RUNS FIRST, AND THE ABSENCE IS GATED ON IT (5.1).
+   *
+   * This file used to assert "no read-only pop-up on a write" FIRST, under a name
+   * claiming it proved the flag. It does not prove anything: a cold reviewer's
+   * equivalent assertion PASSED while the gate was ON — a one-sided assertion
+   * agreeing with a broken selector. **An absence cannot be told apart from a
+   * probe that found nothing.**
+   *
+   * The Access label can, and is the model for the whole class: it reads a
+   * POSITIVE string in BOTH directions —
+   *
+   *     gate OFF, no entitlement  ->  "Pro"        (FULL_ACCESS_LABEL)
+   *     gate ON,  no entitlement  ->  "Read only"  (NO_ACCESS_LABEL)
+   *
+   * — so neither answer can be produced by a selector that matched nothing, and
+   * the state is proven in both directions rather than only one.
+   *
+   * So the order is reversed and the absence below is explicitly a CORROBORATION,
+   * gated on the artefact. If the artefact ever fails, the absence is reported as
+   * NOT MEASURED rather than as a pass.
+   */
+  await page.goto("http://localhost:3100/billing", { waitUntil: "networkidle" });
+  const billing = await page.locator("body").innerText();
+  console.log(`\n--- /billing for a lapsed account ---\n${billing}\n---`);
+  const sawPro = /Access[\s\S]{0,40}\bPro\b/.test(billing);
+  const sawReadOnly = /Read only/.test(billing);
+  const gateOff = sawPro && !sawReadOnly;
+  check(
+    "⚠️ NAMED ARTEFACT: Access reads the gate-OFF label, so the flag is genuinely unset",
+    gateOff,
+    sawReadOnly
+      ? 'found "Read only" — THE GATE IS ON'
+      : sawPro
+        ? 'found "Pro"'
+        : "found NEITHER label — the page did not render, so nothing is proven either way",
+  );
+
   await page.goto("http://localhost:3100/dashboard", { waitUntil: "networkidle" });
   const dash = await page.locator("body").innerText();
   check("ARRIVAL: the dashboard rendered", dash.length > 200, `${dash.length} chars`);
@@ -62,15 +102,14 @@ try {
     await page.waitForTimeout(800);
     n = await dialog.count();
   }
-  check("BILLING_GATE_ENABLED is OFF: no read-only pop-up on a write", n === 0, `${n} dialog(s)`);
-
-  await page.goto("http://localhost:3100/billing", { waitUntil: "networkidle" });
-  const billing = await page.locator("body").innerText();
-  console.log(`\n--- /billing for a lapsed account ---\n${billing}\n---`);
+  /**
+   * ⚠️ CORROBORATION, NOT PROOF, and the name says so. It agrees with the
+   * artefact above or it contradicts it; on its own it means nothing.
+   */
   check(
-    "CONTROL: Access reads the gate-OFF label, so the flag is genuinely unset",
-    /Access[\s\S]{0,40}\bPro\b/.test(billing) && !/Read only/.test(billing),
-    /Read only/.test(billing) ? 'found "Read only" — THE GATE IS ON' : 'found "Pro"',
+    "corroboration (gated on the artefact): no read-only pop-up on a write",
+    gateOff && n === 0,
+    gateOff ? `${n} dialog(s)` : "NOT MEASURED — the artefact did not establish the gate is off",
   );
 } finally {
   await browser.close();

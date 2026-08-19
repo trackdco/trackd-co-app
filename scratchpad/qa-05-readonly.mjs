@@ -180,12 +180,25 @@ try {
   /* ── mechanics: tap targets, focus, pointer-events ──────────────── */
   const buttons = dialog.locator("button");
   const n = await buttons.count();
-  let smallest = 999;
+  let smallest = Infinity;
+  let measured = 0;
   for (let i = 0; i < n; i += 1) {
     const box = await buttons.nth(i).boundingBox();
-    if (box) smallest = Math.min(smallest, box.height);
+    if (box) { measured += 1; smallest = Math.min(smallest, box.height); }
   }
-  check("every tap target is at least 44px tall", smallest >= 44, `smallest ${smallest}px`);
+  /**
+   * ⚠️ A SENTINEL IS NOT A MEASUREMENT (5.1). `smallest` started at 999, so
+   * "every tap target is at least 44px" was TRUE for a dialog with no buttons —
+   * which is what a renamed selector or a dialog that never opened looks like.
+   * The property is "every MEASURED button is thumb-reachable", so it must first
+   * have measured one.
+   */
+  check("ARRIVAL: buttons were found to measure", measured > 0, `${measured} of ${n} laid out`);
+  check(
+    "every tap target is at least 44px tall",
+    measured > 0 && smallest >= 44,
+    measured > 0 ? `smallest ${smallest}px across ${measured}` : "NOTHING MEASURED",
+  );
 
   // ⚠️ pointer-events on the backdrop is load-bearing (§3.8). Measured, not read.
   const hitTestable = await dialog.evaluate((node) => {

@@ -120,29 +120,65 @@ async function layoutFaults(page, label) {
     // Every interactive thing in the page's own content column.
     const main = document.querySelector("main") ?? document.body;
     const controls = [...main.querySelectorAll("a,button")];
-    let smallest = 999;
+    let smallest = Infinity;
+    let measured = 0;
     let underNav = 0;
     for (const c of controls) {
       const r = c.getBoundingClientRect();
       if (r.height === 0 && r.width === 0) continue;
       if (nav && nav.contains(c)) continue;
+      measured += 1;
       smallest = Math.min(smallest, r.height);
       // "Sits under" means its MIDDLE is behind the nav; a control scrolled
       // partly past the fold is normal and is not a fault.
       if (r.top + r.height / 2 > navTop) underNav += 1;
     }
-    return { horiz, smallest, underNav, count: controls.length, navTop };
+    return {
+      horiz, smallest, underNav, measured, navFound: Boolean(nav),
+      count: controls.length, navTop,
+    };
   });
   check(`${label}: the page does not scroll horizontally`, !m.horiz);
+    /**
+     * ⚠️ A SENTINEL IS NOT A MEASUREMENT (5.1).
+     *
+     * `smallest` started at 999 and `navTop` at Infinity, so BOTH checks below
+     * were true when there was nothing to measure: a page with no tap targets
+     * "had every tap target at least 44px", and a page with no bottom nav had
+     * "nothing sitting under the bottom nav". A renamed selector or a screen that
+     * failed to render read as a pass.
+     *
+     * ⚠️ THE PROPERTY EACH CHECK IS ABOUT, so a future change is judged against
+     * the property rather than the number:
+     *   · the tap-target check is about EVERY MEASURED CONTROL being reachable by
+     *     a thumb — so it must first have measured at least one control;
+     *   · the nav-clearance check is about CONTENT NOT HIDING BEHIND THE NAV — so
+     *     it is only askable where a nav exists, and says so when one does not.
+     *
+     * `measured` and `navFound` are returned rather than inferred, so the
+     * assertion can require that something was seen before it claims anything.
+     */
+  check(
+    `${label}: ARRIVAL — controls were found to measure`,
+    m.measured > 0,
+    `${m.measured} measurable control(s) of ${m.count} matched`,
+  );
   check(
     `${label}: every tap target is at least 44px`,
-    m.smallest >= 44 || m.smallest === 999,
-    `smallest ${m.smallest}px across ${m.count} control(s)`,
+    m.measured > 0 && m.smallest >= 44,
+    m.measured > 0 ? `smallest ${m.smallest}px across ${m.measured} control(s)` : "NOTHING MEASURED",
+  );
+  check(
+    `${label}: ARRIVAL — the bottom nav exists, so clearance is askable`,
+    m.navFound,
+    m.navFound ? `nav top y=${Math.round(m.navTop)}` : "NO NAV, so 'nothing sits under it' proves nothing",
   );
   check(
     `${label}: nothing sits under the fixed bottom nav`,
-    m.underNav === 0,
-    `${m.underNav} control(s) behind nav at y=${Math.round(m.navTop)}`,
+    m.navFound && m.underNav === 0,
+    m.navFound
+      ? `${m.underNav} control(s) behind nav at y=${Math.round(m.navTop)}`
+      : "NOT MEASURED",
   );
   return m;
 }
