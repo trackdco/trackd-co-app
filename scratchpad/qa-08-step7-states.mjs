@@ -43,7 +43,31 @@ const check = (name, pass, detail = "") => {
 };
 
 const DAY = 24 * 60 * 60 * 1000;
-const iso = (ms) => new Date(Date.now() + ms).toISOString();
+/**
+ * ⚠️ ONE INSTANT PER RUN, BECAUSE THE WRITER WRITES ONE INSTANT (5.1 / the 0.1 rule).
+ *
+ * This read `Date.now()` on EVERY call, so a seed writing
+ *
+ *     entitlements.active_until      : iso(365 * DAY)
+ *     subscriptions.current_period_end: iso(365 * DAY)
+ *
+ * produced TWO timestamps milliseconds apart whenever the two calls straddled a
+ * millisecond boundary. `sync.ts` writes both columns from ONE call to
+ * `entitledUntil(sub)` — the same instant, always — so the diverged pair is a
+ * state the app cannot produce, exactly as 0.1's revoked cohort was.
+ *
+ * ⚠️ IT IS NOT COSMETIC. `accessEndsEarly` compares those two as STRINGS
+ * (`manage.ts`: `endsOn !== mirrorEnd`), so one millisecond flips it true and
+ * `/billing` renders **"Ends on"** where "Renews on" is correct. It fired on
+ * 20 Aug 2026 and took two cohorts of `qa-08-step7-states` red — a real defect
+ * report against entirely correct product code.
+ *
+ * Freezing the base makes `iso(N)` stable for the whole run, which reproduces the
+ * writer's property rather than approximating it. Thirteen seeds across five
+ * tracked drivers were affected; all are fixed by this one line.
+ */
+const RUN_NOW = Date.now();
+const iso = (ms) => new Date(RUN_NOW + ms).toISOString();
 const day = (isoStr) =>
   new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Sydney",

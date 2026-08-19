@@ -31,11 +31,41 @@ import { BETA_GRACE_DAYS } from "./betaGrace";
 const ROOT = join(__dirname, "..", "..");
 const NOTICE = join(ROOT, "components/billing/BetaLaunchNotice.tsx");
 
-/** §3.6's approved beta line, split as JSX wraps it. */
-const SIGNED_FRAGMENTS = [
-  "From today it&apos;s a paid app, and because you were here early",
-  "you&apos;ve got two more weeks on us, until",
-];
+const SIGNED_PATH = join(__dirname, "signed", "beta-notice.txt");
+
+/**
+ * ⚠️ THE SIGNED LINES COME FROM A PURE-ASCII FILE, AND THE COMPARISON IS AGAINST
+ * COMMENT-STRIPPED, ENTITY-DECODED COPY (5.5).
+ *
+ * ## What was wrong with the mechanism, which was not wrong with the values
+ *
+ * Three assertions read the RAW SOURCE and asked `.toContain(fragment)`. A signed
+ * sentence DELETED FROM THE JSX and surviving in the reasoning comment above it
+ * would still pass — and this file's own doc-block explains at length why raw
+ * source is the wrong thing to read, having already been bitten by it once.
+ * Nothing was vacuous when it was found; the mechanism simply could not tell the
+ * difference, which is a defect waiting for its occasion.
+ *
+ * ## Why not `signedCopyPin`'s exact shape
+ *
+ * That file calls the same pure function the screen calls. There is no such
+ * function here: the notice's copy is JSX literals inside a component, and
+ * extracting it would be a product change, which Group 5 does not make. So this
+ * takes everything of that shape which is available without one —
+ *
+ *   · a signed file, pure ASCII, one line per sentence (so a curly apostrophe or
+ *     a non-breaking space in the notice cannot match);
+ *   · a comparison against copy with COMMENTS REMOVED and JSX ENTITIES DECODED,
+ *     so what is compared is what a reader sees rather than what the file says;
+ *   · a control in BOTH directions — the comparator must fire on U+2019 and pass
+ *     on a match;
+ *   · and a control proving the STRIPPER closes the hole: a sentence that exists
+ *     only inside a comment must NOT be found.
+ */
+const SIGNED_FRAGMENTS = readFileSync(SIGNED_PATH, "utf8")
+  .split("\n")
+  .map((l) => l.trimEnd())
+  .filter((l) => l.length > 0);
 
 describe("the fortnight's number and its signed sentence cannot drift apart", () => {
   it("BETA_GRACE_DAYS is 14, which is what 'two more weeks' says", () => {
@@ -48,12 +78,18 @@ describe("the fortnight's number and its signed sentence cannot drift apart", ()
     ).toBe(14);
   });
 
+  it("the signed file holds the three sentences, in pure ASCII", () => {
+    expect(SIGNED_FRAGMENTS).toHaveLength(3);
+    const nonAscii = SIGNED_FRAGMENTS.join("\n").split("").filter((c) => c.charCodeAt(0) > 127);
+    expect(nonAscii, "the signed file is not pure ASCII, so it cannot pin punctuation").toEqual([]);
+  });
+
   it("the notice still carries the signed sentence, character for character", () => {
-    const source = readFileSync(NOTICE, "utf8");
+    const copy = renderedCopy();
     for (const fragment of SIGNED_FRAGMENTS) {
       expect(
-        source,
-        `the approved line no longer appears in the notice: "${fragment}"`,
+        copy,
+        `the approved line no longer appears in the RENDERED copy: "${fragment}"`,
       ).toContain(fragment);
     }
   });
@@ -80,9 +116,11 @@ describe("the fortnight's number and its signed sentence cannot drift apart", ()
    * "read only" is when they are locked out.
    */
   it("the beta variant uses the exact phrase 'read only'", () => {
-    const source = readFileSync(NOTICE, "utf8");
-    expect(source).toContain("After that your account goes read only.");
-    expect(source).not.toContain("read-only until");
+    // ⚠️ RENDERED copy, not raw source (5.5): the sentence must be in the JSX, not
+    // in a comment describing the JSX.
+    const copy = renderedCopy();
+    expect(copy).toContain("After that your account goes read only.");
+    expect(copy).not.toContain("read-only until");
   });
 
   it("no banned word and no em dash reaches either variant", () => {
@@ -105,6 +143,33 @@ describe("the fortnight's number and its signed sentence cannot drift apart", ()
     expect(copy).toContain("Set up my plan");
     expect(copy.length).toBeGreaterThan(600);
   });
+
+  /**
+   * ⚠️ THE CONTROL THAT PROVES THE HOLE IS SHUT (5.5). Both directions, on the
+   * mechanism rather than on today's values.
+   */
+  it("⚠️ CONTROL: a sentence living ONLY in a comment is NOT found", () => {
+    // This is the exact defect: before 5.5 the assertions read raw source, so a
+    // signed sentence deleted from the JSX and left in the comment above it still
+    // passed. The notice's own comment quotes "two more weeks" while explaining
+    // why it does not derive — so the raw source contains it twice and the
+    // rendered copy must contain it once.
+    const raw = readFileSync(NOTICE, "utf8");
+    const quotedInAComment = '"two more weeks" is SIGNED PROSE';
+    expect(raw, "the comment this control relies on was rewritten").toContain(quotedInAComment);
+    expect(
+      renderedCopy(),
+      "the stripper is not removing comments, so a deleted sentence would still pass",
+    ).not.toContain(quotedInAComment);
+  });
+
+  it("⚠️ CONTROL: the comparison fires on a curly apostrophe and passes on a match", () => {
+    // Without this, a comparator that matched everything would satisfy every
+    // assertion above. U+2019 is the character that has shipped here before.
+    const signed = "you've got two more weeks on us, until";
+    expect(decodeEntities("you&apos;ve got two more weeks on us, until")).toBe(signed);
+    expect(decodeEntities("you\u2019ve got two more weeks on us, until")).not.toBe(signed);
+  });
 });
 
 /**
@@ -117,7 +182,23 @@ describe("the fortnight's number and its signed sentence cannot drift apart", ()
  * rendered copy when they are prose ABOUT the copy.
  */
 function renderedCopy(): string {
-  return readFileSync(NOTICE, "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/^\s*\/\/.*$/gm, " ");
+  return decodeEntities(
+    readFileSync(NOTICE, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/^\s*\/\/.*$/gm, " "),
+  );
+}
+
+/**
+ * ⚠️ THE ENTITIES A READER NEVER SEES (5.5). JSX escapes an apostrophe as
+ * `&apos;`, so the source and the screen differ in exactly the characters signed
+ * copy is pinned on. Decoding here means the signed file can be PURE ASCII and
+ * still catch a curly apostrophe: `&apos;` becomes `'` (U+0027) and a real
+ * U+2019 stays U+2019, so the two no longer compare equal.
+ */
+function decodeEntities(src: string): string {
+  return src
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&");
 }

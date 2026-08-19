@@ -452,6 +452,41 @@ P13, so the promise is live before any user can reach the offer.
 **P13 — Set `BILLING_GATE_ENABLED`.** **⚠️ Never before P11 and P12.** *Worked when:* a
 seeded lapsed account is read-only and an entitled account is not.
 
+> **⚠️ A RESTART IS NOT EVIDENCE. Verify the flag from BEHAVIOUR, on a NAMED ARTEFACT.**
+> Recorded 20 Aug 2026 from the build lane, where this cost real time twice.
+>
+> - **`ps` shows argv, not env.** The command line reads correct while the environment
+>   is wrong, and `ps eww` returns nothing on the founder's machine.
+> - **`pkill -f "next dev"` does not match the `next-server` worker**, which is the
+>   process that actually holds the port AND the environment. A relaunch can then die
+>   on `EADDRINUSE` and say nothing to whoever launched it, **while an older server
+>   with the WRONG FLAG keeps answering on 3100**.
+> - **`nohup env FLAG=true npx next dev` DID NOT SET THE FLAG.** `npx` re-execs and
+>   loses it. That run reported 29/30 green with the control failing — a fully green
+>   vacuous result. Launch through a script that `export`s and then `exec`s
+>   `./node_modules/.bin/next`; `scratchpad/dev-gate-on.sh` and `dev-gate-off.sh` are
+>   that script and are tracked.
+> - **An ABSENCE proves nothing.** "No read-only pop-up appeared" is also what a
+>   renamed selector looks like, and a cold reviewer's version of that assertion PASSED
+>   while the gate was ON.
+>
+> **The proof is the Access label**, because it is POSITIVE IN BOTH DIRECTIONS on an
+> account with no entitlement:
+>
+>     gate OFF -> Access "Pro"         (FULL_ACCESS_LABEL)
+>     gate ON  -> Access "Read only"   (NO_ACCESS_LABEL)
+>
+> Neither can be produced by a selector that matched nothing.
+> `scratchpad/coldgate/gate-7-flag-absent.mjs` reads exactly that, with a
+> free-for-life comp beside it as the control that the row is being read at all.
+> **Run it after every restart, before trusting any screen.**
+>
+> **⚠️ And if that CONTROL fails — "Access null" for BOTH accounts rather than a wrong
+> label on one — the environment is broken, not the product.** Measured twice: killing
+> a Turbopack dev server mid-compile leaves a cache that serves 404 for EVERY route,
+> with no compile error and a fast "Ready in 4xxms". Stop every `next` process, confirm
+> the port is free, clear `.next`, start again.
+
 **The sequence**
 
 **S1 — Test clocks, the whole lifecycle.** Walk the full path with time fast-forwarded:

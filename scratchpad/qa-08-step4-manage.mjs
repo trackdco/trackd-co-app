@@ -34,7 +34,31 @@ const check = (name, pass, detail = "") => {
 };
 
 const DAY = 24 * 60 * 60 * 1000;
-const iso = (ms) => new Date(Date.now() + ms).toISOString();
+/**
+ * ⚠️ ONE INSTANT PER RUN, BECAUSE THE WRITER WRITES ONE INSTANT (5.1 / the 0.1 rule).
+ *
+ * This read `Date.now()` on EVERY call, so a seed writing
+ *
+ *     entitlements.active_until      : iso(365 * DAY)
+ *     subscriptions.current_period_end: iso(365 * DAY)
+ *
+ * produced TWO timestamps milliseconds apart whenever the two calls straddled a
+ * millisecond boundary. `sync.ts` writes both columns from ONE call to
+ * `entitledUntil(sub)` — the same instant, always — so the diverged pair is a
+ * state the app cannot produce, exactly as 0.1's revoked cohort was.
+ *
+ * ⚠️ IT IS NOT COSMETIC. `accessEndsEarly` compares those two as STRINGS
+ * (`manage.ts`: `endsOn !== mirrorEnd`), so one millisecond flips it true and
+ * `/billing` renders **"Ends on"** where "Renews on" is correct. It fired on
+ * 20 Aug 2026 and took two cohorts of `qa-08-step7-states` red — a real defect
+ * report against entirely correct product code.
+ *
+ * Freezing the base makes `iso(N)` stable for the whole run, which reproduces the
+ * writer's property rather than approximating it. Thirteen seeds across five
+ * tracked drivers were affected; all are fixed by this one line.
+ */
+const RUN_NOW = Date.now();
+const iso = (ms) => new Date(RUN_NOW + ms).toISOString();
 const day = (isoStr) =>
   new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Sydney",
@@ -215,8 +239,27 @@ try {
   });
   check("⚠️ R5(b): the unavailable cohort gets NO summary sentence at all",
     summaryPara === null, summaryPara ?? "no paragraph before the Payment card");
-  check("⚠️ R5(b) CONTROL: the same probe FINDS a sentence for a cohort that has one",
-    true, "asserted immediately below against a paying account");
+  /**
+   * ⚠️ DELETED: A HARDCODED `true` RECORDED AS A PASSING CONTROL (5.7).
+   *
+   * A line here read `check("... CONTROL: the same probe FINDS a sentence ...",
+   * true, "asserted immediately below against a paying account")`. It was the
+   * only literal `true` verdict in 200 drivers.
+   *
+   * Nothing was unprotected: the REAL control runs ~25 lines down against a
+   * paying account, is well built, and fails loudly if the probe stops seeing
+   * sentences. But this line reported GREEN for a control it did not perform, so
+   * if the real one were ever deleted the summary would still show a control
+   * passing — a green tick standing in for the thing it points at.
+   *
+   * It is deleted rather than rewritten: the assertion it described already
+   * exists, correctly, and adding a second one would be two checks for one
+   * property. The pointer belongs in a comment, which is what this is.
+   *
+   * ⚠️ The real control is "⚠️ CONTROL: the same probe DOES find the sentence for
+   * a paying account". If that is ever removed, the withhold assertion above it
+   * proves nothing and must be removed with it.
+   */
   check("R5(b) CONTROL: but the screen itself still works — Card and Receipts render",
     /Card/.test(pausedText) && /Receipts/.test(pausedText));
 

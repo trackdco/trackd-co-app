@@ -38,7 +38,31 @@ const check = (name, pass, detail = "") => {
 };
 
 const DAY = 24 * 60 * 60 * 1000;
-const iso = (ms) => new Date(Date.now() + ms).toISOString();
+/**
+ * ⚠️ ONE INSTANT PER RUN, BECAUSE THE WRITER WRITES ONE INSTANT (5.1 / the 0.1 rule).
+ *
+ * This read `Date.now()` on EVERY call, so a seed writing
+ *
+ *     entitlements.active_until      : iso(365 * DAY)
+ *     subscriptions.current_period_end: iso(365 * DAY)
+ *
+ * produced TWO timestamps milliseconds apart whenever the two calls straddled a
+ * millisecond boundary. `sync.ts` writes both columns from ONE call to
+ * `entitledUntil(sub)` — the same instant, always — so the diverged pair is a
+ * state the app cannot produce, exactly as 0.1's revoked cohort was.
+ *
+ * ⚠️ IT IS NOT COSMETIC. `accessEndsEarly` compares those two as STRINGS
+ * (`manage.ts`: `endsOn !== mirrorEnd`), so one millisecond flips it true and
+ * `/billing` renders **"Ends on"** where "Renews on" is correct. It fired on
+ * 20 Aug 2026 and took two cohorts of `qa-08-step7-states` red — a real defect
+ * report against entirely correct product code.
+ *
+ * Freezing the base makes `iso(N)` stable for the whole run, which reproduces the
+ * writer's property rather than approximating it. Thirteen seeds across five
+ * tracked drivers were affected; all are fixed by this one line.
+ */
+const RUN_NOW = Date.now();
+const iso = (ms) => new Date(RUN_NOW + ms).toISOString();
 
 /** ⚠️ §3.4's signed copy, character for character. */
 const HANDOFF = {
@@ -124,13 +148,47 @@ try {
     cust.data?.[0]?.stripe_customer_id ?? "none",
   );
 
+  /**
+   * ⚠️ RE-BASED ON THE PROPERTY, NOT ON WHERE THE CONTROL USED TO LIVE.
+   *
+   * This opened the handoff from a **"Payment method and invoices"** row on
+   * `/billing`. **Spec 08 Step 4 DELETED that row** — it did two jobs, and it was
+   * replaced by a Manage row on `/billing` with Card and Receipts one screen
+   * deeper. `qa-08-step4-manage` asserts the old row must NOT survive, so the two
+   * drivers directly contradicted each other and this one was simply older.
+   *
+   * ⚠️ It is a STALE ASSERTION, not a defect: it failed because the product
+   * changed correctly and nobody updated the driver. Left alone it is a standing
+   * red that trains its reader to ignore the file — and the temptation it creates
+   * is to put the deleted row BACK to make a driver green, which is the expensive
+   * direction.
+   *
+   * ⚠️ THE PROPERTY THIS BLOCK IS ABOUT is §3.4: **every route to Stripe passes
+   * through the handoff dialog, and the dialog's copy is signed.** Which control
+   * opens it is Step 4's business, not this block's. So it now opens the handoff
+   * from where the control actually is, and asserts the same signed copy.
+   */
   const pay = await billingFor(payer);
-  const payRow = pay.locator("button", { hasText: "Payment method and invoices" });
+  /**
+   * ⚠️ THE BILLING ASSERTION HAPPENS FIRST, ON THE SAME PAGE OBJECT, THEN THE
+   * PAGE NAVIGATES ONCE. Opening a second page mid-block loses the trigger, and
+   * §5's "focus returns to the trigger" then fails for a reason that has nothing
+   * to do with focus.
+   */
   check(
-    "ARRIVAL (3): the payment row is on screen",
+    "ARRIVAL (3): the row Step 4 DELETED is genuinely gone from Billing",
+    !(await pay.locator("body").innerText()).includes("Payment method and invoices"),
+    "if it came back, Step 4 was reverted and qa-08-step4-manage would also be red",
+  );
+  await pay.goto("http://localhost:3100/billing/manage", { waitUntil: "networkidle" });
+  const payRow = pay.locator("button", { hasText: /^Card/ });
+  check(
+    "ARRIVAL (3): the Card row is on Manage, which is where Step 4 put it",
     (await payRow.count()) > 0,
     `${await payRow.count()} row(s)`,
   );
+  /** Captured BEFORE opening, so the focus-return check is about the trigger. */
+  const triggerLabel = ((await payRow.first().textContent()) ?? "").trim();
 
   const dialog = pay.locator('[role="dialog"][aria-labelledby="handoff-title"]');
   check(
@@ -204,10 +262,28 @@ try {
   await pay.keyboard.press("Escape");
   await pay.waitForTimeout(400);
   check("§5: Escape closes the dialog", (await dialog.count()) === 0);
-  const backOnTrigger = await pay.evaluate(() =>
-    document.activeElement?.textContent?.includes("Payment method and invoices"),
+  /**
+   * ⚠️ THE PROPERTY IS "FOCUS RETURNS TO THE CONTROL THAT OPENED IT", not "focus
+   * is on a button labelled X".
+   *
+   * This compared against the literal "Payment method and invoices" — the label
+   * of a row Step 4 DELETED — so it failed after the block was re-based even
+   * though focus was being restored perfectly. That is the over-specified control
+   * in its usual form: a check that fails when the change is correct, and whose
+   * cheapest-looking fix is to undo the change.
+   *
+   * The trigger's own text is captured before the dialog opens, so this holds
+   * whatever the control is called next.
+   */
+  const backOnTrigger = await pay.evaluate(
+    (label) => document.activeElement?.textContent?.includes(label) ?? false,
+    triggerLabel,
   );
-  check("§5: and focus returns to the trigger", Boolean(backOnTrigger));
+  check(
+    "§5: and focus returns to the trigger",
+    Boolean(backOnTrigger),
+    `trigger was "${triggerLabel}", focus is on "${await pay.evaluate(() => document.activeElement?.textContent?.trim().slice(0, 40) ?? "(none)")}"`,
+  );
 
   /* ── ⚠️ NO BYPASS. The action must be unreachable without the dialog ── */
   check(

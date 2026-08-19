@@ -80,13 +80,52 @@ const show = (label, o) => {
  *
  * So it compares the CURRENT classification against a committed snapshot. Any
  * drift fails: a new export, a gated function that stopped being gated, an ungated
- * one that started. **A new write is a new export, so it cannot slip through**, and
- * deciding it is deliberately ungated means saying so in the manifest, in a commit,
- * where a reviewer sees it.
+ * one that started. Deciding a write is deliberately ungated means saying so in
+ * the manifest, in a commit, where a reviewer sees it.
  *
  * That also catches the reverse, which has happened here: `refuseWrite()` replaced
  * `canWriteData()` at sixteen call sites and this script did not know the pattern,
  * so all sixteen silently reported as NOT GATED.
+ *
+ * ## ⚠️ THIS PARAGRAPH USED TO CLAIM MORE THAN THE PARSER DELIVERS. CORRECTED.
+ *
+ * It read: **"A new write is a new export, so it cannot slip through."** It can.
+ * The claim is about EXPORTS; the parser is about one particular spelling of one.
+ * Three blind spots, recorded 20 Aug 2026 and **ACCEPTED under §9g rather than
+ * repaired** — see the note at the foot of this block for why.
+ *
+ *   1. **ONLY `export async function` IS PARSED** (the `starts` regex below). An
+ *      arrow-form server action — `export const doThing = async (...) => {}` — is
+ *      invisible to ALL THREE BUCKETS and to the drift check, so it is not
+ *      reported as ungated; it is not reported at all. That is the permissive
+ *      direction, and it is the one this script exists to remove.
+ *
+ *   2. **A GUARD IS DETECTED BY SUBSTRING OVER THE WHOLE BODY, COMMENTS
+ *      INCLUDED.** A function whose comment merely NAMES `canWriteData()` while
+ *      explaining why it does not need it classifies as gated. The same class
+ *      `graceCopyPin` was carrying, one file across.
+ *
+ *   3. **AN EARLY RETURN BEFORE THE GUARD READS AS FULLY GATED.** The guard is
+ *      found anywhere in the body, so a path that returns above it is never
+ *      considered — the function is "gated" for callers that never reach it.
+ *
+ * ⚠️ **NONE OF THE THREE CURRENTLY PRODUCES A WRONG ANSWER.** All 29 `"use
+ * server"` files were swept on 20 Aug 2026: every server action is
+ * `export async function`, no guard appears only in a comment, and no guarded
+ * function returns before its guard. **The GUARANTEE is false; the RESULT is
+ * correct.** Those are different statements and only one of them was written down.
+ *
+ * ## Why it is recorded and not fixed (§9g)
+ *
+ * Repairing the parser could move the 32/2/69 numbers, and moving them trips the
+ * BULK refusal below — which is the only defence against a broken parser being
+ * blessed as the new baseline. A parser change therefore needs its own
+ * verification round, against a tree that is not two hours from a launch.
+ *
+ * **What would change it:** the first arrow-form server action, a guard that
+ * genuinely appears only in a comment, or any early return above a guard. Each is
+ * a real answer going wrong rather than a guarantee being overstated, and each is
+ * the moment this becomes urgent.
  *
  *   node scripts/gate-audit.mjs            print the three buckets
  *   node scripts/gate-audit.mjs --check    fail (exit 1) on any drift
