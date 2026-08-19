@@ -325,24 +325,62 @@ export async function seedAccount(
   if (error) throw new Error(`seedAccount: ${error.message}`);
   const id = ledger.user(data.user.id);
 
-  await admin.from("profiles").update({
-    is_18_plus: true,
-    tos_accepted_at: new Date().toISOString(),
-    date_of_birth: "1990-01-01",
-    timezone: opts.timezone ?? "Australia/Sydney",
-    notifications_enabled: opts.notificationsEnabled ?? true,
-  }).eq("id", id);
+  /**
+   * ⚠️ CHECKED, AND A ZERO-ROW UPDATE IS A FAILURE (5.4).
+   *
+   * Both writes discarded their result, and **a PostgREST update matching ZERO
+   * ROWS is not an error** — so if the `profiles` row did not exist yet, the
+   * write landed nowhere and the account silently kept the DEFAULT timezone and
+   * notification settings.
+   *
+   * Every date these scenarios assert is formatted in that timezone, and quiet
+   * hours are read from these preferences — `rule0.scenario.ts` records a run
+   * where a quiet-hours short-circuit made a control read as "the runner refused"
+   * when it had never got there. A fixture that did not land produces exactly
+   * that class of result.
+   *
+   * `select()` makes PostgREST return what it wrote, which is the only way to
+   * tell a matched update from one that matched nothing. Same rule as
+   * `scratchpad/admin.mjs`'s `makeUser`.
+   */
+  const { data: profileRows, error: profileError } = await admin
+    .from("profiles")
+    .update({
+      is_18_plus: true,
+      tos_accepted_at: new Date().toISOString(),
+      date_of_birth: "1990-01-01",
+      timezone: opts.timezone ?? "Australia/Sydney",
+      notifications_enabled: opts.notificationsEnabled ?? true,
+    })
+    .eq("id", id)
+    .select("id");
+  if (profileError) throw new Error(`seedAccount profile: ${profileError.message}`);
+  if ((profileRows?.length ?? 0) !== 1) {
+    throw new Error(
+      `seedAccount profile update matched ${profileRows?.length ?? 0} rows, not 1 — ` +
+        `the fixture kept its default timezone and every date asserted against it is unsound`,
+    );
+  }
 
-  await admin.from("notification_preferences").upsert(
-    {
-      user_id: id,
-      reminder_time: opts.reminderTime ?? "09:00:00",
-      quiet_start: "22:00:00",
-      quiet_end: "08:00:00",
-      trial_reminder_sent_for: null,
-    },
-    { onConflict: "user_id" },
-  );
+  const { data: prefRows, error: prefError } = await admin
+    .from("notification_preferences")
+    .upsert(
+      {
+        user_id: id,
+        reminder_time: opts.reminderTime ?? "09:00:00",
+        quiet_start: "22:00:00",
+        quiet_end: "08:00:00",
+        trial_reminder_sent_for: null,
+      },
+      { onConflict: "user_id" },
+    )
+    .select("user_id");
+  if (prefError) throw new Error(`seedAccount notification_preferences: ${prefError.message}`);
+  if ((prefRows?.length ?? 0) !== 1) {
+    throw new Error(
+      `seedAccount notification_preferences upsert matched ${prefRows?.length ?? 0} rows, not 1`,
+    );
+  }
 
   let subscriptionId: string | undefined;
   if (opts.trialEndsAt || opts.currentPeriodEnd || opts.status) {

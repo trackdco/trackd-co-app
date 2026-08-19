@@ -209,9 +209,24 @@ try {
     .select("source, active_until, is_active")
     .eq("user_id", user.id)
     .eq("source", "stripe");
+  /**
+   * ⚠️ `?? 0` MADE A FAILED READ LOOK LIKE AN EMPTY ONE (5.3). Supabase returns
+   * `data: null` on error, so `(data?.length ?? 0) === 0` was TRUE both when the
+   * fixture genuinely had no rows and when the QUERY FAILED — on an ARRIVAL
+   * check, whose whole job is to establish the state before anything is claimed
+   * about it. Without the coalesce, `undefined === 0` is false and it fails
+   * correctly; the error is asserted too, so the reason is named rather than
+   * inferred. The shape already used correctly elsewhere in these files is
+   * `data?.length === N`.
+   */
+  check(
+    "ARRIVAL: the entitlements read WORKED",
+    ent.error === null,
+    ent.error ? `${ent.error.code}: ${ent.error.message}` : "no error",
+  );
   check(
     "ARRIVAL: the app wrote an entitlement row, which is the access date's source",
-    (ent.data?.length ?? 0) === 1 && ent.data[0].active_until !== null,
+    ent.data?.length === 1 && ent.data[0].active_until !== null,
     `active_until=${ent.data?.[0]?.active_until ?? "none"}`,
   );
   const ENTITLEMENT_ISO = ent.data[0].active_until;

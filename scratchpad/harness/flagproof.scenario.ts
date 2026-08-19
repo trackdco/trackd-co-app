@@ -98,8 +98,24 @@ describe("the two flags, proven from rendered output", () => {
     /* ── ⚠️ ARRIVAL: it really has neither ────────────────────────────── */
     const ent = await admin.from("entitlements").select("id").eq("user_id", account.id);
     const sub = await admin.from("subscriptions").select("id").eq("user_id", account.id);
-    expect(ent.data?.length ?? 0, "the account has an entitlement, so it is the wrong fixture").toBe(0);
-    expect(sub.data?.length ?? 0, "the account has a subscription row").toBe(0);
+    /**
+     * ⚠️ `?? 0` MADE A FAILED READ LOOK LIKE AN EMPTY ONE (5.3).
+     *
+     * Supabase returns `data: null` on error, so `data?.length ?? 0` is `0` both
+     * when the fixture genuinely has no rows and when the query FAILED — and this
+     * is an ARRIVAL check, whose whole job is to establish the state before
+     * anything is claimed about it. A read that never ran would have certified
+     * the state it was meant to verify.
+     *
+     * The property: the fixture is in the shape this case is about. That needs
+     * the read to have WORKED and returned nothing — two facts, asserted
+     * separately. `rule0.scenario.ts` already does this correctly further down,
+     * where it asserts an error is NOT null.
+     */
+    expect(ent.error, "the entitlements read FAILED, so the fixture is unverified").toBeNull();
+    expect(sub.error, "the subscriptions read FAILED, so the fixture is unverified").toBeNull();
+    expect(ent.data?.length, "the account has an entitlement, so it is the wrong fixture").toBe(0);
+    expect(sub.data?.length, "the account has a subscription row").toBe(0);
 
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await context.addCookies(await cookiesFor(account.email));

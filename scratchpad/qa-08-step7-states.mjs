@@ -274,8 +274,14 @@ try {
     /* ══════════ 3. LAPSED (needs the gate) ══════════ */
     const lapsed = await seed("qa08-lapsed");
     const ent = await admin.from("entitlements").select("id").eq("user_id", lapsed.id);
+    /* ⚠️ 5.3: no `?? 0`. On a failed read `data?.length` is undefined, so
+       `undefined === 0` is false and this fails rather than certifying the state
+       it was meant to verify. The error is asserted beside it so the reason is
+       named. */
+    check("ARRIVAL: the entitlements read WORKED", ent.error === null,
+      ent.error ? `${ent.error.code}: ${ent.error.message}` : "no error");
     check("ARRIVAL: the lapsed account genuinely holds no entitlement",
-      (ent.data?.length ?? 0) === 0, `${ent.data?.length ?? 0} row(s)`);
+      ent.data?.length === 0, `${ent.data?.length ?? "READ FAILED"} row(s)`);
 
     for (const [w, h, label] of VIEWPORTS) {
       const p = await billing(lapsed, w, h);

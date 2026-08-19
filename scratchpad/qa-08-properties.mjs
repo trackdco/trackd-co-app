@@ -326,19 +326,52 @@ try {
   }
 
   /* ── ⚠️ P5's CONTROL: an ACTIVE subscription must NOT say it ── */
+  /**
+   * ⚠️ THIS CONTROL ASSERTED AN ABSENCE AGAINST AN EMPTY STRING (5.2).
+   *
+   * `d2text` was `""` when the dialog was absent, and `!/straight away/.test("")`
+   * is TRUE — so it passed whether the dialog opened or not. And the whole block
+   * sat inside an unguarded `if (count > 0)`, so a RENAMED BUTTON made the check
+   * vanish from the results with no trace at all: not a failure, not a skip, just
+   * one fewer line in a total nobody counts.
+   *
+   * Its positive twin twenty lines up already had the right shape — an arrival
+   * check OUTSIDE the guard, so a missing control fails rather than disappears.
+   * **That asymmetry was the finding**, and this is now symmetric with it.
+   *
+   * ⚠️ THE PROPERTY IT IS ABOUT: D80's "straight away" is true for a PAUSED or
+   * UNPAID subscription and false for an ACTIVE one, so the sentence must be
+   * selected per-subscription rather than switched on for everybody. Asserting
+   * that requires the active account's dialog to have actually OPENED — an
+   * unopened dialog says nothing about which sentence it would have carried.
+   */
   const p5cpage = await billingFor(p2c);
   const p5cbtn = p5cpage.locator("button", { hasText: /^Cancel my / });
-  if ((await p5cbtn.count()) > 0) {
+  const p5cCount = await p5cbtn.count();
+  check(
+    "ARRIVAL (P5 CONTROL): the cancel control is on the ACTIVE account's screen",
+    p5cCount > 0,
+    p5cCount > 0 ? `${p5cCount} control(s)` : "absent — the control below would prove nothing",
+  );
+  if (p5cCount > 0) {
     await p5cbtn.first().click();
     await p5cpage.waitForTimeout(700);
     const d2 = p5cpage.locator('[role="dialog"]').first();
-    const d2text = (await d2.count()) > 0 ? await d2.innerText() : "";
+    const d2Count = await d2.count();
+    const d2text = d2Count > 0 ? await d2.innerText() : "";
+    check(
+      "ARRIVAL (P5 CONTROL): the dialog OPENED, so its wording is readable",
+      d2Count > 0,
+      d2Count > 0 ? `${d2text.length} chars` : "no dialog — an absence asserted here is vacuous",
+    );
     check(
       "⚠️ P5 CONTROL: an ACTIVE subscription does NOT claim to end straight away",
-      !/straight away/.test(d2text),
-      /straight away/.test(d2text)
-        ? "it does — the flag is on for everybody, which is a false promise"
-        : "correctly absent",
+      d2Count > 0 && !/straight away/.test(d2text),
+      d2Count === 0
+        ? "NOT MEASURED — the dialog never opened"
+        : /straight away/.test(d2text)
+          ? "it does — the flag is on for everybody, which is a false promise"
+          : "correctly absent, and the dialog was genuinely read",
     );
   }
 } finally {

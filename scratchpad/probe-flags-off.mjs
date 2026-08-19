@@ -35,10 +35,25 @@ try {
   userId = user.id;
   const ent = await admin.from("entitlements").select("id").eq("user_id", user.id);
   console.log(`seeded ${user.email}`);
+  /**
+   * ⚠️ `?? 0` MADE A FAILED READ LOOK LIKE AN EMPTY ONE (5.3). Supabase returns
+   * `data: null` on error, so `(data?.length ?? 0) === 0` was TRUE both when the
+   * fixture genuinely had no rows and when the QUERY FAILED — on an ARRIVAL
+   * check, whose whole job is to establish the state before anything is claimed
+   * about it. Without the coalesce, `undefined === 0` is false and it fails
+   * correctly; the error is asserted too, so the reason is named rather than
+   * inferred. The shape already used correctly elsewhere in these files is
+   * `data?.length === N`.
+   */
+  check(
+    "ARRIVAL: the entitlements read WORKED",
+    ent.error === null,
+    ent.error ? `${ent.error.code}: ${ent.error.message}` : "no error",
+  );
   check(
     "ARRIVAL: the account really is lapsed (no entitlement row)",
-    (ent.data?.length ?? 0) === 0,
-    `${ent.data?.length ?? 0} rows`,
+    ent.data?.length === 0,
+    `${ent.data?.length ?? "READ FAILED"} rows`,
   );
 
   const session = await signIn(user);

@@ -42,7 +42,22 @@ describe("finding 7 — an unreadable entitlement is not 'no grace'", () => {
 
     /* ── ⚠️ ARRIVAL: no mirror row, so the GRACE path is the one in play ── */
     const sub = await admin.from("subscriptions").select("id").eq("user_id", account.id);
-    expect(sub.data?.length ?? 0, "a mirror row exists, so the grace read is bypassed").toBe(0);
+    /**
+     * ⚠️ `?? 0` MADE A FAILED READ LOOK LIKE AN EMPTY ONE (5.3).
+     *
+     * Supabase returns `data: null` on error, so `data?.length ?? 0` is `0` both
+     * when the fixture genuinely has no rows and when the query FAILED — and this
+     * is an ARRIVAL check, whose whole job is to establish the state before
+     * anything is claimed about it. A read that never ran would have certified
+     * the state it was meant to verify.
+     *
+     * The property: the fixture is in the shape this case is about. That needs
+     * the read to have WORKED and returned nothing — two facts, asserted
+     * separately. `rule0.scenario.ts` already does this correctly further down,
+     * where it asserts an error is NOT null.
+     */
+    expect(sub.error, "the subscriptions read FAILED, so the fixture is unverified").toBeNull();
+    expect(sub.data?.length, "a mirror row exists, so the grace read is bypassed").toBe(0);
 
     /**
      * ⚠️ THE CONTROL, FIRST. With the entitlement table readable and this account
