@@ -77,20 +77,23 @@ import { stripe } from "./qa-billing.mjs";
 
 const QA = "@trackd-qa.invalid";
 /**
- * ⚠️ 91 SINCE 18 AUG 2026, AND THE +1 IS A REAL PERSON.
+ * ⚠️ 92 SINCE 20 AUG 2026. EVERY INCREMENT HAS BEEN A REAL PERSON.
  *
- * It was 90 at the freeze. A genuine Google sign-up landed at 05:30Z on 18 Aug,
- * mid-session — a real gmail address on the `google` provider, which nothing in
- * the QA tooling can create: `makeUser` issues email+password accounts on
- * `@trackd-qa.invalid` and nothing else. `@trackd-qa.invalid` count stayed 0
- * throughout, and `entitlements` stayed at 90, so the new account holds no
- * billing row yet.
+ * 90 at the freeze; 91 after a Google sign-up at 05:30Z on 18 Aug; 92 after
+ * another on 19 Aug. Both `google` provider on real addresses, which nothing in
+ * the QA tooling can create — `makeUser` issues email+password accounts on
+ * `@trackd-qa.invalid` and nothing else, and that count has been 0 throughout.
  *
- * The number was RAISED, which is what this file's own rule says to do. Nobody
- * was deleted, and the identity is deliberately not recorded here — it is a real
- * user of a production app and this file is tracked.
+ * ⚠️ `entitlements` IS STILL 90, so neither new account holds a row. That is the
+ * post-backfill sign-up cohort, and it is exactly the path driven in Group 3: at
+ * P13 they meet the read-only pop-up, reach the price list, and are offered a
+ * genuine 7-day trial. The backfill must NOT be re-run to cover them.
+ *
+ * The number was RAISED each time, which is what this file's own rule says to do.
+ * Nobody was deleted, and no identity is recorded here — these are real users of
+ * a production app and this file is tracked.
  */
-const EXPECT_USERS = Number(process.env.QA_AUDIT_EXPECT_USERS ?? 91);
+const EXPECT_USERS = Number(process.env.QA_AUDIT_EXPECT_USERS ?? 92);
 
 /**
  * ⚠️ SUBSCRIPTIONS A PERSON HAS ALREADY LOOKED AT, BY ID, WITH THE DATE THEY
