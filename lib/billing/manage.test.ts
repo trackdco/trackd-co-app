@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CANCELLABLE_STATUSES,
+  endsBefore,
   FLAG_CANCELLABLE_STATUSES,
   STOPPABLE_NOW,
   formatAccessDate,
@@ -930,5 +931,121 @@ describe("2.3's deliberate cost: the webhook gap now reads Read only", () => {
 
   it("and reads Free trial the moment the entitlement row exists", () => {
     expect(planLabelFor(ent("stripe"), { status: "trialing", courtesyUntil: null }, true)).toBe("Free trial");
+  });
+});
+
+/**
+ * ⚠️ THE EQUIVALENCE PIN FOR `accessEndsEarly`'s MOVE FROM STRINGS TO INSTANTS.
+ *
+ * `accessEndsEarly` read `endsOn !== mirrorEnd`. That was a STRING comparison, and
+ * the two dates arrive in different serialisations by construction:
+ *
+ *   mirrorEnd   raw from PostgREST, MICROSECOND precision and `+00:00`
+ *   endsOn      round-tripped through `toISOString()`, MILLISECOND and `Z`
+ *
+ * It was nevertheless correct, because `soonerOf` returns one of its inputs
+ * verbatim and tie-breaks to the first — so the comparison was an identity test
+ * over a decision already made on instants. Two undocumented dependencies, either
+ * of which a tidy-up would break: normalise the return and every paying customer
+ * with a microsecond mirror reads "Ends on"; flip the tie-break and the branch
+ * inverts for every account whose rows hold the same instant.
+ *
+ * ⚠️ THESE FIVE ROWS ARE THE MEASURED BEHAVIOUR OF THE OLD STRING COMPARISON,
+ * taken BEFORE the change. The new instant comparison must reproduce every one of
+ * them. A difference here does not mean "update the expectation" — it means the
+ * reasoning about `soonerOf` was wrong and the change needs re-thinking.
+ */
+describe("⚠️ accessEndsEarly compares INSTANTS, and matches the old string compare exactly", () => {
+  /** Microsecond precision and a `+00:00` offset, as PostgREST returns it. */
+  const MIRROR_PG = "2027-08-18T05:55:22.247123+00:00";
+  /** The same instant, as `deriveEntitlementFacts` round-trips it. */
+  const ENT_ROUNDTRIPPED = new Date(Date.parse(MIRROR_PG)).toISOString();
+
+  const at = (entitlementActiveUntil: string | null) =>
+    manageActionFor(
+      null,
+      {
+        status: "active",
+        trialEndsAt: null,
+        currentPeriodEnd: MIRROR_PG,
+        cancelAtPeriodEnd: false,
+      },
+      entitlementActiveUntil,
+    );
+  const early = (a: ReturnType<typeof manageActionFor>) =>
+    a.kind === "cancel" || a.kind === "resume" ? a.accessEndsEarly : "n/a";
+
+  it("ARRIVAL: the two serialisations really are the same instant and different strings", () => {
+    // Without this the whole block could be comparing two identical strings and
+    // proving nothing about serialisation at all.
+    expect(Date.parse(MIRROR_PG)).toBe(Date.parse(ENT_ROUNDTRIPPED));
+    expect(MIRROR_PG).not.toBe(ENT_ROUNDTRIPPED);
+  });
+
+  it("same instant, DIFFERENT serialisations -> false", () => {
+    expect(early(at(ENT_ROUNDTRIPPED))).toBe(false);
+  });
+
+  it("same instant, same string -> false", () => {
+    expect(early(at(MIRROR_PG))).toBe(false);
+  });
+
+  it("entitlement 1ms EARLIER -> true", () => {
+    expect(early(at(new Date(Date.parse(MIRROR_PG) - 1).toISOString()))).toBe(true);
+  });
+
+  it("entitlement 1ms LATER -> false", () => {
+    expect(early(at(new Date(Date.parse(MIRROR_PG) + 1).toISOString()))).toBe(false);
+  });
+
+  it("entitlement null -> false", () => {
+    expect(early(at(null))).toBe(false);
+  });
+
+  /**
+   * ⚠️ THE CONTROL, AND THE FIRST VERSION OF IT WAS VACUOUS.
+   *
+   * It passed `normalised` as the ENTITLEMENT date and asserted the answer was
+   * unchanged — which passes under BOTH implementations, because `soonerOf` still
+   * returns `mirrorEnd` verbatim either way, so `endsOn !== mirrorEnd` is still an
+   * identity test. **It distinguished nothing.** Measured by reverting line 522 to
+   * the string comparison: 81/81 passed with it too.
+   *
+   * The fragility does not live in `accessEndsEarly`; it lives in the SHAPE OF
+   * `soonerOf`'s RETURN. So the control has to be at the comparison itself, where
+   * the two implementations genuinely differ:
+   *
+   *   old, on the pair a normalised `soonerOf` would hand it:
+   *     "….247Z" !== "….247123+00:00"        -> TRUE   ("Ends on", wrongly)
+   *   new, on the same pair:
+   *     endsBefore("….247Z", "….247123+00:00") -> FALSE ("Renews on", correctly)
+   *
+   * That is the whole change, asserted rather than argued.
+   */
+  it("⚠️ CONTROL: on the pair a normalised soonerOf would produce, the two differ", () => {
+    const normalised = new Date(Date.parse(MIRROR_PG)).toISOString();
+    expect(normalised, "the two spellings are identical, so this proves nothing").not.toBe(
+      MIRROR_PG,
+    );
+    // What the OLD comparison would have answered on that pair.
+    expect(normalised !== MIRROR_PG, "the old string compare claimed access ends early").toBe(
+      true,
+    );
+    // What the NEW one answers.
+    expect(
+      endsBefore(normalised, MIRROR_PG),
+      "the instant comparison must see the same instant and answer false",
+    ).toBe(false);
+  });
+
+  it("⚠️ endsBefore compares instants, in both directions", () => {
+    const base = "2027-08-18T05:55:22.247123+00:00";
+    expect(endsBefore(new Date(Date.parse(base) - 1).toISOString(), base)).toBe(true);
+    expect(endsBefore(new Date(Date.parse(base) + 1).toISOString(), base)).toBe(false);
+    expect(endsBefore(new Date(Date.parse(base)).toISOString(), base)).toBe(false);
+    // ⚠️ Unparseable errs towards "something ends early", which WITHHOLDS a
+    // renewal claim rather than making one. Stated in the function and pinned here.
+    expect(endsBefore("not a date", base)).toBe(true);
+    expect(endsBefore(base, "not a date")).toBe(true);
   });
 });

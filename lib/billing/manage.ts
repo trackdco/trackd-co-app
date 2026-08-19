@@ -517,9 +517,51 @@ export function manageActionFor(
    * So {@link renewsOnPeriodEnd} is asked instead, and the enumeration lives
    * there, once, next to its reasoning.
    */
+  /**
+   * ⚠️ COMPARED AS INSTANTS, DELIBERATELY. DO NOT "SIMPLIFY" IT BACK TO `!==`.
+   *
+   * ## The two dates ARRIVE IN DIFFERENT SERIALISATIONS, BY CONSTRUCTION
+   *
+   *   mirrorEnd    raw from PostgREST — MICROSECOND precision and a `+00:00`
+   *                offset:  `2027-08-18T05:55:22.247123+00:00`
+   *   endsOn       ultimately from `deriveEntitlementFacts`, which round-trips
+   *                through `new Date(...).toISOString()` — MILLISECOND precision
+   *                and a `Z`:  `2027-08-18T05:55:22.247Z`
+   *
+   * Same instant, different strings, for essentially every account. Measured on
+   * 20 Aug 2026.
+   *
+   * ## This read `endsOn !== mirrorEnd`, and it was correct BY ACCIDENT
+   *
+   * `soonerOf` returns one of its two inputs VERBATIM, so that comparison was an
+   * IDENTITY test — "did `soonerOf` pick the entitlement's date?" — and the
+   * decision itself was made on instants. It answered correctly on all five
+   * cases. But it rested on two undocumented properties of `soonerOf`:
+   *
+   *   1. that it returns its argument rather than a normalised string, and
+   *   2. that it TIE-BREAKS TO ITS FIRST ARGUMENT.
+   *
+   * Either one is a plausible tidy-up. Normalise the return and every paying
+   * customer whose mirror carries microseconds reads **"Ends on"** — the exact
+   * false claim {@link renewsOnPeriodEnd} exists to remove. Flip the tie-break to
+   * the second argument and the branch inverts for every account whose two rows
+   * hold the same instant, which is almost all of them.
+   *
+   * Comparing instants removes both dependencies. A comment describing them would
+   * only have relied on the next person reading it.
+   *
+   * ## ⚠️ AND IT IS NOT THE DRIVER FLAKE, WHICH LOOKED IDENTICAL
+   *
+   * A seed writing `active_until: iso(365*DAY)` beside
+   * `current_period_end: iso(365*DAY)` called `Date.now()` twice and produced two
+   * genuinely DIFFERENT instants — so this branch reported divergence CORRECTLY
+   * and the fixture was wrong. Same symptom, opposite cause. The harness has
+   * carried `sameInstant`/`earlierThan` for exactly this class since it was
+   * written; product code had no equivalent, and that gap is what this closes.
+   */
   const accessEndsEarly =
     !renewsOnPeriodEnd(subscription.status) ||
-    (mirrorEnd !== null && endsOn !== null && endsOn !== mirrorEnd);
+    (mirrorEnd !== null && endsOn !== null && endsBefore(endsOn, mirrorEnd));
 
   return subscription.cancelAtPeriodEnd
     ? { kind: "resume", endsOn, isTrial, namesATrial, accessEndsEarly }
@@ -571,6 +613,26 @@ function renewsOnPeriodEnd(status: string): boolean {
  * wins. Unparseable is treated the same way rather than being allowed to
  * shorten a date to `NaN`.
  */
+/**
+ * Is `a` strictly EARLIER than `b`, as instants?
+ *
+ * The same shape as the harness's `earlierThan`, which exists because `+00:00`
+ * and `.000Z` are the same instant and different strings — a distinction product
+ * code had no way to make until now.
+ *
+ * ⚠️ UNPARSEABLE ERRS TOWARDS "SOMETHING ENDS EARLY", which is the direction that
+ * withholds a renewal claim. This file's own rule: "Renews on {date}" is a CLAIM
+ * ABOUT WHAT HAPPENS NEXT and it has to be true, so a date we cannot read is not
+ * permission to promise one. Unreachable in practice — both values are
+ * `timestamptz` columns — and stated rather than left to inference.
+ */
+export function endsBefore(a: string, b: string): boolean {
+  const at = Date.parse(a);
+  const bt = Date.parse(b);
+  if (!Number.isFinite(at) || !Number.isFinite(bt)) return true;
+  return at < bt;
+}
+
 function soonerOf(a: string | null, b: string | null): string | null {
   const at = a ? Date.parse(a) : NaN;
   const bt = b ? Date.parse(b) : NaN;
