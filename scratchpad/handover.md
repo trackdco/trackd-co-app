@@ -46,9 +46,20 @@ noted in the ledger: `revokeForCustomer` already takes `reason` and does not per
   `6499513` 2.3 · `64bd672` 2.4 · `418b33e` 2.5 + the ledger.
 - **Group 3 — COMPLETE.** `6f4f0f4` 3.1 · `f272e8d` 3.2 · `6c8b0d9` 3.3 ·
   `5d118d7` the new-sign-up drive. Plus `a53c0d9` D101/Q106 (migration 005).
-- Groups 4-5: not started.
+- **Group 4 — COMPLETE.** `59b34ee` 4.1 (+ a 2nd stale copy in beta-grace/route.ts) ·
+  `420bf5e` 4.2 · `a994c02` 4.3 · `29a80c0` tracked dev launchers.
+- **Group 5 — COMPLETE.** `b8a4bc6` 5.1 · `76d68ef` 5.2-5.4 · `ffd4362` baseline 92 ·
+  `b7daa74` 5.5-5.9 + the P13 launch note.
+- **ALL GROUPS DONE.**
 
-## ⚠️ OWED TO THE FOUNDER BEFORE LAUNCH — APPLY MIGRATION 005
+## ✅ 005 APPLIED 18 Aug — and the dispute sentences RENDER
+
+Verified both halves of its VERIFY block. Every dispute driver now names its window:
+`[005 APPLIED] 13/13` on screen, `[005 APPLIED] 5/5` in the harness with the reason
+persisted exactly (`dispute` / `refund`), and a REFUND cohort rendering neither
+sentence. D93's signed sentence has now been seen on a screen.
+
+## (superseded) OWED BEFORE LAUNCH — APPLY MIGRATION 005
 
 `supabase/billing/005_revoked_reason.sql` is WRITTEN and UNAPPLIED. It is **not**
 launch-coupled the way 004 is — no date dependency, idempotent, apply whenever.
@@ -102,9 +113,9 @@ none was touched.
 |---|---|---|
 | tsc + ESLint | clean | clean |
 | gate audit | 32 / 2 / 69 | 32 / 2 / 69 (unmoved) |
-| `npm run check` tests | 1523 | 1561 (+38, all new controls) |
+| `npm run check` tests | 1523 | **1565** (+42, all new controls) |
 | `qa-05-readonly.mjs` | 23/23 | 23/23 |
-| accounts | 90 / 0 / 90 / 0 / 0 | **91** / 0 / 90 / 0 / 0 — a real Google sign-up landed 05:30Z 18 Aug, mid-session. Baseline raised, nobody deleted. |
+| accounts | 90 / 0 / 90 / 0 / 0 | **92** / 0 / 90 / 0 / 0 — real Google sign-ups on 18 and 19 Aug. Baseline raised twice, nobody deleted. `entitlements` still 90, so neither holds a row. |
 | migration 003 | applied | probed, one row, timestamptz, nullable |
 | flags | absent from `.env.local` | absent, unchanged |
 
