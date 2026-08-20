@@ -310,7 +310,7 @@ export async function eventsFor(
     created: { gte: Math.floor(sinceMs / 1000) - 60 },
     limit: 100,
   })) {
-    const object = event.data.object as Record<string, unknown>;
+    const object = event.data.object as unknown as Record<string, unknown>;
     const belongs =
       object?.customer === customerId ||
       object?.id === customerId ||
@@ -436,4 +436,62 @@ export function readGateFromBilling(text: string): boolean | null {
 
 export function shell(script: string): void {
   execFileSync("/bin/sh", [script], { stdio: "inherit" });
+}
+
+/* ─────────────────────────── the real card form ─────────────────────────── */
+
+/**
+ * FILL STRIPE'S OWN CARD FORM, FINDING THE FRAME BY THE FIELD IT CONTAINS.
+ *
+ * ⚠️ THE TRACKED ADVICE — "target the frame by TITLE, never by index" — HAS GONE
+ * STALE, AND IT COST THIS RUN ITS FIRST ATTEMPT.
+ *
+ * `qa-start-trial.mjs` says the numeric suffix on the frame name changes every
+ * load "so the title is the only stable handle". Measured 2026-08-20: Stripe now
+ * mounts THREE frames titled "Secure payment input frame" — two
+ * `elements-inner-accessory-target` and one `elements-inner-easel` — and only the
+ * last holds the card fields. Playwright's strict mode refused the ambiguous
+ * locator outright, which is the good failure; a driver using `.first()` would
+ * have typed into the wrong frame and reported a dead checkout instead.
+ *
+ * So the frame is identified by the NAMED ARTEFACT it must contain — the `number`
+ * input itself — rather than by a title, an index or a src fragment, all three of
+ * which are Stripe's to change without notice. This is the same rule the harness
+ * README states for controls: a named artefact, never an approximation.
+ *
+ * ⚠️ THE PAN IS TYPED INTO STRIPE'S OWN FORM AND NEVER SENT TO THE API. That is
+ * the second of the two permitted ways to put a card on a customer; no script here
+ * may pass a card number to `paymentMethods.create` or `tokens.create`.
+ *
+ * Returns false rather than throwing, so the caller can record a failed ARRIVAL
+ * instead of losing the run.
+ */
+export async function fillCardForm(
+  page: import("playwright").Page,
+  pan: string,
+  timeoutMs = 60_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    for (const frame of page.frames()) {
+      const number = frame.locator('[name="number"]');
+      if (await number.count().catch(() => 0)) {
+        await number.fill(pan);
+        await frame.locator('[name="expiry"]').fill("12/34").catch(() => {});
+        await frame.locator('[name="cvc"]').fill("123").catch(() => {});
+        const zip = frame.locator('[name="postalCode"]');
+        if (await zip.count().catch(() => 0)) await zip.fill("2000").catch(() => {});
+        return true;
+      }
+    }
+    if (Date.now() > deadline) return false;
+    await page.waitForTimeout(1000);
+  }
+}
+
+/** Remove an id the run has finished with, so the ledger names only what is live. */
+export function dropRecordedUser(id: string): void {
+  const ledger = loadLedger();
+  ledger.users = ledger.users.filter((x) => x !== id);
+  writeJsonDurably(LEDGER_FILE, ledger);
 }

@@ -50,6 +50,7 @@ import {
   DAY_MS,
   day,
   drainEvents,
+  fillCardForm,
   entitlementsFor,
   mirrorFor,
   plannedT0,
@@ -99,6 +100,21 @@ const observed: Record<string, unknown> = {};
 const clock = () => new TestClock(ledger);
 let theClock: TestClock;
 
+/**
+ * ⚠️ LEGS 5 AND 6 SHARE ONE PAGE, AND THAT IS A CORRECTNESS REQUIREMENT.
+ *
+ * Measured: reloading `/billing` in a FRESH context after cancelling found ZERO
+ * offer controls, and every leg-6 assertion downstream went vacuous — including
+ * the server-side window check, which "passed" without a request ever being sent.
+ * The offer's way back in is remembered in the BROWSER (`CancelSubscription.tsx`
+ * keys it to the account so a remembered offer cannot cross accounts on a shared
+ * device), so a new context has no memory of it and the row is not drawn.
+ *
+ * Keeping the page alive is also the honest path: a real person who cancels is
+ * looking at the dialog that just opened, not at a fresh tab.
+ */
+let livePage: { context: BrowserContext; page: Page } | null = null;
+
 /** `t0 + n days`, the arc's only way of naming a moment. */
 const at = (days: number, extraHours = 0) =>
   new Date(run.t0 + days * DAY_MS + extraHours * 3_600_000);
@@ -117,9 +133,27 @@ function periodEnd(sub: Awaited<ReturnType<typeof subscription>>): number {
   );
 }
 
+/**
+ * ⚠️ PAID INVOICES THAT ACTUALLY MOVED MONEY.
+ *
+ * Measured on the first full run: Stripe issues a **$0 invoice at trial start**
+ * and marks it `paid`, and the app's webhook processes its `invoice.paid`
+ * normally (correctly — it wrote the entitlement to the trial end). So a bare
+ * `status === "paid"` count is off by one from the first leg onward, and an
+ * assertion built on it reads as "you were charged during your free trial" when
+ * nobody was charged anything.
+ *
+ * The zero-amount invoices are counted separately rather than discarded, because
+ * "a $0 invoice exists and was processed" is a real fact about this path.
+ */
 async function invoicesPaid() {
   const list = await stripe.invoices.list({ customer: run.customerId, limit: 100 });
-  return list.data.filter((i) => i.status === "paid");
+  return list.data.filter((i) => i.status === "paid" && (i.amount_paid ?? 0) > 0);
+}
+
+async function invoicesZeroPaid() {
+  const list = await stripe.invoices.list({ customer: run.customerId, limit: 100 });
+  return list.data.filter((i) => i.status === "paid" && (i.amount_paid ?? 0) === 0);
 }
 
 async function newContext(): Promise<{ context: BrowserContext; page: Page }> {
@@ -276,15 +310,14 @@ describe("one lifetime, legs 1 to 9", () => {
       );
       await page.goto(`${BASE_URL}/onboarding?step=start`, { waitUntil: "domcontentloaded" });
       /**
-       * ⚠️ TARGET THE FRAME BY TITLE, never by index: Stripe mounts five or six
-       * frames and the FIRST is the express-checkout one, which has no card fields.
+       * ⚠️ THE FRAME IS FOUND BY THE FIELD IT CONTAINS. See `fillCardForm`: the
+       * tracked "target by title" advice has gone stale — Stripe now mounts THREE
+       * frames with that title and only one holds the card fields.
        */
-      const frame = page.frameLocator('iframe[title="Secure payment input frame"]');
-      await frame.locator('[name="number"]').fill(CARD, { timeout: 60_000 });
-      await frame.locator('[name="expiry"]').fill("12/34");
-      await frame.locator('[name="cvc"]').fill("123");
-      const zip = frame.locator('[name="postalCode"]');
-      if (await zip.count()) await zip.fill("2000").catch(() => {});
+      const filled = await fillCardForm(page, CARD);
+      c.arrived("the real Elements card form was reachable and filled", filled,
+        filled ? "" : `frames: ${page.frames().length}`);
+      if (!filled) return;
       const cta = page.getByRole("button", { name: /start|subscribe|continue|plan/i }).last();
       console.log(`  tapping: "${(await cta.textContent())?.trim()}"`);
       await cta.click();
@@ -571,8 +604,9 @@ describe("one lifetime, legs 1 to 9", () => {
     if (!run.subId) return void c.arrived("there is a subscription to cancel", false);
     const endIso = observed.period4 as string;
 
-    const { context, page } = await newContext();
-    try {
+    livePage = await newContext();
+    const { page } = livePage;
+    {
       await page.goto(`${BASE_URL}/billing`, { waitUntil: "domcontentloaded" });
       await page.waitForSelector("text=Access", { timeout: 30_000 });
       const cancel = page.locator("button", { hasText: /^Cancel my /i }).first();
@@ -617,8 +651,10 @@ describe("one lifetime, legs 1 to 9", () => {
 
       observed.offerDialogText = offerText;
       console.log(`  offer dialog:\n${offerText}`);
-    } finally {
-      await context.close();
+      /**
+       * ⚠️ THE PAGE STAYS OPEN. Leg 6 acts on THIS dialog. Closing it here is what
+       * made every leg-6 assertion vacuous on the first run.
+       */
     }
 
     const mirror = await mirrorFor(run.userId);
@@ -665,37 +701,63 @@ describe("one lifetime, legs 1 to 9", () => {
      * ⚠️ IT IS RESTORED IMMEDIATELY AFTERWARDS, and `grantExtraTime` returns before
      * writing anything on the expired path, so the offer is not spent by this.
      */
+    /** What Stripe held BEFORE the expired attempt, so "unchanged" is measurable. */
+    const preAttempt = await subscription();
+    const trialEndBefore = preAttempt.trial_end ? secondsToIso(preAttempt.trial_end) : null;
+
     const rewound = new Date(Date.parse(shownAt) - 11 * 60_000).toISOString();
     await stripe.customers.update(run.customerId, {
       metadata: { trackd_save_offer_shown_at: rewound },
     });
-    const { context, page } = await newContext();
+    /**
+     * ⚠️ THE SAME PAGE LEG 5 LEFT OPEN, with the offer dialog still on it. The
+     * client's own countdown still believes the offer is live — it is counting from
+     * the `shownAt` it was handed at cancel time — so the request that goes out is
+     * exactly the one a stale tab sends, which is the case the server check exists
+     * for.
+     */
+    const page = livePage!.page;
     let refusalSeen = "";
-    try {
-      await page.goto(`${BASE_URL}/billing`, { waitUntil: "domcontentloaded" });
-      await page.waitForSelector("text=Access", { timeout: 30_000 });
-      const reopen = page.locator("button", { hasText: /Another week, thanks|another week/i }).first();
-      if ((await reopen.count()) === 0) {
-        const row = page.locator("button", { hasText: /week/i }).first();
-        if (await row.count()) await row.click();
-        await page.waitForTimeout(600);
-      }
+    {
       const confirm = page.locator("button", { hasText: /Another week, thanks/i }).first();
-      c.arrived("the offer's confirm control is reachable from the screen",
-        (await confirm.count()) > 0, `${await confirm.count()} control(s)`);
-      if (await confirm.count()) {
+      const reachable = (await confirm.count()) > 0;
+      c.arrived("the offer's confirm control is on the dialog leg 5 opened",
+        reachable, `${await confirm.count()} control(s)`);
+      if (reachable) {
         await confirm.click();
-        await page.waitForTimeout(5000);
+        await page.waitForTimeout(6000);
         refusalSeen = await page.locator("body").innerText();
+        console.log(`  after the expired claim:\n${refusalSeen.slice(0, 500)}`);
       }
-    } finally {
-      await context.close();
     }
+    /**
+     * ⚠️ WITHOUT THIS, EVERY ASSERTION BELOW IS VACUOUS. On the first run the
+     * control was not found, no request was sent, and "the window is enforced
+     * server-side" PASSED — because nothing had happened. A guard that can only be
+     * satisfied by the request actually going out is the difference between a
+     * measurement and a tick.
+     */
+    const refusalActuallyTested = refusalSeen.length > 0;
+    c.arrived("a real claim request was sent with an expired marker",
+      refusalActuallyTested, refusalActuallyTested ? "" : "no request was sent; the checks below prove nothing");
 
+    /**
+     * ⚠️ STATED AS THE POSITIVE FACT, NOT AS A DISJUNCTION OF WAYS IT MIGHT BE FINE.
+     *
+     * A grant does two things and both are observable: it puts the subscription
+     * into `trialing`, and it moves `trial_end` forward a week. "Nothing was
+     * granted" is therefore "still not trialing AND trial_end is byte-for-byte
+     * where it was", and it is guarded on the request having actually been sent.
+     * The first draft was `a || b || c` with the guard on only the first term,
+     * which `&&` binding tighter than `||` made meaningless.
+     */
     const afterRefusal = await subscription();
+    const trialEndAfter = afterRefusal.trial_end ? secondsToIso(afterRefusal.trial_end) : null;
     c.check("⚠️ THE TEN-MINUTE WINDOW IS ENFORCED SERVER-SIDE: an expired claim grants nothing",
-      afterRefusal.trial_end === null || sameInstant(secondsToIso(afterRefusal.trial_end!), endIso) || afterRefusal.status !== "trialing",
-      `status=${afterRefusal.status} trial_end=${afterRefusal.trial_end ? secondsToIso(afterRefusal.trial_end) : "null"}`);
+      refusalActuallyTested &&
+        afterRefusal.status !== "trialing" &&
+        sameInstant(trialEndAfter, trialEndBefore),
+      `sent=${refusalActuallyTested} status=${afterRefusal.status} trial_end before=${trialEndBefore} after=${trialEndAfter}`);
     c.check("and the cancellation still stands after the refusal",
       afterRefusal.cancel_at_period_end === true,
       `cancel_at_period_end=${afterRefusal.cancel_at_period_end}`);
@@ -714,22 +776,27 @@ describe("one lifetime, legs 1 to 9", () => {
     });
 
     const since = Date.now();
-    const second = await newContext();
     let grantedText = "";
-    try {
-      await second.page.goto(`${BASE_URL}/billing`, { waitUntil: "domcontentloaded" });
-      await second.page.waitForSelector("text=Access", { timeout: 30_000 });
-      const confirm = second.page.locator("button", { hasText: /Another week, thanks/i }).first();
-      c.arrived("the offer is reachable again with the true marker restored",
-        (await confirm.count()) > 0);
+    {
+      let confirm = page.locator("button", { hasText: /Another week, thanks/i }).first();
+      if ((await confirm.count()) === 0) {
+        // The refusal may have moved the dialog on; the way back in is still drawn
+        // while the offer is live, and this page still remembers it.
+        const back = page.locator("button", { hasText: /week/i }).first();
+        if (await back.count()) await back.click().catch(() => {});
+        await page.waitForTimeout(1000);
+        confirm = page.locator("button", { hasText: /Another week, thanks/i }).first();
+      }
+      c.arrived("the offer is claimable again with the true marker restored",
+        (await confirm.count()) > 0, `${await confirm.count()} control(s)`);
       if (await confirm.count()) {
         await confirm.click();
-        await second.page.waitForTimeout(8000);
-        grantedText = await second.page.locator("body").innerText();
+        await page.waitForTimeout(9000);
+        grantedText = await page.locator("body").innerText();
       }
-    } finally {
-      await second.context.close();
     }
+    await livePage!.context.close();
+    livePage = null;
     console.log(`  after accepting:\n${grantedText.slice(0, 600)}`);
     await drainEvents(run.customerId, since, seenEvents);
 
@@ -765,7 +832,7 @@ describe("one lifetime, legs 1 to 9", () => {
     );
     const row = mirror?.rows?.[0] as Record<string, string | boolean | null> | undefined;
     c.check("the mirror carries the courtesy period",
-      sameInstant(row?.courtesy_until ?? null, courtesyIso),
+      sameInstant((row?.courtesy_until as string | null) ?? null, courtesyIso),
       `mirror=${row?.courtesy_until} stripe=${courtesyIso}`);
     c.check("and the mirror's cancellation flag was lifted with it",
       row?.cancel_at_period_end === false, `cancel_at_period_end=${row?.cancel_at_period_end}`);
@@ -900,7 +967,7 @@ describe("one lifetime, legs 1 to 9", () => {
     const row = mirror.rows?.[0] as Record<string, string | null> | undefined;
     observed.mirrorCourtesyAfterCharge = row?.courtesy_until ?? null;
     c.check("⚠️ and the mirror's courtesy marker is not still standing as a live promise",
-      !row?.courtesy_until || !sameInstant(row.courtesy_until, courtesyIso),
+      !row?.courtesy_until || !sameInstant(row.courtesy_until as string, courtesyIso),
       `courtesy_until=${row?.courtesy_until} (courtesy ended ${courtesyIso})`);
   }, 900_000);
 

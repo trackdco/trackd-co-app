@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","include":["scratchpad/harness/**/*.ts","lib/**/*.ts","app/**/*.ts","app/**/*.tsx","components/**/*.tsx","next-env.d.ts"],"exclude":["node_modules"]}
