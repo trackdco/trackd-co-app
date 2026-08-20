@@ -2,6 +2,8 @@ import "server-only";
 
 import type Stripe from "stripe";
 
+import { BILLABLE_STATUSES } from "./cancel";
+import { listAllSubscriptions } from "./subscriptionList";
 import type { HandlerOutcome } from "./sync";
 
 /**
@@ -38,6 +40,29 @@ import type { HandlerOutcome } from "./sync";
  * that just died. Setting only the customer level leaves the renewal failing;
  * the harness README records the same fact from the other direction, where it
  * made a driver report "no failure" while looking correct.
+ *
+ * ## ⚠️ THE POINTER MOVES ON EVERY ATTACH. ONLY THE *PAY* STEP NEEDS AN INVOICE.
+ *
+ * The first version of this module did nothing at all without an open invoice,
+ * and that was too literal a reading of its own brief (founder, 20 Aug 2026):
+ *
+ * > Somebody who replaces a card before it expires still has the subscription
+ * > pointing at the dead one, so their next renewal fails for a problem they
+ * > already fixed. Setting the pointer charges nobody.
+ *
+ * That customer is the COMMON case — the one who acts before anything breaks —
+ * and the old shape helped only the ones who had already been locked out. So the
+ * two steps are separated:
+ *
+ *   POINT   every subscription that could still take money, on every attach.
+ *           Writes no money and raises no invoice.
+ *   PAY     only an OPEN invoice, and only on a subscription in dunning.
+ *
+ * ⚠️ THE SET IS {@link BILLABLE_STATUSES} AND NOT A LITERAL. Its question — "what
+ * could still take their money?" — is exactly this one: a subscription that can
+ * still charge should charge the card the customer has just handed us. A literal
+ * status list here would go stale the next time that set moves, which is the
+ * class of defect `/billing`'s mirror filter and the courtesy read both paid for.
  *
  * ## ⚠️ IT GRANTS NOTHING. `invoice.paid` STILL DOES THAT AND ONLY IT.
  *
@@ -203,6 +228,14 @@ export async function retryOpenInvoicesForCustomer(
   }
 
   /**
+   * ⚠️ STEP ONE — POINT EVERYTHING THAT COULD STILL CHARGE AT THE NEW CARD.
+   *
+   * Before any invoice is looked at, because this is the step that helps the
+   * customer who acted BEFORE anything broke. It charges nobody.
+   */
+  const pointed = await pointSubscriptionsAt(customerId, pmId, client);
+
+  /**
    * ⚠️ THE OPEN INVOICES ARE ASKED FOR BY NAME, not derived from the subscription.
    *
    * `subscription.latest_invoice` is the newest one, which on a customer whose
@@ -227,15 +260,15 @@ export async function retryOpenInvoicesForCustomer(
   }
 
   /**
-   * ⚠️ NOTHING OPEN, NOTHING HAPPENS — AND THAT INCLUDES THE SUBSCRIPTION WRITE.
-   *
-   * A healthy customer updating a card must not have this handler touch their
-   * subscription at all. It is the state the overwhelming majority of card
-   * updates arrive in, and a handler that writes on every one of them is a
-   * handler whose blast radius is every customer rather than the failing ones.
+   * ⚠️ NOTHING OPEN, NOTHING **CHARGED**. The pointer has already moved, and that
+   * is the whole point of the split: a healthy customer replacing an expiring card
+   * gets their next renewal fixed and is not charged a penny today.
    */
   if (open.length === 0) {
-    console.info(`[billing] ${customerId} updated a card with no open invoice; nothing to do`);
+    console.info(
+      `[billing] ${customerId} updated a card with no open invoice; ${pointed} subscription(s) ` +
+        `re-pointed and nothing charged`,
+    );
     return "handled";
   }
 
@@ -244,10 +277,89 @@ export async function retryOpenInvoicesForCustomer(
     results.push(await retryOne(invoice, pmId, customerId, client));
   }
   console.info(
-    `[billing] card-update retry for ${customerId}: ${results.length} open invoice(s) — ` +
-      results.join(", "),
+    `[billing] card-update for ${customerId}: ${pointed} subscription(s) re-pointed, ` +
+      `${results.length} open invoice(s) — ${results.join(", ")}`,
   );
   return "handled";
+}
+
+/**
+ * ⚠️ POINT EVERY SUBSCRIPTION THAT COULD STILL CHARGE AT THE CARD IN HAND.
+ *
+ * Returns how many were actually written, which is what the caller logs.
+ *
+ * ## It charges nobody, and that is the property that makes it unconditional
+ *
+ * `subscriptions.update({ default_payment_method })` sets a pointer. It raises no
+ * invoice, attempts no payment and changes no date. The PAY step is separate and
+ * still needs an open invoice on a subscription in dunning.
+ *
+ * ## ⚠️ IDEMPOTENT BY COMPARISON, WHICH IS WHAT KEEPS IT QUIET
+ *
+ * A subscription already pointing at this card is skipped without a write. One
+ * card update in Stripe's portal fires more than one event that reaches this
+ * handler, and every redelivery reaches it again; without the comparison each one
+ * would be a Stripe write and a `customer.subscription.updated` back at us.
+ *
+ * ⚠️ AND THERE IS NO LOOP. `subscriptions.update` fires
+ * `customer.subscription.updated`, which the route sends to `syncSubscription` —
+ * not here. Checked at the route rather than assumed, because a handler that can
+ * re-trigger itself on a payments path is the expensive kind of mistake.
+ *
+ * ## What it deliberately does NOT do
+ *
+ * It does not touch `customer.invoice_settings`. Stripe's own portal owns that and
+ * has usually just written it; a second writer would be this app arguing with the
+ * screen the customer is looking at.
+ */
+async function pointSubscriptionsAt(
+  customerId: string,
+  pmId: string,
+  client: Stripe,
+): Promise<number> {
+  let subscriptions: Stripe.Subscription[];
+  try {
+    /**
+     * ⚠️ PAGED. A truncated list silently leaves the OLDEST subscription — which is
+     * where a long-lived yearly plan lives — still pointing at the dead card, and
+     * the failure would surface a year later as a renewal nobody could explain.
+     */
+    subscriptions = await listAllSubscriptions(client, customerId);
+  } catch (err) {
+    console.error(
+      `[billing] could not list subscriptions for ${customerId} to re-point them:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return 0;
+  }
+
+  let written = 0;
+  for (const sub of subscriptions) {
+    if (!BILLABLE_STATUSES.has(sub.status)) continue;
+    const current =
+      typeof sub.default_payment_method === "string"
+        ? sub.default_payment_method
+        : (sub.default_payment_method?.id ?? null);
+    if (current === pmId) continue; // already there; no write, no event
+    try {
+      await client.subscriptions.update(sub.id, { default_payment_method: pmId });
+      written += 1;
+      console.info(
+        `[billing] ${sub.id} (${sub.status}) now pays with ${pmId} (was ${current ?? "the customer default"})`,
+      );
+    } catch (err) {
+      /**
+       * Logged, not thrown. A pointer that could not be moved is a renewal that may
+       * fail later; throwing would make Stripe redeliver and, worse, would abandon
+       * the PAY step for a customer who is locked out right now.
+       */
+      console.error(
+        `[billing] could not point ${sub.id} at ${pmId}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+  return written;
 }
 
 async function retryOne(
@@ -301,23 +413,12 @@ async function retryOne(
   }
 
   /**
-   * ⚠️ THE SUBSCRIPTION'S OWN DEFAULT IS SET FIRST, AND IT IS THE HALF THAT
-   * SURVIVES THIS EVENT.
-   *
-   * Paying the invoice with an explicit `payment_method` fixes TODAY. It does
-   * nothing for the next renewal, which reads the subscription's own default —
-   * so without this a customer would be rescued once and fail again on the very
-   * next cycle, with the same two-day wait.
+   * ⚠️ THE POINTER HAS ALREADY MOVED. {@link pointSubscriptionsAt} ran before any
+   * invoice was looked at, so by here this subscription already pays with `pmId`
+   * and the next renewal is fixed whatever happens to the invoice below. That
+   * ordering is deliberate: the customer who is locked out RIGHT NOW must not lose
+   * the fix for their NEXT renewal to a card that declines again today.
    */
-  try {
-    await client.subscriptions.update(subscriptionId!, { default_payment_method: pmId });
-  } catch (err) {
-    console.error(
-      `[billing] could not point ${subscriptionId} at ${pmId}:`,
-      err instanceof Error ? err.message : String(err),
-    );
-    return "error";
-  }
 
   /**
    * ⚠️ MARKED BEFORE THE ATTEMPT. See the header: the failure mode of marking

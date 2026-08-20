@@ -158,7 +158,7 @@ try {
   c.check("the entitlement is live", restored.is_active === true, `is_active=${restored.is_active}`);
 
   /* ── the control: nothing open, nothing happens ── */
-  c.at("leg 5 — CONTROL: a card update with NO open invoice writes nothing");
+  c.at("leg 5 — CONTROL: a card update with NO open invoice MOVES THE POINTER and charges nothing");
   const healthy = await stripe.subscriptions.retrieve(sub.id);
   const openNow = (await stripe.invoices.list({ customer: customerId, status: "open", limit: 10 })).data;
   c.arrived("there is now no open invoice", openNow.length === 0, `${openNow.length} open`);
@@ -180,9 +180,19 @@ try {
   c.arrived("the handler ran", rc.status === 200, `${rc.status}`);
 
   const healthyAfter = await stripe.subscriptions.retrieve(sub.id);
-  c.check("⚠️ THE SUBSCRIPTION'S DEFAULT CARD IS UNTOUCHED",
-    healthyAfter.default_payment_method === defaultBefore,
-    `${defaultBefore} -> ${healthyAfter.default_payment_method}`);
+  /**
+   * ⚠️ THE CONTROL FLIPPED, ON THE FOUNDER'S RULING (20 Aug 2026).
+   *
+   * It used to assert the subscription's default was UNTOUCHED, which was the
+   * brief read too literally. Somebody who replaces a card BEFORE it expires still
+   * had their subscription pointing at the dead one, so their next renewal failed
+   * for a problem they had already fixed. Setting the pointer charges nobody, so
+   * it is now unconditional — and the three assertions below are what keep
+   * "charges nobody" honest rather than assumed.
+   */
+  c.check("⚠️ THE SUBSCRIPTION'S DEFAULT CARD MOVED TO THE NEW ONE, with no invoice open",
+    healthyAfter.default_payment_method === thirdCard.id,
+    `${defaultBefore} -> ${healthyAfter.default_payment_method} (the card just attached)`);
   c.check("⚠️ NO CHARGE WAS MADE", (await chargeCount(customerId)) === chargesBeforeControl,
     `${chargesBeforeControl} charges before and after`);
   const invoicesAfterControl = (await stripe.invoices.list({ customer: customerId, limit: 100 })).data;
@@ -195,6 +205,26 @@ try {
   const entAfterControl = await entitlement(userId);
   c.check("and the entitlement did not move", entAfterControl.active_until === restored.active_until,
     `${entAfterControl.active_until}`);
+
+  /**
+   * ⚠️ AND THE POINT STEP IS IDEMPOTENT. One portal update fires more than one
+   * event that reaches this handler; a second delivery must find the subscription
+   * already pointing at the card and write nothing.
+   */
+  c.at("leg 6 — the same card again: the pointer is already there, so nothing is written");
+  const updatedBefore = healthyAfter.items.data[0].current_period_end;
+  const again = await deliver(thirdEvent);   // same payload, FRESH id, so the handler runs
+  c.arrived("the handler ran again and was not refused as a duplicate",
+    again.status === 200 && !again.body.includes("duplicate"), `${again.status} ${again.body}`);
+  const healthyAgain = await stripe.subscriptions.retrieve(sub.id);
+  c.check("the default is still the same card, and unchanged",
+    healthyAgain.default_payment_method === thirdCard.id,
+    `${healthyAgain.default_payment_method}`);
+  c.check("nothing else about the subscription moved",
+    healthyAgain.items.data[0].current_period_end === updatedBefore,
+    `period_end unchanged`);
+  c.check("still no charge", (await chargeCount(customerId)) === chargesBeforeControl,
+    `${chargesBeforeControl} charges throughout the control`);
 
   console.log(`\n  user=${userId} customer=${customerId}`);
 } catch (err) {

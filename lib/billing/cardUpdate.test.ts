@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { BILLABLE_STATUSES } from "./cancel";
 import { CARD_RETRY_KEY, cardRetryVerdict } from "./cardUpdate";
 
 /**
@@ -143,9 +144,94 @@ describe("the handler and the route are wired to it", () => {
     expect(retryModule).not.toMatch(/serviceClient/);
   });
 
-  it("it asks Stripe only for OPEN invoices, and stops when there are none", () => {
+  it("it asks Stripe only for OPEN invoices, and stops CHARGING when there are none", () => {
     expect(retryModule).toMatch(/status: "open"/);
     expect(retryModule).toMatch(/if \(open\.length === 0\)/);
+  });
+
+  /* ── the POINT step, which is unconditional (founder, 20 Aug 2026) ── */
+
+  /**
+   * ⚠️ THE POINTER MOVES BEFORE ANY INVOICE IS LOOKED AT.
+   *
+   * The first version did nothing at all without an open invoice, which helped
+   * only customers who had ALREADY been locked out. Somebody who replaces an
+   * expiring card before it fails still had their subscription pointing at the
+   * dead one, so their next renewal failed for a problem they had already fixed.
+   */
+  it("the subscription pointer is moved BEFORE the open-invoice check", () => {
+    const pointAt = retryModule.indexOf("pointSubscriptionsAt(customerId, pmId, client)");
+    const listAt = retryModule.indexOf('status: "open"');
+    expect(pointAt).toBeGreaterThan(0);
+    expect(listAt).toBeGreaterThan(0);
+    expect(pointAt).toBeLessThan(listAt);
+  });
+
+  /**
+   * ⚠️ THE NAMED SET, NEVER A LITERAL. `BILLABLE_STATUSES` asks "what could still
+   * take their money?", which is exactly the question here: a subscription that
+   * can still charge should charge the card the customer has just handed us. A
+   * literal list goes stale the next time the set moves — the class of defect
+   * `/billing`'s mirror filter and the courtesy read both paid for.
+   */
+  it("it points every BILLABLE subscription, from the named set", () => {
+    expect(retryModule).toMatch(/BILLABLE_STATUSES\.has\(sub\.status\)/);
+    expect(retryModule).not.toMatch(/\["past_due", "unpaid"\][\s\S]{0,40}default_payment_method/);
+    // the set really does include the customer who acted BEFORE anything broke
+    for (const status of ["active", "trialing", "past_due", "unpaid", "paused", "incomplete"]) {
+      expect(BILLABLE_STATUSES.has(status), `${status} must be pointed`).toBe(true);
+    }
+    // …and really does exclude what Stripe has finished with
+    for (const status of ["canceled", "incomplete_expired"]) {
+      expect(BILLABLE_STATUSES.has(status), `${status} must NOT be pointed`).toBe(false);
+    }
+  });
+
+  /**
+   * ⚠️ POINTING CHARGES NOBODY. The whole justification for making it
+   * unconditional is that it writes a pointer and nothing else, so the step must
+   * not be able to reach `invoices.pay` or raise an invoice.
+   */
+  it("the point step cannot charge: it only writes default_payment_method", () => {
+    const fn = retryModule.slice(retryModule.indexOf("async function pointSubscriptionsAt"));
+    const body = fn.slice(0, fn.indexOf("\n}"));
+    expect(body).toMatch(/subscriptions\.update\([\s\S]{0,60}default_payment_method: pmId/);
+    expect(body).not.toMatch(/invoices\.pay/);
+    expect(body).not.toMatch(/invoices\.create/);
+    expect(body).not.toMatch(/invoice_settings/);
+  });
+
+  /**
+   * ⚠️ IDEMPOTENT BY COMPARISON. One portal update fires more than one event that
+   * reaches this handler; without the skip, each would be a Stripe write and a
+   * `customer.subscription.updated` back at us.
+   */
+  it("a subscription already pointing at the card is skipped without a write", () => {
+    expect(retryModule).toMatch(/if \(current === pmId\) continue;/);
+  });
+
+  /**
+   * ⚠️ PAGED. A truncated list silently leaves the OLDEST subscription — where a
+   * long-lived yearly lives — pointing at the dead card, surfacing a year later as
+   * a renewal nobody can explain.
+   */
+  it("it pages the subscription list rather than reading one page", () => {
+    expect(retryModule).toMatch(/listAllSubscriptions\(client, customerId\)/);
+  });
+
+  /**
+   * ⚠️ NO LOOP. `subscriptions.update` fires `customer.subscription.updated`, and
+   * the route sends that to `syncSubscription` — never back here. Asserted at the
+   * ROUTE, because a handler that can re-trigger itself on a payments path is the
+   * expensive kind of mistake.
+   */
+  it("customer.subscription.updated does not route back into this handler", () => {
+    const updatedCase = route.slice(
+      route.indexOf('case "customer.subscription.updated":'),
+      route.indexOf('case "customer.subscription.deleted":'),
+    );
+    expect(updatedCase).toMatch(/syncSubscription/);
+    expect(updatedCase).not.toMatch(/retryOpenInvoicesForCustomer/);
   });
 
   /**
