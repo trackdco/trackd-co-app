@@ -654,6 +654,51 @@ a parameter and simply does not persist it.
 
 ---
 
+## D102 — `soonerOf` is NOT normalised. POST-LAUNCH, and a decision rather than an oversight
+
+**Founder ruling, 20 Aug 2026.** Confirmed rather than reconsidered, after a cold
+review raised it and recommended against taking it.
+
+**The hazard.** `accessEndsEarly` (`manage.ts`) compares the entitlement's end date
+with the mirror's. Those two arrive in different serialisations by construction —
+PostgREST returns microseconds and `+00:00`, `deriveEntitlementFacts` round-trips to
+milliseconds and `Z` — so **the same instant is a different string for essentially
+every account**. 6.1 moved the comparison onto instants via `endsBefore`.
+
+**Why a tidy-up is the thing to fear.** Before 6.1 the comparison was `endsOn !==
+mirrorEnd`, and it was correct BY ACCIDENT: `soonerOf` returns one of its inputs
+VERBATIM and tie-breaks to the FIRST, so the string compare was an identity test over a
+decision already made on instants. Normalise `soonerOf`'s return — an obvious tidy-up —
+and **every paying customer whose mirror carries microseconds reads "Ends on"** where a
+renewal genuinely happens. That is the exact false claim `renewsOnPeriodEnd` exists to
+remove.
+
+**The proposal, and why it is NOT taken.** Making `soonerOf` return a normalised ISO
+string would make the identity comparison *impossible* rather than discouraged.
+
+> **⚠️ MEASURED, BOTH DIRECTIONS (6.1, 20 Aug 2026).** With `soonerOf` normalised:
+> line 522 on STRINGS → **3 failures**, including "same instant, same string".
+> Line 522 on INSTANTS → **82/82, unaffected.** So the change is safe and would
+> convert a comment into an enforced property.
+
+**Ruled against, for three reasons, in the round declared last:**
+
+1. **The revert it would prevent is already caught.** `signedCopyPin.test.ts`'s
+   period-end verb block asserts, comment-stripped, that `endsBefore(endsOn, mirrorEnd)`
+   is present and `endsOn !== mirrorEnd` is not. Measured 20 Aug: mutation N3 reverts
+   line 522 and the suite goes **red**, where before that pin it stayed **1573/1573
+   green**.
+2. **It is a behaviour change on a money-adjacent path** in a round whose own rule was
+   that anything found is accepted or delayed, not patched.
+3. **Neither a normalisation nor a test is permanent against a determined edit**, so the
+   argument for it is weaker than it first looks.
+
+**Post-launch, reconsider on its merits.** `soonerOf` has exactly ONE caller and line
+522 was the ONLY identity-dependence on its return anywhere in the codebase — checked,
+not assumed — so the change stays cheap. Nothing is blocked by it.
+
+---
+
 ## D101 — the revocation reason is persisted, and an unknown reason WITHHOLDS
 
 **Founder ruling, 18 Aug 2026, answering Q106.** Store it.
