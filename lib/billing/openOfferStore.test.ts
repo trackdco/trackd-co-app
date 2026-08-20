@@ -28,6 +28,8 @@ function offer(over: Partial<OpenOffer> = {}): OpenOffer {
     kind: "trial",
     noun: "week",
     chargeOn: "2026-08-26T15:00:00.000Z",
+    /** F2: the free time starts at the CURRENT period end, not today. */
+    startsOn: "19 Aug 2026",
     ...over,
   };
 }

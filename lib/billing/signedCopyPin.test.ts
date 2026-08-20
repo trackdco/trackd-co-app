@@ -5,6 +5,13 @@ import { describe, expect, it } from "vitest";
 import { manageActionFor, periodEndLabelFor } from "./manage";
 import { manageSummaryFor, type SummaryFacts } from "./manageSummary";
 import {
+  cancelConfirmDismiss,
+  cancelConfirmTitle,
+  offerGiftWindow,
+  offerGrantedBody,
+  offerPeriodWord,
+} from "./cancelDialogCopy";
+import {
   PAST_DUE_BANNER_IN_GRACE,
   PAST_DUE_BANNER_LAPSED,
   pastDueBannerFor,
@@ -557,5 +564,187 @@ describe("⚠️ the banner is wired, gated, and holds none of the copy inline",
    */
   it("the past-due read only happens with the gate on", () => {
     expect(dashboardCode).toMatch(/const pastDueRow = billingGateEnabled\(\)/);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⚠️ THE CANCEL DIALOG — F1's LABELS AND F2's WINDOW.
+
+   Both were JSX-adjacent strings inside `components/billing/CancelSubscription.tsx`,
+   outside this suite's reach, which is how F2 survived a whole round: the month
+   form had NEVER been rendered on a screen. The driver meant to test it used a
+   yearly price but created the subscription with a `trial_end`, so
+   `offerPeriodToGrant` short-circuited to "week" and every character-for-character
+   assertion ran on the week strings.
+
+   They now live in `lib/billing/cancelDialogCopy.ts` and are diffed here.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const CANCEL_PATH = new URL("./signed/cancel-dialog.txt", import.meta.url);
+const CANCEL_SOURCE = new URL(
+  "../../components/billing/CancelSubscription.tsx",
+  import.meta.url,
+);
+
+describe("⚠️ signed copy pin: the cancel dialog, codepoint for codepoint", () => {
+  const signed = readFileSync(CANCEL_PATH, "utf8")
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => l.length > 0);
+
+  const START = "{start}";
+  const END = "{end}";
+
+  /** In the order the file lists them. */
+  const RENDERED: Array<[string, string]> = [
+    ["TITLE on a trial", cancelConfirmTitle(true)],
+    ["TITLE otherwise", cancelConfirmTitle(false)],
+    ["DISMISS on a trial", cancelConfirmDismiss(true)],
+    ["DISMISS otherwise", cancelConfirmDismiss(false)],
+    ["GIFT WINDOW", offerGiftWindow(START, END)],
+    ["GRANTED month", offerGrantedBody("month", START, END)],
+    ["GRANTED week", offerGrantedBody("week", START, END)],
+  ];
+
+  it("the signed file holds exactly the seven strings the founder approved", () => {
+    expect(signed).toHaveLength(7);
+    expect(RENDERED).toHaveLength(7);
+  });
+
+  for (let i = 0; i < 7; i += 1) {
+    it(`${RENDERED[i]?.[0] ?? `#${i}`} matches the signed line character for character`, () => {
+      const diff = firstDifference(RENDERED[i][1], signed[i]);
+      expect(diff).toBeNull();
+    });
+  }
+
+  it("⚠️ no banned dash anywhere in the approved copy", () => {
+    for (const [name, text] of RENDERED) {
+      expect(/[‐-―−]/.test(text), `${name} carries a banned dash`).toBe(false);
+    }
+  });
+
+  /**
+   * ⚠️ F1's WHOLE POINT: one dialog, one word for one thing. A title and a button
+   * that disagreed is what the ruling exists to stop, and it is the state the code
+   * was in — `Cancel your subscription?` above `Keep my trial`.
+   */
+  it("⚠️ the title and the dismiss label always name the same thing", () => {
+    expect(cancelConfirmTitle(true)).toContain("trial");
+    expect(cancelConfirmDismiss(true)).toContain("trial");
+    expect(cancelConfirmTitle(false)).toContain("plan");
+    expect(cancelConfirmDismiss(false)).toContain("plan");
+  });
+
+  /** D36's one absolute rule, applied to the two strings F1 moves. */
+  it("⚠️ the word 'trial' never renders for somebody who is not on one", () => {
+    expect(cancelConfirmTitle(false)).not.toMatch(/trial/i);
+    expect(cancelConfirmDismiss(false)).not.toMatch(/trial/i);
+  });
+
+  /**
+   * ⚠️ THE COLLAPSE THAT HID F2 FOR A WHOLE ROUND, PINNED DIRECTLY.
+   *
+   * `offerPeriodToGrant` short-circuits on `status === "trialing"` and returns
+   * "week", which is right when deciding what to GRANT and wrong when describing
+   * a period that already exists. The screen drive used a yearly price with a
+   * `trial_end`, hit that short circuit, and ran every character-for-character
+   * assertion on the week strings — so the month form was never rendered and the
+   * defect in it was never seen.
+   *
+   * ⚠️ FOUND BY MUTATION, NOT BY READING. Collapsing `offerPeriodWord` to a
+   * constant "week" left all 548 `lib/billing` tests green, because every other
+   * assertion here substitutes the word explicitly. That is the same shape as the
+   * defect itself, which is why it gets its own line.
+   */
+  it("⚠️ the period word follows the granted period and never collapses to a week", () => {
+    expect(offerPeriodWord("month")).toBe("month");
+    expect(offerPeriodWord("week")).toBe("week");
+    // …and it reaches the sentence, rather than being right in isolation.
+    expect(offerGrantedBody(offerPeriodWord("month"), START, END)).toContain("free month");
+    expect(offerGrantedBody(offerPeriodWord("week"), START, END)).toContain("free week");
+  });
+
+  /**
+   * ⚠️ F2: THE MONTH AND WEEK FORMS DIFFER BY ONE WORD, WHICH IS EXACTLY HOW THE
+   * MONTH FORM WENT A WHOLE ROUND WITHOUT EVER BEING RENDERED.
+   */
+  it("⚠️ the two granted forms differ only in the period word", () => {
+    const month = offerGrantedBody("month", START, END);
+    const week = offerGrantedBody("week", START, END);
+    expect(month).not.toBe(week);
+    expect(month.replace("month", "week")).toBe(week);
+  });
+
+  /**
+   * ⚠️ AND BOTH NAME A WINDOW RATHER THAN AN END. The gift block said
+   * "until {end}", which for a mid-year yearly subscriber described SEVEN MONTHS
+   * of free access as though it started today.
+   */
+  it("⚠️ every F2 string names BOTH ends of the window", () => {
+    for (const text of [
+      offerGiftWindow(START, END),
+      offerGrantedBody("month", START, END),
+      offerGrantedBody("week", START, END),
+    ]) {
+      expect(text).toContain(START);
+      expect(text).toContain(END);
+    }
+    // …and the deleted wording, so it cannot come back.
+    expect(offerGiftWindow(START, END)).not.toMatch(/^until /);
+  });
+});
+
+describe("⚠️ the dialog renders from the module and holds none of it inline", () => {
+  const dialogCode = readFileSync(CANCEL_SOURCE, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+
+  it("⚠️ CONTROL: the comment-stripped dialog is non-empty and still holds its phases", () => {
+    expect(dialogCode.length).toBeGreaterThan(2000);
+    expect(dialogCode).toContain('"granted"');
+    expect(dialogCode).toContain('"offer"');
+  });
+
+  it("F1's two strings come from the module", () => {
+    expect(dialogCode).toContain("cancelConfirmTitle(isTrial)");
+    expect(dialogCode).toContain("cancelConfirmDismiss(isTrial)");
+    expect(
+      dialogCode,
+      "the unconditional 'Keep my trial' is back, which is D36's prohibited word for a paying customer",
+    ).not.toContain('dismiss: "Keep my trial"');
+    expect(dialogCode).not.toContain("title: `Cancel your ${noun}?`");
+  });
+
+  it("F2's two strings come from the module", () => {
+    expect(dialogCode).toContain("offerGiftWindow(offer.startsOn, chargeOnLabel)");
+    expect(dialogCode).toContain("offerGrantedBody(period");
+    expect(
+      dialogCode,
+      "the end-only gift line is back, which described seven months of free access as one",
+    ).not.toContain("until: `until ${chargeOnLabel}`");
+    expect(
+      dialogCode,
+      "the present-tense variant is back, about a period that can start six months out",
+    ).not.toContain("Enjoy your free");
+  });
+
+  /**
+   * ⚠️ THE PERIOD WORD MUST NOT COME FROM `offerPeriodToGrant`. That function
+   * answers "what should we GRANT?" and short-circuits on `status === "trialing"`,
+   * which is the misreading that hid F2: it returned "week" for a yearly
+   * subscription and every assertion ran on the week strings.
+   */
+  it("⚠️ the period word is read off the offer, never re-derived from the subscription", () => {
+    expect(dialogCode).toContain("offerPeriodWord(");
+    expect(dialogCode).not.toContain("offerPeriodToGrant");
+  });
+
+  /** Everything else on both screens is unchanged. The terms line is the one that
+   *  names the charge, and it must still be built by its own module. */
+  it("the terms line and the countdown are untouched", () => {
+    expect(dialogCode).toContain("offerTermsLine(chargeOnLabel, remindersPromised)");
+    expect(dialogCode).toContain("yours for the next 10 minutes");
+    expect(dialogCode).toContain("$0.00 USD");
   });
 });

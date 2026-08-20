@@ -12,6 +12,7 @@ A fix WITHHOLDS a line. It never rewords one.
 | `read-only-popup.txt` | the read-only pop-up (05 §3.6, D98) |
 | `beta-notice.txt` | the beta grace notice (06) |
 | `past-due-banner.txt` | the declined-payment dashboard banner (Group D) |
+| `cancel-dialog.txt` | the cancel dialog's title, dismiss, gift window and granted body (F1, F2) |
 
 ## ⚠️ What decides which signed strings get a machine check
 

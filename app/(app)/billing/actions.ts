@@ -117,6 +117,20 @@ export interface SaveOffer {
    * `endsOn`. Nothing about the sentence it sits in changed.
    */
   chargeOn: string;
+  /**
+   * ⚠️ WHEN THE FREE TIME STARTS, ALREADY FORMATTED IN THE USER'S STORED
+   * TIMEZONE (F2).
+   *
+   * The CURRENT PERIOD END — the same value `addOffer` measures from and the same
+   * value `chargeOn` is derived from, so nothing new is computed and the two
+   * cannot drift.
+   *
+   * The gift block named only the END date, and free time is appended to the end
+   * of the paid period rather than starting today. For a mid-year yearly
+   * subscriber that made "Another month / until 15 Mar 2027", read on 15 Aug 2026,
+   * describe SEVEN MONTHS of free access. Both screens now name the window.
+   */
+  startsOn: string;
   /** Kept for the trial copy, which still counts in days. */
   days: number;
 }
@@ -440,10 +454,17 @@ async function offerAfterCancel(
         : (primary.items.data[0]?.current_period_end ?? Math.floor(Date.now() / 1000));
     // Formatted in the user's OWN stored zone, here on the server, so the date
     // they read before deciding is the same day every other surface names.
+    const tz = await ownTimezone(userId);
     const chargeOn = formatAccessDate(
       new Date(addOffer(from, noun) * 1000).toISOString(),
-      await ownTimezone(userId),
+      tz,
     );
+    /**
+     * ⚠️ THE START OF THE FREE TIME (F2), FROM THE SAME INSTANT `addOffer`
+     * MEASURES FROM. Not a second computation — the identical `from` — so the
+     * window the dialog prints cannot disagree with the period the grant creates.
+     */
+    const startsOn = formatAccessDate(new Date(from * 1000).toISOString(), tz);
     /**
      * ⚠️ NO DATE, NO OFFER. (§3.2.)
      *
@@ -459,9 +480,16 @@ async function offerAfterCancel(
      * resolved does not silently spend their once-ever offer on a dialog they
      * never saw.
      */
-    if (!chargeOn) {
+    /**
+     * ⚠️ AND THE SAME RULE APPLIES TO THE START DATE (F2). The gift block and the
+     * thank-you screen both name a WINDOW now, and a window with one end missing
+     * is the "line with a hole in it" §3.2 refuses. Refused here, above
+     * `markOfferShown`, so nothing is burned.
+     */
+    if (!chargeOn || !startsOn) {
       console.error(
-        `[billing] no charge date could be resolved for ${customerId}; no save offer shown, and none burned`,
+        `[billing] the offer's window could not be resolved for ${customerId} ` +
+          `(starts=${startsOn || "?"}, charge=${chargeOn || "?"}); no save offer shown, and none burned`,
       );
       return undefined;
     }
@@ -475,7 +503,7 @@ async function offerAfterCancel(
     // same value rather than two taken moments apart. §3.5.
     const shownAt = new Date().toISOString();
     await markOfferShown(customerId, shownAt);
-    return { kind: state.kind, noun, chargeOn, shownAt, days: EXTRA_TRIAL_DAYS };
+    return { kind: state.kind, noun, chargeOn, startsOn, shownAt, days: EXTRA_TRIAL_DAYS };
   } catch (err) {
     console.error(
       `[billing] the save-offer check failed for ${customerId} (the cancellation stands):`,

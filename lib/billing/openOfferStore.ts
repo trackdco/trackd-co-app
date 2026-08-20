@@ -40,6 +40,16 @@ export interface OpenOffer {
   noun: "week" | "month";
   /** ISO instant. The day money moves if they take it. */
   chargeOn: string;
+  /**
+   * ⚠️ WHEN THE FREE TIME STARTS, formatted by the server (F2).
+   *
+   * Free time is appended to the END of the paid period, so a carried offer that
+   * names only the end describes a window it does not have. Required rather than
+   * optional: an entry written before this field existed is at most ten minutes
+   * old, and treating it as absent costs a reopen row nobody can still be looking
+   * at. See {@link readOffer}, which validates every field for the same reason.
+   */
+  startsOn: string;
 }
 
 /** The window, in milliseconds. Must match `OFFER_WINDOW_MINUTES` on the server. */
@@ -117,12 +127,14 @@ export function readOffer(): OpenOffer | null {
     if (typeof o.userId !== "string" || !o.userId) return null;
     if (typeof o.shownAt !== "string" || Number.isNaN(Date.parse(o.shownAt))) return null;
     if (typeof o.chargeOn !== "string") return null;
+    if (typeof o.startsOn !== "string" || !o.startsOn) return null;
     if (o.kind !== "trial" && o.kind !== "paid") return null;
     if (o.noun !== "week" && o.noun !== "month") return null;
     return {
       userId: o.userId,
       shownAt: o.shownAt,
       chargeOn: o.chargeOn,
+      startsOn: o.startsOn,
       kind: o.kind,
       noun: o.noun,
     };

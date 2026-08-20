@@ -21,6 +21,13 @@ import {
 } from "@/app/(app)/billing/actions";
 import type { SaveOffer } from "@/app/(app)/billing/actions";
 import { STAYING_NOTICE_SLOT, StayingNotice } from "@/components/billing/StayingNotice";
+import {
+  cancelConfirmDismiss,
+  cancelConfirmTitle,
+  offerGiftWindow,
+  offerGrantedBody,
+  offerPeriodWord,
+} from "@/lib/billing/cancelDialogCopy";
 import { CANCEL_FAILED, CLAIM_FAILED, RESUME_FAILED } from "@/lib/billing/manage";
 import { offerTermsLine, reminderQuietLine } from "@/lib/billing/reminderPromise";
 import {
@@ -505,6 +512,7 @@ export function CancelSubscription({
             kind: result.offer.kind,
             noun: result.offer.noun,
             chargeOn: result.offer.chargeOn,
+            startsOn: result.offer.startsOn,
           };
           rememberOffer(open);
           setCarried(open);
@@ -628,6 +636,7 @@ export function CancelSubscription({
     phase: shownPhase,
     mode,
     noun,
+    isTrial,
     endsOn,
     resumeLabel,
     offer,
@@ -675,6 +684,7 @@ export function CancelSubscription({
               kind: live.kind,
               noun: live.noun,
               chargeOn: live.chargeOn,
+              startsOn: live.startsOn,
               shownAt: live.shownAt,
               days: 7,
             });
@@ -947,6 +957,7 @@ function dialogCopy({
   phase,
   mode,
   noun,
+  isTrial,
   endsOn,
   resumeLabel,
   offer,
@@ -959,6 +970,15 @@ function dialogCopy({
   phase: Phase;
   mode: "cancel" | "resume";
   noun: string;
+  /**
+   * ⚠️ F1's DISCRIMINATOR, PASSED RATHER THAN DERIVED FROM `noun`.
+   *
+   * `noun` is "trial" or "subscription" and drives the trigger row, the staying
+   * notice and the cancelled acknowledgement, none of which F1 touches. Comparing
+   * it against the "trial" literal here would tie four strings to one comparison
+   * and put the next widening one edit away.
+   */
+  isTrial: boolean;
   endsOn: string;
   resumeLabel: string;
   offer: SaveOffer | null;
@@ -975,7 +995,14 @@ function dialogCopy({
   if (phase === "confirm") {
     return mode === "cancel"
       ? {
-          title: `Cancel your ${noun}?`,
+          /**
+           * ⚠️ F1: THE TITLE MOVES WITH THE DISMISS LABEL, so one dialog does not
+           * use two words for one thing. It was `Cancel your ${noun}?`, which
+           * would now leave a paying customer reading "Cancel your subscription?"
+           * above a button saying "Keep my plan". Signed and pinned in
+           * `lib/billing/cancelDialogCopy.ts`.
+           */
+          title: cancelConfirmTitle(isTrial),
           /**
            * TWO SENTENCES, AND THE SECOND ONE IS THE POINT.
            *
@@ -1027,22 +1054,29 @@ function dialogCopy({
             .filter(Boolean)
             .join(" "),
           /**
-           * ⚠️ "Keep my trial", LITERALLY, AND NOT `Keep my ${noun}`.
+           * ⚠️ F1 — THE FOUNDER'S RULING, AND IT CLOSES THE §3.9-versus-D36
+           * CONFLICT THAT WAS ROUTED AND LEFT OPEN.
            *
-           * `03` §3.3 lists exactly two buttons for this dialog and gives this
-           * one in the singular, and §3.9 says so explicitly: **"It stays 'Keep
-           * my trial', which is approved copy for that control. Two controls,
-           * two labels, deliberately."**
+           * This read `"Keep my trial"` unconditionally, and the reasoning above
+           * it is preserved here because it was CORRECT about the conflict and
+           * only the ruling changes the answer:
            *
-           * The mirrored noun pair belonged to the RESUME trigger, which D22
-           * replaced with the plan-agnostic "Keep my Pro plan". This control is a
-           * different one and was never part of that change; branching it here
-           * re-created half the pair D22 removed, on the dialog the spec pins.
+           * > `03` §3.3 lists exactly two buttons for this dialog and gives this
+           * > one in the singular, and §3.9 says so explicitly: **"It stays 'Keep
+           * > my trial', which is approved copy for that control. Two controls,
+           * > two labels, deliberately."**
            *
-           * A defect against §3.9 rather than a new decision: the reasoning for
-           * branching is defensible and the spec is explicit, so the spec wins.
+           * D36's rule is that "trial" never renders for anybody not on one, so
+           * for the paying cohort the two specs contradicted each other. The
+           * ruling: the label follows the cohort, "Keep my trial" on a trial and
+           * "Keep my plan" otherwise.
+           *
+           * ⚠️ THE HALF OF §3.9 THAT SURVIVES IS THE IMPORTANT HALF. This is
+           * still NOT `resumeLabel` — that control is D22's plan-agnostic "Keep my
+           * Pro plan" and undoes a cancellation that has happened, while this one
+           * declines to make one. Two controls, two labels, deliberately.
            */
-          dismiss: "Keep my trial",
+          dismiss: cancelConfirmDismiss(isTrial),
           confirm: "Yes, cancel",
         }
       : {
@@ -1070,7 +1104,7 @@ function dialogCopy({
      * "and we'll remind you first" is a PROMISE. `lib/notifications/trialReminder.ts`
      * keeps it. If that reminder is ever removed, this clause goes with it.
      */
-    const period = offer.noun === "month" ? "month" : "week";
+    const period = offerPeriodWord(offer.noun);
     /**
      * ⚠️ ONE TERMS LINE, AND IT NAMES THE DATE. THE DATELESS VARIANT IS GONE.
      *
@@ -1110,7 +1144,16 @@ function dialogCopy({
       body: `Thank you for choosing Trackd Co to run your protocol. Before you go, we'd like to offer you another ${period}, free.`,
       gift: {
         what: `Another ${period}`,
-        until: `until ${chargeOnLabel}`,
+        /**
+         * ⚠️ F2: THE WINDOW, NOT JUST ITS END.
+         *
+         * This read `until ${chargeOnLabel}` and free time is appended to the END
+         * of the paid period, so for a mid-year yearly subscriber it said
+         * "Another month / until 15 Mar 2027" on 15 Aug 2026 — describing SEVEN
+         * MONTHS of free access. `startsOn` is the current period end, the same
+         * instant `addOffer` measures from. Signed and pinned.
+         */
+        until: offerGiftWindow(offer.startsOn, chargeOnLabel),
         amount: "$0.00 USD",
       },
       terms,
@@ -1134,13 +1177,38 @@ function dialogCopy({
      * required on a successful grant, and `claimExtraTime` fails the claim
      * rather than returning a success it cannot date.
      */
-    const period = offer?.noun === "month" ? "month" : "week";
+    const period = offerPeriodWord(offer?.noun ?? "week");
     return {
       title: "Thank you!",
-      body:
-        offer?.kind === "paid"
-          ? `Enjoy your free ${period} on us. Your free ${period} finishes on ${grantedUntil}, and your plan picks up from there unless you choose to cancel.`
-          : `Enjoy your free ${period} on us. Your extended trial finishes on ${grantedUntil}, and your plan picks up from there unless you choose to cancel.`,
+      /**
+       * ⚠️ F2: ONE SENTENCE, NAMING THE WINDOW, FOR BOTH KINDS.
+       *
+       * The two variants this replaces were "Enjoy your free {period} on us. Your
+       * free {period} finishes on {date}..." and "...Your extended trial finishes
+       * on {date}...". Both named only the END, and "Enjoy" is the present tense
+       * about a period that, for a mid-year yearly subscriber, starts in six
+       * months.
+       *
+       * The founder signed ONE sentence and it names no cohort, so the branch
+       * goes: a trialist who takes the offer has their cancellation lifted and is
+       * billed after the free time exactly as a paid subscriber is, which is what
+       * "your plan picks up from there" says — and what the tail of both old
+       * variants already said.
+       *
+       * `grantedUntil` is the grant's OWN end date, returned by `claimExtraTime`
+       * from the updated subscription, so the sentence is dated from what actually
+       * happened rather than from what was offered.
+       */
+      /**
+       * ⚠️ BOTH DATES ARE NON-NULL BY CONSTRUCTION, and the fallbacks are inert.
+       * `offerAfterCancel` refuses to return an offer whose window it cannot
+       * resolve, before the shown-marker is written, so this phase is unreachable
+       * without `startsOn`; and `claimExtraTime` fails the claim rather than
+       * returning a success it cannot date, so it is unreachable without
+       * `grantedUntil`. The previous code interpolated the same values with no
+       * fallback at all.
+       */
+      body: offerGrantedBody(period, offer?.startsOn ?? "", grantedUntil ?? ""),
       /**
        * ⚠️ THE OTHER HALF OF THE PROMISE, gated by the SAME switch as the terms
        * line (amended D1). Both together or neither: a thank-you screen silent
