@@ -3,6 +3,112 @@
 **Branch** `wave3/billing-cancel`. **Freeze head** `a929d98`, unfrozen by this batch.
 **Current head** — see `git log -1`; updated at every commit below.
 
+## ⚠️ ROUND 9 — THE LAST ROUND. Groups A to G. COMPLETE.
+
+Opened deliberately and once, because these were not fixes generating defects: a
+specified feature that was never implemented (the three-day grace, measured at
+**0.00 days**), a finding recorded and left out of the batch (the courtesy promise),
+and four items the lifetime clock run could not close.
+
+| commit | item |
+|---|---|
+| `cac60f9` | **A.1** the grace is written outright, in both directions |
+| `e4fe861` | **B.1** a card update retries the open invoice |
+| `2e3a790` | **C.1** the courtesy promise is withdrawn when it ends |
+| `44d7f12` | **D.1** the declined-payment dashboard banner |
+| `b86ca3b` | **F.1** the dismiss label follows the cohort; the offer copy names a window |
+| `57a1849` | **E.1** the save offer survives an interrupted session |
+| `637bdce` | **G.1** the cross-subscription clawback REPRODUCES — recorded, NOT fixed |
+
+**Tests 1595 -> 1693** (+98). tsc, ESLint, gate audit 32/2/69 all unmoved.
+
+### ⚠️ THE ONE THING THAT NEEDS A RULING BEFORE LAUNCH
+
+**Group G reproduces.** `scratchpad/final/FINDING-G.md` has the full write-up. A
+CANCELLED subscription's `invoice.payment_failed`, redelivered under a fresh event
+id, clawed **5.00 days** of access off a customer — access bought and paid for on a
+DIFFERENT, still-live subscription. Measured, not inferred.
+
+The mechanism is `otherLiveEntitlementFloor` skipping anything not in `ENTITLING`,
+and `ENTITLING` is `{trialing, active}` — so a `past_due` sibling raises **no floor
+at all**, exactly when the surviving subscription is itself in trouble.
+
+**A.1 did not cause it.** The measured inputs run through the OLD formula and
+through `pastDueGraceEnd` give the identical answer. Pre-existing, and the lifetime
+run glimpsed it once.
+
+Not fixed here, per the brief's stop rule, and it is not a one-liner: any fix has to
+reach the FLOOR without reaching the EXTENDER (`past_due` is excluded from
+`ENTITLING` deliberately, and that exclusion is what stopped the measured +58 unpaid
+days), and there is a second question underneath about whether a cancelled
+subscription's failed invoice should move the shared row at all.
+
+### What was DRIVEN, and with what control
+
+| drive | result | the control that could have failed |
+|---|---|---|
+| `final/drive-A-grace.mjs` | **19/19** | the roll-forward extended the row 7.00d into the unpaid period FIRST, so the clawback direction is proven on the same account |
+| `final/drive-B-card.mjs` | **28/28** | a card update on a healthy account writes nothing: no charge, no marker, the subscription's default card untouched |
+| `final/drive-C-courtesy.mjs` | **30/30** | the finished-courtesy account still shows `Renews on`, so the card is not simply empty; and D36's word appears nowhere |
+| `final/drive-D-banner.mjs` | **16/16** | a healthy subscriber gets NO banner; the gate proven ON from `NO_ACCESS_LABEL` before any "absent" assertion |
+| `final/drive-EF-offer.mjs` | **39/39** | the week form absent from the month page and the month form absent from the week page |
+| `final/drive-G-crosssub.mjs` | 13/14 | the 1 red IS the finding |
+
+### ⚠️ FOUR INSTRUMENT CORRECTIONS THIS ROUND PAID FOR
+
+Each one made an assertion read the wrong thing while the product was correct.
+
+1. **`deliver` fell back to the event's REAL id.** Every "same payload again"
+   assertion was vacuous — the route answered `{"duplicate":true}` with a **200**
+   and the handler never ran. Found because Group G's entitlement did not move when
+   the code says it should have. **A 200 is not proof a handler ran; check the body.**
+2. **`attempt_count` cannot see an explicit `invoices.pay`.** Stripe counts
+   AUTOMATIC collection attempts only. It read `1 -> 1` across a retry that moved an
+   invoice `open -> paid` and created a fourth charge. ⚠️ **The lifetime run's own
+   "attempt_count 1 -> 1" finding used this same field and would have read 1 -> 1 on
+   a SUCCESSFUL retry too.** Count charges and read the invoice status instead.
+3. **`eventsFor` bounded by the SIMULATED `t0`.** `event.created` is wall clock, so
+   a clock frozen 40 days back made one sweep page forty days of the whole account's
+   event stream: **3m39s**.
+4. **Sleeping instead of waiting for the artefact.** 4s after "Yes, cancel" read the
+   dialog while it still said "Working…" — six assertions red against a correct
+   screen, and a LATER line of the same output showed it rendered perfectly.
+
+### Three Stripe facts worth keeping
+
+- **A subscription's renewal cycle and its charge attempt are not the same moment.**
+  At `t0 + 7d + 1min` the invoice is `draft` with `attempt_count: 0` and the
+  subscription still `active`. Stripe finalizes about an hour later. A driver that
+  stops at the period boundary reports "no failure" while everything works.
+- **`pm_card_visa` is not a PaymentMethod id.** `customers.create` accepts it and
+  mints a real `pm_...`; `subscriptions.create` refuses it with `resource_missing`.
+- **A yearly save-offer grant raises a SECOND invoice** — `subscription_update`,
+  `total=0`, `due=0`, `paid=0`. No money moves. The brief asked for "the invoice
+  count is unchanged"; the count is the wrong instrument and the total is the right
+  one.
+
+### The three items the lifetime run could not close
+
+- **A mid-period yearly ACCEPT flips `active` to `trialing`** — measured:
+  `trial_end` a year and a month out, `trackd_courtesy_until` written,
+  `cancel_at_period_end` lifted, **and no charge**. Group A is width-independent by
+  construction: `markPastDue` reads the failing INVOICE LINE, never the
+  subscription's period, so a courtesy of any width never enters its arithmetic.
+- **"No charge at accept" for a paid subscriber** — now measured on a YEARLY that is
+  genuinely `active`. Nothing charged, nothing owed.
+- **The mirror's stale `trial_ends_at`** — **five readers, every one of them guarded
+  on `status === "trialing"`**: `/billing`'s row (via `isGenuineTrial`),
+  `manageActionFor`'s `isTrial`, `lib/db/admin/billing.ts`'s ending-soon tile, the
+  reminder runner's query, and the dashboard's query. Inert everywhere, not just on
+  the screen that noticed it.
+
+### Decision numbers taken
+
+**D103 to D109**, from the ledger's own next-free list. See the report.
+**Next free is now D110 / Q107.**
+
+---
+
 ## ⚠️ DECISION NUMBERS TAKEN — D91 to D100, and Q106
 
 Taken 18 Aug 2026 from the ledger's own next-free list, in the brief's order.
