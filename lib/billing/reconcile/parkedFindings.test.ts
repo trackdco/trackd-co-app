@@ -87,6 +87,15 @@ function ent(over: Partial<EntitlementFact> = {}): EntitlementFact {
     source: "stripe",
     activeUntil: "2027-08-01T00:00:00.000Z",
     isActive: true,
+    /**
+     * ⚠️ `"unknown"` IS THE ONLY HONEST DEFAULT, and cases that mean otherwise
+     * say so. There is no reason derivable from `isActive` alone: a revoked row
+     * is a dispute OR a refund, and a fixture that picks one silently is a
+     * fixture claiming a state its own scenario may contradict — the trap
+     * `manageSummary.test.ts` records about `accessLive`. Every case below that
+     * is ABOUT a dispute or a refund now states it.
+     */
+    revokedReason: "unknown",
     ...over,
   };
 }
@@ -124,7 +133,12 @@ function ent(over: Partial<EntitlementFact> = {}): EntitlementFact {
 describe("⚠️ the three parked revokeForCustomer findings (§9g), and what catches them", () => {
   it("P1 — an EARLIER period refunded revokes the CURRENT paid one: CAUGHT by 2.3's new rule", () => {
     // The shape it leaves: a revoked pro/stripe row beside a live subscription.
-    const s = snapshot({ subscriptions: [sub()], entitlements: [ent({ isActive: false })] });
+    // ⚠️ P1 IS A REFUND, and the fixture now SAYS so rather than leaving it to be
+    // inferred. `revokeForCustomer` writes revoked_reason: "refund" on this path.
+    const s = snapshot({
+      subscriptions: [sub()],
+      entitlements: [ent({ isActive: false, revokedReason: "refund" })],
+    });
     expect(runRules(s).map((f) => f.rule)).toEqual([
       "revoked-entitlement-beside-live-subscription",
     ]);

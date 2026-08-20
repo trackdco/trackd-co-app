@@ -17,6 +17,54 @@ export const PRO = "pro" as const;
 export type EntitlementProduct = typeof PRO;
 export type EntitlementSource = "stripe" | "apple" | "google" | "comp";
 
+/**
+ * ⚠️ WHY A PRO ROW WAS TURNED OFF (D101 / Q106).
+ *
+ *   "dispute"  a chargeback. `08`'s two dispute sentences apply.
+ *   "refund"   the founder refunded them by hand. Neither sentence applies.
+ *   "unknown"  we could not ask, OR `005` is unapplied, OR the row predates it.
+ *
+ * ⚠️ IT LIVES HERE, IN THE PURE FILE, BECAUSE IT NOW HAS TWO CONSUMERS ON
+ * OPPOSITE SIDES OF THE APP: the screens (`entitlements.ts`, `server-only`) and
+ * the reconciliation rules (`reconcile/types.ts`, pure). Declaring it twice is
+ * the "second convention" 1.1's commit argued against, and importing the
+ * `server-only` module into a pure one to borrow a type alias is worse.
+ *
+ * ⚠️ `unknown` IS NEVER TREATED AS `dispute`. That default would tell a refunded
+ * customer their bank disputed a payment. Standing rule 0 in its sharpest form:
+ * a value that means "we could not tell" must not be spent as a value that means
+ * something specific.
+ *
+ * ## ⚠️ THE REGISTER OF EVERYTHING THAT DECIDES ON A REVOKED `pro`/`stripe` ROW
+ *
+ * Swept 20 Aug 2026. D101 persisted this reason so no surface would have to
+ * guess, and one surface was written BESIDE it rather than onto it. Keep this
+ * list current: a new reader that SPEAKS and does not appear here is the same
+ * defect again.
+ *
+ *   READS THE REASON, and must
+ *     · `manageSummary` -> `suspended`          requires "dispute"
+ *     · `manageSummary` -> `dispute-cancelled`  requires "dispute"
+ *     · `reconcile` rule 6b's evidence          says a different thing per reason
+ *
+ *   REASON-BLIND, and SAFE because each errs SILENT
+ *     · `manageSummary`'s `accessRevoked && !accessLive -> "withheld"`. Says
+ *       nothing, so it cannot say the wrong thing.
+ *     · `reconcile` rule 6's §3.4 exemption. Stays quiet, so a wrong reason
+ *       costs a missing line rather than a false one.
+ *
+ *   NOT READERS AT ALL, checked rather than assumed
+ *     · `compEntitlement` (`onboarding/billing-actions.ts`) reads the COMP row.
+ *       `revokeForCustomer` only ever writes this column on `pro`/`stripe`, and
+ *       its answer ("revoked -> they MAY buy") is the same either way.
+ *     · `/api/billing/beta-grace`'s backfill skip. Same decision for both.
+ *     · `lib/db/admin/billing.ts` counts LIVE entitlements through
+ *       `isEntitlementActive`. A live/dead question, never a why question.
+ *
+ * **There is no sixth reader that SPEAKS.**
+ */
+export type RevokedReason = "dispute" | "refund" | "unknown";
+
 export interface Entitlement {
   product: EntitlementProduct;
   source: EntitlementSource;

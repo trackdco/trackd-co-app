@@ -17,6 +17,8 @@
  * taken in, so a report can never claim a live conclusion from a test-mode run.
  */
 
+import type { RevokedReason } from "../access";
+
 /** Which Stripe mode a run was taken against. §3.2 — never mix the two. */
 export type StripeMode = "test" | "live";
 
@@ -50,7 +52,12 @@ export const RULES = [
   "live-subscription-without-entitlement",
   /**
    * ⚠️ D-2.1's OTHER HALF — a REVOKED entitlement beside a subscription Stripe is
-   * still billing. **The signal that the dispute cancel did not land.**
+   * still billing. **Somebody is being charged for access they do not have.**
+   *
+   * ⚠️ WHAT IT MEANS BEYOND THAT COMES FROM `revoked_reason`, NEVER FROM A GUESS
+   * (D101). A dispute means the cancel failed; a refund means no cancel was owed
+   * and the shape is also parked finding P1; an unrecorded reason means no claim
+   * may be made. The finding fires in all three — see `whyItWasRevoked`.
    *
    * Before a dispute cancelled the subscription this was an EXPECTED state and
    * §3.4 exempted it, correctly. Now that `revokeForCustomer` cancels, a live
@@ -231,6 +238,21 @@ export interface EntitlementFact {
   source: string;
   activeUntil: string | null;
   isActive: boolean;
+  /**
+   * ⚠️ WHY IT WAS TURNED OFF (D101 / Q106) — so a rule does not have to GUESS.
+   *
+   * `revokeForCustomer` persists this, and three screen-side readers already
+   * consult it. `revoked-entitlement-beside-live-subscription` did not, and it
+   * asserted "a dispute cancels the subscription, so this means the cancel failed
+   * or never ran" over a row that a REFUND turned off — a refund deliberately
+   * does not cancel (`sync.ts`), so that sentence was false for that cohort and
+   * the remediation it names is "cancel a subscription nobody decided to cancel".
+   *
+   * ⚠️ `"unknown"` IS A REAL ANSWER AND IT IS NOT `"dispute"`. It means the
+   * reason column could not be read, `005` is unapplied, or the row predates it.
+   * A rule reading this must say less, never guess more.
+   */
+  revokedReason: RevokedReason;
 }
 
 /** A row of `billing_customers` — the user ↔ Stripe customer link. */

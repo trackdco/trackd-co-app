@@ -8,6 +8,7 @@ import { COURTESY_KEY } from "@/lib/billing/saveOffer";
 import { serviceClient } from "@/lib/billing/service";
 import { isTestMode, PRICE_ENV, stripe } from "@/lib/billing/stripe";
 
+import type { RevokedReason } from "../access";
 import type {
   Completeness,
   CustomerLinkFact,
@@ -333,13 +334,92 @@ async function fetchEntitlements(completeness: Completeness): Promise<Entitlemen
     completeness.failed.push(`entitlements: ${error.message}`);
     return [];
   }
+
+  const reasons = await fetchRevokedReasons(completeness);
   return (data ?? []).map((row) => ({
     userId: row.user_id,
     product: row.product,
     source: row.source,
     activeUntil: row.active_until,
     isActive: row.is_active,
+    /**
+     * Only a row that is OFF has a reason. An active row is not "unknown because
+     * we did not look" — there is no revocation to explain, and this is the same
+     * convention `entitlementFacts` uses (`revokedReason` is always `"unknown"`
+     * when `revoked` is false).
+     */
+    revokedReason: row.is_active
+      ? ("unknown" as const)
+      : (reasons.get(reasonKey(row.user_id, row.product, row.source)) ?? "unknown"),
   }));
+}
+
+const reasonKey = (userId: string, product: string, source: string) =>
+  `${userId}|${product}|${source}`;
+
+/**
+ * ⚠️ WHY EACH REVOKED ROW WAS TURNED OFF, IN ITS OWN TOLERANT QUERY (D101 / Q106).
+ *
+ * ## ⚠️ ITS OWN QUERY, AND HERE THE REASON IS SHARPER THAN ON THE SCREENS
+ *
+ * `entitlements.ts` keeps `revoked_reason` out of the access select because one
+ * unknown column makes PostgREST reject the WHOLE request, and a missing display
+ * column would become "nobody has access". The cost here is different and worse:
+ * {@link fetchEntitlements} returning `[]` does not blank a screen, it makes
+ * **every live subscriber look like they have no entitlement**, and
+ * `live-subscription-without-entitlement` fires on all of them. Incompleteness
+ * does not suppress findings — `report.ts` says so in as many words, the status
+ * is incomplete even when there are findings — so folding this column in would
+ * turn one unapplied migration into a report full of invented lockouts.
+ *
+ * So the reason is read separately and its failure costs only detail.
+ *
+ * ## The two failures are NOT the same fact
+ *
+ *   column absent   `005` is not applied yet. An EXPECTED deploy-gap state: every
+ *                   reason reads `"unknown"`, every rule still fires, and nothing
+ *                   is hidden. Logged, not escalated.
+ *   read failed     we could not ask. That IS "I could not see", so it goes to
+ *                   `completeness.failed` and the run reports itself incomplete.
+ *
+ * The same split `revokedReasonFor` makes on the screen side, read the same way,
+ * so the two cannot drift into disagreeing about what "unknown" means.
+ */
+async function fetchRevokedReasons(
+  completeness: Completeness,
+): Promise<Map<string, RevokedReason>> {
+  const out = new Map<string, RevokedReason>();
+  const { data, error } = await serviceClient()
+    .from("entitlements")
+    .select("user_id, product, source, revoked_reason")
+    .eq("is_active", false);
+
+  if (error) {
+    /**
+     * ⚠️ BOTH CODES. PostgREST answers `PGRST204` from its own schema cache and
+     * Postgres answers `42703`, and which one arrives depends on which layer
+     * rejects first. `sync.ts` and `runner.ts` carry the same pair for the same
+     * reason; this one is deliberately narrower than `sync.ts`'s, which also
+     * sniffs the message text.
+     */
+    if (error.code === "PGRST204" || error.code === "42703") {
+      console.info(
+        "[reconcile] revoked_reason is not present (005 unapplied); every revocation reads as unknown",
+      );
+      return out;
+    }
+    completeness.failed.push(`entitlements.revoked_reason: ${error.message}`);
+    return out;
+  }
+
+  for (const row of data ?? []) {
+    const reason = row.revoked_reason;
+    out.set(
+      reasonKey(row.user_id, row.product, row.source),
+      reason === "dispute" || reason === "refund" ? reason : "unknown",
+    );
+  }
+  return out;
 }
 
 async function fetchCustomerLinks(

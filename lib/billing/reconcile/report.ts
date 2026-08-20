@@ -79,8 +79,8 @@ const RULE_TITLES: Record<RuleId, { title: string; source: string }> = {
     source: "§3.1 #3",
   },
   "revoked-entitlement-beside-live-subscription": {
-    title: "A DISPUTED ACCOUNT IS STILL BEING BILLED — THE CANCEL DID NOT LAND",
-    source: "§3.4 as corrected — a dispute cancels, so this state means it failed",
+    title: "ACCESS WAS REVOKED AND THE BILLING NEVER STOPPED",
+    source: "§3.4 as corrected. The evidence names WHY, from revoked_reason (D101)",
   },
   "entitlement-without-source": {
     title: "SOMEBODY HAS ACCESS WITH NOTHING PAYING FOR IT",

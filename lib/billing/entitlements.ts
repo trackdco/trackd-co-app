@@ -9,6 +9,7 @@ import {
   deriveEntitlementFacts,
   grantsPro,
   PRO,
+  type RevokedReason,
   type Entitlement,
   type EntitlementProduct,
   type EntitlementSource,
@@ -271,7 +272,13 @@ export type EntitlementFacts =
  * `courtesy_until` and for the same reason, and the lesson `trialLease.ts` paid
  * for by catching `42703` when the real answer was `PGRST204`.
  */
-export type RevokedReason = "dispute" | "refund" | "unknown";
+/**
+ * ⚠️ MOVED TO `./access.ts` AND RE-EXPORTED, so every existing import keeps
+ * working. It is needed by `reconcile/types.ts`, which is PURE and must not
+ * import this `server-only` module — see the declaration there for why it is not
+ * simply written out twice.
+ */
+export type { RevokedReason } from "./access";
 
 async function revokedReasonFor(userId: string): Promise<RevokedReason> {
   try {

@@ -25,6 +25,7 @@ import { isEntitlementActive } from "@/lib/billing/access";
 import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
 import { STRIPE_MIN_TRIAL_END_OFFSET } from "@/lib/billing/freeTime";
 
+import type { RevokedReason } from "../access";
 import type {
   EntitlementFact,
   Finding,
@@ -597,13 +598,15 @@ export function liveSubscriptionWithoutEntitlement(
 /* ── 6b. a revoked entitlement beside billing that never stopped ──── */
 
 /**
- * ⚠️ THE DISPUTE CANCEL DID NOT LAND.
+ * ⚠️ ACCESS WAS REVOKED AND THE BILLING NEVER STOPPED.
  *
- * `revokeForCustomer` now cancels the Stripe subscription behind a disputed
- * charge (2.1). So a REVOKED `pro`/`stripe` entitlement sitting beside a
- * subscription Stripe is still billing is no longer an expected state — it is the
- * signal that the cancel failed, or that the subscription behind the charge could
- * not be resolved and nothing was cancelled at all.
+ * A REVOKED `pro`/`stripe` entitlement sitting beside a subscription Stripe is
+ * still billing means somebody is being charged for access they do not have.
+ * WHAT IT MEANS BEYOND THAT DEPENDS ENTIRELY ON WHY IT WAS REVOKED, and this
+ * rule used to guess. See {@link whyItWasRevoked}: on a dispute it is a failed
+ * cancel; on a refund no cancel was ever owed; on an unrecorded reason nothing
+ * may be claimed at all. The finding fires in all three cases — only the words
+ * change.
  *
  * What it costs while it goes unnoticed: we keep charging somebody whose money we
  * no longer have, they dispute the next invoice too, and the dispute FEE stacks.
@@ -625,6 +628,65 @@ export function liveSubscriptionWithoutEntitlement(
  * a comp, and reporting them would be the same over-wide read this pass just
  * removed from rule 6.
  */
+/**
+ * ⚠️ WHAT THIS FINDING MAY AND MAY NOT CLAIM, DECIDED BY THE PERSISTED REASON.
+ *
+ * ## The sentence that was false, and who it was false about
+ *
+ * Every finding of this rule ended with "a dispute cancels the subscription, so
+ * this means the cancel failed or never ran". That is true of a CHARGEBACK. It is
+ * false of a REFUND: `sync.ts`'s `stopDisputedBilling` returns immediately unless
+ * the reason is `"dispute"`, and says why — "a refund is a support action the
+ * founder performs by hand, often as goodwill ... cancelling would be deciding
+ * something nobody decided". So for a refunded account the report named a cancel
+ * that was never owed, and the remediation it implies is to cancel a subscription
+ * the founder deliberately left running.
+ *
+ * D101 persisted the reason precisely so no surface would have to guess. Three
+ * screen-side readers were migrated onto it; this rule was written beside it in
+ * the same batch and never asked. It asks now.
+ *
+ * ## ⚠️ THE FINDING IS NOT WITHHELD ON A REFUND, AND THAT IS DELIBERATE
+ *
+ * The refund shape is reported with different words rather than dropped, because
+ * TWO different things produce it and the snapshot cannot tell them apart:
+ *
+ *   · the founder refunded the CURRENT period and meant to leave the
+ *     subscription running — the designed outcome of the refund path; and
+ *   · **parked finding P1** — an EARLIER period refunded, which
+ *     `revokeForCustomer` wrongly applies to the CURRENT paid one.
+ *
+ * Both leave `is_active: false`, `revoked_reason: "refund"`, `source: "stripe"`
+ * beside a live subscription. They are byte-identical here, which is exactly why
+ * P1 is parked behind per-period accounting rather than fixed.
+ * `parkedFindings.test.ts` records this rule as **the only net that catches P1**,
+ * so silencing the refund cohort would take an accepted §9g gap from caught back
+ * to silent — measured: that test goes red.
+ *
+ * ⚠️ `"unknown"` CLAIMS THE LEAST OF ALL THREE and is never read as a dispute.
+ * It means `005` is unapplied, the row predates it, or the column could not be
+ * read. Standing rule 0: absent is not unknown, and neither is a licence to guess.
+ */
+function whyItWasRevoked(reason: RevokedReason): string[] {
+  switch (reason) {
+    case "dispute":
+      return [
+        `revoked_reason is "dispute", and a dispute CANCELS the subscription, so the cancel failed or never ran`,
+        `every further invoice they dispute stacks another dispute fee`,
+      ];
+    case "refund":
+      return [
+        `revoked_reason is "refund", and a refund deliberately does NOT cancel, so no cancel is owed here`,
+        `this is either a refund the founder meant to leave running, or parked finding P1 (an earlier period's refund revoking the current paid one); the two are indistinguishable from this snapshot`,
+      ];
+    case "unknown":
+      return [
+        `revoked_reason is not recorded (005 unapplied, the row predates it, or it could not be read)`,
+        `so NO claim is made about whether a cancel was owed; check the charge before acting`,
+      ];
+  }
+}
+
 export function revokedEntitlementBesideLiveSubscription(
   s: ReconcileSnapshot,
   ix: Index,
@@ -648,9 +710,8 @@ export function revokedEntitlementBesideLiveSubscription(
       account: { userId: user, stripeCustomerId: sub.customerId },
       evidence: [
         `subscription ${sub.id} is ${sub.status} and Stripe will invoice it on schedule`,
-        `account ${user} holds a REVOKED pro/stripe entitlement, so a dispute or refund took access away`,
-        `a dispute cancels the subscription, so this means the cancel failed or never ran`,
-        `every further invoice they dispute stacks another dispute fee`,
+        `account ${user} holds a REVOKED pro/stripe entitlement, so they are being billed with no access`,
+        ...whyItWasRevoked(revoked[0].revokedReason),
       ],
     });
   }

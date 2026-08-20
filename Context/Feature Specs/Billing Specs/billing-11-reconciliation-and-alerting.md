@@ -230,11 +230,42 @@ customer-facing state that is not a wrong charge. Driven with two accounts one r
 apart — control reported, subject silent.
 
 **⚠️ And a revoked entitlement beside a subscription Stripe is STILL BILLING is now
-its own reported rule**, `revoked-entitlement-beside-live-subscription`. Once a
-dispute cancels, that shape stops being expected and becomes the signal that the
-cancel failed or never ran. It is a NEW rule rather than a re-widening of
-`live-subscription-without-entitlement`: widening that one back would reintroduce the
-false positive this section correctly closed.
+its own reported rule**, `revoked-entitlement-beside-live-subscription`. Somebody is
+being charged for access they do not have. It is a NEW rule rather than a re-widening
+of `live-subscription-without-entitlement`: widening that one back would reintroduce
+the false positive this section correctly closed.
+
+> **⚠️ CORRECTED 20 Aug 2026. The finding used to end "a dispute cancels the
+> subscription, so this means the cancel failed or never ran" — on EVERY firing,
+> including refunds, where it is false.** A refund leaves a byte-identical row and
+> `stopDisputedBilling` deliberately does not cancel on one ("a refund is a support
+> action the founder performs by hand, often as goodwill"). So the report named a
+> cancel that was never owed on the founder's own goodwill refunds, and the
+> remediation it implies is to cancel a subscription nobody decided to cancel — which
+> is this section's own "cries wolf on a known-good state" failure, pointed at the
+> person acting on the report.
+>
+> **The evidence now comes from `revoked_reason` (D101), never from a guess:**
+>
+> | reason | what the finding may claim |
+> |---|---|
+> | `dispute` | the cancel failed or never ran, and the dispute fee stacks |
+> | `refund` | no cancel was owed; this is either a deliberate refund or parked finding **P1** |
+> | `unknown` | nothing. `005` unapplied, the row predates it, or it could not be read |
+>
+> **⚠️ THE REFUND COHORT IS RE-WORDED, NOT SILENCED, AND THAT IS DELIBERATE.** Two
+> different things produce that shape and this snapshot cannot tell them apart: a
+> refund the founder meant to leave running, and **P1** — an earlier period's refund
+> revoking the current paid one. `parkedFindings.test.ts` records this rule as the
+> ONLY net that catches P1, so withholding the refund cohort takes an accepted §9g
+> gap from caught back to silent. Measured 20 Aug 2026: that test goes red. Silencing
+> it needs the per-period accounting P1 is already parked behind, and is the same
+> decision.
+>
+> `revoked_reason` is read in its OWN query in `fetch.ts`, not folded into the
+> entitlements select. Incompleteness does not suppress findings, so one unapplied
+> migration taking down that select would make every live subscriber look
+> entitlement-less and fire `live-subscription-without-entitlement` on all of them.
 
 **A courtesy period reports as `trialing` at Stripe** while being a paid customer's
 free month. The marker is what tells them apart, which is assertion 7's other job.

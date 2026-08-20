@@ -101,6 +101,15 @@ function ent(over: Partial<EntitlementFact> = {}): EntitlementFact {
     source: "stripe",
     activeUntil: "2027-08-01T00:00:00.000Z",
     isActive: true,
+    /**
+     * ⚠️ `"unknown"` IS THE ONLY HONEST DEFAULT, and cases that mean otherwise
+     * say so. There is no reason derivable from `isActive` alone: a revoked row
+     * is a dispute OR a refund, and a fixture that picks one silently is a
+     * fixture claiming a state its own scenario may contradict — the trap
+     * `manageSummary.test.ts` records about `accessLive`. Every case below that
+     * is ABOUT a dispute or a refund now states it.
+     */
+    revokedReason: "unknown",
     ...over,
   };
 }
@@ -945,7 +954,7 @@ describe("§3.4 — a dispute deactivates our entitlement; Stripe leaves the sub
   it("CONTROL: an ACTIVE subscription with a revoked entitlement is a dispute, not a lockout", () => {
     const s = snapshot({
       subscriptions: [sub({ status: "active" })],
-      entitlements: [ent({ isActive: false })],
+      entitlements: [ent({ isActive: false, revokedReason: "dispute" })],
     });
     expect(of(s, "live-subscription-without-entitlement")).toHaveLength(0);
   });
@@ -959,12 +968,93 @@ describe("§3.4 — a dispute deactivates our entitlement; Stripe leaves the sub
   it("⚠️ the SAME state is reported by revoked-entitlement-beside-live-subscription", () => {
     const s = snapshot({
       subscriptions: [sub({ status: "active" })],
-      entitlements: [ent({ isActive: false })],
+      entitlements: [ent({ isActive: false, revokedReason: "dispute" })],
     });
     const found = of(s, "revoked-entitlement-beside-live-subscription");
     expect(found).toHaveLength(1);
     expect(found[0]?.account?.userId).toBe(USER);
     expect(found[0]?.evidence.join(" ")).toContain("the cancel failed or never ran");
+  });
+
+  /**
+   * ⚠️ THE EVIDENCE MAY ONLY CLAIM A FAILED CANCEL WHEN A DISPUTE CAUSED THE
+   * REVOCATION (D101 / Q106).
+   *
+   * Every finding of this rule used to end with "a dispute cancels the
+   * subscription, so this means the cancel failed or never ran". A REFUND leaves
+   * a byte-identical row and `stopDisputedBilling` deliberately does not cancel
+   * on one — so the report named a cancel that was never owed, on the founder's
+   * own goodwill refunds, and the remediation it implies is to cancel a
+   * subscription nobody decided to cancel. §3.4's own rule is that a check which
+   * cries wolf on a known-good state is a check that gets ignored.
+   *
+   * ⚠️ THE FINDING IS NOT WITHHELD ON A REFUND. See `whyItWasRevoked` — the same
+   * shape is also parked finding P1, and `parkedFindings.test.ts` records this
+   * rule as the only net that catches it. Only the WORDS change.
+   */
+  const evidenceFor = (reason: "dispute" | "refund" | "unknown") =>
+    of(
+      snapshot({
+        subscriptions: [sub({ status: "active" })],
+        entitlements: [ent({ isActive: false, revokedReason: reason })],
+      }),
+      "revoked-entitlement-beside-live-subscription",
+    )[0]?.evidence.join(" ") ?? "";
+
+  it("⚠️ a DISPUTE keeps the failed-cancel claim, which is true only of a dispute", () => {
+    const e = evidenceFor("dispute");
+    expect(e).toContain("the cancel failed or never ran");
+    expect(e).toContain("dispute fee");
+  });
+
+  it("⚠️ a REFUND is still REPORTED, and claims no failed cancel", () => {
+    const e = evidenceFor("refund");
+    // Reported: this is the only net that catches P1.
+    expect(e, "the refund cohort went silent — P1 is no longer caught").not.toBe("");
+    expect(
+      e,
+      "the report still tells the founder a cancel failed on a hand-issued refund",
+    ).not.toContain("the cancel failed or never ran");
+    expect(e).toContain("a refund deliberately does NOT cancel");
+    expect(e).toContain("P1");
+  });
+
+  it("⚠️ an UNKNOWN reason claims the least of the three, and is never read as a dispute", () => {
+    const e = evidenceFor("unknown");
+    expect(e).not.toBe("");
+    expect(e).not.toContain("the cancel failed or never ran");
+    expect(e).toContain("NO claim is made");
+  });
+
+  /**
+   * ⚠️ THE DEFECT, STATED AS A PROPERTY RATHER THAN AS THREE STRING CHECKS.
+   *
+   * The word "dispute" may appear in this finding's evidence ONLY when a dispute
+   * is what revoked the row. That is the whole fix in one assertion, and it fails
+   * for any future wording that reintroduces the guess.
+   */
+  it("⚠️ the word 'dispute' appears in the evidence ONLY when the reason IS a dispute", () => {
+    expect(/dispute/i.test(evidenceFor("dispute"))).toBe(true);
+    expect(
+      /dispute/i.test(evidenceFor("refund")),
+      "a refunded account is described to the founder as a dispute",
+    ).toBe(false);
+    expect(
+      /dispute/i.test(evidenceFor("unknown")),
+      "an unrecorded reason is described to the founder as a dispute",
+    ).toBe(false);
+  });
+
+  it("⚠️ CONTROL: the three reasons produce three DIFFERENT evidence sets", () => {
+    // Without this, a switch that fell through to one branch would satisfy every
+    // assertion above that only checks for an absence.
+    const [d, r, u] = ["dispute", "refund", "unknown"].map((x) =>
+      evidenceFor(x as "dispute" | "refund" | "unknown"),
+    );
+    expect(new Set([d, r, u]).size, "two reasons render identical evidence").toBe(3);
+    expect(d.length).toBeGreaterThan(40);
+    expect(r.length).toBeGreaterThan(40);
+    expect(u.length).toBeGreaterThan(40);
   });
 
   it("⚠️ CONTROL: a cancelled subscription beside a revoked row is the SETTLED state, silent", () => {
@@ -973,7 +1063,7 @@ describe("§3.4 — a dispute deactivates our entitlement; Stripe leaves the sub
     // failure §3.4 warns gets the whole report ignored.
     const s = snapshot({
       subscriptions: [sub({ status: "canceled" })],
-      entitlements: [ent({ isActive: false })],
+      entitlements: [ent({ isActive: false, revokedReason: "dispute" })],
     });
     expect(of(s, "revoked-entitlement-beside-live-subscription")).toHaveLength(0);
   });
@@ -1024,7 +1114,7 @@ describe("§3.4 — a dispute deactivates our entitlement; Stripe leaves the sub
     // The narrowing must not have deleted the exemption it was narrowing.
     const s = snapshot({
       subscriptions: [sub({ status: "active" })],
-      entitlements: [ent({ source: "stripe", isActive: false })],
+      entitlements: [ent({ source: "stripe", isActive: false, revokedReason: "dispute" })],
     });
     expect(of(s, "live-subscription-without-entitlement")).toHaveLength(0);
   });
