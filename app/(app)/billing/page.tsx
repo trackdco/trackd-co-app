@@ -75,6 +75,7 @@ export default async function BillingPage() {
      * sentence reads the same resolved value.
      */
     courtesyRunningUntil,
+    openOffer,
   } = await loadBillingFacts(user.id);
 
   return (
@@ -407,6 +408,15 @@ export default async function BillingPage() {
                * decide which Stripe call happens.
                */
               endsImmediately={Boolean(subscription && STOPPABLE_NOW.has(subscription.status))}
+              /**
+               * ⚠️ AN OFFER SHOWN, NOT CLAIMED, AND STILL INSIDE ITS TEN MINUTES
+               * (Group E). Resolved server-side from Stripe's own marker, so a
+               * session that ended at that dialog — a closed tab, a dead phone —
+               * gets the offer back rather than a bare Resume control with the
+               * free week already spent. Same marker, same instant, same window:
+               * the countdown carries on rather than restarting.
+               */
+              serverOffer={openOffer}
             />
             {/**
               * ⚠️ AND IT NEEDS THE ENTITLEMENT READ TO HAVE WORKED (1.5).

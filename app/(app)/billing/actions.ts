@@ -23,8 +23,8 @@ import {
 import { originFromHost } from "@/lib/billing/originAllowlist";
 import {
   EXTRA_TRIAL_DAYS,
-  addOffer,
   offerPeriodToGrant,
+  offerWindowFor,
   grantExtraTime,
   markOfferShown,
   periodIsUnpaid,
@@ -447,24 +447,22 @@ async function offerAfterCancel(
      * date somebody reads before deciding is the date they are actually charged
      * rather than a second calculation that can drift from the first.
      */
-    const noun = offerPeriodToGrant(primary);
-    const from =
-      primary.status === "trialing"
-        ? (primary.trial_end ?? Math.floor(Date.now() / 1000))
-        : (primary.items.data[0]?.current_period_end ?? Math.floor(Date.now() / 1000));
-    // Formatted in the user's OWN stored zone, here on the server, so the date
-    // they read before deciding is the same day every other surface names.
-    const tz = await ownTimezone(userId);
-    const chargeOn = formatAccessDate(
-      new Date(addOffer(from, noun) * 1000).toISOString(),
-      tz,
-    );
     /**
-     * ⚠️ THE START OF THE FREE TIME (F2), FROM THE SAME INSTANT `addOffer`
-     * MEASURES FROM. Not a second computation — the identical `from` — so the
-     * window the dialog prints cannot disagree with the period the grant creates.
+     * ⚠️ THE WINDOW IS COMPUTED BY THE SHARED HELPER, NOT HERE (Group E).
+     *
+     * `openOffer.ts` restores this same dialog after a session ends, and it has to
+     * name the same two dates. Two copies of this arithmetic is two answers
+     * waiting to disagree on the highest-risk screen in the product — the measured
+     * cost of that shape is already on the record, where three consecutive screens
+     * named three different days for one charge.
+     *
+     * Formatted in the user's OWN stored zone, on the server, so the date they
+     * read before deciding is the same day every other surface names.
      */
-    const startsOn = formatAccessDate(new Date(from * 1000).toISOString(), tz);
+    const window = offerWindowFor(primary, await ownTimezone(userId));
+    const noun = window?.noun ?? offerPeriodToGrant(primary);
+    const chargeOn = window?.chargeOn ?? "";
+    const startsOn = window?.startsOn ?? "";
     /**
      * ⚠️ NO DATE, NO OFFER. (§3.2.)
      *

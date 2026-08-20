@@ -2,8 +2,9 @@ import "server-only";
 
 import type Stripe from "stripe";
 
-import type { SaveOfferKind } from "./manage";
+import { CANCELLABLE_STATUSES, formatAccessDate, type SaveOfferKind } from "./manage";
 import { stripe } from "./stripe";
+import { listAllSubscriptions } from "./subscriptionList";
 
 /**
  * THE SAVE OFFER — extra time, once ever, offered AFTER the cancellation has
@@ -36,8 +37,8 @@ import { stripe } from "./stripe";
  *
  * ## Two keys, and they mean different things
  *
- * `SHOWN_KEY` is written when the offer is PRESENTED. `CLAIMED_KEY` is written
- * when it is taken. Availability is decided by `SHOWN_KEY` alone, so **a second
+ * `OFFER_SHOWN_KEY` is written when the offer is PRESENTED. `OFFER_CLAIMED_KEY` is written
+ * when it is taken. Availability is decided by `OFFER_SHOWN_KEY` alone, so **a second
  * cancellation goes straight through with no offer** even if the first one was
  * declined (Adrian, 2026-08-13).
  *
@@ -46,7 +47,7 @@ import { stripe } from "./stripe";
  * describe, and somebody who declined once and changed their mind is a support
  * email rather than a reason to interrupt every future cancellation.
  *
- * `CLAIMED_KEY` is kept anyway, because "did this account ever actually get the
+ * `OFFER_CLAIMED_KEY` is kept anyway, because "did this account ever actually get the
  * week?" is a question support will be asked and a shown-but-declined flag
  * cannot answer.
  */
@@ -68,10 +69,16 @@ export const EXTRA_TRIAL_DAYS = 7;
  */
 export const OFFER_WINDOW_MINUTES = 10;
 
-/** Written when the offer is put on screen. Decides availability AND starts the clock. */
-const SHOWN_KEY = "trackd_save_offer_shown_at";
+/**
+ * Written when the offer is put on screen. Decides availability AND starts the clock.
+ *
+ * ⚠️ EXPORTED FOR THE RESTORE PATH (`openOffer.ts`), which has to read the same
+ * two keys this module writes. A second copy of either string is a marker nobody
+ * can find and an offer nobody can burn.
+ */
+export const OFFER_SHOWN_KEY = "trackd_save_offer_shown_at";
 /** Written when it is taken. For support, not for the decision. */
-const CLAIMED_KEY = "trackd_save_offer_claimed_at";
+export const OFFER_CLAIMED_KEY = "trackd_save_offer_claimed_at";
 /**
  * Written on the SUBSCRIPTION when a courtesy extension is granted.
  *
@@ -177,7 +184,7 @@ export async function readSaveOffer(
   try {
     const customer = await stripe().customers.retrieve(customerId);
     if (customer.deleted) return { available: false, kind: null };
-    const shown = customer.metadata?.[SHOWN_KEY];
+    const shown = customer.metadata?.[OFFER_SHOWN_KEY];
     return { available: !shown, kind: shown ? null : kind };
   } catch (err) {
     console.error(
@@ -213,7 +220,7 @@ export async function markOfferShown(customerId: string, shownAt: string): Promi
      * and the sentence is simply true.
      */
     await stripe().customers.update(customerId, {
-      metadata: { [SHOWN_KEY]: shownAt },
+      metadata: { [OFFER_SHOWN_KEY]: shownAt },
     });
   } catch (err) {
     console.error(
@@ -304,13 +311,107 @@ export function addOffer(fromSeconds: number, noun: "week" | "month"): number {
 }
 
 /**
+ * ⚠️ THE OFFER'S WINDOW AND ITS TWO DATES, COMPUTED ONCE.
+ *
+ * Both the cancellation that FIRST shows the offer and the reload that RESTORES
+ * it (see `openOffer.ts`) need the same three values, and a second copy of this
+ * arithmetic is a second answer waiting to disagree with the first on the highest
+ * risk screen in the product. The measured cost of two clocks answering one
+ * question is already on the record: with the profile in Pacific/Kiritimati and
+ * the phone in America/Los_Angeles, three consecutive screens named three
+ * different days for one charge.
+ *
+ * `from` is the CURRENT END OF ACCESS, never `now`: somebody who cancels on day 1
+ * of a 7-day trial is given a fourteen-day trial rather than being sent back to
+ * day 8, and computing from today would SHORTEN the access of anybody who
+ * cancelled early — a punishment dressed as a gift. It is the same value
+ * {@link addOffer} measures from inside `extendAccess`, which is what makes
+ * `startsOn` free rather than a new computation.
+ *
+ * Null when either end cannot be formatted. §3.2's rule, now applied to BOTH ends
+ * because F2's copy names a WINDOW: a line with a hole in it must not render, and
+ * the caller refuses the offer entirely rather than showing one.
+ */
+export interface OfferWindow {
+  noun: "week" | "month";
+  /** The instant the free time starts, in Stripe's whole seconds. */
+  fromSeconds: number;
+  /** The day money moves, formatted in the user's stored timezone. */
+  chargeOn: string;
+  /** The day the free time starts, same formatter, same zone (F2). */
+  startsOn: string;
+}
+
+export function offerWindowFor(
+  subscription: Stripe.Subscription,
+  tz: string,
+): OfferWindow | null {
+  const noun = offerPeriodToGrant(subscription);
+  const fromSeconds =
+    subscription.status === "trialing"
+      ? (subscription.trial_end ?? nowSeconds())
+      : (subscription.items.data[0]?.current_period_end ?? nowSeconds());
+
+  const chargeOn = formatAccessDate(
+    new Date(addOffer(fromSeconds, noun) * 1000).toISOString(),
+    tz,
+  );
+  const startsOn = formatAccessDate(new Date(fromSeconds * 1000).toISOString(), tz);
+  if (!chargeOn || !startsOn) return null;
+  return { noun, fromSeconds, chargeOn, startsOn };
+}
+
+/**
+ * ⚠️ THE SUBSCRIPTION THE OFFER IS ABOUT: the one ending SOONEST.
+ *
+ * Same ordering as `/billing` and the reminder runner, so all three describe the
+ * same subscription. Since `startTrial`'s lease and the reconcile there should
+ * only ever be one, and more than one is logged as the anomaly it now is.
+ *
+ * ⚠️ PAGED, AND THE SET IS NAMED. This decides which subscription the offer's
+ * CHARGE DATE is anchored to on the highest-risk screen in the product: a
+ * truncated list picks the wrong one, and a literal status list goes stale
+ * silently the next time the set moves.
+ *
+ * Moved here from `app/(app)/billing/actions.ts` — unchanged, comment for comment
+ * — because the restore path needs the identical row and a `"use server"` module
+ * cannot export a non-async helper for it to share.
+ */
+export async function primaryOfferSubscription(
+  customerId: string,
+): Promise<Stripe.Subscription | null> {
+  const all = await listAllSubscriptions(stripe(), customerId, {
+    // `periodIsUnpaid` asks whether the CURRENT period's invoice was actually
+    // paid, which the status alone cannot answer for an `active` subscription
+    // sitting on an open invoice.
+    expand: ["data.latest_invoice"],
+  });
+  const live = all.filter((s) => CANCELLABLE_STATUSES.has(s.status));
+  if (live.length > 1) {
+    console.error(
+      `[billing] ${customerId} still holds ${live.length} live subscriptions; the save offer will act on the soonest-ending one`,
+    );
+  }
+  return [...live].sort((a, b) => offerEndSeconds(a) - offerEndSeconds(b))[0] ?? null;
+}
+
+/** When a subscription's access runs out, for the ordering above. */
+function offerEndSeconds(sub: Stripe.Subscription): number {
+  return (
+    (sub.status === "trialing" ? sub.trial_end : sub.items.data[0]?.current_period_end) ??
+    sub.items.data[0]?.current_period_end ??
+    Number.MAX_SAFE_INTEGER
+  );
+}
+
+/**
  * Is the offer still inside its ten minutes?
  *
  * ⚠️ An UNPARSEABLE stamp is treated as still open, which is the opposite of
  * this file's usual "err towards not offering". The difference is which mistake
  * is ours: only our own server ever writes this value, so a value that will not
  * parse is a bug of ours, and refusing a week we have just promised on screen is
- * a worse outcome than granting one. `CLAIMED_KEY` still makes it unrepeatable.
+ * a worse outcome than granting one. `OFFER_CLAIMED_KEY` still makes it unrepeatable.
  */
 export function offerStillOpen(shownAt: string | undefined, now: number = Date.now()): boolean {
   if (!shownAt) return false;
@@ -363,14 +464,14 @@ export async function grantExtraTime(
     return { ok: false, reason: "failed" };
   }
 
-  if (customer.metadata?.[CLAIMED_KEY]) return { ok: false, reason: "already-claimed" };
+  if (customer.metadata?.[OFFER_CLAIMED_KEY]) return { ok: false, reason: "already-claimed" };
   /**
    * The offer has to have been OFFERED. Without this, `claimExtraTime` is a
    * public endpoint that hands out a free week to anybody who calls it — a
    * server action is an HTTP endpoint, and "the dialog only appears when the
    * offer is available" is a statement about the screen, not about the action.
    */
-  const shownAt = customer.metadata?.[SHOWN_KEY];
+  const shownAt = customer.metadata?.[OFFER_SHOWN_KEY];
   if (!shownAt) return { ok: false, reason: "not-offered" };
 
   /**
@@ -386,7 +487,7 @@ export async function grantExtraTime(
   /**
    * ⚠️ AND THEY HAVE TO STILL BE CANCELLED.
    *
-   * A cold review found two ways round the flags alone, because `SHOWN_KEY` is
+   * A cold review found two ways round the flags alone, because `OFFER_SHOWN_KEY` is
    * customer-scoped and permanent while the subscription underneath it is not:
    *
    *   (a) cancel, take the un-cancel ("Keep Trackd after 19 Aug"), THEN claim.
@@ -396,7 +497,7 @@ export async function grantExtraTime(
    *
    * Both were driven: "trial moved by 7 days; cancel_at_period_end = false".
    *
-   * Neither is a way to get TWO weeks — `CLAIMED_KEY` still holds — so this is a
+   * Neither is a way to get TWO weeks — `OFFER_CLAIMED_KEY` still holds — so this is a
    * retention offer being spent by somebody who was not leaving rather than a
    * grant that repeats. It is still wrong: the offer exists to catch a person on
    * their way out, and the sentence on the dialog says "your trial is cancelled,
@@ -425,7 +526,7 @@ export async function grantExtraTime(
      * subscription itself.
      */
     await client.customers.update(customerId, {
-      metadata: { [CLAIMED_KEY]: new Date().toISOString() },
+      metadata: { [OFFER_CLAIMED_KEY]: new Date().toISOString() },
     });
 
     const endsOn = endOfAccess(updated);

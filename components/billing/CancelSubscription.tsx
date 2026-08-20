@@ -159,6 +159,7 @@ export function CancelSubscription({
   compForever = false,
   remindersPromised = false,
   endsImmediately = false,
+  serverOffer = null,
 }: {
   mode: "cancel" | "resume";
   /** Already formatted in the user's own timezone by the server. */
@@ -197,6 +198,28 @@ export function CancelSubscription({
    * row's status, because the client must not decide which Stripe call happens.
    */
   endsImmediately?: boolean;
+  /**
+   * ⚠️ AN OFFER THAT WAS SHOWN, NOT CLAIMED, AND IS STILL LIVE — FROM THE SERVER
+   * (Group E).
+   *
+   * `openOfferStore` remembers a DISMISSED offer in `sessionStorage`, which dies
+   * with the tab. Somebody whose phone died at that dialog came back to a bare
+   * Resume control with their free week already spent, never having seen it.
+   *
+   * This is the same offer, not a new one: `shownAt` is the ORIGINAL server
+   * instant, so the countdown carries on from when it was first put on screen and
+   * nobody buys a longer window by reloading. It grants nothing — `grantExtraTime`
+   * re-checks the window, the claim marker and the cancellation against Stripe.
+   *
+   * Resolved in `screenFacts` and null for everybody else.
+   */
+  serverOffer?: {
+    kind: "trial" | "paid";
+    shownAt: string;
+    noun: "week" | "month";
+    chargeOn: string;
+    startsOn: string;
+  } | null;
 }) {
   const [phase, setPhase] = useState<Phase>("closed");
   const [error, setError] = useState<string | null>(null);
@@ -244,9 +267,26 @@ export function CancelSubscription({
    * navigation away and back, not just a stray tap on the backdrop. It grants
    * nothing: the server re-checks the window against Stripe's own stamp.
    */
-  const [carried, setCarried] = useState<OpenOffer | null>(() =>
-    typeof window === "undefined" ? null : readOffer(),
-  );
+  const [carried, setCarried] = useState<OpenOffer | null>(() => {
+    if (typeof window === "undefined") return null;
+    const stored = readOffer();
+    /**
+     * ⚠️ THE TAB'S OWN MEMORY WINS, AND THE SERVER'S IS THE FALLBACK (Group E).
+     *
+     * `sessionStorage` is the live session and is written the instant the offer
+     * appears, so within one tab it is never behind. The server's copy is for the
+     * tab that no longer exists. Both carry the SAME `shownAt`, read from the same
+     * Stripe marker, so neither can restart the countdown — this ordering is about
+     * freshness, not about which clock wins.
+     *
+     * Seeded here rather than in an effect, for the reason this file already gives
+     * about `staying`: an effect would re-run on every revalidation and re-open a
+     * way back into an offer the user had just declined.
+     */
+    if (stored) return stored;
+    if (!serverOffer) return null;
+    return { userId, ...serverOffer };
+  });
   /**
    * ⚠️ NOTHING FROM STORAGE RENDERS UNTIL AFTER MOUNT.
    *

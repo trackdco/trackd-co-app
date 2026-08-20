@@ -62,8 +62,17 @@ describe("the free-period markers are pinned to the code that writes them", () =
     const writer = source("lib/billing/saveOffer.ts");
     expect(SHOWN_KEY).toBe("trackd_save_offer_shown_at");
     expect(CLAIMED_KEY).toBe("trackd_save_offer_claimed_at");
-    expect(writer).toContain(`const SHOWN_KEY = "${SHOWN_KEY}"`);
-    expect(writer).toContain(`const CLAIMED_KEY = "${CLAIMED_KEY}"`);
+    /**
+     * ⚠️ THE DECLARATION FORM IS PART OF THE PIN, AND IT CAUGHT A RESTRUCTURE.
+     *
+     * Group E exported both keys so the restore path (`openOffer.ts`) could read
+     * the same two strings the writer writes. The first attempt kept the old
+     * private names as aliases — two names for one key — and this assertion went
+     * red, which is exactly what it is for. The aliases were removed rather than
+     * the test loosened.
+     */
+    expect(writer).toContain(`export const OFFER_SHOWN_KEY = "${SHOWN_KEY}"`);
+    expect(writer).toContain(`export const OFFER_CLAIMED_KEY = "${CLAIMED_KEY}"`);
   });
 
   /**
@@ -77,7 +86,7 @@ describe("the free-period markers are pinned to the code that writes them", () =
    */
   it("the claim instant is on the customer and the courtesy end on the subscription", () => {
     const writer = source("lib/billing/saveOffer.ts");
-    expect(writer).toMatch(/customers\.update\([\s\S]{0,200}\[CLAIMED_KEY\]/);
+    expect(writer).toMatch(/customers\.update\([\s\S]{0,200}\[OFFER_CLAIMED_KEY\]/);
     expect(writer).toMatch(/subscriptions\.update\([\s\S]{0,400}\[COURTESY_KEY\]/);
   });
 });

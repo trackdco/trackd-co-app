@@ -15,6 +15,7 @@ import {
   type ManageableSubscription,
   type PlanEntitlement,
 } from "@/lib/billing/manage";
+import { openOfferFor, type RestorableOffer } from "@/lib/billing/openOffer";
 import { loadPricesSafe } from "@/lib/billing/prices";
 import { createClient } from "@/lib/supabase/server";
 
@@ -93,6 +94,21 @@ export interface BillingFacts {
    * 2026" beside "Renews on 17 Aug 2026" on one card.
    */
   courtesyRunningUntil: string | null;
+  /**
+   * ⚠️ A SAVE OFFER THAT WAS SHOWN, NOT CLAIMED, AND IS STILL INSIDE ITS TEN
+   * MINUTES (Group E).
+   *
+   * The offer burns on being SHOWN, and `openOfferStore` remembers a dismissed one
+   * in `sessionStorage` — which dies with the tab. So somebody whose phone died at
+   * that dialog came back to a bare Resume control with their free week already
+   * spent, never having seen it. Closing a tab is ordinary behaviour, not an edge
+   * case.
+   *
+   * Null for everybody else, and null is the overwhelming majority: see the
+   * gating at the call site, which is what stops this being a Stripe read on every
+   * billing page load.
+   */
+  openOffer: RestorableOffer | null;
   hasStripeCustomer: boolean;
   price: { amount: number; currency: string; interval: string } | undefined;
   planStartsOn: string | null;
@@ -356,6 +372,30 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
       ? await declinedOnFor(customer.stripe_customer_id as string)
       : null;
 
+  /**
+   * ⚠️ THE SECOND STRIPE READ ON THIS PAGE, AND IT IS AS NARROW AS THE FIRST.
+   *
+   * Gated on `resume`, which means this account HAS a subscription flagged to
+   * cancel — the only state a save offer can have been shown in, because
+   * `offerAfterCancel` runs immediately after the cancel is written. Every other
+   * visitor to `/billing` makes no network call for this.
+   *
+   * ⚠️ THE MIRROR-LAG WINDOW IS DELIBERATELY NOT COVERED, and it costs nothing.
+   * For a few seconds after a cancellation the mirror can still read
+   * `cancel_at_period_end: false`, so the action is `cancel` and this does not
+   * run. In that window the TAB IS STILL ALIVE and `openOfferStore` has the offer
+   * in `sessionStorage`, which is the mechanism that already works. This one is
+   * for the tab being GONE, which is minutes later and long past the lag.
+   *
+   * Tolerant: `openOfferFor` returns null on any failure rather than throwing,
+   * because a retention offer must never be able to take down the screen somebody
+   * opened to find out what they are paying.
+   */
+  const openOffer =
+    action.kind === "resume" && customer?.stripe_customer_id
+      ? await openOfferFor(customer.stripe_customer_id as string, tz)
+      : null;
+
   // The plan's name and amount, matched by price id. `loadPricesSafe` returns an
   // empty list when Stripe is unconfigured (which is production today), so every
   // consumer below is written to render nothing rather than a blank number.
@@ -410,6 +450,7 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
     accessRevokedReason: access.known ? access.revokedReason : "unknown",
     declinedOn,
     courtesyRunningUntil: courtesyIsRunning(courtesyUntil) ? courtesyUntil : null,
+    openOffer,
     hasStripeCustomer,
     price,
     planStartsOn,
