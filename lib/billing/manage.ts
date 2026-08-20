@@ -626,6 +626,37 @@ function renewsOnPeriodEnd(status: string): boolean {
  * permission to promise one. Unreachable in practice — both values are
  * `timestamptz` columns — and stated rather than left to inference.
  */
+/**
+ * ⚠️ "Renews on" OR "Ends on" — THE VERB `/billing` PRINTS ABOVE THE DATE (08).
+ *
+ * ## Why it is here and not in the page
+ *
+ * It was one ternary inside `app/(app)/billing/page.tsx`, which the committed
+ * suite cannot reach — `vitest.config.ts` includes `lib/**` tests and nothing
+ * else. So the decision this file spent four separate fixes getting right had its
+ * FINAL STEP, the two words a user actually reads, sitting outside every pin.
+ * This file's own opening rule applies: a rule buried where nobody can check it
+ * is a rule nobody can check.
+ *
+ * ## ⚠️ "Renews on" IS A CLAIM ABOUT WHAT HAPPENS NEXT AND IT HAS TO BE TRUE
+ *
+ * Four measured false claims stand behind the predicate it reads — a `past_due`
+ * account promised a renewal three days after its access died, a `paused` one
+ * promised a renewal that was never going to happen, and a yearly whose
+ * entitlement had been clawed back. {@link manageActionFor} answers the question;
+ * this only chooses the words, and it chooses "Ends on" whenever anything at all
+ * says the date is not a renewal.
+ *
+ * A scheduled cancellation (`resume`) always reads "Ends on": the whole point of
+ * that screen is that nothing renews.
+ */
+export function periodEndLabelFor(
+  action: ReturnType<typeof manageActionFor>,
+): "Renews on" | "Ends on" | null {
+  if (action.kind !== "cancel" && action.kind !== "resume") return null;
+  return action.kind === "resume" || action.accessEndsEarly ? "Ends on" : "Renews on";
+}
+
 export function endsBefore(a: string, b: string): boolean {
   const at = Date.parse(a);
   const bt = Date.parse(b);

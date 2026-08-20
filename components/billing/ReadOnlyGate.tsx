@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { READ_ONLY_POPUP } from "@/lib/billing/readOnlyCopy";
 import { subscribeReadOnlyRefused } from "@/lib/home/syncStatus";
 
 /**
@@ -321,7 +322,7 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
             line, it never rewords one. No em dash. "Read only" is the exact
             phrase; never "paused", "expired" or "locked". */}
         <h2 id="readonly-title" className="text-base font-medium text-foreground">
-          Your account is read only
+          {READ_ONLY_POPUP.title}
         </h2>
         {/* ⚠️ THE STATE LEADS, AND THE ORDERING IS THE DECISION. The built version
             led with reassurance, which is defensible and is not what was signed
@@ -351,14 +352,18 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
 
             What is signed is a statement about NOW, true of all six: never had
             access, lapsed grace, lapsed trial, lapsed subscription, revoked, and
-            past-due after the lapse. */}
+            past-due after the lapse.
+
+            ⚠️ THE WORDS NOW LIVE IN `lib/billing/readOnlyCopy.ts` AND ARE PINNED
+            BY CODEPOINT against `lib/billing/signed/read-only-popup.txt`. They
+            moved because this file is unreachable from the committed suite, so
+            reverting the clause below used to leave all 1573 tests green. Do not
+            inline them back. */}
         <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-          You don&apos;t have access at the moment, so Trackd Co is read only. You
-          can still view everything you&apos;ve logged, you just can&apos;t add to
-          it.
+          {READ_ONLY_POPUP.body}
         </p>
         <p className="mt-2 text-sm leading-relaxed text-text-muted">
-          Nothing has been deleted.
+          {READ_ONLY_POPUP.reassurance}
         </p>
 
         <div className="mt-5 flex gap-3">
@@ -367,7 +372,7 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
             onClick={onClose}
             className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Back to my logs
+            {READ_ONLY_POPUP.dismiss}
           </button>
           <button
             type="button"
@@ -375,7 +380,7 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
             onClick={choosePlan}
             className="flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
-            {leaving ? "Opening…" : "Choose a plan"}
+            {leaving ? "Opening…" : READ_ONLY_POPUP.action}
           </button>
         </div>
       </div>

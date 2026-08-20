@@ -13,6 +13,7 @@ import {
   isGraceAligned,
   isPastDue,
   manageActionFor,
+  periodEndLabelFor,
   planLabelFor,
   type PlanEntitlement,
 } from "@/lib/billing/manage";
@@ -593,8 +594,15 @@ function renewalRow(
    * whose access dies on the 26th and whose next Stripe attempt is the 29th.
    * Nothing renews on that date, so the row says what the date actually is.
    */
-  const label =
-    action.kind === "resume" || action.accessEndsEarly ? "Ends on" : "Renews on";
+  /**
+   * ⚠️ THE VERB IS CHOSEN IN `lib/billing/manage.ts`, NOT HERE, so the committed
+   * suite can pin it — this file is outside `vitest.config.ts`'s include, and a
+   * ternary here meant the two words a user reads had no machine check at all.
+   * `null` is unreachable at this point (both early returns above already
+   * excluded every other kind) and is handled rather than asserted away.
+   */
+  const label = periodEndLabelFor(action);
+  if (!label) return null;
   return (
     <>
       <Divider />

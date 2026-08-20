@@ -218,9 +218,31 @@ The approved pop-up, shown when a lapsed account tries to add anything:
 
 > Your account is read only
 
-> You're not on a plan at the moment, so Trackd Co is read only. You can still view everything you've logged, you just can't add to it.
+> You don't have access at the moment, so Trackd Co is read only. You can still view everything you've logged, you just can't add to it.
 
 > Nothing has been deleted.
+
+> **⚠️ THE FIRST CLAUSE WAS RE-SIGNED 18 Aug 2026 (D98), AND THIS LINE CARRIES THE
+> CORRECTED TEXT.** The originally approved opening — "You're not on a plan at the
+> moment" — is **false for a past-due customer**, who IS on a plan Stripe is still
+> charging, two taps from a screen reading "Renews on" and offering Cancel.
+>
+> A first reworking, "Your access has ended", was wrong in the OTHER direction: it is
+> a statement about HISTORY and false for anyone who never had access, which after the
+> 17 Aug backfill is every new sign-up. What is signed is a statement about **now**,
+> true of all six cohorts: never had access, lapsed grace, lapsed trial, lapsed
+> subscription, revoked, and past-due after the lapse.
+>
+> **The answer was to reword so one body fits, NOT to branch.** If a second variant
+> ever seems necessary, that is the signal to stop and ask.
+>
+> ⚠️ **Since 20 Aug 2026 these five strings live in `lib/billing/readOnlyCopy.ts` and
+> are pinned codepoint-for-codepoint against `lib/billing/signed/read-only-popup.txt`
+> by `signedCopyPin.test.ts`.** They were JSX text in `components/`, which the
+> committed suite cannot reach — a cold review reverted this clause to the wording
+> above and watched all 1573 tests pass. Editing the copy here means editing the
+> signed file too, or the suite fails. See `lib/billing/signed/README.md` for the
+> standing rule on which signed strings get a machine check.
 
 Buttons:
 
