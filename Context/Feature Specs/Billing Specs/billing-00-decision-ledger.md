@@ -175,6 +175,56 @@ as a dependency.
 | D108 | The save offer's gift block and granted screen name a WINDOW, `{start} to {end}` | 04 | Resolved — the month form had never been rendered; "until {end}" described SEVEN months as one |
 | D109 | The save offer is RESTORED to a session that ended at the dialog, inside its own ten minutes | 04 | Resolved — same marker, same instant, no new grant |
 
+## ⚠️ THE FLOOR ASKS THE WRONG QUESTION — RECORDED, DELIBERATELY NOT FIXED (20 Aug 2026)
+
+**Founder's ruling: do NOT change the floor's status set in this round.** Recorded here
+with the mechanism, the measurement and the door that stays open.
+
+### The mechanism
+
+`otherLiveEntitlementFloor` (`lib/billing/sync.ts`) skips any sibling subscription whose
+status is not in `ENTITLING`, and `ENTITLING` is `{trialing, active}`. So a `past_due`
+sibling **raises no floor at all** — and the guard that exists to stop one subscription
+clawing back another's paid access is switched off exactly when the surviving
+subscription is itself in trouble.
+
+**It is the third instance of one pattern**, and that is why it is worth a heading
+rather than a line. The floor asks *"is this subscription ENTITLING?"* when the question
+it needs answered is *"what has this subscription PAID FOR?"*:
+
+| | asked | needed |
+|---|---|---|
+| `accessEndsEarly` | one flag, two jobs | two questions, two answers (fixed 1.4) |
+| `offerPeriodToGrant` | one short-circuit, two questions | "what to GRANT" vs "what IS this period" (renamed, and it still hid F2 for a round) |
+| `otherLiveEntitlementFloor` | "is it entitling?" | **"what has it paid for?"** |
+
+### The correct fix, stated so it is not re-derived
+
+**A `past_due` sibling with a future paid-through raises a floor AT that date, while
+`past_due` stays OUT of `ENTITLING`.** Those are two different questions about one
+status and they must keep two different answers: `past_due`'s exclusion from `ENTITLING`
+is what stopped the measured **+58 unpaid days**, and any fix that widens `ENTITLING`
+itself reopens that family.
+
+### Why not this round
+
+It changes clawback semantics, and the narrowing was expected to close the measured
+door more cheaply. ⚠️ **The narrowing then failed its own confirmation** (see Q107), so
+**neither fix has landed and the door is still open.**
+
+### The door that stays open, stated exactly
+
+**Two live subscriptions BOTH `past_due`, plus a third that is dead with an outstanding
+invoice.** Measured at **5.00 days** taken off paid access
+(`scratchpad/final/drive-G-crosssub.mjs`, `FINDING-G.md`); the lifetime run saw **371
+days** once on a yearly.
+
+That state is **already the anomaly** the one-subscription invariant exists to prevent —
+`startTrial`'s lease and the reconcile both guarantee a user has at most one live
+subscription, and `screenFacts` logs it loudly when there is more than one. So the door
+is real, it is bounded to an account that should not exist, and it is visible when it
+does.
+
 **Also open, unnumbered:**
 
 - The read-only pop-up's copy set, raised three times: it is neither the brief's
@@ -233,7 +283,7 @@ as a dependency.
 | Q103 | Whether the mirror can record a pending plan change | 15 | **OPEN.** New |
 | Q104 | Where the Google sign-in screen's name comes from | 17 | **OPEN.** New |
 | Q105 | How a partial refund appears on the invoice object | 19 | **OPEN.** New |
-| Q107 | Should the entitlement FLOOR count a `past_due` sibling, and should a CANCELLED subscription's failed invoice be able to move the shared row at all? | 05, seam to 11 | **OPEN. ⚠️ REPRODUCED, MEASURED, NOT FIXED.** A cancelled subscription clawed **5.00 days** off access paid for on a live one. `otherLiveEntitlementFloor` skips anything outside `ENTITLING` = `{trialing, active}`, so a past-due sibling raises no floor. Any fix must reach the FLOOR without reaching the EXTENDER — `past_due`'s exclusion from `ENTITLING` is what stopped the measured +58 unpaid days. See `scratchpad/final/FINDING-G.md` and `drive-G-crosssub.mjs`. |
+| Q107 | Should the entitlement FLOOR count a `past_due` sibling, and should a CANCELLED subscription's failed invoice be able to move the shared row at all? | 05, seam to 11 | **OPEN, AND BOTH HALVES ARE NOW ANSWERED "NOT LIKE THAT". ⚠️ 20 Aug: the founder ruled the NARROWING (a dead subscription's failed invoice moves nothing) and required a confirmation first — is `markPastDue` ever the ONLY shortener after a cancellation? **IT IS, AND IT IS MEASURED** (`drive-Q107-order.mjs`): `endSubscription` left **7.00 unpaid days** standing and `markPastDue` was the only thing that took them back. `endSubscription` is a LENGTHENING GUARD, not a clawback — its `until` is `items[0].current_period_end`, the same field `syncSubscription` already wrote into `active_until` at the cycle roll, so `Math.min` finds them equal and it declines to write. Cost of narrowing: weekly +4.00d, monthly +25–28d, yearly **+362d** — but one-shot and self-terminating. Cost of not narrowing: 5.00d of PAID access taken back, 371d seen once. ⚠️ If re-issued the ruling must key on STATUS, never on `cancel_at_period_end` — `past_due` is in `CANCELLABLE_STATUSES`, so the ordinary Cancel button would qualify. See `scratchpad/final/FINDING-Q107.md`. **The floor's own fix is ledgered separately below.** ORIGINAL FINDING: REPRODUCED, MEASURED, NOT FIXED. A cancelled subscription clawed **5.00 days** off access paid for on a live one. `otherLiveEntitlementFloor` skips anything outside `ENTITLING` = `{trialing, active}`, so a past-due sibling raises no floor. Any fix must reach the FLOOR without reaching the EXTENDER — `past_due`'s exclusion from `ENTITLING` is what stopped the measured +58 unpaid days. See `scratchpad/final/FINDING-G.md` and `drive-G-crosssub.mjs`. |
 
 ---
 
