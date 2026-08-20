@@ -237,6 +237,19 @@ ask.** Do not shrink a fact out of legibility, do not drop one, and do not move 
 back above the button unilaterally. The requirement is `02b`'s and the arrangement is
 this spec's, and a conflict between them is a question, not a judgement call.
 
+#### ⚠️ IT WAS ASKED, AND IT WAS ANSWERED — 2026-08-20
+
+The instruction above was followed: Step 5 measured that the facts cannot be kept on
+screen at 320x568, said so, and asked rather than trimming. **`02b` §3.7 is now AMENDED**
+and records 320x568 as a **measured limitation under §9g**: Stripe's Payment Element is
+424px inside a 375px scroller, so no arrangement of Trackd's own content can satisfy it.
+Nothing was trimmed, shrunk or moved — a pinned-bar arrangement that satisfies the
+requirement literally was built and rejected because it leaves the card fields **−3px**
+at 320x568 keyboard-up.
+
+**390x844 is unchanged and is still a hard PASS.** The paragraph above still governs
+there, and this spec still verifies it independently, as `02b` §3.7 requires.
+
 ### 3.6 The wallet row stays where it is
 
 The express checkout element is mounted above the card fields deliberately: on mobile
@@ -313,6 +326,8 @@ is, and the computed styles confirm both.
 Then re-measure everything from Step 1.
 **⚠️ This is the change that can reintroduce the audited defect. If the four facts
 cannot be kept on screen at 320x568, stop and ask rather than trimming one.**
+⚠️ **DONE, ASKED AND ANSWERED (20 Aug) — see §3.5's amendment note.** 320x568 is a §9g
+limitation; 390x844 remains a hard pass.
 *Verify before moving on:* all four facts and the button visible together, every
 variant, both widths, both accordion states, wallet present and absent.
 
@@ -352,7 +367,10 @@ Gates and environment:
       trial variant
 - [ ] At 390x844 — returning-customer variant
 - [ ] At 390x844 — mid-grace variant, the longest case
-- [ ] At 320x568, all three variants, same bar
+- [ ] At 320x568, all three variants — ⚠️ **a §9g measured limitation, not a pass**
+      (`02b` §3.7, amended 2026-08-20). Ticked by confirming the limitation's terms: the
+      disclosure complete, unshrunk, immediately below the button, reachable by scrolling
+      an inner container, and **no fact trimmed to make it fit**
 - [ ] All of the above with the accordion OPEN
 - [ ] All of the above with a wallet button present, and again with it absent
 - [ ] No fact was trimmed, abbreviated, shrunk out of legibility, or moved out of the

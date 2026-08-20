@@ -423,12 +423,33 @@ function PaymentForm({
   }, [stripe, elements, plan, mode, onOutcome, onModeCorrection]);
 
   return (
-    <div className="space-y-4">
+    /**
+     * ⚠️ `space-y-3`, NOT `space-y-4` (09 Step 6).
+     *
+     * `ui-context.md`'s Spacing & Rhythm table sanctions three stack steps —
+     * `space-y-5`, `space-y-3` and `space-y-1` — and says in as many words that the
+     * listed values "are the only spacing values for page structure: no per-screen
+     * ad-hoc margins or padding", and to "reuse them rather than reaching for a new
+     * step". **16px is a new step.** `space-y-3` is also the flow's de facto
+     * dominant gap (19 uses across `components/onboarding` against 7 of `space-y-4`).
+     *
+     * ⚠️ SUBTRACTIVE, DELIBERATELY. 320x568 cannot fit the four facts and the button
+     * (`02b` §3.7's accepted §9g limitation), so nothing here may cost a pixel: this
+     * removes 12px, or 16px while the error/notice slot is filled.
+     */
+    <div className="space-y-3">
       {/* THE WALLETS, ABOVE THE CARD FIELDS. Not optional and not a nicety —
           the spec calls this the primary conversion path on mobile, and a
-          buried Apple Pay button is a button nobody uses. `ExpressCheckoutElement`
-          renders nothing at all on a device with no wallet configured, so it
-          costs a desktop user no space. */}
+          buried Apple Pay button is a button nobody uses.
+          ⚠️ AND IT DOES **NOT** COST A NO-WALLET DEVICE NOTHING. This comment used
+          to claim `ExpressCheckoutElement` "renders nothing at all on a device with
+          no wallet configured, so it costs a desktop user no space". Measured false:
+          `@stripe/react-stripe-js`'s ClientElement always returns a mount `<div>`
+          (`react-stripe.umd.js:678-682`), so the wrapper is always a real sibling
+          and always pays its `space-y` margin, height 0 or not. `09` §3.6 carries
+          the same false premise and is corrected there. Removing the residual gap
+          needs `onReady`'s `availablePaymentMethods` to drop the wrapper — a
+          behaviour change, outside Step 6, and worth a further 12px. */}
       <ExpressCheckoutElement
         options={{
           buttonTheme: { applePay: "white-outline", googlePay: "white" },

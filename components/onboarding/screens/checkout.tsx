@@ -329,7 +329,10 @@ export function CheckoutScreen() {
             to match it: a centred skeleton followed by a top-aligned form is a
             layout jump at the moment the card fields appear, on the screen where
             a jump is most likely to be tapped through. */}
-        <div className="flex w-full flex-1 flex-col justify-start gap-3 pb-2" aria-busy="true">
+        {/* `pb-2` dropped for the same reason as the loaded state below: ScrollPort
+            already pads the tail. `gap-3` was already on the scale and now matches the
+            form's own `space-y-3`, so the two branches finally share a rhythm. */}
+        <div className="flex w-full flex-1 flex-col justify-start gap-3" aria-busy="true">
           <div className="h-13 w-full animate-pulse rounded-2xl bg-bg-surface-raised motion-reduce:animate-none" />
           <div className="h-13 w-full animate-pulse rounded-2xl bg-bg-surface-raised motion-reduce:animate-none" />
           <p className="text-center text-[0.8rem] text-text-muted">
@@ -362,7 +365,13 @@ export function CheckoutScreen() {
   const suffix = selected ? intervalSuffix(selected) : null;
 
   const disclosure = selected && suffix ? (
-    <div className="space-y-1 pt-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
+    /* ⚠️ NO `pt-1` (09 Step 6). It was the only per-element padding in the payment
+       block, so the disclosure sat 20px below the button while every other gap was
+       16px — asymmetric on both sides, and invisible in the container's class string
+       because half of it lived in `payment-sheet.tsx`. `space-y-1` stays: it is
+       `ui-context.md`'s own "tight label/value pairs" pick and was already correct.
+       Subtractive: −4px. No character of the signed disclosure is touched. */
+    <div className="space-y-1 text-center text-[0.75rem] leading-relaxed text-text-muted">
       <p>
         {/* ⚠️ The four required facts, and the FIRST one changes for a returning
             customer. Somebody who has already had their trial is charged today,
@@ -501,7 +510,12 @@ export function CheckoutScreen() {
        * At 320x568 the content already overflows, so this changes nothing there —
        * measured, and stated rather than assumed.
        */}
-      <div className="flex w-full flex-1 flex-col justify-start pb-2">
+      {/* ⚠️ NO `pb-2` (09 Step 6). `ScrollPort` already supplies
+          `pb-[max(1.25rem,env(safe-area-inset-bottom))]` because this screen passes no
+          `footer`, and 1.25rem IS `ui-context.md`'s documented `pb-5`. The extra 8px
+          was exactly the "per-screen ad-hoc padding" that table forbids, stacked on
+          top of the documented value. Subtractive: −8px. */}
+      <div className="flex w-full flex-1 flex-col justify-start">
         {selected && suffix ? (
           <PaymentSheet
             plan={selected.id}

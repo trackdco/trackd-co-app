@@ -340,6 +340,47 @@ All four must be visible **at the same time as the button, without scrolling, at
 390x844 and at 320x568.** A previous audit found this screen could be paid on with
 the price scrolled out of view.
 
+#### ⚠️ AMENDED 2026-08-20 — the 320x568 requirement is a measured limitation under §9g
+
+**Ruled ACCEPTED by the editor on 2026-08-20 after the spec chat did not respond.** It
+had been waiting on nothing but a decision, and it blocked three §5 boxes and the whole
+of `09` Step 7. The wording below is the drafted amendment, applied unchanged.
+
+**A reviewer finding this is reading a decision, not an oversight.**
+
+⚠️ **`§9g` IS THE FOUNDER'S BRIEF, NOT A SECTION OF THIS FILE.** This spec runs §0 to §7
+and has no §9. The citation follows the convention §3.10 already uses for §9e — a brief
+rule referenced by number. **Do not create a "§9" here to make the pointer resolve.**
+
+> §3.7's requirement is met at 390x844 and above. At 320x568 it is recorded as a
+> **measured limitation** under §9g: Stripe's Payment Element is 424px inside a 375px
+> scroller, so no arrangement of Trackd's own content can place all four facts and the
+> button above the fold. The disclosure remains complete, unshrunk, and immediately
+> below the button. Revisit if Stripe's Element becomes shorter or a shorter layout
+> becomes available.
+
+⚠️ **What this amendment must NOT be read as licence for:** trimming a fact, shrinking
+one below legibility, moving one above the button, or accepting a scroll at 390x844.
+Each of those was available and none was taken.
+
+**What was measured before it was accepted.** The requirement fails at 320x568 with the
+disclosure at zero height, the button at zero height and every gap removed — it is not a
+spacing problem. The pinned-bar option that satisfies §3.7 literally was built and
+REJECTED on the 320x568 keyboard-up case: a 162px bar inside a 159px port leaves the card
+fields **−3px**, taking that case from "scroll to your field" to "your field does not
+exist". 320x568 is an iPhone SE 1st gen / 5s — approximately zero of the ~90 beta
+accounts — and the disclosure there is complete, legible, reachable and directly beneath
+the button.
+
+**THE REASON THIS ACCEPTANCE CURRENTLY RESTS ON**, dated, because per D100 a §9g
+acceptance whose reason changes must be rewritten rather than left standing: **320x568 is
+an iPhone SE 1st gen / 5s, and approximately zero of the ~90 beta accounts are on one.**
+If that stops being true — or if Stripe's Element gets shorter, or a shorter layout
+becomes available — this is to be revisited rather than inherited.
+
+**The requirement paragraph above still stands unchanged for 390x844**, which is the
+width it is now met at, and `09` still verifies it independently there.
+
 This spec owns the requirement. `09` owns the arrangement that satisfies it, and `09`
 is the spec that moves the block below the button — which is exactly the change most
 likely to reintroduce the defect. **Both specs verify it independently, at both
@@ -439,6 +480,10 @@ post-grace account sees the approved lines from §3.2; no other cohort ever sees
 At 390x844 and at 320x568, with the accordion open and closed, confirm all four facts
 and the button are on screen together without scrolling, for every variant, with the
 mid-grace variant measured specifically as the longest case.
+⚠️ **AMENDED 2026-08-20 — see §3.7.** 390x844 is a PASS and is unchanged. 320x568 is a
+recorded §9g limitation: measure it and record the numbers, but a scroll there is the
+accepted outcome rather than a failure to fix. **The measurement is still required** —
+the amendment rests on it, and it is what would show Stripe's Element getting shorter.
 **⚠️ `http://127.0.0.1` does not hydrate. Any conclusion about tapping or measuring
 drawn through it is invalid.**
 *Verify before moving on:* measured, not inspected by eye.
@@ -520,8 +565,13 @@ The four facts:
 
 - [ ] At 390x844, all four facts and the button are visible together, no scrolling,
       for every variant
-- [ ] At 320x568, the same, for every variant
+- [ ] At 320x568, the same, for every variant — ⚠️ **AMENDED 2026-08-20.** Read against
+      §3.7's amendment: this is a **measured limitation under §9g**, not a pass. Tick it
+      by confirming the LIMITATION's own terms instead — the disclosure is complete,
+      unshrunk, immediately below the button, and reachable by scrolling an inner
+      container. **Nothing was trimmed to make it fit**
 - [ ] The mid-grace variant specifically measured at both widths as the longest case
+      (a PASS at 390x844; a measured limitation at 320x568, per §3.7's amendment)
 - [ ] Measured with the Payment Element accordion both open and closed
 - [ ] The subtitle is one line at 320x568 in every variant
 
