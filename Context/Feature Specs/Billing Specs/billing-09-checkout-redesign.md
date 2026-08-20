@@ -161,7 +161,16 @@ label colour, size, weight and spacing, the border radius including a separate b
 radius, tab and accordion spacing, the tab icon colours **including the selected
 one**, tab and block logo colours, the animation switch, and the label placement mode.
 
-**Both Stripe client packages are pinned to exact versions (D40), carets removed.**
+**⚠️ D40 IS NOT DONE. THIS PARAGRAPH RECORDED IT AS DONE AND WAS FALSE — corrected
+2026-08-20.** `package.json` still carries `"@stripe/react-stripe-js": "^6.8.0"`,
+`"@stripe/stripe-js": "^9.13.0"` and `"stripe": "^22.4.0"`, and **every revision of that
+file that has ever named them has carried carets** — no commit has removed one. The
+lockfile and `node_modules` do currently resolve 6.8.0 / 9.13.0 / 22.4.0, so the hazard
+is a FUTURE `npm install` moving a minor underneath a payment screen, not a drift that
+has already happened. The decision below stands and is OWED:
+
+**D40, as decided: both Stripe client packages are pinned to exact versions, carets
+removed.**
 The lockfile alone was holding them, so an install could move a minor version
 underneath a payment screen as a side effect. Pinned, an upgrade becomes a deliberate
 act recorded in a commit. **Seam to `12-go-live.md`: the go-live checklist verifies
@@ -257,6 +266,8 @@ that is the primary conversion path, and a buried wallet button is a button nobo
 uses. It renders nothing at all on a device with no wallet configured, so it costs a
 desktop user no space.
 
+⚠️ **THAT SENTENCE IS FALSE AS BUILT — measured 2026-08-20.** `@stripe/react-stripe-js`'s ClientElement always returns a mount `<div>` (`react-stripe.umd.js:678-682`), so the express wrapper is ALWAYS a real sibling and always pays its `space-y` margin, height 0 or not. On a no-wallet device that is a gap belonging to nothing, directly under the header. §3.6 goes on to attribute the worst gap to the centring — but centring went in Step 2, and this residue is what Step 2 did not touch. Removing it needs `onReady`'s `availablePaymentMethods` to drop the wrapper: a BEHAVIOUR change, outside Step 6, worth a further 12px at 320x568 where every pixel is the accepted §9g shortfall.
+
 **Its absence is the layout case that produces the worst gap**, because the space it
 would occupy is what the centring was distributing. So every measurement in this spec
 is taken **both** with a wallet available and without one.
@@ -312,7 +323,8 @@ screen is pixel-identical to its baseline.
 **Step 3 — Extend the Elements appearance.**
 Radius, surfaces, borders, typography, spacing onto our tokens. Reduce Stripe's legal
 paragraph. **⚠️ Confirm every rule selector against Stripe's appearance reference for
-the pinned version.** A selector that does not exist is ignored silently.
+the INSTALLED version (9.13.0).** ⚠️ *Not* "the pinned version" — D40's pinning is
+OWED rather than done; see §3.3. A selector that does not exist is ignored silently.
 *Verify before moving on:* read the live iframe's computed styles and confirm the
 real token values are applied, rather than judging from a screenshot.
 
@@ -446,6 +458,13 @@ Behaviour unchanged:
 ## 7. Open items
 
 One optional decision and one question. Neither blocks any step.
+
+⚠️ **THIS §7 BLOCK APPEARS TWICE, and the SECOND copy is the fuller one — noted
+2026-08-20, not deduplicated.** They are not byte-identical: the later copy answers Q90
+and Q91 more completely (it adds that half of Q90 needs a human reading Stripe's
+appearance reference, and that Stripe's terms text is outside the Tabs table). **Read the
+second.** Nothing is deleted here because choosing which copy survives is an editorial
+call on spec content, not a stale-marker fix.
 
 **`OPEN — D38, whether the payment block takes the flow surface treatment.`** The
 onboarding flow has a canvas lift and a card treatment — a faint hairline along a

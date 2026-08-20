@@ -127,10 +127,14 @@ export function PaymentSheet({
   amountMinor?: number;
   ctaLabel: string;
   /**
-   * The trial/price/date/auto-renewal disclosure, rendered DIRECTLY ABOVE the
-   * CTA — see `PaymentForm`. It is passed in rather than built here because the
-   * paywall owns the wording and the figures; what this component owns is that
-   * it cannot be separated from the button.
+   * The trial/price/date/auto-renewal disclosure, rendered IMMEDIATELY BELOW the
+   * CTA — see the render at the foot of this file. It is passed in rather than built
+   * here because the paywall owns the wording and the figures; what this component
+   * owns is that it cannot be separated from the button.
+   *
+   * ⚠️ THIS SAID "DIRECTLY ABOVE" AND CONTRADICTED THIS FILE'S OWN RENDER. `09` §3.5
+   * Step 5 moved it below; the render comment says so in capitals. Restoring "above"
+   * on the strength of this line would reintroduce the audited scroll defect.
    */
   disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;

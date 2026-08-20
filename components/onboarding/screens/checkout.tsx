@@ -344,12 +344,28 @@ export function CheckoutScreen() {
   }
 
   /**
-   * THE DISCLOSURE, handed to `PaymentSheet` so it renders DIRECTLY ABOVE the
+   * THE DISCLOSURE, handed to `PaymentSheet` so it renders IMMEDIATELY BELOW the
    * button and cannot be separated from it by anything added in between.
    *
-   * All four things must be visible at the same time as the CTA with no
-   * scrolling: the trial length, the exact renewal amount with its currency, the
+   * ⚠️ THIS COMMENT SAID "DIRECTLY ABOVE" AND WAS FALSE FOR THE WHOLE OF STEP 5.
+   * `09` §3.5 moved it below the button and `payment-sheet.tsx` renders it there —
+   * at :500, after the `</button>` that closes at :481, under a comment that says so
+   * in capitals. So the file contradicted itself 370 lines apart, and this is the
+   * half that was stale. It is not cosmetic: §3.5 calls moving the block "the
+   * dangerous change", and a reader trusting this comment would "restore" the
+   * disclosure above the Element — which measured **550px of scroll** between the
+   * last disclosure line and the CTA at 390x844, i.e. the audited defect itself
+   * ("it could be paid on without the price ever having rendered").
+   *
+   * All four things must be visible at the same time as the CTA with no scrolling
+   * **at 390x844**: the trial length, the exact renewal amount with its currency, the
    * date of the first charge, and that it renews automatically until cancelled.
+   *
+   * ⚠️ AT 320x568 THEY ARE NOT, AND THAT IS A RECORDED DECISION. `02b` §3.7 was
+   * AMENDED on 2026-08-20 to accept it as a measured limitation under §9g: Stripe's
+   * Element is 424px inside a 375px scroller, so no arrangement of our own content
+   * can satisfy it. **That is not licence to trim a fact, shrink one, or move one
+   * above the button** — each was available and none was taken.
    * A previous audit of the old combined screen found it could be paid on
    * without the price ever having rendered.
    *

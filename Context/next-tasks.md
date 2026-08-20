@@ -135,7 +135,11 @@ three states (`runner.ts`), `resolveEnding`'s neutral degradation
 
 ---
 
-## 🛑 09 STEP 5 — STOPPED AND ASKING, per §3.5. THE DISCLOSURE HAS NOT BEEN MOVED.
+## ✅ 09 STEP 5 — DONE. (This heading read "🛑 STOPPED AND ASKING … THE DISCLOSURE HAS NOT BEEN MOVED" and was FALSE at HEAD — corrected 2026-08-20.)
+
+The disclosure IS below the button (`payment-sheet.tsx`, rendered after the `</button>`).
+Step 5 stopped and asked as instructed, and `02b` §3.7 was AMENDED on 20 Aug in answer.
+The measurement block below is kept as the record.
 
 §3.5: *"If the four facts cannot be kept on screen below the button at 320x568, say so
 and ask. Do not shrink a fact out of legibility, do not drop one, and do not move one

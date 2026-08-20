@@ -77,10 +77,12 @@ import { stripe } from "./qa-billing.mjs";
 
 const QA = "@trackd-qa.invalid";
 /**
- * ⚠️ 92 SINCE 20 AUG 2026. EVERY INCREMENT HAS BEEN A REAL PERSON.
+ * ⚠️ 93 SINCE 20 AUG 2026. EVERY INCREMENT HAS BEEN A REAL PERSON.
  *
  * 90 at the freeze; 91 after a Google sign-up at 05:30Z on 18 Aug; 92 after
- * another on 19 Aug. Both `google` provider on real addresses, which nothing in
+ * another on 19 Aug; **93 after a third at 10:55Z on 20 Aug** — `google` provider on
+ * a real gmail address, verified by reading `app_metadata.provider` and
+ * `created_at` rather than by inferring it from the count. Both `google` provider on real addresses, which nothing in
  * the QA tooling can create — `makeUser` issues email+password accounts on
  * `@trackd-qa.invalid` and nothing else, and that count has been 0 throughout.
  *
@@ -93,7 +95,7 @@ const QA = "@trackd-qa.invalid";
  * Nobody was deleted, and no identity is recorded here — these are real users of
  * a production app and this file is tracked.
  */
-const EXPECT_USERS = Number(process.env.QA_AUDIT_EXPECT_USERS ?? 92);
+const EXPECT_USERS = Number(process.env.QA_AUDIT_EXPECT_USERS ?? 93);
 
 /**
  * ⚠️ SUBSCRIPTIONS A PERSON HAS ALREADY LOOKED AT, BY ID, WITH THE DATE THEY

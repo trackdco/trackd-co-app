@@ -634,7 +634,9 @@ word. Only Step 3 is blocked.
 existing banner pattern, last entitled day only, tapping to Billing, never alongside
 `07`'s reminder. Carried in §3.6b.
 
-**`STILL OPEN — D28, does the read-only pop-up keep its plan selector?`** This is a
+⚠️ **RESOLVED — the ledger carries D28. Corrected 2026-08-20; this heading was the last place still calling it open.**
+
+**`(was: STILL OPEN) — D28, does the read-only pop-up keep its plan selector?`** This is a
 different surface from the banner above and the question is unanswered. The pop-up
 fires when a user who has ALREADY lapsed tries to add something. The built version
 embeds a live plan list with real Stripe prices and subscribes from inside the modal;
@@ -647,7 +649,20 @@ the approved design is a plain notice with a button that goes somewhere.
 being blocked and subscribing, for all ~85 beta accounts within a fortnight of
 go-live, which is why it is your call.
 
-**`STILL OPEN — the pop-up's copy.`** A set of strings was signed off that is neither
+⚠️ **SUPERSEDED — CLOSED BY D98, 18 Aug 2026. Corrected 2026-08-20.** Both objections
+below were the reasons the proposed set could not be carried, and D98 answered both by
+signing a DIFFERENT set, which is what is built and pinned in
+`lib/billing/readOnlyCopy.ts`:
+
+>  title  "Your account is read only"  — one string, NOT branched
+>  body   "You don't have access at the moment, so Trackd Co is read only. You can
+>          still view everything you've logged, you just can't add to it."
+
+So the body DOES use the exact phrase, and the title does NOT branch. D98 also rules the
+body stays UNBRANCHED across all six cohorts. The text below is kept as the record of why
+the earlier set was refused; **it is not a description of what is built.**
+
+**`SUPERSEDED (was: STILL OPEN) — the pop-up's copy.`** A set of strings was signed off that is neither
 the brief's §5 pop-up nor the built one: a title branching on trial/subscription, the
 body "Everything you've logged is safe and stays yours. Start a plan whenever you're
 ready to keep going.", and the button "See plans".
@@ -666,7 +681,9 @@ If this set is superseding §5's approved pop-up, say so explicitly and give the
 in full, and the spec will record it as a supersession with the divergence table kept
 as the record. Until then, §3.6 carries §5's approved lines.
 
-**`OPEN — D29, the server's refusal string.`** Built as "Trackd is read only until
+⚠️ **RESOLVED — the ledger carries D29. Corrected 2026-08-20; this heading was the last place still calling it open.**
+
+**`(was: OPEN) — D29, the server's refusal string.`** Built as "Trackd is read only until
 you subscribe. Everything you've logged is still here." It is not in the approved
 copy. It covers the paths the pop-up does not reach.
 

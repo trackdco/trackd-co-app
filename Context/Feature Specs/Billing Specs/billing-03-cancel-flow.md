@@ -272,7 +272,7 @@ they already made. **This is not the immediate-cancel function**, which `04` §2
 on the offer path; it is the invoice being closed alongside the cancellation that is
 already happening.
 
-**⚠️ It is built and currently unreachable, and the wiring is the fix.** The cancellable
+**⚠️ It is built, and REACHABLE — the "currently unreachable" note was corrected 2026-08-20: `incomplete` is in `BILLABLE_STATUSES` and in `FLAG_CANCELLABLE_STATUSES`, so `stopsImmediately("incomplete")` is false, the flag path runs, and `voidOpenInvoiceFor` fires on `cancelAtPeriodEnd && status === "incomplete"`. Pinned by `manage.test.ts`, and the wiring is the fix.** The cancellable
 status set filters `incomplete` out before the cancel flag is applied, so the voiding
 code is never reached. **The decision stands and the path must reach it** — an
 incomplete subscription is precisely the state with an unpaid open invoice, which is

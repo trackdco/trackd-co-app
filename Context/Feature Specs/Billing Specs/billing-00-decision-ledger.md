@@ -98,7 +98,7 @@ as a dependency.
 | D31 | The notice's buttons | 06, 08 | **Re-decided.** Both controls ship |
 | D32 | The legal terms line | 06 | Resolved, pending counsel's confirmation |
 | D33 | The courtesy reminder's wording | 07 | Resolved, re-signed after the em-dash catch |
-| D34 | Stripe's own customer emails | 07, 12 | **Deferred** pending Q79's observation |
+| D34 | Stripe's own customer emails | 07, 12 | **Resolved 17 Aug on the Q79 measurement** — the trial-ending email goes OFF, D65's receipts stay ON. `07`:507-527 and `12`:459-475 (P11b) both carry it; this row was the last place still saying deferred |
 | D35 | The subscribe row's label and cohort | 08 | Resolved |
 | D36 | The plan label across five states | 08 | Resolved |
 | D37 | The declined and past-due state | 08 | Resolved |
@@ -140,10 +140,10 @@ as a dependency.
 | D80 | Paused and unpaid subscriptions cancel immediately | 03 | Resolved |
 | D81 | The backfill must not resurrect a revoked comp | 12, seam to 01 | Resolved — fix before P11 |
 | D71 | A comp-list member signing up after the backfill gets a comp at signup | 01 | Resolved — built |
-| D72 | A slightly-extended trial is clean, not anomalous | 11 | Resolved — not built |
+| D72 | A slightly-extended trial is clean, not anomalous | 11 | **Resolved AND BUILT** — corrected 2026-08-20. `rules.ts` §8 `chargeAndEntitlementDatesDisagree`, spread into the aggregate, evidence naming D72/D88, tests in `rules.test.ts`. "not built" was false |
 | D73 | The paywall's interval suffix comes from Stripe | 02b | Resolved — built |
 | D74 | Six previously unsigned strings, signed as approved copy | 02b | Resolved — sacred as they stand |
-| D75 | 11 asserts no courtesy marker on a subscription unpaid at grant | 11 | Resolved — not built |
+| D75 | 11 asserts no courtesy marker on a subscription unpaid at grant | 11 | **Resolved AND BUILT** — corrected 2026-08-20. `rules.ts` §3 `courtesyGrantedWhileUnpaid`, its own finding kind, its own fetch-side grant instant, a report title and tests. "not built" was false |
 | D76 | Void the open invoice when cancelling an incomplete subscription | 03 | Resolved — built, currently unreachable |
 | D77 | A refused comp's welcome screen suppresses the trial line | 01 | Resolved — built |
 | D82 | The courtesy push reuses the approved grace title | 07 | Resolved |
@@ -161,8 +161,8 @@ as a dependency.
 | D94 | `suspended` keys on the REVOCATION FLAG on a live row, not on two dates disagreeing | 08 | Resolved — found by three independent reviewers |
 | D95 | A dropped chargeback is RETRIED, not reported handled | 03, seam to 11 | Resolved — unreadable throws, genuinely unmapped stays unattributed |
 | D96 | The past-due grace STAYS at three days rather than matching Stripe's retry window | 05 | Resolved — matching would hand out ~2 weeks of free access per failed payment |
-| D97 | The two after-the-lapse past-due sentences, signed | 08 | Pending — Group 3 |
-| D98 | The read-only pop-up's first clause is reworded and STAYS UNBRANCHED | 05 | Pending — Group 3, and the standing stop-and-ask fired |
+| D97 | The two after-the-lapse past-due sentences, signed | 08 | **Resolved 18 Aug** — Group 3 SHIPPED (`6f4f0f4`, `f272e8d`, `6c8b0d9`); both sentences pinned as codepoints and driven on the real screen (Round 9, F3) |
+| D98 | The read-only pop-up's first clause is reworded and STAYS UNBRANCHED | 05 | **Resolved 18 Aug** — Group 3 SHIPPED. The copy moved to `lib/billing/readOnlyCopy.ts` and is pinned; the body is one unbranched string for all six cohorts |
 | D99 | Spec 11's revocation exemption narrows to the subscription in question; revoked-beside-live becomes a REPORTED state | 11 | Resolved — built, and §3.4's false premise corrected |
 | D100 | The three parked `revokeForCustomer` findings accepted under §9g, with the CURRENT reason | 11 | Resolved — recorded, and their coverage MEASURED (one of three newly caught, not three) |
 | D101 | The revocation reason is persisted; an unknown reason WITHHOLDS both dispute sentences | 03, seam to 08 | Resolved — `005` written and applied 18 Aug; answers Q106 |
@@ -322,7 +322,7 @@ does.
 | Q76 | Stripe's minimum trial_end offset | 01 | Resolved as a 48h clamp |
 | Q77 | The subscriptions.create call in full | 02a | Answered |
 | Q78 | The holding screen | 02a | Answered |
-| Q79 | Does Stripe's email fire for a moved trial_end? | 04, 07, 12 | **OPEN.** Test clock only |
+| Q79 | Does Stripe's email fire for a moved trial_end? | 04, 07, 12 | **OPEN — and the qualifier was wrong.** Corrected 2026-08-20: it read "Test clock only", which points at the wrong instrument. A test clock ANSWERED the EVENT half on 17 Aug (3-day lead, and it re-fires on a moved `trial_end`) and **cannot answer the email half at all** — Stripe exposes no API for it, so it is a by-eye dashboard check (`12` P11b). The status stays OPEN because the email half genuinely is |
 | Q80 | What the idempotency fingerprint covers | 02a | Answered |
 | Q81 | reconcileToOne in full | 02a | Answered |
 | Q82 | What the resume label is computed from | 03 | **OPEN.** Traceable during Step 1 |
