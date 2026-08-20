@@ -76,9 +76,17 @@ export default async function ManagePage() {
     graceEndsOn: facts.entitlement?.activeUntil
       ? formatAccessDate(facts.entitlement.activeUntil, facts.tz)
       : null,
-    courtesyEndsOn: facts.subscription?.courtesyUntil
-      ? formatAccessDate(facts.subscription.courtesyUntil, facts.tz)
+    /**
+     * ⚠️ THE RUNNING PERIOD, NOT THE RECORDED ONE (Group C). `courtesy_until` is
+     * never cleared, so this read the raw marker and told a customer whose free
+     * month ended in July that their plan is free until a date in the past.
+     * `facts.courtesyRunningUntil` is `/billing`'s own value, so the "Free until"
+     * row there and this sentence cannot disagree about whether it is running.
+     */
+    courtesyEndsOn: facts.courtesyRunningUntil
+      ? formatAccessDate(facts.courtesyRunningUntil, facts.tz)
       : null,
+    courtesyRunning: facts.courtesyRunningUntil !== null,
     price: facts.price
       ? `${formatPrice(facts.price.amount, facts.price.currency)} ${facts.price.currency.toUpperCase()}`
       : null,

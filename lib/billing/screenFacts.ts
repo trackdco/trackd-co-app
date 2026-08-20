@@ -7,6 +7,7 @@ import { declinedOnFor } from "@/lib/billing/declined";
 import { billingGateEnabled } from "@/lib/billing/gate";
 import {
   CANCELLABLE_STATUSES,
+  courtesyIsRunning,
   isBetaGrace,
   isGraceAligned,
   isPastDue,
@@ -75,6 +76,23 @@ export interface BillingFacts {
    */
   accessRevokedReason: "dispute" | "refund" | "unknown";
   declinedOn: string | null;
+  /**
+   * ⚠️ THE COURTESY PERIOD'S END, ONLY WHILE IT IS STILL RUNNING (Group C).
+   *
+   * `subscription.courtesyUntil` above is the RAW marker and stays raw: it is
+   * written once when the save offer is granted, never cleared — deliberately,
+   * because reconciliation asks "did this account ever get one" and the answer
+   * has to survive — and `planLabelFor` / `isGenuineTrial` both need that
+   * "did it happen" reading to keep D36's prohibited word away from a customer of
+   * two years whom Stripe reports as `trialing`.
+   *
+   * This is the OTHER question, "is it happening now", and it is resolved once
+   * here so `/billing`'s "Free until" row and `/billing/manage`'s courtesy
+   * sentence read ONE value. Both rendered on mere presence before, and a
+   * customer who took the free week and was then charged read "Free until 10 Aug
+   * 2026" beside "Renews on 17 Aug 2026" on one card.
+   */
+  courtesyRunningUntil: string | null;
   hasStripeCustomer: boolean;
   price: { amount: number; currency: string; interval: string } | undefined;
   planStartsOn: string | null;
@@ -391,6 +409,7 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
     accessRevoked: access.known ? access.revoked : false,
     accessRevokedReason: access.known ? access.revokedReason : "unknown",
     declinedOn,
+    courtesyRunningUntil: courtesyIsRunning(courtesyUntil) ? courtesyUntil : null,
     hasStripeCustomer,
     price,
     planStartsOn,

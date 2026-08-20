@@ -68,6 +68,13 @@ export default async function BillingPage() {
     price,
     planStartsOn,
     showSubscribeRow,
+    /**
+     * ⚠️ THE COURTESY END ONLY WHILE IT IS STILL RUNNING (Group C). The raw
+     * marker on `subscription` stays raw for the readers that ask "did it
+     * happen"; this is the one that asks "is it happening now", and Manage's
+     * sentence reads the same resolved value.
+     */
+    courtesyRunningUntil,
   } = await loadBillingFacts(user.id);
 
   return (
@@ -183,9 +190,31 @@ export default async function BillingPage() {
               <Row label="Starts" value={formatAccessDate(planStartsOn, tz)} />
             </>
           ) : null}
-          {subscription?.courtesyUntil ? (
+          {courtesyRunningUntil ? (
             <>
               <Divider />
+              {/**
+               * ⚠️ IT RENDERS ON THE PERIOD STILL RUNNING, NOT ON THE MARKER
+               * MERELY BEING THERE (Group C).
+               *
+               * This was `subscription?.courtesyUntil ?`, with no test that the
+               * date is still in the future — and `courtesy_until` is written once
+               * when the offer is granted and never cleared, deliberately, because
+               * reconciliation asks "did it happen" and needs it to persist. So a
+               * customer who took the free week and was then charged read
+               *
+               *     Free until   10 Aug 2026
+               *     Renews on    17 Aug 2026
+               *
+               * on one card: a promise stated in the present tense a week after it
+               * had been withdrawn, directly above the row saying they are paying.
+               *
+               * `courtesyIsRunning` is the same question the Manage sentence asks,
+               * for the reason `isGenuineTrial` exists one row down — two surfaces
+               * asking one question two ways is how only one of them gets taught
+               * the answer. The row simply does not render once the period is over;
+               * `Renews on` beside it is then the whole truth.
+               */}
               {/**
                * ⚠️ "Free until {date}" — SIGNED 2026-08-18, and it exists because
                * withholding `Trial ends` from this cohort left them with no date
@@ -212,7 +241,7 @@ export default async function BillingPage() {
                */}
               <Row
                 label="Free until"
-                value={formatAccessDate(subscription.courtesyUntil, tz)}
+                value={formatAccessDate(courtesyRunningUntil, tz)}
               />
             </>
           ) : null}

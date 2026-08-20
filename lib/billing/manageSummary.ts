@@ -121,6 +121,23 @@ export interface SummaryFacts {
   endsOn: string | null;
   graceEndsOn: string | null;
   courtesyEndsOn: string | null;
+  /**
+   * ⚠️ IS THE COURTESY PERIOD STILL RUNNING — resolved by the CALLER, from
+   * `courtesyIsRunning` (Group C).
+   *
+   * `courtesy_until` is written once when the save offer is granted and is never
+   * cleared, deliberately, because reconciliation asks "did it happen". This
+   * module used to key its `courtesy` state on the marker's mere PRESENCE, so a
+   * customer whose free month ended in July was told in September that their plan
+   * is "free until 10 Aug 2026".
+   *
+   * It arrives as a resolved boolean rather than being computed here, for the
+   * same reason `gateEnabled` and `accessLive` do: this module is pure, and a
+   * hidden `Date.now()` inside it would make every fixture in every test silently
+   * time-sensitive. `screenFacts` resolves it once so both billing screens read
+   * one value and cannot drift.
+   */
+  courtesyRunning: boolean;
   /** "$69.99 USD", from the Stripe price. Null when prices are unavailable. */
   price: string | null;
   /** "year" / "month" / "week" — the price's own recurring interval. */
@@ -267,7 +284,22 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
   }
   if (isGraceAligned(f.entitlement, f.subscription)) return "grace-aligned";
   if (isBetaGrace(f.entitlement)) return "beta-grace";
-  if (f.subscription?.courtesyUntil) return "courtesy";
+  /**
+   * ⚠️ IS IT STILL RUNNING — NOT MERELY RECORDED (Group C).
+   *
+   * `courtesy_until` is written once and never cleared, so the bare presence test
+   * this replaced told a customer whose free month ended in July that their plan
+   * is "free until 10 Aug 2026" in September. `courtesyIsRunning` is the same
+   * question `/billing`'s "Free until" row asks, so the row and the sentence
+   * cannot answer differently.
+   *
+   * ⚠️ WHAT A FINISHED COURTESY FALLS THROUGH TO IS THE CORRECT ANSWER AND NOT A
+   * GAP: `isGenuineTrial` still refuses them the word "trial" (it reads the
+   * marker's PRESENCE, deliberately), so they land on `paying` — "You're on your
+   * Pro plan at {amount}, and it renews on {date}" — which is exactly what a
+   * customer whose free period ended and who is now being charged is on.
+   */
+  if (f.courtesyRunning) return "courtesy";
   if (isGenuineTrial(f.entitlement, f.subscription)) return "trial";
 
   /**

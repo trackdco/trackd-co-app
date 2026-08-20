@@ -70,6 +70,81 @@ export function isBetaGrace(
 }
 
 /**
+ * ⚠️ IS THE COURTESY PERIOD STILL RUNNING? — "IS IT HAPPENING NOW", NOT "DID IT
+ * HAPPEN" (Group C).
+ *
+ * ## The defect this closes, found by a cold reviewer and rediscovered by driving
+ *
+ * `/billing`'s "Free until {date}" row and `/billing/manage`'s courtesy sentence
+ * both rendered on the marker being PRESENT, with no test that the date is still
+ * in the future. `subscriptions.courtesy_until` is written once when the save
+ * offer is granted and is never cleared — deliberately — so a customer who took
+ * the free week and was then charged read
+ *
+ *     Free until   10 Aug 2026
+ *     Renews on    17 Aug 2026
+ *
+ * on one card, and the Manage sentence told them their plan was free until a date
+ * a week in the past. Both surfaces stated a promise that had already been
+ * withdrawn.
+ *
+ * ## ⚠️ THE MARKER IS NOT CLEARED, AND MUST NOT BE
+ *
+ * Reconciliation depends on it persisting. `charge-inside-courtesy` and
+ * `courtesy-granted-while-unpaid` both ask **"did this account ever get a
+ * courtesy period?"**, and clearing the marker would make one of them fire on
+ * every past courtesy account and the other stop firing at all. The screens want
+ * "is it running"; the rules want "did it happen". They are different questions
+ * about one column, and the fix belongs at the readers that ask the first.
+ *
+ * ## Which readers take this test, and which deliberately do not
+ *
+ *   `/billing`'s "Free until" row            HAPPENING NOW — takes it
+ *   `manageSummary`'s `courtesy` state       HAPPENING NOW — takes it
+ *   {@link planLabelFor}'s courtesy branch   DID IT HAPPEN — does NOT
+ *   {@link isGenuineTrial}                   DID IT HAPPEN — does NOT
+ *   `reconcile`'s `chargeInsideCourtesy`     DID IT HAPPEN — does NOT
+ *   `reconcile`'s `courtesyGrantedWhileUnpaid`   DID IT HAPPEN — does NOT
+ *   `reconcile`'s `freePeriodMarkerMissing`  DID IT HAPPEN — does NOT
+ *   `notifications/runner`'s reminder noun   HAPPENING NOW — needs no test
+ *
+ * The three reconcile rules are the reason the marker may not be cleared at all:
+ * every one of them asks a question about the PAST, and two of them read the
+ * marker as their only evidence that a free period ever existed.
+ *
+ * The reminder runner is the interesting one. It wants "is it happening now" and
+ * takes no date test, because it cannot reach a stale marker: its read is filtered
+ * to `status = "trialing"` AND it runs only inside the branch that is already
+ * about to send, which `trialReminderVerdict` reaches only in the two days before
+ * an ending it has not passed (`trial-over` refuses it afterwards). Adding a
+ * fourth condition there would be a guard against a state that cannot arrive.
+ *
+ * The last two are not oversights and the direction matters. Both exist to
+ * explain a `trialing` status: the save offer buys free time by moving
+ * `trial_end`, so Stripe reports `trialing` for a customer of two years. Adding a
+ * date test there would make a stale marker beside a `trialing` row resolve to
+ * **"Free trial"** — D36's one absolute prohibition — for the exact cohort those
+ * two functions were written to protect. Their conservative answer is the right
+ * one whether the period is running or long finished.
+ *
+ * ⚠️ AND `courtesyUntilFor` — THE READ — TAKES NO TEST EITHER. It feeds both
+ * kinds of reader, and filtering at the query would silently answer the rules'
+ * question wrongly while fixing the screens'.
+ *
+ * An unparseable value reads as NOT running: it is a date this app wrote itself,
+ * so a value that will not parse is our bug, and the safe direction for a
+ * PROMISE is to stop making it rather than to keep making it forever.
+ */
+export function courtesyIsRunning(
+  courtesyUntil: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!courtesyUntil) return false;
+  const at = Date.parse(courtesyUntil);
+  return Number.isFinite(at) && at > now.getTime();
+}
+
+/**
  * WHICH SAVE OFFER a cancelling user is shown.
  *
  * Declared HERE, in the pure module, rather than beside the Stripe code that

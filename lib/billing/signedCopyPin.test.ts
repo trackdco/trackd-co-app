@@ -56,6 +56,7 @@ const BASE: SummaryFacts = {
   endsOn: null,
   graceEndsOn: null,
   courtesyEndsOn: null,
+  courtesyRunning: false,
   price: null,
   interval: null,
   gateEnabled: false,
@@ -96,6 +97,21 @@ const f = (over: Partial<SummaryFacts>): SummaryFacts => {
    */
   if (over.accessRevokedReason === undefined && merged.accessRevoked) {
     merged.accessRevokedReason = "dispute";
+  }
+  /**
+   * ⚠️ AND A CASE CARRYING A COURTESY MARKER MEANS ONE THAT IS RUNNING, unless it
+   * says otherwise (Group C).
+   *
+   * Every courtesy case here was written about somebody INSIDE their free period,
+   * which is the only cohort the signed sentence is true of. The real derivation
+   * is `courtesyIsRunning`, applied once in `screenFacts` and pinned in
+   * `courtesyRunning.test.ts` — it is deliberately NOT repeated here, because a
+   * fixture that computed it from a hard-coded date would go quietly red on a
+   * calendar day nobody chose. A case that means the period has FINISHED says
+   * `courtesyRunning: false` and the explicit value always wins.
+   */
+  if (over.courtesyRunning === undefined) {
+    merged.courtesyRunning = Boolean(merged.subscription?.courtesyUntil);
   }
   return merged;
 };
