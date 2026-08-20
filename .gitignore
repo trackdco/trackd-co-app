@@ -174,6 +174,15 @@ condensed_GLBX-*
 # (D89): a detector that lives on one machine is a claim, not evidence. It counts
 # `qa-rv-` accounts and Stripe objects and deletes nothing.
 !/scratchpad/rv-audit.mjs
+# The FINAL-ROUND drivers (Groups A, B, D-G) and the finding Group G recorded.
+# Same D89 reasoning as the two above: a drive that only exists on one machine is
+# a claim rather than evidence, and this round's Group G result — a reproduced
+# cross-subscription clawback that is NOT fixed — is a finding somebody has to be
+# able to re-run. They create `@trackd-qa.invalid` accounts, ledger every Stripe
+# id to a file OUTSIDE the repo before using it, and delete BY ID. No credential
+# is in them: `.env.local` is read at run time.
+!/scratchpad/final/
+!/scratchpad/base-mig-probe.mjs
 
 # ⚠️ BUT NEVER THE SINK'S KEY MATERIAL. `PushSink` self-signs a certificate for
 # 127.0.0.1 on first run and caches it here. It is regenerated on demand, it is
