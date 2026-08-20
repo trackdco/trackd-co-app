@@ -175,6 +175,72 @@ as a dependency.
 | D108 | The save offer's gift block and granted screen name a WINDOW, `{start} to {end}` | 04 | Resolved — the month form had never been rendered; "until {end}" described SEVEN months as one |
 | D109 | The save offer is RESTORED to a session that ended at the dialog, inside its own ten minutes | 04 | Resolved — same marker, same instant, no new grant |
 
+## ⚠️ Q107 — AN ACCEPTED GAP UNDER §9g (founder, 20 Aug 2026). DO NOT BUILD THE NARROWING.
+
+Two fixes were considered for one defect and **neither ships**. The gap is accepted, and
+this section is what a post-launch round should read before touching it.
+
+### The mechanism
+
+`entitlements` is UNIQUE on `(user_id, product, source)`, so ONE row serves every Stripe
+subscription a customer has. `otherLiveEntitlementFloor` is the guard that stops one
+subscription clawing that shared row below what another has paid for — and it skips any
+sibling whose status is not in `ENTITLING`, which is `{trialing, active}`. **A `past_due`
+sibling therefore raises no floor at all**, exactly when the surviving subscription is
+itself in trouble.
+
+### The measurements
+
+| | |
+|---|---|
+| reproduced | **5.00 days** of already-paid access taken off a customer by a subscription that is CANCELLED (`scratchpad/final/drive-G-crosssub.mjs`, `FINDING-G.md`) |
+| observed once | **371 days**, 2027-09-02 → 2026-08-27, by the lifetime clock run, on a resubscribed customer. The account was torn down before it could be reproduced |
+| the narrowing's own cost | **7.00 days** of unpaid access left standing, measured (`drive-Q107-order.mjs`) |
+
+### The trade, both directions
+
+| | cost if it happens |
+|---|---|
+| **Narrow** (a dead subscription's failed invoice moves nothing) | weekly **+4.00 d** (~$2.28) · monthly **+25–28 d** (~$10.81) · yearly **+362 d** (~$69.41). But **one-shot** — the subscription is cancelled, so no further period ever rolls — and **self-terminating**, because `active_until` is a date and `isEntitlementActive` is computed on every read |
+| **Do not narrow** (today) | **5.00 d** of access the customer has already paid for, taken back. No self-limit; the money has cleared and the service is withdrawn |
+
+### ⚠️ THE POST-LAUNCH ORDER. IT IS NOT NEGOTIABLE AND EACH STEP UNLOCKS THE NEXT.
+
+1. **FIX `endSubscription`'s QUESTION FIRST.** Its `until` must come from **the last
+   period actually PAID for**, not from `items[0].current_period_end`. Today it reads the
+   same field `syncSubscription` already wrote into `active_until` at the cycle roll, so
+   `Math.min` finds them equal and it declines to write: **it is a lengthening guard, not
+   a clawback.** Until this lands, `markPastDue` is the only shortener on that path.
+2. **ONLY THEN is the narrowing safe.** Its whole premise — "cancellation already has its
+   own handler for shortening access" — becomes true at step 1 and is false before it.
+3. **AND ONLY THEN the floor.** A `past_due` sibling with a future paid-through raises a
+   floor AT that date, while **`past_due` stays OUT of `ENTITLING`**: that exclusion is
+   what stopped the measured **+58 unpaid days**, and any fix that widens `ENTITLING`
+   itself reopens that family. Two questions about one status, two answers.
+
+### ⚠️ KEY ON STATUS, NEVER ON `cancel_at_period_end`
+
+If the narrowing is re-issued it must test the subscription's **status** (`canceled`,
+`incomplete_expired`). `past_due` is in `CANCELLABLE_STATUSES`, so keying on
+`cancel_at_period_end` would make **the ordinary Cancel button** qualify — turning a rare
+reordering path into a common one, on every customer who cancels while past due.
+
+### ⚠️ THE FLOOR HAS THREE CALLERS, NOT TWO
+
+`markPastDue`, `endSubscription` **and `revokeForCustomer`**. A fix reaches all three.
+
+### ⚠️ AND A SECOND, DELIBERATE GAP THAT MUST NOT BE CLOSED WITH THE FIRST
+
+`otherLiveEntitlementFloor` also skips any sibling failing `cardIsValidated`. **That one
+is correct and stays**: a card-less trial has granted nothing, and counting it stretched a
+three-day grace to **29 days** in one measured drive and stopped the clawback entirely in
+another. Closing both gaps in one change reopens that.
+
+### Where the pattern is now recorded
+
+This is instance 3 and instance 4 of **Standing Rule 5** (`Context/progress-tracker.md`),
+"what period is this?" is not "what has been paid for?". Read that before starting.
+
 ## ⚠️ THE FLOOR ASKS THE WRONG QUESTION — RECORDED, DELIBERATELY NOT FIXED (20 Aug 2026)
 
 **Founder's ruling: do NOT change the floor's status set in this round.** Recorded here

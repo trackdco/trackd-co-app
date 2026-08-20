@@ -49,7 +49,7 @@ scenario wanting to land past the ending was one hop too far by construction.
 
 ---
 
-## ⚠️ FIVE STANDING RULES, all earned the hard way (2026-08-17)
+## ⚠️ SIX STANDING RULES, all earned the hard way (2026-08-17, rule 5 added 2026-08-20)
 
 ### 0. ABSENT IS NOT UNKNOWN. WIDEN THE RETURN SO THE THIRD STATE EXISTS
 
@@ -79,7 +79,52 @@ finding invents one. **A false INSTRUMENT corrupts every measurement taken after
 it** — which is why `gate-audit.mjs` now runs in `npm run check` rather than being
 read by a person, and why regenerating its manifest in bulk is refused (below).
 
-## The other four standing rules (2026-08-17)
+## The other five standing rules (2026-08-17; rule 5 added 2026-08-20)
+
+### 5. "WHAT PERIOD IS THIS?" IS NOT "WHAT HAS BEEN PAID FOR?"
+
+**(Adrian, 2026-08-20, after the fourth instance.)** Rule 0's sibling, and the same
+shape one level up: rule 0 is about a value that cannot tell *absent* from *could not
+find out*; this is about a **field that answers a different question from the one being
+asked**, and answers it confidently.
+
+Every instance reads a date or a status that describes **the period the subscription is
+currently IN**, where the decision actually needs **the period the customer has PAID
+FOR**. On a healthy account the two are the same value, which is exactly why it survives
+review: *it is correct today, and correct by accident.* They diverge the moment a
+renewal fails — Stripe rolls the period forward before the charge is attempted, so
+`current_period_end` becomes the end of a period nobody has paid for while the money
+question still points at the old date.
+
+| # | Where | It asks | It needs | Cost, measured | Status |
+|---|---|---|---|---|---|
+| 1 | `accessEndsEarly` (`manage.ts`) | "will anything renew on this date?" — a question about two DATES | "does this person hold access RIGHT NOW?" — a fact about `entitlements` | the `suspended` branch could not fire **at all**; a revoked customer read the PAYING sentence's renewal claim | **fixed** (1.4) |
+| 2 | `offerPeriodToGrant` (`saveOffer.ts`) | "what should we GRANT?" — right, and it short-circuits on `trialing` | "what IS this period?" for any caller describing one that already exists | hid **F2** for a whole round: the month form had never been rendered, and "until {end}" described SEVEN months of free access as one | **renamed, and it still hid a defect** |
+| 3 | `otherLiveEntitlementFloor` (`sync.ts`) | "is this subscription ENTITLING?" (`{trialing, active}`) | "what has this subscription PAID FOR?" | **5.00 days** of already-paid access taken back, reproduced; **371 days** seen once by the lifetime run | **OPEN — Q107** |
+| 4 | `endSubscription` (`sync.ts`) | `entitledUntil(sub)` → `items[0].current_period_end` | the last period actually PAID for | **7.00 days** of unpaid access left standing after a cancellation, measured | **OPEN — Q107** |
+
+⚠️ **THE PROJECT HAD ALREADY WRITTEN THIS DOWN FOR ONE FUNCTION AND NOT GENERALISED IT.**
+`parkedFindings.test.ts` says of the three parked findings: *"their root cause is one
+line: `otherLiveEntitlementFloor` answers 'is another subscription LIVE' where the revoke
+needs 'is money we STILL HOLD paying for this access'."* That sentence is this rule,
+observed once and left local. It is here now so the next reader does not have to
+rediscover it a fifth time.
+
+⚠️ **AND TWICE A LENGTHENING GUARD HAS BEEN MISTAKEN FOR A CLAWBACK.** `Math.min(current,
+until)` followed by `if (result >= current) return` **cannot pull a date back** when
+`current` and `until` come from the same field — it only declines to push it forward. Both
+`endSubscription` and `syncSubscription` write from `entitledUntil(sub)`, so they are equal
+*by construction*, and a premise that "cancellation already shortens access" is false in
+exactly the case that matters. **Read the arithmetic, not the handler's name.**
+
+**Ask this of every date and every status a money decision reads:** does this field
+describe the period they are IN, or the period they PAID FOR? If the answer is "both,
+usually", it is this bug waiting for a failed renewal.
+
+⚠️ **AND IT IS NOT FIXED BY WIDENING A STATUS SET.** `past_due` is excluded from
+`ENTITLING` deliberately — that exclusion is what stopped a measured **+58 unpaid days** —
+so instance 3's fix must reach the FLOOR and not the EXTENDER. Two questions about one
+status, and they must keep two different answers. See Q107 for the ordering.
 
 ### 1. A REVOKED ROW IS A DECISION, NOT A GAP
 

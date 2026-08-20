@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "playwright";
 
-import { BASE, Ledger, QA_PASSWORD, admin, seedAccount } from "./core";
+import { BASE, Ledger, QA_PASSWORD, seedAccount } from "./core";
 
 /**
  * SPEC 09 STEP 1 — THE BASELINE, AND THE OUTSTANDING HIGH IT IS ABOUT.
@@ -262,24 +262,49 @@ describe("09 Step 1 — baseline: are the four facts and the button above the fo
     }
   }, 600_000);
 
-  it("measures the PAID variant (returning customer, no trial) at both widths", async () => {
-    const account = await seedAccount(ledger, "qa09-paid", { notificationsEnabled: false });
+  it("measures the STARTS-TODAY variant, reached as a post-grace beta user, at both widths", async () => {
     /**
-     * A returning customer: the trial lease is held into the future, which is
-     * what `01` uses to refuse a second trial. The disclosure's first fact then
-     * reads "Starts today" instead of "{n} days free".
+     * ⚠️ NO `trial_lock_until` SEED, AND REMOVING IT IS THE FIX.
+     *
+     * This case used to insert a `billing_customers` row with the lease a year
+     * out. **`trialEligibility` never reads that column** — `trial_lock_until` is
+     * `startTrial`'s concurrency lease (`lib/billing/trialLease.ts`), read only
+     * inside its own conditional UPDATE, and nothing else — and the fabricated
+     * `cus_qa09_*` id then made `listSubscriptions` throw, so the outer catch
+     * returned the generous fallback and the screen rendered "7 days free".
+     *
+     * ⚠️ THE RUN WAS REPORTED HONESTLY AND NOTHING WAS MIS-PUBLISHED.
+     * `next-tasks.md` records it under "THE PAID VARIANT WAS NOT REACHED — driver
+     * arrival failure, reported as such", and its row is ABSENT from the table
+     * rather than filled in from the trial numbers. What was missing was a
+     * control INSIDE THIS FILE that would have caught it without a person
+     * noticing — which is what the assertion below is.
+     *
+     * The cheapest honest route to `eligible: false` is an EXPIRED beta grace: a
+     * dated comp row whose date has passed classifies as `grace-expired` (D81),
+     * which returns `eligible: false` with `graceEndsAt: null`, so `midGrace` is
+     * false and the span renders the literal "Starts today". No Stripe object, so
+     * this file's "no Stripe objects are created" property is untouched.
      */
-    const { error } = await admin.from("billing_customers").insert({
-      user_id: account.id,
-      stripe_customer_id: `cus_qa09_${Date.now()}`,
-      trial_lock_until: new Date(Date.now() + 365 * 86_400_000).toISOString(),
+    const account = await seedAccount(ledger, "qa09-startstoday", {
+      graceUntil: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+      notificationsEnabled: false,
     });
-    if (error) throw new Error(`billing_customers: ${error.message}`);
 
     for (const size of WIDTHS) {
       const page = await openCheckout(account.email, size);
       const r = await readFold(page);
-      expect(r.variantLine).not.toBe("(disclosure not found)");
+      /**
+       * ⚠️ ARRIVAL, ON THE VARIANT'S OWN SIGNED TEXT. `not.toBe("(disclosure not
+       * found)")` is satisfied by ALL THREE variants, so it could not tell this
+       * case from the trial one — which is precisely how the previous run
+       * measured the trial variant twice. "Starts today," is `checkout.tsx`'s own
+       * literal and is false for "7 days free," and for "Starts 20 Nov 2026,".
+       */
+      expect(
+        r.variantLine.startsWith("Starts today,"),
+        `expected the STARTS-TODAY variant; got ${JSON.stringify(r.variantLine)}`,
+      ).toBe(true);
 
       console.log(
         `\n  === PAID @ ${size.label} ===\n` +
@@ -301,15 +326,36 @@ describe("09 Step 1 — baseline: are the four facts and the button above the fo
      * specifically. Its lines carry a DATE where the other variants carry the
      * word 'today', so it is the longest the disclosure ever gets."
      */
+    /**
+     * ⚠️ A RELATIVE DATE, NOT A HARDCODED ONE, AND THAT IS A FIX RATHER THAN A
+     * TIDY-UP.
+     *
+     * This read `graceUntil: "2026-11-20T04:00:00.000Z"`. On 20 Nov 2026 that
+     * instant passes, `compEntitlement` answers `grace-expired`, `graceEndsAt`
+     * nulls, `midGrace` goes false — and this case starts rendering "Starts
+     * today", becoming a byte-identical duplicate of the case above it, published
+     * under a `=== MID-GRACE ===` heading and guarded by nothing. **That is the
+     * exact defect being fixed one `it` above, on a three-month fuse**, and §3.5
+     * calls mid-grace the tightest case, so the file would silently lose the one
+     * variant it most needs to measure.
+     */
     const account = await seedAccount(ledger, "qa09-grace", {
-      graceUntil: "2026-11-20T04:00:00.000Z",
+      graceUntil: new Date(Date.now() + 92 * 86_400_000).toISOString(),
       notificationsEnabled: false,
     });
 
     for (const size of WIDTHS) {
       const page = await openCheckout(account.email, size);
       const r = await readFold(page);
-      expect(r.variantLine).not.toBe("(disclosure not found)");
+      /**
+       * ⚠️ AND THE ARRIVAL IT NEVER HAD. `/^Starts \d/` passes only on a DATE, so
+       * it fails on both "Starts today," and "7 days free," — the two states this
+       * case can silently decay into.
+       */
+      expect(
+        r.variantLine,
+        `expected the MID-GRACE variant, whose first fact carries a DATE`,
+      ).toMatch(/^Starts \d/);
 
       console.log(
         `\n  === MID-GRACE @ ${size.label} ===\n` +

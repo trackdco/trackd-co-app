@@ -102,6 +102,36 @@ Each one made an assertion read the wrong thing while the product was correct.
   reminder runner's query, and the dashboard's query. Inert everywhere, not just on
   the screen that noticed it.
 
+## ⚠️ A NAMED COVERAGE GAP — FIVE IDEMPOTENCY MECHANISMS WITH NO BEHAVIOURAL PROOF
+
+**Founder's ruling, 20 Aug 2026: DO NOT add unit coverage for these.** They are folded
+into the **SECOND CLOCK RUN**, which exercises every one of them in sequence against real
+objects rather than in isolation. Listed here so that run can assert them.
+
+Found by the `deliver` audit — not because the audit was looking for them, but because
+once "what actually proves this?" was asked of one mechanism it had to be asked of all.
+
+| # | Mechanism | Where | What proves it TODAY | What the clock run must assert |
+|---|---|---|---|---|
+| 1 | **`claimEvent`** — the webhook's three-way claim | `app/api/stripe/webhook/route.ts` | **Nothing in `lib/`.** No unit test goes through the route. Its only executable proof anywhere is two cold-review drivers: `cold6-races.mjs` case N (seeds a stale unprocessed row, re-delivers the same id, proves the handler re-runs) and `cold4-race2.mjs`'s concurrent same-id control | all three branches: fresh, duplicate-because-processed, and **fresh-because-stale** (`processed_at` NULL and `received_at` older than `STALE_CLAIM_MS` = 60s). ⚠️ Distinguish them by the RESPONSE BODY, never the status |
+| 2 | **The trial lease** | `lib/billing/trialLease.ts` | **Nothing.** Zero drivers and zero scenarios call `acquireTrialLease`, `releaseTrialLease` or `startTrial`. Its only evidence is prose in its own doc-block | two concurrent `startTrial` calls produce ONE live trial. ⚠️ `trial_lock_until` is read ONLY inside its own conditional `UPDATE` — the value never reaches a TypeScript branch, so it cannot be asserted by seeding it |
+| 3 | **`startTrial`'s idempotency key** | `app/onboarding/billing-actions.ts` | **Nothing.** No test names the key; no driver calls `startTrial`. Evidence is prose ("five concurrent calls produced FIVE trialing subscriptions") | N concurrent calls → ONE subscription at Stripe, counted on the customer |
+| 4 | **`findOrCreateCustomer`'s key** | `app/onboarding/billing-actions.ts` | Partly. The UNIQUE constraint + the `23505` re-read is a real database invariant and is what actually protects the money path; the KEY itself has no proof | concurrent calls → ONE Stripe customer. Worth separating which half did the work |
+| 5 | **`grantExtraTime`'s `already-claimed` branch** | `lib/billing/saveOffer.ts` | **Not reached by any driver.** Every existing proof is about the offer not being re-OFFERED — `readSaveOffer` gating on the SHOWN marker, a different guard several layers up. Nothing calls `claimExtraTime` twice | claim, then claim AGAIN, and assert no second grant and no second `trial_end` move |
+
+⚠️ **AND ONE THAT WAS PROVEN BY THE WRONG THING — ALREADY FIXED, 20 Aug.**
+`checkoutfold.scenario.ts` seeded `trial_lock_until` a year out to reach the
+trial-ineligible variant. Nothing reads that column on that path, so the case was
+**unreachable by construction** and measured the trial variant twice. Fixed by seeding
+the real mechanism (an expired beta grace) and asserting the variant's own signed text.
+**A fuse in the adjacent case was defused in the same change** — see `next-tasks.md`.
+
+⚠️ **THE RULE THE WHOLE LIST IS AN INSTANCE OF:** *a mechanism whose only evidence is
+prose in its own doc-block has not been tested.* Every entry above cites a measurement in
+a comment — "five concurrent calls got FIVE trials", "fifteen concurrent calls made
+FIFTEEN customers" — and every one of those measurements was taken against code that has
+since changed, by a round that did not leave a driver behind.
+
 ### Decision numbers taken — D102 to D109, and Q107
 
 From `billing-00-decision-ledger.md`'s own next-free list, in the brief's order.

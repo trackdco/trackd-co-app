@@ -330,6 +330,7 @@ anything rendered whether or not it is below the fold.
 |---|---|---|
 | trial — "7 days free, then $69.99 USD/yr ($5.83/mo)" | facts 663/687, button 798 — **all above** | facts 700/743, button 854 — **all three BELOW** |
 | mid-grace — "Starts 20 Nov 2026, then $69.99 USD/yr ($5.83/mo)" | facts 673/697, button 788 — **all above** | facts 720/763, button 854 — **all three BELOW** |
+| **starts-today** — "Starts today, then $69.99 USD/yr ($5.83/mo)" | facts 713/737, button 674 — **all above** | facts 793/816, button 753 — **all three BELOW** |
 
 **390x844 passes in every variant measured. 320x568 fails in every variant measured.**
 
@@ -346,17 +347,41 @@ first run's numbers alone could have been read as either.
 **315px must be reclaimed inside a 375px-tall scroll area** for §3.5 to hold at
 320x568. That is the size of the problem, and it exists BEFORE any of `09`'s changes.
 
-### ⚠️ THE PAID VARIANT WAS NOT REACHED — driver arrival failure, reported as such
+### ✅ THE STARTS-TODAY VARIANT IS NOW MEASURED (20 Aug 2026). The row above is filled in.
 
-Seeding `billing_customers.trial_lock_until` a year out did not make the account
+**The original run was an arrival failure and was reported as one.** Seeding
+`billing_customers.trial_lock_until` a year out did not make the account
 trial-ineligible: the disclosure still read **"7 days free"**, so that run measured the
-trial variant a second time rather than the paid one. **Its row is absent from the
-table above rather than filled in from the trial numbers.**
+trial variant a second time. Its row was left ABSENT rather than filled in from the
+trial numbers, which is why nothing false was ever published.
 
-Inference only, and flagged as inference: "Starts today" is shorter than mid-grace's
-"Starts 20 Nov 2026", and the button's bottom is 854 in every case because the
-container pins it — so the paid variant would fail at 320x568 too. §3.5 says measure
-every variant, so this still needs the right seeding for eligibility.
+**Why the seed could not work, established 20 Aug:** `trialEligibility` never reads
+`trial_lock_until`. That column is `startTrial`'s concurrency lease
+(`lib/billing/trialLease.ts`), read only inside its own conditional `UPDATE` — the value
+never reaches a branch in TypeScript. And the fabricated `cus_qa09_*` id made
+`listSubscriptions` throw, so the outer catch returned the generous fallback. The case
+was not merely vacuous: it was **unreachable by construction**, and its only assertion
+(`not.toBe("(disclosure not found)")`) is satisfied by all three variants, so nothing in
+the file could tell.
+
+**Reached instead by the real mechanism, with no Stripe object:** an EXPIRED beta grace.
+A dated comp row whose date has passed classifies as `grace-expired` (D81) →
+`eligible: false` with `graceEndsAt: null` → `midGrace` false → the literal
+"Starts today". The case now asserts `startsWith("Starts today,")`, which is false for
+both other variants, so it cannot silently measure the wrong one again.
+
+⚠️ **AND THE EARLIER INFERENCE IS CONFIRMED BY MEASUREMENT.** It read: *"'Starts today'
+is shorter than mid-grace's 'Starts 20 Nov 2026' ... so the paid variant would fail at
+320x568 too."* Measured: it does — facts 793/816, button 753, **all three below the
+fold**. All four variants now fail at 320x568 and pass at 390x844.
+
+⚠️ **ONE FUSE DEFUSED IN THE SAME CHANGE.** The MID-GRACE case seeded the hardcoded
+instant `2026-11-20T04:00:00.000Z`. On that date it would have expired, rendered
+"Starts today", and become a byte-identical duplicate of the case above it under a
+`=== MID-GRACE ===` heading — the same defect, on a three-month fuse, in the adjacent
+`it`, silently costing §3.5 its tightest case. It is now a relative date (`now + 92d`,
+which computes to the same 20 Nov, so the numbers above are unchanged) with its own
+arrival assertion `/^Starts \d/`, which passes only on a DATE.
 
 ---
 
