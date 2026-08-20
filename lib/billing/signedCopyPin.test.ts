@@ -4,6 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import { manageActionFor, periodEndLabelFor } from "./manage";
 import { manageSummaryFor, type SummaryFacts } from "./manageSummary";
+import {
+  PAST_DUE_BANNER_IN_GRACE,
+  PAST_DUE_BANNER_LAPSED,
+  pastDueBannerFor,
+} from "./pastDueBannerCopy";
 import { READ_ONLY_POPUP } from "./readOnlyCopy";
 
 /**
@@ -384,5 +389,173 @@ describe("⚠️ signed copy pin: the period-end verb", () => {
       manageCode,
       "the identity comparison is back; a normalised soonerOf now reads 'Ends on' for every paying customer",
     ).not.toContain("endsOn !== mirrorEnd");
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⚠️ THE DECLINED-PAYMENT DASHBOARD BANNER (Group D, founder ruling).
+
+   Two sentences, signed character for character, on the one surface everybody
+   opens. Until now a failed payment reached a customer through a push they may
+   never have allowed and a screen they had no reason to open, so the first they
+   heard of it was being locked out.
+
+   Built in `lib/billing/pastDueBannerCopy.ts` rather than in the component, which
+   is `signed/README.md`'s standing rule: copy outside `lib/` cannot be pinned,
+   and the read-only pop-up's first clause was reverted to a wording D98 had ruled
+   FALSE with all 1573 tests green.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const BANNER_PATH = new URL("./signed/past-due-banner.txt", import.meta.url);
+const BANNER_SOURCE = new URL(
+  "../../components/billing/PaymentFailedBanner.tsx",
+  import.meta.url,
+);
+
+describe("⚠️ signed copy pin: the declined-payment banner, codepoint for codepoint", () => {
+  const signed = readFileSync(BANNER_PATH, "utf8")
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => l.length > 0);
+
+  /** The placeholder put back, so the diff is of words rather than of a value. */
+  const RENDERED: Array<[string, string]> = [
+    ["IN GRACE", PAST_DUE_BANNER_IN_GRACE(D)],
+    ["AFTER THE LAPSE", PAST_DUE_BANNER_LAPSED],
+  ];
+
+  it("the signed file holds exactly the two strings the founder approved", () => {
+    expect(signed).toHaveLength(2);
+    expect(RENDERED).toHaveLength(2);
+  });
+
+  for (let i = 0; i < 2; i += 1) {
+    it(`${RENDERED[i]?.[0] ?? `#${i}`} matches the signed line character for character`, () => {
+      const diff = firstDifference(RENDERED[i][1], signed[i]);
+      expect(diff).toBeNull();
+    });
+  }
+
+  it("⚠️ no banned dash in either sentence", () => {
+    for (const [name, text] of RENDERED) {
+      expect(/[‐-―−]/.test(text), `${name} carries a banned dash`).toBe(false);
+    }
+  });
+
+  /**
+   * ⚠️ THE SECOND SENTENCE NAMES NO DATE, AND THAT IS THE RULING RATHER THAN AN
+   * OMISSION. Nobody can promise when a Stripe Smart Retry lands, so any date
+   * there would be invented. This is what stops one being helpfully added later.
+   */
+  it("⚠️ the after-the-lapse sentence carries no date placeholder", () => {
+    expect(PAST_DUE_BANNER_LAPSED).not.toContain("{date}");
+    expect(PAST_DUE_BANNER_LAPSED).not.toMatch(/\d/);
+    // …and the in-grace one does, which is what makes the absence meaningful.
+    expect(PAST_DUE_BANNER_IN_GRACE("{date}")).toContain("{date}");
+  });
+});
+
+describe("⚠️ which sentence renders, and when nothing does", () => {
+  const base = {
+    isPastDue: true,
+    accessKnown: true,
+    accessLive: true,
+    graceEndsOn: "20 Aug 2026",
+  };
+
+  it("inside the grace it names the grace end date", () => {
+    expect(pastDueBannerFor(base)).toBe(
+      "Your payment didn't go through. Update your card by 20 Aug 2026 to keep access.",
+    );
+  });
+
+  it("after the lapse it says read only, and names no date", () => {
+    expect(pastDueBannerFor({ ...base, accessLive: false })).toBe(PAST_DUE_BANNER_LAPSED);
+  });
+
+  /**
+   * ⚠️ THE CONTROL. A banner that rendered for everybody would satisfy both
+   * assertions above perfectly and put a payment warning on the home screen of
+   * every healthy account in the product.
+   */
+  it("⚠️ CONTROL: nothing at all when the account is not past due", () => {
+    expect(pastDueBannerFor({ ...base, isPastDue: false })).toBeNull();
+    expect(pastDueBannerFor({ ...base, isPastDue: false, accessLive: false })).toBeNull();
+  });
+
+  /**
+   * Withheld rather than reworded, and the after-lapse line is NOT a fallback:
+   * "your account is read only" is false for somebody inside the grace.
+   */
+  it("inside the grace with no date it withholds, rather than borrowing the other sentence", () => {
+    expect(pastDueBannerFor({ ...base, graceEndsOn: null })).toBeNull();
+  });
+
+  /**
+   * The dashboard's own rule for an unreadable read, applied to an UNSOLICITED
+   * surface. `DeclinedCard` makes the opposite call on `/billing` and is right to:
+   * that screen is answering a question somebody asked.
+   */
+  it("an unreadable entitlement withholds both sentences", () => {
+    expect(pastDueBannerFor({ ...base, accessKnown: false })).toBeNull();
+    expect(pastDueBannerFor({ ...base, accessKnown: false, accessLive: false })).toBeNull();
+  });
+});
+
+describe("⚠️ the banner is wired, gated, and holds none of the copy inline", () => {
+  const componentCode = readFileSync(BANNER_SOURCE, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+  const dashboardCode = readFileSync(
+    new URL("../../app/(app)/dashboard/page.tsx", import.meta.url),
+    "utf8",
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+
+  it("⚠️ CONTROL: both comment-stripped sources are non-empty and still hold their subject", () => {
+    expect(componentCode.length).toBeGreaterThan(300);
+    expect(componentCode).toContain("PaymentFailedBanner");
+    expect(dashboardCode.length).toBeGreaterThan(2000);
+    expect(dashboardCode).toContain("trialBanner=");
+  });
+
+  it("the component renders the line it is handed and inlines neither sentence", () => {
+    expect(componentCode).toContain("{line}");
+    expect(componentCode).not.toContain("didn't go through");
+  });
+
+  /** Both tap through to /billing. The founder's ruling, and the only action. */
+  it("it taps through to /billing", () => {
+    expect(componentCode).toContain('href="/billing"');
+  });
+
+  /**
+   * ⚠️ NOT A POP-UP. Founder's ruling: the read-only pop-up already interrupts on
+   * a blocked write, and two dialogs about one problem is how people stop reading
+   * both.
+   */
+  it("⚠️ it is a banner and never a dialog", () => {
+    expect(componentCode).not.toContain("createPortal");
+    expect(componentCode).not.toContain('role="dialog"');
+    expect(componentCode).not.toContain("aria-modal");
+  });
+
+  it("the dashboard renders it in the ONE banner slot, below the reminder and above the final day", () => {
+    const slot = dashboardCode.slice(dashboardCode.indexOf("trialBanner="));
+    const reminder = slot.indexOf("TrialEndingBanner");
+    const declined = slot.indexOf("PaymentFailedBanner");
+    const finalDay = slot.indexOf("PlanEndsTodayBanner");
+    expect(reminder).toBeGreaterThan(-1);
+    expect(declined).toBeGreaterThan(reminder);
+    expect(finalDay).toBeGreaterThan(declined);
+  });
+
+  /**
+   * ⚠️ GATED, for the reason this file already gives about `graceTrial`: with the
+   * switch off nothing ends, and both sentences claim something about ACCESS.
+   */
+  it("the past-due read only happens with the gate on", () => {
+    expect(dashboardCode).toMatch(/const pastDueRow = billingGateEnabled\(\)/);
   });
 });

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { BetaLaunchNotice } from "@/components/billing/BetaLaunchNotice";
+import { PaymentFailedBanner } from "@/components/billing/PaymentFailedBanner";
 import { PlanEndsTodayBanner } from "@/components/billing/PlanEndsTodayBanner";
 import { TrialEndingBanner } from "@/components/billing/TrialEndingBanner";
 import { EnableNotificationsStep } from "@/components/push/EnableNotificationsStep";
@@ -12,6 +13,7 @@ import { BETA_NOTICE_COOKIE, betaNoticeSeen } from "@/lib/billing/betaNoticeStor
 import { billingGateEnabled } from "@/lib/billing/gate";
 import { loadPricesSafe } from "@/lib/billing/prices";
 import { formatAccessDate } from "@/lib/billing/manage";
+import { pastDueBannerFor } from "@/lib/billing/pastDueBannerCopy";
 import { entitlementFacts } from "@/lib/billing/entitlements";
 import { dismissedTrialNoticeDate } from "@/lib/billing/trialNoticeStore";
 import { localParts } from "@/lib/notifications/reminders";
@@ -270,6 +272,54 @@ export default async function DashboardPage() {
    * null in BOTH states, so the banner does not render in either — but only one
    * of them is a claim about the account, and only that one is silent by design.
    */
+  /**
+   * ⚠️ A DECLINED PAYMENT, ON THE HOME SCREEN (Group D).
+   *
+   * ## Its own query, and the reason is `trialRow`
+   *
+   * Widening the mirror read above to `.in("status", ["trialing", "past_due"])`
+   * would change which row `limit(1)` returns for the trial banner, which is the
+   * class of defect `screenFacts` carries three separate corrections for. One
+   * narrow question, one narrow read, and `trialRow`'s selection is byte-identical
+   * to what it was.
+   *
+   * ## ⚠️ AND ONLY WHEN THE GATE IS ACTUALLY ON
+   *
+   * The same condition `graceTrial` and the final-day banner both take, for the
+   * reason this file already states twenty lines up: "With the switch off nothing
+   * ends. Warning somebody about a deadline that is not enforced is the same lie
+   * as not warning them about one that is." Both sentences make a claim about
+   * ACCESS — "to keep access", "your account is read only" — and with the gate off
+   * neither is true of anybody. `/billing`'s `DeclinedCard` is deliberately
+   * ungated and is right to be: it answers a question that was asked, and its
+   * first two sentences are about the CARD rather than about access.
+   */
+  const pastDueRow = billingGateEnabled()
+    ? (
+        await supabase
+          .from("subscriptions")
+          .select("status")
+          .eq("user_id", user.id)
+          .eq("status", "past_due")
+          .limit(1)
+      ).data?.[0]
+    : null;
+  /**
+   * ⚠️ THE DATE IS THE ENTITLEMENT'S, NOT THE MIRROR'S. `08` §3.5, and
+   * `DeclinedCard` carries the same warning: `access.endDate` is the value
+   * `markPastDue` writes and the table that decides access, whereas the mirror's
+   * period end on a past-due subscription is the end of a period nobody paid for.
+   * Formatted here, on the server, in the user's own zone, like every other date
+   * on this screen.
+   */
+  const pastDueLine = pastDueBannerFor({
+    isPastDue: Boolean(pastDueRow),
+    accessKnown: access.known,
+    accessLive: access.known ? access.accessLive : false,
+    graceEndsOn:
+      access.known && access.endDate ? formatAccessDate(access.endDate, trialTz) : null,
+  });
+
   const finalDayEntitlement = billingGateEnabled() && !trialNotice ? betaEntitlement : null;
   const planEndsToday = Boolean(
     finalDayEntitlement?.activeUntil &&
@@ -352,6 +402,25 @@ export default async function DashboardPage() {
         // ⚠️ ONE SLOT, ONE TERNARY, so `07` §3.7's no-double-banner rule cannot be
         // broken by two predicates drifting apart: the reminder wins, and `05`
         // §3.6b's final-day line is only ever the ELSE branch.
+        /**
+         * ⚠️ THE DECLINED-PAYMENT LINE SITS BETWEEN THE TWO, and the order is a
+         * decision each way.
+         *
+         * BELOW the reminder, because `07` §3.7 is absolute: "the promised
+         * reminder always wins". The two are close to mutually exclusive anyway —
+         * `trialReminderVerdict` returns null for any status that is not
+         * `trialing`, and a `past_due` row is not one — so this can only bind on
+         * an account holding both, which is the anomaly `startTrial`'s lease
+         * exists to prevent.
+         *
+         * ABOVE the final-day line, which they CAN both be eligible for: a
+         * past-due account whose grace ends today satisfies both conditions.
+         * "Your plan ends today." says neither why nor what to do; the declined
+         * line says both and taps through to the screen that fixes it.
+         *
+         * Still one ternary, so `07` §3.7's no-double-banner rule holds by
+         * construction rather than by three predicates agreeing.
+         */
         trialBanner={
           trialNotice ? (
             <TrialEndingBanner
@@ -361,6 +430,8 @@ export default async function DashboardPage() {
               forDate={trialNotice.forDate}
               userId={user.id}
             />
+          ) : pastDueLine ? (
+            <PaymentFailedBanner key="payment-failed" line={pastDueLine} />
           ) : planEndsToday ? (
             <PlanEndsTodayBanner key="plan-ends-today" />
           ) : null

@@ -11,6 +11,7 @@ A fix WITHHOLDS a line. It never rewords one.
 | `manage-summary.txt` | `/billing/manage`'s one-sentence summary, per state (08 §3.3) |
 | `read-only-popup.txt` | the read-only pop-up (05 §3.6, D98) |
 | `beta-notice.txt` | the beta grace notice (06) |
+| `past-due-banner.txt` | the declined-payment dashboard banner (Group D) |
 
 ## ⚠️ What decides which signed strings get a machine check
 

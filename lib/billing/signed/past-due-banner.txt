@@ -1,0 +1,2 @@
+Your payment didn't go through. Update your card by {date} to keep access.
+Your last payment didn't go through, so your account is read only. Update your card details to reclaim access.
