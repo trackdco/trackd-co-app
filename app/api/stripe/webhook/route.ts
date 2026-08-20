@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type Stripe from "stripe";
 
+import { retryOpenInvoicesForCustomer } from "@/lib/billing/cardUpdate";
 import { serviceClient } from "@/lib/billing/service";
 import { stripe } from "@/lib/billing/stripe";
 import {
@@ -322,6 +323,42 @@ async function handle(event: Stripe.Event): Promise<HandlerOutcome> {
      */
     case "customer.subscription.trial_will_end":
       return syncSubscription(await fresh(event.data.object as Stripe.Subscription));
+
+    /**
+     * ⚠️ A NEW CARD RETRIES THE OPEN INVOICE (Group B).
+     *
+     * The lifetime clock run measured what happened without this: card updated,
+     * `attempt_count` 1 -> 1, no new charge, the invoice still `open` after 240
+     * seconds of real time — because Stripe waits for its own next dunning
+     * attempt, measured at simulated day +2. So somebody who fixes their card in
+     * a minute is locked out for two more days, under a screen that says access
+     * comes back "as soon as a payment goes through".
+     *
+     * ⚠️ BOTH EVENTS, AND THEY ARE NOT REDUNDANT. The portal is Stripe's own
+     * hosted form and the app never sees the card, so the webhook is the only
+     * signal there is. `payment_method.attached` fires when the card lands on the
+     * customer and NAMES it; `customer.updated` fires when
+     * `invoice_settings.default_payment_method` changes and does not. Either can
+     * arrive alone depending on how the method got there, so both route here and
+     * `retryOpenInvoicesForCustomer` makes the second one a no-op.
+     *
+     * ⚠️ IT GRANTS NOTHING. Paying the invoice makes Stripe fire `invoice.paid`,
+     * which is the case above and the only thing that restores access.
+     */
+    case "payment_method.attached": {
+      const method = event.data.object as Stripe.PaymentMethod;
+      const customerId =
+        typeof method.customer === "string" ? method.customer : (method.customer?.id ?? null);
+      // A payment method with no customer belongs to nobody and can pay nothing.
+      // Handled rather than unattributed: there is no user to fail to find.
+      if (!customerId) return "handled";
+      return retryOpenInvoicesForCustomer(customerId, method.id, client);
+    }
+
+    case "customer.updated": {
+      const customer = event.data.object as Stripe.Customer;
+      return retryOpenInvoicesForCustomer(customer.id, null, client);
+    }
 
     default:
       // Everything else is recorded and acknowledged.
