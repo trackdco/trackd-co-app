@@ -27,8 +27,11 @@ bottom of the D list. Before answering a question, check what it actually asked.
 decision needs to supersede an earlier one, keep the number and mark it re-decided,
 as D1 and D31 already are.
 
-**Status at 15 Aug 2026. THE CORPUS IS COMPLETE: 00 and 01 through 19.** Next free
-decision number: **D102**. Next free question number: **Q107**.
+**Status at 15 Aug 2026. THE CORPUS IS COMPLETE: 00 and 01 through 19.**
+
+**⚠️ UPDATED 20 Aug 2026 — next free decision number: `D110`. Next free question
+number: `Q108`.** D102 to D109 and Q107 were taken by the final build round from
+this file's own next-free list, in the brief's order. Nothing was renumbered.
 
 **⚠️ D91 to D100 TAKEN 18 Aug 2026 by the build lane**, in the order the founder
 listed them in the batch brief, from this file's own next-free list. Q106 taken for
@@ -162,7 +165,15 @@ as a dependency.
 | D98 | The read-only pop-up's first clause is reworded and STAYS UNBRANCHED | 05 | Pending — Group 3, and the standing stop-and-ask fired |
 | D99 | Spec 11's revocation exemption narrows to the subscription in question; revoked-beside-live becomes a REPORTED state | 11 | Resolved — built, and §3.4's false premise corrected |
 | D100 | The three parked `revokeForCustomer` findings accepted under §9g, with the CURRENT reason | 11 | Resolved — recorded, and their coverage MEASURED (one of three newly caught, not three) |
-| D101 | The revocation reason is persisted; an unknown reason WITHHOLDS both dispute sentences | 03, seam to 08 | Resolved — `005` written and UNAPPLIED; answers Q106 |
+| D101 | The revocation reason is persisted; an unknown reason WITHHOLDS both dispute sentences | 03, seam to 08 | Resolved — `005` written and applied 18 Aug; answers Q106 |
+| D102 | `soonerOf` is NOT normalised; the identity comparison is pinned at the source instead | 08 | Resolved — post-launch, behaviour-neutral today and correct BY ACCIDENT |
+| D103 | The past-due grace is WRITTEN OUTRIGHT, lengthening or shortening, rather than only ever shortening | 05, seam to 08 | Resolved — the grace measured **0.00 days**; four bounds named and each driven |
+| D104 | Updating a payment method RETRIES an open invoice, triggered by a webhook and never by a button | 03, seam to 12 | Resolved — Stripe's own next attempt is at day +2, measured |
+| D105 | The courtesy marker gets a date test at the DISPLAY readers ONLY; it is never cleared | 08, seam to 11 | Resolved — the rules ask "did it happen", the screens ask "is it happening now" |
+| D106 | A declined payment gets a DASHBOARD BANNER, in the existing slot, and NOT a pop-up | 05, seam to 07 | Resolved — founder ruling; gated on `BILLING_GATE_ENABLED` |
+| D107 | The cancel dialog's dismiss label AND title follow the cohort: trial or plan | 03 | Resolved — **supersedes §3.9's unqualified "Keep my trial"** and closes the §3.9-versus-D36 conflict |
+| D108 | The save offer's gift block and granted screen name a WINDOW, `{start} to {end}` | 04 | Resolved — the month form had never been rendered; "until {end}" described SEVEN months as one |
+| D109 | The save offer is RESTORED to a session that ended at the dialog, inside its own ten minutes | 04 | Resolved — same marker, same instant, no new grant |
 
 **Also open, unnumbered:**
 
@@ -222,6 +233,7 @@ as a dependency.
 | Q103 | Whether the mirror can record a pending plan change | 15 | **OPEN.** New |
 | Q104 | Where the Google sign-in screen's name comes from | 17 | **OPEN.** New |
 | Q105 | How a partial refund appears on the invoice object | 19 | **OPEN.** New |
+| Q107 | Should the entitlement FLOOR count a `past_due` sibling, and should a CANCELLED subscription's failed invoice be able to move the shared row at all? | 05, seam to 11 | **OPEN. ⚠️ REPRODUCED, MEASURED, NOT FIXED.** A cancelled subscription clawed **5.00 days** off access paid for on a live one. `otherLiveEntitlementFloor` skips anything outside `ENTITLING` = `{trialing, active}`, so a past-due sibling raises no floor. Any fix must reach the FLOOR without reaching the EXTENDER — `past_due`'s exclusion from `ENTITLING` is what stopped the measured +58 unpaid days. See `scratchpad/final/FINDING-G.md` and `drive-G-crosssub.mjs`. |
 
 ---
 

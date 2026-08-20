@@ -102,10 +102,30 @@ Each one made an assertion read the wrong thing while the product was correct.
   reminder runner's query, and the dashboard's query. Inert everywhere, not just on
   the screen that noticed it.
 
-### Decision numbers taken
+### Decision numbers taken — D102 to D109, and Q107
 
-**D103 to D109**, from the ledger's own next-free list. See the report.
-**Next free is now D110 / Q107.**
+From `billing-00-decision-ledger.md`'s own next-free list, in the brief's order.
+Nothing renumbered. **Next free is now D110 / Q108.**
+
+| # | subject | owner |
+|---|---|---|
+| D102 | `soonerOf` NOT normalised; pinned at the source (taken last round, now recorded) | 08 |
+| D103 | The past-due grace is WRITTEN OUTRIGHT, in both directions | 05, seam to 08 |
+| D104 | A card update RETRIES an open invoice, from an event | 03, seam to 12 |
+| D105 | The courtesy date test at the DISPLAY readers only; the marker is never cleared | 08, seam to 11 |
+| D106 | The declined-payment dashboard banner, and NOT a pop-up | 05, seam to 07 |
+| D107 | The dismiss label AND title follow the cohort — **supersedes 03 §3.9** | 03 |
+| D108 | The offer's gift block and granted screen name a WINDOW | 04 |
+| D109 | The save offer is restored to a session that ended at the dialog | 04 |
+| **Q107** | **Should the floor count a `past_due` sibling? OPEN — Group G** | 05, seam to 11 |
+
+⚠️ **D107 IS THE ONE TO ROUTE TO THE SPEC CHAT.** It resolves the `03` §3.9 versus
+D36 conflict that was routed and left open: §3.9 pinned "Keep my trial" unqualified
+for every cohort, D36 forbids "trial" rendering for anyone not on one. The ruling is
+that the label follows the cohort, and the TITLE moves with it so one dialog does
+not use two words for one thing. The half of §3.9 that survives intact is the
+important half: this is still not `resumeLabel` (D22's "Keep my Pro plan"), and the
+trigger row's `Cancel my {noun}` is untouched.
 
 ---
 
