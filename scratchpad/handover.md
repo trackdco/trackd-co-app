@@ -20,7 +20,7 @@ and four items the lifetime clock run could not close.
 | `57a1849` | **E.1** the save offer survives an interrupted session |
 | `637bdce` | **G.1** the cross-subscription clawback REPRODUCES — recorded, NOT fixed |
 
-**Tests 1595 -> 1693** (+98). tsc, ESLint, gate audit 32/2/69 all unmoved.
+**Tests 1595 -> 1699** at head `9a4cdb3`. tsc, ESLint, gate audit 32/2/69 all unmoved.
 
 ### ⚠️ THE ONE THING THAT NEEDS A RULING BEFORE LAUNCH
 
@@ -332,9 +332,9 @@ none was touched.
 |---|---|---|
 | tsc + ESLint | clean | clean |
 | gate audit | 32 / 2 / 69 | 32 / 2 / 69 (unmoved) |
-| `npm run check` tests | 1523 | **1595** (+72, all new controls; 1573 at the re-verify freeze, +22 in Group 7) |
+| `npm run check` tests | 1523 | **1699** — measured at head `9a4cdb3`, 20 Aug. (1595 at the Group 7 freeze; +98 across the last three rounds, all new controls.) |
 | `qa-05-readonly.mjs` | 23/23 | 23/23 |
-| accounts | 90 / 0 / 90 / 0 / 0 | **92** / 0 / 90 / 0 / 0 — real Google sign-ups on 18 and 19 Aug. Baseline raised twice, nobody deleted. `entitlements` still 90, so neither holds a row. |
+| accounts | 90 / 0 / 90 / 0 / 0 | **93** / 0 / 90 / 0 / 0 — measured at head `9a4cdb3`, 20 Aug. Real Google sign-ups on 18, 19 and 20 Aug, each verified from `app_metadata.provider` + `created_at`. Baseline raised three times, **nobody deleted**. `entitlements` still 90, so none of the three holds a row. |
 | migration 003 | applied | probed, one row, timestamptz, nullable |
 | migration 005 | written, unapplied | **applied 18 Aug by the founder**; `revoked_reason` verified live, and Group 7 reads it in reconcile too |
 | migration 004 | written, unapplied | **untouched — launch morning only** |
