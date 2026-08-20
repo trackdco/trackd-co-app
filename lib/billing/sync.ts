@@ -622,8 +622,22 @@ const PAST_DUE_GRACE_DAYS = 3;
  * for it is "nothing to shorten". Collapsing the two here would change a second
  * thing while fixing the first.
  */
+/**
+ * ⚠️ AND `isActive` RIDES ALONG, BECAUSE ONE CALLER NOW *GRANTS* (Group A).
+ *
+ * `markPastDue` can lengthen the date as well as shorten it, and lengthening a
+ * row `revokeForCustomer` turned off would move the record of what was purchased
+ * on somebody whose money we gave back. A refund deliberately does NOT cancel the
+ * subscription (`stopDisputedBilling` returns early for `refund`), so a revoked
+ * customer whose next renewal declines is a reachable state and not a hypothetical.
+ *
+ * The kill switch is not re-derived from the date: `revokeForCustomer` leaves
+ * `active_until` alone on purpose, so the two dates are EQUAL on a real
+ * revocation and any date comparison answers no. `is_active` is the only field
+ * that carries it.
+ */
 type StripeEntitlementRead =
-  | { kind: "present"; activeUntil: string | null }
+  | { kind: "present"; activeUntil: string | null; isActive: boolean }
   | { kind: "absent" }
   | { kind: "unknown"; message: string };
 
@@ -633,14 +647,24 @@ export async function readStripeEntitlement(
 ): Promise<StripeEntitlementRead> {
   const { data, error } = await db
     .from("entitlements")
-    .select("active_until")
+    .select("active_until, is_active")
     .eq("user_id", userId)
     .eq("product", "pro")
     .eq("source", "stripe");
   if (error) return { kind: "unknown", message: error.message };
   const row = data?.[0];
   if (!row) return { kind: "absent" };
-  return { kind: "present", activeUntil: (row.active_until as string | null) ?? null };
+  return {
+    kind: "present",
+    activeUntil: (row.active_until as string | null) ?? null,
+    /**
+     * ⚠️ A MISSING `is_active` READS AS TRUE, matching the column's own default
+     * and the shape every other reader assumes. It is NOT "unknown": the select
+     * above either returned the row or produced an error, and the error path is
+     * already the `unknown` branch above.
+     */
+    isActive: (row.is_active as boolean | null) ?? true,
+  };
 }
 
 /**
@@ -688,15 +712,26 @@ export async function readStripeEntitlement(
  * failed payment — measured: 14 Aug became 14 Sept on a card that declined.
  *
  * The spec wants a GRACE WINDOW, not a free month: "do NOT revoke the
- * entitlement immediately". So this pulls the date back to the end of the last
- * period they actually paid for, plus {@link PAST_DUE_GRACE_DAYS}.
+ * entitlement immediately". So this sets the date to the end of the last period
+ * they actually paid for, plus {@link PAST_DUE_GRACE_DAYS}.
  *
- * ## It can only ever SHORTEN
+ * ## ⚠️ "IT CAN ONLY EVER SHORTEN" WAS TRUE, AND IT MADE THE GRACE ZERO
  *
- * `Math.min` against whatever is already stored. A failed payment must never be
- * able to hand out MORE access than the user already had — which is exactly the
- * bug being fixed, and it would be embarrassing to reintroduce from the other
- * direction.
+ * That heading stood here, with `Math.min` against whatever was already stored
+ * and an early return when the minimum was not shorter. The reasoning was sound
+ * — a failed payment must not hand out more access than was paid for — and the
+ * consequence was that **the grace could never be granted at all**, only clawed
+ * back from a date that was too long.
+ *
+ * The lifetime clock run measured it: paid through `2026-08-17T01:39:48`, access
+ * to `2026-08-17T01:39:48`, **0.00 days**. On an ordinary renewal failure the
+ * entitlement already ends exactly at the unpaid period's start, so the minimum
+ * IS the stored value and nothing was ever written.
+ *
+ * The date now moves in whichever direction the answer falls, and the bound the
+ * old heading was reaching for is kept explicitly and more precisely:
+ * {@link pastDueGraceEnd} may never exceed what a SUCCESSFUL renewal would have
+ * given. Every bound is named there.
  */
 export async function markPastDue(
   invoice: Stripe.Invoice,
@@ -763,6 +798,21 @@ export async function markPastDue(
     ts(lineStart) ?? ts(invoice.period_end) ?? new Date().toISOString();
   const graceEnds =
     Date.parse(unpaidFrom) + PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+  /**
+   * ⚠️ WHAT A SUCCESSFUL RENEWAL WOULD HAVE GIVEN — the grace's upper bound.
+   *
+   * The SAME line the paid-through date is read off, the other end of it. If the
+   * card had worked, access would run to here; a grace that outran it would make
+   * declining more generous than paying. Read from the line rather than from the
+   * invoice for the reason the paragraph above gives at length: on a
+   * `subscription_cycle` invoice the top-level period covers the cycle just
+   * COMPLETED, and the line carries the one that just failed.
+   *
+   * Null when the invoice does not carry it, and null means "no bound from here"
+   * rather than a guess. See {@link pastDueGraceEnd}.
+   */
+  const lineEndIso = ts(invoice.lines?.data?.[0]?.period?.end);
+  const renewalWouldGive = lineEndIso === null ? null : Date.parse(lineEndIso);
 
   const read = await readStripeEntitlement(db, userId);
   /**
@@ -780,7 +830,17 @@ export async function markPastDue(
     );
   }
   const current = read.kind === "present" ? read.activeUntil : null;
-  if (!current) return "handled"; // Genuinely nothing to shorten.
+  /**
+   * ⚠️ NO ROW, OR A ROW WITH NO END DATE, IS STILL "NOTHING TO DO" — INCLUDING
+   * NOW THAT THIS HANDLER CAN GRANT.
+   *
+   * `absent` means this account holds no Stripe entitlement at all, and writing
+   * one here would hand three days of access to somebody a failed payment is the
+   * only evidence about. `present` with a null date is a row that never expires;
+   * dating it would SHORTEN an unlimited entitlement, which is a second change
+   * dressed as this one. Both keep the behaviour they have always had.
+   */
+  if (!current) return "handled";
 
   /**
    * ⚠️ THE CLAWBACK IS ABOUT *THIS* SUBSCRIPTION, AND THE ROW IS SHARED.
@@ -799,21 +859,137 @@ export async function markPastDue(
     ? await otherLiveEntitlementFloor(customerId, subId)
     : null;
 
-  const shortened = Math.max(
-    Math.min(Date.parse(current), graceEnds),
-    floor ?? Number.NEGATIVE_INFINITY,
-  );
-  // Already at or inside the window.
-  if (shortened >= Date.parse(current)) return "handled";
+  const currentMs = Date.parse(current);
+  const target = pastDueGraceEnd({ graceEnds, renewalWouldGive, currentMs, floor });
+
+  /**
+   * ⚠️ EQUAL IS THE IDEMPOTENT NO-OP, AND IT IS WHAT MAKES REDELIVERY FREE.
+   *
+   * {@link pastDueGraceEnd} is computed from the INVOICE and from nothing that
+   * moves — not `now`, not a delta against what is stored — so the second, third
+   * and tenth delivery of the same `invoice.payment_failed` all resolve to the
+   * same instant. The first writes it; the rest land here. That is the whole
+   * idempotency argument, and it is a property of the arithmetic rather than of a
+   * marker somebody has to remember to check.
+   */
+  if (target === currentMs) return "handled";
+
+  /**
+   * ⚠️ A GRANT MAY NOT REACH A ROW SOMEBODY TURNED OFF. A CLAWBACK STILL MAY.
+   *
+   * `revokeForCustomer` writes `is_active: false` and deliberately leaves
+   * `active_until` standing as the record of what was purchased. Lengthening that
+   * date would move the record on a customer whose money we have given back — and
+   * a REFUND does not cancel the subscription (`stopDisputedBilling` returns early
+   * for it), so the next renewal declining on a revoked account is a reachable
+   * state rather than a hypothetical.
+   *
+   * Shortening is untouched in that state: pulling a dead row's date back can only
+   * ever make it agree with reality sooner.
+   */
+  if (target > currentMs && read.kind === "present" && !read.isActive) {
+    console.info(
+      `[billing] ${userId} is past due and the grace would LENGTHEN a revoked entitlement; ` +
+        `leaving ${current} exactly as revokeForCustomer left it`,
+    );
+    return "handled";
+  }
 
   const { error: entError } = await db
     .from("entitlements")
-    .update({ active_until: new Date(shortened).toISOString() })
+    .update({ active_until: new Date(target).toISOString() })
     .eq("user_id", userId)
     .eq("product", "pro")
     .eq("source", "stripe");
   if (entError) throw new Error(`entitlements grace: ${entError.message}`);
+  console.info(
+    `[billing] past-due grace for ${userId}: ${current} -> ${new Date(target).toISOString()} ` +
+      `(${target > currentMs ? "granted" : "clawed back"} from the paid-through date ${unpaidFrom})`,
+  );
   return "handled";
+}
+
+/**
+ * ⚠️ WHERE ACCESS ENDS AFTER A RENEWAL HAS FAILED. THE WHOLE OF GROUP A.
+ *
+ * ## The grace was three days and measured ZERO
+ *
+ * The lifetime clock run put the numbers side by side: paid through
+ * `2026-08-17T01:39:48`, access to `2026-08-17T01:39:48`. **0.00 days.**
+ *
+ * The old arithmetic was `max(min(current, graceEnds), floor)` followed by an
+ * early return when that was not SHORTER than what was stored. On an ordinary
+ * renewal failure the entitlement already ends exactly at the unpaid period's
+ * start — that is what a healthy paid-through date IS — so `min(current,
+ * current + 3d)` is `current`, nothing was ever written, and the handler answered
+ * "handled". **The function could only claw a longer-dated entitlement back. It
+ * could never grant the grace, and no second mechanism existed.**
+ *
+ * So the target is computed OUTRIGHT and written in whichever direction it falls.
+ * The property is not "shorten by up to three days"; it is:
+ *
+ * > after a renewal payment fails, the entitlement ends exactly
+ * > {@link PAST_DUE_GRACE_DAYS} after the PAID-THROUGH date.
+ *
+ * ## ⚠️ IT GRANTS ACCESS, SO EVERY BOUND IS NAMED HERE
+ *
+ * This is the family that once produced **+58 unpaid days**. Four bounds, and
+ * each one is a different failure it would otherwise reopen:
+ *
+ *   1. **A RENEWAL, never a past_due state we happen to observe.** The caller
+ *      returns early on `billing_reason: "subscription_create"` and reaches this
+ *      only from `invoice.payment_failed`. Nothing derives a grace from a status.
+ *   2. **Measured from the PAID-THROUGH date, never from `now`.** `graceEnds` is
+ *      the failing line's period start plus the constant. Anchoring to `now`
+ *      would restart the window on every redelivery and every retry, which is the
+ *      free-month shape wearing a three-day mask.
+ *   3. **Never past what a SUCCESSFUL renewal would have given.** `renewalWouldGive`
+ *      is the failing line's period END — the exact access the customer would hold
+ *      if the card had worked. A grace that outran it would make declining more
+ *      generous than paying. It binds on any interval shorter than the constant,
+ *      and is the reason a one-day plan could never be turned into three.
+ *   4. **Never below what ANOTHER live subscription independently entitles them
+ *      to.** `floor` is {@link otherLiveEntitlementFloor}, and it applies in the
+ *      SHORTENING direction only: it exists to stop one declined charge clawing
+ *      back a yearly somebody else already paid for. It is not a grant of its own,
+ *      so it can never push the answer past what is already stored — that would be
+ *      this handler quietly extending an entitlement off the back of a subscription
+ *      it was told nothing about.
+ *
+ * Pure, and exported for the unit tests: every bound above is a line in
+ * `pastDueGrace.test.ts` that can be driven without Stripe, a clock, or a network.
+ */
+export function pastDueGraceEnd({
+  graceEnds,
+  renewalWouldGive,
+  currentMs,
+  floor,
+}: {
+  /** The paid-through instant plus {@link PAST_DUE_GRACE_DAYS}, in ms. */
+  graceEnds: number;
+  /** The failing period's END, in ms, or null when the invoice does not say. */
+  renewalWouldGive: number | null;
+  /** What `entitlements.active_until` holds right now, in ms. */
+  currentMs: number;
+  /** {@link otherLiveEntitlementFloor}'s answer, in ms, or null. */
+  floor: number | null;
+}): number {
+  /** Bound 3. A grace may not outrun the period the payment would have bought. */
+  let target =
+    renewalWouldGive !== null && Number.isFinite(renewalWouldGive)
+      ? Math.min(graceEnds, renewalWouldGive)
+      : graceEnds;
+
+  /**
+   * Bound 4, and the direction is the point. The floor protects a longer date
+   * from a clawback; it never lifts one. `Math.min(currentMs, ...)` is what keeps
+   * it a floor rather than turning it into a second grant.
+   */
+  if (target < currentMs && floor !== null && Number.isFinite(floor)) {
+    target = Math.min(currentMs, Math.max(target, floor));
+  }
+
+  return target;
 }
 
 /**

@@ -75,6 +75,38 @@ describe("readStripeEntitlement — the three states", () => {
     expect(undated.kind).toBe("present");
     expect(undated.kind === "present" && undated.activeUntil).toBeNull();
   });
+
+  /**
+   * ⚠️ THE KILL SWITCH RIDES ALONG, BECAUSE ONE CALLER NOW GRANTS (Group A).
+   *
+   * `markPastDue` can lengthen the date as well as shorten it, and it refuses to
+   * lengthen a row `revokeForCustomer` turned off. That refusal needs `is_active`
+   * to have SURVIVED the read, so it is asserted here rather than assumed there.
+   *
+   * ⚠️ AND A MISSING COLUMN READS AS TRUE, not as revoked. The default matters in
+   * the direction it fails: `true` leaves the existing behaviour for every healthy
+   * row, whereas defaulting to `false` would silently switch the grace off for
+   * everybody the moment the field went missing from a select.
+   */
+  it("carries `is_active`, and a row without the field reads as live rather than revoked", async () => {
+    const revoked = await readStripeEntitlement(
+      stubDb({ data: [{ active_until: "2026-09-01T00:00:00Z", is_active: false }], error: null }),
+      USER,
+    );
+    expect(revoked.kind === "present" && revoked.isActive).toBe(false);
+
+    const live = await readStripeEntitlement(
+      stubDb({ data: [{ active_until: "2026-09-01T00:00:00Z", is_active: true }], error: null }),
+      USER,
+    );
+    expect(live.kind === "present" && live.isActive).toBe(true);
+
+    const missing = await readStripeEntitlement(
+      stubDb({ data: [{ active_until: "2026-09-01T00:00:00Z" }], error: null }),
+      USER,
+    );
+    expect(missing.kind === "present" && missing.isActive).toBe(true);
+  });
 });
 
 describe("the callers refuse on unknown and only on unknown", () => {
