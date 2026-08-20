@@ -351,6 +351,28 @@ describe("the gate proof, and M1", () => {
      * "Immediately" means without waiting for the next scheduled retry, so any
      * advance would make an immediate attempt indistinguishable from a due one.
      */
+    /**
+     * ⚠️ `attempt_count` CANNOT SEE AN EXPLICIT `invoices.pay`. RECORDED 20 Aug 2026.
+     *
+     * Stripe counts AUTOMATIC collection attempts in that field and does not
+     * increment it for an explicit `invoices.pay` call. Measured on the Group B
+     * drive (`scratchpad/final/drive-B-card.mjs`): an invoice moved `open -> paid`
+     * with `amount_paid: 399` and a fourth charge on the customer, while
+     * `attempt_count` read **1 -> 1** throughout.
+     *
+     * ⚠️ SO THE THIRD SIGNAL IN THE LOOP BELOW IS BLIND TO THE ONE THING THE APP
+     * NOW DOES. Read alone it would report "no retry" on a retry that WORKED.
+     *
+     * ⚠️ AND M1'S CONCLUSION SURVIVES ANYWAY, ON TWO SIGNALS OUT OF THREE. Do not
+     * re-open it as though it were unsound: the break condition below is
+     * `fresh.length > 0 || attempts > attemptsBefore`, and `fresh` is the CHARGE
+     * LIST, checked independently. `invoiceStatusAfter` is recorded separately
+     * again. So M1's "NO" rested on no-new-charge AND invoice-still-open, both of
+     * which are sound, and only the `attempts` half was reading a blind field.
+     *
+     * The rule for anything after this: count CHARGES and read the INVOICE STATUS.
+     * Never `attempt_count` alone.
+     */
     const started = Date.now();
     let sawAttempt: { fresh: string[]; attempts: number } | null = null;
     const deadline = started + 240_000;

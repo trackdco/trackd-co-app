@@ -268,6 +268,33 @@ export const BASE_URL = process.env.BASE ?? "http://localhost:3100";
  * The REAL event is preferred over a synthesized envelope (see `eventsFor`), so
  * the id is Stripe's own and the run exercises `webhook_events` idempotency
  * exactly as production would.
+ *
+ * ⚠️ AND THAT SENTENCE MUST NOT BE READ AS "REDELIVERY WAS TESTED". IT WAS NOT.
+ *
+ * It means: one delivery per real event id, which is what Stripe does. It does NOT
+ * mean any assertion here drove a second delivery of the same id. Nothing in the
+ * three lifetime scenarios ever does — `drainEvents` is the only caller of this
+ * function and it dedupes on a `seen` Set — so the `?? evt_life_...` fallback below
+ * is DEAD CODE in this harness and no assertion here is vacuous because of it.
+ *
+ * ⚠️ BUT THE FALLBACK IS A LOADED TRAP FOR THE NEXT CALLER, and the trap has already
+ * been sprung once. `scratchpad/final/lib.mjs` had the identical shape, was called
+ * directly with a real event to test a redelivery, and the route answered
+ * `{"received":true,"duplicate":true}` with a **200** — so the handler never ran and
+ * the driver reported "the date is identical" about a request that had done nothing
+ * at all. It was found only because a Group G measurement did not move when the code
+ * said it should have.
+ *
+ * The rule that costs nothing and would have caught it: **a 200 is not proof a
+ * handler ran; read the BODY.** `{"received":true}` ran, `{"received":true,
+ * "duplicate":true}` did not.
+ *
+ * ⚠️ AND `seen` IS PER-FILE. Each of the three lifetime scenarios declares its own
+ * empty Set in its own vitest process, and parts two and three drain with a
+ * ten-minute lookback — so an id part one already delivered can be re-selected. It
+ * is harmless (the route answers `duplicate` for anything already processed) but it
+ * means a leg can deliver less than its log suggests. No assertion in those files
+ * depends on a redelivery, which is what keeps it harmless.
  */
 export async function deliver(
   event: Stripe.Event | { type: string; data: { object: unknown }; id?: string },

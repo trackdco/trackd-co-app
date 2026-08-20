@@ -566,6 +566,25 @@ describe("one lifetime, legs 10 and 11", () => {
      * time is far longer than an immediate retry needs and far shorter than any
      * retry interval Stripe publishes.
      */
+    /**
+     * ⚠️ `attempt_count` CANNOT SEE AN EXPLICIT `invoices.pay`. RECORDED 20 Aug 2026.
+     *
+     * Stripe counts AUTOMATIC collection attempts in that field and does not
+     * increment it for an explicit `invoices.pay`. Measured on the Group B drive
+     * (`scratchpad/final/drive-B-card.mjs`): an invoice moved `open -> paid` with
+     * `amount_paid: 399` and a fourth charge on the customer, while `attempt_count`
+     * read **1 -> 1** throughout. Read alone it would report "no retry" on a retry
+     * that WORKED — and the app now performs exactly that call.
+     *
+     * ⚠️ M1'S CONCLUSION SURVIVES, ON TWO SIGNALS OUT OF THREE. Do not re-open it.
+     * The predicate below is `v.fresh.length > 0 || v.attempts > attemptsBefore`,
+     * and `fresh` is the CHARGE LIST, checked independently; the invoice's status is
+     * recorded separately again. So the "NO" rested on no-new-charge AND
+     * invoice-still-open, both sound. Only the `attempts` half was blind.
+     *
+     * The rule for anything after this: count CHARGES and read the INVOICE STATUS.
+     * Never `attempt_count` alone.
+     */
     const watchStart = Date.now();
     const retried = await pollFor(
       async () => {

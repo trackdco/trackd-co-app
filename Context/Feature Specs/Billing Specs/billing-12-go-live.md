@@ -272,6 +272,42 @@ routes there and why the in-app path is not affected. This note is for the case
 where the founder is fixing an account by hand in the dashboard, where changing the
 customer's default is the obvious action and is not sufficient.
 
+**⚠️ AND `attempt_count` CANNOT SEE AN EXPLICIT `invoices.pay`. RECORDED 20 Aug 2026.**
+
+On the day, the obvious way to ask "did my retry work?" is to read the invoice's
+`attempt_count`. **It will not move.** Stripe counts AUTOMATIC collection attempts in
+that field and does not increment it for an explicit `invoices.pay` — which is
+precisely the call the app now makes when a customer updates their card.
+
+Measured (`scratchpad/final/drive-B-card.mjs`): an invoice went `open -> paid` with
+`amount_paid: 399` and a fourth charge appeared on the customer, while
+`attempt_count` read **1 -> 1** throughout.
+
+    ✗  invoice.attempt_count          blind to an explicit pay
+    ✓  the customer's CHARGE list     one new charge per attempt
+    ✓  invoice.status                 open -> paid
+
+**⚠️ THE LIFETIME RUN'S M1 FINDING USED THAT FIELD, AND ITS CONCLUSION STILL STANDS.**
+M1 answered "NO — the card update did not retry the open invoice", and it read
+`attempt_count 1 -> 1`. That half was blind. **The other two were not**: M1's break
+condition tests the CHARGE LIST independently (`fresh.length > 0 || attempts >
+attemptsBefore`) and records `invoiceStatusAfter` separately again. So M1 rested on
+**no-new-charge AND invoice-still-open**, two sound signals out of three, and it is a
+settled measurement. Do not re-open it — and do not trust the `attempts` half of it
+either.
+
+**⚠️ AND THE APP NOW DOES THE SUBSCRIPTION-LEVEL WRITE ITSELF.** Since Round 9,
+`payment_method.attached` and `customer.updated` both reach
+`lib/billing/cardUpdate.ts`, which points **every subscription that could still take
+money** at the new card and, separately, pays an open invoice on a subscription in
+dunning. So the hand-fix above is now a fallback rather than the only route.
+
+⚠️ The paragraph above this one asserts that "the Stripe customer portal updates
+both". **That premise is not verified by anything in this tree** — the Group B drive
+attaches the card through the API, and M1's portal run recorded
+`subscriptionDefaultPmAfter` without comparing it to the pre-update value. Treat it
+as unconfirmed on the day; the app's own handler no longer depends on it either way.
+
 ### 3.9 Invariants
 
 Every one of the ten is either enforced by a spec above or watched by `11`. This

@@ -125,10 +125,26 @@ try {
   const before3 = await chargeCount(customerId);
   const r2 = await deliver(attachEvent);                    // same payload, fresh id
   const r3 = await deliver(attachEvent);                    // and again
+  /**
+   * ⚠️ THE `status === 0` ESCAPE HATCH IS GONE, and removing it is the point.
+   *
+   * This read `const r4 = custEvent ? await deliver(custEvent) : { status: 0 }`
+   * with `(r4.status === 200 || r4.status === 0)` in the assertion — so when no
+   * `customer.updated` event existed, NOTHING was POSTed for the third of the
+   * "three more card-update events" and the check passed anyway. The name claimed
+   * three; the predicate was satisfied by two.
+   *
+   * Found by auditing this round's own `deliver` defect rather than by reading. It
+   * is the same family: an assertion whose green does not mean what its name says.
+   * A missing `customer.updated` is now a failed ARRIVAL, which is what it is.
+   */
   const custEvent = (await eventsFor(customerId, runStart)).find((e) => e.type === "customer.updated");
-  const r4 = custEvent ? await deliver(custEvent) : { status: 0 };
-  c.arrived("three more card-update events reached the handler",
-    r2.status === 200 && r3.status === 200 && (r4.status === 200 || r4.status === 0),
+  c.arrived("a customer.updated event exists to deliver as the third",
+    Boolean(custEvent), custEvent?.id ?? "none — the third delivery cannot happen");
+  const r4 = custEvent ? await deliver(custEvent) : { status: 0, body: "" };
+  c.arrived("three more card-update events reached the handler, and none was refused as a duplicate",
+    r2.status === 200 && r3.status === 200 && r4.status === 200 &&
+      ![r2, r3, r4].some((r) => r.body.includes("duplicate")),
     `${r2.status}/${r3.status}/${r4.status}`);
   const after3 = await chargeCount(customerId);
   c.check("⚠️ NO FURTHER CHARGE ATTEMPT WAS MADE", after3 === before3, `${before3} -> ${after3}`);
