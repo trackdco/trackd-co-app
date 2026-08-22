@@ -169,6 +169,21 @@ lockfile and `node_modules` do currently resolve 6.8.0 / 9.13.0 / 22.4.0, so the
 is a FUTURE `npm install` moving a minor underneath a payment screen, not a drift that
 has already happened. The decision below stands and is OWED:
 
+**✅ NOW DONE — `aad6421`, 2026-08-22.** Carets removed: `6.8.0` / `9.13.0` / `22.4.0`.
+**The two paragraphs above are left standing deliberately.** The first claimed this was
+done on 15 Aug; it was not, and it stood unbacked for five days across three documents.
+A reader who finds only the closing line cannot tell a decision that was carried out
+from one that was merely recorded as carried out, and telling those apart is the whole
+reason this correction exists. Confirmed by identity against a baseline captured
+immediately before the edit, in the same sitting: the three packages and all five
+transitive dependencies they pull byte-identical on version, resolved AND integrity;
+the whole 312KB lockfile diff was three lines, all of them the root package's own spec
+strings; `node_modules` unchanged read from disk rather than from the lockfile that had
+just been rewritten; 78 files / 1699 tests either side. ⚠️ The comparator was proven
+capable of failing FIRST, against four mutations of the baseline — a single character
+changed in one integrity hash, a bumped version, a removed transitive dep, an added one.
+All four were detected. A check that cannot fail proves nothing.
+
 **D40, as decided: both Stripe client packages are pinned to exact versions, carets
 removed.**
 The lockfile alone was holding them, so an install could move a minor version
@@ -323,8 +338,11 @@ screen is pixel-identical to its baseline.
 **Step 3 — Extend the Elements appearance.**
 Radius, surfaces, borders, typography, spacing onto our tokens. Reduce Stripe's legal
 paragraph. **⚠️ Confirm every rule selector against Stripe's appearance reference for
-the INSTALLED version (9.13.0).** ⚠️ *Not* "the pinned version" — D40's pinning is
-OWED rather than done; see §3.3. A selector that does not exist is ignored silently.
+the INSTALLED version (9.13.0).** ⚠️ *Not* "the pinned version" — ~~D40's pinning is
+OWED rather than done~~ **D40 was done 2026-08-22 (`aad6421`), so installed and pinned
+are now the same value; see §3.3.** Keep reading the INSTALLED version anyway: they
+agree today by measurement, not by construction, and the day they disagree is exactly
+the day this instruction matters. A selector that does not exist is ignored silently.
 *Verify before moving on:* read the live iframe's computed styles and confirm the
 real token values are applied, rather than judging from a screenshot.
 
@@ -511,6 +529,13 @@ is exactly the silent failure this spec is written around.
 
 ~~`D40 — pinning the Stripe client packages`~~ **Resolved 15 Aug 2026.** Both pinned
 exactly, carets removed, with `12` verifying the lockfile matches. Carried in §3.3.
+
+**⚠️ THE LINE ABOVE WAS FALSE WHEN WRITTEN AND IS KEPT AS THE EVIDENCE.** Nothing was
+pinned on 15 Aug; `package.json` carried carets in every revision that ever named these
+packages. **Actually done 2026-08-22, `aad6421`.** This is the second of three places
+in this document that recorded the pin as done — §3.3 and §3 Step 3 are the others —
+which is the point worth carrying forward: **one false claim propagated to three sites
+and the decision ledger, and correcting one would have left three standing.**
 
 **`OPEN — Stripe's terms text.`** Q91 settled the tab label; the terms text was not
 covered by the same table. It keeps its documentation check, alongside the Payment

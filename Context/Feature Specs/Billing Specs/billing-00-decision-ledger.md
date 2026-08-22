@@ -104,7 +104,7 @@ as a dependency.
 | D37 | The declined and past-due state | 08 | Resolved |
 | D38 | Does the payment block take the flow surface treatment? | 09 | **OPEN.** Optional; recommended no |
 | D39 | Manage lives at `/billing/manage` | 08 | Resolved |
-| D40 | Pin both Stripe client packages | 09, verified by 12 | Resolved |
+| D40 | Pin both Stripe client packages | 09, verified by 12 | ~~Resolved~~ — **this row read a bare "Resolved" from 15 Aug 2026 while the pin had never been made**, and `09` §3.3 said the same. Left visible: a claim of done-ness stood here unbacked for five days, and `09` §3.3 records how it was caught. **Done 2026-08-22, `aad6421`** — carets removed, `6.8.0` / `9.13.0` / `22.4.0`, proven by resolution + suite identity against a baseline captured in the same sitting. ⚠️ This is the row that proves the records-work-as-done direction exists in this corpus; ~30 other rows still read a bare "Resolved" and have never been re-verified |
 | D41 | The `refund_request` discriminator | 10 | Resolved |
 | D42 | The refund queue's alert thresholds | 10 | Resolved — **four** tiers, at 0 / 1 / 2 / 4 business days |
 | D43 | The refund screen's copy set | 10 | Resolved 15 Aug 2026 — **six** strings, not four |
