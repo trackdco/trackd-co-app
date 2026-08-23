@@ -318,7 +318,7 @@ export default async function BillingPage() {
                 * component to say so.
                 */}
               <a
-                href="/onboarding?step=plans"
+                href="/plans"
                 className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
               >
                 <span className="flex-1 text-sm text-foreground">Set up my plan</span>
@@ -468,7 +468,26 @@ export default async function BillingPage() {
         * INSIDE the app tree, so a soft navigation is correct and the full
         * document load the onboarding route needs would be a regression here.
         */}
-      {hasStripeCustomer && action.kind !== "store" ? (
+      {/**
+        * ⚠️ NO LONGER GATED ON `hasStripeCustomer` (Adrian, 2026-08-23).
+        *
+        * It was, and the cost was that somebody with NO PLAN had no route to Card
+        * or Receipts at all — the row simply vanished, so the one screen that
+        * exists to answer "what am I paying and how do I change it" answered
+        * neither for the person most likely to be asking.
+        *
+        * Manage now always appears. The screen behind it states what it can and
+        * says what it cannot: with no Stripe customer the Card row reads "None on
+        * file" and does nothing, rather than opening a portal session that has no
+        * customer id to open.
+        *
+        * ⚠️ THE STORE EXCLUSION STAYS. Apple holds an App Store subscriber's
+        * payment method and a Stripe portal would be about a customer with no card
+        * on it. No such account exists yet — the app is not on the App Store — so
+        * this is unreachable today and kept because "unreachable" is a claim about
+        * today.
+        */}
+      {action.kind !== "store" ? (
         <section className="mt-6">
           <div className="overflow-hidden rounded-2xl bg-bg-surface">
             <Link

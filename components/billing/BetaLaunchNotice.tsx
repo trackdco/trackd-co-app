@@ -11,6 +11,7 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 
 import { Confetti } from "@/components/onboarding/confetti";
+import { Mascot } from "@/components/onboarding/mascot";
 import { markBetaNoticeSeen } from "@/lib/billing/betaNoticeStore";
 
 /**
@@ -139,7 +140,18 @@ export function BetaLaunchNotice({
    */
   const setUpMyPlan = useCallback(() => {
     markBetaNoticeSeen(userId);
-    window.location.assign("/onboarding?step=plans");
+    /**
+     * ⚠️ `/plans`, NOT `/onboarding?step=plans` (Adrian, 2026-08-23).
+     *
+     * D28's "one shared destination" is unchanged — every surface that offers a
+     * plan still points at ONE place. That place is now the billing-side route,
+     * because everybody arriving from these surfaces ALREADY HAS AN ACCOUNT and
+     * the onboarding flow was showing them a sign-up progress bar.
+     *
+     * Still a full document load: the flow reads its step at mount, so a soft
+     * navigation would change the address bar and leave this tree on screen.
+     */
+    window.location.assign("/plans");
   }, [userId]);
 
   if (!mounted || !open || cannotNameTheDate || typeof document === "undefined") {
@@ -299,12 +311,34 @@ function BetaLaunchDialog({
             going after you have looked at it, and this does not. */}
         {isComp ? <Confetti /> : null}
 
+        {/**
+          * ⚠️ KYLE, FLEX POSE — AND THE SIGNED COPY IS UNTOUCHED BY HIM
+          * (Adrian, 2026-08-23).
+          *
+          * The ask was "bigger title, and Kyle somewhere if we can", chosen over
+          * emoji. That distinction is load-bearing: the BODY of this notice is
+          * signed prose pinned character for character by `graceCopyPin.test.ts`,
+          * so emoji in the text would have needed re-signing. Kyle is an IMAGE
+          * beside the text, so every signed line is byte-identical and the pin
+          * keeps passing untouched.
+          *
+          * Flex rather than thumbs: this notice tells early users they were here
+          * first and have two more weeks on us. Flex reads as celebrating them.
+          *
+          * ⚠️ HE IS A VIAL, NEVER A JAR — and he appears ONLY here among the
+          * billing surfaces. Not on the read-only pop-up, the declined banner or
+          * the cancel dialog: a mascot beside "your card failed" reads as mockery.
+          */}
+        <div className="relative mb-2 flex justify-center">
+          <Mascot pose="flex" size={96} />
+        </div>
+
         {/* ⚠️ APPROVED COPY, CHARACTER FOR CHARACTER (06 §3.6). A fix WITHHOLDS a
             line, it never rewords one. No em dash. Kyle is a vial, never a jar.
             "Read only" is the exact phrase. */}
         <h2
           id="beta-notice-title"
-          className="relative text-base font-medium text-foreground"
+          className="relative text-lg font-medium text-foreground"
         >
           {isComp ? "Trackd Co is yours. For life." : "Trackd Co is going paid"}
         </h2>

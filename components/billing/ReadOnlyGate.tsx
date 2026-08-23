@@ -278,7 +278,18 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
   const choosePlan = () => {
     if (leaving) return;
     setLeaving(true);
-    window.location.assign("/onboarding?step=plans");
+    /**
+     * ⚠️ `/plans`, NOT `/onboarding?step=plans` (Adrian, 2026-08-23).
+     *
+     * D28's "one shared destination" is unchanged — every surface that offers a
+     * plan still points at ONE place. That place is now the billing-side route,
+     * because everybody arriving from these surfaces ALREADY HAS AN ACCOUNT and
+     * the onboarding flow was showing them a sign-up progress bar.
+     *
+     * Still a full document load: the flow reads its step at mount, so a soft
+     * navigation would change the address bar and leave this tree on screen.
+     */
+    window.location.assign("/plans");
   };
 
   if (typeof document === "undefined") return null;
@@ -359,12 +370,31 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
             moved because this file is unreachable from the committed suite, so
             reverting the clause below used to leave all 1573 tests green. Do not
             inline them back. */}
-        <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-          {READ_ONLY_POPUP.body}
-        </p>
-        <p className="mt-2 text-sm leading-relaxed text-text-muted">
-          {READ_ONLY_POPUP.reassurance}
-        </p>
+        {/**
+          * ⚠️ FORMATTING ONLY — NOT ONE CHARACTER OF THE COPY CHANGES.
+          *
+          * Adrian, seeing it rendered for the first time on the contact sheet:
+          * *"the 'it' is like cut off and then 'Nothing has been deleted' just
+          * looks a little bit out of place."* Both are typesetting faults, not
+          * wording faults, and the wording is signed and pinned.
+          *
+          * `text-pretty` stops the last line orphaning a single word — that was
+          * the stranded "it." — and the two paragraphs are grouped in one block
+          * with a tighter internal gap so the reassurance reads as the end of the
+          * same thought rather than a stray line under it.
+          *
+          * ⚠️ The strings still come from `READ_ONLY_POPUP` and are still diffed
+          * codepoint for codepoint against `signed/read-only-popup.txt`. Nothing
+          * here may inline them back.
+          */}
+        <div className="mt-2 space-y-1.5">
+          <p className="text-sm leading-relaxed text-pretty text-text-muted">
+            {READ_ONLY_POPUP.body}
+          </p>
+          <p className="text-sm leading-relaxed text-pretty text-text-muted">
+            {READ_ONLY_POPUP.reassurance}
+          </p>
+        </div>
 
         <div className="mt-5 flex gap-3">
           <button

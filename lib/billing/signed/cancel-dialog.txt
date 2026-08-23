@@ -5,3 +5,4 @@ Keep my plan
 {start} to {end}
 Your free month is on us. It runs from {start} to {end}, and your plan picks up from there unless you choose to cancel.
 Your free week is on us. It runs from {start} to {end}, and your plan picks up from there unless you choose to cancel.
+You'll have full access to your Pro plan until {date}. After that your account goes read only. You'll still see your whole history, you just can't add to it.

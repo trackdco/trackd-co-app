@@ -22,6 +22,7 @@ import {
 import type { SaveOffer } from "@/app/(app)/billing/actions";
 import { STAYING_NOTICE_SLOT, StayingNotice } from "@/components/billing/StayingNotice";
 import {
+  cancelConfirmBody,
   cancelConfirmDismiss,
   cancelConfirmTitle,
   offerGiftWindow,
@@ -1089,7 +1090,7 @@ function dialogCopy({
             endsImmediately ? "This ends your subscription straight away." : null,
             compForever
               ? `You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.`
-              : `You'll have full access to your Pro plan until ${endsOn}, and you won't be charged. After that your account goes read only. You'll still see your whole history, you just can't add to it.`,
+              : cancelConfirmBody(endsOn),
           ]
             .filter(Boolean)
             .join(" "),
@@ -1299,7 +1300,7 @@ function dialogCopy({
       title: `Your ${noun} is cancelled`,
       body: compForever
         ? `You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.`
-        : `You'll keep full access to your Pro plan until ${endsOn}, and you won't be charged${noun === "subscription" ? " again" : ""}. After that your account goes read only. You'll still see everything you've logged, you just can't add to it.`,
+        : cancelConfirmBody(endsOn),
       dismiss: null,
       confirm: "Close",
     };

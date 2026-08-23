@@ -61,6 +61,52 @@ export function cancelConfirmDismiss(isTrial: boolean): string {
   return isTrial ? "Keep my trial" : "Keep my plan";
 }
 
+/**
+ * What cancelling actually costs them, in one sentence. SIGNED (Adrian, 2026-08-23).
+ *
+ * ## It was written inline, TWICE, in two different wordings
+ *
+ * `CancelSubscription.tsx` carried it as a template literal at two call sites that
+ * had drifted apart in three places:
+ *
+ *     :1092  "You'll HAVE full access … you'll still see YOUR WHOLE HISTORY …"
+ *     :1302  "You'll KEEP full access … you'll still see EVERYTHING YOU'VE LOGGED …"
+ *                                        …and you won't be charged AGAIN
+ *
+ * Neither was in `lib/billing/signed/`, so no pin could see either, and the two
+ * could keep drifting for as long as nobody read them side by side. Moving it here
+ * is the first half of the fix the signed corpus's own rule demands: *"if it cannot
+ * be reached from `lib/` then MOVING IT IS THE FIRST HALF OF THE FIX — not a reason
+ * to skip the pin."*
+ *
+ * ## ⚠️ ONE SENTENCE ON TWO SURFACES, DELIBERATELY
+ *
+ * It speaks BEFORE the cancellation (the confirm dialog, under "Cancel your plan?")
+ * and AFTER it (the confirmation screen, under "Your subscription is cancelled").
+ * The fact is identical at both moments — access until this date, read-only after,
+ * nothing deleted — and the TITLE supplies the tense. One string means the two can
+ * never disagree again, which is exactly how they got here.
+ *
+ * ## ⚠️ "AND YOU WON'T BE CHARGED" IS GONE, AND THAT CLOSES AN ACCEPTED GAP
+ *
+ * The clause was `…and you won't be charged` here and `…won't be charged again` on
+ * the other surface. The `again` form is a REGISTERED ACCEPTED GAP: it is false for
+ * the grace-aligned-then-cancelled cohort, who were never charged a first time, and
+ * the record's proposed fix was "a real predicate feeding both call sites".
+ *
+ * Deleting the claim closes it instead. A sentence that does not assert anything
+ * about charging cannot be wrong about charging, for any cohort, and it needs no
+ * predicate to stay right. ⚠️ The gap's acceptance must therefore be REWRITTEN
+ * rather than inherited (D100): its reason has changed, it has not merely moved.
+ */
+export function cancelConfirmBody(endsOn: string): string {
+  return (
+    `You'll have full access to your Pro plan until ${endsOn}. ` +
+    `After that your account goes read only. ` +
+    `You'll still see your whole history, you just can't add to it.`
+  );
+}
+
 /* ── F2: the gift window, and the granted screen's body ────────────── */
 
 /**

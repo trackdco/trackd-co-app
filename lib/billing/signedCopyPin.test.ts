@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { manageActionFor, periodEndLabelFor } from "./manage";
 import { manageSummaryFor, type SummaryFacts } from "./manageSummary";
 import {
+  cancelConfirmBody,
   cancelConfirmDismiss,
   cancelConfirmTitle,
   offerGiftWindow,
@@ -604,14 +605,23 @@ describe("⚠️ signed copy pin: the cancel dialog, codepoint for codepoint", (
     ["GIFT WINDOW", offerGiftWindow(START, END)],
     ["GRANTED month", offerGrantedBody("month", START, END)],
     ["GRANTED week", offerGrantedBody("week", START, END)],
+    /**
+     * ⚠️ FIRST-SIGNED 2026-08-23, NOT RE-SIGNED — it had never been pinned at all.
+     *
+     * It lived inline in `CancelSubscription.tsx` at TWO call sites in two drifted
+     * wordings ("have"/"keep", "your whole history"/"everything you've logged", and
+     * a conditional "again"), so no pin could see either and the two could keep
+     * diverging. One function now feeds both surfaces and this line pins it.
+     */
+    ["CANCEL BODY", cancelConfirmBody("{date}")],
   ];
 
-  it("the signed file holds exactly the seven strings the founder approved", () => {
-    expect(signed).toHaveLength(7);
-    expect(RENDERED).toHaveLength(7);
+  it("the signed file holds exactly the eight strings the founder approved", () => {
+    expect(signed).toHaveLength(8);
+    expect(RENDERED).toHaveLength(8);
   });
 
-  for (let i = 0; i < 7; i += 1) {
+  for (let i = 0; i < 8; i += 1) {
     it(`${RENDERED[i]?.[0] ?? `#${i}`} matches the signed line character for character`, () => {
       const diff = firstDifference(RENDERED[i][1], signed[i]);
       expect(diff).toBeNull();

@@ -95,7 +95,34 @@ export function OnboardingFlow({
   eligibility,
   firstChargeOn,
   graceEndsOn,
+  chrome = "onboarding",
+  startAt,
 }: {
+  /**
+   * ⚠️ WHO IS DRIVING THIS FLOW — and it decides the header, nothing else.
+   *
+   * `"onboarding"` is a person working through sign-up: the progress rail is
+   * honest for them, because there genuinely is a fixed number of steps left.
+   *
+   * `"billing"` is somebody who ALREADY HAS AN ACCOUNT and came from `/billing`
+   * to pick a plan or change a card. A percentage is a lie to that person —
+   * there is no flow to be 73% of the way through — and Adrian named it as the
+   * thing that made the contact sheet hard to read (2026-08-23).
+   *
+   * ⚠️ IT CHANGES THE HEADER AND NOTHING ELSE. Same screens, same steps, same
+   * eligibility, same Stripe calls. Behaviour is deliberately untouched: this is
+   * a chrome switch, not a second flow, so the two entry points cannot drift
+   * into rendering different products.
+   */
+  chrome?: "onboarding" | "billing";
+  /**
+   * Which screen to open on when the URL carries no `?step=`.
+   *
+   * `/plans` and `/checkout` are real routes rather than query strings, so the
+   * step cannot be read out of the address bar the way `/onboarding?step=` is.
+   * The route names the screen and passes it here.
+   */
+  startAt?: StepId;
   /** A session exists. Server-verified in `app/onboarding/page.tsx`. */
   signedIn?: boolean;
   /**
@@ -152,6 +179,8 @@ export function OnboardingFlow({
       eligibility={eligibility}
       firstChargeOn={firstChargeOn}
       graceEndsOn={graceEndsOn}
+      chrome={chrome}
+      startAt={startAt}
     />
   );
 }
@@ -189,7 +218,12 @@ function OnboardingFlowClient({
   eligibility,
   firstChargeOn,
   graceEndsOn,
+  chrome,
+  startAt,
 }: {
+  /** See `OnboardingFlow`. Decides the header only; behaviour is identical. */
+  chrome: "onboarding" | "billing";
+  startAt?: StepId;
   signedIn: boolean;
   passedGate: boolean;
   prices: readonly StripePlanPrice[];
@@ -326,9 +360,18 @@ function OnboardingFlowClient({
     [passedGate, pastAccount],
   );
 
+  /**
+   * ⚠️ THE ROUTE MAY NAME THE STEP INSTEAD OF THE QUERY STRING.
+   *
+   * `/plans` and `/checkout` carry no `?step=`, so reading the URL alone would
+   * land them on `FIRST_STEP` — the very beginning of onboarding — for somebody
+   * who already has an account. `startAt` is the route's own answer, and it is
+   * still passed through `resolveStep`, so every clamp (the age gate, the intent
+   * screens, housekeeping) applies exactly as it does to a deep link.
+   */
   const [step, setStep] = useState<StepId>(() =>
     resolveStep(
-      new URLSearchParams(window.location.search).get("step"),
+      new URLSearchParams(window.location.search).get("step") ?? startAt ?? null,
       session,
       todayKey,
     ),
@@ -375,11 +418,20 @@ function OnboardingFlowClient({
    * the `popstate` handler have already written the URL by the time this runs.
    */
   useEffect(() => {
+    /**
+     * ⚠️ THE BILLING ENTRY POINTS OWN THEIR URLS AND MUST NOT BE REWRITTEN.
+     *
+     * This exists so `/onboarding` reflects the step in its address bar. On
+     * `/plans` and `/checkout` the ROUTE already names the screen, and stamping
+     * `?step=` onto it would produce `/plans?step=plans` and put an onboarding
+     * query string on a billing route — exactly the bleed Adrian asked to end.
+     */
+    if (chrome === "billing") return;
     const url = new URL(window.location.href);
     if (url.searchParams.get("step") === step) return;
     url.searchParams.set("step", step);
     window.history.replaceState({ step }, "", url);
-  }, [step]);
+  }, [step, chrome]);
   // Which way the last move went, so the entering screen slides in from the
   // side it came from. Forward from the right, back from the left.
   const [direction, setDirection] = useState<"forward" | "back">("forward");
@@ -735,7 +787,22 @@ function OnboardingFlowClient({
               ) : null}
             </div>
 
-            <ProgressRail progress={stepProgress(step)} />
+            {/**
+              * ⚠️ NO PROGRESS RAIL FOR SOMEBODY WHO IS NOT ONBOARDING.
+              *
+              * The rail answers "how much of sign-up is left". Asked from
+              * `/billing` that question has no answer, and the screen was
+              * showing "73%" to a person who had finished onboarding weeks ago.
+              *
+              * The grid column is kept (an empty span) rather than removed, so
+              * the back arrow stays in exactly the same place and the header
+              * does not reflow between the two entry points.
+              */}
+            {chrome === "onboarding" ? (
+              <ProgressRail progress={stepProgress(step)} />
+            ) : (
+              <span aria-hidden />
+            )}
 
             {/* Balances the arrow's column so the rail sits on the true centre. */}
             <span aria-hidden />

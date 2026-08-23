@@ -466,13 +466,34 @@ export function CheckoutScreen() {
        * and invents nothing: they genuinely have nothing to pay today.
        */
       title={
-        trial || midGrace ? (
+        /**
+        * ⚠️ "NOTHING TO PAY TODAY." IS NOW THE NEW-TRIAL TITLE ONLY
+        * (Adrian, 2026-08-23). This SUPERSEDES D17's reuse.
+        *
+        * D17 gave the mid-grace cohort the trial variant's title on the grounds
+        * that it is literally true for them — they do genuinely have nothing to
+        * pay today. Seen rendered on the contact sheet, Adrian ruled against it:
+        * *"let's say one of the 90 people goes to plans and clicks on the plan,
+        * it shouldn't say nothing to pay today, it should kind of have a title
+        * like enter your information."*
+        *
+        * True is not the same as useful. Somebody who has had the app free for
+        * two months and is now setting up a plan is not being told anything by
+        * "nothing to pay today" — they know. The screen's job at that moment is
+        * to say what it wants from them, which is their card details.
+        *
+        * ⚠️ THE OLD NO-TRIAL TITLE IS ALSO GONE. "You've had your trial." was §5
+        * of the founder's brief; it is replaced by the same neutral title, so
+        * there is ONE title for everybody who is not starting a new free trial
+        * rather than two near-variants that can drift apart.
+        */
+        trial ? (
           <>
             Nothing to pay <em className={FLOW_EMPHASIS}>today</em>.
           </>
         ) : (
           <>
-            You&apos;ve had your <em className={FLOW_EMPHASIS}>trial</em>.
+            Enter your <em className={FLOW_EMPHASIS}>details</em>.
           </>
         )
       }

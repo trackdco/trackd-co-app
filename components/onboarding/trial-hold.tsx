@@ -185,12 +185,12 @@ export function TrialHold({
             their bank. Carried verbatim; do not shorten or soften. */}
         <p className={cn(FLOW_SUB, "mx-auto mt-3 max-w-[20rem] text-pretty")}>
           {paid
-            ? "We're still finishing your setup. Your payment is safe and your Pro plan will appear shortly. Carry on, and check your Billing screen if anything looks missing."
-            : "We're still finishing your setup. Nothing is lost, so carry on, and if anything is missing it'll catch up shortly."}
+            ? "We're still finalising your setup. Your payment is safe and your Pro plan will appear shortly. Check your Billing screen if anything looks missing."
+            : "We're still finalising your setup. Nothing is lost, and if anything is missing it'll catch up shortly."}
         </p>
         <div className="mt-8">
           <FlowCta onClick={() => void continueOn()} disabled={checking}>
-            {checking ? "Checking…" : "Continue"}
+            {checking ? "Checking…" : "Go to my dashboard"}
           </FlowCta>
         </div>
       </div>

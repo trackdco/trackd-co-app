@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { StripeHandoff } from "@/components/billing/StripeHandoff";
+import { CreditCard } from "@/components/icons";
 import { formatAccessDate } from "@/lib/billing/manage";
 import { manageSummaryFor } from "@/lib/billing/manageSummary";
 import { loadBillingFacts } from "@/lib/billing/screenFacts";
@@ -107,6 +108,20 @@ export default async function ManagePage() {
     accessRevokedReason: facts.accessRevokedReason,
   });
 
+  /**
+   * ⚠️ ONE ACTION, MATCHED TO THE STATE — and null is a real answer.
+   *
+   * Derived from the SAME `facts.action` the rest of billing reads, so this card
+   * and `/billing`'s own controls cannot disagree about what this account can do.
+   * Nothing new is computed here.
+   */
+  const manageAction: { label: string; href: string } | null =
+    facts.action.kind === "resume"
+      ? { label: "Keep my Pro plan", href: "/billing" }
+      : facts.action.kind === "none" && !facts.accessLive
+        ? { label: "Choose a plan", href: "/plans" }
+        : null;
+
   return (
     <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
       <h1 className={PAGE_TITLE}>Manage</h1>
@@ -127,8 +142,46 @@ export default async function ManagePage() {
         * D83 support line is what speaks for them. A state whose date or price
         * cannot be read gets none either, rather than a sentence with a gap in it.
         */}
+      {/**
+        * ⚠️ IT IS A CARD NOW, NOT SUBTEXT (Adrian, 2026-08-23).
+        *
+        * It rendered as `text-sm text-text-muted` directly under the heading, and
+        * on the contact sheet Adrian's reaction was that it *"just looks like a
+        * weird subtext I wouldn't actually read"* — which is a problem, because
+        * this sentence is the whole point of the screen. It is the one place that
+        * says a payment failed, or that there is no plan, or that access is free
+        * for life. A line nobody reads is a line that may as well be withheld.
+        *
+        * So it takes the same raised surface the billing pop-ups use, which is
+        * the visual language this app already reserves for "read this".
+        *
+        * ## The action, and where it is deliberately absent
+        *
+        * One action, matched to the state, and ONLY where it opens a route that
+        * is not already on this screen:
+        *
+        *   no plan      "Choose a plan"      -> `/plans`, which nothing else here
+        *                                        offers
+        *   cancelled    "Keep my Pro plan"   -> `/billing`, which owns the resume
+        *                                        control (D22's label, unchanged)
+        *   past due     none                 -> the Card row is the very next
+        *                                        element. A button pointing at
+        *                                        something 60px below it is noise,
+        *                                        not help.
+        *   healthy/comp none                 -> there is nothing to do
+        */}
       {summary ? (
-        <p className="mt-2 text-sm leading-relaxed text-text-muted">{summary}</p>
+        <div className="mt-3 rounded-2xl bg-bg-surface px-4 py-3.5">
+          <p className="text-sm leading-relaxed text-foreground">{summary}</p>
+          {manageAction ? (
+            <Link
+              href={manageAction.href}
+              className="mt-3 inline-flex min-h-11 items-center rounded-md text-sm font-medium text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {manageAction.label}
+            </Link>
+          ) : null}
+        </div>
       ) : null}
 
       <section className="mt-6">
@@ -150,16 +203,53 @@ export default async function ManagePage() {
             * the screen rather than implied, so nobody is surprised by the origin
             * they land on.
             */}
-          <StripeHandoff
-            rows={[
-              { key: "card", label: "Card" },
-              {
-                key: "receipts",
-                label: "Receipts",
-                note: "Opens your receipts at Stripe until we build them in here.",
-              },
-            ]}
-          />
+          {/**
+            * ⚠️ RECEIPTS IS WITHHELD UNTIL `19` BUILDS THE IN-APP LIST
+            * (Adrian, 2026-08-23).
+            *
+            * It used to hand off to Stripe's portal with a note saying so. Two
+            * reasons it is gone rather than reworded:
+            *
+            *   · Nobody has a receipt yet. Billing has never been switched on, so
+            *     the row's only destination is an empty portal page — a surface
+            *     that can only disappoint whoever taps it.
+            *   · `19` is the real answer and is already specced: a list in the
+            *     app, newest first, tapping through to the invoice itself. A
+            *     half-built route to somebody else's origin is not a smaller
+            *     version of that, it is a different thing wearing its label.
+            *
+            * The subtext went with it. It existed to explain the handoff, and
+            * with no handoff there is nothing to explain.
+            *
+            * ⚠️ RESTORE THIS ROW WHEN `19` SHIPS — pointing at the in-app list,
+            * NOT at the portal. `19` §5 keeps the portal only as the fallback for
+            * a failed fetch, and `08`'s Card row keeps its own handoff either way.
+            */}
+          {/**
+            * ⚠️ WITH NO STRIPE CUSTOMER THE CARD ROW STATES THE FACT AND DOES
+            * NOTHING (Adrian, 2026-08-23).
+            *
+            * Manage is now reachable with no plan, and the only thing behind it is
+            * a portal session — `billingPortal.sessions.create({ customer })` —
+            * which has no customer id to open for somebody who has never paid.
+            * A tappable row that cannot work is worse than a row that says so:
+            * the user cannot tell it from a broken app, which is the same reason
+            * the read-only signal is deliberately never throttled.
+            *
+            * So the row still appears, in the same place, at the same height. It
+            * carries "None on file" instead of a chevron, and it is a `div`
+            * rather than a button — not a disabled button, which would still take
+            * focus and still invite the tap.
+            */}
+          {facts.hasStripeCustomer ? (
+            <StripeHandoff rows={[{ key: "card", label: "Card" }]} />
+          ) : (
+            <div className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left">
+              <CreditCard className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+              <span className="flex-1 text-sm text-foreground">Card</span>
+              <span className="text-sm text-text-muted">None on file</span>
+            </div>
+          )}
         </div>
       </section>
 
