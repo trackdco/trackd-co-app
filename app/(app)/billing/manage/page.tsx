@@ -174,8 +174,8 @@ export default async function ManagePage() {
         *   healthy/comp none                 -> there is nothing to do
         */}
       {summary ? (
-        <div className="mt-3 rounded-2xl bg-bg-surface px-4 py-3.5">
-          <p className="text-sm leading-relaxed text-pretty text-foreground">{summary}</p>
+        <div className="mt-3 rounded-2xl bg-bg-surface px-4 py-3">
+          <p className="text-[13.5px] leading-snug text-pretty text-foreground">{summary}</p>
           {manageAction ? (
             /**
               * ⚠️ AN OUTLINED PILL, NOT A TEXT LINK (Adrian, 2026-08-25).
@@ -198,7 +198,7 @@ export default async function ManagePage() {
               */
             <Link
               href={manageAction.href}
-              className="-mx-4 mt-3 flex min-h-11 items-center gap-3 border-t border-border-default px-4 pt-3.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              className="-mx-4 -mb-3 mt-2.5 flex min-h-10 items-center gap-3 border-t border-border-default px-4 py-2.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
               <span className="flex-1">{manageAction.label}</span>
               <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />

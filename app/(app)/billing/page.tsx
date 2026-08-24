@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { CancelSubscription } from "@/components/billing/CancelSubscription";
 import { DeclinedCard } from "@/components/billing/DeclinedCard";
-import { CaretRight, CreditCard } from "@/components/icons";
+import { CaretRight } from "@/components/icons";
 import { STAYING_NOTICE_SLOT } from "@/components/billing/StayingNotice";
 import {
   formatAccessDate,
@@ -371,11 +371,14 @@ export default async function BillingPage() {
           {action.kind !== "store" ? (
             <>
               <Divider />
+              {/* ⚠️ NO ICON (Adrian, 2026-08-25). The rows above it — Access,
+                  Price, the date — carry none, so a card icon on this one alone
+                  made Manage read as a different KIND of thing rather than the
+                  next row down. The chevron already says it navigates. */}
               <Link
                 href="/billing/manage"
                 className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
               >
-                <CreditCard className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
                 <span className="flex-1 text-sm text-foreground">Manage</span>
                 <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
               </Link>
@@ -387,7 +390,7 @@ export default async function BillingPage() {
       {/* The control, quiet and in its own block so it is neither buried nor
           competing with the summary above it. */}
       {action.kind === "cancel" || action.kind === "resume" ? (
-        <section className="mt-6">
+        <section className="mt-4">
           {/**
             * ⚠️ CANCELLED-BUT-STILL-RUNNING IS A CARD THAT HOLDS BOTH HALVES
             * (§3.9), AND THE PARAGRAPH USED TO SIT OUTSIDE IT.
@@ -429,6 +432,22 @@ export default async function BillingPage() {
                 : ""
             }
           >
+            {action.kind === "resume" && accessKnown ? (
+              <p className="px-1 pt-2 pb-3 text-xs leading-relaxed text-text-muted">
+                {/* The tail used to end "unless you restart it", which named a
+                    control that no longer says restart. It now states the two
+                    facts and stops: what you keep, and that nothing is coming.
+                    `03`'s words, unchanged; only the container moved. */}
+                You&apos;ll keep everything until{" "}
+                {formatAccessDate(action.endsOn, tz)}, and nothing more will be
+                charged. You can change your mind until then.
+              </p>
+            ) : null}
+            {/* ⚠️ ORDER REVERSED (Adrian, 2026-08-25): the SENTENCE comes first,
+                then a rule, then the control — exactly the shape the "Choose a
+                plan" row takes on Manage. It read the other way round, so the
+                explanation of what you keep arrived AFTER the button offering to
+                undo it. `03` still owns every word; only the order moved. */}
             <CancelSubscription
               mode={action.kind}
               endsOn={formatAccessDate(action.endsOn, tz)}
@@ -511,17 +530,6 @@ export default async function BillingPage() {
               * cancelled still sees what they pressed and can still change their
               * mind. Only the sentence the server cannot back is withheld.
               */}
-            {action.kind === "resume" && accessKnown ? (
-              <p className="px-1 pb-3 text-xs leading-relaxed text-text-muted">
-                {/* The tail used to end "unless you restart it", which named a
-                    control that no longer says restart. It now states the two
-                    facts and stops: what you keep, and that nothing is coming.
-                    `03`'s words, unchanged; only the container moved. */}
-                You&apos;ll keep everything until{" "}
-                {formatAccessDate(action.endsOn, tz)}, and nothing more will be
-                charged. You can change your mind until then.
-              </p>
-            ) : null}
           </div>
         </section>
       ) : null}
@@ -607,7 +615,7 @@ export default async function BillingPage() {
           `min-h-11` gives the height outright rather than leaving it to padding
           arithmetic on a line box, and the negative inline margin keeps the text
           optically where it was. */}
-      <div className="mt-6 text-sm text-text-muted">
+      <div className="mt-5 text-sm text-text-muted">
         <Link
           href="/profile"
           className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
