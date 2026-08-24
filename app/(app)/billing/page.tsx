@@ -390,7 +390,7 @@ export default async function BillingPage() {
       {/* The control, quiet and in its own block so it is neither buried nor
           competing with the summary above it. */}
       {action.kind === "cancel" || action.kind === "resume" ? (
-        <section className="mt-4">
+        <section className="mt-3">
           {/**
             * ⚠️ CANCELLED-BUT-STILL-RUNNING IS A CARD THAT HOLDS BOTH HALVES
             * (§3.9), AND THE PARAGRAPH USED TO SIT OUTSIDE IT.
@@ -432,8 +432,14 @@ export default async function BillingPage() {
                 : ""
             }
           >
+            {/* ⚠️ MATCHED TO THE MANAGE CARD (Adrian, 2026-08-25). The two cards read the
+                same sentence-then-action shape and were disagreeing about colour:
+                Manage near-white, this one muted. Matched UPWARD rather than down,
+                because muted is exactly what he rejected on Manage two rounds ago
+                as "weird subtext I wouldn't actually read", and both sentences are
+                the primary message of their own card. */}
             {action.kind === "resume" && accessKnown ? (
-              <p className="px-1 pt-2 pb-3 text-xs leading-relaxed text-text-muted">
+              <p className="px-1 pt-2 pb-3 text-[13px] leading-snug text-pretty text-foreground">
                 {/* The tail used to end "unless you restart it", which named a
                     control that no longer says restart. It now states the two
                     facts and stops: what you keep, and that nothing is coming.
@@ -615,7 +621,7 @@ export default async function BillingPage() {
           `min-h-11` gives the height outright rather than leaving it to padding
           arithmetic on a line box, and the negative inline margin keeps the text
           optically where it was. */}
-      <div className="mt-5 text-sm text-text-muted">
+      <div className="mt-6 text-sm text-text-muted">
         <Link
           href="/profile"
           className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"

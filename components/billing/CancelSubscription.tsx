@@ -814,7 +814,14 @@ export function CancelSubscription({
         className={
           mode === "cancel"
             ? "-ml-1 inline-flex min-h-11 items-center px-1 text-sm font-medium text-accent-destructive-on-surface outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
-            : "-mx-4 flex w-full min-h-11 items-center gap-3 border-t border-border-default px-4 py-3.5 text-left text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            /**
+             * ⚠️ `w-[calc(100%+2rem)]`, NOT `w-full`. `-mx-4` pulls the element
+             * 16px past each edge, but `w-full` is 100% of the PADDED box — so
+             * the row started at the card's left edge and stopped 16px short of
+             * the right, leaving a divider that visibly did not reach. Measured
+             * on the reshot tile.
+             */
+            : "-mx-4 flex w-[calc(100%+2rem)] min-h-11 items-center gap-3 border-t border-border-default px-4 py-3.5 text-left text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         }
       >
         {mode === "cancel" ? `Cancel my ${noun}` : resumeLabel}
