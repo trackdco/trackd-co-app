@@ -821,7 +821,15 @@ export function CancelSubscription({
              * the right, leaving a divider that visibly did not reach. Measured
              * on the reshot tile.
              */
-            : "-mx-4 flex w-[calc(100%+2rem)] min-h-11 items-center gap-3 border-t border-border-default px-4 py-3.5 text-left text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            /**
+             * ⚠️ FORMAT B: AN INSET CONTAINED BUTTON, NOT A FULL-WIDTH ROW.
+             *
+             * The full-width row inherited the card's padding, so this control
+             * came out wider here than "Choose a plan" did on Manage and the two
+             * drifted apart every time either card's padding changed. Inset by a
+             * fixed amount, both are the same width by construction.
+             */
+            : "mb-3.5 flex min-h-11 w-full items-center gap-3 rounded-xl bg-bg-surface-raised px-3.5 text-left text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
         }
       >
         {mode === "cancel" ? `Cancel my ${noun}` : resumeLabel}

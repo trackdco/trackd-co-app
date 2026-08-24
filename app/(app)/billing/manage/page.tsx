@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { StripeHandoff } from "@/components/billing/StripeHandoff";
 import { CaretRight, CreditCard } from "@/components/icons";
 import { formatAccessDate } from "@/lib/billing/manage";
-import { manageSummaryFor } from "@/lib/billing/manageSummary";
+import { manageSummaryFor, splitSummary } from "@/lib/billing/manageSummary";
 import { loadBillingFacts } from "@/lib/billing/screenFacts";
 import { cardOnFile } from "@/lib/billing/cardOnFile";
 import { formatPrice } from "@/lib/onboarding/pricing";
@@ -174,35 +174,45 @@ export default async function ManagePage() {
         *   healthy/comp none                 -> there is nothing to do
         */}
       {summary ? (
-        <div className="mt-2.5 rounded-2xl bg-bg-surface px-3.5 py-2.5">
-          <p className="text-[13px] leading-snug text-pretty text-foreground">{summary}</p>
+        /**
+         * ⚠️ FORMAT B, CHOSEN FROM RENDERED ALTERNATIVES (Adrian, 2026-08-25).
+         *
+         * Title, subtext, then a CONTAINED button inset from the card. Three
+         * formats were mocked on all three real situations; this one was picked
+         * for a structural reason rather than a visual one:
+         *
+         * a full-width action row INHERITS whatever padding its card has, so the
+         * same control came out wide on Billing and narrow on Manage and kept
+         * drifting every time either card's padding moved. An INSET button is a
+         * fixed distance from the card edge, so it is the same width wherever it
+         * appears regardless of the card around it. That is the "universal
+         * spacing rule" the review kept asking for, enforced by construction.
+         *
+         * ⚠️ THE TITLE IS THE SIGNED SENTENCE'S OWN FIRST HALF. `splitSummary`
+         * is proven lossless against all fifteen signed lines — no word is
+         * rewritten, reordered or dropped, only weighted differently.
+         */
+        <div className="mt-3 rounded-2xl bg-bg-surface">
+          <div className="px-4 pt-3.5 pb-3">
+            <p className="text-[15px] font-medium leading-snug text-pretty text-foreground">
+              {splitSummary(summary).title}
+            </p>
+            {splitSummary(summary).rest ? (
+              <p className="mt-1.5 text-[13px] leading-relaxed text-pretty text-text-muted">
+                {splitSummary(summary).rest}
+              </p>
+            ) : null}
+          </div>
           {manageAction ? (
-            /**
-              * ⚠️ AN OUTLINED PILL, NOT A TEXT LINK (Adrian, 2026-08-25).
-              *
-              * It was `text-accent` with a hover underline, and his reaction on
-              * the copy review was blunt: *"the 'Choose a plan' text just looks
-              * terrible."* He is right — on a card whose whole job is to be read,
-              * the one thing to DO looked like body copy.
-              *
-              * ⚠️ AND THE PILL WAS REJECTED TOO. It was an outlined amber pill
-              * for two days; Adrian's verdict on the rendered swatches was that it
-              * "reads as a stray tablet floating in the card".
-              *
-              * What it is now: THE SAME ROW AS MANAGE — full width, amber label,
-              * chevron, divided from the sentence above by the card's own rule.
-              * Chosen from five mocked treatments because it needs no new
-              * component: everything on these screens that takes you somewhere
-              * now looks identical, so "actionable" is one visual idea rather
-              * than three.
-              */
-            <Link
-              href={manageAction.href}
-              className="-mx-3.5 -mb-2.5 mt-2 flex w-[calc(100%+1.75rem)] min-h-9 items-center gap-3 border-t border-border-default px-3.5 py-2 text-[13px] font-medium text-accent outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-            >
-              <span className="flex-1">{manageAction.label}</span>
-              <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-            </Link>
+            <div className="px-4 pb-3.5">
+              <Link
+                href={manageAction.href}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-bg-surface-raised px-3.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="flex-1">{manageAction.label}</span>
+                <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+              </Link>
+            </div>
           ) : null}
         </div>
       ) : null}

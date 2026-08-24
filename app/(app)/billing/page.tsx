@@ -439,7 +439,14 @@ export default async function BillingPage() {
                 as "weird subtext I wouldn't actually read", and both sentences are
                 the primary message of their own card. */}
             {action.kind === "resume" && accessKnown ? (
-              <p className="px-1 pt-2 pb-3 text-[13px] leading-snug text-pretty text-foreground">
+              <>
+                {/* ⚠️ NEW SIGNED TITLE (Adrian, 2026-08-25): the card had a
+                    paragraph and no heading, so what had HAPPENED was left for
+                    the reader to infer from a sentence about dates. */}
+                <p className="px-1 pt-3 text-[15px] font-medium leading-snug text-pretty text-foreground">
+                  Your Pro plan is ending
+                </p>
+                <p className="px-1 pt-1.5 pb-3.5 text-[13px] leading-relaxed text-pretty text-text-muted">
                 {/* The tail used to end "unless you restart it", which named a
                     control that no longer says restart. It now states the two
                     facts and stops: what you keep, and that nothing is coming.
@@ -447,7 +454,8 @@ export default async function BillingPage() {
                 You&apos;ll keep everything until{" "}
                 {formatAccessDate(action.endsOn, tz)}, and nothing more will be
                 charged. You can change your mind until then.
-              </p>
+                </p>
+              </>
             ) : null}
             {/* ⚠️ ORDER REVERSED (Adrian, 2026-08-25): the SENTENCE comes first,
                 then a rule, then the control — exactly the shape the "Choose a

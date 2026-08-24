@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { BETA_GRACE_DAYS } from "./betaGrace";
 import { manageActionFor } from "./manage";
 import {
   manageSummaryFor,
+  splitSummary,
   summaryStateFor,
   type SummaryFacts,
   type SummaryState,
@@ -1029,5 +1031,39 @@ describe("⚠️ no em dash, and no smart punctuation, anywhere in the set", () 
       // A plain apostrophe IS expected in most of them, and is ASCII 0x27.
       expect(/^[\x20-\x7E]*$/.test(s!)).toBe(true);
     }
+  });
+});
+
+describe("⚠️ splitSummary is LOSSLESS — the control that makes the split safe", () => {
+  const signed = readFileSync(
+    new URL("./signed/manage-summary.txt", import.meta.url),
+    "utf8",
+  )
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => l.length > 0);
+
+  it("every signed sentence rejoins to itself, character for character", () => {
+    expect(signed).toHaveLength(15);
+    for (const line of signed) {
+      const { title, rest } = splitSummary(line);
+      const rejoined = rest === null ? title : `${title} ${rest}`;
+      expect(rejoined, `splitting lost or added a character in: ${line}`).toBe(line);
+    }
+  });
+
+  it("⚠️ CONTROL: the rejoin check can actually fail", () => {
+    // Without this, a split that silently dropped the separator would look
+    // identical to fifteen correct splits.
+    const line = "One sentence. And another.";
+    const { title, rest } = splitSummary(line);
+    expect(`${title}  ${rest}`).not.toBe(line); // two spaces — must NOT match
+    expect(`${title} ${rest}`).toBe(line);
+  });
+
+  it("a sentence with no interior break stays whole", () => {
+    const { title, rest } = splitSummary("You have free access for life.");
+    expect(rest).toBeNull();
+    expect(title).toBe("You have free access for life.");
   });
 });

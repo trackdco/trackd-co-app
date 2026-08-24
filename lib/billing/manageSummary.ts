@@ -618,3 +618,33 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
       return "You're not on a plan at the moment. Trackd Co is read only.";
   }
 }
+
+/**
+ * THE SIGNED SENTENCE, SPLIT INTO A TITLE AND THE REST — LOSSLESSLY.
+ *
+ * Adrian's notice-card format (2026-08-25) wants the first sentence larger and
+ * white with the remainder muted beneath it: *"the title could be 'You're not on
+ * a plan at the moment' and the subtext could be 'Trackd Co is read only'."*
+ *
+ * ## ⚠️ THIS IS A SPLIT, NOT A REWRITE, AND THE DIFFERENCE HAS TO BE PROVABLE
+ *
+ * `signed/README.md`'s standing rule is that a prose regex over signed copy only
+ * ever APPROXIMATES it. So this does not try to parse English: it finds the first
+ * sentence terminator followed by a space, and returns the two halves such that
+ * rejoining them with that same single space reproduces the input EXACTLY.
+ *
+ * `splitRejoins` in the test file asserts precisely that, for all fifteen signed
+ * sentences: `title + " " + rest === the signed line`. If a future sentence ever
+ * splits in a way that loses or adds a character, that control fails rather than
+ * the screen quietly rendering something nobody signed.
+ *
+ * ⚠️ A sentence with no interior break returns `rest: null` and renders as a
+ * title alone. That is correct, not a fallback: "You have free access for life,
+ * so there's nothing to pay and nothing to renew." is one thought and splitting
+ * it at the comma would invent a hierarchy the founder did not write.
+ */
+export function splitSummary(summary: string): { title: string; rest: string | null } {
+  const at = summary.indexOf(". ");
+  if (at === -1) return { title: summary, rest: null };
+  return { title: summary.slice(0, at + 1), rest: summary.slice(at + 2) };
+}
