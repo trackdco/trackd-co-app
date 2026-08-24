@@ -52,11 +52,30 @@ import {
  * a filled button would put the exit in the strongest slot on the page and turn
  * a billing summary into an offboarding prompt.
  *
- * It is also not in a danger zone and not red. `DANGER_ROW` is for sign-out and
- * account deletion, which destroy access or data. Cancelling destroys nothing:
- * the user keeps every day they have already paid for, keeps all their data, and
- * can undo it until the date. Dressing it as destruction would be theatre, and
- * the kind that makes people distrust the thing they are reading.
+ * ⚠️ IT IS NOW RED, REVERSING WHAT THIS COMMENT USED TO SAY (Adrian, 2026-08-25).
+ *
+ * The paragraph that stood here argued the opposite, and the argument was good:
+ * "`DANGER_ROW` is for sign-out and account deletion, which destroy access or
+ * data. Cancelling destroys nothing: the user keeps every day they have already
+ * paid for, keeps all their data, and can undo it until the date. Dressing it as
+ * destruction would be theatre, and the kind that makes people distrust the
+ * thing they are reading."
+ *
+ * Adrian overruled it on the copy review, having seen both screens rendered:
+ * *"could you potentially make 'Cancel my trial' and 'Cancel my subscription'
+ * the same red as the danger zone buttons?"* His screen, his call. The old
+ * reasoning is kept above rather than deleted so the next person finds a
+ * REVERSED decision instead of an absent one.
+ *
+ * What the reversal is bounded to: the trigger row, and the confirm button on
+ * the `confirm` phase only. `granted` and `declined` are outcome screens whose
+ * button merely closes, and `offer` GRANTS free time — red on those would say
+ * "destructive" about the two moments that are its opposite. And it is colour on
+ * the word, not a filled block: a filled red bar under the plan card reads as an
+ * error state rather than as something they may choose to do.
+ *
+ * The undo goes the other way: `resumeLabel` now takes the outlined amber pill
+ * the Manage card uses, so "the way back" looks the same wherever it appears.
  *
  * ## The confirm states the date, always
  *
@@ -763,7 +782,23 @@ export function CancelSubscription({
         /* No horizontal padding: the block around this already carries `px-4`,
            and the extra 4px put the "C" of "Cancel my trial" right of the "A"
            of "Access" in the card above. Rows on this screen rail. */
-        className="w-full rounded-xl py-3 text-left text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        /**
+         * ⚠️ RED FOR CANCEL, AMBER PILL FOR RESUME (Adrian, 2026-08-25).
+         *
+         * One control, two meanings, and they were rendering identically as
+         * muted grey text. Cancel now reads as the destructive action it is;
+         * resume gets the same outlined amber pill the Manage card uses, so
+         * "the way back" looks the same wherever it appears.
+         *
+         * ⚠️ The colour is on the WORD, not a filled block: this row sits under
+         * a plan card and a filled red bar there would read as an error state
+         * rather than an action available to them.
+         */
+        className={
+          mode === "cancel"
+            ? "w-full rounded-xl py-3 text-left text-sm font-medium text-accent-destructive outline-none transition-colors hover:text-accent-destructive/80 focus-visible:ring-2 focus-visible:ring-ring"
+            : "mt-1 inline-flex min-h-11 items-center justify-center rounded-full border border-accent/60 px-5 text-sm font-medium text-accent outline-none transition-colors hover:border-accent hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-ring"
+        }
       >
         {mode === "cancel" ? `Cancel my ${noun}` : resumeLabel}
       </button>
@@ -824,7 +859,7 @@ export function CancelSubscription({
               <h2 id="cancel-title" className="text-base font-medium text-foreground">
                 {copy.title}
               </h2>
-              <p id="cancel-body" className="mt-1.5 text-sm leading-relaxed text-text-muted">
+              <p id="cancel-body" className="mt-1.5 text-sm leading-relaxed text-pretty text-text-muted">
                 {copy.body}
               </p>
 
@@ -890,7 +925,7 @@ export function CancelSubscription({
                   must not move below the buttons, and it must not be folded into
                   the paragraph above. See `dialogCopy`. */}
               {copy.terms ? (
-                <p className="mt-3 text-sm leading-relaxed text-text-muted">{copy.terms}</p>
+                <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">{copy.terms}</p>
               ) : null}
 
               {/**
@@ -949,7 +984,19 @@ export function CancelSubscription({
                         ? runClaim
                         : runConfirm
                   }
-                  className="flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                  /**
+                   * ⚠️ RED ONLY ON THE PHASE THAT ACTUALLY CANCELS.
+                   *
+                   * `granted` and `declined` are outcome screens whose button
+                   * just closes, and `offer` claims free time — colouring those
+                   * red would say "destructive" about the two moments that are
+                   * the opposite of it.
+                   */
+                  className={
+                    shownPhase === "confirm"
+                      ? "flex-1 rounded-2xl border border-accent-destructive/50 bg-accent-destructive/10 py-3 text-sm font-medium text-accent-destructive outline-none transition-colors hover:bg-accent-destructive/20 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      : "flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                  }
                 >
                   {busy ? "Working…" : copy.confirm}
                 </button>

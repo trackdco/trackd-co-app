@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { CaretRight, Hourglass } from "@/components/icons";
+import { CaretRight, Warning } from "@/components/icons";
 
 /**
  * A DECLINED PAYMENT, ON THE ONE SURFACE EVERYBODY OPENS (Group D).
@@ -43,7 +43,13 @@ import { CaretRight, Hourglass } from "@/components/icons";
 export function PaymentFailedBanner({ line }: { line: string }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl bg-bg-surface py-3 pl-4 pr-4">
-      <Hourglass className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+      {/* Warning, not Hourglass (Adrian, 2026-08-25). An hourglass says "this is
+          taking a while", which is the wrong sentence for a failed payment:
+          nothing is in progress, something has gone wrong and needs them.
+          The TRIAL-ending banner keeps its hourglass deliberately -- nothing is
+          wrong for that person, time is genuinely passing and they have a
+          decision to make, which is what an hourglass means. */}
+      <Warning className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
       <Link
         href="/billing"
         className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"

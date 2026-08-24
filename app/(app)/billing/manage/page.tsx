@@ -172,11 +172,25 @@ export default async function ManagePage() {
         */}
       {summary ? (
         <div className="mt-3 rounded-2xl bg-bg-surface px-4 py-3.5">
-          <p className="text-sm leading-relaxed text-foreground">{summary}</p>
+          <p className="text-sm leading-relaxed text-pretty text-foreground">{summary}</p>
           {manageAction ? (
+            /**
+              * ⚠️ AN OUTLINED PILL, NOT A TEXT LINK (Adrian, 2026-08-25).
+              *
+              * It was `text-accent` with a hover underline, and his reaction on
+              * the copy review was blunt: *"the 'Choose a plan' text just looks
+              * terrible."* He is right — on a card whose whole job is to be read,
+              * the one thing to DO looked like body copy.
+              *
+              * Outlined rather than filled, chosen deliberately over a solid
+              * amber button: this card most often appears on a screen delivering
+              * bad news (no plan, payment failed), and a bright fill there reads
+              * as the app being pleased about it. The border makes it
+              * unmistakably a control without shouting.
+              */
             <Link
               href={manageAction.href}
-              className="mt-3 inline-flex min-h-11 items-center rounded-md text-sm font-medium text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-3.5 inline-flex min-h-11 items-center justify-center rounded-full border border-accent/60 px-5 text-sm font-medium text-accent outline-none transition-colors hover:border-accent hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-ring"
             >
               {manageAction.label}
             </Link>

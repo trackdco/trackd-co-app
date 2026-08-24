@@ -309,7 +309,21 @@ function BetaLaunchDialog({
             `prefers-reduced-motion` through the opt-out in `globals.css`.
             `ui-context.md` bans ambient particles; the line is whether it keeps
             going after you have looked at it, and this does not. */}
-        {isComp ? <Confetti /> : null}
+        {/**
+          * ⚠️ CONFETTI ON BOTH VARIANTS NOW (Adrian, 2026-08-25).
+          *
+          * It was comp-only, on the reasoning that confetti means good news and
+          * "the app is going paid" is not. Adrian ruled the other way having seen
+          * it: the fortnight IS the good news for this cohort — they were here
+          * first and they are being given two more weeks — and a bare notice
+          * reads colder than the message deserves.
+          *
+          * The animation is unchanged: ~2.2s, `pointer-events-none`, and it
+          * collapses to nothing under `prefers-reduced-motion`. `ui-context`
+          * bans ambient particles; the test is whether it keeps going after you
+          * have looked at it, and this does not.
+          */}
+        <Confetti />
 
         {/**
           * ⚠️ KYLE, FLEX POSE — AND THE SIGNED COPY IS UNTOUCHED BY HIM
@@ -329,6 +343,11 @@ function BetaLaunchDialog({
           * billing surfaces. Not on the read-only pop-up, the declined banner or
           * the cancel dialog: a mascot beside "your card failed" reads as mockery.
           */}
+        {/* ⚠️ KYLE ALREADY HOVERS — no wrapper needed, and adding one was wrong.
+            `Mascot` renders with `.animate-kyle`, which is
+            `kyle-in 760ms` then `kyle-float 3600ms ease-in-out infinite alternate`
+            (globals.css:914), and `globals.css:968` already kills it under
+            `prefers-reduced-motion`. Adrian asked for the float; it was there. */}
         <div className="relative mb-2 flex justify-center">
           <Mascot pose="flex" size={96} />
         </div>
@@ -340,30 +359,30 @@ function BetaLaunchDialog({
           id="beta-notice-title"
           className="relative text-lg font-medium text-foreground"
         >
-          {isComp ? "Trackd Co is yours. For life." : "Trackd Co is going paid"}
+          {isComp ? "Trackd Co is yours. For life." : "Trackd Co is going paid!"}
         </h2>
 
         {isComp ? (
           <div className="relative">
-            <p className="mt-2 text-sm leading-relaxed text-text-muted">
+            <p className="mt-2 text-sm leading-relaxed text-pretty text-text-muted">
               Adrian and Angus have given you free access for life.
             </p>
-            <p className="mt-3 text-sm leading-relaxed text-text-muted">
+            <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">
               It costs money for everyone else from today. Not for you, not now
               and not later. No card, no renewal, nothing to cancel.
             </p>
-            <p className="mt-3 text-sm leading-relaxed text-text-muted">
+            <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">
               You were here for the version that barely worked, and you stayed.
               That&apos;s worth more than a subscription.
             </p>
           </div>
         ) : (
           <>
-            <p className="mt-2 text-sm leading-relaxed text-text-muted">
+            <p className="mt-2 text-sm leading-relaxed text-pretty text-text-muted">
               You&apos;ve been using it free while we built it, and everything
               you&apos;ve logged is yours to keep. That doesn&apos;t change.
             </p>
-            <p className="mt-3 text-sm leading-relaxed text-text-muted">
+            <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">
               {/**
                * ⚠️ THE DATE COMES FROM THE ENTITLEMENT ROW AND IS COMPUTED FROM
                * NOTHING. `dashboard/page.tsx` formats `activeUntil` server-side
@@ -394,7 +413,7 @@ function BetaLaunchDialog({
               you&apos;ve got two more weeks on us, until{" "}
               <span className="text-foreground">{endsOn}</span>.
             </p>
-            <p className="mt-3 text-sm leading-relaxed text-text-muted">
+            <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">
               After that your account goes read only. You&apos;ll still see
               everything you&apos;ve logged, you just can&apos;t add to it.
               Nothing gets deleted.

@@ -4,7 +4,7 @@ You've cancelled, so you keep your Pro plan until {date} and won't be charged ag
 You've cancelled, so you keep your Pro plan until {date} and won't be charged.
 You've got 14 days on us until {date}, and you'll need a plan after that to keep adding.
 You have free access for life, so there's nothing to pay and nothing to renew.
-You're not on a plan at the moment, so Trackd Co is read only.
+You're not on a plan at the moment. Trackd Co is read only.
 Your Pro plan is free until {date}, and then it's {price} a year.
 Your last payment didn't go through, so your Pro plan runs until {date} and your account goes read only after that until a payment goes through.
 You've got 14 days on us until {date}, and then your Pro plan starts at {price} a year.

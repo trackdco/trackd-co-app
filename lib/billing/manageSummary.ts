@@ -333,7 +333,7 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
    *
    *     gate off  "You're on your Pro plan at $11.99 USD a month, and it renews
    *                on 18 Sept 2026."
-   *     gate on   "You're not on a plan at the moment, so Trackd Co is read only."
+   *     gate on   "You're not on a plan at the moment. Trackd Co is read only."
    *
    * Both to a customer Stripe will invoice on schedule.
    *
@@ -598,6 +598,23 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
       );
 
     case "lapsed":
-      return "You're not on a plan at the moment, so Trackd Co is read only.";
+      /**
+       * ⚠️ RE-SIGNED 2026-08-25. The comma splice became a full stop.
+       *
+       * Adrian, on the copy review: *"just get rid of the 'so' so it says,
+       * 'You're not on a plan at the moment. Trackd Co is read only.'"*
+       *
+       * Two sentences rather than one clause hanging off another: the first is
+       * the state, the second is the consequence, and neither has to be read
+       * through the other. It is also SHORTER, which matters on the card this
+       * now renders inside — the review's other running complaint was lines
+       * wrapping to leave a single orphaned word.
+       *
+       * The minimal split was chosen deliberately over a longer variant that
+       * added "and nothing has been deleted": that reassurance already exists on
+       * the read-only pop-up, and adding it here would push this card toward the
+       * three-line wrap the same review objected to.
+       */
+      return "You're not on a plan at the moment. Trackd Co is read only.";
   }
 }

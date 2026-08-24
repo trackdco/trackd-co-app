@@ -123,7 +123,7 @@ export function DeclinedCard({
       <div className="rounded-2xl border border-border-default bg-bg-surface p-4">
         <h2 className="text-base font-medium text-foreground">{TITLE}</h2>
         {declinedOn ? (
-          <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+          <p className="mt-1.5 text-sm leading-relaxed text-text-muted text-pretty">
             {DECLINED_ON(declinedOn)}
           </p>
         ) : null}
@@ -143,12 +143,12 @@ export function DeclinedCard({
           */}
         {accessLive ? (
           accessEndsOn ? (
-            <p className="mt-2 text-sm leading-relaxed text-text-muted">
+            <p className="mt-2 text-sm leading-relaxed text-text-muted text-pretty">
               {ACCESS_UNTIL(accessEndsOn)}
             </p>
           ) : null
         ) : (
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">{ACCESS_ENDED}</p>
+          <p className="mt-2 text-sm leading-relaxed text-text-muted text-pretty">{ACCESS_ENDED}</p>
         )}
         <div className="mt-4 flex gap-3">
           <button

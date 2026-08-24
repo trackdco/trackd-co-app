@@ -524,7 +524,23 @@ export function CheckoutScreen() {
           ? trial
             ? "We're setting billing up now, so nothing interrupts you later."
             : midGrace
-              ? `Your plan starts when your ${hadDays} days on us end, on ${graceEndsOn}.`
+              ? /**
+                 * ⚠️ RE-WORDED 2026-08-25. It stated the mechanism; it now states
+                 * the REASON, which is what the trial screen's line does and what
+                 * Adrian asked for on the copy review.
+                 *
+                 * Was: "Your plan starts when your 14 days on us end, on 1 Sept."
+                 * That is true and it reads as a countdown to being charged. The
+                 * trial cohort gets "we're setting billing up now, so nothing
+                 * interrupts you later", which answers the question somebody
+                 * actually has at a card form: why are you asking me for this
+                 * NOW? The fortnight cohort had no equivalent.
+                 *
+                 * The date moves to the disclosure line under the button, where
+                 * every other date on this screen already lives, so it is stated
+                 * once rather than twice.
+                 */
+                `We're setting billing up now, so nothing interrupts you when your ${hadDays} days are up.`
               : wasBeta
                 ? `We gave you ${hadDays} days free when Trackd Co went paid. Your plan starts from today.`
                 : "Free trials are for new accounts, so your plan starts today."

@@ -138,7 +138,19 @@ describe("the fortnight's number and its signed sentence cannot drift apart", ()
    */
   it("CONTROL: the stripper leaves the actual copy behind", () => {
     const copy = renderedCopy();
-    expect(copy).toContain("Trackd Co is going paid");
+    /**
+     * ⚠️ EXACT, NOT `toContain` — and the difference is the whole point.
+     *
+     * This asserted `toContain("Trackd Co is going paid")`, which is satisfied by
+     * ANY string having that as a substring. When the title gained an exclamation
+     * mark on 2026-08-25 the assertion kept passing without noticing, which means
+     * it was never guarding the title — only its opening. A pin that cannot see
+     * the character it is guarding is decorative.
+     *
+     * Matched with a word boundary on the end so an appended character fails.
+     */
+    expect(copy).toMatch(/Trackd Co is going paid!(?!\w)/);
+    expect(copy).not.toMatch(/Trackd Co is going paid(?![!])/);
     expect(copy).toContain("Trackd Co is yours. For life.");
     expect(copy).toContain("Set up my plan");
     expect(copy.length).toBeGreaterThan(600);

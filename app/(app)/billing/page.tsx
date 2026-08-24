@@ -281,6 +281,28 @@ export default async function BillingPage() {
             </>
           ) : null}
           {renewalRow(action, subscription, tz)}
+          {/**
+            * ⚠️ THE DATE ROW IS NEVER ABSENT (Adrian, 2026-08-25).
+            *
+            * `renewalRow` returns null for anybody with nothing scheduled, so a
+            * read-only account's card simply lost a row and changed shape
+            * between states. Adrian: *"just have 'Ends on' and then have N/A if
+            * it's the read-only account."*
+            *
+            * A row that is always present is also a row a reader can learn the
+            * position of. `N/A` rather than a date because there is genuinely
+            * nothing to name: they hold no access that ends.
+            *
+            * Only where the row would otherwise be missing AND access is not
+            * live — an entitled account with nothing scheduled keeps its own
+            * rows and must not gain a contradictory "Ends on N/A".
+            */}
+          {renewalRow(action, subscription, tz) === null && !accessLive ? (
+            <>
+              <Divider />
+              <Row label="Ends on" value="N/A" />
+            </>
+          ) : null}
           {showSubscribeRow ? (
             <>
               <div className="mx-4 hairline-t" aria-hidden />
@@ -324,6 +346,39 @@ export default async function BillingPage() {
                 <span className="flex-1 text-sm text-foreground">Set up my plan</span>
                 <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
               </a>
+            </>
+          ) : null}
+          {/**
+            * ⚠️ MANAGE IS INSIDE THE PLAN CARD NOW (Adrian, 2026-08-25).
+            *
+            * It sat in its own card below, separated by a gap, and on the contact
+            * sheet Adrian asked for the opposite: *"put the manage section,
+            * attach it to where it says 'Access', 'Trial ends' and 'Manage'.
+            * They should all be attached together, and then 'Cancel my trial'
+            * should be at the very bottom."*
+            *
+            * He is describing one object rather than three: what you are on, when
+            * it changes, and where to go about it belong to the same card. The
+            * cancel control stays OUTSIDE and last, which is both what he asked
+            * for and what this file already argued for — it is the exit, not the
+            * subject, and putting it in the card would rank it beside the facts.
+            *
+            * ⚠️ THE STORE EXCLUSION STAYS. Apple holds an App Store subscriber's
+            * payment method and a Stripe portal would open on a customer with no
+            * card. Unreachable today (not on the App Store) and kept because
+            * "unreachable" is a claim about today.
+            */}
+          {action.kind !== "store" ? (
+            <>
+              <Divider />
+              <Link
+                href="/billing/manage"
+                className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              >
+                <CreditCard className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+                <span className="flex-1 text-sm text-foreground">Manage</span>
+                <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+              </Link>
             </>
           ) : null}
         </div>
@@ -487,20 +542,6 @@ export default async function BillingPage() {
         * this is unreachable today and kept because "unreachable" is a claim about
         * today.
         */}
-      {action.kind !== "store" ? (
-        <section className="mt-6">
-          <div className="overflow-hidden rounded-2xl bg-bg-surface">
-            <Link
-              href="/billing/manage"
-              className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-            >
-              <CreditCard className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-              <span className="flex-1 text-sm text-foreground">Manage</span>
-              <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-            </Link>
-          </div>
-        </section>
-      ) : null}
 
       {action.kind === "store" ? (
         <p className="mt-6 px-1 text-sm leading-relaxed text-text-muted">

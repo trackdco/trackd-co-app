@@ -108,7 +108,25 @@ export default async function OnboardingPage({
   // A gated user has nothing left to do on the account screen, and showing a
   // sign-in form to someone already signed in is what §Back navigation calls out.
   if (passedGate && requested === "account") {
-    redirect("/onboarding?step=plans");
+    redirect("/plans");
+  }
+
+  /**
+   * ⚠️ AN ESTABLISHED ACCOUNT NEVER SEES THE ONBOARDING PLAN OR CARD STEP
+   * (Adrian, 2026-08-25).
+   *
+   * `/plans` and `/checkout` exist so somebody who signed up in June is not
+   * shown a sign-up progress bar reading "73%". Nothing automatic points at
+   * `?step=plans` any more — but a bookmark, an old link or a typed URL still
+   * could, and there they would get exactly the chrome those routes were built
+   * to remove.
+   *
+   * So the old address redirects rather than being left to rot. One canonical
+   * screen per audience: the flow for people still signing up, `/plans` and
+   * `/checkout` for people who already have an account.
+   */
+  if (passedGate && (requested === "plans" || requested === "start")) {
+    redirect(requested === "plans" ? "/plans" : "/checkout");
   }
 
   /**

@@ -349,15 +349,22 @@ function OnboardingFlowClient({
       if (!resolved) return FIRST_STEP;
       // A deep link cannot walk past the age gate, and cannot skip the intent
       // screens either. See `clampStep` and `clampIntent`.
-      return pastAccount(
+      /**
+       * ⚠️ THE COMP SKIP APPLIES TO DEEP LINKS TOO, or `/plans` would still hand
+       * a free-for-life account a price list it cannot buy from.
+       */
+      const landed = pastAccount(
         clampIntent(
           clampStep(resolved, firstIncompleteHousekeeping(s, today), passedGate),
           s,
           passedGate,
         ),
       );
+      return (eligibility?.comp ?? false) && (landed === "plans" || landed === "start")
+        ? "welcome"
+        : landed;
     },
-    [passedGate, pastAccount],
+    [passedGate, pastAccount, eligibility?.comp],
   );
 
   /**
@@ -664,16 +671,43 @@ function OnboardingFlowClient({
    * screen and reads as jank) — just a refusal to move twice inside one
    * transition.
    */
+  /**
+   * ⚠️ A FREE-FOR-LIFE ACCOUNT NEVER SEES A PLAN LIST OR A CARD SCREEN
+   * (Adrian, 2026-08-25).
+   *
+   * `01` already refuses a subscription for a comp, so both screens were dead
+   * ends for this cohort: a price list they cannot buy from, and a card form
+   * that would be refused. Adrian's ruling on the copy review was to remove them
+   * outright rather than soften them — *"can we get rid of the screen? Can it
+   * just automatically say... you're in, and then have Kyle."*
+   *
+   * So `plans` and `start` are stepped over and the flow lands on `welcome`,
+   * which now carries the comp's own sentence ("You've been given complimentary
+   * access.") instead of the free-days line it withholds.
+   *
+   * ⚠️ IT IS A SKIP, NOT A REMOVAL. Both steps stay in `STEP_ORDER` — that list
+   * is the canonical sequence for everybody else, and a comp whose entitlement
+   * were ever withdrawn walks the ordinary path again with no code change.
+   */
+  /** Free for life. `TrialEligibility.comp`; false where no server backs the flow. */
+  const comp = eligibility?.comp ?? false;
+
+  const pastComp = useCallback(
+    (target: StepId): StepId =>
+      comp && (target === "plans" || target === "start") ? "welcome" : target,
+    [comp],
+  );
+
   const goNext = useCallback(() => {
     const next = nextStepFor(step, platform);
     if (!next) return;
     // `pastAccount` because a signed-in user walking forward from `free` must
     // not land on a sign-in form they have no use for. See `pastAccount`.
-    const target = pastAccount(next);
+    const target = pastComp(pastAccount(next));
     setDirection("forward");
     setStep(target);
     pushStep(target);
-  }, [step, pushStep, platform, pastAccount]);
+  }, [step, pushStep, platform, pastAccount, pastComp]);
 
   // A screen may claim BACK for itself (the demo does, to step between its
   // stages). A ref rather than state: this is a registration, and re-rendering

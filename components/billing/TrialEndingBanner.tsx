@@ -71,7 +71,7 @@ export function TrialEndingBanner({
           {/* Quieter and beneath, per D33. Absent for the trial and grace
               variants, which are one sentence by decision. */}
           {body ? (
-            <span className="mt-1 block text-xs leading-relaxed text-text-muted">{body}</span>
+            <span className="mt-1 block text-xs leading-relaxed text-text-muted text-pretty">{body}</span>
           ) : null}
         </span>
         <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />

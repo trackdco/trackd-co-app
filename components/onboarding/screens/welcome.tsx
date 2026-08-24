@@ -62,6 +62,14 @@ export function WelcomeScreen() {
                 half on the one screen whose job is showing we know who they
                 are. Same idiom ui-context prescribes for a pathological
                 figure. */}
+            {/* ⚠️ KYLE GREETS EVERYBODY HERE (Adrian, 2026-08-25) — trial,
+                returning and comp alike. One consistent moment of warmth at the
+                point somebody has just finished signing up. Flex pose, matching
+                the going-paid notice, so the mascot means the same thing in both
+                places. */}
+            <div className="mb-4 flex justify-center">
+              <Mascot pose="flex" size={104} />
+            </div>
             <h1
               className={cn(
                 FLOW_DISPLAY,
@@ -78,11 +86,24 @@ export function WelcomeScreen() {
                   billing triple: before it, every cohort really did get seven
                   days. The second sentence is true for everybody and stays.
 
-                  D77 adds the comp to the same withhold, for the same reason and
+                  D77 added the comp to the same withhold "for the same reason and
                   by the same means: the line is REMOVED, not replaced. No spec
-                  names a comp welcome state, so no copy was written for one. */}
-              <FlowSub className="mx-auto max-w-[20rem]">
-                {trial && !comp ? (
+                  names a comp welcome state, so no copy was written for one."
+
+                  ⚠️ ONE HAS BEEN WRITTEN NOW (Adrian, 2026-08-25). D77's withhold
+                  was correct while there was nothing true to say; it was never a
+                  decision that a comp should be told nothing. On the copy review
+                  Adrian supplied the line: *"instead of saying seven days on us,
+                  it says 'You've been given complimentary access', and then it
+                  lines up and says 'Let's finish setting you up.'"*
+
+                  So the comp is no longer a withhold, it is its own sentence.
+                  The returning/post-grace cohort STILL withholds, unchanged —
+                  they have no free time and there is still nothing true to say. */}
+              <FlowSub className="mx-auto max-w-[20rem] text-pretty">
+                {comp ? (
+                  <>You&apos;ve been given complimentary access.{" "}</>
+                ) : trial ? (
                   <>
                     {TRIAL_DAYS}{" "}days on us.{" "}
                   </>
