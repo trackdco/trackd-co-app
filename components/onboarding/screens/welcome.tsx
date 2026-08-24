@@ -62,14 +62,12 @@ export function WelcomeScreen() {
                 half on the one screen whose job is showing we know who they
                 are. Same idiom ui-context prescribes for a pathological
                 figure. */}
-            {/* ⚠️ KYLE GREETS EVERYBODY HERE (Adrian, 2026-08-25) — trial,
-                returning and comp alike. One consistent moment of warmth at the
-                point somebody has just finished signing up. Flex pose, matching
-                the going-paid notice, so the mascot means the same thing in both
-                places. */}
-            <div className="mb-4 flex justify-center">
-              <Mascot pose="flex" size={104} />
-            </div>
+            {/* ⚠️ NO KYLE HERE, AND HE WAS BRIEFLY ADDED IN ERROR.
+                Adrian asked for Kyle on the going-paid / free-for-life NOTICE;
+                putting him on all three welcome screens was over-reach and he
+                asked for it back: "the small ones at the bottom, which I said to
+                add before, I want you to take back." Kyle appears on the two
+                notices and nowhere else in this flow. */}
             <h1
               className={cn(
                 FLOW_DISPLAY,

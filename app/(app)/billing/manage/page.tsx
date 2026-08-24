@@ -3,10 +3,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { StripeHandoff } from "@/components/billing/StripeHandoff";
-import { CreditCard } from "@/components/icons";
+import { CaretRight, CreditCard } from "@/components/icons";
 import { formatAccessDate } from "@/lib/billing/manage";
 import { manageSummaryFor } from "@/lib/billing/manageSummary";
 import { loadBillingFacts } from "@/lib/billing/screenFacts";
+import { cardOnFile } from "@/lib/billing/cardOnFile";
 import { formatPrice } from "@/lib/onboarding/pricing";
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
@@ -49,6 +50,8 @@ export default async function ManagePage() {
   if (!user) redirect("/login");
 
   const facts = await loadBillingFacts(user.id);
+  /** Brand + last four for the Card row. Null on absent OR unreadable; see `cardOnFile`. */
+  const card = await cardOnFile(user.id);
 
   /**
    * ⚠️ EVERY SUBSTITUTION IS FORMATTED HERE, ON THE SERVER, IN THE USER'S OWN
@@ -182,17 +185,23 @@ export default async function ManagePage() {
               * terrible."* He is right — on a card whose whole job is to be read,
               * the one thing to DO looked like body copy.
               *
-              * Outlined rather than filled, chosen deliberately over a solid
-              * amber button: this card most often appears on a screen delivering
-              * bad news (no plan, payment failed), and a bright fill there reads
-              * as the app being pleased about it. The border makes it
-              * unmistakably a control without shouting.
+              * ⚠️ AND THE PILL WAS REJECTED TOO. It was an outlined amber pill
+              * for two days; Adrian's verdict on the rendered swatches was that it
+              * "reads as a stray tablet floating in the card".
+              *
+              * What it is now: THE SAME ROW AS MANAGE — full width, amber label,
+              * chevron, divided from the sentence above by the card's own rule.
+              * Chosen from five mocked treatments because it needs no new
+              * component: everything on these screens that takes you somewhere
+              * now looks identical, so "actionable" is one visual idea rather
+              * than three.
               */
             <Link
               href={manageAction.href}
-              className="mt-3.5 inline-flex min-h-11 items-center justify-center rounded-full border border-accent/60 px-5 text-sm font-medium text-accent outline-none transition-colors hover:border-accent hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-ring"
+              className="-mx-4 mt-3 flex min-h-11 items-center gap-3 border-t border-border-default px-4 pt-3.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
-              {manageAction.label}
+              <span className="flex-1">{manageAction.label}</span>
+              <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
             </Link>
           ) : null}
         </div>
@@ -256,7 +265,21 @@ export default async function ManagePage() {
             * focus and still invite the tap.
             */}
           {facts.hasStripeCustomer ? (
-            <StripeHandoff rows={[{ key: "card", label: "Card" }]} />
+            <StripeHandoff
+              rows={[
+                {
+                  key: "card",
+                  label: "Card",
+                  /**
+                   * ⚠️ THE DIGITS, NOT A BARE "Card ›" (Adrian, 2026-08-25).
+                   * Null when there is no card AND when Stripe could not be
+                   * read — see `cardOnFile` for why those two are deliberately
+                   * collapsed, and the condition under which they must not be.
+                   */
+                  note: card ? `${card.brand} •••• ${card.last4}` : "None on file",
+                },
+              ]}
+            />
           ) : (
             <div className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left">
               <CreditCard className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
@@ -271,7 +294,7 @@ export default async function ManagePage() {
           from. Same 44px shell as Billing's own back link: `min-h-11` outright
           rather than padding arithmetic on a line box, with the negative inline
           margin keeping the text optically where it was. */}
-      <div className="mt-10 text-sm text-text-muted">
+      <div className="mt-6 text-sm text-text-muted">
         <Link
           href="/billing"
           className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"

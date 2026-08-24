@@ -178,6 +178,20 @@
      --state-error so it reads as "deliberate", not a transient error toast. */
   --accent-destructive: #b91c1c;
 
+  /* ⚠️ THE SAME MEANING, ON A RAISED SURFACE — and it exists because the one
+     above FAILS CONTRAST THERE (Adrian, 2026-08-25).
+
+     `--accent-destructive` was chosen for the Profile danger zone, which sits on
+     `--bg-base` (#111110). Measured on a CARD (`--bg-surface`, #1c1c1a) it is
+     2.64:1 against WCAG AA's 4.5 — DARKER than the muted text beside it, so it
+     reads as disabled rather than dangerous. Adrian saw it rendered and rejected
+     it before anyone had computed the number.
+
+     #f87171 on #1c1c1a measures 6.17:1. Use this one anywhere destructive text
+     sits on a surface rather than on the base ground; the darker token keeps the
+     danger zone, where it is correct and already signed off. */
+  --accent-destructive-on-surface: #f87171;
+
   /* Corner radius base (cards = rounded-2xl); shadcn derives sm/md/lg/xl */
   --radius: 1rem;
 
@@ -259,6 +273,7 @@
   --color-state-success: var(--state-success);
   --color-state-warning: var(--state-warning);
   --color-accent-destructive: var(--accent-destructive);
+  --color-accent-destructive-on-surface: var(--accent-destructive-on-surface);
 
   /* /admin ONLY → utilities (bg-admin-series-1, text-admin-positive, …).
      Referencing any of these outside app/admin/** or components/admin/** is a

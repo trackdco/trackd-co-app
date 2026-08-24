@@ -407,7 +407,28 @@ export default async function BillingPage() {
             * nothing to explain yet, and the dialog is where the explaining
             * happens once they press it.
             */}
-          <div className="overflow-hidden rounded-2xl bg-bg-surface px-4 py-1">
+          {/**
+            * ⚠️ NO SURFACE ON THE CANCEL STATE (Adrian, 2026-08-25, option C).
+            *
+            * The wrapper gave BOTH states a card, which put "Cancel my
+            * subscription" inside its own raised block — a second card under the
+            * plan card, competing with it. The treatment he chose from the
+            * rendered swatches is plain red text on the GROUND, no surface at
+            * all, so the plan card is the only object on the screen.
+            *
+            * ⚠️ THE RESUME STATE KEEPS ITS CARD, and that is not an
+            * inconsistency. §3.9 requires a card there because it holds two
+            * halves — the control AND the paragraph explaining what happens on
+            * the date. Cancel has no paragraph: there is nothing to explain
+            * until they press it, and the dialog does the explaining.
+            */}
+          <div
+            className={
+              action.kind === "resume"
+                ? "overflow-hidden rounded-2xl bg-bg-surface px-4 py-1"
+                : ""
+            }
+          >
             <CancelSubscription
               mode={action.kind}
               endsOn={formatAccessDate(action.endsOn, tz)}
@@ -586,7 +607,7 @@ export default async function BillingPage() {
           `min-h-11` gives the height outright rather than leaving it to padding
           arithmetic on a line box, and the negative inline margin keeps the text
           optically where it was. */}
-      <div className="mt-10 text-sm text-text-muted">
+      <div className="mt-6 text-sm text-text-muted">
         <Link
           href="/profile"
           className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"

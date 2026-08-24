@@ -794,10 +794,27 @@ export function CancelSubscription({
          * a plan card and a filled red bar there would read as an error state
          * rather than an action available to them.
          */
+        /**
+         * ⚠️ OPTION C, CHOSEN FROM RENDERED SWATCHES (Adrian, 2026-08-25).
+         *
+         * Five treatments were mocked on the real surface with measured contrast
+         * ratios; this is the one he picked: `--accent-destructive-on-surface`
+         * (6.17:1), sitting BELOW the card rather than as a row inside it.
+         *
+         * Outside the card is the half that matters. Cancelling stays genuinely
+         * reachable — three screens promise "cancel any time before then" — but
+         * it is not ranked beside Access, the date and Manage, which are what the
+         * card is FOR. The colour makes it findable; the position keeps it from
+         * competing.
+         *
+         * The resume control is the opposite action and takes the opposite
+         * treatment: an amber ROW with a chevron, identical to Manage, so
+         * everything that takes you somewhere looks the same.
+         */
         className={
           mode === "cancel"
-            ? "w-full rounded-xl py-3 text-left text-sm font-medium text-accent-destructive outline-none transition-colors hover:text-accent-destructive/80 focus-visible:ring-2 focus-visible:ring-ring"
-            : "mt-1 inline-flex min-h-11 items-center justify-center rounded-full border border-accent/60 px-5 text-sm font-medium text-accent outline-none transition-colors hover:border-accent hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-ring"
+            ? "-ml-1 inline-flex min-h-11 items-center px-1 text-sm font-medium text-accent-destructive-on-surface outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
+            : "flex w-full min-h-11 items-center gap-3 rounded-2xl bg-bg-surface px-4 py-3.5 text-left text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
         }
       >
         {mode === "cancel" ? `Cancel my ${noun}` : resumeLabel}
@@ -828,7 +845,7 @@ export function CancelSubscription({
               aria-describedby="cancel-body"
               tabIndex={-1}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-xs overflow-hidden rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+              className="relative w-full max-w-xs overflow-hidden rounded-3xl border border-border-default bg-bg-surface p-4 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
             >
               {shownPhase === "granted" ? <Confetti /> : null}
               {/**
@@ -962,7 +979,7 @@ export function CancelSubscription({
                        Nothing is written either way: it was written before this
                        dialog existed. */
                     onClick={shownPhase === "offer" ? () => setPhase("declined") : close}
-                    className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                    className="flex-1 rounded-2xl border border-border-default py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   >
                     {/* On the confirm, the stay-put option keeps its full
                         weight. Not a trick: it is also the shorter path, and it
@@ -994,8 +1011,8 @@ export function CancelSubscription({
                    */
                   className={
                     shownPhase === "confirm"
-                      ? "flex-1 rounded-2xl border border-accent-destructive/50 bg-accent-destructive/10 py-3 text-sm font-medium text-accent-destructive outline-none transition-colors hover:bg-accent-destructive/20 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                      : "flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      ? "flex-1 rounded-2xl border border-accent-destructive-on-surface/40 py-2.5 text-sm font-medium text-accent-destructive-on-surface outline-none transition-colors hover:bg-accent-destructive-on-surface/10 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      : "flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   }
                 >
                   {busy ? "Working…" : copy.confirm}

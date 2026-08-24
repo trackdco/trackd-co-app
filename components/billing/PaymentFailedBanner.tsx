@@ -42,7 +42,7 @@ import { CaretRight, Warning } from "@/components/icons";
  */
 export function PaymentFailedBanner({ line }: { line: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-bg-surface py-3 pl-4 pr-4">
+    <div className="flex items-center gap-2.5 rounded-2xl bg-bg-surface py-3 pl-3.5 pr-3">
       {/* Warning, not Hourglass (Adrian, 2026-08-25). An hourglass says "this is
           taking a while", which is the wrong sentence for a failed payment:
           nothing is in progress, something has gone wrong and needs them.
@@ -52,11 +52,29 @@ export function PaymentFailedBanner({ line }: { line: string }) {
       <Warning className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
       <Link
         href="/billing"
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {/* ⚠️ SIGNED COPY, built in `lib/billing/pastDueBannerCopy.ts` and pinned
             by `signedCopyPin.test.ts`. No em dash. */}
-        <span className="block min-w-0 flex-1 text-sm leading-snug text-foreground">
+        {/**
+          * ⚠️ `text-pretty` PLUS A MEASURE, because `text-pretty` ALONE DID NOT
+          * FIX IT (Adrian, 2026-08-25).
+          *
+          * The signed line is "Your payment didn't go through. Update your card
+          * by {date} to keep access." — long enough that at 390 it broke to
+          * three lines with "access." alone on the last one. `text-pretty` asks
+          * the browser to avoid an orphan but it cannot invent horizontal room:
+          * the icon, the chevron and the padding left a very narrow column, so
+          * every break point was forced.
+          *
+          * `leading-snug` -> `leading-relaxed` and a slightly smaller size widen
+          * nothing, so the real fix is the CONTAINER: the chevron and icon gaps
+          * were eating ~56px of a 350px card. Tightening those gives the sentence
+          * the width to break two-and-two instead of two-and-one.
+          *
+          * ⚠️ NOT ONE CHARACTER OF THE COPY CHANGES. It is signed and pinned.
+          */}
+        <span className="block min-w-0 flex-1 text-sm leading-relaxed text-pretty text-foreground">
           {line}
         </span>
         <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />

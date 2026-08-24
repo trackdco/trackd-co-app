@@ -327,7 +327,7 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
         aria-labelledby="readonly-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+        className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-4 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
       >
         {/* ⚠️ APPROVED COPY, CHARACTER FOR CHARACTER (05 §3.6). A fix WITHHOLDS a
             line, it never rewords one. No em dash. "Read only" is the exact
@@ -400,7 +400,7 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex-1 rounded-2xl border border-border-default py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
           >
             {READ_ONLY_POPUP.dismiss}
           </button>
@@ -408,7 +408,7 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
             type="button"
             disabled={leaving}
             onClick={choosePlan}
-            className="flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            className="flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
             {leaving ? "Opening…" : READ_ONLY_POPUP.action}
           </button>
