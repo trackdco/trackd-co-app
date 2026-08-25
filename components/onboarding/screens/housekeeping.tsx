@@ -325,6 +325,48 @@ export function BirthdayScreen() {
           <HealthConsentText linkClassName="text-text-primary underline underline-offset-2" />
         </ConsentRow>
 
+        {/**
+          * ⚠️ ALL FOUR DOCUMENTS, REACHABLE AT THE MOMENT OF CONSENT (Adrian,
+          * 2026-08-25).
+          *
+          * The two tick sentences name three documents between them. The
+          * Consumer Health Data Privacy Policy is the fourth, and it is the one
+          * Washington's My Health My Data Act requires to be findable — it is
+          * already linked from the homepage and /login, which is what the statute
+          * asks for, and this puts it in front of the person at the moment they
+          * are actually consenting.
+          *
+          * ⚠️ IT IS A READING ROW, NOT PART OF EITHER CONSENT. No signed sentence
+          * changes, and nothing here is recorded as accepted. Privacy §1 quotes
+          * the health tick word for word, so putting a fourth document INSIDE
+          * that sentence would have made the Privacy Policy false about its own
+          * box — which is why this sits beneath the ticks instead.
+          *
+          * `text-subtle` is the correct token here and only here: this is a
+          * navigation aside, not consent copy. The sentences above stay
+          * `text-muted`.
+          */}
+        <p className="-mt-2 text-center text-[0.7rem] leading-relaxed text-text-subtle">
+          {[
+            { href: "/terms", label: "Terms" },
+            { href: "/privacy", label: "Privacy" },
+            { href: "/medical-disclaimer", label: "Medical Disclaimer" },
+            { href: "/consumer-health-data", label: "Consumer Health Data Privacy Policy" },
+          ].map((doc, i) => (
+            <span key={doc.href}>
+              {i > 0 ? " · " : null}
+              <Link
+                href={doc.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 transition-colors hover:text-text-muted"
+              >
+                {doc.label}
+              </Link>
+            </span>
+          ))}
+        </p>
+
         {/* `-mt-3` pulls this up against the tick (Adrian, 2026-08-05: "move
             the disclaimer text slightly closer to the checkbox"). It is a
             footnote ON the consent, not the next item in the column, and the

@@ -75,8 +75,20 @@ describe("⚠️ strings the legal documents quote word for word", () => {
       new URL("../../app/_components/first-run.tsx", import.meta.url),
       "utf8",
     );
-    expect(firstRun).toContain('href="/consumer-health-data"');
+    /**
+     * ⚠️ MATCHED ON THE ROUTE AND THE LABEL, NOT ON JSX SHAPE. This asserted
+     * `href="/consumer-health-data"` and broke the moment the links moved into a
+     * mapped array — while the link itself was perfectly fine. A control that
+     * fails on a refactor it has no opinion about gets weakened or deleted, and
+     * then it is not there on the day it matters.
+     */
+    expect(firstRun).toContain("/consumer-health-data");
     expect(firstRun).toContain("Consumer Health Data Privacy Policy");
+    // The other three must be reachable from the homepage too — a privacy
+    // policy a visitor cannot find from the front page is one in name only.
+    for (const route of ["/terms", "/privacy", "/medical-disclaimer"]) {
+      expect(firstRun, `${route} is not linked from the homepage`).toContain(route);
+    }
   });
 
   /**
