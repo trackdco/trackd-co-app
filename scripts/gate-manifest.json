@@ -46,6 +46,7 @@
     "app/(app)/blocks/actions.ts#closeBlockAction",
     "app/(app)/blocks/actions.ts#deleteBlockAction",
     "app/(app)/blocks/actions.ts#extendBlockAction",
+    "app/(app)/legal-acceptance.ts#recordDocumentAcceptance",
     "app/(app)/profile/actions.ts#clearAvatar",
     "app/(app)/profile/actions.ts#setAvatarPath",
     "app/(app)/profile/actions.ts#updatePhysical",

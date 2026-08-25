@@ -370,6 +370,24 @@ export async function requireWriteAccess(): Promise<
  *
  * **`markMigratedInCloud`.** A flag, not user data.
  *
+ * **`recordDocumentAcceptance`.** ⚠️ A DELIBERATE NEVER-GATE, editor's ruling,
+ * 2026-08-26. Recording that somebody accepted a legal document must work whether
+ * or not billing is switched on. It is the acceptance itself that has to be
+ * captured, and a lapsed account is exactly the account most likely to be
+ * dismissing the switch-on notice — gating it would mean the one cohort the
+ * notice exists for is the one cohort whose acceptance is never written, while
+ * Terms v2.0 §25 and Privacy v2.0 §13 both promise in writing that it is.
+ *
+ * ⚠️ THE RULING WAS CONFIRMED AGAINST THE CODE BEFORE IT WAS RECORDED, because
+ * "it only records consent" is a claim about intent and the gate is about writes.
+ * Measured in `app/(app)/legal-acceptance.ts`: exactly TWO tables are touched —
+ * `legal_documents` (read) and `consent_records` (the single `upsert`) — there is
+ * exactly ONE write verb in the file, and the words entitlement, billing,
+ * subscription, Stripe, price, invoice and customer appear in NO identifier. It
+ * takes the cookie-bound `createClient`, never `serviceClient`, so it runs under
+ * the caller's own RLS and cannot reach a row they could not. It writes no money
+ * state and touches no entitlement.
+ *
  * ## The one that changed its mind, and why
  *
  * `pushProtocolBatch` IS gated, reversing an earlier note here. It is the
