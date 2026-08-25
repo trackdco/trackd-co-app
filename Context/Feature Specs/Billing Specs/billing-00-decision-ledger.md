@@ -179,7 +179,7 @@ as a dependency.
 | D107 | The cancel dialog's dismiss label AND title follow the cohort: trial or plan | 03 | Resolved — **supersedes §3.9's unqualified "Keep my trial"** and closes the §3.9-versus-D36 conflict |
 | D108 | The save offer's gift block and granted screen name a WINDOW, `{start} to {end}` | 04 | Resolved — the month form had never been rendered; "until {end}" described SEVEN months as one |
 | D109 | The save offer is RESTORED to a session that ended at the dialog, inside its own ten minutes | 04 | Resolved — same marker, same instant, no new grant |
-| D110 | The v2.0 lineage line reads **"Supersedes v1.3."** — there has never been a v1.4 | legal | **SQL WRITTEN, NOT RUN.** `supabase/legal/014_supersedes_v1_3.sql`, hand-applied by Adrian. Three live rows, one occurrence each, one character each. Source of truth `Context/legal-v2/*.md` corrected in the same commit, or the next ingest reinstates it |
+| D110 | The v2.0 lineage line reads **"Supersedes v1.3."** — there has never been a v1.4 | legal | ~~SQL WRITTEN, NOT RUN.~~ **APPLIED by Adrian, 2026-08-26, and VERIFIED FROM THE ROWS** — all three v2.0 documents read `Supersedes v1.3.`, zero read v1.4. `supabase/legal/014_supersedes_v1_3.sql`. Source of truth `Context/legal-v2/*.md` corrected in the same commit, so the next ingest cannot reinstate it |
 
 ## ⚠️ Q107 — AN ACCEPTED GAP UNDER §9g (founder, 20 Aug 2026). DO NOT BUILD THE NARROWING.
 

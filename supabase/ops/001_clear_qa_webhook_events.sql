@@ -3,6 +3,15 @@
 --  Clear the 149 unprocessed webhook events so launch day's alarm starts empty.
 --
 --  ⚠️ HAND-APPLIED BY ADRIAN. No agent runs this. Written 2026-08-26.
+--
+--  ✅ APPLIED BY ADRIAN, 2026-08-26. VERIFIED FROM THE ROWS, not from the run:
+--
+--      unprocessed  149 -> 0
+--      processed    13692 -> 13692   <- UNMOVED, which is the check that matters
+--      total        13841 -> 13692
+--
+--  The processed count not moving is what proves the DELETE hit only the rows it
+--  was aimed at. A step that reports success is not a step that did the work.
 -- ============================================================
 --
 --  ## Why the alarm has to start empty
