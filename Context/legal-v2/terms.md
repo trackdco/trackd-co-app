@@ -1,6 +1,6 @@
 Terms of Service
 VERSION 2.0 · EFFECTIVE 27 August 2026
-Supersedes v1.4.
+Supersedes v1.3.
 
 These Terms of Service ("Terms") are a legal agreement between you ("you" or "User") and Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia ("Trackd Co", "Trackd", "we", "us" or "our"). They govern your access to and use of the Trackd Co application, the website at trackdco.app, and all related features and services (together, the "Service").
 

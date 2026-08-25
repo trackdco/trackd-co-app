@@ -1,6 +1,6 @@
 Medical Disclaimer
 VERSION 2.0 · EFFECTIVE 27 August 2026
-Supersedes v1.4.
+Supersedes v1.3.
 This document forms part of the Trackd Co Terms of Service (Trackd Co Pty Ltd, ACN 698 405 462).
 
 Please read this Medical Disclaimer carefully. It forms part of the Trackd Co Terms of Service, and you also accept it as a separate, specific acknowledgement when you create your account. By using Trackd, you confirm that you have read and understood everything set out below.

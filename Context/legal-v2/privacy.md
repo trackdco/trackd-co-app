@@ -1,6 +1,6 @@
 Privacy Policy
 VERSION 2.0 · EFFECTIVE 27 August 2026
-Supersedes v1.4.
+Supersedes v1.3.
 
 This Privacy Policy explains how Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia ("Trackd Co", "Trackd", "we", "us", "our"), collects, uses, stores, and shares your personal information when you use the Trackd Co application and the website at trackdco.app (the "Service"). It forms part of, and should be read with, our Terms of Service and Medical Disclaimer.
 
