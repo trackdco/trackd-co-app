@@ -2,6 +2,8 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
+
+import { HealthConsentText } from "@/components/legal/HealthConsentText";
 import { CircleNotch } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
@@ -191,10 +193,12 @@ export function GateForm() {
           checked={agreeHealth}
           onChange={setAgreeHealth}
         >
-          I explicitly consent to Trackd processing my health-related data
-          (compounds, doses, bloodwork, body metrics, photos and journal entries)
-          to provide the Service, as described in the{" "}
-          <DocLink href="/privacy">Privacy Policy</DocLink>.
+          {/* ⚠️ THE WORDS MOVED TO `lib/legal/consentCopy.ts` (2026-08-25) AND
+              NOTHING ABOUT THEM CHANGED. They were inline here, where no test in
+              this repo could see a drift, and onboarding needed the same
+              sentence. `HealthConsentText` renders the module's own characters;
+              the link styling stays this screen's, matching `DocLink`. */}
+          <HealthConsentText linkClassName="text-foreground underline underline-offset-2 hover:text-text-muted" />
         </Consent>
       </fieldset>
 

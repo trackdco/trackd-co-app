@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
 import { ConsentRow } from "../controls";
+import { HealthConsentText } from "@/components/legal/HealthConsentText";
 import { useFlow } from "../flow-context";
 
 /**
@@ -235,9 +236,37 @@ export function BirthdayScreen() {
             18" belongs beside the date that proves it — on a page of its own it
             reads as fine print, and the two halves of one legal statement should
             not be separated by a navigation. */}
+        {/**
+          * ⚠️ THE HEALTH-DATA SENTENCE IS PART OF THIS TICK (Adrian, 2026-08-25),
+          * AND THAT IS THE WHOLE FIX.
+          *
+          * Onboarding wrote a `consent_records` row with
+          * `document: "health_data_consent"` off a tick whose sentence named
+          * three documents and no health data at all — a record of an agreement
+          * to words that were never on the screen, for special-category data, in
+          * a health product. Measured 25 Aug 2026: 81 accounts carry that row.
+          *
+          * ⚠️ THE WRITE IS UNCHANGED AND DELIBERATELY SO. Stopping it would leave
+          * new signups with no health consent captured at all, which is worse than
+          * the defect. The record was not wrong about WHAT was agreed; it was
+          * wrong that the sentence had been shown. Showing it is the fix.
+          *
+          * ⚠️ ONE TICK, NOT TWO (Adrian's call, overruling a mirror of
+          * `/welcome`'s three separate boxes). `/welcome` makes all three
+          * mandatory anyway, so separate ticks never offered a real choice — the
+          * user cannot reach the app without every one of them either way. What
+          * matters is that the words are SHOWN and sit inside the label, so the
+          * checkbox genuinely authorises them.
+          *
+          * The sentence comes from `lib/legal/consentCopy.ts`, character for
+          * character the one `/welcome` has always shown. It is not retyped here.
+          */}
         <ConsentRow
           checked={session.consent}
           onToggle={() => patch({ consent: !session.consent })}
+          secondary={
+            <HealthConsentText linkClassName="text-text-primary underline underline-offset-2" />
+          }
         >
           I&apos;m 18 or older and accept the{" "}
           <Link

@@ -28,7 +28,7 @@ export function FlipClock({ value, label }: { value: string; label: string }) {
   return (
     <div className="mt-4">
       <div
-        className="flex items-center justify-center gap-1.5"
+        className="flex items-center justify-center gap-1"
         role="timer"
         /**
          * ⚠️ `aria-live="off"` AND A TEXT LABEL, matching what this replaces.
@@ -56,7 +56,11 @@ export function FlipClock({ value, label }: { value: string; label: string }) {
                * when the digit changes, which is what re-runs the flip; a key of
                * position alone would update the text in place and never animate.
                */
-              className="flip-face animate-flip-tick relative flex h-12 w-9 items-center justify-center rounded-lg text-2xl font-semibold tabular-nums text-accent-amber"
+              /* ⚠️ `rounded-md`, NOT `rounded-lg`. At 40x48 an 8px radius rounds
+                 the corners far enough that the faces read as PILLS rather than
+                 as cards, which is the one thing a split-flap must not look
+                 like. Seen on the contact sheet, 2026-08-25. */
+              className="flip-face animate-flip-tick relative flex h-12 w-10 items-center justify-center rounded-md text-[1.375rem] font-semibold tabular-nums text-accent-amber"
               aria-hidden
             >
               {c}
