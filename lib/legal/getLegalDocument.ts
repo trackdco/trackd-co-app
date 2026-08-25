@@ -23,7 +23,19 @@ import { unstable_cache } from "next/cache";
 export type LegalDocType =
   | "terms_of_service"
   | "privacy_policy"
-  | "medical_disclaimer";
+  | "medical_disclaimer"
+  /**
+   * ⚠️ ADDED 2026-08-25 FOR v2.0. Washington's My Health My Data Act requires a
+   * consumer health data privacy policy published under that name and reachable
+   * without logging in. It mirrors the `legal_doc_type` enum in Postgres, which
+   * gained the same value in `legal_doc_type_add_consumer_health_data`.
+   *
+   * ⚠️ IT IS NOT A CONSENT TYPE. `consent_records.document` has no matching
+   * value and must not gain one: this document is Section 16 of the Privacy
+   * Policy republished, and the consent it describes is recorded against the
+   * PRIVACY POLICY's version.
+   */
+  | "consumer_health_data";
 
 export interface LegalDoc {
   title: string;
