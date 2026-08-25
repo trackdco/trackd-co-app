@@ -346,12 +346,18 @@ export function BirthdayScreen() {
           * navigation aside, not consent copy. The sentences above stay
           * `text-muted`.
           */}
+        {/**
+          * ⚠️ THE LONG ONE GETS ITS OWN LINE (Adrian, 2026-08-25). Four names in
+          * one wrapped row broke "Consumer Health Data Privacy Policy" across a
+          * line and clipped it mid-title. The statute is about a policy published
+          * UNDER THAT NAME, so a name the eye cannot read as one unit is the one
+          * thing this row must not do.
+          */}
         <p className="-mt-2 text-center text-[0.7rem] leading-relaxed text-text-subtle">
           {[
             { href: "/terms", label: "Terms" },
             { href: "/privacy", label: "Privacy" },
             { href: "/medical-disclaimer", label: "Medical Disclaimer" },
-            { href: "/consumer-health-data", label: "Consumer Health Data Privacy Policy" },
           ].map((doc, i) => (
             <span key={doc.href}>
               {i > 0 ? " · " : null}
@@ -365,6 +371,17 @@ export function BirthdayScreen() {
               </Link>
             </span>
           ))}
+        </p>
+        <p className="-mt-1 text-center text-[0.7rem] leading-relaxed text-text-subtle">
+          <Link
+            href="/consumer-health-data"
+            target="_blank"
+            rel="noopener noreferrer"
+            /* `text-nowrap` so the name never splits, even at 320px. */
+            className="text-nowrap underline underline-offset-2 transition-colors hover:text-text-muted"
+          >
+            Consumer Health Data Privacy Policy
+          </Link>
         </p>
 
         {/* `-mt-3` pulls this up against the tick (Adrian, 2026-08-05: "move

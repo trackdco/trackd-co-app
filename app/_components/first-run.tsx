@@ -333,7 +333,6 @@ export function FirstRun() {
           {[
             { href: "/privacy", label: "Privacy" },
             { href: "/medical-disclaimer", label: "Medical Disclaimer" },
-            { href: "/consumer-health-data", label: "Consumer Health Data Privacy Policy" },
           ].map((doc, i) => (
             <span key={doc.href}>
               {i > 0 ? " · " : null}
@@ -342,6 +341,16 @@ export function FirstRun() {
               </Link>
             </span>
           ))}
+        </p>
+        {/* Its own line, and `text-nowrap`: the statute is about a policy
+            published UNDER THAT NAME, so the name must read as one unit. */}
+        <p className="mt-1 text-[0.65rem] leading-relaxed text-text-subtle">
+          <Link
+            href="/consumer-health-data"
+            className="text-nowrap transition-colors hover:text-text-muted"
+          >
+            Consumer Health Data Privacy Policy
+          </Link>
         </p>
       </div>
     </div>

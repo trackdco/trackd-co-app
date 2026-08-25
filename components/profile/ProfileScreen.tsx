@@ -131,6 +131,27 @@ export function ProfileScreen({
             Medical Disclaimer
           </LinkRow>
           <Divider />
+          {/**
+            * ⚠️ THE FOURTH DOCUMENT (v2.0, 2026-08-25), BESIDE THE THREE THAT
+            * WERE ALREADY HERE.
+            *
+            * Terms, Privacy and the Medical Disclaimer have always been rows on
+            * this screen. The Consumer Health Data Privacy Policy is new, and
+            * without this it was reachable only from logged-OUT surfaces — so
+            * every existing account had no route to it at all.
+            *
+            * ⚠️ THE HOMEPAGE LINK IS SEPARATE AND STAYS. Washington's My Health
+            * My Data Act asks for a link on the public homepage, which is `/`.
+            * This is the ordinary problem of a signed-in user wanting to read
+            * what they agreed to. Both are true; neither replaces the other.
+            *
+            * ⚠️ ITS FULL NAME, not an abbreviation — the statute is about a
+            * policy published under that name. `verbatimQuotes.test.ts` pins it.
+            */}
+          <LinkRow href="/consumer-health-data" icon={ShieldCheck}>
+            Consumer Health Data Privacy Policy
+          </LinkRow>
+          <Divider />
           <ProfileFeedbackRow userId={userId} />
           {/* InstallAppRow renders its own leading divider and self-hides when
               the app is already on the Home Screen, so no stray divider is
