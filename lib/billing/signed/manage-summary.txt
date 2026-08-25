@@ -1,12 +1,12 @@
 You're on your Pro plan at {price} a year, and it renews on {date}.
 You're on a free trial of your Pro plan until {date}, and then it's {price} a year.
-You've cancelled, so you keep your Pro plan until {date} and won't be charged again.
-You've cancelled, so you keep your Pro plan until {date} and won't be charged.
+Your plan is cancelled. You keep your Pro plan until {date} and won't be charged again.
+Your plan is cancelled. You keep your Pro plan until {date} and won't be charged.
 You've got 14 days on us until {date}, and you'll need a plan after that to keep adding.
 You have free access for life, so there's nothing to pay and nothing to renew.
 You're not on a plan at the moment. Trackd Co is read only.
 Your Pro plan is free until {date}, and then it's {price} a year.
-Your last payment didn't go through, so your Pro plan runs until {date} and your account goes read only after that until a payment goes through.
+Your last payment didn't go through. Your Pro plan runs until {date} and your account goes read only after that until a payment goes through.
 You've got 14 days on us until {date}, and then your Pro plan starts at {price} a year.
 Your subscription is managed through {store}, so you'll need to change or cancel it there.
 You have free access for life, so your Pro plan at {price} a year adds nothing, and cancelling it won't change what you can do.

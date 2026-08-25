@@ -107,6 +107,32 @@ export function cancelConfirmBody(endsOn: string): string {
   );
 }
 
+/**
+ * The confirm body split around its date, so the DATE can be bold without the
+ * component holding any of the words.
+ *
+ * ⚠️ BOLD, NOT BRIGHTER (Adrian, 2026-08-25): *"make the 1st of September 2026
+ * bold, but still the same opacity colour"*. Weight carries the emphasis; the
+ * colour stays `text-text-muted` like the rest of the sentence. This is
+ * deliberately NOT what the offer's terms line does — there the charge date is
+ * bold AND `text-foreground`, because that one names a CHARGE and this one names
+ * the day access runs to.
+ *
+ * ⚠️ IT SPLITS THE SIGNED STRING RATHER THAN REBUILDING IT, so
+ * `before + date + after === cancelConfirmBody(date)` by construction, and
+ * `signedCopyPin.test.ts` asserts it. `indexOf`, not a regex: a formatted date
+ * can carry regex metacharacters, and a failed match would silently render the
+ * whole sentence unbolded rather than failing loudly.
+ */
+export function cancelConfirmBodyParts(
+  endsOn: string,
+): { before: string; date: string; after: string } {
+  const full = cancelConfirmBody(endsOn);
+  const at = full.indexOf(endsOn);
+  if (at === -1) return { before: full, date: "", after: "" };
+  return { before: full.slice(0, at), date: endsOn, after: full.slice(at + endsOn.length) };
+}
+
 /* ── F2: the gift window, and the granted screen's body ────────────── */
 
 /**

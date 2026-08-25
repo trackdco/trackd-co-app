@@ -23,6 +23,7 @@ import type { SaveOffer } from "@/app/(app)/billing/actions";
 import { STAYING_NOTICE_SLOT, StayingNotice } from "@/components/billing/StayingNotice";
 import {
   cancelConfirmBody,
+  cancelConfirmBodyParts,
   cancelConfirmDismiss,
   cancelConfirmTitle,
   offerAcceptLabel,
@@ -916,8 +917,15 @@ export function CancelSubscription({
                 */}
               <h2
                 id="cancel-title"
+                /**
+                 * ⚠️ `granted` JOINS `offer` IN THE POSTER TREATMENT (Adrian,
+                 * 2026-08-25). It is the celebration screen — Kyle, the confetti
+                 * and a thank-you — and a 16px left-aligned head on it read like
+                 * a form. `confirm` and `declined` keep the house dialog head:
+                 * they are ordinary dialogs asking or acknowledging.
+                 */
                 className={
-                  shownPhase === "offer"
+                  shownPhase === "offer" || shownPhase === "granted"
                     ? "text-center text-[22px] font-medium leading-snug text-foreground"
                     : "text-base font-medium text-foreground"
                 }
@@ -929,14 +937,39 @@ export function CancelSubscription({
                 className={
                   shownPhase === "offer"
                     ? "mt-2 text-center text-sm leading-relaxed text-pretty text-text-muted"
-                    : "mt-1.5 text-sm leading-relaxed text-pretty text-text-muted"
+                    : shownPhase === "granted"
+                      ? "mt-2 text-center text-sm leading-relaxed text-pretty text-text-muted"
+                      : "mt-1.5 text-sm leading-relaxed text-pretty text-text-muted"
                 }
               >
-                {copy.body}
+                {/* ⚠️ BOLD, NOT BRIGHTER (Adrian, 2026-08-25). `font-semibold`
+                    and NO colour class, so the date inherits `text-text-muted`
+                    from the paragraph. The offer's charge date deliberately does
+                    the opposite — bold AND `text-foreground` — because that one
+                    names a charge. */}
+                {copy.bodyParts ? (
+                  <>
+                    {copy.bodyParts.before}
+                    <strong className="font-semibold">{copy.bodyParts.date}</strong>
+                    {copy.bodyParts.after}
+                  </>
+                ) : (
+                  copy.body
+                )}
               </p>
 
               {copy.quiet ? (
-                <p className="mt-2 text-xs leading-relaxed text-text-subtle">{copy.quiet}</p>
+                /* Centred on the two poster phases so it sits under a centred
+                   body rather than hanging off its left edge. */
+                <p
+                  className={
+                    shownPhase === "offer" || shownPhase === "granted"
+                      ? "mt-2 text-center text-xs leading-relaxed text-text-subtle"
+                      : "mt-2 text-xs leading-relaxed text-text-subtle"
+                  }
+                >
+                  {copy.quiet}
+                </p>
               ) : null}
 
 
@@ -1148,6 +1181,12 @@ interface DialogCopy {
     charge: { before: string; date: string; after: string };
   };
   /**
+   * ⚠️ THE CONFIRM BODY, PRE-SPLIT SO ITS DATE CAN BE BOLD. Present on the
+   * `confirm` phase only, and only when a date is actually in the sentence —
+   * D78's free-for-life body names no date and gets none.
+   */
+  bodyParts?: { before: string; date: string; after: string };
+  /**
    * ⚠️ THE TERMS, on the offer only, rendered directly ABOVE the buttons.
    *
    * Its own field rather than a third sentence in `body` precisely so it cannot
@@ -1277,6 +1316,14 @@ function dialogCopy({
           ]
             .filter(Boolean)
             .join(" "),
+          /**
+           * ⚠️ ONLY when this body IS `cancelConfirmBody` and nothing is prefixed
+           * to it. D80's "This ends your subscription straight away." sentence and
+           * D78's comp body both change what the paragraph is, and a splitter
+           * built for one sentence must not be pointed at another.
+           */
+          bodyParts:
+            !compForever && !endsImmediately ? cancelConfirmBodyParts(endsOn) : undefined,
           /**
            * ⚠️ F1 — THE FOUNDER'S RULING, AND IT CLOSES THE §3.9-versus-D36
            * CONFLICT THAT WAS ROUTED AND LEFT OPEN.

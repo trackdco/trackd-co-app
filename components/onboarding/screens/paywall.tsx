@@ -326,6 +326,23 @@ export function PaywallScreen() {
        */
       center
       title={trial ? `Start your ${TRIAL_DAYS}-day free trial.` : "Choose your plan."}
+      /**
+       * ⚠️ THE SUBTITLE ANSWERS THE ONLY QUESTION THIS SCREEN RAISES (Adrian,
+       * 2026-08-25, asking for "a slight different subtitle").
+       *
+       * Three plans are listed — yearly, monthly, weekly — and they differ in
+       * ONE way: how often you pay. Everything in the product is identical
+       * across them. So the line states that and nothing else.
+       *
+       * ⚠️ IT PROMISES NOTHING. Deliberately not "change or cancel whenever you
+       * like" — that phrase was REMOVED from this screen until plan switching
+       * exists (spec 15), and re-adding a version of it here would reopen it.
+       * ⚠️ And not "both", which is false: there are THREE plans, not two.
+       *
+       * The trial variant gets none. Its title already promises the trial and
+       * the timeline beneath it does the explaining.
+       */
+      sub={trial ? undefined : "Just pick how often you pay."}
     >
       <div className="flex flex-1 flex-col gap-5">
         {/* THE TIMELINE IS THE ONLY GRAPHIC ON THIS SCREEN NOW (Adrian,

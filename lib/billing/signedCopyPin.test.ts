@@ -6,6 +6,7 @@ import { manageActionFor, periodEndLabelFor } from "./manage";
 import { manageSummaryFor, type SummaryFacts } from "./manageSummary";
 import {
   cancelConfirmBody,
+  cancelConfirmBodyParts,
   cancelConfirmDismiss,
   cancelConfirmTitle,
   offerAcceptLabel,
@@ -325,6 +326,21 @@ describe("⚠️ signed copy pin: the read-only pop-up, codepoint for codepoint"
     expect(offerTitle()).toBe("One more thing\u2026");
     expect(offerTitle()).not.toContain("...");
     expect(offerTitle().codePointAt(14)).toBe(0x2026);
+  });
+
+  /**
+   * ⚠️ THE CONFIRM BODY'S DATE IS BOLD ON SCREEN, so it is rendered from a SPLIT
+   * of the signed sentence rather than from two hand-typed halves. If the split
+   * ever loses or adds a character, the screen shows something nobody signed.
+   */
+  it("⚠️ the confirm body rejoins to the signed sentence exactly", () => {
+    const parts = cancelConfirmBodyParts("{date}");
+    expect(parts.before + parts.date + parts.after).toBe(cancelConfirmBody("{date}"));
+    // …and the bold half is really the date, not an empty string that would
+    // render no bold while the rejoin above still passed.
+    expect(parts.date).toBe("{date}");
+    expect(parts.before.length).toBeGreaterThan(0);
+    expect(parts.after.length).toBeGreaterThan(0);
   });
 
   it("⚠️ no banned dash anywhere in the approved copy", () => {

@@ -153,7 +153,7 @@ describe("⚠️ the twelve signed sentences, each from its own state", () => {
         "cancelled-paid",
       ),
     ).toBe(
-      "You've cancelled, so you keep your Pro plan until 18 Sept 2026 and won't be charged again.",
+      "Your plan is cancelled. You keep your Pro plan until 18 Sept 2026 and won't be charged again.",
     );
   });
 
@@ -169,7 +169,7 @@ describe("⚠️ the twelve signed sentences, each from its own state", () => {
         }),
         "cancelled-never-charged",
       ),
-    ).toBe("You've cancelled, so you keep your Pro plan until 25 Aug 2026 and won't be charged.");
+    ).toBe("Your plan is cancelled. You keep your Pro plan until 25 Aug 2026 and won't be charged.");
   });
 
   it("⚠️ CONTROL: the cancelled pair differs ONLY by the word 'again'", () => {
@@ -236,7 +236,7 @@ describe("⚠️ the twelve signed sentences, each from its own state", () => {
         "past-due",
       ),
     ).toBe(
-      "Your last payment didn't go through, so your Pro plan runs until 25 Aug 2026 and your account goes read only after that until a payment goes through.",
+      "Your last payment didn't go through. Your Pro plan runs until 25 Aug 2026 and your account goes read only after that until a payment goes through.",
     );
   });
 

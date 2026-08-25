@@ -408,7 +408,19 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
             type="button"
             disabled={leaving}
             onClick={choosePlan}
-            className="flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            /**
+             * ⚠️ THE AMBER TREATMENT (Adrian, 2026-08-25). This is the same
+             * `border-accent/45 bg-accent/[0.09] text-accent` the Manage card's
+             * "Edit my card information" and "Keep my Pro plan" carry, so the
+             * one control that leads somewhere looks the same wherever it
+             * appears. "Not now" beside it stays grey, which is what makes this
+             * one read as the way forward.
+             *
+             * ⚠️ NO CHEVRON. The chevron rule PERMITS an amber chevron inside an
+             * amber-tinted action; it does not require one, and a dialog button
+             * is not a row you tap through.
+             */
+            className="flex-1 rounded-2xl border border-accent/45 bg-accent/[0.09] py-2.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.14] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
             {leaving ? "Opening…" : READ_ONLY_POPUP.action}
           </button>

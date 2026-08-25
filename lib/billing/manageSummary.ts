@@ -504,17 +504,39 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
       return `Your subscription is managed through ${store}, so you'll need to change or cancel it there.`;
     }
 
+    /**
+     * ⚠️ RE-SIGNED 2026-08-25 (Adrian, on the contact sheet) AS TITLE + SUBTITLE.
+     *
+     * These three read as ONE sentence — "You've cancelled, so you keep…" — and
+     * `splitSummary` splits at ". ", so they arrived on screen as a title with no
+     * subtitle while "You're not on a plan at the moment. Trackd Co is read only."
+     * next to them split correctly. The card format was inconsistent because the
+     * COPY was, not because the component was.
+     *
+     * So the fix is in the words: a short statement of what happened, then the
+     * consequence. `splitSummary` then produces the title/subtitle pair with no
+     * component change at all, and the format is consistent BY CONSTRUCTION
+     * rather than by three cards agreeing to look alike.
+     *
+     * ⚠️ "won't be charged again" IS UNCHANGED, AND IT IS STILL THE ACCEPTED GAP.
+     * It is false for the grace-aligned-then-cancelled cohort, who were never
+     * charged a first time — `namesATrial` answers "is this a trial?" where the
+     * sentence needs "has this account ever paid?" (Standing Rule 5). Raised on
+     * 25 Aug and Adrian kept the wording; recorded here so the next reader finds a
+     * KNOWN gap rather than an unnoticed one. The real fix is a true
+     * has-ever-paid predicate feeding both call sites.
+     */
     case "cancelled-paid":
       if (!f.endsOn) return null;
-      return `You've cancelled, so you keep your Pro plan until ${f.endsOn} and won't be charged again.`;
+      return `Your plan is cancelled. You keep your Pro plan until ${f.endsOn} and won't be charged again.`;
 
     case "cancelled-never-charged":
       if (!f.endsOn) return null;
-      return `You've cancelled, so you keep your Pro plan until ${f.endsOn} and won't be charged.`;
+      return `Your plan is cancelled. You keep your Pro plan until ${f.endsOn} and won't be charged.`;
 
     case "past-due":
       if (!f.endsOn) return null;
-      return `Your last payment didn't go through, so your Pro plan runs until ${f.endsOn} and your account goes read only after that until a payment goes through.`;
+      return `Your last payment didn't go through. Your Pro plan runs until ${f.endsOn} and your account goes read only after that until a payment goes through.`;
 
     /**
      * ⚠️ SIGNED (D97). The AFTER-THE-LAPSE variant, character for character.
