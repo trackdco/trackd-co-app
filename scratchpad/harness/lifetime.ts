@@ -208,6 +208,72 @@ export class Checks {
     const passed = this.all.filter((c) => c.pass).length;
     return { passed, failed: this.all.length - passed };
   }
+
+  /** The failure lines, formatted once so the log and the throw cannot disagree. */
+  private redLines(): string[] {
+    return this.all
+      .filter((x) => !x.pass)
+      .map((x) => `  ❌ [${x.leg}] ${x.name}${x.detail ? ` — ${x.detail}` : ""}`);
+  }
+
+  /**
+   * ⚠️ THE RUN'S VERDICT, AND IT MUST *THROW* — added 2026-08-26.
+   *
+   * ## What this closes
+   *
+   * `check()` records a boolean and never throws, deliberately (see the class
+   * header: the value of a lifetime run is that leg 4's defect is still visible
+   * at leg 9). The cost was that a leg could fail every assertion it made and its
+   * `it()` block still returned normally, so **vitest reported it as a pass**.
+   *
+   * Measured on the second full-lifecycle run: the runner printed
+   * `1 failed | 9 passed` while the SAME run's stdout printed `6 passed / 8
+   * failed`. Nine green ticks over eight failed assertions. Every `afterAll`
+   * computed `{passed, failed}` and only `console.log`-ed it, so the number that
+   * decided the exit code and the number that described the run were different
+   * numbers.
+   *
+   * A harness that cannot report a failure is not a harness. It is worse than no
+   * harness, because it is READ as evidence.
+   *
+   * ## ⚠️ ZERO CHECKS IS A FAILURE, NOT A PASS. (Rule 0.)
+   *
+   * `failed > 0` alone leaves a hole exactly the shape of this project's most
+   * expensive mistake, now nine times over: a run that died before recording
+   * anything has `failed === 0`, and a bare failure count cannot tell *nothing
+   * went wrong* from *nothing was measured*. Eight sites in the scenario
+   * early-return on a failed arrival, so a run that never arrives is a REACHABLE
+   * state and not a hypothetical. Absent is not unknown; it throws.
+   *
+   * ## Why it lives on the class
+   *
+   * Three scenarios carried a byte-identical copy of the log-and-count block —
+   * PART ONE, PART TWO, PART THREE. Teaching one of them to throw would have left
+   * two that still could not, and "a private duplicate of exactly these lines" is
+   * how this branch already shipped a screen offering a control the action did
+   * not act on. One function, three callers, no drift.
+   */
+  assertAllPassed(label: string): void {
+    const { passed, failed } = this.summary();
+    console.log(`\n════ ${label}: ${passed} passed, ${failed} failed ════`);
+    for (const line of this.redLines()) console.log(line);
+
+    if (this.all.length === 0) {
+      throw new Error(
+        `${label}: NO CHECKS RAN AT ALL. That is not a pass — it is a run that ` +
+          `measured nothing, and it must never be read as one. Something threw ` +
+          `or returned before the first assertion.`,
+      );
+    }
+    if (failed > 0) {
+      throw new Error(
+        `${label}: ${failed} of ${this.all.length} checks FAILED.\n` +
+          `${this.redLines().join("\n")}\n` +
+          `(A soft failure is still a failure. \`check()\` does not throw so the ` +
+          `arc can continue; this is where the run is finally judged.)`,
+      );
+    }
+  }
 }
 
 /* ─────────────────────────── dates ─────────────────────────── */

@@ -149,11 +149,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   saveState({ notes: { ...(state.notes ?? {}), ...(observed as Record<string, string>) } });
-  const { passed, failed } = c.summary();
-  console.log(`\n════ PART THREE: ${passed} passed, ${failed} failed ════`);
-  for (const check of c.all.filter((x) => !x.pass)) {
-    console.log(`  ❌ [${check.leg}] ${check.name}${check.detail ? ` — ${check.detail}` : ""}`);
-  }
+  // ⚠️ THROWS on any red, and on a run that recorded nothing. This used to
+  // log the counts and return, so a leg could fail every assertion it made
+  // and still be reported as a pass. See `Checks.assertAllPassed`.
+  c.assertAllPassed("PART THREE");
   console.log(`\nM1: ${JSON.stringify(observed.M1, null, 2)}`);
 });
 
