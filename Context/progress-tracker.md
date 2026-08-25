@@ -212,8 +212,9 @@ ledger, unlike their neighbours):
 
 - `billing/003_courtesy_until.sql` → `subscriptions.courtesy_until` timestamptz,
   nullable. Confirmed absent beforehand, present after.
-- `legal/012_em_dashes.sql` → zero prose em dashes in the three current v1.3
-  legal rows. Whether this changed anything is genuinely unknown: the file's
+- `legal/012_em_dashes.sql` → zero prose em dashes in the ~~three current v1.3~~
+  three v1.3 legal rows (**current then; superseded by v2.0 on 25 August 2026** —
+  see the v2.0 entry below). Whether this changed anything is genuinely unknown: the file's
   header claimed applied since 2026-08-12 while `next-tasks.md` claimed the
   opposite, every statement is LIKE-guarded and therefore a no-op when already
   applied, and the pre-check only measured "contains an em dash" (true either
@@ -232,12 +233,53 @@ own.** That is now three separate times on this branch that a written claim
 about migration state was wrong in one direction or the other, which is the
 whole argument for probing the schema instead of reading prose.
 
-**One thing that looks like a defect and is not.** Each current legal document
-still contains exactly one em dash, in its title. That is correct:
+**One thing that looks like a defect and is not.** Each ~~current~~ v1.3 legal
+document still contains exactly one em dash, in its title. That is correct:
 `components/legal/legal-document.tsx:131` renders
 `doc.title.replace(/^Trackd Co\s*[—-]\s*/, "")`, so the prefix and its separator
 never reach a user, and the character class accepts either an em dash or a
 hyphen so the row may hold either.
+
+## Legal documents v2.0 ARE CURRENT — applied by hand, 25 August 2026
+
+**⚠️ CORRECTING THIS FILE, 2026-08-26.** Everything above about "the three
+current v1.3 legal rows" describes the state up to 25 August and is struck
+through where it says `current`. It is left visible because the em-dash
+reasoning still holds and because the correction is the useful part.
+
+Adrian ran the promote/demote SQL **by hand on 25 August**, two days before the
+documents' own 2026-08-27 effective date. Measured live on 26 August, from the
+rows and not from a file or a filename:
+
+```
+consumer_health_data  2.0  is_current=true   effective 2026-08-27   4383 chars
+medical_disclaimer    2.0  is_current=true   effective 2026-08-27   7283 chars
+privacy_policy        2.0  is_current=true   effective 2026-08-27  31185 chars
+terms_of_service      2.0  is_current=true   effective 2026-08-27  25644 chars
+terms/privacy/disclaimer 1.3  is_current=false  effective 2026-06-20
+```
+
+`consumer_health_data` is a NEW `doc_type` (enum value added by
+`legal_doc_type_add_consumer_health_data`) with no prior version to demote.
+
+**It was recorded in `f8968c1`'s commit body and in no other record**, which is
+the finding rather than a footnote: three separate documents went on asserting
+the flip had not happened, and the launch runbook went on carrying a step to
+perform it. A hand-applied state change has to reach the records the next
+session reads. This is now the **fourth** time on this branch that a written
+claim about migration state was wrong in one direction or the other.
+
+**Two consequences, both handled on 26 August:**
+
+1. `supabase/legal/013_legal_documents_v2_0.sql` holds **zero non-comment,
+   non-blank lines** — the flip in it is commented out, because it was written as
+   instructions to a human. Running it executes nothing and **exits 0**. The
+   launch-morning step that called for it is DELETED, not rewritten.
+2. `getCurrentLegalDocument` filters on `is_current`, so the flip **404'd v1.3** —
+   the version `consent_records` names for 81 accounts. `/terms/1.3`,
+   `/privacy/1.3` and `/medical-disclaimer/1.3` now serve it
+   (`getLegalDocumentVersion`, `robots: noindex`). **`is_current` was not flipped
+   back.** Re-consenting existing onboarding-path users stays DEFERRED.
 
 ## Leaving works, and six ways it did not (2026-08-16)
 

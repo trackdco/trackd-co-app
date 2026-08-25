@@ -2103,18 +2103,44 @@ restores writing to data that never moved. Verified by executing.
 
 #### 3. Put the new legal docs through, and update them if needed
 
-`supabase/legal/012` changed punctuation only, deliberately, with **no version
+~~`supabase/legal/012` changed punctuation only, deliberately, with **no version
 bump** — so `consent_records` still points at v1.3 and nobody has re-consented.
 Separately, the documents themselves have not been reviewed since **20 June
-2026**, and everything since then changes what they should say:
+2026**, and everything since then changes what they should say:~~
 
-- billing exists now (Stripe, subscriptions, trials, refunds, chargebacks);
-- there is a **payment processor** handling customer data, which the Privacy
-  Policy's sub-processor list does not mention;
-- the effective dates on v0.x/v1.0 still read `DD Month 2026`, a placeholder.
+~~- billing exists now (Stripe, subscriptions, trials, refunds, chargebacks);~~
+~~- there is a **payment processor** handling customer data, which the Privacy
+  Policy's sub-processor list does not mention;~~
+~~- the effective dates on v0.x/v1.0 still read `DD Month 2026`, a placeholder.~~
 
-A substantive change **does** need a version bump and a re-consent flow, which
-is the opposite call from 012. Worth doing once, properly, before going public.
+~~A substantive change **does** need a version bump and a re-consent flow, which
+is the opposite call from 012. Worth doing once, properly, before going public.~~
+
+**⚠️ DONE 2026-08-25, AND EARLIER THAN THIS RECORD EXPECTED. CORRECTED 26 August.**
+
+Four v2.0 documents were written (`Context/legal-v2/*.md`, the source of truth),
+ingested by `scripts/legal-v2-ingest.mjs`, and **made current by Adrian's own
+hand on 25 August** — two days before their 2026-08-27 effective date. Measured
+live on 26 August, from the rows rather than from a file:
+
+```
+consumer_health_data  2.0  is_current=true   effective 2026-08-27   (NEW doc_type)
+medical_disclaimer    2.0  is_current=true   effective 2026-08-27
+privacy_policy        2.0  is_current=true   effective 2026-08-27
+terms_of_service      2.0  is_current=true   effective 2026-08-27
+```
+
+So the version bump happened and the payment processor is named. **What did NOT
+happen is the re-consent flow**, and this record should not be read as saying it
+did: `consent_records` still points existing accounts at **v1.3**, and only
+sign-ups from 25 August onward record v2.0. Re-consenting existing
+onboarding-path users is DEFERRED, post-launch, and recorded as such.
+
+**⚠️ AND ONE THING THIS PARAGRAPH'S DISAPPEARANCE WOULD HAVE HIDDEN.** Flipping
+`is_current` 404'd v1.3, which is the version 81 accounts are recorded as having
+accepted — so for two days a person could not read the terms they agreed to.
+Closed 26 August by `/terms/1.3`, `/privacy/1.3` and `/medical-disclaimer/1.3`
+(`getLegalDocumentVersion`). **`is_current` was not flipped back**, deliberately.
 
 #### 4. ⚠️ DELETING AN ACCOUNT MUST CANCEL THE SUBSCRIPTION FIRST
 

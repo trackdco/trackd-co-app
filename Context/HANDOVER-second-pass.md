@@ -143,11 +143,34 @@ list of surfaces that moved.
 
 **Legal, v2.0, effective 2026-08-27**
 - Four documents ingested from `Context/legal-v2/*.md` (the source of truth).
-- ⚠️ **Terms, Privacy and Medical Disclaimer are `is_current = false`.** v1.3 is
+- ~~⚠️ **Terms, Privacy and Medical Disclaimer are `is_current = false`.** v1.3 is
   still in force. `supabase/legal/013_legal_documents_v2_0.sql` holds the
   launch-morning flip as ONE transaction — the demote and promote cannot be
   separate statements, because `legal_documents_one_current_per_type` is a UNIQUE
-  index on (doc_type) WHERE is_current.
+  index on (doc_type) WHERE is_current.~~
+
+  **⚠️ CORRECTED 2026-08-26 — THE FLIP HAS ALREADY HAPPENED, TWO DAYS EARLY.**
+  Adrian ran the launch SQL by hand on **25 August**. Measured live on 26 August,
+  against the database rather than against a file:
+
+  ```
+  consumer_health_data  2.0  is_current=true   effective 2026-08-27
+  medical_disclaimer    2.0  is_current=true   effective 2026-08-27
+  privacy_policy        2.0  is_current=true   effective 2026-08-27
+  terms_of_service      2.0  is_current=true   effective 2026-08-27
+  terms/privacy/disclaimer 1.3  is_current=false  effective 2026-06-20
+  ```
+
+  It is recorded in `f8968c1`'s commit body and **nowhere else** — which is why
+  three separate records went on asserting the opposite for a day. A state change
+  applied by hand has to land in the records the next session reads, not only in
+  the message of the commit that happened to be open at the time.
+
+  The consequence, and it was live for two days: `getCurrentLegalDocument` filters
+  on `is_current`, so **v1.3 became reachable at no URL at all** while
+  `consent_records` still names it as the version 81 accounts accepted. Closed on
+  26 August by `/terms/1.3`, `/privacy/1.3` and `/medical-disclaimer/1.3` — see
+  `getLegalDocumentVersion`. **`is_current` was NOT flipped back.**
 - ⚠️ **`consumer_health_data` IS current**, deliberately: new doc_type, no prior
   version, and an inactive row means a 404 on the page Washington's My Health My
   Data Act requires to be findable.
@@ -306,7 +329,23 @@ Not your job, but it must not be lost:
 
 1. Merge `wave3/billing-cancel` → `main`, deploy, **verify healthy**.
 2. Apply migration **004** (re-dates the 86 beta graces).
-3. Run the flip in `supabase/legal/013_legal_documents_v2_0.sql` — ONE transaction.
+3. ~~Run the flip in `supabase/legal/013_legal_documents_v2_0.sql` — ONE transaction.~~
+
+   **⚠️ STEP DELETED 2026-08-26. DO NOT RUN THAT FILE. The flip already happened
+   on 25 August** (see §3) and the file now contains **zero non-comment,
+   non-blank lines** — measured:
+   `grep -vE '^\s*--' supabase/legal/013_legal_documents_v2_0.sql | grep -cvE '^\s*$'` → `0`.
+   Its `BEGIN; UPDATE …; COMMIT;` block is commented out, because it was written
+   as instructions to a human and then carried out by hand.
+
+   **This is why the step is deleted rather than corrected.** Running that file
+   executes nothing, raises nothing and **exits 0** — a launch-morning step that
+   reports success while doing nothing, on the one morning nobody has spare
+   attention to notice. A step that cannot be distinguished from a working step
+   is worse than no step: it spends the checklist's credibility. Nothing is
+   written into the file in its place, for the same reason — the work is done,
+   and a fresh copy of an already-applied `UPDATE` is a second chance to apply it
+   at the wrong moment.
 4. Put the live Stripe webhook secret into Vercel **only after** the merged deploy
    is verified. ⚠️ `origin/main`'s handler has **no `billing_reason` guard**.
 5. Turn `BILLING_GATE_ENABLED` on.

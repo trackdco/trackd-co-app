@@ -23,10 +23,24 @@ Three things in it are yours and nobody else can do them:
    mode** because none of the settings carry across.
 2. **`angusbrake6@gmail.com` has to sign up** before the beta backfill runs, or
    his free-for-life entry silently does nothing.
-3. **The legal documents.** You have a **v1.4 written and not yet in the code**;
+3. ~~**The legal documents.** You have a **v1.4 written and not yet in the code**;
    the live rows are v1.3 and have not been reviewed since 20 June. Whatever
    lands must add: **billing** (subscriptions, trials, renewals), **Stripe named
-   as a sub-processor** in the Privacy Policy, and **the refund policy below**.
+   as a sub-processor** in the Privacy Policy, and **the refund policy below**.~~
+
+   **✅ DONE 2026-08-25. Corrected here 26 August** — this file was not named in
+   the reconcile brief and was asserting v1.3 alongside the other three records.
+   **Four v2.0 documents are live and current**, effective 2026-08-27, measured
+   from the rows on 26 August: terms of service, privacy policy, medical
+   disclaimer, and a new **consumer health data privacy policy** (Washington's My
+   Health My Data Act).
+
+   ⚠️ **THERE IS NO v1.4 AND THERE NEVER WAS.** The ladder in the database is
+   0.1/0.2 → 1.0 → 1.3 → 2.0. The v1.4 draft named here never reached a row, so
+   the three v2.0 documents inherited its number into their own lineage line and
+   read **"Supersedes v1.4."** — pointing at a version that does not exist. Your
+   ruling is that it should read **"Supersedes v1.3."**; the SQL is written and
+   waiting for you to run it, and it is one character per row.
 
 ### 3a. 💷 THE REFUND POLICY — decided 2026-08-14, needs writing into the ToS
 

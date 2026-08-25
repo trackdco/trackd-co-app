@@ -84,3 +84,67 @@ export const getCurrentLegalDocument = unstable_cache(
   ["legal-document"],
   { tags: [LEGAL_DOCUMENTS_TAG], revalidate: LEGAL_REVALIDATE_SECONDS },
 );
+
+/**
+ * ⚠️ ONE SPECIFIC VERSION, BY NUMBER — the document somebody ACCEPTED, which is
+ * not always the document that is CURRENT.
+ *
+ * Added 2026-08-26. The four v2.0 documents went live on 25 August, two days
+ * before their own effective date, which flipped v1.3 to `is_current = false`.
+ * `getCurrentLegalDocument` filters on `is_current`, so from that moment
+ * `/terms` served v2.0 and **v1.3 was reachable at no URL at all** — while
+ * `consent_records` still points 81 accounts at v1.3 as the thing they agreed
+ * to. A person could not read the terms they had accepted.
+ *
+ * That is the general shape rather than a two-day accident: `consent_records`
+ * stores a VERSION, so every superseded version it names has to stay readable
+ * for as long as the record does. This is the read that keeps that true, and it
+ * is deliberately separate from the one above — folding a version filter into
+ * `getCurrentLegalDocument` would give one function two questions to answer, and
+ * the wrong answer to "what is in force today?" is the one that matters most.
+ *
+ * ⚠️ IT DOES NOT CHANGE WHAT IS CURRENT and must never be used to decide that.
+ * `is_current` is not read here at all: the caller has named a version, and this
+ * returns that version whether it is in force, superseded, or not yet effective.
+ *
+ * The row-level policy on `legal_documents` is `USING (true)` for `anon` and
+ * `authenticated`, SELECT only (measured 2026-08-26), so this widens no
+ * database exposure — every row was already anon-readable. It only gives the
+ * rows a URL.
+ */
+async function fetchLegalDocumentVersion(
+  docType: LegalDocType,
+  version: string,
+): Promise<LegalDoc | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) return null;
+  const supabase = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await supabase
+    .from("legal_documents")
+    .select("title, version, body, is_beta, effective_date")
+    .eq("doc_type", docType)
+    .eq("version", version)
+    .maybeSingle();
+  // Same split as the current-document read: a real query error THROWS so the
+  // failure is never cached into a 404 for the whole revalidate window, and a
+  // genuine miss returns null, which is a true 404.
+  if (error) {
+    throw new Error(
+      `legal_documents read failed (${docType} v${version}): ${error.message}`,
+    );
+  }
+  return (data as LegalDoc | null) ?? null;
+}
+
+/**
+ * A named version of a legal document, cached per (docType, version). Returns
+ * null when there is no such version, which the page renders as `notFound()`.
+ */
+export const getLegalDocumentVersion = unstable_cache(
+  fetchLegalDocumentVersion,
+  ["legal-document-version"],
+  { tags: [LEGAL_DOCUMENTS_TAG], revalidate: LEGAL_REVALIDATE_SECONDS },
+);

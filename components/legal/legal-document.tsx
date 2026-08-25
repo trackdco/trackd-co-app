@@ -2,7 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getCurrentLegalDocument, type LegalDocType } from "@/lib/legal/getLegalDocument";
+import {
+  getCurrentLegalDocument,
+  getLegalDocumentVersion,
+  type LegalDocType,
+} from "@/lib/legal/getLegalDocument";
 import { PAGE_TITLE } from "@/lib/ui-presets";
 
 const MONTHS = [
@@ -104,14 +108,33 @@ function renderBody(body: string, title: string): React.ReactNode[] {
 }
 
 /**
- * Renders the current version of a legal document straight from the DB
- * (legal_documents, public read).
+ * Renders a legal document straight from the DB (legal_documents, public read).
  *
  * Used by /terms, /privacy, and /medical-disclaimer — the same documents the
  * 18+/ToS gate links to and records acceptance of.
+ *
+ * ⚠️ `version` IS OPTIONAL AND CHANGES WHICH QUESTION IS ASKED.
+ *
+ * Omitted, this renders whatever is CURRENT, which is what the four public
+ * pages want. Given, it renders THAT version whether it is in force or not,
+ * which is what `/terms/1.3` and its siblings want: `consent_records` stores a
+ * version number, and a version somebody is recorded as having accepted has to
+ * stay readable after it stops being current. See `getLegalDocumentVersion`.
+ *
+ * Nothing else branches on it. The header already prints `doc.version` and
+ * `doc.effective_date` off the row itself, so a superseded document names its
+ * own version and its own effective date without a word of new copy.
  */
-export async function LegalDocument({ docType }: { docType: LegalDocType }) {
-  const doc = await getCurrentLegalDocument(docType);
+export async function LegalDocument({
+  docType,
+  version,
+}: {
+  docType: LegalDocType;
+  version?: string;
+}) {
+  const doc = version
+    ? await getLegalDocumentVersion(docType, version)
+    : await getCurrentLegalDocument(docType);
 
   if (!doc) notFound();
 
