@@ -1,0 +1,77 @@
+-- ============================================================
+--  Legal documents v2.0 — effective 27 August 2026 (Adrian, 2026-08-25).
+--
+--  Applied LIVE via MCP + service-role insert:
+--    1. `legal_doc_type_add_consumer_health_data` (MCP apply_migration) — adds
+--       the fourth enum value.
+--    2. `scratchpad/legal-v2-ingest.mjs` — upserts the four v2.0 rows from
+--       `Context/legal-v2/*.md`.
+--
+--  ⚠️ THE SOURCE OF TRUTH IS `Context/legal-v2/*.md`, NOT THIS FILE.
+--  The full text is deliberately NOT duplicated here — that is how two copies of
+--  a legal document drift apart. Those four files are committed, and the ingest
+--  script is idempotent (upsert on doc_type,version), so this whole step can be
+--  reproduced from the repository by re-running it.
+--
+--  STATE AFTER APPLYING (verified live 2026-08-25):
+--    terms_of_service       v2.0  is_current=false  effective_date=2026-08-27
+--    privacy_policy         v2.0  is_current=false  effective_date=2026-08-27
+--    medical_disclaimer     v2.0  is_current=false  effective_date=2026-08-27
+--    consumer_health_data   v2.0  is_current=TRUE   effective_date=2026-08-27
+--    (v1.3 remains is_current=true for the three existing types)
+--
+--  ⚠️ WHY THE THREE EXISTING DOCUMENTS ARE NOT CURRENT YET
+--
+--  `app/welcome/actions.ts` and `app/onboarding/actions.ts` both stamp
+--  `consent_records.version` from whichever row is `is_current`. Flipping 2.0 on
+--  before 27 August would record every sign-up between now and then as having
+--  accepted documents that are not in force. The version in that table is the
+--  audit trail; it has to be true on the day it is written.
+--
+--  ⚠️ WHY THE CONSUMER HEALTH DATA POLICY *IS* CURRENT
+--
+--  It is a NEW doc_type with no prior version. `getCurrentLegalDocument` filters
+--  on `is_current`, so an inactive row means the page calls `notFound()` and
+--  returns 404 — and that is the one page Washington's My Health My Data Act
+--  requires to be published and findable. It carries its own
+--  "EFFECTIVE 27 August 2026" line on the page, which is the condition under
+--  which publishing early is acceptable. Nothing consents against it, so it
+--  cannot contaminate `consent_records`.
+--
+--  BODIES ARE STORED WITH THEIR MARKDOWN, unlike v1.3. `legal-document.tsx`
+--  renders `##`/`###` headings, `-`/`•` bullets and `**bold**` natively and drops
+--  the title and version lines itself. v1.3 was flattened to plain text by an
+--  older migration; nothing requires that, and flattening v2.0 would throw away
+--  every heading and every bold safety warning in the Medical Disclaimer.
+-- ============================================================
+
+-- ------------------------------------------------------------
+--  ⚠️ LAUNCH MORNING, 27 AUGUST 2026 — RUN THIS AND NOTHING ELSE.
+--
+--  One statement, one transaction. It demotes v1.3 and promotes v2.0 for the
+--  three documents that have both. `legal_documents_one_current_per_type` is a
+--  UNIQUE index on (doc_type) WHERE is_current, so the demotion MUST happen in
+--  the same transaction as the promotion or the second write violates it.
+--
+--  Do not run before 27 August. Do not run it for `consumer_health_data`, which
+--  is already current and has no earlier version to demote.
+-- ------------------------------------------------------------
+--
+-- BEGIN;
+--
+-- UPDATE legal_documents
+--    SET is_current = false
+--  WHERE doc_type IN ('terms_of_service', 'privacy_policy', 'medical_disclaimer')
+--    AND version = '1.3';
+--
+-- UPDATE legal_documents
+--    SET is_current = true
+--  WHERE doc_type IN ('terms_of_service', 'privacy_policy', 'medical_disclaimer')
+--    AND version = '2.0';
+--
+-- COMMIT;
+--
+-- VERIFY afterwards — expect exactly four rows, all v2.0:
+--
+-- SELECT doc_type, version, effective_date
+--   FROM legal_documents WHERE is_current ORDER BY doc_type;
