@@ -1155,7 +1155,12 @@ export function CancelSubscription({
                     shownPhase === "confirm"
                       ? "flex-1 rounded-2xl border border-accent-destructive-on-surface/40 py-2.5 text-sm font-medium text-accent-destructive-on-surface outline-none transition-colors hover:bg-accent-destructive-on-surface/10 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                       : shownPhase === "offer"
-                        ? "flex-1 rounded-2xl border border-accent/45 bg-accent/[0.09] py-2.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.14] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                        /* ⚠️ NO FILL (Adrian, 2026-08-25). Same ground as "I'd
+                           rather cancel" beside it; the amber lives on the
+                           outline and the text only. Matches the read-only
+                           pop-up's "Choose a plan", so every amber dialog button
+                           in the app now shares one treatment. Tint on hover. */
+                        ? "flex-1 rounded-2xl border border-accent/45 py-2.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.09] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                         : "flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   }
                 >
