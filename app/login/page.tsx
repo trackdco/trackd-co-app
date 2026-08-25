@@ -94,6 +94,17 @@ export default async function LoginPage({
           </Link>
           .
         </p>
+
+        {/* The fourth document (v2.0). Named in full — see the note on the
+            homepage link in `first-run.tsx` for why the wording is fixed. */}
+        <p className="mt-1.5 text-[0.7rem] leading-relaxed text-text-subtle">
+          <Link
+            href="/consumer-health-data"
+            className="text-text-muted hover:text-foreground"
+          >
+            Consumer Health Data Privacy Policy
+          </Link>
+        </p>
       </div>
 
       <Link

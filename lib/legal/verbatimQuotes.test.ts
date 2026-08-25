@@ -59,6 +59,27 @@ describe("⚠️ strings the legal documents quote word for word", () => {
   });
 
   /**
+   * ⚠️ THE HOMEPAGE LINK IS A STATUTORY REQUIREMENT, NOT A NAVIGATION CHOICE.
+   *
+   * Washington's My Health My Data Act requires the consumer health data privacy
+   * policy to be published under that name and linked where a visitor can reach
+   * it WITHOUT LOGGING IN. `app/page.tsx` renders `FirstRun` for every logged-out
+   * visitor, so that component is the homepage for this purpose.
+   *
+   * The full name is pinned because a shortened label ("Health Data", "Your
+   * data") reads perfectly well and fails the check the statute actually
+   * describes. This is the kind of string a tidy-up shortens.
+   */
+  it("⚠️ the homepage links the Consumer Health Data Privacy Policy by its full name", () => {
+    const firstRun = readFileSync(
+      new URL("../../app/_components/first-run.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(firstRun).toContain('href="/consumer-health-data"');
+    expect(firstRun).toContain("Consumer Health Data Privacy Policy");
+  });
+
+  /**
    * ⚠️ AND THE DOCUMENTS DESCRIBE THE SHAPE OF THE SIGNUP, NOT JUST THE WORDS.
    *
    * Privacy §1 says a "dedicated box"; the Terms say "three things through

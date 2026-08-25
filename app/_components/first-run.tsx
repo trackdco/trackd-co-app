@@ -302,9 +302,37 @@ export function FirstRun() {
         </Link>
 
         <p className="mt-3 text-[0.7rem] text-text-subtle">
-          Free while it&apos;s in beta · 18+ ·{" "}
+          Free while it&apos;s in beta &middot; 18+ &middot;{" "}
           <Link href="/terms" className="transition-colors hover:text-text-muted">
             Terms
+          </Link>
+        </p>
+
+        {/**
+          * ⚠️ REQUIRED BY LAW ON THE HOMEPAGE, NOT A COURTESY (2026-08-25).
+          *
+          * Washington's My Health My Data Act requires a consumer health data
+          * privacy policy to be published under that name and linked where a
+          * visitor can reach it WITHOUT LOGGING IN. Nevada SB 370 and the
+          * Connecticut Data Privacy Act are in the same family. This is the only
+          * page a logged-out visitor lands on, so the link belongs here.
+          *
+          * ⚠️ THE LINK TEXT IS THE DOCUMENT'S FULL NAME AND MUST STAY THAT WAY.
+          * Not "Health Data", not "Your health data", not an abbreviation — the
+          * statute is about a policy published under that name, and a shortened
+          * label is the kind of thing that reads fine and fails a regulator's
+          * check. `verbatimQuotes.test.ts` pins it.
+          *
+          * Its own line rather than appended to the row above: that row is a
+          * price-and-age strapline, and a legally-required disclosure should not
+          * be the fourth item in a list of asides.
+          */}
+        <p className="mt-1.5 text-[0.65rem] leading-relaxed text-text-subtle">
+          <Link
+            href="/consumer-health-data"
+            className="transition-colors hover:text-text-muted"
+          >
+            Consumer Health Data Privacy Policy
           </Link>
         </p>
       </div>
