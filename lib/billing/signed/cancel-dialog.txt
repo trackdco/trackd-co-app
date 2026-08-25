@@ -14,5 +14,5 @@ A week on us
 By accepting, your plan will continue as is.
 You'll be charged on {date} unless you cancel before then.
 You'll be charged on {date} unless you cancel before then, and we'll remind you first.
-Claim my free month
-Claim my free week
+Claim free month
+Claim free week

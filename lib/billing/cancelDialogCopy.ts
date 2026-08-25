@@ -262,12 +262,17 @@ export function offerLine(period: "week" | "month"): string {
 /**
  * ⚠️ SIGNED. The accept button.
  *
- * It read `Another ${period}, thanks`. ⚠️ THE NOUN FOLLOWS THE PLAN'S INTERVAL:
+ * It read `Another ${period}, thanks`, then `Claim my free ${period}` — which
+ * Adrian called "pretty flooded" on the rendered button (2026-08-25). "my" earns
+ * nothing on a control the user is pressing about their own account, and the
+ * shorter label stops the text crowding a half-width button.
+ *
+ * ⚠️ THE NOUN FOLLOWS THE PLAN'S INTERVAL:
  * hardcoding "week" here would offer a yearly subscriber a free week and then
  * grant them a month, which is the two-strings-one-word trap F2 was.
  */
 export function offerAcceptLabel(period: "week" | "month"): string {
-  return `Claim my free ${period}`;
+  return `Claim free ${period}`;
 }
 
 /**

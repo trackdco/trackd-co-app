@@ -327,22 +327,24 @@ export function PaywallScreen() {
       center
       title={trial ? `Start your ${TRIAL_DAYS}-day free trial.` : "Choose your plan."}
       /**
-       * ⚠️ THE SUBTITLE ANSWERS THE ONLY QUESTION THIS SCREEN RAISES (Adrian,
-       * 2026-08-25, asking for "a slight different subtitle").
+       * ⚠️ IT STATES A FACT, IT DOES NOT REPEAT THE TITLE (Adrian, 2026-08-25).
        *
-       * Three plans are listed — yearly, monthly, weekly — and they differ in
-       * ONE way: how often you pay. Everything in the product is identical
-       * across them. So the line states that and nothing else.
+       * The first attempt was "Just pick how often you pay." Adrian's objection
+       * was that it sat too close to the title — "Choose your plan." already says
+       * pick, so a subtitle that says pick again is a second instruction, not
+       * information. This names WHAT IS BELOW instead, which the title does not.
        *
        * ⚠️ IT PROMISES NOTHING. Deliberately not "change or cancel whenever you
        * like" — that phrase was REMOVED from this screen until plan switching
-       * exists (spec 15), and re-adding a version of it here would reopen it.
-       * ⚠️ And not "both", which is false: there are THREE plans, not two.
+       * exists (spec 15), and re-adding a version of it would reopen it.
+       * ⚠️ And the number is THREE because three plans render — yearly, monthly,
+       * weekly. If a plan is ever added or withdrawn this line becomes false, so
+       * it moves with `PLANS`, not on its own.
        *
        * The trial variant gets none. Its title already promises the trial and
        * the timeline beneath it does the explaining.
        */
-      sub={trial ? undefined : "Just pick how often you pay."}
+      sub={trial ? undefined : "Three billing options."}
     >
       <div className="flex flex-1 flex-col gap-5">
         {/* THE TIMELINE IS THE ONLY GRAPHIC ON THIS SCREEN NOW (Adrian,

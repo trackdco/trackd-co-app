@@ -1054,7 +1054,12 @@ export function CancelSubscription({
                     <p>{copy.termsParts.lead}</p>
                     <p>
                       {copy.termsParts.charge.before}
-                      <strong className="font-semibold text-foreground">
+                      {/* ⚠️ BOLD, NOT WHITE (Adrian, 2026-08-25). This carried
+                          `text-foreground` and read as a brighter word inside a
+                          muted sentence. Weight alone is the emphasis; the date
+                          inherits `text-text-muted` from the paragraph, matching
+                          the cancel confirm's date exactly. */}
+                      <strong className="font-semibold">
                         {copy.termsParts.charge.date}
                       </strong>
                       {copy.termsParts.charge.after}

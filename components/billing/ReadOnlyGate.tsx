@@ -419,8 +419,14 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
              * ⚠️ NO CHEVRON. The chevron rule PERMITS an amber chevron inside an
              * amber-tinted action; it does not require one, and a dialog button
              * is not a row you tap through.
+             *
+             * ⚠️ NO FILL EITHER (Adrian, 2026-08-25): *"the background should be
+             * the same background as the Back to my logs"*. The amber lives on
+             * the OUTLINE and the TEXT only, so the two buttons sit on one ground
+             * and the pair reads as a matched set rather than as a tinted block
+             * beside a plain one. The tint survives only on hover.
              */
-            className="flex-1 rounded-2xl border border-accent/45 bg-accent/[0.09] py-2.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.14] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            className="flex-1 rounded-2xl border border-accent/45 py-2.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.09] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
             {leaving ? "Opening…" : READ_ONLY_POPUP.action}
           </button>
