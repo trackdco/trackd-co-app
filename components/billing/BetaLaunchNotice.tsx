@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 
 import { Confetti } from "@/components/onboarding/confetti";
 import { Mascot } from "@/components/onboarding/mascot";
+import { recordDocumentAcceptance } from "@/app/(app)/legal-acceptance";
 import { markBetaNoticeSeen } from "@/lib/billing/betaNoticeStore";
 
 /**
@@ -118,6 +119,26 @@ export function BetaLaunchNotice({
   const mounted = useSyncExternalStore(subscribeNever, () => true, () => false);
 
   const close = useCallback(() => {
+    /**
+     * ⚠️ THE ACCEPTANCE IS RECORDED, AND IT IS NOT AWAITED.
+     *
+     * Terms v2.0 §25 makes continued use after this notice an acceptance of the
+     * updated Terms and Privacy Policy, and says we record which version. Until
+     * now nothing did: acceptance rows were only ever written at signup, so the
+     * ~86 accounts this notice is shown to would have kept a 1.3 record for ever.
+     *
+     * ⚠️ NOT AWAITED, AND THE ORDER MATTERS. `markBetaNoticeSeen` and
+     * `setOpen(false)` run regardless. A database problem must never stop
+     * somebody dismissing a notice, and the action swallows its own failures for
+     * the same reason — a failed write leaves NO row, which is the honest
+     * result, rather than one claiming an acceptance we could not record.
+     *
+     * ⚠️ It records the Terms and the Privacy Policy ONLY. Never the health-data
+     * consent: Privacy v2.0 §17 says continued use is never treated as consent
+     * to health-data processing, and this is exactly the code that would break
+     * that if it were careless. See `recordDocumentAcceptance`.
+     */
+    void recordDocumentAcceptance();
     markBetaNoticeSeen(userId);
     setOpen(false);
   }, [userId]);
@@ -450,6 +471,41 @@ function BetaLaunchDialog({
             Privacy Policy
           </Link>
           .
+        </p>
+
+        {/**
+          * ⚠️ READING LINKS, NOT ACCEPTANCE. The signed sentence above names the
+          * Terms and the Privacy Policy and is PINNED — it is untouched, and the
+          * acceptance it describes covers those two only.
+          *
+          * These two are here so the documents can be READ from the notice that
+          * announces them. The Medical Disclaimer because it changed in v2.0 too;
+          * the Consumer Health Data Privacy Policy because Washington's My Health
+          * My Data Act wants it findable, and this notice reaches every account
+          * that predates billing.
+          *
+          * ⚠️ NEITHER IS RECORDED AS ACCEPTED. `recordDocumentAcceptance` writes
+          * `tos` and `privacy` and nothing else, deliberately — a link somebody
+          * can click is not an agreement somebody gave.
+          */}
+        <p className="relative mt-2 text-[11px] leading-relaxed text-text-subtle">
+          <Link
+            href="/medical-disclaimer"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-2 hover:text-text-muted"
+          >
+            Medical Disclaimer
+          </Link>
+          {" · "}
+          <Link
+            href="/consumer-health-data"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-2 hover:text-text-muted"
+          >
+            Consumer Health Data Privacy Policy
+          </Link>
         </p>
 
         {/**
