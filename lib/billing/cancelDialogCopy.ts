@@ -180,6 +180,70 @@ export function offerGrantedBody(
   );
 }
 
+/* ── the save offer's own words (the redesign, Adrian 2026-08-25) ──── */
+
+/**
+ * ⚠️ THESE FOUR LIVED INLINE IN `CancelSubscription.tsx` AND COULD NOT BE PINNED.
+ *
+ * `signedCopyPin.test.ts`'s own rule: *"A signed string that is rendered to a
+ * user gets a pin, and if it cannot be reached from `lib/` then MOVING IT IS THE
+ * FIRST HALF OF THE FIX — not a reason to skip the pin."* `vitest.config.ts` is
+ * `include: ["lib/**\/*.test.ts"]`, so a literal in `components/` is invisible to
+ * every test in this repo. The redesign rewrote all four, which made moving them
+ * the moment to do it.
+ *
+ * Each is pinned in `signed/cancel-dialog.txt`, month and week forms separately —
+ * F2's lesson is that two strings differing by one word is exactly how the
+ * unrendered one goes a whole round carrying a defect.
+ */
+
+/**
+ * ⚠️ THE ELLIPSIS IS U+2026, ONE CHARACTER, NOT THREE FULL STOPS.
+ *
+ * It was `"One more thing."` — a full stop. Three ASCII dots would pass a casual
+ * read and fail the codepoint pin, which is the entire reason the pin exists.
+ *
+ * ⚠️ `scratchpad/contact-sheet/offer-flow.mjs` WAITS ON THIS STRING as its named
+ * artefact. Changing it without changing the driver leaves the shoot waiting on
+ * a title that no longer exists — and a wait that times out photographs whatever
+ * was on screen at the time, which is how a button reading "Working…" reached a
+ * contact sheet.
+ */
+export function offerTitle(): string {
+  return "One more thing…";
+}
+
+/**
+ * ⚠️ SIGNED. The thank-you is REMOVED, deliberately.
+ *
+ * It read *"Thank you for choosing Trackd Co to run your protocol. Before you go,
+ * we'd like to offer you another {period}, free."* Adrian cut the first sentence
+ * on the 2026-08-25 review: it thanks somebody for a decision they have just
+ * reversed, on the screen where they pressed cancel.
+ *
+ * ⚠️ THE PERIOD WORD IS A PARAMETER AND IS NEVER THE LITERAL "week". A monthly
+ * and a yearly subscriber are both offered a MONTH. See {@link offerPeriodWord}.
+ */
+export function offerBody(period: "week" | "month"): string {
+  return `Before you go, we'd like to offer you another ${period} on us.`;
+}
+
+/** ⚠️ SIGNED. The amber panel's offer line, above the dates. */
+export function offerLine(period: "week" | "month"): string {
+  return `A ${period} on us`;
+}
+
+/**
+ * ⚠️ SIGNED. The accept button.
+ *
+ * It read `Another ${period}, thanks`. ⚠️ THE NOUN FOLLOWS THE PLAN'S INTERVAL:
+ * hardcoding "week" here would offer a yearly subscriber a free week and then
+ * grant them a month, which is the two-strings-one-word trap F2 was.
+ */
+export function offerAcceptLabel(period: "week" | "month"): string {
+  return `Claim my free ${period}`;
+}
+
 /**
  * The noun the offer's copy uses, from the offer itself.
  *

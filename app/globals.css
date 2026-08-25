@@ -673,6 +673,49 @@ svg ::-moz-selection {
 }
 
 /* ---------------------------------------------------------------------------
+   THE SAVE OFFER'S FLIP CLOCK (Adrian, 2026-08-25).
+
+   One card per digit, MM:SS, with a hinge line through the middle — a split-flap
+   face, which is the one clock shape that reads as "a window closing" rather than
+   as a progress bar. The countdown it draws is REAL: the server refuses a claim
+   past the same ten minutes, so this is not urgency theatre.
+
+   ⚠️ NO RAW HEX EXCEPT THE ONE THE SPEC NAMES. `ui-context.md:398-410` sanctions
+   exactly two gradients and says both are "mixed FROM the tokens with color-mix
+   so no hex escapes that file". These are flat mixes, not gradients, and every
+   colour is a token — the single `#000` is the neutral being mixed toward and is
+   specified verbatim in the design, not a colour of its own.
+
+   ⚠️ THE REDUCED-MOTION RULE COLLAPSES THE CHROME, NOT JUST THE ANIMATION. A
+   split-flap with the flip removed is a stack of bordered boxes pretending to be
+   a mechanism that is not moving. Under `prefers-reduced-motion` the faces, the
+   borders and the hinges all go and the reader gets plain digits, which is the
+   same information with none of the theatre. */
+.flip-face {
+  background: color-mix(in srgb, #000 45%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 38%, transparent);
+}
+
+/* The hinge: a single hairline across the middle of the face, in the same amber
+   the border carries, so the two read as one moulded object. */
+.flip-hinge {
+  background: color-mix(in srgb, var(--accent-amber) 38%, transparent);
+}
+
+.animate-flip-tick {
+  animation: flip-tick 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: 50% 50%;
+}
+
+/* THE AMBER PANEL that holds the gift, the offer line, the dates and the clock.
+   FLAT TINT, NOT A GRADIENT — the restraint is the point. `.flow-card` supplies
+   the 5% top hairline on top of this. */
+.offer-panel {
+  background: color-mix(in srgb, var(--accent-amber) 12%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 38%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
    Onboarding flow motion (Spec 3-01). Three classes, all ENTRANCES — a screen
    arriving, a hero settling, a celebration firing once. None of them loops:
    ambient/decorative motion is banned (ui-context.md → Motion), and the line
@@ -982,8 +1025,21 @@ svg ::-moz-selection {
   .animate-flow-back,
   .animate-kyle,
   .animate-dollar-fall,
-  .animate-flow-caption {
+  .animate-flow-caption,
+  .animate-flip-tick {
     animation: none;
+  }
+
+  /* ⚠️ THE FLIP CLOCK COLLAPSES TO PLAIN DIGITS, not to motionless split-flap
+     cards. Killing only the animation leaves four bordered boxes with hinges
+     across them, which is a mechanism claiming to move and not moving. */
+  .flip-face {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .flip-hinge {
+    display: none;
   }
 
   /* These two animate TO invisibility, so killing the animation strands them
@@ -1308,6 +1364,17 @@ svg ::-moz-selection {
   }
   80% {
     transform: translateX(4px);
+  }
+}
+
+@keyframes flip-tick {
+  from {
+    transform: rotateX(-72deg);
+    opacity: 0.35;
+  }
+  to {
+    transform: rotateX(0deg);
+    opacity: 1;
   }
 }
 

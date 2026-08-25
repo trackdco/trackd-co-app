@@ -26,9 +26,23 @@ describe("the reminder promise", () => {
     }
   });
 
+  /**
+   * ⚠️ THE LEAD SENTENCE WAS RE-SIGNED ON 2026-08-25, and these two assertions
+   * were updated rather than relaxed.
+   *
+   * It read "Your plan carries on as it is." and now reads "By accepting, your
+   * plan will continue as is." — the save-offer redesign names the ACT, because
+   * the line sits directly above the button that performs it.
+   *
+   * ⚠️ WHAT DID NOT CHANGE is the property these tests exist for: the clause is
+   * APPENDED AND REMOVED WHOLE, never reworded, and it attaches to the CHARGE
+   * sentence rather than the lead. The split into `offerTermsLead` and
+   * `offerTermsCharge` is a rendering change; `offerTermsLine` is now built FROM
+   * them, so this file still measures the string that reaches the screen.
+   */
   it("is the approved line, character for character, when promised", () => {
     expect(offerTermsLine(CHARGE_ON, true)).toBe(
-      "Your plan carries on as it is. You'll be charged on 23 Aug 2026 unless you cancel before then, and we'll remind you first.",
+      "By accepting, your plan will continue as is. You'll be charged on 23 Aug 2026 unless you cancel before then, and we'll remind you first.",
     );
     expect(reminderQuietLine(true)).toBe("We'll remind you before that happens.");
   });
@@ -37,7 +51,7 @@ describe("the reminder promise", () => {
     // Identical up to the clause, then a full stop. Not a new sentence, not a
     // softened one: the same line with one clause removed.
     expect(offerTermsLine(CHARGE_ON, false)).toBe(
-      "Your plan carries on as it is. You'll be charged on 23 Aug 2026 unless you cancel before then.",
+      "By accepting, your plan will continue as is. You'll be charged on 23 Aug 2026 unless you cancel before then.",
     );
 
     const kept = offerTermsLine(CHARGE_ON, true);

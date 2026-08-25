@@ -105,7 +105,23 @@ export function StripeHandoff({
    * matters: every trigger is a card-management route, and nothing on the plan
    * card, the lapsed state or anywhere else can open it.
    */
-  button?: { label: string };
+  button?: {
+    label: string;
+    /**
+     * ⚠️ THE INSET-ACTION TREATMENT, FOR A CARD WHOSE ONLY ACTION THIS IS.
+     *
+     * `"surface"` (the default) is D37's declined-card button, which sits in a
+     * two-button row beside "Not now" — grey is what makes the amber one read as
+     * primary, so it must stay grey there.
+     *
+     * `"accent"` is the notice-card inset action Adrian signed off on 2026-08-25:
+     * the SAME amber outline `/billing/manage`'s own "Keep my Pro plan" already
+     * uses. A notice card carries exactly one action, so there is no second
+     * control for grey to contrast against, and a grey one there would be the
+     * only inset action in the app that does not match its neighbours.
+     */
+    tone?: "surface" | "accent";
+  };
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -241,6 +257,23 @@ export function StripeHandoff({
       })}
 
       {button ? (
+        /**
+         * ⚠️ `w-full` BESIDE `flex-1`, AND BOTH ARE LOAD-BEARING. MEASURED.
+         *
+         * This was `flex-1` alone. **`flex-1` is inert outside a flex formatting
+         * context** — `DeclinedCard` wraps it in `flex gap-3` so it was always
+         * right there, and nobody noticed until `/billing/manage` rendered it
+         * inside a plain block, where the button collapsed to its own text:
+         * **189.2px inside a 350px card, against 318px for the inset action
+         * directly below it.**
+         *
+         * Both classes together cover both callers. On a flex item `flex: 1 1 0%`
+         * sets `flex-basis: 0`, which takes precedence over `width`, so the
+         * declined card's two buttons still share the row exactly as before; in a
+         * block parent `flex-1` does nothing and `w-full` gives the full inset
+         * width. ⚠️ Do not "simplify" either one away — each is the only one
+         * working at one of the two call sites.
+         */
         <button
           type="button"
           onClick={(e) => {
@@ -248,9 +281,24 @@ export function StripeHandoff({
             setError(null);
             setOpen(true);
           }}
-          className="min-h-11 flex-1 rounded-2xl border border-border-default bg-bg-surface-raised px-4 py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+          className={
+            button.tone === "accent"
+              ? "flex min-h-11 w-full flex-1 items-center gap-3 rounded-xl border border-accent/45 bg-accent/[0.09] px-3.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.14] focus-visible:ring-2 focus-visible:ring-ring"
+              : "min-h-11 w-full flex-1 rounded-2xl border border-border-default bg-bg-surface-raised px-4 py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+          }
         >
-          {button.label}
+          {button.tone === "accent" ? (
+            <>
+              {/* THE CHEVRON RULE (Adrian, 2026-08-25): amber ONLY inside an
+                  amber-tinted action, where the tint and the chevron are ONE
+                  beat. Matched to "Keep my Pro plan" exactly, because these two
+                  are the same object in two states of the same card. */}
+              <span className="flex-1 text-left">{button.label}</span>
+              <CaretRight className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+            </>
+          ) : (
+            button.label
+          )}
         </button>
       ) : null}
 

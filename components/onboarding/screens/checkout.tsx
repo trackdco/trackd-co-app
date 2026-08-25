@@ -486,6 +486,12 @@ export function CheckoutScreen() {
         * of the founder's brief; it is replaced by the same neutral title, so
         * there is ONE title for everybody who is not starting a new free trial
         * rather than two near-variants that can drift apart.
+        *
+        * ⚠️ "Enter your details." was the first attempt and Adrian rejected it as
+        * reading "a little bit dodgy and a bit salesy" — an imperative aimed at
+        * somebody who has not agreed to anything yet. "Your payment details."
+        * names the screen instead of instructing the reader, which is what every
+        * other title on this flow does.
         */
         trial ? (
           <>
@@ -493,7 +499,7 @@ export function CheckoutScreen() {
           </>
         ) : (
           <>
-            Enter your <em className={FLOW_EMPHASIS}>details</em>.
+            Your payment <em className={FLOW_EMPHASIS}>details</em>.
           </>
         )
       }

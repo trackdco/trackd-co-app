@@ -6,3 +6,13 @@ Keep my plan
 Your free month is on us. It runs from {start} to {end}, and your plan picks up from there unless you choose to cancel.
 Your free week is on us. It runs from {start} to {end}, and your plan picks up from there unless you choose to cancel.
 You'll have full access to your Pro plan until {date}. After that your account goes read only. You'll still see your whole history, you just can't add to it.
+One more thing…
+Before you go, we'd like to offer you another month on us.
+Before you go, we'd like to offer you another week on us.
+A month on us
+A week on us
+By accepting, your plan will continue as is.
+You'll be charged on {date} unless you cancel before then.
+You'll be charged on {date} unless you cancel before then, and we'll remind you first.
+Claim my free month
+Claim my free week

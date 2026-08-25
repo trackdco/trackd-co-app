@@ -203,6 +203,18 @@ export default async function ManagePage() {
               </p>
             ) : null}
           </div>
+          {/**
+            * ⚠️ A PAST-DUE CARD GETS A REAL CONTROL, NOT A LINK (Adrian,
+            * 2026-08-25). Its destination is the Stripe portal, which is a server
+            * action behind `StripeHandoff` — so the card renders the handoff in
+            * its BUTTON mode rather than fabricating a `Link` that could not open
+            * anything. One call site for the portal still, exactly as §3.4 requires.
+            */}
+          {facts.action.kind === "cancel" && facts.subscription?.status === "past_due" && facts.hasStripeCustomer ? (
+            <div className="px-4 pb-3.5">
+              <StripeHandoff button={{ label: "Edit my card information", tone: "accent" }} />
+            </div>
+          ) : null}
           {manageAction ? (
             <div className="px-4 pb-3.5">
               <Link

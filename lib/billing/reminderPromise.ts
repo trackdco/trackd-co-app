@@ -79,9 +79,66 @@ const REMINDER_QUIET = "We'll remind you before that happens.";
  * computes one.
  */
 export function offerTermsLine(chargeOn: string, promised: boolean): string {
-  return `Your plan carries on as it is. You'll be charged on ${chargeOn} unless you cancel before then${
+  return `${offerTermsLead()} ${offerTermsCharge(chargeOn, promised)}`;
+}
+
+/**
+ * ⚠️ THE TERMS ARE TWO LINES NOW, AND THE SPLIT IS A RENDERING CHANGE ONLY.
+ *
+ * The redesign (Adrian, 2026-08-25) centres the terms and breaks them across two
+ * lines with the charge date in bold. The SENTENCE is unchanged in substance and
+ * the rejoin is proven: `offerTermsLine` is now built FROM these two rather than
+ * duplicating them, so `lead + " " + charge` is the signed line by construction
+ * and there is no arrangement of the calling code that can render one without
+ * the other, or render a third wording.
+ *
+ * ⚠️ THE FIRST SENTENCE IS RE-SIGNED. It read "Your plan carries on as it is."
+ * and now reads "By accepting, your plan will continue as is." — the redesign
+ * names the ACT, because this line sits directly above a button that performs it.
+ */
+export function offerTermsLead(): string {
+  return "By accepting, your plan will continue as is.";
+}
+
+/**
+ * ⚠️ THE HALF THAT NAMES THE CHARGE, AND THE HALF THE PROMISE HANGS OFF.
+ *
+ * `REMINDER_CLAUSE` still attaches HERE and nowhere else, so `04` §0's
+ * ship-together pair is intact across the split: `reminderQuietLine` and this
+ * clause are still derived from the one boolean. ⚠️ Splitting the terms must
+ * never leave the clause on the lead sentence — "By accepting, your plan will
+ * continue as is, and we'll remind you first" promises a reminder about the
+ * wrong event.
+ */
+export function offerTermsCharge(chargeOn: string, promised: boolean): string {
+  return `You'll be charged on ${chargeOn} unless you cancel before then${
     promised ? REMINDER_CLAUSE : ""
   }.`;
+}
+
+/**
+ * The charge sentence split around the date, so the date can be bold WITHOUT the
+ * component holding any of the words.
+ *
+ * ⚠️ IT SPLITS THE SIGNED STRING RATHER THAN REBUILDING IT. `before + date +
+ * after === offerTermsCharge(date, promised)` is asserted in
+ * `signedCopyPin.test.ts`, the same losslessness proof `splitSummary` carries.
+ * A component that interpolated its own `<strong>{date}</strong>` between two
+ * hand-typed halves would be two more unpinnable literals in `components/`,
+ * which is exactly what the four offer strings above were just moved out of.
+ *
+ * ⚠️ `indexOf`, not a regex: a formatted date can contain regex metacharacters
+ * in some locales, and a date that failed to match would silently return the
+ * whole sentence with no bold rather than failing loudly.
+ */
+export function offerTermsChargeParts(
+  chargeOn: string,
+  promised: boolean,
+): { before: string; date: string; after: string } {
+  const full = offerTermsCharge(chargeOn, promised);
+  const at = full.indexOf(chargeOn);
+  if (at === -1) return { before: full, date: "", after: "" };
+  return { before: full.slice(0, at), date: chargeOn, after: full.slice(at + chargeOn.length) };
 }
 
 /**

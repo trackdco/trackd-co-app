@@ -25,12 +25,22 @@ import {
   cancelConfirmBody,
   cancelConfirmDismiss,
   cancelConfirmTitle,
+  offerAcceptLabel,
+  offerBody,
   offerGiftWindow,
   offerGrantedBody,
+  offerLine,
   offerPeriodWord,
+  offerTitle,
 } from "@/lib/billing/cancelDialogCopy";
+import { FlipClock } from "@/components/billing/FlipClock";
 import { CANCEL_FAILED, CLAIM_FAILED, RESUME_FAILED } from "@/lib/billing/manage";
-import { offerTermsLine, reminderQuietLine } from "@/lib/billing/reminderPromise";
+import {
+  offerTermsChargeParts,
+  offerTermsLead,
+  offerTermsLine,
+  reminderQuietLine,
+} from "@/lib/billing/reminderPromise";
 import {
   forgetOffer,
   formatRemaining,
@@ -897,10 +907,31 @@ export function CancelSubscription({
                   <Mascot pose="thumbs" size={132} />
                 </div>
               ) : null}
-              <h2 id="cancel-title" className="text-base font-medium text-foreground">
+              {/**
+                * ⚠️ THE OFFER IS THE ONE PHASE THAT CENTRES AND ENLARGES (Adrian,
+                * 2026-08-25). `confirm`, `granted` and `declined` keep the house
+                * dialog head — 16px, left-aligned — because they are ordinary
+                * dialogs. This one is a single offer with a clock under it, and
+                * the redesign treats it as a small poster rather than a form.
+                */}
+              <h2
+                id="cancel-title"
+                className={
+                  shownPhase === "offer"
+                    ? "text-center text-[22px] font-medium leading-snug text-foreground"
+                    : "text-base font-medium text-foreground"
+                }
+              >
                 {copy.title}
               </h2>
-              <p id="cancel-body" className="mt-1.5 text-sm leading-relaxed text-pretty text-text-muted">
+              <p
+                id="cancel-body"
+                className={
+                  shownPhase === "offer"
+                    ? "mt-2 text-center text-sm leading-relaxed text-pretty text-text-muted"
+                    : "mt-1.5 text-sm leading-relaxed text-pretty text-text-muted"
+                }
+              >
                 {copy.body}
               </p>
 
@@ -908,55 +939,56 @@ export function CancelSubscription({
                 <p className="mt-2 text-xs leading-relaxed text-text-subtle">{copy.quiet}</p>
               ) : null}
 
-              {/* THE CLOCK, and it is real.
-                  It counts from the server's `shownAt` and the server refuses a
-                  claim past the same ten minutes, so this is not urgency
-                  theatre: the offer genuinely stops being claimable when this
-                  reaches zero. A countdown to nothing on a cancel screen is the
-                  one thing regulators actually look for. */}
-              {shownPhase === "offer" && live ? (
-                <div className="mt-4">
-                  <p
-                    className="text-center font-mono text-2xl font-semibold tabular-nums text-accent-amber"
-                    role="timer"
-                    aria-live="off"
-                  >
-                    {formatRemaining(remaining)}
-                  </p>
-                  <p className="mt-1 text-center text-[11px] text-text-subtle">
-                    yours for the next 10 minutes
-                  </p>
-                </div>
-              ) : null}
+
 
               {/**
-                * THE GIFT CARD (§3.12). What they get, when it runs to, and what
-                * it costs.
+                * ⚠️ ONE AMBER PANEL, holding the gift mark, the offer line, the
+                * window and the clock (Adrian, 2026-08-25). It replaces two
+                * separate blocks — a bare countdown above a grey gift row — which
+                * read as two unrelated things stacked rather than as one offer.
+                *
+                * ⚠️ FLAT TINT, NOT A GRADIENT, AND NO RAW HEX.
+                * `ui-context.md:398-410` sanctions exactly TWO gradients,
+                * `.flow-canvas` and `.flow-card`, "both mixed FROM the tokens with
+                * color-mix so no hex escapes that file". The restraint is the
+                * point, so `.offer-panel` is a flat `color-mix` of the amber token
+                * into the surface token, and `.flow-card` supplies the same 5% top
+                * hairline every other raised card in the flow already carries.
                 *
                 * ⚠️ A GIFT-BOX MARK, NEVER A TICK. A ticked circle looks like
                 * something you can untick, and this is the one screen where a
-                * mis-tap has a price.
+                * mis-tap has a price. It stays MUTED rather than amber: the panel
+                * and the clock are already this dialog's amber, and `ui-context`
+                * says an icon that aids scanning renders muted.
                 *
-                * The mark is MUTED, not amber: `ui-context.md` says an icon that
-                * aids scanning renders muted and never in a tinted container,
-                * and the countdown above is already this dialog's single amber
-                * beat. Nothing here is a button, a tab or a call to action.
-                *
-                * "$0.00 USD" is D25 — the house rule that the currency is named
-                * wins over the shorter form, because this sits inches from a
-                * terms line naming a real charge in USD and two amounts
-                * formatted differently on one screen is what a reader notices.
+                * ⚠️ D25's "$0.00 USD" IS GONE FROM THIS PANEL, on the redesign's
+                * explicit contents list (gift icon, offer line, dates, clock).
+                * D25 exists to stop two differently-formatted amounts sharing one
+                * screen; with the amount removed there is now exactly one money
+                * value here, the charge in the terms line, and it is unaffected.
+                * FLAGGED rather than assumed — D25 is a recorded decision.
                 */}
               {shownPhase === "offer" && copy.gift ? (
-                <div className="mt-4 flex items-center gap-3 rounded-2xl bg-bg-surface-raised px-4 py-3">
-                  <Gift className="h-5 w-5 shrink-0 text-text-muted" aria-hidden />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-foreground">{copy.gift.what}</p>
-                    <p className="mt-0.5 text-xs text-text-muted">{copy.gift.until}</p>
+                <div className="offer-panel flow-card mt-4 rounded-2xl px-4 py-3.5">
+                  <div className="flex items-center gap-3">
+                    <Gift className="h-5 w-5 shrink-0 text-text-muted" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-foreground">{copy.gift.what}</p>
+                      <p className="mt-0.5 text-xs text-text-muted">{copy.gift.until}</p>
+                    </div>
                   </div>
-                  <span className="shrink-0 font-mono text-sm tabular-nums text-foreground">
-                    {copy.gift.amount}
-                  </span>
+                  {/* THE CLOCK, and it is real. It counts from the server's
+                      `shownAt` and the server refuses a claim past the same ten
+                      minutes, so this is not urgency theatre: the offer genuinely
+                      stops being claimable when this reaches zero. A countdown to
+                      nothing on a cancel screen is the one thing regulators
+                      actually look for. */}
+                  {live ? (
+                    <FlipClock
+                      value={formatRemaining(remaining)}
+                      label="yours for the next 10 minutes"
+                    />
+                  ) : null}
                 </div>
               ) : null}
 
@@ -966,7 +998,40 @@ export function CancelSubscription({
                   must not move below the buttons, and it must not be folded into
                   the paragraph above. See `dialogCopy`. */}
               {copy.terms ? (
-                <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">{copy.terms}</p>
+                /**
+                 * ⚠️ TWO LINES, CENTRED, CHARGE DATE BOLD (Adrian, 2026-08-25) —
+                 * AND THE COMPONENT STILL HOLDS NONE OF THE WORDS.
+                 *
+                 * Both halves come from `reminderPromise.ts`, and
+                 * `offerTermsChargeParts` SPLITS the signed sentence rather than
+                 * rebuilding it, so `before + date + after` is the signed string
+                 * by construction. `signedCopyPin.test.ts` asserts that rejoin.
+                 * Two hand-typed halves around a `<strong>` would be exactly the
+                 * unpinnable literal the four offer strings were just moved out
+                 * of `components/` to escape.
+                 *
+                 * ⚠️ THIS LINE STILL MAY NOT MOVE BELOW THE BUTTONS OR BE FOLDED
+                 * INTO THE PARAGRAPH ABOVE (`04` §2). It is the sentence naming
+                 * the charge and the date on a screen somebody reached by
+                 * pressing cancel. Splitting it across two lines is a rendering
+                 * change; its position is not.
+                 */
+                copy.termsParts ? (
+                  <div className="mt-3 space-y-0.5 text-center text-sm leading-relaxed text-pretty text-text-muted">
+                    <p>{copy.termsParts.lead}</p>
+                    <p>
+                      {copy.termsParts.charge.before}
+                      <strong className="font-semibold text-foreground">
+                        {copy.termsParts.charge.date}
+                      </strong>
+                      {copy.termsParts.charge.after}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">
+                    {copy.terms}
+                  </p>
+                )
               ) : null}
 
               {/**
@@ -1033,10 +1098,27 @@ export function CancelSubscription({
                    * red would say "destructive" about the two moments that are
                    * the opposite of it.
                    */
+                  /**
+                   * ⚠️ THREE TREATMENTS, ONE PER MEANING (Adrian, 2026-08-25).
+                   *
+                   * `confirm` is red because it cancels. `offer` is the AMBER
+                   * OUTLINE — the same `border-accent/45 bg-accent/[0.09]
+                   * text-accent` the Manage card's inset action carries, so "the
+                   * way back" looks the same wherever it appears. `granted` and
+                   * `declined` stay grey: their button merely closes.
+                   *
+                   * ⚠️ NO CHEVRON, unlike the Manage inset action. The chevron
+                   * rule permits an amber chevron inside an amber-tinted action;
+                   * it does not require one. A chevron says "this goes
+                   * somewhere", and this button COMMITS — it claims the free
+                   * time and stays on the same dialog.
+                   */
                   className={
                     shownPhase === "confirm"
                       ? "flex-1 rounded-2xl border border-accent-destructive-on-surface/40 py-2.5 text-sm font-medium text-accent-destructive-on-surface outline-none transition-colors hover:bg-accent-destructive-on-surface/10 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                      : "flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      : shownPhase === "offer"
+                        ? "flex-1 rounded-2xl border border-accent/45 bg-accent/[0.09] py-2.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.14] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                        : "flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   }
                 >
                   {busy ? "Working…" : copy.confirm}
@@ -1056,6 +1138,16 @@ interface DialogCopy {
   title: string;
   body: string;
   /**
+   * ⚠️ THE TERMS, PRE-SPLIT FOR THE TWO-LINE CENTRED RENDER. Present on the
+   * OFFER only; every other phase leaves it undefined and falls back to the
+   * single-paragraph `terms`. Both are built from the same two functions, so a
+   * phase that renders one cannot disagree with a phase that renders the other.
+   */
+  termsParts?: {
+    lead: string;
+    charge: { before: string; date: string; after: string };
+  };
+  /**
    * ⚠️ THE TERMS, on the offer only, rendered directly ABOVE the buttons.
    *
    * Its own field rather than a third sentence in `body` precisely so it cannot
@@ -1066,12 +1158,15 @@ interface DialogCopy {
   /** A quieter footnote under the body. The reminder promise, on the thank-you. */
   quiet?: string;
   /**
-   * The gift card's three facts (§3.12): what they get, when it runs to, and
-   * what it costs. Values and decided strings only — the amount is D25's
-   * "$0.00 USD" and the period words are the ones the body and the button
-   * already use.
+   * The gift panel: what they get and the window it runs over.
+   *
+   * ⚠️ THE AMOUNT FIELD IS GONE (Adrian, 2026-08-25). The redesign enumerates
+   * this panel's contents — gift icon, offer line, dates, clock — and D25's
+   * "$0.00 USD" is not among them. Removed from the TYPE rather than merely left
+   * unrendered, so a later edit cannot quietly put it back on screen without
+   * this decision being reopened. D25 still governs its FORM if it ever returns.
    */
-  gift?: { what: string; until: string; amount: string };
+  gift?: { what: string; until: string };
   /** The left-hand button. Absent on the acknowledgement, which has one way out. */
   dismiss: string | null;
   confirm: string;
@@ -1267,12 +1362,27 @@ function dialogCopy({
      * footnote, from this one boolean, so the two cannot ship apart.
      */
     const terms = offerTermsLine(chargeOnLabel, remindersPromised);
+    /**
+     * The same sentence, split for the two-line render. Built from the SAME two
+     * functions `offerTermsLine` is built from, so the paragraph form and the
+     * split form are the same words by construction.
+     */
+    const termsParts = {
+      lead: offerTermsLead(),
+      charge: offerTermsChargeParts(chargeOnLabel, remindersPromised),
+    };
 
     return {
-      title: "One more thing.",
-      body: `Thank you for choosing Trackd Co to run your protocol. Before you go, we'd like to offer you another ${period}, free.`,
+      /**
+       * ⚠️ ALL FOUR NOW COME FROM `lib/billing/cancelDialogCopy.ts` AND ARE
+       * PINNED. They were literals here, where no test in this repo could see
+       * them — `vitest.config.ts` is `include: ["lib/**\/*.test.ts"]`. Moving
+       * them was the first half of the fix, per `signedCopyPin.test.ts`'s rule.
+       */
+      title: offerTitle(),
+      body: offerBody(period),
       gift: {
-        what: `Another ${period}`,
+        what: offerLine(period),
         /**
          * ⚠️ F2: THE WINDOW, NOT JUST ITS END.
          *
@@ -1283,11 +1393,11 @@ function dialogCopy({
          * instant `addOffer` measures from. Signed and pinned.
          */
         until: offerGiftWindow(offer.startsOn, chargeOnLabel),
-        amount: "$0.00 USD",
       },
       terms,
+      termsParts,
       dismiss: "I'd rather cancel",
-      confirm: `Another ${period}, thanks`,
+      confirm: offerAcceptLabel(period),
     };
   }
 

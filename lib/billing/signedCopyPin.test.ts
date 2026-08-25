@@ -8,10 +8,20 @@ import {
   cancelConfirmBody,
   cancelConfirmDismiss,
   cancelConfirmTitle,
+  offerAcceptLabel,
+  offerBody,
   offerGiftWindow,
   offerGrantedBody,
+  offerLine,
   offerPeriodWord,
+  offerTitle,
 } from "./cancelDialogCopy";
+import {
+  offerTermsCharge,
+  offerTermsChargeParts,
+  offerTermsLead,
+  offerTermsLine,
+} from "./reminderPromise";
 import {
   PAST_DUE_BANNER_IN_GRACE,
   PAST_DUE_BANNER_LAPSED,
@@ -259,6 +269,62 @@ describe("⚠️ signed copy pin: the read-only pop-up, codepoint for codepoint"
     ).not.toContain("Your access has ended");
     // And the signed statement about NOW, which is true of all six cohorts.
     expect(READ_ONLY_POPUP.body.startsWith("You don't have access at the moment")).toBe(true);
+  });
+
+  /**
+   * ⚠️ THE SPLIT IS LOSSLESS, PROVEN, NOT ASSERTED BY COMMENT.
+   *
+   * The redesign renders the terms as two centred lines with the charge date
+   * bold. Three shapes of the same sentence now exist — the paragraph, the two
+   * lines, and the three parts around the date — and this is what stops them
+   * becoming three different sentences. It is the same control `splitSummary`
+   * carries, for the same reason.
+   */
+  it("⚠️ the terms rejoin to the signed sentence exactly, in both promise states", () => {
+    for (const promised of [false, true]) {
+      const charge = offerTermsCharge("{date}", promised);
+      expect(offerTermsLine("{date}", promised)).toBe(`${offerTermsLead()} ${charge}`);
+      const parts = offerTermsChargeParts("{date}", promised);
+      expect(parts.before + parts.date + parts.after).toBe(charge);
+      // ⚠️ AND THE BOLD HALF IS THE DATE, not an empty string that renders no
+      // bold at all while the assertion above still passes.
+      expect(parts.date).toBe("{date}");
+    }
+  });
+
+  /**
+   * ⚠️ `04` §0's SHIP-TOGETHER PAIR SURVIVES THE SPLIT. The reminder clause must
+   * attach to the CHARGE sentence and never to the lead — "your plan will
+   * continue as is, and we'll remind you first" promises a reminder about the
+   * wrong event.
+   */
+  it("⚠️ the reminder clause attaches to the charge sentence, never the lead", () => {
+    expect(offerTermsCharge("{date}", true)).toContain("and we'll remind you first");
+    expect(offerTermsCharge("{date}", false)).not.toContain("remind");
+    expect(offerTermsLead()).not.toContain("remind");
+  });
+
+  /**
+   * ⚠️ F2's LESSON APPLIED TO THE THREE NEW PERIOD-CARRYING STRINGS. A monthly
+   * and a yearly subscriber are both offered a MONTH; hardcoding "week" would
+   * offer a free week and then grant a month.
+   */
+  it("⚠️ every redesigned string follows the period word and never collapses to a week", () => {
+    for (const [month, week] of [
+      [offerBody("month"), offerBody("week")],
+      [offerLine("month"), offerLine("week")],
+      [offerAcceptLabel("month"), offerAcceptLabel("week")],
+    ]) {
+      expect(month).not.toBe(week);
+      expect(month.replace("month", "week")).toBe(week);
+    }
+  });
+
+  /** ⚠️ ONE CHARACTER, U+2026 — not three full stops, which a casual read passes. */
+  it("⚠️ the offer title ends in a real ellipsis", () => {
+    expect(offerTitle()).toBe("One more thing\u2026");
+    expect(offerTitle()).not.toContain("...");
+    expect(offerTitle().codePointAt(14)).toBe(0x2026);
   });
 
   it("⚠️ no banned dash anywhere in the approved copy", () => {
@@ -614,14 +680,39 @@ describe("⚠️ signed copy pin: the cancel dialog, codepoint for codepoint", (
      * diverging. One function now feeds both surfaces and this line pins it.
      */
     ["CANCEL BODY", cancelConfirmBody("{date}")],
+    /**
+     * ⚠️ THE SAVE-OFFER REDESIGN (Adrian, 2026-08-25). TEN LINES, SIX STRINGS.
+     *
+     * All six were LITERALS IN `CancelSubscription.tsx` and therefore invisible
+     * to every test in this repo — `vitest.config.ts` is
+     * `include: ["lib/**\/*.test.ts"]`. Moving them into `lib/` was the first
+     * half of the fix, exactly as this file's own header requires.
+     *
+     * The month and week forms are pinned SEPARATELY rather than as one string
+     * with the noun substituted. F2's lesson: two strings differing by one word
+     * is precisely how the unrendered one goes a whole round carrying a defect.
+     * The terms' charge sentence is pinned in BOTH promise states for the same
+     * reason — `REMINDER_PROMISE` is currently unset, so the promised form is
+     * the one nobody has ever seen.
+     */
+    ["OFFER TITLE", offerTitle()],
+    ["OFFER BODY month", offerBody("month")],
+    ["OFFER BODY week", offerBody("week")],
+    ["OFFER LINE month", offerLine("month")],
+    ["OFFER LINE week", offerLine("week")],
+    ["TERMS lead", offerTermsLead()],
+    ["TERMS charge, withheld", offerTermsCharge("{date}", false)],
+    ["TERMS charge, promised", offerTermsCharge("{date}", true)],
+    ["ACCEPT month", offerAcceptLabel("month")],
+    ["ACCEPT week", offerAcceptLabel("week")],
   ];
 
-  it("the signed file holds exactly the eight strings the founder approved", () => {
-    expect(signed).toHaveLength(8);
-    expect(RENDERED).toHaveLength(8);
+  it("the signed file holds exactly the eighteen strings the founder approved", () => {
+    expect(signed).toHaveLength(18);
+    expect(RENDERED).toHaveLength(18);
   });
 
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < 18; i += 1) {
     it(`${RENDERED[i]?.[0] ?? `#${i}`} matches the signed line character for character`, () => {
       const diff = firstDifference(RENDERED[i][1], signed[i]);
       expect(diff).toBeNull();
@@ -750,11 +841,60 @@ describe("⚠️ the dialog renders from the module and holds none of it inline"
     expect(dialogCode).not.toContain("offerPeriodToGrant");
   });
 
-  /** Everything else on both screens is unchanged. The terms line is the one that
-   *  names the charge, and it must still be built by its own module. */
+  /** The terms line is the one that names the charge, and it must still be built
+   *  by its own module rather than assembled here. */
   it("the terms line and the countdown are untouched", () => {
     expect(dialogCode).toContain("offerTermsLine(chargeOnLabel, remindersPromised)");
     expect(dialogCode).toContain("yours for the next 10 minutes");
-    expect(dialogCode).toContain("$0.00 USD");
+  });
+
+  /**
+   * ⚠️ D25's "$0.00 USD" IS DELIBERATELY GONE FROM THE PANEL (Adrian,
+   * 2026-08-25), AND THIS PINS THE REMOVAL RATHER THAN MOURNING IT.
+   *
+   * This assertion used to read `expect(dialogCode).toContain("$0.00 USD")`. The
+   * redesign enumerates the panel's contents — gift icon, offer line, dates,
+   * clock — and the amount is not among them.
+   *
+   * D25 is not contradicted: it is the house rule that an amount NAMES ITS
+   * CURRENCY, so that two differently-formatted amounts cannot share one screen.
+   * With this one removed there is exactly one money value left on the dialog —
+   * the charge in the terms line — so the condition D25 exists to prevent cannot
+   * arise. ⚠️ IF THE AMOUNT IS EVER RESTORED IT COMES BACK AS "$0.00 USD", never
+   * "$0.00" and never "Free": D25 governs its FORM, and only its presence changed.
+   */
+  it("⚠️ the gift amount stays removed, and cannot come back in a shorter form", () => {
+    expect(dialogCode).not.toContain("$0.00");
+    expect(dialogCode).not.toContain("amount:");
+  });
+
+  /**
+   * ⚠️ THE SIX REDESIGNED STRINGS COME FROM THE MODULE. Each was a literal here
+   * before, where no pin could reach it. A regression puts one back inline, so
+   * this asserts BOTH halves: the call is present AND the old literal is absent.
+   */
+  it("⚠️ the six redesigned offer strings come from the module, not from inline literals", () => {
+    expect(dialogCode).toContain("offerTitle()");
+    expect(dialogCode).toContain("offerBody(period)");
+    expect(dialogCode).toContain("offerLine(period)");
+    expect(dialogCode).toContain("offerAcceptLabel(period)");
+    expect(dialogCode).toContain("offerTermsLead()");
+    expect(dialogCode).toContain("offerTermsChargeParts(chargeOnLabel, remindersPromised)");
+
+    expect(dialogCode, "the pre-redesign title is back").not.toContain('"One more thing."');
+    expect(dialogCode, "the cut thank-you sentence is back").not.toContain("Thank you for choosing");
+    expect(dialogCode, "the pre-redesign accept label is back").not.toContain(", thanks`");
+    expect(dialogCode, "the pre-redesign offer line is back").not.toContain("Another ${period}");
+  });
+
+  /**
+   * ⚠️ THE ORDERING IS THE ONE THING ON THIS SCREEN THAT IS NOT COSMETIC. The
+   * offer appears AFTER the cancellation is written to Stripe, and every exit
+   * must leave them cancelled. Declining goes to the acknowledgement — it does
+   * not un-cancel, and it writes nothing.
+   */
+  it("⚠️ declining the offer still only changes phase, and writes nothing", () => {
+    expect(dialogCode).toContain('setPhase("declined")');
+    expect(dialogCode).not.toMatch(/shownPhase === "offer" \? \(\) => resume/);
   });
 });

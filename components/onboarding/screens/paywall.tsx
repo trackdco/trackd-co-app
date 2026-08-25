@@ -319,6 +319,12 @@ export function PaywallScreen() {
       /* Withheld, not reworded: a returning customer gets the plan question
          without a trial claim above it. "Choose your plan." is this screen's
          own existing job stated plainly and promises nothing. */
+      /**
+       * ⚠️ CENTRED, AND SITTING CLOSER TO THE ROWS (Adrian, 2026-08-25). It was
+       * left-aligned with a full section gap beneath, so the heading read as
+       * belonging to the screen rather than to the plans directly under it.
+       */
+      center
       title={trial ? `Start your ${TRIAL_DAYS}-day free trial.` : "Choose your plan."}
     >
       <div className="flex flex-1 flex-col gap-5">
