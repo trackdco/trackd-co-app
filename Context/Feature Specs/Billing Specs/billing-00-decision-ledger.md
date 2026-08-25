@@ -33,10 +33,14 @@ as D1 and D31 already are.
 number: `Q108`.**~~ D102 to D109 and Q107 were taken by the final build round from
 this file's own next-free list, in the brief's order. Nothing was renumbered.
 
-**⚠️ UPDATED 26 Aug 2026 — next free decision number: `D111`. Next free question
-number: `Q108`.** **D110** was taken from this file's own next-free list by the
-launch-eve batch, for the legal-document lineage line. Nothing was renumbered, and
-no number was accepted from the brief — it named none.
+~~**⚠️ UPDATED 26 Aug 2026 — next free decision number: `D111`.**~~ **D110** was
+taken from this file's own next-free list by the launch-eve batch, for the
+legal-document lineage line.
+
+**⚠️ UPDATED 26 Aug 2026 (later the same day) — next free decision number:
+`D112`. Next free question number: `Q108`.** **D111** was taken for the
+trial-ending email reversal, which supersedes D34. Nothing was renumbered, and no
+number was accepted from a brief — none named one.
 
 **⚠️ D91 to D100 TAKEN 18 Aug 2026 by the build lane**, in the order the founder
 listed them in the batch brief, from this file's own next-free list. Q106 taken for
@@ -103,7 +107,8 @@ as a dependency.
 | D31 | The notice's buttons | 06, 08 | **Re-decided.** Both controls ship |
 | D32 | The legal terms line | 06 | Resolved, pending counsel's confirmation |
 | D33 | The courtesy reminder's wording | 07 | Resolved, re-signed after the em-dash catch |
-| D34 | Stripe's own customer emails | 07, 12 | **Resolved 17 Aug on the Q79 measurement** — the trial-ending email goes OFF, D65's receipts stay ON. `07`:507-527 and `12`:459-475 (P11b) both carry it; this row was the last place still saying deferred |
+| D34 | Stripe's own customer emails | 07, 12 | ~~**Resolved 17 Aug on the Q79 measurement** — the trial-ending email goes OFF, D65's receipts stay ON.~~ **⚠️ SUPERSEDED BY D111, 26 Aug 2026 — the trial-ending email STAYS ON.** The half about D65's receipts staying ON is UNAFFECTED and still holds. See D111 |
+| D111 | **Stripe's trial-ending email STAYS ON in live mode. Supersedes D34.** | 07, 12 | Adrian, 26 Aug 2026. The checkout screen PROMISES "We'll notify you before your trial ends". Our push channel reaches **17 of 94** accounts measured; Stripe's email reaches an email address, which every paying customer has. A promise carried by a channel that reaches 18% is not carried. D34's two objections are real and are accepted as the price of keeping the promise |
 | D35 | The subscribe row's label and cohort | 08 | Resolved |
 | D36 | The plan label across five states | 08 | Resolved |
 | D37 | The declined and past-due state | 08 | Resolved |

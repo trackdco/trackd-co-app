@@ -504,19 +504,55 @@ and push carried in §3.4, with the noun following the granted period.
 ~~`D33's punctuation`~~ **Closed 15 Aug 2026.** Re-signed with a full stop in place
 of the em dash; "anytime" stands as signed. Carried verbatim in §3.4.
 
-~~`D34 — Stripe's own customer emails`~~ **RESOLVED 17 Aug 2026 ON THE Q79
+~~`D34 — Stripe's own customer emails`~~ ~~**RESOLVED 17 Aug 2026 ON THE Q79
 MEASUREMENT: the trial-ending email goes OFF.** Two reasons, both from the observed
-numbers rather than from judgement:
+numbers rather than from judgement:~~
 
-1. **At a seven-day lead against a seven-day trial it fires at trial START**, which
-   warns nobody of anything.
-2. **On a courtesy period it tells a paying customer their TRIAL is ending** — the
+~~1. **At a seven-day lead against a seven-day trial it fires at trial START**, which
+   warns nobody of anything.~~
+~~2. **On a courtesy period it tells a paying customer their TRIAL is ending** — the
    Law 5 violation this spec exists to prevent, and Stripe's copy cannot be edited
    to fix it. A moved `trial_end` raises a fresh `trial_will_end`, so Stripe
-   re-schedules on a courtesy grant rather than staying quiet.
+   re-schedules on a courtesy grant rather than staying quiet.~~
 
-`07`'s push and banner are the carrier, and D1's release condition is observed. **D65's
-receipt emails stay ON** — different email, different purpose.
+~~`07`'s push and banner are the carrier, and D1's release condition is observed.~~
+
+## ⚠️ D111 — REVERSED 26 AUGUST 2026. THE TRIAL-ENDING EMAIL STAYS ON.
+
+**Adrian's ruling, and it supersedes D34.** The struck text above is left visible
+because its two objections are TRUE and were measured; they are not withdrawn. They
+are outweighed.
+
+**The reason is reach, and it is a number.**
+
+> The checkout screen **promises** "We'll notify you before your trial ends".
+> Our push channel reaches **17 of 94** accounts measured. Stripe's email reaches
+> an email address, which **every paying customer has**.
+
+D34 chose the better-worded channel. That was the wrong axis. **A promise carried by
+a channel that reaches 18% of people is not carried** — for the other 82% the app
+makes a written commitment and then silently does not keep it, and the first they
+learn of the trial ending is the charge. That is the failure this whole project is
+ordered around: nobody is charged after being told they would not be, and nobody is
+surprised by a charge they were promised warning of.
+
+**So both carriers run.** `07`'s push and banner are unchanged and still go out to
+the 17; Stripe's email is the floor under them for the other 77.
+
+**⚠️ D34's OBJECTIONS ARE ACCEPTED AS THE PRICE, not dismissed:**
+
+- It fires at trial START at a 7-day lead on a 7-day trial. An early notice is worse
+  copy than a timely one and is still a notice; silence is not.
+- On a courtesy period it calls a paying customer's window a TRIAL, which is false
+  and uneditable. **This is a real Law 5 violation and it is knowingly accepted**,
+  because it is bounded — it reaches only customers who accepted a save offer — while
+  the silence it replaces reached 82% of everybody.
+
+**Revisit when push reach is materially higher**, not before. The number is what
+decided this; a new number is what should change it.
+
+**D65's receipt emails stay ON** — different email, different purpose, unaffected by
+either ruling.
 
 The dashboard toggle is a launch-morning step in `12`, with by-eye verification,
 because the email itself is not API-observable: Stripe exposes no endpoint for sent

@@ -67,13 +67,25 @@ at that step** — every one of them is a gate for the step after it.
   and every check below still passes, because they check main against a branch
   that is itself stale.
 
+  ✅ ALREADY DONE ON 26 AUGUST. The branch was pushed and the two now agree.
+     This step is now a CONFIRMATION, not a task — run it anyway, because
+     something may have moved overnight.
+
   DO
       git status --porcelain                     # must print nothing
+      git rev-parse --short refs/heads/wave3/billing-cancel
+      git rev-parse --short refs/remotes/origin/wave3/billing-cancel
+
+      # only if the two differ:
       git push origin wave3/billing-cancel
-      git rev-parse --short wave3/billing-cancel origin/wave3/billing-cancel
 
   WORKED WHEN
       git status prints NOTHING (a clean tree), and the two hashes are the SAME.
+
+  ⚠️ AND EVEN IF THEY ARE NOT, P3a IS SAFE. The merge step names
+     `refs/heads/...` explicitly, so it merges the local branch whatever the
+     remote is doing. This step is the early warning; that spelling is the
+     guarantee. Belt and braces, deliberately — this one was worth both.
 
   IF NOT
       Tree not clean → stop and show me what is uncommitted. Do not commit it
@@ -279,9 +291,23 @@ at that step** — every one of them is a gate for the step after it.
   ⚠️ AND SEE P0a. If you did not push the branch, THIS is where a 31-commit-old
   branch gets shipped and looks like a success.
 
-  DO
-      git merge --no-ff wave3/billing-cancel
+  DO — ⚠️ NOTE THE `refs/heads/`. IT IS NOT DECORATION.
+
+      git merge --no-ff refs/heads/wave3/billing-cancel
       git log --oneline -3
+
+      `refs/heads/wave3/billing-cancel` can ONLY mean the branch on this
+      machine. The bare name `wave3/billing-cancel` is ambiguous — if the local
+      branch were ever missing or renamed, git would happily resolve it to the
+      REMOTE copy instead and merge that, with no warning and no error. On
+      26 August the remote copy was 31 commits behind, so that silent
+      substitution would have shipped a month-old tree that passed every check
+      below.
+
+      The branch was pushed on 26 August so the two now agree — but this spelling
+      means the step is correct even if they stop agreeing, rather than correct
+      because somebody remembered to check. P0a is the check; this is the
+      guarantee.
 
   WORKED WHEN — all of these are present on the tree you are about to ship:
 
@@ -691,33 +717,41 @@ at that step** — every one of them is a gate for the step after it.
 
 ═══ P11b — STRIPE'S TRIAL-ENDING EMAIL ═══                          [ADRIAN]
 
-  ⚠️ THE RECORDS DISAGREE ABOUT THIS ONE AND I HAVE NOT RESOLVED IT FOR YOU.
-     Spec 12 and D34 say turn it OFF. The second clock run's handover records
-     it as REVERSED — the email stays ON — and says both records need
-     correcting. Neither correction was ever made, so I do not know which
-     ruling is current, and I am not going to guess at a customer email.
+  ⚠️ RULED. D111, 26 August 2026. THE EMAIL STAYS ON. This reverses spec 12 and
+     D34, and both records have been corrected. Nothing to decide here — just
+     confirm it is ON.
 
-  DO — Stripe dashboard, LIVE mode → Settings → Customer emails. LOOK at the
-       "trial ending" setting and note whether it is on or off.
+  WHY, in one line: the checkout screen PROMISES "We'll notify you before your
+  trial ends", push reaches 17 of 94 accounts, and email reaches everybody.
 
-       Then decide, and tell me which you chose so I can correct the records.
+  DO — Stripe dashboard, LIVE mode (toggle OFF, top right) →
+       Settings → Customer emails.
 
-       The measured facts, so you can decide in ten seconds:
-         · The event fires with 3 days left, but the email's lead is set to 7
-           days against a 7-day trial — so it sends at trial START.
-         · On a courtesy period it tells a PAYING customer their TRIAL is
-           ending, which is false, and Stripe's wording cannot be edited.
-         · The app sends its own reminder either way.
-
-       My read: OFF matches the measurements. But it is your call.
-
-  ⚠️ RECEIPT EMAILS STAY ON (D65). Different email, different purpose. Do not
-     turn customer emails off wholesale.
+       Find the setting for when a customer's TRIAL IS ENDING.
+       It must be ON. If it is off, turn it on.
 
   WORKED WHEN
-      You have read the setting with your own eyes and made a decision.
-      There is no API for this — an email Stripe sends is not observable from
-      code, so eyes are the only instrument.
+      You have read it with your own eyes and it says ON.
+
+      ⚠️ EYES ARE THE ONLY INSTRUMENT HERE. Stripe exposes no endpoint for
+      emails it has sent, and test mode delivers them nowhere a script can
+      read. Nobody can check this for you afterwards, which is why it is your
+      hands and why it is verified by looking.
+
+  IF NOT
+      You cannot find the setting → it is under Settings → Customer emails, in
+      the "Subscriptions and trials" group. If it is genuinely not there, tell
+      me and carry on; it is not a launch blocker either way.
+
+  ⚠️ RECEIPT EMAILS STAY ON TOO (D65). Different email, different purpose. Do
+     not turn customer emails off wholesale.
+
+  ⚠️ AND THE KNOWN COST, so it does not surprise you later. On a COURTESY
+     period Stripe will call a paying customer's free window a "trial", which
+     is false and Stripe's wording cannot be edited. That is accepted
+     deliberately: it is bounded to people who accepted a save offer, while the
+     silence it replaces reached 82% of everybody. If a customer queries it,
+     that is the explanation and it is not a defect report.
 
 
 ═══ P12a — THE REMINDER FLAG ═══                                    [ADRIAN]
@@ -966,11 +1000,13 @@ Honest, not reassuring. These are ranked by how likely they are to surprise you
 tomorrow, and every one of them has actually happened on this project or was
 measured as reachable.
 
-**1. You merge a stale branch and everything looks fine.** `origin/wave3/billing-cancel`
-is **31 commits behind** local. Every check in P3a would still pass against the
-stale branch, because those files existed in August too. The tell is
-`lib/billing/signed/continued-use.txt` — it was written on 26 August and exists
-nowhere earlier. **Do P0a. Do not skip it.**
+**1. You merge a stale branch and everything looks fine.** ~~`origin/wave3/billing-cancel`
+is **31 commits behind** local.~~ **CLOSED 26 August, two ways.** The branch was
+pushed, so the two now agree; and P3a's merge names `refs/heads/...` explicitly, so
+it takes the local branch even if they stop agreeing. It was worth doing both,
+because every check in P3a would still have passed against the stale branch — those
+files existed in August too. The tell, if you ever need it, is
+`lib/billing/signed/continued-use.txt`: written 26 August, exists nowhere earlier.
 
 **2. A variable goes into Vercel and nothing happens.** Environment variables do
 not reach a deployment that is already running. Every single time you add or
@@ -1045,7 +1081,7 @@ migration. The sequence is the safety.
 | 2 | **P10: spec 12 and the old handover both say to publish the documents / run `013_legal_documents_v2_0.sql`.** | **Deleted.** The documents went live 25 Aug by Adrian's hand, and that file holds **zero** non-comment, non-blank lines — it runs, does nothing, and exits 0. P10 is now a confirmation step. |
 | 3 | **P0: spec 12 gives local `main` at 23434e0 as a past observation.** | **Still true today.** Re-measured 26 Aug: local `main` is *still* 23434e0. Kept as a live warning, not history. |
 | 4 | **P1: "commit the working tree".** | **Replaced by P0a — push it.** The tree is clean; the *remote branch* is 31 commits behind. Committing was never the risk; pushing is. |
-| 5 | **P11b: spec 12 and D34 say the trial-ending email OFF. The clock-run handover records it REVERSED, staying ON, and says both records need correcting.** | **NOT resolved — escalated to Adrian.** No correction was ever made, so neither record can be trusted. I gave the measurements and my read (OFF), and left the decision. I will not guess at a customer email. |
+| 5 | **P11b: spec 12 and D34 say the trial-ending email OFF. The clock-run handover records it REVERSED, staying ON.** | ~~Escalated to Adrian.~~ **RULED 26 Aug — D111: the email STAYS ON**, superseding D34. Reach decided it: the checkout screen promises a notification, push reaches **17 of 94**, email reaches everybody. D34's objections are true, visible, and accepted as the price. Ledger, spec 07 and spec 12 P11b all corrected. |
 | 6 | **P2: the original said apply 003 by hand.** | **Read-only verify.** Applied 16 Aug. Spec 12 already carries this correction; kept. |
 | 7 | **"Verified healthy" is used four times and never defined.** | **Defined as six URLs plus a signed-in check**, with `/terms/1.3` as the load-bearing one — it exists only in 26 Aug code and can only render by reading the database, so it cannot be served from a cache. |
 | 8 | **S1 (test clocks) and S3b (kill-switch rehearsal) sit in the launch sequence.** | **Both already done** — S1 twice, S3b before launch week. Not repeated on the morning; the kill switch's *limitation* is carried verbatim into P13. |

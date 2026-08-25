@@ -458,25 +458,43 @@ this.
 **P12 — Verify the rows.** *Worked when:* counted directly, not inferred from the
 route's response.
 
-**P11b — Turn Stripe's trial-ending customer email OFF, in the dashboard, live mode.**
-*Worked when:* verified **BY EYE** in Settings → Customer emails, because the email is
-not API-observable — Stripe exposes no endpoint for sent customer emails and test mode
+~~**P11b — Turn Stripe's trial-ending customer email OFF, in the dashboard, live mode.**~~
+
+**⚠️ P11b IS REVERSED. D111, Adrian, 26 August 2026: THE TRIAL-ENDING EMAIL STAYS
+ON.** The step is now: **confirm BY EYE that it is ON** in Settings → Customer
+emails, live mode. Verified by eye either way, because the email is not
+API-observable — Stripe exposes no endpoint for sent customer emails and test mode
 delivers them nowhere a script can read.
 
-**D34 is resolved on measurement (17 Aug 2026), not on preference.** A test-clock walk
+**Why the reversal, and it is a number rather than a preference.** The checkout
+screen PROMISES "We'll notify you before your trial ends". Our push channel reaches
+**17 of 94** accounts measured; Stripe's email reaches an email address, which every
+paying customer has. **A promise carried by a channel that reaches 18% is not
+carried** — for the other 82% the app commits in writing and then silently does not
+deliver, and the first they hear of the trial ending is the charge.
+
+~~**D34 is resolved on measurement (17 Aug 2026), not on preference.** A test-clock walk
 found `customer.subscription.trial_will_end` fires with **3 days left**, while the
 email's lead is set to **7 days against a 7-day trial** — so it fires at trial START.
 And on a courtesy period it tells a paying customer their **TRIAL** is ending, which is
 the Law 5 violation `07` exists to prevent and which Stripe's copy cannot be edited to
 fix. A moved `trial_end` raises a fresh event, so Stripe re-schedules on a courtesy
-grant rather than staying quiet. `07`'s push and banner are the carrier.
+grant rather than staying quiet. `07`'s push and banner are the carrier.~~
+
+**D34's two objections above are TRUE, are left visible, and are ACCEPTED AS THE
+PRICE.** An email that fires early is worse copy than a timely one and is still a
+notice; silence is not. The courtesy-period mislabel is a real Law 5 violation,
+knowingly taken, because it is bounded to customers who accepted a save offer while
+the silence it replaces reached 82% of everybody. `07`'s push and banner still run —
+the email is the floor under them, not a replacement. **Revisit when push reach is
+materially higher, not before.**
 
 **⚠️ D65's receipt emails stay ON.** Different email, different purpose. Do not use this
 step as licence to turn customer emails off wholesale.
 
 **⚠️ The upcoming-renewal email at seven days against a weekly cycle is NOT covered by
-D34's resolution** — it is a different message on a different trigger and remains part
-of S9's dashboard review.
+D34's resolution NOR by D111's reversal** — it is a different message on a different
+trigger and remains part of S9's dashboard review.
 
 **P12a — Set `REMINDER_PROMISE_ENABLED` in production.** *Worked when:* the variable is
 set and a deployment has picked it up. It gates two signed strings — the terms line's
