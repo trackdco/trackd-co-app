@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 import { Check } from "@/components/icons";
 import { CARD_EYEBROW } from "@/lib/ui-presets";
@@ -156,13 +156,29 @@ export function ConsentRow({
   onToggle: () => void;
   children: ReactNode;
 }) {
+  /**
+   * ⚠️ A UNIQUE ID PER ROW, AND IT IS A CORRECTNESS FIX.
+   *
+   * This was the literal `"consent-copy"`. That was fine while exactly one
+   * consent row existed. v2.0 added the dedicated health-data box beside it, and
+   * two elements then shared one id — so `aria-labelledby` resolved BOTH
+   * checkboxes to the FIRST sentence. Measured 2026-08-25: a screen-reader user
+   * would have ticked the health-data consent while hearing "I'm 18 or older and
+   * accept the Terms of Service…".
+   *
+   * That is the worst version of this defect. The whole point of the separate box
+   * is that the person is told what they are agreeing to, and a duplicated id
+   * silently undid it for exactly the users least able to notice.
+   */
+  const copyId = useId();
+
   return (
     <div className="flow-card flex items-start gap-3 rounded-2xl bg-bg-surface p-4">
       <button
         type="button"
         role="checkbox"
         aria-checked={checked}
-        aria-labelledby="consent-copy"
+        aria-labelledby={copyId}
         onClick={onToggle}
         className={cn(
           "mt-[0.1rem] flex h-5 w-5 shrink-0 items-center justify-center rounded-[0.375rem]",
@@ -184,7 +200,7 @@ export function ConsentRow({
       </button>
 
       <p
-        id="consent-copy"
+        id={copyId}
         className="min-w-0 flex-1 text-[0.8rem] leading-relaxed text-text-muted"
       >
         {children}
