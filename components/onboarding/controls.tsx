@@ -151,25 +151,10 @@ export function ConsentRow({
   checked,
   onToggle,
   children,
-  secondary,
 }: {
   checked: boolean;
   onToggle: () => void;
   children: ReactNode;
-  /**
-   * ⚠️ A SECOND SENTENCE INSIDE THE SAME LABEL — ONE TICK, TWO STATEMENTS.
-   *
-   * Added 2026-08-25 for the health-data consent. It is NOT a footnote and NOT
-   * decoration: it is part of what this checkbox authorises, so it lives inside
-   * the label and is named in `aria-labelledby` alongside the first sentence. A
-   * screen-reader user must hear everything they are agreeing to, not the half
-   * that happened to be the element's accessible name.
-   *
-   * ⚠️ IF YOU MOVE THIS OUTSIDE THE LABEL IT STOPS BEING CONSENTED TO and
-   * becomes text near a checkbox, which is the exact defect this was built to
-   * fix — a record of an agreement to a sentence nobody was shown.
-   */
-  secondary?: ReactNode;
 }) {
   return (
     <div className="flow-card flex items-start gap-3 rounded-2xl bg-bg-surface p-4">
@@ -177,7 +162,7 @@ export function ConsentRow({
         type="button"
         role="checkbox"
         aria-checked={checked}
-        aria-labelledby={secondary ? "consent-copy consent-copy-2" : "consent-copy"}
+        aria-labelledby="consent-copy"
         onClick={onToggle}
         className={cn(
           "mt-[0.1rem] flex h-5 w-5 shrink-0 items-center justify-center rounded-[0.375rem]",
@@ -198,24 +183,12 @@ export function ConsentRow({
         {checked ? <Check className="h-3.5 w-3.5" weight="bold" /> : null}
       </button>
 
-      <div className="min-w-0 flex-1">
-        <p id="consent-copy" className="text-[0.8rem] leading-relaxed text-text-muted">
-          {children}
-        </p>
-        {secondary ? (
-          /* A shade smaller and a hairline apart, so a long second sentence
-             reads as a sub-clause of the same tick rather than doubling the
-             visual weight of the card. Still `text-text-muted`, never
-             `text-subtle`: it measures ~1.9:1 on this surface and this is
-             consent copy, not a hint. */
-          <p
-            id="consent-copy-2"
-            className="mt-2 text-[0.75rem] leading-relaxed text-text-muted"
-          >
-            {secondary}
-          </p>
-        ) : null}
-      </div>
+      <p
+        id="consent-copy"
+        className="min-w-0 flex-1 text-[0.8rem] leading-relaxed text-text-muted"
+      >
+        {children}
+      </p>
     </div>
   );
 }

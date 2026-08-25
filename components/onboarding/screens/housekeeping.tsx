@@ -264,10 +264,7 @@ export function BirthdayScreen() {
         <ConsentRow
           checked={session.consent}
           onToggle={() => patch({ consent: !session.consent })}
-          secondary={
-            <HealthConsentText linkClassName="text-text-primary underline underline-offset-2" />
-          }
-        >
+>
           I&apos;m 18 or older and accept the{" "}
           <Link
             href="/terms"
@@ -296,6 +293,36 @@ export function BirthdayScreen() {
             Privacy Policy
           </Link>
           .
+        </ConsentRow>
+
+        {/**
+          * ⚠️ ITS OWN BOX, BECAUSE THE DOCUMENTS SAY SO (v2.0, 2026-08-25).
+          *
+          * Privacy Policy §1: "we ask for your explicit, specific consent through
+          * a separate consent step, distinct from accepting our Terms of Service.
+          * You give this consent by ticking a dedicated box that reads: …", and
+          * the Terms open with "three things through separate, affirmative
+          * steps". `/welcome` has always had three boxes; this is the onboarding
+          * path catching up.
+          *
+          * It spent one day as a second sentence inside the tick above. Adrian
+          * asked for one tick and that was a reasonable product call — but the
+          * v2.0 documents describe a dedicated box, and a Privacy Policy that
+          * describes a control the app does not have is the same defect as a
+          * consent record for a sentence nobody was shown, pointing the other
+          * way. The documents are immutable, so the screen moved.
+          *
+          * ⚠️ THE SENTENCE IS NOT TYPED HERE. It comes from
+          * `lib/legal/consentCopy.ts`, and `verbatimQuotes.test.ts` diffs that
+          * value against the quoted sentence in the committed Privacy Policy,
+          * codepoint by codepoint. If the document is re-exported with different
+          * wording, the build fails before a user can see the mismatch.
+          */}
+        <ConsentRow
+          checked={session.healthConsent}
+          onToggle={() => patch({ healthConsent: !session.healthConsent })}
+        >
+          <HealthConsentText linkClassName="text-text-primary underline underline-offset-2" />
         </ConsentRow>
 
         {/* `-mt-3` pulls this up against the tick (Adrian, 2026-08-05: "move

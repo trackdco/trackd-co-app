@@ -102,6 +102,7 @@ describe("canLeaveHousekeeping", () => {
     dob: "1994-02-28",
     sex: "male" as const,
     consent: true,
+    healthConsent: true,
   };
 
   it("opens only when name, consent, sex and an 18+ DOB are all present", () => {
@@ -110,6 +111,27 @@ describe("canLeaveHousekeeping", () => {
 
   it("stays shut without consent", () => {
     expect(canLeaveHousekeeping({ ...adult, consent: false }, today)).toBe(false);
+  });
+
+  /**
+   * ⚠️ v2.0 (2026-08-25). Privacy Policy §1 requires a "dedicated box" for the
+   * health-data consent, separate from accepting the Terms. Ticking the
+   * documents box alone must NOT open the gate, or the Privacy Policy is wrong
+   * about its own signup.
+   */
+  it("⚠️ stays shut with the documents ticked but NOT the health-data box", () => {
+    expect(canLeaveHousekeeping({ ...adult, healthConsent: false }, today)).toBe(false);
+  });
+
+  /**
+   * ⚠️ ABSENT IS NOT GIVEN (Rule 0). A session stored before `healthConsent`
+   * existed has no such field. It must read as "not consented", never as
+   * consented-by-default, so the user answers at `/welcome` instead.
+   */
+  it("⚠️ stays shut for a session saved before the field existed", () => {
+    const legacy = { ...adult } as Partial<typeof adult>;
+    delete legacy.healthConsent;
+    expect(canLeaveHousekeeping(legacy as typeof adult, today)).toBe(false);
   });
 
   it("stays shut without a sex", () => {
@@ -227,7 +249,7 @@ describe("the age gate and a date input's intermediate states", () => {
   const TODAY = "2026-08-01";
 
   it("an empty DOB never passes the gate", () => {
-    const base = { name: "Testy", sex: "male" as const, consent: true };
+    const base = { name: "Testy", sex: "male" as const, consent: true, healthConsent: true };
     expect(canLeaveHousekeeping({ ...base, dob: null }, TODAY)).toBe(false);
     expect(canLeaveHousekeeping({ ...base, dob: "" }, TODAY)).toBe(false);
   });
@@ -248,7 +270,7 @@ describe("the age gate and a date input's intermediate states", () => {
     // a gap and is not one — nobody's date of birth is in year 1.
     expect(parseDateKey("0001-05-20")).toBeNull();
 
-    const base = { name: "Testy", sex: "male" as const, consent: true };
+    const base = { name: "Testy", sex: "male" as const, consent: true, healthConsent: true };
     expect(canLeaveHousekeeping({ ...base, dob: "1990-05-20" }, TODAY)).toBe(true);
   });
 });
@@ -266,6 +288,7 @@ describe("firstIncompleteHousekeeping", () => {
     dob: "1990-05-20",
     sex: "male" as const,
     consent: true,
+    healthConsent: true,
   };
 
   it("returns null only when every screen is answered", () => {
@@ -277,7 +300,7 @@ describe("firstIncompleteHousekeeping", () => {
     // the age and the sex are also missing.
     expect(
       firstIncompleteHousekeeping(
-        { name: null, dob: null, sex: null, consent: false },
+        { name: null, dob: null, sex: null, consent: false, healthConsent: false },
         TODAY,
       ),
     ).toBe("name");
@@ -292,6 +315,11 @@ describe("firstIncompleteHousekeeping", () => {
     ).toBe("birthday");
     expect(
       firstIncompleteHousekeeping({ ...complete, consent: false }, TODAY),
+    ).toBe("birthday");
+    /* ⚠️ v2.0: the health-data box lives on the birthday screen beside the
+       documents tick, so a missing one holds at the same place. */
+    expect(
+      firstIncompleteHousekeeping({ ...complete, healthConsent: false }, TODAY),
     ).toBe("birthday");
   });
 
@@ -315,10 +343,15 @@ describe("firstIncompleteHousekeeping", () => {
       for (const dob of ["1990-05-20", "2012-01-01", null]) {
         for (const sex of ["male", null] as const) {
           for (const consent of [true, false]) {
-            const session = { name, dob, sex, consent };
-            expect(firstIncompleteHousekeeping(session, TODAY) === null).toBe(
-              canLeaveHousekeeping(session, TODAY),
-            );
+            // ⚠️ THE NEW FIELD IS CROSSED TOO, not pinned true. The whole point
+            // of this test is that the two functions agree on EVERY input; a
+            // field held constant is a field this control cannot see.
+            for (const healthConsent of [true, false]) {
+              const session = { name, dob, sex, consent, healthConsent };
+              expect(firstIncompleteHousekeeping(session, TODAY) === null).toBe(
+                canLeaveHousekeeping(session, TODAY),
+              );
+            }
           }
         }
       }
@@ -334,14 +367,29 @@ describe("hasAgeAndConsent", () => {
     // been asked for yet would leave its button dead with nothing on screen to
     // explain why.
     expect(
-      hasAgeAndConsent({ dob: "1990-05-20", consent: true }, TODAY),
+      hasAgeAndConsent({ dob: "1990-05-20", consent: true, healthConsent: true }, TODAY),
     ).toBe(true);
   });
 
   it("refuses an under-18, a missing date, or an unticked consent", () => {
-    expect(hasAgeAndConsent({ dob: "2012-01-01", consent: true }, TODAY)).toBe(false);
-    expect(hasAgeAndConsent({ dob: null, consent: true }, TODAY)).toBe(false);
-    expect(hasAgeAndConsent({ dob: "1990-05-20", consent: false }, TODAY)).toBe(false);
+    const ok = { healthConsent: true };
+    expect(hasAgeAndConsent({ dob: "2012-01-01", consent: true, ...ok }, TODAY)).toBe(false);
+    expect(hasAgeAndConsent({ dob: null, consent: true, ...ok }, TODAY)).toBe(false);
+    expect(hasAgeAndConsent({ dob: "1990-05-20", consent: false, ...ok }, TODAY)).toBe(false);
+  });
+
+  /**
+   * ⚠️ THE HEALTH BOX GATES THE WRITE, NOT JUST THE BUTTON.
+   *
+   * `passGateFromSession` returns early when this is false, so NO
+   * `consent_records` row is written — including the `health_data_consent` one.
+   * That is the property v2.0 depends on: the row exists only when the dedicated
+   * box was actually ticked.
+   */
+  it("⚠️ refuses when the health-data box is unticked, even with everything else", () => {
+    expect(
+      hasAgeAndConsent({ dob: "1990-05-20", consent: true, healthConsent: false }, TODAY),
+    ).toBe(false);
   });
 });
 
