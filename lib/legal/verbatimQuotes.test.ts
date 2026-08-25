@@ -92,6 +92,39 @@ describe("⚠️ strings the legal documents quote word for word", () => {
   });
 
   /**
+   * ⚠️ THE CONSUMER HEALTH DATA POLICY IS PRIVACY §16, AND THE PRIVACY POLICY
+   * SAYS SO IN WRITING.
+   *
+   * §16: *"We also publish it separately, WORD FOR WORD, as our Consumer Health
+   * Data Privacy Policy, so that it is easy to find."* That is a claim the
+   * Privacy Policy makes about another document, and the two live in separate
+   * files — so an edit to one and not the other makes the sentence above false
+   * without anything else noticing.
+   *
+   * They are byte-identical today (3666 characters each). This is what keeps
+   * them that way. If it ever fails, the fix is to re-export BOTH from the same
+   * source, never to soften this assertion.
+   */
+  it("⚠️ the standalone policy is Privacy §16 word for word", () => {
+    const CHD = readFileSync(
+      new URL("../../Context/legal-v2/consumer-health-data.md", import.meta.url),
+      "utf8",
+    );
+    const section16 = /^## 16\..*?$([\s\S]*?)^## 17\./m.exec(PRIVACY)?.[1];
+    // ⚠️ CONTROL: §16 must actually have been found. A regex that matched
+    // nothing would compare `undefined` for ever.
+    expect(section16, "Privacy §16 could not be located — has the numbering moved?").toBeTruthy();
+
+    const KEY = "**What consumer health data we collect.**";
+    expect(CHD).toContain(KEY);
+    expect(section16!).toContain(KEY);
+
+    const standalone = CHD.slice(CHD.indexOf(KEY)).trim();
+    const inPolicy = section16!.slice(section16!.indexOf(KEY)).trim();
+    expect(standalone).toBe(inPolicy);
+  });
+
+  /**
    * ⚠️ AND THE DOCUMENTS DESCRIBE THE SHAPE OF THE SIGNUP, NOT JUST THE WORDS.
    *
    * Privacy §1 says a "dedicated box"; the Terms say "three things through

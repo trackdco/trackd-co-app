@@ -347,17 +347,26 @@ export function BirthdayScreen() {
           * `text-muted`.
           */}
         {/**
-          * ⚠️ THE LONG ONE GETS ITS OWN LINE (Adrian, 2026-08-25). Four names in
-          * one wrapped row broke "Consumer Health Data Privacy Policy" across a
-          * line and clipped it mid-title. The statute is about a policy published
-          * UNDER THAT NAME, so a name the eye cannot read as one unit is the one
-          * thing this row must not do.
+          * ⚠️ ONE LINE, SMALLER (Adrian, 2026-08-25). Two rows read as clutter
+          * under two consent cards. The size is the ONLY lever available: the
+          * fourth name cannot be abbreviated, because Washington's My Health My
+          * Data Act is about a policy published UNDER THAT NAME.
+          *
+          * ⚠️ THE ROW WRAPS; THE NAME DOES NOT. Measured at 9.6px: 350px of
+          * content at 390 viewport fits exactly on one line, but at 320 the row
+          * needs 288px inside 280 and CLIPS — 8px of "…Privacy Policy" cut off.
+          *
+          * So `whitespace-nowrap` is on the LINK, not the row. One line wherever
+          * it fits, a second line where it does not, and the statutory name is
+          * never split or clipped at any width. "Always one line" was never the
+          * requirement; "never clip the name" is.
           */}
-        <p className="-mt-2 text-center text-[0.7rem] leading-relaxed text-text-subtle">
+        <p className="-mt-2 text-center text-[0.6rem] leading-relaxed text-text-subtle">
           {[
             { href: "/terms", label: "Terms" },
             { href: "/privacy", label: "Privacy" },
-            { href: "/medical-disclaimer", label: "Medical Disclaimer" },
+            { href: "/medical-disclaimer", label: "Disclaimer" },
+            { href: "/consumer-health-data", label: "Consumer Health Data Privacy Policy" },
           ].map((doc, i) => (
             <span key={doc.href}>
               {i > 0 ? " · " : null}
@@ -365,23 +374,12 @@ export function BirthdayScreen() {
                 href={doc.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline underline-offset-2 transition-colors hover:text-text-muted"
+                className="whitespace-nowrap underline underline-offset-2 transition-colors hover:text-text-muted"
               >
                 {doc.label}
               </Link>
             </span>
           ))}
-        </p>
-        <p className="-mt-1 text-center text-[0.7rem] leading-relaxed text-text-subtle">
-          <Link
-            href="/consumer-health-data"
-            target="_blank"
-            rel="noopener noreferrer"
-            /* `text-nowrap` so the name never splits, even at 320px. */
-            className="text-nowrap underline underline-offset-2 transition-colors hover:text-text-muted"
-          >
-            Consumer Health Data Privacy Policy
-          </Link>
         </p>
 
         {/* `-mt-3` pulls this up against the tick (Adrian, 2026-08-05: "move
