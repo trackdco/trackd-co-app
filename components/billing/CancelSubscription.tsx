@@ -10,7 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { Gift } from "@/components/icons";
+import { CaretRight, Gift } from "@/components/icons";
 import { Confetti } from "@/components/onboarding/confetti";
 import { Mascot } from "@/components/onboarding/mascot";
 
@@ -829,10 +829,19 @@ export function CancelSubscription({
              * drifted apart every time either card's padding changed. Inset by a
              * fixed amount, both are the same width by construction.
              */
-            : "mb-3.5 flex min-h-11 w-full items-center gap-3 rounded-xl bg-bg-surface-raised px-3.5 text-left text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+            : "mb-3.5 flex min-h-11 w-full items-center gap-3 rounded-xl border border-accent/45 bg-accent/[0.09] px-3.5 text-left text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.14] focus-visible:ring-2 focus-visible:ring-ring"
         }
       >
-        {mode === "cancel" ? `Cancel my ${noun}` : resumeLabel}
+        {mode === "cancel" ? (
+          `Cancel my ${noun}`
+        ) : (
+          <>
+            <span className="flex-1">{resumeLabel}</span>
+            {/* Amber, because it sits INSIDE the amber action — see the chevron
+                rule in `billing/manage/page.tsx`. */}
+            <CaretRight className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+          </>
+        )}
       </button>
 
       {shownPhase !== "closed" &&

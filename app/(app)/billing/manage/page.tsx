@@ -207,10 +207,20 @@ export default async function ManagePage() {
             <div className="px-4 pb-3.5">
               <Link
                 href={manageAction.href}
-                className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-bg-surface-raised px-3.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+                /**
+                 * ⚠️ THE CHEVRON RULE (Adrian, 2026-08-25).
+                 *
+                 * Amber ONLY inside an amber-tinted action; grey on every grey
+                 * surface. That keeps ui-context's "one or two beats" intact —
+                 * the tinted button and its chevron are ONE beat, not two,
+                 * because they are one object. A chevron amber on a grey row
+                 * would be the second, unearned beat the doc names as the
+                 * vibe-coded tell.
+                 */
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl border border-accent/45 bg-accent/[0.09] px-3.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.14] focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="flex-1">{manageAction.label}</span>
-                <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+                <CaretRight className="h-4 w-4 shrink-0 text-accent" aria-hidden />
               </Link>
             </div>
           ) : null}
