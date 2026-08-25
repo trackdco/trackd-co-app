@@ -4,7 +4,7 @@
 --  Applied LIVE via MCP + service-role insert:
 --    1. `legal_doc_type_add_consumer_health_data` (MCP apply_migration) — adds
 --       the fourth enum value.
---    2. `scratchpad/legal-v2-ingest.mjs` — upserts the four v2.0 rows from
+--    2. `scripts/legal-v2-ingest.mjs` — upserts the four v2.0 rows from
 --       `Context/legal-v2/*.md`.
 --
 --  ⚠️ THE SOURCE OF TRUTH IS `Context/legal-v2/*.md`, NOT THIS FILE.
