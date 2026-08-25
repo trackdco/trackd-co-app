@@ -22,10 +22,13 @@ import {
 import type { SaveOffer } from "@/app/(app)/billing/actions";
 import { STAYING_NOTICE_SLOT, StayingNotice } from "@/components/billing/StayingNotice";
 import {
+  cancelCompForeverBody,
   cancelConfirmBody,
+  cancelEndsImmediatelyLead,
   cancelConfirmBodyParts,
   cancelConfirmDismiss,
   cancelConfirmTitle,
+  resumeConfirmBody,
   offerAcceptLabel,
   offerBody,
   offerGiftWindow,
@@ -1295,7 +1298,11 @@ function dialogCopy({
            * to it" are all wrong, and withholding those would leave "you won't be
            * charged" standing alone as an answer to a question nobody asked.
            *
-           * Signed copy, character for character, from 2026-08-16. The title and
+           * Signed copy, character for character, from 2026-08-16 — and PINNED
+           * since 2026-08-26, in `lib/billing/cancelDialogCopy.ts`. ⚠️ Until then
+           * this comment claimed the first half and implied the second: the
+           * string lived only here, so nothing in the repo could see a character
+           * move. The title and
            * both buttons are deliberately untouched: what they are pressing is
            * still a cancellation, and it still stops a real charge.
            */
@@ -1319,10 +1326,8 @@ function dialogCopy({
            * it describes the MECHANISM rather than the cohort.
            */
           body: [
-            endsImmediately ? "This ends your subscription straight away." : null,
-            compForever
-              ? `You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.`
-              : cancelConfirmBody(endsOn),
+            endsImmediately ? cancelEndsImmediatelyLead() : null,
+            compForever ? cancelCompForeverBody() : cancelConfirmBody(endsOn),
           ]
             .filter(Boolean)
             .join(" "),
@@ -1362,7 +1367,7 @@ function dialogCopy({
         }
       : {
           title: `${resumeLabel}?`,
-          body: `Your ${noun} carries on as normal and finishes on ${endsOn}. You'll be charged then unless you cancel again.`,
+          body: resumeConfirmBody(isTrial, endsOn),
           dismiss: "Not now",
           confirm: "Yes, keep it",
         };
@@ -1549,13 +1554,18 @@ function dialogCopy({
      * was before. Reusing signed copy for the same cohort stating the same fact is
      * the move `02b` §3.2 and D82 both already make.
      *
+     * ⚠️ AND IT IS NOW THE SAME STRING, NOT A SECOND COPY OF ONE (2026-08-26).
+     * It was a duplicated literal here and at the confirm dialog — byte-identical
+     * on the day, and that is precisely how the previous pair drifted into
+     * "have"/"keep" and "your whole history"/"everything you've logged" with no
+     * test able to see either. Both call `cancelCompForeverBody()`, so the pin
+     * protects both surfaces rather than one.
+     *
      * The TITLE is untouched. Their subscription genuinely is cancelled.
      */
     return {
       title: `Your ${noun} is cancelled`,
-      body: compForever
-        ? `You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.`
-        : cancelConfirmBody(endsOn),
+      body: compForever ? cancelCompForeverBody() : cancelConfirmBody(endsOn),
       dismiss: null,
       confirm: "Close",
     };

@@ -16,3 +16,7 @@ You'll be charged on {date} unless you cancel before then.
 You'll be charged on {date} unless you cancel before then, and we'll remind you first.
 Claim free month
 Claim free week
+This ends your subscription straight away.
+You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.
+Your trial carries on as normal and finishes on {date}. You'll be charged then unless you cancel again.
+Your subscription carries on as normal and finishes on {date}. You'll be charged then unless you cancel again.

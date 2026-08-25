@@ -5,10 +5,13 @@ import { describe, expect, it } from "vitest";
 import { manageActionFor, periodEndLabelFor } from "./manage";
 import { manageSummaryFor, type SummaryFacts } from "./manageSummary";
 import {
+  cancelCompForeverBody,
   cancelConfirmBody,
+  cancelEndsImmediatelyLead,
   cancelConfirmBodyParts,
   cancelConfirmDismiss,
   cancelConfirmTitle,
+  resumeConfirmBody,
   offerAcceptLabel,
   offerBody,
   offerGiftWindow,
@@ -17,6 +20,11 @@ import {
   offerPeriodWord,
   offerTitle,
 } from "./cancelDialogCopy";
+import {
+  CONTINUED_USE_PARTS,
+  continuedUseSentence,
+  STAYING_NOTICE_TITLE,
+} from "./noticeCopy";
 import {
   offerTermsCharge,
   offerTermsChargeParts,
@@ -721,14 +729,32 @@ describe("⚠️ signed copy pin: the cancel dialog, codepoint for codepoint", (
     ["TERMS charge, promised", offerTermsCharge("{date}", true)],
     ["ACCEPT month", offerAcceptLabel("month")],
     ["ACCEPT week", offerAcceptLabel("week")],
+    /**
+     * ⚠️ FIRST-SIGNED 2026-08-26, AS-IS. Four strings the second clock run found
+     * with NO signed line and NO pin. Adrian signed all four verbatim as they
+     * already shipped — not a word moved, and that is the point: what changed is
+     * that a machine can now tell if one does.
+     *
+     * All four were literals in `CancelSubscription.tsx`, invisible to every test
+     * here. One of them carried a comment reading *"Signed copy, character for
+     * character, from 2026-08-16"* — signed it was, checked it was not.
+     *
+     * ⚠️ THE RESUME BODY IS PINNED IN BOTH NOUNS, and that is F2's lesson applied
+     * rather than quoted: two strings differing by one word is exactly how the
+     * unrendered one goes a whole round carrying a defect.
+     */
+    ["ENDS IMMEDIATELY lead", cancelEndsImmediatelyLead()],
+    ["COMP FOREVER body", cancelCompForeverBody()],
+    ["RESUME body on a trial", resumeConfirmBody(true, "{date}")],
+    ["RESUME body otherwise", resumeConfirmBody(false, "{date}")],
   ];
 
-  it("the signed file holds exactly the eighteen strings the founder approved", () => {
-    expect(signed).toHaveLength(18);
-    expect(RENDERED).toHaveLength(18);
+  it("the signed file holds exactly the twenty-two strings the founder approved", () => {
+    expect(signed).toHaveLength(22);
+    expect(RENDERED).toHaveLength(22);
   });
 
-  for (let i = 0; i < 18; i += 1) {
+  for (let i = 0; i < 22; i += 1) {
     it(`${RENDERED[i]?.[0] ?? `#${i}`} matches the signed line character for character`, () => {
       const diff = firstDifference(RENDERED[i][1], signed[i]);
       expect(diff).toBeNull();
@@ -833,6 +859,28 @@ describe("⚠️ the dialog renders from the module and holds none of it inline"
     expect(dialogCode).not.toContain("title: `Cancel your ${noun}?`");
   });
 
+  /**
+   * ⚠️ THE FOUR FIRST-SIGNED STRINGS (2026-08-26) COME FROM THE MODULE TOO, and
+   * the comp body is checked at BOTH its call sites.
+   *
+   * It was a duplicated literal — the confirm dialog and the cancelled
+   * acknowledgement — byte-identical on the day this was written. The previous
+   * duplicated pair in this same file drifted into "have"/"keep" and "your whole
+   * history"/"everything you've logged" with no test able to see either, so
+   * "identical today" is not a reason to leave two copies.
+   */
+  it("⚠️ the four first-signed strings come from the module, at every call site", () => {
+    expect(dialogCode).toContain("cancelEndsImmediatelyLead()");
+    expect(dialogCode).toContain("resumeConfirmBody(isTrial, endsOn)");
+    expect(
+      (dialogCode.match(/cancelCompForeverBody\(\)/g) ?? []).length,
+      "the comp body must come from the module at BOTH call sites",
+    ).toBe(2);
+    expect(dialogCode).not.toContain("This ends your subscription straight away");
+    expect(dialogCode).not.toContain("Your free access carries on as it always has");
+    expect(dialogCode).not.toContain("carries on as normal and finishes on");
+  });
+
   it("F2's two strings come from the module", () => {
     expect(dialogCode).toContain("offerGiftWindow(offer.startsOn, chargeOnLabel)");
     expect(dialogCode).toContain("offerGrantedBody(period");
@@ -912,5 +960,141 @@ describe("⚠️ the dialog renders from the module and holds none of it inline"
   it("⚠️ declining the offer still only changes phase, and writes nothing", () => {
     expect(dialogCode).toContain('setPhase("declined")');
     expect(dialogCode).not.toMatch(/shownPhase === "offer" \? \(\) => resume/);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⚠️ TWO NOTICE SENTENCES, FIRST-SIGNED 2026-08-26 AND FIRST-PINNED HERE.
+
+   Both were JSX text in `components/billing/`, unreachable by every test in this
+   repo. Adrian signed both AS-IS, verbatim as they already ship, so nothing was
+   reworded — the pin records what is there rather than changing it.
+
+   ⚠️ ONE OF THEM CARRIED A COMMENT SAYING IT WAS ALREADY PINNED.
+   `BetaLaunchNotice.tsx` read *"The signed sentence above names the Terms and the
+   Privacy Policy and is PINNED"*. Measured on 26 August: the string appeared
+   NOWHERE in `lib/`. A comment claiming a protection that does not exist is worse
+   than no comment, because a reader stops looking. It is true now.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const STAYING_PATH = new URL("./signed/staying-notice.txt", import.meta.url);
+const CONTINUED_PATH = new URL("./signed/continued-use.txt", import.meta.url);
+const STAYING_SOURCE = new URL(
+  "../../components/billing/StayingNotice.tsx",
+  import.meta.url,
+);
+const BETA_SOURCE = new URL(
+  "../../components/billing/BetaLaunchNotice.tsx",
+  import.meta.url,
+);
+
+describe("⚠️ signed copy pin: the staying notice, codepoint for codepoint", () => {
+  const signed = readFileSync(STAYING_PATH, "utf8")
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => l.length > 0);
+
+  it("the signed file holds exactly the one sentence Adrian signed", () => {
+    expect(signed).toHaveLength(1);
+  });
+
+  it("the title matches the signed line character for character", () => {
+    expect(firstDifference(STAYING_NOTICE_TITLE, signed[0])).toBeNull();
+  });
+
+  /**
+   * ⚠️ THE APOSTROPHE IS THE REASON THIS PIN EXISTS. The component writes
+   * `&apos;`, which is U+0027 — not the U+2019 the phrase acquires the moment
+   * anybody retypes it anywhere that autocorrects. A curly apostrophe has shipped
+   * on this project before.
+   */
+  it("⚠️ the apostrophe is U+0027, and a curly one is caught", () => {
+    expect(STAYING_NOTICE_TITLE).toContain("'");
+    expect(STAYING_NOTICE_TITLE).not.toContain("’");
+    expect(firstDifference(STAYING_NOTICE_TITLE, "Glad you’re staying.")).toContain(
+      "U+2019",
+    );
+  });
+
+  it("⚠️ no banned dash", () => {
+    expect(/[‐-―−]/.test(STAYING_NOTICE_TITLE)).toBe(false);
+  });
+
+  /**
+   * ⚠️ WHAT THIS PIN DOES NOT PROVE, SAID PLAINLY.
+   *
+   * **This sentence has never been photographed rendering.** The second clock
+   * run's report lists the "Glad you're staying" notice under *never
+   * photographed at all*. So: the string is the signed one, and the component
+   * renders from this constant. Nobody has seen it on a screen, and this test
+   * cannot tell you otherwise — `vitest.config.ts` is `environment: "node"` with
+   * no `.test.tsx` in the tree, so the suite cannot render anything.
+   */
+  it("the component renders from the constant and holds none of it inline", () => {
+    const code = readFileSync(STAYING_SOURCE, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+    // CONTROL: the stripper left a real component behind.
+    expect(code.length).toBeGreaterThan(500);
+    expect(code).toContain("STAYING_NOTICE_TITLE");
+    expect(code).not.toContain("Glad you");
+  });
+});
+
+describe("⚠️ signed copy pin: the continued-use sentence (D32), codepoint for codepoint", () => {
+  const signed = readFileSync(CONTINUED_PATH, "utf8")
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => l.length > 0);
+
+  it("the signed file holds exactly the one sentence Adrian signed", () => {
+    expect(signed).toHaveLength(1);
+  });
+
+  it("the sentence matches the signed line character for character", () => {
+    expect(firstDifference(continuedUseSentence(), signed[0])).toBeNull();
+  });
+
+  /**
+   * ⚠️ SPLIT, NOT REBUILT. The component interleaves two `<Link>`s, so it renders
+   * the parts — and the parts must rejoin to the signed sentence BY CONSTRUCTION,
+   * or the pin above is testing a string nobody sees. Same guarantee
+   * `cancelConfirmBodyParts` carries.
+   */
+  it("⚠️ the parts rejoin to the signed sentence exactly", () => {
+    const p = CONTINUED_USE_PARTS;
+    expect(`${p.lead} ${p.terms} ${p.join} ${p.privacy}${p.end}`).toBe(signed[0]);
+  });
+
+  /**
+   * ⚠️ IT NAMES TWO DOCUMENTS AND MUST GO ON NAMING EXACTLY TWO.
+   *
+   * `recordDocumentAcceptance` writes `tos` and `privacy` and nothing else, because
+   * Privacy v2.0 §17 forbids treating continued use as consent to health-data
+   * processing. If this sentence ever grew a third document, the acceptance it
+   * describes and the acceptance we record would part company — and the sentence
+   * would be the false one, since it is what the user actually reads.
+   */
+  it("⚠️ it names the Terms and the Privacy Policy, and nothing else", () => {
+    const full = continuedUseSentence();
+    expect(full).toContain("Terms of Service");
+    expect(full).toContain("Privacy Policy");
+    expect(full).not.toMatch(/Medical Disclaimer/);
+    expect(full).not.toMatch(/Consumer Health Data/);
+  });
+
+  it("⚠️ no banned dash", () => {
+    expect(/[‐-―−]/.test(continuedUseSentence())).toBe(false);
+  });
+
+  it("the notice renders from the module and holds none of it inline", () => {
+    const code = readFileSync(BETA_SOURCE, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+    // CONTROL: the stripper left a real component behind, links and all.
+    expect(code.length).toBeGreaterThan(2000);
+    expect(code).toContain('href="/terms"');
+    expect(code).toContain("CONTINUED_USE_PARTS.lead");
+    expect(code).not.toContain("By continuing to use Trackd");
   });
 });

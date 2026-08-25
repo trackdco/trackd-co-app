@@ -14,6 +14,7 @@ import { Confetti } from "@/components/onboarding/confetti";
 import { Mascot } from "@/components/onboarding/mascot";
 import { recordDocumentAcceptance } from "@/app/(app)/legal-acceptance";
 import { markBetaNoticeSeen } from "@/lib/billing/betaNoticeStore";
+import { CONTINUED_USE_PARTS } from "@/lib/billing/noticeCopy";
 
 /**
  * THE ONE-TIME NOTICE. What happens to the people who were already here.
@@ -452,31 +453,38 @@ function BetaLaunchDialog({
          * and neither may be styled as one.
          */}
         <p className="relative mt-4 text-[11px] leading-relaxed text-text-subtle">
-          By continuing to use Trackd, you agree to the updated{" "}
+          {CONTINUED_USE_PARTS.lead}{" "}
           <Link
             href="/terms"
             target="_blank"
             rel="noopener noreferrer"
             className="text-foreground underline underline-offset-2 hover:text-text-muted"
           >
-            Terms of Service
+            {CONTINUED_USE_PARTS.terms}
           </Link>{" "}
-          and{" "}
+          {CONTINUED_USE_PARTS.join}{" "}
           <Link
             href="/privacy"
             target="_blank"
             rel="noopener noreferrer"
             className="text-foreground underline underline-offset-2 hover:text-text-muted"
           >
-            Privacy Policy
+            {CONTINUED_USE_PARTS.privacy}
           </Link>
-          .
+          {CONTINUED_USE_PARTS.end}
         </p>
 
         {/**
           * ⚠️ READING LINKS, NOT ACCEPTANCE. The signed sentence above names the
           * Terms and the Privacy Policy and is PINNED — it is untouched, and the
           * acceptance it describes covers those two only.
+          *
+          * ⚠️ "PINNED" WAS NOT TRUE WHEN THIS WAS WRITTEN, AND IS NOW. Measured
+          * 2026-08-26: the sentence lived only as JSX text here, so no test in
+          * the repo could see it and reverting it would have left every test
+          * green. It renders from `CONTINUED_USE_PARTS` and is diffed codepoint
+          * for codepoint against `signed/continued-use.txt`. The claim was made
+          * true rather than removed.
           *
           * These two are here so the documents can be READ from the notice that
           * announces them. The Medical Disclaimer because it changed in v2.0 too;

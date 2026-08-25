@@ -288,3 +288,73 @@ export function offerPeriodWord(noun: "week" | "month"): "week" | "month" {
 
 /** Re-exported so the dialog's kind and this module's copy stay one import. */
 export type { SaveOfferKind };
+
+/* ── Signed 2026-08-26. Three sentences that had never been pinned ──── */
+
+/**
+ * ⚠️ FIRST-SIGNED 2026-08-26, AS-IS. The clock run found these carrying NO signed
+ * line and NO pin — they were literals in `CancelSubscription.tsx`, where
+ * `vitest.config.ts` (`include: ["lib/**\/*.test.ts"]`) cannot see them. Adrian
+ * signed all three verbatim as they already shipped, so **not a word moved**;
+ * what changed is that a machine can now tell if one does.
+ *
+ * ⚠️ AND ONE COMMENT WAS MADE TRUE RATHER THAN LEFT. `CancelSubscription.tsx`
+ * said of the comp body: *"Signed copy, character for character, from
+ * 2026-08-16."* Signed it was; checked it was not — the string appeared nowhere
+ * in `lib/`, so nothing in the repo could have noticed a character moving. A
+ * comment claiming a protection that does not exist is the defect this batch
+ * exists to close, and it is closed by building the protection, not by deleting
+ * the sentence.
+ */
+
+/**
+ * D80's lead, for a cancellation that takes effect NOW rather than at period end.
+ *
+ * It leads whichever body follows it, including the comp one, because it
+ * describes the MECHANISM rather than the cohort — which is exactly why it is a
+ * separate string and not folded into either body.
+ */
+export function cancelEndsImmediatelyLead(): string {
+  return "This ends your subscription straight away.";
+}
+
+/**
+ * D78 — the free-for-life comp's body. A REPLACEMENT for
+ * {@link cancelConfirmBody}, not a withhold.
+ *
+ * Their access does not end, so "until {date}", "goes read only" and "you just
+ * can't add to it" are each false for them; withholding those would leave "you
+ * won't be charged" standing alone as an answer to a question nobody asked.
+ */
+export function cancelCompForeverBody(): string {
+  return (
+    `You'll stop being charged. Your free access carries on as it always has, ` +
+    `and nothing about your account changes.`
+  );
+}
+
+/**
+ * The RESUME dialog's body — the one that undoes a scheduled cancellation.
+ *
+ * ⚠️ BOTH NOUNS ARE PINNED SEPARATELY, and that is F2's lesson applied rather
+ * than quoted: two strings differing by one word is precisely how the unrendered
+ * one goes a whole round carrying a defect. The month/week pair above was found
+ * exactly that way.
+ *
+ * ⚠️ IT TAKES `isTrial`, NOT `noun`. Same reasoning as
+ * {@link cancelConfirmTitle}: `noun` also drives the trigger row, the staying
+ * notice and the cancelled acknowledgement, and comparing it against the "trial"
+ * literal here would tie four strings to one comparison.
+ *
+ * ⚠️ THIS SENTENCE ASSERTS A CHARGE — "You'll be charged then" — which is the
+ * claim `manageSummary.ts` records as false for the grace-aligned-then-cancelled
+ * cohort. It is UNCHANGED and signed as-is on Adrian's call. Recorded here so the
+ * next reader meets the known limit at the string rather than three files away.
+ */
+export function resumeConfirmBody(isTrial: boolean, endsOn: string): string {
+  const noun = isTrial ? "trial" : "subscription";
+  return (
+    `Your ${noun} carries on as normal and finishes on ${endsOn}. ` +
+    `You'll be charged then unless you cancel again.`
+  );
+}

@@ -13,6 +13,8 @@ A fix WITHHOLDS a line. It never rewords one.
 | `beta-notice.txt` | the beta grace notice (06) |
 | `past-due-banner.txt` | the declined-payment dashboard banner (Group D) |
 | `cancel-dialog.txt` | the cancel dialog's title, dismiss, gift window and granted body (F1, F2) |
+| `staying-notice.txt` | the staying notice's title, when somebody declines to cancel |
+| `continued-use.txt` | D32's continued-use sentence on the switch-on notice |
 
 ## ⚠️ What decides which signed strings get a machine check
 
@@ -33,6 +35,27 @@ and a cold review found it by mutation rather than by reading:
 
 Both moved (`lib/billing/readOnlyCopy.ts`, `manage.ts#periodEndLabelFor`) and both are
 pinned.
+
+**⚠️ AND IT HAPPENED AGAIN, FIVE MORE TIMES, FOUND BY THE SECOND CLOCK RUN
+(2026-08-26).** Five user-facing sentences had no signed line and no pin. Adrian
+signed all five AS-IS — verbatim as they already shipped — so nothing was
+reworded; what changed is that a machine can now tell if a character moves.
+
+  CancelSubscription.tsx  the D80 immediate-cancel lead
+  CancelSubscription.tsx  the D78 free-for-life comp body
+  CancelSubscription.tsx  the resume dialog's body, in BOTH nouns
+  StayingNotice.tsx       "Glad you're staying."
+  BetaLaunchNotice.tsx    D32's continued-use sentence
+
+**Two of the five carried comments claiming a protection that did not exist** —
+*"Signed copy, character for character"* and, flatly, *"is PINNED"*. Neither
+string appeared anywhere in `lib/`. Both comments were made TRUE by building the
+pin, not by deleting the claim: a comment asserting a check that is not there is
+worse than no comment, because a reader stops looking.
+
+⚠️ **One of the five has never been photographed rendering** — the staying
+notice's title. Its pin says so on its own face rather than implying it has been
+seen. A pin proves the STRING; only a screen proves the SCREEN.
 
 ## How a pin must be built
 

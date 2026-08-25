@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { X } from "@/components/icons";
+import { STAYING_NOTICE_TITLE } from "@/lib/billing/noticeCopy";
 
 /**
  * The element at the top of `/billing` this card is portaled into.
@@ -95,7 +96,7 @@ export function StayingNotice({
       className="mt-6 flex items-start gap-3 rounded-2xl border border-accent-amber/40 bg-accent-amber/10 px-4 py-3.5 scroll-mt-[calc(env(safe-area-inset-top)+2.5rem)] animate-in fade-in-0 duration-200 motion-reduce:animate-none"
     >
       <div className="min-w-0 flex-1">
-        <p className="text-sm text-foreground">Glad you&apos;re staying.</p>
+        <p className="text-sm text-foreground">{STAYING_NOTICE_TITLE}</p>
         <p className="mt-0.5 text-sm text-text-muted">
           Your {isTrial ? "trial" : "subscription"} will carry on as usual.
         </p>
