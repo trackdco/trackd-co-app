@@ -337,7 +337,7 @@ describe("clampIntent", () => {
   });
 
   it("passes a fully answered session straight through", () => {
-    for (const step of ["celebrate", "demo", "payoff", "cost", "account", "plans"] as const) {
+    for (const step of ["celebrate", "demo", "cost", "account", "plans"] as const) {
       expect(clampIntent(step, both)).toBe(step);
     }
   });
@@ -360,7 +360,7 @@ describe("clampIntent", () => {
     // The claim empties the device, so judging a gated customer by what is left
     // in `localStorage` throws them back to the intent screens — exactly the
     // hazard this function's own doc describes for `welcome`.
-    for (const step of ["celebrate", "demo", "payoff", "cost", "free", "account", "plans"] as const) {
+    for (const step of ["celebrate", "demo", "cost", "free", "account", "plans"] as const) {
       expect(clampIntent(step, none, true)).toBe(step);
       expect(clampIntent(step, none, false)).not.toBe(step);
     }

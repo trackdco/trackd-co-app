@@ -20,7 +20,6 @@ export type OnboardingEvent =
   | "struggle_selected"
   | "demo_dose_logged"
   | "demo_completed"
-  | "payoff_viewed"
   | "paywall_viewed"
   | "plan_selected"
   | "affiliate_code_applied"

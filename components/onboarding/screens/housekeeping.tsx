@@ -71,6 +71,11 @@ export function NameScreen() {
     <StepFrame
       center
       title="What's your name?"
+      // The photo is taken on THIS screen too (see the section header above),
+      // so the sub explains the thing sitting under the field rather than
+      // restating the question. "Tell us what to call you." was the first
+      // draft and was cut for saying the title twice (Adrian, 2026-08-27).
+      sub="So we can put a name to the face."
       footer={
         <FlowCta onClick={goNext} disabled={!canContinue}>
           Continue
@@ -135,7 +140,7 @@ export function BirthdayScreen() {
       // to ask" was an apology for the one question on this flow that is not
       // optional, and apologising for an age gate invites the reader to treat
       // it as negotiable.
-      sub="Trackd Co is for adults only."
+      sub="Trackd.co is for adults only."
       footer={
         <div className="space-y-3">
           {/* THE REFUSAL LIVES HERE, NOT UNDER THE FIELD (Adrian, 2026-08-05).
@@ -382,28 +387,24 @@ export function BirthdayScreen() {
           ))}
         </p>
 
-        {/* `-mt-3` pulls this up against the tick (Adrian, 2026-08-05: "move
-            the disclaimer text slightly closer to the checkbox"). It is a
-            footnote ON the consent, not the next item in the column, and the
-            parent's `space-y-6` was spacing it as though it were.
+        {/* ⚠️ "Nothing leaves your phone until you make an account." WAS HERE
+            AND WAS REMOVED ON PURPOSE (Adrian, 2026-08-27).
 
-            THE HIGHEST-VALUE SENTENCE IN THE FLOW, and it costs nothing
-            (2026-08-05). Two independent customer reviews put this first,
-            unprompted: seventeen screens take a name, a date of birth and a sex
-            on the subject of anabolic use, and the word "privacy" appears
-            exactly once, as the third grey link inside the consent sentence.
+            It is recorded here rather than deleted silently, because the reason
+            it existed has not gone away: two independent customer reviews put
+            the missing privacy statement FIRST, unprompted — seventeen screens
+            take a name, a date of birth and a sex on the subject of anabolic
+            use, and the word "privacy" otherwise appears once, as the third
+            grey link inside the consent sentence.
 
-            The answer was already good and simply never said. Nothing in the
-            anonymous half of this flow leaves the device — `session.ts` writes
-            to `localStorage` and nothing else — so this is a statement of fact
-            about the code, not a reassurance.
+            The claim was also true: nothing in the anonymous half of this flow
+            leaves the device (`session.ts` writes to `localStorage` and nothing
+            else). Adrian asked for it out anyway and that is his call.
 
-            **It stops being true the moment anything here posts to Postgres
-            before the paywall.** If that ever changes, this line changes with
-            it or it becomes a lie on the screen carrying the consent tick. */}
-        <p className="-mt-3 text-center text-[0.8rem] leading-relaxed text-text-muted">
-          Nothing leaves your phone until you make an account.
-        </p>
+            If it goes back, it goes back because he says so — and if anything
+            here ever posts to Postgres before the paywall, it must NOT go back,
+            because it would then be a lie on the screen carrying the consent
+            tick. */}
       </div>
     </StepFrame>
   );

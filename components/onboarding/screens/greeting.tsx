@@ -38,7 +38,7 @@ export function GreetingScreen() {
           <WelcomeStage
             effect={EFFECT}
             name={session.name}
-            sub="Let's learn a bit more, so Trackd can be built around what you actually run."
+            sub="Let's learn a bit more about you, so Trackd can be built around your actual protocol."
           />
         </ScrollPort>
 

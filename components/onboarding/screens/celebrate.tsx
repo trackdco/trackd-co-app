@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { Check } from "@/components/icons";
 import type { StruggleTag } from "@/lib/onboarding/session";
 import { FLOW_DISPLAY } from "@/lib/ui-presets";
@@ -7,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 import { FlowCta, ScrollPort } from "../chrome";
 import { Confetti } from "../confetti";
+import { HowItWorks } from "../how-it-works";
 import { useFlow } from "../flow-context";
 import { Mascot } from "../mascot";
 
@@ -97,8 +100,15 @@ export function CelebrateScreen() {
   const lines = chosen.map((tag) => ANSWERS[tag]).filter((l): l is string => Boolean(l));
   if (pickedSomethingElse) lines.push(SOMETHING_ELSE);
 
+  /**
+   * The "Here's how it works." beat plays OVER this screen on the way out,
+   * then hands to the demo. It is not a step; see `how-it-works.tsx`.
+   */
+  const [handingOff, setHandingOff] = useState(false);
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      {handingOff ? <HowItWorks onDone={goNext} /> : null}
       <Confetti />
 
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
@@ -153,7 +163,7 @@ export function CelebrateScreen() {
         </ScrollPort>
 
         <footer className="shrink-0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <FlowCta onClick={goNext}>Try it now</FlowCta>
+          <FlowCta onClick={() => setHandingOff(true)}>Try it now</FlowCta>
         </footer>
       </div>
     </div>

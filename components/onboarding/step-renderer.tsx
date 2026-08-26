@@ -19,7 +19,6 @@ import {
 import { InstallScreen } from "./screens/install";
 import { LetterScreen } from "./screens/letter";
 import { NotificationsScreen } from "./screens/notifications";
-import { PayoffScreen } from "./screens/payoff";
 import { PaywallScreen } from "./screens/paywall";
 import { RunningScreen, StruggleScreen } from "./screens/intent";
 import { WelcomeScreen } from "./screens/welcome";
@@ -39,7 +38,6 @@ const SCREENS: Record<StepId, () => React.ReactElement> = {
   struggle: StruggleScreen,
   celebrate: CelebrateScreen,
   demo: DemoScreen,
-  payoff: PayoffScreen,
   cost: CostScreen,
   free: FreeScreen,
   account: AccountScreen,

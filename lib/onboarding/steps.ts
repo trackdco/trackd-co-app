@@ -29,7 +29,6 @@ export type StepId =
   | "struggle"
   | "celebrate"
   | "demo"
-  | "payoff"
   | "cost"
   // The free-trial reveal, between the cost argument and the price list. It is
   // its own step rather than the top of the paywall because it has one job —
@@ -101,7 +100,6 @@ export const STEP_ORDER: readonly StepMeta[] = [
   // the screen (`components/onboarding/screens/demo.tsx`) so the cards can
   // recede and accumulate on one surface.
   { id: "demo", phase: "anonymous" },
-  { id: "payoff", phase: "anonymous" },
   // The cost comparison. D for now (Adrian's pick of six candidates); the
   // others live at /onboarding/cost until one is chosen for good.
   { id: "cost", phase: "anonymous" },
@@ -285,7 +283,6 @@ export function clampStep(
 const INTENT_GUARDED: readonly StepId[] = [
   "celebrate",
   "demo",
-  "payoff",
   "cost",
   "free",
   // The account screen is anonymous and sits between the intent screens and the
@@ -398,6 +395,16 @@ export function isStepId(value: unknown): value is StepId {
 const LEGACY_STEP_IDS = new Map<string, StepId>([
   ["paywall", "plans"],
   ["checkout", "start"],
+  // The payoff screen ("One tap a day. / A year of answers.") was DELETED on
+  // 2026-08-27: it restated the demo's own closing stage — "It all compounds."
+  // — one screen later, and Adrian cut it. Its best line was not lost, it moved
+  // onto that demo stage as its subtitle.
+  //
+  // It resolves forward rather than to null so that anyone holding a link, or
+  // mid-flow with `?step=payoff` in their history, lands on the next screen
+  // instead of being thrown back to the hook with their answers intact but
+  // their position gone.
+  ["payoff", "cost"],
 ]);
 
 /**

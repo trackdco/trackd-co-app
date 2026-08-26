@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { CaretLeft } from "@/components/icons";
@@ -832,14 +833,48 @@ function OnboardingFlowClient({
               * the back arrow stays in exactly the same place and the header
               * does not reflow between the two entry points.
               */}
-            {chrome === "onboarding" ? (
-              <ProgressRail progress={stepProgress(step)} />
-            ) : (
-              <span aria-hidden />
-            )}
+            {/* ⚠️ THE MIDDLE CELL MUST ALWAYS EXIST, even when it is empty.
+                `ProgressRail` returns null on the hook (nothing done yet, and a
+                bar reading 0% is a worse first impression than no bar) — and a
+                component returning null renders NO NODE, so the grid was left
+                with two children and the third one silently slid into the
+                middle column. Measured: the wordmark sat at x=164 on the hook
+                and x=315 on every other step, i.e. the logo moved between
+                screens, which is the one thing this header is built not to do.
+                A wrapper that always renders pins the cell. */}
+            <div className="flex items-center justify-center">
+              {chrome === "onboarding" ? (
+                <ProgressRail progress={stepProgress(step)} />
+              ) : null}
+            </div>
 
-            {/* Balances the arrow's column so the rail sits on the true centre. */}
-            <span aria-hidden />
+            {/* THE WORDMARK, ON EVERY STEP (Adrian, 2026-08-27), so the flow
+                reads as one product rather than twenty loose screens.
+
+                ⚠️ IT IS NOT TOP-LEFT, WHICH IS WHAT HE ASKED FOR, AND HERE IS
+                WHY. Top-left is the back arrow's, on nineteen of twenty steps.
+                Putting the mark beside it means it sits at x=0 on the hook and
+                x=40 everywhere else — a logo that moves between screens — and
+                putting it in the left column outright pushes the centred
+                progress rail off true, because the grid's outer columns are
+                `1fr` each and the mark is wider than the arrow. The right
+                column was empty and exists only to balance the arrow, so the
+                mark takes it and the rail stays centred by the layout.
+
+                `h-3` and not larger: this column is `1fr`, and a mark wide
+                enough to exceed it would push the rail after all.
+
+                Not `priority` — it is chrome on every screen, and the hook's
+                own hero is what should win the first paint. */}
+            <div className="flex items-center justify-end">
+              <Image
+                src="/trackd-wordmark.png"
+                alt="Trackd.co"
+                width={1049}
+                height={200}
+                className="h-3 w-auto opacity-70"
+              />
+            </div>
           </div>
 
           {/* THE ANSWER HANDOFF. Renders nothing unless the claim failed, in

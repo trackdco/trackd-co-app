@@ -5,7 +5,7 @@ import { FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { AppCarousel } from "../app-carousel";
-import { FlowCta, ScrollPort } from "../chrome";
+import { FlowCta, FlowSub, ScrollPort } from "../chrome";
 import { useFlow } from "../flow-context";
 
 /**
@@ -55,6 +55,12 @@ export function FreeScreen() {
                 We want you to have your{" "}
                 <em className={FLOW_EMPHASIS}>first week on us</em>.
               </h1>
+              {/* Back after being cut for length on 2026-08-05, deliberately
+                  short this time (Adrian, 2026-08-27). Confident rather than
+                  pleading: the product carries the argument. */}
+              <FlowSub>
+                We&apos;d rather you try it than take our word for it.
+              </FlowSub>
             </header>
 
             {/* THE CAROUSEL IS THE HERO (Adrian, 2026-08-07), replacing a

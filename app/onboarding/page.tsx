@@ -71,9 +71,10 @@ export default async function OnboardingPage({
   /**
    * THE PRICES COME FROM STRIPE, NOT FROM THE CODEBASE (spec w2b-15).
    *
-   * Fetched here because three ANONYMOUS screens need them — the payoff
-   * screen's weekly anchor and the cost comparison, both well before the
-   * paywall — so they cannot wait for a session. Memoised for five minutes in
+   * Fetched here because ANONYMOUS screens need them — the cost comparison,
+   * well before the paywall — so they cannot wait for a session. (The payoff
+   * screen's weekly anchor was the other caller; that screen was deleted on
+   * 2026-08-27.) Memoised for five minutes in
    * `lib/billing/prices.ts`, and `loadPricesSafe` swallows a Stripe outage:
    * this flow is free until the paywall and must not go down with a billing
    * provider.
