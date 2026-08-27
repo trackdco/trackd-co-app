@@ -4,8 +4,8 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-27 (go-live sequence rewritten; the Manage card row fixed;
-one UNVERIFIED trial-conversion risk raised)
+Last updated: 2026-08-27 (G3 done — 004 applied; G2 and G4 outstanding; one
+UNVERIFIED trial-conversion risk raised)
 
 ---
 
@@ -45,7 +45,11 @@ written, plus the order they now have to happen in.
       the 85, because the route's predicate is "has a row at all".
       ⚠️ **Before G4, not after.** After the flip those five are already read-only.
 
-- [ ] **G3. Apply `supabase/billing/004_regrace_launch_date.sql` BY HAND.** Moves the
+- [x] **G3. DONE — `004` applied by Adrian at 04:00:11 UTC on 2026-08-27.** Verified
+      from the rows: 84 comp rows at `2026-09-10 04:00:11.374343+00`, none left at the
+      original instant. Kept below for the record; do NOT run it again.
+
+- [x] ~~**G3 (original text).** Apply `supabase/billing/004_regrace_launch_date.sql` BY HAND.**~~ Moves the
       85 from 31 Aug to `now() + 14 days`. ⚠️ **The file says in as many words: no
       agent runs it, Adrian applies it, and the fortnight is measured from the MOMENT
       IT RUNS.** Paste the whole file, then the VERIFY block separately. Expect 85 + 4,

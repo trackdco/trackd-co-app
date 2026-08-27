@@ -5,7 +5,53 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-27 (paid-flow error boundary; the Manage card row reads the right field at last; the gate still unset in production)
+Last updated: 2026-08-27 (004 applied by Adrian; COMP_EMAILS reopened for barbrake24; three accounts deleted; the gate still unset)
+
+## `004` is applied, the comp list reopened, and three accounts removed (2026-08-27)
+
+**`004_regrace_launch_date.sql` was applied by Adrian at 04:00:11 UTC.** Verified from
+the rows rather than from the editor's message: **84 comp rows share one instant,
+`2026-09-10 04:00:11.374343+00`**, and **no row carries `2026-08-31 00:48:47.401+00`**,
+which is the file's own pass condition. The cohort is 84 rather than the 86 its VERIFY
+block predicts because two of the dated rows went with deleted accounts.
+
+⚠️ **`BILLING_GATE_ENABLED` IS STILL UNSET.** `004` is P11; P13 has not happened, so
+none of billing bites yet and the beta/comp notices still cannot render.
+
+### `COMP_EMAILS` reopened — `barbrake24@gmail.com` is free for life
+
+The list was CLOSED on 2026-08-14. Adrian reopened it on 08-27, and this is **the first
+entry to take the re-run path rather than the backfill**: he already held a dated comp
+row, and the backfill's predicate is "has a row at all", so only the UPGRADE branch
+(`beta-grace/route.ts:234`, which clears `active_until`) can grant him.
+
+Driven `?dry=1` first against production: `upgraded: 1, upgradedAccounts:
+["barbrake24@gmail.com"]`, `comp: 0`, nothing else moved. The row was then cleared
+directly — the same single field the upgrade branch writes, and deliberately NOT
+`is_active`, which D81 forbids any backfill branch from writing back to true.
+
+⚠️ **The SQL was scoped to that one row rather than running the route live, because the
+live route would ALSO have granted the five uncovered accounts their fortnight** — the
+right thing to do, but not the thing that was asked for. It remains outstanding.
+
+**Five free-for-life accounts now:** `admin@trackdco.app`, `adrianschimizzi1@gmail.com`,
+`ananthr.ravi@gmail.com`, `jasminemalihi06@gmail.com`, `barbrake24@gmail.com`.
+`angusbrake6@gmail.com` is on the list and still has no account.
+
+### Deleted
+
+`adrianschimizzi@icloud.com` (created 07 Aug, **never signed in**, no data, no Stripe
+customer) and `agiboianims@gmail.com` (24 Jun, last seen 02 Jul, no data, no Stripe
+customer). Both held a dated comp row, which is why the cohort fell from 84 to 82.
+
+⚠️ `driancomedia@gmail.com` is Adrian's own test account and **now carries a live
+`trialing` Stripe subscription** (`sub_1U8uiFIjoBdPloH3YwXRTOww`, ending 10 Sep).
+Deleting the database rows does NOT cancel Stripe. Anything that removes that account
+must cancel the subscription first or it bills a card with no account behind it.
+
+**Standing as of this entry:** 93 accounts, 88 entitlement rows, 5 free for life, 82 on
+the clock to 10 Sep, 1 `stripe` row, and **5 accounts holding no row at all**.
+
 
 ## The Manage row said "None on file" to somebody whose card was stored (2026-08-27)
 

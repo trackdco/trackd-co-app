@@ -82,8 +82,18 @@ export const COMP_EMAILS: readonly string[] = [
   // Given as "Angusbrake6@gmail.com" and lowercased here, which is the whole
   // point of the warning above.
   "angusbrake6@gmail.com",
-  // The list is CLOSED for now (Adrian, 2026-08-14). Anyone added after the
-  // backfill has run needs the re-run path, which upgrades an existing
+  /**
+   * Added 2026-08-27 (Adrian), which REOPENED the list closed on 08-14 — so
+   * this is the first entry to take the re-run path rather than the backfill.
+   *
+   * He already held a dated comp row (expiring 10 Sep, from `004`'s re-grace),
+   * so the first run cannot help him: its predicate is "has a row at all". The
+   * UPGRADE branch is what grants this — `beta-grace/route.ts:234` clears
+   * `active_until` on a row that has one — and it is the branch that exists
+   * precisely for "Adrian adds a friend after go-live".
+   */
+  "barbrake24@gmail.com",
+  // Anyone added from here needs the re-run path, which upgrades an existing
   // fourteen-day row to no-expiry; the first run skips them entirely.
 ];
 
