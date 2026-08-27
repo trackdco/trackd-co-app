@@ -73,7 +73,7 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     id: "home",
-    src: "/onboarding/app-home.png",
+    src: "/onboarding/app-dashboard.png",
     labels: [
       { text: "Log a dose", icon: Syringe, className: "left-1 top-1", drift: ["5px", "-6px", "8600ms"] },
       { text: "What's due today", icon: ListChecks, className: "right-1 top-14", drift: ["-5px", "7px", "10200ms"] },
@@ -211,7 +211,10 @@ export function AppCarousel() {
       {/* Sized so the phone reads as the hero of the screen. The page scrolls,
           so this does not have to fight the plan cards for room. */}
       <div
-        className="relative mx-auto h-[18.75rem] w-full max-w-[24rem] shrink-0 touch-pan-y select-none"
+        // A notch smaller (Adrian, 2026-08-27: "it's just a little bit big").
+        // The ring is fixed-height by construction, so this is the one number
+        // that sizes it — the phones are positioned against this box.
+        className="relative mx-auto h-[16.5rem] w-full max-w-[22rem] shrink-0 touch-pan-y select-none"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerCancel={() => { drag.current = null; }}
@@ -233,7 +236,17 @@ export function AppCarousel() {
             <div
               key={slide.id}
               aria-hidden
-              className="pointer-events-none absolute left-1/2 top-1/2 w-[11.4rem] rounded-[1.5rem] bg-bg-surface-raised p-[3px] shadow-[0_28px_60px_-22px_rgb(0_0_0/0.95)] transition-all ease-[var(--motion-ease)] motion-reduce:transition-none"
+              className={cn(
+                "pointer-events-none absolute left-1/2 top-1/2 w-[10rem] rounded-[1.35rem] p-[3px]",
+                // THE SAME BAND AS `device-frame.tsx` (Adrian, 2026-08-14:
+                // "do those same outlines in the carousel as well"). These were
+                // a flat `bg-bg-surface-raised` while the hook's phone had been
+                // given a lit one, so the two surfaces were showing two
+                // different devices. Same three stops, same direction of light.
+                "bg-gradient-to-b from-border-default via-bg-surface to-black",
+                "shadow-[0_2px_5px_rgb(0_0_0/0.5),0_28px_60px_-22px_rgb(0_0_0/0.95)]",
+                "transition-all ease-[var(--motion-ease)] motion-reduce:transition-none",
+              )}
               style={{
                 transitionDuration: reduced ? "0ms" : `${TURN_MS}ms`,
                 transform: `translate(-50%, -50%) translateX(${pos.x}) scale(${pos.scale})`,
@@ -244,19 +257,72 @@ export function AppCarousel() {
               {/* Explicit dimensions, not `fill` — see the note in
                   `screens/free.tsx`. `fill` needs a positioned ancestor with a
                   resolved height before it paints, and these phones came back
-                  empty. The image now supplies its own height. */}
+                  empty. The image now supplies its own height.
+
+                  THE RATIO IS THE PHONE'S, NOT A ROUND NUMBER (2026-08-14).
+                  This declared 1170×2280 (0.513) while every screenshot in
+                  `public/onboarding/` is a real iPhone capture at ~0.46. With
+                  `object-cover object-top` the mismatch silently ate the bottom
+                  ~10% of all four — which is exactly where the tab bar sits, so
+                  the one element proving this is a five-section app was cropped
+                  out of every slide. 1170×2532 is the iPhone 390×844 logical
+                  frame, so the source now fills the box with nothing to crop.
+
+                  If a future screenshot comes off a different device, match THIS
+                  ratio or it will be cropped again — silently, because
+                  `object-cover` never errors. */}
+              {/* Chamfer and side hardware, matching `device-frame.tsx`. The
+                  buttons are 1.5px here rather than 2px — these phones render
+                  at two-thirds the hook's size, and at 2px they read as chips
+                  out of the silhouette rather than as switches. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 rounded-[1.5rem] ring-1 ring-inset ring-white/10"
+              />
+              <span aria-hidden className="pointer-events-none absolute -left-[1.5px] top-[17%] h-[3.5%] w-[1.5px] rounded-l-sm bg-gradient-to-l from-border-strong to-bg-base" />
+              <span aria-hidden className="pointer-events-none absolute -left-[1.5px] top-[25%] h-[7%] w-[1.5px] rounded-l-sm bg-gradient-to-l from-border-strong to-bg-base" />
+              <span aria-hidden className="pointer-events-none absolute -left-[1.5px] top-[34%] h-[7%] w-[1.5px] rounded-l-sm bg-gradient-to-l from-border-strong to-bg-base" />
+              <span aria-hidden className="pointer-events-none absolute -right-[1.5px] top-[29%] h-[11%] w-[1.5px] rounded-r-sm bg-gradient-to-r from-border-strong to-bg-base" />
+
               <div className="relative overflow-hidden rounded-[1.35rem]">
                 <Image
                   src={slide.src}
                   alt=""
                   width={1170}
-                  height={2280}
+                  height={2532}
                   sizes="200px"
                   // All four are on screen at once in the ring, so all four are
                   // above the fold. Priority on one of them is a lie the
                   // LCP heuristic calls out.
                   priority
                   className="h-auto w-full object-cover object-top"
+                />
+
+                {/* THE TWO THINGS THAT SAY "PHONE" (Adrian, 2026-08-14).
+                    The screenshots have iOS's own chrome cropped off, which is
+                    right — a real status bar inside a drawn bezel doubles up.
+                    But cropping it left a rounded rectangle of UI that reads as
+                    a card, not a device. These two draw the phone back on.
+
+                    Both are sized in PERCENT of the screen, never pixels, so
+                    they hold their proportions at any frame width — the ring
+                    renders these at 176px and a 2x inspection view at 352px,
+                    and a fixed pixel island would be twice as wrong at one of
+                    them. The aspect ratios are Apple's own: the Dynamic Island
+                    is 125x37pt (3.38) and the home indicator 140x5pt (28).
+
+                    They sit OVER the screenshot rather than in a reserved strip,
+                    which is also what iOS does over a full-bleed app. The island
+                    lands in the empty centre of every screenshot's header band —
+                    the wordmark is left, "Sign out" is right, nothing is in the
+                    middle — so it covers no content on any of the four. */}
+                <div
+                  aria-hidden
+                  className="absolute left-1/2 top-[1.6%] w-[30%] -translate-x-1/2 rounded-full bg-black aspect-[27/8]"
+                />
+                <div
+                  aria-hidden
+                  className="absolute bottom-[1%] left-1/2 w-[36%] -translate-x-1/2 rounded-full bg-white/40 aspect-[28/1]"
                 />
               </div>
             </div>

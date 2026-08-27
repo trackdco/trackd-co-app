@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
 import { ConsentRow } from "../controls";
+import { HealthConsentText } from "@/components/legal/HealthConsentText";
 import { useFlow } from "../flow-context";
 
 /**
@@ -70,6 +71,11 @@ export function NameScreen() {
     <StepFrame
       center
       title="What's your name?"
+      // The photo is taken on THIS screen too (see the section header above),
+      // so the sub explains the thing sitting under the field rather than
+      // restating the question. "Tell us what to call you." was the first
+      // draft and was cut for saying the title twice (Adrian, 2026-08-27).
+      sub="So we can put a name to the face."
       footer={
         <FlowCta onClick={goNext} disabled={!canContinue}>
           Continue
@@ -134,7 +140,7 @@ export function BirthdayScreen() {
       // to ask" was an apology for the one question on this flow that is not
       // optional, and apologising for an age gate invites the reader to treat
       // it as negotiable.
-      sub="Trackd Co is for adults only."
+      sub="Trackd.co is for adults only."
       footer={
         <div className="space-y-3">
           {/* THE REFUSAL LIVES HERE, NOT UNDER THE FIELD (Adrian, 2026-08-05).
@@ -235,10 +241,35 @@ export function BirthdayScreen() {
             18" belongs beside the date that proves it — on a page of its own it
             reads as fine print, and the two halves of one legal statement should
             not be separated by a navigation. */}
+        {/**
+          * ⚠️ THE HEALTH-DATA SENTENCE IS PART OF THIS TICK (Adrian, 2026-08-25),
+          * AND THAT IS THE WHOLE FIX.
+          *
+          * Onboarding wrote a `consent_records` row with
+          * `document: "health_data_consent"` off a tick whose sentence named
+          * three documents and no health data at all — a record of an agreement
+          * to words that were never on the screen, for special-category data, in
+          * a health product. Measured 25 Aug 2026: 81 accounts carry that row.
+          *
+          * ⚠️ THE WRITE IS UNCHANGED AND DELIBERATELY SO. Stopping it would leave
+          * new signups with no health consent captured at all, which is worse than
+          * the defect. The record was not wrong about WHAT was agreed; it was
+          * wrong that the sentence had been shown. Showing it is the fix.
+          *
+          * ⚠️ ONE TICK, NOT TWO (Adrian's call, overruling a mirror of
+          * `/welcome`'s three separate boxes). `/welcome` makes all three
+          * mandatory anyway, so separate ticks never offered a real choice — the
+          * user cannot reach the app without every one of them either way. What
+          * matters is that the words are SHOWN and sit inside the label, so the
+          * checkbox genuinely authorises them.
+          *
+          * The sentence comes from `lib/legal/consentCopy.ts`, character for
+          * character the one `/welcome` has always shown. It is not retyped here.
+          */}
         <ConsentRow
           checked={session.consent}
           onToggle={() => patch({ consent: !session.consent })}
-        >
+>
           I&apos;m 18 or older and accept the{" "}
           <Link
             href="/terms"
@@ -269,28 +300,111 @@ export function BirthdayScreen() {
           .
         </ConsentRow>
 
-        {/* `-mt-3` pulls this up against the tick (Adrian, 2026-08-05: "move
-            the disclaimer text slightly closer to the checkbox"). It is a
-            footnote ON the consent, not the next item in the column, and the
-            parent's `space-y-6` was spacing it as though it were.
+        {/**
+          * ⚠️ ITS OWN BOX, BECAUSE THE DOCUMENTS SAY SO (v2.0, 2026-08-25).
+          *
+          * Privacy Policy §1: "we ask for your explicit, specific consent through
+          * a separate consent step, distinct from accepting our Terms of Service.
+          * You give this consent by ticking a dedicated box that reads: …", and
+          * the Terms open with "three things through separate, affirmative
+          * steps". `/welcome` has always had three boxes; this is the onboarding
+          * path catching up.
+          *
+          * It spent one day as a second sentence inside the tick above. Adrian
+          * asked for one tick and that was a reasonable product call — but the
+          * v2.0 documents describe a dedicated box, and a Privacy Policy that
+          * describes a control the app does not have is the same defect as a
+          * consent record for a sentence nobody was shown, pointing the other
+          * way. The documents are immutable, so the screen moved.
+          *
+          * ⚠️ THE SENTENCE IS NOT TYPED HERE. It comes from
+          * `lib/legal/consentCopy.ts`, and `verbatimQuotes.test.ts` diffs that
+          * value against the quoted sentence in the committed Privacy Policy,
+          * codepoint by codepoint. If the document is re-exported with different
+          * wording, the build fails before a user can see the mismatch.
+          */}
+        <ConsentRow
+          checked={session.healthConsent}
+          onToggle={() => patch({ healthConsent: !session.healthConsent })}
+        >
+          <HealthConsentText linkClassName="text-text-primary underline underline-offset-2" />
+        </ConsentRow>
 
-            THE HIGHEST-VALUE SENTENCE IN THE FLOW, and it costs nothing
-            (2026-08-05). Two independent customer reviews put this first,
-            unprompted: seventeen screens take a name, a date of birth and a sex
-            on the subject of anabolic use, and the word "privacy" appears
-            exactly once, as the third grey link inside the consent sentence.
-
-            The answer was already good and simply never said. Nothing in the
-            anonymous half of this flow leaves the device — `session.ts` writes
-            to `localStorage` and nothing else — so this is a statement of fact
-            about the code, not a reassurance.
-
-            **It stops being true the moment anything here posts to Postgres
-            before the paywall.** If that ever changes, this line changes with
-            it or it becomes a lie on the screen carrying the consent tick. */}
-        <p className="-mt-3 text-center text-[0.8rem] leading-relaxed text-text-muted">
-          Nothing leaves your phone until you make an account.
+        {/**
+          * ⚠️ ALL FOUR DOCUMENTS, REACHABLE AT THE MOMENT OF CONSENT (Adrian,
+          * 2026-08-25).
+          *
+          * The two tick sentences name three documents between them. The
+          * Consumer Health Data Privacy Policy is the fourth, and it is the one
+          * Washington's My Health My Data Act requires to be findable — it is
+          * already linked from the homepage and /login, which is what the statute
+          * asks for, and this puts it in front of the person at the moment they
+          * are actually consenting.
+          *
+          * ⚠️ IT IS A READING ROW, NOT PART OF EITHER CONSENT. No signed sentence
+          * changes, and nothing here is recorded as accepted. Privacy §1 quotes
+          * the health tick word for word, so putting a fourth document INSIDE
+          * that sentence would have made the Privacy Policy false about its own
+          * box — which is why this sits beneath the ticks instead.
+          *
+          * `text-subtle` is the correct token here and only here: this is a
+          * navigation aside, not consent copy. The sentences above stay
+          * `text-muted`.
+          */}
+        {/**
+          * ⚠️ ONE LINE, SMALLER (Adrian, 2026-08-25). Two rows read as clutter
+          * under two consent cards. The size is the ONLY lever available: the
+          * fourth name cannot be abbreviated, because Washington's My Health My
+          * Data Act is about a policy published UNDER THAT NAME.
+          *
+          * ⚠️ THE ROW WRAPS; THE NAME DOES NOT. Measured at 9.6px: 350px of
+          * content at 390 viewport fits exactly on one line, but at 320 the row
+          * needs 288px inside 280 and CLIPS — 8px of "…Privacy Policy" cut off.
+          *
+          * So `whitespace-nowrap` is on the LINK, not the row. One line wherever
+          * it fits, a second line where it does not, and the statutory name is
+          * never split or clipped at any width. "Always one line" was never the
+          * requirement; "never clip the name" is.
+          */}
+        <p className="-mt-2 text-center text-[0.6rem] leading-relaxed text-text-subtle">
+          {[
+            { href: "/terms", label: "Terms" },
+            { href: "/privacy", label: "Privacy" },
+            { href: "/medical-disclaimer", label: "Disclaimer" },
+            { href: "/consumer-health-data", label: "Consumer Health Data Privacy Policy" },
+          ].map((doc, i) => (
+            <span key={doc.href}>
+              {i > 0 ? " · " : null}
+              <Link
+                href={doc.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="whitespace-nowrap underline underline-offset-2 transition-colors hover:text-text-muted"
+              >
+                {doc.label}
+              </Link>
+            </span>
+          ))}
         </p>
+
+        {/* ⚠️ "Nothing leaves your phone until you make an account." WAS HERE
+            AND WAS REMOVED ON PURPOSE (Adrian, 2026-08-27).
+
+            It is recorded here rather than deleted silently, because the reason
+            it existed has not gone away: two independent customer reviews put
+            the missing privacy statement FIRST, unprompted — seventeen screens
+            take a name, a date of birth and a sex on the subject of anabolic
+            use, and the word "privacy" otherwise appears once, as the third
+            grey link inside the consent sentence.
+
+            The claim was also true: nothing in the anonymous half of this flow
+            leaves the device (`session.ts` writes to `localStorage` and nothing
+            else). Adrian asked for it out anyway and that is his call.
+
+            If it goes back, it goes back because he says so — and if anything
+            here ever posts to Postgres before the paywall, it must NOT go back,
+            because it would then be a lie on the screen carrying the consent
+            tick. */}
       </div>
     </StepFrame>
   );

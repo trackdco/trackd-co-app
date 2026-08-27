@@ -48,6 +48,37 @@
 
 ## Data Access (Supabase)
 
+### ⚠️ Every hand-applied SQL file opens with a `▶ HOW TO RUN THIS` block
+
+Adrian applies these by pasting into the SQL Editor, and the files are long
+enough that "which part do I paste?" is a real question with an expensive wrong
+answer — pasting only a section can run nothing at all while still reporting
+success. So every file under `supabase/` that a human runs by hand starts with a
+block saying, in this order:
+
+1. **"Paste the WHOLE file."** Never a section. Everything that is not a
+   statement is a `--` comment and Postgres ignores it, so there is no way to
+   paste too much and no decision to make. `supabase/notifications/005` is the
+   worked example.
+2. **"Success. No rows returned" is the success message.** DDL returns no rows.
+   Say so explicitly, because that message is also exactly what running nothing
+   looks like.
+3. **A CHECK that returns something.** A `select` he can paste afterwards which
+   comes back with a row when it worked — the positive signal DDL cannot give
+   him — or the name of a script in `scratchpad/` that proves it end to end.
+4. **Whether it is idempotent**, so "I'm not sure if I ran it" has the obvious
+   answer: run it again.
+
+Write the file idempotent (`create or replace`, `drop … if exists`,
+`if not exists`) unless there is a reason not to, and say which in the block.
+
+An `APPLIED` line in a header is a CLAIM, never a record — a hand-applied
+migration never appears in `list_migrations`. `grants/004` said "NOT YET
+APPLIED" for four days after it was applied and two sessions carried the work as
+outstanding. Verify by executing something, then write down what you executed.
+
+### The rest
+
 - All data access goes through the Supabase client. Reads of computed data go
   through the **views** (`v_inventory_math`, `v_biomarker_position`), never by
   recomputing in app code.

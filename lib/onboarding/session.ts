@@ -109,6 +109,25 @@ export interface OnboardingSession {
   sex: Sex | null;
   /** Single consent covering ToS + Medical Disclaimer + Privacy. */
   consent: boolean;
+  /**
+   * ⚠️ THE HEALTH-DATA CONSENT, AND IT IS ITS OWN TICK BECAUSE THE DOCUMENTS SAY
+   * SO (v2.0, 2026-08-25).
+   *
+   * Privacy Policy §1: "we ask for your explicit, specific consent through a
+   * separate consent step, distinct from accepting our Terms of Service. You
+   * give this consent by ticking a dedicated box that reads: …". Terms, opening:
+   * "we ask you to confirm three things through separate, affirmative steps".
+   *
+   * It was folded into `consent` above for one day. That made the Privacy Policy
+   * false about its own signup, which is the same defect as recording a consent
+   * nobody was shown — just pointing the other way. `/welcome` has always had
+   * three separate boxes; this is onboarding catching up.
+   *
+   * ⚠️ ABSENT MEANS NOT GIVEN. A session stored before this field existed reads
+   * `undefined`, which is falsy, so the gate is withheld and the user answers at
+   * `/welcome` in the normal way. That is the safe direction to fail.
+   */
+  healthConsent: boolean;
   running: RunningTag[];
   struggle: StruggleTag[];
   attribution: AttributionTag | null;
@@ -155,6 +174,7 @@ export const EMPTY_SESSION: OnboardingSession = {
   dob: null,
   sex: null,
   consent: false,
+  healthConsent: false,
   running: [],
   struggle: [],
   attribution: null,
@@ -262,11 +282,14 @@ export function ageVerdict(dobKey: string | null, todayKey: string): AgeVerdict 
  * check is all-or-nothing either way.
  */
 export function canLeaveHousekeeping(
-  session: Pick<OnboardingSession, "name" | "dob" | "sex" | "consent">,
+  session: Pick<OnboardingSession, "name" | "dob" | "sex" | "consent" | "healthConsent">,
   todayKey: string,
 ): boolean {
   return (
     session.consent === true &&
+    // ⚠️ BOTH TICKS. The documents require a separate health-data step, so a
+    // session with only the documents tick may not leave housekeeping.
+    session.healthConsent === true &&
     session.sex !== null &&
     typeof session.name === "string" &&
     session.name.trim().length > 0 &&
@@ -295,10 +318,26 @@ export function hasName(
  * screens may use this in its place.
  */
 export function hasAgeAndConsent(
-  session: Pick<OnboardingSession, "dob" | "consent">,
+  session: Pick<OnboardingSession, "dob" | "consent" | "healthConsent">,
   todayKey: string,
 ): boolean {
-  return session.consent === true && ageVerdict(session.dob, todayKey) === "ok";
+  return (
+    session.consent === true &&
+    /**
+     * ⚠️ THE HEALTH TICK IS PART OF THE GATE, AND THAT GATES THE WRITE.
+     *
+     * `passGateFromSession` returns early when this is false, so no
+     * `consent_records` row is written at all — including the
+     * `health_data_consent` one. That is the property that matters: the row
+     * exists only when the dedicated box was ticked.
+     *
+     * All-or-nothing matches `/welcome`, which refuses all three together.
+     * Someone who ticks the documents but not the health box simply meets
+     * `/welcome` and answers there; nothing is half-recorded.
+     */
+    session.healthConsent === true &&
+    ageVerdict(session.dob, todayKey) === "ok"
+  );
 }
 
 /**
@@ -315,7 +354,7 @@ export function hasAgeAndConsent(
  * the age rule out of this file. The ids are pinned by a test.
  */
 export function firstIncompleteHousekeeping(
-  session: Pick<OnboardingSession, "name" | "dob" | "sex" | "consent">,
+  session: Pick<OnboardingSession, "name" | "dob" | "sex" | "consent" | "healthConsent">,
   todayKey: string,
 ): "name" | "birthday" | "gender" | null {
   if (!hasName(session)) return "name";
@@ -416,6 +455,17 @@ export function normaliseSession(raw: unknown): OnboardingSession {
     dob: parseDateKey(typeof o.dob === "string" ? o.dob : null) ? (o.dob as string) : null,
     sex: o.sex === "male" || o.sex === "female" ? o.sex : null,
     consent: o.consent === true,
+    /**
+     * ⚠️ `=== true`, SO A SESSION SAVED BEFORE THIS FIELD EXISTED READS FALSE.
+     *
+     * Every session in a real browser right now predates `healthConsent`, and
+     * `o.healthConsent` is `undefined` for all of them. Strict equality makes
+     * that "not consented", which sends the user to the tick rather than through
+     * it. Anything looser (`!== false`, `Boolean(o.healthConsent ?? true)`) would
+     * grant a health-data consent nobody gave — the exact defect v2.0 exists to
+     * close, arriving through the back door.
+     */
+    healthConsent: o.healthConsent === true,
     running: asArray(o.running, RUNNING_TAGS),
     struggle,
     attribution,

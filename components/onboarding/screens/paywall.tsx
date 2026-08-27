@@ -8,6 +8,7 @@ import { validateCode, type CodeVerdict } from "@/lib/onboarding/affiliate";
 import {
   billingDate,
   formatPrice,
+  intervalSuffix,
   PLAN_ORDER,
   REMINDER_DAY,
   TRIAL_DAYS,
@@ -89,7 +90,31 @@ import { useFlow } from "../flow-context";
  * `supabase/notifications/004_trial_reminder.sql` being applied, and the user
  * having granted notification permission, since a push is the only channel.
  */
-function trialTimeline(now: Date) {
+/**
+ * ⚠️ TAKES THE FORMATTED DATE, rather than a clock to compute one from.
+ *
+ * It was handed a `Date` and called `billingDate` on it — the browser's clock,
+ * in the DEVICE's timezone — while the checkout screen one step later uses the
+ * date resolved on the SERVER in the user's STORED zone. A user in Los Angeles
+ * with a Sydney profile read one date here and another there, for the same
+ * subscription (spec 02b §3.5, and the §0 seam requiring both screens to print
+ * the same day).
+ *
+ * Only where the value comes from changes. §2 forbids rewriting this screen's
+ * wording and nothing here touches it.
+ */
+function trialTimeline(firstChargeOn: string, trial: boolean) {
+  /**
+   * ⚠️ THE WHOLE TIMELINE IS A TRIAL CLAIM, so it is withheld rather than
+   * reworded for somebody charged today.
+   *
+   * Every beat describes a seven-day trial: "Day 5 · Reminder … your trial is
+   * ending", "Day 7 · Billing starts — You'll be charged on {date}". Shown to a
+   * returning customer it names a date a week after the one they are actually
+   * charged on, which is the invariant this triple exists to protect. There is
+   * no honest subset, so it returns none.
+   */
+  if (!trial) return [];
   return [
     {
       id: "today",
@@ -109,14 +134,48 @@ function trialTimeline(now: Date) {
       id: "billing",
       icon: Crown,
       title: `Day ${TRIAL_DAYS} · Billing starts`,
-      body: `You'll be charged on ${billingDate(now)} unless you cancel any time before.`,
+      body: `You'll be charged on ${firstChargeOn} unless you cancel any time before.`,
       lit: false,
     },
   ];
 }
 
 export function PaywallScreen() {
-  const { session, patch, goNext, priceFor } = useFlow();
+  const { session, patch, goNext, priceFor,
+    /**
+     * ⚠️ SERVER-RESOLVED, in the user's stored timezone (spec 02b §3.5 and the
+     * §0 seam: "§3.5's fix necessarily feeds both, so the two screens cannot
+     * disagree by a day").
+     *
+     * This screen computed its own with `billingDate(new Date())` on ITS mount,
+     * in the DEVICE's zone, while checkout used the stored one — so a user in
+     * Los Angeles with a Sydney profile read 22 Aug here and 23 Aug one step
+     * later, for the same subscription. Only the SOURCE of the date changes;
+     * §2 forbids rewriting this screen's wording and nothing here does.
+     */
+    firstChargeOn,
+    /**
+     * ⚠️ THE SAME SERVER ANSWER THE CHECKOUT SCREEN READS (spec 02b §3.6).
+     *
+     * A cold review found this screen promising "7 days free" and a day-7
+     * charge date to EVERY cohort, one step before `02a` charges a returning
+     * customer today. Before `02a` that promise was merely false; the paid path
+     * errored, so nobody could be charged. Making it work is what turned it
+     * into a written promise immediately before a same-day charge.
+     *
+     * §2 forbids REWRITING this screen's copy, and nothing here does: the
+     * trial-specific lines are SHOWN OR WITHHELD, never reworded. Adrian's
+     * call, 2026-08-15.
+     */
+    eligibility,
+  } = useFlow();
+
+  /**
+   * Is this person actually getting free days? `undefined` means no server
+   * behind the flow (the preview harness), where the generous default stands —
+   * the same fallback direction every other surface takes.
+   */
+  const trial = eligibility?.eligible ?? true;
   const [verdict, setVerdict] = useState<CodeVerdict>({ status: "none" });
   const [codeDraft, setCodeDraft] = useState("");
   const [codeOpen, setCodeOpen] = useState(false);
@@ -138,7 +197,12 @@ export function PaywallScreen() {
   // Resolved ONCE on mount. Reading the clock during render would let the
   // billing date change under the user mid-session, and the whole point of
   // printing it is that it is a fixed commitment.
-  const [timeline] = useState(() => trialTimeline(new Date()));
+  /**
+   * Derived, not held in state: the value is a prop now, so there is nothing to
+   * freeze. The old `useState` initialiser existed to stop the browser clock
+   * moving the date mid-session, which the server-resolved value cannot do.
+   */
+  const timeline = trialTimeline(firstChargeOn ?? billingDate(new Date()), trial);
   useEffect(() => {
     track("paywall_viewed");
   }, []);
@@ -196,16 +260,44 @@ export function PaywallScreen() {
    * amount, the currency and the trial length are stated here as well, derived
    * from the same selected plan so the two screens cannot disagree.
    */
-  const priceLine = selected ? (
+  /**
+   * "yr" / "mo" / "wk", FROM STRIPE (spec 02b §3.3, permitted onto this screen
+   * by D73), and null where the price cannot be stated correctly — a quarterly
+   * plan, or an interval this app has no suffix for.
+   *
+   * This line previously read the unit off the static `PLANS` table while the
+   * amount beside it came from Stripe, so changing an interval in the dashboard
+   * moved the number and left the unit behind. Worse, the old ternary had no
+   * null case: anything that was not `year` or `month` fell through to "wk", so
+   * a quarterly plan priced at three months would have rendered as a weekly one.
+   */
+  const suffix = selected ? intervalSuffix(selected) : null;
+
+  const priceLine = selected && suffix ? (
     <p className="text-center text-[0.75rem] leading-relaxed text-text-muted">
-      {TRIAL_DAYS}{" "}days free, then{" "}
+      {/* ⚠️ The trial half is WITHHELD for somebody charged today, and the price
+          half is untouched. Both clauses named a trial they are not getting:
+          "N days free" and "cancel any time before day N". What is left is the
+          amount, which is the fact this line exists to state and which is true
+          for every cohort. */}
+      {trial ? (
+        <>
+          {TRIAL_DAYS}{" "}days free, then{" "}
+        </>
+      ) : null}
       <span className="text-foreground">
         {formatPrice(selected.price, selected.currency)}{" "}
         {selected.currency.toUpperCase()}/
-        {selected.period === "year" ? "yr" : selected.period === "month" ? "mo" : "wk"}
+        {suffix}
       </span>
-      . Cancel any time before day{" "}
-      {TRIAL_DAYS}.
+      {trial ? (
+        <>
+          . Cancel any time before day{" "}
+          {TRIAL_DAYS}.
+        </>
+      ) : (
+        <>. Cancel any time.</>
+      )}
     </p>
   ) : null;
 
@@ -223,7 +315,37 @@ export function PaywallScreen() {
      * because the CTA is now BELOW the price by construction and cannot be
      * reached without it having been scrolled past.
      */
-    <StepFrame title={`Start your ${TRIAL_DAYS}-day free trial.`}>
+    <StepFrame
+      /* Withheld, not reworded: a returning customer gets the plan question
+         without a trial claim above it. "Choose your plan." is this screen's
+         own existing job stated plainly and promises nothing. */
+      /**
+       * ⚠️ CENTRED, AND SITTING CLOSER TO THE ROWS (Adrian, 2026-08-25). It was
+       * left-aligned with a full section gap beneath, so the heading read as
+       * belonging to the screen rather than to the plans directly under it.
+       */
+      center
+      title={trial ? `Start your ${TRIAL_DAYS}-day free trial.` : "Choose your plan."}
+      /**
+       * ⚠️ IT STATES A FACT, IT DOES NOT REPEAT THE TITLE (Adrian, 2026-08-25).
+       *
+       * The first attempt was "Just pick how often you pay." Adrian's objection
+       * was that it sat too close to the title — "Choose your plan." already says
+       * pick, so a subtitle that says pick again is a second instruction, not
+       * information. This names WHAT IS BELOW instead, which the title does not.
+       *
+       * ⚠️ IT PROMISES NOTHING. Deliberately not "change or cancel whenever you
+       * like" — that phrase was REMOVED from this screen until plan switching
+       * exists (spec 15), and re-adding a version of it would reopen it.
+       * ⚠️ And the number is THREE because three plans render — yearly, monthly,
+       * weekly. If a plan is ever added or withdrawn this line becomes false, so
+       * it moves with `PLANS`, not on its own.
+       *
+       * The trial variant gets none. Its title already promises the trial and
+       * the timeline beneath it does the explaining.
+       */
+      sub={trial ? undefined : "Three billing options."}
+    >
       <div className="flex flex-1 flex-col gap-5">
         {/* THE TIMELINE IS THE ONLY GRAPHIC ON THIS SCREEN NOW (Adrian,
             2026-08-07). The carousel moved to the `free` screen, which is the
@@ -380,8 +502,11 @@ export function PaywallScreen() {
         <div className="space-y-3 pt-1">
           {selected ? (
             <>
+              {/* "Subscribe" is `02b` §3.2's APPROVED no-trial button, reused
+                  rather than invented — the same move D17 made when it reused
+                  the trial title for the mid-grace cohort. */}
               <FlowCta onClick={goNext}>
-                {`Start my ${TRIAL_DAYS}-day free trial`}
+                {trial ? `Start my ${TRIAL_DAYS}-day free trial` : "Subscribe"}
               </FlowCta>
               {priceLine}
             </>

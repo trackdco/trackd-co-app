@@ -3,7 +3,12 @@
 --  it checks Stripe and creates.
 --  Migration: `trial_start_lease`
 --
---  ⚠️ NOT YET APPLIED, as of 2026-08-13. Written, not run.
+--  ✅ APPLIED by Adrian, 2026-08-14, and VERIFIED the same day against the live
+--  Data API with the service key: `billing_customers?select=trial_lock_until`
+--  returns 200 (it returned 400 before), and the count of rows with
+--  `trial_lock_until > now()` is ZERO, which is what a correct backfill to
+--  '-infinity' looks like.
+--
 --  A hand-applied migration never appears in `list_migrations`, so this header
 --  is a CLAIM and never a record. VERIFY AGAINST THE LIVE SCHEMA:
 --

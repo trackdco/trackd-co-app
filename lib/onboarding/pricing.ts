@@ -36,6 +36,39 @@ export interface PricedPlan extends Plan {
   /** Charged amount in whole currency units. From Stripe, never from here. */
   price: number;
   /**
+   * ⚠️ THE SAME AMOUNT IN STRIPE'S MINOR UNITS, for the CHARGE rather than the
+   * display (spec 02a §3.4).
+   *
+   * Payment-mode Elements needs an integer amount at mount, and it must be
+   * Stripe's own `unit_amount` rather than {@link price} multiplied by 100.
+   * Measured on this account: `69.99 * 100` is `6998.999999999999`, so the
+   * yearly plan would be handed a non-integer and either error or round down to
+   * $69.98. This is the one number on the screen that is also the number taken
+   * from a card.
+   *
+   * Optional because the preview harnesses build a `PricedPlan` from mock data
+   * and never mount a payment sheet.
+   */
+  amountMinor?: number;
+  /**
+   * ⚠️ THE INTERVAL AS STRIPE REPORTS IT, and the suffix on screen derives from
+   * THIS rather than from {@link period} (spec 02b §3.3).
+   *
+   * `period` comes from the static `PLANS` table, so the amount followed Stripe
+   * and the unit did not: change the interval in the dashboard and the screen
+   * kept printing the old one, next to the new amount, above a button that
+   * charges.
+   */
+  interval?: string;
+  /**
+   * ⚠️ A COUNT OTHER THAN ONE MUST NOT RENDER A PRICE LINE AT ALL.
+   *
+   * Every price is configured at one today, which is exactly why a quarterly
+   * plan added in the dashboard would have printed "/mo" silently. A screen that
+   * cannot state a price correctly states nothing.
+   */
+  intervalCount?: number;
+  /**
    * Lowercase ISO 4217, as Stripe reports it.
    *
    * Carried so the disclosure can NAME the currency rather than printing a bare
@@ -166,16 +199,34 @@ const WEEKS_PER_YEAR = 52;
 const MONTHS_PER_YEAR = 12;
 
 /**
- * "$70" / "$9.99" — no trailing ".00" on a whole number.
+ * "$70.00" / "$9.99" — A PRICE ALWAYS CARRIES BOTH DECIMALS.
  *
  * Takes the currency so the symbol follows the price rather than being assumed.
  * It defaults to AUD/USD's `$` for the handful of callers that have no plan in
- * hand (the weekly anchor, the cost comparison), which are all rendering our own
- * price in the one currency we sell in.
+ * hand (the weekly anchor), which render our own price in the one currency we
+ * sell in.
+ *
+ * ## ⚠️ IT USED TO DROP THE ".00" ON A WHOLE NUMBER, AND THAT IS A TRIP-WIRE
+ *
+ * `Number.isInteger(amount) ? String(amount) : amount.toFixed(2)` rendered a
+ * price of exactly $70 as **"$70"**, so a signed billing sentence would have read
+ * "your Pro plan at $70 USD a year" — and the launch copy rule is that prices
+ * read **"$X.XX USD"**, character for character.
+ *
+ * **It is not hypothetical.** The three live prices are 69.99, 11.99 and 3.99, so
+ * nothing renders differently today — but this Stripe account already carries
+ * integer-priced prices (`5 aud/week`, `15 usd/month`), and a plan change or a
+ * new currency is one dashboard edit away. The defect would appear in signed copy
+ * at the moment somebody rounded a price, which is exactly when nobody is looking
+ * at the formatter.
+ *
+ * ⚠️ SPEND ESTIMATES ARE NOT PRICES and keep their own formatter. See
+ * `formatWholeAmount` in the cost-comparison screen: a slider reading
+ * "$50.00 - $600.00" would be this rule applied to numbers that are not money we
+ * charge. This function is for what we charge.
  */
 export function formatPrice(amount: number, currency?: string): string {
-  const body = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
-  return `${currency ? currencySymbol(currency) : CURRENCY_SYMBOL}${body}`;
+  return `${currency ? currencySymbol(currency) : CURRENCY_SYMBOL}${amount.toFixed(2)}`;
 }
 
 /** Whatever a plan costs, expressed as a yearly figure. The one conversion. */
@@ -218,8 +269,21 @@ export function weeklyEquivalent(plan: PricedPlan): number {
  * sub-line.
  */
 export function monthlyEquivalent(plan: PricedPlan): number | null {
-  if (plan.period === "month") return null;
-  if (plan.period === "week") return null;
+  /**
+   * ⚠️ FROM STRIPE'S INTERVAL, not the static `PLANS` table (spec 02b §3.3).
+   *
+   * A cold review found this bracket still keyed on the hardcoded `period`
+   * while the suffix beside it had moved to Stripe. Change the yearly price's
+   * interval to monthly in the dashboard — the exact change §3.3 exists for —
+   * and the line rendered "then $69.99 USD/mo ($5.83/mo)": a price line
+   * contradicting itself above a charge button, with §3.3's loud refusal not
+   * firing because `month` is a suffix it accepts.
+   *
+   * Falls back to `period` only where no Stripe interval is present, which is
+   * the preview harness.
+   */
+  const interval = plan.interval ?? plan.period;
+  if (interval !== "year") return null;
   return Math.round((perYear(plan) / MONTHS_PER_YEAR) * 100) / 100;
 }
 
@@ -273,4 +337,45 @@ export function weeklyAnchor(yearly: PricedPlan | undefined): string | null {
   // Round UP to the next 5c so "under" is always literally true.
   const ceiling = Math.ceil(weeklyEquivalent(yearly) * 20) / 20;
   return `Under ${formatPrice(ceiling)} a week to keep all of it.`;
+}
+
+/**
+ * THE INTERVAL SUFFIX, FROM STRIPE (spec 02b §3.3).
+ *
+ * "yr" / "mo" / "wk", derived from the price's own recurring interval rather
+ * than from the static `PLANS` table. The amount followed Stripe and the unit
+ * did not, so changing an interval in the dashboard kept the old suffix on
+ * screen beside the new amount, above a button that charges.
+ *
+ * ⚠️ RETURNS NULL WHERE THE SCREEN MUST NOT PRINT A PRICE LINE AT ALL:
+ *
+ *   - an interval count other than one. Stripe expresses "every three months"
+ *     as `month` with a count of three, so a screen reading only the interval
+ *     prices a quarterly plan as monthly. Every price is at one today, which is
+ *     precisely why this would go unnoticed until somebody added a quarterly
+ *     plan in the dashboard and the screen quietly understated it by a factor
+ *     of three.
+ *   - an interval this app has no suffix for.
+ *
+ * The caller renders its existing "couldn't load your plan" error instead, and
+ * the button does not proceed. A screen that cannot state a price correctly
+ * states nothing rather than stating it wrongly — and it does so LOUDLY, which
+ * is the point: a wrong suffix is silent, and silence is the failure mode this
+ * project keeps paying for.
+ */
+export function intervalSuffix(plan: {
+  interval?: string;
+  intervalCount?: number;
+}): string | null {
+  if (plan.intervalCount !== undefined && plan.intervalCount !== 1) return null;
+  switch (plan.interval) {
+    case "year":
+      return "yr";
+    case "month":
+      return "mo";
+    case "week":
+      return "wk";
+    default:
+      return null;
+  }
 }

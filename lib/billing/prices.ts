@@ -19,8 +19,24 @@ export interface PlanPrice {
   plan: PlanKey;
   /** The Stripe price id, which the subscription endpoint needs. */
   priceId: string;
-  /** Charged amount in whole currency units — 69.99, not 6999. */
+  /** Charged amount in whole currency units — 69.99, not 6999. For DISPLAY. */
   amount: number;
+  /**
+   * ⚠️ THE SAME AMOUNT IN STRIPE'S OWN MINOR UNITS — 6999, not 69.99. For the
+   * CHARGE.
+   *
+   * Carried straight from `price.unit_amount` and never derived from
+   * {@link amount}. Payment-mode Elements needs an amount at mount (spec 02a
+   * §3.4), and multiplying the display float back up by 100 is how a $69.99
+   * charge becomes $69.98 or $6999.0000001 — binary floating point cannot hold
+   * 69.99, so `69.99 * 100` is `6998.999999999999`.
+   *
+   * This is the one number on the screen that is also the number taken from a
+   * card, so it comes from Stripe and goes to Stripe without ever being a float
+   * in between. For a zero-decimal currency it equals {@link amount}, which is
+   * correct rather than a coincidence: Stripe's minor unit for JPY IS the yen.
+   */
+  amountMinor: number;
   /** ISO 4217, lowercase, as Stripe returns it. "aud". */
   currency: string;
   /** "year" | "month" | "week" — what the amount buys. */
@@ -93,6 +109,8 @@ export async function loadPrices(): Promise<PlanPrice[]> {
         amount: ZERO_DECIMAL.has(price.currency)
           ? price.unit_amount
           : price.unit_amount / 100,
+        // Untouched. Stripe's own integer, handed to Stripe unchanged.
+        amountMinor: price.unit_amount,
         currency: price.currency,
         interval,
         intervalCount,

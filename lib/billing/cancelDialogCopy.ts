@@ -1,0 +1,360 @@
+import type { SaveOfferKind } from "./manage";
+
+/**
+ * ⚠️ THE CANCEL DIALOG'S SIGNED STRINGS (F1 and F2).
+ *
+ * ## Why they are here and not in the component
+ *
+ * `signed/README.md`'s standing rule: a signed string rendered to a user gets a
+ * machine check, and **if it cannot be reached from `lib/`, moving it there is
+ * the first half of the fix**. `vitest.config.ts` includes `lib/**\/*.test.ts`
+ * and nothing else, so JSX text in `components/billing/CancelSubscription.tsx` is
+ * unreachable — which is how the read-only pop-up's first clause was reverted to
+ * a wording D98 had ruled FALSE with all 1573 tests green.
+ *
+ * Only the strings F1 and F2 changed live here. The rest of that dialog's copy is
+ * untouched and stays where it is; moving it would be a second change wearing this
+ * one's clothes.
+ */
+
+/* ── F1: the dismiss label and the title, which now move together ──── */
+
+/**
+ * ⚠️ F1 — FOUNDER RULING, AND IT RESOLVES A SPEC-VERSUS-SPEC CONFLICT THAT WAS
+ * ROUTED AND LEFT OPEN.
+ *
+ * `03` §3.9 pinned **"Keep my trial"** unqualified, for every cohort, in as many
+ * words: *"It stays 'Keep my trial', which is approved copy for that control. Two
+ * controls, two labels, deliberately."* D36 forbids the word "trial" rendering for
+ * anybody who is not on one. Both are binding and they contradict each other for
+ * the paying cohort, so a previous round applied §3.9 (the spec is explicit, the
+ * spec wins) and routed the conflict.
+ *
+ * The ruling is that the label follows the cohort:
+ *
+ *     on a trial   Keep my trial
+ *     otherwise    Keep my plan
+ *
+ * ⚠️ AND THE TITLE MOVES WITH IT, so one dialog does not use two words for one
+ * thing. It was `Cancel your ${noun}?` with `noun` of "trial" or "subscription",
+ * which would have left a paying customer reading "Cancel your subscription?"
+ * above a button saying "Keep my plan".
+ *
+ *     on a trial   Cancel your trial?
+ *     otherwise    Cancel your plan?
+ *
+ * ⚠️ THIS IS NOT `resumeLabel`. That control is "Keep my Pro plan" (D22), it
+ * undoes a cancellation that has already happened, and it is deliberately
+ * plan-agnostic. This one declines to make one. Two controls, two labels — which
+ * is the half of §3.9 that survives the ruling intact.
+ *
+ * ⚠️ AND IT IS NOT THE TRIGGER ROW EITHER. `Cancel my ${noun}` on the billing
+ * screen keeps its own noun, unchanged: the ruling names the dialog's title and
+ * its dismiss button, and widening it to every noun on the flow would be a
+ * decision nobody took.
+ */
+export function cancelConfirmTitle(isTrial: boolean): string {
+  return isTrial ? "Cancel your trial?" : "Cancel your plan?";
+}
+
+export function cancelConfirmDismiss(isTrial: boolean): string {
+  return isTrial ? "Keep my trial" : "Keep my plan";
+}
+
+/**
+ * What cancelling actually costs them, in one sentence. SIGNED (Adrian, 2026-08-23).
+ *
+ * ## It was written inline, TWICE, in two different wordings
+ *
+ * `CancelSubscription.tsx` carried it as a template literal at two call sites that
+ * had drifted apart in three places:
+ *
+ *     :1092  "You'll HAVE full access … you'll still see YOUR WHOLE HISTORY …"
+ *     :1302  "You'll KEEP full access … you'll still see EVERYTHING YOU'VE LOGGED …"
+ *                                        …and you won't be charged AGAIN
+ *
+ * Neither was in `lib/billing/signed/`, so no pin could see either, and the two
+ * could keep drifting for as long as nobody read them side by side. Moving it here
+ * is the first half of the fix the signed corpus's own rule demands: *"if it cannot
+ * be reached from `lib/` then MOVING IT IS THE FIRST HALF OF THE FIX — not a reason
+ * to skip the pin."*
+ *
+ * ## ⚠️ ONE SENTENCE ON TWO SURFACES, DELIBERATELY
+ *
+ * It speaks BEFORE the cancellation (the confirm dialog, under "Cancel your plan?")
+ * and AFTER it (the confirmation screen, under "Your subscription is cancelled").
+ * The fact is identical at both moments — access until this date, read-only after,
+ * nothing deleted — and the TITLE supplies the tense. One string means the two can
+ * never disagree again, which is exactly how they got here.
+ *
+ * ## ⚠️ "AND YOU WON'T BE CHARGED" IS GONE, AND THAT CLOSES AN ACCEPTED GAP
+ *
+ * The clause was `…and you won't be charged` here and `…won't be charged again` on
+ * the other surface. The `again` form is a REGISTERED ACCEPTED GAP: it is false for
+ * the grace-aligned-then-cancelled cohort, who were never charged a first time, and
+ * the record's proposed fix was "a real predicate feeding both call sites".
+ *
+ * Deleting the claim closes it instead. A sentence that does not assert anything
+ * about charging cannot be wrong about charging, for any cohort, and it needs no
+ * predicate to stay right. ⚠️ The gap's acceptance must therefore be REWRITTEN
+ * rather than inherited (D100): its reason has changed, it has not merely moved.
+ */
+export function cancelConfirmBody(endsOn: string): string {
+  return (
+    `You'll have full access to your Pro plan until ${endsOn}. ` +
+    `After that your account goes read only. ` +
+    `You'll still see your whole history, you just can't add to it.`
+  );
+}
+
+/**
+ * The confirm body split around its date, so the DATE can be bold without the
+ * component holding any of the words.
+ *
+ * ⚠️ BOLD, NOT BRIGHTER (Adrian, 2026-08-25): *"make the 1st of September 2026
+ * bold, but still the same opacity colour"*. Weight carries the emphasis; the
+ * colour stays `text-text-muted` like the rest of the sentence. This is
+ * deliberately NOT what the offer's terms line does — there the charge date is
+ * bold AND `text-foreground`, because that one names a CHARGE and this one names
+ * the day access runs to.
+ *
+ * ⚠️ IT SPLITS THE SIGNED STRING RATHER THAN REBUILDING IT, so
+ * `before + date + after === cancelConfirmBody(date)` by construction, and
+ * `signedCopyPin.test.ts` asserts it. `indexOf`, not a regex: a formatted date
+ * can carry regex metacharacters, and a failed match would silently render the
+ * whole sentence unbolded rather than failing loudly.
+ */
+export function cancelConfirmBodyParts(
+  endsOn: string,
+): { before: string; date: string; after: string } {
+  const full = cancelConfirmBody(endsOn);
+  const at = full.indexOf(endsOn);
+  if (at === -1) return { before: full, date: "", after: "" };
+  return { before: full.slice(0, at), date: endsOn, after: full.slice(at + endsOn.length) };
+}
+
+/* ── F2: the gift window, and the granted screen's body ────────────── */
+
+/**
+ * ⚠️ F2 — THE MONTH FORM HAD NEVER BEEN RENDERED ON A SCREEN, AND IT DESCRIBED
+ * SEVEN MONTHS OF FREE ACCESS.
+ *
+ * ## How it stayed invisible
+ *
+ * The driver meant to exercise the yearly offer used a yearly price but created
+ * the subscription with a `trial_end`, so `offerPeriodToGrant` short-circuited on
+ * `status === "trialing"` and returned "week". Every character-for-character
+ * assertion then ran on the week strings. That is the exact trap the rename commit
+ * warned about — *"it must never be read as 'what WAS granted?'"* — sprung on the
+ * screen drive instead of on the unit test it was written for.
+ *
+ * ## The defect
+ *
+ * Free time is appended to the END of the paid period, which is correct: computing
+ * from `now` would SHORTEN the access of anybody who cancelled early. But the gift
+ * block named only the END date. For a mid-year yearly subscriber, read on
+ * 15 Aug 2026:
+ *
+ *     Another month
+ *     until 15 Mar 2027          <- describes SEVEN MONTHS of free access
+ *     $0.00 USD
+ *
+ * and the thank-you screen said "Enjoy your free month on us" in the present tense
+ * about a period starting in six months.
+ *
+ * ## The signed replacement, true of both shapes
+ *
+ * `{start}` is the CURRENT PERIOD END — the same value `addOffer` already measures
+ * from, so nothing new is computed and the two cannot drift. It is true of a free
+ * week three days out and of a free month seven months out alike.
+ *
+ * Everything else on both screens is unchanged: the offer body, the terms line,
+ * the buttons and the countdown. The terms line already names the charge date and
+ * is true.
+ */
+
+/** ⚠️ SIGNED. The gift block's middle line, replacing "until {end}". */
+export function offerGiftWindow(start: string, end: string): string {
+  return `${start} to ${end}`;
+}
+
+/**
+ * ⚠️ SIGNED. The granted screen's body.
+ *
+ * ## ⚠️ ONE SENTENCE FOR BOTH KINDS, WHERE THERE WERE TWO
+ *
+ * The old copy branched: a paid subscriber read "Your free {period} finishes on
+ * {date}" and a trialist read "Your extended trial finishes on {date}". The
+ * founder signed ONE sentence and it names no cohort, so the branch goes. It is
+ * true of both — a trialist who takes the offer has their cancellation lifted and
+ * is billed after the free time exactly as a paid subscriber is, which is what
+ * "your plan picks up from there" says, and what the tail of BOTH old variants
+ * already said.
+ *
+ * ⚠️ THE PERIOD WORD COMES FROM THE GRANTED PERIOD, NEVER A LITERAL. D24: the
+ * built paid variant once substituted the plan and told a paying customer their
+ * plan was ENDING on the screen congratulating them for staying.
+ */
+export function offerGrantedBody(
+  period: "week" | "month",
+  start: string,
+  end: string,
+): string {
+  return (
+    `Your free ${period} is on us. It runs from ${start} to ${end}, ` +
+    `and your plan picks up from there unless you choose to cancel.`
+  );
+}
+
+/* ── the save offer's own words (the redesign, Adrian 2026-08-25) ──── */
+
+/**
+ * ⚠️ THESE FOUR LIVED INLINE IN `CancelSubscription.tsx` AND COULD NOT BE PINNED.
+ *
+ * `signedCopyPin.test.ts`'s own rule: *"A signed string that is rendered to a
+ * user gets a pin, and if it cannot be reached from `lib/` then MOVING IT IS THE
+ * FIRST HALF OF THE FIX — not a reason to skip the pin."* `vitest.config.ts` is
+ * `include: ["lib/**\/*.test.ts"]`, so a literal in `components/` is invisible to
+ * every test in this repo. The redesign rewrote all four, which made moving them
+ * the moment to do it.
+ *
+ * Each is pinned in `signed/cancel-dialog.txt`, month and week forms separately —
+ * F2's lesson is that two strings differing by one word is exactly how the
+ * unrendered one goes a whole round carrying a defect.
+ */
+
+/**
+ * ⚠️ THE ELLIPSIS IS U+2026, ONE CHARACTER, NOT THREE FULL STOPS.
+ *
+ * It was `"One more thing."` — a full stop. Three ASCII dots would pass a casual
+ * read and fail the codepoint pin, which is the entire reason the pin exists.
+ *
+ * ⚠️ `scratchpad/contact-sheet/offer-flow.mjs` WAITS ON THIS STRING as its named
+ * artefact. Changing it without changing the driver leaves the shoot waiting on
+ * a title that no longer exists — and a wait that times out photographs whatever
+ * was on screen at the time, which is how a button reading "Working…" reached a
+ * contact sheet.
+ */
+export function offerTitle(): string {
+  return "One more thing…";
+}
+
+/**
+ * ⚠️ SIGNED. The thank-you is REMOVED, deliberately.
+ *
+ * It read *"Thank you for choosing Trackd Co to run your protocol. Before you go,
+ * we'd like to offer you another {period}, free."* Adrian cut the first sentence
+ * on the 2026-08-25 review: it thanks somebody for a decision they have just
+ * reversed, on the screen where they pressed cancel.
+ *
+ * ⚠️ THE PERIOD WORD IS A PARAMETER AND IS NEVER THE LITERAL "week". A monthly
+ * and a yearly subscriber are both offered a MONTH. See {@link offerPeriodWord}.
+ */
+export function offerBody(period: "week" | "month"): string {
+  return `Before you go, we'd like to offer you another ${period} on us.`;
+}
+
+/** ⚠️ SIGNED. The amber panel's offer line, above the dates. */
+export function offerLine(period: "week" | "month"): string {
+  return `A ${period} on us`;
+}
+
+/**
+ * ⚠️ SIGNED. The accept button.
+ *
+ * It read `Another ${period}, thanks`, then `Claim my free ${period}` — which
+ * Adrian called "pretty flooded" on the rendered button (2026-08-25). "my" earns
+ * nothing on a control the user is pressing about their own account, and the
+ * shorter label stops the text crowding a half-width button.
+ *
+ * ⚠️ THE NOUN FOLLOWS THE PLAN'S INTERVAL:
+ * hardcoding "week" here would offer a yearly subscriber a free week and then
+ * grant them a month, which is the two-strings-one-word trap F2 was.
+ */
+export function offerAcceptLabel(period: "week" | "month"): string {
+  return `Claim free ${period}`;
+}
+
+/**
+ * The noun the offer's copy uses, from the offer itself.
+ *
+ * ⚠️ NOT `offerPeriodToGrant`. That answers "what should we GRANT?" and
+ * short-circuits on `trialing`, which is the misreading that hid F2 for a whole
+ * round. This describes a period that ALREADY EXISTS, so it reads the period.
+ */
+export function offerPeriodWord(noun: "week" | "month"): "week" | "month" {
+  return noun === "month" ? "month" : "week";
+}
+
+/** Re-exported so the dialog's kind and this module's copy stay one import. */
+export type { SaveOfferKind };
+
+/* ── Signed 2026-08-26. Three sentences that had never been pinned ──── */
+
+/**
+ * ⚠️ FIRST-SIGNED 2026-08-26, AS-IS. The clock run found these carrying NO signed
+ * line and NO pin — they were literals in `CancelSubscription.tsx`, where
+ * `vitest.config.ts` (`include: ["lib/**\/*.test.ts"]`) cannot see them. Adrian
+ * signed all three verbatim as they already shipped, so **not a word moved**;
+ * what changed is that a machine can now tell if one does.
+ *
+ * ⚠️ AND ONE COMMENT WAS MADE TRUE RATHER THAN LEFT. `CancelSubscription.tsx`
+ * said of the comp body: *"Signed copy, character for character, from
+ * 2026-08-16."* Signed it was; checked it was not — the string appeared nowhere
+ * in `lib/`, so nothing in the repo could have noticed a character moving. A
+ * comment claiming a protection that does not exist is the defect this batch
+ * exists to close, and it is closed by building the protection, not by deleting
+ * the sentence.
+ */
+
+/**
+ * D80's lead, for a cancellation that takes effect NOW rather than at period end.
+ *
+ * It leads whichever body follows it, including the comp one, because it
+ * describes the MECHANISM rather than the cohort — which is exactly why it is a
+ * separate string and not folded into either body.
+ */
+export function cancelEndsImmediatelyLead(): string {
+  return "This ends your subscription straight away.";
+}
+
+/**
+ * D78 — the free-for-life comp's body. A REPLACEMENT for
+ * {@link cancelConfirmBody}, not a withhold.
+ *
+ * Their access does not end, so "until {date}", "goes read only" and "you just
+ * can't add to it" are each false for them; withholding those would leave "you
+ * won't be charged" standing alone as an answer to a question nobody asked.
+ */
+export function cancelCompForeverBody(): string {
+  return (
+    `You'll stop being charged. Your free access carries on as it always has, ` +
+    `and nothing about your account changes.`
+  );
+}
+
+/**
+ * The RESUME dialog's body — the one that undoes a scheduled cancellation.
+ *
+ * ⚠️ BOTH NOUNS ARE PINNED SEPARATELY, and that is F2's lesson applied rather
+ * than quoted: two strings differing by one word is precisely how the unrendered
+ * one goes a whole round carrying a defect. The month/week pair above was found
+ * exactly that way.
+ *
+ * ⚠️ IT TAKES `isTrial`, NOT `noun`. Same reasoning as
+ * {@link cancelConfirmTitle}: `noun` also drives the trigger row, the staying
+ * notice and the cancelled acknowledgement, and comparing it against the "trial"
+ * literal here would tie four strings to one comparison.
+ *
+ * ⚠️ THIS SENTENCE ASSERTS A CHARGE — "You'll be charged then" — which is the
+ * claim `manageSummary.ts` records as false for the grace-aligned-then-cancelled
+ * cohort. It is UNCHANGED and signed as-is on Adrian's call. Recorded here so the
+ * next reader meets the known limit at the string rather than three files away.
+ */
+export function resumeConfirmBody(isTrial: boolean, endsOn: string): string {
+  const noun = isTrial ? "trial" : "subscription";
+  return (
+    `Your ${noun} carries on as normal and finishes on ${endsOn}. ` +
+    `You'll be charged then unless you cancel again.`
+  );
+}

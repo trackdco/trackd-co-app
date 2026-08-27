@@ -6,6 +6,24 @@
 --  rows still hold their 67 em dashes, and all three current rows are still
 --  v1.3 (no version bump, so consent_records still point at live documents).
 --
+--  RE-RUN 2026-08-16 via Supabase MCP `apply_migration` (name:
+--  `legal_documents_em_dashes`), because `next-tasks.md` still carried this file
+--  as NOT APPLIED and contradicted the line above. The re-run is safe by design
+--  -- every statement is guarded by its own LIKE, so an already-applied file is
+--  a no-op -- and it is NOT KNOWN whether it changed any row: the pre-check only
+--  measured "does this doc contain an em dash" (true for all three, which is
+--  also true when correctly applied, because of the title below), not a count.
+--
+--  What IS proven, measured after the run:
+--    Each of the three current docs contains EXACTLY ONE em dash, and in every
+--    case it is the title separator -- "Trackd Co --- Terms of Service",
+--    "--- Privacy Policy", "--- Medical Disclaimer". No prose em dash remains.
+--    That one is CORRECT and deliberate: `components/legal/legal-document.tsx`
+--    line 131 renders `doc.title.replace(/^Trackd Co\s*[--]\s*/, "")`, so the
+--    prefix and its separator are stripped before anything is shown. The
+--    character class accepts an em dash or a hyphen, so the row can hold either.
+--    It never reaches a user, and this file has always left it alone.
+--
 --  NOTE: the live PAGES lag by up to an hour. `getLegalDocument` wraps the read
 --  in `unstable_cache` with a 3600s revalidate, so /terms, /privacy and
 --  /medical-disclaimer serve the previous text until it expires. Nothing to do;

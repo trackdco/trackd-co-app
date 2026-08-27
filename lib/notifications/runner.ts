@@ -27,14 +27,17 @@ import {
 } from "@/lib/notifications/reminders";
 import {
   trialReminderMessage,
+  resolveEnding,
   trialReminderVerdict,
   type TrialForReminder,
 } from "@/lib/notifications/trialReminder";
 import { cycleRuleFromColumns, type CycleColumns } from "@/lib/protocol/cycleRule";
 import { isStoppedOn, type DatedVersion } from "@/lib/protocol/scheduleVersions";
 import { isPausedOn, type Pause } from "@/lib/home/pauses";
+import { grantsPro, type EntitlementSource } from "@/lib/billing/access";
 import { graceAsTrial } from "@/lib/billing/betaGrace";
 import { billingGateEnabled } from "@/lib/billing/gate";
+import { loadPricesSafe } from "@/lib/billing/prices";
 
 const VAPID_PUBLIC =
   process.env.VAPID_PUBLIC_KEY ?? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
@@ -105,6 +108,20 @@ interface UserData {
    */
   isBetaGrace: boolean;
   /**
+   * False only when the gate is on and this account has lapsed into read only.
+   * Silences the dose, missed-dose and low-stock reminders; never the trial or
+   * grace warnings.
+   */
+  canWrite: boolean;
+  /**
+   * ⚠️ The entitlement read FAILED — not "there is no grace". See finding 7's
+   * note in `collectTrial`: the two must not collapse, because one is a fact
+   * about the account and the other is a fact about our database.
+   */
+  entitlementsUnknown: boolean;
+  /** ⚠️ THE SUBSCRIPTIONS READ FAILED — not "no subscription". See 1.6. */
+  subscriptionsUnknown: boolean;
+  /**
    * The reminder date already sent for, from `trial_reminder_sent_for`.
    *
    * `undefined` is a THIRD state and not the same as null: it means
@@ -134,6 +151,17 @@ async function collectTrial(
   trial: TrialForReminder | null;
   isBetaGrace: boolean;
   sentFor: string | null | undefined;
+  /** False when the gate is on and this account has lapsed into read only. */
+  canWrite: boolean;
+  /**
+   * ⚠️ THE THIRD STATE FOR THE ENTITLEMENT READ (standing rule 0, finding 7).
+   * True means the read FAILED, which is not the same as "no grace": the caller
+   * must not report `no-trial` for it, because that is a permanent invisible
+   * silence on an account that may be days from losing access.
+   */
+  entitlementsUnknown: boolean;
+  /** ⚠️ THE SUBSCRIPTIONS READ FAILED — not "no subscription". See 1.6. */
+  subscriptionsUnknown: boolean;
 }> {
   const [subRes, stampRes, graceRes] = await Promise.all([
     supabase
@@ -176,18 +204,27 @@ async function collectTrial(
      * warning about a deadline that is not enforced. Skipped as an empty result
      * rather than a branch, so the `Promise.all` shape does not change.
      */
+    /**
+     * ⚠️ WIDENED, because this row now answers TWO questions.
+     *
+     * It still finds the beta grace (a `comp` WITH an expiry, filtered below).
+     * It also decides whether this account may still WRITE, which gates the dose
+     * and low-stock reminders: an account in read only is being nudged to log
+     * doses the app will refuse to accept, which is the product nagging somebody
+     * to do the thing it has blocked. Adrian, 2026-08-14.
+     *
+     * One query rather than two, because they are the same rows and a second
+     * read would be a second thing that can fail independently and disagree.
+     */
     billingGateEnabled()
       ? supabase
       .from("entitlements")
       .select("source, active_until, is_active, product")
       .eq("user_id", userId)
       .eq("product", "pro")
-      .eq("source", "comp")
       .eq("is_active", true)
-      .not("active_until", "is", null)
       // SOONEST-ENDING first, the same rule as the subscription read above.
       .order("active_until", { ascending: true })
-      .limit(1)
       : Promise.resolve({ data: null, error: null }),
   ]);
 
@@ -202,7 +239,91 @@ async function collectTrial(
    * A REAL TRIAL WINS. Somebody on the grace who then starts a trial has both,
    * and the one about to take money is the one worth warning about.
    */
-  const graceRow = graceRes.data?.[0] as Record<string, unknown> | undefined;
+  /**
+   * ⚠️ ONE READ, TWO DECISIONS, AND THEY MUST ANSWER `unknown` DIFFERENTLY.
+   *
+   * This was `(graceRes.data ?? [])` — standing rule 0, finding 7 — and the single
+   * collapse fed two questions that need opposite failure directions:
+   *
+   *   canWrite   an unreadable entitlement must REFUSE. An account we cannot
+   *              confirm is entitled is silenced for dose and low-stock nudges,
+   *              consistent with `hasProAccess`. `[]` already produced that, and
+   *              it is now explicit rather than incidental.
+   *   graceRow   an unreadable entitlement must NOT be read as "no grace". That
+   *              silence is the one `06`'s notice and `07`'s reminder exist to
+   *              prevent, and the comment fifteen lines down already says the
+   *              warnings are "deliberately NOT gated" on write access because
+   *              "the person they matter most to is precisely the one who can no
+   *              longer write".
+   *
+   * ⚠️ DORMANT TODAY, ARMED AT P12a. The whole query is behind
+   * `billingGateEnabled()`, so with the gate off `graceRes` is a resolved
+   * `{data: null, error: null}` and this cannot fire. It becomes live the moment
+   * the gate flips, which is why it must be DRIVEN with the gate on rather than
+   * reasoned about.
+   */
+  /**
+   * ⚠️ THE SUBSCRIPTIONS READ SAYS WHETHER IT WORKED TOO (1.6).
+   *
+   * `graceRes.error` became a third state under finding 7 and `stampRes.error`
+   * is inspected for the migration code — but this one was never read at all, so
+   * a failed subscriptions read produced `row === undefined` and the account
+   * reported `no-trial`.
+   *
+   * ⚠️ AND THIS IS THE READ WHERE MONEY ACTUALLY MOVES. The grace read that got
+   * the fix is the FALLBACK, for accounts with no subscription at all; this is
+   * the one that finds the trials about to bill. The rule this file states at
+   * the trial verdict applies here first: "`no-trial` is a statement about the
+   * ACCOUNT. A failed entitlement read is a statement about OUR DATABASE."
+   */
+  const subscriptionsUnknown = Boolean(subRes.error);
+  if (subscriptionsUnknown) {
+    console.error(
+      `[reminders] subscriptions unreadable for ${userId} (${subRes.error?.message}); ` +
+        `the trial verdict is deferred to the next tick, not reported as no-trial`,
+    );
+  }
+  const entitlementsUnknown = Boolean(graceRes.error);
+  if (entitlementsUnknown) {
+    console.error(
+      `[reminders] entitlements unreadable for ${userId} (${graceRes.error?.message}); ` +
+        `write access REFUSED and the ending warning deferred to the next tick, not suppressed`,
+    );
+  }
+  const entitlementRows = (graceRes.data ?? []) as Record<string, unknown>[];
+
+  /**
+   * MAY THIS ACCOUNT STILL WRITE?
+   *
+   * With the gate off everybody can, which is today's world and why this is
+   * `true` unless proven otherwise. With it on, an account whose entitlement has
+   * lapsed is read only, and the dose and low-stock reminders are silenced: the
+   * app must not push "4 doses are still unlogged today" at somebody it will
+   * refuse to accept a dose from.
+   *
+   * The TRIAL and GRACE warnings are deliberately NOT gated on this. Those are
+   * the messages that say access is about to end or has ended, and the person
+   * they matter most to is precisely the one who can no longer write.
+   */
+  const canWrite =
+    !billingGateEnabled() ||
+    grantsPro(
+      entitlementRows.map((r) => ({
+        // The query already filters to `product = "pro"`, so this narrows a
+        // string the type system cannot see through PostgREST rather than
+        // asserting anything the row does not say.
+        product: "pro" as const,
+        source: r.source as EntitlementSource,
+        activeUntil: (r.active_until as string | null) ?? null,
+        isActive: r.is_active !== false,
+      })),
+      new Date(),
+    );
+
+  /** The beta grace specifically: a `comp` that expires. Nothing else has that shape. */
+  const graceRow = entitlementRows.find(
+    (r) => r.source === "comp" && (r.active_until as string | null) !== null,
+  );
   const grace = row
     ? null
     : graceAsTrial(
@@ -214,13 +335,28 @@ async function collectTrial(
           : null,
       );
 
+  /**
+   * ⚠️ AND `row === undefined` MUST NOT FALL THROUGH TO THE GRACE (1.6).
+   *
+   * The second effect of the unread error, and the more expensive one. A
+   * GRACE-ALIGNED subscriber holds both a beta comp and a live trialing
+   * subscription. When the subscriptions read fails, `row` is undefined and this
+   * silently substituted the grace — so they were sent the GRACE's ending and
+   * the GRACE's date, on a notice about money.
+   *
+   * The fallback is correct for its OWN cohort (no subscription at all, so the
+   * grace genuinely is the ending) and is unchanged for them. It stops applying
+   * only when we do not KNOW whether there is a subscription.
+   */
   const trial: TrialForReminder | null = row
     ? {
         status: row.status as string,
         trialEndsAt: (row.trial_ends_at as string | null) ?? null,
         cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
       }
-    : grace;
+    : subscriptionsUnknown
+      ? null
+      : grace;
 
   // `42703` is Postgres's undefined_column. PostgREST also reports it as
   // `PGRST204` on some shapes, so both are read as "the migration is not applied
@@ -234,7 +370,20 @@ async function collectTrial(
         | null
         | undefined) ?? null;
 
-  return { trial, isBetaGrace: Boolean(grace) && trial === grace, sentFor };
+  return {
+    trial,
+    isBetaGrace: Boolean(grace) && trial === grace,
+    sentFor,
+    canWrite,
+    /**
+     * ⚠️ CARRIED OUT so the caller can tell "this account has no ending" from "we
+     * could not find out". Without it both arrive as `trial: null` and the runner
+     * reports `no-trial` — a permanent, invisible silence on an account that may
+     * be days from losing access.
+     */
+    entitlementsUnknown,
+    subscriptionsUnknown,
+  };
 }
 
 /**
@@ -271,6 +420,91 @@ async function collectTrial(
  * it — the containment `supabase/notifications/004` claims, which was true of
  * the read and false of the write until now.
  */
+/**
+ * The courtesy period's end, IN ITS OWN QUERY, tolerating an unapplied migration.
+ *
+ * ⚠️ `07` §3.4: "The courtesy column is read in its own tolerant query, never
+ * folded into the select that decides whether anybody gets reminded at all."
+ *
+ * That is not tidiness. `supabase/billing/003_courtesy_until.sql` is applied by
+ * hand, and **a column from an unapplied migration breaks the ENTIRE PostgREST
+ * request it appears in** — folding `courtesy_until` into `collectTrial`'s select
+ * would mean one unapplied migration silences every reminder for everybody,
+ * including the trial reminders that have nothing to do with it. The same shape
+ * `004` uses, for the same reason, and the same lesson `trialLease.ts` paid for.
+ *
+ * ## The return value has THREE states and they are not interchangeable
+ *
+ *   `undefined`  the column could not be read (`42703`, migration absent). We do
+ *                not know. {@link resolveEnding} degrades to neutral wording.
+ *   `null`       read fine; this account has no courtesy period.
+ *   a string     read fine; a courtesy period ends then.
+ *
+ * Collapsing `undefined` into `null` would make an unreadable column look like a
+ * confirmed absence, and a courtesy customer would be told their TRIAL was ending.
+ */
+async function courtesyUntilFor(
+  supabase: Client,
+  userId: string,
+): Promise<{ courtesyUntil: string | null | undefined; priceId: string | null }> {
+  const { data, error } = await supabase
+    .from("subscriptions")
+    // `stripe_price_id` rides in THIS query rather than the main one: it is only
+    // ever needed to pick the courtesy noun, and putting it here keeps
+    // `collectTrial`'s select untouched.
+    .select("courtesy_until, stripe_price_id")
+    .eq("user_id", userId)
+    .eq("status", "trialing")
+    .order("trial_ends_at", { ascending: true })
+    .limit(1);
+  if (error) {
+    // 42703 is "column does not exist" — the migration is not applied yet. Any
+    // other failure is equally a "we do not know", and the safe answer is the same.
+    console.warn(
+      `[reminders] courtesy_until unreadable for ${userId} (falling back to neutral wording):`,
+      error.message,
+    );
+    return { courtesyUntil: undefined, priceId: null };
+  }
+  const row = data?.[0] as Record<string, unknown> | undefined;
+  if (!row) return { courtesyUntil: null, priceId: null };
+  return {
+    courtesyUntil: (row.courtesy_until as string | null) ?? null,
+    priceId: (row.stripe_price_id as string | null) ?? null,
+  };
+}
+
+/**
+ * "week" or "month" for the courtesy copy, or null if it cannot be established.
+ *
+ * ⚠️ `offerPeriodToGrant` CANNOT BE REUSED HERE, and the reason is subtle enough to be
+ * worth stating: it short-circuits on `status === "trialing"` and returns "week",
+ * which is right when deciding what to GRANT. During a courtesy period Stripe
+ * reports `trialing` for exactly the same reason the grant works at all — the
+ * free stretch is expressed by moving `trial_end` — so reusing it here would call
+ * every courtesy period a "free week", including the months.
+ *
+ * So the noun comes from the PLAN's interval, matching §3.4's "the noun follows
+ * the granted period": monthly and yearly are granted a month, weekly a week.
+ *
+ * ⚠️ NULL RATHER THAN A GUESS. A price list that will not load, or a price id
+ * that matches nothing, returns null and {@link resolveEnding} degrades to the
+ * neutral variant. Guessing between "week" and "month" is a coin flip printed in
+ * a billing notice.
+ */
+async function courtesyNounFor(priceId: string | null): Promise<"week" | "month" | null> {
+  if (!priceId) return null;
+  try {
+    const prices = await loadPricesSafe();
+    const interval = prices.find((p) => p.priceId === priceId)?.interval;
+    if (interval === "month" || interval === "year") return "month";
+    if (interval === "week") return "week";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function claimTrialReminder(
   supabase: Client,
   userId: string,
@@ -539,7 +773,8 @@ async function collectUserData(
     };
   });
 
-  const { trial, isBetaGrace, sentFor } = await collectTrial(supabase, userId);
+  const { trial, isBetaGrace, sentFor, canWrite, entitlementsUnknown, subscriptionsUnknown } =
+    await collectTrial(supabase, userId);
 
   return {
     prefs: prefsRes.data as Record<string, unknown> | null,
@@ -553,6 +788,9 @@ async function collectUserData(
     trial,
     trialSentFor: sentFor,
     isBetaGrace,
+    canWrite,
+    entitlementsUnknown,
+    subscriptionsUnknown,
   };
 }
 
@@ -717,14 +955,30 @@ export async function runForUser(
    * promise.
    */
   const trialMin = inQuietHours(reminderMin, quietStart, quietEnd) ? quietEnd : reminderMin;
-  const doseOn = p.dose_reminders_on !== false;
-  const missedOn = p.unlogged_alert_on !== false;
-  const lowOn = p.low_inventory_alert_on !== false;
+  /**
+   * ⚠️ A READ ONLY ACCOUNT IS NOT NUDGED TO LOG ANYTHING.
+   *
+   * `data.canWrite` is false only when the gate is on AND the entitlement has
+   * lapsed. Without this the runner pushes "4 doses are still unlogged today" to
+   * somebody whose next tap will be refused, which is the product nagging a
+   * person to do the thing it has blocked. Adrian, 2026-08-14.
+   *
+   * Folded into the three toggles rather than added at each call site so a
+   * fourth content reminder added later is covered by construction.
+   *
+   * The TRIAL and GRACE warnings are untouched: those exist to tell somebody
+   * their access is ending, and the person that matters most to is exactly the
+   * one who can no longer write.
+   */
+  const doseOn = data.canWrite && p.dose_reminders_on !== false;
+  const missedOn = data.canWrite && p.unlogged_alert_on !== false;
+  const lowOn = data.canWrite && p.low_inventory_alert_on !== false;
 
   if (force) {
-    // Test send: real content if any, else a friendly confirmation.
-    const dose = doseReminderMessage(due);
-    const lowMsg = lowStockMessage(low);
+    // Test send: real content if any, else a friendly confirmation. A read only
+    // account gets the confirmation, never a dose nudge it cannot act on.
+    const dose = doseOn ? doseReminderMessage(due) : null;
+    const lowMsg = lowOn ? lowStockMessage(low) : null;
     if (dose) messages.push(dose);
     if (lowMsg) messages.push(lowMsg);
     if (messages.length === 0) {
@@ -795,12 +1049,78 @@ export async function runForUser(
         now,
         data.trialSentFor,
       );
-      if (verdict.send && data.trial) {
-        // The grace and a real trial need different words. `data.trial` is the
-        // same shape either way (see `graceAsTrial`), so the flag rides along
-        // rather than being re-derived from a shape that deliberately hides the
-        // difference.
-        const m = trialReminderMessage(data.trial, data.tz, data.isBetaGrace);
+      /**
+       * ⚠️ AN UNREADABLE ENTITLEMENT MUST NOT REPORT `no-trial` (finding 7).
+       *
+       * `no-trial` is a statement about the ACCOUNT — it has no ending to warn
+       * about. A failed entitlement read is a statement about OUR DATABASE, and
+       * collapsing the two makes an account that may be days from losing access
+       * indistinguishable from one that has nothing to lose, in the cron's own
+       * response payload — which `07` §3.9 names as "the only observability this
+       * system has".
+       *
+       * ⚠️ IT DEFERS RATHER THAN SUPPRESSES, and the distinction is the whole
+       * ruling. Nothing is claimed or stamped on this path, so the reminder is not
+       * burned: the next tick (minutes later) reads again and sends. What is
+       * removed is the PERMANENT INVISIBLE silence.
+       *
+       * ⚠️ IT DOES NOT COMPOSE A WARNING, AND THAT IS NOW RULED (Adrian,
+       * 2026-08-18), correcting the earlier instruction to "send the warning on
+       * unknown".
+       *
+       * The comment fifteen lines up — that trial and grace warnings are NOT gated
+       * on write access — means **do not suppress a warning because the account is
+       * read-only**. That still holds and the split above preserves it. It does
+       * NOT mean send one when the read failed, because **a failed read does not
+       * tell us the person is in a grace at all**: a dateless warning would assert
+       * an unverified fact, which `04` §3.2 and `06` §3.2 both delete rather than
+       * weaken.
+       *
+       * So on `graceRow = unknown`, by channel:
+       *
+       *   PUSH          silent — which is what this branch does. An unactionable
+       *                 alarming push is worse than nothing, and the cron runs
+       *                 again within minutes.
+       *   IN-APP BANNER the honest could-not-check class, IF a signed string of
+       *                 that class exists. ⚠️ **It does not.** `05`'s Q85 — "the
+       *                 generic still-syncing notice" — is OPEN, so there is
+       *                 nothing to render and nothing here may invent one. That is
+       *                 stop-list S2, recorded in `next-tasks.md`.
+       */
+      /**
+       * ⚠️ AND THE SUBSCRIPTIONS READ GETS THE SAME TREATMENT (1.6), with its
+       * OWN reason so the payload names the table that failed. `07` §3.9 calls
+       * this payload "the only observability this system has", and
+       * "entitlements-unreadable" pointing at a subscriptions failure would send
+       * the next reader to the wrong table.
+       *
+       * Same deferral, same reasoning, and nothing is claimed or stamped on this
+       * path either — so the next tick reads again and sends.
+       */
+      if (!verdict.send && verdict.reason === "no-trial" && data.subscriptionsUnknown) {
+        trialReason = "subscriptions-unreadable";
+      } else if (!verdict.send && verdict.reason === "no-trial" && data.entitlementsUnknown) {
+        trialReason = "entitlements-unreadable";
+      } else if (verdict.send && data.trial) {
+        /**
+         * The three endings need different words. `data.trial` is the same shape
+         * for all of them (see `graceAsTrial`), so the discriminator rides along
+         * rather than being re-derived from a shape that deliberately hides the
+         * difference.
+         *
+         * ⚠️ Both reads happen HERE, inside the branch that is actually going to
+         * send, rather than in `collectTrial`. A courtesy lookup and a price list
+         * on every tick for every user would be two more things that can fail on
+         * the path that decides whether anybody is reminded at all, to answer a
+         * question that only matters once a reminder is already going out.
+         */
+        const { courtesyUntil, priceId } = await courtesyUntilFor(supabase, userId);
+        const ending = resolveEnding({
+          isBetaGrace: data.isBetaGrace,
+          courtesyUntil,
+          noun: courtesyUntil ? await courtesyNounFor(priceId) : null,
+        });
+        const m = trialReminderMessage(data.trial, data.tz, ending);
         if (!m) {
           trialReason = "no-message";
         } else if (await claimTrialReminder(supabase, userId, verdict.forDate, data.trialSentFor)) {

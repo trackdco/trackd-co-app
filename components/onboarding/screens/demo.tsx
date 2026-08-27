@@ -127,7 +127,7 @@ const HEADINGS: Record<Stage, { title: string; sub: string }> = {
     // for sounding like a storage guarantee rather than a reason to care. What
     // replaces it stays a statement about the RECORD, not about the user's
     // results: Trackd shows you the run, it does not claim to improve it.
-    sub: "Track photos, weight, bloods and notes. See the whole run, not just today.",
+    sub: "Bloods, weight and notes, sitting next to whatever you were running at the time.",
   },
 };
 

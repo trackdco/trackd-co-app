@@ -66,4 +66,125 @@ condensed_GLBX-*
 
 # The verification harness. Rebuilt per session, drives PRODUCTION Supabase and
 # real Stripe, and holds nothing worth keeping between sessions.
-/scratchpad/
+#
+# `/scratchpad/*` rather than `/scratchpad/`, because git cannot re-include
+# anything whose PARENT DIRECTORY is excluded — the negation below is silently
+# inert against the directory form.
+/scratchpad/*
+
+# ...except the test-clock harness, which IS worth keeping between sessions: it
+# is the tooling spec 04's Steps 9 to 11 and Monday's three observations run on,
+# and three cold reviewers need to be able to find it.
+!/scratchpad/harness/
+
+# ...and the SHARED SPINE every QA driver imports (D89, part one).
+#
+# ⚠️ THE CLASS THIS CLOSES WAS ALREADY FOUND ONCE. `lib/billing/gate.ts` records
+# it about `gate-audit.mjs`: the script its credibility rested on "was on one
+# machine and in nobody's clone". That was fixed for one file and the class was
+# left open — so every `qa-*.mjs` and `cold-*.mjs` driver, and the spine they all
+# import, is still untracked. Evidence that 05 §5 and 12 rest on cannot be re-run
+# by a cold reviewer or by a future session.
+#
+# This is the piece whose loss would be worst and it is one file: the service
+# client, `makeUser`, `signIn`, and `dropUser` with its BY ID ONLY guard. It holds
+# NO secret — it reads `.env.local` at runtime — and no banned technique. Scanned
+# before tracking.
+#
+# The drivers themselves are tracked AT THE FREEZE, not before, and only the ones
+# backing a signed-off verification: the tree stops moving there, the full set
+# exists, and ~60 files landing mid-build is the churn that muddied a review round
+# once already. Each is secret-scanned first, and anything that patches a list or
+# calls a billing-writing route is stripped or left out rather than committed as a
+# recipe for the next session to copy.
+#
+# ⚠️ NOTE ON SCOPE: `05` Step 7's evidence is a test-clock scenario, so it lands in
+# `harness/` and is TRACKED THE MOMENT IT IS WRITTEN. It is outside part two
+# entirely. The same is true of `04` Steps 9 to 11 and of `11` Steps 4 and 5
+# (`reconcile.scenario.ts`). Part two is only the `.mjs` browser drivers.
+#
+# ⚠️ AND NO CREDENTIAL LIVES IN ANY TRACKED FILE. The QA fixture password moved to
+# `.env.local` as `QA_TEST_PASSWORD`; `admin.mjs` and `harness/core.ts` both read
+# it and throw if it is unset. It only ever applied to `@trackd-qa.invalid`
+# accounts torn down by id, but a credential in a repository is a question
+# somebody has to answer later.
+!/scratchpad/admin.mjs
+
+# ⚠️ AND THE READ-ONLY DRIVER, tracked 2026-08-18 BEFORE 08 rather than at the
+# freeze. It is the 23/23 evidence for the cohorts `08` must be re-verified
+# against — the read-only pop-up's copy, its mechanics, D28's destination — and it
+# existed on ONE MACHINE, in nobody's clone, which is the exact failure
+# `lib/billing/gate.ts` already records about `gate-audit.mjs`: "the script this
+# paragraph rests its credibility on was on one machine and in nobody's clone".
+#
+# Secret-scanned before tracking: no key, no token, no password. It takes the QA
+# password from `admin.mjs`, which reads `.env.local` and throws if unset, and it
+# deletes its one account BY ID in a `finally`. The `/api/billing/reconcile` probe
+# it used to carry was stripped: it called a billing route, asserted nothing, and
+# its comment claimed to establish something a status code cannot.
+!/scratchpad/qa-05-readonly.mjs
+
+# ⚠️ AND TWO GROUP-3 DRIVERS, tracked 2026-08-18, because both are evidence for
+# a LAUNCH-MORNING cohort rather than for a fix that is finished.
+#
+#   drive-33-readonly-six.mjs   the read-only pop-up's D98 clause against ALL SIX
+#                               cohorts, asserting they read ONE body. "Unbranched"
+#                               is the standing ruling, and this is the only thing
+#                               that measures it rather than asserting it.
+#   drive-newsignup.mjs         the post-backfill sign-up path at P13 — pop-up,
+#                               price list, a genuine 7-day trial. That cohort grows
+#                               every day until launch and nothing else covers it.
+#
+# Both seed `@trackd-qa.invalid` accounts and drop them BY ID in a `finally`.
+# Neither patches a list, calls a billing-writing route, or purchases anything.
+# Secret-scanned before tracking.
+!/scratchpad/drive-33-readonly-six.mjs
+!/scratchpad/drive-newsignup.mjs
+
+# ⚠️ AND THE LAUNCH NOTICE'S FOCUS DRIVER (4.2). The defect it measures is
+# invisible to every static check: the MARKUP was correct throughout its entire
+# life — `role="dialog" aria-modal="true"` — while `document.activeElement` stayed
+# on `<body>`. Only a real browser can tell those apart, and this is the once-ever
+# modal every comp and beta account meets on launch morning.
+!/scratchpad/drive-42-notice-focus.mjs
+
+# ⚠️ AND THE TWO DEV-SERVER LAUNCHERS. Standing Law 4 says the billing gate is a
+# COMMAND-LINE flag and never `.env.local`, and these are the only correct way to
+# set it here: `npx` re-execs and LOSES the variable — `nohup env FLAG=true npx
+# next dev` produced a fully green vacuous run once. They export-and-exec instead.
+#
+# They also clear `.next` before starting, with the reasoning in the file: killing
+# a Turbopack dev server mid-compile leaves a cache that serves 404 for EVERY
+# route with no compile error, which reads exactly like a broken feature. Both
+# scripts refuse to clear it if anything is still listening on 3100.
+!/scratchpad/dev-gate-on.sh
+!/scratchpad/dev-gate-off.sh
+
+# ⚠️ AND THE LEAK DETECTOR'S OWN CONTROL, tracked 2026-08-18 with the audit
+# rewrite it proves. `qa-audit.mjs` is tracked; a detector whose control is on one
+# machine is exactly the claim-not-evidence failure D89 tracked the spine to close,
+# and this one matters more than most: the audit's entire job is to be believed
+# when it prints CLEAN, and until this ran it had only ever printed CLEAN.
+#
+# It creates ONE `@trackd-qa.invalid` account, asserts the exit code moves 0 -> 1,
+# and drops it BY ID in a `finally`. No credential, no list patch, no billing
+# route. Secret-scanned before tracking.
+!/scratchpad/qa-audit-controls.mjs
+# The COLDCHAT-REVERIFY ledger counter. Same reasoning as qa-audit-controls above
+# (D89): a detector that lives on one machine is a claim, not evidence. It counts
+# `qa-rv-` accounts and Stripe objects and deletes nothing.
+!/scratchpad/rv-audit.mjs
+# The FINAL-ROUND drivers (Groups A, B, D-G) and the finding Group G recorded.
+# Same D89 reasoning as the two above: a drive that only exists on one machine is
+# a claim rather than evidence, and this round's Group G result — a reproduced
+# cross-subscription clawback that is NOT fixed — is a finding somebody has to be
+# able to re-run. They create `@trackd-qa.invalid` accounts, ledger every Stripe
+# id to a file OUTSIDE the repo before using it, and delete BY ID. No credential
+# is in them: `.env.local` is read at run time.
+!/scratchpad/final/
+!/scratchpad/base-mig-probe.mjs
+
+# ⚠️ BUT NEVER THE SINK'S KEY MATERIAL. `PushSink` self-signs a certificate for
+# 127.0.0.1 on first run and caches it here. It is regenerated on demand, it is
+# worthless to anybody, and a private key does not go in a repository regardless.
+/scratchpad/harness/.certs/

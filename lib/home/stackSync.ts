@@ -17,9 +17,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
 import type { Stack, StackMembership } from "@/lib/home/stacks"
-import { canWriteData } from "@/lib/billing/gate"
+import { refuseWrite, type WriteRefusalKind } from "@/lib/billing/gate"
 
-type Ok = { ok: boolean; skipped?: boolean; /** Refused by the read-only gate, not by a network or a database. */ readOnly?: boolean }
+type Ok = { ok: boolean; skipped?: boolean; /** Refused by the read-only gate, not by a network or a database. */ refusal?: WriteRefusalKind }
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -75,7 +75,8 @@ export async function pushStacks(
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false, readOnly: true };
+  const refused = await refuseWrite();
+  if (refused) return refused;
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }

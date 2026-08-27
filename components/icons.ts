@@ -64,6 +64,7 @@ export {
   GearSix,
   GenderFemale,
   GenderMale,
+  Gift,
   Hourglass,
   ImageSquare,
   Info,

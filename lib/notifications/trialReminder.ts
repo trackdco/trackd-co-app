@@ -193,6 +193,74 @@ export function trialReminderVerdict(
  * word "cancel" appears on neither; the control is one tap away on `/billing`,
  * deliberately reachable and deliberately not the thing being offered here.
  */
+/**
+ * WHICH OF THE THREE ENDINGS THIS IS (`07` §3.4).
+ *
+ * Every ending reaches the sender in the same shape — a status, an end date, no
+ * pending cancellation — which costs the date arithmetic nothing and is a good
+ * decision. **The copy is where it stops being one**, because the three endings
+ * are different facts:
+ *
+ *   trial     a first free week, and billing starts when it ends
+ *   grace     the beta fortnight; nothing is charged, writing stops
+ *   courtesy  a save-offer free period on a subscription that HAS been paid for,
+ *             and the plan resumes when it ends
+ *
+ * Telling a two-year customer on a courtesy month "Day 5 of 7. Your trial ends on
+ * {date}" is false about the day, the length and the trial, and it is sent to
+ * somebody about to be charged.
+ */
+export type EndingKind = "trial" | "grace" | "courtesy";
+
+export interface Ending {
+  kind: EndingKind;
+  /** The granted period's noun. `courtesy` only; see {@link resolveEnding}. */
+  noun?: "week" | "month";
+}
+
+/**
+ * Decide the ending, with the fallback that cannot lie.
+ *
+ * ## ⚠️ THE FALLBACK IS NEUTRAL, NEVER THE TRIAL VARIANT (`07` §3.4)
+ *
+ * "Where a courtesy period cannot be distinguished, fall back to the grace
+ * variant's neutral wording, never to the trial variant. The neutral wording is
+ * true of all three endings; the trial wording is false of two. **A fallback that
+ * degrades to a lie is not a fallback.**"
+ *
+ * ## The three states of `courtesyUntil`, and why `undefined` is not `null`
+ *
+ * They are different facts and collapsing them is the bug this signature exists
+ * to prevent:
+ *
+ *   `undefined`  the column could NOT be read. `supabase/billing/003` may be
+ *                unapplied, in which case PostgREST answers `42703` on the read.
+ *                We do not know what this ending is -> NEUTRAL.
+ *   `null`       read successfully, no courtesy period -> it is a real trial.
+ *   a date       read successfully, a courtesy period is running -> courtesy.
+ *
+ * ## And an unknown NOUN also falls back to neutral
+ *
+ * `07` §3.4 signs "free week" or "free month" and nothing else, so a courtesy
+ * variant with no noun cannot be rendered as approved copy. Guessing between them
+ * would be a coin flip printed in a billing notice. Neutral is true either way.
+ */
+export function resolveEnding(input: {
+  isBetaGrace: boolean;
+  /** `undefined` = unreadable, `null` = read and absent. Not interchangeable. */
+  courtesyUntil: string | null | undefined;
+  noun: "week" | "month" | null;
+}): Ending {
+  if (input.isBetaGrace) return { kind: "grace" };
+  // Unreadable column: cannot tell a courtesy period from a trial, so say the
+  // thing that is true of both.
+  if (input.courtesyUntil === undefined) return { kind: "grace" };
+  if (input.courtesyUntil === null) return { kind: "trial" };
+  if (Number.isNaN(Date.parse(input.courtesyUntil))) return { kind: "grace" };
+  if (!input.noun) return { kind: "grace" };
+  return { kind: "courtesy", noun: input.noun };
+}
+
 export interface TrialNotice {
   /** The trial's last local day, `YYYY-MM-DD`. */
   endDateKey: string;
@@ -259,14 +327,60 @@ export function trialNoticeFor(
  * The date is formatted from the already-local `endDateKey`, so no timezone is
  * needed here and none can be applied twice.
  */
-export function trialNoticeLine(notice: TrialNotice): string {
+export function trialNoticeLine(notice: TrialNotice, ending: Ending = { kind: "trial" }): string {
   const when =
     notice.daysLeft === 0
       ? "today"
       : notice.daysLeft === 1
         ? "tomorrow"
         : formatDateKey(notice.endDateKey);
+
+  /**
+   * ⚠️ THE BANNER HAD ONE VARIANT WHILE THE PUSH HAD TWO, AND THAT WAS A DEFECT.
+   *
+   * `trialNoticeFor` is fed `graceAsTrial(...)` by the dashboard, so a beta-grace
+   * account reached this line and read **"Your free trial ends 28 Aug."** They
+   * were never on a trial, have no card on file, and nothing is charged. It is
+   * the identical falsehood `trialReminderMessage`'s grace variant was built to
+   * stop, on the surface `07` §3.6 says reaches EVERYBODY who opens the app,
+   * while the push it was supposed to agree with had already been corrected.
+   *
+   * Latent rather than live: the dashboard only builds `graceTrial` when
+   * `billingGateEnabled()` is true, and the gate is off until launch morning. So
+   * it would have appeared for ~90 real accounts on the morning it was flipped.
+   */
+  if (ending.kind === "grace") return `Your free access ends ${when}.`;
+
+  /**
+   * D33, signed and carried verbatim. The noun follows the granted period and is
+   * never "trial". Re-signed after an em-dash catch: the full stop is deliberate
+   * and "anytime" is one word.
+   *
+   * `on {date}` rather than the bare `{when}` the other two use, because the
+   * signed line reads "ends on {date}" and signed copy is not reworded to match a
+   * neighbouring string's shape.
+   */
+  if (ending.kind === "courtesy") {
+    return `Your free ${ending.noun} ends on ${formatDateKey(notice.endDateKey)}.`;
+  }
+
   return `Your free trial ends ${when}.`;
+}
+
+/**
+ * The courtesy banner's SECOND line, which no other variant has.
+ *
+ * D33 signs a body beneath the courtesy banner: it names this message as the
+ * promised reminder, which closes the loop with the offer's terms line in the
+ * user's own reading, and that is the line's best move.
+ *
+ * `null` for the other two: the trial and grace banners are deliberately one bare
+ * sentence, twice cut back by Adrian on the grounds that "everything after the
+ * first full stop is something the reader has to decide whether to care about".
+ */
+export function trialNoticeBody(ending: Ending): string | null {
+  if (ending.kind !== "courtesy") return null;
+  return "Your plan starts then, and the reminder you were promised is this one. Cancel anytime before if you've changed your mind.";
 }
 
 /** "2026-08-15" -> "15 Aug". Date-only in, date-only out: no zone involved. */
@@ -328,11 +442,12 @@ export function trialReminderMessage(
    * failure as not telling them when it is. Both end in a support ticket, and
    * this one ends in a support ticket from a person who has done nothing wrong.
    */
-  isBetaGrace = false,
+  ending: Ending = { kind: "trial" },
 ): PushMessage | null {
   if (!trial.trialEndsAt) return null;
   const endsAt = new Date(Date.parse(trial.trialEndsAt));
   if (Number.isNaN(endsAt.getTime())) return null;
+  const isBetaGrace = ending.kind === "grace";
 
   // Formatted in the USER's zone, so the date in the body is the date on their
   // own calendar rather than the server's.
@@ -341,6 +456,30 @@ export function trialReminderMessage(
     day: "numeric",
     month: "short",
   }).format(endsAt);
+
+  /**
+   * D33's courtesy push. The BODY is signed verbatim in `07` §3.4.
+   *
+   * ⚠️ THE TITLE IS NOT IN THE SPEC, AND IS NOT INVENTED HERE.
+   *
+   * §3.4 signs a title for the trial ("Your trial ends soon") and for the grace
+   * ("Your free access ends soon") but gives the courtesy variant only its body.
+   * Rather than write one, this REUSES the grace title, which is already approved
+   * and is true of this cohort: their free access does end soon. It is the same
+   * move `02b` §3.2 made when it reused an approved button label rather than
+   * inventing a second one.
+   *
+   * **Flagged for sign-off.** If the founder wants its own title, this is the one
+   * line that changes.
+   */
+  if (ending.kind === "courtesy") {
+    return {
+      title: "Your free access ends soon",
+      body: `Your free ${ending.noun} ends ${when}. Your plan starts then.`,
+      url: "/profile",
+      tag: "trackd-trial-ending",
+    };
+  }
 
   if (isBetaGrace) {
     return {

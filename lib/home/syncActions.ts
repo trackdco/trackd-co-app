@@ -25,9 +25,9 @@ import { guard } from "@/lib/resilience/circuitBreaker"
 import type { StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
 import type { DoseLog } from "@/lib/home/mockHomeData"
-import { canWriteData } from "@/lib/billing/gate"
+import { refuseWrite, type WriteRefusalKind } from "@/lib/billing/gate"
 
-type Ok = { ok: boolean; /** Refused by the read-only gate, not by a network or a database. */ readOnly?: boolean }
+type Ok = { ok: boolean; /** Refused by the read-only gate, not by a network or a database. */ refusal?: WriteRefusalKind }
 
 /** The verified session + its user id, or null when signed out. Not exported, so
  *  it is exempt from the "use server" serialisation rules and may return a client. */
@@ -51,7 +51,8 @@ export async function pushStackCompound(compound: StackCompound): Promise<Ok> {
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false, readOnly: true };
+  const refused = await refuseWrite();
+  if (refused) return refused;
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }
@@ -76,7 +77,8 @@ export async function pushDoseLog(
 ): Promise<Ok> {
   // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
   // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
-  if (!(await canWriteData())) return { ok: false, readOnly: true }
+  const refused = await refuseWrite();
+  if (refused) return refused;
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }
@@ -124,7 +126,8 @@ export async function pushCustom(custom: { id: string }): Promise<Ok> {
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
-  if (!(await canWriteData())) return { ok: false, readOnly: true };
+  const refused = await refuseWrite();
+  if (refused) return refused;
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }

@@ -5,18 +5,36 @@ import { headers } from "next/headers";
 import type Stripe from "stripe";
 
 import { getCurrentUser } from "@/lib/auth";
-import { applyCancelFlag, liveSubscriptionsForUser } from "@/lib/billing/cancel";
-import { formatAccessDate, type SaveOfferKind } from "@/lib/billing/manage";
+import {
+  BILLABLE_STATUSES,
+  applyCancelFlag,
+  cancelImmediately,
+  liveSubscriptionsForUser,
+  stopsImmediately,
+  type LiveSubscription,
+} from "@/lib/billing/cancel";
+import {
+  CANCELLABLE_STATUSES,
+  CANCEL_FAILED,
+  RESUME_FAILED,
+  formatAccessDate,
+  type SaveOfferKind,
+} from "@/lib/billing/manage";
 import { originFromHost } from "@/lib/billing/originAllowlist";
 import {
   EXTRA_TRIAL_DAYS,
+  offerPeriodToGrant,
+  offerWindowFor,
   grantExtraTime,
   markOfferShown,
+  periodIsUnpaid,
   readSaveOffer,
 } from "@/lib/billing/saveOffer";
+import { entitlementFacts } from "@/lib/billing/entitlements";
 import { stripe } from "@/lib/billing/stripe";
 import { syncSubscription } from "@/lib/billing/sync";
 import { createClient } from "@/lib/supabase/server";
+import { listAllSubscriptions } from "@/lib/billing/subscriptionList";
 
 /**
  * CANCEL AND UN-CANCEL — the only two writes a user may make to their own
@@ -63,6 +81,60 @@ export interface BillingActionResult {
   savedAt?: number;
 }
 
+/**
+ * Everything the offer dialog needs to state its own terms.
+ *
+ * `chargeOn` is the day billing resumes if they take it, computed from the same
+ * subscription and the same two functions the grant itself uses. The dialog is
+ * REQUIRED to show it: since 2026-08-14 taking the offer lifts the cancellation,
+ * so somebody who reads "free" and nothing else is a chargeback.
+ */
+export interface SaveOffer {
+  kind: SaveOfferKind;
+  /**
+   * ISO instant the offer was recorded as shown, from the SERVER.
+   *
+   * The countdown reads this rather than the moment the dialog painted, so the
+   * clock on screen and the ten-minute window the server enforces are the same
+   * ten minutes. A client-side start would drift by the round trip and, worse,
+   * would reset every time the dialog was reopened.
+   */
+  shownAt: string;
+  /** "week" or "month". Drives both the length and the noun in the copy. */
+  noun: "week" | "month";
+  /**
+   * ⚠️ THE DAY MONEY MOVES, ALREADY FORMATTED IN THE USER'S STORED TIMEZONE.
+   *
+   * An ISO instant, formatted in the BROWSER's zone by the dialog. A cold review
+   * measured what that cost with the profile in Pacific/Kiritimati and the phone
+   * in America/Los_Angeles: the cancel dialog said 24 Aug (server), this said
+   * 30 Aug (browser), and the thank-you one tap later said 31 Aug (server) — for
+   * one charge, on the screen the spec calls the highest-risk in the app. The
+   * two instants were always identical; only the clock formatting them differed.
+   *
+   * So it is formatted HERE, by the same `formatAccessDate` every other date on
+   * this flow goes through, exactly as `claimExtraTime` already does for
+   * `endsOn`. Nothing about the sentence it sits in changed.
+   */
+  chargeOn: string;
+  /**
+   * ⚠️ WHEN THE FREE TIME STARTS, ALREADY FORMATTED IN THE USER'S STORED
+   * TIMEZONE (F2).
+   *
+   * The CURRENT PERIOD END — the same value `addOffer` measures from and the same
+   * value `chargeOn` is derived from, so nothing new is computed and the two
+   * cannot drift.
+   *
+   * The gift block named only the END date, and free time is appended to the end
+   * of the paid period rather than starting today. For a mid-year yearly
+   * subscriber that made "Another month / until 15 Mar 2027", read on 15 Aug 2026,
+   * describe SEVEN MONTHS of free access. Both screens now name the window.
+   */
+  startsOn: string;
+  /** Kept for the trial copy, which still counts in days. */
+  days: number;
+}
+
 export interface CancelResult extends BillingActionResult {
   /**
    * Whether to follow the cancellation with the save offer, and which one.
@@ -72,7 +144,7 @@ export interface CancelResult extends BillingActionResult {
    * something that happens to a cancelled user, never something standing between
    * a user and cancelling. See `lib/billing/saveOffer.ts`.
    */
-  offer?: { kind: SaveOfferKind; days: number };
+  offer?: SaveOffer;
 }
 
 /**
@@ -100,7 +172,7 @@ export interface CancelResult extends BillingActionResult {
  * scoping. Nothing about which subscription to act on comes from the client.
  */
 async function ownSubscriptions(): Promise<
-  { ids: string[]; userId: string; customerId: string } | { error: string }
+  { ids: LiveSubscription[]; userId: string; customerId: string } | { error: string }
 > {
   const user = await getCurrentUser();
   if (!user) return { error: "You need to be signed in." };
@@ -122,9 +194,42 @@ async function ownSubscriptions(): Promise<
     return { error: "There's no active subscription on this account." };
   }
 
-  let ids: string[];
+  let ids: LiveSubscription[];
   try {
-    ids = await liveSubscriptionsForUser(user.id);
+    /**
+     * ⚠️ `FLAG_CANCELLABLE_STATUSES`, NOT `BILLABLE_STATUSES`.
+     *
+     * (This said `CANCELLABLE_STATUSES` for a while after the call below moved to
+     * the wider flag set, which is the sort of drift that makes a reader trust a
+     * comment over the code fifteen lines under it.)
+     *
+     * This read the wider billable set, and a cold review drove what that cost:
+     * Stripe HARD-REFUSES `cancel_at_period_end` on a `paused` subscription
+     * ("Resume the subscription first"), so one paused subscription on the
+     * customer made the loop below throw and the user could not cancel at all.
+     * Measured twice: with the paused one newer, nothing was ever cancelled and
+     * every retry failed identically while the live trial converted; with it
+     * older, the cancellation went through at Stripe while the screen said it
+     * had failed and then offered only the button that undoes it.
+     *
+     * The wider set is still exactly right for the DELETION path, which uses
+     * `subscriptions.cancel()` and which Stripe accepts on a paused
+     * subscription. Two questions, two lists. See `manage.ts`.
+     */
+    /**
+     * ⚠️ `BILLABLE_STATUSES` — "what could still take this person's money?" —
+     * because D80 gives every one of them a mechanism.
+     *
+     * This was `FLAG_CANCELLABLE_STATUSES`, which excluded `paused` and `unpaid`
+     * on the correct grounds that Stripe hard-refuses the flag on them. Correct
+     * about the flag, wrong about the outcome: those subscriptions were left
+     * running while the user was told they had cancelled. D80 cancels them
+     * immediately instead, so there is no longer any reason to drop them here.
+     *
+     * Which mechanism each one takes is decided per subscription below, from the
+     * status that now rides along with the id.
+     */
+    ids = await liveSubscriptionsForUser(user.id, BILLABLE_STATUSES);
   } catch (err) {
     console.error(
       `[billing] could not list subscriptions for ${user.id}:`,
@@ -155,25 +260,73 @@ export async function cancelSubscription(): Promise<CancelResult> {
   const found = await ownSubscriptions();
   if ("error" in found) return { ok: false, error: found.error };
 
-  try {
-    // EVERY one of them. "Cancel my subscription" means stop billing me, not
-    // stop billing me for whichever row happened to sort first.
-    for (const id of found.ids) await applyCancelFlag(id, true);
-  } catch (err) {
-    // Stripe's own message can name internal ids and price objects, so it is
-    // logged and not returned.
-    console.error(
-      `[billing] cancel failed for ${found.ids.join(", ")}:`,
-      err instanceof Error ? err.message : String(err),
-    );
-    return { ok: false, error: "We couldn't cancel just now. Please try again." };
+  /**
+   * EVERY one of them. "Cancel my subscription" means stop billing me, not stop
+   * billing me for whichever row happened to sort first.
+   *
+   * ⚠️ ONE FAILURE MUST NOT ABANDON THE REST. This was a single `try` around a
+   * sequential loop, so the first throw left every later subscription untouched
+   * and still billing — and which subscription that was depended only on
+   * Stripe's `created desc` ordering. Each is attempted on its own now, and the
+   * result is judged afterwards.
+   *
+   * **A partial failure is reported as a failure**, because the user is still
+   * billable through whatever did not cancel, and telling them otherwise is the
+   * one lie this flow exists to avoid. Retrying is safe: Stripe accepts the flag
+   * again on a subscription that already carries it.
+   */
+  /**
+   * ⚠️ TWO MECHANISMS, CHOSEN PER SUBSCRIPTION (D80).
+   *
+   * `paused` and `unpaid` cannot take the period-end flag at all — Stripe refuses
+   * it outright — and have no paid period to protect, so they are ended now.
+   * Everything else keeps the period-end flag, which is what preserves access
+   * somebody has already paid for.
+   */
+  const outcomes = await Promise.allSettled(
+    found.ids.map(({ id, status }) =>
+      stopsImmediately(status) ? cancelImmediately(id) : applyCancelFlag(id, true),
+    ),
+  );
+  const failed = found.ids
+    .filter((_, i) => outcomes[i].status === "rejected")
+    .map((s) => s.id);
+  if (failed.length > 0) {
+    for (const [i, outcome] of outcomes.entries()) {
+      if (outcome.status !== "rejected") continue;
+      // Stripe's own message can name internal ids and price objects, so it is
+      // logged and not returned.
+      console.error(
+        `[billing] cancel failed for ${found.ids[i].id} (${found.ids[i].status}):`,
+        outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+      );
+    }
+    if (failed.length < found.ids.length) {
+      /**
+       * ⚠️ "STILL BILLING" IS A CLAIM THIS CODE CANNOT MAKE, so it no longer
+       * makes it.
+       *
+       * A rejection means the CALL failed, not that the subscription survived.
+       * In the reproduced race the "still billing" subscription was
+       * `incomplete_expired` with a void invoice — Stripe had already finished
+       * with it — so the alert told an operator to chase money that could not
+       * move. An alert that cries wolf is an alert that gets muted.
+       *
+       * It reports what is actually known: which ids did not take the flag, and
+       * that their state is now unverified.
+       */
+      console.error(
+        `[billing] ⚠️ ${found.userId} is PARTIALLY cancelled: ${found.ids.length - failed.length} stopped, ${failed.join(", ")} did NOT take the cancel flag and their state is unverified`,
+      );
+    }
+    return { ok: false, error: CANCEL_FAILED };
   }
 
   console.info(`[billing] ${found.userId} cancelled ${found.ids.length} subscription(s) at period end`);
   revalidatePath("/billing");
   revalidatePath("/profile");
 
-  const offer = await offerAfterCancel(found.customerId);
+  const offer = await offerAfterCancel(found.customerId, found.userId);
   return { ok: true, savedAt: Date.now(), ...(offer ? { offer } : {}) };
 }
 
@@ -186,20 +339,169 @@ export async function cancelSubscription(): Promise<CancelResult> {
  */
 async function offerAfterCancel(
   customerId: string,
-): Promise<{ kind: SaveOfferKind; days: number } | undefined> {
+  userId: string,
+): Promise<SaveOffer | undefined> {
   try {
     const primary = await primarySubscription(customerId);
     if (!primary) return undefined;
+
+    /**
+     * ⚠️ AN UNPAID PERIOD GETS NO OFFER, AND DOES NOT BURN ONE.
+     *
+     * Checked BEFORE `readSaveOffer` and long before `markOfferShown`, so this
+     * cohort cannot spend their once-ever offer by being refused it. See
+     * `periodIsUnpaid`: the offer's free time is computed from the current
+     * period end, which for them is the period the card declined on, and no
+     * variant of it is honest. They fall through to the ordinary
+     * already-cancelled acknowledgement.
+     */
+    if (periodIsUnpaid(primary)) {
+      console.info(
+        `[billing] ${customerId} cancelled with an unpaid period (${primary.status}); no save offer, and none burned`,
+      );
+      return undefined;
+    }
+
+    /**
+     * ⚠️ D79. A NO-EXPIRY COMP IS OFFERED NOTHING, AND THE REFUSAL BURNS NOTHING.
+     *
+     * Same family as D70 above and the same ordering, for a sharper reason.
+     *
+     * This cohort has just read D78's line on the confirm dialog — "Your free
+     * access carries on as it always has, and nothing about your account
+     * changes" — and was then offered another month free. **Accepting lifts the
+     * cancellation and re-arms a real charge**, on somebody promised in writing
+     * that they would never be charged. It is the one screen in the product that
+     * can turn "never" into a charge, and D78 makes the promise on the screen
+     * immediately before it.
+     *
+     * Observed, not inferred: reaching the declined screen while driving 2.2
+     * required declining an offer this cohort should never have been shown.
+     *
+     * ## Placed BEFORE `readSaveOffer`, which is the whole point
+     *
+     * `markOfferShown` is what burns the once-ever flag, and it is further down.
+     * Refusing here means the flag is never written, so **they were never offered
+     * anything and have not spent anything.** A check placed after that write
+     * would refuse the offer and consume it in the same breath, which is the
+     * precise failure the not-burned rule exists to prevent.
+     *
+     * There is no direction in which this is exploitable: a comp cannot benefit
+     * from an offer that grants free time they already have forever.
+     *
+     * The discriminator is the same one D78 uses — a `comp` entitlement with a
+     * null `active_until` — so the screen that makes the promise and the server
+     * that refuses the offer cannot disagree about who this cohort is. A comp
+     * WITH an expiry is the beta grace and is deliberately not here: they are
+     * sold to when the fortnight ends, so an offer is meaningful for them.
+     */
+    /**
+     * ⚠️ AND AN UNREADABLE ENTITLEMENT REFUSES TOO. THIS IS THE CRITICAL HALF.
+     *
+     * The guard read `currentEntitlement()`, which answered `null` both for "not
+     * a comp" and for "the entitlements table would not answer". Only the first
+     * is a reason to continue. On a failed read the guard **stepped aside**, the
+     * offer was shown, and accepting it LIFTS the cancellation (`saveOffer.ts`)
+     * and re-arms a real charge — on somebody promised in writing they would
+     * never be charged, who read D78's "your free access carries on as it always
+     * has" one screen earlier.
+     *
+     * Standing Law 1 is the whole reason this direction is not a judgement call:
+     * nobody is ever charged after being told they would not be. A read that
+     * failed cannot rule out that this is that person, so it is treated as though
+     * it is.
+     *
+     * ## The cost is bounded and the placement is what bounds it
+     *
+     * A non-comp customer whose read failed loses the offer FOR THIS ATTEMPT and
+     * loses nothing else: this sits above `markOfferShown`, so the once-ever flag
+     * is never written and they get the offer in full next time. The alternative
+     * costs a free-for-life comp an unrepeatable charge.
+     */
+    const access = await entitlementFacts();
+    if (!access.known) {
+      console.error(
+        `[billing] the entitlement read failed for ${customerId}; no save offer shown, ` +
+          `and none burned — a comp cannot be ruled out and must never be re-armed (D79)`,
+      );
+      return undefined;
+    }
+    const entitlement = access.entitlement;
+    if (entitlement?.source === "comp" && entitlement.activeUntil === null) {
+      console.info(
+        `[billing] ${customerId} is a free-for-life comp; no save offer, and none burned (D79)`,
+      );
+      return undefined;
+    }
 
     const kind: SaveOfferKind = primary.status === "trialing" ? "trial" : "paid";
     const state = await readSaveOffer(customerId, kind);
     if (!state.available || !state.kind) return undefined;
 
+    /**
+     * ⚠️ THE DATE IS COMPUTED HERE AND SHOWN ON THE DIALOG.
+     *
+     * Since 2026-08-14 taking the offer LIFTS the cancellation, so the dialog
+     * has to name the day money will move. It is derived from the same two
+     * functions the grant itself uses, on the same subscription object, so the
+     * date somebody reads before deciding is the date they are actually charged
+     * rather than a second calculation that can drift from the first.
+     */
+    /**
+     * ⚠️ THE WINDOW IS COMPUTED BY THE SHARED HELPER, NOT HERE (Group E).
+     *
+     * `openOffer.ts` restores this same dialog after a session ends, and it has to
+     * name the same two dates. Two copies of this arithmetic is two answers
+     * waiting to disagree on the highest-risk screen in the product — the measured
+     * cost of that shape is already on the record, where three consecutive screens
+     * named three different days for one charge.
+     *
+     * Formatted in the user's OWN stored zone, on the server, so the date they
+     * read before deciding is the same day every other surface names.
+     */
+    const window = offerWindowFor(primary, await ownTimezone(userId));
+    const noun = window?.noun ?? offerPeriodToGrant(primary);
+    const chargeOn = window?.chargeOn ?? "";
+    const startsOn = window?.startsOn ?? "";
+    /**
+     * ⚠️ NO DATE, NO OFFER. (§3.2.)
+     *
+     * `formatAccessDate` returns "" for anything it cannot parse. The terms line
+     * is REQUIRED to name the charge and the date, so a version that cannot is
+     * not a weaker acceptable variant — it is a version that must not render.
+     * The user is already cancelled, which happened before this function was
+     * reached, so showing nothing is a complete and correct outcome and a
+     * strictly better one than asking somebody to accept a charge on a day we
+     * cannot name.
+     *
+     * Refused BEFORE `markOfferShown`, so a customer whose date could not be
+     * resolved does not silently spend their once-ever offer on a dialog they
+     * never saw.
+     */
+    /**
+     * ⚠️ AND THE SAME RULE APPLIES TO THE START DATE (F2). The gift block and the
+     * thank-you screen both name a WINDOW now, and a window with one end missing
+     * is the "line with a hole in it" §3.2 refuses. Refused here, above
+     * `markOfferShown`, so nothing is burned.
+     */
+    if (!chargeOn || !startsOn) {
+      console.error(
+        `[billing] the offer's window could not be resolved for ${customerId} ` +
+          `(starts=${startsOn || "?"}, charge=${chargeOn || "?"}); no save offer shown, and none burned`,
+      );
+      return undefined;
+    }
+
     // Recorded as SHOWN here rather than when the dialog opens: a separate
     // "I saw it" call is one anybody who wanted the offer twice could simply
-    // not make. See `saveOffer.ts`.
-    await markOfferShown(customerId);
-    return { kind: state.kind, days: EXTRA_TRIAL_DAYS };
+    // not make. It also STARTS THE TEN MINUTE CLOCK. See `saveOffer.ts`.
+    //
+    // ONE instant, generated once and passed to both the marker and the client,
+    // so the countdown on screen and the window the server enforces are the
+    // same value rather than two taken moments apart. §3.5.
+    const shownAt = new Date().toISOString();
+    await markOfferShown(customerId, shownAt);
+    return { kind: state.kind, noun, chargeOn, startsOn, shownAt, days: EXTRA_TRIAL_DAYS };
   } catch (err) {
     console.error(
       `[billing] the save-offer check failed for ${customerId} (the cancellation stands):`,
@@ -217,14 +519,22 @@ async function offerAfterCancel(
  * ever be one, and more than one is logged as the anomaly it now is.
  */
 async function primarySubscription(customerId: string) {
-  const list = await stripe().subscriptions.list({
-    customer: customerId,
-    status: "all",
-    limit: 100,
+  /**
+   * ⚠️ PAGED. This decides the SAVE OFFER'S DATE, so a truncated list picks the
+   * wrong subscription to anchor a charge date to. See `listAllSubscriptions`.
+   */
+  const all = await listAllSubscriptions(stripe(), customerId, {
+    // `periodIsUnpaid` asks whether the CURRENT period's invoice was actually
+    // paid, which the status alone cannot answer for an `active` subscription
+    // sitting on an open invoice.
+    expand: ["data.latest_invoice"],
   });
-  const live = list.data.filter((s) =>
-    ["trialing", "active", "past_due"].includes(s.status),
-  );
+  /**
+   * ⚠️ THE NAMED SET, NOT A LITERAL. This decides which subscription the save
+   * offer's CHARGE DATE is anchored to, on the highest-risk screen in the
+   * product, and a literal here goes stale silently the next time the set moves.
+   */
+  const live = all.filter((s) => CANCELLABLE_STATUSES.has(s.status));
   if (live.length > 1) {
     console.error(
       `[billing] ${customerId} still holds ${live.length} live subscriptions; the save offer will act on the soonest-ending one`,
@@ -297,6 +607,24 @@ export async function claimExtraTime(): Promise<
       error:
         result.reason === "already-claimed"
           ? "That's already been added to this account."
+          : result.reason === "expired"
+            /**
+             * ⚠️ D23, and it is not the catch-all. (§3.10.)
+             *
+             * Expiry, never-offered and outright failure all collapsed into
+             * "We couldn't add the extra time just now", which reads as
+             * transient and invites a retry that will also fail. The path is
+             * nearly unreachable — the client flips to the acknowledgement the
+             * moment its own countdown hits zero — so it opens only under clock
+             * skew, a replayed request, or a hand-rolled call. Which is exactly
+             * the user who most deserves an honest answer.
+             *
+             * The two reassurances are the point: somebody here has just been
+             * refused something they thought they had, and the only things they
+             * need to know are that their cancellation is intact and that no
+             * money moved.
+             */
+            ? "Your offer has expired. Your cancellation still stands and nothing has been charged."
           : result.reason === "not-cancelled"
             // They un-cancelled, or started a new subscription, between being
             // offered the week and claiming it. Nothing is wrong with their
@@ -340,6 +668,27 @@ export async function claimExtraTime(): Promise<
     );
   }
 
+  /**
+   * ⚠️ A SUCCESS THAT CANNOT NAME ITS DATE IS A BUG, NOT A DISPLAY CASE. (§3.11.)
+   *
+   * The granted screen's dateless fallback (" is extended", no day) is deleted,
+   * so the date has to exist by the time the client renders. `formatAccessDate`
+   * returns "" for anything it cannot parse, and rather than let that reach the
+   * screen as "finishes on null" it is surfaced as the failure it is. The
+   * idempotency key makes the retry safe.
+   *
+   * Effectively unreachable: `endOfAccess` builds its ISO string from Stripe's
+   * own epoch seconds. Guarded anyway, because the alternative is a broken
+   * sentence on the screen that congratulates somebody for staying.
+   */
+  const endsOn = formatAccessDate(result.endsOn, await ownTimezone(found.userId));
+  if (!endsOn) {
+    console.error(
+      `[billing] extra time granted on ${primary.id} but ${result.endsOn} could not be formatted`,
+    );
+    return { ok: false, error: "We couldn't add the extra time just now." };
+  }
+
   console.info(
     `[billing] ${found.userId} took the save offer (${result.kind}); access now runs to ${result.endsOn}`,
   );
@@ -348,7 +697,7 @@ export async function claimExtraTime(): Promise<
   return {
     ok: true,
     savedAt: Date.now(),
-    endsOn: formatAccessDate(result.endsOn, await ownTimezone(found.userId)),
+    endsOn,
     kind: result.kind,
   };
 }
@@ -490,14 +839,52 @@ export async function resumeSubscription(): Promise<BillingActionResult> {
   const found = await ownSubscriptions();
   if ("error" in found) return { ok: false, error: found.error };
 
-  try {
-    for (const id of found.ids) await applyCancelFlag(id, false);
-  } catch (err) {
+  /**
+   * ⚠️ THE OPPOSITE HONESTY RULE FROM THE CANCEL, AND DELIBERATELY SO.
+   *
+   * Same `allSettled` shape, for the same reason: one throw used to abandon
+   * every later subscription. But a PARTIAL success is reported as a SUCCESS
+   * here, where the cancel reports a failure, because the two directions have
+   * opposite dangerous lies.
+   *
+   * A cold review drove this one: the loop threw halfway, the dialog said "We
+   * couldn't restart it just now", no confirmation card appeared, and Stripe
+   * showed `cancel_at_period_end: false`. The user reasonably concluded they
+   * were still cancelled, and was going to be charged. That is the invariant
+   * "nobody is ever charged after being told they would not be", broken by an
+   * error message.
+   *
+   * So: if anything came back on, the charge is re-armed and the screen must say
+   * so. Only a total failure is reported as one.
+   */
+  /**
+   * ⚠️ RESUME IS THE FLAG PATH ONLY, and D80 does not get a mirror image.
+   *
+   * Clearing `cancel_at_period_end` un-cancels a subscription that is still
+   * scheduled. A subscription cancelled IMMEDIATELY is gone at Stripe and cannot
+   * be resumed by clearing a flag; offering to is a button that cannot work.
+   * `manageActionFor` never reaches `resume` for those statuses, so this filter
+   * is belt-and-braces over that rather than the only guard.
+   */
+  const resumable = found.ids.filter(({ status }) => !stopsImmediately(status));
+  const outcomes = await Promise.allSettled(
+    resumable.map(({ id }) => applyCancelFlag(id, false)),
+  );
+  const resumed = resumable.filter((_, i) => outcomes[i].status === "fulfilled");
+  for (const [i, outcome] of outcomes.entries()) {
+    if (outcome.status !== "rejected") continue;
     console.error(
-      `[billing] resume failed for ${found.ids.join(", ")}:`,
-      err instanceof Error ? err.message : String(err),
+      `[billing] resume failed for ${resumable[i].id}:`,
+      outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
     );
-    return { ok: false, error: "We couldn't restart it just now. Please try again." };
+  }
+  if (resumed.length === 0) {
+    return { ok: false, error: RESUME_FAILED };
+  }
+  if (resumed.length < found.ids.length) {
+    console.error(
+      `[billing] ⚠️ ${found.userId} is PARTIALLY resumed: ${resumed.join(", ")} are billing again, the rest are still cancelling`,
+    );
   }
 
   console.info(`[billing] ${found.userId} resumed ${found.ids.length} subscription(s)`);

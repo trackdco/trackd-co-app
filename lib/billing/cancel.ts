@@ -1,7 +1,11 @@
 import "server-only";
 
+import type Stripe from "stripe";
+
 import { serviceClient } from "./service";
 import { stripe } from "./stripe";
+import { FLAG_CANCELLABLE_STATUSES } from "./manage";
+import { listAllSubscriptions } from "./subscriptionList";
 
 /**
  * STOPPING A SUBSCRIPTION — the one place that talks to Stripe about it.
@@ -17,16 +21,6 @@ import { stripe } from "./stripe";
  * the ORDER wrong around a deletion bills somebody who no longer has an account,
  * with nothing left in the database to connect the charge to them.
  */
-
-/**
- * The statuses a cancellation can act on.
- *
- * `past_due` is here on purpose. Somebody whose card is failing is among the
- * most likely to want out, and refusing them because a charge did not land would
- * be the app arguing about whether they may leave. Stripe accepts the change and
- * stops the dunning retries, which is the intent.
- */
-export const CANCELLABLE_STATUSES = ["trialing", "active", "past_due"] as const;
 
 /**
  * ⚠️ EVERY SUBSCRIPTION THAT CAN STILL TAKE MONEY, ACCORDING TO STRIPE.
@@ -62,7 +56,24 @@ export const CANCELLABLE_STATUSES = ["trialing", "active", "past_due"] as const;
  * The mirror is still what the SCREEN reads. It is display, and it does not
  * decide anything. This is the decision.
  */
-export async function liveSubscriptionsForUser(userId: string): Promise<string[]> {
+export async function liveSubscriptionsForUser(
+  userId: string,
+  /**
+   * ⚠️ WHICH QUESTION IS BEING ASKED. THE TWO CALLERS ASK DIFFERENT ONES.
+   *
+   * The default is "what could still take this person's money?", which is what
+   * the deletion path needs: it calls `subscriptions.cancel()`, which Stripe
+   * accepts on every one of these.
+   *
+   * The USER-FACING cancel path passes `FLAG_CANCELLABLE_STATUSES` instead —
+   * NOT `CANCELLABLE_STATUSES`, which this said until the two were split — because
+   * it calls `subscriptions.update({cancel_at_period_end})` and Stripe
+   * HARD-REFUSES that on a `paused` subscription. Sharing one set meant one
+   * paused subscription on the customer made cancelling throw, every time,
+   * with no way out of it from inside the app. See `manage.ts`.
+   */
+  statuses: ReadonlySet<string> = BILLABLE_STATUSES,
+): Promise<LiveSubscription[]> {
   const { data, error } = await serviceClient()
     .from("billing_customers")
     .select("stripe_customer_id")
@@ -73,18 +84,37 @@ export async function liveSubscriptionsForUser(userId: string): Promise<string[]
   const customer = data?.stripe_customer_id;
   if (!customer) return [];
 
-  // `status: "all"` then filtered here, rather than one request per status:
-  // Stripe's list endpoint takes a single status, and asking for each of them
-  // separately is three round-trips that can disagree with each other.
-  const list = await stripe().subscriptions.list({
-    customer,
-    status: "all",
-    limit: 100,
-  });
+  /**
+   * ⚠️ PAGED, AND IT THROWS RATHER THAN ANSWER SHORT. See `listAllSubscriptions`.
+   *
+   * This asked for one page of 100, newest first, with no `has_more` check. A
+   * cold review drove the cost: one live trial behind a hundred dead objects made
+   * this return an empty list, so `cancelSubscription` answered "There's no
+   * active subscription on this account" while Stripe kept billing, and the
+   * screen still offered the control because the MIRROR was right.
+   *
+   * Both callers are money decisions and neither may be answered from a
+   * truncated list. `cancelNowForUser` is worse: a subscription it misses bills
+   * somebody whose `billing_customers` row has just cascaded away, so nothing
+   * left in the database can attribute the charge to them.
+   */
+  const all = await listAllSubscriptions(stripe(), customer);
 
-  return list.data
-    .filter((s) => BILLABLE.has(s.status))
-    .map((s) => s.id);
+  /**
+   * ⚠️ THE STATUS RIDES ALONG WITH THE ID, because D80 makes the CALLER's choice
+   * of mechanism depend on it: `paused` and `unpaid` are cancelled immediately,
+   * everything else takes the period-end flag. Returning bare ids forced the
+   * caller to either re-read Stripe or guess.
+   */
+  return all
+    .filter((s) => statuses.has(s.status))
+    .map((s) => ({ id: s.id, status: s.status }));
+}
+
+/** A live subscription and the status that decides how it must be stopped. */
+export interface LiveSubscription {
+  id: string;
+  status: string;
 }
 
 /**
@@ -117,6 +147,29 @@ export const BILLABLE_STATUSES: ReadonlySet<string> = new Set<string>([
    * Anything that pays it — the customer finishing a 3DS challenge in another
    * tab, a retry, a dashboard action — turns it `active` immediately.
    *
+   * ⚠️ THE 23 HOURS IS MEASURED, NOT ASSUMED, because D76's void and D83 both
+   * rest on it and one comment in the tree claimed fifteen days instead. Driven
+   * on a test clock (`scratchpad/harness/clockwindow.scenario.ts`):
+   *
+   *     +22h   incomplete           invoice open
+   *     +23h   incomplete_expired   invoice void
+   *
+   * ⚠️ THIS DOES NOT MAKE D76's VOID OPTIONAL, and it must not be read that way.
+   *
+   * Stripe does void the invoice itself when it expires. But the window is not
+   * what D76 is about. Somebody presses Cancel, reads **"you won't be charged"**,
+   * and their invoice stays payable for the rest of that day — long enough to
+   * finish a 3D Secure challenge in a stale tab and take the money. D76 exists to
+   * make that sentence TRUE AT THE MOMENT IT IS SAID.
+   *
+   * A shorter window is not a mitigation for a promise that is false while it
+   * lasts. Waiting 23 hours for Stripe to reach the same end state is not the
+   * same thing as never having been chargeable after being told otherwise.
+   *
+   * The fifteen-day figure was the DUNNING schedule for a `past_due`
+   * subscription after Smart Retries exhausts (8 retries over 2 weeks on this
+   * account). Different subscription, different state, unrelated window.
+   *
    * A cold review drove it: seed an `incomplete` subscription (from the Stripe
    * dashboard, a webhook replay, an import — exactly the cases the reconcile
    * exists for), then `startTrial`. Neither the duplicate guard nor the
@@ -135,7 +188,6 @@ export const BILLABLE_STATUSES: ReadonlySet<string> = new Set<string>([
   "incomplete",
 ]);
 
-const BILLABLE = BILLABLE_STATUSES;
 
 /**
  * Set (or clear) `cancel_at_period_end` on a subscription, and mirror it.
@@ -150,6 +202,119 @@ const BILLABLE = BILLABLE_STATUSES;
  * ends and `isEntitlementActive` lets the clock do the work, which is what makes
  * cancelling safe to offer in one tap.
  */
+/**
+ * Void the outstanding invoice on a subscription being cancelled while
+ * `incomplete`. See the call site in {@link applyCancelFlag} for why (D76).
+ *
+ * ## Only `open` is voided
+ *
+ * `draft` cannot be voided by Stripe at all — it would have to be finalised or
+ * deleted, and a draft is not payable, so it cannot produce the charge this
+ * guards against. `paid` contradicts `incomplete`. Anything else is already
+ * settled or already dead. Voiding is irreversible, so it is applied to exactly
+ * the state that can still take money and to nothing else.
+ *
+ * ## It THROWS on failure, and that is deliberate
+ *
+ * The caller reports a throw as a failed cancellation and the user retries.
+ * That is the correct direction: Stripe has the cancel flag either way, so a
+ * retry re-applies it harmlessly, whereas swallowing the error would return
+ * `{ok: true}` to somebody whose invoice can still be paid in the background.
+ * Telling them they are safe when they are not is the one lie this flow exists
+ * to avoid, and it is worth an occasional false alarm to keep it impossible.
+ */
+async function voidOpenInvoiceFor(
+  subscription: Stripe.Subscription,
+  stripeSubscriptionId: string,
+): Promise<void> {
+  const latest = subscription.latest_invoice;
+  if (!latest) return;
+
+  const client = stripe();
+  const invoice =
+    typeof latest === "string" ? await client.invoices.retrieve(latest) : latest;
+  if (!invoice.id || invoice.status !== "open") return;
+
+  await client.invoices.voidInvoice(invoice.id);
+  console.info(
+    `[billing] voided open invoice ${invoice.id} while cancelling incomplete subscription ${stripeSubscriptionId}`,
+  );
+}
+
+/**
+ * ⚠️ D80. STOP A `paused` OR `unpaid` SUBSCRIPTION **NOW**, because the flag
+ * cannot stop it at all.
+ *
+ * Stripe HARD-REFUSES `cancel_at_period_end` on a `paused` subscription
+ * ("Resume the subscription first"). The old behaviour excluded those statuses
+ * from the cancel path entirely, which is not wrong about the flag and is wrong
+ * about the outcome: **the user was told they had cancelled while a billable
+ * subscription went on existing.** That breaks the one-billable-subscription
+ * invariant with the user's own belief pointing the other way.
+ *
+ * A `paused` or `unpaid` subscription **has no paid period to protect**, which is
+ * the entire reason period-end cancellation exists. So there is nothing for the
+ * later date to preserve and the immediate call is the correct one.
+ *
+ * ## ⚠️ TWO THINGS THIS IS NOT, and neither is a licence for the other
+ *
+ * **Not `04` §2's forbidden immediate-cancel.** That prohibition is about the
+ * SAVE OFFER path, where an immediate cancel would revoke paid access somebody
+ * is being offered more of. Unaffected here, and an unpaid period is still
+ * ineligible for an offer under D70.
+ *
+ * **Not {@link cancelNowForUser}.** That sweeps EVERY subscription because the
+ * account is being erased, belongs to `16-account-deletion.md`, and is never
+ * reached from a cancel row. This stops one subscription the user asked to stop.
+ *
+ * ## It does not revoke access, and cannot
+ *
+ * `entitlements` is not written here, exactly as on the flag path. `active_until`
+ * already holds the date access ends and the clock does the work, so somebody
+ * who paid for a period keeps it even though the subscription ends now.
+ */
+export async function cancelImmediately(stripeSubscriptionId: string): Promise<void> {
+  await stripe().subscriptions.cancel(stripeSubscriptionId);
+
+  const { error } = await serviceClient()
+    .from("subscriptions")
+    /**
+     * ⚠️ WRITTEN AS THE LITERAL, NOT AS `updated.status`.
+     *
+     * Stripe's status type is wider than the `subscription_status` enum this
+     * column stores, and a value the enum does not carry fails the WHOLE update —
+     * leaving the mirror claiming the subscription is still live after Stripe has
+     * ended it, which is the one direction that matters here.
+     *
+     * `subscriptions.cancel()` ends the subscription outright and answers
+     * `canceled`, so there is nothing to narrow and no branch to get wrong. The
+     * webhook reconciles from the live object regardless.
+     */
+    .update({ status: "canceled", cancel_at_period_end: false })
+    .eq("stripe_subscription_id", stripeSubscriptionId);
+
+  // Logged, not thrown, for the reason `applyCancelFlag` gives: Stripe has
+  // accepted the change and it is real. The webhook reconciles a moment later.
+  if (error) {
+    console.error("[billing] mirror not updated after an immediate cancel:", error.message);
+  }
+}
+
+/**
+ * Which mechanism stops this subscription. See {@link cancelImmediately} for why
+ * there are two.
+ *
+ * ⚠️ DEFINED AS THE COMPLEMENT OF A NAMED SET, never as its own literal pair.
+ * `FLAG_CANCELLABLE_STATUSES` already states what the period-end flag may be
+ * applied to; anything the cancel path reaches that is NOT in it is a
+ * subscription the flag cannot stop, and must therefore be stopped now. Written
+ * as its own list, the two would drift the first time a status moved — which is
+ * exactly the defect the three inline status literals were.
+ */
+export function stopsImmediately(status: string): boolean {
+  return !FLAG_CANCELLABLE_STATUSES.has(status);
+}
+
 export async function applyCancelFlag(
   stripeSubscriptionId: string,
   cancelAtPeriodEnd: boolean,
@@ -158,6 +323,41 @@ export async function applyCancelFlag(
     cancel_at_period_end: cancelAtPeriodEnd,
   });
 
+  /**
+   * ⚠️ AN `incomplete` SUBSCRIPTION'S OPEN INVOICE IS VOIDED TOO (D76).
+   *
+   * `cancel_at_period_end` is a promise about the NEXT charge. On an
+   * `incomplete` subscription it does not touch the one ALREADY OUTSTANDING:
+   * Stripe keeps that first invoice payable for about 23 hours, and anything
+   * that settles it turns the subscription `active` on the spot. So a 3D Secure
+   * challenge finished in a tab the user abandoned BEFORE they cancelled still
+   * takes the money — from somebody this flow has just told, in writing, that
+   * they will not be charged. That is the one invariant this project has.
+   *
+   * ⚠️ THIS IS NOT THE IMMEDIATE-CANCEL FUNCTION, which `03` §2 (line 91)
+   * reserves for account deletion. Voiding revokes no paid access, because
+   * nothing here has been paid; it withdraws a demand for money we have just
+   * promised not to make. {@link cancelNowForUser} is not reached from here.
+   *
+   * ONLY on the cancel path. `cancelAtPeriodEnd === false` is somebody RESUMING,
+   * and voiding the invoice they are about to pay would break the thing they
+   * just asked for.
+   */
+  /**
+   * ⚠️ THE MIRROR IS WRITTEN BEFORE THE VOID IS ATTEMPTED, AND THE ORDER IS THE
+   * WHOLE POINT.
+   *
+   * The void throws on failure, deliberately — the caller reports a failed
+   * cancellation and the user retries, which is right, because an unvoided
+   * invoice can still take their money. But with the void ABOVE this write,
+   * that throw skipped the mirror entirely: Stripe held
+   * `cancel_at_period_end: true` while the mirror still said `false`, so the
+   * screen went on offering "Cancel my trial" for a cancellation Stripe had
+   * already accepted. §3.7 calls that "the worst available lie".
+   *
+   * Stripe accepted the flag at the top of this function. The mirror's job is to
+   * reflect that, and it must do so whether or not a later step fails.
+   */
   const { error } = await serviceClient()
     .from("subscriptions")
     .update({ cancel_at_period_end: updated.cancel_at_period_end })
@@ -168,6 +368,10 @@ export async function applyCancelFlag(
   // which is the worst available lie. The webhook reconciles a moment later.
   if (error) {
     console.error("[billing] mirror not updated after a cancel toggle:", error.message);
+  }
+
+  if (cancelAtPeriodEnd && updated.status === "incomplete") {
+    await voidOpenInvoiceFor(updated, stripeSubscriptionId);
   }
 }
 
@@ -229,7 +433,7 @@ export async function cancelNowForUser(userId: string): Promise<{
 
   const cancelled: string[] = [];
   const failed: string[] = [];
-  for (const id of live) {
+  for (const { id } of live) {
     try {
       await stripe().subscriptions.cancel(id);
       cancelled.push(id);

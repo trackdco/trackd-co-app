@@ -7,9 +7,14 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 
+import { Confetti } from "@/components/onboarding/confetti";
+import { Mascot } from "@/components/onboarding/mascot";
+import { recordDocumentAcceptance } from "@/app/(app)/legal-acceptance";
 import { markBetaNoticeSeen } from "@/lib/billing/betaNoticeStore";
+import { CONTINUED_USE_PARTS } from "@/lib/billing/noticeCopy";
 
 /**
  * THE ONE-TIME NOTICE. What happens to the people who were already here.
@@ -67,6 +72,25 @@ export function BetaLaunchNotice({
   isComp: boolean;
 }) {
   const [open, setOpen] = useState(true);
+
+  /**
+   * ⚠️ IF IT CANNOT NAME THE DATE, IT DOES NOT RENDER. The fallback is DELETED,
+   * not weakened.
+   *
+   * This read `{endsOn ? \`until ${endsOn}\` : "two weeks"}` — a `??`-shaped
+   * fallback that converts "I could not resolve this account's expiry" into a
+   * confident claim about how long they have. That is standing rule 0's exact
+   * syntax, and `04` §3.2 already ruled the class: the dateless terms variant was
+   * DELETED rather than kept, because "a version that cannot name the date is not
+   * a weaker acceptable variant, it is a version that must not render".
+   *
+   * Not rendering is a known-acceptable outcome rather than a new one: somebody
+   * who never opens the app gets no notice at all, and the founder accepted that.
+   *
+   * ⚠️ The comp variant states no date, so it is unaffected — a free-for-life
+   * account HAS no expiry, which is the whole distinction `isComp` carries.
+   */
+  const cannotNameTheDate = !isComp && !endsOn;
   /**
    * ⚠️ NOTHING RENDERS UNTIL AFTER MOUNT, AND THIS IS NOT A STYLE CHOICE.
    *
@@ -94,12 +118,118 @@ export function BetaLaunchNotice({
    * without a setState in an effect.
    */
   const mounted = useSyncExternalStore(subscribeNever, () => true, () => false);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   const close = useCallback(() => {
+    /**
+     * ⚠️ THE ACCEPTANCE IS RECORDED, AND IT IS NOT AWAITED.
+     *
+     * Terms v2.0 §25 makes continued use after this notice an acceptance of the
+     * updated Terms and Privacy Policy, and says we record which version. Until
+     * now nothing did: acceptance rows were only ever written at signup, so the
+     * ~86 accounts this notice is shown to would have kept a 1.3 record for ever.
+     *
+     * ⚠️ NOT AWAITED, AND THE ORDER MATTERS. `markBetaNoticeSeen` and
+     * `setOpen(false)` run regardless. A database problem must never stop
+     * somebody dismissing a notice, and the action swallows its own failures for
+     * the same reason — a failed write leaves NO row, which is the honest
+     * result, rather than one claiming an acceptance we could not record.
+     *
+     * ⚠️ It records the Terms and the Privacy Policy ONLY. Never the health-data
+     * consent: Privacy v2.0 §17 says continued use is never treated as consent
+     * to health-data processing, and this is exactly the code that would break
+     * that if it were careless. See `recordDocumentAcceptance`.
+     */
+    void recordDocumentAcceptance();
     markBetaNoticeSeen(userId);
     setOpen(false);
   }, [userId]);
+
+  /**
+   * D31's second control, and Q84's destination: the PRICE LIST.
+   *
+   * ⚠️ THE SAME DESTINATION `05`'s "Choose a plan" uses (D28, "one shared
+   * destination"), so the two surfaces cannot drift into sending people to two
+   * different places to do one thing. Not the card screen: no plan has been
+   * chosen, and asking for a card for a plan nobody picked is the wrong question.
+   *
+   * ⚠️ IT DISMISSES FIRST. The notice shows once, and somebody who taps through
+   * and comes back should not meet it again — `08` carries the standing route via
+   * its subscribe row (D31), which is what makes a one-shot notice safe.
+   *
+   * ⚠️ A FULL DOCUMENT LOAD. The onboarding flow reads `?step=` and its session at
+   * mount and on `popstate` only, so a soft navigation would change the address
+   * bar and leave this app's tree on screen — the defect spec w2b-14 records.
+   */
+  const setUpMyPlan = useCallback(() => {
+    markBetaNoticeSeen(userId);
+    /**
+     * ⚠️ `/plans`, NOT `/onboarding?step=plans` (Adrian, 2026-08-23).
+     *
+     * D28's "one shared destination" is unchanged — every surface that offers a
+     * plan still points at ONE place. That place is now the billing-side route,
+     * because everybody arriving from these surfaces ALREADY HAS AN ACCOUNT and
+     * the onboarding flow was showing them a sign-up progress bar.
+     *
+     * Still a full document load: the flow reads its step at mount, so a soft
+     * navigation would change the address bar and leave this tree on screen.
+     */
+    window.location.assign("/plans");
+  }, [userId]);
+
+  if (!mounted || !open || cannotNameTheDate || typeof document === "undefined") {
+    return null;
+  }
+
+  /**
+   * ⚠️ THE DIALOG IS ITS OWN COMPONENT, AND THAT IS THE FIX (4.2).
+   *
+   * The focus contract used to live in an effect HERE, with deps `[open, close]`.
+   * It never ran against a real node:
+   *
+   *   `open` starts `true`, so it never changes;
+   *   `mounted` is false until hydration, so the first render returns null;
+   *   `dialogRef.current` is therefore null when the effect fires;
+   *   and the deps never change again, so it never re-runs.
+   *
+   * The result was a `role="dialog" aria-modal="true"` that never took focus and
+   * never trapped Tab — focus stayed on `<body>` and Tab walked the dashboard
+   * behind the backdrop. This component's own contract calls that "a lie told to
+   * assistive tech", and it is the once-ever modal every comp and beta account
+   * meets on launch morning.
+   *
+   * ⚠️ SPLIT RATHER THAN ADDING `mounted` TO THE DEPS, which would also have
+   * worked. This removes the CLASS instead of the instance: an effect that
+   * depends on a ref existing cannot fire before the ref exists if the component
+   * holding it only mounts when the ref will be rendered. Three of the four
+   * billing portals already prove the shape — `ReadOnlyGate`'s `ReadOnlyPopup` is
+   * the closest, and this is deliberately the same arrangement.
+   */
+  return (
+    <BetaLaunchDialog
+      isComp={isComp}
+      endsOn={endsOn}
+      close={close}
+      setUpMyPlan={setUpMyPlan}
+    />
+  );
+}
+
+/**
+ * The portal body. **Mounted only when the notice is open**, so its focus effect
+ * runs on mount with a live ref — see the note in {@link BetaLaunchNotice}.
+ */
+function BetaLaunchDialog({
+  isComp,
+  endsOn,
+  close,
+  setUpMyPlan,
+}: {
+  isComp: boolean;
+  endsOn: string | null;
+  close: () => void;
+  setUpMyPlan: () => void;
+}) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   /**
    * The same focus contract `CancelSubscription` and the read-only pop-up both
@@ -108,7 +238,6 @@ export function BetaLaunchNotice({
    * announced.
    */
   useEffect(() => {
-    if (!open) return;
     const node = dialogRef.current;
     // An ENABLED button, falling back to the dialog. `querySelector("button")`
     // returned a disabled one during the pending window, and `.focus()` on a
@@ -158,9 +287,7 @@ export function BetaLaunchNotice({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, close]);
-
-  if (!mounted || !open || typeof document === "undefined") return null;
+  }, [close]);
 
   /**
    * `z-[60]` is THE APP'S MODAL LAYER — the same one `SignOutConfirm`,
@@ -188,58 +315,239 @@ export function BetaLaunchNotice({
         aria-labelledby="beta-notice-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+        /* `relative` + `overflow-hidden` so the confetti is clipped to the card
+           rather than raining down the whole viewport. It is a gift inside a
+           box, not weather. */
+        className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
       >
-        <h2 id="beta-notice-title" className="text-base font-medium text-foreground">
-          {isComp ? "Trackd is yours, for good" : "Trackd is going paid"}
+        {/* ⚠️ ONLY FOR THE COMP VARIANT, and that is the whole point.
+            The other variant tells somebody their free access is ending in a
+            fortnight. Confetti over THAT would be the app celebrating at
+            somebody it is about to charge, which is the single worst thing this
+            screen could do.
+
+            The shared `Confetti` from the onboarding flow, unchanged: one shot
+            over ~2.2s, `pointer-events-none`, and it collapses to nothing under
+            `prefers-reduced-motion` through the opt-out in `globals.css`.
+            `ui-context.md` bans ambient particles; the line is whether it keeps
+            going after you have looked at it, and this does not. */}
+        {/**
+          * ⚠️ CONFETTI ON BOTH VARIANTS NOW (Adrian, 2026-08-25).
+          *
+          * It was comp-only, on the reasoning that confetti means good news and
+          * "the app is going paid" is not. Adrian ruled the other way having seen
+          * it: the fortnight IS the good news for this cohort — they were here
+          * first and they are being given two more weeks — and a bare notice
+          * reads colder than the message deserves.
+          *
+          * The animation is unchanged: ~2.2s, `pointer-events-none`, and it
+          * collapses to nothing under `prefers-reduced-motion`. `ui-context`
+          * bans ambient particles; the test is whether it keeps going after you
+          * have looked at it, and this does not.
+          */}
+        <Confetti />
+
+        {/**
+          * ⚠️ KYLE, FLEX POSE — AND THE SIGNED COPY IS UNTOUCHED BY HIM
+          * (Adrian, 2026-08-23).
+          *
+          * The ask was "bigger title, and Kyle somewhere if we can", chosen over
+          * emoji. That distinction is load-bearing: the BODY of this notice is
+          * signed prose pinned character for character by `graceCopyPin.test.ts`,
+          * so emoji in the text would have needed re-signing. Kyle is an IMAGE
+          * beside the text, so every signed line is byte-identical and the pin
+          * keeps passing untouched.
+          *
+          * Flex rather than thumbs: this notice tells early users they were here
+          * first and have two more weeks on us. Flex reads as celebrating them.
+          *
+          * ⚠️ HE IS A VIAL, NEVER A JAR — and he appears ONLY here among the
+          * billing surfaces. Not on the read-only pop-up, the declined banner or
+          * the cancel dialog: a mascot beside "your card failed" reads as mockery.
+          */}
+        {/* ⚠️ KYLE ALREADY HOVERS — no wrapper needed, and adding one was wrong.
+            `Mascot` renders with `.animate-kyle`, which is
+            `kyle-in 760ms` then `kyle-float 3600ms ease-in-out infinite alternate`
+            (globals.css:914), and `globals.css:968` already kills it under
+            `prefers-reduced-motion`. Adrian asked for the float; it was there. */}
+        <div className="relative mb-2 flex justify-center">
+          <Mascot pose="flex" size={96} />
+        </div>
+
+        {/* ⚠️ APPROVED COPY, CHARACTER FOR CHARACTER (06 §3.6). A fix WITHHOLDS a
+            line, it never rewords one. No em dash. Kyle is a vial, never a jar.
+            "Read only" is the exact phrase. */}
+        <h2
+          id="beta-notice-title"
+          className="relative text-lg font-medium text-foreground"
+        >
+          {isComp ? "Trackd Co is yours. For life." : "Trackd Co is going paid!"}
         </h2>
 
         {isComp ? (
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">
-            Trackd now costs money for new users. Yours doesn&apos;t, and it
-            won&apos;t. Thanks for being here early.
-          </p>
+          <div className="relative">
+            <p className="mt-2 text-sm leading-relaxed text-pretty text-text-muted">
+              Adrian and Angus have given you free access for life.
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">
+              It costs money for everyone else from today. Not for you, not now
+              and not later. No card, no renewal, nothing to cancel.
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">
+              You were here for the version that barely worked, and you stayed.
+              That&apos;s worth more than a subscription.
+            </p>
+          </div>
         ) : (
           <>
-            {/* WHAT THEY KEEP, FIRST. Somebody reading this is asking "am I
-                about to lose two months of logs", and answering that before
-                anything about money is the only order that is not a threat. */}
-            <p className="mt-2 text-sm leading-relaxed text-text-muted">
-              You&apos;ve been using Trackd for free while we built it, and
-              everything you&apos;ve logged is yours to keep. That doesn&apos;t
-              change.
+            <p className="mt-2 text-sm leading-relaxed text-pretty text-text-muted">
+              You&apos;ve been using it free while we built it, and everything
+              you&apos;ve logged is yours to keep. That doesn&apos;t change.
             </p>
-            <p className="mt-3 text-sm leading-relaxed text-text-muted">
-              {/* THE DATE, PLAINLY. It is the only fact here that requires an
-                  action, so it is the only one in the foreground colour. */}
-              From now on Trackd is a paid app. You&apos;ve got{" "}
-              <span className="text-foreground">
-                {endsOn ? `until ${endsOn}` : "two weeks"}
-              </span>{" "}
-              on us to decide.
+            <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">
+              {/**
+               * ⚠️ THE DATE COMES FROM THE ENTITLEMENT ROW AND IS COMPUTED FROM
+               * NOTHING. `dashboard/page.tsx` formats `activeUntil` server-side
+               * in the user's stored timezone and hands it here.
+               *
+               * D86 sets that row at apply time on launch morning, so a notice
+               * that READS it is automatically right whenever launch happens,
+               * and one that computed anything would be wrong the moment the
+               * date moved. This is the single place the re-dating migration and
+               * the copy could silently disagree.
+               *
+               * ⚠️ AND IT MUST NEVER SHOW THE CLAMPED INSTANT.
+               * `app/onboarding/page.tsx` deliberately runs `resolveFreeTime`
+               * and shows the clamp, because that screen states a CHARGE date
+               * and has to match what Stripe will hold. The clamp only moves
+               * LATER, so showing it here would promise access up to 48 hours
+               * beyond `active_until` — and `05`'s gate lapses AT
+               * `active_until`. Charge date is clamped; access-ends date is the
+               * row.
+               *
+               * "two more weeks" is SIGNED PROSE and does not derive from
+               * `BETA_GRACE_DAYS` (Adrian, 2026-08-17). Deriving it would mean
+               * generating unsigned wording for values nobody approved. The
+               * constant is PINNED to it by a test instead, so it cannot drift
+               * away from the sentence silently.
+               */}
+              From today it&apos;s a paid app, and because you were here early
+              you&apos;ve got two more weeks on us, until{" "}
+              <span className="text-foreground">{endsOn}</span>.
             </p>
-            <p className="mt-3 text-sm leading-relaxed text-text-muted">
-              {/* AND WHAT "no" COSTS, said out loud rather than discovered.
-                  Somebody who reads this and does nothing should not be
-                  surprised by anything that happens next. */}
-              After that you can still open Trackd and read everything in it. You
-              just won&apos;t be able to log anything new until you subscribe.
+            <p className="mt-3 text-sm leading-relaxed text-pretty text-text-muted">
+              After that your account goes read only. You&apos;ll still see
+              everything you&apos;ve logged, you just can&apos;t add to it.
               Nothing gets deleted.
             </p>
           </>
         )}
 
-        <button
-          type="button"
-          onClick={close}
-          className="mt-5 w-full rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {/* One button, and it is not "Subscribe". This is a notice, and
-              putting the ask on it would make the notice a sales pitch and the
-              date a threat. The pop-up with the prices is one blocked action
-              away, and /billing is on Profile. */}
-          Got it
-        </button>
+        {/**
+         * D32, counsel-advised and founder-signed, carried character for
+         * character, on BOTH variants — a comped account is still a user bound
+         * by the terms.
+         *
+         * ⚠️ NOTHING HERE IS AN ACCEPT BUTTON. Acceptance is continued use after
+         * notice, so neither control changes its label, behaviour or meaning,
+         * and neither may be styled as one.
+         */}
+        <p className="relative mt-4 text-[11px] leading-relaxed text-text-subtle">
+          {CONTINUED_USE_PARTS.lead}{" "}
+          <Link
+            href="/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-2 hover:text-text-muted"
+          >
+            {CONTINUED_USE_PARTS.terms}
+          </Link>{" "}
+          {CONTINUED_USE_PARTS.join}{" "}
+          <Link
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-2 hover:text-text-muted"
+          >
+            {CONTINUED_USE_PARTS.privacy}
+          </Link>
+          {CONTINUED_USE_PARTS.end}
+        </p>
+
+        {/**
+          * ⚠️ READING LINKS, NOT ACCEPTANCE. The signed sentence above names the
+          * Terms and the Privacy Policy and is PINNED — it is untouched, and the
+          * acceptance it describes covers those two only.
+          *
+          * ⚠️ "PINNED" WAS NOT TRUE WHEN THIS WAS WRITTEN, AND IS NOW. Measured
+          * 2026-08-26: the sentence lived only as JSX text here, so no test in
+          * the repo could see it and reverting it would have left every test
+          * green. It renders from `CONTINUED_USE_PARTS` and is diffed codepoint
+          * for codepoint against `signed/continued-use.txt`. The claim was made
+          * true rather than removed.
+          *
+          * These two are here so the documents can be READ from the notice that
+          * announces them. The Medical Disclaimer because it changed in v2.0 too;
+          * the Consumer Health Data Privacy Policy because Washington's My Health
+          * My Data Act wants it findable, and this notice reaches every account
+          * that predates billing.
+          *
+          * ⚠️ NEITHER IS RECORDED AS ACCEPTED. `recordDocumentAcceptance` writes
+          * `tos` and `privacy` and nothing else, deliberately — a link somebody
+          * can click is not an agreement somebody gave.
+          */}
+        <p className="relative mt-2 text-[11px] leading-relaxed text-text-subtle">
+          <Link
+            href="/medical-disclaimer"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-2 hover:text-text-muted"
+          >
+            Medical Disclaimer
+          </Link>
+          {" · "}
+          <Link
+            href="/consumer-health-data"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-2 hover:text-text-muted"
+          >
+            Consumer Health Data Privacy Policy
+          </Link>
+        </p>
+
+        {/**
+         * D31, re-decided: BOTH controls ship on the beta variant.
+         *
+         * ⚠️ THE HIERARCHY IS THE DECISION, NOT THE BUTTON COUNT (§3.6). The
+         * screen's credibility rests on applying no pressure, so the DISMISSAL
+         * reads as the expected action and the route to checkout is available
+         * without being urged. A secondary control is never amber.
+         *
+         * The comp variant keeps one button and it is not "Got it": that is what
+         * you say to a warning, and this is not a warning.
+         */}
+        <div className="relative mt-5 flex gap-3">
+          <button
+            type="button"
+            onClick={close}
+            /* `relative` on the row, so it stacks above the confetti layer. The
+               burst is `pointer-events-none` so it could never have swallowed a
+               tap, but a button drawn UNDER falling pieces reads as decoration. */
+            className={`${isComp ? "w-full" : "flex-1"} rounded-2xl bg-accent-primary py-3 text-sm font-medium text-bg-base outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring`}
+          >
+            {isComp ? "Thank you" : "Got it"}
+          </button>
+          {isComp ? null : (
+            <button
+              type="button"
+              onClick={setUpMyPlan}
+              className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Set up my plan
+            </button>
+          )}
+        </div>
       </div>
     </div>,
     document.body,

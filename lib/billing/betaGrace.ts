@@ -8,8 +8,8 @@
  *
  * Adrian's answer, 2026-08-13:
  *
- *   COMP FOREVER      {@link COMP_EMAILS}. Two addresses today, and he owes a
- *                     list of friends to add.
+ *   COMP FOREVER      {@link COMP_EMAILS}. Five: the two founder accounts and
+ *                     three friends. Closed as of 2026-08-14.
  *   EVERYONE ELSE     {@link BETA_GRACE_DAYS} free, then the read-only gate.
  *   A ONE-TIME NOTICE explaining it, on next open.
  *
@@ -20,16 +20,36 @@
  * actually closes payment processor accounts: people who feel ambushed dispute
  * charges, and a dispute rate is not recoverable by apologising afterwards.
  *
- * ## Pure, and it holds no secrets
+ * ## Pure, but SERVER-ONLY
  *
  * The whole file is data and one predicate, so it can be tested without a
- * database and imported from anywhere. The grant itself lives in
- * `app/api/billing/beta-grace/route.ts`, which is the only thing that writes
- * `entitlements` and is secured like the cron.
+ * database. The grant itself lives in `app/api/billing/beta-grace/route.ts`,
+ * which is the only thing that writes `entitlements` and is secured like the
+ * cron.
+ *
+ * ⚠️ IT IS NOT IMPORTABLE FROM ANYWHERE, and the `server-only` import below is
+ * what makes that a fact rather than a convention. {@link COMP_EMAILS} is five
+ * real people's email addresses, and until now nothing but habit stopped a
+ * client component pulling them into a browser bundle — where they would be
+ * readable by anyone who opened the network tab. Every importer in the
+ * application is already server-side, so this costs nothing and closes the
+ * hole permanently: importing this from a client component now FAILS THE BUILD.
+ *
+ * The marker has no runtime and is not a real package outside a Next bundle, so
+ * Vitest resolves it to a no-op stub (`vitest.config.ts` → `test/server-only-stub.ts`).
+ * The stub is why the tests below still run; it does not weaken the guarantee,
+ * which is enforced by the bundler.
  */
 
+import "server-only";
+
+import { isBetaGrace } from "./manage";
+import { serviceClient } from "./service";
+
 /**
- * ⚠️ FREE FOREVER. ADRIAN OWES A LIST OF FRIENDS FOR THIS — REMIND HIM.
+ * ⚠️ FREE FOREVER. Complete as of 2026-08-14: two founder accounts and three
+ * friends. Adrian closed the list, so a further addition is a new decision
+ * rather than an outstanding one.
  *
  * Add one string per line. Lowercase, and the comparison lowercases the input
  * too, so a capitalised sign-up address still matches.
@@ -47,9 +67,24 @@
  * do it. Two lists, two meanings, no accidental privilege.
  */
 export const COMP_EMAILS: readonly string[] = [
+  // The two founder accounts.
   "admin@trackdco.app",
   "adrianschimizzi1@gmail.com",
-  // ADD FRIENDS HERE, one per line, lowercase.
+  // Friends, given Trackd for life (Adrian, 2026-08-14).
+  //
+  // ⚠️ LOWERCASE, ALWAYS. `betaGrantFor` lowercases what it is given, so a
+  // capitalised sign-up address still matches — but only if the entry here is
+  // lower. "Ananthr.ravi@gmail.com" as written would never match anything, and
+  // the failure is silent: they would simply get the ordinary fourteen days and
+  // lapse a fortnight later. A test pins that every entry is lowercase.
+  "jasminemalihi06@gmail.com",
+  "ananthr.ravi@gmail.com",
+  // Given as "Angusbrake6@gmail.com" and lowercased here, which is the whole
+  // point of the warning above.
+  "angusbrake6@gmail.com",
+  // The list is CLOSED for now (Adrian, 2026-08-14). Anyone added after the
+  // backfill has run needs the re-run path, which upgrades an existing
+  // fourteen-day row to no-expiry; the first run skips them entirely.
 ];
 
 /**
@@ -108,12 +143,23 @@ export function grantExpiry(grant: BetaGrant, from: Date): string | null {
  * `{status, trialEndsAt, cancelAtPeriodEnd}` shape, and a grace period is
  * exactly that shape with the end date taken from the entitlement instead of
  * from Stripe. See `graceAsTrial`.
+ *
+ * ## ⚠️ THE IMPLEMENTATION MOVED TO `./manage`, AND IT IS RE-EXPORTED HERE
+ *
+ * `08-billing-screen.md` §3.6 requires the billing DISPLAY module to use this
+ * predicate rather than write a second one. That module is reachable from a
+ * client component and THIS one carries `server-only`, so it could not import
+ * from here: the dependency can only point the other way, exactly as it does for
+ * `CANCELLABLE_STATUSES`, which `cancel.ts` imports from `manage.ts` for the
+ * same reason.
+ *
+ * So the predicate lives in the pure module and is re-exported from here. Every
+ * existing importer — `graceAsTrial` below, the dashboard, the reminder runner
+ * and `betaGrace.test.ts` — is unchanged, and there is still exactly ONE
+ * implementation. A copy in the display module would have been the defect this
+ * area keeps paying for.
  */
-export function isBetaGrace(
-  entitlement: { source: string; activeUntil: string | null } | null,
-): boolean {
-  return Boolean(entitlement && entitlement.source === "comp" && entitlement.activeUntil);
-}
+export { isBetaGrace };
 
 /**
  * The grace period, described as the trial it functionally is.
@@ -135,4 +181,80 @@ export function graceAsTrial(
     // have opted out of a charge, and the notice is owed either way.
     cancelAtPeriodEnd: false,
   };
+}
+
+/**
+ * ⚠️ D71 — GRANT THE COMP ROW AT SIGNUP, FOR THE PEOPLE THE LIST NAMES.
+ *
+ * ## Why this exists, and why it is the OTHER half of the fix
+ *
+ * The refusal in `startTrial` stops a comp-list member being charged. It does
+ * not stop them landing in read-only the moment the gate goes on at P13,
+ * because nothing grants them a row and the only writer today is the hand-run
+ * backfill — which by definition ran before they signed up. So the person Adrian
+ * promised Trackd to for life gets the app taken off them on launch morning.
+ *
+ * **Both, not either.** If this grant ever fails or races, the refusal is still
+ * what stops the charge; if the refusal were ever weakened, this is what keeps
+ * their access. Neither is load-bearing alone.
+ *
+ * ## Cheap for everybody who is not on the list
+ *
+ * `betaGrantFor` is a pure in-memory membership test, so for every ordinary
+ * sign-in this is a string comparison and returns without touching the network.
+ * Only the five addresses on the list ever reach the write.
+ *
+ * ## Idempotent, and it never overwrites a decision
+ *
+ * `ignoreDuplicates` on the natural key, so a second run is a no-op — and, more
+ * importantly, a row that already exists is LEFT ALONE. That is deliberate in
+ * two directions:
+ *
+ *   - a comp that has been REVOKED (`is_active` false) stays revoked. Someone
+ *     decided that, and a sign-in must not undo it.
+ *   - a time-limited grace row keeps its date; upgrading those to forever is the
+ *     backfill's job and it does it by UPDATE.
+ *
+ * ⚠️ Verified against the P11 backfill: a row written here is picked up by
+ * `answered`, which is built from ANY entitlement row, and is not in
+ * `timeLimitedComp`, which requires a dated one — so the backfill skips it
+ * rather than attempting a second INSERT against the unique key.
+ *
+ * ⚠️ SERVICE ROLE, SERVER ONLY. `entitlements` grants `authenticated` an
+ * own-row SELECT and no write at all, so a user-scoped client cannot do this and
+ * must never be asked to. This module already carries `server-only`.
+ *
+ * Never throws. A failure here is logged and left: the caller is an auth
+ * redirect, and a comp who cannot be granted a row is still refused a purchase
+ * by `startTrial`, which is the half that costs money.
+ */
+export async function ensureCompEntitlement(
+  userId: string,
+  email: string | null | undefined,
+): Promise<void> {
+  if (betaGrantFor(email).kind !== "comp") return;
+
+  try {
+    const { error } = await serviceClient().from("entitlements").upsert(
+      {
+        user_id: userId,
+        product: "pro",
+        source: "comp",
+        // Free for life. `is_active_now` reads a null date as "does not expire".
+        active_until: null,
+        is_active: true,
+      },
+      { onConflict: "user_id,product,source", ignoreDuplicates: true },
+    );
+    if (error) {
+      console.error(`[billing] could not grant the comp entitlement for ${userId}:`, error.message);
+      return;
+    }
+    console.info(`[billing] comp entitlement ensured for ${userId}`);
+  } catch (err) {
+    console.error(
+      `[billing] could not grant the comp entitlement for ${userId}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 }

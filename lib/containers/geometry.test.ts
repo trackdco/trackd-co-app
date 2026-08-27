@@ -149,12 +149,39 @@ describe("containersHaveOneSource — the structural guard", () => {
       return out
     }
 
+    /**
+     * ⚠️ THE READS RUN IN PARALLEL, AND THAT IS A CORRECTNESS FIX, NOT A SPEED-UP.
+     *
+     * This walked ~516 files with `await readFile` inside a nested `for`, one at a
+     * time. On a loaded machine that exceeds vitest's 5000ms default and the test
+     * fails with **"Test timed out in 5000ms"** — before the assertion below has
+     * run at all.
+     *
+     * It was logged as a flake, then as a mystery: reproducing the predicate by
+     * hand found no offenders, so "the guard and its stated logic disagree" went
+     * into a handover as an unexplained defect. They never disagreed. The guard is
+     * correct and the check simply never reached it.
+     *
+     * ⚠️ A STRUCTURAL GUARD THAT FAILS FOR A REASON UNRELATED TO WHAT IT GUARDS IS
+     * WORSE THAN NO GUARD. It trains the next person to re-run it until it passes,
+     * which is exactly what happened here across several sessions. So: the reads
+     * are concurrent, and the timeout is explicit and generous, so a slow disk
+     * produces a SLOW PASS rather than a false failure.
+     */
+    const files: string[] = []
+    for (const root of ROOTS) files.push(...(await walk(root)))
+    const candidates = files.filter((file) => {
+      const rel = relative(process.cwd(), file).split("\\").join("/")
+      return !ALLOWED.some((a) => rel.endsWith(a))
+    })
+    const sources = await Promise.all(
+      candidates.map(async (file) => [file, await readFile(file, "utf8")] as const),
+    )
+
     const offenders: string[] = []
-    for (const root of ROOTS) {
-      for (const file of await walk(root)) {
+    {
+      for (const [file, src] of sources) {
         const rel = relative(process.cwd(), file).split("\\").join("/")
-        if (ALLOWED.some((a) => rel.endsWith(a))) continue
-        const src = await readFile(file, "utf8")
         // The copy's signature: walk a compound's routes, MATCH ONE by route,
         // and take its inventory type. Reading a vial's own stored
         // `inventoryType`, or offering the whole list of forms, is a different
@@ -167,8 +194,15 @@ describe("containersHaveOneSource — the structural guard", () => {
       }
     }
 
+    /**
+     * ⚠️ THE CONTROL: the walk must actually have found the tree. An empty
+     * `offenders` is only meaningful if files were READ — a walk that silently
+     * returned nothing (wrong cwd, renamed directory) would produce a green pass
+     * that proves nothing at all. Rule 0: absent is not the same as unchecked.
+     */
+    expect(sources.length).toBeGreaterThan(200)
     expect(offenders).toEqual([])
-  })
+  }, 30_000)
 })
 
 describe("tubPowder — the surface falls, the floor stays put", () => {

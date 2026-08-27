@@ -12,7 +12,39 @@ const nextConfig: NextConfig = {
   // segment by segment, so `192.168.*.*` covers a home network without also
   // allowing any public host. It grants nothing in production, and in dev only
   // to machines already on the same LAN as the running dev server.
-  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.16.*.*", "*.local"],
+  //
+  // ⚠️ THE 172 RANGE IS SIXTEEN /16s AND THE MATCHER IS A GLOB, NOT CIDR.
+  //
+  // This read `"172.16.*.*"`, which looks like it covers RFC 1918's
+  // `172.16.0.0/12` and does not: the pattern matches segment by segment, so it
+  // grants only the FIRST of the sixteen /16s in that block (172.16.x.x), while
+  // the range actually runs 172.16 through 172.31.
+  //
+  // That gap has a specific, common victim. An iPhone Personal Hotspot always
+  // hands out `172.20.10.x` — so previewing on a phone tethered to its own
+  // hotspot, which is the most convenient way to do it, was the one case that
+  // could not work. The page itself returned 200 (HTML is not gated) while every
+  // dev asset and HMR request was refused, so the phone showed a blank screen
+  // and the server log showed nothing but success. Found 2026-08-27.
+  //
+  // Enumerated rather than widened to `172.*.*.*`, which would also grant the
+  // public 172.0-15 and 172.32-255 space.
+  allowedDevOrigins: [
+    // ⚠️ LOCALHOST IS NOT IMPLICIT ONCE YOU BIND TO 0.0.0.0.
+    //
+    // While the server binds to 127.0.0.1 these two are same-origin and need no
+    // entry, which is why the list went so long without them. Bind to 0.0.0.0
+    // to let a phone in — the entire reason this setting exists — and the
+    // origin no longer matches the bind host, so your OWN browser is refused
+    // and the page renders blank. Listing them costs nothing and removes a trap
+    // that only springs when someone does the thing this config is for.
+    "127.0.0.1",
+    "localhost",
+    "192.168.*.*",
+    "10.*.*.*",
+    ...Array.from({ length: 16 }, (_, i) => `172.${16 + i}.*.*`),
+    "*.local",
+  ],
 
   // The floating "N" badge in dev. It is Next's own route indicator, not ours,
   // and it never ships — but it is pinned bottom-left, which is exactly where a

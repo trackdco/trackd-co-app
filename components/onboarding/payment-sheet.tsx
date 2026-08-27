@@ -13,6 +13,7 @@ import {
 import { CircleNotch } from "@/components/icons";
 import { startTrial } from "@/app/onboarding/billing-actions";
 import type { PlanId } from "@/lib/onboarding/pricing";
+import type { IntentKind } from "@/lib/billing/stripe";
 
 import { paymentAppearance } from "./stripe-appearance";
 
@@ -80,22 +81,80 @@ export type PaymentOutcome =
 export function PaymentSheet({
   plan,
   currency,
+  mode,
+  amountMinor,
+  ready,
   ctaLabel,
   disclosure,
   onOutcome,
+  notice,
+  onModeCorrection,
 }: {
   plan: PlanId;
   /** Lowercase ISO 4217, as Stripe reports it for the selected price. */
   currency: string;
+  /**
+   * ⚠️ WHICH MODE ELEMENTS MOUNTS IN, AND IT CANNOT BE CHANGED AFTERWARDS.
+   *
+   * This is the crux of spec 02a §3.3. Stripe takes `mode` at mount, but the
+   * client secret only arrives after the user presses the button — far too late
+   * to decide which kind of sheet they should have been looking at. So the mode
+   * is derived from `trialEligibility()` BEFORE this mounts, and the CTA stays
+   * unpressable until that answer lands.
+   *
+   * `setup` = nothing due today. `payment` = an amount due today, and
+   * {@link amountMinor} must be present.
+   */
+  mode: IntentKind;
+  /**
+   * ⚠️ HAS THE SERVER'S ELIGIBILITY ANSWER LANDED? Until it has, the CTA is not
+   * pressable (spec 02a §3.3).
+   *
+   * The FIELDS still mount immediately, so the user can fill their card in
+   * while the answer is in flight and the screen never flashes empty. Only the
+   * commit waits — because pressing early is now the difference between a sheet
+   * that collects a card and one that takes money.
+   */
+  ready: boolean;
+  /**
+   * The charge, in Stripe's own minor units, for `mode: "payment"` only.
+   *
+   * ⚠️ Comes from `price.unit_amount` and is NEVER the display figure
+   * multiplied back up: measured on this account, `69.99 * 100` is
+   * `6998.999999999999`, so the yearly plan would be handed a non-integer and
+   * either error or round to $69.98.
+   */
+  amountMinor?: number;
   ctaLabel: string;
   /**
-   * The trial/price/date/auto-renewal disclosure, rendered DIRECTLY ABOVE the
-   * CTA — see `PaymentForm`. It is passed in rather than built here because the
-   * paywall owns the wording and the figures; what this component owns is that
-   * it cannot be separated from the button.
+   * The trial/price/date/auto-renewal disclosure, rendered IMMEDIATELY BELOW the
+   * CTA — see the render at the foot of this file. It is passed in rather than built
+   * here because the paywall owns the wording and the figures; what this component
+   * owns is that it cannot be separated from the button.
+   *
+   * ⚠️ THIS SAID "DIRECTLY ABOVE" AND CONTRADICTED THIS FILE'S OWN RENDER. `09` §3.5
+   * Step 5 moved it below; the render comment says so in capitals. Restoring "above"
+   * on the strength of this line would reintroduce the audited scroll defect.
    */
   disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
+  /**
+   * A message from OUTSIDE a submit — today, what a returning bank redirect
+   * resolved to (§3.5). Rendered in the same slot as a confirm error so there
+   * is one place a user looks for what went wrong, and cleared by the next
+   * attempt like any other.
+   */
+  notice?: string;
+  /**
+   * ⚠️ THE SERVER DISAGREED ABOUT WHAT THIS SHEET SHOULD BE (§3.3).
+   *
+   * Called with the mode the server actually resolved, so the screen above can
+   * re-render the sheet — and `02b`'s copy with it — instead of leaving a
+   * disclosure on screen describing a deal the server has just declined to
+   * make. Nothing has been confirmed and nothing charged when this fires; the
+   * subscription created for the mismatched attempt is already cancelled.
+   */
+  onModeCorrection?: (mode: IntentKind) => void;
 }) {
   if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
     // Said out loud rather than rendered as an empty space. This is the one
@@ -108,15 +167,73 @@ export function PaymentSheet({
     );
   }
 
+  /**
+   * ⚠️ A PAYMENT SHEET WITH NO AMOUNT REFUSES TO MOUNT (§3.3's invariant).
+   *
+   * `amount` was previously defaulted to `amountMinor ?? 0` at the `Elements`
+   * options below, so a missing amount mounted a live card form priced at zero
+   * rather than saying anything. That is the silent direction, on the one screen
+   * where silence costs money: the user sees a normal card form, and what the
+   * server is asked for is not what the screen implied.
+   *
+   * `undefined` is the only value being tested. Zero is not a defect — it is a
+   * price nobody charges today, but it is a STATED one, and it must not be
+   * conflated with the absence of a price.
+   *
+   * The copy is `checkout.tsx`'s existing "couldn't load your plan" error, the
+   * one `02b` §3.3 names for exactly this refusal, reused verbatim rather than
+   * written fresh. "Go back" is still true: this sheet mounts on that screen.
+   */
+  /**
+   * ⚠️ `amount: undefined` IS PASSED EXPLICITLY IN THE SETUP BRANCH.
+   *
+   * These two are resolved together, before the options object, so the compiler
+   * enforces the refusal rather than a cast asserting it: there is no way to
+   * reach `mode: "payment"` below without a defined `amount`. Written as a
+   * compound guard at the `Elements` call, TypeScript could not correlate the
+   * two parameters and the only way through was a non-null assertion — which
+   * would have restated the invariant instead of checking it.
+   */
+  let modeOptions:
+    | { mode: "payment"; amount: number }
+    | { mode: "setup"; amount: undefined };
+  if (mode === "payment") {
+    if (amountMinor === undefined) {
+      return (
+        <p role="alert" className="text-center text-[0.8rem] text-[var(--state-error)]">
+          We couldn&apos;t load your plan just now. Please go back and try again.
+        </p>
+      );
+    }
+    modeOptions = { mode: "payment", amount: amountMinor };
+  } else {
+    modeOptions = { mode: "setup", amount: undefined };
+  }
+
   return (
     <Elements
       stripe={getStripe()}
       options={{
-        // SETUP mode: nothing is owed today, so there is no amount and no
-        // PaymentIntent. `setupFutureUsage` is what tells Stripe the card is
-        // being kept for a later off-session charge — which is exactly what a
-        // trial converting on day 7 is.
-        mode: "setup",
+        /**
+         * SETUP: nothing is owed today, so there is no amount and no
+         * PaymentIntent. `setupFutureUsage` tells Stripe the card is kept for a
+         * later off-session charge, which is exactly what a trial converting on
+         * day 7 is.
+         *
+         * PAYMENT: an amount is due now. Stripe requires `amount` in minor
+         * units at mount. `setupFutureUsage` stays, because the card must also
+         * be saved for the renewal — a paid-today customer who had to re-enter
+         * their card next month would be a worse outcome than the trial's.
+         */
+        /**
+         * Resolved above. The setup branch names `amount` and clears it rather
+         * than omitting the key: these options are spread into one object that
+         * Stripe reads on mount and on every update, so leaving the key out
+         * would let a server mode correction (`onModeCorrection`, §3.3) from
+         * payment to setup strand a stale amount on a sheet that now owes
+         * nothing. The correction cannot half-apply.
+         */
+        ...modeOptions,
         currency,
         setupFutureUsage: "off_session",
         /**
@@ -143,9 +260,13 @@ export function PaymentSheet({
     >
       <PaymentForm
         plan={plan}
+        mode={mode}
+        ready={ready}
         ctaLabel={ctaLabel}
         disclosure={disclosure}
         onOutcome={onOutcome}
+        notice={notice}
+        onModeCorrection={onModeCorrection}
       />
     </Elements>
   );
@@ -153,14 +274,26 @@ export function PaymentSheet({
 
 function PaymentForm({
   plan,
+  mode,
+  ready,
   ctaLabel,
   disclosure,
   onOutcome,
+  notice,
+  onModeCorrection,
 }: {
   plan: PlanId;
+  /** The mode Elements was mounted in. The confirm call must match it. */
+  mode: IntentKind;
+  /** False until eligibility resolves. Disables the CTA, nothing else. */
+  ready: boolean;
   ctaLabel: string;
   disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
+  /** See `PaymentSheet`. */
+  notice?: string;
+  /** See `PaymentSheet`. */
+  onModeCorrection?: (mode: IntentKind) => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -204,18 +337,50 @@ function PaymentForm({
         return;
       }
 
-      // NOTHING IS CREATED UNTIL HERE. This is the commit.
-      const result = await startTrial(plan);
+      /**
+       * NOTHING IS CREATED UNTIL HERE. This is the commit.
+       *
+       * The mounted mode goes with it so the server can refuse to hand back a
+       * secret this sheet cannot confirm — see the mode gate in `startTrial`.
+       */
+      const result = await startTrial(plan, mode);
       if (result.status === "already-subscribed") {
         onOutcome({ status: "already-subscribed" });
         return;
       }
       if (result.status === "error") {
+        /**
+         * ⚠️ A MODE MISMATCH. The server cancelled what it made and confirmed
+         * nothing; `serverMode` names what this sheet should have been.
+         *
+         * Handing it up re-renders the sheet in that mode, which re-renders
+         * `02b`'s copy with it, so the disclosure and the button stop describing
+         * a deal the server has just declined to make.
+         */
+        if (result.serverMode) onModeCorrection?.(result.serverMode);
         fail(result.message);
         return;
       }
 
-      const { error: confirmError } = await stripe.confirmSetup({
+      /**
+       * ⚠️ THE SECOND HALF OF THE MODE GATE, on the client.
+       *
+       * The server already refused a mismatch, so this cannot normally fire. It
+       * is here because the cost of the two disagreeing is a charge against a
+       * screen that promised free days, and `confirmPayment` on a sheet mounted
+       * in setup mode is a call that must never be reachable by any route —
+       * including a future caller that forgets to pass its mounted mode.
+       */
+      if (result.intentKind !== mode) {
+        console.error(
+          `[billing] refusing to confirm: sheet is "${mode}", server returned "${result.intentKind}"`,
+        );
+        onModeCorrection?.(result.intentKind);
+        fail("Your plan details changed. Please check them and try again.");
+        return;
+      }
+
+      const confirmArgs = {
         elements,
         clientSecret: result.clientSecret,
         confirmParams: {
@@ -230,8 +395,21 @@ function PaymentForm({
         // Keep the user on THIS page wherever the bank allows it. The spec's
         // rule is that they never leave for a stripe.com domain, and most 3DS
         // challenges can run in a modal rather than a navigation.
-        redirect: "if_required",
-      });
+        redirect: "if_required" as const,
+      };
+
+      /**
+       * ⚠️ TWO DIFFERENT STRIPE CALLS, chosen by the kind the server returned
+       * and never by anything the client inferred.
+       *
+       * `confirmSetup` saves a card for later. `confirmPayment` takes money
+       * now. They are not interchangeable and the wrong one against the wrong
+       * intent either errors or charges.
+       */
+      const { error: confirmError } =
+        result.intentKind === "payment"
+          ? await stripe.confirmPayment(confirmArgs)
+          : await stripe.confirmSetup(confirmArgs);
 
       if (confirmError) {
         fail(confirmError.message ?? "That card couldn't be confirmed.");
@@ -246,15 +424,36 @@ function PaymentForm({
     } finally {
       setBusy(false);
     }
-  }, [stripe, elements, plan, onOutcome]);
+  }, [stripe, elements, plan, mode, onOutcome, onModeCorrection]);
 
   return (
-    <div className="space-y-4">
+    /**
+     * ⚠️ `space-y-3`, NOT `space-y-4` (09 Step 6).
+     *
+     * `ui-context.md`'s Spacing & Rhythm table sanctions three stack steps —
+     * `space-y-5`, `space-y-3` and `space-y-1` — and says in as many words that the
+     * listed values "are the only spacing values for page structure: no per-screen
+     * ad-hoc margins or padding", and to "reuse them rather than reaching for a new
+     * step". **16px is a new step.** `space-y-3` is also the flow's de facto
+     * dominant gap (19 uses across `components/onboarding` against 7 of `space-y-4`).
+     *
+     * ⚠️ SUBTRACTIVE, DELIBERATELY. 320x568 cannot fit the four facts and the button
+     * (`02b` §3.7's accepted §9g limitation), so nothing here may cost a pixel: this
+     * removes 12px, or 16px while the error/notice slot is filled.
+     */
+    <div className="space-y-3">
       {/* THE WALLETS, ABOVE THE CARD FIELDS. Not optional and not a nicety —
           the spec calls this the primary conversion path on mobile, and a
-          buried Apple Pay button is a button nobody uses. `ExpressCheckoutElement`
-          renders nothing at all on a device with no wallet configured, so it
-          costs a desktop user no space. */}
+          buried Apple Pay button is a button nobody uses.
+          ⚠️ AND IT DOES **NOT** COST A NO-WALLET DEVICE NOTHING. This comment used
+          to claim `ExpressCheckoutElement` "renders nothing at all on a device with
+          no wallet configured, so it costs a desktop user no space". Measured false:
+          `@stripe/react-stripe-js`'s ClientElement always returns a mount `<div>`
+          (`react-stripe.umd.js:678-682`), so the wrapper is always a real sibling
+          and always pays its `space-y` margin, height 0 or not. `09` §3.6 carries
+          the same false premise and is corrected there. Removing the residual gap
+          needs `onReady`'s `availablePaymentMethods` to drop the wrapper — a
+          behaviour change, outside Step 6, and worth a further 12px. */}
       <ExpressCheckoutElement
         options={{
           buttonTheme: { applePay: "white-outline", googlePay: "white" },
@@ -273,26 +472,27 @@ function PaymentForm({
         }}
       />
 
-      {error ? (
+      {/* A submit error wins over a returning-redirect notice: it describes
+          what just happened, the notice describes what happened before. One
+          slot either way, so there is a single place to look. */}
+      {error ?? notice ? (
         <p role="alert" className="text-[0.8rem] text-[var(--state-error)]">
-          {error}
+          {error ?? notice}
         </p>
       ) : null}
-
-      {/* THE DISCLOSURE SITS HERE, and its position is the requirement.
-          It was above the Payment Element, which measured at 390x844 as the CTA
-          being 550px below the last line of it — so the price, the charge date
-          and the auto-renewal notice were all scrolled off before the button
-          came into view. That is exactly the defect the spec's previous audit of
-          this screen found: it could be paid on without the price ever having
-          rendered. Adjacent to the button is the only arrangement that cannot
-          drift back into that, whatever is added above. */}
-      {disclosure}
 
       <button
         type="button"
         onClick={() => void run()}
-        disabled={busy || !stripe || !elements}
+        /**
+         * ⚠️ `!ready` joins the existing disabled conditions rather than
+         * introducing a new control or a new treatment. `ui-context.md`: the
+         * primary action is a WHITE button (`bg-accent-primary`) and is never
+         * amber, and its not-yet-pressable state is the `disabled:opacity-40`
+         * already on this element. Nothing new to style, nothing to drift.
+         */
+        disabled={busy || !ready || !stripe || !elements}
+        aria-busy={busy || !ready}
         className="h-13 w-full rounded-2xl bg-accent-primary px-6 text-[0.95rem] font-medium text-bg-base transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base motion-reduce:transition-none motion-reduce:active:scale-100"
       >
         {busy ? (
@@ -304,6 +504,25 @@ function PaymentForm({
           ctaLabel
         )}
       </button>
+
+      {/* ⚠️ BELOW THE BUTTON — 09 §3.5, Step 5, and this is the arrangement the
+          spec actually instructs ("move the whole disclosure block BELOW the
+          button. It currently sits above").
+
+          Its POSITION is the requirement. It was once above the Payment Element,
+          which measured at 390x844 as the CTA being 550px below the last line of
+          it, so the price, the charge date and the auto-renewal notice were all
+          scrolled off before the button came into view — exactly the defect the
+          previous audit of this screen found: it could be paid on without the
+          price ever having rendered. Adjacent to the button is the only
+          arrangement that cannot drift back into that, whatever is added above.
+
+          ⚠️ MEASURED BEFORE IT WAS KEPT, at 390x844 keyboard-down, in every
+          seedable variant: all four facts AND the button remain above the fold.
+          At 320x568 nothing above the fold fits either way — Stripe's Element is
+          424px inside a 375px scroller — and that is recorded as a measured
+          limitation rather than fixed here. */}
+      {disclosure}
     </div>
   );
 }

@@ -178,6 +178,20 @@
      --state-error so it reads as "deliberate", not a transient error toast. */
   --accent-destructive: #b91c1c;
 
+  /* ⚠️ THE SAME MEANING, ON A RAISED SURFACE — and it exists because the one
+     above FAILS CONTRAST THERE (Adrian, 2026-08-25).
+
+     `--accent-destructive` was chosen for the Profile danger zone, which sits on
+     `--bg-base` (#111110). Measured on a CARD (`--bg-surface`, #1c1c1a) it is
+     2.64:1 against WCAG AA's 4.5 — DARKER than the muted text beside it, so it
+     reads as disabled rather than dangerous. Adrian saw it rendered and rejected
+     it before anyone had computed the number.
+
+     #f87171 on #1c1c1a measures 6.17:1. Use this one anywhere destructive text
+     sits on a surface rather than on the base ground; the darker token keeps the
+     danger zone, where it is correct and already signed off. */
+  --accent-destructive-on-surface: #f87171;
+
   /* Corner radius base (cards = rounded-2xl); shadcn derives sm/md/lg/xl */
   --radius: 1rem;
 
@@ -259,6 +273,7 @@
   --color-state-success: var(--state-success);
   --color-state-warning: var(--state-warning);
   --color-accent-destructive: var(--accent-destructive);
+  --color-accent-destructive-on-surface: var(--accent-destructive-on-surface);
 
   /* /admin ONLY → utilities (bg-admin-series-1, text-admin-positive, …).
      Referencing any of these outside app/admin/** or components/admin/** is a
@@ -658,6 +673,49 @@ svg ::-moz-selection {
 }
 
 /* ---------------------------------------------------------------------------
+   THE SAVE OFFER'S FLIP CLOCK (Adrian, 2026-08-25).
+
+   One card per digit, MM:SS, with a hinge line through the middle — a split-flap
+   face, which is the one clock shape that reads as "a window closing" rather than
+   as a progress bar. The countdown it draws is REAL: the server refuses a claim
+   past the same ten minutes, so this is not urgency theatre.
+
+   ⚠️ NO RAW HEX EXCEPT THE ONE THE SPEC NAMES. `ui-context.md:398-410` sanctions
+   exactly two gradients and says both are "mixed FROM the tokens with color-mix
+   so no hex escapes that file". These are flat mixes, not gradients, and every
+   colour is a token — the single `#000` is the neutral being mixed toward and is
+   specified verbatim in the design, not a colour of its own.
+
+   ⚠️ THE REDUCED-MOTION RULE COLLAPSES THE CHROME, NOT JUST THE ANIMATION. A
+   split-flap with the flip removed is a stack of bordered boxes pretending to be
+   a mechanism that is not moving. Under `prefers-reduced-motion` the faces, the
+   borders and the hinges all go and the reader gets plain digits, which is the
+   same information with none of the theatre. */
+.flip-face {
+  background: color-mix(in srgb, #000 45%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 38%, transparent);
+}
+
+/* The hinge: a single hairline across the middle of the face, in the same amber
+   the border carries, so the two read as one moulded object. */
+.flip-hinge {
+  background: color-mix(in srgb, var(--accent-amber) 38%, transparent);
+}
+
+.animate-flip-tick {
+  animation: flip-tick 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: 50% 50%;
+}
+
+/* THE AMBER PANEL that holds the gift, the offer line, the dates and the clock.
+   FLAT TINT, NOT A GRADIENT — the restraint is the point. `.flow-card` supplies
+   the 5% top hairline on top of this. */
+.offer-panel {
+  background: color-mix(in srgb, var(--accent-amber) 12%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 38%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
    Onboarding flow motion (Spec 3-01). Three classes, all ENTRANCES — a screen
    arriving, a hero settling, a celebration firing once. None of them loops:
    ambient/decorative motion is banned (ui-context.md → Motion), and the line
@@ -680,6 +738,38 @@ svg ::-moz-selection {
    are live values); the keyframe owns the arc and the fade. */
 .animate-flow-confetti {
   animation: flow-confetti 2200ms cubic-bezier(0.2, 0.6, 0.35, 1) both;
+}
+
+/* ---------------------------------------------------------------------------
+   The hook's card column and the "Here's how it works" beat (Adrian,
+   2026-08-27). All ONE-SHOT, all `both`, none of them looping — same rule as
+   everything above.
+   --------------------------------------------------------------------------- */
+
+/* A card arriving. Overshoots very slightly so it LANDS rather than appears;
+   the delay is per-card and set inline, because it is a stagger and not a
+   property of the class. */
+.animate-hero-card {
+  animation: hero-card 620ms cubic-bezier(0.34, 1.4, 0.5, 1) both;
+}
+
+/* The logged tick drawing itself, once, after its card has settled. */
+.animate-hero-tick {
+  stroke-dasharray: 18;
+  stroke-dashoffset: 18;
+  animation: hero-tick 340ms var(--motion-ease) 900ms forwards;
+}
+
+/* The interstitial's line resolving OUT OF A BLUR rather than sliding in — it
+   reads as the screen coming into focus, which is what the moment is. */
+.animate-hero-line {
+  animation: hero-line 900ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* A ring expanding out from behind the line and dissolving. 2600ms because at
+   1500ms it read as a ping rather than a glide. */
+.animate-hero-ring {
+  animation: hero-ring 2600ms cubic-bezier(0.22, 0.6, 0.3, 1) both;
 }
 
 /* ---------------------------------------------------------------------------
@@ -738,6 +828,58 @@ svg ::-moz-selection {
   height: 100svh;
   overflow: hidden;
   overscroll-behavior-y: contain;
+}
+
+/* ---------------------------------------------------------------------------
+   The hook's card column.
+
+   ⚠️ ONE TREATMENT AT EVERY SIZE, AND THAT IS THE FIX RATHER THAN A COMPROMISE.
+
+   This branched on height twice, and both attempts broke on a real phone while
+   passing everything on a laptop:
+
+     1. `@media (min-height: …)`. A media query measures the full layout
+        viewport; this flow is sized `100svh`, which excludes the browser
+        toolbars. On an iPhone 16 Pro those are 874 and ~700 — so the ROOMY
+        branch was chosen and rendered into the SHORT box, leaving 6px between
+        the subtitle and the button.
+
+     2. `@container` with `container-type: size` on `.flow-viewport`. That reads
+        the right box and fixed the measurement, and it made things worse on the
+        device: Adrian reported the cards pushed off the top of the screen and
+        the title spacing blown out. It could not be reproduced in Chromium at
+        any box height from 500 to 860, so it is Safari behaviour around size
+        containment on a full-height flex container that I could not see.
+
+   So there is no branch. The card sizing below is a single set of values that
+   fits the shortest handset we support and still reads well on the tallest, and
+   all four cards always render. When a box genuinely cannot hold them the
+   ScrollPort scrolls, which is a thing it already does everywhere else in the
+   flow and which degrades in a way a user understands.
+
+   The lesson worth keeping: a layout rule that depends on knowing the viewport
+   height is a layout rule that will be wrong on a phone browser, because there
+   is no single viewport height on one.
+   --------------------------------------------------------------------------- */
+.hero-stack {
+  gap: 0.5rem;
+}
+
+/* Sized so FOUR of these plus a two-line headline, a subtitle, the CTA and the
+   four statutory links all clear a ~700px box — an iPhone in Safari, which is
+   the tightest case that actually matters. Bigger cards were tried and left 7px
+   between the last card and the headline on exactly that phone. */
+.hero-card {
+  gap: 0.375rem;
+  padding: 0.625rem 1rem;
+}
+
+.hero-value {
+  font-size: 21px;
+}
+
+.hero-type {
+  gap: 0.5rem;
 }
 
 /* Cards that sit ON the canvas instead of being holes cut out of it: a hairline
@@ -959,6 +1101,10 @@ svg ::-moz-selection {
   .animate-home-up,
   .animate-notice-in,
   .animate-card-shake,
+  .animate-hero-card,
+  .animate-hero-tick,
+  .animate-hero-line,
+  .animate-hero-ring,
   .animate-flow-in,
   .animate-flow-hero,
   .animate-flow-confetti,
@@ -967,8 +1113,21 @@ svg ::-moz-selection {
   .animate-flow-back,
   .animate-kyle,
   .animate-dollar-fall,
-  .animate-flow-caption {
+  .animate-flow-caption,
+  .animate-flip-tick {
     animation: none;
+  }
+
+  /* ⚠️ THE FLIP CLOCK COLLAPSES TO PLAIN DIGITS, not to motionless split-flap
+     cards. Killing only the animation leaves four bordered boxes with hinges
+     across them, which is a mechanism claiming to move and not moving. */
+  .flip-face {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .flip-hinge {
+    display: none;
   }
 
   /* These two animate TO invisibility, so killing the animation strands them
@@ -1262,6 +1421,50 @@ svg ::-moz-selection {
   }
 }
 
+@keyframes hero-card {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hero-tick {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes hero-line {
+  from {
+    opacity: 0;
+    filter: blur(16px);
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+}
+
+@keyframes hero-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0.24);
+    opacity: 0;
+  }
+  26% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.68);
+    opacity: 0;
+  }
+}
+
 @keyframes flow-confetti {
   0% {
     opacity: 0;
@@ -1293,6 +1496,17 @@ svg ::-moz-selection {
   }
   80% {
     transform: translateX(4px);
+  }
+}
+
+@keyframes flip-tick {
+  from {
+    transform: rotateX(-72deg);
+    opacity: 0.35;
+  }
+  to {
+    transform: rotateX(0deg);
+    opacity: 1;
   }
 }
 

@@ -1,13 +1,47 @@
 -- ============================================================
+--  ▶ HOW TO RUN THIS (Adrian)
+--
+--    1. SELECT ALL, COPY, PASTE THE WHOLE FILE into the Supabase SQL Editor.
+--       Not a section, not "the bottom bit" — the whole thing, every time.
+--       Everything that is not a statement is a `--` comment and Postgres
+--       ignores it, so there is no way to paste too much and no decision for
+--       you to make. Pasting only PART of a file is the way to get it wrong:
+--       the bottom of this one is entirely comments, and running just that
+--       succeeds while doing nothing at all.
+--
+--    2. "Success. No rows returned" IS THE SUCCESS MESSAGE. This file creates
+--       a function, a trigger and a grant; none of those return rows. Seeing
+--       nothing back means it worked.
+--
+--    3. THEN CHECK IT, because step 2 looks identical to having run nothing.
+--       Paste this separately — it returns a row when the lock is on:
+--
+--         select tgname, tgenabled
+--         from pg_trigger
+--         where tgrelid = 'public.notification_preferences'::regclass
+--           and tgname = 'guard_trial_reminder_stamp';
+--
+--       Or ask Claude to run `scratchpad/stamp-attack.mjs`, which proves it
+--       with a real user token and cleans up after itself.
+--
+--  This file is IDEMPOTENT (`create or replace`, `drop trigger if exists`,
+--  `revoke`). Running it twice is harmless — if you are ever unsure whether it
+--  ran, run it again.
+-- ============================================================
 --  The trial reminder's dedupe stamp becomes unwritable by the user it is
 --  about. Migration: `trial_stamp_lock`
 --
---  ⚠️ NOT YET APPLIED, as of 2026-08-13. Written, not run.
---  A hand-applied migration never appears in `list_migrations`, so this header
---  is a CLAIM and never a record. `grants/004` said "NOT YET APPLIED" for four
---  days after it was applied and two sessions carried the work as outstanding.
---  VERIFY BY RUNNING THE ATTACK, not by reading this line. The commands are at
---  the bottom of this file.
+--  ✅ APPLIED 2026-08-13 by Adrian, and VERIFIED the same night by running
+--  `scratchpad/stamp-attack.mjs` against the live database: all five attacks
+--  refused with 403/42501, all five legitimate writes still succeeded —
+--  including the service role stamping and releasing, which is the one that
+--  would have turned "~96 notifications a day" into "none, ever".
+--
+--  That verification is the record. This header is still only a CLAIM: a
+--  hand-applied migration never appears in `list_migrations`, and `grants/004`
+--  said "NOT YET APPLIED" for four days after it was applied while two sessions
+--  carried the work as outstanding. Re-run the attack rather than trusting
+--  this line.
 -- ============================================================
 --
 --  THE HOLE, REPRODUCED LIVE 2026-08-13

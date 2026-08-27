@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
 import { ProfileScreen } from "@/components/profile/ProfileScreen";
-import { currentEntitlement } from "@/lib/billing/entitlements";
+import { courtesyUntilFor } from "@/lib/billing/courtesy";
+import { entitlementFacts } from "@/lib/billing/entitlements";
 import { billingGateEnabled } from "@/lib/billing/gate";
 import { planLabelFor } from "@/lib/billing/manage";
 import { createClient } from "@/lib/supabase/server";
@@ -79,16 +80,51 @@ export default async function ProfilePage() {
    * beta by then." What somebody with no entitlement is told is a named constant
    * in `manage.ts`, with the reason it is currently "Pro" written next to it.
    */
-  const entitlement = await currentEntitlement();
+  /**
+   * ⚠️ THE WHOLE ENTITLEMENT, AND THE COURTESY MARKER. TWO DEFECTS, ONE CALL.
+   *
+   * This passed `entitlement?.source ?? null` and a bare `{status}`, and both
+   * halves under-supplied the shared function:
+   *
+   *   - Without `activeUntil`, a founder's comp and a beta fortnight two days
+   *     from ending both arrive as the string `"comp"` and read identically.
+   *     That is `08-billing-screen.md` §3.6's defect, and fixing it only on
+   *     Billing would have left it standing here.
+   *   - Without `courtesyUntil`, a customer of two years on a free month read
+   *     **"Free trial"** on this pill while `/billing` read **"Pro"**. That is a
+   *     Q88 state disagreement and it was live.
+   *
+   * Only the ARGUMENTS change. The pill, the layout and the rendering are
+   * untouched, and no date, timezone or formatter enters `planLabelFor` — the
+   * date belongs to Billing's Access row, which has a formatter and a full-width
+   * value. This pill still shows one short label (Adrian, 2026-08-18).
+   *
+   * ⚠️ `courtesyUntilFor` IS ITS OWN TOLERANT QUERY, matching `/billing` rather
+   * than folding the column into the select below. Folded, an unapplied `003`
+   * would kill the STATUS read alongside it and flip a genuine trialist's pill
+   * from "Free trial" to "Pro" — a wrong label in the over-promising direction,
+   * caused by nothing but a migration gap. See `lib/billing/courtesy.ts`.
+   */
+  /**
+   * ⚠️ DISPLAY ONLY, so an unreadable read and an absent row may collapse HERE —
+   * the pill renders the lapsed label either way and asserts nothing about why.
+   * The collapse is written out rather than implied, because the same `null` on
+   * the dashboard and in the save-offer guard feeds DECISIONS and may not.
+   */
+  const access = await entitlementFacts();
+  const entitlement = access.known ? access.entitlement : null;
   const { data: subRow } = await supabase
     .from("subscriptions")
     .select("status")
     .eq("user_id", user!.id)
     .order("updated_at", { ascending: false })
     .limit(1);
+  const courtesyUntil = await courtesyUntilFor(user!.id);
   const planLabel = planLabelFor(
-    entitlement?.source ?? null,
-    subRow?.[0] ? { status: subRow[0].status as string } : null,
+    entitlement,
+    subRow?.[0]
+      ? { status: subRow[0].status as string, courtesyUntil }
+      : null,
     // The gate's switch decides this too. With it off, an account with no
     // entitlement genuinely has the whole product and the pill says "Pro"; with
     // it on, the same account is read-only and saying "Pro" would be a lie on

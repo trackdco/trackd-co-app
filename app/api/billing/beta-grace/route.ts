@@ -145,7 +145,40 @@ export async function POST(req: Request) {
         const rows = (existing ?? []).filter((r) => r.user_id === row.user_id);
         return (
           rows.every((r) => r.source === "comp") &&
-          rows.some((r) => r.active_until !== null)
+          rows.some((r) => r.active_until !== null) &&
+          /**
+           * ⚠️ D81. A REVOKED COMP IS NOT AN UPGRADE CANDIDATE.
+           *
+           * This predicate did not read `is_active`, and the branch it feeds
+           * writes `{active_until: null, is_active: true}`. So a comp that was
+           * DELIBERATELY REVOKED, while still holding a dated row, was
+           * un-revoked by a re-run of the backfill — turned into a free-for-life
+           * comp by a job whose entire remit is to lengthen, never to decide.
+           *
+           * **A revocation is a decision somebody made, and a backfill is not
+           * entitled to reverse it.** `001_billing_tables.sql` documents flipping
+           * the flag as how a comp is withdrawn or a chargeback recorded, and
+           * `ensureCompEntitlement` is careful never to resurrect one; this
+           * undid both.
+           *
+           * ⚠️ LAUNCH-CRITICAL, AND THE SENTENCE THAT STOOD HERE WAS STALE.
+           *
+           * It read "P11 runs this on launch morning, against ~85 accounts, and
+           * is the documented point of no return". **D86 made that false.** The
+           * backfill already ran, live, on 2026-08-17, and `12` §P11 now says in
+           * as many words: **do not call this route again as part of that step,
+           * in any mode.** P11 is applying `004` by hand.
+           *
+           * Left uncorrected it was the second copy of a launch order, in the
+           * file an operator opens while doing it — the same failure `gate.ts`
+           * carried and the same reason it was deleted rather than fixed there.
+           * The launch order lives in `12` §P11 and nowhere else.
+           *
+           * What is still true, and is why this guard matters regardless of the
+           * runbook: this route cannot be re-run to correct anybody, because its
+           * predicate is "has a row at all" and all ninety now have one.
+           */
+          rows.every((r) => r.is_active !== false)
         );
       })
       .map((row) => row.user_id),
@@ -204,7 +237,20 @@ export async function POST(req: Request) {
       if (!dry) {
         const { error } = await supabase
           .from("entitlements")
-          .update({ active_until: null, is_active: true })
+          /**
+           * ⚠️ D81: `is_active` IS NOT WRITTEN HERE, and that is the second half
+           * of the fix rather than a tidy-up.
+           *
+           * The predicate above now excludes revoked rows, so this branch should
+           * never see one. Writing `is_active: true` anyway would mean a single
+           * mistake in that predicate silently un-revokes somebody, which is the
+           * failure this pair exists to make impossible. **No branch of the
+           * backfill writes the flag back to true.**
+           *
+           * Clearing `active_until` is the whole upgrade: a comp with no expiry
+           * is free for life, which is what being on the comp list means.
+           */
+          .update({ active_until: null })
           .eq("user_id", account.id)
           .eq("source", "comp");
         if (error) {

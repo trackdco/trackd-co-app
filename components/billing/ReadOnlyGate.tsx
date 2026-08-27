@@ -11,9 +11,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { PlanRows } from "@/components/billing/PlanRows";
-import { readSession, writeSession } from "@/lib/onboarding/session";
-import { PLANS, TRIAL_DAYS, type PlanId, type PricedPlan } from "@/lib/onboarding/pricing";
+import { READ_ONLY_POPUP } from "@/lib/billing/readOnlyCopy";
+import { subscribeReadOnlyRefused } from "@/lib/home/syncStatus";
 
 /**
  * ⚠️ THE READ-ONLY GATE, CENTRALLY.
@@ -39,12 +38,18 @@ import { PLANS, TRIAL_DAYS, type PlanId, type PricedPlan } from "@/lib/onboardin
  * transformed ancestor, `position: fixed` is contained by it and the modal lands
  * behind the fixed bottom nav.
  *
- * ## The prices are the REAL prices
+ * ## ⚠️ NO PRICES, NO SELECTOR (D28)
  *
- * `PlanRows`, the same component the paywall renders, fed from the same
- * `loadPricesSafe` read. Not a hardcoded figure and not a second copy of the
- * presentation. A price that disagreed with the checkout screen would be the
- * worst possible thing to put in front of somebody deciding whether to pay.
+ * The built version embedded a live plan list with real Stripe prices and
+ * subscribed from inside the modal. **D28 resolved: the selector goes, and there
+ * is one shared destination.** So this is a plain notice with a button that goes
+ * to the paywall, and the price list is stated in exactly one place.
+ *
+ * That also removes a network call — `loadPricesSafe` — from the layout of every
+ * logged-in page, and removes the two unsigned strings the selector needed: the
+ * footnote about trials being for new accounts, and the no-prices error. Both
+ * disappear as a consequence of D28 rather than as an omission, which `05` §7
+ * asked to be made explicit.
  *
  * ## THIS IS NOT THE ENFORCEMENT
  *
@@ -103,17 +108,10 @@ export function useWriteAccess(): ReadOnlyContextValue {
 
 export function ReadOnlyProvider({
   canWrite,
-  prices,
   children,
 }: {
   /** Server-computed, in `app/(app)/layout.tsx`. */
   canWrite: boolean;
-  /**
-   * What Stripe says each plan costs. Empty when the gate is off (nothing to
-   * sell) or when Stripe could not be reached, which the pop-up handles rather
-   * than rendering blank figures.
-   */
-  prices: readonly StripePlanPrice[];
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -150,6 +148,25 @@ export function ReadOnlyProvider({
 
   const show = useCallback(() => openPopup(), [openPopup]);
 
+  /**
+   * ⚠️ A REFUSED WRITE OPENS THIS POP-UP, FROM ONE SUBSCRIPTION (05 §3.9, Q85).
+   *
+   * `guard()` covers the entry points that ASK before writing. It cannot cover
+   * the fire-and-forget path: the home and protocol domains write `localStorage`
+   * first and push to Postgres afterwards, so the refusal arrives asynchronously,
+   * after the tap has already been handled.
+   *
+   * Those pushes all funnel through `trackSync`, which used to send every one of
+   * them to the syncing notice — telling a lapsed user their dose was "saved on
+   * your device, still syncing, we'll keep trying", when nothing was saved and
+   * nothing would ever be retried.
+   *
+   * So `trackSync` now routes a KNOWN read-only refusal here instead. One
+   * subscription, one decision, fifteen surfaces fixed without any of them
+   * knowing about the gate.
+   */
+  useEffect(() => subscribeReadOnlyRefused(openPopup), [openPopup]);
+
   const guard = useCallback(
     (action: () => void) => {
       if (canWrite) {
@@ -170,60 +187,16 @@ export function ReadOnlyProvider({
   return (
     <ReadOnlyContext.Provider value={value}>
       {children}
-      {open ? (
-        <SubscribePopup prices={prices} onClose={closePopup} />
-      ) : null}
+      {open ? <ReadOnlyPopup onClose={closePopup} /> : null}
     </ReadOnlyContext.Provider>
   );
 }
 
-/** The shape `lib/billing/prices.ts` returns, declared structurally because that
- *  module is `server-only` and this is a client component. Same reason
- *  `components/onboarding/flow.tsx` declares its own copy. */
-export interface StripePlanPrice {
-  plan: PlanId;
-  priceId: string;
-  amount: number;
-  currency: string;
-  interval: string;
-}
-
 /* ── the pop-up ──────────────────────────────────────────────────── */
 
-function SubscribePopup({
-  prices,
-  onClose,
-}: {
-  prices: readonly StripePlanPrice[];
-  onClose: () => void;
-}) {
+function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [leaving, setLeaving] = useState(false);
-
-  const pricedPlans: PricedPlan[] = useMemo(
-    () =>
-      prices
-        .map((p) => ({ ...PLANS[p.plan], price: p.amount, currency: p.currency }))
-        .filter((p): p is PricedPlan => Boolean(p)),
-    [prices],
-  );
-
-  /**
-   * Opens on the plan the user last chose, falling back to the first on offer.
-   *
-   * A LAZY INITIALISER, not an effect. An effect that setStates in its own body
-   * is a cascading render (the lint rule says so, and it is right), and there is
-   * no reason for one here: this component is only ever mounted by a click, so
-   * it always has a browser and `readSession` can be read straight away. The
-   * same idiom `flow.tsx` uses for exactly this reason.
-   */
-  const [selected, setSelected] = useState<PlanId | null>(() => {
-    if (pricedPlans.length === 0) return null;
-    const remembered = readSession().plan;
-    return pricedPlans.some((p) => p.id === remembered)
-      ? remembered
-      : pricedPlans[0].id;
-  });
 
   /**
    * The same focus contract `CancelSubscription` documents at length, and for
@@ -283,31 +256,40 @@ function SubscribePopup({
   }, [onClose]);
 
   /**
-   * TO THE CARD SCREEN, carrying the plan.
+   * TO THE PRICE LIST (D28).
    *
-   * The chosen plan is written into the onboarding session (`localStorage`)
-   * because that is where `CheckoutScreen` reads it from, then the browser is
-   * navigated with a FULL DOCUMENT LOAD rather than a router push. The
-   * onboarding flow reads `?step=` and its session at mount and on `popstate`
-   * only, so a soft navigation would change the address bar and leave this app's
-   * tree on screen — the exact defect spec w2b-14 records and fixed by making
-   * every auth return a full load.
+   * ⚠️ THE PRICE LIST, NOT THE CARD SCREEN, and the change of destination is the
+   * other half of D28. The old pop-up chose the plan itself and so went straight
+   * to `?step=start` — "the plan has just been chosen here, and sending somebody
+   * to choose it again would be asking the same question twice". With the
+   * selector gone, no plan has been chosen, so the card screen would be asking
+   * for a card for a plan nobody picked.
    *
-   * It goes to the CARD screen and not the price list: the plan has just been
-   * chosen here, and sending somebody to choose it again would be asking the
-   * same question twice.
+   * `?step=plans` is the price list (`app/onboarding/page.tsx:114`), and it is
+   * the SAME destination `06`'s "Set up my plan" uses — D28's "one shared
+   * destination", so the two surfaces cannot drift into sending people to two
+   * different places to do one thing.
+   *
+   * ⚠️ A FULL DOCUMENT LOAD rather than a router push. The onboarding flow reads
+   * `?step=` and its session at mount and on `popstate` only, so a soft
+   * navigation would change the address bar and leave this app's tree on screen —
+   * the exact defect spec w2b-14 records.
    */
-  const subscribe = () => {
-    if (!selected || leaving) return;
+  const choosePlan = () => {
+    if (leaving) return;
     setLeaving(true);
-    try {
-      writeSession({ ...readSession(), plan: selected });
-    } catch {
-      // A refused `localStorage` write must not brick the button. The checkout
-      // screen falls back to its own default plan, which is the same one this
-      // list opens on. Same rule as the calculator's syringe choice.
-    }
-    window.location.assign("/onboarding?step=start");
+    /**
+     * ⚠️ `/plans`, NOT `/onboarding?step=plans` (Adrian, 2026-08-23).
+     *
+     * D28's "one shared destination" is unchanged — every surface that offers a
+     * plan still points at ONE place. That place is now the billing-side route,
+     * because everybody arriving from these surfaces ALREADY HAS AN ACCOUNT and
+     * the onboarding flow was showing them a sign-up progress bar.
+     *
+     * Still a full document load: the flow reads its step at mount, so a soft
+     * navigation would change the address bar and leave this tree on screen.
+     */
+    window.location.assign("/plans");
   };
 
   if (typeof document === "undefined") return null;
@@ -345,67 +327,110 @@ function SubscribePopup({
         aria-labelledby="readonly-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+        className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-4 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
       >
+        {/* ⚠️ APPROVED COPY, CHARACTER FOR CHARACTER (05 §3.6). A fix WITHHOLDS a
+            line, it never rewords one. No em dash. "Read only" is the exact
+            phrase; never "paused", "expired" or "locked". */}
         <h2 id="readonly-title" className="text-base font-medium text-foreground">
-          Subscribe to keep logging
+          {READ_ONLY_POPUP.title}
         </h2>
-        {/* The reassurance is FIRST and it is the true one. Somebody who has
-            just been stopped mid-action is asking "have I lost my data", and
-            answering that before asking for money is the only order that is not
-            a threat. */}
-        <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-          Everything you&apos;ve logged is still here and always will be. Trackd
-          is read only until you subscribe.
-        </p>
+        {/* ⚠️ THE STATE LEADS, AND THE ORDERING IS THE DECISION. The built version
+            led with reassurance, which is defensible and is not what was signed
+            off: somebody who has just been blocked needs to know what is
+            happening before they are told what it would cost to undo it.
 
-        {pricedPlans.length > 0 ? (
-          <div className="mt-5">
-            <PlanRows
-              plans={pricedPlans}
-              selectedId={selected}
-              onSelect={setSelected}
-              ariaLabel="Choose a plan to subscribe"
-            />
-          </div>
-        ) : (
-          /* The honest failure, not a blank picker. Same call the paywall
-             makes: this is a screen where showing nothing silently would be
-             worse than an error, because the user is trying to pay. */
-          <p className="mt-5 text-sm leading-relaxed text-text-muted">
-            We couldn&apos;t load our prices just now. Please try again in a
-            moment.
+            ⚠️ AND IT IS NOT BRANCHED. This one body is true of a lapsed grace, a
+            lapsed trial, a lapsed subscription AND a revoked account alike —
+            they differ in origin and are identical in what they can do, which is
+            nothing but read. Adrian, 2026-08-17: if a second variant ever seems
+            necessary, that is the signal to stop and ask rather than write one.
+
+            ⚠️ THE INSTRUCTION ABOVE FIRED, AND THIS IS ITS ANSWER (D98).
+
+            The first clause read "You're not on a plan at the moment", which is
+            FALSE for a past-due customer who IS on a plan Stripe is still
+            charging — two taps from a screen reading "Renews on" and offering
+            Cancel. That looked like the case for a second variant. It is not:
+            THE ANSWER IS NOT TO BRANCH. The clause is reworded so it is true of
+            every cohort, and the pop-up stays as one body.
+
+            ⚠️ AND THE FIRST REWORDING WAS ALSO WRONG, which is why this note
+            names both. "Your access has ended" is a statement about HISTORY, and
+            it is false for somebody who never had access — anyone signing up
+            after the 17 Aug backfill holds no entitlement row, so at P13 that is
+            exactly who reads this. It inverted which cohort the sentence failed.
+
+            What is signed is a statement about NOW, true of all six: never had
+            access, lapsed grace, lapsed trial, lapsed subscription, revoked, and
+            past-due after the lapse.
+
+            ⚠️ THE WORDS NOW LIVE IN `lib/billing/readOnlyCopy.ts` AND ARE PINNED
+            BY CODEPOINT against `lib/billing/signed/read-only-popup.txt`. They
+            moved because this file is unreachable from the committed suite, so
+            reverting the clause below used to leave all 1573 tests green. Do not
+            inline them back. */}
+        {/**
+          * ⚠️ FORMATTING ONLY — NOT ONE CHARACTER OF THE COPY CHANGES.
+          *
+          * Adrian, seeing it rendered for the first time on the contact sheet:
+          * *"the 'it' is like cut off and then 'Nothing has been deleted' just
+          * looks a little bit out of place."* Both are typesetting faults, not
+          * wording faults, and the wording is signed and pinned.
+          *
+          * `text-pretty` stops the last line orphaning a single word — that was
+          * the stranded "it." — and the two paragraphs are grouped in one block
+          * with a tighter internal gap so the reassurance reads as the end of the
+          * same thought rather than a stray line under it.
+          *
+          * ⚠️ The strings still come from `READ_ONLY_POPUP` and are still diffed
+          * codepoint for codepoint against `signed/read-only-popup.txt`. Nothing
+          * here may inline them back.
+          */}
+        <div className="mt-2 space-y-1.5">
+          <p className="text-sm leading-relaxed text-pretty text-text-muted">
+            {READ_ONLY_POPUP.body}
           </p>
-        )}
+          <p className="text-sm leading-relaxed text-pretty text-text-muted">
+            {READ_ONLY_POPUP.reassurance}
+          </p>
+        </div>
 
         <div className="mt-5 flex gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex-1 rounded-2xl border border-border-default py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {/* "Not now" and not "Cancel". The user is already reading their own
-                data and can carry on doing it; this dismisses an offer rather
-                than abandoning a task. */}
-            Not now
+            {READ_ONLY_POPUP.dismiss}
           </button>
           <button
             type="button"
-            disabled={!selected || pricedPlans.length === 0 || leaving}
-            onClick={subscribe}
-            className="flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            disabled={leaving}
+            onClick={choosePlan}
+            /**
+             * ⚠️ THE AMBER TREATMENT (Adrian, 2026-08-25). This is the same
+             * `border-accent/45 bg-accent/[0.09] text-accent` the Manage card's
+             * "Edit my card information" and "Keep my Pro plan" carry, so the
+             * one control that leads somewhere looks the same wherever it
+             * appears. "Not now" beside it stays grey, which is what makes this
+             * one read as the way forward.
+             *
+             * ⚠️ NO CHEVRON. The chevron rule PERMITS an amber chevron inside an
+             * amber-tinted action; it does not require one, and a dialog button
+             * is not a row you tap through.
+             *
+             * ⚠️ NO FILL EITHER (Adrian, 2026-08-25): *"the background should be
+             * the same background as the Back to my logs"*. The amber lives on
+             * the OUTLINE and the TEXT only, so the two buttons sit on one ground
+             * and the pair reads as a matched set rather than as a tinted block
+             * beside a plain one. The tint survives only on hover.
+             */
+            className="flex-1 rounded-2xl border border-accent/45 py-2.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.09] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
-            {leaving ? "Opening…" : "Subscribe"}
+            {leaving ? "Opening…" : READ_ONLY_POPUP.action}
           </button>
         </div>
-
-        {/* No price repeated here. The rows above state it, and a second figure
-            beside the button is one more thing that can contradict the first.
-            The full four-part disclosure is on the card screen, which is where
-            the commit actually happens and where the requirement bites. */}
-        <p className="mt-3 text-center text-[11px] leading-relaxed text-text-subtle">
-          {TRIAL_DAYS}-day free trials are for new accounts.
-        </p>
       </div>
     </div>,
     document.body,

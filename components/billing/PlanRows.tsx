@@ -98,15 +98,26 @@ export function PlanRows({
               </span>
               {perMonth !== null ? (
                 <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-text-muted">
-                  ({formatPrice(perMonth, plan.currency)}/mo)
+                  {/* D66: the currency suffix stays while single-currency. The
+                      Billing screen and the gift row already comply; these two
+                      did not, so one product showed a price two ways. */}
+                  ({formatPrice(perMonth, plan.currency)}{" "}
+                  {plan.currency.toUpperCase()}/mo)
                 </span>
               ) : null}
             </span>
 
             <span className="shrink-0 text-right">
               <span className="block font-mono text-lg font-light tabular-nums text-foreground">
-                {formatPrice(plan.price, plan.currency)}
-                <span className="ml-1 text-[11px] text-text-muted">/{suffix}</span>
+                {/* ⚠️ A REAL SPACE, not `ml-1`. A margin looks like a gap and is
+                    not one: the text reads "$69.99USD/yr" to a screen reader and
+                    to anything that copies it, which is not the "$X.XX USD" form
+                    the house rule and the Billing screen both use. Caught because
+                    the first assertion only checked that "USD" appeared. */}
+                {formatPrice(plan.price, plan.currency)}{" "}
+                <span className="text-[11px] text-text-muted">
+                  {plan.currency.toUpperCase()}/{suffix}
+                </span>
               </span>
             </span>
 

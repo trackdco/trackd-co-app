@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 
 import type { OnboardingSession } from "@/lib/onboarding/session";
 import type { PlanId, PricedPlan } from "@/lib/onboarding/pricing";
+import type { TrialEligibility } from "@/app/onboarding/billing-actions";
 import type { StepId } from "@/lib/onboarding/steps";
 
 /**
@@ -27,6 +28,20 @@ export interface FlowContextValue {
    * return false and the flow walks history as usual. Pass null to release it.
    */
   setBackHandler: (fn: (() => boolean) | null) => void;
+  /**
+   * Play the "Here's how it works." beat over whatever is on screen.
+   *
+   * ⚠️ IT LIVES ON THE FLOW, NOT ON THE SCREEN THAT TRIGGERS IT, and that is
+   * the whole reason it is here. Owned by the celebrate screen it could not do
+   * its job: the caller wants to ADVANCE THE STEP and let the beat cover the
+   * change, but advancing unmounts celebrate, which unmounted the overlay with
+   * it. The flow outlives every step, so the overlay does too.
+   *
+   * Call it immediately before `goNext()`. The step swaps underneath while the
+   * canvas is covered, and the fade-out reveals the screen you moved to rather
+   * than the one you left.
+   */
+  playHandoff: () => void;
   /**
    * Name resolved from the claimed account. Null while anonymous.
    *
@@ -57,6 +72,26 @@ export interface FlowContextValue {
    * substitute for a real guard, which lives in `app/onboarding/page.tsx`.
    */
   signedIn: boolean;
+  /**
+   * ⚠️ THE SERVER'S ELIGIBILITY ANSWER, resolved at page render (spec 02b
+   * §3.6) rather than fetched from an effect on the checkout screen.
+   *
+   * It decides what the checkout copy SAYS and, since `02a`, which mode the
+   * Payment Element mounts in — so one answer at one moment is the difference
+   * between a stable payment screen and one whose promise changes mid-read.
+   *
+   * Undefined only where there is no server behind the flow, i.e. the
+   * `/preview/paywall` harness, which falls back to the generous default.
+   */
+  eligibility?: TrialEligibility;
+  /**
+   * The first-charge date, formatted server-side in the user's stored timezone
+   * (spec 02b §3.5). One value for the paywall and the checkout screen, so the
+   * two cannot name different days.
+   */
+  firstChargeOn?: string;
+  /** A mid-grace user's grace end, formatted the same way. Null otherwise. */
+  graceEndsOn?: string | null;
   /** "YYYY-MM-DD" for today, resolved once on mount so every screen agrees. */
   todayKey: string;
 }

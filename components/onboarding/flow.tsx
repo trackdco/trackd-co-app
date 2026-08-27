@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { CaretLeft } from "@/components/icons";
@@ -34,12 +35,14 @@ import {
 } from "@/lib/onboarding/steps";
 import { firstIncompleteHousekeeping } from "@/lib/onboarding/session";
 import { PLANS, type PlanId, type PricedPlan } from "@/lib/onboarding/pricing";
+import type { TrialEligibility } from "@/app/onboarding/billing-actions";
 import { guessPlatform } from "@/lib/onboarding/platform";
 import { todayKey as resolveTodayKey } from "@/lib/protocol/cycle";
 
 import type { ClaimStatus } from "@/app/onboarding/actions";
 
 import { AnswerHandoff } from "./answer-handoff";
+import { HowItWorks } from "./how-it-works";
 import { FlowContext, type FlowContextValue } from "./flow-context";
 import { ProgressRail } from "./chrome";
 import { StepRenderer } from "./step-renderer";
@@ -58,6 +61,28 @@ import { StepRenderer } from "./step-renderer";
  * client tree and a router navigation would re-run the server render and throw
  * the transition away.
  */
+
+/**
+ * The wordmark that rides the header on every step.
+ *
+ * One definition, two homes: centred in the middle cell on the hook (which has
+ * no progress rail), railed right everywhere else. Written as a component so
+ * the two placements cannot drift into two different marks.
+ *
+ * Not `priority` — it is chrome on every screen, and the step's own content
+ * should win the first paint.
+ */
+function Wordmark() {
+  return (
+    <Image
+      src="/trackd-wordmark.png"
+      alt="Trackd.co"
+      width={1049}
+      height={200}
+      className="h-3 w-auto opacity-70"
+    />
+  );
+}
 
 /** Never notifies: the client/server answer cannot change after hydration. */
 const subscribeNever = () => () => {};
@@ -91,7 +116,37 @@ export function OnboardingFlow({
   signedIn = false,
   passedGate = false,
   prices = [],
+  eligibility,
+  firstChargeOn,
+  graceEndsOn,
+  chrome = "onboarding",
+  startAt,
 }: {
+  /**
+   * ⚠️ WHO IS DRIVING THIS FLOW — and it decides the header, nothing else.
+   *
+   * `"onboarding"` is a person working through sign-up: the progress rail is
+   * honest for them, because there genuinely is a fixed number of steps left.
+   *
+   * `"billing"` is somebody who ALREADY HAS AN ACCOUNT and came from `/billing`
+   * to pick a plan or change a card. A percentage is a lie to that person —
+   * there is no flow to be 73% of the way through — and Adrian named it as the
+   * thing that made the contact sheet hard to read (2026-08-23).
+   *
+   * ⚠️ IT CHANGES THE HEADER AND NOTHING ELSE. Same screens, same steps, same
+   * eligibility, same Stripe calls. Behaviour is deliberately untouched: this is
+   * a chrome switch, not a second flow, so the two entry points cannot drift
+   * into rendering different products.
+   */
+  chrome?: "onboarding" | "billing";
+  /**
+   * Which screen to open on when the URL carries no `?step=`.
+   *
+   * `/plans` and `/checkout` are real routes rather than query strings, so the
+   * step cannot be read out of the address bar the way `/onboarding?step=` is.
+   * The route names the screen and passes it here.
+   */
+  startAt?: StepId;
   /** A session exists. Server-verified in `app/onboarding/page.tsx`. */
   signedIn?: boolean;
   /**
@@ -101,6 +156,30 @@ export function OnboardingFlow({
   passedGate?: boolean;
   /** What Stripe says each plan costs. Empty when Stripe could not be reached. */
   prices?: readonly StripePlanPrice[];
+  /**
+   * ⚠️ RESOLVED ON THE SERVER at page render (spec 02b §3.6), so the checkout
+   * screen's promise cannot change under somebody reading it.
+   *
+   * It used to be fetched from an effect, which on a payment screen means "7
+   * days free" can become "First charge today" mid-read — and since `02a` the
+   * Elements mode is derived from the same answer.
+   *
+   * Optional so the `/preview/paywall` harness, which mounts this flow with no
+   * server behind it, keeps working on the generous default.
+   */
+  eligibility?: TrialEligibility;
+  /**
+   * ⚠️ THE FIRST-CHARGE DATE, FORMATTED ON THE SERVER in the user's stored
+   * timezone (spec 02b §3.5), so the paywall and the checkout screen cannot
+   * name different days and neither can drift with the device's zone.
+   */
+  firstChargeOn?: string;
+  /**
+   * A mid-grace user's grace end, formatted the same way. Null for everybody
+   * else. Unlike {@link firstChargeOn} this is NOT a projection: it is a stored
+   * `active_until`, so it can never be earlier than the date they were promised.
+   */
+  graceEndsOn?: string | null;
 }) {
   // The session and the step both come from the browser (localStorage, the
   // URL). Rendering a guessed value on the server and correcting it on the
@@ -121,6 +200,11 @@ export function OnboardingFlow({
       signedIn={signedIn}
       passedGate={passedGate}
       prices={prices}
+      eligibility={eligibility}
+      firstChargeOn={firstChargeOn}
+      graceEndsOn={graceEndsOn}
+      chrome={chrome}
+      startAt={startAt}
     />
   );
 }
@@ -136,18 +220,40 @@ export interface StripePlanPrice {
   plan: PlanId;
   priceId: string;
   amount: number;
+  /**
+   * The same amount in Stripe's minor units, for a payment-mode Elements mount
+   * (spec 02a §3.4). Never derived from {@link amount} — see `PlanPrice`.
+   */
+  amountMinor: number;
   currency: string;
   interval: string;
+  /**
+   * How many intervals one charge covers. Stripe says "every three months" as
+   * `interval: "month"` with `interval_count: 3`, so a screen reading only the
+   * interval prices a quarterly plan as monthly (spec 02b §3.3).
+   */
+  intervalCount: number;
 }
 
 function OnboardingFlowClient({
   signedIn,
   passedGate,
   prices,
+  eligibility,
+  firstChargeOn,
+  graceEndsOn,
+  chrome,
+  startAt,
 }: {
+  /** See `OnboardingFlow`. Decides the header only; behaviour is identical. */
+  chrome: "onboarding" | "billing";
+  startAt?: StepId;
   signedIn: boolean;
   passedGate: boolean;
   prices: readonly StripePlanPrice[];
+  eligibility?: TrialEligibility;
+  firstChargeOn?: string;
+  graceEndsOn?: string | null;
 }) {
   const router = useRouter();
 
@@ -267,20 +373,36 @@ function OnboardingFlowClient({
       if (!resolved) return FIRST_STEP;
       // A deep link cannot walk past the age gate, and cannot skip the intent
       // screens either. See `clampStep` and `clampIntent`.
-      return pastAccount(
+      /**
+       * ⚠️ THE COMP SKIP APPLIES TO DEEP LINKS TOO, or `/plans` would still hand
+       * a free-for-life account a price list it cannot buy from.
+       */
+      const landed = pastAccount(
         clampIntent(
           clampStep(resolved, firstIncompleteHousekeeping(s, today), passedGate),
           s,
           passedGate,
         ),
       );
+      return (eligibility?.comp ?? false) && (landed === "plans" || landed === "start")
+        ? "welcome"
+        : landed;
     },
-    [passedGate, pastAccount],
+    [passedGate, pastAccount, eligibility?.comp],
   );
 
+  /**
+   * ⚠️ THE ROUTE MAY NAME THE STEP INSTEAD OF THE QUERY STRING.
+   *
+   * `/plans` and `/checkout` carry no `?step=`, so reading the URL alone would
+   * land them on `FIRST_STEP` — the very beginning of onboarding — for somebody
+   * who already has an account. `startAt` is the route's own answer, and it is
+   * still passed through `resolveStep`, so every clamp (the age gate, the intent
+   * screens, housekeeping) applies exactly as it does to a deep link.
+   */
   const [step, setStep] = useState<StepId>(() =>
     resolveStep(
-      new URLSearchParams(window.location.search).get("step"),
+      new URLSearchParams(window.location.search).get("step") ?? startAt ?? null,
       session,
       todayKey,
     ),
@@ -299,7 +421,14 @@ function OnboardingFlowClient({
     (plan: PlanId): PricedPlan | undefined => {
       const match = prices.find((p) => p.plan === plan);
       return match
-        ? { ...PLANS[plan], price: match.amount, currency: match.currency }
+        ? {
+            ...PLANS[plan],
+            price: match.amount,
+            amountMinor: match.amountMinor,
+            currency: match.currency,
+            interval: match.interval,
+            intervalCount: match.intervalCount,
+          }
         : undefined;
     },
     [prices],
@@ -320,11 +449,20 @@ function OnboardingFlowClient({
    * the `popstate` handler have already written the URL by the time this runs.
    */
   useEffect(() => {
+    /**
+     * ⚠️ THE BILLING ENTRY POINTS OWN THEIR URLS AND MUST NOT BE REWRITTEN.
+     *
+     * This exists so `/onboarding` reflects the step in its address bar. On
+     * `/plans` and `/checkout` the ROUTE already names the screen, and stamping
+     * `?step=` onto it would produce `/plans?step=plans` and put an onboarding
+     * query string on a billing route — exactly the bleed Adrian asked to end.
+     */
+    if (chrome === "billing") return;
     const url = new URL(window.location.href);
     if (url.searchParams.get("step") === step) return;
     url.searchParams.set("step", step);
     window.history.replaceState({ step }, "", url);
-  }, [step]);
+  }, [step, chrome]);
   // Which way the last move went, so the entering screen slides in from the
   // side it came from. Forward from the right, back from the left.
   const [direction, setDirection] = useState<"forward" | "back">("forward");
@@ -557,16 +695,43 @@ function OnboardingFlowClient({
    * screen and reads as jank) — just a refusal to move twice inside one
    * transition.
    */
+  /**
+   * ⚠️ A FREE-FOR-LIFE ACCOUNT NEVER SEES A PLAN LIST OR A CARD SCREEN
+   * (Adrian, 2026-08-25).
+   *
+   * `01` already refuses a subscription for a comp, so both screens were dead
+   * ends for this cohort: a price list they cannot buy from, and a card form
+   * that would be refused. Adrian's ruling on the copy review was to remove them
+   * outright rather than soften them — *"can we get rid of the screen? Can it
+   * just automatically say... you're in, and then have Kyle."*
+   *
+   * So `plans` and `start` are stepped over and the flow lands on `welcome`,
+   * which now carries the comp's own sentence ("You've been given complimentary
+   * access.") instead of the free-days line it withholds.
+   *
+   * ⚠️ IT IS A SKIP, NOT A REMOVAL. Both steps stay in `STEP_ORDER` — that list
+   * is the canonical sequence for everybody else, and a comp whose entitlement
+   * were ever withdrawn walks the ordinary path again with no code change.
+   */
+  /** Free for life. `TrialEligibility.comp`; false where no server backs the flow. */
+  const comp = eligibility?.comp ?? false;
+
+  const pastComp = useCallback(
+    (target: StepId): StepId =>
+      comp && (target === "plans" || target === "start") ? "welcome" : target,
+    [comp],
+  );
+
   const goNext = useCallback(() => {
     const next = nextStepFor(step, platform);
     if (!next) return;
     // `pastAccount` because a signed-in user walking forward from `free` must
     // not land on a sign-in form they have no use for. See `pastAccount`.
-    const target = pastAccount(next);
+    const target = pastComp(pastAccount(next));
     setDirection("forward");
     setStep(target);
     pushStep(target);
-  }, [step, pushStep, platform, pastAccount]);
+  }, [step, pushStep, platform, pastAccount, pastComp]);
 
   // A screen may claim BACK for itself (the demo does, to step between its
   // stages). A ref rather than state: this is a registration, and re-rendering
@@ -589,6 +754,13 @@ function OnboardingFlowClient({
     router.push("/dashboard");
   }, [router]);
 
+  /**
+   * The "Here's how it works." beat. See `playHandoff` on the context for why
+   * it is owned here rather than by the screen that fires it.
+   */
+  const [handoff, setHandoff] = useState(false);
+  const playHandoff = useCallback(() => setHandoff(true), []);
+
   const value = useMemo<FlowContextValue>(
     () => ({
       session,
@@ -603,6 +775,10 @@ function OnboardingFlowClient({
       priceFor,
       todayKey,
       setBackHandler,
+      playHandoff,
+      eligibility,
+      firstChargeOn,
+      graceEndsOn,
     }),
     [
       session,
@@ -617,8 +793,22 @@ function OnboardingFlowClient({
       priceFor,
       todayKey,
       setBackHandler,
+      playHandoff,
+      eligibility,
+      firstChargeOn,
+      graceEndsOn,
     ],
   );
+
+  /**
+   * Whether the progress rail is on screen — which decides where the wordmark
+   * sits, because the two share the header's centre cell.
+   *
+   * Mirrors `ProgressRail`'s own guard (it renders null at 0%) rather than
+   * asking it: the header has to know BEFORE the rail renders, since it is
+   * choosing which cell to put the mark in.
+   */
+  const railVisible = chrome === "onboarding" && stepProgress(step) > 0;
 
   // A screen that owns BACK always shows the arrow (the demo steps its own
   // stages); otherwise it only shows if this flow actually pushed something.
@@ -627,6 +817,10 @@ function OnboardingFlowClient({
 
   return (
     <FlowContext.Provider value={value}>
+      {/* Portalled to the body, so it sits over the header as well as the step.
+          It dismisses ITSELF — the step has already moved on by the time it is
+          visible, so there is nothing left for it to advance. */}
+      {handoff ? <HowItWorks onDone={() => setHandoff(false)} /> : null}
       {/* overflow-x clipped: the directional entrance starts the incoming screen
           18px off-frame, which without this creates a real horizontal scroll
           area for the length of the animation (measured: 408px on a 390 phone). */}
@@ -674,10 +868,58 @@ function OnboardingFlowClient({
               ) : null}
             </div>
 
-            <ProgressRail progress={stepProgress(step)} />
+            {/**
+              * ⚠️ NO PROGRESS RAIL FOR SOMEBODY WHO IS NOT ONBOARDING.
+              *
+              * The rail answers "how much of sign-up is left". Asked from
+              * `/billing` that question has no answer, and the screen was
+              * showing "73%" to a person who had finished onboarding weeks ago.
+              *
+              * The grid column is kept (an empty span) rather than removed, so
+              * the back arrow stays in exactly the same place and the header
+              * does not reflow between the two entry points.
+              */}
+            {/* ⚠️ THE MIDDLE CELL MUST ALWAYS EXIST, even when it is empty.
+                `ProgressRail` returns null on the hook (nothing done yet, and a
+                bar reading 0% is a worse first impression than no bar) — and a
+                component returning null renders NO NODE, so the grid was left
+                with two children and the third one silently slid into the
+                middle column. Measured: the wordmark sat at x=164 on the hook
+                and x=315 on every other step, i.e. the logo moved between
+                screens, which is the one thing this header is built not to do.
+                A wrapper that always renders pins the cell. */}
+            <div className="flex items-center justify-center">
+              {railVisible ? <ProgressRail progress={stepProgress(step)} /> : null}
+              {/* THE HOOK CENTRES THE MARK (Adrian, 2026-08-27: "for only the
+                  hero section, I want Trackd in the center of the screen").
+                  It can, and only it can: the hook is the one step with no
+                  progress rail, so the middle cell is free. Everywhere else the
+                  rail owns the centre and the mark stays right, which is why
+                  this is a swap between two cells rather than a move. */}
+              {!railVisible ? <Wordmark /> : null}
+            </div>
 
-            {/* Balances the arrow's column so the rail sits on the true centre. */}
-            <span aria-hidden />
+            {/* THE WORDMARK, ON EVERY STEP (Adrian, 2026-08-27), so the flow
+                reads as one product rather than twenty loose screens.
+
+                ⚠️ IT IS NOT TOP-LEFT, WHICH IS WHAT HE ASKED FOR, AND HERE IS
+                WHY. Top-left is the back arrow's, on nineteen of twenty steps.
+                Putting the mark beside it means it sits at x=0 on the hook and
+                x=40 everywhere else — a logo that moves between screens — and
+                putting it in the left column outright pushes the centred
+                progress rail off true, because the grid's outer columns are
+                `1fr` each and the mark is wider than the arrow. The right
+                column was empty and exists only to balance the arrow, so the
+                mark takes it and the rail stays centred by the layout.
+
+                `h-3` and not larger: this column is `1fr`, and a mark wide
+                enough to exceed it would push the rail after all.
+
+                Not `priority` — it is chrome on every screen, and the hook's
+                own hero is what should win the first paint. */}
+            <div className="flex items-center justify-end">
+              {railVisible ? <Wordmark /> : null}
+            </div>
           </div>
 
           {/* THE ANSWER HANDOFF. Renders nothing unless the claim failed, in

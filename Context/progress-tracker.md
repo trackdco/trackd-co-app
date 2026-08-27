@@ -5,7 +5,833 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-13 (the notification mirror's third missing gate; the read-only gate, the save offer, the beta grace; the /admin dashboard rebuild + the Glass Console + the arcade)
+Last updated: 2026-08-17 (06 finished through Step 5; 07 Steps 4-5 driven; pair 2's release condition observed)
+
+## Pair 2's release condition is met, and 06 is finished (2026-08-17, afternoon)
+
+**Head `f0fd424`.** `tsc`, ESLint, `gate-audit` (32 gated / 2 conditional / 69
+ungated) and 1446 tests all green. `BILLING_GATE_ENABLED` and
+`REMINDER_PROMISE_ENABLED` are both absent from `.env.local`; the gate was passed on
+the command line for driving only and the dev server has been restarted without it.
+
+**`06` is done through Step 5.** Steps 6 and 7 are not runnable as written and are
+routed as spec conflicts in `next-tasks.md`. The confetti is scoped four ways (comp
+× beta against normal × reduced motion, each suppression paired with the observation
+that makes it mean something), the notice shows once per account with a second
+account never inheriting the first's dismissal, and the date is now proven to be
+read from the row **and** formatted in the account's stored timezone rather than the
+device's.
+
+**`07` Steps 4 and 5 are done, and Step 6's release condition is OBSERVED** on a
+real Stripe test clock: reminder delivered 2026-08-28T23:05Z, courtesy period ending
+2026-08-31T05:20Z, real invoice paid 2026-08-31T06:20Z. Both directions asserted —
+the reminder precedes the charge and nothing was taken before the period ended.
+
+### Three things that changed what is believed
+
+- **The claim-burns-the-dedupe-key item was already fixed.** `runner.ts:1005-1017`
+  releases the claim when nothing is delivered. The entry that flagged it had read
+  the claim and not the release. Driven with a dead push endpoint, with a live-retry
+  control beside it.
+- **`05` §3.6b's final-day banner was decided on 15 Aug and never built.** No
+  implementation step exists for it, and "Your plan ends today." is nowhere in the
+  tree. A cancelled account on its final entitled day currently sees no banner at
+  all, because `07`'s deliberately excludes them.
+- **The beta notice's seen-cookie is ONE SLOT.** Two accounts alternating in one
+  browser overwrite each other's dismissal. Harmless (a second notice, no money),
+  but §3.7 does not name the case.
+
+### The harness gained a shared fix
+
+`TestClock.advanceTo` now hops in 7-day steps. Stripe caps a single advance at two
+billing intervals, and a trial plus a courtesy period IS two intervals — so every
+scenario wanting to land past the ending was one hop too far by construction.
+
+---
+
+## ⚠️ SIX STANDING RULES, all earned the hard way (2026-08-17, rule 5 added 2026-08-20)
+
+### 0. ABSENT IS NOT UNKNOWN. WIDEN THE RETURN SO THE THIRD STATE EXISTS
+
+**The most expensive single mistake on this project, five times over.** Every
+instance is a tool or a read that cannot tell **absent** from **could not find
+out**, and defaults to the permissive answer:
+
+| Where | What it could not tell apart | What it cost |
+|---|---|---|
+| `compEntitlement` | a dated row that had EXPIRED from a live grace | an expired grace was classified live and charged (D81) |
+| `listSubscriptions` | "there are 100" from "there are more than 100" | one live trial hidden behind a hundred dead objects; no route out from inside the app |
+| `readOnly: boolean` | "we know they lapsed" from "the read failed" | fifteen surfaces told a lapsed user the app was still syncing |
+| `resolveEnding`'s `courtesyUntil` | `undefined` (unreadable) from `null` (read, absent) | a courtesy period could read as a first trial |
+| `gate-audit.mjs` | a guard it recognised from one it did not | the list of what is ENFORCED reported 16 gated functions as ungated |
+
+**Every fix was the same shape: widen the return so the third state exists**, and
+make the caller handle it explicitly. `cap + 1` so overflow is distinguishable. A
+`{ok:false}` read result rather than an empty array. A three-state verdict rather
+than a boolean. A `grace-expired` kind rather than a dated row.
+
+⚠️ **Ask this of every read and every tool in `06`, `07`, `08` and `09` as they are
+built:** can it tell "no" from "I could not find out"? If not, it will answer "no"
+to both, and the permissive default is the one that ships a defect quietly.
+
+**And the audit case is its own class.** A false pass hides a defect. A false
+finding invents one. **A false INSTRUMENT corrupts every measurement taken after
+it** — which is why `gate-audit.mjs` now runs in `npm run check` rather than being
+read by a person, and why regenerating its manifest in bulk is refused (below).
+
+## The other five standing rules (2026-08-17; rule 5 added 2026-08-20)
+
+### 5. "WHAT PERIOD IS THIS?" IS NOT "WHAT HAS BEEN PAID FOR?"
+
+**(Adrian, 2026-08-20, after the fourth instance.)** Rule 0's sibling, and the same
+shape one level up: rule 0 is about a value that cannot tell *absent* from *could not
+find out*; this is about a **field that answers a different question from the one being
+asked**, and answers it confidently.
+
+Every instance reads a date or a status that describes **the period the subscription is
+currently IN**, where the decision actually needs **the period the customer has PAID
+FOR**. On a healthy account the two are the same value, which is exactly why it survives
+review: *it is correct today, and correct by accident.* They diverge the moment a
+renewal fails — Stripe rolls the period forward before the charge is attempted, so
+`current_period_end` becomes the end of a period nobody has paid for while the money
+question still points at the old date.
+
+| # | Where | It asks | It needs | Cost, measured | Status |
+|---|---|---|---|---|---|
+| 1 | `accessEndsEarly` (`manage.ts`) | "will anything renew on this date?" — a question about two DATES | "does this person hold access RIGHT NOW?" — a fact about `entitlements` | the `suspended` branch could not fire **at all**; a revoked customer read the PAYING sentence's renewal claim | **fixed** (1.4) |
+| 2 | `offerPeriodToGrant` (`saveOffer.ts`) | "what should we GRANT?" — right, and it short-circuits on `trialing` | "what IS this period?" for any caller describing one that already exists | hid **F2** for a whole round: the month form had never been rendered, and "until {end}" described SEVEN months of free access as one | **renamed, and it still hid a defect** |
+| 3 | `otherLiveEntitlementFloor` (`sync.ts`) | "is this subscription ENTITLING?" (`{trialing, active}`) | "what has this subscription PAID FOR?" | **5.00 days** of already-paid access taken back, reproduced; **371 days** seen once by the lifetime run | **OPEN — Q107** |
+| 4 | `endSubscription` (`sync.ts`) | `entitledUntil(sub)` → `items[0].current_period_end` | the last period actually PAID for | **7.00 days** of unpaid access left standing after a cancellation, measured | **OPEN — Q107** |
+
+⚠️ **THE PROJECT HAD ALREADY WRITTEN THIS DOWN FOR ONE FUNCTION AND NOT GENERALISED IT.**
+`parkedFindings.test.ts` says of the three parked findings: *"their root cause is one
+line: `otherLiveEntitlementFloor` answers 'is another subscription LIVE' where the revoke
+needs 'is money we STILL HOLD paying for this access'."* That sentence is this rule,
+observed once and left local. It is here now so the next reader does not have to
+rediscover it a fifth time.
+
+⚠️ **AND TWICE A LENGTHENING GUARD HAS BEEN MISTAKEN FOR A CLAWBACK.** `Math.min(current,
+until)` followed by `if (result >= current) return` **cannot pull a date back** when
+`current` and `until` come from the same field — it only declines to push it forward. Both
+`endSubscription` and `syncSubscription` write from `entitledUntil(sub)`, so they are equal
+*by construction*, and a premise that "cancellation already shortens access" is false in
+exactly the case that matters. **Read the arithmetic, not the handler's name.**
+
+**Ask this of every date and every status a money decision reads:** does this field
+describe the period they are IN, or the period they PAID FOR? If the answer is "both,
+usually", it is this bug waiting for a failed renewal.
+
+⚠️ **AND IT IS NOT FIXED BY WIDENING A STATUS SET.** `past_due` is excluded from
+`ENTITLING` deliberately — that exclusion is what stopped a measured **+58 unpaid days** —
+so instance 3's fix must reach the FLOOR and not the EXTENDER. Two questions about one
+status, and they must keep two different answers. See Q107 for the ordering.
+
+### 1. A REVOKED ROW IS A DECISION, NOT A GAP
+
+`entitlements.is_active = false` is the documented KILL SWITCH
+(`001_billing_tables.sql`): a chargeback recorded, a comp withdrawn, a dispute
+honoured. **A row carrying it is an answer somebody GAVE. It is not a missing row,
+and no automated thing may treat it as one.**
+
+This has now been the right answer twice, in unrelated places:
+
+- **D81** — the backfill's upgrade predicate did not read `is_active`, so a
+  re-run un-revoked a deliberately revoked comp and promoted it to free-for-life.
+- **Spec 11** — `live-subscription-without-entitlement` reported a DISPUTE as a
+  locked-out paying customer, because Stripe leaves the subscription `active`
+  while our rule revokes the entitlement immediately. §3.4 predicted exactly that
+  false positive and says it is how a whole report gets ignored. The date rule had
+  the same fault: a revoked row still carries its `active_until`, but nobody is
+  being shown it.
+
+**⚠️ It will come up again in `05` and `08`** — a read-only gate and a Billing
+screen both have to distinguish "never had access" from "had it and it was taken
+away", and the second is not an absence.
+
+### 2. NEVER PATCH A LIST TO SEED A FIXTURE
+
+(Adrian, 2026-08-17.) **That technique is what ran the backfill.** D81's
+verification patched `COMP_EMAILS` with two QA addresses so its seeded accounts
+would reach the upgrade branch, then drove the real route — and the same call
+performed the entire first-run grant against all ninety real accounts.
+
+If a rule cannot be exercised without editing a production list, a price table, a
+founder list or any other real-world constant: **unit test it and say so.** Three
+of spec 11's rules are unit-tested only for exactly this reason, named in
+`reconcile.scenario.ts` rather than quietly skipped.
+
+### 3. THROTTLE WHAT NAGS. NEVER THROTTLE WHAT ANSWERS A TAP
+
+The sync-failure notice is throttled to one per minute, correctly: it nags about a
+transient condition, and a burst of failed writes should produce one banner rather
+than ten.
+
+**The read-only signal is deliberately NOT throttled**, and the difference is not a
+preference. It is the answer to an action the user just took. Swallowing the second
+tap would leave a control doing visibly nothing — and **a control that does nothing
+when tapped is worse than a message that repeats**, because the user cannot tell it
+from a broken app and has no reason to stop trying.
+
+The test asserts both halves: two read-only refusals fire twice, two sync failures
+fire once (`lib/home/syncStatusRefusal.test.ts`).
+
+### 4. BEFORE REPORTING A DEFECT FOUND BY A DRIVER, CONFIRM THE DRIVER REACHED THE STATE
+
+(Adrian, 2026-08-17.) The same discipline this project already applies to
+assertions, pointed at FINDINGS instead.
+
+**A false finding costs what a false pass costs, from the other direction.** One
+hides a defect; the other invents one and sends the whole lane chasing it.
+
+The case that earned it: `qa-05-readonly.mjs` reported that the read-only pop-up
+could not be re-opened after being dismissed — which would have been a worse defect
+than the one being fixed. Probed directly rather than written up: the FAB's
+aria-label is "Open quick actions" and it is **two taps**, the menu and then the
+write control inside it. The driver was tapping once. There was no defect.
+
+So: when a driver reports a defect, first prove the driver got where it claims to
+have been. Only then write it down.
+
+
+## Every migration is applied, and the ledger is not how we know (2026-08-16)
+
+The whole of `supabase/` — 90 SQL files — was audited object by object against
+the LIVE schema through the Supabase MCP. **Nothing is outstanding.** Two files
+were applied in the process; everything else was already in.
+
+**`list_migrations` is not a record of this project.** It stops at
+`drop_working_set`, 2026-07-15. Roughly thirty files since then were pasted into
+the SQL Editor, which leaves no ledger entry, so the ledger under-reports by a
+third and silently. Anything that diffs filenames against `list_migrations` will
+report ~30 false positives. The only sound method is to probe for the objects a
+file creates: columns in `information_schema`, functions in `pg_proc`, values in
+`pg_enum`, constraints in `pg_constraint`, and for data migrations, the data.
+
+**Applied 2026-08-16** (through `apply_migration`, so these two DO appear in the
+ledger, unlike their neighbours):
+
+- `billing/003_courtesy_until.sql` → `subscriptions.courtesy_until` timestamptz,
+  nullable. Confirmed absent beforehand, present after.
+- `legal/012_em_dashes.sql` → zero prose em dashes in the ~~three current v1.3~~
+  three v1.3 legal rows (**current then; superseded by v2.0 on 25 August 2026** —
+  see the v2.0 entry below). Whether this changed anything is genuinely unknown: the file's
+  header claimed applied since 2026-08-12 while `next-tasks.md` claimed the
+  opposite, every statement is LIKE-guarded and therefore a no-op when already
+  applied, and the pre-check only measured "contains an em dash" (true either
+  way, because of the title). The END STATE is verified, which is what matters.
+
+**Deliberately not run:** `cycles/002_cycle_id_backfill.optional.sql`. Marked
+optional, and the live data holds exactly one candidate row in `body_metrics`
+and none in `journal_entries`. Adrian's call.
+
+**Three files were carried as owed and were already applied**:
+`billing/002_trial_start_lease.sql`, `notifications/004_trial_reminder.sql` and
+`notifications/005_trial_stamp_lock.sql`. In each case the file's own header was
+RIGHT and `next-tasks.md` was stale — the reverse of the `grants/004` incident,
+where the header was the stale one. **Neither location is trustworthy on its
+own.** That is now three separate times on this branch that a written claim
+about migration state was wrong in one direction or the other, which is the
+whole argument for probing the schema instead of reading prose.
+
+**One thing that looks like a defect and is not.** Each ~~current~~ v1.3 legal
+document still contains exactly one em dash, in its title. That is correct:
+`components/legal/legal-document.tsx:131` renders
+`doc.title.replace(/^Trackd Co\s*[—-]\s*/, "")`, so the prefix and its separator
+never reach a user, and the character class accepts either an em dash or a
+hyphen so the row may hold either.
+
+## Legal documents v2.0 ARE CURRENT — applied by hand, 25 August 2026
+
+**⚠️ CORRECTING THIS FILE, 2026-08-26.** Everything above about "the three
+current v1.3 legal rows" describes the state up to 25 August and is struck
+through where it says `current`. It is left visible because the em-dash
+reasoning still holds and because the correction is the useful part.
+
+Adrian ran the promote/demote SQL **by hand on 25 August**, two days before the
+documents' own 2026-08-27 effective date. Measured live on 26 August, from the
+rows and not from a file or a filename:
+
+```
+consumer_health_data  2.0  is_current=true   effective 2026-08-27   4383 chars
+medical_disclaimer    2.0  is_current=true   effective 2026-08-27   7283 chars
+privacy_policy        2.0  is_current=true   effective 2026-08-27  31185 chars
+terms_of_service      2.0  is_current=true   effective 2026-08-27  25644 chars
+terms/privacy/disclaimer 1.3  is_current=false  effective 2026-06-20
+```
+
+`consumer_health_data` is a NEW `doc_type` (enum value added by
+`legal_doc_type_add_consumer_health_data`) with no prior version to demote.
+
+**It was recorded in `f8968c1`'s commit body and in no other record**, which is
+the finding rather than a footnote: three separate documents went on asserting
+the flip had not happened, and the launch runbook went on carrying a step to
+perform it. A hand-applied state change has to reach the records the next
+session reads. This is now the **fourth** time on this branch that a written
+claim about migration state was wrong in one direction or the other.
+
+**Two consequences, both handled on 26 August:**
+
+1. `supabase/legal/013_legal_documents_v2_0.sql` holds **zero non-comment,
+   non-blank lines** — the flip in it is commented out, because it was written as
+   instructions to a human. Running it executes nothing and **exits 0**. The
+   launch-morning step that called for it is DELETED, not rewritten.
+2. `getCurrentLegalDocument` filters on `is_current`, so the flip **404'd v1.3** —
+   the version `consent_records` names for 81 accounts. `/terms/1.3`,
+   `/privacy/1.3` and `/medical-disclaimer/1.3` now serve it
+   (`getLegalDocumentVersion`, `robots: noindex`). **`is_current` was not flipped
+   back.** Re-consenting existing onboarding-path users stays DEFERRED.
+
+## Leaving works, and six ways it did not (2026-08-16)
+
+## Leaving works, and six ways it did not (2026-08-16)
+
+Billing spec 03. The cancel flow was mostly already built and the spec's job was
+to say which parts were right, prove the ordering by breaking it, fix two copy
+divergences, and build the one screen that did not exist. It did all four. It
+also turned up **six CRITICALs, every one found by driving**, and every one of
+which passed `tsc`, ESLint and 1,273 tests first.
+
+**The ordering holds, and it is now proven rather than asserted.** The
+cancellation is written to Stripe before the offer is looked up. Four
+interruption modes were driven — the tab closed 120ms after "Yes, cancel", the
+connection dropped at the same instant, and a fault injected at the exact seam
+both as a caught failure and as an unhandled crash. Stripe showed
+`cancel_at_period_end=true` in all four.
+
+**The six defects were all the same shape in the end: the Stripe write was
+correct and the damage was downstream of it.**
+
+One `paused` subscription on a customer made cancelling **impossible** — Stripe
+hard-refuses `cancel_at_period_end` on a paused subscription, and the cancel path
+read the wider "what could still take their money" list. With the paused one
+newer, nothing was ever cancelled and every retry failed identically while the
+live trial converted. That closed the long-carried `paused` question, and not in
+the direction it had been framed: the two paths ask different questions, so the
+cancel path now reads a narrower list that already existed with no consumer.
+
+Three separate handlers each took paid access away from somebody for pressing
+Cancel — **358 days, then 362, then a paid year clawed to three days** by a
+decline on an unrelated subscription. `entitlements` holds one row per user;
+every handler that wrote it computed a date from the single subscription its
+event named. The mirror image of the $69.99 defect, three times over.
+
+Pressing Cancel **restored an entitlement a chargeback had revoked**. Resume
+**re-armed the charge while telling the user it had failed**.
+
+**A defect in the fix for one of those was caught by re-running the reviews.**
+Making `invoice.paid` mean "money arrived" looked right and was not: 27 of the
+last 40 such events on this project carried `amount_paid: 0`, because every trial
+start raises a zero invoice and marks it paid.
+
+**Two decisions were escalated and one was reversed on evidence.** A comped
+customer with a live Stripe subscription had no cancel control while Stripe went
+on billing them. It was escalated first, because a passing test with a written
+rationale encoded it — then reversed when a second reviewer showed `access.ts`
+already documents that exact defect and the fix had only ever been applied to
+expiring comps. The source decides what you are ON; the subscription decides what
+you can STOP.
+
+**The un-cancel card is the one new screen.** "Glad you're staying." at the top
+of Billing, held in component state only. Its real risk was that the resume's own
+`revalidatePath` would destroy it in the tick it was created; it does not, and
+that is polled continuously rather than asserted once. At 320x568 it first landed
+off-screen above the viewport, and then — after that fix — under the iOS status
+bar.
+
+**Left deliberately:** an `incomplete` subscription can still take the money
+after a cancel, and no fix available to this spec would stop it (setting the flag
+is accepted by Stripe and does not void the invoice; voiding it or calling the
+immediate cancel are both outside §2). Recorded as a decision for Adrian, with
+the user now getting the support signpost rather than a blank screen.
+
+## The checkout screen stops lying to three of its four cohorts (2026-08-15)
+
+Billing spec 02b, the last of the ship-together triple. `01` decides who is
+charged today, `02a` makes being charged today work, and this is what those
+people read before they press the button.
+
+**Eligibility is resolved at page render**, not fetched from an effect. On a
+setup-only sheet that was a cosmetic flicker; since `02a` it is a payment screen
+that can say "7 days free" and then "First charge today" while somebody reads
+it, and the Elements mode is derived from the same answer, so the flicker was a
+mode change too.
+
+**The interval suffix comes from Stripe.** It came from the static `PLANS`
+table, so the amount followed Stripe and the unit did not. A price whose
+`interval_count` is not one now renders NO price line and the button does not
+proceed. Verified by creating a real quarterly price in test mode: the screen
+refuses rather than printing "/mo" for a charge every three months, which would
+have understated it threefold, silently.
+
+**The first-charge date is server-resolved** in the user's stored timezone,
+through the same `formatAccessDate` that `/billing` uses, feeding both the
+paywall and checkout. It was computed on mount in the DEVICE's zone. It remains
+a projection and the code says so; a mid-grace user's date is not, being a
+stored `active_until`.
+
+**The copy.** The approved beta subtitle, D16's trial subtitle, D17's four-line
+mid-grace variant and D18's bracket, all carried character for character. The
+`14` renders from `BETA_GRACE_DAYS`. The mid-grace variant never says "trial",
+never says "today", and carries no language of expiry.
+
+### The mode gate caught a defect this spec's own copy introduced
+
+A beta account mid-fortnight is not on a trial, so `trial` is false — but `01`
+gives them a grace-ALIGNED start, so nothing is due today and Stripe issues a
+SetupIntent. Keying the Elements mode off `trial` alone mounted the sheet for a
+PAYMENT, the server returned a setup secret, and `02a`'s guard cancelled the
+subscription. **Safe, and completely broken: a mid-grace user could not
+subscribe at all.** The mode now asks the question it actually means — is
+anything due TODAY — which is the same question the title asks.
+
+Worth keeping: the guard earned its place here on work written after it.
+
+### ⚠️ THE FOUR-FACTS REQUIREMENT FAILS AT 320x568, AND IT IS PRE-EXISTING
+
+Measured on the running app, before and after:
+
+```
+PRE-02b   new         button y=777   in a 568px viewport   ~209px below the fold
+PRE-02b   post-grace  button y=763                          ~195px below
+POST-02b  new         button y=802                          ~234px below
+POST-02b  mid-grace   button y=802                          ~234px below
+```
+
+Carrying the approved copy verbatim added ~25px to an overflow that was already
+~200px. **390x844 passes for every variant**, measured. The fix is the
+arrangement, which §2 assigns to `09-checkout-redesign.md` and explicitly
+forbids this spec from touching. §5's "subtitle is one line at 320x568" also
+fails for the approved beta line, which is three lines at that width and is
+copy this spec may not shorten.
+
+Both are recorded in `next-tasks.md` as owed to `09`.
+
+### Driven, every cohort
+
+new (SetupIntent, 7 days, $0), mid-grace (SetupIntent, `trial_end` at the grace
+end, $0, `trackd_grace_until` on the metadata), clamped (48h), post-grace
+(PaymentIntent, `active`, $11.99 paid), free-for-life comp
+(`already-subscribed`, zero Stripe objects). Copy read verbatim for every
+variant on all three plans; the monthly-equivalent bracket appears on yearly
+only; no em dash anywhere.
+
+Production audited clean: 90 auth users, zero QA accounts, zero test clocks,
+zero leftover billing rows.
+
+
+## Paid-today checkout, and the field the spec named that no longer exists (2026-08-15)
+
+Billing spec 02a of three. A user with no free days could not pay: `startTrial`
+omitted `trial_period_days`, Stripe issued a first invoice with an amount due,
+and `default_incomplete` parked the subscription in `incomplete` carrying a
+**PaymentIntent**. The create expanded `pending_setup_intent`, which is null in
+that state, so `setupSecret` returned null and the action fell through to a
+generic error. The client was setup-only end to end. Correct-looking copy above
+a button that could not work.
+
+**It works now.** Driven: a post-grace beta account lands `active` with its
+invoice `amount_due=1199 status=paid` and the card saved for renewal.
+
+### ⚠️ The spec's field was removed from Stripe's API, and it fails SILENTLY
+
+§3.1 says to expand `latest_invoice.payment_intent`. Stripe removed
+`invoice.payment_intent` in the `2025-03-31.basil` API version; this SDK sends
+`2026-07-29.dahlia`. Measured on the day: **the expand string is still ACCEPTED,
+no error is raised, and the field comes back null every time.** Following the
+spec literally would have built exactly the defect its own Step 1 warns about,
+with nothing to catch, on the one path that takes money.
+
+Implemented against `latest_invoice.confirmation_secret`, which is where the
+secret now lives and which carries a `type` naming the intent — the very thing
+§3.2 asks the resolver to report. Verified on both a paid-today and a trialing
+subscription, and through the LIST path as well as the create response, because
+`reconcileToOne` prefers the listed copy and widening the create alone would
+have lost the expansion in the common case.
+
+### The mode gate is invariant 1 in mechanical form
+
+Elements takes its `mode` at MOUNT and cannot be switched, but the client secret
+only arrives after the button is pressed. So the mode is derived from
+`trialEligibility()` before the sheet mounts, and **the CTA is not pressable
+until that answer lands** — until 02a the sheet was setup-only and pressing
+early was harmless; it is now the difference between a sheet that collects a
+card and one that takes money.
+
+When the client's mounted mode and the server's answer disagree, **nothing is
+confirmed**. A PaymentIntent is not a charge until it is confirmed, so refusing
+to confirm is the whole protection. The cancel happens SERVER-SIDE in the same
+request rather than being handed back for the client to do: a client-driven
+cleanup is one the client can fail to make, by closing the tab on the very
+screen that just changed under them.
+
+`startTrial` therefore takes the mounted mode. That is **not** an identifier
+saying whose data to act on — it is a statement about the caller's own UI, the
+one fact the server cannot know. Eligibility is still decided server-side and a
+client that lies about its mode can only get its own attempt cancelled.
+
+Forced and driven: screen mounted as "Nothing to pay today / Start my 7-day free
+trial", an expired grace inserted underneath it, then Subscribe. An honest
+message, the screen re-rendered as "You've had your trial / Subscribe", the
+subscription `incomplete_expired` with no payment method, **no charge and no
+confirmable intent left behind.**
+
+### The amount is Stripe's integer, and the drift is real
+
+`price.unit_amount` is now carried as `amountMinor` and never derived from the
+display figure. Measured on this account's real prices: **`69.99 * 100` is
+`6998.999999999999`**, so the yearly plan would have been handed a non-integer
+and either errored or rounded to $69.98. This is the one number on a screen that
+is also the number taken from a card. Driven: [399, 1199, 6999] reaching the
+client against Stripe's [399, 1199, 6999], exactly.
+
+### The redirect gap, which was an invitation to pay twice
+
+A bank redirect returned the user with `redirect_status` and an intent client
+secret on the URL, and nothing read either. The flow remounted, `holding` was
+component state and therefore false, and they landed back on the card form. On
+the setup path merely bad; on the payment path **a screen inviting somebody to
+pay for a charge that may have already succeeded.**
+
+The intent is now resolved before the form renders and before anything is
+created, and the form is not rendered while that is in flight. Ownership is
+proven rather than assumed — a client secret identifies an intent, not a person
+— by retrieving the intent server-side and comparing its customer against the
+`billing_customers` row for the verified session. Driven: my own succeeded
+intent lands on the holding screen with a cleaned URL and a refresh does not
+replay it; another user's intent pasted into my URL is refused and falls through
+to the ordinary form, revealing nothing.
+
+⚠️ Both parameter spellings are read. The name follows the intent KIND, not the
+flow, so reading only `setup_intent_client_secret` would have worked on the
+trial path and silently done nothing on the paid one.
+
+### The rest of it
+
+- **A paid attempt is resumed, not replaced** (§3.6). It carried no SetupIntent,
+  so the abandoned-attempt loop never found it and cancelled and replaced it on
+  every return, raising a fresh invoice each time — and the dashboard cancels
+  incomplete payments after FIFTEEN days on this account, not the ~23 hours a
+  comment elsewhere reasons from. Driven: same subscription, same invoice,
+  `open` → `paid`, one invoice not two. A paid attempt is exempt from spec 01's
+  staleness rule, explicitly: that rule is about a DATE the screen printed, and
+  a paid attempt printed none.
+- **The holding screen** (D15). "Setting up your plan." and the signed
+  recoverable body, paid path only, at 60s against the trial path's unchanged
+  ~30s. Seen with the webhook forwarder stopped: paid recovered at ~69s with the
+  right copy, trial at ~35s with its original copy, neither claiming the payment
+  succeeded and neither carrying an em dash.
+- **The false analytics event is gone.** `trial_started` fired on every
+  confirmed outcome, so the first paying customer would have been logged as a
+  trialist and every funnel number would have been wrong from then on. Nothing
+  replaces it — `13` owns the taxonomy — so a paid-today subscribe is
+  **deliberately unmeasured** until `13` ships.
+- **The idempotency key gained a fifth segment** naming the create shape (§3.9).
+  Proven against Stripe both ways: with the old key the paid create is REFUSED
+  with "Keys for idempotent requests can only be used with the same parameters";
+  with the new one it succeeds.
+- **`reconcileToOne`'s body is byte-identical** to `ebbd3cf`, as §3.1 requires.
+
+### Verified by DRIVING it, 390x844 on localhost, real Stripe test mode
+
+Paid-today happy path (`active`, $11.99 paid, card saved); renewal a month on
+via a TEST CLOCK (two paid invoices, entitlement extended to +1 month, no second
+card entry); mode mismatch (nothing confirmed, nothing charged); returning
+redirect, mine and another user's; paid attempt resumed; two tabs confirming at
+once and a triple-tap mid-confirmation (**exactly one charge of 1199 cents
+each**); analytics both ways; the CTA gate under a throttled connection.
+
+**§5 observation, asked of Stripe directly:** cancelling an `incomplete`
+subscription leaves it `incomplete_expired` and **VOIDS** its open invoice. A
+void invoice can never be paid, so no orphan charge can follow a cancel.
+
+Production audited clean afterwards: 90 auth users, zero QA accounts, zero test
+clocks, zero leftover billing rows.
+
+
+
+## Trial eligibility, and a trial that was being burned by an abandoned tap (2026-08-15)
+
+Billing spec 01 of three. `01`, `02a` and `02b` are a SHIP-TOGETHER TRIPLE and
+none of them reaches `main` alone: this one decides who gets free days, which
+makes the current checkout copy false for a returning customer (`02b`) and
+routes a post-grace user onto a payment path that cannot succeed yet (`02a`).
+
+**The rule.** One seven-day trial per user, ever. A trial counts as used only if
+a card actually validated on it. The ~85 beta accounts on the fourteen-day grace
+do not also get a trial, because that fortnight IS their trial.
+
+### The money fix: a mid-grace user is no longer charged inside their fortnight
+
+A beta user who reached checkout part-way through their fourteen days had
+`trial_period_days` omitted, so Stripe raised an invoice with an amount due
+immediately. The app had told them in writing they had until a named date.
+
+Their subscription is now created with `trial_end` AT the grace end, taken from
+`entitlements.active_until` — a fixed instant rather than a day count, because
+expressing it as "N days from now" means computing a remainder and a rounding
+error there is a charge on the wrong day. `lib/billing/freeTime.ts` is the pure,
+tested decision: a full trial, a grace-aligned start, or nothing.
+
+It also fixes the broken button, which is a benefit rather than the
+justification: nothing due today means Stripe issues a SetupIntent, which is the
+arm the client is built for.
+
+**The clamp errs long, twice.** `STRIPE_MIN_TRIAL_END_OFFSET` is 48 hours, and
+the seconds conversion CEILS. Measured on the day (Q76): `subscriptions.create`
+with an explicit `trial_end` actually accepts every offset tried, down to ten
+minutes — the documented two-day minimum does not apply to this call, and the
+only constraint Stripe enforces is that the instant is in the future. A
+`trial_end` of exactly NOW is accepted but comes back `active` with an invoice
+due, which is the dangerous edge; `resolveFreeTime` never reaches it, because a
+grace end at or before `now` resolves to "no free time" instead. 48h is kept
+anyway: the margin is free, and undocumented behaviour can tighten without
+notice.
+
+**The ceil turned out to close the entitlement handover too.** On a test clock,
+the `stripe` row's `active_until` lands 943ms LATER than the `comp` row's, so
+there is no instant at the boundary where neither row is active.
+
+### The defect the drive found, which no test would have
+
+**A genuine first-timer was losing their trial to an abandoned tap.** Abandon a
+3D Secure challenge, come back, pick a DIFFERENT plan: `startTrial` cancels the
+abandoned attempt to make way, and from that moment `hasValidatedCard` read the
+cancelled attempt as a real trial purely because of
+`if (sub.status !== "trialing") return true`. Measured on the object:
+`default_payment_method` null, `default_source` null, `pending_setup_intent`
+still pending, and the predicate returning true. No card ever touched it.
+
+That is §3.2's "wrong in the expensive direction" arriving through a door the
+guard did not cover, and it charges a first-time customer on a screen that just
+promised them seven free days. Two steps to reach, not three. Pre-existing —
+`eligibleForTrial` called the same predicate — and found only by driving it.
+
+The fix is a set, `CARD_STEP_MAY_BE_UNFINISHED` = `trialing`, `canceled`,
+`incomplete_expired`: for those, ASK rather than inferring "validated" from the
+status. The discriminator is the surviving `pending_setup_intent`, which is the
+residue of a card step that never finished. A subscription that genuinely ran
+and was later cancelled or refunded has none, so it still counts as a used
+trial — the case Out of Scope protects, verified unchanged by driving it.
+
+**`sync.ts` did NOT move with it.** `cardIsValidated` there answers a different
+question (whether to GRANT access) and is reached only for `ENTITLING` statuses
+(`trialing`, `active`), so it is never asked about a cancelled subscription and
+the two cannot disagree about one.
+
+### Comps cannot buy, and the comp list cannot reach a browser
+
+A free-for-life comp (a `comp` entitlement with a NULL `active_until`) is
+refused with `already-subscribed` BEFORE any Stripe object exists. Driven: zero
+subscriptions, zero customers, zero `billing_customers` rows. The schema still
+permits a founder who also subscribes (`001_billing_tables.sql` says so
+explicitly); this forecloses it at the application layer, because a comp being
+charged costs more than a comp being unable to buy what they already have free.
+
+`lib/billing/betaGrace.ts` gained `import "server-only"`. It holds five real
+email addresses and nothing but convention had been stopping a client component
+pulling them into a bundle. None of the five appears anywhere in `.next/static`;
+they do appear in `.next/server`, which is what proves the grep was looking.
+
+### One read, and the select that must not grow
+
+`compEntitlement` answers all three questions from one query — may this account
+buy at all, have they had their free run, and when does it end —
+because `entitlements_one_per_source` guarantees at most one comp row per user.
+⚠️ The select is `source, active_until` and must stay that way: a column added
+there breaks the whole request if its migration has not been run, and this
+request decides whether somebody is charged today. `003_courtesy_until.sql` is
+still unapplied, confirmed live, and every drive below ran against that database.
+
+### Verified by DRIVING it, at 390x844 on localhost, against real Stripe test mode
+
+| Case | Result |
+|---|---|
+| brand-new account | 7 free days, `trialing`, metadata `user_id` only |
+| abandoned 3DS, returns, same plan | resumes, still 7 days |
+| abandoned on two plans, picks a third | exactly ONE live subscription, 7 days |
+| used a trial, cancelled, returns | "You've had your trial", charged today |
+| mid-grace subscribe | `trial_end` = grace end +818ms, invoice `amount_due=0`, SetupIntent, `trackd_grace_until` beside `user_id` |
+| 1 hour of grace left | clamped to now+48h, 47h LATER than the promise; metadata still carries the PROMISE |
+| post-grace | routed to paid-today: `amount_due=1199`, `incomplete`, nothing charged (this is `02a`'s to fix) |
+| free-for-life comp | `already-subscribed`, zero Stripe objects |
+| entitlement overlap | comp and stripe rows, identical `active_until`, 0s gap |
+| grace-end boundary (TEST CLOCK) | advanced 1h past `trial_end`: subscription `active`, $11.99 invoice PAID on the promised day, stripe row extended to +1 month, no read-only gap |
+| Stripe unreachable | screen stays generous (`eligible: true`); no payment form renders at all, so nothing can be charged |
+| entitlements read failing | trial GRANTED, not refused; button refuses; no charge |
+| anonymous `startTrial` | refused, "Please sign in again." |
+| forged plan key, tampered in flight | generic error, ZERO subscriptions, no fallback to a cheaper price |
+| `startTrial` payload | `["monthly"]` — plan only, no user identifier |
+| two tabs at once | exactly ONE live subscription |
+
+**Cleanup was audited afterwards**: back to exactly 90 auth users, zero
+`@trackd-qa.invalid` accounts, zero test clocks, zero `entitlements` and zero
+`billing_customers` rows. Test accounts were deleted BY ID with the Stripe
+objects cleaned up first.
+
+### The QA harness this needed, now in `scratchpad/`
+
+`qa-billing.mjs` (seeded billing states + teardown that does Stripe before the
+user), `qa-eligibility.mjs`, `qa-start-trial.mjs`, `qa-one-trial.mjs`,
+`qa-attacks.mjs`, `qa-forged-plan.mjs`, `qa-failure-directions.mjs`,
+`qa-overlap.mjs`, `qa-test-clock.mjs`, `qa-stripe-min-trial.mjs`. The test-clock
+driver `12-go-live.md` was going to own now exists in first draft.
+
+⚠️ Two traps worth keeping. The Stripe card iframe must be targeted by
+`title="Secure payment input frame"` — the FIRST `__privateStripeFrame` is the
+wallets frame and has no card fields. And replaying a captured server action
+loses the session, so it refuses at `!user` before reaching what you meant to
+test; tamper with the body in flight via route interception instead.
+
+### The cold review of spec 01 — one CRITICAL, and it was charging people early
+
+Three independent reviewers (money and races, gate and entitlements, UI at
+390x844). The gate reviewer found no CRITICAL. The money reviewer found one, and
+it reproduced.
+
+**CRITICAL — a stale abandoned attempt was resumed with its original
+`trial_end`.** Abandon a 3D Secure challenge, come back days later on the SAME
+plan, and `resumable` handed back the original subscription before
+`resolveFreeTime` ever ran. The checkout screen recomputes its promise every
+mount (`billingDate(new Date())`, today plus `TRIAL_DAYS`), so the two drifted
+apart by however long the user took to return. Driven: **the screen said "7 days
+free, first charge 22 Aug" and the card was set to be hit on 17 Aug, five days
+early, with a payment method attached.**
+
+That breaks §3.9 outright — a screen must never state a date the server would
+contradict — and contradicted §3.6, which says an abandoned attempt used no trial
+and its replacement gets a full seven days. The DIFFERENT-plan path already did
+exactly that; only the same-plan path did not, which made the two inconsistent
+for no reason anybody had chosen.
+
+Fixed by judging the attempt against what a fresh one would be worth
+(`freshFreeUntil` — the grace end for a mid-grace user rather than today plus
+seven) and resuming only inside `RESUME_STALENESS_TOLERANCE`, one hour. The
+window the branch actually exists for still works, verified both ways: a fresh
+attempt resumes and leaves one subscription, a two-day-old one is cancelled and
+replaced with a full seven days and the printed date then matches to the day.
+
+**HIGH — a failed entitlements read charged a beta user inside their fortnight.**
+§3.5 says a failed read grants the trial, which is right for a first-timer (seven
+beats nothing) and wrong for the ~85 beta accounts (seven is INSIDE fourteen).
+They were charged on day 7 of a promised fourteen, with no `trackd_grace_until`
+written, so reconciliation could not even see it happened. One fallback cannot be
+both generous against nothing and fair against fourteen. `compEntitlement` now
+distinguishes `unknown` (the read failed) from `none` (verified: no comp row),
+and the MONEY path refuses on `unknown` while the SCREEN stays generous, which is
+§3.5's own asymmetry rather than a departure from it.
+
+**HIGH — the comp refusal failed open.** It is a network read, so a Postgres blip
+skipped it and one of the five people promised Trackd for life could confirm a
+card. The reviewer also disproved the code's own justification: a comp CAN reach
+`/onboarding?step=start`, because the only server guard on an authed step is the
+age gate. Now backed by `betaGrantFor(user.email)`, a pure in-memory test over
+`COMP_EMAILS` with no failure mode. Two independent authorities must now agree
+before anybody is sold a subscription, and the one that cannot go down is free.
+
+**HIGH — the subscription list was truncated.** `limit: 100`, no paging, and
+Stripe returns newest first. §3.2 deliberately stores no "trial used" marker, so
+the completeness of that list is load-bearing: about a hundred plan-switches push
+the genuine trial off the page and the customer is handed a fresh seven days,
+repeatably. Now `autoPagingToArray`.
+
+**MEDIUM — the kill switch was ignored.** `compEntitlement` never filtered
+`is_active`, which `001` documents as how a comp is withdrawn. A revoked comp
+still read as `forever`, so `startTrial` answered `already-subscribed` and the
+screen walked them into an app the gate holds read-only, with **no way to buy
+their way out** and no repair short of deleting the row. A regression introduced
+when the old `.not("active_until","is",null)` filter was dropped in favour of
+reading the date.
+
+Judged and NOT fixed, both recorded in `next-tasks.md`: `reconcileToOne`'s
+dead-subscription guard cannot fire in the idempotent-replay case it was written
+for (no charge; needs a re-fetch by id), and `hasValidatedCard` treats an absent
+`pending_setup_intent` as proof a card step finished, which is wrong for a
+subscription created outside this path (dashboard, import, future RevenueCat).
+
+## The paywall carousel: HEIC in a `.png`, P3 colour, and a frame that wasn't a phone (2026-08-14)
+
+## The paywall carousel: HEIC in a `.png`, P3 colour, and a frame that wasn't a phone (2026-08-14)
+
+Adrian re-shot the four app screenshots to strip his name off the dashboard and
+put a photo in the empty Progress card. Wiring them up turned up three defects
+that had nothing to do with what he changed, two of them live.
+
+**Three of five files were HEIC with a `.png` extension.** `app-dashboard`,
+`app-progress` and `notes-app` were ISO/HEIF; the other two were JPEG, also
+misnamed. Safari renders a misnamed HEIC, **Chrome does not**, so the carousel
+was one merge away from showing empty slots to most of its audience. This is
+also why the images could not be read when pasted into chat — same bytes, and
+"re-exporting as PNG and JPG" changed only the extension.
+
+**All five were Display P3.** iPhone screenshots always are. The numbers in a P3
+file are wider-gamut coordinates, so anything ignoring the profile reads them as
+sRGB and renders flat: `--cat-anabolic` `#c8861a` was arriving as `#bd8836`,
+blue more than doubled. Converted with `sips --matchTo` sRGB, the amber lands on
+`(198,133,27)` against a token of `(200,134,26)` and the peptide blue on
+`(107,127,211)` against `(107,127,212)`. Not a grade — a colourspace conversion
+putting the colour back where the CSS already said it was.
+
+**`app-home.png` was deleted while the carousel still pointed at it**, so the
+first slide was a broken image. Repointed at `app-dashboard.png`, which is what
+the tab is actually called.
+
+**The frame was never a phone.** `<Image>` declared 1170×2280 (0.513) while
+every screenshot is a real capture at ~0.46. With `object-cover object-top` the
+mismatch ate the bottom ~10% of all four — exactly where the tab bar sits, so
+the element proving this is a five-section app was cropped out of every slide,
+silently, because `object-cover` never errors. Now 1170×2532 (iPhone 390×844);
+residual crop is under 1% on all four. Adrian also asked for the Dynamic Island
+and home indicator to be drawn back on — the screenshots have iOS chrome cropped
+off, which is right, but what was left read as a card rather than a device. Both
+are sized in **percent with Apple's own aspect ratios** (island 125×37pt, home
+indicator 140×5pt) so they survive the 2× inspection view.
+
+**Two slides were off-family, for two different reasons** (Adrian's eye, then
+measured at the 176×382 they actually render at). Dashboard was the flattest of
+the four — mean saturation 2.52 against 3.09/3.67 — because it has no large
+solid colour anywhere, only thin accent text and icon strokes; a controlled test
+ruled out the downscale, since Protocol resampled to 688px keeps its amber
+exactly. Progress was mean luminance 71 against ~29, and 27.6% warm pixels
+against ~1%, entirely from the photo. Dashboard took a global saturation ×1.1 to
+3.43, inside the family range. Progress was graded **on the photo block only**
+(x 56–632, y 364–1140), brightness ×0.86 and saturation ×0.80 — a global grade
+would have darkened its UI chrome away from the other three and created a new
+mismatch. It sits at 62.9/12.17: nudged toward the family, not forced into it,
+because dimming it further starts hiding the feature it exists to sell.
+
+**The originals are not in the repo.** They were untracked, so they were backed
+up to scratchpad before anything was overwritten.
+
+## The comp list is closed, and one of the five has no account (2026-08-14)
+
+Adrian gave the last free-for-life address — `Angusbrake6@gmail.com`, stored
+lowercase as the file's own warning requires — and closed the list.
+`COMP_EMAILS` is five: two founder accounts and three friends.
+
+**Checked against production rather than assumed:** 90 auth users, and four of
+the five have an account. **`angusbrake6@gmail.com` does not.**
+
+That is not a rounding error, because of where the list is read. `COMP_EMAILS`
+has exactly one consumer — the backfill route — and it enumerates
+`auth.admin.listUsers()` and grants against the accounts it finds. **Nothing
+reads the comp list at sign-up.** So an address with no account is never
+considered at all: sign up before the backfill and he is comped for life; sign up
+after and he is an ordinary new user on a trial, with the comp entry doing
+nothing, silently, forever.
+
+The same silent-failure shape as the capitalisation trap the file warns about,
+reached through a different door — and it fails in the direction where nothing
+errors and nobody is told. The dry run reports one fewer comp than expected and
+does not say which one is missing, so the number has to be read.
+
+`scratchpad/comp-check.mjs` prints every comp address against the live account
+list. The go-live order gained a step 3b for it.
+
+Not fixed in code, deliberately: granting at sign-up would mean a new write path
+into `entitlements` from the auth flow, and the answer Adrian actually needs is
+"ask him to sign up", which costs nothing.
+
+## Earlier state (2026-08-13) — the notification mirror's third missing gate; the read-only gate, the save offer, the beta grace; the /admin dashboard rebuild + the Glass Console + the arcade
 
 ## The push engine was announcing compounds deleted in July (2026-08-13, evening)
 
@@ -1882,6 +2708,27 @@ live Data API read-only with the service key, one request per migration. **Every
 migration on disk is applied except `protocol/013`, which was never written.**
 Two doc corrections came out of it:
 
+> **⚠️ SUPERSEDED 2026-08-14 — `protocol/013` IS applied.** Re-probed with the
+> same read-only method: `stacks?select=effective_from`,
+> `stack_members?select=effective_from,effective_to,id` — all 200. It was
+> applied at some point after 2026-08-07 and nobody updated this line, which is
+> the third time this exact rot has happened in this file. The check below takes
+> ten seconds; **run it rather than reading either claim.**
+>
+> The same sweep found **one genuinely unapplied migration**:
+> `billing/002_trial_start_lease.sql` (`billing_customers.trial_lock_until`
+> returned 400). **Adrian applied it the same day and it is verified** — the
+> column now returns 200 and zero rows hold a lease, which is the correct
+> backfill to `'-infinity'`. `startTrial` therefore has its real per-user lease
+> the moment `wave3/billing-cancel` deploys, and the Stripe re-list
+> reconciliation stops being the only thing closing the double-trial race.
+>
+> **Every migration on disk is now applied**, with one unverifiable from here:
+> `protocol/024_review_repairs.sql`, whose checks are `pg_constraint` /
+> `pg_indexes` queries the Data API does not expose. It has been on `main` since
+> 2026-08-07 and is idempotent, so re-pasting it is free if anyone wants
+> certainty.
+
 - **`onboarding/001` (signup attribution) IS applied.** Both this file and the
   migration's own header said otherwise. Hand-applied migrations never appear in
   `list_migrations`, so a file's comment is its only status record — and that is
@@ -1979,7 +2826,15 @@ buys confusion, not clarity). Every other folder numbers cleanly.
 - **Health data is categorical, never evaluative**; state colours (red/green/amber)
   are UI feedback only. Locked invariants live in `architecture.md` +
   `project-overview.md` (never store derived values; RLS `(SELECT auth.uid())` on
-  every table; entitlement gates read `profiles.tier` only).
+  every table).
+- ⚠️ **Entitlement gates read `entitlements`, NOT `profiles.tier`** (since
+  2026-08-12). This line said "`profiles.tier` only" for a fortnight after it
+  stopped being true, in the section a future session treats as settled.
+  `planLabelFor` and `manageActionFor` (`lib/billing/manage.ts`) both read the
+  entitlement's SOURCE; nothing reads `tier` for display any more. `tier` is
+  historical (Spec 16) and is still webhook-only at the privilege layer.
+  **`project-overview.md` still describes `tier` as the entitlement column and
+  is still wrong** — carried in `next-tasks.md`.
 
 ## Stacks are dated (2026-08-01)
 

@@ -3,6 +3,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { ensureCompEntitlement } from "@/lib/billing/betaGrace";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -149,6 +150,25 @@ async function signIn(formData: FormData): Promise<AuthFormState> {
   if (error) {
     // Generic on purpose — don't reveal whether the account exists.
     return { error: "That email or password doesn't match. Please try again." };
+  }
+
+  /**
+   * ⚠️ D71 — the comp list's members get their row here too.
+   *
+   * `/auth/callback` and `/auth/confirm` cover the two SIGNUP paths, and this
+   * covers the one that reaches neither: an ordinary password sign-in never
+   * touches either route. Without it, a comp-list member who signed up before
+   * this shipped and only ever signs in with a password would hold no row and
+   * be held read-only once the gate goes on.
+   *
+   * Idempotent, service-role, and a no-op string comparison for everybody not on
+   * the list — it never throws, so a sign-in cannot fail because of it.
+   */
+  {
+    const {
+      data: { user: signedIn },
+    } = await supabase.auth.getUser();
+    if (signedIn) await ensureCompEntitlement(signedIn.id, signedIn.email);
   }
 
   await setInstallHint();

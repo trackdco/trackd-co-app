@@ -81,6 +81,27 @@ export const PRICE_ENV: Record<PlanKey, string> = {
 
 export type PlanKey = "yearly" | "monthly" | "weekly";
 
+/**
+ * WHICH CONFIRM CALL THE CLIENT MUST MAKE on the secret it was handed.
+ *
+ *   setup    nothing is due today. `stripe.confirmSetup`, against a SetupIntent.
+ *   payment  an amount is due today. `stripe.confirmPayment`, against a
+ *            PaymentIntent hanging off the first invoice.
+ *
+ * ⚠️ Elements takes its `mode` at MOUNT and cannot be switched afterwards, so
+ * this is not merely a label on a secret: it is the mode the sheet must ALREADY
+ * have been mounted in. A sheet mounted for a trial that is handed a payment
+ * secret must confirm nothing at all, because confirming it would charge
+ * somebody who is reading a screen that promised them free days.
+ *
+ * It lives here rather than in `app/onboarding/billing-actions.ts` so that
+ * module's export list stays exactly as it was. Every export of a `"use server"`
+ * module is a publicly dispatchable endpoint, and keeping that list unchanged is
+ * a Check When Done item on both spec 01 and 02a. A type is erased at build and
+ * could not be dispatched anyway, but the list is what a reviewer reads.
+ */
+export type IntentKind = "setup" | "payment";
+
 export function priceIdFor(plan: PlanKey): string {
   return required(PRICE_ENV[plan]);
 }

@@ -4,24 +4,1355 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-13 (notification fixes merged; the read-only gate, the save offer, the beta grace; /admin rebuilt)
+Last updated: 2026-08-17 (spec 11 Steps 1-2 built; D86 written; the 29 Aug grace
+reminder traced)
 
 ---
 
-## ⚠️ OWED ON NOTIFICATIONS — one SQL file, and a list of knowns (2026-08-13)
+## 🔴 STANDING RULE 0 — THE THIRTEEN-INSTANCE SWEEP, RECORDED 2026-08-18
 
-The push engine's `stopped`/pause/version gates are fixed and merged (see
-`progress-tracker.md`). What is left is **not** in the code:
+The read-only sweep from the second session. **None of it was written down anywhere
+before this heading existed.** Each row: where, what the default is, which decision it
+feeds, and which way it fails.
 
-### 1. Apply `supabase/notifications/005_trial_stamp_lock.sql` — ADRIAN
+### FIXED BEFORE LAUNCH — three, all driven
 
-Written, never run. Its own header says so. Until it runs, a signed-in user can
-`PATCH` their own `trial_reminder_sent_for`: clearing it produces roughly 96
-pushes a day about their own money, and setting it forward permanently silences
-the notice that they are about to be charged — which the paywall and the
-checkout both promise out loud. Self-inflicted only (RLS holds across users),
-but it is also the precondition for the stamp-storm below. Paste it into the SQL
-Editor; it is idempotent.
+| # | Where | The default | Decision it feeds | Fails |
+|---|---|---|---|---|
+| **1** | `sync.ts` `markPastDue` | `{ data }`, error discarded → `!current` → `"handled"` | whether to shorten a rolled-forward UNPAID period | **permissive** — the unpaid period stands. The family the measured **+58 unpaid days** came from |
+| **2** | `sync.ts` `endSubscription` | same shape | whether a cancellation shortens access | **permissive** — access SURVIVES a cancellation |
+| **7** | `runner.ts:225` `(graceRes.data ?? [])` | `[]` | BOTH `canWrite` and `graceRow`, from one collapse | `canWrite` refusing (right); `graceRow` **permissive into silence** — an account lapses with no warning |
+
+**1 and 2** now go through `readStripeEntitlement`, a three-state discriminated union
+in `compEntitlement`'s shape (`billing-actions.ts:1730`), and **throw** on `unknown` —
+which leaves `processed_at` NULL so Stripe retries (`webhook/route.ts:87`), the
+documented way of saying "we could not do the work". ⚠️ **`present` with a null date is
+NOT `absent`**: collapsing those would have changed a second thing while fixing the
+first. 5 unit tests, mutation-checked — reverting one refusal fails with "a shortening
+path stopped refusing on an unreadable entitlement".
+
+⚠️ **The `absent` control is the point of finding 1 and 2's tests.** On
+`subscription.deleted`, trading a permissive failure for a refusing one would revoke
+access from somebody entitled. A genuinely missing row must still answer `"handled"`.
+
+**7** splits one read into two answers: `canWrite` stays REFUSING on unknown;
+`graceRow` becomes unknown and the silence is no longer permanent or invisible.
+Driven with the gate ON (`rule0.scenario.ts`), and **the scenario refuses to run with
+the gate off** rather than passing vacuously, because the whole query is the `then`
+branch of a `billingGateEnabled()` ternary.
+
+⚠️ **What finding 7 does NOT do, and it needs a ruling.** It does not compose a
+warning. Without the row there is no `active_until`, and a warning that cannot name the
+date is what `04` §3.2 and `06` §3.2 both DELETE rather than weaken — "a version that
+cannot name the date is not a weaker acceptable variant, it is one that must not
+render". So the fix removes the *permanent invisible* silence (loud log, distinct
+reason, nothing claimed, next tick retries) but does not send a dateless warning. **A
+dateless ending warning would need signing before it could exist.**
+
+⚠️ **And what the drive does not observe:** the `entitlements-unreadable` REASON
+reaching the cron payload. The restricted client cannot read `profiles` either, so the
+runner bails at `reason: "disabled"` first; reaching it needs a client that can read
+`profiles` but not `entitlements`, i.e. a grant change on a production table, which is
+banned. The SPLIT, the LOG and the non-burn are driven. **Do not tick the reason.**
+
+### ✅ RULING 1 (18 Aug) — NO DATELESS WARNING. And the banner half is S2.
+
+**Adrian corrected his own earlier instruction.** "Send the warning on unknown"
+conflated the comment at `runner.ts:236-238` with a different question. That comment
+means *do not suppress a warning because the account is read-only* — the split
+preserves that and it stands. It does **not** mean send one when the read failed,
+because **a failed read does not tell us the person is in a grace at all.** A dateless
+warning would assert an unverified fact.
+
+Behaviour on `graceRow = unknown`, by channel:
+
+- **PUSH — silent.** Already what the code does. An unactionable alarming push is
+  worse than nothing and the cron runs again within minutes.
+- **IN-APP BANNER — 🛑 STOP-LIST S2.** The ruling allows an honest could-not-check
+  banner *if a signed string of that class already exists*. **It does not.** `05`'s
+  **Q85 — "the generic still-syncing notice" — is OPEN** (`billing-05` §7, and the
+  decision ledger row 167 marks it *"OPEN. Step 4 needs it to finish"*). The nearest
+  existing strings were considered and rejected: `07`'s three ending variants all
+  NAME A DATE, which is the one thing an unknown read cannot supply; and the
+  read-only pop-up's copy describes a state we have not established the user is in.
+  **No string is written.** The slot is Q85's, and it needs signing.
+
+`rule0.scenario.ts` keeps refusing to run with the flag unset. That refusal is the
+control, not a convenience.
+
+### ✅ RULING 2 (18 Aug) — the reason string is an ACCEPTED GAP under §9g
+
+Observing `entitlements-unreadable` reach the cron payload needs a client that can read
+`profiles` but not `entitlements`, i.e. a grant change on a **production** table. That
+is a banned production write and Adrian declined to authorise one to tick a box.
+
+**Accepted, with the reason recorded rather than left as an untested claim.** What IS
+driven: the split itself, the log line emitted from inside it, and that nothing is
+claimed or stamped so the reminder is not burned. What is NOT driven: the reason string
+surfacing in the response payload, which rests on `tsc` and on reading `runner.ts`.
+
+### RECORDED — nine, no fix now
+
+| # | Where | The default | Decision it feeds | Fails |
+|---|---|---|---|---|
+| 3 | `runner.ts` `courtesyUntilFor` catch-all | returns `undefined` | courtesy vs trial wording | **safe already** — degrades to neutral, never to trial |
+| 4 | `runner.ts` `courtesyNounFor` | `null` on unloadable price list | "week" vs "month" in the copy | safe — neutral variant, not a coin flip |
+| 5 | `runner.ts` `sentFor` | `?? null` after the migration check | dedupe key | migration-absent is already a third state (`undefined`) |
+| 6 | `runner.ts` stamp write | error checked and logged | whether a message repeats | safe — checked |
+| 8 | `manage.ts` `planLabelFor` | `gateEnabled = false` default | the plan label | safe by decision: pre-gate world is the true one |
+| 9 | `trialReminder.ts` `resolveEnding` | `courtesyUntil === undefined` → neutral | which of three endings | safe — the third state exists and is used |
+| 11 | `saveOffer.ts` `readSaveOffer` catch | `{ available: false }` | whether to offer | safe — errs towards NOT offering |
+| 12 | `saveOffer.ts` `periodIsUnpaid` | unexpanded invoice → `false` | D70's guard | permissive, but the status check has already passed |
+| 13 | `openOfferStore.ts` `readOffer` catch | `null` | whether to draw a way back in | safe — grants nothing, server re-checks |
+
+### ⚠️ 10 IS THE MOST INSTRUCTIVE INSTANCE IN THE SWEEP — record it, do not fix it
+
+**`billing-actions.ts:224` gets rule 0 RIGHT and the very next read three lines later
+UNDOES IT.** `compEntitlement` returns a four-state union with an explicit `unknown`,
+the caller handles `unknown` correctly at :224 — and then the following read collapses
+its own error into a nullish default, in the same function, feeding the same decision.
+
+**Rule 0 applied and then undone inside one function is the easiest instance to
+reintroduce**, because the correct handling three lines up reads as proof the whole
+function is careful. Recorded here so the next reader checks the second read too.
+
+### RULED — LEAVE ALONE. Recorded so nobody "fixes" them.
+
+- **`freeTime.ts:129-142`** — an unreadable grace end GRANTS the trial. Permissive on
+  money, and that is `01` §3.5's decision: being wrong generously costs seven days;
+  being wrong the other way charges a first-time customer on a screen that just
+  promised them seven free days, which is a dispute. **Do not "make it consistent".**
+- **`gate.ts:54,82`** — both switches fail OPEN for an unset env var. Correct: an
+  absent flag means the pre-gate world, and failing closed would put ~90 real accounts
+  into read-only because a variable was missing.
+
+### The five already-correct shapes the sweep cites — point at these, do not rewrite
+
+`compEntitlement`'s four-state union (`billing-actions.ts:1730`), `courtesyUntilFor`'s
+three states (`runner.ts`), `resolveEnding`'s neutral degradation
+(`trialReminder.ts`), `readSaveOffer`'s errs-towards-refusing (`saveOffer.ts`), and
+`claimEvent`'s `"fresh" | "duplicate" | "error"` (`webhook/route.ts:161`).
+
+---
+
+## ✅ 09 STEP 5 — DONE. (This heading read "🛑 STOPPED AND ASKING … THE DISCLOSURE HAS NOT BEEN MOVED" and was FALSE at HEAD — corrected 2026-08-20.)
+
+The disclosure IS below the button (`payment-sheet.tsx`, rendered after the `</button>`).
+Step 5 stopped and asked as instructed, and `02b` §3.7 was AMENDED on 20 Aug in answer.
+The measurement block below is kept as the record.
+
+§3.5: *"If the four facts cannot be kept on screen below the button at 320x568, say so
+and ask. Do not shrink a fact out of legibility, do not drop one, and do not move one
+back above the button unilaterally."*
+
+**They cannot, and the reason is not our layout.** The height budget at 320x568, in the
+mid-grace variant §3.5 names as the tightest:
+
+| | height |
+|---|---|
+| express-checkout row (renders empty, no wallet) | 8px |
+| **the Stripe Payment Element** | **424px** |
+| the disclosure — all four facts | 110px |
+| the "Subscribe" button | 52px |
+| gaps and padding | ~96px |
+| **content total** | **690px** |
+| **visible scroll port** | **375px** |
+| **overflow to reclaim** | **315px** |
+
+### ⚠️ THE ONE NUMBER THAT SETTLES IT
+
+**The Stripe Payment Element alone is 424px — 49px MORE than the entire 375px visible
+port.** With the disclosure at zero height, the button at zero height and every gap
+removed, the card fields still would not fit above the fold at 320x568.
+
+So this is not a spacing problem, not a "move the disclosure" problem, and not
+something Step 6 can recover. **§3.5's requirement is unachievable at 320x568 by any
+arrangement of our own content**, because a third-party control we do not size exceeds
+the viewport on its own. Steps 2, 3 and 4 are done and measured; Step 5 is where it
+stops.
+
+### What I did NOT do
+
+- Did not move the disclosure below the button. Step 1 shows all four facts and the
+  button already below the fold at 320x568 with the disclosure still ABOVE it, so
+  moving it can only push it further down — the change would make a measured failure
+  worse and then report a completed step.
+- Did not trim, shrink or drop a fact. Did not move one above the button unilaterally.
+- Did not touch `02b`'s copy.
+
+### ✅ STEP 5 COMPLETES AS WRITTEN AT 390x844 — the disclosure IS below the button now
+
+**Adrian, 17 Aug: option 4 (pin the bar) is REJECTED on the measurements, and the
+bottom-nav slide-away with it** — a `position: fixed` plus `visualViewport` change on
+the payment screen needs a real device, 320x568 is an iPhone SE 1st gen / 5s, and that
+hardware is unavailable, so the failing width cannot be validated at all. Then: Step
+5's ACTUAL instruction had never been measured.
+
+**Measured, and the answer is YES.** Disclosure moved below the button
+(`payment-sheet.tsx`), 390x844 keyboard-down, both seedable variants:
+
+| | fact 1+2 | fact 3+4 | button | fold | below the fold |
+|---|---|---|---|---|---|
+| trial | 713 | 737 | 674 | 844 | **(none)** |
+| mid-grace | 713 | 737 | 674 | 844 | **(none)** |
+
+Document order asserted, not assumed: `compareDocumentPosition` confirms the
+disclosure FOLLOWS the button, or every number would describe the old arrangement.
+
+**So Step 5 is complete at 390x844 and only 320x568 needs amending.** At 320x568 the
+same arrangement leaves all three below the fold (788 / 831 / 729 against a 568 fold),
+which is unchanged and unfixable there — recorded, not asserted.
+
+### ✅ THE TWO PORT FIGURES RECONCILED — they measure different things and AGREE
+
+Both were right and neither was the other:
+
+| width | scroller top | scroller clientHeight | visible bottom | viewport |
+|---|---|---|---|---|
+| 390x844 | 159 | 685 | **844** | **844** |
+| 320x568 | 193 | 375 | **568** | **568** |
+
+`scrollerTop + clientHeight` equals the viewport height exactly at both widths. So:
+
+- **The FOLD is the viewport height** (844 / 568). That is where content disappears
+  and it is what Step 1's baseline compared against.
+- **685 / 375 is the CONTENT BUDGET** — the viewport minus the pinned header — which
+  is what the pinned-bar table needed.
+
+375-vs-685 was never a contradiction: same measurement, two widths.
+
+### ✅ THE DISCLOSURE-HEIGHT DISCREPANCY — ESTABLISHED, and the instrument is SOUND
+
+Dumped every child of the walk's landing node per variant, with the finder's pick
+marked. **Same node index (3), same class, 3 paragraphs, in both** — so the walk does
+NOT land on a different node and its numbers can be trusted.
+
+The 19px is real layout, and it is entirely in the THIRD paragraph, which is **not one
+of the four required facts**:
+
+| | trial | mid-grace |
+|---|---|---|
+| fact 1+2 | 20px | 20px |
+| fact 3+4 | 20px | 20px |
+| third line | **39px** "We'll notify you before your trial ends. Cancel any time…" | **20px** "Cancel any time from your Billing screen." |
+| total | 90px | 71px |
+
+**The four required facts are identically sized across variants** — 40px in both —
+which is what a fold requirement wants. Nothing is backwards once the line is visible:
+mid-grace's FIRST line is longer but does not wrap, while the trial's THIRD line is a
+longer sentence that does.
+
+### OPTION 4, MEASURED AND REJECTED (kept for the record) — pin the disclosure and button to the port (Adrian, 17 Aug)
+
+**Nothing built. Measured first, as instructed.** Adrian rejected both "accept
+scrolling" and "amend `02b`" as premature, and noted the first IS the defect `02b` §3.7
+exists to stop. Option 4 satisfies §3.5 as written instead of reinterpreting it: lift
+the disclosure and button out of the scroller and pin them, so the four facts cannot
+leave while the Element scrolls above them.
+
+| Case | port | pinned bar | left for Element | Element wants | out of reach |
+|---|---|---|---|---|---|
+| trial 390x844, kb down | 685 | 142 | 543 | 403 | **0 (0%)** |
+| trial 390x844, kb up | 469 | 142 | 327 | 403 | 76 (19%) |
+| trial 320x568, kb down | 375 | 162 | 213 | 424 | 211 (50%) |
+| **trial 320x568, kb up** | **159** | **162** | **−3** | 424 | **427 (101%)** |
+| mid-grace 390x844, kb down | 685 | 123 | 562 | 403 | **0 (0%)** |
+| mid-grace 390x844, kb up | 469 | 123 | 346 | 403 | 57 (14%) |
+| mid-grace 320x568, kb down | 375 | 162 | 213 | 424 | 211 (50%) |
+| **mid-grace 320x568, kb up** | **159** | **162** | **−3** | 424 | **427 (101%)** |
+
+**The pinned bar is 123-162px, not ~180px** — the estimate was conservative, measured
+from its real parts rather than guessed.
+
+**Where it works.** 390x844 is clean: nothing out of reach with the keyboard down, and
+14-19% with it up, which is ordinary scrolling inside the card form. 320x568 with the
+keyboard down leaves the Element a 213px window — 50% scrolled, tight but functional,
+**and the four facts and the button would be permanently visible, which is §3.5 met as
+written.**
+
+### ⚠️ AND THE CASE HE PREDICTED WOULD BREAK IT DOES BREAK IT
+
+**At 320x568 with the keyboard up, the pinned bar (162px) is TALLER than the entire
+visible port (159px).** `leftForElement` is **−3px**: the card fields get zero pixels.
+The field being typed into would be completely unreachable.
+
+Note the direction of the harm: the current unpinned layout has the same 159px port and
+the user simply scrolls to the field. **Pinning strictly worsens the keyboard case at
+320px**, from "scroll to your field" to "your field does not exist".
+
+**A precedent exists in this codebase, offered as fact and not as a decision.**
+`components/navigation/bottom-nav.tsx:137` already slides a fixed bar out of the way
+while the keyboard is open (`transform: keyboardOpen ? "translateY(100%)"`), driven off
+`visualViewport`. Applying that here would trade the broken case for one where the four
+facts are hidden *while typing* — the button is unreachable then too, so whether §3.5's
+"visible at the same time as the button" is about the moment of pressing is a reading
+question, not a measurement.
+
+### ⚠️ TWO CAVEATS ON THESE NUMBERS, both load-bearing
+
+**The keyboard rows are a VIEWPORT-SHRINK PROXY, not iOS.** Headless Chromium has no
+soft keyboard, so focusing a field does not collapse `visualViewport` — the rows were
+made by shrinking the viewport by a stated 216px (iOS portrait, SE class). iOS collapses
+the VISUAL viewport while leaving the layout viewport alone, and a `position: fixed` bar
+behaves differently under those two. **A pinned bar needs a real device before it
+ships.** Owed, not implied.
+
+**The 390x844 disclosure heights disagree between variants (trial 90px, mid-grace 71px)
+and that is backwards** — mid-grace's line is the longer one. Both read 110px at
+320x568, which is the decisive width, so no conclusion here turns on it; but the
+descend-past-wrappers walk may be landing on a different node per variant. Flagged
+rather than explained, because I have not established which.
+
+### The shape of the question for Adrian
+
+The requirement is `02b`'s and the arrangement is `09`'s, and §3.5 says a conflict
+between them is a question rather than a judgement call. Options, none chosen:
+
+1. **Accept scrolling at 320x568** and hold the no-scroll requirement at 390x844,
+   where it passes in every variant measured. 320x568 is iPhone SE 1st-gen / very old
+   Android; the disclosure is still fully readable, reachable and above the button.
+2. **Re-configure the Element** so it is shorter — a different `layout`, or fewer
+   fields. That changes what Stripe renders and needs its own measurement, and §3.3
+   warns a selector that does not exist is ignored silently.
+3. **Re-read the requirement as "not obscured" rather than "no scrolling"** at the
+   smallest width. That is a change to `02b`, not to `09`.
+
+⚠️ 390x844 passes in every variant measured, both before and after Steps 2-4, so
+nothing here is a regression — it is a requirement that was never met at the smallest
+width.
+
+---
+
+## 🔴 09 STEP 1 BASELINE — THE COLD REVIEW'S HIGH IS CONFIRMED AND MEASURED
+
+**Driven, `checkoutfold.scenario.ts`, 3/3, wallet absent (§3.6's worst case), page
+asserted at scroll-top before every reading.** Measured as the element's bottom edge
+in page coordinates against the viewport height — not `isVisible()`, which is true of
+anything rendered whether or not it is below the fold.
+
+| Variant | 390x844 | 320x568 |
+|---|---|---|
+| trial — "7 days free, then $69.99 USD/yr ($5.83/mo)" | facts 663/687, button 798 — **all above** | facts 700/743, button 854 — **all three BELOW** |
+| mid-grace — "Starts 20 Nov 2026, then $69.99 USD/yr ($5.83/mo)" | facts 673/697, button 788 — **all above** | facts 720/763, button 854 — **all three BELOW** |
+| **starts-today** — "Starts today, then $69.99 USD/yr ($5.83/mo)" | facts 713/737, button 674 — **all above** | facts 793/816, button 753 — **all three BELOW** |
+
+**390x844 passes in every variant measured. 320x568 fails in every variant measured.**
+
+### The number that decides how bad it is
+
+The document is NOT scrollable (`scrollHeight` equals the viewport). The overflow lives
+in an inner container — `flow-scroll-fade flex min-h-0 flex-1 flex-col overflow-y-auto`
+— with **scrollHeight 690 against clientHeight 375**. That container DOES scroll, so
+the button is **reachable**, and this is the audited disclosure defect ("could be paid
+on with the price scrolled out of view") rather than an unreachable payment button.
+Worth chasing before reporting: those two readings are very different findings and the
+first run's numbers alone could have been read as either.
+
+**315px must be reclaimed inside a 375px-tall scroll area** for §3.5 to hold at
+320x568. That is the size of the problem, and it exists BEFORE any of `09`'s changes.
+
+### ✅ THE STARTS-TODAY VARIANT IS NOW MEASURED (20 Aug 2026). The row above is filled in.
+
+**The original run was an arrival failure and was reported as one.** Seeding
+`billing_customers.trial_lock_until` a year out did not make the account
+trial-ineligible: the disclosure still read **"7 days free"**, so that run measured the
+trial variant a second time. Its row was left ABSENT rather than filled in from the
+trial numbers, which is why nothing false was ever published.
+
+**Why the seed could not work, established 20 Aug:** `trialEligibility` never reads
+`trial_lock_until`. That column is `startTrial`'s concurrency lease
+(`lib/billing/trialLease.ts`), read only inside its own conditional `UPDATE` — the value
+never reaches a branch in TypeScript. And the fabricated `cus_qa09_*` id made
+`listSubscriptions` throw, so the outer catch returned the generous fallback. The case
+was not merely vacuous: it was **unreachable by construction**, and its only assertion
+(`not.toBe("(disclosure not found)")`) is satisfied by all three variants, so nothing in
+the file could tell.
+
+**Reached instead by the real mechanism, with no Stripe object:** an EXPIRED beta grace.
+A dated comp row whose date has passed classifies as `grace-expired` (D81) →
+`eligible: false` with `graceEndsAt: null` → `midGrace` false → the literal
+"Starts today". The case now asserts `startsWith("Starts today,")`, which is false for
+both other variants, so it cannot silently measure the wrong one again.
+
+⚠️ **AND THE EARLIER INFERENCE IS CONFIRMED BY MEASUREMENT.** It read: *"'Starts today'
+is shorter than mid-grace's 'Starts 20 Nov 2026' ... so the paid variant would fail at
+320x568 too."* Measured: it does — facts 793/816, button 753, **all three below the
+fold**. All four variants now fail at 320x568 and pass at 390x844.
+
+⚠️ **ONE FUSE DEFUSED IN THE SAME CHANGE.** The MID-GRACE case seeded the hardcoded
+instant `2026-11-20T04:00:00.000Z`. On that date it would have expired, rendered
+"Starts today", and become a byte-identical duplicate of the case above it under a
+`=== MID-GRACE ===` heading — the same defect, on a three-month fuse, in the adjacent
+`it`, silently costing §3.5 its tightest case. It is now a relative date (`now + 92d`,
+which computes to the same 20 Nov, so the numbers above are unchanged) with its own
+arrival assertion `/^Starts \d/`, which passes only on a DATE.
+
+---
+
+## 📮 TO THE SPEC CHAT — AN AMENDMENT TO `02b` §3.7, with every number attached
+
+**Drafted 17 Aug 2026 on measurement. Decided in the spec chat, not here.**
+
+### §3.7's requirement STANDS UNCHANGED, and it is MET at 390x844
+
+All four required facts — trial length, exact renewal amount with currency, first
+charge date, renews-until-cancelled — are visible at the same time as the button,
+without scrolling, at 390x844, in every variant seedable today, with the disclosure in
+the position `09` Step 5 instructs (below the button):
+
+| | fact 1+2 | fact 3+4 | button | fold | below the fold |
+|---|---|---|---|---|---|
+| trial | 713 | 737 | 674 | 844 | none |
+| mid-grace | 713 | 737 | 674 | 844 | none |
+
+**This is not a re-reading of the requirement and no fact has been trimmed, shrunk or
+moved above the button.** The copy is untouched.
+
+### At 320x568 it is PHYSICALLY UNACHIEVABLE
+
+| | height |
+|---|---|
+| express-checkout row (empty, no wallet) | 8px |
+| **Stripe's Payment Element** | **424px** |
+| the disclosure, all four facts | 110px |
+| the button | 52px |
+| gaps and padding | ~96px |
+| content | 690px |
+| **visible scroller (viewport 568 − 193px header)** | **375px** |
+
+**Stripe's Element alone is 424px inside a 375px scroller — 49px more than the whole
+visible area.** The requirement fails with the disclosure at zero height, the button at
+zero height and every gap removed. It is not a spacing problem and no arrangement of
+our own content changes it.
+
+### The pinned-bar option was measured and REJECTED
+
+Lifting the disclosure and button out of the scroller and pinning them satisfies §3.7
+literally, and works at 390x844 (0% of the Element out of reach keyboard-down, 14-19%
+keyboard-up). **It was rejected on the 320x568 keyboard-up case:**
+
+| | port | pinned bar | left for Element |
+|---|---|---|---|
+| 320x568, keyboard up | 159px | 162px | **−3px** |
+
+The pinned bar is taller than the entire visible port: the card fields get zero pixels
+and the field being typed into is unreachable. **The current layout leaves the same
+159px and the user simply scrolls to their field, so pinning takes that case from
+"scroll to your field" to "your field does not exist".** A fix that worsens the case it
+does not fix is not a fix.
+
+The `bottom-nav` slide-away that would hide the bar while the keyboard is open was
+rejected too, and on the instrument rather than the design: **the keyboard rows above
+are a headless viewport-shrink PROXY, not iOS.** iOS collapses the visual viewport and
+leaves the layout viewport alone, and `position: fixed` behaves differently under those
+two — so it needs a real device, and 320x568 is an iPhone SE 1st gen / 5s, hardware
+that is not available to test on.
+
+### Population
+
+320x568 is iPhone SE 1st gen and 5s. **Approximately zero of the ~90 beta accounts**,
+and the disclosure there is still complete, legible, reachable and directly beneath the
+button — it requires a scroll, which is what §3.7 exists to prevent, and that is
+exactly why this is an amendment rather than a silent acceptance.
+
+### Proposed wording, for the spec chat to accept, edit or refuse
+
+> §3.7's requirement is met at 390x844 and above. At 320x568 it is recorded as a
+> **measured limitation** under §9g: Stripe's Payment Element is 424px inside a 375px
+> scroller, so no arrangement of Trackd's own content can place all four facts and the
+> button above the fold. The disclosure remains complete, unshrunk, and immediately
+> below the button. Revisit if Stripe's Element becomes shorter or a shorter layout
+> becomes available.
+
+⚠️ **What this amendment must NOT be read as licence for:** trimming a fact, shrinking
+one below legibility, moving one above the button, or accepting a scroll at 390x844.
+Each of those was available and none was taken.
+
+---
+
+## 📮 TO THE SPEC CHAT — D90, a CLARIFICATION OF D30 keeping the number
+
+**06 §3.7 and D30.** D30 decided the seen-marker is a per-browser cookie rather than a
+database row. **It did not decide that one person's dismissal consumes another's
+notice**, and a drive on 2026-08-17 found that it did: the cookie held one id, so B
+dismissing overwrote A's record and A met the going-paid notice again.
+
+**D90 (Adrian, 2026-08-17): the cookie is ACCOUNT-SCOPED.** Scope its value by user id
+and reject a mismatch on read, as `openOfferStore` does, for the same stated reason — a
+shared browser must not leak one person's state to the next. Two mechanisms doing the
+same job should not disagree. §3.7's "known limitation" paragraph still stands for
+cleared cookies, a second device and a private window; it must no longer be read as
+covering a second account.
+
+⚠️ **One note for the spec chat, because the wording and the code pull apart.**
+"Reject a mismatch on read" was ALREADY the built behaviour (`betaNoticeStore.ts:50`,
+`cookieValue === userId`), which is why B never inherited A's dismissal — the leak
+direction was closed from the start. **The half that was missing was on the WRITE**: it
+replaced the value rather than adding to it. And `openOfferStore` is itself a single
+slot (`openOfferStore.ts:86`), correctly, because a ten-minute offer can only have one
+in flight — so it is the right model for the CHECK and the wrong one for the STORAGE.
+Built as a set of ids so both dismissals survive; if the spec means something narrower,
+that is a ruling, not a clarification.
+
+Capped at 8 ids (~300 bytes), evicting the oldest. The ninth account on one browser
+re-shows the notice for the first, which is §7's harmless direction.
+
+---
+
+## 📮 TO THE SPEC CHAT — three amendments to 06, all decided by Adrian 2026-08-17
+
+**06 §0** — "There are **zero** entitlement rows in the database today… The backfill
+has never been run." **The premise is FALSE, not stale.** The backfill ran on
+2026-08-17 during the D81 verification; there are ninety rows dated 31 August, and
+`12` §P11 is now D86's re-dating migration. §0's ship-together reasoning still holds,
+but its stated starting condition cannot be reached again.
+
+**06 Step 6** — "run the route against them". **Do not.** `/api/billing/beta-grace`
+is banned in every mode, for any reason, including as part of a test, because
+driving it once already ran the backfill against production. Backfill logic is
+exercised through `betaGrantFor` / `grantExpiry` against seeded rows, which needs no
+route. Step 6's own goal — "confirm one instant is shared across every row it
+writes" — is already true of the rows that exist.
+
+**06 Step 7** — "Backfill, notice shown once, fortnight honoured…" is a sequence that
+cannot be replayed. What it was reaching for is driven instead by
+`scratchpad/harness/notice.scenario.ts`: **move the entitlement row and the notice
+moves with it**, which is the property D86 depends on and the one that proves the
+notice reads rather than computes.
+
+---
+
+## ✅ 06 STEPS 1-5 — ADJUDICATED, BUILT AND DRIVEN. 9/9 in `notice.scenario.ts`.
+
+### ✅ Step 4 — the confetti is scoped, and it collapses rather than strands
+
+Four cells driven at 390x844, because two of them are only meaningful beside the
+other two. Read from the rendered DOM and the computed style, never from source.
+
+|  | motion normal | `prefers-reduced-motion: reduce` |
+|---|---|---|
+| **comp** | 18 pieces, `display:block`, 18 animations, `iterations: 1`, `finished` at 8s | 18 pieces present, container `display:none`, **0 animations** |
+| **beta** | **0 pieces, 0 animations** | 0 pieces |
+
+The comp row is the control for the beta row (the burst exists at all, so zero on
+the beta variant is scoping rather than breakage); the normal column is the control
+for the reduce column (it runs at all, so stopped is the opt-out rather than a dead
+component). `pointer-events: none` confirmed on the container — the burst covers
+"Thank you", the only control on that variant.
+
+**"One shot" is observed, not declared.** `iterations: 1` is the declaration;
+`burstStates: ["finished"]` after 8 s — past the longest piece's 1140 ms delay plus
+4600 ms duration — with all 18 pieces still in the DOM is the observation.
+
+**And reduced motion is HIDDEN, not merely stilled**, which is the distinction
+`confetti.tsx` already paid for: the shared `animation: none` opt-out alone strands
+eighteen amber dots at `opacity: 0.59` along the top edge, because these keyframes
+animate TO invisibility. `containerDisplay: "none"` is the collapse.
+
+### ✅ Step 5 — once per account, and B never inherits A's dismissal
+
+One persistent browser context, two beta accounts on **deliberately different
+dates** (30 Sept vs 20 Nov). Two different variants would be told apart by their
+headline and would prove nothing about scoping; same variant, different row, means
+"B saw its own" cannot pass by accident.
+
+- A's notice opens showing **30 Sept 2026** ← arrival
+- "Got it" → detached, and the cookie holds **A's user id**
+- reload → absent, with `nav[aria-label="Primary"]` asserted present as the CONTROL
+  (a dead page and a suppressed notice are otherwise the same observation)
+- soft nav to `/protocol` and back → absent, shell present
+- swap the `sb-*` session cookies to B, keeping the seen-cookie (CONTROL: it still
+  holds A's id, or B seeing a notice would be trivially true) → **B's notice opens
+  showing 20 Nov 2026, and never 30 Sept**
+
+### 🟡 S4 — ONE COOKIE SLOT, AND THE SPEC DOES NOT RULE ON WHAT IT COSTS
+
+**Observed, pinned by a test, and flagged for a ruling rather than decided here.**
+
+§3.7 says two things that are both true and that pull apart in exactly one case: the
+flag "is scoped to the ACCOUNT, by storing the user id as the value", and "a cookie
+is per-browser", listing the re-show cases it accepts — clearing cookies, a second
+device, a private window. **Two accounts alternating in one browser is not in that
+list**, and it behaves differently from both readings.
+
+Driven: A dismisses (cookie = A). B signs into the same browser, sees its own notice,
+dismisses (cookie = B). **A returns and the notice is SHOWN AGAIN** — and it is A's
+own notice, showing A's date. The cookie is one slot holding one id, so it cannot
+remember two dismissals at once.
+
+So §5's box *"the notice shows once per account and does not return on reload or
+navigation"* is true for every account except one that shared a browser.
+
+**Not called a defect here.** `04`'s offer store is account-scoped and D30's cookie
+is per-browser, deliberately, so the two disagree by design; and §7 already reasons
+that "a re-shown notice is a second notice, which is harmless, while a never-shown
+one is the real gap". A second going-paid notice costs an interruption, not money,
+and no charge or promise moves. **Recorded because it is a real observable behaviour
+on a shared device that no line of the spec names.** If Adrian wants exactly-once
+per account it needs a column, which is a migration — §7's D30 recommendation is to
+accept it, and accepting it should be written to cover this case too.
+
+### ✅ The date's provenance is CORRECT (Step 3, by reading)
+
+`dashboard/page.tsx:236-241` renders `betaEntitlement.activeUntil` — **the
+entitlement row** — formatted server-side in the user's stored timezone.
+`isComp` is `!activeUntil`, so a no-expiry comp is the comp variant. **Nothing is
+derived.**
+
+**✅ And the stored zone is now DRIVEN too, closing Step 3's other half.** The
+move-the-row test proves the notice READS; this proves it reads in the RIGHT ZONE,
+which is a separate failure — a correctly-read instant formatted in the browser's
+zone is still wrong on screen, and wrong by a whole day for half of every day. The
+instant is chosen so the two zones disagree on the calendar date, which is the only
+kind that can tell them apart: `2026-09-30T16:00Z` is **1 Oct** in the stored
+Australia/Sydney and **30 Sept** in the device's America/Los_Angeles. The notice
+reads "until 1 Oct 2026", with the device zone asserted as
+`America/Los_Angeles` as the control.
+
+**And the one place a derived date WOULD be wrong is worth naming.**
+`app/onboarding/page.tsx:293-317` deliberately runs `resolveFreeTime` and shows the
+CLAMPED instant, because that screen states a CHARGE date and must match what
+Stripe will hold. ⚠️ **The notice must never copy that.** The clamp only moves
+LATER, so a notice showing it would promise access up to 48 hours beyond
+`active_until` — and the gate lapses at `active_until`. A notice reading the clamp
+would over-promise against the gate that enforces it. Two surfaces, two dates, both
+correct: charge date is clamped, access-ends date is the row.
+
+### ❌ The notice copy diverges from §3.6, in both variants
+
+Same shape as `05`'s pop-up. Recorded here so the comparison is written down:
+
+| §3.6 approved | Built |
+|---|---|
+| "Trackd Co is going paid" | "Trackd is going paid" |
+| "You've been using it free while we built it…" | "You've been using Trackd for free while we built it…" |
+| "From today it's a paid app, and because you were here early you've got two more weeks on us, until [date]." | "From now on Trackd is a paid app. You've got until {date} on us to decide." |
+| "After that your account goes read only. You'll still see everything you've logged, you just can't add to it. Nothing gets deleted." | "After that you can still open Trackd and read everything in it. You just won't be able to log anything new until you subscribe. Nothing gets deleted." |
+| Buttons: "Got it" (primary) + "Set up my plan" | ONE button: "Got it" |
+| "Trackd Co is yours. For life." | "Trackd is yours. For life." |
+| "It costs money for everyone else from today…" | "Trackd costs money for everyone else from today…" |
+| "You were here for the version that barely worked, and you stayed. That's worth more than a subscription." | "Thanks for being here when it was held together with tape." |
+
+⚠️ **The built beta variant never uses the exact phrase "read only"**, which the
+brief makes mandatory on every surface naming the state. Same defect `05` §7 raised
+about the alternative pop-up copy set.
+
+D31 is **re-decided — both controls ship**, so the missing second button is a
+divergence rather than an open question.
+
+### ⚠️ "two weeks" is TYPED, and the fourteen must never be
+
+`BetaLaunchNotice.tsx:255` falls back to the literal `"two weeks"` when `endsOn` is
+null. The rule is that the fourteen comes from `BETA_GRACE_DAYS` and is never
+typed. The approved line also says "two more weeks" as signed prose — so this needs
+Adrian's word on whether the signed wording derives from the constant or is simply
+sacred as written.
+
+### 🔴 CONFLICT 1 — Step 6 instructs the thing that is banned
+
+`06` Step 6: *"run the route against them"*. Adrian, 2026-08-17: **"DO NOT CALL
+`app/api/billing/beta-grace`, in any mode, for any reason, including as part of a
+test."** The instruction is newer, explicit, and was given because that route
+already ran the backfill against production. Taking the instruction as governing,
+and NOT running the route — but saying so rather than resolving it silently.
+
+Backfill logic can still be exercised by calling `betaGrantFor` / `grantExpiry`
+against seeded rows, which needs no route.
+
+### 🔴 CONFLICT 2 — Steps 6 and 7 assume a backfill that has already run
+
+Both are written for a database with **zero** entitlement rows (`06` §0 says so
+outright). There are ninety, dated 31 August, and **P11 is now D86's re-dating
+migration rather than the backfill**. So Step 6's "confirm one instant is shared
+across every row it writes" is already true of rows that exist, and Step 7's
+"backfill, then notice" is a sequence that cannot be replayed.
+
+What still needs driving from Step 7 is everything AFTER the rows exist: notice
+once, fortnight honoured, mid-grace subscribe charging nothing inside it, `07`'s
+reminder, then the lapse into `05`'s gate — and `05` Step 7 has already driven the
+last of those.
+
+---
+
+## 🔴 05 STEP 6 IS IN PROGRESS, AND ITS DRIVER IS NOT IN THE REPO
+
+**Status: NOT a pass, and deliberately not reported as one.** `qa-05-attack.mjs`
+captures a real server-action dispatch, but the ENTITLED account's write is not
+landing — so the three attacks would be replayed against a path never proven to
+work. Standing rule 4: confirm the driver reached the state before reporting a
+result from it. Three green ticks there would have been a false pass.
+
+    ✅ ARRIVAL: a real server-action dispatch was captured — 1 POST
+    ❌ ARRIVAL: the entitled account's write actually landed — 0 rows
+
+Next: find why (the captured POST may not be `logWeight` at all), then re-run.
+
+### ⚠️ AND THE DRIVERS ARE ON ONE MACHINE, IN NOBODY'S CLONE
+
+`.gitignore:73` is `/scratchpad/*` with `!/scratchpad/harness/` re-included. So the
+harness scenarios are tracked and **every `qa-*.mjs` and `cold-*.mjs` driver is
+not** — including `qa-05-readonly.mjs`, the 23/23 drive of the read-only pop-up
+that `05` Steps 2 and 3 were signed off on, and the whole shared spine those
+drivers import (`admin.mjs`, `qa-billing.mjs`, `qa-cancel.mjs`).
+
+**This exact failure is already written down in `lib/billing/gate.ts`**, about
+`gate-audit.mjs`: *"It lived in `scratchpad/`, which `.gitignore` excludes — so the
+script this paragraph rests its credibility on was on one machine and in nobody's
+clone. A cold review pointed that out. It is tracked now."* It was fixed for that
+one file and the class was left open.
+
+It matters here because `05` §5 and `12` both rest on evidence these drivers
+produced. A cold reviewer cannot re-run any of it, and neither can a future
+session.
+
+**Founder's call, two options:** track the driver corpus the way `harness/` is
+tracked, or accept that driven evidence is a point-in-time claim in a commit
+message and say so. Not decided here, because moving ~60 files that import a shared
+untracked spine is not a change to make silently.
+
+---
+
+## ✅ PAIR 2'S RELEASE CONDITION IS OBSERVED — 2026-08-17, on a real Stripe test clock
+
+**`07` §0: "an observed notification, before an observed charge, with time fast
+forwarded."** `scratchpad/harness/promise.scenario.ts`, 1/1, `HARNESS_ALLOW_STRIPE=1`.
+
+    reminder delivered   2026-08-28T23:05:00Z   trialReminder=sent, stamp 2026-08-29
+    courtesy period ends 2026-08-31T05:20:18Z
+    invoice PAID         2026-08-31T06:20:18Z   in_1U5IyNEmCWV24GLCdjGAssQ6
+
+Real customer, real `pm_card_visa`, real subscription, real test clock, real invoice,
+real web-push bytes under a valid VAPID signature. Four arrival checks before any of
+it counts: the mirror written from the live object; the grant returning
+`{ok:true, kind:"trial"}`; the mirror moved AND `courtesy_until` non-null AND
+`cancel_at_period_end` lifted; and an invoice that actually got paid.
+
+Both directions asserted, because "we'll remind you first" breaks equally either way:
+the reminder precedes the charge, **and** no money moved before the courtesy period
+ended.
+
+⚠️ **NOT real: the webhook.** There is no tunnel from Stripe to this laptop, so
+`syncSubscription` is called directly with the live Stripe object — which is what the
+webhook does with it, and what `05` §3.7 records the offer claim itself doing.
+
+### ⚠️ `REMINDER_PROMISE_ENABLED` IS ADRIAN'S TO SET, AND I HAVE NOT SET IT
+
+`07` §5 says this observation "releases `REMINDER_PROMISE_ENABLED`, not `04`". The flag
+is absent from `.env.local` and `reminderPromise.ts:39` fails toward NOT promising by
+design. Setting it ships two signed promise strings to real users and is an environment
+change in Vercel, so it is a founder action, not an agent one. **The condition it waits
+on is now met.**
+
+### ✅ Step 6's SECOND LEG — a plain trial converting, also driven
+
+Same clock, same assertions, no cancellation and no grant. Its arrival check is the
+mirror image of the first leg's: `courtesy_until` must be **null**, because null is
+what makes `resolveEnding` pick the TRIAL wording — correct for this person and a lie
+to the one in the courtesy leg.
+
+    trial reminder  2026-08-21T23:05:00Z   sent, delivered 1
+    trial ends      2026-08-24T12:31:34Z
+    invoice PAID    2026-08-24T13:31:34Z   in_1U5PhbEmCWV24GLCgOQwsSmP
+
+Step 6 is complete: both legs observed, reminder before charge in both.
+
+### ✅ Step 7 — Q79 ANSWERED, and my first answer was WRONG
+
+**The answer: `customer.subscription.trial_will_end` fires with 3 DAYS left on a
+7-day trial, and a moved trial end raises it AGAIN (1 fresh firing).**
+
+⚠️ **The first run of this measurement produced 168 hours and 336 hours, and both
+were artifacts.** It advanced straight to the ending and computed
+`trial_end - event.created`. The tell: the two events were stamped SIX SECONDS APART
+in real time while their simulated positions were a week apart — so `created` is
+wall-clock on a test clock, and the subtraction was measuring "the ending minus the
+moment the test ran". A number that looks like an answer and is not one is worse here
+than no number, because D34 would have been decided on it.
+
+Re-measured by **walking the clock a day at a time** and looking for the event after
+each step. The first step at which it appears IS the simulated firing moment, to
+within a day, and it interprets no timestamp. That gives 3 days, which is what Stripe
+documents.
+
+**What this hands to `12` for D34.** The EVENT has a 3-day lead. The dashboard's
+trial-reminder EMAIL is set to **7 days**, against a **7-day** trial and a **7-day**
+courtesy period — so its deadline falls at or before the free period BEGINS, which is
+`07` §0's stated concern, now with a measured lead beside it. And because a moved end
+raises a fresh event, Stripe re-schedules on a courtesy grant rather than staying
+silent.
+
+⚠️ **The email itself is NOT API-observable.** Stripe exposes no endpoint for sent
+customer emails and test mode delivers them nowhere a harness can read. So whether it
+actually goes out, and what it does on a 7-day period, is a **dashboard check by eye**
+for `12`/D34. Named as a gap rather than left looking like an answer — `07` §3.6
+already says the email "is explicitly not the backstop", and a false reassurance about
+it is exactly what would make somebody treat it as one.
+
+---
+
+## 🔴 05 §3.6b's FINAL-DAY BANNER WAS DECIDED AND NEVER BUILT — found driving 07 Step 4
+
+**`07` Step 5 is "enforce the no-double-banner rule". There is nothing to suppress.**
+
+`05` §3.6b decides a banner — **"Your plan ends today."**, quiet, last entitled day
+only, tapping to Billing — and `05` §7 records it as decided on 15 Aug. **The string
+appears nowhere in the tree**, and `05`'s Steps 1-8 contain no step that builds it: the
+decision was recorded in the design section and never given an implementation step.
+
+Driven, `banner.scenario.ts`, 5/5, gate on, 390x844, with a control grep proving the
+search works before trusting the empty result:
+
+| Account on its final entitled day | Banners |
+|---|---|
+| trialing, not cancelled | **1** — "Your free trial ends today." |
+| beta grace (comp, expiring) | **1** — "Your free access ends today.", never "trial" |
+| trialing, `cancel_at_period_end` | **0** |
+| active + `cancel_at_period_end`, period ends today | **0** |
+
+**So `07` §3.7's rule holds VACUOUSLY** — exactly one banner on the overlap day and it
+is `07`'s — while `05` §5's box *"the final-day banner renders on the last entitled day
+only"* is false in the other direction: it never renders.
+
+⚠️ **The two zero rows are the finding.** `trialNoticeFor` returns null on its first
+line for `cancelAtPeriodEnd` and for any status that is not `trialing`
+(`trialReminder.ts:291`), both deliberately — `07`'s promise is "before anything
+changes", and for somebody who already cancelled, nothing is. **That is precisely the
+hole `05` §3.6b was decided to fill**, in a cohort-neutral sentence that also works for
+the ~85 who never had a subscription. Nobody currently gets it.
+
+**Not a money defect and not stop-list.** Nobody is charged, no promise is contradicted,
+and the copy is already signed so there is nothing to invent.
+
+### ✅ BUILT AND DRIVEN — `05` STEP 9, 2026-08-18. 10/10 in `banner.scenario.ts`.
+
+`components/billing/PlanEndsTodayBanner.tsx`, wired into the dashboard's existing
+banner slot. **"Your plan ends today."**, signed, character for character.
+
+| Cohort, on its final entitled day | before | after |
+|---|---|---|
+| cancelled trialist | **0 banners** | 1 — "Your plan ends today." |
+| paying, cancelled, `stripe` entitlement ends today | **0 banners** | 1 — "Your plan ends today." |
+| trialing, not cancelled (the OVERLAP day) | 1 — `07`'s | 1 — `07`'s, final-day line suppressed |
+| entitlement three days out | 0 | 0 |
+| no entitlement at all | 0 | 0 |
+
+**Three conditions, each a decision:**
+
+1. **`trialNotice` must be null**, expressed as a single TERNARY in one slot rather
+   than two independent predicates — so `07` §3.7's "the promised reminder always
+   wins" holds by construction and cannot be broken by two conditions drifting apart.
+2. **The gate must be ON.** Not invented here: `dashboard/page.tsx:117-128` already
+   rules exactly this for `graceTrial` — *"With the switch off nothing ends. Warning
+   somebody about a deadline that is not enforced is the same lie as not warning them
+   about one that is."* Ungated it would tell **86 real beta accounts** their plan
+   ended on 31 August, a day on which nothing happens to them.
+3. **The entitlement's own `activeUntil` falls on today**, compared as local date
+   keys in the stored timezone. From the row that governs access, not from a
+   subscription — which is what makes it true for the beta cohort, who have none.
+
+⚠️ **Absent is not today.** A null entitlement means no final day and the banner does
+not render; a missing row must never be read as "ends today".
+
+Not dismissible, deliberately: §3.6b is "the last day, stated once", so there is
+nothing to remember. `TrialEndingBanner` needs a cookie because its window is days
+long.
+
+### ⚠️ Two stale tests caught while doing it
+
+`banner.scenario.ts`'s two "GAP: … sees NOTHING" cases were the evidence FOR the gap
+and **still passed after it was closed** — their fixtures have no entitlement row, so
+silence was correct for a new reason. Retitled to what they now prove (*absent is not
+today*) rather than deleted, and the precondition test that asserted the banner was
+NOT in the tree is inverted, keeping the same grep, so the day Step 9 is reverted the
+suppression cases fail loudly instead of passing vacuously.
+
+### The original ruling, kept for the record
+
+Adrian: a decided screen with no build step is the same class as D76 wired to nothing.
+**But no promise is broken** — a canceller was told the date in the cancel confirmation
+and a beta user in the notice — so it is a courtesy, and `08` and `09` have no code at
+all. They go first.
+
+⚠️ **If the freeze arrives before Step 9 does, record it under §9g as a DELIBERATELY
+ACCEPTED GAP rather than an oversight**, citing `05` §3.6b for the decision and
+`lib/notifications/trialReminder.ts:291` for why `07`'s banner cannot cover the cohort.
+
+---
+
+## 🔴 MUST CLOSE BEFORE 07 SHIPS — the grace reminder degrades into the trial copy
+
+**Traced 2026-08-17, four ways, then adversarially refuted three ways. Not live
+today. Latent, and it opens the moment 07 is deployed.**
+
+**The question:** can the production cron push "your free access ends" to the 86 real
+grace accounts on 29 August, with `BILLING_GATE_ENABLED` unset and `06`'s notice never
+shown? (The 86 graces end 2026-08-31; the reminder lead is two days.)
+
+**Today: NO, for two independent reasons.** Production runs `origin/main` (`b925568`),
+which does not contain `lib/notifications/trialReminder.ts` or `lib/billing/gate.ts` at
+all — the reminder engine is not deployed. And on this branch, the grace read is behind
+the gate: `runner.ts:202-211` makes the `entitlements` query the *then* branch of a
+`billingGateEnabled()` ternary, so with the flag unset the row is never fetched, `trial`
+is null, and `trialReminderVerdict` returns `no-trial` on its first line.
+
+**⚠️ THE DANGEROUS PATH IS NOT THE GATED ONE, AND IT IS NOT GATED AT ALL.**
+
+The sibling read at `runner.ts:150-161` — `subscriptions` where `status='trialing'` —
+has **no gate on it**, and `runner.ts:270-276` PREFERS it: `trial = row ? {...} : grace`.
+
+So when one of the 86 subscribes mid-grace:
+
+1. `01` §3.4 creates the subscription with `trial_end` = **the grace end**, not a day
+   count (`billing-actions.ts:834`, `freeTime.ts:85`);
+2. the webhook mirrors it verbatim — `trial_ends_at: ts(sub.trial_end)` (`sync.ts:678`);
+3. the mirror row now exists, so `grace` is null and
+   **`isBetaGrace` is false** (`runner.ts:290`);
+4. `courtesyUntil` reads null, so `resolveEnding` returns `{kind:"trial"}`
+   (`trialReminder.ts:258`);
+5. the push becomes **"Your free trial ends soon" / "Day 5 of 7. Your trial ends on
+   31 Aug, and billing starts then."** (`trialReminder.ts:499-501`).
+
+**That is Law 5 broken twice over, to a beta account.** The fortnight is "14 days on
+us" and NEVER a trial; "Day 5 of 7" is false about both the day and the length; and
+`06` §3.5 names this exact regression — *"must tell a beta account their free access is
+ending, never that their trial is ending and billing is about to start — ninety people
+with no card on file were told exactly that by an earlier version."* The correct grace
+copy exists and is right (`trialReminder.ts:484-497`); the guard that selects it lives
+only inside the `isBetaGrace` branch, which this path walks around.
+
+**Blast radius, measured rather than assumed:** 86 grace accounts, of which **13** have
+both `notifications_enabled` and a push device today, and **0** have
+`trial_reminder_sent_for` stamped, so nothing is deduped away.
+
+⚠️ **13 is a floor, not a ceiling.** `savePushSubscription` writes the device row and
+flips `notifications_enabled` in one action (`pushActions.ts:66-107`), and the enable
+prompt is deliberately non-dismissable and renders on every dashboard load
+(`EnableNotificationsStep.tsx:13,36`). Every marginal enabler is drawn from a pool that
+is 100% grace-shaped. The bound on 29 August is 86.
+
+⚠️ **`subscriptions = 0` is the PRECONDITION, not a comfort.** The grace is computed
+only when there is no mirror row (`runner.ts:259-268`), so an empty mirror is exactly
+what makes all 86 eligible. Any argument of the form "no money has moved, so this is
+low risk" is backwards for this hazard.
+
+**Owed, and it is `07`'s to build.** The reminder must ask "is this account on a beta
+grace" from something **the mirror cannot overwrite**, rather than inferring it from the
+absence of a subscription row.
+
+**⚠️ DO NOT CLOSE THIS BY GATING THE SIBLING READ.** (Adrian, 2026-08-17.) Putting
+`billingGateEnabled()` on the `subscriptions` query would stop the wrong message by
+stopping every message — it trades a false notification for a missing one, and the
+missing one is the promise two screens make out loud.
+
+**Routed to the spec chat as an amendment to `07` §3.5.** The defect is spec-level, not
+just a code shape: §3.5 describes the guard as belonging to the beta-grace case, and the
+implementation faithfully put it inside the `isBetaGrace` branch. Both are wrong in the
+same way — "is this a beta grace" is a property of the ACCOUNT, and the current design
+derives it from the shape of the subscription data instead, so it stops being true the
+moment the account acquires a subscription. The spec needs to say where that fact comes
+from.
+
+### ~~`07`'s list gains one more, from the same trace~~ ✅ CLOSED 2026-08-17, BY DRIVING
+
+**The claim-burns-the-key entry read the claim and not the release.** It was right that
+`claimTrialReminder` stamps before the send (`runner.ts:975`), and right that a burned
+key would suppress the genuine reminder as `already-sent`. But `runner.ts:1005-1017`
+already hands the claim back when nothing was delivered — **the second of the two fixes
+that entry proposed was already in the tree.**
+
+Driven rather than read, because a release that exists and never runs is
+indistinguishable from no release. `monday.scenario.ts`, a push subscription pointing
+at a port nothing listens on, which is the real failure mode rather than a mocked throw:
+
+    failed send:  trialReminder=send-failed   stampAfter=null     <- handed back
+    retry:        trialReminder=sent          delivered=1         <- CONTROL
+
+The control is the half that matters. A release that also destroyed the ability to send
+would satisfy `stampAfter=null` perfectly.
+
+**Still true, and accepted where the code already says so:** a hard process crash
+between the claim and the release burns the key, because nothing runs to hand it back.
+`runner.ts`'s own comment takes that trade deliberately — "a missed push is recoverable
+where ninety-six pushes about a charge is not" — and the Home banner reaches everybody
+regardless.
+
+**And the route's GET export is `07`'s too.** `app/api/notifications/run/route.ts:99-100`
+exports `GET` as well as `POST`, on a route whose whole job is to TRIGGER SENDS. A GET
+is reachable by a link prefetcher, a browser history entry, a chat unfurler or anything
+that follows a URL — **the shared secret is the only thing standing between any of those
+and a real send to real devices.** A trigger should not be reachable by navigation.
+
+### One operational note, FOUNDER'S — do not touch
+
+The dev-server binding and the **GET** export on `app/api/notifications/run/route.ts:99-100`
+were reported and are being handled outside the repo. **No agent changes either.** (The
+local dev server was moved to loopback on 2026-08-17 at Adrian's instruction; that is a
+process change, not a repo change.)
+
+---
+
+## ✅ UNBLOCKED — the specs arrived, and 03 is built (2026-08-16)
+
+`Billing-03-Cancel-flow.md`, `Billing-04-Save-Offer.md` and
+`Billing-05-read-only-gate.md` are no longer empty. **03 is built, driven and
+cold-reviewed three times.** `04` is next; `05` is not started.
+
+---
+
+## 🔴 DECISIONS OWED BY ADRIAN, FROM SPEC 03'S COLD REVIEWS
+
+Three of these were found by driving, are money-side, and are **not** things an
+agent should decide.
+
+### 1. An `incomplete` subscription can still take the money after Cancel
+
+**Measured, end to end.** An abandoned paid attempt sits `incomplete` with its
+first invoice payable for about 23 hours. Anything that pays it — a 3DS
+challenge finished in another tab, a retry, a dashboard action — turns it
+`active` immediately.
+
+```
+sub … incomplete            invoice: open due=6999
+cancel_at_period_end        ACCEPTED (true)
+…and the invoice is STILL payable: 1 open, 6999
+```
+
+So **setting the flag does not stop it**, which means widening
+`CANCELLABLE_STATUSES` would not fix anything. Stopping an `incomplete`
+subscription needs the invoice VOIDED, or `subscriptions.cancel()` — and §2 of
+spec 03 forbids the immediate-cancel function from this path outright.
+
+**Mitigated, not fixed:** a user whose only subscription is `incomplete` now
+reads *"This one can't be changed from here. Email support@trackdco.app"*
+instead of a blank screen. Before this work they got nothing at all.
+
+**The decision:** may the user-facing cancel path void an open first invoice (or
+call the immediate cancel) for an `incomplete` subscription? Both are outside
+what 03 permits.
+
+### 2. A comp beside a live subscription — resolved as a defect, flagging anyway
+
+`manageActionFor` gave a `comp` **no cancel control** while Stripe went on
+charging them. Two independent reviews raised it; `access.ts` already documents
+the identical defect and calls it "the exact chargeback this whole area exists to
+avoid", with the fix applied to EXPIRING comps only.
+
+**Changed:** the source still decides what you are ON ("Complimentary"); the
+subscription decides what you can STOP. A comped customer with a live cancellable
+subscription now gets the cancel row. Two tests that encoded the half-fixed state
+were rewritten with the reasoning.
+
+**Flagged because it is visible:** a comped founder who also subscribed will now
+see "Cancel my subscription" on `/billing`. That is the point — Stripe is billing
+them — but it is a change to what Adrian sees on his own account.
+
+### 3. GATE-ON ONLY: a read-only user is told "Free trial"
+
+`planLabelFor` reads the mirror's `trialing` status ahead of the gate branch, so
+with `BILLING_GATE_ENABLED=true` an account with **no entitlement** but a live
+trial row reads "Free trial" and is offered a dialog promising "full access to
+your Pro plan until …", while `canWriteData()` refuses every write.
+
+**Not fixed, deliberately.** Two very different causes produce an identical
+database shape: a webhook still in flight (transient, and flickering to "Read
+only" would be its own harm — there is a test asserting exactly that), and a
+trial created with no validated card (permanent, and genuinely not entitled). The
+discriminator is `cardIsValidated`, which is not on the mirror, so telling them
+apart needs a column — a migration, and migrations are written, never applied.
+
+**Nobody is affected while the flag is unset. It must be resolved before step 4
+of the go-live order.** Belongs to `05` and `12`.
+
+---
+
+## ✅ 03 — CANCEL FLOW. BUILT, DRIVEN, AND COLD-REVIEWED THREE TIMES (2026-08-16)
+
+**Not merged. Nothing pushed. `BILLING_GATE_ENABLED` still unset.**
+
+Most of the cancel flow was already right, and the spec said so. What this
+actually produced was one new screen, two copy decisions, and **six CRITICALs
+that only driving found** — every one of which passed `tsc`, ESLint and the full
+suite first.
+
+### What was built
+
+- **The un-cancel confirmation card** (§3.10). "Glad you're staying." above the
+  plan card, amber by hairline and wash, fading in, dismissible, noun following
+  status. Component state in the component that ran the resume, portaled up into
+  a slot on the page — §3.10 forbids persisting it, so the state has to live with
+  the action and the card has to live at the top.
+- **D22**: the resume trigger reads "Keep my Pro plan", derived once, consumed
+  twice (Q82). The cancel dialog's own "Keep my trial" dismiss is untouched.
+- **Q83 answered:** nothing consumes `savedAt` on the billing actions, so the
+  card could not key off it.
+
+### The six CRITICALs, all found by DRIVING
+
+1. **One `paused` subscription made cancelling impossible.** Stripe hard-refuses
+   `cancel_at_period_end` on it; the cancel path read the wider
+   `BILLABLE_STATUSES`, so the loop threw and every retry failed identically
+   while the live trial converted. **This is the `paused` question that had been
+   carried as open** — the answer is that the two paths need different sets, and
+   `CANCELLABLE_STATUSES` (which existed with no consumer) is now the cancel
+   path's, while deletion keeps the wider one because `subscriptions.cancel()`
+   accepts a paused subscription happily.
+2. **Cancelling took 358 days of paid access** off a yearly subscriber: two live
+   subscriptions, one shared entitlement row, last webhook won.
+3. **`endSubscription` did the same thing a different way** — a stray trial dying
+   after the cancel dragged the shared row back 362 days.
+4. **`markPastDue` did it a third way**, and wider: one declined charge on an
+   unrelated second subscription clawed a paid year back to three days, with no
+   duplicate live subscription needed.
+5. **Pressing Cancel restored an entitlement a chargeback had revoked.**
+6. **Resume re-armed the charge while telling the user it had failed.**
+
+Fixes: both loops are `allSettled` with deliberately opposite honesty rules (a
+partial cancel reports failure, a partial resume reports success); a sync may
+only ever extend; the two handlers that shorten by design may not go below what
+the customer's OTHER live subscriptions entitle; and only a **non-zero**
+`invoice.paid` may resurrect a revocation (27 of the last 40 `invoice.paid`
+events on this project were $0 — every trial start raises one).
+
+### Also fixed
+
+A dropped connection destroyed the screen and left the confirm button inert. A
+failed cancel moved focus onto the button that ABANDONS it, and announced
+nothing — driven keyboard-only, the natural retry dismissed the dialog having
+cancelled nothing. The offer's charge date was formatted in the browser's zone
+while everything around it used the profile's (three dialogs, three days, one
+charge). A `past_due` user was promised access 27 days past its real end. At
+320x568 the un-cancel card landed off-screen, then — after the first fix —
+under the iOS status bar.
+
+### Carried, not fixed
+
+- The plan card's own "Trial ends" row is raw mirror and can disagree with the
+  dialog; `renewalRow` labels the access-end date "Renews on" for a `past_due`
+  user. Both are the Billing screen's structure, which `08` owns.
+- A `paused` or `unpaid` subscription is left untouched by Cancel. Defensible
+  (Stripe refuses the call) but a paused subscription that later resumes bills
+  somebody who pressed Cancel.
+- `markPastDue`'s clawback has no memory, so a later entitling event can hand the
+  unpaid period back. Reachable only on top of CRITICAL 4, which is now fixed;
+  durable memory needs a column.
+- `syncSubscription` can still write `active_until = NULL`, which reads as never
+  expires. `endSubscription` refuses exactly this; the sync has no equivalent.
+- Profile's plan pill reads the mirror with no status filter, ordered by
+  `updated_at` — the query shape `/billing` removed for cause.
+- The save offer computes free time from `items[0].current_period_end`, which on
+  a `past_due` subscription is the period the card DECLINED on: measured at +58
+  unpaid days with the failed invoice still open. **`04` owns this and it
+  contradicts `04` §3.3's own premise that "anything else has been paid for".**
+
+---
+
+## 💳 THE BILLING TRIPLE — 01, 02a AND 02b ARE ALL BUILT (2026-08-15)
+
+**⚠️ SHIP-TOGETHER. `01`, `02a` and `02b` reach `main` together or not at all.**
+Spec 01 decides who gets free days, which makes the current checkout copy false
+for a returning customer and routes a post-grace user onto a payment path that
+cannot succeed yet. Shipping 01 alone means the app makes a written promise on a
+payment screen that the server contradicts.
+
+### ✅ 01 — trial eligibility. BUILT AND DRIVEN.
+
+See `progress-tracker.md` for what it does and the full drive table. In short:
+one trial per user ever, a mid-grace beta user is charged nothing inside their
+fortnight, a free-for-life comp cannot buy, and the comp list can no longer
+reach a browser bundle.
+
+### ✅ 02a — the paid-today checkout. BUILT AND DRIVEN.
+
+A user with no free days can pay. Driven: a post-grace account lands `active`
+with its invoice `amount_due=1199 status=paid` and the card saved, and renews a
+month later on a test clock with no second card entry. See
+`progress-tracker.md`.
+
+⚠️ **The spec's own field name was wrong and failed silently.** §3.1 says to
+expand `latest_invoice.payment_intent`; Stripe removed that field in
+`2025-03-31.basil` and this SDK sends `2026-07-29.dahlia`. The expand string is
+still ACCEPTED with no error and returns null every time. Built against
+`latest_invoice.confirmation_secret` instead. **Anyone writing a later billing
+spec against Stripe docs should check the field still exists on this API
+version before naming it.**
+
+### ✅ 02b — checkout copy and disclosure. BUILT AND DRIVEN.
+
+Every cohort reads the truth. Eligibility and the first-charge date are both
+resolved server-side, the interval suffix comes from Stripe, and the approved
+copy is carried character for character. See `progress-tracker.md`.
+
+### ✅ THE COLD REVIEWS ARE CLEAN — no CRITICAL, no HIGH outstanding (2026-08-15)
+
+Three independent reviewers across all three specs: money and races, gate and
+entitlements, UI at 390x844. **No CRITICAL from any of them.** Four HIGHs were
+found and all four are fixed and re-driven:
+
+1. **A resumed trial could charge a calendar day early.** Abandon 3DS at 23:40,
+   return at 00:05: the screen recomputes its date, the resumed subscription
+   kept its old `trial_end`. No tolerance can fix it — any elapsed time makes a
+   fresh trial later — so the subscription is now EXTENDED to match, or
+   replaced if Stripe refuses.
+2. **The paywall promised "7 days free" to people about to be charged today.**
+   New exposure from this work: before 02a the paid path errored, so nobody
+   could be charged. Trial lines are now withheld per cohort, never reworded.
+3. **A mid-grace user was shown the raw `active_until` while Stripe got the
+   48h-clamped one.** The screen said 15 Aug, Stripe held 17 Aug. Every beta
+   account passes through that window. The date is now formatted through the
+   same resolver the create call uses.
+4. **The welcome screen said "7 days on us" seconds after a $69.99 charge.**
+   The trial half is withheld; the true half stays.
+
+Two MEDIUMs were regressions introduced by earlier fixes in this same run (the
+comp backstop defeating the `is_active` kill switch, and the mid-grace holding
+screen falling back to "Setting up your trial."). Both fixed. The rest are in
+`progress-tracker.md`.
+
+⚠️ **Deliberate deviation, recorded:** 02b §3.2's approved disclosure line 1
+carries no trailing full stop while lines 2 and 3 do. The build renders one, on
+Adrian's call (2026-08-15) — the omission reads as a typo in the spec, and the
+three lines match each other on screen.
+
+### 🔴 OWED TO `09-checkout-redesign.md`, MEASURED AND FAILING
+
+**The four required facts are NOT visible with the button at 320x568.** This is
+pre-existing, not caused by 02b: measured before the spec, the button sat at
+y=777 in a 568px viewport, ~209px below the fold. Carrying the approved copy
+verbatim moved it to y=802. **390x844 passes for every variant.**
+
+`02b` §3.7 owns the REQUIREMENT and `09` owns the ARRANGEMENT that satisfies it,
+and §2 forbids 02b from touching layout, spacing or the frame. So this cannot be
+closed until `09` is built, and `09` is the spec that moves the disclosure below
+the button, which is the change most likely to make it worse.
+
+Two §5 checkboxes are therefore open and BOTH belong to `09`:
+
+- the four facts visible with the button at 320x568, every variant
+- the subtitle being one line at 320x568 (the approved beta line is three)
+
+⚠️ **`09` must re-measure at BOTH widths and for the MID-GRACE variant
+specifically**, which is the longest case: its lines carry a date where the
+others carry the word "today".
+
+### ⚠️ Known and NOT fixed in 01, judged, with a concrete failing case
+
+**`reconcileToOne`'s dead-subscription guard cannot fire in the case it was
+written for.** `mine` falls back to `created`, and under an idempotency key
+`created` can be a REPLAY carrying the original `status: "trialing"`, so the
+`DEAD_STATUSES` check reads a stale status and passes. It only ever sees a fresh
+status when the object is alive, which is when it has nothing to catch. Reachable
+via lease expiry: two concurrent calls on different plans, the loser's own
+subscription is cancelled by the winner's reconcile, and the loser then hands
+back its client secret anyway. **No charge** — the card confirms against a
+cancelled subscription, no entitlement is written, and `TrialHold` eventually
+lets them into an app with nothing behind them. Fix is to re-fetch by id rather
+than trust `created`. Left because the reconcile is shared machinery and spec 01
+was told to leave `payment_behavior`, the idempotency key and their neighbours
+alone.
+
+**`hasValidatedCard` treats an absent `pending_setup_intent` as proof a card step
+finished.** That is absence of evidence, and it fails towards "trial used", which
+is the expensive direction. A subscription created OUTSIDE this path never had a
+setup intent to begin with — `sync.ts` says so in as many words, and
+`reconcileToOne` names the cohort: a hand-made one in the Stripe dashboard, a
+webhook replay, a future RevenueCat import. Comp a beta tester by hand in the
+dashboard, let it cancel, and they are charged on day one. Wants positive
+evidence (`default_payment_method || default_source || latest_invoice.paid`)
+rather than an absent marker. Not reachable from anything the app itself creates.
+
+**`paused` is in `BILLABLE_STATUSES` and reads as "money moved".** It is produced
+by `missing_payment_method: "pause"`, which means the opposite: the trial ended
+and no card was ever given. Nothing this path creates can reach it (it hardcodes
+`"cancel"`), but an imported or dashboard-made subscription could, and it would
+both burn the trial and answer `already-subscribed`.
+
+**⚠️ PARTLY RESOLVED BY `03` (2026-08-16), and not in the direction this note
+assumed.** `03` adjudicated the shared-list question and the answer was that the
+two paths ask different questions: `BILLABLE_STATUSES` stays exactly as it is for
+eligibility and deletion, and the CANCEL path now reads the narrower
+`CANCELLABLE_STATUSES`. That was not a tidy-up — leaving `paused` in the cancel
+path's list made cancelling **throw**, because Stripe hard-refuses
+`cancel_at_period_end` on a paused subscription. See `03`'s section above.
+
+**What is left of this item is the ELIGIBILITY half only:** whether a `paused`
+subscription should burn a trial and answer `already-subscribed`. That is still
+`01`'s cohort question and still wants a narrower set of its own rather than a
+narrower shared one. Unchanged, and still not reachable from anything the app
+creates.
+
+
+**The idempotency key can still 400 a mid-grace retry in the final 48 hours.**
+Spec 02a §3.9 added a segment naming the create shape, which closes the
+trial-versus-paid collision — proven against Stripe: with the old key the paid
+create is REFUSED, with the new one it succeeds. **One sub-case survives.** When
+the 48h clamp fires, `trial_end` is `now + 48h` and MOVES between attempts while
+the kind and the fingerprint stay put. A user with under 48h of grace left whose
+create FAILED (leaving the subscription set unchanged) and who retries minutes
+later sends the same key with a different `trial_end`, and Stripe rejects it.
+They see an error until the key ages out, up to 24 hours.
+
+Narrow: it needs a mid-grace user in their last two days AND a failed create AND
+a retry. It fails towards refusing rather than charging.
+
+**⚠️ THE FIX AS PREVIOUSLY WRITTEN HERE WAS UNSAFE, and is corrected (2026-08-16).**
+It said to "round `now + 48h` down to the hour". Applied as a bare substitution
+that is a money defect: `freeTime.ts:151-153` decides
+`chosen = clamped ? earliest : graceEnd`, so a downward-quantised `earliest` can
+land BEFORE `graceEnd` — up to 59m59s inside a period the app promised free,
+ending in a charge within it. That is worse than the 400 it was meant to fix,
+because the 400 fails towards refusing and this fails towards charging.
+
+The safe form keeps the promise as a floor:
+
+```
+chosen = Math.max(graceEnd, quantise(earliest))
+```
+
+Never a bare substitution. Whoever next touches that key does it that way.
+
+### ⚠️ Still true, and it is what makes all of the above safe
+
+`BILLING_GATE_ENABLED` is unset, so none of this changes anything for the ~90
+real accounts until it is set. The go-live order below is unchanged and step 8
+still comes last.
+
+---
+
+## ⚠️ NOTIFICATIONS — fixed, NOT on `main`, and a list of knowns (2026-08-13)
+
+The push engine's `stopped`/pause/version gates are fixed and reviewed (see
+`progress-tracker.md`), and they live on **`wave3/billing-cancel`**, not on
+`main`.
+
+**⚠️ They are not separable from the billing work.** They were built on top of
+it in the same branch, so merging them means merging billing, and Adrian's call
+is that nothing billing-shaped goes to `main` until billing is finished. A merge
+to `main` happened once tonight and was reverted for exactly that reason.
+
+So the notification fixes are NOT live. Until the branch lands, production still
+runs the engine that announces a compound whose `is_active` never caught up with
+its delete, and that drifts off the app's grid after a pause. Nobody is
+currently in either state (checked: 17 push-enabled accounts, 51 active
+compounds, zero affected), which is what makes waiting acceptable.
+
+What is left that is **not** in the code:
+
+### 1. ✅ `005_trial_stamp_lock.sql` — APPLIED AND VERIFIED (2026-08-13, Adrian)
+
+Pasted into the SQL Editor and proven the same night with
+`scratchpad/stamp-attack.mjs` against the live database: all five attacks
+refused with 403/42501 (clear the stamp, set it forward, smuggle it into a
+settings save, insert a row pre-stamped, delete the row), and all five
+legitimate writes still succeeded — including the service role stamping AND
+releasing, which is the one that would have turned "~96 notifications a day"
+into "none, ever".
+
+The lesson, now a standard in `code-standards.md`: he had pasted "just the
+bottom bit", and the bottom of that file is entirely comments. It would have
+reported "Success. No rows returned" — which is also what a correct run reports
+— while doing nothing. Every hand-applied SQL file now opens with a
+`▶ HOW TO RUN THIS` block: paste the whole file, no rows returned is success,
+and here is a check that actually returns something.
 
 ### 2. Known and NOT fixed — findings from four cold reviews, ranked
 
@@ -67,29 +1398,54 @@ without the reason — and the reason is what the push engine now reads.
 
 Nothing below can be done by an agent. Everything else on this branch is built.
 
-### 1. ⚠️ THE LIST OF FRIENDS FOR FREE ACCESS
+### 1. ✅ THE LIST OF FRIENDS FOR FREE ACCESS — CLOSED, with one live caveat
 
-`COMP_EMAILS` in **`lib/billing/betaGrace.ts`**. One address per line, lowercase.
-It currently holds two:
+`COMP_EMAILS` in **`lib/billing/betaGrace.ts`** holds five, and Adrian closed the
+list on 2026-08-14 ("last free one for now"):
 
 ```ts
-export const COMP_EMAILS: readonly string[] = [
-  "admin@trackdco.app",
-  "adrianschimizzi1@gmail.com",
-  // ADD FRIENDS HERE, one per line, lowercase.
-];
+"admin@trackdco.app",          // founder
+"adrianschimizzi1@gmail.com",  // founder
+"jasminemalihi06@gmail.com",
+"ananthr.ravi@gmail.com",
+"angusbrake6@gmail.com",       // given capitalised, stored lowercase
 ```
-
-**Anybody not on it gets 14 free days and then read-only.** So a friend left off
-this list is a friend who gets locked out a fortnight after billing switches on.
-Fill it in **before** running the backfill — the backfill skips accounts that
-already have access, so adding somebody afterwards means editing their
-entitlement row by hand.
 
 **Do NOT put them in `FOUNDER_EMAILS` (`lib/admin.ts`) instead.** That list also
 opens `/admin`, which shows every waitlist sign-up, and it is duplicated into an
 RLS policy in `supabase/waitlist/002_founder_read.sql`. Free forever and "can
 see everyone's data" are different things.
+
+#### ⚠️ `angusbrake6@gmail.com` HAS NO ACCOUNT, AND THE BACKFILL ONLY SEES ACCOUNTS
+
+Checked against production, 2026-08-14: 90 auth users, and four of the five comp
+addresses have one. `angusbrake6@gmail.com` does not.
+
+That matters, because **`COMP_EMAILS` is read in exactly one place** — the
+backfill route — and that route enumerates `auth.admin.listUsers()`
+(`app/api/billing/beta-grace/route.ts:102-114`) and grants against the accounts
+it finds. **Nothing reads the comp list at sign-up.** So an address with no
+account is not skipped, it is simply never considered, and:
+
+- if he signs up **before** the backfill runs, he is comped for life, correctly;
+- if he signs up **after**, he is an ordinary new user — trial, then the gate —
+  and his comp entry does nothing at all, silently, forever.
+
+Same silent-failure shape as the capitalisation trap the file warns about, in
+through a different door.
+
+**Two ways to close it, Adrian's call:**
+
+1. **Have him sign up before step 6 of the go-live order.** Costs nothing, needs
+   no code, and it is one message. Then confirm with `scratchpad/comp-check.mjs`,
+   which prints every comp address against the live account list.
+2. **Re-run the backfill after he signs up.** It is idempotent and the re-run
+   path UPGRADES a time-limited row to no-expiry, so this works — but it means
+   remembering to run it a second time, at a moment nothing will remind anybody.
+
+Option 1 is the one that cannot be forgotten. Either way, **re-running the
+backfill is the only repair**, and it is safe: it never shortens anybody and
+never touches a `stripe`/`apple`/`google` row.
 
 ### 2. STRIPE OFF SANDBOX
 
@@ -98,30 +1454,49 @@ Nothing on this branch may merge until this is done. Detail further down under
 webhook endpoint and its secret, a LIVE portal configuration, Apple Pay domain
 registration, Link off in live mode, and the account business description.
 
-### 3. TWO MIGRATIONS TO APPLY BY HAND
+### 3. NO MIGRATIONS OWED — ALL APPLIED (audited live 2026-08-16)
 
-Both are written, neither is applied. Each carries its own VERIFY block; run
-those rather than trusting the header.
+Every SQL file in `supabase/` was audited against the LIVE schema on 2026-08-16
+via the Supabase MCP, object by object, rather than by reading headers. Nothing
+is outstanding. The three files this section and the two below used to carry as
+owed were all already in:
 
-| File | What it does | If not applied |
+| File | Proven present by |
+|---|---|
+| `supabase/billing/002_trial_start_lease.sql` | `billing_customers.trial_lock_until` exists. Applied 2026-08-14, as its header says. |
+| `supabase/notifications/004_trial_reminder.sql` | `notification_preferences.trial_reminder_sent_for` exists. Applied 2026-08-12, as its header says — the "NOT APPLIED" note further down this file was stale for four days. |
+| `supabase/notifications/005_trial_stamp_lock.sql` | `guard_trial_reminder_stamp` exists in `pg_proc`. |
+
+Two were applied on 2026-08-16 through the MCP, so unlike every hand-applied
+file they DO appear in `list_migrations`:
+
+| File | Migration name | Verified by |
 |---|---|---|
-| `supabase/billing/002_trial_start_lease.sql` | One column, `billing_customers.trial_lock_until`. The per-user lease `startTrial` holds across its Stripe check-and-create. | **Safe.** The code detects it and proceeds without the lease; the reconcile still stops a second live subscription. Driven, and it holds. |
-| `supabase/notifications/005_trial_stamp_lock.sql` | A trigger + a revoke, so a user cannot clear, set or delete their own trial-reminder stamp. | **Safe, but the hole stays open.** A user can silence the promised trial notice or make it fire ~96 times a day. Only self-affecting. |
+| `supabase/billing/003_courtesy_until.sql` | `courtesy_until` | `subscriptions.courtesy_until`, `timestamp with time zone`, nullable. |
+| `supabase/legal/012_em_dashes.sql` | `legal_documents_em_dashes` | 0 prose em dashes in all three current v1.3 rows; the one remaining per row is the title separator, which is stripped before render. |
 
-Re-run `scratchpad/stamp-attack.mjs` after applying `005` — the five attacks in
-it must turn 403, and the four legitimate operations must stay green. **The
-service-role stamp is the one that matters most**: a lock that also stops the
-runner turns "96 notifications a day" into "none, ever".
+`supabase/cycles/002_cycle_id_backfill.optional.sql` is deliberately NOT run:
+it is marked optional and the live data has exactly ONE candidate row in
+`body_metrics` and none in `journal_entries` (Adrian's call, 2026-08-16).
+
+**The ledger is not a record of this project.** `list_migrations` stops at
+`drop_working_set` (2026-07-15); roughly thirty files since then were pasted
+into the SQL Editor and left no trace. Audit against the live schema, never
+against a header or against this table.
 
 ### 4. THE GO-LIVE ORDER, AND IT IS NOT NEGOTIABLE
 
 ```
 1. Stripe off sandbox. Live keys + prices + webhook secret into Vercel.
-2. Apply supabase/billing/002 and supabase/notifications/005.
-3. Fill in COMP_EMAILS.
+2. (nothing) All migrations are applied — audited live 2026-08-16, see above.
+3. COMP_EMAILS is filled in and closed.   (2026-08-14 — nothing to do)
+3b. Make sure angusbrake6@gmail.com HAS SIGNED UP. He had no account on
+    2026-08-14, and the backfill can only grant to an account that exists.
+    Check: npx tsx scratchpad/comp-check.mjs
 4. Merge, deploy.
 5. POST /api/billing/beta-grace?dry=1  with  Authorization: Bearer $CRON_SECRET
    -> READ the output. It should say ~90 accounts, N comp, the rest grace.
+   N must be the number of comp addresses that actually have accounts.
 6. POST /api/billing/beta-grace       (no ?dry) — grants the rows.
 7. Verify: select count(*) from entitlements;   must be ~90, not 0.
 8. ONLY THEN set BILLING_GATE_ENABLED=true in Vercel Production.
@@ -131,49 +1506,39 @@ runner turns "96 notifications a day" into "none, ever".
 with no notice.** That is why the gate is an environment variable and not a
 constant: merging this branch changes nothing at all until that switch is set.
 
-### 5. 🔴 A DECISION, WITH MONEY ON IT: does a returning customer get a SECOND free trial?
+**Step 3b is the one that will be forgotten.** A comp address with no account is
+not an error anywhere: the dry run simply reports one fewer comp than expected,
+and nothing says which one is missing. Read the number.
 
-**Right now they do, every time, and I have not changed it — it is your call.**
+### 5. ✅ DOES A RETURNING CUSTOMER GET A SECOND FREE TRIAL? — DECIDED AND BUILT
 
-Verified against real Stripe on 2026-08-13:
+**Adrian's call: ONE TRIAL PER CUSTOMER, EVER.** Built as billing spec 01 on
+2026-08-15 and driven against real Stripe. A returning customer is charged from
+day one, and the checkout screen now says so rather than promising free days it
+will not give (`02b` owns the wording).
 
-```
-trial 1 -> trialing, trial_end 19 Aug        (7 free days)
-cancel it, let it lapse
-trial 2 -> trialing, trial_end 19 Aug        (7 MORE free days)
-```
+The loop this closes was verified on 2026-08-13: subscribe, cancel, let it
+lapse, subscribe again — free forever in seven-day steps. Harmless while nothing
+gated; the read-only gate is what turned it into the way to use Trackd for
+nothing.
 
-`startTrial` passes `trial_period_days: TRIAL_DAYS` unconditionally, so the loop
-is: subscribe, cancel, wait for it to lapse, subscribe again. Free forever, in
-seven-day steps, with no card ever charged.
+⚠️ **The naive version in the old note here was a trap, and it was a real one.**
+It said `all.some((s) => s.trial_end !== null)`, which denies a genuine
+first-timer their trial because their bank challenge timed out once. The
+built version tests whether a card ever VALIDATED instead. **And the first
+attempt at that was still wrong** — a cancelled abandoned attempt read as
+validated purely because its status was no longer `trialing`, so abandoning 3DS
+and then picking a different plan burned the trial. Found by driving it, not by
+reading it. See `progress-tracker.md`.
 
-**This was known before and it did not matter.** The earlier review recorded it
-as "a product question rather than a hole", and it was, because nothing gated:
-another free trial bought you exactly what you already had. **The read-only gate
-changes that.** The gate is now the thing driving people to subscribe, and the
-button it drives them to hands out another free week.
+### 5b. 🟡 A RELATED ONE THAT IS STILL OPEN: the reconciliation view
 
-The fix is small and the decision is not. Roughly:
-
-```ts
-// in startTrial, where `all` is every subscription this customer has ever had
-const hadATrial = all.some((s) => s.trial_end !== null);
-trial_period_days: hadATrial ? undefined : TRIAL_DAYS,
-```
-
-⚠️ Note the direction of the risk. `all` includes `incomplete_expired` rows,
-which `startTrial` itself creates when it cancels an abandoned 3DS attempt — so
-a naive version denies a genuine first-timer their trial because their bank
-challenge timed out once. That is the expensive direction, and it is why this is
-worth ten minutes of your attention rather than a one-line patch from me.
-
-Options, roughly in order of how much they cost to build:
-
-1. **Leave it.** Repeat trials stay possible. Cheapest, and the abuse needs
-   somebody to care enough to do it every week.
-2. **One trial per customer, ever.** The snippet above, with the
-   `incomplete_expired` case handled. A returning customer pays from day one.
-3. **One trial per customer per year.** More generous, more code.
+Nothing yet asserts, on a schedule, that no account was charged inside a period
+it was promised free. `trackd_grace_until` is now written on every grace-aligned
+subscription specifically so that question is answerable — three different
+things report `trialing` (a real trial, a save-offer courtesy period, and a
+grace-aligned start) and this is what tells them apart. Owned by
+`11-reconciliation-and-alerting.md`, which is not written yet.
 
 ### 6. 🟡 FOUR THINGS THE COLD REVIEW FOUND THAT ARE JUDGED, NOT FIXED
 
@@ -521,7 +1886,14 @@ is missing from them 42501s on a legitimate write.
 
 ### ⚠️ THE EM DASH SWEEP REACHED POSTGRES
 
-**`supabase/legal/012_em_dashes.sql` is NOT APPLIED.** The house rule ("NO EM
+**`supabase/legal/012_em_dashes.sql` IS APPLIED** (re-run through the MCP as
+migration `legal_documents_em_dashes`, 2026-08-16, and verified: zero prose em
+dashes across all three current v1.3 rows). Its own header had claimed applied
+since 2026-08-12 while this section said the opposite; the re-run is a no-op
+when already applied, because every statement carries its own LIKE guard, so
+the contradiction was settled by executing rather than by picking a side.
+
+The house rule ("NO EM
 DASHES in any user-facing string") had never touched the legal documents, because
 they are text ROWS in Postgres rather than files, and `/terms`, `/privacy` and
 `/medical-disclaimer` render `body` verbatim. Sixteen of them in the three
@@ -553,10 +1925,17 @@ and the whole read-only gate is inert. Merging this branch changes nothing for
 any of the 90 accounts. See "the go-live order" at the top of this file for when
 and in what order to turn it on.
 
-### ⚠️ ONE MIGRATION OWED NOW
+### ✅ NO MIGRATION OWED — `notifications/004` IS APPLIED
 
-**`supabase/notifications/004_trial_reminder.sql` is NOT APPLIED** (verified
-against the live schema, 2026-08-12). One additive column,
+**`supabase/notifications/004_trial_reminder.sql` IS APPLIED.** Verified against
+the live schema 2026-08-16: `notification_preferences.trial_reminder_sent_for`
+is present. This section said NOT APPLIED, dated 2026-08-12 — the same day the
+file's own header records it as applied and verified. The header was right.
+
+That makes twice on this branch (`grants/004`, then this) that a "NOT APPLIED"
+note in `next-tasks.md` outlived the migration it described. The note below is
+kept for its reasoning about WHY the column is read in its own query; read the
+paragraph, not its premise. One additive column,
 `notification_preferences.trial_reminder_sent_for date`.
 
 **It is the only thing between the trial reminder and it sending.** The code is
@@ -724,18 +2103,44 @@ restores writing to data that never moved. Verified by executing.
 
 #### 3. Put the new legal docs through, and update them if needed
 
-`supabase/legal/012` changed punctuation only, deliberately, with **no version
+~~`supabase/legal/012` changed punctuation only, deliberately, with **no version
 bump** — so `consent_records` still points at v1.3 and nobody has re-consented.
 Separately, the documents themselves have not been reviewed since **20 June
-2026**, and everything since then changes what they should say:
+2026**, and everything since then changes what they should say:~~
 
-- billing exists now (Stripe, subscriptions, trials, refunds, chargebacks);
-- there is a **payment processor** handling customer data, which the Privacy
-  Policy's sub-processor list does not mention;
-- the effective dates on v0.x/v1.0 still read `DD Month 2026`, a placeholder.
+~~- billing exists now (Stripe, subscriptions, trials, refunds, chargebacks);~~
+~~- there is a **payment processor** handling customer data, which the Privacy
+  Policy's sub-processor list does not mention;~~
+~~- the effective dates on v0.x/v1.0 still read `DD Month 2026`, a placeholder.~~
 
-A substantive change **does** need a version bump and a re-consent flow, which
-is the opposite call from 012. Worth doing once, properly, before going public.
+~~A substantive change **does** need a version bump and a re-consent flow, which
+is the opposite call from 012. Worth doing once, properly, before going public.~~
+
+**⚠️ DONE 2026-08-25, AND EARLIER THAN THIS RECORD EXPECTED. CORRECTED 26 August.**
+
+Four v2.0 documents were written (`Context/legal-v2/*.md`, the source of truth),
+ingested by `scripts/legal-v2-ingest.mjs`, and **made current by Adrian's own
+hand on 25 August** — two days before their 2026-08-27 effective date. Measured
+live on 26 August, from the rows rather than from a file:
+
+```
+consumer_health_data  2.0  is_current=true   effective 2026-08-27   (NEW doc_type)
+medical_disclaimer    2.0  is_current=true   effective 2026-08-27
+privacy_policy        2.0  is_current=true   effective 2026-08-27
+terms_of_service      2.0  is_current=true   effective 2026-08-27
+```
+
+So the version bump happened and the payment processor is named. **What did NOT
+happen is the re-consent flow**, and this record should not be read as saying it
+did: `consent_records` still points existing accounts at **v1.3**, and only
+sign-ups from 25 August onward record v2.0. Re-consenting existing
+onboarding-path users is DEFERRED, post-launch, and recorded as such.
+
+**⚠️ AND ONE THING THIS PARAGRAPH'S DISAPPEARANCE WOULD HAVE HIDDEN.** Flipping
+`is_current` 404'd v1.3, which is the version 81 accounts are recorded as having
+accepted — so for two days a person could not read the terms they agreed to.
+Closed 26 August by `/terms/1.3`, `/privacy/1.3` and `/medical-disclaimer/1.3`
+(`getLegalDocumentVersion`). **`is_current` was not flipped back**, deliberately.
 
 #### 4. ⚠️ DELETING AN ACCOUNT MUST CANCEL THE SUBSCRIPTION FIRST
 

@@ -47,7 +47,15 @@ const STATUS_LABEL: Record<DayStatus, string> = {
 // Fraction of the strip's width a swipe must travel to commit a week change.
 const COMMIT_FRACTION = 0.2
 
-/** Compact range for the displayed week, e.g. "9–15 Jun" or "30 Jun – 6 Jul". */
+/**
+ * Compact range for the displayed week, e.g. "9-15 Jun" or "30 Jun - 6 Jul".
+ *
+ * ⚠️ U+002D HYPHEN-MINUS, NOT AN EN DASH. This rendered "17–23 Aug" with U+2013.
+ * Outside billing and predating that work, but a launch-morning user sees this
+ * strip and the beta notice in the same glance, and the launch copy rule is
+ * character-exact: en dash, em dash, figure dash and horizontal bar are all
+ * banned and a plain hyphen is the replacement.
+ */
 function weekRangeLabel(days: WeekDay[]): string {
   const a = days[0]?.date
   const b = days[days.length - 1]?.date
@@ -55,8 +63,8 @@ function weekRangeLabel(days: WeekDay[]): string {
   const aM = MONTHS_SHORT[a.getMonth()]
   const bM = MONTHS_SHORT[b.getMonth()]
   return a.getMonth() === b.getMonth()
-    ? `${a.getDate()}–${b.getDate()} ${bM}`
-    : `${a.getDate()} ${aM} – ${b.getDate()} ${bM}`
+    ? `${a.getDate()}-${b.getDate()} ${bM}`
+    : `${a.getDate()} ${aM} - ${b.getDate()} ${bM}`
 }
 
 /**

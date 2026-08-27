@@ -48,6 +48,10 @@ export default async function PaywallPreviewPage() {
         plan: p.plan,
         amount: p.amount,
         currency: p.currency,
+        // Carried, not dropped. See `PreviewPrice`: without these the screens
+        // under review withhold the very copy this harness exists to show.
+        interval: p.interval,
+        intervalCount: p.intervalCount,
       }))}
     />
   );

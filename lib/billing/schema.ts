@@ -56,6 +56,15 @@ type SubscriptionRow = {
   trial_ends_at: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
+  /**
+   * When a save-offer courtesy period ends, mirrored from the Stripe
+   * subscription's metadata. Null for a genuine first trial.
+   *
+   * Distinguishes "Stripe says trialing because we gave a paying customer a free
+   * month" from "Stripe says trialing because this person has never paid", which
+   * the status alone cannot. See `supabase/billing/003_courtesy_until.sql`.
+   */
+  courtesy_until: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -67,6 +76,22 @@ type EntitlementRow = {
   source: EntitlementSourceRow;
   active_until: string | null;
   is_active: boolean;
+  /**
+   * WHY `is_active` was set false: `dispute` or `refund`. Null when the row was
+   * never revoked — and also for every row revoked BEFORE `005` was applied.
+   *
+   * `entitlements` recorded THAT a row was revoked and never why, so a full
+   * refund and a chargeback left byte-identical rows and both of `08`'s dispute
+   * sentences selected for a refunded account. `revokeForCustomer` already knew:
+   * it takes `reason` as a parameter and simply did not persist it.
+   *
+   * ⚠️ NULL IS "UNKNOWN", NEVER "dispute". The read path withholds both dispute
+   * sentences on it, because the wrong default here IS the lie — it would tell a
+   * refunded customer their bank disputed a payment. See
+   * `supabase/billing/005_revoked_reason.sql`, which is written and UNAPPLIED, so
+   * today every row is in that state.
+   */
+  revoked_reason: "dispute" | "refund" | null;
   created_at: string;
   updated_at: string;
 };
@@ -109,7 +134,10 @@ export type BillingDatabase = {
         Row: SubscriptionRow;
         Insert: Defaulted<
           SubscriptionRow,
-          "id" | "created_at" | "updated_at" | "cancel_at_period_end"
+          // `courtesy_until` is optional so the fallback write, the one that
+          // runs when 003 has not been applied, is a legal insert rather than a
+          // type error. See `syncSubscription`.
+          "id" | "created_at" | "updated_at" | "cancel_at_period_end" | "courtesy_until"
         >;
         Update: Partial<SubscriptionRow>;
         Relationships: [];
@@ -118,7 +146,7 @@ export type BillingDatabase = {
         Row: EntitlementRow;
         Insert: Defaulted<
           EntitlementRow,
-          "id" | "created_at" | "updated_at" | "is_active"
+          "id" | "created_at" | "updated_at" | "is_active" | "revoked_reason"
         >;
         Update: Partial<EntitlementRow>;
         Relationships: [];

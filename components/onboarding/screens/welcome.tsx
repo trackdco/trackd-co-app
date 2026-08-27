@@ -22,7 +22,22 @@ import { Mascot } from "../mascot";
  * asking again here would be asking twice for the same thing.
  */
 export function WelcomeScreen() {
-  const { goNext, accountName, session } = useFlow();
+  const { goNext, accountName, session, eligibility } = useFlow();
+  /**
+   * The same server answer the checkout screen and the paywall read. Undefined
+   * only where there is no server behind the flow (the preview harness), where
+   * the generous default stands as it does everywhere else.
+   */
+  const trial = eligibility?.eligible ?? true;
+  /**
+   * ⚠️ A COMP IS CONGRATULATED WITH NOTHING ABOUT FREE DAYS (D77).
+   *
+   * A free-for-life comp reads as eligible on purpose — see `TrialEligibility.comp`
+   * — so `trial` alone was true for them and this screen offered "7 days on us."
+   * to somebody who already has the app for nothing and whose next tap is
+   * refused. The server decides it; this only reads the answer.
+   */
+  const comp = eligibility?.comp ?? false;
   const name = accountName ?? session.name;
 
   return (
@@ -47,6 +62,12 @@ export function WelcomeScreen() {
                 half on the one screen whose job is showing we know who they
                 are. Same idiom ui-context prescribes for a pathological
                 figure. */}
+            {/* ⚠️ NO KYLE HERE, AND HE WAS BRIEFLY ADDED IN ERROR.
+                Adrian asked for Kyle on the going-paid / free-for-life NOTICE;
+                putting him on all three welcome screens was over-reach and he
+                asked for it back: "the small ones at the bottom, which I said to
+                add before, I want you to take back." Kyle appears on the two
+                notices and nowhere else in this flow. */}
             <h1
               className={cn(
                 FLOW_DISPLAY,
@@ -55,8 +76,37 @@ export function WelcomeScreen() {
             >
               {name ? `You're in, ${name}!` : "You're in!"}
             </h1>
-              <FlowSub className="mx-auto max-w-[20rem]">
-                {TRIAL_DAYS}{" "}days on us. Let&apos;s finish setting you up.
+              {/* ⚠️ THE TRIAL HALF IS WITHHELD, NOT REWORDED (Adrian, 2026-08-15).
+                  A cold review found this line unconditional, so a returning
+                  customer or a post-grace beta user read "7 days on us."
+                  SECONDS AFTER BEING CHARGED $69.99, and a mid-grace user read
+                  7 when they had a fortnight. It is newly false because of the
+                  billing triple: before it, every cohort really did get seven
+                  days. The second sentence is true for everybody and stays.
+
+                  D77 added the comp to the same withhold "for the same reason and
+                  by the same means: the line is REMOVED, not replaced. No spec
+                  names a comp welcome state, so no copy was written for one."
+
+                  ⚠️ ONE HAS BEEN WRITTEN NOW (Adrian, 2026-08-25). D77's withhold
+                  was correct while there was nothing true to say; it was never a
+                  decision that a comp should be told nothing. On the copy review
+                  Adrian supplied the line: *"instead of saying seven days on us,
+                  it says 'You've been given complimentary access', and then it
+                  lines up and says 'Let's finish setting you up.'"*
+
+                  So the comp is no longer a withhold, it is its own sentence.
+                  The returning/post-grace cohort STILL withholds, unchanged —
+                  they have no free time and there is still nothing true to say. */}
+              <FlowSub className="mx-auto max-w-[20rem] text-pretty">
+                {comp ? (
+                  <>You&apos;ve been given complimentary access.{" "}</>
+                ) : trial ? (
+                  <>
+                    {TRIAL_DAYS}{" "}days on us.{" "}
+                  </>
+                ) : null}
+                Let&apos;s finish setting you up.
               </FlowSub>
             </div>
           </div>

@@ -4,12 +4,32 @@ import { redirect } from "next/navigation";
 import { OnboardingFlow } from "@/components/onboarding/flow";
 import { getSessionContext } from "@/lib/auth";
 import { loadPricesSafe } from "@/lib/billing/prices";
+import { trialEligibility } from "./billing-actions";
 import { resolveStepId, stepMeta, type StepId } from "@/lib/onboarding/steps";
+import { onboardingDates } from "@/lib/onboarding/flowEntryDates";
 
+/**
+ * ⚠️ THIS CARRIES THE SITE'S PUBLIC IDENTITY NOW, because `/` redirects here.
+ *
+ * The `openGraph` block below was on `app/page.tsx` while that route rendered a
+ * landing screen of its own. Now that it redirects, a crawler or a link
+ * unfurler following trackdco.app lands on THIS metadata — and without the move
+ * every shared link would have lost its title card and its description.
+ *
+ * If `/` ever renders something again, this and that have to be reconciled
+ * rather than both claiming to be the site.
+ */
 export const metadata: Metadata = {
-  title: "Get started · Trackd Co",
+  title: "Trackd Co · Track the whole protocol",
   description:
-    "See how Trackd tracks a protocol before you make an account. No sign-up needed.",
+    "Everything you're running, in one place you'll actually open. A private, founder-led app built by people who run real protocols.",
+  openGraph: {
+    title: "Trackd Co · Track the whole protocol",
+    description: "Everything you're running, in one place you'll actually open.",
+    type: "website",
+    url: "https://trackdco.app",
+    siteName: "Trackd Co",
+  },
 };
 
 /**
@@ -69,9 +89,10 @@ export default async function OnboardingPage({
   /**
    * THE PRICES COME FROM STRIPE, NOT FROM THE CODEBASE (spec w2b-15).
    *
-   * Fetched here because three ANONYMOUS screens need them — the payoff
-   * screen's weekly anchor and the cost comparison, both well before the
-   * paywall — so they cannot wait for a session. Memoised for five minutes in
+   * Fetched here because ANONYMOUS screens need them — the cost comparison,
+   * well before the paywall — so they cannot wait for a session. (The payoff
+   * screen's weekly anchor was the other caller; that screen was deleted on
+   * 2026-08-27.) Memoised for five minutes in
    * `lib/billing/prices.ts`, and `loadPricesSafe` swallows a Stripe outage:
    * this flow is free until the paywall and must not go down with a billing
    * provider.
@@ -106,14 +127,93 @@ export default async function OnboardingPage({
   // A gated user has nothing left to do on the account screen, and showing a
   // sign-in form to someone already signed in is what §Back navigation calls out.
   if (passedGate && requested === "account") {
-    redirect("/onboarding?step=plans");
+    redirect("/plans");
   }
+
+  /**
+   * ⚠️ AN ESTABLISHED ACCOUNT NEVER SEES THE ONBOARDING PLAN OR CARD STEP
+   * (Adrian, 2026-08-25).
+   *
+   * `/plans` and `/checkout` exist so somebody who signed up in June is not
+   * shown a sign-up progress bar reading "73%". Nothing automatic points at
+   * `?step=plans` any more — but a bookmark, an old link or a typed URL still
+   * could, and there they would get exactly the chrome those routes were built
+   * to remove.
+   *
+   * So the old address redirects rather than being left to rot. One canonical
+   * screen per audience: the flow for people still signing up, `/plans` and
+   * `/checkout` for people who already have an account.
+   */
+  if (passedGate && (requested === "plans" || requested === "start")) {
+    redirect(requested === "plans" ? "/plans" : "/checkout");
+  }
+
+  /**
+   * ⚠️ ELIGIBILITY IS RESOLVED HERE, NOT IN AN EFFECT (spec 02b §3.6).
+   *
+   * The checkout screen used to mount with the generous default — eligible,
+   * seven days — and correct itself when a client-side call returned. While the
+   * sheet was setup-only that was a brief cosmetic flicker. With `02a` shipped
+   * it is a PAYMENT SCREEN that can say "7 days free" and then "First charge
+   * today" a moment later, while somebody is reading it, and the Elements mode
+   * is derived from the same answer.
+   *
+   * Resolving it at page render removes the flicker outright and means the copy
+   * and the mode are decided from one answer at one moment.
+   *
+   * ## The cost, named rather than hidden
+   *
+   * It adds a Stripe round trip to first paint FOR A USER WHO HAS A BILLING
+   * CUSTOMER. A user with none never touches Stripe, which is most first-timers,
+   * and `trialEligibility` short-circuits on Postgres before it. Correctness on
+   * the screen that takes money is worth the milliseconds; the alternative is a
+   * promise that mutates while somebody reads it.
+   *
+   * The generous fallback is unchanged and lives inside `trialEligibility`, so a
+   * failure here still errs towards promising a trial — and `02a`'s mismatch
+   * guard is what catches the case where that generous answer and the server's
+   * later one disagree, by cancelling rather than charging.
+   */
+  const eligibility = await trialEligibility();
+
+  /**
+   * ⚠️ THE FIRST-CHARGE DATE IS RESOLVED HERE, NOT IN THE BROWSER (§3.5).
+   *
+   * It was `billingDate(new Date())`, computed on mount in the DEVICE's
+   * timezone — while every screen on `/billing` formats the same kind of date
+   * server-side in the user's STORED timezone. The two disagreed for anyone
+   * travelling, and the paywall computed its own on its own mount, so the two
+   * onboarding screens could disagree with each other across midnight.
+   *
+   * One value, from one function, feeding both screens, through the same
+   * `formatAccessDate` `/billing` uses — so a date cannot differ depending on
+   * which screen printed it.
+   *
+   * ## It is still a PROJECTION, and saying so is the honest part
+   *
+   * The subscription does not exist yet — nothing is created until the button is
+   * pressed — so before purchase this is necessarily a prediction. What this
+   * removes is the device-timezone divergence and the two-screens problem. What
+   * it cannot remove is somebody reading at 23:58 and pressing at 00:02. That
+   * residual is accepted and is exactly why every date shown AFTER the
+   * subscription exists comes from Stripe rather than from here.
+   *
+   * The MID-GRACE variant is exempt: its date is a stored `active_until`, not a
+   * projection, and it is formatted through this same function below.
+   */
+  const { firstChargeOn, graceEndsOn } = await onboardingDates(
+    signedIn,
+    eligibility.graceEndsAt,
+  );
 
   return (
     <OnboardingFlow
       signedIn={signedIn}
       passedGate={passedGate}
       prices={prices}
+      eligibility={eligibility}
+      firstChargeOn={firstChargeOn}
+      graceEndsOn={graceEndsOn}
     />
   );
 }
@@ -149,3 +249,21 @@ function requestedStep(step: string | string[] | undefined): StepId | null {
   const first = Array.isArray(step) ? step[0] : step;
   return resolveStepId(first);
 }
+
+/**
+ * THE TWO DATES THE ONBOARDING FLOW PRINTS, both formatted in the user's stored
+ * timezone through the same `formatAccessDate` that `/billing` uses (§3.5).
+ *
+ * ⚠️ NOT A COMPONENT, and the clock is read HERE rather than in the page body,
+ * because `react-hooks/purity` forbids an impure call during render — and it is
+ * right to: a value re-read on a re-render is a date that can move under
+ * somebody mid-read.
+ *
+ * `firstChargeOn` is a PROJECTION and `graceEndsOn` is not. The first predicts
+ * where a trial that does not exist yet will end; the second formats a stored
+ * `active_until` that `01` has already committed to. That difference is why a
+ * mid-grace user's date can never be earlier than what they were promised.
+ *
+ * Anonymous callers skip the query entirely: most of this flow has no session,
+ * and the dates only matter from the paywall onward.
+ */

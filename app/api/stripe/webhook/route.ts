@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type Stripe from "stripe";
 
+import { retryOpenInvoicesForCustomer } from "@/lib/billing/cardUpdate";
 import { serviceClient } from "@/lib/billing/service";
 import { stripe } from "@/lib/billing/stripe";
 import {
@@ -260,12 +261,37 @@ async function handle(event: Stripe.Event): Promise<HandlerOutcome> {
      * lever. A dispute is the strongest possible signal that the money is not
      * ours; a refund is us saying so ourselves.
      */
+    /**
+     * ⚠️ THE DISPUTE ITSELF IS PASSED, NOT JUST ITS CHARGE.
+     *
+     * This event fires for INQUIRIES too, where the bank is asking a question
+     * and no funds have been withdrawn. Without the dispute object there is no
+     * way to tell the two apart, and a cold review measured the cost: an inquiry
+     * on a paid $69.99 year revoked 365 days of access with no money having
+     * moved. See `DISPUTE_INQUIRY_STATUSES`.
+     */
+    /**
+     * ⚠️ AND THE LATER ONES, BECAUSE AN INQUIRY THAT ESCALATES NEVER FIRES
+     * `created` AGAIN.
+     *
+     * Skipping inquiries at `created` is right — no funds have moved. But Stripe
+     * does not mint a second `charge.dispute.created` when one escalates: the
+     * same dispute object changes status and fires `updated`, then `closed`.
+     * With only `created` handled, a cold review drove a dispute all the way to
+     * `status: lost` with $69.99 withdrawn and `is_active` still true — the kill
+     * switch silently never firing, which is worse than the over-firing it
+     * replaced.
+     *
+     * `revokeForCustomer` does the inquiry test itself, so all three events go
+     * to the same place and only a real one revokes.
+     */
     case "charge.dispute.created":
-      return revokeForCustomer(
-        (event.data.object as Stripe.Dispute).charge,
-        "dispute",
-        client,
-      );
+    case "charge.dispute.updated":
+    case "charge.dispute.closed":
+    case "charge.dispute.funds_withdrawn": {
+      const dispute = event.data.object as Stripe.Dispute;
+      return revokeForCustomer(dispute.charge, "dispute", client, dispute);
+    }
 
     case "charge.refunded":
       return revokeForCustomer(
@@ -297,6 +323,42 @@ async function handle(event: Stripe.Event): Promise<HandlerOutcome> {
      */
     case "customer.subscription.trial_will_end":
       return syncSubscription(await fresh(event.data.object as Stripe.Subscription));
+
+    /**
+     * ⚠️ A NEW CARD RETRIES THE OPEN INVOICE (Group B).
+     *
+     * The lifetime clock run measured what happened without this: card updated,
+     * `attempt_count` 1 -> 1, no new charge, the invoice still `open` after 240
+     * seconds of real time — because Stripe waits for its own next dunning
+     * attempt, measured at simulated day +2. So somebody who fixes their card in
+     * a minute is locked out for two more days, under a screen that says access
+     * comes back "as soon as a payment goes through".
+     *
+     * ⚠️ BOTH EVENTS, AND THEY ARE NOT REDUNDANT. The portal is Stripe's own
+     * hosted form and the app never sees the card, so the webhook is the only
+     * signal there is. `payment_method.attached` fires when the card lands on the
+     * customer and NAMES it; `customer.updated` fires when
+     * `invoice_settings.default_payment_method` changes and does not. Either can
+     * arrive alone depending on how the method got there, so both route here and
+     * `retryOpenInvoicesForCustomer` makes the second one a no-op.
+     *
+     * ⚠️ IT GRANTS NOTHING. Paying the invoice makes Stripe fire `invoice.paid`,
+     * which is the case above and the only thing that restores access.
+     */
+    case "payment_method.attached": {
+      const method = event.data.object as Stripe.PaymentMethod;
+      const customerId =
+        typeof method.customer === "string" ? method.customer : (method.customer?.id ?? null);
+      // A payment method with no customer belongs to nobody and can pay nothing.
+      // Handled rather than unattributed: there is no user to fail to find.
+      if (!customerId) return "handled";
+      return retryOpenInvoicesForCustomer(customerId, method.id, client);
+    }
+
+    case "customer.updated": {
+      const customer = event.data.object as Stripe.Customer;
+      return retryOpenInvoicesForCustomer(customer.id, null, client);
+    }
 
     default:
       // Everything else is recorded and acknowledged.

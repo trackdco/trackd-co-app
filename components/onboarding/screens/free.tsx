@@ -5,7 +5,7 @@ import { FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { AppCarousel } from "../app-carousel";
-import { FlowCta, ScrollPort } from "../chrome";
+import { FlowCta, FlowSub, ScrollPort } from "../chrome";
 import { useFlow } from "../flow-context";
 
 /**
@@ -44,7 +44,10 @@ export function FreeScreen() {
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
         <ScrollPort>
-          <div className="flex w-full flex-1 flex-col justify-start gap-4 pt-3">
+          {/* `gap-10`, up from `gap-4`: the carousel came down twice and the
+              headline needs to stop crowding it (Adrian, 2026-08-27: "give more
+              space between the carousel and the subtitle as well"). */}
+          <div className="flex w-full flex-1 flex-col justify-start gap-10 pt-3">
             {/* ONE line of type, not three (Adrian, 2026-08-05: "too much
                 text"). The eyebrow and the giant $0 both went: the eyebrow said
                 the same thing as the line above the button, and a 4.5rem figure
@@ -55,6 +58,12 @@ export function FreeScreen() {
                 We want you to have your{" "}
                 <em className={FLOW_EMPHASIS}>first week on us</em>.
               </h1>
+              {/* Back after being cut for length on 2026-08-05, deliberately
+                  short this time (Adrian, 2026-08-27). Confident rather than
+                  pleading: the product carries the argument. */}
+              <FlowSub>
+                We&apos;d rather you try it than take our word for it.
+              </FlowSub>
             </header>
 
             {/* THE CAROUSEL IS THE HERO (Adrian, 2026-08-07), replacing a

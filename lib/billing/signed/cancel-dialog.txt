@@ -1,0 +1,22 @@
+Cancel your trial?
+Cancel your plan?
+Keep my trial
+Keep my plan
+{start} to {end}
+Your free month is on us. It runs from {start} to {end}, and your plan picks up from there unless you choose to cancel.
+Your free week is on us. It runs from {start} to {end}, and your plan picks up from there unless you choose to cancel.
+You'll have full access to your Pro plan until {date}. After that your account goes read only. You'll still see your whole history, you just can't add to it.
+One more thing…
+Before you go, we'd like to offer you another month on us.
+Before you go, we'd like to offer you another week on us.
+A month on us
+A week on us
+By accepting, your plan will continue as is.
+You'll be charged on {date} unless you cancel before then.
+You'll be charged on {date} unless you cancel before then, and we'll remind you first.
+Claim free month
+Claim free week
+This ends your subscription straight away.
+You'll stop being charged. Your free access carries on as it always has, and nothing about your account changes.
+Your trial carries on as normal and finishes on {date}. You'll be charged then unless you cancel again.
+Your subscription carries on as normal and finishes on {date}. You'll be charged then unless you cancel again.
