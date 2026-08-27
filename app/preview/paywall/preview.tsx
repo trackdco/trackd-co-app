@@ -93,6 +93,9 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
       goTo: () => {},
       finish: () => {},
       setBackHandler: () => {},
+      // No-op: the hand-off beat plays between celebrate and the demo, and
+      // neither is reachable from this harness.
+      playHandoff: () => {},
       accountName: null,
       // FALSE on purpose. The screen does not branch on it, and claiming a
       // session here would make the harness lie about the one thing the real

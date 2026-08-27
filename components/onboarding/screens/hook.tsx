@@ -84,7 +84,23 @@ export function HookScreen() {
               cards alone left a void between them and the type, and pushed the
               headline down the screen (Adrian, 2026-08-27: "move the whole
               bottom bit ... a lot more up"). */}
-          <div className="flex w-full flex-1 flex-col justify-center gap-2.5 [@media(min-height:760px)]:gap-[30px]">
+          {/* BOTTOM-WEIGHTED, not centred (Adrian, 2026-08-27: "bring all of
+              the title text ... way back down ... too much negative space
+              between the subtitle and the buttons").
+
+              Centring split the slack evenly above and below the block, which
+              on a tall handset left ~170px of dead canvas between the subtitle
+              and the CTA. `justify-end` gives all of it to the top, so the
+              type sits just above the button it belongs to and the breathing
+              room lands under the wordmark where it reads as air rather than
+              as a hole.
+
+              `pb-12` is not decoration: `ScrollPort` fades its bottom 44px with
+              a mask, so type flush to the end of the port renders half
+              dissolved. Measured at `justify-end` with no padding, the
+              subtitle's second line sat inside the fade AND against the button.
+              48px clears the mask and leaves the gap the button needs. */}
+          <div className="flex w-full flex-1 flex-col justify-end gap-2.5 pb-12 [@media(min-height:760px)]:gap-[30px]">
             <HeroCards />
 
             <div className="shrink-0 space-y-2 [@media(min-height:760px)]:space-y-3">

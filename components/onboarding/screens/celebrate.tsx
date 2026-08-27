@@ -1,15 +1,12 @@
 "use client";
 
-import { useState } from "react";
-
 import { Check } from "@/components/icons";
 import type { StruggleTag } from "@/lib/onboarding/session";
-import { CARD_EYEBROW } from "@/lib/ui-presets";
+import { CARD_EYEBROW, FLOW_DISPLAY, FLOW_EMPHASIS } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, ScrollPort } from "../chrome";
 import { Confetti } from "../confetti";
-import { HowItWorks } from "../how-it-works";
 import { useFlow } from "../flow-context";
 import { Mascot } from "../mascot";
 
@@ -86,7 +83,7 @@ const TOP_UP: StruggleTag[] = [
 ];
 
 export function CelebrateScreen() {
-  const { goNext, session } = useFlow();
+  const { goNext, playHandoff, session } = useFlow();
 
   // "Something else" has no feature line of its own, so it is held back and
   // appended at the end. It cannot count toward the minimum either, or picking
@@ -100,15 +97,8 @@ export function CelebrateScreen() {
   const lines = chosen.map((tag) => ANSWERS[tag]).filter((l): l is string => Boolean(l));
   if (pickedSomethingElse) lines.push(SOMETHING_ELSE);
 
-  /**
-   * The "Here's how it works." beat plays OVER this screen on the way out,
-   * then hands to the demo. It is not a step; see `how-it-works.tsx`.
-   */
-  const [handingOff, setHandingOff] = useState(false);
-
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {handingOff ? <HowItWorks onDone={goNext} /> : null}
       <Confetti />
 
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
@@ -122,23 +112,23 @@ export function CelebrateScreen() {
           <Mascot pose="thumbs" size={330} className="-mb-4 shrink-0" />
 
           <div className="shrink-0 space-y-5 text-center">
-            {/* SMALL, CENTRED AND CAPITALISED (Adrian, 2026-08-27), where this
-                was a 2.5rem display headline.
+            {/* "GOOD NEWS," is an EYEBROW over the headline, not the headline
+                itself (Adrian, 2026-08-27). The full line was briefly shrunk to
+                caption size; he wanted only the first half small, with the
+                claim itself back at display size.
 
-                It reads better as a caption to the answer list than as a
-                statement over it: the ticks below are the actual reply to what
-                they just told us, and type that size competed with them for the
-                same job.
+                ⚠️ NO AMBER ON "exactly that", and that is a correction. It used
+                to be `text-accent-amber`, which made this the second amber beat
+                on a screen whose answer ticks are already amber — the sanctioned
+                many-amber onboarding surface. Weight carries the emphasis now,
+                which is what `FLOW_EMPHASIS` is for.
 
-                The exclamation mark is his and is deliberate — "not a full
-                stop". */}
-            <h1
-              className={cn(
-                CARD_EYEBROW,
-                "text-[0.7rem] leading-relaxed text-foreground",
-              )}
-            >
-              Good news, we are built to solve exactly that!
+                The exclamation mark is his and deliberate: "not a full stop". */}
+            <p className={cn(CARD_EYEBROW, "text-center")}>Good news,</p>
+
+            <h1 className={cn(FLOW_DISPLAY, "text-balance")}>
+              we are built to solve{" "}
+              <strong className={FLOW_EMPHASIS}>exactly that!</strong>
             </h1>
 
             {/* Staggered so the answers arrive one at a time rather than as a
@@ -174,7 +164,20 @@ export function CelebrateScreen() {
         </ScrollPort>
 
         <footer className="shrink-0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <FlowCta onClick={() => setHandingOff(true)}>Try it now</FlowCta>
+          <FlowCta
+            onClick={() => {
+              // Cover the canvas, THEN advance. Reversed, the demo would paint
+              // for a frame before the beat covered it; done this way the step
+              // change happens behind a screen that is already opaque, and the
+              // fade-out reveals the demo rather than this screen (Adrian,
+              // 2026-08-27: "make it go to the next page while it says Here's
+              // how it works ... it fades out to the next page").
+              playHandoff();
+              goNext();
+            }}
+          >
+            Try it now
+          </FlowCta>
         </footer>
       </div>
     </div>

@@ -29,6 +29,20 @@ export interface FlowContextValue {
    */
   setBackHandler: (fn: (() => boolean) | null) => void;
   /**
+   * Play the "Here's how it works." beat over whatever is on screen.
+   *
+   * ⚠️ IT LIVES ON THE FLOW, NOT ON THE SCREEN THAT TRIGGERS IT, and that is
+   * the whole reason it is here. Owned by the celebrate screen it could not do
+   * its job: the caller wants to ADVANCE THE STEP and let the beat cover the
+   * change, but advancing unmounts celebrate, which unmounted the overlay with
+   * it. The flow outlives every step, so the overlay does too.
+   *
+   * Call it immediately before `goNext()`. The step swaps underneath while the
+   * canvas is covered, and the fade-out reveals the screen you moved to rather
+   * than the one you left.
+   */
+  playHandoff: () => void;
+  /**
    * Name resolved from the claimed account. Null while anonymous.
    *
    * `setAccountName` used to sit beside this and had no consumer once the

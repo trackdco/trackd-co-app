@@ -42,6 +42,7 @@ import { todayKey as resolveTodayKey } from "@/lib/protocol/cycle";
 import type { ClaimStatus } from "@/app/onboarding/actions";
 
 import { AnswerHandoff } from "./answer-handoff";
+import { HowItWorks } from "./how-it-works";
 import { FlowContext, type FlowContextValue } from "./flow-context";
 import { ProgressRail } from "./chrome";
 import { StepRenderer } from "./step-renderer";
@@ -731,6 +732,13 @@ function OnboardingFlowClient({
     router.push("/dashboard");
   }, [router]);
 
+  /**
+   * The "Here's how it works." beat. See `playHandoff` on the context for why
+   * it is owned here rather than by the screen that fires it.
+   */
+  const [handoff, setHandoff] = useState(false);
+  const playHandoff = useCallback(() => setHandoff(true), []);
+
   const value = useMemo<FlowContextValue>(
     () => ({
       session,
@@ -745,6 +753,7 @@ function OnboardingFlowClient({
       priceFor,
       todayKey,
       setBackHandler,
+      playHandoff,
       eligibility,
       firstChargeOn,
       graceEndsOn,
@@ -762,6 +771,7 @@ function OnboardingFlowClient({
       priceFor,
       todayKey,
       setBackHandler,
+      playHandoff,
       eligibility,
       firstChargeOn,
       graceEndsOn,
@@ -775,6 +785,10 @@ function OnboardingFlowClient({
 
   return (
     <FlowContext.Provider value={value}>
+      {/* Portalled to the body, so it sits over the header as well as the step.
+          It dismisses ITSELF — the step has already moved on by the time it is
+          visible, so there is nothing left for it to advance. */}
+      {handoff ? <HowItWorks onDone={() => setHandoff(false)} /> : null}
       {/* overflow-x clipped: the directional entrance starts the incoming screen
           18px off-frame, which without this creates a real horizontal scroll
           area for the length of the animation (measured: 408px on a 390 phone). */}

@@ -32,13 +32,28 @@ const INPUT_CLASS =
 export function EmailPasswordForm({
   next,
   defaultMode = "signin",
+  onModeChange,
 }: {
   /** Internal path to land on after auth. Validated server-side. */
   next?: string;
   /** Which half the form opens on. `/login` opens on sign-in; onboarding on sign-up. */
   defaultMode?: "signin" | "signup";
+  /**
+   * Told when the user flips between the two halves.
+   *
+   * The mode stays LOCAL — this only reports it. The onboarding account screen
+   * uses it to retitle itself ("Let's get you started." becomes "Welcome
+   * back."), because the heading sits outside this component and would
+   * otherwise keep welcoming a returning user as a new one. `/login` passes
+   * nothing and is unaffected.
+   */
+  onModeChange?: (mode: "signin" | "signup") => void;
 } = {}) {
-  const [mode, setMode] = useState<"signin" | "signup">(defaultMode);
+  const [mode, setModeState] = useState<"signin" | "signup">(defaultMode);
+  const setMode = (next: "signin" | "signup") => {
+    setModeState(next);
+    onModeChange?.(next);
+  };
   const [state, formAction, isPending] = useActionState(
     authenticate,
     initialState,
