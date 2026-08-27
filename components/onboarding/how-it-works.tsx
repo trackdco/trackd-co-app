@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { FLOW_DISPLAY } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
@@ -103,7 +104,24 @@ export function HowItWorks({ onDone }: { onDone: () => void }) {
     );
   };
 
-  return (
+  /**
+   * ⚠️ PORTALLED TO `document.body`, AND IT HAS TO BE.
+   *
+   * Mounted in place it was `absolute inset-0` inside the celebrate screen —
+   * which sits BELOW the flow's header row and inside the step wrapper's
+   * entrance transform. Two consequences, and Adrian hit both: the progress
+   * rail and wordmark stayed lit above a screen meant to be an empty canvas,
+   * and celebrate was still visibly there behind the chrome, so pressing "Try
+   * it now" did not read as leaving it ("even if I do tap it, it still shows me
+   * the overlay ... it should switch to the next part").
+   *
+   * `fixed` alone does NOT fix that: the step wrapper animates with a transform
+   * and `animation-fill-mode: both` keeps it applied, and a transformed
+   * ancestor becomes the containing block for `fixed` descendants. A portal
+   * leaves the tree entirely, so neither the transform nor the header reaches
+   * it.
+   */
+  const overlay = (
     <div
       // Not a `button`: it covers the whole screen, and a full-bleed button is
       // announced as one enormous control. It is a decorative transition with a
@@ -116,7 +134,7 @@ export function HowItWorks({ onDone }: { onDone: () => void }) {
       }}
       tabIndex={0}
       className={cn(
-        "absolute inset-0 z-30 flex cursor-pointer flex-col items-center justify-center",
+        "fixed inset-0 z-[60] flex cursor-pointer flex-col items-center justify-center",
         "bg-bg-base transition-opacity duration-[var(--motion-slow)] ease-[cubic-bezier(0.4,0,0.2,1)]",
         "focus-visible:outline-none",
         leaving ? "opacity-0" : "opacity-100",
@@ -150,7 +168,10 @@ export function HowItWorks({ onDone }: { onDone: () => void }) {
       <p
         className={cn(
           FLOW_DISPLAY,
-          "relative px-5 text-center font-medium",
+          // NOT bold (Adrian, 2026-08-27). `FLOW_DISPLAY` is Geist Light and
+          // the weight bump fought it — the line reads better as the same
+          // display type every other moment screen uses.
+          "relative px-5 text-center",
           "transition-[opacity,filter,transform] ease-[cubic-bezier(0.4,0,0.2,1)]",
           leaving
             ? "scale-[0.992] opacity-0 blur-[7px] duration-[460ms]"
@@ -172,4 +193,10 @@ export function HowItWorks({ onDone }: { onDone: () => void }) {
       </p>
     </div>
   );
+
+  // `document` is guaranteed here — this only mounts on a click, long after
+  // hydration — but the guard costs nothing.
+  return typeof document === "undefined"
+    ? overlay
+    : createPortal(overlay, document.body);
 }

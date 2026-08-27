@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { Check } from "@/components/icons";
 import type { StruggleTag } from "@/lib/onboarding/session";
-import { FLOW_DISPLAY } from "@/lib/ui-presets";
+import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, ScrollPort } from "../chrome";
@@ -122,12 +122,23 @@ export function CelebrateScreen() {
           <Mascot pose="thumbs" size={330} className="-mb-4 shrink-0" />
 
           <div className="shrink-0 space-y-5 text-center">
-            <h1 className={cn(FLOW_DISPLAY, "text-balance")}>
-              Trackd&apos;s built to solve{" "}
-              <strong className="font-normal text-accent-amber">
-                exactly that
-              </strong>
-              .
+            {/* SMALL, CENTRED AND CAPITALISED (Adrian, 2026-08-27), where this
+                was a 2.5rem display headline.
+
+                It reads better as a caption to the answer list than as a
+                statement over it: the ticks below are the actual reply to what
+                they just told us, and type that size competed with them for the
+                same job.
+
+                The exclamation mark is his and is deliberate — "not a full
+                stop". */}
+            <h1
+              className={cn(
+                CARD_EYEBROW,
+                "text-[0.7rem] leading-relaxed text-foreground",
+              )}
+            >
+              Good news, we are built to solve exactly that!
             </h1>
 
             {/* Staggered so the answers arrive one at a time rather than as a

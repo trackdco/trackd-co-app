@@ -30,6 +30,16 @@ const nextConfig: NextConfig = {
   // Enumerated rather than widened to `172.*.*.*`, which would also grant the
   // public 172.0-15 and 172.32-255 space.
   allowedDevOrigins: [
+    // ⚠️ LOCALHOST IS NOT IMPLICIT ONCE YOU BIND TO 0.0.0.0.
+    //
+    // While the server binds to 127.0.0.1 these two are same-origin and need no
+    // entry, which is why the list went so long without them. Bind to 0.0.0.0
+    // to let a phone in — the entire reason this setting exists — and the
+    // origin no longer matches the bind host, so your OWN browser is refused
+    // and the page renders blank. Listing them costs nothing and removes a trap
+    // that only springs when someone does the thing this config is for.
+    "127.0.0.1",
+    "localhost",
     "192.168.*.*",
     "10.*.*.*",
     ...Array.from({ length: 16 }, (_, i) => `172.${16 + i}.*.*`),

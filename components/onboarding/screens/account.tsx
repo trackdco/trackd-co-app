@@ -3,7 +3,6 @@
 import { CircleNotch } from "@/components/icons";
 import { EmailPasswordForm } from "@/components/auth/email-password-form";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
-import { FLOW_EMPHASIS } from "@/lib/ui-presets";
 
 import { StepFrame } from "../chrome";
 import { useFlow } from "../flow-context";
@@ -98,12 +97,17 @@ export function AccountScreen() {
 
   return (
     <StepFrame
-      title={
-        <>
-          Make it <em className={FLOW_EMPHASIS}>yours</em>.
-        </>
-      }
-      sub="Right now this is a demo on one phone. Save it and it becomes your protocol, on every device, for as long as you want it."
+      // `pt-8` over the frame's own `pt-2`: the header pins to the top on a
+      // screen with a form under it, and against the top edge it read "way too
+      // high" on a handset (Adrian, 2026-08-27). `center` is not the fix — this
+      // screen has a real form beneath it, which is the case `center` is
+      // explicitly NOT for (see StepFrame).
+      className="pt-8"
+      title="Let's get you started."
+      // The demo/every-device pitch is gone: it argued the VALUE of an account
+      // on the screen that asks for one, which is the moment to say plainly
+      // what to do instead of selling again (Adrian, 2026-08-27).
+      sub="Create an account below and everything you've just set up is saved to it."
     >
       <div className="flex w-full flex-1 flex-col justify-center pb-4">
         <GoogleSignInButton next={AUTH_RETURN} />

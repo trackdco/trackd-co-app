@@ -100,12 +100,14 @@ export function HookScreen() {
           </div>
         </ScrollPort>
 
-        {/* LIFTED OFF THE BOTTOM SAFE AREA (Adrian, 2026-08-27). The CTA
-            normally parks where a thumb rests; he asked for the whole bottom
-            group to sit closer to the centre, which trades a little reach for
-            the composition. `max()` keeps it clear of the home indicator on a
-            handset that has one. */}
-        <footer className="shrink-0 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] [@media(min-height:760px)]:pb-[max(3.9rem,calc(env(safe-area-inset-bottom)+3.25rem))]">
+        {/* ⚠️ THE CTA SITS WHERE EVERY OTHER SCREEN'S DOES, and it was briefly
+            lifted ~62px off the safe area on Adrian's request before he saw it
+            on a handset and asked for it back (2026-08-27: "I actually want you
+            to put it back to how it originally was ... bring the button down to
+            where it always is on all the other ones"). It read fine on a laptop
+            and wrong on a phone, which is the only place this flow runs. The
+            standard inset is the house rule, and this screen is not special. */}
+        <footer className="shrink-0 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <FlowCta onClick={goNext}>Begin</FlowCta>
           <p className="text-center text-[0.7rem] leading-relaxed text-text-subtle">
             Paid plan. 18+ only.{" "}
